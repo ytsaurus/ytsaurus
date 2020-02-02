@@ -79,6 +79,13 @@ void TNode::TCellSlot::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, Cell);
     Persist(context, PeerState);
     Persist(context, PeerId);
+
+    if (context.GetVersion() >= EMasterReign::DynamicPeerCount) {
+        Persist(context, IsResponseKeeperWarmingUp);
+        Persist(context, PreloadPendingStoreCount);
+        Persist(context, PreloadCompletedStoreCount);
+        Persist(context, PreloadFailedStoreCount);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,6 +95,7 @@ TCellNodeStatistics& operator+=(TCellNodeStatistics& lhs, const TCellNodeStatist
     for (const auto& [mediumIndex, chunkReplicaCount] : rhs.ChunkReplicaCount) {
         lhs.ChunkReplicaCount[mediumIndex] += chunkReplicaCount;
     }
+    lhs.DestroyedChunkReplicaCount += rhs.DestroyedChunkReplicaCount;
     return lhs;
 }
 
@@ -102,6 +110,7 @@ void ToProto(
             mediumStatistics->set_chunk_replica_count(replicaCount);
         }
     }
+    protoStatistics->set_destroyed_chunk_replica_count(statistics.DestroyedChunkReplicaCount);
 }
 
 void FromProto(
@@ -114,6 +123,7 @@ void FromProto(
         auto replicaCount = mediumStatistics.chunk_replica_count();
         statistics->ChunkReplicaCount[mediumIndex] = replicaCount;
     }
+    statistics->DestroyedChunkReplicaCount = protoStatistics.destroyed_chunk_replica_count();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -347,17 +357,26 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, ResourceLimitsOverrides_);
     Save(context, Rack_);
     Save(context, LeaseTransaction_);
+    Save(context, DestroyedReplicas_);
 
-    // The format is:
-    //  (replicaCount, mediumIndex) pairs
-    //  0
-    for (const auto& [mediumIndex, replicas] : Replicas_) {
-        if (!replicas.empty()) {
+    // The is the replica statistics section; the format is as folows:
+    // (replicaCount, mediumIndex) for each medium with non-empty set of replicas
+    // 0
+    {
+        SmallVector<int, 8> mediumIndexes;
+        for (const auto& [mediumIndex, replicas] : Replicas_) {
+            if (!replicas.empty()) {
+                mediumIndexes.push_back(mediumIndex);
+            }
+        }
+        std::sort(mediumIndexes.begin(), mediumIndexes.end());
+        for (auto mediumIndex : mediumIndexes) {
+            const auto& replicas = GetOrCrash(Replicas_, mediumIndex);
             TSizeSerializer::Save(context, replicas.size());
             Save(context, mediumIndex);
         }
+        TSizeSerializer::Save(context, 0);
     }
-    TSizeSerializer::Save(context, 0);
 
     Save(context, UnapprovedReplicas_);
     Save(context, TabletSlots_);
@@ -403,6 +422,16 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, ResourceLimitsOverrides_);
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::DestroyedChunkRemoval) {
+        Load(context, DestroyedReplicas_);
+    }
+
+    // NB: This code does not load the replicas per se; it just
+    // reserves the appropriate hashtables. Once the snapshot is fully loaded,
+    // per-node replica sets get reconstructed from the inverse chunk-to-node mapping.
+    // Cf. TNode::Load.
     while (true) {
         auto replicaCount = TSizeSerializer::Load(context);
         if (replicaCount == 0) {
@@ -411,6 +440,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
         auto mediumIndex = Load<int>(context);
         ReserveReplicas(mediumIndex, replicaCount);
     }
+
     Load(context, UnapprovedReplicas_);
     Load(context, TabletSlots_);
 
@@ -507,6 +537,7 @@ void TNode::ClearReplicas()
     Replicas_.clear();
     UnapprovedReplicas_.clear();
     RandomReplicaIters_.clear();
+    DestroyedReplicas_.clear();
 }
 
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp)
@@ -530,6 +561,16 @@ void TNode::ApproveReplica(TChunkPtrWithIndexes replica)
         DoRemoveReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
         YT_VERIFY(DoAddReplica(replica));
     }
+}
+
+bool TNode::AddDestroyedReplica(const TChunkIdWithIndexes& replica)
+{
+    return DestroyedReplicas_.insert(ToRemovalKey(replica)).second;
+}
+
+bool TNode::RemoveDestroyedReplica(const TChunkIdWithIndexes& replica)
+{
+    return DestroyedReplicas_.erase(ToRemovalKey(replica)) > 0;
 }
 
 void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndexes& replica)
@@ -905,9 +946,9 @@ TCellNodeStatistics TNode::ComputeCellStatistics() const
 {
     TCellNodeStatistics result = TCellNodeStatistics();
     for (const auto& [mediumIndex, replicas] :  Replicas_) {
-        auto replicaCount = replicas.size();
-        result.ChunkReplicaCount[mediumIndex] = replicaCount;
+        result.ChunkReplicaCount[mediumIndex] = replicas.size();
     }
+    result.DestroyedChunkReplicaCount = DestroyedReplicas_.size();
     return result;
 }
 

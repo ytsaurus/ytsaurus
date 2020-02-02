@@ -124,6 +124,8 @@ TReadOnlyTabletCommandBase<
         .Optional();
     this->RegisterParameter("backup_request_delay", this->Options.BackupRequestDelay)
         .Optional();
+    this->RegisterParameter("timestamp", this->Options.Timestamp)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,7 +173,7 @@ TTimeoutCommandBase<
 template <class TOptions>
 TTabletReadCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletReadOptions&>>::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletTransactionOptions&>>::TType
 >::TTabletReadCommandBase()
 {
     this->RegisterParameter("transaction_id", this->Options.TransactionId)
@@ -181,7 +183,7 @@ TTabletReadCommandBase<
 template <class TOptions>
 NApi::IClientBasePtr TTabletReadCommandBase<
     TOptions,
-    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletReadOptions&>>::TType
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletTransactionOptions&>>::TType
 >::GetClientBase(ICommandContextPtr context)
 {
     auto transactionId = this->Options.TransactionId;
@@ -235,5 +237,18 @@ bool TTabletWriteCommandBase<
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <class TOptions>
+TSelectRowsCommandBase<
+    TOptions,
+    typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, NApi::TSelectRowsOptionsBase&>>::TType
+>::TSelectRowsCommandBase()
+{
+    this->RegisterParameter("udf_registry_path", this->Options.UdfRegistryPath)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NYT::NDriver

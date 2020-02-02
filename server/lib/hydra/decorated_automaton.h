@@ -6,7 +6,7 @@
 
 #include <yt/server/lib/election/public.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/client/hydra/version.h>
 
@@ -148,6 +148,9 @@ public:
     TVersion GetLoggedVersion() const;
     void SetLoggedVersion(TVersion version);
 
+    ui64 GetRandomSeed() const;
+    i64 GetSequenceNumber() const;
+
     void SetChangelog(IChangelogPtr changelog);
 
     int GetRecordCountSinceLastCheckpoint() const;
@@ -164,6 +167,8 @@ public:
     void LoadSnapshot(
         int snapshotId,
         TVersion version,
+        i64 sequenceNumber,
+        ui64 randomSeed,
         NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
 
     void ValidateSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
@@ -172,16 +177,44 @@ public:
 
     TFuture<TMutationResponse> TryBeginKeptRequest(const TMutationRequest& request);
 
-    const TMutationRequest& LogLeaderMutation(
-        TInstant commitStartTime,
-        TMutationRequest&& request,
-        TSharedRef* recordData,
-        TFuture<void>* localFlushResult,
-        TFuture<TMutationResponse>* commitResult);
+    struct TPendingMutation
+    {
+        TPendingMutation(
+            TVersion version,
+            TMutationRequest&& request,
+            TInstant timestamp,
+            ui64 randomSeed,
+            ui64 prevRandomSeed,
+            i64 sequenceNumber,
+            NTracing::TTraceContextPtr traceContext)
+            : Version(version)
+            , Request(request)
+            , Timestamp(timestamp)
+            , RandomSeed(randomSeed)
+            , PrevRandomSeed(prevRandomSeed)
+            , SequenceNumber(sequenceNumber)
+            , TraceContext(std::move(traceContext))
+        { }
 
-    void LogFollowerMutation(
+        TVersion Version;
+        TMutationRequest Request;
+        TInstant Timestamp;
+        ui64 RandomSeed;
+        ui64 PrevRandomSeed;
+        i64 SequenceNumber;
+        NTracing::TTraceContextPtr TraceContext;
+        TPromise<TMutationResponse> LocalCommitPromise = NewPromise<TMutationResponse>();
+    };
+
+    const TPendingMutation& LogLeaderMutation(
+        TInstant timestamp,
+        TMutationRequest&& request,
+        NTracing::TTraceContextPtr traceContext,
+        TSharedRef* recordData,
+        TFuture<void>* localFlushFuture);
+    const TPendingMutation& LogFollowerMutation(
         const TSharedRef& recordData,
-        TFuture<void>* localFlushResult);
+        TFuture<void>* localFlushFuture);
 
     TFuture<TRemoteSnapshotParams> BuildSnapshot();
 
@@ -227,6 +260,7 @@ private:
     TEpochContextPtr EpochContext_;
 
     IChangelogPtr Changelog_;
+    TFuture<IChangelogPtr> NextChangelogFuture_;
 
     int RecoveryRecordCount_ = 0;
     i64 RecoveryDataSize_ = 0;
@@ -238,6 +272,8 @@ private:
     std::atomic<TVersion> LoggedVersion_ = {};
     std::atomic<TVersion> AutomatonVersion_ = {};
     std::atomic<TVersion> CommittedVersion_ = {};
+    std::atomic<ui64> RandomSeed_ = {};
+    std::atomic<i64> SequenceNumber_ = {};
 
     bool RotatingChangelog_ = false;
 
@@ -248,27 +284,6 @@ private:
     TInstant LastSnapshotTime_;
     std::atomic<int> LastSuccessfulSnapshotId_ = -1;
 
-    struct TPendingMutation
-    {
-        TPendingMutation(
-            TVersion version,
-            TMutationRequest&& request,
-            TInstant timestamp,
-            ui64 randomSeed)
-            : Version(version)
-            , Request(std::move(request))
-            , Timestamp(timestamp)
-            , RandomSeed(randomSeed)
-            , CommitPromise(NewPromise<TMutationResponse>())
-        { }
-
-        TVersion Version;
-        TMutationRequest Request;
-        TInstant Timestamp;
-        ui64 RandomSeed;
-        TPromise<TMutationResponse> CommitPromise;
-    };
-
     NProto::TMutationHeader MutationHeader_; // pooled instance
     TRingQueue<TPendingMutation> PendingMutations_;
 
@@ -277,6 +292,8 @@ private:
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
 
+    ui64 GetLastLoggedRandomSeed() const;
+    i64 GetLastLoggedSequenceNumber() const;
 
     void RotateAutomatonVersionIfNeeded(TVersion mutationVersion);
     void DoApplyMutation(TMutationContext* context);
@@ -286,7 +303,7 @@ private:
     void AcquireSystemLock();
     void ReleaseSystemLock();
 
-    void CancelSnapshot();
+    void CancelSnapshot(const TError& error);
 
     void StartEpoch(TEpochContextPtr epochContext);
     void StopEpoch();

@@ -10,7 +10,7 @@
 
 #include <yt/core/ytree/public.h>
 
-#include <yt/core/misc/process.h>
+#include <yt/library/process/process.h>
 
 
 namespace NYT::NJobProxy {

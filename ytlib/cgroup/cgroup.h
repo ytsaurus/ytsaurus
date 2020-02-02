@@ -6,6 +6,8 @@
 
 #include <yt/core/yson/public.h>
 
+#include <yt/core/misc/property.h>
+
 #include <vector>
 
 namespace NYT::NCGroup {
@@ -29,6 +31,9 @@ class TNonOwningCGroup
     : private TNonCopyable
 {
 public:
+    DEFINE_BYREF_RO_PROPERTY(TString, FullPath);
+
+public:
     TNonOwningCGroup() = default;
     explicit TNonOwningCGroup(const TString& fullPath);
     TNonOwningCGroup(const TString& type, const TString& name);
@@ -42,6 +47,7 @@ public:
     bool Exists() const;
 
     std::vector<int> GetProcesses() const;
+    std::vector<int> GetTasks() const;
     const TString& GetFullPath() const;
 
     std::vector<TNonOwningCGroup> GetChildren() const;
@@ -75,8 +81,6 @@ protected:
         const TCallback<void(const TNonOwningCGroup&)>& postorderAction) const;
 
     TString GetPath(const TString& filename) const;
-
-    TString FullPath_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

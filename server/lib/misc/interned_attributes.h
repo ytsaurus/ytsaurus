@@ -13,8 +13,12 @@
     XX(ActionIds, action_ids) \
     XX(ActualTabletState, actual_tablet_state) \
     XX(Addresses, addresses) \
+    XX(AggressivePreemptionSatisfactionThreshold, aggressive_preemption_satisfaction_threshold) \
+    XX(AggressiveStarvationEnabled, aggressive_starvation_enabled) \
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \
+    XX(AllowedProfilingTags, allowed_profiling_tags) \
+    XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \
     XX(Annotation, annotation) \
     XX(AnnotationPath, annotation_path) \
     XX(Annotations, annotations) \
@@ -63,15 +67,18 @@
     XX(Confirmed, confirmed) \
     XX(ContentRevision, content_revision) \
     XX(CountByHealth, count_by_health) \
+    XX(CreateEphemeralSubpools, create_ephemeral_subpools) \
     XX(CreationTime, creation_time) \
     XX(CumulativeStatistics, cumulative_statistics) \
     XX(CurrentCommitRevision, current_commit_revision) \
     XX(CurrentMountTransactionId, current_mount_transaction_id) \
+    XX(CustomProfilingTagFilter, custom_profiling_tag_filter) \
     XX(DataCenter, data_center) \
     XX(DataWeight, data_weight) \
     XX(Deadline, deadline) \
     XX(Decommissioned, decommissioned) \
     XX(DecommissionedNodeCount, decommissioned_node_count) \
+    XX(DefaultParentPool, default_parent_pool) \
     XX(DependentTransactionIds, dependent_transaction_ids) \
     XX(DesiredTabletCount, desired_tablet_count) \
     XX(DesiredTabletSize, desired_tablet_size) \
@@ -85,14 +92,20 @@
     XX(DynamicOptions, dynamic_options) \
     XX(Eden, eden) \
     XX(EffectiveAcl, effective_acl) \
+    XX(EnableAggressiveStarvation, enable_aggressive_starvation) \
+    XX(EnableOperationsProfiling, enable_operations_profiling) \
+    XX(EnablePoolStarvation, enable_pool_starvation) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
+    XX(EnableSchedulingTags, enable_scheduling_tags) \
     XX(EntranceCellTag, entrance_cell_tag) \
     XX(EntranceNodeId, entrance_node_id) \
     XX(EphemeralRefCounter, ephemeral_ref_counter) \
+    XX(EphemeralSubpoolConfig, ephemeral_subpool_config) \
     XX(ErasureCodec, erasure_codec) \
     XX(ErasureStatistics, erasure_statistics) \
     XX(Error, error) \
+    XX(ErrorCount, error_count) \
     XX(Errors, errors) \
     XX(ErrorsUntrimmed, errors_untrimmed) \
     XX(EstimatedCreationTime, estimated_creation_time) \
@@ -109,16 +122,25 @@
     XX(ExternalCellTag, external_cell_tag) \
     XX(ExternalRequisitionIndexes, external_requisition_indexes) \
     XX(ExternalRequisitions, external_requisitions) \
+    XX(FairSharePreemptionTimeout, fair_share_preemption_timeout) \
+    XX(FairSharePreemptionTimeoutLimit, fair_share_preemption_timeout_limit) \
+    XX(FairShareStarvationTolerance, fair_share_starvation_tolerance) \
+    XX(FairShareStarvationToleranceLimit, fair_share_starvation_tolerance_limit) \
+    XX(FifoSortParameters, fifo_sort_parameters) \
     XX(FileName, file_name) \
     XX(FlushLagTime, flush_lag_time) \
     XX(FlushedRowCount, flushed_row_count) \
     XX(ForcedCompactionRevision, forced_compaction_revision) \
+    XX(ForbidImmediateOperations, forbid_immediate_operations) \
+    XX(ForbidImmediateOperationsInRoot, forbid_immediate_operations_in_root) \
     XX(Foreign, foreign) \
     XX(NativeCellTag, native_cell_tag) \
     XX(Freeze, freeze) \
     XX(Full, full) \
     XX(FullNodeCount, full_node_count) \
     XX(Health, health) \
+    XX(HeartbeatTreeSchedulingInfoLogPeriod, heartbeat_tree_scheduling_info_log_period) \
+    XX(HistoricUsageConfig, historic_usage_config) \
     XX(Id, id) \
     XX(Implicit, implicit) \
     XX(ImportRefCounter, import_ref_counter) \
@@ -126,9 +148,12 @@
     XX(ImportedObjectIds, imported_object_ids) \
     XX(InMemoryMode, in_memory_mode) \
     XX(Index, index) \
+    XX(InferChildrenWeightsFromHistoricUsage, infer_children_weights_from_historic_usage) \
+    XX(InferWeightFromMinShareRatioMultiplier, infer_weight_from_min_share_ratio_multiplier) \
     XX(InheritAcl, inherit_acl) \
     XX(IOWeights, io_weights) \
     XX(Job, job)                \
+    XX(JobCountPreemptionTimeoutCoefficient, job_count_preemption_timeout_coefficient)                \
     XX(KeepFinished, keep_finished) \
     XX(Key, key) \
     XX(KeyColumns, key_columns) \
@@ -150,11 +175,21 @@
     XX(LockedNodeIds, locked_node_ids) \
     XX(Locks, locks) \
     XX(LowerLimit, lower_limit) \
+    XX(MasterCacheNodes, master_cache_nodes) \
     XX(MasterMetaSize, master_meta_size) \
     XX(MaxBlockSize, max_block_size) \
+    XX(MaxChangelogId, max_changelog_id) \
+    XX(MaxEphemeralPoolsPerUser, max_ephemeral_pools_per_user) \
     XX(MaxKey, max_key) \
+    XX(MaxRunningOperationCount, max_running_operation_count) \
+    XX(MaxRunningOperationCountPerPool, max_running_operation_count_per_pool) \
+    XX(MaxOperationCount, max_operation_count) \
+    XX(MaxOperationCountPerPool, max_operation_count_per_pool) \
+    XX(MaxShareRatio, max_share_ratio) \
+    XX(MaxSnapshotId, max_snapshot_id) \
     XX(MaxTabletSize, max_tablet_size) \
     XX(MaxTimestamp, max_timestamp) \
+    XX(MaxUnpreemptableRunningJobCount, max_unpreemptable_running_job_count) \
     XX(MD5, md5) \
     XX(Media, media) \
     XX(MemberOf, member_of) \
@@ -162,6 +197,10 @@
     XX(Members, members) \
     XX(MetaSize, meta_size) \
     XX(MinKey, min_key) \
+    XX(MinSharePreemptionTimeoutLimit, min_share_preemption_timeout_limit) \
+    XX(MinSharePreemptionTimeout, min_share_preemption_timeout) \
+    XX(MinShareRatio, min_share_ratio) \
+    XX(MinShareResources, min_share_resources) \
     XX(MinTabletSize, min_tablet_size) \
     XX(MinTimestamp, min_timestamp) \
     XX(Mixed, mixed) \
@@ -178,7 +217,9 @@
     XX(NestedTransactionIds, nested_transaction_ids) \
     XX(NodeId, node_id) \
     XX(NodeTagFilter, node_tag_filter) \
+    XX(NodesFilter, nodes_filter) \
     XX(Nodes, nodes) \
+    XX(NonTentativeOperationTypes, non_tentative_operation_types) \
     XX(Offline, offline) \
     XX(OfflineNodeCount, offline_node_count) \
     XX(Online, online) \
@@ -190,13 +231,18 @@
     XX(Options, options) \
     XX(Owner, owner) \
     XX(OwningNodes, owning_nodes) \
+    XX(Packing, packing) \
     XX(ParentId, parent_id) \
     XX(ParentIds, parent_ids) \
+    XX(ParentName, parent_name) \
     XX(Path, path) \
+    XX(PeerCount, peer_count) \
     XX(Peers, peers) \
     XX(PerformanceCounters, performance_counters) \
     XX(PivotKey, pivot_key) \
     XX(PivotKeys, pivot_keys) \
+    XX(PreemptionSatisfactionThreshold, preemption_satisfaction_threshold) \
+    XX(PreemptiveSchedulingBackoff, preemptive_scheduling_backoff) \
     XX(PrerequisiteTransactionId, prerequisite_transaction_id) \
     XX(PrerequisiteTransactionIds, prerequisite_transaction_ids) \
     XX(PreserveTimestamps, preserve_timestamps) \
@@ -219,6 +265,7 @@
     XX(ReplicaPath, replica_path) \
     XX(Replicas, replicas) \
     XX(ReplicatedTableOptions, replicated_table_options) \
+    XX(ReplicationErrorCount, replication_error_count) \
     XX(ReplicationErrors, replication_errors) \
     XX(ReplicationFactor, replication_factor) \
     XX(ReplicationLagTime, replication_lag_time) \
@@ -233,6 +280,8 @@
     XX(Revision, revision) \
     XX(RowCount, row_count) \
     XX(ScanFlags, scan_flags) \
+    XX(SchedulingTag, scheduling_tag) \
+    XX(SchedulingTagFilter, scheduling_tag_filter) \
     XX(Schema, schema) \
     XX(SchemaDuplicateCount, schema_duplicate_count) \
     XX(SchemaMode, schema_mode) \
@@ -277,12 +326,15 @@
     XX(Tablets, tablets) \
     XX(Tags, tags) \
     XX(TargetPath, target_path) \
+    XX(TentativeTreeSaturationDeactivationPeriod, tentative_tree_saturation_deactivation_period) \
+    XX(ThresholdToEnableMaxPossibleUsageRegularization, threshold_to_enable_max_possible_usage_regularization) \
     XX(Timeout, timeout) \
     XX(Timestamp, timestamp) \
     XX(Title, title) \
     XX(TotalAccountStatistics, total_account_statistics) \
     XX(TotalCommittedResourceUsage, total_committed_resource_usage) \
     XX(TotalResourceLimits, total_resource_limits) \
+    XX(TotalResourceLimitsConsiderDelay, total_resource_limits_consider_delay) \
     XX(TotalResourceUsage, total_resource_usage) \
     XX(TotalStatistics, total_statistics) \
     XX(TransactionId, transaction_id) \
@@ -297,6 +349,7 @@
     XX(UnmergedRowCount, unmerged_row_count) \
     XX(Unregistered, unregistered) \
     XX(UpdateMode, update_mode) \
+    XX(UpdatePreemptableListDurationLoggingThreshold, update_preemptable_list_duration_logging_threshold) \
     XX(UpperLimit, upper_limit) \
     XX(UpstreamReplicaId, upstream_replica_id) \
     XX(UsableAccounts, usable_accounts) \
@@ -311,6 +364,7 @@
     XX(Version, version) \
     XX(ViolatedResourceLimits, violated_resource_limits) \
     XX(Vital, vital) \
+    XX(Weight, weight) \
     XX(WeakRefCounter, weak_ref_counter) \
     XX(WithAlertsNodeCount, with_alerts_node_count) \
     XX(WriteQuorum, write_quorum) \
@@ -320,26 +374,36 @@
     XX(RootNodeId, root_node_id) \
     XX(AccountStatistics, account_statistics) \
     XX(ResolveCached, resolve_cached) \
-    XX(Depth, depth)
+    XX(Depth, depth) \
+    XX(DestroyedChunkReplicaCount, destroyed_chunk_replica_count) \
 
 namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
 
 // Don't litter the namespace, yet at the same time make the "enum" items
-// implicitly castable to NYTree::TInternedAttributeKey (aka int).
-struct EInternedAttributeKey
+// implicitly castable to an integral type to switch() by.
+class EInternedAttributeKey
 {
-    enum : NYTree::TInternedAttributeKey
+    enum : size_t
     {
-        InvalidKey = NYTree::InvalidInternedAttribute,
+        InvalidKey__Code = size_t(NYTree::InvalidInternedAttribute),
+        Count__Code = size_t(NYTree::CountInternedAttribute),
 
-        Count = NYTree::CountInternedAttribute,
-
-#define XX(camelCaseName, snakeCaseName) camelCaseName,
+#define XX(camelCaseName, snakeCaseName) camelCaseName##__Code,
     FOR_EACH_INTERNED_ATTRIBUTE(XX)
 #undef XX
     };
+
+public:
+    static constexpr NYTree::TInternedAttributeKey InvalidKey = NYTree::InvalidInternedAttribute;
+    static constexpr NYTree::TInternedAttributeKey Count = NYTree::CountInternedAttribute;
+
+#define XX(camelCaseName, snakeCaseName) \
+    static constexpr NYTree::TInternedAttributeKey camelCaseName{camelCaseName##__Code};
+
+    FOR_EACH_INTERNED_ATTRIBUTE(XX)
+#undef XX
 };
 
 ////////////////////////////////////////////////////////////////////////////////

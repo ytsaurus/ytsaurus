@@ -183,6 +183,8 @@ void TCreateNodeCommand::DoExecute(ICommandContextPtr context)
 TCreateObjectCommand::TCreateObjectCommand()
 {
     RegisterParameter("type", Type);
+    RegisterParameter("ignore_existing", Options.IgnoreExisting)
+        .Optional();
     RegisterParameter("attributes", Attributes)
         .Optional();
 }

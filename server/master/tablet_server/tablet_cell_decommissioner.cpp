@@ -248,7 +248,8 @@ private:
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         for (const auto [actionId, action] : tabletManager->TabletActions()) {
             if (IsObjectAlive(action) &&
-                action->GetState() == ETabletActionState::Orphaned)
+                action->GetState() == ETabletActionState::Orphaned &&
+                action->GetTabletCellBundle()->Health() == ETabletCellHealth::Good)
             {
                 if (KickOrphansThrottler_->TryAcquire(1)) {
                     orphans.push_back(action->GetId());

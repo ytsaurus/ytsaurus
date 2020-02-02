@@ -23,6 +23,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_scraper.h>
+#include <yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
@@ -49,7 +50,7 @@
 
 #include <yt/ytlib/scheduler/helpers.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
@@ -78,6 +79,7 @@
 #include <yt/client/tablet_client/public.h>
 #include <yt/client/tablet_client/table_mount_cache.h>
 
+#include <yt/client/transaction_client/public.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/client/api/transaction.h>
@@ -85,7 +87,7 @@
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/misc/algorithm_helpers.h>
 #include <yt/core/misc/chunked_input_stream.h>
@@ -96,7 +98,7 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/numeric_helpers.h>
 
-#include <yt/core/re2/re2.h>
+#include <yt/library/re2/re2.h>
 
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/profiler.h>
@@ -104,6 +106,7 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/ytree/virtual.h>
+#include <yt/core/ytree/ypath_resolver.h>
 
 #include <util/generic/cast.h>
 #include <util/generic/vector.h>
@@ -151,6 +154,7 @@ using NTableClient::TTableReaderOptions;
 using NScheduler::TExecNodeDescriptor;
 using NScheduler::NProto::TSchedulerJobResultExt;
 using NScheduler::NProto::TSchedulerJobSpecExt;
+using NTabletNode::DefaultMaxOverlappingStoreCount;
 
 using std::placeholders::_1;
 
@@ -1103,8 +1107,12 @@ void TOperationControllerBase::StartTransactions()
         StartTransaction(ETransactionType::Debug, Client),
     };
 
+    THashMap<TTransactionId, int> inputTransactionIdToResultIndex;
     for (auto transactionId : GetNonTrivialInputTransactionIds()) {
-        asyncResults.push_back(StartTransaction(ETransactionType::Input, InputClient, transactionId));
+        if (inputTransactionIdToResultIndex.find(transactionId) == inputTransactionIdToResultIndex.end()) {
+            inputTransactionIdToResultIndex[transactionId] = asyncResults.size();
+            asyncResults.push_back(StartTransaction(ETransactionType::Input, InputClient, transactionId));
+        }
     }
 
     auto results = WaitFor(CombineAll(asyncResults))
@@ -1115,8 +1123,8 @@ void TOperationControllerBase::StartTransactions()
         InputTransaction = results[1].ValueOrThrow();
         OutputTransaction = results[2].ValueOrThrow();
         DebugTransaction = results[3].ValueOrThrow();
-        for (int index = 4; index < results.size(); ++index) {
-            NestedInputTransactions.push_back(results[index].ValueOrThrow());
+        for (auto transactionId : GetNonTrivialInputTransactionIds()) {
+            NestedInputTransactions.push_back(results[inputTransactionIdToResultIndex[transactionId]].ValueOrThrow());
         }
     }
 }
@@ -1301,6 +1309,7 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
     IntermediateChunkScraper = New<TIntermediateChunkScraper>(
         Config->ChunkScraper,
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        CancelableInvokerPool,
         Host->GetChunkLocationThrottlerManager(),
         InputClient,
         InputNodeDirectory_,
@@ -1641,13 +1650,17 @@ void TOperationControllerBase::SafeCommit()
     SleepInCommitStage(EDelayInsideOperationCommitStage::Stage6);
     CommitTransactions();
 
-    CancelableContext->Cancel();
+    CancelableContext->Cancel(TError("Operation committed"));
 
     YT_LOG_INFO("Results committed");
 }
 
 void TOperationControllerBase::LockOutputDynamicTables()
 {
+    if (Spec_->Atomicity == EAtomicity::None) {
+        return;
+    }
+
     THashMap<TCellTag, std::vector<TOutputTablePtr>> externalCellTagToTables;
     for (const auto& table : UpdatingTables_) {
         if (table->Dynamic) {
@@ -1993,14 +2006,14 @@ void TOperationControllerBase::AttachOutputChunks(const std::vector<TOutputTable
                     auto& minKey = chunk->BoundaryKeys()->MinKey;
                     auto& maxKey = chunk->BoundaryKeys()->MaxKey;
 
-                    auto start = LowerBound(0, tabletChunks.size(), [&] (size_t index) {
+                    auto start = BinarySearch(0, tabletChunks.size(), [&] (size_t index) {
                         return CompareRows(table->PivotKeys[index], minKey) <= 0;
                     });
                     if (start > 0) {
                         --start;
                     }
 
-                    auto end = LowerBound(0, tabletChunks.size() - 1, [&] (size_t index) {
+                    auto end = BinarySearch(0, tabletChunks.size() - 1, [&] (size_t index) {
                         return CompareRows(table->PivotKeys[index], maxKey) <= 0;
                     });
 
@@ -2101,6 +2114,12 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@part_size");
                     SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
                     req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
+                    batchReq->AddRequest(req);
+                }
+                if (table->OutputType == EOutputTableType::Core && GetWriteSparseCoreDumps()) {
+                    auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@sparse");
+                    SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
+                    req->set_value(ConvertToYsonString(true).GetData());
                     batchReq->AddRequest(req);
                 }
             }
@@ -2531,8 +2550,12 @@ void TOperationControllerBase::SafeOnJobAborted(std::unique_ptr<TAbortedJobSumma
 
     if (jobSummary->LogAndProfile) {
         FinalizeJoblet(joblet, jobSummary.get());
-        LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
+        auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, joblet, *jobSummary)
             .Item("reason").Value(abortReason);
+        if (jobSummary->PreemptedFor) {
+            fluent
+                .Item("preempted_for").Value(jobSummary->PreemptedFor);
+        }
         UpdateJobStatistics(joblet, *jobSummary);
     }
 
@@ -2687,7 +2710,8 @@ void TOperationControllerBase::BuildJobAttributes(
             fluent.Item("statistics")
                 .Value(job->StatisticsYson ? job->StatisticsYson : EmptyMapYson);
         })
-        .Item("suspicious").Value(job->Suspicious);
+        .Item("suspicious").Value(job->Suspicious)
+        .Item("job_competition_id").Value(job->JobCompetitionId);
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
@@ -2735,7 +2759,8 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("statistics").Value(jobSummary.Statistics)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
-        .Item("job_type").Value(joblet->JobType);
+        .Item("job_type").Value(joblet->JobType)
+        .Item("job_competition_id").Value(joblet->JobCompetitionId);
 }
 
 IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
@@ -3269,15 +3294,15 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
         return;
     }
 
-    THashMap<EJobType, std::vector<std::optional<i64>>> maximumUsedTmpfsSizesPerJobType;
-    THashMap<EJobType, TUserJobSpecPtr> userJobSpecPerJobType;
+    THashMap<TString, std::vector<std::optional<i64>>> maximumUsedTmpfsSizesPerJobType;
+    THashMap<TString, TUserJobSpecPtr> userJobSpecPerJobType;
 
     for (const auto& task : Tasks) {
         if (!task->IsSimpleTask()) {
             continue;
         }
 
-        auto jobType = task->GetJobType();
+        auto jobType = task->GetVertexDescriptor();
         const auto& userJobSpecPtr = task->GetUserJobSpec();
         if (!userJobSpecPtr) {
             continue;
@@ -3294,6 +3319,8 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
             it = maximumUsedTmpfsSizesPerJobType.emplace(jobType, std::vector<std::optional<i64>>(maxUsedTmpfsSizes.size())).first;
         }
         auto& knownMaxUsedTmpfsSizes = it->second;
+
+        YT_VERIFY(knownMaxUsedTmpfsSizes.size() == maxUsedTmpfsSizes.size());
 
         for (int index = 0; index < maxUsedTmpfsSizes.size(); ++index) {
             auto tmpfsSize = maxUsedTmpfsSizes[index];
@@ -4236,7 +4263,7 @@ void TOperationControllerBase::Cancel()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    CancelableContext->Cancel();
+    CancelableContext->Cancel(TError("Operation controller canceled"));
 
     YT_LOG_INFO("Operation controller canceled");
 }
@@ -4867,6 +4894,27 @@ void TOperationControllerBase::FetchInputTables()
         InputClient,
         Logger);
 
+    auto chunkSpecFetcher = New<TChunkSpecFetcher>(
+        InputClient,
+        InputNodeDirectory_,
+        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        Config->MaxChunksPerFetch,
+        Config->MaxChunksPerLocateRequest,
+        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int tableIndex) {
+            const auto& table = InputTables_[tableIndex];
+            req->set_fetch_all_meta_extensions(false);
+            req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+            if (table->Dynamic || IsBoundaryKeysFetchEnabled()) {
+                req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
+            }
+            // NB: we always fetch parity replicas since
+            // erasure reader can repair data on flight.
+            req->set_fetch_parity_replicas(true);
+            AddCellTagToSyncWith(req, table->ObjectId);
+            SetTransactionId(req, table->ExternalTransactionId);
+        },
+        Logger);
+
     // We fetch columnar statistics only for the tables that have column selectors specified.
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables_.size()); ++tableIndex) {
         auto& table = InputTables_[tableIndex];
@@ -4912,56 +4960,49 @@ void TOperationControllerBase::FetchInputTables()
                 << TErrorAttribute("table_path", table->Path);
         }
 
-        YT_LOG_INFO("Fetching input table (Path: %v, RangeCount: %v, InferredRangeCount: %v, HasColumnSelectors: %v)",
+        YT_LOG_INFO("Adding input table for fetch (Path: %v, RangeCount: %v, InferredRangeCount: %v, HasColumnSelectors: %v)",
             table->GetPath(),
             originalRangeCount,
             ranges.size(),
             hasColumnSelectors);
 
-        auto chunkSpecs = FetchChunkSpecs(
-            InputClient,
-            InputNodeDirectory_,
-            *table,
-            ranges,
-            table->ChunkCount,
-            Config->MaxChunksPerFetch,
-            Config->MaxChunksPerLocateRequest,
-            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
-                req->set_fetch_all_meta_extensions(false);
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                if (table->Dynamic || IsBoundaryKeysFetchEnabled()) {
-                    req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
-                }
-                // NB: we always fetch parity replicas since
-                // erasure reader can repair data on flight.
-                req->set_fetch_parity_replicas(true);
-                AddCellTagToSyncWith(req, table->ObjectId);
-                SetTransactionId(req, table->ExternalTransactionId);
-            },
-            Logger);
+        chunkSpecFetcher->Add(
+            table->ObjectId,
+            table->ExternalCellTag,
+            table->Dynamic && !table->Schema.IsSorted() ? -1 : table->ChunkCount,
+            tableIndex,
+            ranges);
+    }
 
-        for (const auto& chunkSpec : chunkSpecs) {
-            auto inputChunk = New<TInputChunk>(chunkSpec);
-            inputChunk->SetTableIndex(tableIndex);
-            inputChunk->SetChunkIndex(totalChunkCount++);
+    YT_LOG_INFO("Fetching input tables");
 
-            if (inputChunk->GetRowCount() > 0) {
-                // Input chunks may have zero row count in case of unsensible read range with coinciding
-                // lower and upper row index. We skip such chunks.
-                table->Chunks.emplace_back(inputChunk);
-                for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
-                    totalExtensionSize += extension.data().size();
-                }
-                RegisterInputChunk(table->Chunks.back());
-                if (hasColumnSelectors && Spec_->UseColumnarStatistics) {
-                    columnarStatisticsFetcher->AddChunk(inputChunk, *table->Path.GetColumns());
-                }
+    WaitFor(chunkSpecFetcher->Fetch())
+        .ThrowOnError();
+
+    YT_LOG_INFO("Input tables fetched");
+
+    for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
+        int tableIndex = chunkSpec.table_index();
+        auto& table = InputTables_[tableIndex];
+
+        auto inputChunk = New<TInputChunk>(chunkSpec);
+        inputChunk->SetTableIndex(tableIndex);
+        inputChunk->SetChunkIndex(totalChunkCount++);
+
+        if (inputChunk->GetRowCount() > 0) {
+            // Input chunks may have zero row count in case of unsensible read range with coinciding
+            // lower and upper row index. We skip such chunks.
+            table->Chunks.emplace_back(inputChunk);
+            for (const auto& extension : chunkSpec.chunk_meta().extensions().extensions()) {
+                totalExtensionSize += extension.data().size();
+            }
+            RegisterInputChunk(table->Chunks.back());
+
+            auto hasColumnSelectors = table->Path.GetColumns().operator bool();
+            if (hasColumnSelectors && Spec_->UseColumnarStatistics) {
+                columnarStatisticsFetcher->AddChunk(inputChunk, *table->Path.GetColumns());
             }
         }
-
-        YT_LOG_INFO("Input table fetched (Path: %v, ChunkCount: %v)",
-            table->GetPath(),
-            table->Chunks.size());
     }
 
     if (columnarStatisticsFetcher->GetChunkCount() > 0) {
@@ -5220,14 +5261,36 @@ void TOperationControllerBase::GetOutputTablesSchema()
             0); // Here we assume zero row count, we will do additional check later.
 
         if (table->Dynamic) {
-            if (table->TableUploadOptions.UpdateMode != EUpdateMode::Append) {
-                THROW_ERROR_EXCEPTION("Dynamic table can be updated only in update mode")
-                    << TErrorAttribute("table_path", path);
-            }
-
             if (!table->TableUploadOptions.TableSchema.IsSorted()) {
                 THROW_ERROR_EXCEPTION("Only sorted dynamic table can be updated")
                     << TErrorAttribute("table_path", path);
+            }
+
+            // Check if bulk insert is enabled for a certain user.
+            if (!Config->EnableBulkInsertForEveryone) {
+                auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
+                TObjectServiceProxy proxy(channel);
+                auto batchReq = proxy.ExecuteBatch();
+
+                auto req = TYPathProxy::Get("//sys/users/" + ToYPathLiteral(AuthenticatedUser) + "/@");
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                    "enable_bulk_insert"
+                });
+                batchReq->AddRequest(req);
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(
+                    GetCumulativeError(batchRspOrError),
+                    "Failed to check if bulk insert is enabled");
+                const auto& batchRsp = batchRspOrError.Value();
+
+                const auto& rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
+                const auto& rsp = rspOrError.Value();
+                auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+                if (!attributes->Get<bool>("enable_bulk_insert", false)) {
+                    THROW_ERROR_EXCEPTION("Bulk insert is disabled for user %Qv, contact yt-admin@ for enabling",
+                        AuthenticatedUser);
+                }
             }
         }
 
@@ -5361,6 +5424,9 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 "vital",
                 "enable_skynet_sharing",
                 "tablet_state",
+                "atomicity",
+                "tablet_statistics",
+                "max_overlapping_store_count",
             });
             SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
             batchReq->AddRequest(req);
@@ -5393,6 +5459,35 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     THROW_ERROR_EXCEPTION(
                         "Operations with output to dynamic tables cannot be run under user transaction")
                         << TErrorAttribute("user_transaction_id", UserTransactionId);
+                }
+
+                auto atomicity = attributes->Get<EAtomicity>("atomicity");
+                if (atomicity != Spec_->Atomicity) {
+                    THROW_ERROR_EXCEPTION("Output table %v atomicity %Qv does not match spec atomicity %Qv",
+                        path,
+                        atomicity,
+                        Spec_->Atomicity);
+                }
+
+                if (table->TableUploadOptions.UpdateMode == EUpdateMode::Append) {
+                    auto overlappingStoreCount = TryGetInt64(
+                        attributes->GetYson("tablet_statistics").GetData(),
+                        "/overlapping_store_count");
+                    if (!overlappingStoreCount) {
+                        THROW_ERROR_EXCEPTION("Output table %v does not have @tablet_statistics/overlapping_store_count attribute",
+                            path);
+                    }
+                    auto maxOverlappingStoreCount = attributes->Get<int>(
+                        "max_overlapping_store_count",
+                        DefaultMaxOverlappingStoreCount);
+
+                    if (*overlappingStoreCount >= maxOverlappingStoreCount) {
+                        THROW_ERROR_EXCEPTION(
+                            "Cannot write to output table %v since overlapping store count limit is exceeded",
+                            path)
+                            << TErrorAttribute("overlapping_store_count", *overlappingStoreCount)
+                            << TErrorAttribute("max_overlapping_store_count", maxOverlappingStoreCount);
+                    }
                 }
             }
 
@@ -5541,97 +5636,72 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
     }
 }
 
-void TOperationControllerBase::DoFetchUserFiles(const TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files)
-{
-    for (auto& file : files) {
-        auto Logger = TLogger(this->Logger)
-            .AddTag("Path: %v, TaskTitle: %v",
-                file.Path.GetPath(),
-                userJobSpec->TaskTitle);
-
-        YT_LOG_INFO("Fetching user file");
-
-        switch (file.Type) {
-            case EObjectType::Table:
-                file.ChunkSpecs = FetchChunkSpecs(
-                    InputClient,
-                    InputNodeDirectory_,
-                    file,
-                    file.Path.GetRanges(),
-                    file.ChunkCount,
-                    Config->MaxChunksPerFetch,
-                    Config->MaxChunksPerLocateRequest,
-                    [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
-                        req->set_fetch_all_meta_extensions(false);
-                        req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                        if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
-                            req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
-                        }
-                        // NB: we always fetch parity replicas since
-                        // erasure reader can repair data on flight.
-                        req->set_fetch_parity_replicas(true);
-                        AddCellTagToSyncWith(req, file.ObjectId);
-                        SetTransactionId(req, file.ExternalTransactionId);
-                    },
-                    Logger);
-
-                break;
-
-            case EObjectType::File: {
-                // TODO(max42): use FetchChunkSpecs here.
-                auto channel = InputClient->GetMasterChannelOrThrow(
-                    EMasterChannelKind::Follower,
-                    file.ExternalCellTag);
-                TObjectServiceProxy proxy(channel);
-
-                auto batchReq = proxy.ExecuteBatch();
-
-                auto req = TFileYPathProxy::Fetch(file.GetObjectIdPath());
-                AddCellTagToSyncWith(req, file.ObjectId);
-                ToProto(req->mutable_ranges(), std::vector<TReadRange>({TReadRange()}));
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                AddCellTagToSyncWith(req, file.ObjectId);
-                SetTransactionId(req, file.ExternalTransactionId);
-                batchReq->AddRequest(req);
-
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching user file %v",
-                     file.GetPath());
-                const auto& batchRsp = batchRspOrError.Value();
-
-                auto rsp = batchRsp->GetResponse<TFileYPathProxy::TRspFetch>(0).Value();
-                ProcessFetchResponse(
-                    InputClient,
-                    rsp,
-                    file.ExternalCellTag,
-                    nullptr,
-                    Config->MaxChunksPerLocateRequest,
-                    std::nullopt,
-                    Logger,
-                    &file.ChunkSpecs);
-
-                break;
-            }
-
-            default:
-                YT_ABORT();
-        }
-
-        YT_LOG_INFO("User file fetched (FileName: %v)",
-            file.FileName);
-    }
-}
-
 void TOperationControllerBase::FetchUserFiles()
 {
+    std::vector<TUserFile*> userFiles;
+
+    auto chunkSpecFetcher = New<TChunkSpecFetcher>(
+        InputClient,
+        InputNodeDirectory_,
+        CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
+        Config->MaxChunksPerFetch,
+        Config->MaxChunksPerLocateRequest,
+        [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int fileIndex) {
+            const auto& file = *userFiles[fileIndex];
+            req->set_fetch_all_meta_extensions(false);
+            req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+            if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
+                req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
+            }
+            // NB: we always fetch parity replicas since
+            // erasure reader can repair data on flight.
+            req->set_fetch_parity_replicas(true);
+            AddCellTagToSyncWith(req, file.ObjectId);
+            SetTransactionId(req, file.ExternalTransactionId);
+        },
+        Logger);
+
     for (auto& [userJobSpec, files] : UserJobFiles_) {
-        try {
-            DoFetchUserFiles(userJobSpec, files);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error fetching user files")
-                << TErrorAttribute("task_title", userJobSpec->TaskTitle)
-                << ex;
+        for (auto& file : files) {
+            int fileIndex = userFiles.size();
+            userFiles.push_back(&file);
+
+            YT_LOG_INFO("Adding user file for fetch (Path: %v, TaskTitle: %v)",
+                file.Path,
+                userJobSpec->TaskTitle);
+
+            std::vector<TReadRange> readRanges;
+            if (file.Type == EObjectType::Table) {
+                readRanges = file.Path.GetRanges();
+            } else if (file.Type == EObjectType::File) {
+                readRanges = {TReadRange()};
+            } else {
+                YT_ABORT();
+            }
+
+            chunkSpecFetcher->Add(
+                file.ObjectId,
+                file.ExternalCellTag,
+                file.ChunkCount,
+                fileIndex,
+                readRanges);
         }
+    }
+
+    YT_LOG_INFO("Fetching user files");
+
+    WaitFor(chunkSpecFetcher->Fetch())
+        .ThrowOnError();
+
+    YT_LOG_INFO("User files fetched (ChunkCount: %v)",
+        chunkSpecFetcher->ChunkSpecs().size());
+
+    for (auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
+        // NB(gritukan): all user files chunks should have table_index = 0.
+        int tableIndex = chunkSpec.table_index();
+        chunkSpec.set_table_index(0);
+
+        userFiles[tableIndex]->ChunkSpecs.push_back(chunkSpec);
     }
 }
 
@@ -6197,7 +6267,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
             auto fetcher = New<TDataSliceFetcher>(
                 Config->Fetcher,
                 sliceSize,
-                table->Schema.GetKeyColumns(),
+                table->Schema.GetKeyColumns().size(),
                 true,
                 InputNodeDirectory_,
                 GetCancelableInvoker(),
@@ -7727,6 +7797,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_network_project_id(ConvertTo<ui32>(getRspOrError.ValueOrThrow()));
     }
 
+    jobSpec->set_write_sparse_core_dumps(GetWriteSparseCoreDumps());
+
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {
             jobSpec->add_environment(Format("%v=%v", key, value));
@@ -7771,6 +7843,7 @@ void TOperationControllerBase::InitUserJobSpec(
     jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
     jobSpec->add_environment(Format("YT_TASK_JOB_INDEX=%v", joblet->TaskJobIndex));
     jobSpec->add_environment(Format("YT_JOB_ID=%v", joblet->JobId));
+    jobSpec->add_environment(Format("YT_JOB_COOKIE=%v", joblet->OutputCookie));
     if (joblet->StartRowIndex >= 0) {
         jobSpec->add_environment(Format("YT_START_ROW_INDEX=%v", joblet->StartRowIndex));
     }
@@ -7883,6 +7956,7 @@ NTableClient::TTableReaderOptionsPtr TOperationControllerBase::CreateTableReader
     options->EnableRowIndex = ioConfig->ControlAttributes->EnableRowIndex;
     options->EnableTableIndex = ioConfig->ControlAttributes->EnableTableIndex;
     options->EnableRangeIndex = ioConfig->ControlAttributes->EnableRangeIndex;
+    options->EnableTabletIndex = ioConfig->ControlAttributes->EnableTabletIndex;
     return options;
 }
 
@@ -8211,6 +8285,11 @@ TBlobTableWriterConfigPtr TOperationControllerBase::GetCoreTableWriterConfig() c
 std::optional<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
 {
     return std::nullopt;
+}
+
+bool TOperationControllerBase::GetWriteSparseCoreDumps() const
+{
+    return false;
 }
 
 void TOperationControllerBase::OnChunksReleased(int /* chunkCount */)

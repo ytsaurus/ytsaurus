@@ -402,7 +402,7 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Request accepted (RequestId: %v, Host: %v, Method: %v:%v, User: %v, PeerAddress: %v, Timeout: %v, ProtocolVersion: %v)",
+            YT_LOG_DEBUG("Request accepted (RequestId: %v, Host: %v, Method: %v.%v, User: %v, PeerAddress: %v, Timeout: %v, ProtocolVersion: %v)",
                 RequestId_,
                 ToStringBuf(CallDetails_->host),
                 ServiceName_,

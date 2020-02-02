@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, unix_only, wait, require_enabled_core_dump, \
     patch_porto_env_only, skip_if_porto, is_asan_build, \
-    Restarter, SCHEDULERS_SERVICE
+    Restarter, SCHEDULERS_SERVICE, get_porto_delta_node_config
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
@@ -15,20 +15,6 @@ import subprocess
 import time
 import threading
 from multiprocessing import Queue
-
-##################################################################
-
-porto_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            "enforce_job_control": True,
-            "job_environment" : {
-                # >= 19.2
-                "type" : "porto",
-            },
-        }
-    }
-}
 
 ##################################################################
 
@@ -115,7 +101,7 @@ class TestStderrTable(YTEnvSetup):
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command=with_breakpoint("""BREAKPOINT ; echo GG >&2 ; cat"""),
-            dont_track=True,
+            track=False,
             spec={
                 "stderr_table_path": "//tmp/t_stderr",
                 "job_count": 2,
@@ -416,7 +402,7 @@ class TestStderrTable(YTEnvSetup):
         write_table("<append=%true>//tmp/t_input", [{"key": "complete_while_scheduler_dead   "}])
 
         op = map(
-            dont_track=True,
+            track=False,
             command=(
                 "cat > input\n"
 
@@ -551,7 +537,7 @@ class TestCoreTable(YTEnvSetup):
     # In order to find out the correspondence between job id and user id,
     # We create a special file in self.JOB_PROXY_UDS_NAME_DIR where we put
     # the user id and job id.
-    def _start_operation(self, job_count, max_failed_job_count=5, kill_self=False):
+    def _start_operation(self, job_count, max_failed_job_count=5, kill_self=False, sparse_core_dumps=False):
         cookie = random_cookie()
 
         correspondence_file_path = os.path.join(self.JOB_PROXY_UDS_NAME_DIR, cookie)
@@ -566,7 +552,7 @@ class TestCoreTable(YTEnvSetup):
             command += "kill -ABRT $$ ;"
 
         op = vanilla(
-            dont_track=True,
+            track=False,
             spec={
                 "tasks": {
                     "main": {
@@ -575,6 +561,7 @@ class TestCoreTable(YTEnvSetup):
                     }
                 },
                 "core_table_path": self.CORE_TABLE,
+                "write_sparse_core_dumps": sparse_core_dumps,
                 "max_failed_job_count": max_failed_job_count
             })
 
@@ -651,6 +638,25 @@ class TestCoreTable(YTEnvSetup):
                 content[row["job_id"]].append("")
             content[row["job_id"]][row["core_id"]] += row["data"]
         return content
+
+    def _decompress_sparse_core_dump(self, core_dump):
+        PAGE_SIZE = 65536
+        UINT64_LENGTH = 8
+
+        result = ""
+        ptr = 0
+        while ptr < len(core_dump):
+            if core_dump[ptr] == "1":
+                result += core_dump[ptr+1:ptr+1+PAGE_SIZE]
+            else:
+                assert core_dump[ptr] == "0"
+                zeroes = 0
+                for idx in xrange(ptr + 1 + UINT64_LENGTH, ptr, -1):
+                    zeroes = 256 * zeroes + ord(core_dump[idx])
+                result += "\0" * zeroes
+            ptr += PAGE_SIZE + 1
+
+        return result
 
     @authors("max42")
     @skip_if_porto
@@ -945,9 +951,52 @@ class TestCoreTable(YTEnvSetup):
         filtered_job_with_core = [job for job in jobs if job["id"] == job_id][0]
         assert filtered_job_with_core["core_infos"] == [ret_dict["core_info"]]
 
+    @authors("gritukan")
+    @skip_if_porto
+    @unix_only
+    def test_sparse_core_dump(self):
+        op, correspondence_file_path = self._start_operation(2, sparse_core_dumps=True)
+        job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
+
+        job_id, uid = job_id_to_uid.items()[0]
+        ret_dict = {}
+        t = self._send_core(uid, "user_process", 42, ["abc" * 12345 + "\0" * 54321 + "abc" * 17424], ret_dict)
+        t.join()
+        assert ret_dict["return_code"] == 0
+
+        release_breakpoint()
+        op.track()
+
+        assert get(self.CORE_TABLE + "/@sparse") == True
+        assert self._get_core_infos(op) == {job_id: [ret_dict["core_info"]]}
+        assert self._decompress_sparse_core_dump(self._get_core_table_content()[job_id][0]) == ret_dict["core_data"]
+
+    @authors("gritukan")
+    @skip_if_porto
+    @unix_only
+    def test_sparse_compression_rate_on_sparse_core_dump(self):
+        op, correspondence_file_path = self._start_operation(2, sparse_core_dumps=True)
+        job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
+
+        job_id, uid = job_id_to_uid.items()[0]
+        ret_dict = {}
+        t = self._send_core(uid, "user_process", 42, ["\0" * 10**6], ret_dict)
+        t.join()
+        assert ret_dict["return_code"] == 0
+
+        release_breakpoint()
+        op.track()
+
+        assert get(self.CORE_TABLE + "/@sparse") == True
+        assert self._get_core_infos(op) == {job_id: [ret_dict["core_info"]]}
+        sparse_core_dump = self._get_core_table_content()[job_id][0]
+        assert len(sparse_core_dump) == 65537
+        assert len(ret_dict["core_data"]) == 10**6
+        assert self._decompress_sparse_core_dump(sparse_core_dump) == ret_dict["core_data"]
+
 @patch_porto_env_only(TestCoreTable)
 class TestCoreTablePorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 

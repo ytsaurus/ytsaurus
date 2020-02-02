@@ -25,9 +25,8 @@ TCachedDiscovery::TCachedDiscovery(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCliqueCache::TCliqueCache(TCliqueCacheConfigPtr config)
-    // TODO(dakovalkov): Set up the profiler.
-    : TAsyncSlruCacheBase(config->CacheBase)
+TCliqueCache::TCliqueCache(TCliqueCacheConfigPtr config, const NProfiling::TProfiler& profiler)
+    : TAsyncSlruCacheBase(config->CacheBase, profiler)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

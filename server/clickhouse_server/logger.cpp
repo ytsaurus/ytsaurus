@@ -1,6 +1,6 @@
 #include "logger.h"
 
-#include "logger.h"
+#include "helpers.h"
 
 #include <yt/core/logging/log.h>
 #include <yt/core/profiling/timing.h>
@@ -30,7 +30,7 @@ public:
         NLogging::TLogEvent event;
         event.Category = Logger.GetCategory();
         event.Level = GetLogLevel(message.getPriority());
-        event.Message = TSharedRef::FromString(TString(message.getText()));
+        event.Message = TSharedRef::FromString(MaybeTruncateSubquery(TString(message.getText())));
         event.Instant = GetCpuInstant();
         event.ThreadId = TThread::CurrentThreadId();
 

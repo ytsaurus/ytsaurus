@@ -99,11 +99,23 @@ using TOperationAlertMap = SmallDenseMap<
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EUnschedulableReason,
+    (IsNotRunning)
+    (Suspended)
+    (NoPendingJobs)
+
+    // NB(eshcherbin): This is not exactly an "unschedulable" reason, but it is
+    // reasonable in our architecture to put it here anyway.
+    (MaxScheduleJobCallsViolated)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IOperationStrategyHost
 {
     virtual EOperationType GetType() const = 0;
 
-    virtual bool IsSchedulable() const = 0;
+    virtual std::optional<EUnschedulableReason> CheckUnschedulable() const = 0;
 
     virtual TInstant GetStartTime() const = 0;
 
@@ -280,8 +292,8 @@ public:
     //! Delegates to #NYT::NScheduler::IsOperationFinishing.
     bool IsFinishingState() const;
 
-    //! Checks whether current operation state allows starting new jobs.
-    bool IsSchedulable() const override;
+    //! Checks whether current operation state doesn't allow starting new jobs.
+    std::optional<EUnschedulableReason> CheckUnschedulable() const override;
 
     virtual IOperationControllerStrategyHostPtr GetControllerStrategyHost() const override;
 
@@ -309,10 +321,10 @@ public:
     const IInvokerPtr& GetCancelableControlInvoker();
 
     //! Cancels the context of the invoker returned by #GetCancelableControlInvoker.
-    void Cancel();
+    void Cancel(const TError& error);
 
     //! Invokes #Cancel and then recreates the context and the invoker.
-    void Restart();
+    void Restart(const TError& error);
 
     //! Builds operation result as YSON string.
     NYson::TYsonString BuildResultString() const;

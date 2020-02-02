@@ -9,10 +9,10 @@
 
 #include <yt/server/master/security_server/cluster_resources.h>
 
-#include <yt/ytlib/chunk_client/chunk_info.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/format.h>
@@ -33,6 +33,8 @@ struct TChunkExportData
 };
 
 static_assert(sizeof(TChunkExportData) == 8, "sizeof(TChunkExportData) != 8");
+
+using TChunkExportDataList = std::array<TChunkExportData, NObjectClient::MaxSecondaryMasterCells>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -288,8 +290,7 @@ private:
     ui8 ExportCounter_ = 0;
 
     //! Per-cell data, indexed by cell index; cf. TMulticellManager::GetRegisteredMasterCellIndex.
-    //! The array, if any, always has MaxSecondaryMasterCells elements.
-    std::unique_ptr<TChunkExportData[]> ExportDataList_;
+    std::unique_ptr<TChunkExportDataList> ExportDataList_;
 
     struct TReplicasData
     {
@@ -325,6 +326,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
+
+Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataList);
 
 #define CHUNK_INL_H_
 #include "chunk-inl.h"

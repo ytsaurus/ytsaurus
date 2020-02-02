@@ -1,6 +1,6 @@
 #include "security_tags.h"
 
-#include <yt/ytlib/security_client/helpers.h>
+#include <yt/client/security_client/helpers.h>
 
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/serialize.h>

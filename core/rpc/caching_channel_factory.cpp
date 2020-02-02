@@ -14,47 +14,19 @@ using namespace NYT::NBus;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedChannel
-    : public IChannel
+    : public TChannelWrapper
 {
 public:
     TCachedChannel(
         TCachingChannelFactory* factory,
         IChannelPtr underlyingChannel,
         const TString& address)
-        : Factory_(factory)
-        , UnderlyingChannel_(std::move(underlyingChannel))
+        : TChannelWrapper(std::move(underlyingChannel))
+        , Factory_(factory)
         , Address_(address)
-        , LastAccess_(TInstant::Now())
-    { }
-
-    virtual const TString& GetEndpointDescription() const override
+        , LastAccessTime_(TInstant::Now())
     {
-        return UnderlyingChannel_->GetEndpointDescription();
-    }
-
-    virtual const IAttributeDictionary& GetEndpointAttributes() const override
-    {
-        return UnderlyingChannel_->GetEndpointAttributes();
-    }
-
-    virtual TNetworkId GetNetworkId() const override
-    {
-        return UnderlyingChannel_->GetNetworkId();
-    }
-
-    void Touch()
-    {
-        LastAccess_.store(TInstant::Now());
-    }
-
-    bool IsIdleSince(TInstant time)
-    {
-        return GetRefCount() == 1 && LastAccess_.load() < time;
-    }
-
-    TInstant GetLastAccess()
-    {
-        return LastAccess_.load();
+        UnderlyingChannel_->SubscribeTerminated(BIND(&TCachedChannel::OnTerminated, MakeWeak(this)));
     }
 
     virtual IClientRequestControlPtr Send(
@@ -62,20 +34,30 @@ public:
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
     {
-        return UnderlyingChannel_->Send(
+        Touch();
+        return TChannelWrapper::Send(
             std::move(request),
             std::move(responseHandler),
             options);
     }
 
-    virtual TFuture<void> Terminate(const TError& error) override;
+    void Touch()
+    {
+        LastAccessTime_.store(TInstant::Now());
+    }
+
+    bool IsIdleSince(TInstant time)
+    {
+        return LastAccessTime_.load() < time;
+    }
 
 private:
     const TWeakPtr<TCachingChannelFactory> Factory_;
-    const IChannelPtr UnderlyingChannel_;
     const TString Address_;
 
-    std::atomic<TInstant> LastAccess_;
+    std::atomic<TInstant> LastAccessTime_;
+
+    void OnTerminated(const TError& error);
 };
 
 DECLARE_REFCOUNTED_CLASS(TCachedChannel)
@@ -93,87 +75,55 @@ public:
 
     virtual void TerminateIdleChannels(TDuration ttl) override
     {
-        std::vector<std::pair<TString, TCachedChannelPtr>> idleChannels;
         auto lastActiveTime = TInstant::Now() - ttl;
 
-        {
-            TWriterGuard guard(SpinLock_);
-            for (const auto& channel : ChannelMap_) {
-                if (channel.second->IsIdleSince(lastActiveTime)) {
-                    idleChannels.push_back(channel);
-                }
-            }
+        TWriterGuard guard(SpinLock_);
 
-            for (const auto& idle : idleChannels) {
-                ChannelMap_.erase(idle.first);
+        for (auto it = StrongChannelMap_.begin(); it != StrongChannelMap_.end();) {
+            auto channel = it->second;
+            auto jt = it++;
+            if (channel->IsIdleSince(lastActiveTime)) {
+                StrongChannelMap_.erase(jt);
             }
         }
 
-        auto error = TError("Channel is idle")
-            << TErrorAttribute("ttl", ttl);
-        for (const auto& idle : idleChannels) {
-            idle.second->Terminate(error);
+        for (auto it = WeakChannelMap_.begin(); it != WeakChannelMap_.end();) {
+            auto weakChannel = it->second;
+            auto jt = it++;
+            if (weakChannel.IsExpired()) {
+                WeakChannelMap_.erase(jt);
+            }
         }
     }
 
     virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
     {
-        {
-            TReaderGuard guard(SpinLock_);
-            auto it = ChannelMap_.find(addressWithNetwork.Address);
-            if (it != ChannelMap_.end()) {
-                it->second->Touch();
-                return it->second;
-            }
-        }
-
-        auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
-        auto wrappedChannel = New<TCachedChannel>(this, underlyingChannel, addressWithNetwork.Address);
-
-        {
-            TWriterGuard guard(SpinLock_);
-            auto it = ChannelMap_.find(addressWithNetwork.Address);
-            if (it == ChannelMap_.end()) {
-                YT_VERIFY(ChannelMap_.insert(std::make_pair(addressWithNetwork.Address, wrappedChannel)).second);
-                return wrappedChannel;
-            } else {
-                return it->second;
-            }
-        }
+        return DoCreateChannel(
+            addressWithNetwork.Address,
+            [&] { return UnderlyingFactory_->CreateChannel(addressWithNetwork); });
     }
 
     virtual IChannelPtr CreateChannel(const TString& address) override
     {
-        {
-            TReaderGuard guard(SpinLock_);
-            auto it = ChannelMap_.find(address);
-            if (it != ChannelMap_.end()) {
-                it->second->Touch();
-                return it->second;
-            }
-        }
-
-        auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
-        auto wrappedChannel = New<TCachedChannel>(this, underlyingChannel, address);
-
-        {
-            TWriterGuard guard(SpinLock_);
-            auto it = ChannelMap_.find(address);
-            if (it == ChannelMap_.end()) {
-                YT_VERIFY(ChannelMap_.insert(std::make_pair(address, wrappedChannel)).second);
-                return wrappedChannel;
-            } else {
-                return it->second;
-            }
-        }
+        return DoCreateChannel(
+            address,
+            [&] { return UnderlyingFactory_->CreateChannel(address); });
     }
 
-    void EvictChannel(const TString& address, IChannel* channel)
+    void EvictChannel(const TString& address, IChannel* evictableChannel)
     {
         TWriterGuard guard(SpinLock_);
-        auto it = ChannelMap_.find(address);
-        if (it != ChannelMap_.end() && it->second.Get() == channel) {
-            ChannelMap_.erase(it);
+
+        if (auto it = WeakChannelMap_.find(address); it != WeakChannelMap_.end()) {
+            if (auto existingChannel = it->second.Lock(); existingChannel.Get() == evictableChannel) {
+                WeakChannelMap_.erase(it);
+            }
+        }
+
+        if (auto it = StrongChannelMap_.find(address); it != StrongChannelMap_.end()) {
+            if (const auto& existingChannel = it->second; existingChannel.Get() == evictableChannel) {
+                StrongChannelMap_.erase(it);
+            }
         }
     }
 
@@ -181,20 +131,69 @@ private:
     const IChannelFactoryPtr UnderlyingFactory_;
 
     TReaderWriterSpinLock SpinLock_;
-    THashMap<TString, TCachedChannelPtr> ChannelMap_;
+    THashMap<TString, TCachedChannelPtr> StrongChannelMap_;
+    THashMap<TString, TWeakPtr<TCachedChannel>> WeakChannelMap_;
+
+
+    template <class TFactory>
+    IChannelPtr DoCreateChannel(const TString& address, const TFactory& factory)
+    {
+        {
+            TReaderGuard readerGuard(SpinLock_);
+
+            if (auto it = StrongChannelMap_.find(address)) {
+                auto channel = it->second;
+                channel->Touch();
+                return channel;
+            }
+
+            if (auto it = WeakChannelMap_.find(address)) {
+                const auto& weakChannel = it->second;
+                if (auto channel = weakChannel.Lock()) {
+                    readerGuard.Release();
+
+                    TWriterGuard writerGuard(SpinLock_);
+                    // Check if the weak map still contains the same channel.
+                    if (auto jt = WeakChannelMap_.find(address); jt != WeakChannelMap_.end() && jt->second == weakChannel) {
+                        StrongChannelMap_.emplace(address, channel);
+                    }
+
+                    channel->Touch();
+                    return channel;
+                }
+            }
+        }
+
+        auto underlyingChannel = factory();
+        auto wrappedChannel = New<TCachedChannel>(this, underlyingChannel, address);
+
+        {
+            TWriterGuard writerGuard(SpinLock_);
+            // Check if another channel has been inserted while the lock was released.
+            if (auto it = WeakChannelMap_.find(address)) {
+                const auto& weakChannel = it->second;
+                if (auto channel = weakChannel.Lock()) {
+                    StrongChannelMap_.emplace(address, channel);
+                    channel->Touch();
+                    return channel;
+                }
+            }
+            WeakChannelMap_.emplace(address, wrappedChannel);
+            StrongChannelMap_.emplace(address, wrappedChannel);
+            return wrappedChannel;
+        }
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachingChannelFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> TCachedChannel::Terminate(const TError& error)
+void TCachedChannel::OnTerminated(const TError& error)
 {
-    auto factory = Factory_.Lock();
-    if (factory) {
+    if (auto factory = Factory_.Lock()) {
         factory->EvictChannel(Address_, this);
     }
-    return UnderlyingChannel_->Terminate(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

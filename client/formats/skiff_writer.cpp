@@ -12,10 +12,10 @@
 
 #include <yt/core/misc/finally.h>
 
-#include <yt/core/skiff/skiff.h>
-#include <yt/core/skiff/skiff_schema.h>
+#include <yt/library/skiff/skiff.h>
+#include <yt/library/skiff/skiff_schema.h>
 
-#include <yt/core/skiff/schema_match.h>
+#include <yt/library/skiff/schema_match.h>
 
 #include <yt/core/yson/pull_parser.h>
 #include <yt/core/yson/writer.h>
@@ -637,6 +637,12 @@ private:
             TryFlushBuffer(false);
         }
         TryFlushBuffer(true);
+    }
+
+    TFuture<void> Close() override
+    {
+        SkiffWriter_->Flush();
+        return TSchemalessFormatWriterBase::Close();
     }
 
 private:

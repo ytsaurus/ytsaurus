@@ -3,13 +3,18 @@
 #include "private.h"
 
 #include <yt/ytlib/chunk_client/public.h>
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/core/misc/ref.h>
 
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EFileChangelogFormat,
+    (V4)
+    (V5)
+);
 
 //! A fully synchronous file-based changelog implementation.
 /*!
@@ -45,7 +50,7 @@ public:
 
     //! Creates a new changelog.
     //! Throws an exception on failure.
-    void Create(const NProto::TChangelogMeta& meta);
+    void Create(EFileChangelogFormat format = EFileChangelogFormat::V5);
 
     //! Returns the number of records in the changelog.
     int GetRecordCount() const;
@@ -55,9 +60,6 @@ public:
 
     //! Returns |true| is the changelog is open.
     bool IsOpen() const;
-
-    //! Returns the meta blob.
-    const NProto::TChangelogMeta& GetMeta() const;
 
     //! Synchronously appends records to the changelog.
     void Append(

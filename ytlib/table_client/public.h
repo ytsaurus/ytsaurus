@@ -24,6 +24,7 @@ struct TColumnIdMapping
 };
 
 class TSchemaDictionary;
+class TColumnFilterDictionary;
 
 struct IBlockWriter;
 class TBlockWriter;

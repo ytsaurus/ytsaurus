@@ -265,6 +265,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     TTransaction* transaction,
     TCypressNode* trunkNode)
     : TObjectProxyBase(bootstrap, metadata, trunkNode)
+    , THierarchicPermissionValidator(CreatePermissionValidator())
     , CustomAttributesImpl_(this)
     , Transaction_(transaction)
     , TrunkNode_(trunkNode)
@@ -375,8 +376,8 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
         GetTransaction(),
         externalCellTag);
 
-    auto key = TString(GetUninternedAttributeKey(internedKey));
-    
+    auto key = internedKey.Unintern();
+
     auto req = TYPathProxy::Get(FromObjectId(GetId()) + "/@" + key);
     AddCellTagToSyncWith(req, GetId());
     SetTransactionId(req, transactionId);
@@ -384,7 +385,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto channel = multicellManager->GetMasterChannelOrThrow(
         externalCellTag,
-        NHydra::EPeerKind::LeaderOrFollower);
+        NHydra::EPeerKind::Follower);
 
     TObjectServiceProxy proxy(channel);
     return proxy.Execute(req).Apply(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
@@ -441,7 +442,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
 
             auto time = ConvertTo<TInstant>(value);
 
-            auto lockRequest = TLockRequest::MakeSharedAttribute(GetUninternedAttributeKey(key));
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* node = LockThisImpl(lockRequest);
 
             cypressManager->SetExpirationTime(node, time);
@@ -469,7 +470,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             if (attributeUpdated && !node->IsBeingCreated()) {
                 LogStructuredEventFluently(CypressServerLogger, ELogLevel::Info)
                     .Item("event").Value(EAccessControlEvent::ObjectAcdUpdated)
-                    .Item("attribute").Value(GetUninternedAttributeKey(key))
+                    .Item("attribute").Value(key.Unintern())
                     .Item("path").Value(GetPath())
                     .Item("value").Value(value);
             }
@@ -496,8 +497,21 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
 bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttributeKey key)
 {
     switch (key) {
+        case EInternedAttributeKey::Annotation: {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& handler = objectManager->GetHandler(Object_);
+
+            if (Any(handler->GetFlags() & ETypeFlags::ForbidAnnotationRemoval)) {
+                THROW_ERROR_EXCEPTION("Cannot remove annotation from portal node; consider overriding it somewhere down the tree or setting it to an empty string");
+            }
+
+            auto* lockedNode = LockThisImpl();
+            lockedNode->SetAnnotation(std::nullopt);
+            return true;
+        }
+
         case EInternedAttributeKey::ExpirationTime: {
-            auto lockRequest = TLockRequest::MakeSharedAttribute(GetUninternedAttributeKey(key));
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* node = LockThisImpl(lockRequest);
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             cypressManager->SetExpirationTime(node, std::nullopt);
@@ -1125,27 +1139,11 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     }
 }
 
-void TNontemplateCypressNodeProxyBase::ValidatePermission(
-    TCypressNode* node,
-    EPermissionCheckScope scope,
-    EPermission permission)
+SmallVector<TCypressNode*, 1> TNontemplateCypressNodeProxyBase::ListDescendants(TCypressNode* node)
 {
-    if (Any(scope & EPermissionCheckScope::This)) {
-        ValidatePermission(node, permission);
-    }
-
-    if (Any(scope & EPermissionCheckScope::Parent) && node->GetParent()) {
-        ValidatePermission(node->GetParent(), permission);
-    }
-
-    if (Any(scope & EPermissionCheckScope::Descendants)) {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* trunkNode = node->GetTrunkNode();
-        auto descendants = cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
-        for (auto* descendant : descendants) {
-            ValidatePermission(descendant, permission);
-        }
-    }
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    auto* trunkNode = node->GetTrunkNode();
+    return cypressManager->ListSubtreeNodes(trunkNode, Transaction_, false);
 }
 
 void TNontemplateCypressNodeProxyBase::ValidateNotExternal()
@@ -1445,12 +1443,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
     }
 
-    if (replace) {
-        ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
-        ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
-    } else {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+    std::unique_ptr<IAttributeDictionary> explicitAttributes;
+    if (request->has_node_attributes()) {
+        explicitAttributes = FromProto(request->node_attributes());
     }
+
+    ValidateCreatePermissions(replace, explicitAttributes.get());
 
     auto* node = GetThisImpl();
     // The node inside which the new node must be created.
@@ -1460,21 +1458,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     TInheritedAttributeDictionary inheritedAttributes(Bootstrap_);
     GatherInheritableAttributes(intendedParentNode, &inheritedAttributes.Attributes());
 
-    std::unique_ptr<IAttributeDictionary> explicitAttributes;
-    if (request->has_node_attributes()) {
-        explicitAttributes = FromProto(request->node_attributes());
-
+    if (explicitAttributes) {
         auto optionalAccount = explicitAttributes->FindAndRemove<TString>("account");
         if (optionalAccount) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             account = securityManager->GetAccountByNameOrThrow(*optionalAccount);
             account->ValidateActiveLifeStage();
-        }
-
-        if ((explicitAttributes->Contains("acl") || explicitAttributes->Contains("inherit_acl")) &&
-            intendedParentNode->GetTrunkNode())
-        {
-            ValidatePermission(intendedParentNode, EPermissionCheckScope::This, EPermission::Administer);
         }
     }
 
@@ -1549,9 +1538,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
     auto sourceProxy = cypressManager->ResolvePathToNodeProxy(sourcePath, Transaction_);
 
     auto* trunkSourceNode = sourceProxy->GetTrunkNode();
-    auto* sourceNode = (mode == ENodeCloneMode::Move)
-        ? LockImpl(trunkSourceNode, ELockMode::Exclusive, true)
-        : cypressManager->GetVersionedNode(trunkSourceNode, Transaction_);
 
     if (trunkSourceNode == TrunkNode_) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to itself");
@@ -1561,17 +1547,15 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Copy)
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to its descendant");
     }
 
-    ValidatePermission(sourceNode, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Read);
+    auto* sourceNode = (mode == ENodeCloneMode::Move)
+        ? LockImpl(trunkSourceNode, ELockMode::Exclusive, true)
+        : cypressManager->GetVersionedNode(trunkSourceNode, Transaction_);
+
+    ValidateCopyFromSourcePermissions(sourceNode, mode);
 
     auto sourceParentProxy = sourceProxy->GetParent();
-    if (mode == ENodeCloneMode::Move) {
-        // Cf. TNodeBase::RemoveSelf
-        if (!sourceParentProxy) {
-            ThrowCannotRemoveNode(sourceProxy);
-        }
-        ValidatePermission(sourceNode, EPermissionCheckScope::This | EPermissionCheckScope::Descendants,
-            EPermission::Remove);
-        ValidatePermission(sourceNode, EPermissionCheckScope::Parent, EPermission::Write);
+    if (!sourceParentProxy && mode == ENodeCloneMode::Move) {
+        ThrowCannotRemoveNode(sourceProxy);
     }
 
     YT_LOG_ACCESS(
@@ -1614,11 +1598,12 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
 
     TBeginCopyContext copyContext(
         Transaction_,
-        mode);
+        mode,
+        node);
     copyContext.SetVersion(NCellMaster::GetCurrentReign());
     handler->BeginCopy(node, &copyContext);
 
-    ToProto(response->mutable_opaque_child_ids(), copyContext.OpaqueRootIds());
+    ToProto(response->mutable_portal_child_ids(), copyContext.PortalRootIds());
     ToProto(response->mutable_external_cell_tags(), copyContext.GetExternalCellTags());
 
     auto uncompressedData = copyContext.Finish();
@@ -1632,6 +1617,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
     serializedTree->set_codec_id(static_cast<int>(codecId));
 
     ToProto(response->mutable_node_id(), GetId());
+    ToProto(response->mutable_opaque_child_paths(), copyContext.OpaqueChildPaths());
 
     context->SetResponseInfo("Codec: %v, UncompressedDataSize: %v, CompressedDataSize: %v, ExternalCellTags: %v",
         codecId,
@@ -1714,7 +1700,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         THROW_ERROR_EXCEPTION("Cannot inplace copy to missing node");
     }
 
-    context->SetRequestInfo("TransactionId: %v "
+    context->SetRequestInfo("TransactionId: %v, "
         "PreserveAccount: %v, PreserveCreationTime: %v, PreserveModificationTime: %v, PreserveExpirationTime: %v, "
         "PreserveOwner: %v, PreserveAcl: %v, Recursive: %v, IgnoreExisting: %v,  LockExisting: %v, "
         "Force: %v, PessimisticQuotaCheck: %v",
@@ -1759,18 +1745,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         }
     }
 
-    if (replace && !inplace) {
-        ValidatePermission(EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Remove);
-        ValidatePermission(EPermissionCheckScope::Parent, EPermission::Write);
-        if (preserveAcl) {
-            ValidatePermission(EPermissionCheckScope::Parent, EPermission::Administer);
-        }
-    } else {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-        if (preserveAcl) {
-            ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
-        }
-    }
+    ValidateCopyToThisDestinationPermissions(replace && !inplace, preserveAcl);
 
     auto* account = (replace && !inplace)
         ? ICypressNodeProxy::FromNode(parentProxy.Get())->GetTrunkNode()->GetAccount()
@@ -2116,19 +2091,6 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
     auto* node = GetThisImpl<TCompositeNodeBase>();
 
     switch (key) {
-
-        case EInternedAttributeKey::Annotation: {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            const auto& handler = objectManager->GetHandler(Object_);
-
-            if (Any(handler->GetFlags() & ETypeFlags::ForbidAnnotationRemoval)) {
-                THROW_ERROR_EXCEPTION("Cannot remove annotation from portal node; consider overriding it somewhere down the tree or setting it to an empty string");
-            }
-
-            auto* lockedNode = LockThisImpl();
-            lockedNode->SetAnnotation(std::nullopt);
-            return true;
-        }
 
 #define XX(camelCaseName, snakeCaseName) \
         case EInternedAttributeKey::camelCaseName: \

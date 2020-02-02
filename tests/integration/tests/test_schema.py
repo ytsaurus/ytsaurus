@@ -74,9 +74,10 @@ class TypeTester(object):
 
 
 class SingleColumnTable(object):
-    def __init__(self, column_type, path="//tmp/table"):
+    def __init__(self, column_type, optimize_for, path="//tmp/table"):
         self.path = path
         create("table", self.path, force=True, attributes={
+            "optimize_for": optimize_for,
             "schema": make_schema(
                 [make_column("column", column_type)],
                 strict=True,
@@ -105,7 +106,246 @@ def type_v2_to_type_v1(type_v2):
     remove(table)
     return TypeV1(column_schema["type"], column_schema["required"])
 
+@authors("ermolovd")
+@pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
 class TestComplexTypes(YTEnvSetup):
+    @authors("ermolovd")
+    def test_complex_optional(self, optimize_for):
+        type_v2 = optional_type(optional_type("int8"))
+        assert type_v2_to_type_v1(type_v2) == TypeV1("any", False)
+
+        test_table = SingleColumnTable(type_v2, optimize_for)
+        test_table.check_good_value(None)
+        test_table.check_good_value([None])
+        test_table.check_good_value([-42])
+
+        test_table.check_bad_value([])
+        test_table.check_bad_value([257])
+
+    @authors("ermolovd")
+    def test_struct(self, optimize_for):
+        type_v2 = struct_type([
+            ("a", "utf8"),
+            ("b", optional_type("int64")),
+        ])
+        assert type_v2_to_type_v1(type_v2) == TypeV1("any", True)
+
+        test_table = SingleColumnTable(type_v2, optimize_for)
+        test_table.check_good_value(["one", 1])
+        test_table.check_good_value(["two", None])
+        test_table.check_good_value(["three"])
+
+        test_table.check_bad_value([])
+        test_table.check_bad_value(None)
+        test_table.check_bad_value(["one", 2, 3])
+        test_table.check_bad_value(["bar", "baz"])
+
+    @authors("ermolovd")
+    def test_malformed_struct(self, optimize_for):
+        with raises_yt_error("Name of struct field #0 is empty"):
+            SingleColumnTable(
+                struct_type([
+                    ("", "int64"),
+                ]),
+                optimize_for,
+            )
+
+    @authors("ermolovd")
+    def test_list(self, optimize_for):
+        type_v2 = list_type(optional_type("string"))
+
+        assert type_v2_to_type_v1(type_v2) == TypeV1("any", True)
+
+        test_table = SingleColumnTable(type_v2, optimize_for)
+        test_table.check_good_value([])
+        test_table.check_good_value(["one"])
+        test_table.check_good_value(["one", "two"])
+        test_table.check_good_value(["one", "two", None])
+
+        test_table.check_bad_value(None)
+        test_table.check_bad_value({})
+        test_table.check_bad_value([1,None])
+
+    @authors("ermolovd")
+    def test_tuple(self, optimize_for):
+        type_v2 = tuple_type([
+            "utf8",
+            optional_type("int64")
+        ])
+        assert type_v2_to_type_v1(type_v2) == TypeV1("any", True)
+
+        test_table = SingleColumnTable(type_v2, optimize_for)
+        test_table.check_good_value(["one", 1])
+        test_table.check_good_value(["two", None])
+
+        test_table.check_bad_value(["three"])
+        test_table.check_bad_value([])
+        test_table.check_bad_value(None)
+        test_table.check_bad_value(["one", 2, 3])
+        test_table.check_bad_value(["bar", "baz"])
+
+
+    @pytest.mark.parametrize("logical_type", [
+        variant_tuple_type(["utf8", optional_type("int64")]),
+        variant_struct_type([("a", "utf8"), ("b", optional_type("int64"))]),
+    ])
+    @authors("ermolovd")
+    def test_variant(self, logical_type, optimize_for):
+        assert type_v2_to_type_v1(logical_type) == TypeV1("any", True)
+
+        test_table = SingleColumnTable(logical_type, optimize_for)
+        test_table.check_good_value([0, "foo"])
+        test_table.check_good_value([1, None])
+        test_table.check_good_value([1, 42])
+
+        test_table.check_bad_value(None)
+        test_table.check_bad_value([])
+        test_table.check_bad_value(["three"])
+        test_table.check_bad_value([0, "one", 2])
+        test_table.check_bad_value([1, 3.14])
+        test_table.check_bad_value([2, None])
+
+    @pytest.mark.parametrize("null_type", ["null", "void"])
+    @authors("ermolovd")
+    def test_null_type(self, optimize_for, null_type):
+        def check_schema():
+            column_schema = get("//tmp/table/@schema/0")
+            assert column_schema["required"] == False
+            assert column_schema["type"] == null_type
+            assert column_schema["type_v2"] == null_type
+
+        create("table", "//tmp/table", force=True, attributes={
+            "optimize_for": optimize_for,
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": null_type,
+            }])
+        })
+        check_schema()
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type": null_type,
+            }])
+        })
+        check_schema()
+
+        create("table", "//tmp/table", force=True, attributes={
+            "optimize_for": optimize_for,
+            "schema": make_schema([{
+                "name": "column",
+                "type": null_type,
+                "required": False,
+            }]),
+        })
+        check_schema()
+
+        # no exception
+        write_table("//tmp/table", [{}, {"column": None}])
+        with raises_yt_error(SchemaViolation):
+            write_table("//tmp/table", [{"column": 0}])
+
+
+        with raises_yt_error("Null type cannot be required"):
+            create("table", "//tmp/table", force=True, attributes={
+                "schema": make_schema([{
+                    "name": "column",
+                    "type": null_type,
+                    "required": True,
+                }])
+        })
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": list_type(null_type),
+            }])
+        })
+        write_table("//tmp/table", [{"column": []}, {"column": [None]}])
+        write_table("//tmp/table", [{"column": []}, {"column": [None, None]}])
+        with raises_yt_error(SchemaViolation):
+            write_table("//tmp/table", [{"column": [0]}])
+
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": optional_type(null_type)
+            }])
+        })
+        write_table("//tmp/table", [{"column": None}, {"column": [None]}])
+
+        with raises_yt_error(SchemaViolation):
+            write_table("//tmp/table", [{"column": []}])
+
+        with raises_yt_error(SchemaViolation):
+            write_table("//tmp/table", [{"column": []}])
+
+    @authors("ermolovd")
+    def test_dict(self, optimize_for):
+        create("table", "//tmp/table", force=True, attributes={
+            "schema": make_schema([{
+                "name": "column",
+                "type_v2": dict_type(optional_type("string"), "int64"),
+            }]),
+            "optimize_for": optimize_for,
+        })
+        assert get("//tmp/table/@schema/0/type") == "any"
+        assert get("//tmp/table/@schema/0/required") == True
+
+        write_table("//tmp/table", [
+            {"column": []},
+            {"column": [["one", 1]]},
+            {"column": [["one", 1], ["two", 2]]},
+            {"column": [[None, 1], [None, 2]]},
+        ])
+
+        def check_bad(value):
+            with raises_yt_error(SchemaViolation):
+                write_table("//tmp/table", [
+                    {"column": value},
+                ])
+        check_bad(None)
+        check_bad({})
+        check_bad(["one", 1])
+        check_bad([["one"]])
+        check_bad([["one", 1, 1]])
+        check_bad([["one", None]])
+
+    @authors("ermolovd")
+    def test_tagged(self, optimize_for):
+        logical_type1 = struct_type([
+            ("a", tagged_type("yt.cluster_name", "utf8")),
+            ("b", optional_type("int64")),
+        ])
+        assert type_v2_to_type_v1(logical_type1) == TypeV1("any", True)
+
+        table1 = SingleColumnTable(logical_type1, optimize_for)
+
+        table1.check_good_value(["hume", 1])
+        table1.check_good_value(["freud", None])
+        table1.check_good_value(["hahn"])
+
+        table1.check_bad_value([])
+        table1.check_bad_value(None)
+        table1.check_bad_value(["sakura", 2, 3])
+        table1.check_bad_value(["betula", "redwood"])
+
+        logical_type2 = tagged_type("even", optional_type("int64"))
+        assert type_v2_to_type_v1(logical_type2) == TypeV1("int64", False)
+
+        table2 = SingleColumnTable(logical_type2, optimize_for)
+
+        table2.check_good_value(0)
+        table2.check_good_value(2)
+        table2.check_good_value(None)
+
+        table2.check_bad_value("1")
+        table2.check_bad_value(3.0)
+
+
+@authors("ermolovd")
+class TestComplexTypesMisc(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     @authors("ermolovd")
@@ -238,239 +478,11 @@ class TestComplexTypes(YTEnvSetup):
                 }])
             })
 
-    @authors("ermolovd")
-    def test_complex_optional(self):
-        type_v2 = optional_type(optional_type("int8"))
-        assert type_v2_to_type_v1(type_v2) == TypeV1("any", False)
-
-        test_table = SingleColumnTable(type_v2)
-        test_table.check_good_value(None)
-        test_table.check_good_value([None])
-        test_table.check_good_value([-42])
-
-        test_table.check_bad_value([])
-        test_table.check_bad_value([257])
-
-    @authors("ermolovd")
-    def test_struct(self):
-        type_v2 = struct_type([
-            ("a", "utf8"),
-            ("b", optional_type("int64")),
-        ])
-        assert type_v2_to_type_v1(type_v2) == TypeV1("any", True)
-
-        test_table = SingleColumnTable(type_v2)
-        test_table.check_good_value(["one", 1])
-        test_table.check_good_value(["two", None])
-        test_table.check_good_value(["three"])
-
-        test_table.check_bad_value([])
-        test_table.check_bad_value(None)
-        test_table.check_bad_value(["one", 2, 3])
-        test_table.check_bad_value(["bar", "baz"])
-
-    @authors("ermolovd")
-    def test_malformed_struct(self):
-        with raises_yt_error("Name of struct field #0 is empty"):
-            SingleColumnTable(
-                struct_type([
-                    ("", "int64"),
-                ])
-            )
-
-    @authors("ermolovd")
-    def test_list(self):
-        type_v2 = list_type(optional_type("string"))
-
-        assert type_v2_to_type_v1(type_v2) == TypeV1("any", True)
-
-        test_table = SingleColumnTable(type_v2)
-        test_table.check_good_value([])
-        test_table.check_good_value(["one"])
-        test_table.check_good_value(["one", "two"])
-        test_table.check_good_value(["one", "two", None])
-
-        test_table.check_bad_value(None)
-        test_table.check_bad_value({})
-        test_table.check_bad_value([1,None])
-
-    @authors("ermolovd")
-    def test_tuple(self):
-        type_v2 = tuple_type([
-            "utf8",
-            optional_type("int64")
-        ])
-        assert type_v2_to_type_v1(type_v2) == TypeV1("any", True)
-
-        test_table = SingleColumnTable(type_v2)
-        test_table.check_good_value(["one", 1])
-        test_table.check_good_value(["two", None])
-
-        test_table.check_bad_value(["three"])
-        test_table.check_bad_value([])
-        test_table.check_bad_value(None)
-        test_table.check_bad_value(["one", 2, 3])
-        test_table.check_bad_value(["bar", "baz"])
-
-
-    @pytest.mark.parametrize("logical_type", [
-        variant_tuple_type(["utf8", optional_type("int64")]),
-        variant_struct_type([("a", "utf8"), ("b", optional_type("int64"))]),
-    ])
-    @authors("ermolovd")
-    def test_variant(self, logical_type):
-        assert type_v2_to_type_v1(logical_type) == TypeV1("any", True)
-
-        test_table = SingleColumnTable(logical_type)
-        test_table.check_good_value([0, "foo"])
-        test_table.check_good_value([1, None])
-        test_table.check_good_value([1, 42])
-
-        test_table.check_bad_value(None)
-        test_table.check_bad_value([])
-        test_table.check_bad_value(["three"])
-        test_table.check_bad_value([0, "one", 2])
-        test_table.check_bad_value([1, 3.14])
-        test_table.check_bad_value([2, None])
-
-    @authors("ermolovd")
-    def test_null_type(self):
-        def check_schema():
-            column_schema = get("//tmp/table/@schema/0")
-            assert column_schema["required"] == False
-            assert column_schema["type"] == "null"
-            assert column_schema["type_v2"] == "null"
-
-        create("table", "//tmp/table", force=True, attributes={
-            "schema": make_schema([{
-                "name": "column",
-                "type_v2": "null",
-            }])
-        })
-        check_schema()
-
-        create("table", "//tmp/table", force=True, attributes={
-            "schema": make_schema([{
-                "name": "column",
-                "type": "null",
-            }])
-        })
-        check_schema()
-
-        create("table", "//tmp/table", force=True, attributes={
-            "schema": make_schema([{
-                "name": "column",
-                "type": "null",
-                "required": False,
-            }])
-        })
-        check_schema()
-
-        # no exception
-        write_table("//tmp/table", [{}, {"column": None}])
-        with raises_yt_error(SchemaViolation):
-            write_table("//tmp/table", [{"column": 0}])
-
-
-        with raises_yt_error("Null type cannot be required"):
-            create("table", "//tmp/table", force=True, attributes={
-                "schema": make_schema([{
-                    "name": "column",
-                    "type": "null",
-                    "required": True,
-                }])
-        })
-
-        create("table", "//tmp/table", force=True, attributes={
-            "schema": make_schema([{
-                "name": "column",
-                "type_v2": list_type("null"),
-            }])
-        })
-        write_table("//tmp/table", [{"column": []}, {"column": [None]}])
-        write_table("//tmp/table", [{"column": []}, {"column": [None, None]}])
-        with raises_yt_error(SchemaViolation):
-            write_table("//tmp/table", [{"column": [0]}])
-
-        create("table", "//tmp/table", force=True, attributes={
-            "schema": make_schema([{
-                "name": "column",
-                "type_v2": optional_type("null")
-            }])
-        })
-        write_table("//tmp/table", [{"column": None}, {"column": [None]}])
-
-        with raises_yt_error(SchemaViolation):
-            write_table("//tmp/table", [{"column": []}])
-
-        with raises_yt_error(SchemaViolation):
-            write_table("//tmp/table", [{"column": []}])
-
-    @authors("ermolovd")
-    def test_dict(self):
-        create("table", "//tmp/table", force=True, attributes={
-            "schema": make_schema([{
-                "name": "column",
-                "type_v2": dict_type(optional_type("string"), "int64"),
-            }])
-        })
-        assert get("//tmp/table/@schema/0/type") == "any"
-        assert get("//tmp/table/@schema/0/required") == True
-
-        write_table("//tmp/table", [
-            {"column": []},
-            {"column": [["one", 1]]},
-            {"column": [["one", 1], ["two", 2]]},
-            {"column": [[None, 1], [None, 2]]},
-        ])
-
-        def check_bad(value):
-            with raises_yt_error(SchemaViolation):
-                write_table("//tmp/table", [
-                    {"column": value},
-                ])
-        check_bad(None)
-        check_bad({})
-        check_bad(["one", 1])
-        check_bad([["one"]])
-        check_bad([["one", 1, 1]])
-        check_bad([["one", None]])
-
-    @authors("ermolovd")
-    def test_tagged(self):
-        logical_type1 = struct_type([
-            ("a", tagged_type("yt.cluster_name", "utf8")),
-            ("b", optional_type("int64")),
-        ])
-        assert type_v2_to_type_v1(logical_type1) == TypeV1("any", True)
-
-        table1 = SingleColumnTable(logical_type1)
-
-        table1.check_good_value(["hume", 1])
-        table1.check_good_value(["freud", None])
-        table1.check_good_value(["hahn"])
-
-        table1.check_bad_value([])
-        table1.check_bad_value(None)
-        table1.check_bad_value(["sakura", 2, 3])
-        table1.check_bad_value(["betula", "redwood"])
-
-        logical_type2 = tagged_type("even", optional_type("int64"))
-        assert type_v2_to_type_v1(logical_type2) == TypeV1("int64", False)
-
-        table2 = SingleColumnTable(logical_type2)
-
-        table2.check_good_value(0)
-        table2.check_good_value(2)
-        table2.check_good_value(None)
-
-        table2.check_bad_value("1")
-        table2.check_bad_value(3.0)
 
     @authors("ermolovd")
     def test_complex_types_disallowed_in_dynamic_tables(self):
         sync_create_cells(1)
-        with raises_yt_error("Dynamic table cannot have key column of type"):
+        with raises_yt_error("Complex types are not allowed in dynamic tables"):
             create("table", "//test-dynamic-table", attributes={
                 "schema": make_schema([
                     {
@@ -481,6 +493,21 @@ class TestComplexTypes(YTEnvSetup):
                     {
                         "name": "value",
                         "type_v2": "string",
+                    },
+                ], unique_keys=True),
+                "dynamic": True})
+
+        with raises_yt_error("Complex types are not allowed in dynamic tables"):
+            create("table", "//test-dynamic-table", attributes={
+                "schema": make_schema([
+                    {
+                        "name": "key",
+                        "type_v2": "string",
+                        "sort_order": "ascending",
+                    },
+                    {
+                        "name": "value",
+                        "type_v2": optional_type(optional_type("string")),
                     },
                 ], unique_keys=True),
                 "dynamic": True})
@@ -530,6 +557,30 @@ class TestComplexTypes(YTEnvSetup):
 
         merge(in_=["//tmp/input1", "//tmp/input2"],
               out="<schema=[{name=value;type_v2=utf8}]>//tmp/output",
+              spec={"schema_inference_mode" : "from_output"},
+              mode="unordered")
+
+    @authors("ermolovd")
+    def test_infer_null_void(self):
+        table = "//tmp/input1"
+        create("table", table, attributes={"schema": make_schema([
+            {"name": "value", "type_v2": "void"},
+        ], unique_keys=False, strict=True)})
+        table = "//tmp/input2"
+        create("table", table, attributes={"schema": make_schema([
+            {"name": "value", "type_v2": "null"},
+        ], unique_keys=False, strict=True)})
+
+        write_table("//tmp/input1", [{"value": None}])
+        write_table("//tmp/input2", [{"value": None}])
+
+        create("table", "//tmp/output")
+
+        with raises_yt_error("tables have incompatible schemas"):
+            merge(in_=["//tmp/input1", "//tmp/input2"], out="//tmp/output", mode="unordered")
+
+        merge(in_=["//tmp/input1", "//tmp/input2"],
+              out="<schema=[{name=value;type_v2=null}]>//tmp/output",
               spec={"schema_inference_mode" : "from_output"},
               mode="unordered")
 

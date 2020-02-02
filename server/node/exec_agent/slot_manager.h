@@ -4,6 +4,8 @@
 
 #include <yt/server/node/cell_node/public.h>
 
+#include <yt/server/node/data_node/public.h>
+
 #include <yt/server/node/job_agent/job.h>
 
 #include <yt/core/actions/public.h>
@@ -13,6 +15,8 @@
 
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/fs.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT::NExecAgent {
 
@@ -44,19 +48,21 @@ public:
 
     std::optional<double> GetCpuLimit() const;
 
-    bool ExternalJobMemory() const;
-
     NNodeTrackerClient::NProto::TDiskResources GetDiskInfo();
 
     void OnJobFinished(EJobState jobState);
 
     void Disable(const TError& error );
 
+    void BuildOrchidYson(NYTree::TFluentMap fluent) const;
+
 private:
     const TSlotManagerConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
     const int SlotCount_;
     const TString NodeTag_;
+
+    NDataNode::IVolumeManagerPtr RootVolumeManager_;
 
     std::vector<TSlotLocationPtr> Locations_;
     std::vector<TSlotLocationPtr> AliveLocations_;

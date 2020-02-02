@@ -16,8 +16,9 @@ message TReadLimit
     optional int32 chunk_index = 2;
     optional int64 offset = 3;
     optional bytes key = 4;
+    optional int32 tablet_index = 6;
 
-    // Sometimes keys in read limis are transported in wire format via attachments.
+    // Sometimes keys in read limits are transported in wire format via attachments.
     // This index indicates the proper key inside attachments' rowset.
     optional int32 key_index = 5;
 }

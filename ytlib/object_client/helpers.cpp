@@ -2,7 +2,7 @@
 
 #include <yt/core/rpc/client.h>
 
-#include <yt/ytlib/object_client/object_ypath.pb.h>
+#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/client/object_client/helpers.h>
 

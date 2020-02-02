@@ -462,6 +462,18 @@ TFuture<std::vector<TTabletInfo>> TClient::GetTabletInfos(
             tabletInfo.TotalRowCount = protoTabletInfo.total_row_count();
             tabletInfo.TrimmedRowCount = protoTabletInfo.trimmed_row_count();
             tabletInfo.BarrierTimestamp = protoTabletInfo.barrier_timestamp();
+            tabletInfo.LastWriteTimestamp = protoTabletInfo.last_write_timestamp();
+            tabletInfo.TableReplicaInfos = protoTabletInfo.replicas().empty()
+                ? std::nullopt
+                : std::make_optional(std::vector<TTabletInfo::TTableReplicaInfo>());
+
+            for (const auto& protoReplicaInfo : protoTabletInfo.replicas()) {
+                auto& currentReplica = tabletInfo.TableReplicaInfos->emplace_back();
+                currentReplica.ReplicaId = FromProto<TGuid>(protoReplicaInfo.replica_id());
+                currentReplica.LastReplicationTimestamp = protoReplicaInfo.last_replication_timestamp();
+                currentReplica.Mode = CheckedEnumCast<ETableReplicaMode>(protoReplicaInfo.mode());
+                currentReplica.CurrentReplicationRowIndex = protoReplicaInfo.current_replication_row_index();
+            }
         }
         return tabletInfos;
     }));
@@ -878,6 +890,9 @@ TFuture<TListJobsResult> TClient::ListJobs(
     if (options.WithSpec) {
         req->set_with_spec(*options.WithSpec);
     }
+    if (options.JobCompetitionId) {
+        ToProto(req->mutable_job_competition_id(), options.JobCompetitionId);
+    }
 
     req->set_sort_field(static_cast<NProto::EJobSortField>(options.SortField));
     req->set_sort_order(static_cast<NProto::EJobSortDirection>(options.SortOrder));
@@ -1072,6 +1087,23 @@ TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
     }));
 }
 
+TFuture<void> TClient::TruncateJournal(
+    const NYPath::TYPath& path,
+    i64 rowCount,
+    const NApi::TTruncateJournalOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.TruncateJournal();
+    SetTimeoutOptions(*req, options);
+
+    req->set_path(path);
+    req->set_row_count(rowCount);
+    ToProto(req->mutable_mutating_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
+
+    return req->Invoke().As<void>();
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NRpcProxy

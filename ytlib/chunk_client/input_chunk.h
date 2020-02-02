@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/protobuf_helpers.h>
@@ -40,6 +40,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, RangeIndex, 0);
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, TableChunkFormat);
     DEFINE_BYVAL_RW_PROPERTY(i64, ChunkIndex, -1);
+    DEFINE_BYVAL_RW_PROPERTY(i64, TabletIndex, -1);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, TotalUncompressedDataSize, -1);
     DEFINE_BYVAL_RW_PROPERTY(i64, TotalRowCount, -1);

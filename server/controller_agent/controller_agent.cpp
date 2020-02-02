@@ -1051,7 +1051,7 @@ private:
         IdToOperation_.clear();
 
         if (CancelableContext_) {
-            CancelableContext_->Cancel();
+            CancelableContext_->Cancel(TError("Scheduler disconnected"));
             CancelableContext_.Reset();
         }
         CancelableControlInvoker_.Reset();
@@ -1375,7 +1375,7 @@ private:
             response.JobId = jobId;
             response.OperationId = operationId;
             response.Result = New<TControllerScheduleJobResult>();
-            response.Result->RecordFail(EScheduleJobFailReason::UnknownNode);
+            response.Result->RecordFail(reason);
             outbox->Enqueue(std::move(response));
         };
 
@@ -1400,14 +1400,17 @@ private:
                 auto controller = operation->GetController();
                 auto scheduleJobInvoker = controller->GetCancelableInvoker(Config_->ScheduleJobControllerQueue);
                 auto buildJobSpecInvoker = controller->GetCancelableInvoker(Config_->BuildJobSpecControllerQueue);
-                auto averageWaitTime = scheduleJobInvoker->GetAverageWaitTime() + buildJobSpecInvoker->GetAverageWaitTime();
-                if (averageWaitTime > Config_->ScheduleJobWaitTimeThreshold) {
+                auto scheduleJobWaitTime = scheduleJobInvoker->GetAverageWaitTime();
+                auto buildJobSpecWaitTime = buildJobSpecInvoker->GetAverageWaitTime();
+                if (scheduleJobWaitTime + buildJobSpecWaitTime > Config_->ScheduleJobWaitTimeThreshold) {
                     replyWithFailure(operationId, jobId, EScheduleJobFailReason::ControllerThrottling);
-                    YT_LOG_DEBUG("Schedule job skipped since average schedule job wait time is too large "
-                        "(OperationId: %v, JobId: %v, WaitTime: %v, Threshold: %v)",
+                    YT_LOG_DEBUG("Schedule job request skipped since average schedule job wait time is too large "
+                        "(OperationId: %v, JobId: %v, ScheduleJobWaitTime: %v, BuildJobSpecTime: %v, TotalWaitTime: %v, Threshold: %v)",
                         operationId,
                         jobId,
-                        averageWaitTime,
+                        scheduleJobWaitTime,
+                        buildJobSpecWaitTime,
+                        scheduleJobWaitTime + buildJobSpecWaitTime,
                         Config_->ScheduleJobWaitTimeThreshold);
                     return;
                 }

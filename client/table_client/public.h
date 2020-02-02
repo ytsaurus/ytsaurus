@@ -124,6 +124,7 @@ DEFINE_ENUM(EControlAttribute,
     (KeySwitch)
     (RangeIndex)
     (RowIndex)
+    (TabletIndex)
 );
 
 DEFINE_ENUM(EUnavailableChunkStrategy,

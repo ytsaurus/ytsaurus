@@ -9,10 +9,10 @@
 #include <yt/client/formats/format.h>
 #include <yt/client/table_client/name_table.h>
 
-#include <yt/core/skiff/schema_match.h>
+#include <yt/library/skiff/schema_match.h>
 
-#include <yt/core/skiff/skiff.h>
-#include <yt/core/skiff/skiff_schema.h>
+#include <yt/library/skiff/skiff.h>
+#include <yt/library/skiff/skiff_schema.h>
 
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/convert.h>
@@ -649,8 +649,21 @@ TEST(TSkiffWriter, TestYsonWireType)
     checkedSkiffParser.ValidateFinished();
 }
 
-TEST(TSkiffWriter, TestOptionalNull)
+
+class TSkiffWriterSingular
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<ESimpleLogicalValueType>
+{};
+
+INSTANTIATE_TEST_CASE_P(
+    Singular,
+    TSkiffWriterSingular,
+    ::testing::Values(ESimpleLogicalValueType::Null, ESimpleLogicalValueType::Void));
+
+TEST_P(TSkiffWriterSingular, TestOptionalSingular)
 {
+    const auto singularType = GetParam();
+
     auto skiffSchema = CreateTupleSchema({
         CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
@@ -669,7 +682,7 @@ TEST(TSkiffWriter, TestOptionalNull)
     }
     const std::vector<TTableSchema> tableSchemas = {
         TTableSchema({
-            TColumnSchema("opt_null", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))),
+            TColumnSchema("opt_null", OptionalLogicalType(SimpleLogicalType(singularType))),
         }),
     };
 

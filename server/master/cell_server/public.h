@@ -8,14 +8,17 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/core/misc/arithmetic_formula.h>
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/public.h>
 
 namespace NYT::NCellServer {
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NProto {
-    class TCellStatus;
+
+class TCellStatus;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,12 +47,15 @@ using ECellLifeStage = NTabletClient::ETabletCellLifeStage;
 DECLARE_REFCOUNTED_CLASS(TTamedCellManager)
 DECLARE_REFCOUNTED_CLASS(TBundleNodeTracker)
 DECLARE_REFCOUNTED_CLASS(TCellBaseDecommissioner)
+DECLARE_REFCOUNTED_CLASS(TCellHydraJanitor)
+
 DECLARE_REFCOUNTED_STRUCT(ICellBalancerProvider)
 
 DECLARE_REFCOUNTED_CLASS(TCellBalancerConfig)
 
 struct ICellBalancer;
 
+using TDynamicCellManagerConfig = NTabletServer::TDynamicTabletManagerConfig;
 using TDynamicCellManagerConfigPtr = NTabletServer::TDynamicTabletManagerConfigPtr;
 
 DECLARE_ENTITY_TYPE(TCellBundle, TCellBundleId, NObjectClient::TDirectObjectIdHash)
@@ -58,6 +64,12 @@ DECLARE_ENTITY_TYPE(TCellBase, TTamedCellId, NObjectClient::TDirectObjectIdHash)
 extern const TString DefaultCellBundleName;
 
 using TCellSet = SmallVector<std::pair<const TCellBase*, int>, NTabletClient::TypicalTabletSlotCount>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EErrorCode,
+    ((NodeDecommissioned)    (1401))
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 

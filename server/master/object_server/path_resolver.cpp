@@ -68,6 +68,7 @@ TPathResolver::TPathResolver(
 TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions& options)
 {
     if (Service_ == TMasterYPathProxy::GetDescriptor().ServiceName) {
+        YT_VERIFY(options.EnablePartialResolve);
         return TResolveResult{
             Path_,
             TLocalObjectPayload{
@@ -110,19 +111,19 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             currentObject = std::get<TLocalObjectPayload>(rootPayload).Object;
         }
 
+        auto unresolvedPathSuffix = Tokenizer_.GetInput();
         bool ampersandSkipped = Tokenizer_.Skip(NYPath::ETokenType::Ampersand);
+        bool endOfStream = Tokenizer_.GetType() == NYPath::ETokenType::EndOfStream;
         bool slashSkipped = Tokenizer_.Skip(NYPath::ETokenType::Slash);
-        auto makeCurrentUnresolvedPath = [&] {
-            return
-                (ampersandSkipped ? AmpersandYPath : EmptyYPath) +
-                (slashSkipped ? SlashYPath : EmptyYPath) +
-                Tokenizer_.GetInput();
-        };
         auto makeCurrentLocalObjectResult = [&] {
             auto* trunkObject = currentObject->IsTrunk() ? currentObject : currentObject->As<TCypressNode>()->GetTrunkNode();
-            auto unresolvedPath = makeCurrentUnresolvedPath();
+            if (!options.EnablePartialResolve && !endOfStream) {
+                THROW_ERROR_EXCEPTION("%v has unexpected suffix %v",
+                    Path_,
+                    unresolvedPathSuffix);
+            }
             return TResolveResult{
-                std::move(unresolvedPath),
+                TYPath(unresolvedPathSuffix),
                 TLocalObjectPayload{
                     trunkObject,
                     GetTransaction()
@@ -166,13 +167,12 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
 
             if (currentNode->GetNodeType() == ENodeType::List && IsSpecialListKey(key)) {
                 if (!options.EnablePartialResolve) {
-                    Tokenizer_.ThrowUnexpected();
+                    THROW_ERROR_EXCEPTION("Unexpected YPath token %Qv", key);
                 }
                 return makeCurrentLocalObjectResult();
             }
 
             TObject* childNode;
-            TResolveCacheNodePtr childCacheNode;
             if (options.EnablePartialResolve) {
                 childNode = currentNode->GetNodeType() == ENodeType::Map
                     ? FindMapNodeChild(cypressManager, currentNode->As<TMapNode>(), GetTransaction(), key)
@@ -206,6 +206,7 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                  Method_ == "Set" ||
                  Method_ == "Create" ||
                  Method_ == "Copy" ||
+                 Method_ == "BeginCopy" ||
                  Method_ == "EndCopy"))
             {
                 return makeCurrentLocalObjectResult();
@@ -227,17 +228,24 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                 return makeCurrentLocalObjectResult();
             }
 
+            if (!options.FollowPortals &&
+                !slashSkipped &&
+                Tokenizer_.GetType() == NYPath::ETokenType::EndOfStream)
+            {
+                return makeCurrentLocalObjectResult();
+            }
+
             const auto* portalEntrance = currentNode->As<TPortalEntranceNode>();
             auto portalExitNodeId = MakePortalExitNodeId(
                 portalEntrance->GetId(),
                 portalEntrance->GetExitCellTag());
 
             return TResolveResult{
-                makeCurrentUnresolvedPath(),
+                TYPath(unresolvedPathSuffix),
                 TRemoteObjectPayload{portalExitNodeId},
                 canCacheResolve
             };
-        } else  {
+        } else {
             return makeCurrentLocalObjectResult();
         }
     }

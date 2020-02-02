@@ -25,6 +25,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/library/re2/re2.h>
+
 #include <Common/FieldVisitors.h>
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/ProcessList.h>
@@ -46,6 +48,7 @@ using namespace NChunkClient;
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NYson;
+using namespace NRe2;
 
 using NYT::ToProto;
 
@@ -142,7 +145,11 @@ TClickHouseTablePtr FetchClickHouseTableFromCache(
         auto attributes = bootstrap->GetHost()->CheckPermissionsAndGetCachedObjectAttributes({path.GetPath()}, client)[0]
             .ValueOrThrow();
 
-        return std::make_shared<TClickHouseTable>(path, ConvertTo<TTableSchema>(attributes.at("schema")));
+        if (ConvertTo<NObjectClient::EObjectType>(attributes.at("type")) != NObjectClient::EObjectType::Table) {
+            return nullptr;
+        }
+
+        return std::make_shared<TClickHouseTable>(path, AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attributes.at("schema"))));
     } catch (TErrorException& ex) {
         if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
             return nullptr;
@@ -189,21 +196,79 @@ TTableSchema ConvertToTableSchema(const ColumnsDescription& columns, const TKeyC
 
 TString MaybeTruncateSubquery(TString query)
 {
-    // TODO(max42): rewrite properly.
-    auto begin = query.find("ytSubquery");
-    if (begin == TString::npos) {
-        return query;
+    static const auto ytSubqueryRegex = New<TRe2>("ytSubquery\\([^()]*\\)");
+    static constexpr const char* replacement = "ytSubquery(...)";
+    RE2::GlobalReplace(&query, *ytSubqueryRegex, replacement);
+    return query;
+}
+
+TTableSchema AdaptSchemaToClickHouse(const TTableSchema& schema)
+{
+    std::vector<TColumnSchema> columns;
+    columns.reserve(schema.Columns().size());
+    for (const auto& column : schema.Columns()) {
+        columns.emplace_back(column.Name(), AdaptTypeToClickHouse(column.LogicalType()), column.SortOrder());
     }
-    begin += 10;
-    if (begin >= query.size() || query[begin] != '(') {
-        return query;
+    return TTableSchema(std::move(columns), schema.GetStrict(), schema.GetUniqueKeys());
+}
+
+TTableSchema GetCommonSchema(const std::vector<TTableSchema>& schemas)
+{
+    if (schemas.empty()) {
+        return TTableSchema();
     }
-    ++begin;
-    auto end = query.find(")", begin);
-    if (end == TString::npos) {
-        return query;
+
+    THashMap<TString, TColumnSchema> nameToColumn;
+    THashMap<TString, size_t> nameCounter;
+
+    for (const auto& column : schemas[0].Columns()) {
+        auto [it, _] = nameToColumn.emplace(column.Name(), column);
+        // We will set sorted order for key columns later.
+        it->second.SetSortOrder(std::nullopt);
     }
-    return query.substr(0, begin) + "..." + query.substr(end, query.size() - end);
+
+    for (const auto& schema : schemas) {
+        for (const auto& column : schema.Columns()) {
+            if (auto it = nameToColumn.find(column.Name()); it != nameToColumn.end()) {
+                if (it->second.SimplifiedLogicalType() == column.SimplifiedLogicalType()) {
+                    ++nameCounter[column.Name()];
+                    if (!column.Required() && it->second.Required()) {
+                        // If at least in one schema the column isn't required, the result common column isn't required too.
+                        it->second.SetLogicalType(OptionalLogicalType(it->second.LogicalType()));
+                    }
+                }
+            }
+        }
+    }
+
+    std::vector<TColumnSchema> resultColumns;
+    resultColumns.reserve(schemas[0].Columns().size());
+    for (const auto& column : schemas[0].Columns()) {
+        if (nameCounter[column.Name()] == schemas.size()) {
+            resultColumns.push_back(nameToColumn[column.Name()]);
+        }
+    }
+
+    for (size_t index = 0; index < resultColumns.size(); ++index) {
+        bool isKeyColumn = true;
+        for (const auto& schema : schemas) {
+            if (schema.Columns().size() <= index) {
+                isKeyColumn = false;
+                break;
+            }
+            const auto& column = schema.Columns()[index];
+            if (column.Name() != resultColumns[index].Name() || !column.SortOrder()) {
+                isKeyColumn = false;
+                break;
+            }
+        }
+        if (!isKeyColumn) {
+            // Key columns are the prefix of all columns, so all following collumns aren't key.
+            break;
+        }
+        resultColumns[index].SetSortOrder(ESortOrder::Ascending);
+    }
+    return TTableSchema(resultColumns);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -216,7 +281,7 @@ namespace DB {
 
 TString ToString(const IAST& ast)
 {
-    return TString(DB::serializeAST(ast, true));
+    return NYT::NClickHouseServer::MaybeTruncateSubquery(TString(DB::serializeAST(ast, true)));
 }
 
 TString ToString(const NameSet& nameSet)

@@ -137,7 +137,9 @@ struct TSerializableColumnSchema
             .Default(std::nullopt);
         RegisterParameter("required", RequiredV1_)
             .Default(std::nullopt);
-        RegisterParameter("type_v2", LogicalType_)
+        RegisterParameter("type_v2", LogicalTypeV2_)
+            .Default();
+        RegisterParameter("type_v3", LogicalTypeV3_)
             .Default();
         RegisterParameter("lock", Lock_)
             .Default();
@@ -157,24 +159,49 @@ struct TSerializableColumnSchema
             }
 
             try {
-                if (LogicalType_) {
-                    // We must call SetLogicalType because it sets Required_ and SimplifiedLogicalType_ fields.
-                    SetLogicalType(LogicalType_);
-                    auto expectedLogicalTypeV1 = SimplifiedLogicalType().value_or(ESimpleLogicalValueType::Any);
-                    if (LogicalTypeV1_ && *LogicalTypeV1_ != expectedLogicalTypeV1) {
-                        THROW_ERROR_EXCEPTION("\"type_v2\" doesn't match \"type\"; \"type_v2\": %Qv \"type\": %Qlv expected \"type\": %Qlv",
-                            *LogicalType_,
-                            *LogicalTypeV1_,
-                            expectedLogicalTypeV1);
+                int setTypeVersion = 0;
+                if (LogicalTypeV3_ && LogicalTypeV3_->LogicalType) {
+                    SetLogicalType(LogicalTypeV3_->LogicalType);
+                    setTypeVersion = 3;
+                }
+
+                if (LogicalTypeV2_) {
+                    if (setTypeVersion == 0) {
+                        SetLogicalType(LogicalTypeV2_);
+                        setTypeVersion = 2;
+                    } else if (*LogicalType_ != *LogicalTypeV2_) {
+                        THROW_ERROR_EXCEPTION("\"type_v3\" doesn't match \"type_v2\"");
                     }
-                    if (RequiredV1_ && *RequiredV1_ != Required()) {
-                        THROW_ERROR_EXCEPTION("\"type_v2\" doesn't match \"required\"; \"type_v2\": %Qv \"required\": %Qlv",
-                            *LogicalType_,
-                            *RequiredV1_);
+                }
+
+                if (LogicalTypeV1_) {
+                    if (setTypeVersion == 0) {
+                        SetLogicalType(MakeLogicalType(*LogicalTypeV1_, RequiredV1_.value_or(false)));
+                        setTypeVersion = 1;
+                    } else {
+                        auto expectedLogicalTypeV1 = SimplifiedLogicalType().value_or(ESimpleLogicalValueType::Any);
+                        if (*LogicalTypeV1_ != expectedLogicalTypeV1) {
+                            THROW_ERROR_EXCEPTION(
+                                "\"type_v%v\" doesn't match \"type\"; \"type_v%v\": %Qv \"type\": %Qlv expected \"type\": %Qlv",
+                                setTypeVersion,
+                                setTypeVersion,
+                                *LogicalType_,
+                                *LogicalTypeV1_,
+                                expectedLogicalTypeV1);
+                        }
                     }
-                } else if (LogicalTypeV1_) {
-                    SetLogicalType(MakeLogicalType(*LogicalTypeV1_, RequiredV1_.value_or(false)));
-                } else {
+                }
+
+                if (RequiredV1_ && setTypeVersion > 1 && *RequiredV1_ != Required()) {
+                    THROW_ERROR_EXCEPTION(
+                        "\"type_v%v\" doesn't match \"required\"; \"type_v%v\": %Qv \"required\": %Qlv",
+                        setTypeVersion,
+                        setTypeVersion,
+                        *LogicalType_,
+                        *RequiredV1_);
+                }
+
+                if (setTypeVersion == 0) {
                     THROW_ERROR_EXCEPTION("Column type is not specified");
                 }
 
@@ -206,6 +233,8 @@ public:
         static_cast<TColumnSchema&>(*this) = columnSchema;
         LogicalTypeV1_ = columnSchema.SimplifiedLogicalType().value_or(ESimpleLogicalValueType::Any);
         RequiredV1_ = columnSchema.Required();
+        LogicalTypeV2_ = columnSchema.LogicalType();
+        LogicalTypeV3_ = TTypeV3LogicalTypeWrapper{columnSchema.LogicalType()};
     }
 
     const TColumnSchema& GetColumnSchema() const
@@ -216,6 +245,10 @@ public:
 private:
     std::optional<ESimpleLogicalValueType> LogicalTypeV1_;
     std::optional<bool> RequiredV1_;
+
+    TLogicalTypePtr LogicalTypeV2_;
+
+    std::optional<TTypeV3LogicalTypeWrapper> LogicalTypeV3_;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TColumnSchema& schema, TStringBuf spec)
@@ -986,7 +1019,7 @@ void ValidateColumnSchema(
         "max",
         "first"
     };
-;
+
     static const auto allowedSortedTablesSystemColumns = THashMap<TString, EValueType>{
     };
 
@@ -1099,6 +1132,9 @@ void ValidateDynamicTableConstraints(const TTableSchema& schema)
 
     for (const auto& column : schema.Columns()) {
         try {
+            if (!column.SimplifiedLogicalType()) {
+                THROW_ERROR_EXCEPTION("Complex types are not allowed in dynamic tables yet");
+            }
             if (column.SortOrder() && column.GetPhysicalType() == EValueType::Any) {
                 THROW_ERROR_EXCEPTION("Dynamic table cannot have key column of type: %Qv",
                     *column.LogicalType());

@@ -35,7 +35,7 @@ class WriteAceRemoved:
 
 class DynamicTablesBase(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 4 # some tests require 2 tablet cell peers + 2 spares
+    NUM_NODES = 6
     NUM_SCHEDULERS = 0
     USE_DYNAMIC_TABLES = True
 
@@ -187,14 +187,14 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             insert_rows("//tmp/t", rows)
             assert lookup_rows("//tmp/t", keys) == rows
 
-    def _wait_for_cells_good_after_peer_decommission(self, cell_id, decommissioned_addresses):
+    def _wait_cell_good(self, cell_id, decommissioned_addresses=[]):
         def check():
             peers = get("#{0}/@peers".format(cell_id))
             expected_config_version = get("#{0}/@config_version".format(cell_id))
 
             for peer in peers:
-                address = peer.get("address", decommissioned_addresses[0])
-                if address in decommissioned_addresses:
+                address = peer.get("address", None)
+                if address is None or address in decommissioned_addresses:
                     return False
 
                 try:
@@ -215,7 +215,9 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         wait(check)
 
     @authors("kiselyovp")
-    def test_follower_catchup(self):
+    @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
+    def test_follower_catchup(self, decommission_through_extra_peers):
+        set("//sys/@config/tablet_manager/decommission_through_extra_peers", decommission_through_extra_peers)
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
@@ -226,7 +228,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(follower_address, True)
-        self._wait_for_cells_good_after_peer_decommission(cell_id, [follower_address])
+        self._wait_cell_good(cell_id, [follower_address])
 
         for i in xrange(0, 100):
             rows = [{"key": i, "value": "test"}]
@@ -235,7 +237,9 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             assert lookup_rows("//tmp/t", keys) == rows
 
     @authors("kiselyovp")
-    def test_run_reassign_leader(self):
+    @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
+    def test_run_reassign_leader(self, decommission_through_extra_peers):
+        set("//sys/@config/tablet_manager/decommission_through_extra_peers", decommission_through_extra_peers)
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
@@ -251,7 +255,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         follower_address = list(x["address"] for x in peers if x["state"] == "following")[0]
 
         set_node_decommissioned(leader_address, True)
-        self._wait_for_cells_good_after_peer_decommission(cell_id, [leader_address])
+        self._wait_cell_good(cell_id, [leader_address])
 
         assert get("#" + cell_id + "/@health") == "good"
         peers = get("#" + cell_id + "/@peers")
@@ -262,7 +266,9 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert lookup_rows("//tmp/t", keys) == rows
 
     @authors("kiselyovp")
-    def test_run_reassign_all_peers(self):
+    @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
+    def test_run_reassign_all_peers(self, decommission_through_extra_peers):
+        set("//sys/@config/tablet_manager/decommission_through_extra_peers", decommission_through_extra_peers)
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 2}})
         sync_create_cells(1, tablet_cell_bundle="b")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
@@ -275,9 +281,144 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         cell_id = ls("//sys/tablet_cells")[0]
 
         addresses = self._decommission_all_peers(cell_id)
-        self._wait_for_cells_good_after_peer_decommission(cell_id, addresses)
+        self._wait_cell_good(cell_id, addresses)
 
         assert lookup_rows("//tmp/t", keys) == rows
+
+    @authors("babenko")
+    @pytest.mark.parametrize("peer_count", [1, 2])
+    def test_recover_after_prerequisite_failure(self, peer_count):
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : peer_count}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+
+        cell_id = get("//tmp/t/@tablets/0/cell_id")
+        tx_id = get("#{}/@prerequisite_transaction_id".format(cell_id))
+        old_config_version = get("#{}/@config_version".format(cell_id))
+
+        abort_transaction(tx_id)
+
+        def check_config_version():
+            new_config_version = get("#{}/@config_version".format(cell_id))
+            return new_config_version > old_config_version
+        wait(check_config_version)
+
+        self._wait_cell_good(cell_id, [])
+
+        def check_insert():
+            try:
+                insert_rows("//tmp/t", [{"key": 2, "value": "2"}])
+                return True
+            except:
+                return False
+        wait(check_insert)
+
+        assert select_rows("* from [//tmp/t]") == [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}]
+
+    @authors("gritukan")
+    def test_decommission_through_extra_peers(self):
+        set("//sys/@config/tablet_manager/decommission_through_extra_peers", True)
+        set("//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout", 7000)
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+
+        first_rows = [{"key": i, "value": str(i + 5)} for i in range(5)]
+        first_keys = [{"key": i} for i in range(5)]
+        insert_rows("//tmp/t", first_rows)
+
+        def get_peers():
+            return get("#" + cell_id + "/@peers")
+
+        cell_id = ls("//sys/tablet_cells")[0]
+        first_peer_address = get_peers()[0]["address"]
+
+        set_node_decommissioned(first_peer_address, True)
+        wait(lambda: len(get_peers()) == 2 and get_peers()[1]["state"] == "following")
+        second_peer_address = get_peers()[1]["address"]
+        wait(lambda: len(get_peers()) == 1)
+        assert get_peers()[0]["address"] == second_peer_address
+        wait(lambda: get_peers()[0]["state"] == "leading")
+        self._wait_cell_good(cell_id, [first_peer_address])
+
+        assert lookup_rows("//tmp/t", first_keys) == first_rows
+
+    @authors("gritukan")
+    def test_decommission_interrupted(self):
+        set("//sys/@config/tablet_manager/decommission_through_extra_peers", True)
+        set("//sys/@config/tablet_manager/decommissioned_leader_reassignment_timeout", 7000)
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+
+        first_rows = [{"key": i, "value": str(i + 5)} for i in range(5)]
+        first_keys = [{"key": i} for i in range(5)]
+        insert_rows("//tmp/t", first_rows)
+
+        def get_peers():
+            return get("#" + cell_id + "/@peers")
+
+        cell_id = ls("//sys/tablet_cells")[0]
+        first_peer_address = get_peers()[0]["address"]
+
+        set_node_decommissioned(first_peer_address, True)
+        wait(lambda: len(get_peers()) == 2 and get_peers()[1]["state"] == "following")
+
+        set_node_decommissioned(first_peer_address, False)
+        wait(lambda: len(get_peers()) == 1)
+        assert get_peers()[0]["address"] == first_peer_address
+
+        self._wait_cell_good(cell_id, ["non_existent_address"])
+
+        assert lookup_rows("//tmp/t", first_keys) == first_rows
+
+    @authors("gritukan")
+    def test_dynamic_peer_count(self):
+        create_tablet_cell_bundle("b", attributes={"options": {"peer_count" : 1}})
+        sync_create_cells(1, tablet_cell_bundle="b")
+        cell_id = ls("//sys/tablet_cells")[0]
+
+        def get_peers():
+            return get("#" + cell_id + "/@peers")
+
+        def get_peer_state(peer_address):
+            for peer in get_peers():
+                if peer["address"] == peer_address:
+                    return peer["state"]
+            return None
+
+        assert len(get_peers()) == 1
+        first_peer_address = get_peers()[0]["address"]
+        assert get_peer_state(first_peer_address) == "leading"
+
+        set("//sys/tablet_cells/{}/@peer_count".format(cell_id), 2)
+        with pytest.raises(YtError):
+            set("//sys/tablet_cells/{}/@peer_count".format(cell_id), 1)
+
+        assert len(get_peers()) == 2
+        wait(lambda: get_peers()[1]["state"] == "following")
+        second_peer_address = get_peers()[1]["address"]
+        assert first_peer_address != second_peer_address
+        wait(lambda: get_peer_state(first_peer_address) == "leading")
+
+        set_node_decommissioned(first_peer_address, True)
+        self._wait_cell_good(cell_id, [first_peer_address])
+
+        wait(lambda: get_peer_state(second_peer_address) == "leading")
+        assert len(get_peers()) == 2
+        assert get_peers()[1]["address"] == second_peer_address
+
+        remove("//sys/tablet_cells/{}/@peer_count".format(cell_id))
+        assert len(get_peers()) == 1
+        assert get_peers()[0]["address"] == second_peer_address
+        wait(lambda: get_peer_state(second_peer_address) == "leading")
+        sleep(1)
+        assert get_peer_state(second_peer_address) == "leading"
 
     @authors("savrus")
     def test_tablet_cell_health_statistics(self):
@@ -731,9 +872,12 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         for peer in get("#{0}/@peers".format(default_cell)):
             assert peer["address"] != node
 
-    def _test_cell_bundle_distribution(self, enable_tablet_cell_balancer):
+    def _test_cell_bundle_distribution(self, enable_tablet_cell_balancer, test_decommission=False):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
         set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", enable_tablet_cell_balancer)
+        if test_decommission:
+            set("//sys/@config/tablet_manager/decommission_through_extra_peers", True)
+
         create_tablet_cell_bundle("custom")
         nodes = ls("//sys/cluster_nodes")
         node_count = len(nodes)
@@ -757,6 +901,15 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 return True
             wait(predicate)
             wait_for_cells(cell_ids.keys())
+
+        if test_decommission:
+            for idx, node in enumerate(nodes):
+                set_node_decommissioned(node, True)
+                _check([node], 0, 0)
+                _check(nodes[:idx], 1, 2)
+                _check(nodes[idx+1:], 1, 2)
+                set_node_decommissioned(node, False)
+                _check(nodes, 1, 1)
 
         _check(nodes, 1, 1)
 
@@ -788,6 +941,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @flaky(max_runs=5)
     def test_cell_bundle_distribution_old(self):
         self._test_cell_bundle_distribution(False)
+
+    @authors("gritukan")
+    def test_tablet_cell_balancer_works_after_decommission(self):
+        self._test_cell_bundle_distribution(True, True)
 
     @authors("savrus")
     def test_cell_bundle_options(self):
@@ -872,15 +1029,17 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
         unmount_table("//tmp/t")
 
-        wait(lambda: bool(get("//tmp/t/@tablet_errors")))
+        wait(lambda: bool(get("//tmp/t/@tablet_error_count")))
 
         tablet = get("//tmp/t/@tablets/0/tablet_id")
-        errors = get("//tmp/t/@tablet_errors")
+
+        address = get_tablet_leader_address(tablet)
+        orchid = self._find_tablet_orchid(address, tablet)
+        errors = orchid["errors"]
 
         assert len(errors) == 1
         assert errors[0]["attributes"]["background_activity"] == "flush"
         assert errors[0]["attributes"]["tablet_id"] == tablet
-        assert get("#" + tablet + "/@errors")[0]["attributes"]["background_activity"] == "flush"
         assert get("#" + tablet + "/@state") == "unmounting"
         assert get("//tmp/t/@tablets/0/error_count") == 1
         assert get("//tmp/t/@tablet_error_count") == 1
@@ -912,24 +1071,28 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//tmp/t/@compaction_data_size_base", get("//tmp/t/@compressed_data_size") - 100)
 
         sync_unfreeze_table("//tmp/t")
-        set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
-        set("//tmp/t/@forced_compaction_revision", get("//tmp/t/@revision"))
+        set("//tmp/t/@forced_compaction_revision", 1)
         set("//tmp/t/@enable_compaction_and_partitioning", True)
         remount_table("//tmp/t")
 
-        # Compaction fails with "Versioned row data weight is too large".
-        #  wait(lambda: bool(get("//tmp/t/@tablet_errors")))
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
 
+        def _get_errors():
+            orchid = self._find_tablet_orchid(address, tablet_id)
+            return orchid["errors"]
+
+        # Compaction fails with "Versioned row data weight is too large".
         # Temporary debug output by ifsmirnov
         def wait_func():
             get("//tmp/t/@tablets")
             get("//tmp/t/@chunk_ids")
             get("//tmp/t/@tablet_statistics")
-            return bool(get("//tmp/t/@tablet_errors"))
+            return bool(_get_errors())
         wait(wait_func)
 
-        assert len(get("//tmp/t/@tablet_errors")) == 1
-        assert get("//tmp/t/@tablet_error_count") == 1
+        assert len(_get_errors()) == 1
+        wait(lambda: get("//tmp/t/@tablet_error_count") == 1)
 
         sync_unmount_table("//tmp/t")
         set("//tmp/t/@enable_compaction_and_partitioning", False)
@@ -937,7 +1100,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_mount_table("//tmp/t")
 
         # After reshard all errors should be gone.
-        assert len(get("//tmp/t/@tablet_errors")) == 0
         assert get("//tmp/t/@tablet_error_count") == 0
 
     @authors("savrus", "babenko")
@@ -1297,6 +1459,31 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: get("//tmp/t2/@access_time") != t2_access_time)
         assert get("//tmp/t1/@access_time") == t1_access_time
 
+    @authors("ifsmirnov")
+    def test_changelog_id_attribute(self):
+        cell_id = sync_create_cells(1)[0]
+
+        def _get_latest_file(dir_name):
+            files = ls("//sys/tablet_cells/{}/{}".format(cell_id, dir_name))
+            return int(max(files)) if files else -1
+
+        def _get_attr(attr):
+            return get("#{}/@{}".format(cell_id, attr))
+
+        wait(lambda: _get_attr("health") == "good")
+        wait(lambda: _get_latest_file("snapshots") == _get_attr("max_snapshot_id"))
+        wait(lambda: _get_latest_file("changelogs") == _get_attr("max_changelog_id"))
+
+        def _try_build_snapshot():
+            try:
+                build_snapshot(cell_id=cell_id)
+                return True
+            except:
+                return False
+
+        wait(_try_build_snapshot)
+        wait(lambda: _get_latest_file("snapshots") == _get_attr("max_snapshot_id"))
+        wait(lambda: _get_latest_file("changelogs") == _get_attr("max_changelog_id"))
 
 ##################################################################
 
@@ -1342,10 +1529,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
                     "expire_after_access_time": 0,
                 },
             },
-        },
-        "master_cache_service": {
-            "capacity": 0
-        },
+        }
     }
 
     def _verify_resource_usage(self, account, resource, expected):
@@ -1616,26 +1800,33 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sync_mount_table("//tmp/t2")
         insert_rows("//tmp/t2", [{"key": 2, "value": "2"}])
 
-    @authors("lukyan")
-    @flaky(max_runs=5)
-    @pytest.mark.parametrize("resource", ["chunk_count", "disk_space_per_medium/default"])
-    def test_changelog_resource_limits(self, resource):
+    @authors("ifsmirnov")
+    def test_snapshot_account_resource_limits_violation(self):
         create_account("test_account")
         create_tablet_cell_bundle("custom", attributes={"options": {
-            "changelog_account": "test_account"}})
+            "snapshot_account": "test_account"}})
 
-        id = sync_create_cells(1, tablet_cell_bundle="custom")[0]
+        sync_create_cells(1, tablet_cell_bundle="custom")
         self._create_sorted_table("//tmp/t", tablet_cell_bundle="custom")
+        create("table", "//tmp/junk", attributes={"account": "test_account"})
+        write_table("//tmp/junk", [{"key": "value"}])
+        set("//sys/accounts/test_account/@resource_limits/disk_space_per_medium/default", 0)
+        wait(lambda: get("//sys/accounts/test_account/@violated_resource_limits/disk_space_per_medium/default"))
+
         sync_mount_table("//tmp/t")
 
-        set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
-
         with pytest.raises(YtError):
-            build_snapshot(cell_id=id)
+            insert_rows("//tmp/t", [{"key": 1}])
 
-        changelogs = ls("//sys/tablet_cells/{0}/changelogs".format(id))
-        sleep(10)
-        assert sorted(changelogs) == sorted(ls("//sys/tablet_cells/{0}/changelogs".format(id)))
+        set("//sys/accounts/test_account/@resource_limits/disk_space_per_medium/default", 10**9)
+
+        def _wait_func():
+            try:
+                insert_rows("//tmp/t", [{"key": 1}])
+                return True
+            except:
+                return False
+        wait(_wait_func)
 
     @authors("savrus", "ifsmirnov")
     def test_chunk_view_accounting(self):
@@ -1668,140 +1859,6 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         set("//tmp/t/@account", "other_account")
         _verify("test_account", 0)
         _verify("other_account", disk_space)
-
-##################################################################
-
-class TestDynamicTableStateTransitions(DynamicTablesBase):
-    DELTA_MASTER_CONFIG = {
-        "tablet_manager": {
-            "leader_reassignment_timeout" : 2000,
-            "peer_revocation_timeout" : 600000,
-        }
-    }
-
-    def _get_expected_state(self, initial, first_command, second_command):
-        M = "mounted"
-        F = "frozen"
-        E = "error"
-        U = "unmounted"
-
-        expected = {
-            "mounted":
-                {
-                    "mount":        {"mount": M, "frozen_mount": E, "unmount": U, "freeze": F, "unfreeze": M},
-                    # frozen_mount
-                    "unmount":      {"mount": E, "frozen_mount": E, "unmount": U, "freeze": E, "unfreeze": E},
-                    "freeze":       {"mount": E, "frozen_mount": F, "unmount": U, "freeze": F, "unfreeze": E},
-                    "unfreeze":     {"mount": M, "frozen_mount": E, "unmount": U, "freeze": F, "unfreeze": M},
-                },
-            "frozen":
-                {
-                    # mount
-                    "frozen_mount": {"mount": E, "frozen_mount": F, "unmount": U, "freeze": F, "unfreeze": M},
-                    "unmount":      {"mount": E, "frozen_mount": E, "unmount": U, "freeze": E, "unfreeze": E},
-                    "freeze":       {"mount": E, "frozen_mount": F, "unmount": U, "freeze": F, "unfreeze": M},
-                    "unfreeze":     {"mount": M, "frozen_mount": E, "unmount": E, "freeze": E, "unfreeze": M},
-                },
-            "unmounted":
-                {
-                    "mount":        {"mount": M, "frozen_mount": E, "unmount": E, "freeze": E, "unfreeze": E},
-                    "frozen_mount": {"mount": E, "frozen_mount": F, "unmount": E, "freeze": F, "unfreeze": E},
-                    "unmount":      {"mount": M, "frozen_mount": F, "unmount": U, "freeze": E, "unfreeze": E},
-                    # freeze
-                    # unfreeze
-                }
-            }
-        return expected[initial][first_command][second_command]
-
-    def _create_cell(self):
-        self._cell_id = sync_create_cells(1)[0]
-
-    def _get_callback(self, command):
-        callbacks = {
-            "mount": lambda x: mount_table(x, cell_id=self._cell_id),
-            "frozen_mount": lambda x: mount_table(x, cell_id=self._cell_id, freeze=True),
-            "unmount": lambda x: unmount_table(x),
-            "freeze": lambda x: freeze_table(x),
-            "unfreeze": lambda x: unfreeze_table(x)
-        }
-        return callbacks[command]
-
-    @pytest.mark.parametrize(["initial", "command"], [
-        ["mounted", "frozen_mount"],
-        ["frozen", "mount"],
-        ["unmounted", "freeze"],
-        ["unmounted", "unfreeze"]])
-    @authors("savrus")
-    def test_initial_incompatible(self, initial, command):
-        self._create_cell()
-        self._create_sorted_table("//tmp/t")
-
-        if initial == "mounted":
-            sync_mount_table("//tmp/t")
-        elif initial == "frozen":
-            sync_mount_table("//tmp/t", freeze=True)
-
-        with pytest.raises(YtError):
-            self._get_callback(command)("//tmp/t")
-
-    def _do_test_transition(self, initial, first_command, second_command):
-        expected = self._get_expected_state(initial, first_command, second_command)
-        if expected == "error":
-            with Restarter(self.Env, NODES_SERVICE):
-                self._get_callback(first_command)("//tmp/t")
-                with pytest.raises(YtError):
-                    self._get_callback(second_command)("//tmp/t")
-        else:
-            self._get_callback(first_command)("//tmp/t")
-            wait(lambda: get("//tmp/t/@tablet_state") in ["mounted", "unmounted", "frozen"])
-            self._get_callback(second_command)("//tmp/t")
-            wait(lambda: get("//tmp/t/@tablet_state") == expected)
-        wait(lambda: get("//tmp/t/@tablet_state") != "transient")
-
-    @authors("savrus", "levysotsky")
-    @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
-    @pytest.mark.parametrize("first_command", ["mount", "unmount", "freeze", "unfreeze"])
-    def test_state_transition_conflict_mounted(self, first_command, second_command):
-        self._create_cell()
-        self._create_sorted_table("//tmp/t")
-        sync_mount_table("//tmp/t", cell_id=self._cell_id)
-        self._do_test_transition("mounted", first_command, second_command)
-
-    @authors("savrus", "levysotsky")
-    @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
-    @pytest.mark.parametrize("first_command", ["frozen_mount", "unmount", "freeze", "unfreeze"])
-    def test_state_transition_conflict_frozen(self, first_command, second_command):
-        self._create_cell()
-        self._create_sorted_table("//tmp/t")
-        sync_mount_table("//tmp/t", cell_id=self._cell_id, freeze=True)
-        self._do_test_transition("frozen", first_command, second_command)
-
-    @authors("savrus")
-    @pytest.mark.parametrize("second_command", ["mount", "frozen_mount", "unmount", "freeze", "unfreeze"])
-    @pytest.mark.parametrize("first_command", ["mount", "frozen_mount", "unmount"])
-    def test_state_transition_conflict_unmounted(self, first_command, second_command):
-        self._create_cell()
-        self._create_sorted_table("//tmp/t")
-        self._do_test_transition("unmounted", first_command, second_command)
-
-    @authors("savrus")
-    @pytest.mark.parametrize("inverse", [False, True])
-    def test_freeze_expectations(self, inverse):
-        sync_create_cells(1)
-        self._create_sorted_table("//tmp/t", pivot_keys=[[], [1]])
-        sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=0)
-
-        callbacks = [
-            lambda: freeze_table("//tmp/t", first_tablet_index=0, last_tablet_index=0),
-            lambda: mount_table("//tmp/t", first_tablet_index=1, last_tablet_index=1, freeze=True)
-        ]
-
-        for callback in reversed(callbacks) if inverse else callbacks:
-            callback()
-
-        wait_for_tablet_state("//tmp/t", "frozen")
-        wait(lambda: get("//tmp/t/@tablet_state") != "transient")
-        assert get("//tmp/t/@expected_tablet_state") == "frozen"
 
 ##################################################################
 
@@ -1904,12 +1961,6 @@ class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
 class TestDynamicTablesResourceLimitsPortal(TestDynamicTablesResourceLimitsMulticell):
     ENABLE_TMP_PORTAL = True
 
-class TestDynamicTableStateTransitionsMulticell(TestDynamicTableStateTransitions):
-    NUM_SECONDARY_MASTER_CELLS = 2
-
-class TestDynamicTableStateTransitionsPoral(TestDynamicTableStateTransitionsMulticell):
-    ENABLE_TMP_PORTAL = True
-
 ##################################################################
 
 class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
@@ -1937,4 +1988,3 @@ class TestDynamicTablesWithModernCompressionRpcProxy(DynamicTablesSingleCellBase
         "response_codec": "quick_lz",
         "enable_legacy_rpc_codecs": False
     }
-

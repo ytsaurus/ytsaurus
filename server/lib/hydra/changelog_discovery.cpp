@@ -3,6 +3,7 @@
 #include "config.h"
 
 #include <yt/ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/config.h>
 
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 
@@ -202,8 +203,13 @@ private:
         YT_LOG_INFO("Computing changelog quorum record count");
 
         std::vector<TFuture<void>> asyncResults;
-        for (auto peerId = 0; peerId < CellManager_->GetVotingPeerCount(); ++peerId) {
+        for (auto peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
             if (peerId == CellManager_->GetSelfPeerId()) {
+                continue;
+            }
+
+            const auto& config = CellManager_->GetPeerConfig(peerId);
+            if (!config.Voting) {
                 continue;
             }
 

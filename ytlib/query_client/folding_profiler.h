@@ -16,6 +16,19 @@ namespace NYT::NQueryClient {
 typedef std::function<TCGQueryCallback()> TCGQueryCallbackGenerator;
 typedef std::function<TCGExpressionCallback()> TCGExpressionCallbackGenerator;
 
+struct TExtraColumnsChecker
+    : TVisitor<TExtraColumnsChecker>
+{
+    using TBase = TVisitor<TExtraColumnsChecker>;
+
+    const THashSet<TString>& Names;
+    bool HasExtraColumns = false;
+
+    explicit TExtraColumnsChecker(const THashSet<TString>& names);
+
+    void OnReference(const TReferenceExpression* referenceExpr);
+};
+
 void Profile(
     const TTableSchema& tableSchema,
     llvm::FoldingSetNodeID* id);

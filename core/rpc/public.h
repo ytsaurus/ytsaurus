@@ -54,6 +54,7 @@ DECLARE_REFCOUNTED_STRUCT(IChannel)
 DECLARE_REFCOUNTED_STRUCT(IChannelFactory)
 DECLARE_REFCOUNTED_STRUCT(ICachingChannelFactory)
 DECLARE_REFCOUNTED_STRUCT(IRoamingChannelProvider)
+DECLARE_REFCOUNTED_STRUCT(IReconfigurableRoamingChannelProvider)
 DECLARE_REFCOUNTED_STRUCT(IAuthenticator)
 
 DECLARE_REFCOUNTED_CLASS(TClientContext)
@@ -97,6 +98,11 @@ using TNetworkId = int;
 constexpr TNetworkId DefaultNetworkId = 0;
 
 constexpr int TypicalMessagePartCount = 8;
+
+extern const TString RequestIdAnnotation;
+extern const TString EndpointAnnotation;
+extern const TString RequestInfoAnnotation;
+extern const TString ResponseInfoAnnotation;
 
 ////////////////////////////////////////////////////////////////////////////////
 

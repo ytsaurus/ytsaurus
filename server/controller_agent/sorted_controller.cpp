@@ -622,7 +622,7 @@ private:
         auto fetcher = NTableClient::CreateChunkSliceFetcher(
             Config->Fetcher,
             InputSliceDataWeight_,
-            PrimaryKeyColumns_,
+            PrimaryKeyColumns_.size(),
             ShouldSlicePrimaryTableByKeys(),
             InputNodeDirectory_,
             GetCancelableInvoker(),
@@ -977,6 +977,11 @@ public:
     virtual TBlobTableWriterConfigPtr GetCoreTableWriterConfig() const override
     {
         return Spec_->CoreTableWriter;
+    }
+
+    virtual bool GetWriteSparseCoreDumps() const override
+    {
+        return Spec_->WriteSparseCoreDumps;
     }
 
     virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override

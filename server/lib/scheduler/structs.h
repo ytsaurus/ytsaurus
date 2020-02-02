@@ -4,6 +4,8 @@
 
 #include "scheduling_tag.h"
 
+#include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
+
 #include <yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
@@ -74,6 +76,20 @@ void ToProto(
 void FromProto(
     TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap,
     const NControllerAgent::NProto::TPoolTreeControllerSettingsMap& protoPoolTreeControllerSettingsMap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPreemptedFor
+{
+    TJobId JobId;
+    TOperationId OperationId;
+};
+
+void ToProto(NProto::TSchedulerToAgentJobEvent::TPreemptedFor* proto, const TPreemptedFor& preemptedFor);
+void FromProto(TPreemptedFor* preemptedFor, const NProto::TSchedulerToAgentJobEvent::TPreemptedFor& proto);
+
+void Serialize(const TPreemptedFor& preemptedFor, NYson::IYsonConsumer* consumer);
+void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

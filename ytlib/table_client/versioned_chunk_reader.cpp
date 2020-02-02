@@ -370,7 +370,7 @@ private:
 
             if (blockKeysEnd != blockIndexKeys.end()) {
                 auto saved = rangeIndex;
-                rangeIndex = LowerBound(
+                rangeIndex = BinarySearch(
                     rangeIndex,
                     static_cast<int>(Ranges_.size()),
                     [&] (int index) {
@@ -665,7 +665,7 @@ public:
              keyColumnIndex < KeyColumnReaders_.size();
              ++keyColumnIndex)
         {
-            auto columnReader = CreateUnversionedNullColumnReader(
+            auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 keyColumnIndex,
                 keyColumnIndex);
             KeyColumnReaders_[keyColumnIndex] = columnReader.get();

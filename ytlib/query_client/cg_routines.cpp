@@ -1,13 +1,10 @@
 #include "cg_routines.h"
-#include "callbacks.h"
 #include "cg_types.h"
 #include "evaluation_helpers.h"
 #include "helpers.h"
 
-#include <yt/ytlib/chunk_client/chunk_spec.h>
-
-#include <yt/ytlib/security_client/acl.h>
-#include <yt/ytlib/security_client/helpers.h>
+#include <yt/client/security_client/acl.h>
+#include <yt/client/security_client/helpers.h>
 
 #include <yt/client/query_client/query_statistics.h>
 
@@ -16,9 +13,6 @@
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/helpers.h>
-
-#include <yt/ytlib/table_client/unordered_schemaful_reader.h>
-#include <yt/ytlib/table_client/pipe.h>
 
 #include <yt/core/yson/lexer.h>
 #include <yt/core/yson/parser.h>
@@ -99,15 +93,13 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* values)
+typedef bool (*TRowsConsumer)(void** closure, TExpressionContext*, const TValue** rows, i64 size);
+
+bool WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* values)
 {
     CHECK_STACK();
 
     auto* statistics = context->Statistics;
-
-    if (closure->ConsiderLimit && statistics->RowsWritten >= context->Limit) {
-        throw TInterruptedCompleteException();
-    }
 
     if (statistics->RowsWritten >= context->OutputRowLimit) {
         throw TInterruptedIncompleteException();
@@ -151,12 +143,14 @@ void WriteRow(TExecutionContext* context, TWriteOpClosure* closure, TValue* valu
         batch.clear();
         rowBuffer->Clear();
     }
+
+    return false;
 }
 
 void ScanOpHelper(
     TExecutionContext* context,
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
+    TRowsConsumer consumeRows)
 {
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing scan helper");
@@ -182,6 +176,7 @@ void ScanOpHelper(
 
     auto rowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
     bool hasMoreData;
+    bool finished = false;
     do {
         {
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->ReadTime);
@@ -221,7 +216,7 @@ void ScanOpHelper(
             values.push_back(row.Begin());
         }
 
-        consumeRows(consumeRowsClosure, rowBuffer.Get(), values.data(), values.size());
+        finished = consumeRows(consumeRowsClosure, rowBuffer.Get(), values.data(), values.size());
 
         yielder.Checkpoint(statistics->RowsRead);
 
@@ -229,10 +224,10 @@ void ScanOpHelper(
         values.clear();
         rowBuffer->Clear();
 
-        if (rows.capacity() < RowsetProcessingSize) {
+        if (!context->IsMerge && rows.capacity() < RowsetProcessingSize) {
             rows.reserve(std::min(2 * rows.capacity(), RowsetProcessingSize));
         }
-    } while (hasMoreData);
+    } while (hasMoreData && !finished);
 }
 
 void InsertJoinRow(
@@ -288,7 +283,6 @@ void InsertJoinRow(
     }
 }
 
-
 char* AllocateAlignedBytes(TExpressionContext* buffer, size_t byteCount)
 {
     return buffer
@@ -320,7 +314,7 @@ TValue* AllocateJoinKeys(
     return reinterpret_cast<TValue*>(AllocateAlignedBytes(closure->Buffer.Get(), primaryRowSize));
 }
 
-void StorePrimaryRow(
+bool StorePrimaryRow(
     TExecutionContext* context,
     TMultiJoinClosure* closure,
     TValue** primaryValues,
@@ -367,7 +361,9 @@ void StorePrimaryRow(
     }
 
     if (closure->PrimaryRows.size() >= closure->BatchSize) {
-        closure->ProcessJoinBatch();
+        if (closure->ProcessJoinBatch()) {
+            return true;
+        }
 
         // Allocate all keys
         for (size_t joinId = 0; joinId < closure->Items.size(); ++joinId) {
@@ -382,6 +378,8 @@ void StorePrimaryRow(
     size_t primaryRowSize = closure->PrimaryRowSize * sizeof(TValue) + sizeof(TSlot*) * closure->Items.size();
 
     *primaryValues = reinterpret_cast<TValue*>(AllocateAlignedBytes(closure->Buffer.Get(), primaryRowSize));
+
+    return false;
 }
 
 class TJoinBatchState
@@ -389,7 +387,7 @@ class TJoinBatchState
 public:
     TJoinBatchState(
         void** consumeRowsClosure,
-        void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size),
+        TRowsConsumer consumeRows,
         const std::vector<size_t>& selfColumns,
         const std::vector<size_t>& foreignColumns)
         : ConsumeRowsClosure(consumeRowsClosure)
@@ -652,7 +650,7 @@ public:
 
 private:
     void** const ConsumeRowsClosure;
-    void (* const ConsumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size);
+    TRowsConsumer const ConsumeRows;
 
     std::vector<size_t> SelfColumns;
     std::vector<size_t> ForeignColumns;
@@ -680,7 +678,7 @@ void JoinOpHelper(
         TJoinClosure* joinClosure,
         TExpressionContext* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
+    TRowsConsumer consumeRows)
 {
     TJoinClosure closure(
         lookupHasher,
@@ -843,7 +841,7 @@ void MultiJoinOpHelper(
         TMultiJoinClosure* joinClosure,
         TExpressionContext* buffer),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size))
+    TRowsConsumer consumeRows)
 {
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing multijoin helper");
@@ -1032,13 +1030,18 @@ void MultiJoinOpHelper(
 
         size_t processedRows = 0;
 
-        auto consumeJoinedRows = [&] () {
+        auto consumeJoinedRows = [&] () -> bool {
             // Consume joined rows.
             processedRows += joinedRows.size();
-            consumeRows(consumeRowsClosure, intermediateBuffer.Get(), joinedRows.data(), joinedRows.size());
+            bool finished = consumeRows(
+                consumeRowsClosure,
+                intermediateBuffer.Get(),
+                joinedRows.data(),
+                joinedRows.size());
             joinedRows.clear();
             intermediateBuffer->Clear();
             yielder.Checkpoint(processedRows);
+            return finished;
         };
 
         // TODO: Join first row in place or join all rows in place and immediately consume them?
@@ -1053,7 +1056,7 @@ void MultiJoinOpHelper(
 
         std::vector<size_t> indexes(closure.Items.size(), 0);
 
-        auto joinRows = [&] (TValue* rowValues) {
+        auto joinRows = [&] (TValue* rowValues) -> bool {
             size_t incrementIndex = 0;
             while (incrementIndex < closure.Items.size()) {
                 TMutableRow joinedRow = intermediateBuffer->AllocateUnversioned(resultRowSize);
@@ -1089,7 +1092,7 @@ void MultiJoinOpHelper(
                         bool isLeft = parameters->Items[joinId].IsLeft;
                         if (!isLeft) {
                             indexes.assign(closure.Items.size(), 0);
-                            return;
+                            return false;
                         }
                         for (size_t count = foreignIndexes.size(); count > 0; --count) {
                             joinedRow[offset++] = MakeUnversionedSentinelValue(EValueType::Null);
@@ -1100,24 +1103,33 @@ void MultiJoinOpHelper(
                 joinedRows.push_back(joinedRow.Begin());
 
                 if (joinedRows.size() >= RowsetProcessingSize) {
-                    consumeJoinedRows();
+                    if (consumeJoinedRows()) {
+                        return true;
+                    }
                 }
             }
+
+            return false;
         };
 
+        auto finally = Finally([&] {
+            closure.PrimaryRows.clear();
+            closure.Buffer->Clear();
+            for (auto& joinItem : closure.Items) {
+                joinItem.Buffer->Clear();
+            }
+
+            YT_LOG_DEBUG("Joining finished");
+
+        });
+
         for (TValue* rowValues : closure.PrimaryRows) {
-            joinRows(rowValues);
+            if (joinRows(rowValues)) {
+                return true;
+            }
         }
 
-        consumeJoinedRows();
-
-        closure.PrimaryRows.clear();
-        closure.Buffer->Clear();
-        for (auto& joinItem : closure.Items) {
-            joinItem.Buffer->Clear();
-        }
-
-        YT_LOG_DEBUG("Joining finished");
+        return consumeJoinedRows();
     };
 
     try {
@@ -1142,16 +1154,18 @@ const TValue* InsertGroupRow(
         closure->ProcessSegment();
     }
 
-    if (context->Ordered && closure->Lookup.size() >= context->Limit) {
+    // Any prefix but ordered scan.
+    if (context->Ordered && closure->GroupedRowCount >= context->Offset + context->Limit) {
         if (closure->ValuesCount == 0) {
-            throw TInterruptedCompleteException();
+            return nullptr;
         }
 
-        YT_VERIFY(closure->Lookup.size() == context->Limit);
+        YT_VERIFY(closure->GroupedRowCount == context->Offset + context->Limit);
         auto found = closure->Lookup.find(row);
         return found != closure->Lookup.end() ? *found : nullptr;
     }
 
+    // FIXME: Incorrect in case of grouping by prefix.
     bool limitReached = closure->GroupedRows.size() == context->GroupRowLimit;
 
     if (limitReached) {
@@ -1169,7 +1183,10 @@ const TValue* InsertGroupRow(
     if (inserted.second) {
         closure->LastKey = *inserted.first;
 
+        YT_ASSERT(*inserted.first == row);
+
         closure->GroupedRows.push_back(row);
+        ++closure->GroupedRowCount;
         YT_VERIFY(closure->GroupedRows.size() <= context->GroupRowLimit);
 
         for (int index = 0; index < closure->KeySize; ++index) {
@@ -1202,17 +1219,9 @@ void GroupOpHelper(
         TGroupByClosure* groupByClosure,
         TExpressionContext* buffer),
     void** boundaryConsumeRowsClosure,
-    void (*boundaryConsumeRows)(
-        void** closure,
-        TExpressionContext*,
-        const TValue** rows,
-        i64 size),
+    TRowsConsumer boundaryConsumeRows,
     void** innerConsumeRowsClosure,
-    void (*innerConsumeRows)(
-        void** closure,
-        TExpressionContext*,
-        const TValue** rows,
-        i64 size))
+    TRowsConsumer innerConsumeRows)
 {
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing group helper");
@@ -1233,14 +1242,33 @@ void GroupOpHelper(
     auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
     auto flushGroupedRows = [&] (bool isBoundary, const TValue** begin, const TValue** end) {
-        while (begin < end) {
+        auto finished = false;
+
+        // FIXME: Do not consider offset in totals
+        if (context->Ordered && processedRows < context->Offset) {
+            size_t skip = std::min<size_t>(context->Offset - processedRows, end - begin);
+
+            processedRows += skip;
+            begin += skip;
+        }
+
+        while (!finished && begin < end) {
             i64 size = std::min(begin + RowsetProcessingSize, end) - begin;
+
             processedRows += size;
 
             if (isBoundary) {
-                boundaryConsumeRows(boundaryConsumeRowsClosure, intermediateBuffer.Get(), begin, size);
+                finished = boundaryConsumeRows(
+                    boundaryConsumeRowsClosure,
+                    intermediateBuffer.Get(),
+                    begin,
+                    size);
             } else {
-                innerConsumeRows(innerConsumeRowsClosure, intermediateBuffer.Get(), begin, size);
+                finished = innerConsumeRows(
+                    innerConsumeRowsClosure,
+                    intermediateBuffer.Get(),
+                    begin,
+                    size);
             }
 
             intermediateBuffer->Clear();
@@ -1278,8 +1306,6 @@ void GroupOpHelper(
     } catch (const TInterruptedIncompleteException&) {
         // Set incomplete and continue
         context->Statistics->IncompleteOutput = true;
-    } catch (const TInterruptedCompleteException&) {
-        // Continue
     }
 
     isBoundarySegment = true;
@@ -1291,6 +1317,17 @@ void GroupOpHelper(
     YT_LOG_DEBUG("Processed %v group rows", processedRows);
 }
 
+void GroupTotalsOpHelper(
+    TExecutionContext* context,
+    void** collectRowsClosure,
+    void (*collectRows)(
+        void** closure,
+        TExpressionContext* buffer))
+{
+    auto buffer = New<TRowBuffer>(TIntermediateBufferTag());
+    collectRows(collectRowsClosure, buffer.Get());
+}
+
 void AllocatePermanentRow(TExecutionContext* context, TExpressionContext* buffer, int valueCount, TValue** row)
 {
     CHECK_STACK();
@@ -1298,7 +1335,7 @@ void AllocatePermanentRow(TExecutionContext* context, TExpressionContext* buffer
     *row = buffer->AllocateUnversioned(valueCount).Begin();
 }
 
-void AddRow(TTopCollector* topCollector, TValue* row)
+void AddRowToCollector(TTopCollector* topCollector, TValue* row)
 {
     topCollector->AddRow(row);
 }
@@ -1309,7 +1346,7 @@ void OrderOpHelper(
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TTopCollector* topCollector),
     void** consumeRowsClosure,
-    void (*consumeRows)(void** closure, TExpressionContext*, const TValue** rows, i64 size),
+    TRowsConsumer consumeRows,
     size_t rowSize)
 {
     auto finalLogger = Finally([&] () {
@@ -1330,7 +1367,8 @@ void OrderOpHelper(
     for (size_t index = context->Offset; index < rows.size(); index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, rows.size() - index);
         processedRows += size;
-        consumeRows(consumeRowsClosure, rowBuffer.Get(), rows.data() + index, size);
+        bool finished = consumeRows(consumeRowsClosure, rowBuffer.Get(), rows.data() + index, size);
+        YT_VERIFY(!finished);
         rowBuffer->Clear();
 
         yielder.Checkpoint(processedRows);
@@ -1340,21 +1378,17 @@ void OrderOpHelper(
 void WriteOpHelper(
     TExecutionContext* context,
     size_t rowSize,
-    bool considerLimit,
     void** collectRowsClosure,
     void (*collectRows)(void** closure, TWriteOpClosure* writeOpClosure))
 {
     TWriteOpClosure closure;
     closure.RowSize = rowSize;
-    closure.ConsiderLimit = considerLimit;
 
     try {
         collectRows(collectRowsClosure, &closure);
     } catch (const TInterruptedIncompleteException&) {
         // Set incomplete and continue
         context->Statistics->IncompleteOutput = true;
-    } catch (const TInterruptedCompleteException&) {
-        // Continue
     }
 
     auto& batch = closure.OutputRowsBatch;
@@ -2145,6 +2179,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(StorePrimaryRow);
     REGISTER_ROUTINE(MultiJoinOpHelper);
     REGISTER_ROUTINE(GroupOpHelper);
+    REGISTER_ROUTINE(GroupTotalsOpHelper);
     REGISTER_ROUTINE(StringHash);
     REGISTER_ROUTINE(AllocatePermanentRow);
     REGISTER_ROUTINE(AllocateBytes);
@@ -2153,7 +2188,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(TransformTuple);
     REGISTER_ROUTINE(SimpleHash);
     REGISTER_ROUTINE(FarmHashUint64);
-    REGISTER_ROUTINE(AddRow);
+    REGISTER_ROUTINE(AddRowToCollector);
     REGISTER_ROUTINE(OrderOpHelper);
     REGISTER_ROUTINE(ThrowException);
     REGISTER_ROUTINE(ThrowQueryException);

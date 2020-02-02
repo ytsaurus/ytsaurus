@@ -43,6 +43,8 @@ struct TSchedulableAttributes
 //! Attributes that persistent between fair share updates.
 struct TPersistentAttributes
 {
+    bool Starving = false;
+    TInstant LastNonStarvingTime;
     std::optional<TInstant> BelowFairShareSince;
     THistoricUsageAggregator HistoricUsageAggregator;
 };
@@ -74,6 +76,8 @@ struct TUpdateFairShareContext
     std::vector<TError> Errors;
     THashMap<TString, int> ElementIndexes;
     TInstant Now;
+    TJobResources TotalResourceLimits;
+    TEnumIndexedVector<EUnschedulableReason, int> UnschedulableReasons;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,7 +92,7 @@ struct TScheduleJobsProfilingCounters
     NProfiling::TAggregateGauge StrategyScheduleJobTime;
     NProfiling::TAggregateGauge PackingRecordHeartbeatTime;
     NProfiling::TAggregateGauge PackingCheckTime;
-    NProfiling::TMonotonicCounter ScheduleJobCount;
+    NProfiling::TMonotonicCounter ScheduleJobAttemptCount;
     NProfiling::TMonotonicCounter ScheduleJobFailureCount;
     TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TMonotonicCounter> ControllerScheduleJobFail;
 };
@@ -155,7 +159,7 @@ public:
 
         int ActiveOperationCount = 0;
         int ActiveTreeSize = 0;
-        int ScheduleJobAttempts = 0;
+        int ScheduleJobAttemptCount = 0;
         int ScheduleJobFailureCount = 0;
         TEnumIndexedVector<EDeactivationReason, int> DeactivationReasons;
     };
@@ -207,8 +211,6 @@ protected:
 
     TCompositeSchedulerElement* Parent_ = nullptr;
 
-    bool Starving_ = false;
-
     TJobResources TotalResourceLimits_;
 
     int PendingJobCount_ = 0;
@@ -252,6 +254,10 @@ public:
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config);
 
+    //! Prepares attributes that need to be computed in the control thread in a thread-unsafe manner.
+    //! For example: TotalResourceLimits.
+    virtual void PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
+
     //! Updates attributes that need to be computed from leafs up to root.
     //! For example: |parent->ResourceDemand = Sum(child->ResourceDemand)|.
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
@@ -277,6 +283,8 @@ public:
     virtual TString GetLoggingString(const TDynamicAttributes& dynamicAttributes) const;
 
     bool IsActive(const TDynamicAttributesList& dynamicAttributesList) const;
+
+    virtual bool IsSchedulable() const = 0;
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const = 0;
 
@@ -332,6 +340,12 @@ public:
 
     const NLogging::TLogger& GetLogger() const;
 
+    virtual TJobResources GetSpecifiedResourceLimits() const = 0;
+
+    TJobResources ComputeTotalResourcesOnSuitableNodes() const;
+
+    TJobResources ComputeResourceLimits() const;
+
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
 
@@ -369,8 +383,6 @@ protected:
     TJobResources GetLocalAvailableResourceLimits(const TFairShareContext& context) const;
 
     bool CheckDemand(const TJobResources& delta, const TFairShareContext& context);
-
-    TJobResources ComputeResourceLimitsBase(const TResourceLimitsConfigPtr& resourceLimitsConfig) const;
 
 protected:
     const NLogging::TLogger Logger;
@@ -430,6 +442,7 @@ public:
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
+    virtual void PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
 
@@ -446,6 +459,8 @@ public:
 
     virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled) override;
     virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) override;
+
+    virtual bool IsSchedulable() const override;
 
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const override;
 
@@ -467,9 +482,6 @@ public:
 
     NProfiling::TTagId GetProfilingTag() const;
 
-    virtual TJobResources GetSpecifiedResourceLimits() const = 0;
-    virtual TJobResources ComputeResourceLimits() const = 0;
-
     virtual int GetMaxOperationCount() const = 0;
     virtual int GetMaxRunningOperationCount() const = 0;
     int GetAvailableRunningOperationCount() const;
@@ -487,6 +499,8 @@ public:
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const = 0;
 
+    virtual bool IsDefaultConfigured() const = 0;
+
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
@@ -498,6 +512,8 @@ protected:
 
     TChildMap DisabledChildToIndex_;
     TChildList DisabledChildren_;
+
+    TChildList SchedulableChildren_;
 
     template <class TGetter, class TSetter>
     void ComputeByFitting(const TGetter& getter, const TSetter& setter, double sum);
@@ -553,9 +569,6 @@ public:
         const TPool& other,
         TCompositeSchedulerElement* clonedParent);
 
-    bool IsDefaultConfigured() const;
-    bool IsEphemeralInDefaultParentPool() const;
-
     void SetUserName(const std::optional<TString>& userName);
     const std::optional<TString>& GetUserName() const;
 
@@ -564,6 +577,9 @@ public:
     void SetDefaultConfig();
     void SetEphemeralInDefaultParentPool();
 
+    bool IsEphemeralInDefaultParentPool() const;
+
+    virtual bool IsDefaultConfigured() const override;
     virtual bool IsExplicit() const override;
     virtual bool IsAggressiveStarvationEnabled() const override;
 
@@ -587,14 +603,11 @@ public:
     virtual TDuration GetFairSharePreemptionTimeoutLimit() const override;
 
     virtual TJobResources GetSpecifiedResourceLimits() const override;
-    virtual TJobResources ComputeResourceLimits() const override;
 
     virtual void SetStarving(bool starving) override;
     virtual void CheckForStarvation(TInstant now) override;
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
-
-    virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
 
     virtual int GetMaxRunningOperationCount() const override;
     virtual int GetMaxOperationCount() const override;
@@ -633,7 +646,7 @@ protected:
         TFairShareStrategyOperationControllerConfigPtr controllerConfig);
 
     const TOperationId OperationId_;
-    bool Schedulable_;
+    std::optional<EUnschedulableReason> UnschedulableReason_;
     std::optional<int> SlotIndex_;
     TString UserName_;
     IOperationStrategyHost* const Operation_;
@@ -803,6 +816,7 @@ public:
     virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
+    virtual void PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
 
@@ -823,7 +837,7 @@ public:
 
     virtual TString GetId() const override;
 
-    bool IsSchedulable() const;
+    virtual bool IsSchedulable() const override;
 
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
@@ -894,7 +908,7 @@ public:
     void MarkOperationRunningInPool();
     bool IsOperationRunningInPool();
 
-    void UpdateAncestorsAttributes(TFairShareContext* context);
+    void UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool activateAncestors = false);
 
     void MarkWaitingFor(TCompositeSchedulerElement* violatedPool);
 
@@ -911,12 +925,14 @@ private:
     bool RunningInThisPoolTree_ = false;
     TSchedulingTagFilter SchedulingTagFilter_;
 
-    TInstant LastNonStarvingTime_;
-    TInstant LastScheduleJobSuccessTime_;
-
     bool HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const;
 
-    bool IsBlocked(NProfiling::TCpuInstant now) const;
+    std::optional<EUnschedulableReason> ComputeUnschedulableReason() const;
+
+    bool IsMaxScheduleJobCallsViolated() const;
+    bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(const ISchedulingContextPtr& schedulingContext) const;
+    bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
+    std::optional<EDeactivationReason> CheckBlocked(const ISchedulingContextPtr& schedulingContext) const;
 
     void RecordHeartbeat(const TPackingHeartbeatSnapshot& heartbeatSnapshot);
     bool CheckPacking(const TPackingHeartbeatSnapshot& heartbeatSnapshot) const;
@@ -929,6 +945,7 @@ private:
         TJobResources* availableResourcesOutput);
 
     void FinishScheduleJob(
+        const ISchedulingContextPtr& schedulingContext,
         bool enableBackoff,
         NProfiling::TCpuInstant now);
 
@@ -937,10 +954,8 @@ private:
         const TJobResources& availableResources,
         TJobResources* precommittedResources);
 
-    TJobResources GetSpecifiedResourceLimits() const;
-    TJobResources ComputeResourceLimits() const;
+    virtual TJobResources GetSpecifiedResourceLimits() const override;
     TJobResources ComputeResourceDemand() const;
-    TJobResources ComputeMaxPossibleResourceUsage() const;
     int ComputePendingJobCount() const;
 
     void UpdatePreemptableJobsList();
@@ -995,7 +1010,6 @@ public:
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
     virtual TJobResources GetSpecifiedResourceLimits() const override;
-    virtual TJobResources ComputeResourceLimits() const override;
 
     virtual bool IsAggressiveStarvationEnabled() const override;
 
@@ -1013,6 +1027,8 @@ public:
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+    virtual bool IsDefaultConfigured() const override;
+
     TRootElementPtr Clone();
 };
 

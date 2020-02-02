@@ -21,6 +21,7 @@ struct IChunkVisitor
     virtual bool OnChunk(
         TChunk* chunk,
         i64 rowIndex,
+        std::optional<i32> tabletIndex,
         const NChunkClient::TReadLimit& startLimit,
         const NChunkClient::TReadLimit& endLimit,
         TTransactionId timestampTransactionId) = 0;

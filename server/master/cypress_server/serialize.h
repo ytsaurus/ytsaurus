@@ -20,6 +20,8 @@
 
 #include <yt/core/misc/chunked_output_stream.h>
 
+#include <yt/core/ypath/public.h>
+
 namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,14 +32,18 @@ class TBeginCopyContext
 public:
     TBeginCopyContext(
         NTransactionServer::TTransaction* transaction,
-        ENodeCloneMode Mode);
+        ENodeCloneMode mode,
+        const TCypressNode* rootNode);
 
-    void RegisterOpaqueRootId(TNodeId rootId);
+    void RegisterPortalRootId(TNodeId portalRootId);
+    void RegisterOpaqueChildPath(const NYPath::TYPath& opaqueChildPath);
     void RegisterExternalCellTag(NObjectClient::TCellTag cellTag);
 
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TNodeId>, OpaqueRootIds);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TNodeId>, PortalRootIds);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<NYPath::TYPath>, OpaqueChildPaths);
     DEFINE_BYVAL_RO_PROPERTY(NTransactionServer::TTransaction*, Transaction);
     DEFINE_BYVAL_RO_PROPERTY(ENodeCloneMode, Mode);
+    DEFINE_BYVAL_RO_PROPERTY(const TCypressNode*, RootNode);
 
     std::vector<TSharedRef> Finish();
     NObjectClient::TCellTagList GetExternalCellTags();

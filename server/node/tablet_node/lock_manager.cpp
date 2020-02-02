@@ -1,4 +1,5 @@
 #include "lock_manager.h"
+#include "serialize.h"
 
 #include <yt/core/actions/future.h>
 
@@ -10,7 +11,9 @@
 
 #include <yt/client/transaction_client/public.h>
 
-#include <util/generic/map.h>
+#include <util/generic/cast.h>
+
+#include <map>
 
 namespace NYT::NTabletNode {
 
@@ -45,9 +48,10 @@ public:
         return result;
     }
 
-    void Unlock(TTransactionId transactionId)
+    void Unlock(TTimestamp commitTimestamp, TTransactionId transactionId)
     {
         ++Epoch_;
+        LastCommitTimestamp_ = std::max(LastCommitTimestamp_, commitTimestamp);
 
         if (auto it = Transactions_.find(transactionId)) {
             auto timestamp = it->second;
@@ -89,10 +93,19 @@ public:
         }
     }
 
-    // FIXME(savrus) Need to check before write.
-    bool IsLocked()
+    TError ValidateTransactionConflict(TTimestamp startTimestamp) const
     {
-        return LockCounter_ > 0;
+        if (LockCounter_ > 0) {
+            return TError("Tablet is locked by bulk insert");
+        }
+
+        if (LastCommitTimestamp_ > startTimestamp) {
+            return TError("Lock conflict due to concurrent bulk insert")
+                << TErrorAttribute("transaction_start_timestamp", startTimestamp)
+                << TErrorAttribute("bulk_insert_commit_timestamp", LastCommitTimestamp_);
+        }
+
+        return {};
     }
 
     void BuildOrchidYson(NYTree::TFluentMap fluent) const
@@ -126,6 +139,10 @@ public:
                 SharedQueue_.emplace(pair.second, NewPromise<void>());
             }
         }
+
+        if (context.GetVersion() >= ToUnderlying(ETabletReign::BulkInsertOverwrite)) {
+            Persist(context, LastCommitTimestamp_);
+        }
     }
 
 private:
@@ -133,6 +150,7 @@ private:
     std::atomic<TLockManagerEpoch> Epoch_;
     THashMap<TTransactionId, TTimestamp> Transactions_;
     std::vector<TTransactionId> UnconfirmedTransactions_;
+    TTimestamp LastCommitTimestamp_ = MinTimestamp;
 
     TSpinLock SpinLock_;
     std::map<TTimestamp, TPromise<void>> SharedQueue_;
@@ -184,9 +202,9 @@ std::vector<TTransactionId> TLockManager::RemoveUnconfirmedTransactions()
     return Impl_->RemoveUnconfirmedTransactions();
 }
 
-void TLockManager::Unlock(TTransactionId transactionId)
+void TLockManager::Unlock(TTimestamp commitTimestamp, TTransactionId transactionId)
 {
-    Impl_->Unlock(transactionId);
+    Impl_->Unlock(commitTimestamp, transactionId);
 }
 
 TLockManagerEpoch TLockManager::GetEpoch() const
@@ -199,9 +217,9 @@ void TLockManager::Wait(TTimestamp timestamp, TLockManagerEpoch epoch)
     Impl_->Wait(timestamp, epoch);
 }
 
-bool TLockManager::IsLocked()
+TError TLockManager::ValidateTransactionConflict(TTimestamp startTimestamp) const
 {
-    return Impl_->IsLocked();
+    return Impl_->ValidateTransactionConflict(startTimestamp);
 }
 
 void TLockManager::BuildOrchidYson(NYTree::TFluentMap fluent) const

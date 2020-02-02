@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/hive/proto/hive_service.pb.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
@@ -33,16 +33,27 @@ public:
 
     //! The id of the first message in |OutcomingMessages|.
     DEFINE_BYVAL_RW_PROPERTY(TMessageId, FirstOutcomingMessageId);
+
+    struct TOutcomingMessage
+    {
+        TSerializedMessagePtr SerializedMessage;
+        NTracing::TTraceContextPtr TraceContext;
+
+        void Save(TStreamSaveContext& context) const;
+        void Load(TStreamLoadContext& context);
+    };
+
     //! Messages enqueued for the destination cell, ordered by id.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TRefCountedEncapsulatedMessagePtr>, OutcomingMessages);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TOutcomingMessage>, OutcomingMessages);
 
     //! The id of the next incoming message to be handled by Hydra.
-    DEFINE_BYVAL_RW_PROPERTY(TMessageId, NextIncomingMessageId);
+    DEFINE_BYVAL_RW_PROPERTY(TMessageId, NextPersistentIncomingMessageId);
 
     // Transient state.
     DEFINE_BYVAL_RW_PROPERTY(bool, Connected);
     DEFINE_BYVAL_RW_PROPERTY(bool, AcknowledgeInProgress);
     DEFINE_BYVAL_RW_PROPERTY(bool, PostInProgress);
+    DEFINE_BYVAL_RW_PROPERTY(TMessageId, NextTransientIncomingMessageId);
 
     //! The id of the first message for which |PostMessages| request to the destination
     //! cell is still in progress. If no request is in progress then this is

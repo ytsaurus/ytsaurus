@@ -114,7 +114,7 @@ size_t TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const
         return 0;
     }
 
-    TMessageBuffer* buffer = Buffer_.get();
+    auto* buffer = Buffer_.get();
     buffer->Reset();
 
     buffer->AppendString(CachingDateFormatter_->Format(event.Instant));
@@ -144,8 +144,7 @@ size_t TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const
     buffer->AppendChar('\t');
 
     if (event.TraceId != NTracing::InvalidTraceId) {
-        buffer->AppendNumber(event.TraceId.Parts64[1], 16);
-        buffer->AppendNumber(event.TraceId.Parts64[0], 16);
+        buffer->AppendGuid(event.TraceId);
     }
     buffer->AppendChar('\n');
 

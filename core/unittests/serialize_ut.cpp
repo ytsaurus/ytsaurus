@@ -2,6 +2,8 @@
 
 #include <yt/core/misc/serialize.h>
 
+#include <yt/core/yson/pull_parser_deserialize.h>
+
 #include <yt/core/ytree/convert.h>
 
 #include <array>
@@ -25,11 +27,31 @@ DEFINE_BIT_ENUM(ETestBitEnum,
 )
 
 template <typename TOriginal, typename TResult = TOriginal>
-void TestSerializationDeserialization(const TOriginal& original)
+void TestSerializationDeserializationPullParser(const TOriginal& original)
+{
+    auto yson = ConvertToYsonString(original);
+    TResult deserialized;
+    TMemoryInput input(yson.GetData());
+    TYsonPullParser parser(&input, EYsonType::Node);
+    TYsonPullParserCursor cursor(&parser);
+    Deserialize(deserialized, &cursor);
+    EXPECT_EQ(original, deserialized);
+    EXPECT_EQ(cursor->GetType(), EYsonItemType::EndOfStream);
+}
+
+template <typename TOriginal, typename TResult = TOriginal>
+void TestSerializationDeserializationNode(const TOriginal& original)
 {
     auto yson = ConvertToYsonString(original);
     auto deserialized = ConvertTo<TResult>(yson);
     EXPECT_EQ(original, deserialized);
+}
+
+template <typename TOriginal, typename TResult = TOriginal>
+void TestSerializationDeserialization(const TOriginal& original)
+{
+    TestSerializationDeserializationPullParser<TOriginal, TResult>(original);
+    TestSerializationDeserializationNode<TOriginal, TResult>(original);
 }
 
 TString RemoveSpaces(const TString& str)
@@ -58,8 +80,14 @@ TEST(TYTreeSerializationTest, All)
 
 TEST(TCustomTypeSerializationTest, TInstant)
 {
-    TInstant value = TInstant::MilliSeconds(100500);
-    TestSerializationDeserialization(value);
+    {
+        TInstant value = TInstant::MilliSeconds(100500);
+        TestSerializationDeserialization(value);
+    }
+    {
+        TDuration value = TDuration::Days(365);
+        TestSerializationDeserialization(value);
+    }
 }
 
 TEST(TCustomTypeSerializationTest, Optional)
@@ -68,14 +96,85 @@ TEST(TCustomTypeSerializationTest, Optional)
         std::optional<int> value(10);
         auto yson = ConvertToYsonString(value);
         EXPECT_EQ(10, ConvertTo<std::optional<int>>(yson));
+        TestSerializationDeserialization(value);
     }
     {
         std::optional<int> value;
         auto yson = ConvertToYsonString(value);
         EXPECT_EQ(TString("#"), yson.GetData());
         EXPECT_EQ(value, ConvertTo<std::optional<int>>(yson));
+        TestSerializationDeserialization(value);
     }
 }
+
+TEST(TSerializationTest, Simple)
+{
+    {
+        signed char value = -127;
+        TestSerializationDeserialization(value);
+    }
+    {
+        unsigned char value = 255;
+        TestSerializationDeserialization(value);
+    }
+    {
+        short value = -30'000;
+        TestSerializationDeserialization(value);
+    }
+    {
+        unsigned short value = 65'535;
+        TestSerializationDeserialization(value);
+    }
+    {
+        int value = -2'000'000;
+        TestSerializationDeserialization(value);
+    }
+    {
+        unsigned value = 4'000'000;
+        TestSerializationDeserialization(value);
+    }
+    {
+        long value = -1'999'999;
+        TestSerializationDeserialization(value);
+    }
+    {
+        unsigned long value = 3'999'999;
+        TestSerializationDeserialization(value);
+    }
+    {
+        long long value = -8'000'000'000'000LL;
+        TestSerializationDeserialization(value);
+    }
+    {
+        unsigned long long value = 16'000'000'000'000uLL;
+        TestSerializationDeserialization(value);
+    }
+
+    {
+        double value = 2.7182818284590452353602874713527e12;
+        TestSerializationDeserialization(value);
+    }
+
+    {
+        TString value = "abacaba";
+        TestSerializationDeserialization(value);
+    }
+
+    {
+        bool value = true;
+        TestSerializationDeserialization(value);
+        value = false;
+        TestSerializationDeserialization(value);
+    }
+
+    {
+        char value = 'a';
+        TestSerializationDeserialization(value);
+        value = 'Z';
+        TestSerializationDeserialization(value);
+    }
+}
+
 
 TEST(TSerializationTest, PackRefs)
 {

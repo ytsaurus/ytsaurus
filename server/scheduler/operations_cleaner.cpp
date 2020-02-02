@@ -623,11 +623,16 @@ private:
 
         Enabled_ = false;
 
-        CancelableContext_->Cancel();
+        if (CancelableContext_) {
+            CancelableContext_->Cancel(TError("Operation cleaner stopped"));
+        }
         CancelableContext_.Reset();
+
         CancelableControlInvoker_ = nullptr;
 
-        AnalysisExecutor_->Stop();
+        if (AnalysisExecutor_) {
+            AnalysisExecutor_->Stop();
+        }
         AnalysisExecutor_.Reset();
 
         TDelayedExecutor::CancelAndClear(ArchivationStartCookie_);
@@ -776,10 +781,15 @@ private:
                 rows.reserve(operationIds.size());
 
                 for (auto operationId : operationIds) {
-                    const auto& request = GetRequest(operationId);
-                    auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Index, version);
-                    rows.push_back(row);
-                    orderedByIdRowsDataWeight += GetDataWeight(row);
+                    try {
+                        const auto& request = GetRequest(operationId);
+                        auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Index, version);
+                        rows.push_back(row);
+                        orderedByIdRowsDataWeight += GetDataWeight(row);
+                    } catch (const TErrorException& ex) {
+                        THROW_ERROR_EXCEPTION("Failed to build row for operation %v", operationId)
+                            << ex;
+                    }
                 }
 
                 transaction->WriteRows(
@@ -796,10 +806,15 @@ private:
                 rows.reserve(operationIds.size());
 
                 for (auto operationId : operationIds) {
-                    const auto& request = GetRequest(operationId);
-                    auto row = NDetail::BuildOrderedByStartTimeTableRow(rowBuffer, request, desc.Index, version);
-                    rows.push_back(row);
-                    orderedByStartTimeRowsDataWeight += GetDataWeight(row);
+                    try {
+                        const auto& request = GetRequest(operationId);
+                        auto row = NDetail::BuildOrderedByStartTimeTableRow(rowBuffer, request, desc.Index, version);
+                        rows.push_back(row);
+                        orderedByStartTimeRowsDataWeight += GetDataWeight(row);
+                    } catch (const TErrorException& ex) {
+                        THROW_ERROR_EXCEPTION("Failed to build row for operation %v", operationId)
+                            << ex;
+                    }
                 }
 
                 transaction->WriteRows(
@@ -865,13 +880,32 @@ private:
 
         if (!batch.empty()) {
             while (IsArchivationEnabled()) {
+                TError error;
                 try {
                     TryArchiveOperations(batch);
-                    break;
                 } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Failed to archive operations (PendingCount: %v)",
-                        ArchivePendingCounter_.GetCurrent());
+                    int pendingCount = ArchivePendingCounter_.GetCurrent();
+                    error = TError("Failed to archive operations (PendingCount: %v)", pendingCount)
+                        << ex;
+                    YT_LOG_WARNING(error);
                     Profiler.Increment(ArchiveErrorCounter_, 1);
+                }
+
+                int pendingCount = ArchivePendingCounter_.GetCurrent();
+                if (pendingCount >= Config_->MinOperationCountEnqueuedForAlert) {
+                    Host_->SetSchedulerAlert(
+                        ESchedulerAlertType::OperationsArchivation,
+                        TError("Too many operations in archivation queue")
+                            << TErrorAttribute("pending_count", pendingCount)
+                            << error);
+                } else {
+                    Host_->SetSchedulerAlert(
+                        ESchedulerAlertType::OperationsArchivation,
+                        TError());
+                }
+
+                if (error.IsOK()) {
+                    break;
                 }
 
                 if (ArchivePendingCounter_.GetCurrent() > Config_->MaxOperationCountEnqueuedForArchival) {
@@ -1008,7 +1042,7 @@ private:
 
             Profiler.Increment(RemovedCounter_, removedOperationIds.size());
             Profiler.Increment(RemoveErrorCounter_, failedOperationIds.size());
-            
+
             ProcessCleanedOperation(removedOperationIds);
 
             for (auto operationId : failedOperationIds) {

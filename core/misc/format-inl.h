@@ -25,9 +25,7 @@ inline bool IsQuotationSpecSymbol(char symbol)
     return symbol == 'Q' || symbol == 'q';
 }
 
-template <class TValue>
-void FormatValue(TStringBuilderBase* builder, const TValue& value, TStringBuf format);
-
+// __int128
 [[deprecated("Do not use this method")]]
 void FormatValue(TStringBuilderBase* builder, __int128 value, TStringBuf format);
 
@@ -150,18 +148,22 @@ inline void FormatValue(TStringBuilderBase* builder, bool value, TStringBuf form
     builder->AppendString(str);
 }
 
-// Default (via ToString).
+// Fallback to ToString
+struct TToStringFallbackValueFormatterTag
+{ };
+
 template <class TValue, class = void>
 struct TValueFormatter
 {
-    static void Do(TStringBuilderBase* builder, const TValue& value, TStringBuf format)
+    static TToStringFallbackValueFormatterTag Do(TStringBuilderBase* builder, const TValue& value, TStringBuf format)
     {
         using ::ToString;
         FormatValue(builder, ToString(value), format);
+        return {};
     }
 };
 
-// Enums
+// Enum
 template <class TEnum>
 struct TValueFormatter<TEnum, typename std::enable_if<TEnumTraits<TEnum>::IsEnum>::type>
 {
@@ -355,6 +357,16 @@ struct TValueFormatter<THashSet<T>>
     }
 };
 
+// THashMultiSet
+template <class T>
+struct TValueFormatter<THashMultiSet<T>>
+{
+    static void Do(TStringBuilderBase* builder, const THashMultiSet<T>& collection, TStringBuf /*format*/)
+    {
+        FormatRange(builder, collection, TDefaultFormatter());
+    }
+};
+
 // THashMap
 template <class K, class V>
 struct TValueFormatter<THashMap<K, V>>
@@ -430,9 +442,10 @@ struct TValueFormatter<std::optional<T>>
 };
 
 template <class TValue>
-void FormatValue(TStringBuilderBase* builder, const TValue& value, TStringBuf format)
+auto FormatValue(TStringBuilderBase* builder, const TValue& value, TStringBuf format) ->
+    decltype(TValueFormatter<TValue>::Do(builder, value, format))
 {
-    TValueFormatter<TValue>::Do(builder, value, format);
+    return TValueFormatter<TValue>::Do(builder, value, format);
 }
 
 template <class TValue>
@@ -442,8 +455,8 @@ void FormatValueViaSprintf(
     TStringBuf format,
     TStringBuf genericSpec)
 {
-    const int MaxFormatSize = 64;
-    const int SmallResultSize = 64;
+    constexpr int MaxFormatSize = 64;
+    constexpr int SmallResultSize = 64;
 
     auto copyFormat = [] (char* destination, const char* source, int length) {
         int position = 0;
@@ -523,7 +536,7 @@ XX(float,           float,              AsStringBuf("f"))
 
 #undef XX
 
-// Pointers
+// Pointer
 template <class T>
 void FormatValue(TStringBuilderBase* builder, T* value, TStringBuf format)
 {
@@ -531,9 +544,16 @@ void FormatValue(TStringBuilderBase* builder, T* value, TStringBuf format)
 }
 
 // TDuration (specialize for performance reasons)
-inline void FormatValue(TStringBuilderBase* builder, const TDuration& value, TStringBuf /*format*/)
+inline void FormatValue(TStringBuilderBase* builder, TDuration value, TStringBuf /*format*/)
 {
     builder->AppendFormat("%vus", value.MicroSeconds());
+}
+
+// TInstant (specialize for TFormatTraits)
+inline void FormatValue(TStringBuilderBase* builder, TInstant value, TStringBuf format)
+{
+    // TODO(babenko): optimize
+    builder->AppendFormat("%v", ToString(value), format);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -638,6 +658,19 @@ void FormatImpl(
         }
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+struct TFormatTraits
+{
+    static constexpr bool HasCustomFormatValue = !std::is_same_v<
+        decltype(FormatValue(
+            static_cast<TStringBuilderBase*>(nullptr),
+            *static_cast<const T*>(nullptr),
+            TStringBuf())),
+        TToStringFallbackValueFormatterTag>;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

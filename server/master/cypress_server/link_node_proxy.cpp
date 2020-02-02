@@ -67,6 +67,8 @@ public:
                     method == "EndCopy")
                 {
                     return TResolveResultHere{path};
+                } else if (method == "BeginCopy") {
+                    THROW_ERROR_EXCEPTION("A link node cannot be externalized; consider externalizing its target instead");
                 } else {
                     return propagate();
                 }
@@ -115,7 +117,13 @@ private:
         try {
             const auto* linkNode = GetThisImpl();
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ResolvePathToObject(linkNode->ComputeEffectiveTargetPath(), Transaction_);
+            objectManager->ResolvePathToObject(
+                linkNode->ComputeEffectiveTargetPath(),
+                Transaction_,
+                TObjectManager::TResolvePathOptions{
+                    .EnablePartialResolve = false,
+                    .FollowPortals = false
+                });
             return false;
         } catch (const std::exception&) {
             return true;

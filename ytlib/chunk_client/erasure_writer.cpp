@@ -12,7 +12,7 @@
 
 #include <yt/client/api/client.h>
 
-#include <yt/ytlib/chunk_client/chunk_info.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -25,7 +25,7 @@
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/misc/numeric_helpers.h>
 

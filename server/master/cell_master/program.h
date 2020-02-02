@@ -10,7 +10,7 @@
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
 
-#include <yt/core/phdr_cache/phdr_cache.h>
+#include <yt/library/phdr_cache/phdr_cache.h>
 
 #include <library/ytalloc/api/ytalloc.h>
 
@@ -90,6 +90,10 @@ protected:
         }
 
         ConfigureSingletons(config);
+
+        if (dumpSnapshot || validateSnapshot || exportSnapshot) {
+            NLogging::TLogManager::Get()->ConfigureFromEnv();
+        }
 
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems

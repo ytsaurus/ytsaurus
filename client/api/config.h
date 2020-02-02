@@ -197,14 +197,14 @@ public:
         RegisterParameter("max_batch_delay", MaxBatchDelay)
             .Default(TDuration::MilliSeconds(10));
         RegisterParameter("max_batch_data_size", MaxBatchDataSize)
-            .Default((i64) 16 * 1024 * 1024);
+            .Default(16_MB);
         RegisterParameter("max_batch_row_count", MaxBatchRowCount)
-            .Default(100000);
+            .Default(100'000);
 
         RegisterParameter("max_flush_row_count", MaxFlushRowCount)
-            .Default(100000);
+            .Default(100'000);
         RegisterParameter("max_flush_data_size", MaxFlushDataSize)
-            .Default((i64) 100 * 1024 * 1024);
+            .Default(100_MB);
 
         RegisterParameter("prefer_local_host", PreferLocalHost)
             .Default(true);
@@ -221,12 +221,12 @@ public:
             .Default(5);
         RegisterParameter("max_chunk_row_count", MaxChunkRowCount)
             .GreaterThan(0)
-            .Default(1000000);
+            .Default(1'000'000);
         RegisterParameter("max_chunk_data_size", MaxChunkDataSize)
             .GreaterThan(0)
-            .Default((i64) 256 * 1024 * 1024);
+            .Default(10_GB);
         RegisterParameter("max_chunk_session_duration", MaxChunkSessionDuration)
-            .Default(TDuration::Minutes(15));
+            .Default(TDuration::Hours(60));
 
         RegisterParameter("node_channel", NodeChannel)
             .DefaultNew();

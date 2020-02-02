@@ -140,34 +140,8 @@ public:
     //! Timeout for |Discover| requests.
     TDuration DiscoverTimeout;
 
-    //! Time between consequent attempts to reconnect to a peer, which
-    //! returns a hard failure (i.e. non-OK response) to |Discover| request.
-    TDuration HardBackoffTime;
-
-    //! Time between consequent attempts to reconnect to a peer, which
-    //! returns a soft failure (i.e. "down" response) to |Discover| request.
-    TDuration SoftBackoffTime;
-
-    TBalancingChannelConfigBase()
-    {
-        RegisterParameter("discover_timeout", DiscoverTimeout)
-            .Default(TDuration::Seconds(5));
-        RegisterParameter("hard_backoff_time", HardBackoffTime)
-            .Default(TDuration::Seconds(10));
-        RegisterParameter("soft_backoff_time", SoftBackoffTime)
-            .Default(TDuration::Seconds(5));
-    }
-};
-
-class TBalancingChannelConfig
-    : public TBalancingChannelConfigBase
-{
-public:
-    //! List of seed addresses.
-    std::vector<TString> Addresses;
-
-    //! Maximum number of peers to query in parallel when locating alive endpoint.
-    int MaxConcurrentDiscoverRequests;
+    //! Timeout for acknowledgement of all RPC requests going through the channel.
+    TDuration AcknowledgementTimeout;
 
     //! Interval between automatic rediscovery of active peers.
     /*!
@@ -183,6 +157,41 @@ public:
     //! rediscovery attempt.
     TDuration RediscoverSplay;
 
+    //! Time between consequent attempts to reconnect to a peer, which
+    //! returns a hard failure (i.e. non-OK response) to |Discover| request.
+    TDuration HardBackoffTime;
+
+    //! Time between consequent attempts to reconnect to a peer, which
+    //! returns a soft failure (i.e. "down" response) to |Discover| request.
+    TDuration SoftBackoffTime;
+
+    TBalancingChannelConfigBase()
+    {
+        RegisterParameter("discover_timeout", DiscoverTimeout)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("acknowledgement_timeout", AcknowledgementTimeout)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("rediscover_period", RediscoverPeriod)
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("rediscover_splay", RediscoverSplay)
+            .Default(TDuration::Seconds(15));
+        RegisterParameter("hard_backoff_time", HardBackoffTime)
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("soft_backoff_time", SoftBackoffTime)
+            .Default(TDuration::Seconds(15));
+    }
+};
+
+class TBalancingChannelConfig
+    : public TBalancingChannelConfigBase
+{
+public:
+    //! List of seed addresses.
+    std::vector<TString> Addresses;
+
+    //! Maximum number of peers to query in parallel when locating alive endpoints.
+    int MaxConcurrentDiscoverRequests;
+
     //! For sticky mode: number of consistent hash tokens to assign to each peer.
     int HashesPerPeer;
 
@@ -192,10 +201,6 @@ public:
         RegisterParameter("max_concurrent_discover_requests", MaxConcurrentDiscoverRequests)
             .GreaterThan(0)
             .Default(1);
-        RegisterParameter("rediscover_period", RediscoverPeriod)
-            .Default(TDuration::Minutes(5));
-        RegisterParameter("rediscover_splay", RediscoverSplay)
-            .Default(TDuration::Minutes(1));
         RegisterParameter("hashes_per_peer", HashesPerPeer)
             .Default(10);
     }

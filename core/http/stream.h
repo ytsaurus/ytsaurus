@@ -193,6 +193,7 @@ public:
     virtual void SetStatus(EStatusCode status) override;
 
     virtual TFuture<void> Write(const TSharedRef& data) override;
+    virtual TFuture<void> Flush() override;
     virtual TFuture<void> Close() override;
 
     virtual TFuture<void> WriteBody(const TSharedRef& smallBody) override;

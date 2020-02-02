@@ -2,7 +2,7 @@
 
 #include <yt/server/lib/chunk_pools/config.h>
 
-#include <yt/core/re2/re2.h>
+#include <yt/library/re2/re2.h>
 
 namespace NYT::NControllerAgent {
 
@@ -114,7 +114,7 @@ TJobSplitterConfig::TJobSplitterConfig()
     RegisterParameter("exec_to_prepare_time_ratio", ExecToPrepareTimeRatio)
         .Default(20.0);
 
-    RegisterParameter("no_progress_job_total_to_prepare_time_ratio", NoProgressJobTotalToPrepareTimeRatio)
+    RegisterParameter("no_progress_job_time_to_average_prepare_time_ratio", NoProgressJobTimeToAveragePrepareTimeRatio)
         .Default(20.0);
 
     RegisterParameter("min_total_data_weight", MinTotalDataWeight)
@@ -679,6 +679,9 @@ TControllerAgentConfig::TControllerAgentConfig()
 
     RegisterParameter("legacy_live_preview_user_blacklist", LegacyLivePreviewUserBlacklist)
         .DefaultNew("robot-.*");
+
+    RegisterParameter("enable_bulk_insert_for_everyone", EnableBulkInsertForEveryone)
+        .Default(false);
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

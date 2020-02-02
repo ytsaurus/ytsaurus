@@ -25,7 +25,7 @@
 
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/ytlib/chunk_client/chunk_owner_ypath.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_owner_ypath.pb.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/client/table_client/unversioned_row.h>

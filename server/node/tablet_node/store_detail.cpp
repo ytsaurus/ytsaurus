@@ -831,10 +831,9 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
         CachedWeakChunk_.Reset();
 
         if (PreloadFuture_) {
-            YT_LOG_INFO("Cancelling current preload");
-            PreloadFuture_.Cancel();
-            PreloadFuture_.Reset();
+            PreloadFuture_.Cancel(TError("Preload canceled due to in-memory mode change"));
         }
+        PreloadFuture_.Reset();
 
         PreloadState_ = EStorePreloadState::None;
     }

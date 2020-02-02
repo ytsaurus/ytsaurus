@@ -2,6 +2,8 @@
 
 #include "client.h"
 
+#include "private.h"
+
 #include <yt/ytlib/tablet_client/public.h>
 
 #include <yt/ytlib/query_client/query_service_proxy.h>
@@ -115,6 +117,10 @@ public:
     IMPLEMENT_METHOD(TSelectRowsResult, SelectRows, (
         const TString& query,
         const TSelectRowsOptions& options),
+        (query, options))
+    IMPLEMENT_METHOD(NYson::TYsonString, Explain, (
+        const TString& query,
+        const TExplainOptions& options),
         (query, options))
     IMPLEMENT_METHOD(std::vector<NTabletClient::TTableReplicaId>, GetInSyncReplicas, (
         const NYPath::TYPath& path,
@@ -279,6 +285,12 @@ public:
         const std::vector<NYPath::TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options),
         (paths, options))
+
+    IMPLEMENT_METHOD(void, TruncateJournal, (
+        const NYPath::TYPath& path,
+        i64 rowCount,
+        const TTruncateJournalOptions& options),
+        (path, rowCount, options))
 
     IMPLEMENT_METHOD(TGetFileFromCacheResult, GetFileFromCache, (
         const TString& md5,
@@ -456,10 +468,11 @@ private:
     static void SetSuppressAccessTracking(
         const NRpc::IClientRequestPtr& request,
         const TSuppressableAccessTrackingOptions& commandOptions);
-    static void SetCachingHeader(
+
+    void SetCachingHeader(
         const NRpc::IClientRequestPtr& request,
         const TMasterReadOptions& options);
-    static void SetBalancingHeader(
+    void SetBalancingHeader(
         const NRpc::IClientRequestPtr& request,
         const TMasterReadOptions& options);
 
@@ -529,6 +542,9 @@ private:
     TSelectRowsResult DoSelectRowsOnce(
         const TString& queryString,
         const TSelectRowsOptions& options);
+    NYson::TYsonString DoExplain(
+        const TString& queryString,
+        const TExplainOptions& options);
 
     static bool IsReplicaInSync(
         const NQueryClient::NProto::TReplicaInfo& replicaInfo,
@@ -548,6 +564,11 @@ private:
     std::vector<NTableClient::TColumnarStatistics> DoGetColumnarStatistics(
         const std::vector<NYPath::TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options);
+
+    void DoTruncateJournal(
+        const NYPath::TYPath& path,
+        i64 rowCount,
+        const TTruncateJournalOptions& options);
 
     // Dynamic tables
     std::vector<TTabletInfo> DoGetTabletInfos(
@@ -858,8 +879,6 @@ private:
     static TString ExtractTextFactorForCypressItem(const TOperation& operation);
     static std::vector<TString> GetPoolsFromRuntimeParameters(const NYTree::INodePtr& runtimeParameters);
 
-    struct TCountingFilter;
-
     TOperation CreateOperationFromNode(
         const NYTree::INodePtr& node,
         const std::optional<THashSet<TString>>& attributes = std::nullopt);
@@ -876,9 +895,7 @@ private:
     // The operations are returned with requested fields plus necessarily "start_time" and "id".
     void DoListOperationsFromCypress(
         TInstant deadline,
-        TCountingFilter& countingFilter,
-        const TListOperationsAccessFilterPtr& accessFilter,
-        const std::optional<THashSet<TString>>& transitiveClosureOfSubject,
+        TListOperationsCountingFilter& countingFilter,
         const TListOperationsOptions& options,
         THashMap<NScheduler::TOperationId, TOperation>* idToOperation);
 
@@ -886,9 +903,7 @@ private:
     // Returns operations with requested fields plus necessarily "start_time" and "id".
     THashMap<NScheduler::TOperationId, TOperation> DoListOperationsFromArchive(
         TInstant deadline,
-        TCountingFilter& countingFilter,
-        const TListOperationsAccessFilterPtr& accessFilter,
-        const std::optional<THashSet<TString>>& transitiveClosureOfSubject,
+        TListOperationsCountingFilter& countingFilter,
         const TListOperationsOptions& options);
 
     THashSet<TString> GetSubjectClosure(

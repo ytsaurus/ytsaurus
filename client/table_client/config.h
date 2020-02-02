@@ -218,6 +218,7 @@ public:
     bool EnableRangeIndex;
     bool EnableRowIndex;
     bool DynamicTable;
+    bool EnableTabletIndex;
 
     TChunkReaderOptions()
     {
@@ -228,6 +229,9 @@ public:
             .Default(false);
 
         RegisterParameter("enable_row_index", EnableRowIndex)
+            .Default(false);
+
+        RegisterParameter("enable_tablet_index", EnableTabletIndex)
             .Default(false);
 
         RegisterParameter("dynamic_table", DynamicTable)

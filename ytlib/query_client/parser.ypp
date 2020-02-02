@@ -375,14 +375,14 @@ expression
             if (!inserted) {
                 THROW_ERROR_EXCEPTION("Alias %Qv has been already used", $name);
             }
-            $$ = MakeExpression<TAliasExpression>(@$, $expr.front(), $name);
+            $$ = MakeExpression<TAliasExpression>(head, @$, $expr.front(), $name);
         }
 ;
 
 or-op-expr
     : or-op-expr[lhs] KwOr and-op-expr[rhs]
         {
-            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::Or, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::Or, $lhs, $rhs);
         }
     | and-op-expr
         { $$ = $1; }
@@ -392,7 +392,7 @@ and-op-expr
 
     : and-op-expr[lhs] KwAnd not-op-expr[rhs]
         {
-            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::And, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::And, $lhs, $rhs);
         }
     | not-op-expr
         { $$ = $1; }
@@ -401,7 +401,7 @@ and-op-expr
 not-op-expr
     : KwNot equal-op-expr[expr]
         {
-            $$ = MakeExpression<TUnaryOpExpression>(@$, EUnaryOp::Not, $expr);
+            $$ = MakeExpression<TUnaryOpExpression>(head, @$, EUnaryOp::Not, $expr);
         }
     | equal-op-expr
         { $$ = $1; }
@@ -410,12 +410,12 @@ not-op-expr
 equal-op-expr
     : equal-op-expr[lhs] OpEqual relational-op-expr[rhs]
         {
-            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::Equal, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::Equal, $lhs, $rhs);
         }
 
     | equal-op-expr[lhs] OpNotEqual relational-op-expr[rhs]
         {
-            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::NotEqual, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::NotEqual, $lhs, $rhs);
         }
     | relational-op-expr
         { $$ = $1; }
@@ -424,31 +424,31 @@ equal-op-expr
 relational-op-expr
     : relational-op-expr[lhs] relational-op[opcode] bitor-op-expr[rhs]
         {
-            $$ = MakeExpression<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, $opcode, $lhs, $rhs);
         }
     | unary-expr[expr] KwBetween const-tuple[lower] KwAnd const-tuple[upper]
         {
             TExpressionList lowerExpr;
             for (const auto& value : $lower) {
-                lowerExpr.push_back(New<TLiteralExpression>(@$, value));
+                lowerExpr.push_back(head->New<TLiteralExpression>(@$, value));
             }
 
             TExpressionList upperExpr;
             for (const auto& value : $upper) {
-                upperExpr.push_back(New<TLiteralExpression>(@$, value));
+                upperExpr.push_back(head->New<TLiteralExpression>(@$, value));
             }
 
-            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::And,
-                MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::GreaterOrEqual, $expr, lowerExpr),
-                MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::LessOrEqual, $expr, upperExpr));
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::And,
+                MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::GreaterOrEqual, $expr, lowerExpr),
+                MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::LessOrEqual, $expr, upperExpr));
         }
     | unary-expr[expr] KwBetween LeftParenthesis const-range-list[ranges] RightParenthesis
         {
-            $$ = MakeExpression<TBetweenExpression>(@$, $expr, $ranges);
+            $$ = MakeExpression<TBetweenExpression>(head, @$, $expr, $ranges);
         }
     | unary-expr[expr] KwIn LeftParenthesis const-tuple-list[args] RightParenthesis
         {
-            $$ = MakeExpression<TInExpression>(@$, $expr, $args);
+            $$ = MakeExpression<TInExpression>(head, @$, $expr, $args);
         }
     | bitor-op-expr
         { $$ = $1; }
@@ -468,7 +468,7 @@ relational-op
 bitor-op-expr
     : bitor-op-expr[lhs] OpVerticalBar bitand-op-expr[rhs]
         {
-            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::BitOr, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::BitOr, $lhs, $rhs);
         }
     | bitand-op-expr
         { $$ = $1; }
@@ -477,7 +477,7 @@ bitor-op-expr
 bitand-op-expr
     : bitand-op-expr[lhs] OpAmpersand shift-op-expr[rhs]
         {
-            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::BitAnd, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::BitAnd, $lhs, $rhs);
         }
     | shift-op-expr
         { $$ = $1; }
@@ -486,11 +486,11 @@ bitand-op-expr
 shift-op-expr
     : shift-op-expr[lhs] OpLeftShift additive-op-expr[rhs]
         {
-            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::LeftShift, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::LeftShift, $lhs, $rhs);
         }
     | shift-op-expr[lhs] OpRightShift additive-op-expr[rhs]
         {
-            $$ = MakeExpression<TBinaryOpExpression>(@$, EBinaryOp::RightShift, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, EBinaryOp::RightShift, $lhs, $rhs);
         }
     | additive-op-expr
         { $$ = $1; }
@@ -499,7 +499,7 @@ shift-op-expr
 additive-op-expr
     : additive-op-expr[lhs] additive-op[opcode] multiplicative-op-expr[rhs]
         {
-            $$ = MakeExpression<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, $opcode, $lhs, $rhs);
         }
     | multiplicative-op-expr
         { $$ = $1; }
@@ -515,7 +515,7 @@ additive-op
 multiplicative-op-expr
     : multiplicative-op-expr[lhs] multiplicative-op[opcode] unary-expr[rhs]
         {
-            $$ = MakeExpression<TBinaryOpExpression>(@$, $opcode, $lhs, $rhs);
+            $$ = MakeExpression<TBinaryOpExpression>(head, @$, $opcode, $lhs, $rhs);
         }
     | unary-expr
         { $$ = $1; }
@@ -543,7 +543,7 @@ comma-expr
 unary-expr
     : unary-op[opcode] atomic-expr[rhs]
         {
-            $$ = MakeExpression<TUnaryOpExpression>(@$, $opcode, $rhs);
+            $$ = MakeExpression<TUnaryOpExpression>(head, @$, $opcode, $rhs);
         }
     | atomic-expr
         { $$ = $1; }
@@ -561,11 +561,11 @@ unary-op
 qualified-identifier
     : Identifier[name]
         {
-            $$ = New<TReferenceExpression>(@$, TString($name));
+            $$ = head->New<TReferenceExpression>(@$, TString($name));
         }
     | Identifier[table] Dot Identifier[name]
         {
-            $$ = New<TReferenceExpression>(@$, TString($name), TString($table));
+            $$ = head->New<TReferenceExpression>(@$, TString($name), TString($table));
         }
 ;
 
@@ -576,15 +576,15 @@ atomic-expr
         }
     | Identifier[name] LeftParenthesis RightParenthesis
         {
-            $$ = MakeExpression<TFunctionExpression>(@$, $name, TExpressionList());
+            $$ = MakeExpression<TFunctionExpression>(head, @$, $name, TExpressionList());
         }
     | Identifier[name] LeftParenthesis comma-expr[args] RightParenthesis
         {
-            $$ = MakeExpression<TFunctionExpression>(@$, $name, $args);
+            $$ = MakeExpression<TFunctionExpression>(head, @$, $name, $args);
         }
     | KwTransform LeftParenthesis expression[expr] Comma LeftParenthesis const-tuple-list[from] RightParenthesis Comma LeftParenthesis const-tuple-list[to] RightParenthesis transform-default-expr[default] RightParenthesis
         {
-            $$ = MakeExpression<TTransformExpression>(@$, $expr, $from, $to, $default);
+            $$ = MakeExpression<TTransformExpression>(head, @$, $expr, $from, $to, $default);
         }
     | LeftParenthesis comma-expr[expr] RightParenthesis
         {
@@ -592,7 +592,7 @@ atomic-expr
         }
     | literal-value[value]
         {
-            $$ = MakeExpression<TLiteralExpression>(@$, *$value);
+            $$ = MakeExpression<TLiteralExpression>(head, @$, *$value);
         }
 ;
 

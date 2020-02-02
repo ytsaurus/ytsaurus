@@ -3,9 +3,11 @@
 #include "lenval_control_constants.h"
 #include "protobuf.h"
 #include "schemaless_writer_adapter.h"
+#include "unversioned_value_yson_writer.h"
 
 #include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/core/misc/varint.h>
 
@@ -38,21 +40,29 @@ class TOtherColumnsWriter
 {
 public:
     TOtherColumnsWriter(
+        const std::vector<TTableSchema>& schemas,
         const TNameTablePtr& nameTable,
-        const TProtobufFormatDescriptionPtr& description)
+        const TProtobufFormatDescriptionPtr& description,
+        EComplexTypeMode complexTypeMode)
         : NameTableReader_(nameTable)
+        , TableIndexToOtherColumnsField_(description->GetTableCount())
+        , TableIndexToConverter_(description->GetTableCount())
         , Writer_(
             &OutputStream_,
             EYsonFormat::Binary,
             EYsonType::Node,
             /* enableRaw */ true)
     {
-        TableIndexToOtherColumnsField_.resize(description->GetTableCount());
         for (size_t tableIndex = 0; tableIndex < description->GetTableCount(); ++tableIndex) {
             const auto& tableDescription = description->GetTableDescription(tableIndex);
             for (const auto& [name, fieldDescription] : tableDescription.Columns) {
                 if (fieldDescription.Type == EProtobufType::OtherColumns) {
-                    TableIndexToOtherColumnsField_[tableIndex] = &fieldDescription;
+                    TableIndexToOtherColumnsField_[tableIndex] = fieldDescription;
+                    TableIndexToConverter_[tableIndex].emplace(
+                        nameTable,
+                        schemas[tableIndex],
+                        complexTypeMode,
+                        /* skipNullValues */ false);
                     break;
                 }
             }
@@ -71,7 +81,13 @@ public:
     void SetTableIndex(i64 tableIndex)
     {
         YT_VERIFY(!InsideRow_);
-        FieldDescription_ = TableIndexToOtherColumnsField_[tableIndex];
+        if (TableIndexToOtherColumnsField_[tableIndex]) {
+            FieldDescription_ = &*TableIndexToOtherColumnsField_[tableIndex];
+            Converter_ = &*TableIndexToConverter_[tableIndex];
+        } else {
+            FieldDescription_ = nullptr;
+            Converter_ = nullptr;
+        }
     }
 
     bool IsEnabled() const
@@ -103,7 +119,7 @@ public:
 
         YT_VERIFY(InsideRow_);
         Writer_.OnKeyedItem(NameTableReader_.GetName(value.Id));
-        Serialize(value, &Writer_, /* anyAsRaw */ true);
+        Converter_->WriteValue(value, &Writer_);
     }
 
     void OnEndRow()
@@ -158,8 +174,11 @@ private:
 private:
     const TNameTableReader NameTableReader_;
 
-    std::vector<const TProtobufFieldDescription*> TableIndexToOtherColumnsField_;
+    std::vector<std::optional<TProtobufFieldDescription>> TableIndexToOtherColumnsField_;
     const TProtobufFieldDescription* FieldDescription_ = nullptr;
+
+    std::vector<std::optional<TUnversionedValueYsonWriter>> TableIndexToConverter_;
+    TUnversionedValueYsonWriter* Converter_ = nullptr;
 
     TBlobOutput OutputStream_;
     TYsonWriter Writer_;
@@ -420,9 +439,11 @@ class TWriterImpl
 {
 public:
     TWriterImpl(
+        const std::vector<TTableSchema>& schemas,
         const TNameTablePtr& nameTable,
-        const TProtobufFormatDescriptionPtr& description)
-        : OtherColumnsWriter_(nameTable, description)
+        const TProtobufFormatDescriptionPtr& description,
+        EComplexTypeMode complexTypeMode)
+        : OtherColumnsWriter_(schemas, nameTable, description, complexTypeMode)
         , BufferOutput_(Buffer_)
     { }
 
@@ -656,12 +677,14 @@ class TSchemalessWriterForProtobuf
 {
 public:
     TSchemalessWriterForProtobuf(
+        const std::vector<TTableSchema>& schemas,
         TNameTablePtr nameTable,
         IAsyncOutputStreamPtr output,
         bool enableContextSaving,
         TControlAttributesConfigPtr controlAttributesConfig,
         int keyColumnCount,
-        TProtobufFormatDescriptionPtr description)
+        TProtobufFormatDescriptionPtr description,
+        EComplexTypeMode complexTypeMode)
         : TSchemalessFormatWriterBase(
             nameTable,
             output,
@@ -669,7 +692,7 @@ public:
             controlAttributesConfig,
             keyColumnCount)
         , Description_(description)
-        , WriterImpl_(nameTable, description)
+        , WriterImpl_(schemas, nameTable, description, complexTypeMode)
     {
         TableIndexToFieldIndexToDescription_.resize(Description_->GetTableCount());
         WriterImpl_.SetTableIndex(CurrentTableIndex_);
@@ -791,12 +814,14 @@ ISchemalessFormatWriterPtr CreateWriterForProtobuf(
     auto description = New<TProtobufFormatDescription>();
     description->Init(config, schemas, /* validateMissingFieldsOptionality */ false);
     return New<TSchemalessWriterForProtobuf>(
+        schemas,
         nameTable,
         output,
         enableContextSaving,
         controlAttributesConfig,
         keyColumnCount,
-        std::move(description));
+        std::move(description),
+        config->ComplexTypeMode);
 }
 
 ISchemalessFormatWriterPtr CreateWriterForProtobuf(

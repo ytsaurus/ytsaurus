@@ -1,0 +1,43 @@
+package NYT.NTransactionClient.NProto;
+
+import "yt/core/misc/proto/guid.proto";
+import "yt/core/ytree/proto/attributes.proto";
+import "yt/ytlib/transaction_client/proto/action.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqStartTransaction
+{
+    optional NYT.NYTree.NProto.TAttributeDictionary attributes = 1;
+    optional string title = 4;
+
+    optional NYT.NProto.TGuid parent_id = 2;
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 5;
+    optional NYT.NProto.TGuid hint_id = 6;
+
+    // If replicate_to_cell_tags are empty then at primary all secondaries are assumed
+    // for compatibility reason. To suppress any replication, set dont_replicate to true.
+    repeated int32 replicate_to_cell_tags = 7;
+    optional bool dont_replicate = 9;
+
+    required int64 timeout = 3;
+    optional uint64 deadline = 8;
+}
+
+message TRspStartTransaction
+{
+    required NYT.NProto.TGuid id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRegisterTransactionActions
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    repeated NYT.NTransactionClient.NProto.TTransactionActionData actions = 2;
+}
+
+message TRspRegisterTransactionActions
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

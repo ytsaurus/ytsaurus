@@ -55,7 +55,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/session_id.h>
-#include <yt/ytlib/chunk_client/chunk_service.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
 #include <yt/ytlib/journal_client/helpers.h>
 
@@ -65,7 +65,7 @@
 
 #include <yt/core/compression/codec.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/logging/log.h>
 
@@ -107,7 +107,7 @@ using NYT::ToProto;
 static const auto& Logger = ChunkServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
 
-static NProfiling::TAggregateGauge ChunkTreeRebalacnceTimeCounter("/chunk_tree_rebalance_time");
+static NProfiling::TAggregateGauge ChunkTreeRebalanceTimeCounter("/chunk_tree_rebalance_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -899,7 +899,7 @@ public:
         if (!ChunkTreeBalancer_.IsRebalanceNeeded(chunkList))
             return;
 
-        PROFILE_AGGREGATED_TIMING (ChunkTreeRebalacnceTimeCounter) {
+        PROFILE_AGGREGATED_TIMING (ChunkTreeRebalanceTimeCounter) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk tree rebalancing started (RootId: %v)",
                 chunkList->GetId());
             ChunkTreeBalancer_.Rebalance(chunkList);
@@ -1605,6 +1605,9 @@ private:
             if (cached) {
                 return;
             }
+
+            node->AddDestroyedReplica(chunkIdWithIndexes);
+
             if (!ChunkReplicator_) {
                 return;
             }
@@ -1712,10 +1715,6 @@ private:
 
     void OnNodeRegistered(TNode* node)
     {
-        if (ChunkReplicator_) {
-            ChunkReplicator_->OnNodeRegistered(node);
-        }
-
         ScheduleNodeRefresh(node);
     }
 
@@ -3015,13 +3014,6 @@ private:
         ChunkReplicator_ = New<TChunkReplicator>(Config_, Bootstrap_, ChunkPlacement_);
         ChunkSealer_ = New<TChunkSealer>(Config_, Bootstrap_);
 
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        for (const auto& pair : nodeTracker->Nodes()) {
-            auto* node = pair.second;
-            ChunkReplicator_->OnNodeRegistered(node);
-            ChunkPlacement_->OnNodeUpdated(node);
-        }
-
         ExpirationTracker_->Start();
     }
 
@@ -3240,7 +3232,10 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk added, removal scheduled (NodeId: %v, Address: %v, ChunkId: %v)",
+            auto isUnknown = node->AddDestroyedReplica(chunkIdWithIndexes);
+            YT_LOG_DEBUG_UNLESS(IsRecovery(),
+                "%v removal scheduled (NodeId: %v, Address: %v, ChunkId: %v)",
+                isUnknown ? "Unknown chunk added," : "Destroyed chunk",
                 nodeId,
                 node->GetDefaultAddress(),
                 chunkIdWithIndexes);
@@ -3294,7 +3289,10 @@ private:
         auto* chunk = FindChunk(chunkIdWithIndex.Id);
         // NB: Chunk could already be a zombie but we still need to remove the replica.
         if (!chunk) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Unknown chunk replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
+            auto isDestroyed = node->RemoveDestroyedReplica(chunkIdWithIndexes);
+            YT_LOG_DEBUG_UNLESS(IsRecovery(),
+                "%v chunk replica removed (ChunkId: %v, Address: %v, NodeId: %v)",
+                isDestroyed ? "Destroyed" : "Unknown",
                 chunkIdWithIndexes,
                 node->GetDefaultAddress(),
                 nodeId);

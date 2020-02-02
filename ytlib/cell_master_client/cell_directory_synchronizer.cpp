@@ -115,10 +115,6 @@ private:
 
         auto batchReq = proxy.ExecuteBatch();
 
-        auto* balancingHeaderExt = batchReq->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-        balancingHeaderExt->set_enable_stickness(true);
-        balancingHeaderExt->set_sticky_group_size(1);
-
         auto req = TMasterYPathProxy::GetClusterMeta();
         req->set_populate_cell_directory(true);
 
@@ -147,25 +143,30 @@ private:
     void OnSync()
     {
         TError error;
+        std::optional<TDuration> period;
         try {
             DoSync();
+
+            period = Config_->SyncPeriod;
+            YT_LOG_DEBUG("Synchronizing master cell directory succeeded, next sync in %v", period);
         } catch (const std::exception& ex) {
-            error = TError(ex);
+            error = TError("Synchronizing master cell directory failed") << ex;
+
+            period = Config_->RetryPeriod ? Config_->RetryPeriod : Config_->SyncPeriod;
+            YT_LOG_WARNING(error, "Synchronizing master cell directory failed, next sync in %v", period);
         }
 
-        if (error.IsOK()) {
-            auto nextSyncPromise = NextSyncPromise_;
-            // Don't drop the very first recent sync promise.
-            if (!RecentSyncPromise_.IsSet()) {
-                RecentSyncPromise_.Set(error);
-            }
-            RenewSyncPromises();
+        SyncExecutor_->SetPeriod(period);
 
-            nextSyncPromise.Set(error);
+        auto nextSyncPromise = NextSyncPromise_;
+        // Don't drop the very first recent sync promise.
+        if (!RecentSyncPromise_.IsSet()) {
             RecentSyncPromise_.Set(error);
-        } else {
-            YT_LOG_WARNING(error, "Synchronizing master cell directory failed");
         }
+        RenewSyncPromises();
+
+        nextSyncPromise.Set(error);
+        RecentSyncPromise_.Set(error);
     }
 
     void RenewSyncPromises()

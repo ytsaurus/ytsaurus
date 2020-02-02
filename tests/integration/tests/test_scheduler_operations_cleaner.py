@@ -206,7 +206,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                     out="//tmp/t2",
                     command="false",
                     spec={"max_failed_job_count": 1},
-                    dont_track=True)
+                    track=False)
                 ops.append(op.id)
                 op.track()
                 assert False, "Operation expected to fail"

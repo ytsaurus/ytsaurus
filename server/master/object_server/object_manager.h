@@ -12,7 +12,7 @@
 
 #include <yt/server/master/transaction_server/public.h>
 
-#include <yt/ytlib/object_client/object_ypath.pb.h>
+#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/core/profiling/public.h>
 
@@ -87,6 +87,9 @@ public:
 
     //! Finds object by id, returns |nullptr| if nothing is found.
     TObject* FindObject(TObjectId id);
+
+    //! Finds object by type and attributes, returns |nullptr| if nothing is found.
+    TObject* FindObjectByAttributes(EObjectType type, const NYTree::IAttributeDictionary* attributes);
 
     //! Finds object by id, fails if nothing is found.
     TObject* GetObject(TObjectId id);
@@ -171,11 +174,17 @@ public:
         EObjectType type,
         NYTree::IAttributeDictionary* attributes);
 
-    //! Handles all kinds of paths, both to versioned and unversioned objects.
-    //! Pretty slow.
+    struct TResolvePathOptions
+    {
+        bool EnablePartialResolve = false;
+        bool FollowPortals = true;
+    };
+
+    //! Handles paths to versioned and most unversioned objects.
     TObject* ResolvePathToObject(
         const NYPath::TYPath& path,
-        NTransactionServer::TTransaction* transaction);
+        NTransactionServer::TTransaction* transaction,
+        const TResolvePathOptions& options);
 
     //! Validates prerequisites, throws on failure.
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);

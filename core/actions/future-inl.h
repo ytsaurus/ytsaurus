@@ -25,7 +25,7 @@ namespace NYT {
 namespace NConcurrency {
 
 // scheduler.h
-TClosure GetCurrentFiberCanceler();
+TCallback<void(const TError&)> GetCurrentFiberCanceler();
 
 } // namespace NConcurrency
 
@@ -33,30 +33,100 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFutureStateBase
+inline TError MakeAbandonedError()
+{
+    return TError(NYT::EErrorCode::Canceled, "Promise abandoned");
+}
+
+inline TError MakeCanceledError(const TError& error)
+{
+    return TError(NYT::EErrorCode::Canceled, "Operation canceled")
+        << error;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCancelableStateBase
     : public TRefCountedBase
 {
 public:
-    using TVoidResultHandler = TClosure;
-    using TVoidResultHandlers = SmallVector<TVoidResultHandler, 8>;
+    TCancelableStateBase(bool wellKnown, int cancelableRefCount)
+        : WellKnown_(wellKnown)
+        , CancelableRefCount_(cancelableRefCount)
+    { }
 
-    using TCancelHandler = TClosure;
-    using TCancelHandlers = SmallVector<TCancelHandler, 8>;
-
-    virtual ~TFutureStateBase() noexcept
+    virtual ~TCancelableStateBase() noexcept
     {
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
         FinalizeTracking();
 #endif
     }
 
+    virtual bool Cancel(const TError& error) noexcept = 0;
+
+    void RefCancelable()
+    {
+        if (WellKnown_) {
+            return;
+        }
+        auto oldCount = CancelableRefCount_++;
+        YT_ASSERT(oldCount > 0);
+    }
+
+    void UnrefCancelable()
+    {
+        if (WellKnown_) {
+            return;
+        }
+        auto oldCount = CancelableRefCount_--;
+        YT_ASSERT(oldCount > 0);
+        if (oldCount == 1) {
+            OnLastCancelableRefLost();
+        }
+    }
+
+protected:
+    const bool WellKnown_;
+
+    //! Number of cancelables plus one if FutureRefCount_ > 0.
+    std::atomic<int> CancelableRefCount_;
+
+private:
+    void OnLastCancelableRefLost()
+    {
+        delete this;
+    }
+};
+
+Y_FORCE_INLINE void Ref(TCancelableStateBase* state)
+{
+    state->RefCancelable();
+}
+
+Y_FORCE_INLINE void Unref(TCancelableStateBase* state)
+{
+    state->UnrefCancelable();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFutureStateBase
+    : public TCancelableStateBase
+{
+public:
+    using TVoidResultHandler = TClosure;
+    using TVoidResultHandlers = SmallVector<TVoidResultHandler, 8>;
+
+    using TCancelHandler = TCallback<void(const TError&)>;
+    using TCancelHandlers = SmallVector<TCancelHandler, 8>;
+
     void RefFuture()
     {
         if (WellKnown_) {
             return;
         }
-        auto oldWeakCount = WeakRefCount_++;
-        YT_ASSERT(oldWeakCount > 0);
+        auto oldCount = FutureRefCount_++;
+        YT_ASSERT(oldCount > 0);
     }
 
     void UnrefFuture()
@@ -64,33 +134,33 @@ public:
         if (WellKnown_) {
             return;
         }
-        auto oldWeakCount = WeakRefCount_--;
-        YT_ASSERT(oldWeakCount > 0);
-        if (oldWeakCount == 1) {
-            delete this;
+        auto oldCount = FutureRefCount_--;
+        YT_ASSERT(oldCount > 0);
+        if (oldCount == 1) {
+            OnLastFutureRefLost();
         }
     }
 
     void RefPromise()
     {
         YT_ASSERT(!WellKnown_);
-        auto oldStrongCount = StrongRefCount_++;
-        YT_ASSERT(oldStrongCount > 0 && WeakRefCount_ > 0);
+        auto oldCount = PromiseRefCount_++;
+        YT_ASSERT(oldCount > 0 && FutureRefCount_ > 0);
     }
 
     void UnrefPromise()
     {
         YT_ASSERT(!WellKnown_);
-        auto oldStrongCount = StrongRefCount_--;
-        YT_ASSERT(oldStrongCount > 0);
-        if (oldStrongCount == 1) {
-            Dispose();
+        auto oldCount = PromiseRefCount_--;
+        YT_ASSERT(oldCount > 0);
+        if (oldCount == 1) {
+            OnLastPromiseRefLost();
         }
     }
 
     void Subscribe(TVoidResultHandler handler);
 
-    bool Cancel() noexcept;
+    virtual bool Cancel(const TError& error) noexcept override;
 
     void OnCanceled(TCancelHandler handler);
 
@@ -107,16 +177,15 @@ public:
     bool TimedWait(TDuration timeout) const;
 
 protected:
-    const bool WellKnown_;
-
     //! Number of promises.
-    std::atomic<int> StrongRefCount_;
-    //! Number of futures plus one if there's at least one promise.
-    std::atomic<int> WeakRefCount_;
+    std::atomic<int> PromiseRefCount_;
+    //! Number of futures plus one if PromiseRefCount_ > 0.
+    std::atomic<int> FutureRefCount_;
 
     //! Protects the following section of members.
     mutable TSpinLock SpinLock_;
-    std::atomic<bool> Canceled_;
+    std::atomic<bool> Canceled_ = {false};
+    TError CancelationError_;
     std::atomic<bool> Set_;
     std::atomic<bool> AbandonedUnset_ = {false};
 
@@ -126,19 +195,17 @@ protected:
 
     mutable std::unique_ptr<NConcurrency::TEvent> ReadyEvent_;
 
-    TFutureStateBase(int strongRefCount, int weakRefCount)
-        : WellKnown_(false)
-        , StrongRefCount_(strongRefCount)
-        , WeakRefCount_(weakRefCount)
-        , Canceled_(false)
+    TFutureStateBase(int promiseRefCount, int futureRefCount, int cancelableRefCount)
+        : TCancelableStateBase(false, cancelableRefCount)
+        , PromiseRefCount_(promiseRefCount)
+        , FutureRefCount_(futureRefCount)
         , Set_(false)
     { }
 
-    TFutureStateBase(bool wellKnown, int strongRefCount, int weakRefCount)
-        : WellKnown_(wellKnown)
-        , StrongRefCount_(strongRefCount)
-        , WeakRefCount_(weakRefCount)
-        , Canceled_ (false)
+    TFutureStateBase(bool wellKnown, int promiseRefCount, int futureRefCount, int cancelableRefCount)
+        : TCancelableStateBase(wellKnown, cancelableRefCount)
+        , PromiseRefCount_(promiseRefCount)
+        , FutureRefCount_(futureRefCount)
         , Set_(true)
     { }
 
@@ -152,16 +219,16 @@ protected:
 
     virtual void DoInstallAbandonedError() = 0;
     virtual void DoTrySetAbandonedError() = 0;
-    virtual void DoTrySetCanceledError() = 0;
-
-    static TError MakeAbandonedError();
-    static TError MakeCanceledError();
+    virtual bool DoTrySetCanceledError(const TError& error) = 0;
 
     void InstallAbandonedError();
     void InstallAbandonedError() const;
 
+    virtual void ResetValue() = 0;
+
 private:
-    void Dispose();
+    void OnLastFutureRefLost();
+    void OnLastPromiseRefLost();
 };
 
 Y_FORCE_INLINE void Ref(TFutureStateBase* state)
@@ -199,9 +266,6 @@ private:
     template <class U, bool MustSet>
     bool DoSet(U&& value) noexcept
     {
-        // Calling subscribers may release the last reference to this.
-        TIntrusivePtr<TFutureState> this_(this);
-
         NConcurrency::TEvent* readyEvent = nullptr;
         bool canceled;
         {
@@ -222,6 +286,9 @@ private:
         if (readyEvent) {
             readyEvent->NotifyAll();
         }
+
+        // Calling subscribers may release the last reference to this.
+        TIntrusivePtr<TFutureState> this_(this);
 
         for (const auto& handler : VoidResultHandlers_) {
             RunNoExcept(handler);
@@ -266,19 +333,24 @@ private:
         TrySet(MakeAbandonedError());
     }
 
-    virtual void DoTrySetCanceledError() override
+    virtual bool DoTrySetCanceledError(const TError& error) override
     {
-        TrySet(MakeCanceledError());
+        return TrySet(MakeCanceledError(error));
+    }
+
+    virtual void ResetValue() override
+    {
+        Value_.reset();
     }
 
 protected:
-    TFutureState(int strongRefCount, int weakRefCount)
-        : TFutureStateBase(strongRefCount, weakRefCount)
+    TFutureState(int promiseRefCount, int futureRefCount, int cancelableRefCount)
+        : TFutureStateBase(promiseRefCount, futureRefCount, cancelableRefCount)
     { }
 
     template <class U>
-    TFutureState(bool wellKnown, int strongRefCount, int weakRefCount, U&& value)
-        : TFutureStateBase(wellKnown, strongRefCount, weakRefCount)
+    TFutureState(bool wellKnown, int promiseRefCount, int futureRefCount, int cancelableRefCount, U&& value)
+        : TFutureStateBase(wellKnown, promiseRefCount, futureRefCount, cancelableRefCount)
         , Value_(std::forward<U>(value))
     { }
 
@@ -334,7 +406,9 @@ public:
     std::optional<TErrorOr<T>> TryGet() const
     {
         // Fast path.
-        if (!Set_ && !AbandonedUnset_) {
+        if (Set_) {
+            return Value_;
+        } else if (!AbandonedUnset_) {
             return std::nullopt;
         }
 
@@ -352,7 +426,9 @@ public:
     std::optional<TErrorOr<T>> TryGetUnique()
     {
         // Fast path.
-        if (!Set_ && !AbandonedUnset_) {
+        if (Set_) {
+            return MoveValueOut();
+        } else if (!AbandonedUnset_) {
             return std::nullopt;
         }
 
@@ -380,6 +456,8 @@ public:
         if (Set_) {
             return false;
         }
+
+        // Slow path.
         return DoSet<U, false>(std::forward<U>(value));
     }
 
@@ -449,13 +527,13 @@ class TPromiseState
     : public TFutureState<T>
 {
 public:
-    explicit TPromiseState(int strongRefCount, int weakRefCount)
-        : TFutureState<T>(strongRefCount, weakRefCount)
+    TPromiseState(int promiseRefCount, int futureRefCount, int cancelableRefCount)
+        : TFutureState<T>(promiseRefCount, futureRefCount, cancelableRefCount)
     { }
 
     template <class U>
-    TPromiseState(bool wellKnown, int strongRefCount, int weakRefCount, U&& value)
-        : TFutureState<T>(wellKnown, strongRefCount, weakRefCount, std::forward<U>(value))
+    TPromiseState(bool wellKnown, int promiseRefCount, int futureRefCount, int cancelableRefCount, U&& value)
+        : TFutureState<T>(wellKnown, promiseRefCount, futureRefCount, cancelableRefCount, std::forward<U>(value))
     { }
 };
 
@@ -597,12 +675,12 @@ TFuture<R> ApplyHelper(TFutureBase<T> this_, TCallback<S> callback)
 
     auto promise = NewPromise<R>();
 
-    this_.Subscribe(BIND([=, callback = std::move(callback)] (const TErrorOr<T>& value) mutable {
+    this_.Subscribe(BIND([=, callback = std::move(callback)] (const TErrorOr<T>& value) {
         ApplyHelperHandler(promise, callback, value);
     }));
 
-    promise.OnCanceled(BIND([=] () mutable {
-        this_.Cancel();
+    promise.OnCanceled(BIND([cancelable = this_.AsCancelable()] (const TError& error) {
+        cancelable.Cancel(error);
     }));
 
     return promise;
@@ -617,40 +695,56 @@ TFuture<R> ApplyHelper(TFutureBase<T> this_, TCallback<S> callback)
 template <class T>
 TPromise<T> NewPromise()
 {
-    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(1, 1));
+    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(1, 1, 1));
 }
 
 template <class T>
 TPromise<T> MakePromise(TErrorOr<T> value)
 {
-    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(false, 1, 1, std::move(value)));
+    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(false, 1, 1, 1, std::move(value)));
 }
 
 template <class T>
 TPromise<T> MakePromise(T value)
 {
-    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(false, 1, 1, std::move(value)));
+    return TPromise<T>(New<NYT::NDetail::TPromiseState<T>>(false, 1, 1, 1, std::move(value)));
 }
 
 template <class T>
 TFuture<T> MakeFuture(TErrorOr<T> value)
 {
-    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(false, 0, 1, std::move(value)));
+    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(false, 0, 1, 1, std::move(value)));
 }
 
 template <class T>
 TFuture<T> MakeFuture(T value)
 {
-    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(false, 0, 1, std::move(value)));
+    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(false, 0, 1, 1, std::move(value)));
 }
 
 template <class T>
 TFuture<T> MakeWellKnownFuture(TErrorOr<T> value)
 {
-    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(true, -1, -1, std::move(value)));
+    return TFuture<T>(New<NYT::NDetail::TPromiseState<T>>(true, -1, -1, -1, std::move(value)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+inline bool operator==(const TCancelable& lhs, const TCancelable& rhs)
+{
+    return lhs.Impl_ == rhs.Impl_;
+}
+
+inline bool operator!=(const TCancelable& lhs, const TCancelable& rhs)
+{
+    return !(lhs == rhs);
+}
+
+inline void swap(TCancelable& lhs, TCancelable& rhs)
+{
+    using std::swap;
+    swap(lhs.Impl_, rhs.Impl_);
+}
 
 inline bool operator==(const TAwaitable& lhs, const TAwaitable& rhs)
 {
@@ -708,6 +802,28 @@ void swap(TPromise<T>& lhs, TPromise<T>& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+inline TCancelable::operator bool() const
+{
+    return Impl_.operator bool();
+}
+
+inline void TCancelable::Reset()
+{
+    Impl_.Reset();
+}
+
+inline bool TCancelable::Cancel(const TError& error) const
+{
+    YT_ASSERT(Impl_);
+    return Impl_->Cancel(error);
+}
+
+inline TCancelable::TCancelable(TIntrusivePtr<NYT::NDetail::TCancelableStateBase> impl)
+    : Impl_(std::move(impl))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 inline TAwaitable::operator bool() const
 {
     return Impl_.operator bool();
@@ -724,10 +840,10 @@ inline void TAwaitable::Subscribe(TClosure handler) const
     return Impl_->Subscribe(std::move(handler));
 }
 
-inline bool TAwaitable::Cancel() const
+inline bool TAwaitable::Cancel(const TError& error) const
 {
     YT_ASSERT(Impl_);
-    return Impl_->Cancel();
+    return Impl_->Cancel(error);
 }
 
 inline TAwaitable::TAwaitable(TIntrusivePtr<NYT::NDetail::TFutureStateBase> impl)
@@ -805,10 +921,10 @@ void TFutureBase<T>::SubscribeUnique(TCallback<void(TErrorOr<T>&&)> handler) con
 }
 
 template <class T>
-bool TFutureBase<T>::Cancel() const
+bool TFutureBase<T>::Cancel(const TError& error) const
 {
     YT_ASSERT(Impl_);
-    return Impl_->Cancel();
+    return Impl_->Cancel(error);
 }
 
 template <class T>
@@ -820,7 +936,7 @@ TFuture<T> TFutureBase<T>::ToUncancelable() const
 
     auto promise = NewPromise<T>();
 
-    this->Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
+    this->Subscribe(BIND([=] (const TErrorOr<T>& value) {
         promise.Set(value);
     }));
 
@@ -836,13 +952,13 @@ TFuture<T> TFutureBase<T>::ToImmediatelyCancelable() const
 
     auto promise = NewPromise<T>();
 
-    this->Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
+    this->Subscribe(BIND([=] (const TErrorOr<T>& value) {
         promise.TrySet(value);
     }));
 
-    promise.OnCanceled(BIND([=, underlying = Impl_] () mutable {
-        underlying->Cancel();
-        promise.TrySet(TError(NYT::EErrorCode::Canceled, "Operation canceled"));
+    promise.OnCanceled(BIND([=, cancelable = AsCancelable()] (const TError& error) {
+        cancelable.Cancel(error);
+        promise.TrySet(NDetail::MakeCanceledError(error));
     }));
 
     return promise;
@@ -857,11 +973,10 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout) const
         return TFuture<T>(Impl_);
     }
 
-    auto this_ = *this;
     auto promise = NewPromise<T>();
 
     auto cookie = NConcurrency::TDelayedExecutor::Submit(
-        BIND([=] (bool aborted) mutable {
+        BIND([=, cancelable = AsCancelable()] (bool aborted) {
             TError error;
             if (aborted) {
                 error = TError(NYT::EErrorCode::Canceled, "Operation aborted");
@@ -870,7 +985,7 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout) const
                     << TErrorAttribute("timeout", timeout);
             }
             promise.TrySet(error);
-            this_.Cancel();
+            cancelable.Cancel(error);
         }),
         timeout);
 
@@ -879,9 +994,9 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout) const
         promise.TrySet(value);
     }));
 
-    promise.OnCanceled(BIND([this_, cookie] () mutable {
+    promise.OnCanceled(BIND([=, cancelable = AsCancelable()] (const TError& error) mutable {
         NConcurrency::TDelayedExecutor::CancelAndClear(cookie);
-        this_.Cancel();
+        cancelable.Cancel(error);
     }));
 
     return promise;
@@ -931,16 +1046,21 @@ TFuture<U> TFutureBase<T>::As() const
 
     auto promise = NewPromise<U>();
 
-    this->Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
+    Subscribe(BIND([=] (const TErrorOr<T>& value) {
         promise.Set(TErrorOr<U>(value));
     }));
 
-    auto this_ = *this;
-    promise.OnCanceled(BIND([this_] () mutable {
-        this_.Cancel();
+    promise.OnCanceled(BIND([cancelable = AsCancelable()] (const TError& error) {
+        cancelable.Cancel(error);
     }));
 
     return promise;
+}
+
+template <class T>
+TCancelable TFutureBase<T>::AsCancelable() const
+{
+    return TCancelable(Impl_);
 }
 
 template <class T>
@@ -1057,12 +1177,12 @@ void TPromiseBase<T>::SetFrom(const TFuture<U>& another) const
 
     auto this_ = *this;
 
-    another.Subscribe(BIND([this_] (const TErrorOr<U>& value) mutable {
+    another.Subscribe(BIND([this_] (const TErrorOr<U>& value)   {
         this_.Set(value);
     }));
 
-    OnCanceled(BIND([another] () mutable {
-        another.Cancel();
+    OnCanceled(BIND([anotherCancelable = another.AsCancelable()] (const TError& error) {
+        anotherCancelable.Cancel(error);
     }));
 }
 
@@ -1088,12 +1208,12 @@ inline void TPromiseBase<T>::TrySetFrom(TFuture<U> another) const
 
     auto this_ = *this;
 
-    another.Subscribe(BIND([this_] (const TErrorOr<U>& value) mutable {
+    another.Subscribe(BIND([this_] (const TErrorOr<U>& value) {
         this_.TrySet(value);
     }));
 
-    OnCanceled(BIND([another] () mutable {
-        another.Cancel();
+    OnCanceled(BIND([anotherCancelable = another.AsCancelable()] (const TError& error) {
+        anotherCancelable.Cancel(error);
     }));
 }
 
@@ -1118,7 +1238,7 @@ bool TPromiseBase<T>::IsCanceled() const
 }
 
 template <class T>
-void TPromiseBase<T>::OnCanceled(TClosure handler) const
+void TPromiseBase<T>::OnCanceled(TCallback<void(const TError&)> handler) const
 {
     YT_ASSERT(Impl_);
     Impl_->OnCanceled(std::move(handler));
@@ -1279,7 +1399,7 @@ struct TAsyncViaHelper<R(TArgs...)>
         GuardedInvoke(
             invoker,
             BIND(&Inner, this_, promise, args...),
-            BIND([promise, cancellationError = std::move(cancellationError)] () mutable {
+            BIND([promise, cancellationError = std::move(cancellationError)] {
                 promise.Set(std::move(cancellationError));
             }));
         return promise;
@@ -1332,7 +1452,7 @@ template <class T>
 TFutureHolder<T>::~TFutureHolder()
 {
     if (Future_) {
-        Future_.Cancel();
+        Future_.Cancel(TError("Future holder destroyed"));
     }
 }
 
@@ -1497,16 +1617,15 @@ public:
 protected:
     std::vector<TFuture<TItem>> Futures_;
     TPromise<TResult> Promise_ = NewPromise<TResult>();
-
     std::atomic_flag Canceled_ = ATOMIC_FLAG_INIT;
 
-    void CancelFutures()
+    void CancelFutures(const TError& error)
     {
         if (Canceled_.test_and_set()) {
             return;
         }
         for (size_t index = 0; index < Futures_.size(); ++index) {
-            Futures_[index].Cancel();
+            Futures_[index].Cancel(error);
         }
     }
 
@@ -1545,8 +1664,9 @@ private:
     virtual void OnFutureSet(int futureIndex, const TErrorOr<T>& result) override
     {
         if (!result.IsOK()) {
-            this->Promise_.TrySet(TError(result));
-            this->CancelFutures();
+            TError error(result);
+            this->Promise_.TrySet(error);
+            this->CancelFutures(error);
             return;
         }
 
@@ -1586,8 +1706,9 @@ private:
     virtual void OnFutureSet(int /*futureIndex*/, const TErrorOr<T>& result) override
     {
         if (!result.IsOK()) {
-            this->Promise_.TrySet(TError(result));
-            this->CancelFutures();
+            TError error(result);
+            this->Promise_.TrySet(error);
+            this->CancelFutures(error);
             return;
         }
 

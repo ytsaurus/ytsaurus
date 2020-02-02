@@ -17,10 +17,11 @@ public:
 
 public:
     TSchedulingContext(
+        int shardId,
         NScheduler::TSchedulerConfigPtr schedulerConfig,
         NScheduler::TExecNodePtr node,
         const std::vector<NScheduler::TJobPtr>& runningJobs)
-        : TSchedulingContextBase(0, schedulerConfig, node, runningJobs)
+        : TSchedulingContextBase(shardId, schedulerConfig, node, runningJobs)
     { }
 
     void SetDurationForStartedJob(NScheduler::TJobId jobId, const TDuration& duration)

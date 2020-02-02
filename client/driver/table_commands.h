@@ -210,7 +210,7 @@ private:
 
 struct TSelectRowsOptions
     : public NApi::TSelectRowsOptions
-    , public TTabletReadOptions
+    , public TTabletTransactionOptions
 { };
 
 class TSelectRowsCommand
@@ -218,6 +218,25 @@ class TSelectRowsCommand
 {
 public:
     TSelectRowsCommand();
+
+private:
+    TString Query;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TExplainOptions
+    : public NApi::TExplainOptions
+    , public TTabletTransactionOptions
+{ };
+
+class TExplainCommand
+    : public TTypedCommand<TExplainOptions>
+{
+public:
+    TExplainCommand();
 
 private:
     TString Query;
@@ -246,7 +265,7 @@ private:
 
 struct TLookupRowsOptions
     : public NApi::TLookupRowsOptions
-    , public TTabletReadOptions
+    , public TTabletTransactionOptions
 { };
 
 class TLookupRowsCommand

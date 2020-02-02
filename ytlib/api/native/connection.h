@@ -62,6 +62,8 @@ struct IConnection
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options = TClientOptions()) = 0;
 
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
+
     virtual void Terminate() = 0;
     virtual bool IsTerminated() = 0;
 

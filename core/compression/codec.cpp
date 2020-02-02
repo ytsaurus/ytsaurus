@@ -77,7 +77,7 @@ private:
     {
         // For blobs smaller than 16K, do nothing.
         // For others, allow up to 5% capacity overhead.
-        if (blob->Capacity() >= 16 * 1024 &&
+        if (blob->Capacity() >= 16_KB &&
             blob->Capacity() >= 1.05 * blob->Size())
         {
             *blob = TBlob(blobCookie, blob->Begin(), blob->Size());

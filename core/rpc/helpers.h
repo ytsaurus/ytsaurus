@@ -68,17 +68,12 @@ IChannelFactoryPtr CreateRealmChannelFactory(
  */
 IChannelPtr CreateFailureDetectingChannel(
     IChannelPtr underlyingChannel,
-    TCallback<void(IChannelPtr)> onFailure,
+    std::optional<TDuration> acknowledgementTimeout,
+    TCallback<void(const IChannelPtr&, const TError& error)> onFailure,
     TCallback<bool(const TError&)> isError = BIND(IsChannelFailureError));
 
-NTracing::TSpanContext GetSpanContext(const NProto::TRequestHeader& header);
-NTracing::TTraceContextPtr GetOrCreateTraceContext(const NProto::TRequestHeader& header);
-NTracing::TTraceContextPtr CreateCallTraceContext(
-    const TString& service,
-    const TString& method);
-void SetTraceContext(
-    NProto::TRequestHeader* header,
-    const NTracing::TTraceContextPtr& traceContext);
+NTracing::TTraceContextPtr CreateHandlerTraceContext(const NProto::TRequestHeader& header);
+NTracing::TTraceContextPtr CreateCallTraceContext(const TString& service, const TString& method);
 
 //! Generates a random mutation id.
 TMutationId GenerateMutationId();

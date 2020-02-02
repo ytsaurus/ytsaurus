@@ -16,6 +16,8 @@
 
 namespace NYT::NConcurrency {
 
+using namespace NProfiling;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareCallbackQueue
@@ -58,7 +60,7 @@ public:
         return true;
     }
 
-    virtual void AccountCpuTime(int bucketIndex, NProfiling::TCpuDuration cpuTime) override
+    virtual void AccountCpuTime(int bucketIndex, TCpuDuration cpuTime) override
     {
         auto guard = Guard(Lock_);
 
@@ -71,11 +73,11 @@ private:
     TSpinLock Lock_;
 
     TBuckets Buckets_;
-    std::vector<NProfiling::TCpuDuration> ExcessTimes_;
+    std::vector<TCpuDuration> ExcessTimes_;
 
     std::optional<int> GetStarvingBucketIndex() const
     {
-        auto minExcessTime = std::numeric_limits<NProfiling::TCpuDuration>::max();
+        auto minExcessTime = std::numeric_limits<TCpuDuration>::max();
         std::optional<int> minBucketIndex;
         for (int index = 0; index < Buckets_.size(); ++index) {
             if (Buckets_[index].empty()) {
@@ -89,7 +91,7 @@ private:
         return minBucketIndex;
     }
 
-    void TruncateExcessTimes(NProfiling::TCpuDuration delta)
+    void TruncateExcessTimes(TCpuDuration delta)
     {
         for (int index = 0; index < Buckets_.size(); ++index) {
             if (ExcessTimes_[index] >= delta) {
@@ -131,8 +133,7 @@ public:
         for (int index = 0; index < invokerCount; ++index) {
             Invokers_.push_back(New<TInvoker>(UnderlyingInvoker_, index, MakeWeak(this)));
         }
-        TotalActionCounts_.resize(invokerCount);
-        TotalWaitTimes_.resize(invokerCount);
+        InvokerQueueStates_.resize(invokerCount);
     }
 
     virtual int GetSize() const override
@@ -142,8 +143,19 @@ public:
 
     void Enqueue(TClosure callback, int index)
     {
+        auto now = GetCpuInstant();
+        {
+            TWriterGuard guard(InvokerQueueStatesLock_);
+
+            auto& queueState = InvokerQueueStates_[index];
+            ++queueState.EnqueuedActionCount;
+            // NB(eshcherbin): scaling is needed to avoid overflow problems in case too many actions are enqueued.
+            // According to my humble calculations, without it the capacity would be only a few hundred actions per bucket,
+            // which is not reliable enough.
+            queueState.ScaledSumOfEnqueuedAtInstants += now / CpuInstantScalingFactor;
+        }
+
         Queue_->Enqueue(std::move(callback), index);
-        auto now = NProfiling::GetCpuInstant();
         UnderlyingInvoker_->Invoke(BIND(
             &TFairShareInvokerPool::Run,
             MakeStrong(this),
@@ -158,13 +170,20 @@ protected:
     }
 
 private:
+    static constexpr int CpuInstantScalingFactor = 1000;
+
     const IInvokerPtr UnderlyingInvoker_;
 
     std::vector<IInvokerPtr> Invokers_;
 
-    NConcurrency::TReaderWriterSpinLock AverageWaitTimeLock_;
-    std::vector<i64> TotalActionCounts_;
-    std::vector<NProfiling::TCpuDuration> TotalWaitTimes_;
+    struct TInvokerQueueState
+    {
+        int EnqueuedActionCount = 0;
+        TCpuInstant ScaledSumOfEnqueuedAtInstants = {};
+    };
+
+    NConcurrency::TReaderWriterSpinLock InvokerQueueStatesLock_;
+    std::vector<TInvokerQueueState> InvokerQueueStates_;
 
     IFairShareCallbackQueuePtr Queue_;
 
@@ -185,7 +204,7 @@ private:
                 return;
             }
             Accounted_ = true;
-            Queue_->AccountCpuTime(Index_, NProfiling::DurationToCpuDuration(Timer_.GetElapsedTime()));
+            Queue_->AccountCpuTime(Index_, DurationToCpuDuration(Timer_.GetElapsedTime()));
             Timer_.Stop();
         }
 
@@ -198,7 +217,7 @@ private:
         const int Index_;
         bool Accounted_ = false;
         IFairShareCallbackQueue* Queue_;
-        NProfiling::TWallTimer Timer_;
+        TWallTimer Timer_;
         TContextSwitchGuard ContextSwitchGuard_;
     };
 
@@ -222,13 +241,15 @@ private:
         virtual TDuration GetAverageWaitTime() const override
         {
             if (auto strongParent = Parent_.Lock()) {
-                TReaderGuard guard(strongParent->AverageWaitTimeLock_);
+                TReaderGuard guard(strongParent->InvokerQueueStatesLock_);
 
-                auto totalActionCount = strongParent->TotalActionCounts_[Index_];
-                auto totalWaitTime = strongParent->TotalWaitTimes_[Index_];
-                return totalActionCount == 0
+                auto now = GetCpuInstant();
+                auto& queueState = strongParent->InvokerQueueStates_[Index_];
+                auto enqueuedActionCount = queueState.EnqueuedActionCount;
+                auto sumOfEnqueuedAtInstants = queueState.ScaledSumOfEnqueuedAtInstants * CpuInstantScalingFactor;
+                return enqueuedActionCount == 0
                     ? TDuration::Zero()
-                    : NProfiling::CpuDurationToDuration(totalWaitTime / totalActionCount);
+                    : CpuDurationToDuration(now - sumOfEnqueuedAtInstants / enqueuedActionCount);
             }
 
             return TDuration::Zero();
@@ -244,7 +265,7 @@ private:
         return 0 <= index && index < Invokers_.size();
     }
 
-    void Run(NProfiling::TCpuDuration enqueuedAt)
+    void Run(TCpuInstant enqueuedAt)
     {
         TClosure callback;
         int bucketIndex = -1;
@@ -254,11 +275,11 @@ private:
         TCurrentInvokerGuard currentInvokerGuard(Invokers_[bucketIndex]);
 
         {
-            TWriterGuard guard(AverageWaitTimeLock_);
+            TWriterGuard guard(InvokerQueueStatesLock_);
 
-            auto now = NProfiling::GetCpuInstant();
-            ++TotalActionCounts_[bucketIndex];
-            TotalWaitTimes_[bucketIndex] += now - enqueuedAt;
+            auto& queueState = InvokerQueueStates_[bucketIndex];
+            --queueState.EnqueuedActionCount;
+            queueState.ScaledSumOfEnqueuedAtInstants -= enqueuedAt / CpuInstantScalingFactor;
         }
 
         {

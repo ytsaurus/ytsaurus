@@ -302,7 +302,7 @@ void TObjectProxyBase::DoWriteAttributesFragment(
                 continue;
             }
 
-            auto internedKey = GetInternedAttributeKey(key);
+            auto internedKey = TInternedAttributeKey::Lookup(key);
             if (GetBuiltinAttribute(internedKey, &attributeValueConsumer)) {
                 continue;
             }
@@ -341,7 +341,7 @@ void TObjectProxyBase::DoWriteAttributesFragment(
 
         for (const auto& descriptor : builtinAttributes) {
             auto key = descriptor.InternedKey;
-            auto uninternedKey = TString(GetUninternedAttributeKey(key));
+            auto uninternedKey = key.Unintern();
             TAttributeValueConsumer attributeValueConsumer(consumer, uninternedKey);
 
             if (descriptor.Opaque) {
@@ -649,7 +649,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             const auto& handler = objectManager->GetHandler(Object_);
             if (Any(handler->GetFlags() & ETypeFlags::ForbidInheritAclChange)) {
                 THROW_ERROR_EXCEPTION("Cannot change %Qlv attribute for objects of type %Qlv",
-                    GetUninternedAttributeKey(EInternedAttributeKey::InheritAcl),
+                    EInternedAttributeKey::InheritAcl.Unintern(),
                     Object_->GetType());
             }
 
@@ -773,6 +773,11 @@ void TObjectProxyBase::ValidatePermission(TObject* object, EPermission permissio
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
     securityManager->ValidatePermission(object, user, permission);
+}
+
+std::unique_ptr<IPermissionValidator> TObjectProxyBase::CreatePermissionValidator()
+{
+    return std::make_unique<TPermissionValidator>(this);
 }
 
 void TObjectProxyBase::ValidateAnnotation(const TString& annotation)

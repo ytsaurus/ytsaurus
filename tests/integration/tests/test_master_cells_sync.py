@@ -3,13 +3,15 @@ import pytest
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
+from flaky import flaky
+
 ##################################################################
 
 class TestMasterCellsSync(YTEnvSetup):
     START_SECONDARY_MASTER_CELLS = True
     ENABLE_SECONDARY_CELLS_CLEANUP = False
     NUM_SECONDARY_MASTER_CELLS = 2
-    NUM_NODES = 2
+    NUM_NODES = 3
 
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
@@ -163,6 +165,7 @@ class TestMasterCellsSync(YTEnvSetup):
             lambda driver: "b" not in ls("//sys/tablet_cell_bundles", driver=driver))
 
     @authors("savrus")
+    @flaky(max_runs=5)
     def test_tablet_cell_sync(self):
         create_tablet_cell_bundle("b")
         set("//sys/tablet_cell_bundles/b/@dynamic_options/suppress_tablet_cell_decommission", True)

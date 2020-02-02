@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/tablet_client/tablet_service.pb.h>
+#include <yt/ytlib/tablet_client/proto/tablet_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 

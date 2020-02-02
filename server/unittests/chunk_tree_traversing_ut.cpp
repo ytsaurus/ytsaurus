@@ -46,6 +46,11 @@ using NChunkClient::TReadLimit;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr double ForgetRowIndexProbability = 0.1;
+static constexpr double ForgetReadLimitProbability = 0.5;
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool operator == (const TReadLimit& lhs, const TReadLimit& rhs)
 {
     return lhs.AsProto().DebugString() == rhs.AsProto().DebugString();
@@ -63,12 +68,27 @@ public:
         TReadLimit upperLimit)
             : Chunk(chunk)
             , RowIndex(rowIndex)
+            , TabletIndex(std::nullopt)
+            , LowerLimit(lowerLimit)
+            , UpperLimit(upperLimit)
+    { }
+
+    TChunkInfo(
+        TChunk* chunk,
+        i64 rowIndex,
+        std::optional<i32> tabletIndex,
+        TReadLimit lowerLimit,
+        TReadLimit upperLimit)
+            : Chunk(chunk)
+            , RowIndex(rowIndex)
+            , TabletIndex(tabletIndex)
             , LowerLimit(lowerLimit)
             , UpperLimit(upperLimit)
     { }
 
     TChunk* Chunk;
     i64 RowIndex;
+    std::optional<i32> TabletIndex;
     TReadLimit LowerLimit;
     TReadLimit UpperLimit;
 };
@@ -77,6 +97,10 @@ bool operator < (const TChunkInfo& lhs, const TChunkInfo& rhs)
 {
     if (lhs.Chunk->GetId() != rhs.Chunk->GetId()) {
         return lhs.Chunk->GetId() < rhs.Chunk->GetId();
+    }
+    if (lhs.TabletIndex.has_value() || rhs.TabletIndex.has_value()) {
+        YT_VERIFY(lhs.TabletIndex.has_value() && rhs.TabletIndex.has_value());
+        return std::tie(*lhs.TabletIndex, lhs.RowIndex) < std::tie(*rhs.TabletIndex, rhs.RowIndex);
     }
     if (lhs.RowIndex != rhs.RowIndex) {
         return lhs.RowIndex < rhs.RowIndex;
@@ -95,14 +119,17 @@ bool operator == (const TChunkInfo& lhs, const TChunkInfo& rhs)
 {
     return lhs.Chunk->GetId() == rhs.Chunk->GetId()
         && lhs.RowIndex == rhs.RowIndex
+        && lhs.TabletIndex == rhs.TabletIndex
         && lhs.LowerLimit == rhs.LowerLimit
         && lhs.UpperLimit == rhs.UpperLimit;
 }
 
 std::ostream& operator << (std::ostream& os, const TChunkInfo& chunkInfo)
 {
+    auto tabletIndexString = chunkInfo.TabletIndex.has_value() ? ", TabletIndex=" + ToString(chunkInfo.TabletIndex) : "";
     os << "ChunkInfo(Id=" << ToString(chunkInfo.Chunk->GetId())
        << ", RowIndex=" << chunkInfo.RowIndex
+       << tabletIndexString
        << ", LowerLimit=" << ToString(chunkInfo.LowerLimit)
        << ", UpperLimit=" << ToString(chunkInfo.UpperLimit)
        << ")";
@@ -118,11 +145,12 @@ public:
     virtual bool OnChunk(
         TChunk* chunk,
         i64 rowIndex,
+        std::optional<i32> tabletIndex,
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit,
         TTransactionId /*timestampTransactionId*/) override
     {
-        ChunkInfos.insert(TChunkInfo(chunk, rowIndex, lowerLimit, upperLimit));
+        ChunkInfos.insert(TChunkInfo(chunk, rowIndex, tabletIndex, lowerLimit, upperLimit));
         return true;
     }
 
@@ -154,16 +182,24 @@ public:
     std::set<TChunkInfo> Traverse(
         TChunkList* chunkList,
         bool calculateRowIndex,
+        bool calculateTabletIndex,
         const TReadLimit& lowerLimit = TReadLimit{},
-        const TReadLimit& upperLimit = TReadLimit{})
+        const TReadLimit& upperLimit = TReadLimit{},
+        const std::vector<int>& tabletStartRowCount = std::vector<int>{})
     {
         CalculateRowIndex_ = calculateRowIndex;
+        CalculateTabletIndex_ = calculateTabletIndex;
         LowerLimit_ = lowerLimit;
         UpperLimit_ = upperLimit;
+        TabletStartRowCount_ = tabletStartRowCount;
 
         ChunkCount_ = 0;
-        RowCount_ = 0;
+        RowCount_ = TabletStartRowCount_.empty() ? 0 : TabletStartRowCount_[0];
         Result_.clear();
+
+        if (chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot) {
+            TabletIndex_ = 0;
+        }
 
         TraverseChunkList(chunkList, LowerKeyLimit(), UpperKeyLimit());
         return Result_;
@@ -171,13 +207,16 @@ public:
 
 private:
     bool CalculateRowIndex_;
+    bool CalculateTabletIndex_;
     TReadLimit LowerLimit_;
     TReadLimit UpperLimit_;
 
     std::set<TChunkInfo> Result_;
     int ChunkCount_ = 0;
     int RowCount_ = 0;
+    std::optional<i32> TabletIndex_ = std::nullopt;
 
+    std::vector<int> TabletStartRowCount_;
 
     i64 LowerChunkIndexLimit() const
     {
@@ -209,6 +248,16 @@ private:
         return UpperLimit_.HasKey() ? UpperLimit_.GetKey() : MaxKey();
     }
 
+    i32 LowerTabletIndexLimit() const
+    {
+        return LowerLimit_.HasTabletIndex() ? LowerLimit_.GetTabletIndex() : 0;
+    }
+
+    i32 UpperTabletIndexLimit() const
+    {
+        return UpperLimit_.HasTabletIndex() ? UpperLimit_.GetTabletIndex() : std::numeric_limits<i32>::max();
+    }
+
     TOwningKey GetNextPivotKey(TChunkList* tabletChunkList)
     {
         auto* parent = GetUniqueParent(tabletChunkList);
@@ -232,11 +281,27 @@ private:
         TOwningKey lowerKeyLimit = MinKey(),
         TOwningKey upperKeyLimit = MaxKey())
     {
+        auto updateTabletIndex = [&] () {
+            if (chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot) {
+                ++*TabletIndex_;
+                // Is actually used only for trimmed chunks in ordered tables.
+                RowCount_ = *TabletIndex_ < TabletStartRowCount_.size() ? TabletStartRowCount_[*TabletIndex_] : 0;
+            }
+        };
+
         if (chunkList->GetKind() == EChunkListKind::SortedDynamicTablet) {
             lowerKeyLimit = ChooseMaxKey(lowerKeyLimit, chunkList->GetPivotKey());
             upperKeyLimit = ChooseMinKey(upperKeyLimit, GetNextPivotKey(chunkList));
             if (lowerKeyLimit >= upperKeyLimit) {
                 return true;
+            }
+        }
+        if (chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet) {
+            if (*TabletIndex_ < LowerTabletIndexLimit()) {
+                return true;
+            }
+            if (*TabletIndex_ > UpperTabletIndexLimit()) {
+                return false;
             }
         }
 
@@ -261,6 +326,7 @@ private:
                     return false;
                 }
             }
+            updateTabletIndex();
         }
         return true;
     }
@@ -287,17 +353,39 @@ private:
             return true;
         }
 
+        if (TabletIndex_.has_value()) {
+            // For ordered dynamic tables.
+            YT_VERIFY(*TabletIndex_ >= LowerTabletIndexLimit());
+            YT_VERIFY(*TabletIndex_ <= UpperTabletIndexLimit());
 
-        if (RowCount_ >= UpperRowIndexLimit()) {
-            return false;
-        } else if (newRowCount <= LowerRowIndexLimit()) {
-            return true;
-        } else {
-            if (RowCount_ < LowerRowIndexLimit()) {
-                correctLowerLimit.SetRowIndex(LowerRowIndexLimit() - RowCount_);
+            if (*TabletIndex_ == LowerTabletIndexLimit()) {
+                if (newRowCount <= LowerRowIndexLimit()) {
+                    return true;
+                }
+                if (RowCount_ < LowerRowIndexLimit()) {
+                    correctLowerLimit.SetRowIndex(LowerRowIndexLimit() - RowCount_);
+                }
             }
-            if (UpperRowIndexLimit() < newRowCount) {
-                correctUpperLimit.SetRowIndex(UpperRowIndexLimit() - RowCount_);
+            if (*TabletIndex_ == UpperTabletIndexLimit()) {
+                if (RowCount_ >= UpperRowIndexLimit()) {
+                    return false;
+                }
+                if (newRowCount > UpperRowIndexLimit()) {
+                    correctUpperLimit.SetRowIndex(UpperRowIndexLimit() - RowCount_);
+                }
+            }
+        } else {
+            if (RowCount_ >= UpperRowIndexLimit()) {
+                return false;
+            } else if (newRowCount <= LowerRowIndexLimit()) {
+                return true;
+            } else {
+                if (RowCount_ < LowerRowIndexLimit()) {
+                    correctLowerLimit.SetRowIndex(LowerRowIndexLimit() - RowCount_);
+                }
+                if (UpperRowIndexLimit() < newRowCount) {
+                    correctUpperLimit.SetRowIndex(UpperRowIndexLimit() - RowCount_);
+                }
             }
         }
 
@@ -318,7 +406,12 @@ private:
             }
         }
 
-        Result_.emplace(chunk, CalculateRowIndex_ ? RowCount_ : 0, correctLowerLimit, correctUpperLimit);
+        Result_.emplace(
+            chunk,
+            CalculateRowIndex_ ? RowCount_ : 0,
+            CalculateTabletIndex_ ? TabletIndex_ : std::nullopt,
+            correctLowerLimit,
+            correctUpperLimit);
         return true;
     }
 };
@@ -326,11 +419,13 @@ private:
 std::set<TChunkInfo> TraverseNaively(
     TChunkList* chunkList,
     bool calculateRowIndex,
+    bool calculateTabletIndex = false,
     const TReadLimit& lowerLimit = TReadLimit{},
-    const TReadLimit& upperLimit = TReadLimit{})
+    const TReadLimit& upperLimit = TReadLimit{},
+    const std::vector<int>& tabletStartRowCount = std::vector<int>{})
 {
     TNaiveChunkTreeTraverser naiveTraverser;
-    return naiveTraverser.Traverse(chunkList, calculateRowIndex, lowerLimit, upperLimit);
+    return naiveTraverser.Traverse(chunkList, calculateRowIndex, calculateTabletIndex, lowerLimit, upperLimit, tabletStartRowCount);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -488,7 +583,7 @@ TEST_F(TChunkTreeTraversingTest, Simple)
             correctUpperLimit));
 
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
-        EXPECT_EQ(TraverseNaively(listA, true, lowerLimit, upperLimit), visitor->GetChunkInfos());
+        EXPECT_EQ(TraverseNaively(listA, true, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
     }
 }
 
@@ -548,7 +643,7 @@ TEST_F(TChunkTreeTraversingTest, WithEmptyChunkLists)
         upperLimit.SetRowIndex(2);
 
         TraverseChunkTree(callbacks, visitor, list, lowerLimit, upperLimit);
-        EXPECT_EQ(TraverseNaively(list, true, lowerLimit, upperLimit), visitor->GetChunkInfos());
+        EXPECT_EQ(TraverseNaively(list, true, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
 
         TReadLimit correctLowerLimit;
 
@@ -608,7 +703,7 @@ TEST_F(TChunkTreeTraversingTest, TestIvan)
 
         TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
         EXPECT_EQ(
-            TraverseNaively(root, false, lowerLimit, upperLimit),
+            TraverseNaively(root, false, false, lowerLimit, upperLimit),
             visitor->GetChunkInfos());
 
         std::set<TChunkInfo> correctResult;
@@ -637,7 +732,7 @@ TEST_F(TChunkTreeTraversingTest, TestIvan)
 
         TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
         EXPECT_EQ(
-            TraverseNaively(root, false, lowerLimit, upperLimit),
+            TraverseNaively(root, false, false, lowerLimit, upperLimit),
             visitor->GetChunkInfos());
     }
 }
@@ -700,7 +795,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
         upperLimit.SetChunkIndex(2);
 
         TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
-        EXPECT_EQ(TraverseNaively(root, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
+        EXPECT_EQ(TraverseNaively(root, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
@@ -727,7 +822,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
         upperLimit.SetChunkIndex(3);
 
         TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
-        EXPECT_EQ(TraverseNaively(root, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
+        EXPECT_EQ(TraverseNaively(root, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
@@ -749,7 +844,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
         upperLimit.SetKey(BuildKey("5"));
 
         TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
-        EXPECT_EQ(TraverseNaively(root, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
+        EXPECT_EQ(TraverseNaively(root, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
@@ -769,7 +864,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
             TReadLimit()));
 
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
-        EXPECT_EQ(TraverseNaively(root, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
+        EXPECT_EQ(TraverseNaively(root, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
     }
 }
 
@@ -1000,7 +1095,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
         upperLimit.SetKey(BuildKey("4"));
 
         TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
-        EXPECT_EQ(TraverseNaively(root, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
+        EXPECT_EQ(TraverseNaively(root, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
@@ -1022,7 +1117,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
         upperLimit.SetKey(BuildKey("5"));
 
         TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
-        EXPECT_EQ(TraverseNaively(root, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
+        EXPECT_EQ(TraverseNaively(root, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
@@ -1070,22 +1165,25 @@ TEST_F(TChunkTreeTraversingTest, OrderedDynamic)
     {
         auto visitor = New<TTestChunkVisitor>();
         TraverseChunkTree(callbacks, visitor, root);
-        EXPECT_EQ(TraverseNaively(root, false, {}, {}), visitor->GetChunkInfos());
+        EXPECT_EQ(TraverseNaively(root, true, true, {}, {}), visitor->GetChunkInfos());
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
             chunk1,
+            0,
             0,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
             chunk2,
             0,
+            1,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
             chunk3,
-            0,
+            2,
+            1,
             TReadLimit(),
             TReadLimit()));
 
@@ -1223,7 +1321,7 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
             chunk2,
-            0,
+            1,
             TReadLimit(),
             TReadLimit()));
 
@@ -1244,7 +1342,7 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
             chunk2,
-            0,
+            1,
             TReadLimit(),
             TReadLimit()));
 
@@ -1265,12 +1363,12 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
             chunk2,
-            0,
+            1,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
             chunk3,
-            0,
+            2,
             TReadLimit(),
             TReadLimit()));
 
@@ -1307,11 +1405,13 @@ TEST_F(TChunkTreeTraversingTest, OrderedDynamicEmptyTablet)
         correctResult.insert(TChunkInfo(
             chunk1,
             0,
+            0,
             TReadLimit(),
             TReadLimit()));
         correctResult.insert(TChunkInfo(
             chunk2,
             0,
+            2,
             TReadLimit(),
             TReadLimit()));
 
@@ -1359,7 +1459,7 @@ TEST_F(TChunkTreeTraversingStressTest, StaticWithoutKeys)
         upperLimit.SetChunkIndex(chunkIndices.second);
         upperLimit.SetRowIndex(rowIndices.second);
 
-        auto expected = TraverseNaively(root, true, lowerLimit, upperLimit);
+        auto expected = TraverseNaively(root, true, false, lowerLimit, upperLimit);
 
         auto visitor = New<TTestChunkVisitor>();
         TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
@@ -1400,7 +1500,7 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamic)
             TReadLimit upperLimit;
             upperLimit.SetChunkIndex(chunkIndices.second);
 
-            auto expected = TraverseNaively(root, false, lowerLimit, upperLimit);
+            auto expected = TraverseNaively(root, false, false, lowerLimit, upperLimit);
 
             auto visitor = New<TTestChunkVisitor>();
             TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
@@ -1417,7 +1517,7 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamic)
             TReadLimit upperLimit;
             upperLimit.SetKey(BuildKey(ToString(keys.second)));
 
-            auto expected = TraverseNaively(root, false, lowerLimit, upperLimit);
+            auto expected = TraverseNaively(root, false, false, lowerLimit, upperLimit);
 
             auto visitor = New<TTestChunkVisitor>();
             TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
@@ -1460,7 +1560,7 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamicThreeLevel)
             TReadLimit upperLimit;
             upperLimit.SetChunkIndex(chunkIndices.second);
 
-            auto expected = TraverseNaively(root, false, lowerLimit, upperLimit);
+            auto expected = TraverseNaively(root, false, false, lowerLimit, upperLimit);
 
             auto visitor = New<TTestChunkVisitor>();
             TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
@@ -1477,7 +1577,7 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamicThreeLevel)
             TReadLimit upperLimit;
             upperLimit.SetKey(BuildKey(ToString(keys.second)));
 
-            auto expected = TraverseNaively(root, false, lowerLimit, upperLimit);
+            auto expected = TraverseNaively(root, false, false, lowerLimit, upperLimit);
 
             auto visitor = New<TTestChunkVisitor>();
             TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
@@ -1517,12 +1617,106 @@ TEST_F(TChunkTreeTraversingStressTest, OrderedDynamic)
         TReadLimit upperLimit;
         upperLimit.SetChunkIndex(chunkIndices.second);
 
-        auto expected = TraverseNaively(root, false, lowerLimit, upperLimit);
+        auto expected = TraverseNaively(root, true, true, lowerLimit, upperLimit);
 
         auto visitor = New<TTestChunkVisitor>();
         TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
 
         EXPECT_EQ(expected, visitor->GetChunkInfos());
+    }
+}
+
+TEST_F(TChunkTreeTraversingStressTest, OrderedDynamicWithTabletIndex)
+{
+    std::mt19937 gen;
+    std::uniform_real_distribution<> dist;
+    auto* root = GenerateChunkTree(this, 2, gen, {}, {
+        EChunkListKind::OrderedDynamicRoot,
+        EChunkListKind::OrderedDynamicTablet,
+    })->AsChunkList();
+
+    int tabletCount = root->Children().size();
+
+    std::vector<int> tabletStartRowCount(root->Children().size(), 0);
+
+    std::vector<int> rowsPerTablet;
+    rowsPerTablet.reserve(tabletCount);
+    int totalRowCount = 0;
+    for (int tabletIndex = 0; tabletIndex < tabletCount; ++tabletIndex) {
+        int rowCount = GetChunkTreeStatistics(root->Children()[tabletIndex]).LogicalRowCount;
+        rowsPerTablet.emplace_back(rowCount);
+        totalRowCount += rowsPerTablet.back();
+    }
+
+    auto getRangeWithOverflow = [] (int count) {
+        // Additionally check out of borders case.
+        return count + (count / 10) + 2;
+    };
+
+    rowsPerTablet.resize(getRangeWithOverflow(tabletCount), 5);
+
+    auto generateLimits = [&] () {
+        int tabletIndexRange = getRangeWithOverflow(tabletCount);
+
+        int leftTabletIndex = gen() % tabletIndexRange;
+        int rightTabletIndex = gen() % tabletIndexRange;
+        if (leftTabletIndex > rightTabletIndex) {
+            std::swap(leftTabletIndex, rightTabletIndex);
+        }
+
+        int leftRowIndexRange = getRangeWithOverflow(rowsPerTablet[leftTabletIndex]);
+        int rightRowIndexRange = getRangeWithOverflow(rowsPerTablet[rightTabletIndex]);
+        int leftRowIndex = gen() % leftRowIndexRange;
+        int rightRowIndex = gen() % rightRowIndexRange;
+
+        TReadLimit lowerLimit;
+        TReadLimit upperLimit;
+
+        lowerLimit.SetTabletIndex(leftTabletIndex);
+        upperLimit.SetTabletIndex(rightTabletIndex);
+
+        if (ForgetRowIndexProbability < dist(gen)) {
+            lowerLimit.SetRowIndex(leftRowIndex);
+            upperLimit.SetRowIndex(rightRowIndex);
+        }
+
+        if (ForgetReadLimitProbability > dist(gen)) {
+            lowerLimit = TReadLimit{};
+        }
+        if (ForgetReadLimitProbability > dist(gen)) {
+            upperLimit = TReadLimit{};
+        }
+
+        return std::make_pair(lowerLimit, upperLimit);
+    };
+
+    auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
+
+    for (auto iter = 0; iter < 5000; ++iter) {
+        const auto& [lowerLimit, upperLimit] = generateLimits();
+
+        auto visitor = New<TTestChunkVisitor>();
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+        auto expected = TraverseNaively(root, true, true, lowerLimit, upperLimit, tabletStartRowCount);
+
+        EXPECT_EQ(expected, visitor->GetChunkInfos());
+
+        if (iter % 100 == 0) {
+            int tabletIndexToTrim = gen() % tabletCount;
+            const auto& tabletToTrim = root->Children()[tabletIndexToTrim]->AsChunkList();
+
+            int oldChildCount = tabletToTrim->Children().size();
+            if (oldChildCount == 1) {
+                continue;
+            }
+
+            tabletStartRowCount[tabletIndexToTrim] = tabletToTrim->CumulativeStatistics().GetCurrentSum(0).RowCount;
+
+            // These functions implement DetachFromChunkList with force detach.
+            tabletToTrim->Children().erase(tabletToTrim->Children().begin());
+            tabletToTrim->CumulativeStatistics().TrimFront(1);
+            tabletToTrim->SetTrimmedChildCount(0);
+        }
     }
 }
 

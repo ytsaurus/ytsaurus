@@ -112,7 +112,7 @@ class TEventLogWriter::TImpl
     : public TIntrinsicRefCounted
 {
 public:
-    TImpl(const TEvenTLogManagerConfigPtr& config, const NNative::IClientPtr& client, const IInvokerPtr& invoker)
+    TImpl(const TEventLogManagerConfigPtr& config, const NNative::IClientPtr& client, const IInvokerPtr& invoker)
         : Config_(config)
         , Client_(client)
     {
@@ -144,14 +144,14 @@ public:
         return std::make_unique<TEventLogTableConsumer>(std::move(valueConsumer));
     }
 
-    void UpdateConfig(const TEvenTLogManagerConfigPtr& config)
+    void UpdateConfig(const TEventLogManagerConfigPtr& config)
     {
         Config_ = config;
         PendingRowsFlushExecutor_->SetPeriod(Config_->PendingRowsFlushPeriod);
     }
 
 private:
-    TEvenTLogManagerConfigPtr Config_;
+    TEventLogManagerConfigPtr Config_;
     NApi::NNative::IClientPtr Client_;
 
     NTableClient::IUnversionedWriterPtr EventLogWriter_;
@@ -175,7 +175,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TEventLogWriter::TEventLogWriter(
-    const TEvenTLogManagerConfigPtr& config,
+    const TEventLogManagerConfigPtr& config,
     const NApi::NNative::IClientPtr& client,
     const IInvokerPtr& invoker)
     : Impl_(New<TImpl>(config, client, invoker))
@@ -186,7 +186,7 @@ std::unique_ptr<IYsonConsumer> TEventLogWriter::CreateConsumer()
     return Impl_->CreateConsumer();
 }
 
-void TEventLogWriter::UpdateConfig(const TEvenTLogManagerConfigPtr& config)
+void TEventLogWriter::UpdateConfig(const TEventLogManagerConfigPtr& config)
 {
     Impl_->UpdateConfig(config);
 }

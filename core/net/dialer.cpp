@@ -32,8 +32,10 @@ public:
     {
         Session_->Dial();
 
-        Promise_.OnCanceled(BIND([this, this_ = MakeStrong(this)] {
-            Abort();
+        Promise_.OnCanceled(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
+            Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Dial canceled")
+                << TErrorAttribute("dialer", Name_)
+                << error);
         }));
     }
 
@@ -64,12 +66,6 @@ private:
     const IAsyncDialerSessionPtr Session_;
 
     TPromise<IConnectionPtr> Promise_ = NewPromise<IConnectionPtr>();
-
-    void Abort()
-    {
-        Promise_.TrySet(TError(NRpc::EErrorCode::TransportError, "Dial aborted")
-            << TErrorAttribute("dialer", Name_));
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

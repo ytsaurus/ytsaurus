@@ -9,21 +9,21 @@
 #include <yt/core/misc/random.h>
 #include <yt/core/misc/ref.h>
 
+#include <yt/core/tracing/public.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TMutationRequest
 {
-    explicit TMutationRequest(TReign reign);
-
+    TReign Reign = 0;
     TString Type;
     TSharedRef Data;
     TCallback<void(TMutationContext*)> Handler;
     bool AllowLeaderForwarding = false;
     NRpc::TMutationId MutationId;
     bool Retry = false;
-    TReign Reign = 0;
 };
 
 DEFINE_ENUM(EMutationResponseOrigin,
@@ -51,11 +51,16 @@ public:
         TVersion version,
         const TMutationRequest& request,
         TInstant timestamp,
-        ui64 randomSeed);
+        ui64 randomSeed,
+        ui64 prevRandomSeed,
+        i64 sequenceNumber);
 
     TVersion GetVersion() const;
     const TMutationRequest& Request() const;
     TInstant GetTimestamp() const;
+    ui64 GetRandomSeed() const;
+    ui64 GetPrevRandomSeed() const;
+    i64 GetSequenceNumber() const;
     TRandomGenerator& RandomGenerator();
 
     void SetResponseData(TSharedRefArray data);
@@ -71,6 +76,9 @@ private:
     const TInstant Timestamp_;
 
     TSharedRefArray ResponseData_;
+    ui64 RandomSeed_;
+    ui64 PrevRandomSeed_;
+    i64 SequenceNumber_;
     TRandomGenerator RandomGenerator_;
     bool ResponseKeeperSuppressed_ = false;
 };

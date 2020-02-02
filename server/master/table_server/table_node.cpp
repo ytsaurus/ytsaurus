@@ -352,28 +352,28 @@ void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
                     attributes.erase(it);
                 }
             };
-            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::DisableTabletBalancer), [&] (const TYsonString& val) {
+            processAttribute(EInternedAttributeKey::DisableTabletBalancer.Unintern(), [&] (const TYsonString& val) {
                 SetEnableTabletBalancer(!ConvertTo<bool>(val));
             });
-            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::EnableTabletBalancer), [&] (const TYsonString& val) {
+            processAttribute(EInternedAttributeKey::EnableTabletBalancer.Unintern(), [&] (const TYsonString& val) {
                 SetEnableTabletBalancer(ConvertTo<bool>(val));
             });
-            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::MinTabletSize), [&] (const TYsonString& val) {
+            processAttribute(EInternedAttributeKey::MinTabletSize.Unintern(), [&] (const TYsonString& val) {
                 SetMinTabletSize(ConvertTo<i64>(val));
             });
-            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::MaxTabletSize), [&] (const TYsonString& val) {
+            processAttribute(EInternedAttributeKey::MaxTabletSize.Unintern(), [&] (const TYsonString& val) {
                 SetMaxTabletSize(ConvertTo<i64>(val));
             });
-            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::DesiredTabletSize), [&] (const TYsonString& val) {
+            processAttribute(EInternedAttributeKey::DesiredTabletSize.Unintern(), [&] (const TYsonString& val) {
                 SetDesiredTabletSize(ConvertTo<i64>(val));
             });
-            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::DesiredTabletCount), [&] (const TYsonString& val) {
+            processAttribute(EInternedAttributeKey::DesiredTabletCount.Unintern(), [&] (const TYsonString& val) {
                 SetDesiredTabletCount(ConvertTo<int>(val));
             });
-            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::InMemoryMode), [&] (const TYsonString& val) {
+            processAttribute(EInternedAttributeKey::InMemoryMode.Unintern(), [&] (const TYsonString& val) {
                 SetInMemoryMode(ConvertTo<EInMemoryMode>(val));
             });
-            processAttribute(GetUninternedAttributeKey(EInternedAttributeKey::ForcedCompactionRevision), [&] (const TYsonString& val) {
+            processAttribute(EInternedAttributeKey::ForcedCompactionRevision.Unintern(), [&] (const TYsonString& val) {
                 SetForcedCompactionRevision(ConvertTo<NHydra::TRevision>(val));
             });
 
@@ -567,20 +567,6 @@ void TTableNode::ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const
 void TTableNode::ValidateAllTabletsUnmounted(TStringBuf message) const
 {
     ValidateExpectedTabletState(message, false);
-}
-
-std::vector<TError> TTableNode::GetTabletErrors(std::optional<int> limit) const
-{
-    auto* trunkNode = GetTrunkNode();
-    std::vector<TError> errors;
-    for (const auto& tablet : trunkNode->Tablets()) {
-        const auto& tabletErrors = tablet->GetErrors();
-        errors.insert(errors.end(), tabletErrors.begin(), tabletErrors.end());
-        if (limit && errors.size() >= *limit) {
-            break;
-        }
-    }
-    return errors;
 }
 
 std::optional<bool> TTableNode::GetEnableTabletBalancer() const

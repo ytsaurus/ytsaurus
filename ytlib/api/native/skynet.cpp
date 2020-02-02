@@ -65,6 +65,9 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     }
 
     int chunkCount;
+    // XXX(babenko): YT-11825
+    bool dynamic;
+    bool sorted;
     {
         YT_LOG_INFO("Requesting chunk count");
 
@@ -74,7 +77,9 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
         SetSuppressAccessTracking(req, false);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-            "chunk_count"
+            "chunk_count",
+            "dynamic",
+            "sorted"
         });
 
         auto rspOrError = WaitFor(proxy.Execute(req));
@@ -85,6 +90,8 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
         chunkCount = attributes->Get<int>("chunk_count");
+        dynamic = attributes->Get<bool>("dynamic");
+        sorted = attributes->Get<bool>("sorted");
     }
 
     auto skynetShareLocations = New<TSkynetSharePartsLocations>();
@@ -96,15 +103,17 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         skynetShareLocations->NodeDirectory,
         userObject,
         richPath.GetRanges(),
-        chunkCount,
+        // XXX(babenko): YT-11825
+        dynamic && !sorted ? -1 : chunkCount,
         options.Config->MaxChunksPerFetch,
         options.Config->MaxChunksPerLocateRequest,
         [&] (TChunkOwnerYPathProxy::TReqFetchPtr req) {
             req->set_fetch_all_meta_extensions(false);
-            req->set_address_type(static_cast<int>(EAddressType::SkynetHttp));
             SetSuppressAccessTracking(req, false);
         },
-        Logger);
+        Logger,
+        false,
+        EAddressType::SkynetHttp);
 
     return skynetShareLocations;
 }

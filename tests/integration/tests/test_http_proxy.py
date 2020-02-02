@@ -1,8 +1,11 @@
 from yt_env_setup import YTEnvSetup, wait, Restarter, MASTER_CELL_SERVICE
 from yt_commands import *
+from yt_helpers import Metric
 
 import yt.packages.requests as requests
+
 import json
+import struct
 
 ##################################################################
 
@@ -19,6 +22,9 @@ class HttpProxyTestBase(YTEnvSetup):
     DELTA_PROXY_CONFIG = {
         "coordination": {
             "heartbeat_interval": 100,
+        },
+        "api": {
+            "force_tracing": True,
         },
     }
 
@@ -65,12 +71,33 @@ class TestHttpProxy(HttpProxyTestBase):
         assert [proxy] == get_yson(self.proxy_address() + "/hosts?role=data")
         assert [] == get_yson(self.proxy_address() + "/hosts?role=control")
 
+        def make_request_and_check_metric(metric):
+            url = self.proxy_address() + "/api/v3/get?path=//sys/@config"
+            requests.get(url)
+            return metric.update().get(verbose=True) > 0
+
+        data_metric = Metric.at_proxy(
+            proxy,
+            "http_proxy/http_code_count",
+            with_tags={"http_code": "200", "proxy_role" : "data"},
+            aggr_method="last")
+
+        wait(lambda: make_request_and_check_metric(data_metric))
+
         set("//sys/proxies/" + proxy + "/@role", "control")
 
         # Wait until the proxy entry will be updated on the coordinator.
         wait(lambda: [] == get_yson(self.proxy_address() + "/hosts"))
         assert [] == get_yson(self.proxy_address() + "/hosts?role=data")
         assert [proxy] == get_yson(self.proxy_address() + "/hosts?role=control")
+
+        control_metric = Metric.at_proxy(
+            proxy,
+            "http_proxy/http_code_count",
+            with_tags={"http_code": "200", "proxy_role" : "control"},
+            aggr_method="last")
+
+        wait(lambda: make_request_and_check_metric(control_metric))
 
         hosts = requests.get(self.proxy_address() + "/hosts/all").json()
         assert len(hosts) == 1
@@ -160,6 +187,74 @@ class TestHttpProxy(HttpProxyTestBase):
     @authors("greatkorn")
     def test_fail_logging(self):
         requests.get(self.proxy_address() + "/api/v2/get")
+
+
+class TestHttpProxyFraming(HttpProxyTestBase):
+    SUSPENDING_ATTRIBUTE = "magic_suspending_attribute"
+    DELTA_PROXY_CONFIG = {
+        "api": {
+            "testing": {
+                "delay_inside_get": {
+                    "delay": 10 * 1000,
+                    "path": "//tmp/t1/@" + SUSPENDING_ATTRIBUTE,
+                }
+            },
+            "framing_keep_alive_period": 1 * 1000,
+        },
+    }
+
+    FRAME_TAG_TO_NAME = {
+        0x01 : "data",
+        0x02 : "keep_alive",
+    }
+
+    @classmethod
+    def _unframe_content(cls, content):
+        result = []
+        i = 0
+        while i  < len(content):
+            tag = ord(content[i])
+            i += 1
+            assert tag in cls.FRAME_TAG_TO_NAME
+            name = cls.FRAME_TAG_TO_NAME[tag]
+            if name == "data":
+                (length,) = struct.unpack("<i", content[i : i + 4])
+                i += 4
+                assert i + length <= len(content)
+                frame = content[i : i + length]
+                i += length
+            else:
+                frame = None
+            result.append((name, frame))
+        return result
+
+    @authors("levysotsky")
+    def test_framing(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        attribute_value = {"x": 1, "y": "qux"}
+        set("//tmp/t1/@" + self.SUSPENDING_ATTRIBUTE, attribute_value)
+        params = {
+            "path": "//tmp/t1/@" + self.SUSPENDING_ATTRIBUTE,
+        }
+        headers = {
+            "X-YT-Accept-Framing": "1",
+            'X-YT-Parameters': yson.dumps(params),
+            'X-YT-Header-Format': "<format=text>yson",
+            'X-YT-Output-Format': "<format=text>yson"
+        }
+        rsp = requests.get(self.proxy_address() + "/api/v4/get", headers=headers)
+        rsp.raise_for_status()
+        assert "X-YT-Framing" in rsp.headers
+        unframed_content = self._unframe_content(rsp.content)
+        keep_alive_frame_count = sum(name == "keep_alive" for name, frame in unframed_content)
+        assert keep_alive_frame_count >= 5
+        actual_response = b""
+        for name, frame in unframed_content:
+            if name == "data":
+                actual_response += frame
+        response_yson = yson.loads(actual_response)
+        assert {"value": attribute_value} == response_yson
 
 
 class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):

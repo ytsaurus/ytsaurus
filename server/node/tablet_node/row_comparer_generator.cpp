@@ -4,13 +4,13 @@
 #include "llvm_types.h"
 
 
-#include <yt/ytlib/table_client/llvm_types.h>
+#include <yt/client/table_client/llvm_types.h>
 #include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/codegen/module.h>
-#include <yt/core/codegen/llvm_migrate_helpers.h>
-#include <yt/core/codegen/routine_registry.h>
-#include <yt/core/codegen/type_builder.h>
+#include <yt/library/codegen/module.h>
+#include <yt/library/codegen/llvm_migrate_helpers.h>
+#include <yt/library/codegen/routine_registry.h>
+#include <yt/library/codegen/type_builder.h>
 
 #include <mutex>
 

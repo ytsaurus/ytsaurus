@@ -21,6 +21,8 @@ static const auto& Profiler = BusProfiler;
 
 static constexpr auto XferThreadCount = 8;
 static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
+static constexpr auto LivenessCheckPeriod = TDuration::MilliSeconds(100);
+static constexpr auto PerConnectionLivenessChecksPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -71,15 +73,6 @@ TTcpDispatcherStatistics TTcpDispatcherCounters::ToStatistics() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTcpDispatcher::TImpl::TImpl()
-    : ProfilingExecutor_(New<TPeriodicExecutor>(
-        GetSyncInvoker(),
-        BIND(&TImpl::OnProfiling, MakeWeak(this)),
-        ProfilingPeriod))
-{
-    ProfilingExecutor_->Start();
-}
-
 const TIntrusivePtr<TTcpDispatcher::TImpl>& TTcpDispatcher::TImpl::Get()
 {
     return TTcpDispatcher::Get()->Impl_;
@@ -87,7 +80,16 @@ const TIntrusivePtr<TTcpDispatcher::TImpl>& TTcpDispatcher::TImpl::Get()
 
 void TTcpDispatcher::TImpl::Shutdown()
 {
-    ProfilingExecutor_->Stop();
+    {
+        TGuard guard(PeriodicExecutorsLock_);
+        if (ProfilingExecutor_) {
+            ProfilingExecutor_->Stop();
+        }
+        if (LivenessCheckExecutor_) {
+            LivenessCheckExecutor_->Stop();
+        }
+    }
+
     ShutdownPoller(&AcceptorPoller_);
     ShutdownPoller(&XferPoller_);
 }
@@ -113,8 +115,9 @@ IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
     auto throwAlreadyTerminated = [] () {
         THROW_ERROR_EXCEPTION("Bus subsystem is already terminated");
     };
+
     {
-        TReaderGuard guard(SpinLock_);
+        TReaderGuard guard(PollerLock_);
         if (Terminated_) {
             throwAlreadyTerminated();
         }
@@ -122,24 +125,29 @@ IPollerPtr TTcpDispatcher::TImpl::GetOrCreatePoller(
             return *poller;
         }
     }
+
+    IPollerPtr createdPoller;
     {
-        TWriterGuard guard(SpinLock_);
+        TWriterGuard guard(PollerLock_);
         if (Terminated_) {
             throwAlreadyTerminated();
         }
         if (!*poller) {
-            auto aPoller = CreateThreadPoolPoller(threadCount, threadNamePrefix);
-            *poller = aPoller;
+            createdPoller = CreateThreadPoolPoller(threadCount, threadNamePrefix);
+            *poller = createdPoller;
         }
-        return *poller;
     }
+
+    StartPeriodicExecutors();
+
+    return *poller;
 }
 
 void TTcpDispatcher::TImpl::ShutdownPoller(IPollerPtr* poller)
 {
     IPollerPtr swappedPoller;
     {
-        TWriterGuard guard(SpinLock_);
+        TWriterGuard guard(PollerLock_);
         Terminated_ = true;
         std::swap(*poller, swappedPoller);
     }
@@ -150,14 +158,40 @@ void TTcpDispatcher::TImpl::ShutdownPoller(IPollerPtr* poller)
 
 IPollerPtr TTcpDispatcher::TImpl::GetAcceptorPoller()
 {
-    static const TString threadNamePrefix("BusAcceptor");
-    return GetOrCreatePoller(&AcceptorPoller_, 1, threadNamePrefix);
+    static const TString ThreadNamePrefix("BusAcceptor");
+    return GetOrCreatePoller(&AcceptorPoller_, 1, ThreadNamePrefix);
 }
 
 IPollerPtr TTcpDispatcher::TImpl::GetXferPoller()
 {
-    static const TString threadNamePrefix("BusXfer");
-    return GetOrCreatePoller(&XferPoller_, XferThreadCount, threadNamePrefix);
+    static const TString ThreadNamePrefix("BusXfer");
+    return GetOrCreatePoller(&XferPoller_, XferThreadCount, ThreadNamePrefix);
+}
+
+void TTcpDispatcher::TImpl::RegisterConnection(TTcpConnectionPtr connection)
+{
+    ConnectionsToRegister_.Enqueue(std::move(connection));
+}
+
+void TTcpDispatcher::TImpl::StartPeriodicExecutors()
+{
+    auto invoker = GetXferPoller()->GetInvoker();
+
+    TGuard guard(PeriodicExecutorsLock_);
+    if (!ProfilingExecutor_) {
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            invoker,
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod);
+        ProfilingExecutor_->Start();
+    }
+    if (!LivenessCheckExecutor_) {
+        LivenessCheckExecutor_ = New<TPeriodicExecutor>(
+            invoker,
+            BIND(&TImpl::OnLivenessCheck, MakeWeak(this)),
+            ProfilingPeriod);
+        LivenessCheckExecutor_->Start();
+    }
 }
 
 void TTcpDispatcher::TImpl::OnProfiling()
@@ -184,6 +218,36 @@ void TTcpDispatcher::TImpl::OnProfiling()
         Profiler.Enqueue("/write_errors", statistics.WriteErrors, EMetricType::Counter, tagIds);
         Profiler.Enqueue("/encoder_errors", statistics.EncoderErrors, EMetricType::Counter, tagIds);
         Profiler.Enqueue("/decoder_errors", statistics.DecoderErrors, EMetricType::Counter, tagIds);
+    }
+}
+
+void TTcpDispatcher::TImpl::OnLivenessCheck()
+{
+    for (auto&& connection : ConnectionsToRegister_.DequeueAll()) {
+        ConnectionList_.push_back(std::move(connection));
+    }
+
+    if (ConnectionList_.empty()) {
+        return;
+    }
+
+    i64 connectionsToCheck = std::max(
+        static_cast<i64>(ConnectionList_.size()) *
+        static_cast<i64>(LivenessCheckPeriod.GetValue()) /
+        static_cast<i64>(PerConnectionLivenessChecksPeriod.GetValue()),
+        static_cast<i64>(1));
+    for (i64 index = 0; index < connectionsToCheck; ++index) {
+        auto& weakConnection = ConnectionList_[CurrentConnectionListIndex_];
+        if (auto connection = weakConnection.Lock()) {
+            connection->CheckLiveness();
+            ++CurrentConnectionListIndex_;
+        } else {
+            std::swap(weakConnection, ConnectionList_.back());
+            ConnectionList_.pop_back();
+        }
+        if (CurrentConnectionListIndex_ >= static_cast<int>(ConnectionList_.size())) {
+            CurrentConnectionListIndex_ = 0;
+        }
     }
 }
 

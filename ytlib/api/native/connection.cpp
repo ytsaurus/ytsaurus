@@ -19,11 +19,14 @@
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/ytlib/hive/hive_service_proxy.h>
 
+#include <yt/ytlib/hydra/peer_channel.h>
+
 #include <yt/ytlib/query_client/column_evaluator.h>
 #include <yt/ytlib/query_client/evaluator.h>
 #include <yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
+#include <yt/ytlib/node_tracker_client/master_cache_synchronizer.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -47,8 +50,14 @@
 #include <yt/core/concurrency/lease_manager.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <yt/core/ytree/fluent.h>
+
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
+
+#include <yt/core/rpc/retrying_channel.h>
+#include <yt/core/rpc/roaming_channel.h>
+#include <yt/core/rpc/reconfigurable_roaming_channel_provider.h>
 
 namespace NYT::NApi::NNative {
 
@@ -64,6 +73,8 @@ using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
 using namespace NProfiling;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,17 +103,23 @@ public:
             ThreadPool_ = New<TThreadPool>(*Config_->ThreadPoolSize, "Connection");
         }
 
-        TerminateIdleChannels_ = New<TPeriodicExecutor>(
+        if (Config_->MasterCache && Config_->MasterCache->EnableMasterCacheDiscovery) {
+            MasterCacheSynchronizer_ = New<TMasterCacheSynchronizer>(
+                Config_->MasterCache->MasterCacheDiscoveryPeriod,
+                MakeWeak(this));
+        }
+
+        TerminateIdleChannelsExecutor_ = New<TPeriodicExecutor>(
             GetInvoker(),
-            BIND(&ICachingChannelFactory::TerminateIdleChannels,
-                MakeWeak(CachingChannelFactory_),
-                Config_->IdleChannelTtl),
+            BIND(&ICachingChannelFactory::TerminateIdleChannels, MakeWeak(CachingChannelFactory_), Config_->IdleChannelTtl),
             Config_->IdleChannelTtl);
+        TerminateIdleChannelsExecutor_->Start();
 
         MasterCellDirectory_ = New<NCellMasterClient::TCellDirectory>(
             Config_,
             Options_,
             ChannelFactory_,
+            MasterCacheSynchronizer_,
             Logger);
         MasterCellDirectorySynchronizer_ = New<NCellMasterClient::TCellDirectorySynchronizer>(
             Config_->MasterCellDirectorySynchronizer,
@@ -172,6 +189,10 @@ public:
             Config_->NodeDirectorySynchronizer,
             MakeStrong(this),
             NodeDirectory_);
+
+        if (MasterCacheSynchronizer_) {
+            MasterCacheSynchronizer_->Start();
+        }
     }
 
     // IConnection implementation.
@@ -352,6 +373,12 @@ public:
             options);
     }
 
+    virtual IYPathServicePtr GetOrchidService() override
+    {
+        auto producer = BIND(&TConnection::BuildOrchid, MakeStrong(this));
+        return IYPathService::FromProducer(producer);
+    }
+
     virtual void Terminate() override
     {
         Terminated_ = true;
@@ -363,6 +390,10 @@ public:
         CellDirectorySynchronizer_->Stop();
 
         NodeDirectorySynchronizer_->Stop();
+
+        if (MasterCacheSynchronizer_) {
+            MasterCacheSynchronizer_->Stop();
+        }
     }
 
     virtual bool IsTerminated() override
@@ -407,7 +438,7 @@ private:
     // These two fields hold reference to the same object.
     const NRpc::ICachingChannelFactoryPtr CachingChannelFactory_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
-    TPeriodicExecutorPtr TerminateIdleChannels_;
+    TPeriodicExecutorPtr TerminateIdleChannelsExecutor_;
 
     // NB: there're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
     NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;
@@ -427,6 +458,8 @@ private:
     TClusterDirectoryPtr ClusterDirectory_;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
+    TMasterCacheSynchronizerPtr MasterCacheSynchronizer_;
+
     TNodeDirectoryPtr NodeDirectory_;
     TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
 
@@ -435,6 +468,26 @@ private:
     TProfiler Profiler_;
 
     std::atomic<bool> Terminated_ = {false};
+
+    void BuildOrchid(IYsonConsumer* consumer)
+    {
+        bool hasMasterCache = static_cast<bool>(Config_->MasterCache);
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("master_cache")
+                    .BeginMap()
+                        .Item("enabled").Value(hasMasterCache)
+                        .DoIf(hasMasterCache, [this] (auto fluent) {
+                            bool dynamic = Config_->MasterCache->EnableMasterCacheDiscovery;
+                            const auto& addresses = dynamic ? MasterCacheSynchronizer_->GetAddresses() : Config_->MasterCache->Addresses;
+                            fluent
+                                .Item("dynamic").Value(dynamic)
+                                .Item("addresses").List(addresses);
+                        })
+                    .EndMap()
+            .EndMap();
+    }
 };
 
 IConnectionPtr CreateConnection(

@@ -67,6 +67,13 @@ void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, T
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRowCache::TRowCache(size_t elementCount, IMemoryUsageTrackerPtr memoryTracker)
+    : Allocator(std::move(memoryTracker))
+    , Cache(elementCount)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TRuntimeTableReplicaData::Populate(TTableReplicaStatistics* statistics) const
 {
     statistics->set_current_replication_row_index(CurrentReplicationRowIndex.load());
@@ -375,6 +382,7 @@ TTablet::TTablet(
     , CommitOrdering_(commitOrdering)
     , UpstreamReplicaId_(upstreamReplicaId)
     , HashTableSize_(config->EnableLookupHashTable ? config->MaxDynamicStoreRowCount : 0)
+    , LookupCacheSize_(config->LookupCacheRowsPerTablet)
     , RetainedTimestamp_(retainedTimestamp)
     , Config_(config)
     , ReaderConfig_(readerConfig)
@@ -1052,7 +1060,7 @@ void TTablet::StartEpoch(TTabletSlotPtr slot)
 void TTablet::StopEpoch()
 {
     if (CancelableContext_) {
-        CancelableContext_->Cancel();
+        CancelableContext_->Cancel(TError("Tablet epoch canceled"));
         CancelableContext_.Reset();
     }
 
@@ -1109,6 +1117,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     snapshot->PartitioningThrottler = PartitioningThrottler_;
     snapshot->LockManager = LockManager_;
     snapshot->LockManagerEpoch = epoch.value_or(LockManager_->GetEpoch());
+    snapshot->RowCache = RowCache_;
 
     auto addStoreStatistics = [&] (const IStorePtr& store) {
         if (store->IsChunk()) {
@@ -1225,6 +1234,14 @@ void TTablet::Initialize(bool useBuggyReplicatedSchema)
         Id_,
         TableId_,
         TablePath_);
+
+    if (LookupCacheSize_) {
+        RowCache_ = New<TRowCache>(
+            LookupCacheSize_,
+            CreateMemoryTrackerForCategory(
+                Context_->GetMemoryUsageTracker(),
+                NNodeTrackerClient::EMemoryCategory::TabletStatic));
+    }
 }
 
 void TTablet::FillProfilerTags(TCellId cellId)

@@ -8,7 +8,7 @@
 
 #include <yt/ytlib/election/cell_manager.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -46,7 +46,9 @@ TRecoveryBase::TRecoveryBase(
     , EpochContext_(epochContext)
     , SyncVersion_(syncVersion)
     , Logger(NLogging::TLogger(HydraLogger)
-        .AddTag("CellId: %v", CellManager_->GetCellId()))
+        .AddTag("CellId: %v, SelfPeerId: %v",
+            CellManager_->GetCellId(),
+            CellManager_->GetSelfPeerId()))
 {
     YT_VERIFY(Config_);
     YT_VERIFY(CellManager_);
@@ -83,6 +85,8 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         targetVersion);
 
     TVersion snapshotVersion;
+    i64 sequenceNumber;
+    ui64 randomSeed;
     ISnapshotReaderPtr snapshotReader;
     if (snapshotId != InvalidSegmentId) {
         snapshotReader = SnapshotStore_->CreateReader(snapshotId);
@@ -91,7 +95,9 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             .ThrowOnError();
 
         auto meta = snapshotReader->GetParams().Meta;
-        snapshotVersion = TVersion(snapshotId - 1, meta.prev_record_count());
+        snapshotVersion = TVersion(snapshotId, 0);
+        randomSeed = meta.random_seed();
+        sequenceNumber = meta.sequence_number();
     }
 
     int initialChangelogId;
@@ -106,7 +112,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             ResponseKeeper_->Stop();
         }
 
-        DecoratedAutomaton_->LoadSnapshot(snapshotId, snapshotVersion, snapshotReader);
+        DecoratedAutomaton_->LoadSnapshot(snapshotId, snapshotVersion, sequenceNumber, randomSeed, snapshotReader);
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.
@@ -120,31 +126,34 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     if (targetVersion == TVersion() && !IsLeader() && !Options_.WriteChangelogsAtFollowers)
         return;
 
-    YT_LOG_INFO("Replaying changelogs %v-%v to reach version %v",
+    YT_LOG_INFO("Replaying changelogs (ChangelogIds: %v-%v, TargetVersion: %v)",
         initialChangelogId,
         targetVersion.SegmentId,
         targetVersion);
 
     IChangelogPtr targetChangelog;
-    for (int changelogId = initialChangelogId; changelogId <= targetVersion.SegmentId; ++changelogId) {
+    int changelogId = initialChangelogId;
+    while (changelogId <= targetVersion.SegmentId) {
+        YT_LOG_INFO("Opening changelog (ChangelogId: %v)",
+            changelogId);
+
         auto changelog = WaitFor(ChangelogStore_->TryOpenChangelog(changelogId))
             .ValueOrThrow();
 
-        if (!changelog) {
+        if (changelog) {
+            YT_LOG_INFO("Changelog opened (ChangelogId: %v)",
+                changelogId);
+        } else {
             if (!IsLeader() && !Options_.WriteChangelogsAtFollowers) {
                 THROW_ERROR_EXCEPTION("Changelog %v is missing", changelogId);
             }
 
             auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
-
-            YT_LOG_INFO("Changelog %v is missing and will be created at version %v",
+            YT_LOG_INFO("Changelog is missing and will be created (ChangelogId: %v, Version: %v)",
                 changelogId,
                 currentVersion);
 
-            NProto::TChangelogMeta meta;
-            meta.set_prev_record_count(currentVersion.RecordId);
-
-            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId, meta))
+            changelog = WaitFor(ChangelogStore_->CreateChangelog(changelogId))
                 .ValueOrThrow();
         }
 
@@ -155,11 +164,17 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         int targetRecordId = changelogId == targetVersion.SegmentId
             ? targetVersion.RecordId
             : changelog->GetRecordCount();
-        ReplayChangelog(changelog, changelogId, targetRecordId);
+
+        if (!ReplayChangelog(changelog, changelogId, targetRecordId)) {
+            TDelayedExecutor::WaitForDuration(Config_->ChangelogRecordCountCheckRetryPeriod);
+            continue;
+        }
 
         if (changelogId == targetVersion.SegmentId) {
             targetChangelog = changelog;
         }
+
+        ++changelogId;
     }
 
     YT_VERIFY(targetChangelog);
@@ -219,11 +234,12 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
     }
 }
 
-void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId)
+bool TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     auto currentVersion = DecoratedAutomaton_->GetAutomatonVersion();
+
     YT_LOG_INFO("Replaying changelog %v from version %v to version %v",
         changelogId,
         currentVersion,
@@ -232,47 +248,57 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
     if (currentVersion.SegmentId != changelogId) {
         YT_VERIFY(currentVersion.SegmentId == changelogId - 1);
 
-        const auto& meta = changelog->GetMeta();
-        YT_VERIFY(meta.prev_record_count() == currentVersion.RecordId);
-
         // Prepare to apply mutations at the rotated version.
         DecoratedAutomaton_->RotateAutomatonVersion(changelogId);
     }
 
+    YT_LOG_INFO("Checking changelog record count (ChangelogId: %v)",
+        changelogId);
+
     if (changelog->GetRecordCount() < targetRecordId) {
-        THROW_ERROR_EXCEPTION("Not enough records in changelog %v: needed %v, actual %v",
+        YT_LOG_INFO("Changelog record count is too low (ChangelogId: %v, NeededRecordCount: %v, ActualRecordCount: %v)",
             changelogId,
             targetRecordId,
             changelog->GetRecordCount());
+        return false;
     }
 
-    YT_LOG_INFO("Waiting for quorum record count to become sufficiently high");
+    YT_LOG_INFO("Changelog record count is OK (ChangelogId: %v, NeededRecordCount: %v, ActualRecordCount: %v)",
+        changelogId,
+        targetRecordId,
+        changelog->GetRecordCount());
 
-    while (true) {
-        auto asyncResult = ComputeChangelogQuorumInfo(
-            Config_,
-            CellManager_,
+    YT_LOG_INFO("Checking changelog quorum record count (ChangelogId: %v)",
+        changelogId);
+
+    auto asyncResult = ComputeChangelogQuorumInfo(
+        Config_,
+        CellManager_,
+        changelogId,
+        changelog->GetRecordCount());
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    if (result.RecordCountLo < targetRecordId) {
+        YT_LOG_INFO("Changelog quorum record count is too low (ChangelogId: %v, NeededRecordCount: %v, ActualRecordCount: %v)",
             changelogId,
-            changelog->GetRecordCount());
-        auto result = WaitFor(asyncResult)
-            .ValueOrThrow();
-
-        if (result.RecordCountLo >= targetRecordId) {
-            YT_LOG_INFO("Quorum record count check succeeded");
-            break;
-        }
-
-        YT_LOG_INFO("Quorum record count check failed; will retry");
-
-        TDelayedExecutor::WaitForDuration(Config_->ChangelogQuorumCheckRetryPeriod);
+            targetRecordId,
+            result.RecordCountLo);
+        return false;
     }
+
+    YT_LOG_INFO("Changelog quorum record count is OK (ChangelogId: %v, NeededRecordCount: %v, ActualRecordCount: %v)",
+        changelogId,
+        targetRecordId,
+        result.RecordCountLo);
 
     while (true) {
         int startRecordId = DecoratedAutomaton_->GetAutomatonVersion().RecordId;
         int recordsNeeded = targetRecordId - startRecordId;
         YT_VERIFY(recordsNeeded >= 0);
-        if (recordsNeeded == 0)
+        if (recordsNeeded == 0) {
             break;
+        }
 
         YT_LOG_INFO("Trying to read records %v-%v from changelog %v",
             startRecordId,
@@ -301,6 +327,8 @@ void TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
             DecoratedAutomaton_->ApplyMutationDuringRecovery(data);
         }
     }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

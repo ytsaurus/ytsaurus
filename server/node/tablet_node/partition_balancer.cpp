@@ -40,6 +40,8 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
@@ -70,6 +72,9 @@ public:
         , ThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
             Logger))
+        , Profiler("/tablet_node/partition_balancer")
+        , PartitionSplitCounter_("/scheduled_splits")
+        , PartitionMergeCounter_("/scheduled_merges")
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
@@ -81,8 +86,20 @@ private:
     TAsyncSemaphorePtr Semaphore_;
     TThrottlerManagerPtr ThrottlerManager_;
 
+    const NProfiling::TProfiler Profiler;
+    NProfiling::TMonotonicCounter PartitionSplitCounter_;
+    NProfiling::TMonotonicCounter PartitionMergeCounter_;
+
 
     void OnScanSlot(TTabletSlotPtr slot)
+    {
+        const auto& tagIdList = slot->GetProfilingTagIds();
+        PROFILE_TIMING("/scan_time", tagIdList) {
+            OnScanSlotImpl(slot, tagIdList);
+        }
+    }
+
+    void OnScanSlotImpl(TTabletSlotPtr slot, const NProfiling::TTagIdList& tagIdList)
     {
         if (slot->GetAutomatonState() != EPeerState::Leading) {
             return;
@@ -171,6 +188,7 @@ private:
         if (partition->IsImmediateSplitRequested()) {
             if (ValidateSplit(slot, partition, true)) {
                 partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
+                Profiler.Increment(PartitionSplitCounter_);
                 DoRunImmediateSplit(slot, partition, Logger);
                 // This is inexact to say the least: immediate split is called when we expect that
                 // most of the stores will stay intact after splitting by the provided pivots.
@@ -189,6 +207,7 @@ private:
 
             if (splitFactor > 1 && ValidateSplit(slot, partition, false)) {
                 partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
+                Profiler.Increment(PartitionSplitCounter_);
                 YT_LOG_DEBUG("Partition is scheduled for split");
                 tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
                     &TPartitionBalancer::DoRunSplit,
@@ -336,7 +355,7 @@ private:
         TPartition* partition,
         int splitFactor,
         TTablet* tablet,
-        TPartitionId partitonId,
+        TPartitionId partitionId,
         TTabletId tabletId,
         NLogging::TLogger Logger)
     {
@@ -439,6 +458,7 @@ private:
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             tablet->PartitionList()[index]->CheckedSetState(EPartitionState::Normal, EPartitionState::Merging);
         }
+        Profiler.Increment(PartitionMergeCounter_);
 
         auto Logger = TabletNodeLogger;
         Logger.AddTag("%v, CellId: %v, PartitionIds: %v",
@@ -500,7 +520,7 @@ private:
         TTabletSlotPtr slot,
         TPartition* partition,
         TTablet* tablet,
-        TPartitionId partitonId,
+        TPartitionId partitionId,
         TTabletId tabletId,
         NLogging::TLogger Logger)
     {

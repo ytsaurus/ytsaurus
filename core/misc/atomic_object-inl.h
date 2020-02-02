@@ -20,7 +20,7 @@ template <class U>
 void TAtomicObject<T>::Store(U&& u)
 {
     // NB: Using exchange to avoid destructing the old object while holding the lock.
-    auto ignored = Exchange(std::forward<U>(u));
+    std::ignore = Exchange(std::forward<U>(u));
 }
 
 template <class T>

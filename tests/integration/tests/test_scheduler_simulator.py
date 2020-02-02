@@ -190,6 +190,13 @@ def resources_equal(lhs, rhs):
 
 ##################################################################
 
+if arcadia_interop.yatest_common is not None:
+    CONVERTER_BINARY = arcadia_interop.yatest_common.binary_path("convert_operations_to_binary_format")
+    SIMULATOR_BINARY = arcadia_interop.yatest_common.binary_path("scheduler_simulator")
+else:
+    CONVERTER_BINARY = "convert_operations_to_binary_format"
+    SIMULATOR_BINARY = "scheduler_simulator"
+
 ONE_GB = 1024 * 1024 * 1024
 
 scheduler_simulator_config = {
@@ -286,7 +293,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
     @authors("antonkikh")
     def test_scheduler_simulator(self):
         resource_limits = {"cpu": 1, "memory": ONE_GB, "network": 10}
-        create("map_node", "//sys/pools/test_pool", attributes={"resource_limits": resource_limits})
+        create_pool("test_pool", attributes={"resource_limits": resource_limits})
 
         self._prepare_tables()
         data = [{"foo": i} for i in xrange(3)]
@@ -320,7 +327,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             yson.dump(output, fout, yson_type="list_fragment")
 
         with open(simulator_files_path["simulator_input_yson_file"]) as fin:
-            subprocess.check_call(["convert_operations_to_binary_format",
+            subprocess.check_call([CONVERTER_BINARY,
                                    simulator_files_path["simulator_input_bin_file"]],
                                   stdin=fin)
 
@@ -339,7 +346,8 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
             yson.dump(scheduler_config, fout)
 
         with open(simulator_files_path["simulator_input_bin_file"]) as fin:
-            subprocess.check_call(["scheduler_simulator",
+            subprocess.check_call([SIMULATOR_BINARY,
+                                   "--allow-debug-mode",
                                    simulator_files_path["scheduler_simulator_config_yson_file"]],
                                   stdin=fin)
 

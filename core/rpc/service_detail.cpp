@@ -86,6 +86,8 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     , TagIds(tagIds)
     , QueueSizeCounter("/request_queue_size", tagIds)
     , QueueSizeLimitCounter("/request_queue_size_limit", tagIds)
+    , ConcurrencyCounter("/concurrency", tagIds)
+    , ConcurrencyLimitCounter("/concurrency_limit", tagIds)
     , LoggingSuppressionFailedRequestThrottler(
         CreateReconfigurableThroughputThrottler(TMethodConfig::DefaultLoggingSuppressionFailedRequestThrottler))
 { }
@@ -265,7 +267,7 @@ public:
     {
         if (!RuntimeInfo_->Descriptor.StreamingEnabled) {
             YT_LOG_DEBUG("Received streaming payload for a method that does not support streaming; ignored "
-                "(Method: %v:%v, RequestId: %v)",
+                "(Method: %v.%v, RequestId: %v)",
                 Service_->ServiceId_.ServiceName,
                 RuntimeInfo_->Descriptor.Method,
                 RequestId_);
@@ -291,7 +293,7 @@ public:
 
         if (!stream) {
             YT_LOG_DEBUG("Received streaming feedback for a method that does not support streaming; ignored "
-                "(Method: %v:%v, RequestId: %v)",
+                "(Method: %v.%v, RequestId: %v)",
                 Service_->ServiceId_.ServiceName,
                 RuntimeInfo_->Descriptor.Method,
                 RequestId_);
@@ -574,19 +576,23 @@ private:
         auto timeout = GetTimeout();
         if (timeout && NProfiling::GetCpuInstant() > ArriveInstant_ + NProfiling::DurationToCpuDuration(*timeout)) {
             if (!TimedOutLatch_.test_and_set()) {
-                YT_LOG_DEBUG("Request dropped due to timeout before being run (RequestId: %v)",
-                    RequestId_);
+                Reply(TError(NYT::EErrorCode::Timeout, "Request dropped due to timeout before being run"));
                 Profiler.Increment(PerformanceCounters_->TimedOutRequestCounter);
             }
             return;
         }
 
         if (Cancelable_) {
-            auto canceler = GetCurrentFiberCanceler();
-            if (canceler && !Canceled_.TrySubscribe(std::move(canceler))) {
-                YT_LOG_DEBUG("Request was canceled before being run (RequestId: %v)",
-                    RequestId_);
-                return;
+            auto fiberCanceler = GetCurrentFiberCanceler();
+            if (fiberCanceler) {
+                auto cancelationHandler = BIND([fiberCanceler = std::move(fiberCanceler)] {
+                    fiberCanceler(TError("RPC request canceled"));
+                });
+                if (!Canceled_.TrySubscribe(std::move(cancelationHandler))) {
+                    YT_LOG_DEBUG("Request was canceled before being run (RequestId: %v)",
+                        RequestId_);
+                    return;
+                }
             }
         }
 
@@ -602,7 +608,7 @@ private:
     {
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
 
-        auto handlerFiberTime = CpuDurationToDuration(GetCurrentRunCpuTime());
+        auto handlerFiberTime = CpuDurationToDuration(GetCurrentFiberRunCpuTime());
         Profiler.Increment(PerformanceCounters_->HandlerFiberTimeCounter, DurationToValue(handlerFiberTime));
 
         if (TraceContext_) {
@@ -699,7 +705,7 @@ private:
     virtual void LogRequest() override
     {
         TStringBuilder builder;
-        builder.AppendFormat("%v:%v <- ",
+        builder.AppendFormat("%v.%v <- ",
             GetService(),
             GetMethod());
 
@@ -713,13 +719,15 @@ private:
             delimitedBuilder->AppendFormat("Cancelable: %v", Cancelable_);
         }
 
-        YT_LOG_EVENT(Logger, LogLevel_, builder.Flush());
+        auto logMessage = builder.Flush();
+        AddTag(RequestInfoAnnotation, logMessage);
+        YT_LOG_EVENT(Logger, LogLevel_, logMessage);
     }
 
     virtual void LogResponse() override
     {
         TStringBuilder builder;
-        builder.AppendFormat("%v:%v -> ",
+        builder.AppendFormat("%v.%v -> ",
             GetService(),
             GetMethod());
 
@@ -744,7 +752,9 @@ private:
             ExecutionTime_,
             TotalTime_);
 
-        YT_LOG_EVENT(Logger, LogLevel_, builder.Flush());
+        auto logMessage = builder.Flush();
+        AddTag(ResponseInfoAnnotation, logMessage);
+        YT_LOG_EVENT(Logger, LogLevel_, logMessage);
     }
 
 
@@ -915,7 +925,7 @@ TServiceBase::TServiceBase(
     YT_VERIFY(DefaultInvoker_);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
-        .SetInvoker(TDispatcher::Get()->GetLightInvoker())
+        .SetInvoker(GetSyncInvoker())
         .SetSystem(true));
 
     ProfilingExecutor_->Start();
@@ -991,7 +1001,11 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    auto traceContext = GetOrCreateTraceContext(*header);
+    auto traceContext = CreateHandlerTraceContext(*header);
+    if (traceContext) {
+        traceContext->AddTag(EndpointAnnotation, replyBus->GetEndpointDescription());
+    }
+
     TTraceContextGuard traceContextGuard(traceContext);
 
     // NOTE: Do not use replyError() after this line.
@@ -1047,6 +1061,8 @@ void TServiceBase::ReplyError(
         << TErrorAttribute("service", ServiceId_.ServiceName)
         << TErrorAttribute("method", header.method())
         << TErrorAttribute("endpoint", replyBus->GetEndpointDescription());
+
+    NTracing::AddErrorTag();
 
     auto code = richError.GetCode();
     auto logLevel =
@@ -1424,8 +1440,10 @@ void TServiceBase::OnProfiling()
     {
         TReaderGuard guard(MethodMapLock_);
         for (const auto& [methodName, runtimeInfo] : MethodMap_) {
-            Profiler.Update(runtimeInfo->QueueSizeCounter, runtimeInfo->QueueSize.load());
+            Profiler.Update(runtimeInfo->QueueSizeCounter, runtimeInfo->QueueSize.load(std::memory_order_relaxed));
             Profiler.Update(runtimeInfo->QueueSizeLimitCounter, runtimeInfo->Descriptor.QueueSizeLimit);
+            Profiler.Update(runtimeInfo->ConcurrencyCounter, runtimeInfo->ConcurrencySemaphore.load(std::memory_order_relaxed));
+            Profiler.Update(runtimeInfo->ConcurrencyLimitCounter, runtimeInfo->Descriptor.ConcurrencyLimit);
         }
     }
 }
@@ -1462,7 +1480,7 @@ void TServiceBase::Configure(INodePtr configNode)
             const auto& methodConfig = pair.second;
             auto runtimeInfo = FindMethodInfo(methodName);
             if (!runtimeInfo) {
-                THROW_ERROR_EXCEPTION("Cannot find RPC method %v:%v to configure",
+                THROW_ERROR_EXCEPTION("Cannot find RPC method %v.%v to configure",
                     ServiceId_.ServiceName,
                     methodName);
             }

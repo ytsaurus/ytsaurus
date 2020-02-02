@@ -269,7 +269,7 @@ void FromProto(
     const NProto::TStreamingParameters& protoParameters)
 {
     if (protoParameters.has_window_size()) {
-        parameters->WindowSize = parameters->WindowSize;
+        parameters->WindowSize = protoParameters.window_size();
     }
     if (protoParameters.has_read_timeout()) {
         parameters->ReadTimeout = FromProto<TDuration>(protoParameters.read_timeout());
@@ -360,14 +360,14 @@ void MergeRequestHeaderExtensions(
     NProto::TRequestHeader* to,
     const NProto::TRequestHeader& from)
 {
-#define X(name) \
+#define XX(name) \
     if (from.HasExtension(name)) { \
         to->MutableExtension(name)->CopyFrom(from.GetExtension(name)); \
     }
 
-    X(NProto::TTracingExt::tracing_ext)
+    XX(NRpc::NProto::TRequestHeader::tracing_ext)
 
-#undef X
+#undef XX
 }
 
 bool ParseRequestCancelationHeader(

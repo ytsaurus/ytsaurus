@@ -130,6 +130,18 @@ void Deserialize(TLogicalTypePtr& schema, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Special wrapper class that allows to serialize LogicalType in type_v3 format
+// https://a.yandex-team.ru/arc/trunk/arcadia/logfeller/mvp/docs/types_serialization.md
+struct TTypeV3LogicalTypeWrapper
+{
+    TLogicalTypePtr LogicalType;
+};
+
+void Serialize(const TTypeV3LogicalTypeWrapper& wrapper, NYson::IYsonConsumer* consumer);
+void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOptionalLogicalType
     : public TLogicalType
 {

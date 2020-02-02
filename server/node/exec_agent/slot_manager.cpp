@@ -102,6 +102,14 @@ void TSlotManager::Initialize()
         }
     }
 
+    // To this moment all old processed must have been killed, so we can safely clean up old volumes
+    // during root volume manager initialization.
+    if (environmentConfig->Type == EJobEnvironmentType::Porto) {
+        RootVolumeManager_ = CreatePortoVolumeManager(
+            Bootstrap_->GetConfig()->DataNode->VolumeManager,
+            Bootstrap_);
+    }
+
     if (Config_->JobProxySocketNameDirectory) {
         try {
             // Create for each slot a file containing the name of Unix Domain Socket
@@ -164,7 +172,7 @@ ISlotPtr TSlotManager::AcquireSlot(i64 diskSpaceRequest)
     int slotIndex = *FreeSlots_.begin();
     FreeSlots_.erase(slotIndex);
 
-    return CreateSlot(slotIndex, std::move(bestLocation), JobEnvironment_, NodeTag_);
+    return CreateSlot(slotIndex, std::move(bestLocation), JobEnvironment_, RootVolumeManager_, NodeTag_);
 }
 
 void TSlotManager::ReleaseSlot(int slotIndex)
@@ -230,13 +238,6 @@ std::optional<double> TSlotManager::GetCpuLimit() const
        : std::nullopt;
 }
 
-bool TSlotManager::ExternalJobMemory() const
-{
-    return JobEnvironment_ && JobEnvironment_->IsEnabled()
-       ? JobEnvironment_->ExternalJobMemory()
-       : false;
-}
-
 void TSlotManager::OnJobFinished(EJobState jobState)
 {
     if (jobState == EJobState::Aborted) {
@@ -273,6 +274,24 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
     if (PersistentAlert_) {
         alerts->push_back(*PersistentAlert_);
     }
+}
+
+void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
+{
+    fluent
+       .Item("slot_count").Value(SlotCount_)
+       .Item("free_slot_count").Value(FreeSlots_.size())
+       .DoIf(static_cast<bool>(TransientAlert_), [&] (auto fluentMap) {
+           fluentMap.Item("transient_alert").Value(*TransientAlert_);
+       })
+       .DoIf(static_cast<bool>(PersistentAlert_), [&] (auto fluentMap) {
+           fluentMap.Item("persistent_alert").Value(*PersistentAlert_);
+       })
+       .DoIf(static_cast<bool>(RootVolumeManager_), [&] (auto fluentMap) {
+           fluentMap.Item("root_volume_manager").DoMap(BIND(
+               &IVolumeManager::BuildOrchidYson,
+               RootVolumeManager_));
+       });
 }
 
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskInfo()

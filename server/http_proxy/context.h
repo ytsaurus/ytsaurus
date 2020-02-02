@@ -1,12 +1,15 @@
 #pragma once
 
 #include "public.h"
+#include "private.h"
 
 #include "api.h"
 
 #include <yt/ytlib/auth/public.h>
 
 #include <yt/client/driver/driver.h>
+
+#include <yt/core/concurrency/public.h>
 
 #include <yt/core/http/public.h>
 
@@ -60,6 +63,7 @@ public:
     bool TryPrepare();
     void FinishPrepare();
     void Run();
+    void LogAndProfile();
     void Finalize();
 
 private:
@@ -101,6 +105,9 @@ private:
     NYTree::IMapNodePtr OutputParameters_;
 
     bool OmitTrailers_ = false;
+
+    bool IsFramingEnabled_ = false;
+    NConcurrency::TPeriodicExecutorPtr SendKeepAliveExecutor_;
 
     template <class TJsonProducer>
     void DispatchJson(const TJsonProducer& producer);

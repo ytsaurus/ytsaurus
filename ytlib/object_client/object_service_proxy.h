@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/object_client/object_service.pb.h>
+#include <yt/ytlib/object_client/proto/object_service.pb.h>
 
 #include <yt/ytlib/transaction_client/public.h>
 
@@ -14,6 +14,10 @@
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NObjectClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr int DefaultSubbatchSize = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,13 +104,15 @@ private:
         NRpc::TRequestId OriginalRequestId_;
         bool SuppressUpstreamSync_ = false;
 
-        explicit TReqExecuteSubbatch(NRpc::IChannelPtr channel);
+        explicit TReqExecuteSubbatch(NRpc::IChannelPtr channel, int subbatchSize);
         explicit TReqExecuteSubbatch(const TReqExecuteSubbatch& other);
         TReqExecuteSubbatch(
             const TReqExecuteSubbatch& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
 
         TFuture<TRspExecuteBatchPtr> DoInvoke();
+
+        int SubbatchSize_;
 
     private:
         friend class TReqExecuteBatch;
@@ -153,7 +159,7 @@ public:
         TFuture<TRspExecuteBatchPtr> Invoke();
 
     protected:
-        explicit TReqExecuteBatchBase(NRpc::IChannelPtr channel);
+        explicit TReqExecuteBatchBase(NRpc::IChannelPtr channel, int subbatchSize);
         explicit TReqExecuteBatchBase(const TReqExecuteBatchBase& other);
         TReqExecuteBatchBase(const TReqExecuteBatchBase& other, std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
 
@@ -177,13 +183,11 @@ public:
         : public TReqExecuteBatchBase
     {
     public:
-        static constexpr int MaxSingleSubbatchSize = 100;
-
         //! Starts the asynchronous invocation.
         TFuture<TRspExecuteBatchPtr> Invoke();
 
     protected:
-        explicit TReqExecuteBatch(NRpc::IChannelPtr channel);
+        explicit TReqExecuteBatch(NRpc::IChannelPtr channel, int subbatchSize);
         TReqExecuteBatch(const TReqExecuteBatchBase& other, std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
 
     private:
@@ -220,10 +224,12 @@ public:
         TReqExecuteBatchWithRetries(
             NRpc::IChannelPtr channel,
             TReqExecuteBatchWithRetriesConfigPtr config,
-            TCallback<bool(int, const TError&)>);
+            TCallback<bool(int, const TError&)>,
+            int subbatchSize = DefaultSubbatchSize);
         TReqExecuteBatchWithRetries(
             NRpc::IChannelPtr channel,
-            TReqExecuteBatchWithRetriesConfigPtr config);
+            TReqExecuteBatchWithRetriesConfigPtr config,
+            int subbatchSize = DefaultSubbatchSize);
 
         DECLARE_NEW_FRIEND();
 
@@ -380,17 +386,18 @@ public:
 
     //! Executes a batched Cypress request. Retries backed off and uncertain
     //! subrequests. May take an arbitrarily long time.
-    TReqExecuteBatchPtr ExecuteBatch();
+    TReqExecuteBatchPtr ExecuteBatch(int subbatchSize = DefaultSubbatchSize);
 
     //! Executes a single batch RPC request. Results in a (batch) response that
     //! may contain unreplied subresponses (including uncertain ones).
-    TReqExecuteBatchBasePtr ExecuteBatchNoBackoffRetries();
+    TReqExecuteBatchBasePtr ExecuteBatchNoBackoffRetries(int subbatchSize = DefaultSubbatchSize);
 
     //! Same as ExecuteBatch, but additionally retries any subrequest that results a retriable error.
-    TReqExecuteBatchWithRetriesPtr ExecuteBatchWithRetries(TReqExecuteBatchWithRetriesConfigPtr config);
+    TReqExecuteBatchWithRetriesPtr ExecuteBatchWithRetries(TReqExecuteBatchWithRetriesConfigPtr config, int subbatchSize = DefaultSubbatchSize);
     TReqExecuteBatchWithRetriesPtr ExecuteBatchWithRetries(
         TReqExecuteBatchWithRetriesConfigPtr config,
-        TCallback<bool(int, const TError&)> needRetry);
+        TCallback<bool(int, const TError&)> needRetry,
+        int subbatchSize = DefaultSubbatchSize);
 
     template <class TBatchReqPtr>
     void PrepareBatchRequest(const TBatchReqPtr& batchReq);

@@ -46,7 +46,7 @@ class ListOperationsSetup(YTEnvSetup):
             op_type,
             in_=cls._input_path,
             out=cls._output_path,
-            dont_track=True,
+            track=False,
             authenticated_user=user,
             **kwargs)
 
@@ -137,9 +137,9 @@ class ListOperationsSetup(YTEnvSetup):
         nodes = ls("//sys/cluster_nodes")
         set("//sys/cluster_nodes/" + nodes[0] + "/@user_tags/end", "other")
 
-        create("map_node", "//sys/pool_trees/other", attributes={"nodes_filter": "tag"}, ignore_existing=True)
-        create("map_node", "//sys/pool_trees/other/some_pool", ignore_existing=True)
-        create("map_node", "//sys/pool_trees/other/pool_no_running", ignore_existing=True)
+        create_pool_tree("other", attributes={"nodes_filter": "tag"}, ignore_existing=True)
+        create_pool("some_pool", pool_tree="other", ignore_existing=True)
+        create_pool("pool_no_running", pool_tree="other", ignore_existing=True)
         set("//sys/pool_trees/other/pool_no_running/@max_running_operation_count", 0)
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info"))
 
@@ -492,7 +492,7 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
             },
         }
         before_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
-        cls.op6 = start_op("sort", in_=cls._input_path, out=cls._output_path, dont_track=True, authenticated_user="user5", spec=op6_spec, sort_by="key")
+        cls.op6 = start_op("sort", in_=cls._input_path, out=cls._output_path, track=False, authenticated_user="user5", spec=op6_spec, sort_by="key")
         cls.op6.before_start_time = before_start_time
         wait(lambda: get(cls.op6.get_path() + "/@state") == "pending")
 
@@ -569,6 +569,40 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
     @classmethod
     def setup_class(cls):
         super(TestListOperationsArchiveOnly, cls).setup_class()
+        wait(lambda: not operation_nodes_exist())
+
+
+class TestListOperationsArchiveHacks(ListOperationsSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    SINGLE_SETUP_TEARDOWN = True
+
+    USE_DYNAMIC_TABLES = True
+
+    include_archive = True
+    read_from_values=["follower"]
+    check_failed_jobs_count = False
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operations_cleaner": {
+                "enable": True,
+                # Analyze all operations each 100ms
+                "analysis_period": 100,
+                # Cleanup all operations
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+            },
+            "static_orchid_cache_update_period": 100,
+            "alerts_update_period": 100,
+            "watchers_update_period": 100,
+        },
+    }
+
+    @classmethod
+    def setup_class(cls):
+        super(TestListOperationsArchiveHacks, cls).setup_class()
         wait(lambda: not operation_nodes_exist())
 
     @authors("ilpauzner")

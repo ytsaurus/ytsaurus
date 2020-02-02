@@ -87,6 +87,7 @@ TTcpConnection::TTcpConnection(
     , WriteStallTimeout_(NProfiling::DurationToCpuDuration(Config_->WriteStallTimeout))
 {
     Poller_->Register(this);
+    TTcpDispatcher::TImpl::Get()->RegisterConnection(this);
     InitBuffers();
 }
 
@@ -149,7 +150,7 @@ void TTcpConnection::Start()
     }
 }
 
-void TTcpConnection::Check()
+void TTcpConnection::CheckLiveness()
 {
     if (State_ != EState::Open) {
         return;
@@ -393,6 +394,26 @@ TTcpDispatcherStatistics TTcpConnection::GetStatistics() const
 
 TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& options)
 {
+    if (message.Size() > MaxMessagePartCount) {
+        return MakeFuture<void>(TError(
+            NRpc::EErrorCode::TransportError,
+            "Message exceeds part count limit: %v > %v",
+            message.Size(),
+            MaxMessagePartCount));
+    }
+
+    for (size_t index = 0; index < message.Size(); ++index) {
+        const auto& part = message[index];
+        if (part.Size() > MaxMessagePartSize) {
+            return MakeFuture<void>(TError(
+                NRpc::EErrorCode::TransportError,
+                "Message part %v exceeds size limit: %v > %v",
+                index,
+                part.Size(),
+                MaxMessagePartSize));
+        }
+    }
+
     TQueuedMessage queuedMessage(std::move(message), options);
 
     auto pendingOutPayloadBytes = PendingOutPayloadBytes_.fetch_add(queuedMessage.PayloadSize);
@@ -741,7 +762,7 @@ bool TTcpConnection::OnMessagePacketReceived()
         Decoder_.GetPacketId(),
         Decoder_.GetPacketSize());
 
-    if (Any(Decoder_.GetPacketFlags() & EPacketFlags::RequestAck)) {
+    if (Any(Decoder_.GetPacketFlags() & EPacketFlags::RequestAcknowledgement)) {
         EnqueuePacket(EPacketType::Ack, EPacketFlags::None, 0, Decoder_.GetPacketId());
     }
 
@@ -760,7 +781,7 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
     size_t payloadSize)
 {
     size_t packetSize = TPacketEncoder::GetPacketSize(type, message, payloadSize);
-    auto* packet = QueuedPackets_.emplace(
+    auto& packet = QueuedPackets_.emplace(
         type,
         flags,
         checksummedPartCount,
@@ -769,7 +790,7 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
         payloadSize,
         packetSize);
     UpdatePendingOut(+1, +packetSize);
-    return packet;
+    return &packet;
 }
 
 void TTcpConnection::OnSocketWrite()
@@ -1054,7 +1075,7 @@ void TTcpConnection::ProcessQueuedMessages()
 
         auto packetId = queuedMessage.PacketId;
         auto flags = queuedMessage.Options.TrackingLevel == EDeliveryTrackingLevel::Full
-            ? EPacketFlags::RequestAck
+            ? EPacketFlags::RequestAcknowledgement
             : EPacketFlags::None;
         if (queuedMessage.Options.MemoryZone == EMemoryZone::Undumpable) {
             flags |= EPacketFlags::UseUndumpableMemoryZone;
@@ -1073,7 +1094,7 @@ void TTcpConnection::ProcessQueuedMessages()
             packet->PacketSize,
             flags);
 
-        if (Any(flags & EPacketFlags::RequestAck)) {
+        if (Any(flags & EPacketFlags::RequestAcknowledgement)) {
             UnackedMessages_.push(TUnackedMessage(packetId, std::move(queuedMessage.Promise)));
         } else if (queuedMessage.Promise) {
             queuedMessage.Promise.Set();

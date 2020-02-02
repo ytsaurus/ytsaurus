@@ -120,21 +120,19 @@ public:
             TUnbufferedFileInput coreInput(coreInputFile);
             TFile coreOutputFile(corePath, CreateNew | WrOnly | Seq | CloseOnExec);
 
-            try {
-                coreOutputFile.SetDirect();
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Error while setting direct IO mode for coredumper output");
-            }
-
             auto asyncResult = BIND([
                 coreInput = std::move(coreInput),
                 coreOutputFile = std::move(coreOutputFile),
                 activeCoreDumpCountGuard = std::move(activeCoreDumpCountGuard),
                 Logger] () mutable {
                     YT_LOG_INFO("Started transferring core dump data");
-                    auto size = WriteSparseCoreDump(&coreInput, &coreOutputFile);
-                    YT_LOG_INFO("Finished transferring core dump data (Size: %v)",
-                        size);
+                    try {
+                        auto size = WriteSparseCoreDump(&coreInput, &coreOutputFile);
+                        YT_LOG_INFO("Finished transferring core dump data (Size: %v)", size);
+                    } catch (const std::exception& ex) {
+                        YT_LOG_WARNING(ex, "Error writing core dump");
+                        throw;
+                    }
                 })
                 .AsyncVia(ActionQueue_->GetInvoker())
                 .Run();

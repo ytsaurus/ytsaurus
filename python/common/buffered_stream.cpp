@@ -127,6 +127,11 @@ TFuture<void> TBufferedStream::Write(const TSharedRef& data)
     }
 }
 
+TFuture<void> TBufferedStream::Flush()
+{
+    return VoidFuture;
+}
+
 void TBufferedStream::Reallocate(size_t len)
 {
     YT_VERIFY(len >= Size_);
@@ -202,14 +207,15 @@ TBufferedStreamPtr TBufferedStreamWrap::GetStream()
 TBufferedStreamWrap::~TBufferedStreamWrap()
 { }
 
-void TBufferedStreamWrap::InitType()
+void TBufferedStreamWrap::InitType(const TString& moduleName)
 {
     static bool Initialized_ = false;
     if (Initialized_) {
         return;
     }
 
-    behaviors().name("BufferedStream");
+    TString typeName = moduleName + ".BufferedStream";
+    behaviors().name(typeName.c_str());
     behaviors().doc("Buffered stream to perform read and download asynchronously");
     behaviors().supportGetattro();
     behaviors().supportSetattro();

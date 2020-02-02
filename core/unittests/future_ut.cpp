@@ -670,7 +670,7 @@ TEST_F(TFutureTest, CombineCancel)
         TDelayedExecutor::MakeDelayed(TDuration::Seconds(5))
     };
     auto asyncResult = Combine(asyncResults);
-    asyncResult.Cancel();
+    asyncResult.Cancel(TError("Error"));
     EXPECT_TRUE(asyncResult.IsSet());
     const auto& result = asyncResult.Get();
     EXPECT_EQ(NYT::EErrorCode::Canceled, result.GetCode());
@@ -714,7 +714,7 @@ TEST_F(TFutureTest, AsyncViaCanceledInvoker)
     auto context = New<TCancelableContext>();
     auto invoker = context->CreateInvoker(GetSyncInvoker());
     auto generator = BIND([] () {}).AsyncVia(invoker);
-    context->Cancel();
+    context->Cancel(TError("Error"));
     auto future = generator.Run();
     auto error = future.Get();
     ASSERT_EQ(NYT::EErrorCode::Canceled, error.GetCode());
@@ -850,7 +850,7 @@ TEST_F(TFutureTest, OnCanceledAbanbon)
     bool called = false;
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
-    promise.OnCanceled(BIND([&] () mutable {
+    promise.OnCanceled(BIND([&] (const TError& /*error*/) {
         called = true;
     }));
     promise.Reset();
@@ -863,10 +863,35 @@ TString OnCallResult(const TErrorOr<int>& callResult)
     THROW_ERROR_EXCEPTION("Call failed");
 }
 
-TEST_F(TFutureTest, LTOCrash)
+TEST_F(TFutureTest, LtoCrash)
 {
     auto future = MakeFuture<int>(0);
     auto nextFuture = future.Apply(BIND(OnCallResult));
+}
+
+struct S
+{
+    static int DestroyedCounter;
+
+    ~S()
+    {
+        ++DestroyedCounter;
+    }
+};
+
+int S::DestroyedCounter = 0;
+
+TEST_F(TFutureTest, CancelableDoesNotProhibitDestruction)
+{
+    auto promise = NewPromise<S>();
+    promise.Set(S());
+
+    auto cancelable = promise.ToFuture().AsCancelable();
+
+    auto before = S::DestroyedCounter;
+    promise.Reset();
+    auto after = S::DestroyedCounter;
+    EXPECT_EQ(1, after - before);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

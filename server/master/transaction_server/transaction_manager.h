@@ -45,7 +45,7 @@ public:
         TTransaction* parent,
         std::vector<TTransaction*> prerequisiteTransactions,
         const NObjectClient::TCellTagList& replicatedToCellTags,
-        const NObjectClient::TCellTagList& replicateStartToCellTags,
+        bool replicateStart,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,

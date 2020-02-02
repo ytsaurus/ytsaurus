@@ -24,6 +24,12 @@ TMasterConnectionConfig::TMasterConnectionConfig()
 {
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(15));
+
+    RegisterParameter("enable_master_cache_discovery", EnableMasterCacheDiscovery)
+        .Default(false);
+
+    RegisterParameter("master_cache_discovery_period", MasterCacheDiscoveryPeriod)
+        .Default(TDuration::Minutes(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -140,8 +146,9 @@ TConnectionConfig::TConnectionConfig()
 
     RegisterParameter("use_tablet_service", UseTabletService)
         .Default(true);
-    RegisterParameter("enable_builtin_tablet_system_users", EnableBuiltinTabletSystemUsers)
-        .Default(false);
+
+    RegisterParameter("cache_sticky_group_size_override", CacheStickyGroupSizeOverride)
+        .Default();
 
     RegisterParameter("idle_channel_ttl", IdleChannelTtl)
         .Default(TDuration::Minutes(30));

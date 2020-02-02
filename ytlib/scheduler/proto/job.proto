@@ -3,12 +3,12 @@ package NYT.NScheduler.NProto;
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/protobuf_helpers.proto";
 import "yt/client/chunk_client/proto/chunk_spec.proto";
-import "yt/ytlib/chunk_client/data_source.proto";
+import "yt/ytlib/chunk_client/proto/data_source.proto";
 import "yt/ytlib/core_dump/proto/core_info.proto";
 import "yt/ytlib/job_tracker_client/proto/job.proto";
 import "yt/client/node_tracker_client/proto/node_directory.proto";
-import "yt/ytlib/query_client/functions_cache.proto";
-import "yt/ytlib/query_client/query.proto";
+import "yt/ytlib/query_client/proto/functions_cache.proto";
+import "yt/ytlib/query_client/proto/query.proto";
 import "yt/ytlib/scheduler/proto/output_result.proto";
 import "yt/client/table_client/proto/chunk_meta.proto";
 
@@ -141,6 +141,8 @@ message TUserJobSpec
     optional string cuda_toolkit_version = 46;
 
     optional uint32 network_project_id = 47;
+
+    optional bool write_sparse_core_dumps = 48 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -241,6 +243,8 @@ message TSchedulerJobSpecExt
     optional string job_cpu_monitor_config = 22;
 
     optional int64 waiting_job_timeout = 23;
+
+    optional NYT.NProto.TGuid job_competition_id = 24;
 }
 
 message TSchedulerJobResultExt

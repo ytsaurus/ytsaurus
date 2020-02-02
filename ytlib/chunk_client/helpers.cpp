@@ -29,13 +29,13 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/compression/codec.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/net/local_address.h>
 
@@ -216,7 +216,8 @@ void ProcessFetchResponse(
     std::optional<int> rangeIndex,
     const NLogging::TLogger& logger,
     std::vector<NProto::TChunkSpec>* chunkSpecs,
-    bool skipUnavailableChunks)
+    bool skipUnavailableChunks,
+    EAddressType addressType)
 {
     if (nodeDirectory) {
         nodeDirectory->MergeFrom(fetchResponse->node_directory());
@@ -240,7 +241,8 @@ void ProcessFetchResponse(
         foreignChunkSpecs,
         nodeDirectory,
         logger,
-        skipUnavailableChunks);
+        skipUnavailableChunks,
+        addressType);
 
     for (auto& chunkSpec : *fetchResponse->mutable_chunks()) {
         chunkSpecs->push_back(std::move(chunkSpec));
@@ -257,10 +259,14 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     int maxChunksPerLocateRequest,
     const std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&)>& initializeFetchRequest,
     const NLogging::TLogger& logger,
-    bool skipUnavailableChunks)
+    bool skipUnavailableChunks,
+    EAddressType addressType)
 {
     std::vector<NProto::TChunkSpec> chunkSpecs;
-    chunkSpecs.reserve(static_cast<size_t>(chunkCount));
+    // XXX(babenko): YT-11825
+    if (chunkCount >= 0) {
+        chunkSpecs.reserve(static_cast<size_t>(chunkCount));
+    }
 
     auto channel = client->GetMasterChannelOrThrow(
         EMasterChannelKind::Follower,
@@ -269,24 +275,31 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
     auto batchReq = proxy.ExecuteBatch();
 
     for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
-        for (i64 index = 0; index < (chunkCount + maxChunksPerFetch - 1) / maxChunksPerFetch; ++index) {
+        // XXX(babenko): YT-11825
+        i64 subrequestCount = chunkCount < 0 ? 1 : (chunkCount + maxChunksPerFetch - 1) / maxChunksPerFetch;
+        for (i64 subrequestIndex = 0; subrequestIndex < subrequestCount; ++subrequestIndex) {
             auto adjustedRange = ranges[rangeIndex];
-            auto chunkCountLowerLimit = index * maxChunksPerFetch;
-            if (adjustedRange.LowerLimit().HasChunkIndex()) {
-                chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
-            }
-            adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
 
-            auto chunkCountUpperLimit = (index + 1) * maxChunksPerFetch;
-            if (adjustedRange.UpperLimit().HasChunkIndex()) {
-                chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
+            // XXX(babenko): YT-11825
+            if (chunkCount >= 0) {
+                auto chunkCountLowerLimit = subrequestIndex * maxChunksPerFetch;
+                if (adjustedRange.LowerLimit().HasChunkIndex()) {
+                    chunkCountLowerLimit = std::max(chunkCountLowerLimit, adjustedRange.LowerLimit().GetChunkIndex());
+                }
+                adjustedRange.LowerLimit().SetChunkIndex(chunkCountLowerLimit);
+
+                auto chunkCountUpperLimit = (subrequestIndex + 1) * maxChunksPerFetch;
+                if (adjustedRange.UpperLimit().HasChunkIndex()) {
+                    chunkCountUpperLimit = std::min(chunkCountUpperLimit, adjustedRange.UpperLimit().GetChunkIndex());
+                }
+                adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
             }
-            adjustedRange.UpperLimit().SetChunkIndex(chunkCountUpperLimit);
 
             // NB: objectId is null for virtual tables.
             auto req = TChunkOwnerYPathProxy::Fetch(userObject.GetObjectIdPathIfAvailable());
             AddCellTagToSyncWith(req, userObject.ObjectId);
             req->Tag() = rangeIndex;
+            req->set_address_type(static_cast<int>(addressType));
             initializeFetchRequest(req.Get());
             ToProto(req->mutable_ranges(), std::vector<NChunkClient::TReadRange>{adjustedRange});
             batchReq->AddRequest(req);
@@ -313,7 +326,8 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
             rangeIndex,
             logger,
             &chunkSpecs,
-            skipUnavailableChunks);
+            skipUnavailableChunks,
+            addressType);
     }
 
     return chunkSpecs;
@@ -449,9 +463,15 @@ i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChun
         // Block used by upper level chunk reader.
         i64 chunkBufferSize = ChunkReaderMemorySize + miscExt->max_block_size();
 
+        // If range to read is large enough to cover several blocks, consider prefetch memory estimate.
         if (currentSize > miscExt->max_block_size()) {
             chunkBufferSize += config->WindowSize + config->GroupSize;
         }
+
+        // But after all we will not exceed total uncompressed data size for chunk.
+        // Compressed data size is ignored (and works just fine according to psushin@).
+        chunkBufferSize = std::min<i64>(chunkBufferSize, miscExt->uncompressed_data_size());
+
         return chunkBufferSize;
     } else {
         return ChunkReaderMemorySize +
@@ -549,7 +569,8 @@ void LocateChunks(
     const std::vector<NProto::TChunkSpec*>& chunkSpecList,
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NLogging::TLogger& logger,
-    bool skipUnavailableChunks)
+    bool skipUnavailableChunks,
+    EAddressType addressType)
 {
     const auto& Logger = logger;
 
@@ -576,6 +597,7 @@ void LocateChunks(
 
             auto req = proxy.LocateChunks();
             req->SetHeavy(true);
+            req->set_address_type(static_cast<int>(addressType));
             for (int index = beginIndex; index < endIndex; ++index) {
                 *req->add_subrequests() = chunkSpecs[index]->chunk_id();
             }

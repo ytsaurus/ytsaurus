@@ -1,6 +1,9 @@
 #include "null_column_reader.h"
 
+#include "column_reader_detail.h"
 #include "helpers.h"
+
+#include <yt/ytlib/chunk_client/public.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -9,11 +12,58 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNullValueExtractor
+{
+public:
+    TNullValueExtractor(TRef /*data*/, const TSegmentMeta& /*meta*/)
+    { }
+
+    void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
+    {
+        *value = MakeUnversionedNullValue(id, aggregate);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TUnversionedNullColumnReader
+    : public TUnversionedColumnReaderBase
+{
+public:
+    TUnversionedNullColumnReader(const TColumnMeta& columnMeta, int columnIndex, int columnId)
+        : TUnversionedColumnReaderBase(columnMeta, columnIndex, columnId)
+    { }
+
+    virtual std::pair<i64, i64> GetEqualRange(
+        const TUnversionedValue& value,
+        i64 lowerRowIndex,
+        i64 upperRowIndex) override
+    {
+        return DoGetEqualRange<EValueType::Null>(
+            value,
+            lowerRowIndex,
+            upperRowIndex);
+    }
+
+private:
+    virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool /* scan */) override
+    {
+        using TSegmentReader = TDenseUnversionedSegmentReader<
+            EValueType::Null,
+            TNullValueExtractor> ;
+
+        const auto& meta = ColumnMeta_.segments(segmentIndex);
+        return DoCreateSegmentReader<TSegmentReader>(meta);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBlocklessUnversionedNullColumnReader
     : public IUnversionedColumnReader
 {
 public:
-    TUnversionedNullColumnReader(int columnIndex, int id)
+    TBlocklessUnversionedNullColumnReader(int columnIndex, int id)
         : ColumnIndex_(columnIndex)
         , ColumnId_(id)
     { }
@@ -93,9 +143,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IUnversionedColumnReader> CreateUnversionedNullColumnReader(int columnIndex, int columnId)
+std::unique_ptr<IUnversionedColumnReader> CreateUnversionedNullColumnReader(
+    const TColumnMeta& columnMeta,
+    int columnIndex,
+    int columnId)
 {
-    return std::make_unique<TUnversionedNullColumnReader>(columnIndex, columnId);
+    return std::make_unique<TUnversionedNullColumnReader>(columnMeta, columnIndex, columnId);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<IUnversionedColumnReader> CreateBlocklessUnversionedNullColumnReader(int columnIndex, int columnId)
+{
+    return std::make_unique<TBlocklessUnversionedNullColumnReader>(columnIndex, columnId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

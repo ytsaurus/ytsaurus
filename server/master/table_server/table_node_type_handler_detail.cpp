@@ -260,7 +260,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
         clonedTrunkNode->SetInMemoryMode(trunkSourceNode->GetInMemoryMode());
         clonedTrunkNode->SetUpstreamReplicaId(trunkSourceNode->GetUpstreamReplicaId());
         clonedTrunkNode->SetLastCommitTimestamp(trunkSourceNode->GetLastCommitTimestamp());
-        clonedTrunkNode->MutableTabletBalancerConfig() = trunkSourceNode->TabletBalancerConfig();
+        clonedTrunkNode->MutableTabletBalancerConfig() = CloneYsonSerializable(trunkSourceNode->TabletBalancerConfig());
     }
 
     tabletManager->SetTabletCellBundle(clonedTrunkNode, trunkSourceNode->GetTabletCellBundle());

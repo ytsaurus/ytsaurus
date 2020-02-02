@@ -14,7 +14,7 @@
 #include <yt/client/api/journal_reader.h>
 #include <yt/client/api/journal_writer.h>
 
-#include <yt/ytlib/hydra/hydra_manager.pb.h>
+#include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/config.h>
 
 #include <yt/core/concurrency/scheduler.h>
@@ -77,11 +77,11 @@ public:
         return ReachableVersion_;
     }
 
-    virtual TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
+    virtual TFuture<IChangelogPtr> CreateChangelog(int id) override
     {
         return BIND(&TRemoteChangelogStore::DoCreateChangelog, MakeStrong(this))
             .AsyncVia(GetHydraIOInvoker())
-            .Run(id, meta);
+            .Run(id);
     }
 
     virtual TFuture<IChangelogPtr> OpenChangelog(int id) override
@@ -110,7 +110,7 @@ private:
     const NLogging::TLogger Logger;
 
 
-    IChangelogPtr DoCreateChangelog(int id, const TChangelogMeta& meta)
+    IChangelogPtr DoCreateChangelog(int id)
     {
         auto path = GetChangelogPath(Path_, id);
         try {
@@ -129,7 +129,6 @@ private:
                 attributes->Set("write_quorum", Options_->ChangelogWriteQuorum);
                 attributes->Set("account", Options_->ChangelogAccount);
                 attributes->Set("primary_medium", Options_->ChangelogPrimaryMedium);
-                attributes->Set("prev_record_count", meta.prev_record_count());
                 options.Attributes = std::move(attributes);
                 options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
 
@@ -147,6 +146,7 @@ private:
                 options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
                 options.Config = Config_->Writer;
                 options.EnableMultiplexing = Options_->EnableChangelogMultiplexing;
+                options.WaitForAllReplicasUponOpen = Options_->WaitForAllReplicasUponOpen;
                 options.Profiler = HydraProfiler.AppendPath("/remote_changelog").AddTags(ProfilerTags_);
                 writer = Client_->CreateJournalWriter(path, options);
                 WaitFor(writer->Open())
@@ -159,7 +159,6 @@ private:
             return CreateRemoteChangelog(
                 id,
                 path,
-                meta,
                 writer,
                 0,
                 0);
@@ -174,7 +173,6 @@ private:
     {
         auto path = GetChangelogPath(Path_, id);
         try {
-            TChangelogMeta meta;
             int recordCount;
             i64 dataSize;
 
@@ -182,7 +180,7 @@ private:
                 id);
             {
                 TGetNodeOptions options;
-                options.Attributes = {"prev_record_count", "uncompressed_data_size", "quorum_row_count"};
+                options.Attributes = {"uncompressed_data_size", "quorum_row_count"};
                 auto result = WaitFor(Client_->GetNode(path, options));
                 if (result.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION(
@@ -195,7 +193,6 @@ private:
                 auto node = ConvertToNode(result.ValueOrThrow());
                 const auto& attributes = node->Attributes();
 
-                meta.set_prev_record_count(attributes.Get<int>("prev_record_count"));
                 dataSize = attributes.Get<i64>("uncompressed_data_size");
                 recordCount = attributes.Get<int>("quorum_row_count");
             }
@@ -205,7 +202,6 @@ private:
             return CreateRemoteChangelog(
                 id,
                 path,
-                meta,
                 nullptr,
                 recordCount,
                 dataSize);
@@ -219,14 +215,12 @@ private:
     IChangelogPtr CreateRemoteChangelog(
         int id,
         const TYPath& path,
-        const TChangelogMeta& meta,
         IJournalWriterPtr writer,
         int recordCount,
         i64 dataSize)
     {
         return New<TRemoteChangelog>(
             path,
-            meta,
             recordCount,
             dataSize,
             writer,
@@ -240,23 +234,16 @@ private:
     public:
         TRemoteChangelog(
             const TYPath& path,
-            const TChangelogMeta& meta,
             int recordCount,
             i64 dataSize,
             IJournalWriterPtr writer,
             TRemoteChangelogStorePtr owner)
             : Path_(path)
-            , Meta_(meta)
             , Writer_(writer)
             , Owner_(owner)
             , RecordCount_(recordCount)
             , DataSize_(dataSize)
         { }
-
-        virtual const TChangelogMeta& GetMeta() const override
-        {
-            return Meta_;
-        }
 
         virtual int GetRecordCount() const override
         {
@@ -312,7 +299,6 @@ private:
 
     private:
         const TYPath Path_;
-        const TChangelogMeta Meta_;
         const IJournalWriterPtr Writer_;
         const TRemoteChangelogStorePtr Owner_;
 
@@ -440,62 +426,47 @@ private:
             .ThrowOnError();
     }
 
-    int GetLatestChangelogId()
+    TVersion ComputeReachableVersion()
     {
         YT_LOG_DEBUG("Requesting changelog list from remote store");
-        auto result = WaitFor(MasterClient_->ListNode(Path_))
+        TListNodeOptions options{
+            .Attributes = std::vector<TString>{
+                "sealed",
+                "quorum_row_count"
+            }
+        };
+        auto result = WaitFor(MasterClient_->ListNode(Path_, options))
             .ValueOrThrow();
         YT_LOG_DEBUG("Changelog list received");
 
-        auto keys = ConvertTo<std::vector<TString>>(result);
-        int latestId = InvalidSegmentId;
-        for (const auto& key : keys) {
+        auto items = ConvertTo<IListNodePtr>(result);
+        
+        int latestId = -1;
+        int latestRowCount = -1;
+        for (const auto& item : items->GetChildren()) {
+            auto key = item->GetValue<TString>();
             int id;
-            try {
-                id = FromString<int>(key);
-            } catch (const std::exception&) {
-                YT_LOG_WARNING("Unrecognized item %Qv in remote changelog store",
-                    key);
-                continue;
+            if (!TryFromString(key, id)) {
+                THROW_ERROR_EXCEPTION("Unrecognized item %Qv in changelog store %v",
+                    key,
+                    Path_);
             }
-            if (id > latestId || latestId == InvalidSegmentId) {
+            if (!item->Attributes().Get<bool>("sealed", false)) {
+                THROW_ERROR_EXCEPTION("Changelog %Qv is changelog store %v is not sealed",
+                    key,
+                    Path_);                
+            }
+            if (id > latestId) {
                 latestId = id;
+                latestRowCount = item->Attributes().Get<i64>("quorum_row_count");
             }
         }
 
-        return latestId;
-    }
-
-    TVersion ComputeReachableVersion()
-    {
-        int latestId = GetLatestChangelogId();
-
-        if (latestId == InvalidSegmentId) {
+        if (latestId < 0) {
             return TVersion();
         }
 
-        auto path = GetChangelogPath(Path_, latestId);
-
-        int recordCount;
-        YT_LOG_DEBUG("Getting remote changelog attributes (ChangelogId: %v)",
-            latestId);
-        {
-            TGetNodeOptions options;
-            options.Attributes = {"sealed", "quorum_row_count"};
-            auto result = WaitFor(MasterClient_->GetNode(path, options));
-            auto node = ConvertToNode(result.ValueOrThrow());
-
-            const auto& attributes = node->Attributes();
-            if (!attributes.Get<bool>("sealed")) {
-                THROW_ERROR_EXCEPTION("Changelog %v is not sealed",
-                    path);
-            }
-            recordCount = attributes.Get<int>("quorum_row_count");
-        }
-        YT_LOG_DEBUG("Remote changelog attributes received (ChangelogId: %v)",
-            latestId);
-
-        return TVersion(latestId, recordCount);
+        return TVersion(latestId, latestRowCount);
     }
 
 };

@@ -35,27 +35,29 @@ void TFutureStateBase::Subscribe(TVoidResultHandler handler)
     }
 }
 
-bool TFutureStateBase::Cancel() noexcept
+bool TFutureStateBase::Cancel(const TError& error) noexcept
 {
-    // Calling subscribers may release the last reference to this.
-    TIntrusivePtr<TFutureStateBase> this_(this);
-
     {
         auto guard = Guard(SpinLock_);
         if (Set_ || AbandonedUnset_ || Canceled_) {
             return false;
         }
+        CancelationError_ = error;
         Canceled_ = true;
     }
 
     if (CancelHandlers_.empty()) {
-        DoTrySetCanceledError();
+        if (!DoTrySetCanceledError(error)) {
+            return false;
+        }
+    } else {
+        // Calling subscribers may release the last reference to this.
+        TIntrusivePtr<TCancelableStateBase> this_(this);
+        for (const auto& handler : CancelHandlers_) {
+            RunNoExcept(handler, error);
+        }
+        CancelHandlers_.clear();
     }
-
-    for (const auto& handler : CancelHandlers_) {
-        RunNoExcept(handler);
-    }
-    CancelHandlers_.clear();
 
     return true;
 }
@@ -67,7 +69,7 @@ void TFutureStateBase::OnCanceled(TCancelHandler handler)
         return;
     }
     if (Canceled_) {
-        RunNoExcept(handler);
+        RunNoExcept(handler, CancelationError_);
         return;
     }
 
@@ -77,7 +79,7 @@ void TFutureStateBase::OnCanceled(TCancelHandler handler)
         InstallAbandonedError();
         if (Canceled_) {
             guard.Release();
-            RunNoExcept(handler);
+            RunNoExcept(handler, CancelationError_);
         } else if (!Set_) {
             CancelHandlers_.push_back(std::move(handler));
             HasHandlers_ = true;
@@ -107,16 +109,6 @@ bool TFutureStateBase::TimedWait(TDuration timeout) const
     return ReadyEvent_->Wait(timeout.ToDeadLine());
 }
 
-TError TFutureStateBase::MakeAbandonedError()
-{
-    return TError(NYT::EErrorCode::Canceled, "Promise abandoned");
-}
-
-TError TFutureStateBase::MakeCanceledError()
-{
-    return TError(NYT::EErrorCode::Canceled, "Operation canceled");
-}
-
 void TFutureStateBase::InstallAbandonedError() const
 {
     const_cast<TFutureStateBase*>(this)->InstallAbandonedError();
@@ -131,7 +123,13 @@ void TFutureStateBase::InstallAbandonedError()
     }
 }
 
-void TFutureStateBase::Dispose()
+void TFutureStateBase::OnLastFutureRefLost()
+{
+    ResetValue();
+    UnrefCancelable();
+}
+
+void TFutureStateBase::OnLastPromiseRefLost()
 {
     // Check for fast path.
     if (Set_) {

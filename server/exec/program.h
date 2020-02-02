@@ -9,7 +9,7 @@
 
 #include <yt/core/logging/log_manager.h>
 
-#include <yt/core/pipes/pipe.h>
+#include <yt/library/process/pipe.h>
 
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/fs.h>

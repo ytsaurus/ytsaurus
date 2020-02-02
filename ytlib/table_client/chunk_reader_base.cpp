@@ -3,6 +3,8 @@
 #include "config.h"
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
+#include <yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
+
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <algorithm>
@@ -29,7 +31,7 @@ TChunkReaderBase::TChunkReaderBase(
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
     , BlockReadOptions_(blockReadOptions)
-    , AsyncSemaphore_(New<TAsyncSemaphore>(Config_->WindowSize))
+    , MemoryManager_(New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize)))
     , Logger(NLogging::TLogger(TableClientLogger)
         .AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
 {
@@ -49,7 +51,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
     SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
         Config_,
         std::move(blockSequence),
-        AsyncSemaphore_,
+        MemoryManager_,
         UnderlyingReader_,
         BlockCache_,
         CheckedEnumCast<ECodec>(miscExt.compression_codec()),
@@ -58,6 +60,7 @@ TFuture<void> TChunkReaderBase::DoOpen(
 
     InitFirstBlockNeeded_ = true;
     YT_VERIFY(SequentialBlockFetcher_->HasMoreBlocks());
+    MemoryManager_->SetRequiredMemorySize(SequentialBlockFetcher_->GetNextBlockSize());
     CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
     return CurrentBlock_.As<void>();
 }
@@ -98,6 +101,7 @@ bool TChunkReaderBase::OnBlockEnded()
         return false;
     }
 
+    MemoryManager_->SetRequiredMemorySize(SequentialBlockFetcher_->GetNextBlockSize());
     CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
     ReadyEvent_ = CurrentBlock_.As<void>();
     InitNextBlockNeeded_ = true;

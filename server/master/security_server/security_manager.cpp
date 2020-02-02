@@ -48,7 +48,7 @@
 
 #include <yt/core/concurrency/fls.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/intern_registry.h>
@@ -2183,6 +2183,7 @@ private:
             if (HasSchema(type)) {
                 auto* schema = objectManager->GetSchema(type);
                 auto* acd = GetAcd(schema);
+                // TODO(renadeen): giving read, write, remove for object schema to all users looks like a bad idea.
                 if (!IsVersionedType(type)) {
                     acd->AddEntry(TAccessControlEntry(
                         ESecurityAction::Allow,
@@ -2951,6 +2952,9 @@ private:
             if (!IsObjectAlive(user)) {
                 continue;
             }
+            if (!user->GetNeedsProfiling()) {
+                continue;
+            }
 
             TTagIdList tagIds{
                 GetProfilingTagForUser(user)
@@ -2962,6 +2966,7 @@ private:
             Profiler.Enqueue("/user_write_request_count", user->Statistics()[EUserWorkloadType::Write].RequestCount, EMetricType::Counter, tagIds);
             Profiler.Enqueue("/user_request_count", user->Statistics()[EUserWorkloadType::Read].RequestCount + user->Statistics()[EUserWorkloadType::Write].RequestCount, EMetricType::Counter, tagIds);
             Profiler.Enqueue("/user_request_queue_size", user->GetRequestQueueSize(), EMetricType::Gauge, tagIds);
+            user->SetNeedsProfiling(false);
         }
     }
 };

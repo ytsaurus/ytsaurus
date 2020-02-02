@@ -41,7 +41,7 @@ void TClickHouseColumn::SetNullable()
 
 std::optional<TClickHouseColumn> TClickHouseColumn::FromColumnSchema(const NTableClient::TColumnSchema& columnSchema)
 {
-    auto type = columnSchema.GetPhysicalType();
+    auto type = columnSchema.LogicalType();
 
     if (!IsYtTypeSupported(type)) {
         return std::nullopt;

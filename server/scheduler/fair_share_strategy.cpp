@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/core/concurrency/async_rw_lock.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -118,7 +118,8 @@ public:
         YT_LOG_INFO("Starting min needed job resources update");
 
         for (const auto& [operationId, state] : OperationIdToOperationState_) {
-            if (state->GetHost()->IsSchedulable()) {
+            auto maybeUnschedulableReason = state->GetHost()->CheckUnschedulable();
+            if (!maybeUnschedulableReason || maybeUnschedulableReason == EUnschedulableReason::NoPendingJobs) {
                 state->GetController()->UpdateMinNeededJobResources();
             }
         }
@@ -234,7 +235,17 @@ public:
         state->SetEnabled(false);
     }
 
-    virtual void UpdatePoolTrees(const INodePtr& poolTreesNode) override
+    virtual void ValidatePoolTreesAreNotRemoved(const TOperationPtr& operation) override
+    {
+        for (const auto& [treeId, _] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
+            if (GetOrCrash(IdToTree_, treeId)->IsBeingRemoved()) {
+                THROW_ERROR_EXCEPTION("Failed to register operation: tree %Qv is being removed", treeId)
+                    << TErrorAttribute("operation_id", operation->GetId());
+            }
+        }
+    }
+
+    virtual void UpdatePoolTrees(const INodePtr& poolTreesNode, TInstant now) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -279,15 +290,18 @@ public:
 
         // Check that after adding or removing trees each node will belong exactly to one tree.
         // Check is skipped if trees configuration did not change.
-        bool skipTreesConfigurationCheck = treeIdsToAdd.empty() && treeIdsToRemove.empty();
-
-        if (!skipTreesConfigurationCheck) {
+        bool treeSetChanged = !(treeIdsToAdd.empty() && treeIdsToRemove.empty());
+        if (treeSetChanged) {
             if (!CheckTreesConfiguration(idToTree, &errors)) {
                 auto error = TError("Error updating pool trees")
                     << std::move(errors);
                 Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
                 return;
             }
+        }
+
+        for (const auto& tree : treeIdsToRemove) {
+            IdToTree_[tree]->OnTreeRemoveStarted();
         }
 
         // Update configs and pools structure of all trees.
@@ -297,7 +311,37 @@ public:
         // Abort orphaned operations.
         AbortOrphanedOperations(treeIdsToRemove);
 
-        // Updating default fair-share tree and global tree map.
+        // Update fair-share tree snapshots to contain the actual set of trees.
+        if (treeSetChanged) {
+            TFairShareTreeMap treesToAddMap;
+            for (const auto& treeId : treeIdsToAdd) {
+                treesToAddMap.emplace(treeId, idToTree[treeId]);
+            }
+
+            THashMap<TString, IFairShareTreeSnapshotPtr> treeSnapshotsToAdd;
+            DoRunFairShareTreeUpdates(treesToAddMap, now, &errors, &treeSnapshotsToAdd);
+
+            if (!errors.empty()) {
+                auto error = TError("Error updating pool trees")
+                    << std::move(errors);
+                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
+                return;
+            }
+
+            {
+                TWriterGuard guard(TreeIdToSnapshotLock_);
+
+                auto& snapshots = TreeIdToSnapshot_;
+                for (const auto& treeId : treeIdsToRemove) {
+                    YT_VERIFY(snapshots.erase(treeId) == 1);
+                }
+                for (const auto& [treeId, snapshot] : treeSnapshotsToAdd) {
+                    YT_VERIFY(snapshots.emplace(treeId, snapshot).second);
+                }
+            }
+        }
+
+        // Update default fair-share tree and global tree map.
         DefaultTreeId_ = defaultTreeId;
         std::swap(IdToTree_, idToTree);
 
@@ -569,8 +613,7 @@ public:
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) override
     {
-        // TODO(eshcherbin): Change verification. This method is called only in control thread.
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -662,33 +705,21 @@ public:
 
         YT_LOG_INFO("Starting fair share update");
 
-        THashMap<TString, TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>>> asyncUpdates;
-        for (const auto& [treeId, tree] : IdToTree_) {
-            asyncUpdates.emplace(treeId, tree->OnFairShareUpdateAt(now));
-        }
-
-        auto result = WaitFor(Combine(asyncUpdates));
-        if (!result.IsOK()) {
-            Host->Disconnect(result);
-            return;
-        }
-
-        const auto& updateResults = result.Value();
-
-        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
+        THashMap<TString, IFairShareTreeSnapshotPtr> updatedSnapshots;
         std::vector<TError> errors;
-
-        for (const auto& [treeId, updateResult] : updateResults) {
-            const auto& [snapshot, error] = updateResult;
-            snapshots.emplace(treeId, snapshot);
-            if (!error.IsOK()) {
-                errors.push_back(error);
-            }
-        }
+        DoRunFairShareTreeUpdates(IdToTree_, now, &errors, &updatedSnapshots);
 
         {
             TWriterGuard guard(TreeIdToSnapshotLock_);
-            std::swap(TreeIdToSnapshot_, snapshots);
+
+            auto& snapshots = TreeIdToSnapshot_;
+            for (const auto& [treeId, snapshot] : updatedSnapshots) {
+                // NB(eshcherbin): Tree could have been removed from snapshots in |UpdatePoolTrees|
+                // while we waited for all tree updates to complete.
+                if (snapshots.contains(treeId)) {
+                    snapshots[treeId] = snapshot;
+                }
+            }
         }
 
         if (!errors.empty()) {
@@ -757,12 +788,18 @@ public:
                     auto snapshotIt = snapshots.find(job.TreeId);
                     if (snapshotIt == snapshots.end()) {
                         // Job is finished but tree does not exist, nothing to do.
+                        YT_LOG_DEBUG("Skipping job update since pool tree is missing (OperationId: %v, JobId: %v)",
+                            job.OperationId,
+                            job.JobId);
                         continue;
                     }
                     const auto& snapshot = snapshotIt->second;
                     if (snapshot->HasOperation(job.OperationId)) {
                         snapshot->ProcessFinishedJob(job.OperationId, job.JobId);
                     } else if (snapshot->IsOperationDisabled(job.OperationId)) {
+                        YT_LOG_DEBUG("Postpone job update since operation is disabled (OperationId: %v, JobId: %v)",
+                            job.OperationId,
+                            job.JobId);
                         jobsToPostpone.insert(job.JobId);
                     } else {
                         YT_LOG_DEBUG("Dropping finished job (OperationId: %v, JobId: %v)", job.OperationId, job.JobId);
@@ -812,7 +849,8 @@ public:
                 tree->EnableOperation(state);
             }
         }
-        if (host->IsSchedulable()) {
+        auto maybeUnschedulableReason = host->CheckUnschedulable();
+        if (!maybeUnschedulableReason || maybeUnschedulableReason == EUnschedulableReason::NoPendingJobs) {
             state->GetController()->UpdateMinNeededJobResources();
         }
     }
@@ -850,7 +888,7 @@ public:
         // 1) currentDemand and minShareResources are the current resource demand and guarantee in the given pool.
         // 2) newDemand is the demand of the given operation.
         // 3) fullDemandRatio and minShareRatio are the dominant resource ratios of (currentDemand + newDemand) and minShareResources correspondingly.
-        // 4) regularizedDemandToMinShareRatio := fullDemandRatio / (1 + minShareRatio).
+        // 4) regularizedDemandToMinShareRatio := fullDemandRatio / (regularizationValue + minShareRatio).
         // We search for the tree with the minimal regularizedDemandToMinShareRatio.
         TString bestTree;
         auto bestRegularizedDemandToMinShareRatio = std::numeric_limits<double>::max();
@@ -872,7 +910,7 @@ public:
 
             auto fullDemandRatio = GetMaxResourceRatio(newDemand + currentDemand, totalResourceLimits);
             auto minShareRatio = GetMaxResourceRatio(minShareResources, totalResourceLimits);
-            auto regularizedDemandToMinShareRatio = fullDemandRatio / (1.0 + minShareRatio);
+            auto regularizedDemandToMinShareRatio = fullDemandRatio / (Config->BestTreeHeuristicRegularizationValue + minShareRatio);
 
             // TODO(eshcherbin): This is rather verbose. Consider removing when well tested in production.
             YT_LOG_DEBUG(
@@ -931,14 +969,11 @@ private:
 
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
-    TFuture<void> ProfilingCompleted_ = VoidFuture;
-
     using TFairShareTreeMap = THashMap<TString, TFairShareTreePtr>;
     TFairShareTreeMap IdToTree_;
 
     std::optional<TString> DefaultTreeId_;
 
-    // TODO(eshcherbin): Use TAtomicObject here.
     TReaderWriterSpinLock TreeIdToSnapshotLock_;
     THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
 
@@ -995,7 +1030,9 @@ private:
             }
         } else {
             if (!DefaultTreeId_) {
-                THROW_ERROR_EXCEPTION("Failed to determine fair-share tree for operation since "
+                THROW_ERROR_EXCEPTION(
+                    NScheduler::EErrorCode::PoolTreesAreUnspecified,
+                    "Failed to determine fair-share tree for operation since "
                     "valid pool trees are not specified and default fair-share tree is not configured");
             }
             result.push_back(TPoolTreeDescription{
@@ -1005,22 +1042,27 @@ private:
         }
 
         if (result.empty()) {
-            THROW_ERROR_EXCEPTION("No pool trees are specified for operation");
+            THROW_ERROR_EXCEPTION(
+                NScheduler::EErrorCode::PoolTreesAreUnspecified,
+                "No pool trees are specified for operation");
         }
 
         // Data shuffling shouldn't be launched in tentative trees.
-        const auto& noTentativePoolOperationTypes = Config->OperationsWithoutTentativePoolTrees;
-        if (noTentativePoolOperationTypes.find(operationType) == noTentativePoolOperationTypes.end()) {
-            for (const auto& treeId : tentativePoolTrees) {
-                if (FindTree(treeId)) {
+        for (const auto& treeId : tentativePoolTrees) {
+            if (auto tree = FindTree(treeId)) {
+                auto nonTentativeOperationTypesInTree = tree->GetConfig()->NonTentativeOperationTypes;
+                const auto& noTentativePoolOperationTypes = nonTentativeOperationTypesInTree
+                    ? *nonTentativeOperationTypesInTree
+                    : Config->OperationsWithoutTentativePoolTrees;
+                if (noTentativePoolOperationTypes.find(operationType) == noTentativePoolOperationTypes.end()) {
                     result.push_back(TPoolTreeDescription{
                         .Name = treeId,
                         .Tentative = true
                     });
-                } else {
-                    if (!spec->TentativeTreeEligibility->IgnoreMissingPoolTrees) {
-                        THROW_ERROR_EXCEPTION("Pool tree %Qv not found", treeId);
-                    }
+                }
+            } else {
+                if (!spec->TentativeTreeEligibility->IgnoreMissingPoolTrees) {
+                    THROW_ERROR_EXCEPTION("Pool tree %Qv not found", treeId);
                 }
             }
         }
@@ -1265,6 +1307,37 @@ private:
             }
             if (updateResult.Updated) {
                 updatedTreeIds->push_back(treeId);
+            }
+        }
+    }
+
+    void DoRunFairShareTreeUpdates(
+        const TFairShareTreeMap& trees,
+        TInstant now,
+        std::vector<TError>* errors,
+        THashMap<TString, IFairShareTreeSnapshotPtr>* updatedSnapshots)
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        THashMap<TString, TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>>> asyncUpdates;
+        for (const auto& [treeId, tree] : trees) {
+            asyncUpdates.emplace(treeId, tree->OnFairShareUpdateAt(now));
+        }
+
+        auto result = WaitFor(Combine(asyncUpdates));
+        if (!result.IsOK()) {
+            Host->Disconnect(result);
+            // NB: Current fiber would be cancelled after disconnection, so we yield here to stop its execution immediately.
+            Yield();
+            return;
+        }
+
+        const auto& updateResults = result.Value();
+        for (const auto& [treeId, updateResult] : updateResults) {
+            const auto& [snapshot, error] = updateResult;
+            updatedSnapshots->emplace(treeId, snapshot);
+            if (!error.IsOK()) {
+                errors->push_back(error);
             }
         }
     }

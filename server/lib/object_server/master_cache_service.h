@@ -14,6 +14,7 @@ NRpc::IServicePtr CreateMasterCacheService(
     TMasterCacheServiceConfigPtr config,
     IInvokerPtr invoker,
     NRpc::IChannelPtr masterChannel,
+    TObjectServiceCachePtr cache,
     NRpc::TRealmId masterCellId);
 
 ////////////////////////////////////////////////////////////////////////////////

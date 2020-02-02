@@ -5,6 +5,8 @@
 #include "helpers.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/master_hydra_service.h>
 
@@ -18,6 +20,8 @@
 #include <yt/server/master/security_server/user.h>
 
 #include <yt/server/lib/hive/hive_manager.h>
+
+#include <yt/server/lib/object_server/object_service_cache.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -38,6 +42,7 @@
 
 #include <yt/core/ytree/ypath_detail.h>
 
+#include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
 #include <yt/core/misc/crash_handler.h>
@@ -142,22 +147,36 @@ public:
             ObjectServerLogger)
         , Config_(std::move(config))
         , AutomatonInvoker_(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ObjectService))
+        , Cache_(New<TObjectServiceCache>(
+            Config_->MasterCache,
+            ObjectServerLogger,
+            ObjectServerProfiler.AppendPath("/master_cache")))
         , StickyUserErrorCache_(Config_->StickyUserErrorExpireTime)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetQueueSizeLimit(10000)
             .SetConcurrencyLimit(10000)
             .SetCancelable(true)
-            .SetInvoker(GetRpcInvoker()));
+            .SetInvoker(GetRpcInvoker())
+            // Execute request handler needs request to remain alive after Reply call.
+            .SetPooled(false));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GCCollect));
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->SubscribeUserCharged(BIND(&TObjectService::OnUserCharged, MakeStrong(this)));
+
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
+
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        hydraManager->SubscribeFollowerRecoveryComplete(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
+        hydraManager->SubscribeLeaderRecoveryComplete(BIND(&TObjectService::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 private:
     const TObjectServiceConfigPtr Config_;
     const IInvokerPtr AutomatonInvoker_;
+    const TObjectServiceCachePtr Cache_;
 
     class TExecuteSession;
     using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
@@ -199,13 +218,14 @@ private:
     std::atomic<bool> ProcessSessionsCallbackEnqueued_ = {false};
 
     TStickyUserErrorCache StickyUserErrorCache_;
-
+    std::atomic<bool> EnableTwoLevelCache_ = {false};
 
     static IInvokerPtr GetRpcInvoker()
     {
         return NRpc::TDispatcher::Get()->GetHeavyInvoker();
     }
 
+    void OnDynamicConfigChanged();
     void EnqueueReadySession(TExecuteSessionPtr session);
     void EnqueueFinishedSession(TExecuteSessionPtr session);
 
@@ -216,6 +236,8 @@ private:
     void OnUserCharged(TUser* user, const TUserWorkload& workload);
 
     void SetStickyUserError(const TString& userName, const TError& error);
+
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, GCCollect);
@@ -239,6 +261,7 @@ DEFINE_ENUM(EExecutionSessionSubrequestType,
     (LocalRead)
     (LocalWrite)
     (Remote)
+    (Cache)
 );
 
 class TObjectService::TExecuteSession
@@ -335,6 +358,16 @@ public:
             const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->EphemeralUnrefObject(User_);
         }
+
+        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+            if (subrequest.CacheCookie) {
+                auto& cookie = *subrequest.CacheCookie;
+                if (cookie.IsActive()) {
+                    cookie.Cancel(TError(NYT::EErrorCode::Canceled, "Cache request canceled"));
+                }
+            }
+        }
     }
 
 private:
@@ -358,6 +391,7 @@ private:
         IServiceContextPtr RpcContext;
         std::unique_ptr<TMutation> Mutation;
         TFuture<TMutationResponse> AsyncCommitResult;
+        std::optional<TObjectServiceCache::TCookie> CacheCookie;
         NRpc::NProto::TRequestHeader RequestHeader;
         const NYTree::NProto::TYPathHeaderExt* YPathExt = nullptr;
         const NObjectClient::NProto::TPrerequisitesExt* PrerequisitesExt = nullptr;
@@ -373,7 +407,7 @@ private:
         NHydra::TRevision Revision = NHydra::NullRevision;
         bool Uncertain = false;
         std::atomic<bool> Completed = {false};
-        TRequestProfilngCountersPtr ProfilingCounters;
+        TRequestProfilingCountersPtr ProfilingCounters;
     };
 
     std::unique_ptr<TSubrequest[]> Subrequests_;
@@ -461,7 +495,7 @@ private:
         int currentPartIndex = 0;
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
-            subrequest.Index =  subrequestIndex;
+            subrequest.Index = subrequestIndex;
 
             int partCount = request.part_counts(subrequestIndex);
             TSharedRefArrayBuilder subrequestPartsBuilder(partCount);
@@ -535,6 +569,65 @@ private:
             Profiler.Increment(subrequest.YPathExt->mutating()
                 ? subrequest.ProfilingCounters->TotalWriteRequestCounter
                 : subrequest.ProfilingCounters->TotalReadRequestCounter);
+        }
+    }
+
+    void LookupCachedSubrequests()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+            const auto& requestHeader = subrequest.RequestHeader;
+
+            if (requestHeader.HasExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext)) {
+                if (subrequest.YPathExt->mutating()) {
+                    Reply(TError(NObjectClient::EErrorCode::CannotCacheMutatingRequest, "Mutating requests cannot be cached"));
+                    return;
+                }
+
+                TObjectServiceCacheKey key(
+                    Bootstrap_->GetCellTag(),
+                    RpcContext_->GetUser(),
+                    subrequest.YPathExt->target_path(),
+                    requestHeader.service(),
+                    requestHeader.method(),
+                    subrequest.RequestMessage[1]);
+
+                YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
+                    RequestId_,
+                    subrequestIndex,
+                    key);
+
+                const auto& cachingRequestHeaderExt = requestHeader.GetExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+                auto refreshRevision = cachingRequestHeaderExt.refresh_revision();
+                auto cookie = Owner_->Cache_->BeginLookup(
+                    RequestId_,
+                    key,
+                    FromProto<TDuration>(cachingRequestHeaderExt.success_expiration_time()),
+                    FromProto<TDuration>(cachingRequestHeaderExt.failure_expiration_time()),
+                    refreshRevision);
+
+                if (cookie.IsActive()) {
+                    subrequest.CacheCookie.emplace(std::move(cookie));
+                } else {
+                    subrequest.Type = EExecutionSessionSubrequestType::Cache;
+
+                    AcquireReplyLock();
+
+                    cookie.GetValue()
+                        .Subscribe(BIND([this, this_ = MakeStrong(this), subrequestIndex] (const TErrorOr<TObjectServiceCacheEntryPtr>& entry) {
+                            auto& subrequest = Subrequests_[subrequestIndex];
+                            if (!entry.IsOK()) {
+                                Reply(entry);
+                                return;
+                            }
+                            const auto& value = entry.Value();
+                            subrequest.Revision = value->GetRevision();
+                            OnSuccessfullSubresponse(&subrequest, value->GetResponseMessage());
+                        }));
+                }
+            }
         }
     }
 
@@ -696,6 +789,10 @@ private:
             return;
         }
 
+        if (Owner_->EnableTwoLevelCache_) {
+            LookupCachedSubrequests();
+        }
+
         // Re-check remote requests to see if the cache resolve is still OK.
         DecideSubrequestTypes();
 
@@ -772,6 +869,10 @@ private:
 
     void DecideSubrequestType(TSubrequest* subrequest)
     {
+        if (subrequest->Type == EExecutionSessionSubrequestType::Cache) {
+            return;
+        }
+
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& resolveCache = cypressManager->GetResolveCache();
 
@@ -934,7 +1035,7 @@ private:
 
             AcquireReplyLock();
 
-            YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, "
+            YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
                 "%v%v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
                 RequestId_,
                 batch->BatchReq->GetRequestId(),
@@ -1205,6 +1306,9 @@ private:
             case EExecutionSessionSubrequestType::Remote:
                 break;
 
+            case EExecutionSessionSubrequestType::Cache:
+                break;
+
             default:
                 YT_ABORT();
         }
@@ -1257,6 +1361,8 @@ private:
             const auto& objectManager = Bootstrap_->GetObjectManager();
             auto rootService = objectManager->GetRootService();
             ExecuteVerb(rootService, context);
+
+            WaitForSubresponse(subrequest);
         } catch (const TLeaderFallbackException&) {
             ForwardSubrequestToLeader(subrequest);
         }
@@ -1265,8 +1371,6 @@ private:
         if (!EpochCancelableContext_->IsCanceled()) {
             securityManager->ChargeUser(User_, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
         }
-
-        WaitForSubresponse(subrequest);
     }
 
     void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
@@ -1341,6 +1445,15 @@ private:
         subrequest->Completed.store(true);
         SomeSubrequestCompleted_.store(true);
 
+        if (subrequest->CacheCookie) {
+            Owner_->Cache_->EndLookup(
+                RequestId_,
+                std::move(*subrequest->CacheCookie),
+                subrequest->ResponseMessage,
+                subrequest->Revision,
+                true);
+        }
+
         ReleaseReplyLock();
     }
 
@@ -1393,7 +1506,7 @@ private:
                 uncertainIndexes.push_back(index);
                 continue;
             }
-            
+
             const auto& subresponseMessage = subrequest.ResponseMessage;
             NRpc::NProto::TResponseHeader subresponseHeader;
             YT_VERIFY(ParseResponseHeader(subresponseMessage, &subresponseHeader));
@@ -1444,6 +1557,10 @@ private:
             subresponse->set_revision(subrequest.Revision);
         }
 
+        if (Owner_->EnableTwoLevelCache_) {
+            response.set_two_level_cache_enabled(true);
+        }
+
         ToProto(response.mutable_uncertain_subrequest_indexes(), uncertainIndexes);
 
         if (response.subresponses_size() == 0) {
@@ -1452,7 +1569,7 @@ private:
             return;
         }
 
-        RpcContext_->SetResponseInfo("SubresponseCount: %v, UncertainSubrequestIndexes : %v",
+        RpcContext_->SetResponseInfo("SubresponseCount: %v, UncertainSubrequestIndexes: %v",
             response.subresponses_size(),
             response.uncertain_subrequest_indexes());
 
@@ -1588,6 +1705,13 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void TObjectService::OnDynamicConfigChanged()
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    EnableTwoLevelCache_ = Bootstrap_->GetConfigManager()->GetConfig()->ObjectService->EnableTwoLevelCache;
+}
 
 void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
 {

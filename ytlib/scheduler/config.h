@@ -15,11 +15,13 @@
 #include <yt/ytlib/table_client/helpers.h>
 
 #include <yt/ytlib/security_client/public.h>
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/client/ypath/rich.h>
+
+#include <yt/client/transaction_client/public.h>
 
 #include <yt/core/rpc/config.h>
 
@@ -87,6 +89,19 @@ public:
     std::optional<int> Network;
     std::optional<i64> Memory;
     std::optional<int> Gpu;
+
+    template <class T>
+    void ForEachResource(T processResource)
+    {
+        // NB(renadeen): must be in sync with the lines below.
+        YT_VERIFY(GetParameterCount() == 5);
+
+        processResource(&TResourceLimitsConfig::UserSlots, "user_slots");
+        processResource(&TResourceLimitsConfig::Cpu, "cpu");
+        processResource(&TResourceLimitsConfig::Network, "network");
+        processResource(&TResourceLimitsConfig::Memory, "memory");
+        processResource(&TResourceLimitsConfig::Gpu, "gpu");
+    }
 
     TResourceLimitsConfig();
 };
@@ -306,6 +321,8 @@ public:
     //! is not specified.
     std::optional<THashSet<TString>> PoolTrees;
 
+    // NB(eshcherbin): This limit is only checked once every fair share update. Finer throttling is achieved
+    // via the "per node shard" limit in controller config.
     //! Limit on the number of concurrent calls to ScheduleJob of single controller.
     std::optional<int> MaxConcurrentControllerScheduleJobCalls;
 
@@ -401,6 +418,7 @@ DEFINE_ENUM(ECancelationStage,
 );
 
 DEFINE_ENUM(EControllerFailureType,
+    (None)
     (AssertionFailureInPrepare)
     (ExceptionThrownInOnJobCompleted)
 )
@@ -422,6 +440,8 @@ public:
     std::optional<TDuration> DelayInsideSuspend;
 
     std::optional<TDuration> DelayInsideMaterialize;
+
+    std::optional<TDuration> DelayInsideAbort;
 
     std::optional<i64> AllocationSize;
 
@@ -620,6 +640,9 @@ public:
     //! from TUserJobSpec.
     std::optional<TDuration> JobSpeculationTimeout;
 
+    //! Should match the atomicity of output dynamic tables. If present, output dynamic tables are not locked.
+    NTransactionClient::EAtomicity Atomicity;
+
     TOperationSpecBase();
 
 private:
@@ -788,6 +811,7 @@ public:
 
     std::optional<NYPath::TRichYPath> CoreTablePath;
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriter;
+    bool WriteSparseCoreDumps;
 
     TJobCpuMonitorConfigPtr JobCpuMonitor;
 
@@ -1286,6 +1310,8 @@ class TSchedulerConnectionConfig
 public:
     //! Timeout for RPC requests to schedulers.
     TDuration RpcTimeout;
+    //! Timeout for acknowledgements for all RPC requests to schedulers.
+    TDuration RpcAcknowledgementTimeout;
 
     TSchedulerConnectionConfig();
 };

@@ -4,14 +4,16 @@
 
 #include "helpers.h"
 
+#include <yt/ytlib/api/public.h>
+#include <yt/ytlib/api/native/public.h>
+
+#include <yt/core/actions/signal.h>
+
 #include <yt/core/http/http.h>
 
 #include <yt/core/tracing/sampler.h>
 
 #include <yt/core/ytree/yson_serializable.h>
-
-#include <yt/ytlib/api/public.h>
-#include <yt/ytlib/api/native/public.h>
 
 namespace NYT::NHttpProxy {
 
@@ -66,6 +68,8 @@ public:
     TString FitnessFunction;
     double CpuWeight, CpuWaitWeight, ConcurrentRequestsWeight;
 
+    bool RelaxCsrfCheck;
+
     TDynamicConfig();
 };
 
@@ -98,6 +102,9 @@ public:
 
     bool IsDead(const TProxyEntryPtr& proxy, TInstant at) const;
 
+    //! Raised when proxy role changes.
+    DEFINE_SIGNAL(void(const TString), OnSelfRoleChanged);
+    
 private:
     const TCoordinatorConfigPtr Config_;
     TBootstrap* const Bootstrap_;

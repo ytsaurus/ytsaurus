@@ -84,10 +84,11 @@ public:
         YT_LOG_DEBUG("Started waiting for throttler (Count: %v)", count);
         auto promise = NewPromise<void>();
         auto request = New<TThrottlerRequest>(count);
-        promise.OnCanceled(BIND([weakRequest = MakeWeak(request), count, this, this_ = MakeStrong(this)] {
+        promise.OnCanceled(BIND([weakRequest = MakeWeak(request), count, this, this_ = MakeStrong(this)] (const TError& error) {
             auto request = weakRequest.Lock();
             if (request && !request->Set.test_and_set()) {
-                request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled"));
+                request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled")
+                    << error);
                 QueueTotalCount_ -= count;
                 Profiler.Update(QueueSizeCounter_, QueueTotalCount_);
             }
@@ -246,7 +247,7 @@ private:
         auto limit = Limit_.load();
         YT_VERIFY(limit >= 0);
 
-        auto delay = (-Available_ + limit) * Period_.load().MilliSeconds() / limit;
+        auto delay = (-Available_ + limit) * 1000 / limit;
         if (delay < 0) {
             delay = 0;
         }
@@ -268,7 +269,7 @@ private:
         auto lastUpdated = LastUpdated_.load();
 
         auto millisecondsPassed = (current - lastUpdated).MilliSeconds();
-        auto deltaAvailable = static_cast<i64>(millisecondsPassed * limit / period.MilliSeconds());
+        auto deltaAvailable = static_cast<i64>(millisecondsPassed * limit / 1000);
         if (deltaAvailable == 0) {
             return;
         }

@@ -15,7 +15,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/optional.h>
@@ -43,7 +43,6 @@ public:
     void Start(TChunk* frontChunk, int chunkCount);
     void Stop();
 
-    void OnNodeRegistered(TNode* node);
     void OnNodeUnregistered(TNode* node);
     void OnNodeDisposed(TNode* node);
 
@@ -246,9 +245,8 @@ private:
     void ScheduleNewJobs(
         TNode* node,
         NNodeTrackerClient::NProto::TNodeResources resourceUsage,
-        const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-        std::vector<TJobPtr>* jobsToStart,
-        std::vector<TJobPtr>* jobsToAbort);
+        NNodeTrackerClient::NProto::TNodeResources resourceLimits,
+        std::vector<TJobPtr>* jobsToStart);
 
     void OnRefresh();
     void RefreshChunk(TChunk* chunk);

@@ -151,4 +151,3 @@ TEST(TDelayedExecutorTest, DISABLED_SubmitAndCancelAfterShutdown)
 
 } // namespace
 } // namespace NYT
-

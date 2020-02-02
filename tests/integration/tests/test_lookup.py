@@ -469,6 +469,130 @@ class TestLookup(TestSortedDynamicTablesBase):
             lookup_rows("//tmp/t{key}", [{"key": 1}])
 
 
+class TestLookupFromDataNode(TestSortedDynamicTablesBase):
+    def _set_nodes_state(self):
+        nodes = ls("//sys/cluster_nodes")
+
+        set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(nodes[0]), True)
+        for node in nodes[1:]:
+            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
+
+    @authors("akozhikhov")
+    def test_lookup_from_data_node_simple(self):
+        self._set_nodes_state()
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", replication_factor=1)
+        set("//tmp/t/@enable_data_node_lookup", True)
+
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in range(2)]
+        rows = [{"key": i, "value": str(i) * 2} for i in range(2)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", []) == []
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        # TableSchema is cached on data node now
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        # Nothing is returned upon nonexistent key request.
+        keys.append({"key": 3})
+        assert lookup_rows("//tmp/t", keys) == rows
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("replication_factor", [1, 3])
+    def test_lookup_from_data_node_multiple_chunks(self, replication_factor):
+        self._set_nodes_state()
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", replication_factor=replication_factor)
+        set("//tmp/t/@enable_data_node_lookup", True)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+
+        sync_mount_table("//tmp/t")
+
+        for iter in range(3):
+            rows = [{"key": i, "value": str(i)} for i in range(iter * 3, (iter + 1) * 3)]
+            insert_rows("//tmp/t", rows)
+            sync_flush_table("//tmp/t")
+
+        assert len(get("//tmp/t/@chunk_ids")) == 3
+
+        keys = [{"key": 1}]
+        rows = [{"key": 1, "value": str(1)}]
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        keys = [{"key": i} for i in [0, 3, 6]]
+        rows = [{"key": i, "value": str(i)} for i in [0, 3, 6]]
+        assert lookup_rows("//tmp/t", keys) == rows
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("replication_factor", [1, 3])
+    def test_lookup_from_data_node_chunks_with_overlap(self, replication_factor):
+        self._set_nodes_state()
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", replication_factor=replication_factor)
+        set("//tmp/t/@enable_data_node_lookup", True)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+
+        sync_mount_table("//tmp/t")
+
+        for iter in range(3):
+            rows = [{"key": i, "value": str(i + iter)} for i in range(iter * 2, (iter + 1) * 2 + 1)]
+            insert_rows("//tmp/t", rows)
+            sync_flush_table("//tmp/t")
+
+        assert len(get("//tmp/t/@chunk_ids")) == 3
+
+        keys = [{"key": i} for i in range(7)]
+        values = [0, 1, 3, 4, 6, 7, 8]
+        rows = [{"key": i, "value": str(values[i])} for i in range(7)]
+
+        assert lookup_rows("//tmp/t", keys) == rows
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("replication_factor", [1, 3])
+    def test_lookup_from_data_node_stress(self, replication_factor):
+        self._set_nodes_state()
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", replication_factor=replication_factor)
+        set("//tmp/t/@enable_data_node_lookup", True)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+
+        sync_mount_table("//tmp/t")
+
+        seq_keys = range(50)
+        seq_values = range(1000)
+
+        current_value = {}
+
+        for _ in range(25):
+            keys_subset = random.sample(seq_keys, 10)
+            values_subset = random.sample(seq_values, 10)
+
+            for i in range(10):
+                current_value[keys_subset[i]] = str(values_subset[i])
+
+            rows = [{"key": keys_subset[i], "value": str(values_subset[i])} for i in range(10)]
+            insert_rows("//tmp/t", rows)
+            sync_flush_table("//tmp/t")
+
+        assert len(get("//tmp/t/@chunk_ids")) == 25
+
+        expected_keys = []
+        expected_values = []
+        for key, value in current_value.iteritems():
+            expected_keys.append({"key": key})
+            expected_values.append({"key": key, "value": value})
+
+        assert lookup_rows("//tmp/t", expected_keys) == expected_values
+
+
 ################################################################################
 
 class TestLookupMulticell(TestLookup):

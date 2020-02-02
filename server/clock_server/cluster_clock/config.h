@@ -24,22 +24,13 @@ namespace NYT::NClusterClock {
 
 class TClockHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
+    , public NHydra::TLocalHydraJanitorConfig
 {
 public:
-    std::optional<int> MaxSnapshotCountToKeep;
-    std::optional<i64> MaxSnapshotSizeToKeep;
-
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
     TClockHydraManagerConfig()
     {
-        RegisterParameter("max_snapshot_count_to_keep", MaxSnapshotCountToKeep)
-            .GreaterThanOrEqual(0)
-            .Default(10);
-        RegisterParameter("max_snapshot_size_to_keep", MaxSnapshotSizeToKeep)
-            .GreaterThanOrEqual(0)
-            .Default();
-
         RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
     }

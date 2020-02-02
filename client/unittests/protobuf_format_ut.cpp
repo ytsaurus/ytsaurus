@@ -34,6 +34,13 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#define EXPECT_NODES_EQUAL(a, b) \
+    EXPECT_TRUE(AreNodesEqual((a), (b))) \
+        << #a ": " << ConvertToYsonString((a), EYsonFormat::Text).GetData() \
+        << "\n\n" #b ": " << ConvertToYsonString((b), EYsonFormat::Text).GetData();
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Hardcoded serialization of file descriptor used in old format description.
 TString FileDescriptor = "\x0a\xb6\x03\x0a\x29\x6a\x75\x6e\x6b\x2f\x65\x72\x6d\x6f\x6c\x6f\x76\x64\x2f\x74\x65\x73\x74\x2d\x70\x72\x6f\x74\x6f\x62"
     "\x75\x66\x2f\x6d\x65\x73\x73\x61\x67\x65\x2e\x70\x72\x6f\x74\x6f\x22\x2d\x0a\x0f\x54\x45\x6d\x62\x65\x64\x65\x64\x4d\x65\x73\x73\x61\x67\x65\x12"
@@ -936,7 +943,7 @@ TEST(TProtobufFormat, TestContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
+std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(EComplexTypeMode complexTypeMode)
 {
     TTableSchema schema({
         {"first", StructLogicalType({
@@ -982,6 +989,12 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
         {"enum_string_int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
 
         {"repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
+
+        {"other_complex_field", StructLogicalType({
+            {"one", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+            {"three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        })},
     });
 
     auto config = BuildYsonNodeFluently()
@@ -1215,6 +1228,8 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
                             .Item("proto_type").Value("enum_string")
                             .Item("enumeration_name").Value("EEnum")
                         .EndMap()
+
+                        // list<optional<any>>.
                         .Item()
                         .BeginMap()
                             .Item("name").Value("repeated_optional_any_field")
@@ -1222,16 +1237,41 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage()
                             .Item("proto_type").Value("any")
                             .Item("repeated").Value(true)
                         .EndMap()
+
+                        // Other columns.
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("other_columns_field")
+                            .Item("field_number").Value(15)
+                            .Item("proto_type").Value("other_columns")
+                        .EndMap()
                     .EndList()
                 .EndMap()
             .EndList()
+            .Item("complex_type_mode").Value(complexTypeMode)
         .EndAttributes()
         .Value("protobuf");
     return {schema, config};
 }
 
-TEST(TProtobufFormat, WriteStructuredMessage)
+class TProtobufFormatStructuredMessage
+    : public ::testing::TestWithParam<EComplexTypeMode>
+{ };
+
+INSTANTIATE_TEST_CASE_P(
+    Positional,
+    TProtobufFormatStructuredMessage,
+    ::testing::Values(EComplexTypeMode::Positional));
+
+INSTANTIATE_TEST_CASE_P(
+    Named,
+    TProtobufFormatStructuredMessage,
+    ::testing::Values(EComplexTypeMode::Named));
+
+TEST_P(TProtobufFormatStructuredMessage, Write)
 {
+    auto complexTypeMode = GetParam();
+
     auto nameTable = New<TNameTable>();
     auto firstId = nameTable->RegisterName("first");
     auto secondId = nameTable->RegisterName("second");
@@ -1247,8 +1287,9 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     auto enumStringStringFieldId = nameTable->RegisterName("enum_string_string_field");
     auto enumStringInt64FieldId = nameTable->RegisterName("enum_string_int64_field");
     auto repeatedOptionalAnyFieldId = nameTable->RegisterName("repeated_optional_any_field");
+    auto otherComplexFieldId = nameTable->RegisterName("other_complex_field");
 
-    auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage();
+    auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage(complexTypeMode);
 
     TString result;
     TStringOutput resultStream(result);
@@ -1347,6 +1388,13 @@ TEST(TProtobufFormat, WriteStructuredMessage)
             .Item().Value(true)
         .EndList();
 
+    auto otherComplexFieldYson = BuildYsonStringFluently()
+        .BeginList()
+            .Item().Value(22)
+            .Item().Value(23)
+            .Item().Value(24)
+        .EndList();
+
     TUnversionedRowBuilder builder;
     builder.AddValue(MakeUnversionedAnyValue(firstYson.GetData(), firstId));
     builder.AddValue(MakeUnversionedAnyValue(secondYson.GetData(), secondId));
@@ -1365,6 +1413,8 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     builder.AddValue(MakeUnversionedInt64Value(1, enumStringInt64FieldId));
 
     builder.AddValue(MakeUnversionedAnyValue(repeatedOptionalAnyYson.GetData(), repeatedOptionalAnyFieldId));
+
+    builder.AddValue(MakeUnversionedAnyValue(otherComplexFieldYson.GetData(), otherComplexFieldId));
 
     writer->Write({builder.GetRow()});
 
@@ -1461,16 +1511,36 @@ TEST(TProtobufFormat, WriteStructuredMessage)
     std::vector<TYsonString> repeatedOptionalAnyField(
         message.repeated_optional_any_field().begin(),
         message.repeated_optional_any_field().end());
-    EXPECT_TRUE(AreNodesEqual(ConvertToNode(repeatedOptionalAnyField), ConvertToNode(repeatedOptionalAnyYson)))
-        << "expected: " << ConvertToYsonString(repeatedOptionalAnyYson, EYsonFormat::Text).GetData()
-        << ", got: " << ConvertToYsonString(repeatedOptionalAnyField, EYsonFormat::Text).GetData();
+    EXPECT_NODES_EQUAL(ConvertToNode(repeatedOptionalAnyField), ConvertToNode(repeatedOptionalAnyYson));
+
+    {
+        auto otherColumns = ConvertToNode(TYsonString(message.other_columns_field()))->AsMap();
+        auto expected = ([&] {
+            switch (complexTypeMode) {
+                case EComplexTypeMode::Named:
+                    return BuildYsonNodeFluently()
+                        .BeginMap()
+                            .Item("one").Value(22)
+                            .Item("two").Value(23)
+                            .Item("three").Value(24)
+                        .EndMap();
+                case EComplexTypeMode::Positional:
+                    return ConvertToNode(otherComplexFieldYson);
+            }
+            YT_ABORT();
+        })();
+
+        EXPECT_NODES_EQUAL(expected, otherColumns->GetChild("other_complex_field"));
+    }
 
     ASSERT_FALSE(lenvalParser.Next());
 }
 
-TEST(TProtobufFormat, ParseStructuredMessage)
+TEST_P(TProtobufFormatStructuredMessage, Parse)
 {
-    auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage();
+    auto complexTypeMode = GetParam();
+
+    auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage(complexTypeMode);
 
     TCollectingValueConsumer rowCollector(schema);
 
@@ -1546,6 +1616,33 @@ TEST(TProtobufFormat, ParseStructuredMessage)
     message.add_repeated_optional_any_field("1");
     message.add_repeated_optional_any_field("\"qwe\"");
     message.add_repeated_optional_any_field("%true");
+
+    auto otherComplexFieldPositional = BuildYsonNodeFluently()
+        .BeginList()
+            .Item().Value(301)
+            .Item().Value(302)
+            .Item().Value(303)
+        .EndList();
+
+    auto otherComplexField = ([&] {
+        switch (complexTypeMode) {
+            case EComplexTypeMode::Named:
+                return BuildYsonNodeFluently()
+                    .BeginMap()
+                        .Item("one").Value(301)
+                        .Item("two").Value(302)
+                        .Item("three").Value(303)
+                    .EndMap();
+            case EComplexTypeMode::Positional:
+                return otherComplexFieldPositional;
+        }
+        YT_ABORT();
+    })();
+    auto otherColumnsYson = BuildYsonStringFluently()
+        .BeginMap()
+            .Item("other_complex_field").Value(otherComplexField)
+        .EndMap();
+    message.set_other_columns_field(otherColumnsYson.GetData());
 
     TString lenvalBytes;
     {
@@ -1664,7 +1761,10 @@ TEST(TProtobufFormat, ParseStructuredMessage)
             .Item().Value("qwe")
             .Item().Value(true)
         .EndList();
-    EXPECT_TRUE(AreNodesEqual(repeatedRepeatedOptionalAnyNode, expectedRepeatedOptionalAnyNode));
+    EXPECT_NODES_EQUAL(repeatedRepeatedOptionalAnyNode, expectedRepeatedOptionalAnyNode);
+
+    auto actualOtherComplexField = GetAny(rowCollector.GetRowValue(0, "other_complex_field"));
+    EXPECT_NODES_EQUAL(actualOtherComplexField, otherComplexFieldPositional);
 }
 
 std::pair<std::vector<TTableSchema>, INodePtr> CreateSeveralTablesSchemasAndConfig()

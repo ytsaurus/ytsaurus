@@ -270,13 +270,13 @@ private:
         const IChunkStorePtr& store,
         const IStoreManagerPtr& storeManager)
     {
+        VERIFY_INVOKERS_AFFINITY(std::vector{
+            tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
+            tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)
+        });
+
         auto readSessionId = TReadSessionId::Create();
         auto mode = store->GetInMemoryMode();
-
-        std::vector<IInvokerPtr> feasibleInvokers{
-            tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
-            tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)};
-        VERIFY_INVOKERS_AFFINITY(feasibleInvokers);
 
         NLogging::TLogger Logger(TabletNodeLogger);
         Logger.AddTag("%v, StoreId: %v, Mode: %v, ReadSessionId: %v",
@@ -325,10 +325,10 @@ private:
                 Throttler_,
                 readerProfiler);
 
-            std::vector<IInvokerPtr> feasibleInvokers{
+            VERIFY_INVOKERS_AFFINITY(std::vector{
                 tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
-                tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)};
-            VERIFY_INVOKERS_AFFINITY(feasibleInvokers);
+                tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)
+            });
 
             YT_VERIFY(store->GetPreloadState() == EStorePreloadState::Running);
 
@@ -587,11 +587,11 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
         auto blockMetaExt = GetProtoExtension<TBlockMetaExt>(meta->extensions());
 
-        startBlockIndex = LowerBound(0, blocksExt.blocks_size(), [&] (int index) {
+        startBlockIndex = BinarySearch(0, blocksExt.blocks_size(), [&] (int index) {
             return chunkData->ChunkMeta->BlockLastKeys()[index] < lowerBound;
         });
 
-        endBlockIndex = LowerBound(0, blocksExt.blocks_size(), [&] (int index) {
+        endBlockIndex = BinarySearch(0, blocksExt.blocks_size(), [&] (int index) {
             return chunkData->ChunkMeta->BlockLastKeys()[index] < upperBound;
         });
         if (endBlockIndex < blocksExt.blocks_size()) {

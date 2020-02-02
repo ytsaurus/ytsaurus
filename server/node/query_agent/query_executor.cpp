@@ -55,11 +55,11 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/pipe.h>
+#include <yt/client/table_client/pipe.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
 #include <yt/client/table_client/schemaful_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
-#include <yt/ytlib/table_client/unordered_schemaful_reader.h>
+#include <yt/client/table_client/unordered_schemaful_reader.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 
@@ -272,29 +272,6 @@ private:
     NProfiling::TTagIdList ProfilerTags_;
     bool MultipleTables_ = false;
 };
-
-template <class TIter>
-TIter MergeOverlappingRanges(TIter begin, TIter end)
-{
-    if (begin == end) {
-        return end;
-    }
-
-    auto it = begin;
-    auto dest = it;
-    ++it;
-
-    for (; it != end; ++it) {
-        if (dest->second < it->first) {
-            *++dest = std::move(*it);
-        } else if (dest->second < it->second) {
-            dest->second = std::move(it->second);
-        }
-    }
-
-    ++dest;
-    return dest;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -694,6 +671,26 @@ private:
             keySchema.push_back(Query_->OriginalSchema.Columns()[index].GetPhysicalType());
         }
 
+        bool hasRanges = false;
+        for (const auto& source : DataSources_) {
+            for (const auto& range : source.Ranges) {
+                auto lowerBound = range.first;
+                auto upperBound = range.second;
+
+                if (source.LookupSupported &&
+                    keySize == lowerBound.GetCount() &&
+                    keySize + 1 == upperBound.GetCount() &&
+                    upperBound[keySize].Type == EValueType::Max &&
+                    CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
+                {
+                    continue;
+                }
+
+                hasRanges = true;
+                break;
+            }
+        }
+
         size_t rangesCount = 0;
         for (const auto& source : DataSources_) {
             TRowRanges rowRanges;
@@ -728,6 +725,7 @@ private:
                 auto upperBound = range.second;
 
                 if (source.LookupSupported &&
+                    !hasRanges &&
                     keySize == lowerBound.GetCount() &&
                     keySize + 1 == upperBound.GetCount() &&
                     upperBound[keySize].Type == EValueType::Max &&
@@ -744,6 +742,7 @@ private:
             for (const auto& key : source.Keys) {
                 auto rowSize = key.GetCount();
                 if (source.LookupSupported &&
+                    !hasRanges &&
                     keySize == key.GetCount())
                 {
                     pushRanges();
@@ -1331,7 +1330,9 @@ public:
         , Evaluator_(New<TEvaluator>(
             Config_,
             QueryAgentProfiler,
-            Bootstrap_->GetMemoryUsageTracker()))
+            CreateMemoryTrackerForCategory(
+                Bootstrap_->GetMemoryUsageTracker(),
+                NNodeTrackerClient::EMemoryCategory::Query)))
         , ColumnEvaluatorCache_(Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()

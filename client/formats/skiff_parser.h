@@ -3,7 +3,7 @@
 #include "public.h"
 #include "config.h"
 
-#include <yt/core/skiff/skiff.h>
+#include <yt/library/skiff/skiff.h>
 
 namespace NYT::NFormats {
 

@@ -157,6 +157,7 @@ static const auto HeadersWhitelist = JoinSeq(", ", std::vector<TString>{
     "Origin",
     "Content-Type",
     "Accept",
+    "Cache-Control",
     "X-Csrf-Token",
     "X-YT-Parameters",
     "X-YT-Parameters0",
@@ -303,7 +304,7 @@ NTracing::TTraceId GetTraceId(const IRequestPtr& req)
 
     NTracing::TTraceId traceId;
     if (!NTracing::TTraceId::FromString(*id, &traceId)) {
-        return NTracing::InvalidTraceId;    
+        return NTracing::InvalidTraceId;
     }
     return traceId;
 }
@@ -325,10 +326,67 @@ NTracing::TSpanId GetSpanId(const IRequestPtr& req)
     return IntFromString<NTracing::TSpanId, 16>(*id);
 }
 
+bool TryParseTraceParent(const TString& traceParent, NTracing::TSpanContext& spanContext)
+{
+    // An adaptation of https://github.com/census-instrumentation/opencensus-go/blob/ae11cd04b/plugin/ochttp/propagation/tracecontext/propagation.go#L49-L106
+
+    auto parts = StringSplitter(traceParent).Split('-').ToList<TString>();
+    if (parts.size() < 3 || parts.size() > 4) {
+        return false;
+    }
+
+    // NB: we support three-part form in which version is assumed to be zero.
+    ui8 version = 0;
+    if (parts.size() == 4) {
+        if (parts[0].size() != 2) {
+            return false;
+        }
+        if (!TryIntFromString<10>(parts[0], version)) {
+            return false;
+        }
+        parts.erase(parts.begin());
+    }
+
+    // Now we have exactly three parts: traceId-spanId-options.
+
+    // Parse trace context. Hex string 11111111222222223333333344444444
+    // is interpreted as YT GUID 11111111-22222222-33333333-44444444.
+    if (!TGuid::FromStringHex32(parts[0], &spanContext.TraceId)) {
+        return false;
+    }
+
+    if (parts[1].size() != 16) {
+        return false;
+    }
+    if (!TryIntFromString<16>(parts[1], spanContext.SpanId)) {
+        return false;
+    }
+
+    ui8 options = 0;
+    if (!TryIntFromString<16>(parts[2], options)) {
+        return false;
+    }
+    spanContext.Sampled = static_cast<bool>(options & 1u);
+    spanContext.Debug = static_cast<bool>(options & 2u);
+
+    return true;
+}
+
 NTracing::TTraceContextPtr GetOrCreateTraceContext(const IRequestPtr& req)
 {
-    // TODO(prime@): support accepting trace_id from client.
-    auto trace = NTracing::CreateRootTraceContext("HttpServer");
+    const auto& headers = req->GetHeaders();
+    NTracing::TTraceContextPtr trace;
+    if (auto* traceParent = headers->Find("traceparent")) {
+        NTracing::TSpanContext parentSpan;
+        if (TryParseTraceParent(*traceParent, parentSpan)) {
+            trace = New<NTracing::TTraceContext>(parentSpan, "HttpServer");
+        }
+    }
+    if (!trace) {
+        // Generate new trace context from scratch.
+        trace = NTracing::CreateRootTraceContext("HttpServer");
+    }
+
     trace->AddTag("path", TString(req->GetUrl().Path));
     return trace;
 }

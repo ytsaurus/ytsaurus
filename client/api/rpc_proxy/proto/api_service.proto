@@ -59,6 +59,7 @@ enum EMasterReadKind
     MRK_LEADER = 0;
     MRK_FOLLOWER = 1;
     MRK_CACHE = 2;
+    MRK_SECOND_LEVEL_CACHE = 3;
 }
 
 enum ERowsetKind
@@ -434,6 +435,29 @@ message TRspSelectRows
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqExplain
+{
+    required string query = 1;
+
+    optional uint64 timestamp = 3 [default = 0x3fffffffffffff01];
+
+    optional uint64 input_row_limit = 4;
+    optional uint64 output_row_limit = 5;
+    optional uint64 range_expansion_limit = 6;
+    optional int32 max_subqueries = 7;
+    optional bool allow_full_scan = 8;
+    optional bool allow_join_without_index = 9;
+    optional string udf_registry_path = 10;
+    optional string execution_pool = 11;
+}
+
+message TRspExplain
+{
+    required bytes value = 1; // YSON
+}
+
+//------------------------------------------------------------------------------
+
 message TReqGetInSyncReplicas
 {
     required string path = 1;
@@ -460,9 +484,20 @@ message TRspGetTabletInfos
 {
     message TTabletInfo
     {
+        message TReplicaInfo
+        {
+            required NYT.NProto.TGuid replica_id = 1;
+            required uint64 last_replication_timestamp = 2;
+            required int32 mode = 3; // ETableReplicaMode
+            required int64 current_replication_row_index = 4;
+        }
+
         required int64 total_row_count = 1;
         required int64 trimmed_row_count = 2;
         optional uint64 barrier_timestamp = 3;
+        optional uint64 last_write_timestamp = 4;
+
+        repeated TReplicaInfo replicas = 5;
     }
 
     repeated TTabletInfo tablets = 1;
@@ -681,6 +716,7 @@ message TRspListNode
 message TReqCreateObject
 {
     required int32 type = 1; // NObjectClient::EObjectType
+    optional bool ignore_existing = 3 [default = false];
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 2;
 }
 
@@ -1414,6 +1450,8 @@ message TReqListJobs
     optional EDataSource data_source = 15 [default = DS_AUTO];
     optional uint64 running_jobs_lookbehind_period = 16 [default = 60000000]; // TDuration, 1 minute by default
 
+    optional NYT.NProto.TGuid job_competition_id = 17;
+
     optional TMasterReadOptions master_read_options = 102;
 }
 
@@ -1624,12 +1662,30 @@ message TRspWriteJournal
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqTruncateJournal
+{
+    required string path = 1; // YPath
+    required int64 row_count = 2;
+
+    optional TPrerequisiteOptions prerequisite_options = 101;
+    optional TMutatingOptions mutating_options = 103;
+}
+
+message TRspTruncateJournal
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqReadTable
 {
     required string path = 1; // RichYPath
 
     optional bool unordered = 2 [default = false];
     optional bool omit_inaccessible_columns = 3 [default = false];
+    optional bool enable_table_index = 5 [default = false];
+    optional bool enable_row_index = 6 [default = false];
+    optional bool enable_range_index = 7 [default = false];
     optional bytes config = 4; // YSON-serialized TTableReaderConfig
 
     optional TTransactionalOptions transactional_options = 100;
@@ -1882,6 +1938,9 @@ message TJob
     optional bytes input_paths = 13; // YSON
     optional bytes core_infos = 14; // YSON
     optional NYT.NProto.TGuid operation_id = 15;
+    optional EJobState controller_agent_state = 16;
+    optional EJobState archive_state = 17;
+    optional NYT.NProto.TGuid job_competition_id = 18;
 }
 
 message TListJobsStatistics

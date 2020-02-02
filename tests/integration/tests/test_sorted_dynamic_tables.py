@@ -78,6 +78,22 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
             for address in get_tablet_follower_addresses(tablet_id) + [get_tablet_leader_address(tablet_id)]:
                 wait(lambda: all_preloaded(address))
 
+    def _wait_for_in_memory_stores_preload_failed(self, table):
+        tablets = get(table + "/@tablets")
+        for tablet in tablets:
+            tablet_id = tablet["tablet_id"]
+            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+            if not orchid:
+                return False
+            for store in orchid["eden"]["stores"].itervalues():
+                if store["store_state"] == "persistent" and store["preload_state"] == "failed":
+                    return True
+            for partition in orchid["partitions"]:
+                for store in partition["stores"].itervalues():
+                    if store["preload_state"] == "failed":
+                        return True
+            return False
+
     def _reshard_with_retries(self, path, pivots):
         resharded = False
         for i in xrange(4):
@@ -92,6 +108,42 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
                 break
             sleep(5)
         assert resharded
+
+    def _create_partitions(self, partition_count, do_overlap = False):
+        assert partition_count > 1
+        partition_count += 1 - int(do_overlap)
+
+        def _wait_not_in_eden(tablet_index):
+            set("//tmp/t/@forced_compaction_revision", 1)
+            sync_mount_table("//tmp/t", first_tablet_index=tablet_index, last_tablet_index=tablet_index)
+            tablet_id = get("//tmp/t/@tablets/{0}/tablet_id".format(tablet_index))
+            address = get_tablet_leader_address(tablet_id)
+            # Only dynamic store should be in eden.
+            wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["eden"]["stores"]) == 1)
+            sync_unmount_table("//tmp/t")
+
+        def _write_row(tablet_index, key_count=2):
+            sync_mount_table("//tmp/t", first_tablet_index=tablet_index, last_tablet_index=tablet_index)
+            rows = [{"key": tablet_index * 2 + i} for i in range(key_count)]
+            insert_rows("//tmp/t", rows)
+            sync_unmount_table("//tmp/t")
+            _wait_not_in_eden(tablet_index=tablet_index)
+
+        set("//tmp/t/@min_partition_data_size", 1)
+
+        if do_overlap:
+            # We write overlapping chunk to trigger creation of chunk view.
+            _write_row(tablet_index=0, key_count=3)
+
+        partition_boundaries = [[]] + [[2 * i] for i in range(1, partition_count)]
+        sync_reshard_table("//tmp/t", partition_boundaries)
+
+        for tablet_index in range(1, partition_count):
+            _write_row(tablet_index=tablet_index)
+
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        sync_reshard_table("//tmp/t", [[]])
+
 
 ##################################################################
 
@@ -786,6 +838,52 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._prepare_denied("write")
         with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], authenticated_user="u")
 
+    @authors("lukyan")
+    def test_row_cache(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", lookup_cache_rows_per_tablet=50)
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in xrange(0, 1000, 2)]
+        insert_rows("//tmp/t", rows)
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        for step in xrange(1, 5):
+            rows = [{"key": i, "value": str(i)} for i in xrange(100, 200, 2 * step)]
+            actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(100, 200, 2 * step)])
+            assert_items_equal(actual, rows)
+
+        # Lookup non-existent key without polluting cache.
+        lookup_rows("//tmp/t", [{'key': 1}])
+
+        path = "//tmp/t/@tablets/0/performance_counters/static_chunk_row_lookup_count"
+        wait(lambda: get(path) > 50)
+        assert get(path) == 51
+
+        # Modify some rows.
+        rows = [{"key": i, "value": str(i + 1)} for i in xrange(100, 200, 2)]
+        insert_rows("//tmp/t", rows)
+
+        # Check lookup result.
+        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(100, 200, 2)])
+        assert_items_equal(actual, rows)
+
+        # Flush table.
+        sync_flush_table("//tmp/t")
+
+        # And check that result after flush is equal.
+        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(100, 200, 2)])
+        assert_items_equal(actual, rows)
+
+        # Lookup non existent key adds two lookups (in two chunks).
+        lookup_rows("//tmp/t", [{'key': 1}])
+
+        wait(lambda: get(path) > 51)
+        assert get(path) == 53
+
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     @pytest.mark.parametrize("mode", ["compressed", "uncompressed"])
@@ -857,6 +955,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         _check_preload_state("complete")
         assert lookup_rows("//tmp/t", keys) == rows
 
+    @pytest.mark.xfail(run=False, reason="Fix test_row_cache memory leak (lukyan)")
     @authors("ifsmirnov")
     @pytest.mark.parametrize("enable_lookup_hash_table", [True, False])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -1620,7 +1719,9 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         end_ts = generate_timestamp()
 
         sync_mount_table("//tmp/t")
-        sleep(1.0)
+
+        if in_memory_mode != "none":
+            self._wait_for_in_memory_stores_preload("//tmp/t")
 
         assert lookup_rows("//tmp/t", keys, timestamp=start_ts) == []
         actual = lookup_rows("//tmp/t", keys)
@@ -2045,28 +2146,6 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         },
     }
 
-    def _get_statistics(self, table):
-        return get(table + "/@tablets/0/statistics")
-
-    def _wait_preload(self, table):
-        def is_preloaded():
-            statistics = self._get_statistics(table)
-            return (
-                statistics["preload_completed_store_count"] > 0 and
-                statistics["preload_pending_store_count"] == 0 and
-                statistics["preload_failed_store_count"] == 0)
-
-        wait(is_preloaded)
-
-    def _wait_preload_failed(self, table):
-        def is_preload_failed():
-            statistics = self._get_statistics(table)
-            return (
-                statistics["preload_pending_store_count"] == 0 and
-                statistics["preload_failed_store_count"] > 0)
-
-        wait(is_preload_failed)
-
     @authors("savrus", "gridem")
     def test_in_memory_limit_exceeded(self):
         LARGE = "//tmp/large"
@@ -2124,7 +2203,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
         # mount large table to trigger memory limit
         sync_mount_table(LARGE)
-        self._wait_preload(LARGE)
+        self._wait_for_in_memory_stores_preload(LARGE)
         check_lookup(LARGE, *large_data)
 
         for node in ls("//sys/cluster_nodes"):
@@ -2133,11 +2212,11 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
         # mount small table, preload must fail
         sync_mount_table(SMALL)
-        self._wait_preload_failed(SMALL)
+        self._wait_for_in_memory_stores_preload_failed(SMALL)
 
         # unmounting large table releases the memory to allow small table to be preloaded
         sync_unmount_table(LARGE)
-        self._wait_preload(SMALL)
+        self._wait_for_in_memory_stores_preload(SMALL)
         check_lookup(SMALL, *small_data)
 
         # cleanup

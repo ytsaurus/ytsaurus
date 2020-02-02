@@ -67,8 +67,7 @@ private:
      *  The current segment id should match that of #changeLog.
      *  The methods ensures that no mutation is applied twice.
      */
-    void ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId);
-
+    bool ReplayChangelog(IChangelogPtr changelog, int changelogId, int targetRecordId);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

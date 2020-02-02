@@ -4,11 +4,12 @@
 
 #include <yt/server/scheduler/fair_share_strategy.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/thread_pool.h>
 
 #include <yt/core/yson/public.h>
 
@@ -79,8 +80,9 @@ TSimulatorControlThread::TSimulatorControlThread(
         *execNodes,
         config->HeartbeatPeriod,
         earliestTime,
-        config->ThreadCount,
+        config->NodeShardCount,
         /* maxAllowedOutrunning */ FairShareUpdateAndLogPeriod_ + FairShareUpdateAndLogPeriod_)
+    , NodeShardThreadPool_(New<TThreadPool>(config->ThreadCount, "NodeShardPool"))
     , OperationStatistics_(operations)
     , JobAndOperationCounter_(operations.size())
     , Logger(TLogger(NSchedulerSimulator::Logger).AddTag("ControlThread"))
@@ -91,8 +93,9 @@ TSimulatorControlThread::TSimulatorControlThread(
     InsertControlThreadEvent(TControlThreadEvent::FairShareUpdateAndLog(earliestTime));
     InsertControlThreadEvent(TControlThreadEvent::LogNodes(earliestTime + TDuration::MilliSeconds(123)));
 
-    for (int shardId = 0; shardId < config->ThreadCount; ++shardId) {
+    for (int shardId = 0; shardId < config->NodeShardCount; ++shardId) {
         auto nodeShard = New<TSimulatorNodeShard>(
+            NodeShardThreadPool_->GetInvoker(),
             &NodeShardEventQueue_,
             &SchedulerStrategyForNodeShards_,
             &OperationStatistics_,
@@ -108,11 +111,11 @@ TSimulatorControlThread::TSimulatorControlThread(
     }
 }
 
-void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode)
+void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode, TInstant now)
 {
     YT_VERIFY(!Initialized_.load());
     WaitFor(
-        BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesNode)
+        BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesNode, now)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run())
         .ThrowOnError();
@@ -144,7 +147,9 @@ TFuture<void> TSimulatorControlThread::AsyncRun()
 
 void TSimulatorControlThread::Run()
 {
-    YT_LOG_INFO("Simulation started (ThreadCount: %v)", Config_->ThreadCount);
+    YT_LOG_INFO("Simulation started (ThreadCount %v, NodeShardCount: %v)",
+        Config_->ThreadCount,
+        Config_->NodeShardCount);
 
     std::vector<TFuture<void>> asyncWorkerResults;
     for (const auto& nodeShard : NodeShards_) {
@@ -220,7 +225,7 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
         description.Type);
     auto operation = New<NSchedulerSimulator::TOperation>(description, runtimeParameters);
 
-    auto operationController = CreateSimulatorOperationController(operation.Get(), &description);
+    auto operationController = CreateSimulatorOperationController(operation.Get(), &description, Config_->ScheduleJobDelay);
     operation->SetController(operationController);
 
     RunningOperationsMap_.Insert(operation->GetId(), operation);

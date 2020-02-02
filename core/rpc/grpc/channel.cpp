@@ -102,20 +102,39 @@ public:
 
     virtual TFuture<void> Terminate(const TError& error) override
     {
-        TWriterGuard guard(SpinLock_);
-        if (!TerminationError_.IsOK()) {
-            return VoidFuture;
+        {
+            TWriterGuard guard(SpinLock_);
+
+            if (!TerminationError_.IsOK()) {
+                return VoidFuture;
+            }
+
+            TerminationError_ = error;
+            LibraryLock_.Reset();
+            Channel_.Reset();
         }
-        TerminationError_ = error;
-        LibraryLock_.Reset();
-        Channel_.Reset();
+
+        Terminated_.Fire(TerminationError_);
+
         return VoidFuture;
+    }
+
+    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    {
+        Terminated_.Subscribe(callback);
+    }
+
+    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override
+    {
+        Terminated_.Unsubscribe(callback);
     }
 
 private:
     const TChannelConfigPtr Config_;
     const TString EndpointDescription_;
     const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
+
+    TSingleShotCallbackList<void(const TError&)> Terminated_;
 
     TReaderWriterSpinLock SpinLock_;
     TError TerminationError_;
@@ -141,7 +160,7 @@ private:
             , CompletionQueue_(TDispatcher::Get()->PickRandomCompletionQueue())
             , Logger(GrpcLogger)
         {
-            YT_LOG_DEBUG("Sending request (RequestId: %v, Method: %v:%v, Timeout: %v)",
+            YT_LOG_DEBUG("Sending request (RequestId: %v, Method: %v.%v, Timeout: %v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),
@@ -361,7 +380,7 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v:%v)",
+            YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v.%v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod());
@@ -522,7 +541,7 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v:%v, TotalTime: %v)",
+            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v.%v, TotalTime: %v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),

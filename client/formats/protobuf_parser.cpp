@@ -274,16 +274,17 @@ public:
     TProtobufParser(
         IValueConsumer* valueConsumer,
         TProtobufFormatDescriptionPtr description,
-        int tableIndex)
+        int tableIndex,
+        EComplexTypeMode complexTypeMode)
         : ValueConsumer_(valueConsumer)
         , Description_(std::move(description))
         , TableIndex_(tableIndex)
         // NB. We use ColumnConsumer_ to generate yson representation of complex types we don't want additional
         // conversions so we use Positional mode.
         // At the same time we use OtherColumnsConsumer_ to feed yson passed by users.
-        // We want this yson to match default yson that is Named.
+        // This YSON should be in format specified on the format config.
         , ColumnConsumer_(EComplexTypeMode::Positional, valueConsumer)
-        , OtherColumnsConsumer_(EComplexTypeMode::Named, valueConsumer)
+        , OtherColumnsConsumer_(complexTypeMode, valueConsumer)
     {
         YT_VERIFY(Description_->GetTableCount() == 1);
         const auto& columns = Description_->GetTableDescription(0).Columns;
@@ -639,7 +640,11 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
         config,
         {consumer->GetSchema()},
         /* validateMissingFieldsOptionality */ true);
-    return std::make_unique<TProtobufParser>(consumer, formatDescription, tableIndex);
+    return std::make_unique<TProtobufParser>(
+        consumer,
+        formatDescription,
+        tableIndex,
+        config->ComplexTypeMode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

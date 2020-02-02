@@ -25,7 +25,7 @@ public:
 
     virtual NScheduler::TOperationId GetId() const override;
     virtual NScheduler::EOperationType GetType() const override;
-    virtual bool IsSchedulable() const override;
+    std::optional<NScheduler::EUnschedulableReason> CheckUnschedulable() const override;
     virtual TInstant GetStartTime() const override;
     virtual TString GetAuthenticatedUser() const override;
 

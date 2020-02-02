@@ -127,6 +127,11 @@ TEST(TDiscoveryTest, Enter)
     EXPECT_CALL(*MockTransaction, SubscribeAborted(_))
         .Times(1);
 
+    EXPECT_CALL(*MockClient, SetNode(path + "/test_node/@expiration_time", _, _))
+        .WillOnce(InvokeWithoutArgs([&] {
+              return VoidFuture;
+        }));
+
     TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
     config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
@@ -177,7 +182,7 @@ TEST(TDiscoveryTest, Leave) {
         .WillRepeatedly(InvokeWithoutArgs([&] {
                 return MakeFuture(GetLockYson(created, locked));
             }));
-        
+
     EXPECT_CALL(*MockClient, StartTransaction(_, _))
         .WillOnce(Return(MakeFuture((ITransactionPtr)MockTransaction)));
 
@@ -193,6 +198,11 @@ TEST(TDiscoveryTest, Leave) {
                 locked = true;
                 return MakeFuture(TLockNodeResult());
             }));
+
+    EXPECT_CALL(*MockClient, SetNode(path + "/test_node/@expiration_time", _, _))
+        .WillOnce(InvokeWithoutArgs([&] {
+              return VoidFuture;
+        }));
 
     EXPECT_CALL(*MockTransaction, Abort(_))
         .WillOnce(InvokeWithoutArgs([&] {
@@ -214,7 +224,7 @@ TEST(TDiscoveryTest, Leave) {
         .ThrowOnError();
 
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
-    
+
     WaitFor(discovery->Enter("test_node", attrs))
         .ThrowOnError();
     WaitFor(discovery->Leave())
@@ -365,6 +375,12 @@ TEST(TDiscoveryTest, CreationRace)
                 locked = true;
                 return MakeFuture(TLockNodeResult());
             }));
+
+    EXPECT_CALL(*MockClient, SetNode(path + "/test_node/@expiration_time", _, _))
+        .WillOnce(InvokeWithoutArgs([&] {
+              return VoidFuture;
+        }));
+
 
     EXPECT_CALL(*MockTransaction, SubscribeAborted(_))
         .Times(1);

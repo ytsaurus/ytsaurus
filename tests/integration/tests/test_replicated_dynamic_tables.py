@@ -146,6 +146,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         with pytest.raises(YtError):
             move("//tmp/t", "//tmp/s")
 
+    @authors("babenko")
+    def test_replica_cluster_must_exist(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED)
+
+        with pytest.raises(YtError):
+            create_table_replica("//tmp/t", "nonexisting", "//tmp/r")
+
     @authors("babenko", "aozeritsky")
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_simple(self, schema):
@@ -238,21 +246,19 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         tablet_id = tablets[0]["tablet_id"]
 
         def check_error(message=None):
-            errors = get("//tmp/t/@replicas/%s/errors" % replica_id)
-            replica_table_tablets = get("#{0}/@tablets".format(replica_id))
-            assert len(replica_table_tablets) == 1
-            replica_table_tablet = replica_table_tablets[0]
-            assert replica_table_tablet["tablet_id"] == tablet_id
-            if len(errors) == 0:
-                return \
-                    message == None and \
-                    "replication_error" not in replica_table_tablet
+            error_count = get("//tmp/t/@replicas/{}/error_count".format(replica_id))
+            if error_count != get("#{}/@error_count".format(replica_id)):
+                return False
+            if error_count != int(get("#{}/@tablets/0/has_error".format(replica_id))):
+                return False
+
+            orchid = self._find_tablet_orchid(get_tablet_leader_address(tablet_id), tablet_id)
+            errors = orchid["replication_errors"]
+
+            if message is None:
+                return error_count == 0 and len(errors) == 0
             else:
-                return \
-                    len(errors) == 1 and \
-                    errors[0]["message"] == message and \
-                    replica_table_tablet["replication_error"]["message"] == message and \
-                    errors[0]["attributes"]["tablet_id"] == tablet_id
+                return error_count == 1 and len(errors) == 1 and errors[replica_id]["message"] == message
 
         assert check_error()
 
@@ -1150,6 +1156,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test2", "value2": 150}])
 
     @authors("babenko", "gridem")
+    @flaky(max_runs=5)
     def test_replication_lag(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.AGGREGATE_SCHEMA)
@@ -1571,6 +1578,51 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == rows
 
+    @authors("akozhikhov")
+    def test_get_tablet_infos(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.AGGREGATE_SCHEMA)
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async"})
+        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r1", replica_id1, schema=self.AGGREGATE_SCHEMA)
+        self._create_replica_table("//tmp/r2", replica_id2, schema=self.AGGREGATE_SCHEMA)
+
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        for i in xrange(3):
+            insert_rows("//tmp/t", [{"key": i, "value1": "test" + str(i)}])
+
+        for i in xrange(2):
+            assert lookup_rows("//tmp/t", [{"key": i}, {"key": i + 1}], column_names=["key", "value1"]) == \
+                   [{"key": i, "value1": "test" + str(i)}, {"key": i + 1, "value1": "test" + str(i + 1)}]
+
+
+        tablet_infos = get_tablet_infos("//tmp/t", [0])
+        assert tablet_infos.keys() == ["tablets"] and len(tablet_infos["tablets"]) == 1
+        tablet_info = tablet_infos["tablets"][0]
+
+        assert tablet_info["total_row_count"] == 3
+        assert tablet_info["trimmed_row_count"] == 0
+        barrier_timestamp = tablet_info["barrier_timestamp"]
+        assert barrier_timestamp >= tablet_info["last_write_timestamp"]
+
+        sync_replica = None
+        async_replica = None
+        assert len(tablet_info["replica_infos"]) == 2
+        for replica in tablet_info["replica_infos"]:
+            assert replica["last_replication_timestamp"] <= barrier_timestamp
+            if replica["mode"] == "sync":
+                sync_replica = replica
+            elif replica["mode"] == "async":
+                async_replica = replica
+
+        assert sync_replica["replica_id"] == replica_id2
+        assert sync_replica["current_replication_row_index"] == 3
+
+        assert async_replica["replica_id"] == replica_id1
+        assert async_replica["current_replication_row_index"] <= 3
+
     ##################################################################
 
 class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
@@ -1610,9 +1662,14 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
             insert_rows("//tmp/t", [{"key": 2, "value1": "test", "value2": 10}], require_sync_replica=False)
             sleep(1)
             assert select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test", "value2": 10}]
-            errors = get("//tmp/t/@replicas/{}/errors".format(replica_id))
+            wait(lambda: get("//tmp/t/@replicas/{}/error_count".format(replica_id)) == 1)
+
+            tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+            address = get_tablet_leader_address(tablet_id)
+            orchid = self._find_tablet_orchid(address, tablet_id)
+            errors = orchid["replication_errors"]
             assert len(errors) == 1
-            assert YtResponseError(errors[0]).is_access_denied()
+            assert YtResponseError(errors.values()[0]).is_access_denied()
 
         set("//sys/@config/enable_safe_mode", False, driver=self.replica_driver)
 
@@ -1623,7 +1680,7 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
             {"key": 1, "value1": "test", "value2": 10},
             {"key": 2, "value1": "test", "value2": 10}])
 
-        wait(lambda: len(get("//tmp/t/@replicas/{}/errors".format(replica_id))) == 0)
+        wait(lambda: get("//tmp/t/@replicas/{}/error_count".format(replica_id)) == 0)
 
 ##################################################################
 

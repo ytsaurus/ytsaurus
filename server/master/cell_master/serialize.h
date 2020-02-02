@@ -80,6 +80,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_10726_StagedChunkExpiration)                                (837))  // shakurov
     ((ChunkViewToParentsArray)                                       (838))  // ifsmirnov
     ((FixTableStatistics)                                            (839))  // savrus
+    ((BranchedAndLockedNodeCountMismatchFix_19_6)                    (840))  // shakurov
     ((YT_10639_CumulativeStatisticsInDynamicTables)                  (899))  // ifsmirnov
     ((PortalsInitial)                                                (900))  // babenko
     ((CypressShards)                                                 (901))  // babenko
@@ -101,9 +102,23 @@ DEFINE_ENUM(EMasterReign,
     ((DropUserStatistics)                                            (919))  // babenko
     ((FixClusterNodeForeignFlag)                                     (920))  // babenko
     ((BranchedAndLockedNodeCountMismatchFix)                         (921))  // shakurov
-    ((CellServer)                                                   (1000))  // savrus
-    ((EnableDelayedMembershipClosureRecomputationByDefault)         (1001))  // babenko
-    ((NetworkProject)                                               (1002))  // gritukan
+    ((FixParentTxForConcatUpload)                                    (922))  // babenko
+    ((DynamicMasterCacheDiscovery)                                  (1001))  // aleksandra-zh
+    ((YT_11927_FixResolve)                                          (1002))  // babenko
+    ((CellServer)                                                   (1100))  // savrus
+    ((EnableDelayedMembershipClosureRecomputationByDefault)         (1101))  // babenko
+    ((NetworkProject)                                               (1102))  // gritukan
+    ((DynamicPeerCount)                                             (1103))  // gritukan
+    ((UserManagedPools)                                             (1104))  // renadeen
+    ((GranularCypressTreeCopy)                                      (1105))  // gritukan
+    ((NoTabletErrorsOnMaster)                                       (1106))  // ifsmirnov
+    ((TwoLevelMasterCache)                                          (1107))  // aleksandra-zh
+    ((DestroyedChunkRemoval)                                        (1108))  // aleksandra-zh
+    ((SpecifiedAttributeFix)                                        (1109))  // shakurov
+    ((DestroyedChunkRemovalFix)                                     (1110))  // aleksandra-zh
+    ((TruncateJournals)                                             (1111))  // aleksandra-zh
+    ((PrevRandomSeed)                                               (1112))  // aleksandra-zh
+    ((FixDenseMapSerialization)                                     (1113))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

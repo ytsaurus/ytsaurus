@@ -35,8 +35,7 @@ DECLARE_ENTITY_TYPE(TMailbox, TCellId, ::THash<TCellId>)
 constexpr int TypicalMailboxCount = 16;
 using TMailboxList = SmallVector<TMailbox*, TypicalMailboxCount>;
 
-using TRefCountedEncapsulatedMessage = TRefCountedProto<NHiveClient::NProto::TEncapsulatedMessage>;
-using TRefCountedEncapsulatedMessagePtr = TIntrusivePtr<TRefCountedEncapsulatedMessage>;
+DECLARE_REFCOUNTED_STRUCT(TSerializedMessage)
 
 template <class TTransaction>
 using TTransactionPrepareActionHandler = TCallback<void(TTransaction*, const TString&, bool persistent)>;
@@ -77,6 +76,10 @@ DEFINE_ENUM(ETransactionState,
     ((Serialized)                 (6))
     ((TransientAbortPrepared)     (4))
     ((Aborted)                    (5))
+);
+
+DEFINE_ENUM(EErrorCode,
+    ((MailboxNotCreatedYet)    (2200))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

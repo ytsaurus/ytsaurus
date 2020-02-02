@@ -8,17 +8,17 @@ namespace NYT::NEventLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEvenTLogManagerConfig
+class TEventLogManagerConfig
     : public NTableClient::TBufferedTableWriterConfig
 {
 public:
     NYPath::TYPath Path;
     TDuration PendingRowsFlushPeriod;
 
-    TEvenTLogManagerConfig();
+    TEventLogManagerConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TEvenTLogManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TEventLogManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

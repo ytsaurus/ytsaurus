@@ -289,7 +289,7 @@ bool Covers(const std::vector<TBound>& bounds, const TValue& point)
 {
     YT_VERIFY(!(bounds.size() & 1));
 
-    auto index = LowerBound(
+    auto index = BinarySearch(
         0,
         bounds.size() / 2,
         [&] (int index) -> bool {
@@ -690,7 +690,13 @@ TMutableRowRanges GetRangesFromTrieWithinRange(
 {
     TMutableRowRanges result;
     GetRangesFromTrieWithinRangeImpl(keyRange, trie, &result, rowBuffer, insertUndefined, rangeCountLimit);
-    return insertUndefined ? result : MergeOverlappingRanges(std::move(result));
+
+    if (insertUndefined) {
+        return result;
+    }
+
+    std::sort(result.begin(), result.end());
+    return MergeOverlappingRanges(std::move(result));
 }
 
 TString ToString(TKeyTriePtr node) {

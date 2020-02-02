@@ -6,7 +6,7 @@
 
 #include <yt/core/http/config.h>
 
-#include <yt/core/re2/re2.h>
+#include <yt/library/re2/re2.h>
 
 #include <yt/client/api/client.h>
 #include <yt/client/api/config.h>
@@ -34,6 +34,7 @@ public:
     TDuration MaxProxyListRetryPeriod;
     int MaxProxyListUpdateAttempts;
     TDuration RpcTimeout;
+    std::optional<TDuration> RpcAcknowledgementTimeout;
     TDuration TimestampProviderUpdatePeriod;
     TDuration DefaultTransactionTimeout;
     TDuration DefaultSelectRowsTimeout;

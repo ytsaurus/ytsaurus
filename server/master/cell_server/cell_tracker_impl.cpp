@@ -174,19 +174,29 @@ void TCellTrackerImpl::ScanCells()
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     const auto& cellManger = Bootstrap_->GetTamedCellManager();
-    for (const auto [cellId, cell] : cellManger->Cells()) {
-        if (!IsObjectAlive(cell))
-            continue;
 
-        ScheduleLeaderReassignment(cell, &leaderReassignmentCounter);
-        SchedulePeerAssignment(cell, balancer.get(), &peerAssignmentCounter);
-        SchedulePeerRevocation(cell, balancer.get(), &peerRevocationCounter);
+    TReqReassignPeers request;
+
+    for (const auto [cellId, cell] : cellManger->Cells()) {
+        if (!IsObjectAlive(cell)) {
+            continue;
+        }
+
+        bool peerCountChanged = false;
+        if (GetDynamicConfig()->DecommissionThroughExtraPeers) {
+            peerCountChanged = SchedulePeerCountChange(cell, &request);
+        }
+
+        // NB: If peer count changes cells state is not valid.
+        if (!peerCountChanged) {
+            ScheduleLeaderReassignment(cell, &leaderReassignmentCounter);
+            SchedulePeerAssignment(cell, balancer.get(), &peerAssignmentCounter);
+            SchedulePeerRevocation(cell, balancer.get(), &peerRevocationCounter);
+        }
     }
 
     auto moveDescriptors = balancer->GetCellMoveDescriptors();
     Profile(moveDescriptors, leaderReassignmentCounter, peerRevocationCounter, peerAssignmentCounter);
-
-    TReqReassignPeers request;
 
     {
         TReqRevokePeers* revocation;
@@ -294,7 +304,6 @@ void TCellTrackerImpl::Profile(
 
 void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, TBundleCounter* counter)
 {
-    // Try to move the leader to a good peer.
     const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
     TError error;
 
@@ -305,9 +314,29 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, TBundleCounte
         }
     }
 
-    auto goodPeerId = FindGoodPeer(cell);
-    if (goodPeerId == InvalidPeerId)
+    if (error.FindMatching(EErrorCode::NodeDecommissioned) &&
+        GetDynamicConfig()->DecommissionedLeaderReassignmentTimeout &&
+            (cell->LastPeerCountUpdateTime() == TInstant{} ||
+             cell->LastPeerCountUpdateTime() + *GetDynamicConfig()->DecommissionedLeaderReassignmentTimeout > TInstant::Now()))
+    {
         return;
+    }
+
+    // Switching to good follower is always better than switching to non-follower.
+    int newLeaderId = FindGoodFollower(cell);
+
+    if (GetDynamicConfig()->DecommissionThroughExtraPeers) {
+        // If node is decommissioned we switch only to followers, otherwise to any good peer.
+        if (!error.FindMatching(EErrorCode::NodeDecommissioned) && newLeaderId == InvalidPeerId) {
+            newLeaderId = FindGoodPeer(cell);
+        }
+    } else if (newLeaderId == InvalidPeerId) {
+        newLeaderId = FindGoodPeer(cell);
+    }
+
+    if (newLeaderId == InvalidPeerId) {
+        return;
+    }
 
     YT_LOG_DEBUG(error, "Schedule leader reassignment (CellId: %v, PeerId: %v, Address: %v)",
         cell->GetId(),
@@ -316,7 +345,7 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, TBundleCounte
 
     TReqSetLeadingPeer request;
     ToProto(request.mutable_cell_id(), cell->GetId());
-    request.set_peer_id(goodPeerId);
+    request.set_peer_id(newLeaderId);
 
     NProfiling::TTagIdList tagIds{
         cell->GetCellBundle()->GetProfilingTag(),
@@ -391,6 +420,13 @@ void TCellTrackerImpl::SchedulePeerRevocation(TCellBase* cell, ICellBalancer* ba
         auto error = IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), GetDynamicConfig()->PeerRevocationTimeout);
 
         if (!error.IsOK()) {
+            // If decommission through extra peers is enabled we never revoke leader during decommission.
+            if (GetDynamicConfig()->DecommissionThroughExtraPeers && error.FindMatching(EErrorCode::NodeDecommissioned) &&
+                peerId == cell->GetLeadingPeerId())
+            {
+                continue;
+            }
+
             YT_LOG_DEBUG(error, "Schedule peer revocation (CellId: %v, PeerId: %v, Address: %v)",
                 cell->GetId(),
                 peerId,
@@ -408,6 +444,28 @@ void TCellTrackerImpl::SchedulePeerRevocation(TCellBase* cell, ICellBalancer* ba
     }
 }
 
+bool TCellTrackerImpl::SchedulePeerCountChange(TCellBase* cell, TReqReassignPeers* request)
+{
+    const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
+    bool leaderDecommissioned = leadingPeer.Node && leadingPeer.Node->GetDecommissioned();
+    bool hasExtraPeers = cell->PeerCount().has_value();
+    if (cell->Peers().size() == 1 && leaderDecommissioned && !hasExtraPeers) {
+        // There are no followers and leader's node is decommissioned
+        // so we need extra peer to perform decommission.
+        auto* updatePeerCountRequest = request->add_peer_count_updates();
+        ToProto(updatePeerCountRequest->mutable_cell_id(), cell->GetId());
+        updatePeerCountRequest->set_peer_count(static_cast<int>(cell->Peers().size() + 1));
+        return true;
+    } else if (!leaderDecommissioned && hasExtraPeers) {
+        // Decommission finished, extra peers can be dropped.
+        auto* updatePeerCountRequest = request->add_peer_count_updates();
+        ToProto(updatePeerCountRequest->mutable_cell_id(), cell->GetId());
+        return true;
+    }
+
+    return false;
+}
+
 TError TCellTrackerImpl::IsFailed(
     const TCellBase::TPeer& peer,
     const TBooleanFormula& nodeTagFilter,
@@ -421,7 +479,7 @@ TError TCellTrackerImpl::IsFailed(
         }
 
         if (node->GetDecommissioned()) {
-            return TError("Node decommissioned");
+            return TError(EErrorCode::NodeDecommissioned, "Node decommissioned");
         }
 
         if (node->GetDisableTabletCells()) {
@@ -471,9 +529,32 @@ bool TCellTrackerImpl::IsDecommissioned(
     return false;
 }
 
-int TCellTrackerImpl::FindGoodPeer(const TCellBase* cell)
+TPeerId TCellTrackerImpl::FindGoodFollower(const TCellBase* cell)
 {
-    for (TPeerId id = 0; id < static_cast<int>(cell->Peers().size()); ++id) {
+    for (TPeerId peerId = 0; peerId < static_cast<TPeerId>(cell->Peers().size()); ++peerId) {
+        const auto& peer = cell->Peers()[peerId];
+        if (!CheckIfNodeCanHostCells(peer.Node)) {
+            continue;
+        }
+
+        if (cell->GetPeerState(peerId) != EPeerState::Following) {
+            continue;
+        }
+
+        auto* slot = cell->FindCellSlot(peerId);
+        if (slot && !slot->IsResponseKeeperWarmingUp && slot->PreloadPendingStoreCount == 0 &&
+            slot->PreloadFailedStoreCount == 0)
+        {
+            return peerId;
+        }
+    }
+
+    return InvalidPeerId;
+}
+
+TPeerId TCellTrackerImpl::FindGoodPeer(const TCellBase* cell)
+{
+    for (TPeerId id = 0; id < static_cast<TPeerId>(cell->Peers().size()); ++id) {
         const auto& peer = cell->Peers()[id];
         if (CheckIfNodeCanHostCells(peer.Node)) {
             return id;

@@ -24,7 +24,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-#include <yt/core/re2/re2.h>
+#include <yt/library/re2/re2.h>
 
 namespace NYT::NScheduler {
 
@@ -34,7 +34,6 @@ DEFINE_ENUM(EDeactivationReason,
     (IsNotAlive)
     (UnmatchedSchedulingTag)
     (IsNotStarving)
-    (IsBlocked)
     (ScheduleJobFailed)
     (NoBestLeafDescendant)
     (MinNeededResourcesUnsatisfied)
@@ -43,6 +42,8 @@ DEFINE_ENUM(EDeactivationReason,
     (OperationDisabled)
     (BadPacking)
     (FairShareExceeded)
+    (MaxConcurrentScheduleJobCallsPerNodeShardViolated)
+    (RecentScheduleJobFailed)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -51,8 +52,13 @@ class TFairShareStrategyOperationControllerConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    // NB(eshcherbin): This limit is only checked once every fair share update. Finer throttling is achieved
+    // via the "per node shard" limit.
     //! Limit on the number of concurrent calls to ScheduleJob of single controller.
     int MaxConcurrentControllerScheduleJobCalls;
+
+    //! Limit on the number of concurrent calls to ScheduleJob of single controller per node shard.
+    int MaxConcurrentControllerScheduleJobCallsPerNodeShard;
 
     //! Maximum allowed time for single job scheduling.
     TDuration ScheduleJobTimeLimit;
@@ -152,9 +158,10 @@ public:
     //! Enables infer of weight from effective min share ratios (if weight is not implicitly specified); inferred weight is this number mupltiplied by min share ratio.
     std::optional<double> InferWeightFromMinShareRatioMultiplier;
 
-    bool CrashOnOperationResourceUsageInconsistency;
-
     TFairShareStrategyPackingConfigPtr Packing;
+
+    //! List of operation types which should not be run in that tree as tentative.
+    std::optional<THashSet<EOperationType>> NonTentativeOperationTypes;
 
     TFairShareStrategyTreeConfig();
 };
@@ -190,11 +197,14 @@ public:
     //! Reasons that consider as unsuccessfull in schedule job attempts.
     THashSet<EDeactivationReason> OperationUnschedulableDeactiovationReasons;
 
-    //! List of operation types, which have disabled tentative pool trees option.
+    //! List of operation types which should be disabled in tentative tree by default.
     THashSet<EOperationType> OperationsWithoutTentativePoolTrees;
 
     //! Tentative pool trees used by default for operations that specified 'UseDefaultTentativePoolTrees' options.
     THashSet<TString> DefaultTentativePoolTrees;
+
+    //! Strength of min share ratio regularization in heuristic value computation in TFairShareStrategy::ChooseBestSingleTreeForOperation.
+    double BestTreeHeuristicRegularizationValue;
 
     TFairShareStrategyConfig();
 };
@@ -285,6 +295,9 @@ public:
 
     //! Max sleep delay between two removal invocations.
     TDuration MaxRemovalSleepDelay;
+
+    //! Number of operations failed to archive to set scheduler alert.
+    int MinOperationCountEnqueuedForAlert;
 
     TOperationsCleanerConfig();
 };
@@ -449,9 +462,11 @@ public:
 
     TDuration OperationsUpdatePeriod;
 
+    TDuration OperationsDestroyPeriod;
+
     TTestingOptionsPtr TestingOptions;
 
-    NEventLog::TEvenTLogManagerConfigPtr EventLog;
+    NEventLog::TEventLogManagerConfigPtr EventLog;
 
     NYTree::IMapNodePtr SpecTemplate;
 
@@ -484,6 +499,9 @@ public:
     //! the scheduler's orchid.
     int OrchidWorkerThreadCount;
 
+    //! The number of threads in FSUpdatePool thread pool used for running fair share tree updates concurrently.
+    int FairShareUpdateThreadCount;
+
     //! This option enables special logic to handle the situation when node has changed the id.
     //! To prevent node duplication in orchid we must detect such situations and immediately remove node from old node shard.
     //! This option can cause performance issues.
@@ -501,6 +519,10 @@ public:
 
     //! Enable immediate job abort if node reported zero number of user slots.
     bool EnableJobAbortOnZeroUserSlots;
+
+    //! Option to manage subbatch size for fetching operation during registration.
+    //! Increase this value to speedup registration.
+    int FetchOperationAttributesSubbatchSize;
 
     TSchedulerConfig();
 };

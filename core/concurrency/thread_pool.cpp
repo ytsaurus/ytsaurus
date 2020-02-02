@@ -25,7 +25,8 @@ public:
         int threadCount,
         const TString& threadNamePrefix,
         bool enableLogging,
-        bool enableProfiling)
+        bool enableProfiling,
+        EInvokerQueueType queueType)
         : ThreadNamePrefix_(threadNamePrefix)
         , EnableLogging_(enableLogging)
         , EnableProfiling_(enableProfiling)
@@ -34,7 +35,7 @@ public:
             GetThreadTagIds(enableProfiling, threadNamePrefix),
             enableLogging,
             enableProfiling,
-            EInvokerQueueType::MultiLockQueue))
+            queueType))
         , Invoker_(Queue_)
     {
         Configure(threadCount);
@@ -163,12 +164,14 @@ TThreadPool::TThreadPool(
     int threadCount,
     const TString& threadNamePrefix,
     bool enableLogging,
-    bool enableProfiling)
+    bool enableProfiling,
+    EInvokerQueueType queueType)
     : Impl_(New<TImpl>(
         threadCount,
         threadNamePrefix,
         enableLogging,
-        enableProfiling))
+        enableProfiling,
+        queueType))
 { }
 
 TThreadPool::~TThreadPool() = default;

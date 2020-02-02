@@ -189,6 +189,7 @@ private:
             CASE(ESimpleLogicalValueType::Datetime)
             CASE(ESimpleLogicalValueType::Timestamp)
             CASE(ESimpleLogicalValueType::Interval)
+            CASE(ESimpleLogicalValueType::Void)
 #undef CASE
         }
         YT_ABORT();

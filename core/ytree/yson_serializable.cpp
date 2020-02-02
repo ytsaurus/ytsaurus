@@ -225,6 +225,14 @@ int TYsonSerializableLite::GetParameterCount() const
     return Parameters.size();
 }
 
+std::vector<TString> TYsonSerializableLite::GetAllParameterAliases(const TString& key) const
+{
+    auto parameter = GetParameter(key);
+    auto result = parameter->GetAliases();
+    result.push_back(parameter->GetKey());
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TYsonSerializableLite& value, IYsonConsumer* consumer)

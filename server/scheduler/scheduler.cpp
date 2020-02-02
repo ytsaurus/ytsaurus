@@ -23,7 +23,7 @@
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
@@ -72,6 +72,8 @@
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/exception_helpers.h>
 #include <yt/core/ytree/permission.h>
+
+#include <yt/build/build.h>
 
 #include <util/generic/size_literals.h>
 
@@ -171,6 +173,7 @@ public:
         , SpecTemplate_(Config_->SpecTemplate)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
         , OrchidWorkerPool_(New<TThreadPool>(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
+        , FairShareUpdatePool_(New<TThreadPool>(Config_->FairShareUpdateThreadCount, "FSUpdatePool"))
     {
         YT_VERIFY(config);
         YT_VERIFY(bootstrap);
@@ -310,6 +313,12 @@ public:
             BIND(&TImpl::CheckUnschedulableOperations, MakeWeak(this)),
             Config_->OperationUnschedulableCheckPeriod);
         StrategyUnschedulableOperationsChecker_->Start();
+
+        OperationsDestroyerExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            BIND(&TImpl::PostOperationsToDestroy, MakeWeak(this)),
+            Config_->OperationsDestroyPeriod);
+        OperationsDestroyerExecutor_->Start();
     }
 
     const NApi::NNative::IClientPtr& GetMasterClient() const
@@ -333,12 +342,17 @@ public:
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YT_VERIFY(StaticOrchidService_);
 
+        auto lightStaticOrchidProducer = BIND(&TImpl::BuildLightStaticOrchid, MakeStrong(this));
+        auto lightStaticOrchidService = IYPathService::FromProducer(lightStaticOrchidProducer)
+            ->Via(GetControlInvoker(EControlQueue::Orchid));
+
         auto dynamicOrchidService = GetDynamicOrchidService()
             ->Via(GetControlInvoker(EControlQueue::Orchid));
 
         auto combinedOrchidService = New<TServiceCombiner>(
             std::vector<IYPathServicePtr>{
                 staticOrchidService,
+                std::move(lightStaticOrchidService),
                 std::move(dynamicOrchidService)
             },
             Config_->OrchidKeysUpdatePeriod);
@@ -467,6 +481,8 @@ public:
 
         if (!alert.IsOK()) {
             YT_LOG_WARNING(alert, "Setting scheduler alert (AlertType: %v)", alertType);
+        } else {
+            YT_LOG_DEBUG("Reset scheduler alert (AlertType: %v)", alertType);
         }
 
         MasterConnector_->SetSchedulerAlert(alertType, alert);
@@ -808,7 +824,7 @@ public:
 
         Strategy_->DisableOperation(operation.Get());
 
-        operation->Restart();
+        operation->Restart(TError("Agent unregistered"));
         operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
 
         for (const auto& nodeShard : NodeShards_) {
@@ -1193,7 +1209,7 @@ public:
 
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override
     {
-        return FairShareUpdateActionQueue_->GetInvoker();
+        return FairShareUpdatePool_->GetInvoker();
     }
 
     virtual IYsonConsumer* GetEventLogConsumer() override
@@ -1385,7 +1401,7 @@ private:
 
     const TThreadPoolPtr OrchidWorkerPool_;
     const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
-    const TActionQueuePtr FairShareUpdateActionQueue_ = New<TActionQueue>("FSUpdate");
+    const TThreadPoolPtr FairShareUpdatePool_;
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -1423,6 +1439,7 @@ private:
     TPeriodicExecutorPtr StrategyUnschedulableOperationsChecker_;
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr WaitingForPoolOperationScanPeriodExecutor_;
+    TPeriodicExecutorPtr OperationsDestroyerExecutor_;
 
     TString ServiceAddress_;
 
@@ -1464,6 +1481,8 @@ private:
 
     TIntrusivePtr<NYTree::ICachedYPathService> StaticOrchidService_;
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
+
+    std::vector<TOperationPtr> OperationsToDestroy_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1823,7 +1842,7 @@ private:
                         EOperationState::Aborted,
                         error);
                 }
-                operation->Cancel();
+                operation->Cancel(error);
             }
             OperationAliases_.clear();
             IdToOperation_.clear();
@@ -1946,7 +1965,7 @@ private:
             return;
         }
 
-        Strategy_->UpdatePoolTrees(poolTreesNode);
+        Strategy_->UpdatePoolTrees(poolTreesNode, TInstant::Now());
     }
 
 
@@ -2139,6 +2158,7 @@ private:
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);
+            OperationsDestroyerExecutor_->SetPeriod(Config_->OperationsDestroyPeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
@@ -2308,6 +2328,8 @@ private:
 
         bool aliasRegistered = false;
         try {
+            Strategy_->ValidatePoolTreesAreNotRemoved(operation);
+
             if (operation->Alias()) {
                 RegisterOperationAlias(operation);
                 aliasRegistered = true;
@@ -2746,7 +2768,8 @@ private:
             operation->SetController(nullptr);
             UnregisterOperation(operation);
         }
-        operation->Cancel();
+        operation->Cancel(TError("Operation finished"));
+        OperationsToDestroy_.push_back(operation);
     }
 
     void ProcessUnregisterOperationResult(
@@ -2887,6 +2910,10 @@ private:
         YT_LOG_INFO(error, "Aborting operation (OperationId: %v, State: %v)",
             operation->GetId(),
             operation->GetState());
+
+        if (operation->Spec()->TestingOperationOptions->DelayInsideAbort) {
+            TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayInsideAbort);
+        }
 
         TerminateOperation(
             operation,
@@ -3057,19 +3084,22 @@ private:
 
         if (!operation->FindAgent() && operation->Transactions()) {
             std::vector<TFuture<void>> asyncResults;
-            auto scheduleAbort = [&] (const ITransactionPtr& transaction) {
+            auto scheduleAbort = [&] (const ITransactionPtr& transaction, TString transactionType) {
                 if (transaction) {
+                    YT_LOG_DEBUG("Aborting transaction %v (Type: %v)", transaction->GetId(), transactionType);
                     asyncResults.push_back(transaction->Abort());
+                } else {
+                    YT_LOG_DEBUG("Transaction missed, skipping abort (Type: %v)", transactionType);
                 }
             };
 
             const auto& transactions = *operation->Transactions();
-            scheduleAbort(transactions.AsyncTransaction);
-            scheduleAbort(transactions.InputTransaction);
-            scheduleAbort(transactions.OutputTransaction);
-            scheduleAbort(transactions.DebugTransaction);
+            scheduleAbort(transactions.AsyncTransaction, "Async");
+            scheduleAbort(transactions.InputTransaction, "Input");
+            scheduleAbort(transactions.OutputTransaction, "Output");
+            scheduleAbort(transactions.DebugTransaction, "Debug");
             for (const auto& transaction : transactions.NestedInputTransactions) {
-                scheduleAbort(transaction);
+                scheduleAbort(transaction, "NestedInput");
             }
 
             try {
@@ -3260,7 +3290,6 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("connected").Value(IsConnected())
                 // COMPAT(babenko): deprecate cell in favor of cluster
                 .Item("cell").BeginMap()
                     .Item("resource_limits").Value(GetResourceLimits(EmptySchedulingTagFilter))
@@ -3290,18 +3319,6 @@ private:
                             }
                         })
                 .EndMap()
-                .Item("controller_agents").DoMapFor(Bootstrap_->GetControllerAgentTracker()->GetAgents(), [] (TFluentMap fluent, const auto& agent) {
-                    fluent
-                        .Item(agent->GetId()).BeginMap()
-                            .Item("state").Value(agent->GetState())
-                            .DoIf(agent->GetState() == EControllerAgentState::Registered, [&] (TFluentMap fluent) {
-                                fluent.Item("incarnation_id").Value(agent->GetIncarnationId());
-                            })
-                            .Item("operation_ids").DoListFor(agent->Operations(), [] (TFluentList fluent, const auto& operation) {
-                                fluent.Item().Value(operation->GetId());
-                            })
-                        .EndMap();
-                })
                 .Item("suspicious_jobs").BeginMap()
                     .Items(BuildSuspiciousJobsYson())
                 .EndMap()
@@ -3316,12 +3333,43 @@ private:
                         }
                     })
                 .EndMap()
-                .Item("config").Value(Config_)
                 .Do(std::bind(&ISchedulerStrategy::BuildOrchid, Strategy_, _1))
+            .EndMap();
+    }
+
+    void BuildLightStaticOrchid(IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                // Deprecated.
+                .Item("connected").Value(IsConnected())
+                .Item("controller_agents").DoMapFor(Bootstrap_->GetControllerAgentTracker()->GetAgents(), [] (TFluentMap fluent, const auto& agent) {
+                    fluent
+                        .Item(agent->GetId()).BeginMap()
+                            .Item("state").Value(agent->GetState())
+                            .DoIf(agent->GetState() == EControllerAgentState::Registered, [&] (TFluentMap fluent) {
+                                fluent.Item("incarnation_id").Value(agent->GetIncarnationId());
+                            })
+                            .Item("operation_ids").DoListFor(agent->Operations(), [] (TFluentList fluent, const auto& operation) {
+                                fluent.Item().Value(operation->GetId());
+                            })
+                        .EndMap();
+                })
+                .Item("config").Value(Config_)
                 .Item("operations_cleaner").BeginMap()
                     .Do(std::bind(&TOperationsCleaner::BuildOrchid, OperationsCleaner_, _1))
                 .EndMap()
                 .Item("operation_base_acl").Value(OperationBaseAcl_)
+                .Item("service").BeginMap()
+                    // This information used by scheduler_uptime odin check and we want
+                    // to receive all these fields by single request.
+                    .Item("connected").Value(IsConnected())
+                    .Item("last_connection_time").Value(GetConnectionTime())
+                    .Item("build_version").Value(GetVersion())
+                    .Item("hostname").Value(GetDefaultAddress(Bootstrap_->GetLocalAddresses()))
+                .EndMap()
             .EndMap();
     }
 
@@ -3538,6 +3586,30 @@ private:
                         it->second.OperationId);
                 }
             }
+        }
+    }
+
+    void PostOperationsToDestroy()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        Y_UNUSED(WaitFor(BIND(&TImpl::TryDestroyOperations, MakeStrong(this), Passed(std::move(OperationsToDestroy_)))
+            .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
+            .Run()));
+    }
+
+    void TryDestroyOperations(std::vector<TOperationPtr>&& operations)
+    {
+        for (auto& operation : operations) {
+            if (operation->GetRefCount() == 1) {
+                YT_LOG_DEBUG("Destroying operation (OperationId: %v)", operation->GetId());
+            } else {
+                YT_LOG_DEBUG(
+                    "Operation is still in use and will be destroyed later (OperationId: %v, ResidualRefCount: %v)",
+                    operation->GetId(),
+                    operation->GetRefCount() - 1);
+            }
+            operation.Reset();
         }
     }
 

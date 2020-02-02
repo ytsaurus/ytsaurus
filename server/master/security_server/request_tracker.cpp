@@ -60,6 +60,7 @@ void TRequestTracker::Stop()
         user->SetRequestRateThrottler(nullptr, EUserWorkloadType::Read);
         user->SetRequestRateThrottler(nullptr, EUserWorkloadType::Write);
         user->SetRequestQueueSize(0);
+        user->SetNeedsProfiling(false);
     }
 
     AlivePeerCount_ = 0;
@@ -97,6 +98,7 @@ void TRequestTracker::DoChargeUser(
     auto& statistics = user->Statistics()[workload.Type];
     statistics.RequestCount += workload.RequestCount;
     statistics.RequestTime += workload.RequestTime;
+    user->SetNeedsProfiling(true);
 }
 
 TFuture<void> TRequestTracker::ThrottleUserRequest(TUser* user, int requestCount, EUserWorkloadType workloadType)
@@ -159,6 +161,7 @@ bool TRequestTracker::TryIncreaseRequestQueueSize(TUser* user)
         return false;
     }
     user->SetRequestQueueSize(size + 1);
+    user->SetNeedsProfiling(true);
     return true;
 }
 
@@ -167,6 +170,7 @@ void TRequestTracker::DecreaseRequestQueueSize(TUser* user)
     auto size = user->GetRequestQueueSize();
     YT_VERIFY(size > 0);
     user->SetRequestQueueSize(size - 1);
+    user->SetNeedsProfiling(true);
 }
 
 const TDynamicSecurityManagerConfigPtr& TRequestTracker::GetDynamicConfig()

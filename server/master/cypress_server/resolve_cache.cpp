@@ -99,14 +99,9 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
             }
         }
 
+        auto unresolvedPathSuffix = tokenizer.GetInput();
         bool ampersandSkipped = tokenizer.Skip(NYPath::ETokenType::Ampersand);
         bool slashSkipped = tokenizer.Skip(NYPath::ETokenType::Slash);
-        auto makeCurrentUnresolvedPath = [&] {
-            return
-                (ampersandSkipped ? AmpersandYPath : EmptyYPath) +
-                (slashSkipped ? SlashYPath : EmptyYPath) +
-                tokenizer.GetInput();
-        };
 
         TReaderGuard guard(currentNode->Lock);
         if (const auto* mapPayload = std::get_if<TResolveCacheNode::TMapPayload>(&currentNode->Payload)) {
@@ -153,7 +148,7 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
 
             return TResolveResult{
                 entrancePayload->PortalExitId,
-                makeCurrentUnresolvedPath()
+                TYPath(unresolvedPathSuffix)
             };
         } else  {
             return std::nullopt;

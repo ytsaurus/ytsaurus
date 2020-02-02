@@ -76,6 +76,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     Control_ = New<TActionQueue>("Control");
     Poller_ = CreateThreadPoolPoller(Config_->ThreadCount, "Poller");
+    Acceptor_ = CreateThreadPoolPoller(1, "Acceptor");
 
     Config_->MonitoringServer->Port = Config_->MonitoringPort;
     MonitoringServer_ = NHttp::CreateServer(
@@ -97,10 +98,18 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     SetupClients();
 
     Coordinator_ = New<TCoordinator>(Config_, this);
+
     SetNodeByYPath(
         orchidRoot,
         "/coordinator",
         CreateVirtualNode(Coordinator_->CreateOrchidService()));
+
+    auto setGlobalRoleTag = [] (const TString& role) {
+        auto id = TProfileManager::Get()->RegisterTag("proxy_role", role);
+        TProfileManager::Get()->SetGlobalTag(id);
+    };
+    setGlobalRoleTag(Coordinator_->GetSelf()->Role);
+    Coordinator_->SubscribeOnSelfRoleChanged(BIND(setGlobalRoleTag));
 
     Config_->BusServer->Port = Config_->RpcPort;
     RpcServer_ = NRpc::NBus::CreateBusServer(CreateTcpBusServer(Config_->BusServer));
@@ -131,14 +140,18 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     TokenAuthenticator_ = authenticationManager->GetTokenAuthenticator();
     CookieAuthenticator_ = authenticationManager->GetCookieAuthenticator();
 
-    HttpAuthenticator_ = New<THttpAuthenticator>(Config_->Auth, TokenAuthenticator_, CookieAuthenticator_);
+    HttpAuthenticator_ = New<THttpAuthenticator>(
+        Config_->Auth,
+        TokenAuthenticator_,
+        CookieAuthenticator_,
+        Coordinator_);
 
     Api_ = New<TApi>(this);
-    ApiHttpServer_ = NHttp::CreateServer(Config_->HttpServer, Poller_);
+    ApiHttpServer_ = NHttp::CreateServer(Config_->HttpServer, Poller_, Acceptor_);
     RegisterRoutes(ApiHttpServer_);
 
     if (Config_->HttpsServer) {
-        ApiHttpsServer_ = NHttps::CreateServer(Config_->HttpsServer, Poller_);
+        ApiHttpsServer_ = NHttps::CreateServer(Config_->HttpsServer, Poller_, Acceptor_);
         RegisterRoutes(ApiHttpsServer_);
     }
 }

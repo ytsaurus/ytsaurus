@@ -14,7 +14,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/core/erasure/codec.h>
+#include <yt/library/erasure/codec.h>
 
 namespace NYT::NChunkServer {
 
@@ -96,7 +96,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     {
         // COMPAT(shakurov)
         SmallVector<TChunkTree*, TypicalChunkParentCount> parents;
-        for (const auto& [chunkTree, refCount] : Parents_) {
+        for (auto [chunkTree, refCount] : Parents_) {
             for (auto i = 0; i < refCount; ++i) {
                 parents.push_back(chunkTree);
             }
@@ -118,8 +118,8 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     }
     Save(context, ExportCounter_);
     if (ExportCounter_ > 0) {
-        YT_VERIFY(ExportDataList_);
-        TRangeSerializer::Save(context, TRef(ExportDataList_.get(), MaxSecondaryMasterCells * sizeof(TChunkExportData)));
+        YT_ASSERT(ExportDataList_);
+        TPodSerializer::Save(context, *ExportDataList_);
     }
 }
 
@@ -166,16 +166,11 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, ExportCounter_);
     if (ExportCounter_ > 0) {
-        ExportDataList_ = std::make_unique<TChunkExportData[]>(MaxSecondaryMasterCells);
-        TRangeSerializer::Load(context, TMutableRef(ExportDataList_.get(), MaxSecondaryMasterCells * sizeof(TChunkExportData)));
-        auto isActuallyExported = false;
-        for (auto i = 0; i < MaxSecondaryMasterCells; ++i) {
-            if (ExportDataList_[i].RefCounter != 0) {
-                isActuallyExported = true;
-                break;
-            }
-        }
-        YT_VERIFY(isActuallyExported);
+        ExportDataList_ = std::make_unique<TChunkExportDataList>();
+        TPodSerializer::Load(context, *ExportDataList_);
+        YT_VERIFY(std::any_of(
+            ExportDataList_->begin(), ExportDataList_->end(),
+            [] (auto data) { return data.RefCounter != 0; }));
     }
     if (IsConfirmed()) {
         MiscExt_ = GetProtoExtension<TMiscExt>(ChunkMeta_.extensions());
@@ -428,8 +423,8 @@ TChunkExportData TChunk::GetExportData(int cellIndex) const
         return {};
     }
 
-    YT_VERIFY(ExportDataList_);
-    return ExportDataList_[cellIndex];
+    YT_ASSERT(ExportDataList_);
+    return (*ExportDataList_)[cellIndex];
 }
 
 bool TChunk::IsExportedToCell(int cellIndex) const
@@ -438,17 +433,21 @@ bool TChunk::IsExportedToCell(int cellIndex) const
         return false;
     }
 
-    YT_VERIFY(ExportDataList_);
-    return ExportDataList_[cellIndex].RefCounter != 0;
+    YT_ASSERT(ExportDataList_);
+    return (*ExportDataList_)[cellIndex].RefCounter != 0;
 }
 
 void TChunk::Export(int cellIndex, TChunkRequisitionRegistry* registry)
 {
     if (ExportCounter_ == 0) {
-        ExportDataList_ = std::make_unique<TChunkExportData[]>(MaxSecondaryMasterCells);
+        ExportDataList_ = std::make_unique<TChunkExportDataList>();
+        for (auto& data : *ExportDataList_) {
+            data.RefCounter = 0;
+            data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
+        }
     }
 
-    auto& data = ExportDataList_[cellIndex];
+    auto& data = (*ExportDataList_)[cellIndex];
     if (++data.RefCounter == 1) {
         ++ExportCounter_;
 
@@ -465,8 +464,8 @@ void TChunk::Unexport(
     TChunkRequisitionRegistry* registry,
     const NObjectServer::TObjectManagerPtr& objectManager)
 {
-    YT_VERIFY(ExportDataList_);
-    auto& data = ExportDataList_[cellIndex];
+    YT_ASSERT(ExportDataList_);
+    auto& data = (*ExportDataList_)[cellIndex];
     if ((data.RefCounter -= importRefCounter) == 0) {
         registry->Unref(data.ChunkRequisitionIndex, objectManager);
         data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex; // just in case

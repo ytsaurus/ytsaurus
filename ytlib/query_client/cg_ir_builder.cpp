@@ -5,8 +5,8 @@
 
 #include <yt/core/misc/assert.h>
 
-#include <yt/core/codegen/llvm_migrate_helpers.h>
-#include <yt/core/codegen/type_builder.h>
+#include <yt/library/codegen/llvm_migrate_helpers.h>
+#include <yt/library/codegen/type_builder.h>
 
 namespace NYT::NQueryClient {
 

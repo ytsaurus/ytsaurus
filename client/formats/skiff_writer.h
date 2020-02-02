@@ -6,7 +6,7 @@
 
 #include <yt/core/concurrency/public.h>
 
-#include <yt/core/skiff/public.h>
+#include <yt/library/skiff/public.h>
 
 #include <yt/core/ytree/public.h>
 

@@ -16,6 +16,7 @@ DEFINE_ENUM(EErrorCode,
     ((CrossCellAdditionalPath)                   (1002))
     ((CrossCellRevisionPrerequisitePath)         (1003))
     ((ForwardedRequestFailed)                    (1004))
+    ((CannotCacheMutatingRequest)                (1005))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,6 +208,9 @@ DEFINE_ENUM(EObjectType,
 
     // Scheduler
     ((Operation)                    (1000))
+    ((SchedulerPool)                (1001))
+    ((SchedulerPoolTree)            (1002))
+    ((SchedulerPoolTreeMap)         (1003))
 
     // Object manager stuff
     ((EstimatedCreationTimeMap)     (1100))

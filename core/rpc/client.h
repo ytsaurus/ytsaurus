@@ -107,7 +107,7 @@ class TClientRequest
 public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TSharedRef>, Attachments);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
-    DEFINE_BYVAL_RW_PROPERTY(bool, RequestAck, true);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, AcknowledgementTimeout);
     DEFINE_BYVAL_RW_PROPERTY(bool, Heavy, false);
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, RequestCodec, NCompression::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, ResponseCodec, NCompression::ECodec::None);
@@ -399,7 +399,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, Discover);
 
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, DefaultTimeout);
-    DEFINE_BYVAL_RW_PROPERTY(bool, DefaultRequestAck, true);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, DefaultAcknowledgementTimeout);
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, DefaultRequestCodec, NCompression::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, DefaultResponseCodec, NCompression::ECodec::None);
     DEFINE_BYVAL_RW_PROPERTY(bool, DefaultEnableLegacyRpcCodecs, true);

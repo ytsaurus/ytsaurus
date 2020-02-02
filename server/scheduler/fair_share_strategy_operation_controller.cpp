@@ -19,14 +19,22 @@ TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     YT_VERIFY(Controller_);
 }
 
-void TFairShareStrategyOperationController::IncreaseConcurrentScheduleJobCalls()
+void TFairShareStrategyOperationController::IncreaseConcurrentScheduleJobCalls(int nodeShardId)
 {
-    ++ConcurrentScheduleJobCalls_;
+    auto& shard = StateShards_[nodeShardId];
+    ++shard.ConcurrentScheduleJobCalls;
 }
 
-void TFairShareStrategyOperationController::DecreaseConcurrentScheduleJobCalls()
+void TFairShareStrategyOperationController::DecreaseConcurrentScheduleJobCalls(int nodeShardId)
 {
-    --ConcurrentScheduleJobCalls_;
+    auto& shard = StateShards_[nodeShardId];
+    --shard.ConcurrentScheduleJobCalls;
+}
+
+void TFairShareStrategyOperationController::IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId)
+{
+    auto& shard = StateShards_[nodeShardId];
+    ++shard.ScheduleJobCallsSinceLastUpdate;
 }
 
 void TFairShareStrategyOperationController::SetLastScheduleJobFailTime(NProfiling::TCpuInstant now)
@@ -54,29 +62,31 @@ void TFairShareStrategyOperationController::UpdateMinNeededJobResources()
     Controller_->UpdateMinNeededJobResources();
 }
 
-bool TFairShareStrategyOperationController::IsBlocked(
-    NProfiling::TCpuInstant now,
-    int maxConcurrentScheduleJobCalls,
+void TFairShareStrategyOperationController::CheckMaxScheduleJobCallsOverdraft(
+    int maxScheduleJobCalls,
+    bool* isMaxScheduleJobCallsViolated) const
+{
+    for (auto& shard : StateShards_) {
+        ScheduleJobCallsOverdraft_ += shard.ScheduleJobCallsSinceLastUpdate.exchange(0);
+    }
+    ScheduleJobCallsOverdraft_ = std::max(0, ScheduleJobCallsOverdraft_ - maxScheduleJobCalls);
+
+    *isMaxScheduleJobCallsViolated = ScheduleJobCallsOverdraft_ > 0;
+}
+
+bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
+    const ISchedulingContextPtr& schedulingContext,
+    int maxConcurrentScheduleJobCallsPerNodeShard) const
+{
+    auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
+    return shard.ConcurrentScheduleJobCalls >= maxConcurrentScheduleJobCallsPerNodeShard;
+}
+
+bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(
+    NYT::NProfiling::TCpuInstant now,
     TDuration scheduleJobFailBackoffTime) const
 {
-    auto concurrentScheduleJobCalls = ConcurrentScheduleJobCalls_.load();
-    if (concurrentScheduleJobCalls >= maxConcurrentScheduleJobCalls) {
-        YT_LOG_DEBUG_UNLESS(Blocked_,
-            "Operation blocked in fair share strategy due to violation of maximum concurrent schedule job calls (ConcurrentScheduleJobCalls: %v)",
-            concurrentScheduleJobCalls);
-        Blocked_.store(true);
-        return true;
-    }
-
-    if (LastScheduleJobFailTime_ + NProfiling::DurationToCpuDuration(scheduleJobFailBackoffTime) > now) {
-        YT_LOG_DEBUG_UNLESS(Blocked_, "Operation blocked in fair share strategy due to schedule job failure");
-        Blocked_.store(true);
-        return true;
-    }
-
-    YT_LOG_DEBUG_UNLESS(!Blocked_, "Operation unblocked in fair share strategy");
-    Blocked_.store(false);
-    return false;
+    return LastScheduleJobFailTime_ + NProfiling::DurationToCpuDuration(scheduleJobFailBackoffTime) > now;
 }
 
 void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason abortReason)

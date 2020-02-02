@@ -19,7 +19,7 @@
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
-#include <yt/ytlib/security_client/acl.h>
+#include <yt/client/security_client/acl.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
@@ -373,24 +373,6 @@ public:
         CustomGlobalWatcherRecords_[type] = TPeriodicExecutorRecord{type, std::move(requester), std::move(handler), period};
     }
 
-    void AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
-
-        auto* list = GetOrCreateWatcherList(operation);
-        list->WatcherRequesters.push_back(requester);
-    }
-
-    void AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
-
-        auto* list = GetOrCreateWatcherList(operation);
-        list->WatcherHandlers.push_back(handler);
-    }
-
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -468,19 +450,6 @@ private:
     };
 
     TIntrusivePtr<TUpdateExecutor<TOperationId, TOperationNodeUpdate>> OperationNodesUpdateExecutor_;
-
-    struct TWatcherList
-    {
-        explicit TWatcherList(TOperationPtr operation)
-            : Operation(std::move(operation))
-        { }
-
-        TOperationPtr Operation;
-        std::vector<TWatcherRequester> WatcherRequesters;
-        std::vector<TWatcherHandler>   WatcherHandlers;
-    };
-
-    THashMap<TOperationId, TWatcherList> WatcherLists;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -779,7 +748,8 @@ private:
                 &TImpl::StartObjectBatchRequest,
                 Owner_,
                 EMasterChannelKind::Follower,
-                PrimaryMasterCellTag);
+                PrimaryMasterCellTag,
+                /* subbatchSize */ 100);
 
             auto listOperationsResult = NScheduler::ListOperations(createBatchRequest);
             OperationIds_.reserve(listOperationsResult.OperationsToRevive.size());
@@ -817,9 +787,13 @@ private:
                 "output_completion_transaction_id",
                 "suspended",
                 "erased_trees",
+                "banned",
             };
 
-            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            auto batchReq = Owner_->StartObjectBatchRequest(
+                EMasterChannelKind::Follower,
+                PrimaryMasterCellTag,
+                Owner_->Config_->FetchOperationAttributesSubbatchSize);
             {
                 YT_LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
                     OperationIds_.size());
@@ -882,6 +856,10 @@ private:
                     }
 
                     try {
+                        if (attributesNode->Get<bool>("banned", false)) {
+                            YT_LOG_INFO("Operation manually banned (OperationId: %v)", operationId);
+                            continue;
+                        }
                         auto operation = TryCreateOperationFromAttributes(
                             operationId,
                             *attributesNode,
@@ -1009,7 +987,8 @@ private:
                 &TImpl::StartObjectBatchRequest,
                 Owner_,
                 EMasterChannelKind::Follower,
-                PrimaryMasterCellTag);
+                PrimaryMasterCellTag,
+                Owner_->Config_->FetchOperationAttributesSubbatchSize);
 
             auto operations = FetchOperationsFromCypressForCleaner(
                 OperationIdsToArchive_,
@@ -1040,7 +1019,10 @@ private:
                 "nested_input_transaction_ids",
             };
 
-            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
+            auto batchReq = StartObjectBatchRequest(
+                EMasterChannelKind::Follower,
+                PrimaryMasterCellTag,
+                Config_->FetchOperationAttributesSubbatchSize);
 
             for (const auto& operation : operations) {
                 auto operationId = operation->GetId();
@@ -1226,12 +1208,13 @@ private:
 
     TObjectServiceProxy::TReqExecuteBatchPtr StartObjectBatchRequest(
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
-        TCellTag cellTag = PrimaryMasterCellTag)
+        TCellTag cellTag = PrimaryMasterCellTag,
+        int subbatchSize = 100)
     {
         TObjectServiceProxy proxy(Bootstrap_
             ->GetMasterClient()
             ->GetMasterChannelOrThrow(channelKind, cellTag));
-        auto batchReq = proxy.ExecuteBatch();
+        auto batchReq = proxy.ExecuteBatch(subbatchSize);
         YT_VERIFY(LockTransaction_);
         auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
         auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
@@ -1246,12 +1229,10 @@ private:
 
         LockTransaction_.Reset();
 
-        ClearWatcherLists();
-
         StopPeriodicActivities();
 
         if (CancelableContext_) {
-            CancelableContext_->Cancel();
+            CancelableContext_->Cancel(TError("Master disconnected"));
             CancelableContext_.Reset();
         }
 
@@ -1315,30 +1296,6 @@ private:
             executor.Reset();
         }
     }
-
-
-    TWatcherList* GetOrCreateWatcherList(const TOperationPtr& operation)
-    {
-        auto it = WatcherLists.find(operation->GetId());
-        if (it == WatcherLists.end()) {
-            it = WatcherLists.insert(std::make_pair(
-                operation->GetId(),
-                TWatcherList(operation))).first;
-        }
-        return &it->second;
-    }
-
-    TWatcherList* FindWatcherList(const TOperationPtr& operation)
-    {
-        auto it = WatcherLists.find(operation->GetId());
-        return it == WatcherLists.end() ? nullptr : &it->second;
-    }
-
-    void ClearWatcherLists()
-    {
-        WatcherLists.clear();
-    }
-
 
     void OnOperationUpdateFailed(const TError& error)
     {
@@ -1528,43 +1485,13 @@ private:
 
         YT_LOG_DEBUG("Updating watchers");
 
-        // Global watchers.
-        {
-            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (const auto& requester : GlobalWatcherRequesters_) {
-                requester.Run(batchReq);
-            }
-            batchReq->Invoke().Subscribe(
-                BIND(&TImpl::OnGlobalWatchersUpdated, MakeStrong(this))
-                    .Via(GetCancelableControlInvoker(EControlQueue::PeriodicActivity)));
+        auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
+        for (const auto& requester : GlobalWatcherRequesters_) {
+            requester.Run(batchReq);
         }
-
-        // Purge obsolete watchers.
-        {
-            auto it = WatcherLists.begin();
-            while (it != WatcherLists.end()) {
-                auto jt = it++;
-                const auto& list = jt->second;
-                if (list.Operation->IsFinishedState()) {
-                    WatcherLists.erase(jt);
-                }
-            }
-        }
-
-        // Per-operation watchers.
-        for (const auto& [operationId, list] : WatcherLists) {
-            auto operation = list.Operation;
-            if (operation->GetState() != EOperationState::Running)
-                continue;
-
-            auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
-            for (auto requester : list.WatcherRequesters) {
-                requester.Run(batchReq);
-            }
-            batchReq->Invoke().Subscribe(
-                BIND(&TImpl::OnOperationWatchersUpdated, MakeStrong(this), operation)
-                    .Via(GetCancelableControlInvoker(EControlQueue::PeriodicActivity)));
-        }
+        Y_UNUSED(WaitFor(batchReq->Invoke().Apply(
+            BIND(&TImpl::OnGlobalWatchersUpdated, MakeStrong(this))
+                .AsyncVia(GetCancelableControlInvoker(EControlQueue::PeriodicActivity)))));
     }
 
     void OnGlobalWatchersUpdated(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
@@ -1584,36 +1511,6 @@ private:
 
         YT_LOG_DEBUG("Global watchers updated");
     }
-
-    void OnOperationWatchersUpdated(
-        const TOperationPtr& operation,
-        const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(State_ == EMasterConnectorState::Connected);
-
-        if (!batchRspOrError.IsOK()) {
-            YT_LOG_ERROR(batchRspOrError, "Error updating operation watchers (OperationId: %v)",
-                operation->GetId());
-            return;
-        }
-
-        if (operation->GetState() != EOperationState::Running)
-            return;
-
-        auto* list = FindWatcherList(operation);
-        if (!list)
-            return;
-
-        const auto& batchRsp = batchRspOrError.Value();
-        for (auto handler : list->WatcherHandlers) {
-            handler.Run(batchRsp);
-        }
-
-        YT_LOG_DEBUG("Operation watchers updated (OperationId: %v)",
-            operation->GetId());
-    }
-
 
     void UpdateAlerts()
     {
@@ -1795,16 +1692,6 @@ void TMasterConnector::SetCustomGlobalWatcher(EWatcherType type, TWatcherRequest
     Impl_->SetCustomGlobalWatcher(type, std::move(requester), std::move(handler), period);
 }
 
-void TMasterConnector::AddOperationWatcherRequester(const TOperationPtr& operation, TWatcherRequester requester)
-{
-    Impl_->AddOperationWatcherRequester(operation, requester);
-}
-
-void TMasterConnector::AddOperationWatcherHandler(const TOperationPtr& operation, TWatcherHandler handler)
-{
-    Impl_->AddOperationWatcherHandler(operation, handler);
-}
-
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnecting, *Impl_);
 DELEGATE_SIGNAL(TMasterConnector, void(const TMasterHandshakeResult& result), MasterHandshake, *Impl_);
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnected, *Impl_);
@@ -1813,4 +1700,3 @@ DELEGATE_SIGNAL(TMasterConnector, void(), MasterDisconnected, *Impl_);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
-

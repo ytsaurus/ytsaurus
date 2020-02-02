@@ -90,16 +90,4 @@ void FromProto(NJobTrackerClient::TJobToRelease* jobToRelease, const NProto::TJo
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsJobFinished(EJobState state)
-{
-    return state >= EJobState::Completed;
-}
-
-bool IsJobInProgress(EJobState state)
-{
-    return !IsJobFinished(state);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NJobTrackerClient

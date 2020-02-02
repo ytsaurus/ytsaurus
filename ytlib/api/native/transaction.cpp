@@ -7,9 +7,10 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/tablet_client/table_mount_cache.h>
-#include <yt/client/table_client/wire_protocol.h>
+
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
 
+#include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_buffer.h>
 
@@ -370,6 +371,10 @@ public:
         const TSelectRowsOptions& options),
         (query, options))
 
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<NYson::TYsonString>, Explain, (
+        const TString& query,
+        const TExplainOptions& options),
+        (query, options))
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TYsonString>, GetNode, (
         const TYPath& path,
@@ -1108,7 +1113,7 @@ private:
 
             TTabletServiceProxy proxy(InvokeChannel_);
             proxy.SetDefaultTimeout(Config_->WriteRowsTimeout);
-            proxy.SetDefaultRequestAck(false);
+            proxy.SetDefaultAcknowledgementTimeout(std::nullopt);
 
             auto req = proxy.Write();
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);
@@ -1311,7 +1316,7 @@ private:
     THashMap<TString, NApi::ITransactionPtr> ClusterNameToSyncReplicaTransaction_;
 
     //! Caches mappings from name table ids to schema ids.
-    THashMap<std::pair<TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
+    THashMap<std::tuple<TTableId, TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
 
 
     IInvokerPtr GetThreadPoolInvoker()
@@ -1324,11 +1329,11 @@ private:
         const TNameTablePtr& nameTable,
         ETableSchemaKind kind)
     {
-        auto key = std::make_pair(nameTable, kind);
+        auto key = std::make_tuple(tableInfo->TableId, nameTable, kind);
         auto it = IdMappingCache_.find(key);
         if (it == IdMappingCache_.end()) {
             auto mapping = BuildColumnIdMapping(tableInfo->Schemas[kind], nameTable);
-            it = IdMappingCache_.insert(std::make_pair(key, std::move(mapping))).first;
+            it = IdMappingCache_.emplace(key, std::move(mapping)).first;
         }
         return it->second;
     }

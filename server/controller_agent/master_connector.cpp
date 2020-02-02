@@ -82,9 +82,10 @@ public:
     TImpl(
         TControllerAgentConfigPtr config,
         TBootstrap* bootstrap)
-        : Config_(config)
+        : Config_(std::move(config))
         , InitialConfig_(Config_)
         , Bootstrap_(bootstrap)
+        , UpdateOperationProgressFailuresCounter_("/operation_archive/update_progress_failures")
     { }
 
     void Initialize()
@@ -249,6 +250,8 @@ private:
 
     TEnumIndexedVector<EControllerAgentAlertType, TError> Alerts_;
 
+    NProfiling::TMonotonicCounter UpdateOperationProgressFailuresCounter_;
+
     struct TUnstageRequest
     {
         TChunkTreeId ChunkTreeId;
@@ -357,7 +360,7 @@ private:
     void DoCleanup()
     {
         if (CancelableContext_) {
-            CancelableContext_->Cancel();
+            CancelableContext_->Cancel(TError("Scheduler disconnected"));
             CancelableContext_.Reset();
         }
 
@@ -790,11 +793,13 @@ private:
             MakeSharedRange(SmallVector<TUnversionedRow, 1>{1, row}, std::move(rowBuffer)));
 
         auto error = WaitFor(transaction->Commit()
+            .ToUncancelable()
             .WithTimeout(Config_->OperationProgressArchivationTimeout));
 
         if (!error.IsOK()) {
             YT_LOG_WARNING("Operation progress update in Archive failed (TransactionId: %v)",
                 transaction->GetId());
+            ControllerAgentProfiler.Increment(UpdateOperationProgressFailuresCounter_);
         } else {
             YT_LOG_DEBUG("Operation progress updated successfully (TransactionId: %v, DataWeight: %v)",
                 transaction->GetId(),

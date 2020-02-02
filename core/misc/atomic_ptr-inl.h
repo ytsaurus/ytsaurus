@@ -198,12 +198,12 @@ TRefCountedPtr<T, TTraits> ConstructObject(void* ptr, As&&... args)
 
 template <class T, class TTraits, class... As>
 TRefCountedPtr<T, TTraits> CreateObjectWithExtraSpace(
-    TTraits& alloc,
+    TTraits* traits,
     size_t extraSpaceSize,
     As&&... args)
 {
     auto totalSize = sizeof(TAtomicRefCounter) + sizeof(T) + extraSpaceSize;
-    void* ptr = alloc.Allocate(totalSize);
+    void* ptr = traits->Allocate(totalSize);
     return ConstructObject<T, TTraits>(ptr, std::forward<As>(args)...);
 }
 
@@ -281,6 +281,12 @@ TAtomicPtr<T, TTraits>& TAtomicPtr<T, TTraits>::operator=(std::nullptr_t)
 {
     Exchange(TRefCountedPtr<T, TTraits>());
     return *this;
+}
+
+template <class T, class TTraits>
+TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::Release()
+{
+    return Exchange(TRefCountedPtr<T, TTraits>());
 }
 
 template <class T, class TTraits>

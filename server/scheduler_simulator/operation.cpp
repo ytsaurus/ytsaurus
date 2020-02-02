@@ -27,9 +27,13 @@ NScheduler::EOperationType TOperation::GetType() const
     return Type_;
 }
 
-bool TOperation::IsSchedulable() const
+std::optional<NScheduler::EUnschedulableReason> TOperation::CheckUnschedulable() const
 {
-    return true;
+    if (Controller_->GetPendingJobCount() == 0) {
+        return NScheduler::EUnschedulableReason::NoPendingJobs;
+    }
+
+    return std::nullopt;
 }
 
 TInstant TOperation::GetStartTime() const

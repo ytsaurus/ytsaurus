@@ -52,7 +52,7 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
-#include <yt/core/erasure/public.h>
+#include <yt/library/erasure/public.h>
 
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
@@ -161,6 +161,10 @@ public:
     TObject* GetWeakGhostObject(TObjectId id);
     void RemoveObject(TObject* object);
 
+    TObject* FindObjectByAttributes(
+        EObjectType type,
+        const IAttributeDictionary* attributes);
+
     IYPathServicePtr CreateRemoteProxy(TObjectId id);
 
     IObjectProxyPtr GetProxy(
@@ -201,7 +205,8 @@ public:
 
     TObject* ResolvePathToObject(
         const TYPath& path,
-        TTransaction* transaction);
+        TTransaction* transaction,
+        const TResolvePathOptions& options);
 
     void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites);
 
@@ -433,7 +438,7 @@ public:
         auto counters = requestProfilingManager->GetCounters(context->GetUser(), context->GetMethod());
         ObjectServerProfiler.Increment(counters->AutomatonForwardingRequestCounter);
 
-        YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, "
+        YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
             "TargetPath: %v, %v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
             context->GetRequestId(),
             forwardedRequestId,
@@ -766,7 +771,7 @@ TObjectId TObjectManager::TImpl::GenerateId(EObjectType type, TObjectId hintId)
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     auto cellTag = multicellManager->GetCellTag();
 
-    // NB: The higest 16 bits of hash are used for externalizing cell tag in
+    // NB: The highest 16 bits of hash are used for externalizing cell tag in
     // externalized transaction ids.
     if (type == EObjectType::Transaction || type == EObjectType::NestedTransaction) {
         hash &= 0xffff;
@@ -1194,7 +1199,7 @@ TObject* TObjectManager::TImpl::CreateObject(
 
     const auto& handler = FindHandler(type);
     if (!handler) {
-        THROW_ERROR_EXCEPTION("Unknown object type %v",
+        THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
             type);
     }
 
@@ -1257,7 +1262,6 @@ TObject* TObjectManager::TImpl::CreateObject(
         object->SetForeign();
     }
 
-    // XXX(babenko): fix passing life stage when adding new cells 
     if (auto lifeStage = attributes->Find<EObjectLifeStage>("life_stage")) {
         attributes->Remove("life_stage");
         object->SetLifeStage(*lifeStage);
@@ -1286,9 +1290,39 @@ TObject* TObjectManager::TImpl::CreateObject(
         multicellManager->PostToMasters(replicationRequest, replicationCellTags);
     }
 
-    ConfirmObjectLifeStageToPrimaryMaster(object);
+    switch (object->GetLifeStage()) {
+        case EObjectLifeStage::RemovalPreCommitted:
+            object->SetLifeStage(EObjectLifeStage::RemovalStarted);
+            /* fallthrough */
+
+        case EObjectLifeStage::RemovalStarted:
+            CheckRemovingObjectRefCounter(object);
+            break;
+
+        case EObjectLifeStage::RemovalAwaitingCellsSync:
+            object->SetLifeStage(EObjectLifeStage::RemovalPreCommitted);
+            break;
+
+        default:
+            ConfirmObjectLifeStageToPrimaryMaster(object);
+    }
 
     return object;
+}
+
+TObject* TObjectManager::TImpl::FindObjectByAttributes(
+    EObjectType type,
+    const IAttributeDictionary* attributes)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    const auto& handler = FindHandler(type);
+    if (!handler) {
+        THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
+            type);
+    }
+
+    return handler->FindObjectByAttributes(attributes);
 }
 
 void TObjectManager::TImpl::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
@@ -1329,7 +1363,7 @@ void TObjectManager::TImpl::AdvanceObjectLifeStageAtSecondaryMasters(NYT::NObjec
     multicellManager->PostToSecondaryMasters(advanceRequest);
 }
 
-TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransaction* transaction)
+TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
 {
     static const TString NullService;
     static const TString NullMethod;
@@ -1341,7 +1375,8 @@ TObject* TObjectManager::TImpl::ResolvePathToObject(const TYPath& path, TTransac
         transaction);
 
     auto result = resolver.Resolve(TPathResolverOptions{
-        .EnablePartialResolve = false
+        .EnablePartialResolve = options.EnablePartialResolve,
+        .FollowPortals = options.FollowPortals
     });
     const auto* payload = std::get_if<TPathResolver::TLocalObjectPayload>(&result.Payload);
     if (!payload) {
@@ -1444,7 +1479,7 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     batchReq->SetUser(header.user());
     batchReq->AddRequestMessage(std::move(requestMessage));
 
-    YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v:%v, Path: %v, User: %v, Mutating: %v, "
+    YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, Path: %v, User: %v, Mutating: %v, "
         "CellTag: %v, PeerKind: %v)",
         requestId,
         batchReq->GetRequestId(),
@@ -1856,7 +1891,7 @@ void TObjectManager::TImpl::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TO
                 newLifeStage = EObjectLifeStage::CreationCommitted;
                 break;
             case EObjectLifeStage::RemovalStarted:
-                newLifeStage = EObjectLifeStage::RemovalPreCommitted;
+                YT_ABORT();
                 break;
             case EObjectLifeStage::RemovalPreCommitted:
                 newLifeStage = EObjectLifeStage::RemovalAwaitingCellsSync;
@@ -1959,7 +1994,7 @@ std::unique_ptr<IAttributeDictionary> TObjectManager::TImpl::GetReplicatedAttrib
 
         auto value = proxy->FindBuiltinAttribute(descriptor.InternedKey);
         if (value) {
-            const auto& key = GetUninternedAttributeKey(descriptor.InternedKey);
+            const auto& key = descriptor.InternedKey.Unintern();
             replicateKey(key, value);
         }
     }
@@ -2163,9 +2198,14 @@ TObject* TObjectManager::CreateObject(TObjectId hintId, EObjectType type, IAttri
     return Impl_->CreateObject(hintId, type, attributes);
 }
 
-TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction)
+TObject* TObjectManager::FindObjectByAttributes(EObjectType type, const NYTree::IAttributeDictionary* attributes)
 {
-    return Impl_->ResolvePathToObject(path, transaction);
+    return Impl_->FindObjectByAttributes(type, attributes);
+}
+
+TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
+{
+    return Impl_->ResolvePathToObject(path, transaction, options);
 }
 
 void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/chunk_client/data_node_service.pb.h>
+#include <yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 
 #include <yt/core/rpc/client.h>
 
@@ -26,6 +26,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, FlushBlocks);
     DEFINE_RPC_PROXY_METHOD(NProto, GetBlockSet);
     DEFINE_RPC_PROXY_METHOD(NProto, GetBlockRange);
+    DEFINE_RPC_PROXY_METHOD(NProto, LookupRows);
     DEFINE_RPC_PROXY_METHOD(NProto, PingSession,
         .SetMultiplexingBand(NRpc::EMultiplexingBand::Control));
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkMeta);

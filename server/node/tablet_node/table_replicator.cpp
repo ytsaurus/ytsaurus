@@ -119,11 +119,10 @@ public:
     void Disable()
     {
         if (FiberFuture_) {
-            FiberFuture_.Cancel();
-            FiberFuture_.Reset();
-
+            FiberFuture_.Cancel(TError("Replicator disabled"));
             YT_LOG_INFO("Replicator fiber stopped");
         }
+        FiberFuture_.Reset();
     }
 
 private:

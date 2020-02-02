@@ -132,7 +132,7 @@ IChannelPtr CreateTabletReadChannel(
         *options.BackupRequestDelay);
 }
 
-void ValidateTabletMountedOrFrozen(const TTableMountInfoPtr& tableInfo, const TTabletInfoPtr& tabletInfo)
+void ValidateTabletMountedOrFrozen(const TTabletInfoPtr& tabletInfo)
 {
     auto state = tabletInfo->State;
     if (state != ETabletState::Mounted &&
@@ -170,7 +170,7 @@ void ValidateTabletMounted(
     if (validateWrite) {
         ValidateTabletMounted(tableInfo, tabletInfo);
     } else {
-        ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
+        ValidateTabletMountedOrFrozen(tabletInfo);
     }
 }
 

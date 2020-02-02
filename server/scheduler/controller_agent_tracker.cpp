@@ -107,6 +107,8 @@ public:
         , OperationId_(operation->GetId())
         , RuntimeData_(operation->GetRuntimeData())
         , PreemptionMode_(operation->Spec()->PreemptionMode)
+        , Logger(NLogging::TLogger(SchedulerLogger)
+            .AddTag("OperationId: %v", OperationId_))
     { }
 
 
@@ -125,14 +127,6 @@ public:
         JobEventsOutbox_ = agent->GetJobEventsOutbox();
         OperationEventsOutbox_ = agent->GetOperationEventsOutbox();
         ScheduleJobRequestsOutbox_ = agent->GetScheduleJobRequestsOutbox();
-
-        if (!PostponedJobEvents_.empty()) {
-            YT_LOG_DEBUG("Postponed job events enqueued (OperationId: %v, EventCount: %v)",
-                OperationId_,
-                PostponedJobEvents_.size());
-            JobEventsOutbox_->Enqueue(std::move(PostponedJobEvents_));
-            PostponedJobEvents_.clear(); // just to be sure
-        }
     }
 
     virtual void RevokeAgent() override
@@ -147,7 +141,6 @@ public:
 
         IncarnationId_ = {};
         Agent_.Reset();
-        YT_VERIFY(PostponedJobEvents_.empty());
     }
 
     virtual TControllerAgentPtr FindAgent() const override
@@ -178,7 +171,7 @@ public:
                 try {
                     FromProto(&transactions, rsp->transaction_ids(), std::bind(&TBootstrap::GetRemoteMasterClient, Bootstrap_, _1), Config_->OperationTransactionPingPeriod);
                 } catch (const std::exception& ex) {
-                    YT_LOG_INFO(ex, "Failed to attach operation transactions (OperationId: %v)",
+                    YT_LOG_INFO(ex, "Failed to attach operation transactions",
                         OperationId_);
                 }
                 return TOperationControllerInitializeResult{
@@ -286,9 +279,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        YT_LOG_INFO("Terminating operation controller");
+
         if (!IncarnationId_) {
-            YT_LOG_WARNING("Operation has no agent assigned; control abort request ignored (OperationId: %v)",
-                OperationId_);
+            YT_LOG_INFO("Operation has no agent assigned; terminate request ignored");
             return VoidFuture;
         }
 
@@ -319,7 +313,10 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        YT_LOG_INFO("Unregistering operation controller");
+
         if (!IncarnationId_) {
+            YT_LOG_INFO("Operation has no agent assigned; unregister request ignored");
             return MakeFuture<TOperationControllerUnregisterResult>({});
         }
 
@@ -353,8 +350,7 @@ public:
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Started, job, false, nullptr);
         JobEventsOutbox_->Enqueue(std::move(event));
-        YT_LOG_DEBUG("Job start notification enqueued (OperationId: %v, JobId: %v)",
-            OperationId_,
+        YT_LOG_DEBUG("Job start notification enqueued (JobId: %v)",
             job->GetId());
     }
 
@@ -369,9 +365,8 @@ public:
         event.Abandoned = abandoned;
         event.InterruptReason = job->GetInterruptReason();
         auto result = EnqueueJobEvent(std::move(event));
-        YT_LOG_DEBUG("Job completion notification %v (OperationId: %v, JobId: %v)",
-            result ? "enqueued" : "buffered",
-            OperationId_,
+        YT_LOG_DEBUG("Job completion notification %v (JobId: %v)",
+            result ? "enqueued" : "dropped",
             job->GetId());
     }
 
@@ -383,9 +378,8 @@ public:
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Failed, job, true, status);
         auto result = EnqueueJobEvent(std::move(event));
-        YT_LOG_DEBUG("Job failure notification %v (OperationId: %v, JobId: %v)",
-            result ? "enqueued" : "buffered",
-            OperationId_,
+        YT_LOG_DEBUG("Job failure notification %v (JobId: %v)",
+            result ? "enqueued" : "dropped",
             job->GetId());
     }
 
@@ -399,10 +393,11 @@ public:
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Aborted, job, true, status);
         event.AbortReason = job->GetAbortReason();
         event.AbortedByScheduler = byScheduler;
+        event.PreemptedFor = job->GetPreemptedFor();
+
         auto result = EnqueueJobEvent(std::move(event));
-        YT_LOG_DEBUG("Job abort notification %v (OperationId: %v, JobId: %v, ByScheduler: %v)",
-            result ? "enqueued" : "buffered",
-            OperationId_,
+        YT_LOG_DEBUG("Job abort notification %v (JobId: %v, ByScheduler: %v)",
+            result ? "enqueued" : "dropped",
             job->GetId(),
             byScheduler);
     }
@@ -428,9 +423,8 @@ public:
             {}
         };
         auto result = EnqueueJobEvent(std::move(event));
-        YT_LOG_DEBUG("Nonscheduled job abort notification %v (OperationId: %v, JobId: %v)",
-            result ? "enqueued" : "buffered",
-            OperationId_,
+        YT_LOG_DEBUG("Nonscheduled job abort notification %v (JobId: %v)",
+            result ? "enqueued" : "dropped",
             jobId);
     }
 
@@ -442,11 +436,10 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto event = BuildEvent(ESchedulerToAgentJobEventType::Running, job, true, status);
-        auto result = EnqueueJobEvent(std::move(event), /* postponeIfNoAgent */ false);
+        auto result = EnqueueJobEvent(std::move(event));
         YT_LOG_DEBUG_IF(shouldLogJob,
-            "Job run notification %v (OperationId: %v, JobId: %v)",
+            "Job run notification %v (JobId: %v)",
             result ? "enqueued" : "dropped",
-            OperationId_,
             job->GetId());
     }
 
@@ -477,8 +470,7 @@ public:
             if (!IncarnationId_) {
                 guard.Release();
 
-                YT_LOG_DEBUG("Job schedule request cannot be served since no agent is assigned (OperationId: %v, JobId: %v)",
-                    OperationId_,
+                YT_LOG_DEBUG("Job schedule request cannot be served since no agent is assigned (JobId: %v)",
                     jobId);
 
                 auto result = New<TControllerScheduleJobResult>();
@@ -491,8 +483,7 @@ public:
             ScheduleJobRequestsOutbox_->Enqueue(std::move(request));
         }
 
-        YT_LOG_TRACE("Job schedule request enqueued (OperationId: %v, JobId: %v)",
-            OperationId_,
+        YT_LOG_TRACE("Job schedule request enqueued (JobId: %v)",
             jobId);
 
         const auto& scheduler = Bootstrap_->GetScheduler();
@@ -516,8 +507,7 @@ public:
             ESchedulerToAgentOperationEventType::UpdateMinNeededJobResources,
             OperationId_
         });
-        YT_LOG_DEBUG("Min needed job resources update request enqueued (OperationId: %v)",
-            OperationId_);
+        YT_LOG_DEBUG("Min needed job resources update request enqueued");
     }
 
     virtual TJobResourcesWithQuotaList GetMinNeededJobResources() const override
@@ -545,6 +535,7 @@ private:
     const TOperationId OperationId_;
     const TOperationRuntimeDataPtr RuntimeData_;
     const EPreemptionMode PreemptionMode_;
+    const NLogging::TLogger Logger;
 
     TSpinLock SpinLock_;
 
@@ -552,7 +543,6 @@ private:
     TWeakPtr<TControllerAgent> Agent_;
     std::unique_ptr<TControllerAgentServiceProxy> AgentProxy_;
 
-    std::vector<TSchedulerToAgentJobEvent> PostponedJobEvents_;
     TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>> JobEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
@@ -560,16 +550,15 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 
-    bool EnqueueJobEvent(TSchedulerToAgentJobEvent&& event, bool postponeIfNoAgent = true)
+    bool EnqueueJobEvent(TSchedulerToAgentJobEvent&& event)
     {
         auto guard = Guard(SpinLock_);
         if (IncarnationId_) {
             JobEventsOutbox_->Enqueue(std::move(event));
             return true;
         } else {
-            if (postponeIfNoAgent) {
-                PostponedJobEvents_.emplace_back(std::move(event));
-            }
+            // All job notifications must be dropped after agent disconnection.
+            // Job revival machinery will reconsider this event further.
             return false;
         }
     }
@@ -1068,6 +1057,9 @@ public:
                     if (event.AbortedByScheduler) {
                         protoEvent->set_aborted_by_scheduler(*event.AbortedByScheduler);
                     }
+                    if (event.PreemptedFor) {
+                        ToProto(protoEvent->mutable_preempted_for(), *event.PreemptedFor);
+                    }
                 });
 
             agent->GetOperationEventsOutbox()->HandleStatus(
@@ -1254,8 +1246,10 @@ private:
     {
         TLeaseManager::CloseLease(agent->GetLease());
         agent->SetLease(TLease());
-        agent->GetChannel()->Terminate(TError("Agent disconnected"));
-        agent->Cancel();
+
+        TError error("Agent disconnected");
+        agent->GetChannel()->Terminate(error);
+        agent->Cancel(error);
     }
 
     void OnAgentHeartbeatTimeout(const TWeakPtr<TControllerAgent>& weakAgent)

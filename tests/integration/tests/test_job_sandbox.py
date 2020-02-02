@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, patch_porto_env_only
+from yt_env_setup import YTEnvSetup, patch_porto_env_only, get_porto_delta_node_config
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
@@ -11,25 +11,13 @@ import pytest
 import time
 import datetime
 
-porto_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            # <= 18.4
-            "enforce_job_control": True,
-            "job_environment": {
-                # >= 19.2
-                "type": "porto",
-            },
-        }
-    }
-}
-
 ##################################################################
 
 class TestSandboxTmpfs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat")
     def test_simple(self):
@@ -444,6 +432,44 @@ class TestSandboxTmpfs(YTEnvSetup):
         words = content.strip().split()
         assert ["file", "content_1", "file", "content_2"] == words
 
+    @authors("ignat")
+    def test_vanilla(self):
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "a": {
+                        "job_count": 2,
+                        "command": 'sleep 5',
+                        "tmpfs_volumes": [
+                        ]
+                    },
+                    "b": {
+                        "job_count": 1,
+                        "command": 'sleep 10',
+                        "tmpfs_volumes": [
+                            {
+                                "path": "tmpfs",
+                                "size": 1024 * 1024,
+                            },
+                        ]
+                    },
+                    "c": {
+                        "job_count": 3,
+                        "command": 'sleep 15',
+                        "tmpfs_volumes": [
+                            {
+                                "path": "tmpfs",
+                                "size": 1024 * 1024,
+                            },
+                            {
+                                "path": "other_tmpfs",
+                                "size": 1024 * 1024,
+                            },
+                        ]
+                    },
+                },
+            })
+
 ##################################################################
 
 class TestSandboxTmpfsOverflow(YTEnvSetup):
@@ -451,6 +477,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
@@ -495,7 +522,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
         write_table("//tmp/t_input", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint(
                 "dd if=/dev/zero of=tmpfs_1/file  bs=1M  count=2048; ls tmpfs_1/ >&2; "
                 "dd if=/dev/zero of=tmpfs_2/file  bs=1M  count=2048; ls tmpfs_2/ >&2; "
@@ -551,7 +578,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
 
 @patch_porto_env_only(TestSandboxTmpfs)
 class TestSandboxTmpfsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
@@ -630,7 +657,7 @@ class TestFilesInSandbox(YTEnvSetup):
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
         write_table("//tmp/t_input", {"foo": "bar"})
-        op = map(dont_track=True,
+        op = map(track=False,
                  command="./script",
                  in_="//tmp/t_input",
                  out="//tmp/t_output",
@@ -716,6 +743,10 @@ class TestNetworkIsolation(YTEnvSetup):
     USE_PORTO_FOR_SERVERS = True
 
     @authors("gritukan")
+    def test_create_network_project_map(self):
+        create("network_project_map", "//tmp/n")
+
+    @authors("gritukan")
     def test_network_project_in_spec(self):
         create_user("u1")
         create_user("u2")
@@ -750,7 +781,7 @@ class TestNetworkIsolation(YTEnvSetup):
                 },
                 authenticated_user="u2")
 
-        op = map(dont_track=True,
+        op = map(track=False,
                  command=with_breakpoint("echo $YT_NETWORK_PROJECT_ID >&2; hostname >&2; BREAKPOINT; cat"),
                  in_="//tmp/t_input",
                  out="//tmp/t_output",

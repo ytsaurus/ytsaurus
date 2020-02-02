@@ -53,6 +53,7 @@ struct IInstance
     virtual void Kill(int signal) = 0;
     virtual void Stop() = 0;
     virtual void Destroy() = 0;
+    virtual TString GetRoot() = 0;
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const = 0;
     virtual TResourceLimits GetResourceLimits() const = 0;
     virtual TResourceLimits GetResourceLimitsRecursive() const = 0;
@@ -64,6 +65,7 @@ struct IInstance
     virtual void SetDevices(const std::vector<TDevice>& devices) = 0;
     virtual TString GetName() const = 0;
     virtual TString GetAbsoluteName() const = 0;
+    virtual TString GetStderr() const = 0;
     virtual void SetIsolate() = 0;
     virtual void EnableMemoryTracking() = 0;
     virtual void SetUser(const TString& user) = 0;

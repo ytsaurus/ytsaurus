@@ -28,7 +28,7 @@ DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcher);
 IChunkSliceFetcherPtr CreateChunkSliceFetcher(
     NChunkClient::TFetcherConfigPtr config,
     i64 chunkSliceSize,
-    const NTableClient::TKeyColumns& keyColumns,
+    int keyColumnCount,
     bool sliceByKeys,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,

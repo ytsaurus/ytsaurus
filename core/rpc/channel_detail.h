@@ -23,6 +23,9 @@ public:
 
     virtual TFuture<void> Terminate(const TError& error) override;
 
+    virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override;
+    virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override;
+
 protected:
     const IChannelPtr UnderlyingChannel_;
 
@@ -39,6 +42,7 @@ public:
     void SetUnderlying(IClientRequestControlPtr underlying);
 
     virtual void Cancel() override;
+
     virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& payload) override;
     virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& feedback) override;
 

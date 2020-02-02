@@ -12,8 +12,9 @@ class TFairShareStrategyOperationController
 public:
     explicit TFairShareStrategyOperationController(IOperationStrategyHost* operation);
 
-    void DecreaseConcurrentScheduleJobCalls();
-    void IncreaseConcurrentScheduleJobCalls();
+    void DecreaseConcurrentScheduleJobCalls(int nodeShardId);
+    void IncreaseConcurrentScheduleJobCalls(int nodeShardId);
+    void IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId);
 
     void SetLastScheduleJobFailTime(NProfiling::TCpuInstant now);
 
@@ -21,10 +22,11 @@ public:
     TJobResources GetAggregatedMinNeededJobResources() const;
     void UpdateMinNeededJobResources();
 
-    bool IsBlocked(
-        NProfiling::TCpuInstant now,
-        int maxConcurrentScheduleJobCalls,
-        TDuration scheduleJobFailBackoffTime) const;
+    void CheckMaxScheduleJobCallsOverdraft(int maxScheduleJobCalls, bool* isMaxScheduleJobCallsViolated) const;
+    bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
+        const ISchedulingContextPtr& schedulingContext,
+        int maxConcurrentScheduleJobCallsPerNodeShard) const;
+    bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now, TDuration scheduleJobFailBackoffTime) const;
 
     TControllerScheduleJobResultPtr ScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
@@ -48,8 +50,16 @@ private:
 
     const NLogging::TLogger Logger;
 
-    mutable std::atomic<bool> Blocked_ = {false};
-    std::atomic<int> ConcurrentScheduleJobCalls_ = {0};
+    struct TStateShard
+    {
+        std::atomic<int> ConcurrentScheduleJobCalls = 0;
+        mutable std::atomic<int> ScheduleJobCallsSinceLastUpdate = 0;
+        char Padding[64];
+    };
+    std::array<TStateShard, MaxNodeShardCount> StateShards_;
+
+    mutable int ScheduleJobCallsOverdraft_ = 0;
+
     std::atomic<NProfiling::TCpuInstant> LastScheduleJobFailTime_ = ::Min<NProfiling::TCpuInstant>();
 
     NConcurrency::TReaderWriterSpinLock SaturatedTentativeTreesLock_;

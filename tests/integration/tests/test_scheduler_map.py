@@ -1,4 +1,8 @@
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto, parametrize_external
+from yt_env_setup import (
+    YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto, parametrize_external,
+    get_porto_delta_node_config,
+)
+
 from yt_commands import *
 
 from yt.test_helpers import assert_items_equal, are_almost_equal
@@ -14,26 +18,13 @@ import base64
 
 ##################################################################
 
-porto_delta_node_config = {
-    "exec_agent": {
-        "slot_manager": {
-            # <= 18.4
-            "enforce_job_control": True,
-            "job_environment": {
-                # >= 19.2
-                "type": "porto",
-            },
-        }
-    }
-}
-
-##################################################################
-
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 16
     NUM_SCHEDULERS = 1
-    USE_DYNAMIC_TABLES = True
+
+    # Used by test_map_soft_interrupt.
+    REQUIRE_SUID_TOOL = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -94,7 +85,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t1",
             out="//tmp/t2",
             command=r'cat; echo "{v1=\"$V1\"};{v2=\"$TMPDIR\"}"',
@@ -336,7 +327,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         for job_count in xrange(976, 950, -1):
             op = map(
-                dont_track=True,
+                track=False,
                 in_="//tmp/input",
                 out="//tmp/output",
                 command="sleep 100",
@@ -486,7 +477,7 @@ print row + table_index
         t_in = '<ranges=[{lower_limit={key=["00002"]};upper_limit={key=["00003"]}};{lower_limit={key=["00002"]};upper_limit={key=["00003"]}}]>//tmp/t_in'
 
         op = map(
-            dont_track=True,
+            track=False,
             in_=[t_in],
             out="//tmp/out",
             command="cat >& 2",
@@ -527,7 +518,7 @@ print row + table_index
         op = map(
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            dont_track=True,
+            track=False,
             command=cmd,
             spec={
                 "mapper": {
@@ -580,7 +571,7 @@ print row + table_index
         alter_table("//tmp/t2", schema=schema)
 
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint("cat && BREAKPOINT"),
             in_="//tmp/t1",
             out="//tmp/t2",
@@ -621,7 +612,7 @@ print row + table_index
         create("table", "//tmp/t_out2")
 
         op = map(
-            dont_track=True,
+            track=False,
             command=with_breakpoint('echo "{a=$YT_JOB_INDEX}" >&1; echo "{b=$YT_JOB_INDEX}" >&4; BREAKPOINT'),
             in_="//tmp/t_in",
             out=["//tmp/t_out1", "//tmp/t_out2"],
@@ -644,7 +635,6 @@ print row + table_index
 
         release_breakpoint()
         op.track()
-
 
     @authors("max42", "ignat")
     def test_row_sampling(self):
@@ -682,7 +672,7 @@ print row + table_index
 
         create("table", "//tmp/output")
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
             command=with_breakpoint("cat ; BREAKPOINT"),
@@ -710,7 +700,7 @@ print row + table_index
 
         create("table", "//tmp/output")
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/input",
             out="//tmp/output",
             command=with_breakpoint("cat && BREAKPOINT"),
@@ -721,13 +711,17 @@ print row + table_index
         wait_breakpoint(job_count=5)
 
         for n in get("//sys/cluster_nodes"):
-            job_controller = get("//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(n))
-            for job_id, values in job_controller.items():
+            scheduler_jobs = get("//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(n))
+            for job_id, values in scheduler_jobs.items():
                 assert "start_time" in values
                 assert "operation_id" in values
                 assert "statistics" in values
                 assert "job_type" in values
                 assert "duration" in values
+
+            slot_manager = get("//sys/cluster_nodes/{0}/orchid/job_controller/slot_manager".format(n))
+            assert 'free_slot_count' in slot_manager
+            assert 'slot_count' in slot_manager
 
         op.abort()
 
@@ -741,7 +735,7 @@ print row + table_index
         create("table", "//tmp/out_1")
         create("table", "//tmp/out_2")
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/input",
             out=["//tmp/out_1", "<row_count_limit=3>//tmp/out_2"],
             command=with_breakpoint("cat >&4 ; BREAKPOINT"),
@@ -931,6 +925,46 @@ print row + table_index
 
         assert read_table("//tmp/tout") == [{"d": 42}]
 
+    @authors("evgenstf")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_two_tables_with_column_filter(self, optimize_for):
+        create("table", "//tmp/input_table_1", attributes={
+                "schema": [{"name": "first_column_1", "type": "int64"},
+                           {"name": "second_column_1", "type": "int64"},
+                           {"name": "third_column_1", "type": "int64"}],
+                "optimize_for": optimize_for})
+        write_table("//tmp/input_table_1", [{"first_column_1": 1001, "second_column_1": 2001, "third_column_1": 3001}])
+
+        create("table", "//tmp/input_table_2", attributes={
+                "schema": [{"name": "first_column_2", "type": "int64"},
+                           {"name": "second_column_2", "type": "int64"},
+                           {"name": "third_column_2", "type": "int64"}],
+                "optimize_for": optimize_for})
+        write_table("//tmp/input_table_2", [{"first_column_2": 1002, "second_column_2": 2002, "third_column_2": 3002}])
+
+        create("table", "//tmp/input_table_3", attributes={
+                "schema": [{"name": "first_column_2", "type": "int64"},
+                           {"name": "second_column_2", "type": "int64"},
+                           {"name": "third_column_2", "type": "int64"}],
+                "optimize_for": optimize_for})
+        write_table("//tmp/input_table_3", [{"first_column_2": 1002, "second_column_2": 2002, "third_column_2": 3002}])
+
+        create("table", "//tmp/output_table_1")
+        create("table", "//tmp/output_table_2")
+        create("table", "//tmp/output_table_3")
+
+        map(in_=[
+                '<columns=["first_column_1";"third_column_1"]>//tmp/input_table_1',
+                '<columns=["first_column_2";"second_column_2"]>//tmp/input_table_2',
+                '<columns=["first_column_2";"second_column_2"]>//tmp/input_table_3'
+            ],
+            out=["//tmp/output_table_1", "//tmp/output_table_2", "//tmp/output_table_3"],
+            command="cat")
+
+        assert read_table("//tmp/output_table_1") == [{"first_column_1": 1001, "third_column_1": 3001}]
+        assert read_table("//tmp/output_table_2") == [{"first_column_2": 1002, "second_column_2": 2002}]
+        assert read_table("//tmp/output_table_3") == [{"first_column_2": 1002, "second_column_2": 2002}]
+
     @authors("lukyan")
     @pytest.mark.parametrize("mode", ["unordered", "ordered"])
     def test_computed_columns(self, mode):
@@ -961,7 +995,7 @@ print row + table_index
         write_table("//tmp/t_input", {"foo": "bar"})
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_input",
             out="//tmp/t_output",
             command='cat',
@@ -1021,7 +1055,7 @@ print row + table_index
 
         op = map(
             ordered=ordered,
-            dont_track=True,
+            track=False,
             label="interrupt_job",
             in_="//tmp/in_1",
             out=output,
@@ -1074,7 +1108,7 @@ print('{interrupt=43};')"
 """
 
         op = map(
-            dont_track=True,
+            track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command=with_breakpoint(command),
@@ -1112,7 +1146,7 @@ print('{interrupt=43};')"
 
         op = map(
             ordered=ordered,
-            dont_track=True,
+            track=False,
             label="interrupt_job",
             in_="//tmp/in_1",
             out=output,
@@ -1217,7 +1251,7 @@ done
 
         op = map(
             ordered=ordered,
-            dont_track=True,
+            track=False,
             label="split_job",
             in_=input_,
             out=output,
@@ -1262,7 +1296,7 @@ done
             in_=[input_] * 10,
             out=output,
             command="sleep 5; echo '{a=1}'",
-            dont_track=True)
+            track=False)
         time.sleep(2.0)
         assert len(get(op.get_path() + "/controller_orchid/job_splitter")) == 0
         op.track()
@@ -1285,7 +1319,7 @@ done
 
 @patch_porto_env_only(TestSchedulerMapCommands)
 class TestSchedulerMapCommandsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
@@ -1412,7 +1446,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         assert len(chunk_ids) == len(original_data)
 
         create("table", "//tmp/t_output")
-        op = map(dont_track=True,
+        op = map(track=False,
                  command="sleep $YT_JOB_INDEX; cat",
                  in_="//tmp/t_input",
                  out="//tmp/t_output",
@@ -1434,356 +1468,6 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
         op.track()
         assert op.get_state() == "completed"
-
-##################################################################
-
-class TestMapOnDynamicTables(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 16
-    NUM_SCHEDULERS = 1
-    USE_DYNAMIC_TABLES = True
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100,
-            "operations_update_period": 10,
-            "running_jobs_update_period": 10,
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operations_update_period": 10,
-            "map_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 5000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
-            },
-        }
-    }
-
-    def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
-        if "schema" not in attributes:
-            attributes.update({"schema": [
-                {"name": "key", "type": "int64", "sort_order": sort_order},
-                {"name": "value", "type": "string"}]
-            })
-        create_dynamic_table(path, **attributes)
-
-    @authors("savrus")
-    @parametrize_external
-    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    @pytest.mark.parametrize("sort_order", [None, "ascending"])
-    @pytest.mark.parametrize("ordered", [False, True])
-    def test_map_on_dynamic_table(self, external, ordered, sort_order, optimize_for):
-        sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", sort_order=sort_order, optimize_for=optimize_for, external=external)
-        set("//tmp/t/@min_compaction_store_count", 5)
-        create("table", "//tmp/t_out")
-
-        rows = [{"key": i, "value": str(i)} for i in range(10)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows)
-        sync_unmount_table("//tmp/t")
-
-        map(
-            in_="//tmp/t",
-            out="//tmp/t_out",
-            ordered=ordered,
-            command="cat")
-
-        assert_items_equal(read_table("//tmp/t_out"), rows)
-
-        rows1 = [{"key": i, "value": str(i+1)} for i in range(3)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows1)
-        sync_unmount_table("//tmp/t")
-
-        rows2 = [{"key": i, "value": str(i+2)} for i in range(2, 6)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows2)
-        sync_unmount_table("//tmp/t")
-
-        rows3 = [{"key": i, "value": str(i+3)} for i in range(7, 8)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows3)
-        sync_unmount_table("//tmp/t")
-
-        assert len(get("//tmp/t/@chunk_ids")) == 4
-
-        def update(new):
-            def update_row(row):
-                if sort_order == "ascending":
-                    for r in rows:
-                        if r["key"] == row["key"]:
-                            r["value"] = row["value"]
-                            return
-                rows.append(row)
-            for row in new:
-                update_row(row)
-
-        update(rows1)
-        update(rows2)
-        update(rows3)
-
-        map(
-            in_="//tmp/t",
-            out="//tmp/t_out",
-            ordered=ordered,
-            command="cat")
-
-        assert_items_equal(read_table("//tmp/t_out"), rows)
-
-    @authors("savrus")
-    @parametrize_external
-    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_sorted_dynamic_table_as_user_file(self, external, optimize_for):
-        sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for, external=external)
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-
-        rows = [{"key": i, "value": str(i)} for i in range(5)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows)
-        sync_unmount_table("//tmp/t")
-
-        rows1 = [{"key": i, "value": str(i+1)} for i in range(3, 8)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows1)
-        sync_unmount_table("//tmp/t")
-
-        write_table("//tmp/t_in", [{"a": "b"}])
-
-        map(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            file=["<format=<format=text>yson>//tmp/t"],
-            command="cat t",
-            spec={
-                "mapper": {
-                    "format": yson.loads("<format=text>yson")
-                }
-            })
-
-        def update(new):
-            def update_row(row):
-                for r in rows:
-                    if r["key"] == row["key"]:
-                        r["value"] = row["value"]
-                        return
-                rows.append(row)
-            for row in new:
-                update_row(row)
-
-        update(rows1)
-        rows = sorted(rows, key=lambda r: r["key"])
-        assert read_table("//tmp/t_out") == rows
-
-    @authors("savrus")
-    @parametrize_external
-    def test_ordered_dynamic_table_as_user_file(self, external):
-        sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", sort_order=None, external=external)
-        create("table", "//tmp/t_in")
-        create("table", "//tmp/t_out")
-
-        rows = [{"key": i, "value": str(i)} for i in range(5)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows)
-        sync_unmount_table("//tmp/t")
-
-        rows1 = [{"key": i, "value": str(i+1)} for i in range(3, 8)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows1)
-        sync_unmount_table("//tmp/t")
-
-        write_table("//tmp/t_in", [{"a": "b"}])
-
-        map(
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            file=["<format=<format=text>yson>//tmp/t"],
-            command="cat t",
-            spec={
-                "mapper": {
-                    "format": yson.loads("<format=text>yson")
-                }
-            })
-
-        assert read_table("//tmp/t_out") == rows + rows1
-
-    @authors("savrus")
-    @parametrize_external
-    def test_dynamic_table_timestamp(self, external):
-        sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", external=external)
-        create("table", "//tmp/t_out")
-
-        rows = [{"key": i, "value": str(i)} for i in range(2)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows)
-
-        time.sleep(1)
-        ts = generate_timestamp()
-
-        sync_flush_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": i, "value": str(i+1)} for i in range(2)])
-        sync_flush_table("//tmp/t")
-        sync_compact_table("//tmp/t")
-
-        map(
-            in_="<timestamp=%s>//tmp/t" % ts,
-            out="//tmp/t_out",
-            command="cat")
-
-        assert_items_equal(read_table("//tmp/t_out"), rows)
-
-        with pytest.raises(YtError):
-            map(
-                in_="<timestamp=%s>//tmp/t" % MinTimestamp,
-                out="//tmp/t_out",
-                command="cat")
-
-        insert_rows("//tmp/t", rows)
-
-        with pytest.raises(YtError):
-            map(
-                in_="<timestamp=%s>//tmp/t" % generate_timestamp(),
-                out="//tmp/t_out",
-                command="cat")
-
-    @authors("savrus")
-    @parametrize_external
-    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_dynamic_table_input_data_statistics(self, external, optimize_for):
-        sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for, external=external)
-        create("table", "//tmp/t_out")
-
-        rows = [{"key": i, "value": str(i)} for i in range(2)]
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", rows)
-        sync_unmount_table("//tmp/t")
-
-        op = map(
-            in_="//tmp/t",
-            out="//tmp/t_out",
-            command="cat")
-
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert get_statistics(statistics, "data.input.chunk_count.$.completed.map.sum") == 1
-        assert get_statistics(statistics, "data.input.row_count.$.completed.map.sum") == 2
-        assert get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum") > 0
-        assert get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum") > 0
-        assert get_statistics(statistics, "data.input.data_weight.$.completed.map.sum") > 0
-
-    @authors("savrus")
-    @parametrize_external
-    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_dynamic_table_column_filter(self, optimize_for, external):
-        sync_create_cells(1)
-        create("table", "//tmp/t", attributes={
-            "external": external,
-            "optimize_for": optimize_for,
-            "schema": make_schema([
-                {"name": "k", "type": "int64", "sort_order": "ascending"},
-                {"name": "u", "type": "int64"},
-                {"name": "v", "type": "int64"}
-            ],
-            unique_keys=True)
-        })
-        create("table", "//tmp/t_out")
-
-        row = {"k": 0, "u": 1, "v": 2}
-        write_table("//tmp/t", [row])
-        alter_table("//tmp/t", dynamic=True)
-
-        def get_data_size(statistics):
-            return {
-                "uncompressed_data_size": get_statistics(statistics, "data.input.uncompressed_data_size.$.completed.map.sum"),
-                "compressed_data_size": get_statistics(statistics, "data.input.compressed_data_size.$.completed.map.sum")
-            }
-
-        op = map(
-            in_="//tmp/t",
-            out="//tmp/t_out",
-            command="cat")
-        stat1 = get_data_size(get(op.get_path() + "/@progress/job_statistics"))
-        assert read_table("//tmp/t_out") == [row]
-
-        # FIXME(savrus) investigate test flapping
-        print_debug(get("//tmp/t/@compression_statistics"))
-
-        for columns in (["k"], ["u"], ["v"], ["k", "u"], ["k", "v"], ["u", "v"]):
-            op = map(
-                in_="<columns=[{0}]>//tmp/t".format(";".join(columns)),
-                out="//tmp/t_out",
-                command="cat")
-            stat2 = get_data_size(get(op.get_path() + "/@progress/job_statistics"))
-            assert read_table("//tmp/t_out") == [{c: row[c] for c in columns}]
-
-            if columns == ["u", "v"] or optimize_for == "lookup":
-                assert stat1["uncompressed_data_size"] == stat2["uncompressed_data_size"]
-                assert stat1["compressed_data_size"] == stat2["compressed_data_size"]
-            else:
-                assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
-                assert stat1["compressed_data_size"] > stat2["compressed_data_size"]
-
-    @authors("savrus")
-    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_rename_columns_dynamic_table_simple(self, optimize_for):
-        sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", optimize_for=optimize_for)
-        create("table", "//tmp/t_out")
-
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": 1, "value": str(2)}])
-        sync_unmount_table("//tmp/t")
-
-        op = map(
-            in_="<rename_columns={key=first;value=second}>//tmp/t",
-            out="//tmp/t_out",
-            command="cat")
-
-        assert read_table("//tmp/t_out") == [{"first": 1, "second": str(2)}]
-
-    def _print_chunk_list_recursive(self, chunk_list):
-        result = []
-        def recursive(chunk_list, level):
-            t = get("#{0}/@type".format(chunk_list))
-            result.append([level, chunk_list, t, None, None])
-            if t == "chunk":
-                r = get("#{0}/@row_count".format(chunk_list))
-                u = get("#{0}/@uncompressed_data_size".format(chunk_list))
-                result[-1][3] = {"row_count": r, "data_size": u}
-            if t == "chunk_list":
-                s = get("#{0}/@statistics".format(chunk_list))
-                #cs = get("#{0}/@cumulative_statistics".format(chunk_list))
-                cs = None
-                result[-1][3] = s
-                result[-1][4] = cs
-                for c in get("#{0}/@child_ids".format(chunk_list)):
-                    recursive(c, level + 1)
-        recursive(chunk_list, 0)
-        for r in result:
-            print "%s%s %s %s %s" % ("   " * r[0], r[1], r[2], r[3], r[4])
-
-##################################################################
-
-class TestMapOnDynamicTablesMulticell(TestMapOnDynamicTables):
-    NUM_SECONDARY_MASTER_CELLS = 2
-
-##################################################################
-
-@patch_porto_env_only(TestMapOnDynamicTables)
-class TestMapOnDynamicTablesPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = porto_delta_node_config
-    USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
 
@@ -2048,6 +1732,7 @@ print '{hello=world}'
                 actual_content.append(new_row)
 
         assert actual_content == expected_content
+
 
 ##################################################################
 

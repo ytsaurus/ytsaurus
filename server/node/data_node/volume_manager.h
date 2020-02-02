@@ -6,6 +6,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,20 +23,20 @@ DEFINE_REFCOUNTED_TYPE(IVolume)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates volumes from different layers.
-//! Useful for creation and reuse of rootfs volumes.
+//! Useful for creation of rootfs volumes.
 struct IVolumeManager
     : public virtual TRefCounted
 {
     virtual TFuture<IVolumePtr> PrepareVolume(const std::vector<TArtifactKey>& layers) = 0;
+
+    virtual void BuildOrchidYson(NYTree::TFluentMap fluent) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IVolumeManager)
 
-#ifdef __linux__
 IVolumeManagerPtr CreatePortoVolumeManager(
     TVolumeManagerConfigPtr config,
     NCellNode::TBootstrap* bootstrap);
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

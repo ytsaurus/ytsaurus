@@ -12,7 +12,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/chunk_client/chunk_service.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
 namespace NYT::NChunkClient {
 

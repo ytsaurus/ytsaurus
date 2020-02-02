@@ -20,6 +20,9 @@
 
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
+#include <yt/ytlib/tablet_client/helpers.h>
+
+#include <yt/core/ypath/helpers.h>
 #include <yt/core/ypath/tokenizer.h>
 
 namespace NYT::NApi::NNative {
@@ -149,12 +152,29 @@ protected:
         , Logger(std::move(logger))
     { }
 
+    struct TSerializedSubtree
+    {
+        TSerializedSubtree() = default;
+
+        TSerializedSubtree(TYPath path, NCypressClient::NProto::TSerializedTree serializedValue)
+            : Path(std::move(path))
+            , SerializedValue(std::move(serializedValue))
+        { }
+
+        //! Relative to tree root path to subtree root.
+        TYPath Path;
+
+        //! Serialized subtree.
+        NCypressClient::NProto::TSerializedTree SerializedValue;
+    };
+
     const TClientPtr Client_;
 
     const NLogging::TLogger Logger;
 
     ITransactionPtr Transaction_;
-    NCypressClient::NProto::TSerializedTree SerializedTree_;
+
+    std::vector<TSerializedSubtree> SerializedSubtrees_;
 
     TNodeId SrcNodeId_;
     TNodeId DstNodeId_;
@@ -189,37 +209,60 @@ protected:
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(std::move(channel));
 
-        YT_LOG_DEBUG("Requesting serialized tree");
+        std::queue<TYPath> subtreeSerializationQueue;
+        subtreeSerializationQueue.push(srcPath);
 
-        auto batchReq = proxy.ExecuteBatch();
-        auto req = TCypressYPathProxy::BeginCopy(srcPath);
-        GenerateMutationId(req);
-        SetTransactionId(req, Transaction_->GetId());
-        SetBeginCopyNodeRequestParameters(req, options);
-        batchReq->AddRequest(req);
+        while (!subtreeSerializationQueue.empty()) {
+            auto subtreePath = subtreeSerializationQueue.front();
+            subtreeSerializationQueue.pop();
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error requesting serialized tree for %v", srcPath);
+            YT_LOG_DEBUG("Requesting serialized subtree (SubtreePath: %v)", subtreePath);
 
-        const auto& batchRsp = batchRspOrError.Value();
-        auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspBeginCopy>(0);
-        const auto& rsp = rspOrError.Value();
-        auto opaqueChildIds = FromProto<std::vector<TNodeId>>(rsp->opaque_child_ids());
-        auto externalCellTags = FromProto<TCellTagList>(rsp->external_cell_tags());
-        SrcNodeId_ = FromProto<TNodeId>(rsp->node_id());
+            auto batchReq = proxy.ExecuteBatch();
+            auto req = TCypressYPathProxy::BeginCopy(subtreePath);
+            GenerateMutationId(req);
+            SetTransactionId(req, Transaction_->GetId());
+            SetBeginCopyNodeRequestParameters(req, options);
+            batchReq->AddRequest(req);
 
-        YT_LOG_DEBUG("Serialized tree received (NodeId: %v, FormatVersion: %v, TreeSize: %v, "
-            "OpaqueChildIds: %v, ExternalCellTags: %v)",
-            SrcNodeId_,
-            rsp->serialized_tree().version(),
-            rsp->serialized_tree().data().size(),
-            opaqueChildIds,
-            externalCellTags);
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
+                "Error requesting serialized subtree for %v", subtreePath);
 
-        SerializedTree_ = std::move(*rsp->mutable_serialized_tree());
+            const auto& batchRsp = batchRspOrError.Value();
 
-        for (auto cellTag : externalCellTags) {
-            ExternalCellTags_.push_back(cellTag);
+            auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspBeginCopy>(0);
+            const auto& rsp = rspOrError.Value();
+            auto portalChildIds = FromProto<std::vector<TNodeId>>(rsp->portal_child_ids());
+            auto externalCellTags = FromProto<TCellTagList>(rsp->external_cell_tags());
+            auto opaqueChildPaths = FromProto<std::vector<TYPath>>(rsp->opaque_child_paths());
+            auto nodeId = FromProto<TNodeId>(rsp->node_id());
+            if (subtreePath == srcPath) {
+                SrcNodeId_ = nodeId;
+            }
+
+            YT_LOG_DEBUG("Serialized subtree received (NodeId: %v, Path: %v, FormatVersion: %v, TreeSize: %v, "
+                 "PortalChildIds: %v, ExternalCellTags: %v, OpaqueChildPaths: %v)",
+                 nodeId,
+                 subtreePath,
+                 rsp->serialized_tree().version(),
+                 rsp->serialized_tree().data().size(),
+                 portalChildIds,
+                 externalCellTags,
+                 opaqueChildPaths);
+
+            auto relativePath = TryComputeYPathSuffix(subtreePath, srcPath);
+            YT_VERIFY(relativePath);
+
+            SerializedSubtrees_.emplace_back(*relativePath, std::move(*rsp->mutable_serialized_tree()));
+
+            for (auto cellTag : externalCellTags) {
+                ExternalCellTags_.push_back(cellTag);
+            }
+
+            for (const auto& opaqueChildPath : opaqueChildPaths) {
+                subtreeSerializationQueue.push(opaqueChildPath);
+            }
         }
 
         SortUnique(ExternalCellTags_);
@@ -228,29 +271,35 @@ protected:
     template <class TOptions>
     void EndCopy(const TYPath& dstPath, const TOptions& options, bool inplace)
     {
-        YT_LOG_DEBUG("Materializing serialized trees");
+        YT_LOG_DEBUG("Materializing serialized subtrees");
 
         auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
         TObjectServiceProxy proxy(std::move(channel));
 
-        auto batchReq = proxy.ExecuteBatch();
-        auto req = TCypressYPathProxy::EndCopy(dstPath);
-        GenerateMutationId(req);
-        SetTransactionId(req, Transaction_->GetId());
-        SetEndCopyNodeRequestParameters(req, options);
-        req->set_inplace(inplace);
-        *req->mutable_serialized_tree() = std::move(SerializedTree_);
-        batchReq->AddRequest(req);
+        for (auto& subtree : SerializedSubtrees_) {
+            auto batchReq = proxy.ExecuteBatch();
+            auto req = TCypressYPathProxy::EndCopy(dstPath + subtree.Path);
+            GenerateMutationId(req);
+            SetTransactionId(req, Transaction_->GetId());
+            SetEndCopyNodeRequestParameters(req, options);
+            req->set_inplace(inplace);
+            *req->mutable_serialized_tree() = std::move(subtree.SerializedValue);
+            batchReq->AddRequest(req);
 
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error materializing serialized tree");
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError),
+                "Error materializing serialized subtree");
 
-        const auto& batchRsp = batchRspOrError.Value();
-        auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspEndCopy>(0);
-        const auto& rsp = rspOrError.Value();
-        DstNodeId_ = FromProto<TNodeId>(rsp->node_id());
+            const auto& batchRsp = batchRspOrError.Value();
+            for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspEndCopy>()) {
+                const auto& rsp = rspOrError.ValueOrThrow();
+                if (subtree.Path == TYPath()) {
+                    DstNodeId_ = FromProto<TNodeId>(rsp->node_id());
+                }
+            }
+        }
 
-        YT_LOG_DEBUG("Serialized trees materialized (NodeId: %v)",
+        YT_LOG_DEBUG("Serialized subtrees materialized (RootNodeId: %v)",
             DstNodeId_);
     }
 
@@ -276,7 +325,7 @@ protected:
 
         YT_LOG_DEBUG("External cells synchronized with the cloned node cell");
     }
-    
+
     void CommitTransaction()
     {
         YT_LOG_DEBUG("Committing transaction");
@@ -1254,13 +1303,23 @@ TObjectId TClient::DoCreateObject(
     auto cellTag = PrimaryMasterCellTag;
     switch (type) {
         case EObjectType::TableReplica: {
-            auto path = attributes->Get<TString>("table_path");
-            InternalValidatePermission(path, EPermission::Write);
+            {
+                auto path = attributes->Get<TString>("table_path");
+                InternalValidatePermission(path, EPermission::Write);
 
-            TTableId tableId;
-            ResolveExternalTable(path, &tableId, &cellTag);
+                TTableId tableId;
+                ResolveExternalTable(path, &tableId, &cellTag);
 
-            attributes->Set("table_path", FromObjectId(tableId));
+                attributes->Set("table_path", FromObjectId(tableId));
+            }
+            {
+                auto clusterName = attributes->Get<TString>("cluster_name");
+                auto result = WaitFor(NodeExists(GetCypressClusterPath(clusterName), {}));
+                THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error checking replica cluster existence");
+                if (!result.Value()) {
+                    THROW_ERROR_EXCEPTION("Replica cluster %Qv does not exist", clusterName);
+                }
+            }
             break;
         }
 
@@ -1285,6 +1344,7 @@ TObjectId TClient::DoCreateObject(
     auto req = TMasterYPathProxy::CreateObject();
     SetMutationId(req, options);
     req->set_type(static_cast<int>(type));
+    req->set_ignore_existing(options.IgnoreExisting);
     if (attributes) {
         ToProto(req->mutable_object_attributes(), *attributes);
     }

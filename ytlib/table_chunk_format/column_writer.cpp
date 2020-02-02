@@ -1,9 +1,10 @@
 #include "column_writer.h"
 
-#include "integer_column_writer.h"
-#include "double_column_writer.h"
-#include "string_column_writer.h"
 #include "boolean_column_writer.h"
+#include "double_column_writer.h"
+#include "integer_column_writer.h"
+#include "null_column_writer.h"
+#include "string_column_writer.h"
 
 #include <yt/client/table_client/schema.h>
 
@@ -37,9 +38,15 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
         case EValueType::Any:
             return CreateUnversionedAnyColumnWriter(columnIndex, blockWriter);
 
-        default:
-            YT_UNIMPLEMENTED();
+        case EValueType::Null:
+            return CreateUnversionedNullColumnWriter(blockWriter);
+
+        case EValueType::Min:
+        case EValueType::TheBottom:
+        case EValueType::Max:
+            break;
     }
+    ThrowUnexpectedValueType(columnSchema.GetPhysicalType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

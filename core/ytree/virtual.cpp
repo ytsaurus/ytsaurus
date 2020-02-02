@@ -103,11 +103,11 @@ void TVirtualMapBase::GetSelf(
             auto service = FindItemService(key);
             if (service) {
                 writer.OnKeyedItem(key);
-                service->WriteAttributes(&writer, attributeKeys, false);
                 if (Opaque_) {
+                    service->WriteAttributes(&writer, attributeKeys, false);
                     writer.OnEntity();
                 } else {
-                    auto asyncResult = AsyncYPathGet(service, "");
+                    auto asyncResult = AsyncYPathGet(service, "", attributeKeys);
                     writer.OnRaw(asyncResult);
                 }
             }

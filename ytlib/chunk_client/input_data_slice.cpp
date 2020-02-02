@@ -307,8 +307,10 @@ std::vector<TInputDataSlicePtr> CombineVersionedChunkSlices(const std::vector<TI
     std::vector<std::tuple<TKey, bool, int>> boundaries;
     boundaries.reserve(chunkSlices.size() * 2);
     for (int index = 0; index < chunkSlices.size(); ++index) {
-        boundaries.emplace_back(chunkSlices[index]->LowerLimit().Key, false, index);
-        boundaries.emplace_back(chunkSlices[index]->UpperLimit().Key, true, index);
+        if (chunkSlices[index]->LowerLimit().Key < chunkSlices[index]->UpperLimit().Key) {
+            boundaries.emplace_back(chunkSlices[index]->LowerLimit().Key, false, index);
+            boundaries.emplace_back(chunkSlices[index]->UpperLimit().Key, true, index);
+        }
     }
     std::sort(boundaries.begin(), boundaries.end());
     THashSet<int> currentChunks;
@@ -329,7 +331,7 @@ std::vector<TInputDataSlicePtr> CombineVersionedChunkSlices(const std::vector<TI
             }
 
             if (isUpper) {
-                currentChunks.erase(chunkIndex);
+                YT_VERIFY(currentChunks.erase(chunkIndex) == 1);
             } else {
                 currentChunks.insert(chunkIndex);
             }

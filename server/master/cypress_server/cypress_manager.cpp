@@ -34,7 +34,7 @@
 
 #include <yt/server/master/table_server/shared_table_schema.h>
 
-#include <yt/ytlib/cypress_client/cypress_ypath.pb.h>
+#include <yt/ytlib/cypress_client/proto/cypress_ypath.pb.h>
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -756,6 +756,7 @@ public:
         YT_VERIFY(handler);
 
         auto type = handler->GetObjectType();
+        YT_VERIFY(IsVersionedType(type));
         YT_VERIFY(!TypeToHandler_[type]);
         TypeToHandler_[type] = handler;
 
@@ -1085,7 +1086,10 @@ public:
     TCypressNode* ResolvePathToTrunkNode(const TYPath& path, TTransaction* transaction)
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto* object = objectManager->ResolvePathToObject(path, transaction);
+        auto* object = objectManager->ResolvePathToObject(
+            path,
+            transaction,
+            TObjectManager::TResolvePathOptions{});
         if (!IsVersionedType(object->GetType())) {
             THROW_ERROR_EXCEPTION("Path %v points to a nonversioned %Qlv object instead of a node",
                 path,
@@ -2022,11 +2026,15 @@ private:
         // COMPAT(babenko)
         if (NeedBindNodesToAncestorShard_) {
             for (auto [nodeId, node] : NodeMap_) {
+                if (!node->IsTrunk()) {
+                    continue;
+                }
+
                 if (node->GetShard()) {
                     continue;
                 }
 
-                auto* ancestorNode = node->GetTrunkNode();
+                auto* ancestorNode = node;
                 while (ancestorNode->GetParent() && !ancestorNode->GetShard()) {
                     ancestorNode = ancestorNode->GetParent();
                 }
@@ -2172,8 +2180,9 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (auto* lock : lockingState.PendingLocks) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned (LockId: %v)",
-                lock->GetId());
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Lock orphaned due to node removal (LockId: %v, NodeId: %v)",
+                lock->GetId(),
+                trunkNode->GetId());
             lock->SetTrunkNode(nullptr);
             auto* transaction = lock->GetTransaction();
             YT_VERIFY(transaction->Locks().erase(lock) == 1);

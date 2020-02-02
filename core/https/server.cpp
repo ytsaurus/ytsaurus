@@ -62,7 +62,8 @@ private:
 
 IServerPtr CreateServer(
     const TServerConfigPtr& config,
-    const IPollerPtr& poller)
+    const IPollerPtr& poller,
+    const IPollerPtr& acceptor)
 {
     // Initialize SSL.
     auto libraryLock = NRpc::NGrpc::TDispatcher::Get()->CreateLibraryLock();
@@ -84,13 +85,18 @@ IServerPtr CreateServer(
     }
 
     auto address = TNetworkAddress::CreateIPv6Any(config->Port);
-    auto tlsListener = sslContext->CreateListener(address, poller);
+    auto tlsListener = sslContext->CreateListener(address, poller, acceptor);
 
     auto configCopy = CloneYsonSerializable(config);
     configCopy->IsHttps = true;
-    auto httpServer = NHttp::CreateServer(configCopy, tlsListener, poller);
+    auto httpServer = NHttp::CreateServer(configCopy, tlsListener, poller, acceptor);
 
     return New<TServer>(std::move(libraryLock), std::move(httpServer));
+}
+
+IServerPtr CreateServer(const TServerConfigPtr& config, const IPollerPtr& poller)
+{
+    return CreateServer(config, poller, poller);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

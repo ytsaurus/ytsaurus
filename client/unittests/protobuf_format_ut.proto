@@ -59,6 +59,8 @@ message TMessageWithStructuredEmbedded
     repeated int64 another_repeated_int64_field = 13;
 
     repeated bytes repeated_optional_any_field = 14;
+
+    optional bytes other_columns_field = 15;
 }
 
 message TSeveralTablesMessageFirst

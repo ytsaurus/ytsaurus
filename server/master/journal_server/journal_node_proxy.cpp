@@ -55,7 +55,6 @@ private:
             .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::WriteQuorum)
             .SetReplicated(true));
-        descriptors->push_back(EInternedAttributeKey::RowCount);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QuorumRowCount)
             .SetExternal(isExternal)
             .SetOpaque(true));
@@ -76,11 +75,6 @@ private:
             case EInternedAttributeKey::WriteQuorum:
                 BuildYsonFluently(consumer)
                     .Value(node->GetWriteQuorum());
-                return true;
-
-            case EInternedAttributeKey::RowCount:
-                BuildYsonFluently(consumer)
-                    .Value(statistics.row_count());
                 return true;
 
             case EInternedAttributeKey::Sealed:
@@ -149,7 +143,9 @@ private:
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
+        DISPATCH_YPATH_SERVICE_METHOD(UpdateStatistics);
         DISPATCH_YPATH_SERVICE_METHOD(Seal);
+        DISPATCH_YPATH_SERVICE_METHOD(Truncate);
         return TBase::DoInvoke(context);
     }
 
@@ -165,6 +161,23 @@ private:
                 THROW_ERROR_EXCEPTION("Offset selectors are not supported for journals");
             }
         }
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, UpdateStatistics)
+    {
+        Y_UNUSED(response);
+
+        DeclareMutating();
+
+        context->SetRequestInfo("Statistics: %v", request->statistics());
+
+        auto* journal = GetThisImpl();
+        YT_VERIFY(journal->IsTrunk());
+
+        const auto& journalManager = Bootstrap_->GetJournalManager();
+        journalManager->UpdateStatistics(journal->GetTrunkNode(), &request->statistics());
+
+        context->Reply();
     }
 
     DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, Seal)
@@ -183,6 +196,25 @@ private:
 
         context->Reply();
     }
+
+    DECLARE_YPATH_SERVICE_METHOD(NJournalClient::NProto, Truncate)
+    {
+        Y_UNUSED(response);
+
+        DeclareMutating();
+
+        ValidateNoTransaction();
+
+        context->SetRequestInfo("RowCount: %v", request->row_count());
+
+        auto* journal = LockThisImpl();
+        YT_VERIFY(journal->IsTrunk());
+
+        const auto& journalManager = Bootstrap_->GetJournalManager();
+        journalManager->TruncateJournal(journal->GetTrunkNode(), request->row_count());
+
+        context->Reply();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,7 +225,6 @@ ICypressNodeProxyPtr CreateJournalNodeProxy(
     TTransaction* transaction,
     TJournalNode* trunkNode)
 {
-
     return New<TJournalNodeProxy>(
         bootstrap,
         metadata,

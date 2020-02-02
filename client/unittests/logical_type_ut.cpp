@@ -337,6 +337,276 @@ TEST(TLogicalTypeTest, TestBadProtobufDeserialization)
         "Cannot parse unknown logical type from proto");
 }
 
+TString CanonizeYsonString(TString input)
+{
+    auto node = ConvertToNode(TYsonString(input));
+    auto binaryYson = ConvertToYsonStringStable(node);
+
+    TStringStream out;
+    {
+        TYsonWriter writer(&out, EYsonFormat::Pretty);
+        ParseYsonStringBuffer(binaryYson.GetData(), EYsonType::Node, &writer);
+    }
+    return out.Str();
+}
+
+TString ToTypeV3(const TLogicalTypePtr& logicalType)
+{
+    TTypeV3LogicalTypeWrapper w{logicalType};
+    auto ysonString = ConvertToYsonString(w);
+    return CanonizeYsonString(ysonString.GetData());
+}
+
+TLogicalTypePtr FromTypeV3(TString yson)
+{
+    auto wrapper = ConvertTo<TTypeV3LogicalTypeWrapper>(TYsonString(yson, EYsonType::Node));
+    return wrapper.LogicalType;
+}
+
+#define CHECK_TYPE_V3(type, expectedYson) \
+    do { \
+        EXPECT_EQ(ToTypeV3(type), CanonizeYsonString(expectedYson)); \
+        EXPECT_EQ(*type, *FromTypeV3(expectedYson)); \
+} while(0)
+
+TEST(TLogicalTypeTest, TestTypeV3Yson)
+{
+    // Ill formed.
+    EXPECT_THROW_WITH_SUBSTRING(FromTypeV3("{}"), "has no child with key");
+
+    // Simple types.
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Int64), "int64");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Int64), *FromTypeV3("{type_name=int64;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Uint64), "uint64");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Uint64), *FromTypeV3("{type_name=uint64;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Double), "double");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Double), *FromTypeV3("{type_name=double;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Boolean), "bool");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Boolean), *FromTypeV3("{type_name=bool;}"));
+    EXPECT_THROW_WITH_SUBSTRING(FromTypeV3("boolean"), "is not valid type_v3 simple type");
+    EXPECT_THROW_WITH_SUBSTRING(FromTypeV3("{type_name=boolean}"), "is not valid type_v3 simple type");
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::String), "string");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::String), *FromTypeV3("{type_name=string;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Null), "null");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Null), *FromTypeV3("{type_name=null;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Any), "yson");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Any), *FromTypeV3("{type_name=yson;}"));
+    EXPECT_THROW_WITH_SUBSTRING(FromTypeV3("{type_name=any}"), "is not valid type_v3 simple type");
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Int32), "int32");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Int32), *FromTypeV3("{type_name=int32;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Int16), "int16");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Int16), *FromTypeV3("{type_name=int16;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Int8),  "int8");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Int8),  *FromTypeV3("{type_name=int8;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Uint32), "uint32");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Uint32), *FromTypeV3("{type_name=uint32;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Uint16), "uint16");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Uint16), *FromTypeV3("{type_name=uint16;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Uint8),  "uint8");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Uint8),  *FromTypeV3("{type_name=uint8;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Utf8), "utf8");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Utf8), *FromTypeV3("{type_name=utf8;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Date), "date");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Date), *FromTypeV3("{type_name=date;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Datetime), "datetime");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Datetime), *FromTypeV3("{type_name=datetime;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Timestamp), "timestamp");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Timestamp), *FromTypeV3("{type_name=timestamp;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Interval), "interval");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Interval), *FromTypeV3("{type_name=interval;}"));
+
+    // Optional.
+    CHECK_TYPE_V3(
+        OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)),
+        "{type_name=optional; item=bool}");
+
+    CHECK_TYPE_V3(
+        OptionalLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))),
+        R"(
+        {
+            type_name=optional;
+            item={
+                type_name=optional;
+                item=yson;
+            }
+        }
+        )");
+
+    EXPECT_THROW_WITH_SUBSTRING(FromTypeV3("{type_name=optional}"), "has no child with key");
+
+    // List
+    CHECK_TYPE_V3(
+        ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)),
+        "{type_name=list; item=bool}");
+
+    CHECK_TYPE_V3(
+        ListLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))),
+        R"(
+        {
+            type_name=list;
+            item={
+                type_name=list;
+                item=yson;
+            }
+        }
+        )");
+
+    EXPECT_THROW_WITH_SUBSTRING(FromTypeV3("{type_name=list}"), "has no child with key");
+
+    // Struct
+    CHECK_TYPE_V3(
+        StructLogicalType({
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+            {"b", StructLogicalType({
+                { "foo", SimpleLogicalType(ESimpleLogicalValueType::Boolean) },
+            })},
+        }),
+        R"(
+        {
+            type_name=struct;
+            members=[
+                {name=a; type=bool};
+                {
+                    name=b;
+                    type={
+                        type_name=struct;
+                        members=[{name=foo;type=bool}];
+                    };
+                };
+            ];
+        }
+        )");
+
+    // Tuple
+    CHECK_TYPE_V3(
+        TupleLogicalType({
+            SimpleLogicalType(ESimpleLogicalValueType::Boolean),
+            TupleLogicalType({
+                SimpleLogicalType(ESimpleLogicalValueType::Boolean)
+            })
+        }),
+        R"(
+        {
+            type_name=tuple;
+            elements=[
+                {type=bool};
+                {
+                    type={
+                        type_name=tuple;
+                        elements=[{type=bool}];
+                    };
+                };
+            ];
+        }
+        )");
+
+    // VariantStruct
+    CHECK_TYPE_V3(
+        VariantStructLogicalType({
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+            {"b", VariantStructLogicalType({
+                { "foo", SimpleLogicalType(ESimpleLogicalValueType::Boolean) },
+            })},
+        }),
+        R"(
+        {
+            type_name=variant;
+            members=[
+                {name=a; type=bool};
+                {
+                    name=b;
+                    type={
+                        type_name=variant;
+                        members=[{name=foo;type=bool}];
+                    };
+                };
+            ];
+        }
+        )");
+
+    // Tuple
+    CHECK_TYPE_V3(
+        VariantTupleLogicalType({
+            SimpleLogicalType(ESimpleLogicalValueType::Boolean),
+            VariantTupleLogicalType({
+                SimpleLogicalType(ESimpleLogicalValueType::Boolean)
+            })
+        }),
+        R"(
+        {
+            type_name=variant;
+            elements=[
+                {type=bool};
+                {
+                    type={
+                        type_name=variant;
+                        elements=[{type=bool}];
+                    };
+                };
+            ];
+        }
+        )");
+
+    // Dict
+    CHECK_TYPE_V3(
+        DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::Boolean),
+            DictLogicalType(
+                OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)),
+                SimpleLogicalType(ESimpleLogicalValueType::Boolean)
+            )
+        ),
+        R"(
+        {
+            type_name=dict;
+            key=bool;
+            value={
+                type_name=dict;
+                key={type_name=optional; item=bool};
+                value=bool;
+            }
+        }
+        )");
+
+    // Tagged
+    CHECK_TYPE_V3(
+        TaggedLogicalType(
+            "foo",
+            TaggedLogicalType(
+                "bar",
+                SimpleLogicalType(ESimpleLogicalValueType::Boolean)
+            )
+        ),
+        R"(
+        {
+            type_name=tagged;
+            tag=foo;
+            item={
+                type_name=tagged;
+                tag=bar;
+                item=bool;
+            }
+        }
+        )");
+}
+
 class TLogicalTypeTestExamples
     : public ::testing::TestWithParam<TLogicalTypePtr>
 { };

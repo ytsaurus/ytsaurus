@@ -89,6 +89,8 @@ private:
         std::atomic<int> LocalSemaphore;
 
         NProfiling::TTagIdList Tags;
+        NProfiling::TTagIdList CommandTag;
+        NProfiling::TTagIdList UserTag;
 
         NProfiling::TAggregateGauge ConcurrencySemaphore;
         NProfiling::TMonotonicCounter RequestCount;

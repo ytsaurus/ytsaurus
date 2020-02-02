@@ -2,11 +2,13 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
-#include <yt/ytlib/chunk_client/data_source.pb.h>
+#include <yt/ytlib/chunk_client/proto/data_source.pb.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/job_spec_extensions.h>
 
 #include <yt/ytlib/scheduler/public.h>
+
+#include <yt/ytlib/job_proxy/private.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
@@ -33,6 +35,10 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NLogging::TLogger& Logger = JobProxyClientLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobSpecHelper
     : public IJobSpecHelper
 {
@@ -46,6 +52,7 @@ public:
         InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
         auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(GetSchedulerJobSpecExt().extensions());
         if (dataSourceDirectoryExt) {
+            YT_LOG_DEBUG("Data source directory extension received\n%v", dataSourceDirectoryExt->DebugString());
             DataSourceDirectory_ = FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt);
         }
     }

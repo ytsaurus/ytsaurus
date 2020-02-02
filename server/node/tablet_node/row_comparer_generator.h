@@ -5,7 +5,7 @@
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_row.h>
 
-#include <yt/core/codegen/function.h>
+#include <yt/library/codegen/function.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 

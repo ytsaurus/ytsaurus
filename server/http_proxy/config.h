@@ -1,5 +1,6 @@
 #pragma once
 
+#include "private.h"
 #include "public.h"
 
 #include <yt/server/lib/misc/config.h>
@@ -28,6 +29,7 @@ public:
     bool Announce;
 
     std::optional<TString> PublicFqdn;
+    std::optional<TString> DefaultRoleFilter;
 
     TDuration HeartbeatInterval;
     TDuration DeathAge;
@@ -48,6 +50,8 @@ public:
 
         RegisterParameter("public_fqdn", PublicFqdn)
             .Default();
+        RegisterParameter("default_role_filter", DefaultRoleFilter)
+            .Default("data");
 
         RegisterParameter("heartbeat_interval", HeartbeatInterval)
             .Default(TDuration::Seconds(5));
@@ -72,6 +76,40 @@ DEFINE_REFCOUNTED_TYPE(TCoordinatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TApiTestingOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    class TDelayInsideGet
+        : public NYTree::TYsonSerializable
+    {
+    public:
+        TDuration Delay;
+        TString Path;
+
+        TDelayInsideGet()
+        {
+            RegisterParameter("delay", Delay);
+            RegisterParameter("path", Path);
+        }
+    };
+    using TDelayInsideGetPtr = TIntrusivePtr<TDelayInsideGet>;
+
+public:
+    TDelayInsideGetPtr DelayInsideGet;
+
+    TApiTestingOptions()
+    {
+        RegisterParameter("delay_inside_get", DelayInsideGet)
+            .Optional();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TApiTestingOptions);
+DEFINE_REFCOUNTED_TYPE(TApiTestingOptions::TDelayInsideGet);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TApiConfig
     : public NYTree::TYsonSerializable
 {
@@ -82,6 +120,10 @@ public:
     bool DisableCorsCheck;
 
     bool ForceTracing;
+
+    TDuration FramingKeepAlivePeriod;
+
+    TApiTestingOptionsPtr TestingOptions;
 
     TApiConfig()
     {
@@ -96,6 +138,12 @@ public:
 
         RegisterParameter("force_tracing", ForceTracing)
             .Default(false);
+
+        RegisterParameter("framing_keep_alive_period", FramingKeepAlivePeriod)
+            .Default();
+
+        RegisterParameter("testing", TestingOptions)
+            .Default();
     }
 };
 
@@ -173,6 +221,10 @@ public:
     //! Timeout to resolve alias.
     TDuration AliasResolutionTimeout;
 
+    //! If set to true, profiler won't wait a second to update a counter.
+    //! It is useful for testing.
+    bool ForceEnqueueProfiling;
+
     TClickHouseConfig()
     {
         RegisterParameter("discovery_path", DiscoveryPath)
@@ -193,6 +245,8 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("alias_resolution_timeout", AliasResolutionTimeout)
             .Default(TDuration::Seconds(30));
+        RegisterParameter("force_enqueue_profiling", ForceEnqueueProfiling)
+            .Default(false);
 
         RegisterPreprocessor([&] {
             HttpClient->HeaderReadTimeout = TDuration::Hours(1);

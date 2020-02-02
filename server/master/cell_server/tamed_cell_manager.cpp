@@ -43,8 +43,6 @@
 #include <yt/server/master/security_server/group.h>
 #include <yt/server/master/security_server/subject.h>
 
-#include <yt/server/lib/hydra/snapshot_quota_helpers.h>
-
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/server/lib/cell_server/proto/cell_manager.pb.h>
@@ -91,6 +89,7 @@ using namespace NNodeTrackerServer;
 using namespace NObjectClient::NProto;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NProfiling;
 using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NTabletServer::NProto;
@@ -111,6 +110,8 @@ using NYT::ToProto;
 
 static const auto& Logger = CellServerLogger;
 
+static const auto ProfilingPeriod = TDuration::Seconds(10);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTamedCellManager::TImpl
@@ -125,10 +126,10 @@ public:
     DEFINE_SIGNAL(void(), AfterSnapshotLoaded);
 
 public:
-    explicit TImpl(
-        NCellMaster::TBootstrap* bootstrap)
+    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::TamedCellManager)
-        , CellTracker_(New<TCellTracker>(Bootstrap_)), BundleNodeTracker_(New<TBundleNodeTracker>(Bootstrap_))
+        , CellTracker_(New<TCellTracker>(Bootstrap_))
+        , BundleNodeTracker_(New<TBundleNodeTracker>(Bootstrap_))
         , CellBundleMap_(TEntityMapTypeTraits<TCellBundle>(Bootstrap_))
         , CellMap_(TEntityMapTypeTraits<TCellBase>(Bootstrap_))
     {
@@ -163,15 +164,16 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSetCellConfigVersion, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetCellStatus, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateCellHealth, Unretained(this)));
-
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
-        nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
-        nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdatePeerCount, Unretained(this)));
     }
 
     void Initialize()
     {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
+        nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
+        nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
+
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
@@ -189,7 +191,11 @@ public:
 
         BundleNodeTracker_->Initialize();
 
-        OnDynamicConfigChanged();
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod);
+        ProfilingExecutor_->Start();
     }
 
     TCellBundle* CreateCellBundle(
@@ -282,7 +288,7 @@ public:
         }
     }
 
-    TCellBase *CreateCell(TCellBundle* cellBundle, std::unique_ptr<TCellBase> holder)
+    TCellBase* CreateCell(TCellBundle* cellBundle, std::unique_ptr<TCellBase> holder)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -427,7 +433,68 @@ public:
         CellMap_.Release(cell->GetId()).release();
     }
 
-    const TCellSet *FindAssignedCells(const TString& address) const
+    void UpdatePeerCount(TCellBase* cell, std::optional<int> peerCount)
+    {
+        cell->PeerCount() = peerCount;
+        cell->LastPeerCountUpdateTime() = TInstant::Now();
+
+        int oldPeerCount = static_cast<int>(cell->Peers().size());
+        int newPeerCount = cell->GetCellBundle()->GetOptions()->PeerCount;
+        if (cell->PeerCount()) {
+            newPeerCount = *cell->PeerCount();
+        }
+
+        if (oldPeerCount == newPeerCount) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Updating cell peer count (CellId: %v, OldPeerCount: %v, NewPeerCount: %v)",
+            cell->GetId(),
+            oldPeerCount,
+            newPeerCount);
+
+        bool leaderChanged = false;
+        if (newPeerCount > oldPeerCount) {
+            cell->Peers().resize(newPeerCount);
+        } else {
+            // Move leader to the first place to prevent its removing.
+            int leaderId = cell->GetLeadingPeerId();
+            if (leaderId != 0) {
+                leaderChanged = true;
+                RemoveFromAddressToCellMap(cell->Peers()[leaderId].Descriptor, cell);
+                RemoveFromAddressToCellMap(cell->Peers()[0].Descriptor, cell);
+                std::swap(cell->Peers()[cell->GetLeadingPeerId()], cell->Peers()[0]);
+                AddToAddressToCellMap(cell->Peers()[leaderId].Descriptor, cell, leaderId);
+                AddToAddressToCellMap(cell->Peers()[0].Descriptor, cell, 0);
+                cell->SetLeadingPeerId(0);
+            }
+
+            // Revoke extra peers.
+            for (int revokingPeerIndex = newPeerCount; revokingPeerIndex < oldPeerCount; ++revokingPeerIndex) {
+                DoRevokePeer(cell, revokingPeerIndex);
+            }
+
+            cell->Peers().resize(newPeerCount);
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (leaderChanged && multicellManager->IsPrimaryMaster()) {
+            RestartPrerequisiteTransaction(cell);
+        }
+
+        ReconfigureCell(cell);
+
+        // Notify new quorum as soon as possible via heartbeat requests.
+        if (multicellManager->IsPrimaryMaster() && IsLeader()) {
+            for (const auto& peer : cell->Peers()) {
+                if (peer.Node) {
+                    Bootstrap_->GetNodeTracker()->RequestNodeHeartbeat(peer.Node->GetId());
+                }
+            }
+        }
+    }
+
+    const TCellSet* FindAssignedCells(const TString& address) const
     {
         auto it = AddressToCell_.find(address);
         return it != AddressToCell_.end()
@@ -435,12 +502,12 @@ public:
            : nullptr;
     }
 
-    const TBundleNodeTrackerPtr &GetBundleNodeTracker()
+    const TBundleNodeTrackerPtr& GetBundleNodeTracker()
     {
         return BundleNodeTracker_;
     }
 
-    TCellBase *GetCellOrThrow(TTamedCellId id)
+    TCellBase* GetCellOrThrow(TTamedCellId id)
     {
         auto* cell = FindCell(id);
         if (!IsObjectAlive(cell)) {
@@ -525,6 +592,26 @@ public:
         }
         DecommissionCell(cell);
         OnCellDecommissionedOnNode(cell);
+    }
+
+    void HydraUpdatePeerCount(TReqUpdatePeerCount* request)
+    {
+        auto cellId = FromProto<TTamedCellId>(request->cell_id());
+        auto* cell = FindCell(cellId);
+        if (!IsObjectAlive(cell)) {
+            return;
+        }
+
+        if (request->has_peer_count()) {
+            UpdatePeerCount(cell, request->peer_count());
+        } else {
+            UpdatePeerCount(cell, std::nullopt);
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            multicellManager->PostToMasters(*request, multicellManager->GetRegisteredMasterCellTags());
+        }
     }
 
     void DecommissionCell(TCellBase* cell)
@@ -643,10 +730,12 @@ private:
     THashMap<TString, TCellSet> AddressToCell_;
     THashMap<TTransaction*, TCellBase*> TransactionToCellMap_;
 
-    TPeriodicExecutorPtr CleanupExecutor_;
     TPeriodicExecutorPtr CellStatusGossipExecutor_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+    TPeriodicExecutorPtr ProfilingExecutor_;
+    TProfiler Profiler = CellServerProfiler;
 
 
     const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig()
@@ -658,9 +747,6 @@ private:
     {
         const auto& config = GetDynamicConfig();
 
-        if (CleanupExecutor_) {
-            CleanupExecutor_->SetPeriod(config->TabletCellsCleanupPeriod);
-        }
         if (CellStatusGossipExecutor_) {
             CellStatusGossipExecutor_->SetPeriod(config->MulticellGossip->TabletCellStatisticsGossipPeriod);
         }
@@ -701,12 +787,22 @@ private:
 
         // COMPAT(savrus)
         const auto& tabletManager = Bootstrap_->GetTabletManager();
+
         auto& bundleMap = tabletManager->CompatTabletCellBundleMap();
-        auto& cellMap = tabletManager->CompatTabletCellMap();
+        std::vector<TCellBundleId> bundleIds;
         for (const auto [bundleId, holder] : bundleMap) {
+            bundleIds.push_back(bundleId);
+        }
+        for (const auto bundleId : bundleIds) {
             CellBundleMap_.Insert(bundleId, bundleMap.Release(bundleId));
         }
+
+        auto& cellMap = tabletManager->CompatTabletCellMap();
+        std::vector<TCellBundleId> cellIds;
         for (const auto [cellId, holder] : cellMap) {
+            cellIds.push_back(cellId);
+        }
+        for (const auto cellId : cellIds) {
             CellMap_.Insert(cellId, cellMap.Release(cellId));
         }
 
@@ -946,17 +1042,21 @@ private:
             auto* protoInfo = response->add_tablet_slots_configure();
 
             auto cellId = cell->GetId();
+            auto peerId = cell->GetPeerId(node->GetDefaultAddress());
+
             auto cellDescriptor = cell->GetDescriptor();
 
             const auto& prerequisiteTransactionId = cell->GetPrerequisiteTransaction()->GetId();
 
+            protoInfo->set_peer_id(peerId);
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
 
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot configuration update requested "
-                "(Address: %v, CellId: %v, Version: %v, PrerequisiteTransactionId: %v)",
+                "(Address: %v, CellId: %v, PeerId: %v, Version: %v, PrerequisiteTransactionId: %v)",
                 node->GetDefaultAddress(),
                 cellId,
+                peerId,
                 cellDescriptor.ConfigVersion,
                 prerequisiteTransactionId);
         };
@@ -1055,8 +1155,10 @@ private:
                 continue;
             }
 
-            if (slotInfo.peer_id() != InvalidPeerId && slotInfo.peer_id() != peerId)  {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Invalid peer id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
+            if (CountVotingPeers(cell) > 1 && slotInfo.peer_id() != InvalidPeerId && slotInfo.peer_id() != peerId) {
+                YT_LOG_DEBUG_UNLESS(
+                    IsRecovery(),
+                    "Invalid peer id for tablet cell: %v instead of %v (Address: %v, CellId: %v)",
                     slotInfo.peer_id(),
                     peerId,
                     address,
@@ -1092,6 +1194,10 @@ private:
             slot.Cell = cell;
             slot.PeerState = state;
             slot.PeerId = slot.Cell->GetPeerId(node); // don't trust peerInfo, it may still be InvalidPeerId
+            slot.IsResponseKeeperWarmingUp = slotInfo.is_response_keeper_warming_up();
+            slot.PreloadPendingStoreCount = slotInfo.preload_pending_store_count();
+            slot.PreloadCompletedStoreCount = slotInfo.preload_completed_store_count();
+            slot.PreloadFailedStoreCount = slotInfo.preload_failed_store_count();
 
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell is running (Address: %v, CellId: %v, PeerId: %v, State: %v, ConfigVersion: %v)",
                 address,
@@ -1192,8 +1298,9 @@ private:
             auto descriptor = FromProto<TNodeDescriptor>(peerInfo.node_descriptor());
 
             auto& peer = cell->Peers()[peerId];
-            if (!peer.Descriptor.IsNull())
+            if (!peer.Descriptor.IsNull()) {
                 continue;
+            }
 
             if (peerId == cell->GetLeadingPeerId()) {
                 leadingPeerAssigned = true;
@@ -1267,6 +1374,10 @@ private:
             HydraAssignPeers(&assignment);
         }
 
+        for (auto& peer_count_update : *request->mutable_peer_count_updates()) {
+            HydraUpdatePeerCount(&peer_count_update);
+        }
+
         CellPeersAssigned_.Fire();
 
         // NB: Send individual revoke and assign requests to secondary masters to support old tablet tracker.
@@ -1278,11 +1389,14 @@ private:
 
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
+        const auto& oldLeader = cell->Peers()[cell->GetLeadingPeerId()];
         if (!IsObjectAlive(cell)) {
             return;
         }
 
         auto peerId = request->peer_id();
+        const auto& newLeader = cell->Peers()[peerId];
+
         cell->SetLeadingPeerId(peerId);
 
         const auto& descriptor = cell->Peers()[peerId].Descriptor;
@@ -1299,6 +1413,16 @@ private:
         }
 
         ReconfigureCell(cell);
+
+        // Notify new leader as soon as possible via heartbeat request.
+        if (multicellManager->IsPrimaryMaster() && IsLeader()) {
+            if (oldLeader.Node) {
+                Bootstrap_->GetNodeTracker()->RequestNodeHeartbeat(oldLeader.Node->GetId());
+            }
+            if (newLeader.Node) {
+                Bootstrap_->GetNodeTracker()->RequestNodeHeartbeat(newLeader.Node->GetId());
+            }
+        }
     }
 
     virtual void OnLeaderActive() override
@@ -1307,26 +1431,17 @@ private:
 
         TMasterAutomatonPart::OnLeaderActive();
 
-        OnDynamicConfigChanged();
-
-        const auto& dynamicConfig = GetDynamicConfig();
-
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             CellTracker_->Start();
-
-            CleanupExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletCellJanitor),
-                BIND(&TImpl::OnCleanup, MakeWeak(this)),
-                dynamicConfig->TabletCellsCleanupPeriod);
-            CleanupExecutor_->Start();
         }
 
         CellStatusGossipExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletGossip),
-            BIND(&TImpl::OnCellStatusGossip, MakeWeak(this)),
-            dynamicConfig->MulticellGossip->TabletCellStatisticsGossipPeriod);
+            BIND(&TImpl::OnCellStatusGossip, MakeWeak(this)));
         CellStatusGossipExecutor_->Start();
+
+        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override
@@ -1336,11 +1451,6 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         CellTracker_->Stop();
-
-        if (CleanupExecutor_) {
-            CleanupExecutor_->Stop();
-            CleanupExecutor_.Reset();
-        }
 
         if (CellStatusGossipExecutor_) {
             CellStatusGossipExecutor_->Stop();
@@ -1362,11 +1472,12 @@ private:
             }
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell reconfigured (CellId: %v, Version: %v)",
+        YT_LOG_DEBUG_UNLESS(
+            IsRecovery(),
+            "Tablet cell reconfigured (CellId: %v, Version: %v)",
             cell->GetId(),
             cell->GetConfigVersion());
     }
-
 
     bool CheckHasHealthyCells(TCellBundle* bundle)
     {
@@ -1419,7 +1530,7 @@ private:
             nullptr,
             {},
             secondaryCellTags,
-            secondaryCellTags,
+            /* replicateStart */ true,
             std::nullopt,
             /* deadline */ std::nullopt,
             Format("Prerequisite for cell %v", cell->GetId()),
@@ -1553,7 +1664,6 @@ private:
         }
     }
 
-
     void DoRevokePeer(TCellBase* cell, TPeerId peerId)
     {
         const auto& peer = cell->Peers()[peerId];
@@ -1586,149 +1696,6 @@ private:
         return cellMapNodeProxy->FindChild(ToString(cellId));
     }
 
-    void OnCleanup()
-    {
-        try {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            auto cellIds = GetKeys(CellMap_);
-
-            for (const auto cellId : cellIds) {
-                auto* cell = FindCell(cellId);
-                if (!IsObjectAlive(cell)) {
-                    continue;
-                }
-
-                auto snapshotsPath = Format("//sys/tablet_cells/%v/snapshots", ToYPathLiteral(ToString(cellId)));
-                IMapNodePtr snapshotsMap;
-                try {
-                    snapshotsMap = cypressManager->ResolvePathToNodeProxy(snapshotsPath)->AsMap();
-                } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Tablet cell has no valid snapshot store (CellId: %v)",
-                        cellId);
-                    continue;
-                }
-
-                auto request = TYPathProxy::List(TYPath());
-                std::vector<TString> attributeKeys{
-                    "compressed_data_size"
-                };
-                ToProto(request->mutable_attributes()->mutable_keys(), attributeKeys);
-
-                auto response = WaitFor(ExecuteVerb(snapshotsMap, request))
-                    .ValueOrThrow();
-                auto list = ConvertTo<IListNodePtr>(TYsonString(response->value()));
-                auto children = list->GetChildren();
-
-                std::vector<TSnapshotInfo> snapshots;
-                std::vector<TString> snapshotKeys;
-                snapshots.reserve(children.size());
-                snapshotKeys.reserve(children.size());
-                for (const auto& child : children) {
-                    const auto key = ConvertTo<TString>(child);
-                    snapshotKeys.push_back(key);
-                    int snapshotId;
-                    if (!TryFromString<int>(key, snapshotId)) {
-                        YT_LOG_WARNING("Unrecognized item in tablet snapshot store (CellId: %v, Name: %v)",
-                            cellId,
-                            key);
-                        continue;
-                    }
-                    const auto& attributes = child->Attributes();
-                    snapshots.push_back({snapshotId, attributes.Get<i64>("compressed_data_size")});
-                }
-
-                auto thresholdId = NHydra::GetSnapshotThresholdId(
-                    snapshots,
-                    GetDynamicConfig()->MaxSnapshotCountToKeep,
-                    GetDynamicConfig()->MaxSnapshotSizeToKeep);
-
-                const auto& objectManager = Bootstrap_->GetObjectManager();
-                auto rootService = objectManager->GetRootService();
-
-                int snapshotsRemoved = 0;
-                for (const auto& key : snapshotKeys) {
-                    if (snapshotsRemoved >= GetDynamicConfig()->MaxSnapshotCountToRemovePerCheck) {
-                        break;
-                    }
-
-                    int snapshotId;
-                    if (!TryFromString<int>(key, snapshotId)) {
-                        // Ignore, cf. logging above.
-                        continue;
-                    }
-
-                    if (snapshotId < thresholdId) {
-                        YT_LOG_INFO("Removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
-                            cellId,
-                            snapshotId);
-                        auto req = TYPathProxy::Remove(snapshotsPath + "/" + ToYPathLiteral(key));
-                        ExecuteVerb(rootService, req)
-                            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
-                                if (rspOrError.IsOK()) {
-                                    YT_LOG_INFO("Tablet cell snapshot removed successfully (CellId: %v, SnapshotId: %v)",
-                                        cellId,
-                                        snapshotId);
-                                } else {
-                                    YT_LOG_INFO(rspOrError, "Error removing tablet cell snapshot (CellId: %v, SnapshotId: %v)",
-                                        cellId,
-                                        snapshotId);
-                                }
-                            }));
-                        ++snapshotsRemoved;
-                    }
-                }
-
-                auto changelogsPath = Format("//sys/tablet_cells/%v/changelogs", ToYPathLiteral(ToString(cellId)));
-                IMapNodePtr changelogsMap;
-                try {
-                    changelogsMap = cypressManager->ResolvePathToNodeProxy(changelogsPath)->AsMap();
-                } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Tablet cell has no valid changelog store (CellId: %v)",
-                        cellId);
-                    continue;
-                }
-
-                int changelogsRemoved = 0;
-                auto changelogKeys = SyncYPathList(changelogsMap, TYPath());
-                for (const auto& key : changelogKeys) {
-                    if (changelogsRemoved >= GetDynamicConfig()->MaxChangelogCountToRemovePerCheck) {
-                        break;
-                    }
-
-                    int changelogId;
-                    if (!TryFromString<int>(key, changelogId)) {
-                        YT_LOG_WARNING("Unrecognized item in tablet changelog store (CellId: %v, Name: %v)",
-                            cellId,
-                            key);
-                        continue;
-                    }
-
-                    if (changelogId < thresholdId) {
-                        YT_LOG_INFO("Removing tablet cell changelog (CellId: %v, ChangelogId: %v)",
-                            cellId,
-                            changelogId);
-                        auto req = TYPathProxy::Remove(changelogsPath + "/" + ToYPathLiteral(key));
-                        ExecuteVerb(rootService, req)
-                            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspRemovePtr& rspOrError) {
-                                if (rspOrError.IsOK()) {
-                                    YT_LOG_INFO("Tablet cell changelog removed successfully (CellId: %v, ChangelodId: %v)",
-                                        cellId,
-                                        changelogId);
-                                } else {
-                                    YT_LOG_WARNING(rspOrError, "Error removing tablet cell changelog (CellId: %v, ChangelodId: %v)",
-                                        cellId,
-                                        changelogId);
-                                }
-                            }));
-                        ++changelogsRemoved;
-                    }
-                }
-            }
-
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Error performing tablets cleanup");
-        }
-    }
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
@@ -1788,11 +1755,40 @@ private:
         cell->SetConfigVersion(request->config_version());
     }
 
+    void OnProfiling()
+    {
+        if (!IsLeader()) {
+            return;
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (!multicellManager->IsPrimaryMaster()) {
+            return;
+        }
+
+        for (const auto& [id, cellBundle] : CellBundleMap_) {
+            auto tagIds = TTagIdList{cellBundle->GetProfilingTag()};
+            Profiler.Enqueue("/tablet_cell_count", cellBundle->Cells().size(), EMetricType::Gauge, tagIds);
+        }
+    }
+
     static void ValidateCellBundleName(const TString& name)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Tablet cell bundle name cannot be empty");
         }
+    }
+
+    static int CountVotingPeers(const TCellBase* cell)
+    {
+        int votingPeers = 0;
+        for (const auto& peer : cell->GetDescriptor().Peers) {
+            if (peer.GetVoting()) {
+                ++votingPeers;
+            }
+        }
+
+        return votingPeers;
     }
 };
 
@@ -1801,8 +1797,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TTamedCellManager::TImpl, Cell, TCellBase, CellMap_)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTamedCellManager::TTamedCellManager(
-    NCellMaster::TBootstrap* bootstrap)
+TTamedCellManager::TTamedCellManager(NCellMaster::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
 
@@ -1866,6 +1861,11 @@ void TTamedCellManager::ZombifyCell(TCellBase* cell)
 void TTamedCellManager::DestroyCell(TCellBase* cell)
 {
     Impl_->DestroyCell(cell);
+}
+
+void TTamedCellManager::UpdatePeerCount(TCellBase* cell, std::optional<int> peerCount)
+{
+    Impl_->UpdatePeerCount(cell, peerCount);
 }
 
 TCellBundle* TTamedCellManager::CreateCellBundle(

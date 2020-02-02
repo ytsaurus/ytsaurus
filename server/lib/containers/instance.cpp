@@ -11,11 +11,12 @@
 
 #include <yt/core/misc/error.h>
 
-#include <yt/contrib/portoapi/libporto.hpp>
+#include <infra/porto/api/libporto.hpp>
 
 #include <util/string/cast.h>
 
 #include <initializer_list>
+#include <string>
 
 namespace NYT::NContainers {
 
@@ -147,7 +148,7 @@ public:
     {
         auto error = WaitFor(Executor_->Kill(Name_, signal));
         // Killing already finished process is not an error.
-        if (error.FindMatching(EContainerErrorCode::InvalidState)) {
+        if (error.FindMatching(EPortoErrorCode::InvalidState)) {
             return;
         }
         if (!error.IsOK()) {
@@ -214,6 +215,38 @@ public:
     {
         WaitFor(Executor_->Stop(Name_))
             .ThrowOnError();
+    }
+
+    virtual TString GetRoot() override
+    {
+        auto getRoot = [&] (TString name) {
+            auto properties = WaitFor(Executor_->GetProperties(
+                name,
+                std::vector<TString>{"root"}))
+                .ValueOrThrow();
+
+            return properties.at("root")
+                .ValueOrThrow();
+        };
+
+        static const TString Prefix("/porto");
+
+        TString root = "/";
+        auto absoluteName = GetAbsoluteName();
+        while (true) {
+            YT_VERIFY(absoluteName.length() >= Prefix.length());
+            if (absoluteName == Prefix) {
+                return root;
+            }
+
+            root = getRoot(absoluteName);
+            if (root != "/") {
+                return root;
+            }
+
+            auto slashPosition = absoluteName.rfind('/');
+            absoluteName = absoluteName.substr(0, slashPosition);
+        }
     }
 
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const override
@@ -325,6 +358,17 @@ public:
 
         return properties.at("absolute_name")
              .ValueOrThrow();
+    }
+
+    virtual TString GetStderr() const override
+    {
+        auto properties = WaitFor(Executor_->GetProperties(
+            Name_,
+            std::vector<TString>{"stderr"}))
+            .ValueOrThrow();
+
+        return properties.at("stderr")
+            .ValueOrThrow();
     }
 
     virtual void SetCpuShare(double cores) override
@@ -484,14 +528,14 @@ const std::map<EStatField, TPortoStatRule> TPortoInstance::StatRules_ = {
     { EStatField::CpuStolenTime,   { "cpu_wait_time",
         BIND([](const TString& in) { return std::stol(in);                     } ) } },
     { EStatField::Rss,             { "memory.stat",
-        BIND([](const TString& in) { return Extract(in, "rss");                } ) } },
+        BIND([](const TString& in) { return Extract(in, "total_rss");          } ) } },
     { EStatField::MappedFiles,     { "memory.stat",
-        BIND([](const TString& in) { return Extract(in, "mapped_file");        } ) } },
+        BIND([](const TString& in) { return Extract(in, "total_mapped_file");  } ) } },
     { EStatField::IOOperations,    { "io_ops",
         BIND([](const TString& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
     { EStatField::IOReadByte,      { "io_read",
         BIND([](const TString& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
-    { EStatField::IOWriteByte,      { "io_write",
+    { EStatField::IOWriteByte,     { "io_write",
         BIND([](const TString& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
     { EStatField::MaxMemoryUsage,  { "memory.max_usage_in_bytes",
         BIND([](const TString& in) { return std::stol(in);                     } ) } },

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "public.h"
-#include "fair_share_tree.h"
+
+#include <yt/server/lib/scheduler/helpers.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -31,8 +32,9 @@ public:
         EUpdatePoolActionType Type = EUpdatePoolActionType::Keep;
     };
 
-    explicit TPoolsConfigParser(THashMap<TString, TString> poolToParentMap)
+    explicit TPoolsConfigParser(THashMap<TString, TString> poolToParentMap, THashSet<TString> ephemeralPools)
         : OldPoolToParentMap_(std::move(poolToParentMap))
+        , EphemeralPools_(std::move(ephemeralPools))
     { }
 
     TError TryParse(const NYTree::INodePtr& rootNode)
@@ -50,6 +52,7 @@ public:
 
 private:
     const THashMap<TString, TString> OldPoolToParentMap_;
+    const THashSet<TString> EphemeralPools_;
 
     THashSet<TString> ParsedPoolNames_;
     std::vector<TUpdatePoolAction> UpdatePoolActions;
@@ -71,8 +74,8 @@ private:
         }
 
         for (const auto& [childName, childNode] : children) {
-            if (childName == RootPoolName) {
-                Error_ = TError("Use of root element id is forbidden");
+            Error_ = CheckPoolName(childName);
+            if (!Error_.IsOK()) {
                 return false;
             }
 
@@ -120,7 +123,7 @@ private:
     {
         THashMap<TString, TString> erasingPoolToParent;
         for (const auto& [poolName, parent] : OldPoolToParentMap_) {
-            if (!ParsedPoolNames_.contains(poolName)) {
+            if (!ParsedPoolNames_.contains(poolName) && !EphemeralPools_.contains(poolName)) {
                 erasingPoolToParent.emplace(poolName, parent);
             }
         }

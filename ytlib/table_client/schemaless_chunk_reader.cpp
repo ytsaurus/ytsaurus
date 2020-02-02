@@ -180,6 +180,7 @@ protected:
     int RowIndexId_ = -1;
     int RangeIndexId_ = -1;
     int TableIndexId_ = -1;
+    int TabletIndexId_ = -1;
 
     NLogging::TLogger Logger;
 
@@ -198,6 +199,10 @@ protected:
 
             if (Options_->EnableTableIndex) {
                 TableIndexId_ = NameTable_->GetIdOrRegisterName(TableIndexColumnName);
+            }
+
+            if (Options_->EnableTabletIndex) {
+                TabletIndexId_ = NameTable_->GetIdOrRegisterName(TabletIndexColumnName);
             }
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Failed to add system columns to name table for schemaless chunk reader")
@@ -566,7 +571,7 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
     auto chunkKeyColumns = ChunkMeta_->ChunkSchema().GetKeyColumns();
     ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
-    ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable, /* validateColumnNames */ true);
+    ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
 
     if (KeyColumns_.empty()) {
         KeyColumns_ = chunkKeyColumns;
@@ -700,6 +705,10 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
             }
             if (Options_->EnableRowIndex) {
                 *row.End() = MakeUnversionedInt64Value(GetTableRowIndex(), RowIndexId_);
+                row.SetCount(row.GetCount() + 1);
+            }
+            if (Options_->EnableTabletIndex) {
+                *row.End() = MakeUnversionedInt64Value(ChunkSpec_.tablet_index(), TabletIndexId_);
                 row.SetCount(row.GetCount() + 1);
             }
 
@@ -839,7 +848,7 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
     auto chunkKeyColumns = ChunkMeta_->ChunkSchema().GetKeyColumns();
     ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
-    ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable, /* validateColumnNames */ true);
+    ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
 
     // Don't call InitBlockLastKeys because this reader should be used only for dynamic tables.
     YT_VERIFY(Options_->DynamicTable);
@@ -1180,8 +1189,7 @@ private:
         ValidateKeyColumns(
             KeyColumns_,
             chunkSchema.GetKeyColumns(),
-            Options_->DynamicTable,
-            /* validateColumnNames */ true);
+            Options_->DynamicTable);
 
         // Cannot read more key columns than stored in chunk, even if range keys are longer.
         minKeyColumnCount = std::min(minKeyColumnCount, chunkSchema.GetKeyColumnCount());
@@ -1276,7 +1284,7 @@ private:
         }
 
         for (int keyIndex = minKeyColumnCount; keyIndex < KeyColumns_.size(); ++keyIndex) {
-            auto columnReader = CreateUnversionedNullColumnReader(
+            auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 keyIndex,
                 keyIndex);
             KeyColumnReaders_.emplace_back(columnReader.get());
@@ -1387,6 +1395,10 @@ private:
                 *row.End() = MakeUnversionedInt64Value(
                     GetTableRowIndex() + index,
                     RowIndexId_);
+                row.SetCount(row.GetCount() + 1);
+            }
+            if (Options_->EnableTabletIndex) {
+                *row.End() = MakeUnversionedInt64Value(ChunkSpec_.tablet_index(), TabletIndexId_);
                 row.SetCount(row.GetCount() + 1);
             }
 
@@ -1562,15 +1574,14 @@ private:
         if (!ChunkMeta_->Misc().sorted()) {
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
         }
-        
+
         const auto& chunkSchema = ChunkMeta_->ChunkSchema();
         const auto& columnMeta = ChunkMeta_->ColumnMeta();
 
         ValidateKeyColumns(
             KeyColumns_,
             chunkSchema.GetKeyColumns(),
-            Options_->DynamicTable,
-            /* validateColumnNames */ true);
+            Options_->DynamicTable);
 
         TNameTablePtr chunkNameTable;
         if (Options_->DynamicTable) {
@@ -1593,7 +1604,7 @@ private:
             Columns_.emplace_back(std::move(columnReader), keyColumnIndex);
         }
         for (int keyColumnIndex = chunkSchema.GetKeyColumnCount(); keyColumnIndex < KeyColumns_.size(); ++keyColumnIndex) {
-            auto columnReader = CreateUnversionedNullColumnReader(
+            auto columnReader = CreateBlocklessUnversionedNullColumnReader(
                 keyColumnIndex,
                 keyColumnIndex);
 

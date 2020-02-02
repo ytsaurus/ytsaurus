@@ -111,7 +111,7 @@ public:
 
     virtual i64 GetLowerRowIndex(const NTableClient::TUnversionedValue& value, i64 upperRowIndex) const override
     {
-        i64 index = LowerBound(
+        i64 index = BinarySearch(
             SegmentRowIndex_,
             std::min(GetSegmentRowIndex(upperRowIndex), Meta_.row_count()),
             [&] (i64 segmentRowIndex) {
@@ -124,7 +124,7 @@ public:
 
     virtual i64 GetUpperRowIndex(const NTableClient::TUnversionedValue& value, i64 upperRowIndex) const override
     {
-        i64 index = LowerBound(
+        i64 index = BinarySearch(
             SegmentRowIndex_,
             std::min(GetSegmentRowIndex(upperRowIndex), Meta_.row_count()),
             [&] (i64 segmentRowIndex) {
@@ -232,7 +232,7 @@ public:
         if (segmentRowIndex > SegmentRowIndex_) {
             SegmentRowIndex_ = segmentRowIndex;
 
-            ValueIndex_ = LowerBound(
+            ValueIndex_ = BinarySearch(
                 ValueIndex_,
                 ValueExtractor_.GetValueCount(),
                 [&] (i64 valueIndex) {
@@ -251,7 +251,7 @@ public:
     virtual i64 GetLowerRowIndex(const NTableClient::TUnversionedValue& value, i64 rowIndexLimit) const override
     {
         i64 upperValueIndex = GetUpperValueIndex(rowIndexLimit);
-        i64 valueIndex = LowerBound(
+        i64 valueIndex = BinarySearch(
             ValueIndex_,
             upperValueIndex,
             [&] (i64 valueIndex) {
@@ -266,7 +266,7 @@ public:
     virtual i64 GetUpperRowIndex(const NTableClient::TUnversionedValue& value, i64 rowIndexLimit) const override
     {
         i64 upperValueIndex = GetUpperValueIndex(rowIndexLimit);
-        i64 valueIndex = LowerBound(
+        i64 valueIndex = BinarySearch(
             ValueIndex_,
             upperValueIndex,
             [&] (i64 valueIndex) {
@@ -298,7 +298,7 @@ private:
         if (GetSegmentRowIndex(rowIndex) >= Meta_.row_count()) {
             upperValueIndex = ValueExtractor_.GetValueCount();
         } else {
-            upperValueIndex = LowerBound(
+            upperValueIndex = BinarySearch(
                 ValueIndex_,
                 ValueExtractor_.GetValueCount(),
                 [&] (i64 valueIndex) {

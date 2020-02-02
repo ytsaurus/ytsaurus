@@ -28,18 +28,27 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryContext::TQueryContext(TBootstrap* bootstrap, const DB::Context& context, TQueryId queryId, TTraceContextPtr traceContext)
+TQueryContext::TQueryContext(
+    TBootstrap* bootstrap,
+    const DB::Context& context,
+    TQueryId queryId,
+    TTraceContextPtr traceContext,
+    std::optional<TString> dataLensRequestId)
     : Logger(ServerLogger)
     , User(TString(context.getClientInfo().initial_user))
     , TraceContext(std::move(traceContext))
     , QueryId(queryId)
     , QueryKind(static_cast<EQueryKind>(context.getClientInfo().query_kind))
     , Bootstrap(bootstrap)
+    , DataLensRequestId_(std::move(dataLensRequestId))
     , RowBuffer(New<NTableClient::TRowBuffer>())
     , Host_(Bootstrap->GetHost())
     , TraceContextGuard_(TraceContext)
 {
     Logger.AddTag("QueryId: %v", QueryId);
+    if (DataLensRequestId_) {
+        Logger.AddTag("DataLensRequestId: %v", DataLensRequestId_);
+    }
     YT_LOG_INFO("Query context created (User: %v, QueryKind: %v)", User, QueryKind);
 
     const auto& clientInfo = context.getClientInfo();
@@ -118,13 +127,7 @@ const NApi::NNative::IClientPtr& TQueryContext::Client() const
     return Client_;
 }
 
-DB::QueryStatus* TQueryContext::TryGetQueryStatus() const
-{
-    return const_cast<DB::ProcessList&>(Bootstrap->GetHost()->GetContext().getProcessList())
-        .getProcessListElement(ToString(QueryId), User);
-}
-
-void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer)
+void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const DB::QueryStatusInfo* queryStatus)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -145,21 +148,14 @@ void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer)
                     .Item("initial_user").Value(queryContext.InitialUser)
                     .Item("initial_query").Value(queryContext.InitialQuery);
             })
-            .Item("query_info").Do([&] (TFluentAny fluent) {
-                if (auto* queryStatus = queryContext.TryGetQueryStatus()) {
-                    fluent
-                        .Value(queryStatus->getInfo());
-                } else {
-                    fluent
-                        .Entity();
-                }
-            })
+            .Item("query_status").Value(queryStatus)
+            .OptionalItem("datalens_request_id", queryContext.DataLensRequestId_)
         .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId, TTraceContextPtr traceContext)
+void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId, TTraceContextPtr traceContext, std::optional<TString> dataLensRequestId)
 {
     YT_VERIFY(traceContext);
 
@@ -167,7 +163,8 @@ void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId quer
         bootstrap,
         context,
         queryId,
-        std::move(traceContext));
+        std::move(traceContext),
+        std::move(dataLensRequestId));
 }
 
 TQueryContext* GetQueryContext(const DB::Context& context)

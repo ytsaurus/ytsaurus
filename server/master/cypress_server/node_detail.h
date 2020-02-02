@@ -8,6 +8,8 @@
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/serialize.h>
 
+#include <yt/server/master/chunk_server/chunk_requisition.h>
+
 #include <yt/server/master/object_server/attribute_set.h>
 #include <yt/server/master/object_server/object_detail.h>
 #include <yt/server/master/object_server/object_part_cow_ptr.h>
@@ -60,19 +62,20 @@ protected:
 
     void DestroyCore(TCypressNode* node);
 
-    void BeginCopyCore(
+    bool BeginCopyCore(
         TCypressNode* node,
         TBeginCopyContext* context);
     TCypressNode* EndCopyCore(
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
-        TNodeId sourceNodeId);
+        TNodeId sourceNodeId,
+        bool* needCustomEndCopy);
     void EndCopyInplaceCore(
         TCypressNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory,
         TNodeId sourceNodeId);
-    void LoadInplace(
+    bool LoadInplace(
         TCypressNode* trunkNode,
         TEndCopyContext* context,
         ICypressNodeFactory* factory);
@@ -156,8 +159,9 @@ public:
         TCypressNode* node,
         TBeginCopyContext* context) override
     {
-        BeginCopyCore(node, context);
-        DoBeginCopy(node->As<TImpl>(), context);
+        if (BeginCopyCore(node, context)) {
+            DoBeginCopy(node->As<TImpl>(), context);
+        }
     }
 
     virtual TCypressNode* EndCopy(
@@ -165,8 +169,13 @@ public:
         ICypressNodeFactory* factory,
         TNodeId sourceNodeId) override
     {
-        auto* trunkNode = EndCopyCore(context, factory, sourceNodeId);
-        DoEndCopy(trunkNode->template As<TImpl>(), context, factory);
+        bool needCustomEndCopy;
+        auto* trunkNode = EndCopyCore(context, factory, sourceNodeId, &needCustomEndCopy);
+
+        if (needCustomEndCopy) {
+            DoEndCopy(trunkNode->template As<TImpl>(), context, factory);
+        }
+
         return trunkNode;
     }
 
@@ -290,7 +299,7 @@ protected:
         securityManager->SetAccount(
             nodeHolder.get(),
             context.Account,
-            nullptr /* transaction*/);
+            nullptr /* transaction */);
 
         return nodeHolder;
     }

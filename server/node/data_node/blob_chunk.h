@@ -6,7 +6,7 @@
 #include "chunk_meta_manager.h"
 
 #include <yt/ytlib/chunk_client/block.h>
-#include <yt/ytlib/chunk_client/chunk_info.pb.h>
+#include <yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
@@ -113,6 +113,10 @@ private:
         int endEntryIndex,
         TPendingIOGuard&& pendingIOGuard,
         const TErrorOr<std::vector<NChunkClient::TBlock>>& blocksOrError);
+
+    //! Returns `true` if chunk was writen with `sync_on_close` option.
+    //! Default value is `true`.
+    bool SyncOnClose() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlobChunkBase)

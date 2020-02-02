@@ -78,7 +78,7 @@ NProfiling::TTagIdList GetFailReasonProfilingTags(NControllerAgent::EScheduleJob
 //!
 //!   * Snapshot of the tree with scheduling attributes (fair share ratios, best leaf descendants et. c).
 //!     It is built repeatedly from actual tree by taking snapshot and calculating scheduling attributes.
-//!     Clones of this tree are used in heartbeats for scheduling. Also, element attributes from this tree 
+//!     Clones of this tree are used in heartbeats for scheduling. Also, element attributes from this tree
 //!     are used in orchid and for profiling.
 //!     This tree represented by fields #GlobalDynamicAttributes_, #ElementIndexes_, #RootElementSnapshot_.
 //!     NB: elements of this tree may be invalidated by #Alive flag in resource tree. In this case element cannot be safely used
@@ -97,6 +97,8 @@ public:
         ISchedulerStrategyHost* host,
         const std::vector<IInvokerPtr>& feasibleInvokers,
         const TString& treeId);
+
+    TFairShareStrategyTreeConfigPtr GetConfig() const;
 
     TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName);
 
@@ -197,6 +199,10 @@ public:
     std::vector<TOperationId> TryRunAllWaitingOperations();
 
     std::vector<TOperationId> ExtractActivatableOperations();
+
+    void OnTreeRemoveStarted();
+
+    bool IsBeingRemoved();
 
 private:
     TFairShareStrategyTreeConfigPtr Config_;
@@ -321,6 +327,8 @@ private:
 
     NProfiling::TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
 
+    bool IsBeingRemoved_ = false;
+
     TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElement* element) const;
 
     std::pair<IFairShareTreeSnapshotPtr, TError> DoFairShareUpdateAt(TInstant now);
@@ -382,6 +390,8 @@ private:
     TPoolPtr GetPool(const TString& id) const;
     TPool* FindRecentPoolSnapshot(const TString& id) const;
 
+    int GetPoolCount() const;
+
     TPoolPtr GetOrCreatePool(const TPoolName& poolName, TString userName);
 
     NProfiling::TTagId GetPoolProfilingTag(const TString& id);
@@ -409,6 +419,7 @@ private:
     void ProfileOperationElement(NProfiling::TMetricsAccumulator& accumulator, TOperationElementPtr element) const;
     void ProfileCompositeSchedulerElement(NProfiling::TMetricsAccumulator& accumulator, TCompositeSchedulerElementPtr element) const;
     void ProfileSchedulerElement(NProfiling::TMetricsAccumulator& accumulator, const TSchedulerElementPtr& element, const TString& profilingPrefix, const NProfiling::TTagIdList& tags) const;
+    void RemoveEmptyEphemeralPoolsRecursive(TCompositeSchedulerElement* compositeElement);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTree)

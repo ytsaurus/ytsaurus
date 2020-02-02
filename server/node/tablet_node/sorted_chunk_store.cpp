@@ -29,6 +29,7 @@
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/chunk_state.h>
+#include <yt/ytlib/table_client/lookup_chunk_reader.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/client/table_client/versioned_reader.h>
 
@@ -382,8 +383,17 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     }
 
     auto chunkReader = GetChunkReader(throttler);
-    auto chunkState = PrepareChunkState(chunkReader, blockReadOptions);
 
+    if (tabletSnapshot->Config->EnableDataNodeLookup) {
+        return CreateRowLookupReader(
+            std::move(chunkReader),
+            blockReadOptions,
+            filteredKeys,
+            tabletSnapshot,
+            produceAllVersions);
+    }
+
+    auto chunkState = PrepareChunkState(chunkReader, blockReadOptions);
     ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
 
     return createFilteringReader(CreateVersionedChunkReader(

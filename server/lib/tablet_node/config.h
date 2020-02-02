@@ -6,6 +6,8 @@
 
 #include <yt/server/lib/hydra/config.h>
 
+#include <yt/server/lib/election/config.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/table_client/config.h>
@@ -38,6 +40,10 @@ public:
     {
         RegisterParameter("response_keeper", ResponseKeeper)
             .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            PreallocateChangelogs = true;
+        });
     }
 };
 
@@ -88,6 +94,7 @@ public:
     int MaxReadFanIn;
 
     int MaxOverlappingStoreCount;
+    int OverlappingStoreImmediateSplitThreshold;
 
     NTabletClient::EInMemoryMode InMemoryMode;
 
@@ -101,6 +108,8 @@ public:
     std::optional<TDuration> AutoCompactionPeriod;
 
     bool EnableLookupHashTable;
+
+    int LookupCacheRowsPerTablet;
 
     TDuration MinReplicationLogTtl;
     int MaxTimestampsPerReplicationCommit;
@@ -125,6 +134,8 @@ public:
     bool PreserveTabletIndex;
 
     bool EnablePartitionSplitWhileEdenPartitioning;
+
+    bool EnableDataNodeLookup;
 
     TTableMountConfig()
     {
@@ -220,10 +231,13 @@ public:
 
         RegisterParameter("max_overlapping_store_count", MaxOverlappingStoreCount)
             .GreaterThan(0)
-            .Default(30);
+            .Default(DefaultMaxOverlappingStoreCount);
         RegisterParameter("critical_overlapping_store_count", CriticalOverlappingStoreCount)
             .GreaterThan(0)
             .Optional();
+        RegisterParameter("overlapping_store_immediate_split_threshold", OverlappingStoreImmediateSplitThreshold)
+            .GreaterThan(0)
+            .Default(20);
 
         RegisterParameter("in_memory_mode", InMemoryMode)
             .Default(NTabletClient::EInMemoryMode::None);
@@ -247,6 +261,9 @@ public:
 
         RegisterParameter("enable_lookup_hash_table", EnableLookupHashTable)
             .Default(false);
+
+        RegisterParameter("lookup_cache_rows_per_tablet", LookupCacheRowsPerTablet)
+            .Default(0);
 
         RegisterParameter("min_replication_log_ttl", MinReplicationLogTtl)
             .Default(TDuration::Minutes(5));
@@ -288,6 +305,9 @@ public:
             .Default(false);
 
         RegisterParameter("enable_partition_split_while_eden_partitioning", EnablePartitionSplitWhileEdenPartitioning)
+            .Default(false);
+
+        RegisterParameter("enable_data_node_lookup", EnableDataNodeLookup)
             .Default(false);
 
         RegisterPostprocessor([&] () {
@@ -651,6 +671,8 @@ public:
     //! Generic configuration for all Hydra instances.
     TTabletHydraManagerConfigPtr HydraManager;
 
+    NElection::TDistributedElectionManagerConfigPtr ElectionManager;
+
     //! Generic configuration for all Hive instances.
     NHiveServer::THiveManagerConfigPtr HiveManager;
 
@@ -685,9 +707,6 @@ public:
     //! Interval between slots examination.
     TDuration SlotScanPeriod;
 
-    //! Toggles background tablet compaction and partitioning (turning off is useful for debugging purposes).
-    bool EnableStoreCompactor;
-
     //! Toggles background Eden flushing (disabling is useful for debugging purposes).
     bool EnableStoreFlusher;
 
@@ -711,6 +730,8 @@ public:
         RegisterParameter("changelogs", Changelogs)
             .DefaultNew();
         RegisterParameter("hydra_manager", HydraManager)
+            .DefaultNew();
+        RegisterParameter("election_manager", ElectionManager)
             .DefaultNew();
         RegisterParameter("hive_manager", HiveManager)
             .DefaultNew();
@@ -750,8 +771,6 @@ public:
         RegisterParameter("slot_scan_period", SlotScanPeriod)
             .Default(TDuration::Seconds(1));
 
-        RegisterParameter("enable_store_compactor", EnableStoreCompactor)
-            .Default(true);
         RegisterParameter("enable_store_flusher", EnableStoreFlusher)
             .Default(true);
         RegisterParameter("enable_store_trimmer", EnableStoreTrimmer)

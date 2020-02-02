@@ -406,6 +406,7 @@ private:
         for (auto&& statistics : batch) {
             // It must be alive until row capture.
             TYsonString coreInfosYsonString;
+            TString jobCompetitionIdString;
 
             TUnversionedRowBuilder builder;
             builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Index.OperationIdHi));
@@ -455,6 +456,10 @@ private:
                 } else if (GetSharedData()->GetOperationArchiveVersion() >= 21) {
                     builder.AddValue(MakeUnversionedBooleanValue(statistics.FailContext().operator bool(), Table_.Index.HasFailContext));
                 }
+            }
+            if (GetSharedData()->GetOperationArchiveVersion() >= 32 && statistics.JobCompetitionId()) {
+                jobCompetitionIdString = ToString(statistics.JobCompetitionId());
+                builder.AddValue(MakeUnversionedStringValue(jobCompetitionIdString, Table_.Index.JobCompetitionId));
             }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());

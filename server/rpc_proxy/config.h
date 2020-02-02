@@ -14,6 +14,8 @@
 
 #include <yt/ytlib/api/native/config.h>
 
+#include <yt/core/misc/config.h>
+
 #include <yt/core/rpc/grpc/config.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -39,6 +41,23 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSecurityManagerConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TAsyncExpiringCacheConfigPtr UserCache;
+
+    TSecurityManagerConfig()
+    {
+        RegisterParameter("user_cache", UserCache)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TApiServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -50,6 +69,8 @@ public:
     TSlruCacheConfigPtr ClientCache;
 
     i64 ReadBufferRowCount;
+
+    TSecurityManagerConfigPtr SecurityManager;
 
     TApiServiceConfig()
     {
@@ -63,6 +84,8 @@ public:
             .Default(New<TSlruCacheConfig>(1000));
         RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
             .Default((i64) 10000);
+        RegisterParameter("security_manager", SecurityManager)
+            .DefaultNew();
     }
 };
 

@@ -4,7 +4,7 @@ from yt.environment import YTInstance, init_operation_archive, arcadia_interop
 from yt.common import makedirp, YtError, YtResponseError, format_error
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.environment.default_configs import get_dynamic_master_config
-from yt.test_helpers import wait
+from yt.test_helpers import wait, WaitFailed
 
 from yt.common import update_inplace
 import yt.logger
@@ -13,6 +13,7 @@ import pytest
 
 import gc
 import os
+import signal
 import sys
 import glob
 import logging
@@ -165,15 +166,28 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
 
     _retry_with_gc_collect(do, driver=driver)
 
-def _restore_globals(driver=None):
+def _restore_globals(scheduler_count, driver=None):
     def do():
         for response in yt_commands.execute_batch([
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
                 yt_commands.make_batch_request("set", path="//sys/@config", input=get_dynamic_master_config()),
-                yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
+                # TODO(renadeen): remove
+                # yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
             ], driver=driver):
             assert not yt_commands.get_batch_output(response)
+
+        wait_for_orchid = scheduler_count > 0
+
+        # TODO(ignat): batch these actions and make proper waiting of actual state inside scheduler.
+        if yt_commands.exists("//sys/pool_trees/default"):
+            yt_commands.remove("//sys/pool_trees/default/*")
+        if not yt_commands.exists("//sys/pool_trees/default"):
+            yt_commands.create_pool_tree("default", wait_for_orchid=wait_for_orchid)
+        yt_commands.set("//sys/pool_trees/@default_tree", "default")
+        for pool_tree in yt_commands.ls("//sys/pool_trees"):
+            if pool_tree != "default":
+                yt_commands.remove_pool_tree(pool_tree, wait_for_orchid=wait_for_orchid)
 
     _retry_with_gc_collect(do, driver=driver)
 
@@ -226,7 +240,15 @@ def _wait_for_jobs_to_vanish(driver=None):
                     for node in nodes]
         responses = yt_commands.execute_batch(requests, driver=driver)
         return all(yt_commands.get_batch_output(response).get("scheduler", 0) == 0 for response in responses)
-    wait(check_no_jobs)
+    try:
+        wait(check_no_jobs, iter=300)
+    except WaitFailed:
+        requests = [yt_commands.make_batch_request("list", path="//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(node), return_only_value=True)
+                    for node in nodes]
+        responses = yt_commands.execute_batch(requests, driver=driver)
+        print >>sys.stderr, "There are remaining scheduler jobs:"
+        for node, response in zip(nodes, responses):
+            print >>sys.stderr, "Node {}: {}".format(node, response)
 
 def find_ut_file(file_name):
     if arcadia_interop.yatest_common is not None:
@@ -235,7 +257,7 @@ def find_ut_file(file_name):
     unittester_path = find_executable("unittester-ytlib")
     assert unittester_path is not None
     for unittests_path in [
-        os.path.join(os.path.dirname(unittester_path), "..", "yt", "ytlib", "unittests"),
+        os.path.join(os.path.dirname(unittester_path), "..", "yt", "ytlib", "query_client", "ut"),
         os.path.dirname(unittester_path)
     ]:
         result_path = os.path.join(unittests_path, file_name)
@@ -394,12 +416,18 @@ def resolve_test_paths(name):
     path_to_environment = os.path.join(path_to_sandbox, "run")
     return path_to_sandbox, path_to_environment
 
-def _pytest_finalize_func(environment, process_call_args):
-    print >>sys.stderr, 'Process run by command "{0}" is dead!'.format(" ".join(process_call_args))
+def _pytest_finalize_func(environment, process, process_call_args):
+    if process.returncode < 0:
+        what = "terminated by signal {}".format(-process.returncode)
+    else:
+        what = "exited with code {}".format(process.returncode)
+
+    print >>sys.stderr, 'Process run by command "{0}" {1}'.format(" ".join(process_call_args), what)
     environment.stop()
 
     print >>sys.stderr, "Killing pytest process"
-    os._exit(42)
+    # Avoid dumping useless stacktrace to stderr.
+    os.kill(os.getpid(), signal.SIGKILL)
 
 class Checker(Thread):
     def __init__(self, check_function):
@@ -443,16 +471,16 @@ class Restarter(object):
         self.start_dict = {SCHEDULERS_SERVICE: self.Env.start_schedulers,
                            CONTROLLER_AGENTS_SERVICE: self.Env.start_controller_agents,
                            NODES_SERVICE: self.Env.start_nodes,
-                           MASTER_CELL_SERVICE: self.Env.start_master_cell}
-        self.name_dict = {SCHEDULERS_SERVICE: "scheduler",
-                          CONTROLLER_AGENTS_SERVICE: "controller_agent",
-                          NODES_SERVICE: "node",
-                          MASTER_CELL_SERVICE: "master"}
+                           MASTER_CELL_SERVICE: lambda: self.Env.start_all_masters(True)}
+        self.kill_dict = {SCHEDULERS_SERVICE: lambda: self.Env.kill_service("scheduler", *self.kill_args, **self.kill_kwargs),
+                          CONTROLLER_AGENTS_SERVICE: lambda: self.Env.kill_service("controller_agent", *self.kill_args, **self.kill_kwargs),
+                          NODES_SERVICE: lambda: self.Env.kill_service("node", *self.kill_args, **self.kill_kwargs),
+                          MASTER_CELL_SERVICE: lambda: self.Env.kill_all_masters(*self.kill_args, **self.kill_kwargs)}
 
     def __enter__(self):
         for comp_name in self.components:
             try:
-                self.Env.kill_service(self.name_dict[comp_name], *self.kill_args, **self.kill_kwargs)
+                self.kill_dict[comp_name]()
             except KeyError:
                 logging.error("Failed to kill {}. No such component.".format(comp_name))
                 raise
@@ -475,14 +503,15 @@ class YTEnvSetup(object):
     NUM_NODES = 5
     DEFER_NODE_START = False
     NUM_SCHEDULERS = 0
+    DEFER_SCHEDULER_START = False
     NUM_CONTROLLER_AGENTS = None
+    DEFER_CONTROLLER_AGENT_START = False
     ENABLE_HTTP_PROXY = False
     NUM_HTTP_PROXIES = 1
     HTTP_PROXY_PORTS = None
     ENABLE_RPC_PROXY = None
     NUM_RPC_PROXIES = 2
     DRIVER_BACKEND = "native"
-    NUM_SKYNET_MANAGERS = 0
     NODE_PORT_SET_SIZE = None
 
     DELTA_DRIVER_CONFIG = {}
@@ -508,6 +537,7 @@ class YTEnvSetup(object):
     ENABLE_TABLET_BALANCER = False
 
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = False
+    REQUIRE_SUID_TOOL = False
 
     NUM_REMOTE_CLUSTERS = 0
 
@@ -574,11 +604,13 @@ class YTEnvSetup(object):
             node_count=cls.get_param("NUM_NODES", index),
             defer_node_start=cls.get_param("DEFER_NODE_START", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
+            defer_scheduler_start=cls.get_param("DEFER_SCHEDULER_START", index),
             controller_agent_count=cls.get_param("NUM_CONTROLLER_AGENTS", index),
+            defer_controller_agent_start=cls.get_param("DEFER_CONTROLLER_AGENT_START", index),
             http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0,
             http_proxy_ports=cls.get_param("HTTP_PROXY_PORTS", index),
             rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
-            skynet_manager_count=cls.get_param("NUM_SKYNET_MANAGERS", index),
+            watcher_config={"disable_logrotate": True} if arcadia_interop.yatest_common is not None else None,
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
             kill_child_processes=True,
             use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
@@ -608,6 +640,14 @@ class YTEnvSetup(object):
 
         if cls.get_param("REQUIRE_YTSERVER_ROOT_PRIVILEGES", False):
             check_root_privileges()
+
+        if cls.get_param("USE_PORTO_FOR_SERVERS", False):
+            if arcadia_interop.yatest_common is not None:
+                pytest.skip("porto is not available on distbuild")
+
+        if cls.get_param("REQUIRE_SUID_TOOL", False):
+            if arcadia_interop.yatest_common is not None:
+                pytest.skip("SUID ytserver-tool is not available on distbuild")
 
         # Initialize `cls` fields before actual setup to make teardown correct.
 
@@ -677,10 +717,10 @@ class YTEnvSetup(object):
                 liveness_checker.start()
                 cls.liveness_checkers.append(liveness_checker)
 
-        if cls.remote_envs:
+        if len(cls.Env.configs["master"]) > 0:
             clusters = {}
             for instance in [cls.Env] + cls.remote_envs:
-                connection_config = {
+                clusters[instance._cluster_name] = {
                     "primary_master": instance.configs["master"][0]["primary_master"],
                     "secondary_masters": instance.configs["master"][0]["secondary_masters"],
                     "timestamp_provider": instance.configs["master"][0]["timestamp_provider"],
@@ -689,7 +729,6 @@ class YTEnvSetup(object):
                     "cell_directory_synchronizer": instance.configs["driver"]["cell_directory_synchronizer"],
                     "cluster_directory_synchronizer": instance.configs["driver"]["cluster_directory_synchronizer"]
                 }
-                clusters[instance._cluster_name] = connection_config
 
             for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
                 driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
@@ -697,9 +736,11 @@ class YTEnvSetup(object):
                     continue
                 yt_commands.set("//sys/clusters", clusters, driver=driver)
 
+        # TODO(babenko): get rid of this sleep
+        if cls.remote_envs:
             sleep(1.0)
 
-        if yt_commands.is_multicell:
+        if yt_commands.is_multicell and cls.START_SECONDARY_MASTER_CELLS:
             yt_commands.remove("//sys/operations")
             yt_commands.create("portal_entrance", "//sys/operations", attributes={"exit_cell_tag": 1})
 
@@ -803,12 +844,12 @@ class YTEnvSetup(object):
             if cls.run_id:
                 destination_path = os.path.join(destination_path, cls.run_id)
             if os.path.exists(destination_path):
-                shutil.rmtree(destination_path)
+                shutil.rmtree(destination_path, ignore_errors=True)
 
             runtime_data = [os.path.join(cls.path_to_run, "runtime_data")] + glob.glob(cls.path_to_run + "/*/runtime_data")
             for dir in runtime_data:
                 if os.path.exists(dir):
-                    shutil.rmtree(dir)
+                    shutil.rmtree(dir, ignore_errors=True)
             shutil.move(cls.path_to_run, destination_path)
 
 
@@ -837,6 +878,14 @@ class YTEnvSetup(object):
             if cls.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 yt_commands.create("document", "//sys/controller_agents/config", attributes={"value": {}}, force=True, driver=driver)
                 yt_commands.create("document", "//sys/scheduler/config", attributes={"value": {}}, force=True, driver=driver)
+
+                if cls.ENABLE_BULK_INSERT:
+                    yt_commands.set("//sys/controller_agents/config/enable_bulk_insert_for_everyone", True)
+                    for instance in yt_commands.ls("//sys/controller_agents/instances"):
+                        def _wait_func():
+                            config = yt_commands.get("//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(instance))
+                            return config.get("enable_bulk_insert_for_everyone", False)
+                        wait(_wait_func)
 
             if cls.ENABLE_TMP_PORTAL and cluster_index == 0:
                 yt_commands.create("portal_entrance", "//tmp",
@@ -887,9 +936,13 @@ class YTEnvSetup(object):
 
             yt_commands.gc_collect(driver=driver)
 
-            _restore_globals(driver=driver)
+            _restore_globals(
+                scheduler_count=cls.get_param("NUM_SCHEDULERS", cluster_index),
+                driver=driver)
 
-            _remove_objects(enable_secondary_cells_cleanup=cls.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index), driver=driver)
+            _remove_objects(
+                enable_secondary_cells_cleanup=cls.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index),
+                driver=driver)
 
             _restore_default_bundle_options(driver=driver)
 
@@ -905,3 +958,29 @@ class YTEnvSetup(object):
     def teardown_method(self, method):
         if not self.SINGLE_SETUP_TEARDOWN:
             self._teardown_method()
+
+def get_porto_delta_node_config():
+    return {
+        "exec_agent": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "porto",
+                },
+            }
+        }
+    }
+
+def get_cgroup_delta_node_config(cgroups=None):
+    if cgroups is None:
+        cgroups = ["cpuacct", "cpu", "blkio"]
+
+    return {
+        "exec_agent": {
+            "slot_manager": {
+                "job_environment": {
+                    "type": "cgroups",
+                    "supported_cgroups": cgroups,
+                },
+            }
+        }
+    }

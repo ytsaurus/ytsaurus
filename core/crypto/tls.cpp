@@ -694,15 +694,17 @@ IDialerPtr TSslContext::CreateDialer(
 
 IListenerPtr TSslContext::CreateListener(
     const TNetworkAddress& at,
-    const IPollerPtr& poller)
+    const IPollerPtr& poller,
+    const IPollerPtr& acceptor)
 {
-    auto listener = NNet::CreateListener(at, poller);
+    auto listener = NNet::CreateListener(at, poller, acceptor);
     return New<TTlsListener>(Impl_, listener, poller);
 }
 
 IListenerPtr TSslContext::CreateListener(
     const IListenerPtr& underlying,
-    const IPollerPtr& poller)
+    const IPollerPtr& poller,
+    const IPollerPtr& acceptor)
 {
     return New<TTlsListener>(Impl_, underlying, poller);
 }

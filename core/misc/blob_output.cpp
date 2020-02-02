@@ -4,6 +4,9 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr size_t InitialBlobOutputCapacity = 16;
+static constexpr double BlobOutputCapacityMultiplier = 1.5;
+
 struct TBlobOutputTag { };
 
 TBlobOutput::TBlobOutput()
@@ -18,6 +21,27 @@ TBlobOutput::TBlobOutput(size_t capacity, size_t alignment)
 
 TBlobOutput::~TBlobOutput()
 { }
+
+size_t TBlobOutput::DoNext(void** ptr)
+{
+    if (Blob_.Size() == Blob_.Capacity()) {
+        if (Blob_.Capacity() >= InitialBlobOutputCapacity) {
+            Reserve(static_cast<size_t>(Blob_.Capacity() * BlobOutputCapacityMultiplier));
+        } else {
+            Reserve(InitialBlobOutputCapacity);
+        }
+    }
+    auto previousSize = Blob_.Size();
+    Blob_.Resize(Blob_.Capacity(), /* initializeStorage */ false);
+    *ptr = Blob_.Begin() + previousSize;
+    return Blob_.Size() - previousSize;
+}
+
+void TBlobOutput::DoUndo(size_t len)
+{
+    YT_VERIFY(len <= Blob_.Size());
+    Blob_.Resize(Blob_.Size() - len);
+}
 
 void TBlobOutput::DoWrite(const void* buffer, size_t length)
 {
@@ -46,6 +70,11 @@ void swap(TBlobOutput& left, TBlobOutput& right)
     if (&left != &right) {
         swap(left.Blob_, right.Blob_);
     }
+}
+
+TBlob& TBlobOutput::Blob()
+{
+    return Blob_;
 }
 
 const TBlob& TBlobOutput::Blob() const

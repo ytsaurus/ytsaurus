@@ -1,6 +1,8 @@
 #include "core_processor_service.h"
 #include "job.h"
 
+#include <yt/server/lib/core_dump/helpers.h>
+
 #include <yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/client/api/client.h>
@@ -18,7 +20,7 @@
 
 #include <yt/core/net/connection.h>
 
-#include <yt/core/pipes/pipe.h>
+#include <yt/library/process/pipe.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -27,6 +29,7 @@ namespace NYT::NJobProxy {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NCoreDump;
 using namespace NFS;
 using namespace NJobProxy;
 using namespace NObjectClient;
@@ -53,6 +56,7 @@ public:
         const TTableWriterOptionsPtr& tableWriterOptions,
         TTransactionId transaction,
         TChunkListId chunkList,
+        bool writeSparseCoreDumps,
         const IInvokerPtr& controlInvoker,
         TDuration readWriteTimeout,
         const TLogger& logger)
@@ -65,6 +69,7 @@ public:
         , TableWriterOptions_(tableWriterOptions)
         , Transaction_(transaction)
         , ChunkList_(chunkList)
+        , WriteSparseCoreDumps_(writeSparseCoreDumps)
         , ReadWriteTimeout_(readWriteTimeout)
         , TrafficMeter_(jobHost->GetTrafficMeter())
         , OutThrottler_(jobHost->GetOutBandwidthThrottler())
@@ -149,6 +154,7 @@ private:
     const TTableWriterOptionsPtr TableWriterOptions_;
     const TTransactionId Transaction_;
     const TChunkListId ChunkList_;
+    const bool WriteSparseCoreDumps_;
     const TDuration ReadWriteTimeout_;
     const TTrafficMeterPtr TrafficMeter_;
     const IThroughputThrottlerPtr OutThrottler_;
@@ -213,16 +219,21 @@ private:
                 TrafficMeter_,
                 OutThrottler_);
 
-            auto reader = CreateZeroCopyAdapter(namedPipe->CreateAsyncReader(), 1_MB /* blockSize */);
-            auto writer = CreateZeroCopyAdapter(CreateAsyncAdapter(&blobWriter));
-
             i64 coreSize = 0;
-            while (auto block = WaitFor(reader->Read().WithTimeout(ReadWriteTimeout_))
-                .ValueOrThrow())
-            {
-                coreSize += block.Size();
-                WaitFor(writer->Write(block))
-                    .ThrowOnError();
+            if (WriteSparseCoreDumps_) {
+                auto coreWriter = New<TStreamSparseCoreDumpWriter>(CreateAsyncAdapter(&blobWriter), ReadWriteTimeout_);
+                coreSize = SparsifyCoreDump(namedPipe->CreateAsyncReader(), coreWriter, ReadWriteTimeout_);
+            } else {
+                auto reader = CreateZeroCopyAdapter(namedPipe->CreateAsyncReader(), 1_MB /* blockSize */);
+                auto writer = CreateZeroCopyAdapter(CreateAsyncAdapter(&blobWriter));
+
+                while (auto block = WaitFor(reader->Read().WithTimeout(ReadWriteTimeout_))
+                    .ValueOrThrow())
+                {
+                    coreSize += block.Size();
+                    WaitFor(writer->Write(block))
+                        .ThrowOnError();
+                }
             }
 
             blobWriter.Finish();
@@ -276,6 +287,7 @@ TCoreProcessorService::TCoreProcessorService(
     const TTableWriterOptionsPtr& tableWriterOptions,
     TTransactionId transaction,
     TChunkListId chunkList,
+    bool writeSparseCoreDumps,
     const IInvokerPtr& controlInvoker,
     TDuration readWriteTimeout)
     : TServiceBase(
@@ -288,6 +300,7 @@ TCoreProcessorService::TCoreProcessorService(
         tableWriterOptions,
         transaction,
         chunkList,
+        writeSparseCoreDumps,
         controlInvoker,
         readWriteTimeout,
         jobHost->GetLogger()))

@@ -23,6 +23,17 @@ bool IsHiveMutation();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSerializedMessage
+    : public TIntrinsicRefCounted
+{
+    TString Type;
+    TString Data;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSerializedMessage)
+
+////////////////////////////////////////////////////////////////////////////////
+
 /*!
  *  \note Thread affinity: single (unless noted otherwise)
  */
@@ -62,11 +73,11 @@ public:
     //! Posts a message for delivery (either reliable or not).
     void PostMessage(
         TMailbox* mailbox,
-        TRefCountedEncapsulatedMessagePtr message,
+        const TSerializedMessagePtr& message,
         bool reliable = true);
     void PostMessage(
         const TMailboxList& mailboxes,
-        TRefCountedEncapsulatedMessagePtr message,
+        const TSerializedMessagePtr& message,
         bool reliable = true);
     void PostMessage(
         TMailbox* mailbox,
@@ -96,7 +107,6 @@ public:
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(THiveManager)

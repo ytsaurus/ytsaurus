@@ -297,9 +297,7 @@ TJobResources GetAdjustedResourceLimits(
         i64 memoryDemandPerJob = demand.GetMemory() / demand.GetUserSlots();
         if (memoryDemandPerJob != 0) {
             i64 newMemoryLimit = 0;
-            for (const auto& pair : execNodeMemoryDistribution) {
-                const auto memoryLimitPerNode = pair.first;
-                const auto nodeCount = pair.second;
+            for (const auto& [memoryLimitPerNode, nodeCount] : execNodeMemoryDistribution) {
                 i64 slotsPerNode = memoryLimitPerNode / memoryDemandPerJob;
                 i64 adjustedMemoryLimit = slotsPerNode * memoryDemandPerJob * nodeCount;
                 newMemoryLimit += adjustedMemoryLimit;

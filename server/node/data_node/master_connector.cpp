@@ -54,6 +54,7 @@
 #include <yt/core/utilex/random.h>
 
 #include <yt/core/rpc/client.h>
+#include <yt/core/rpc/response_keeper.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -71,6 +72,7 @@ using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
+using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTabletNode;
@@ -90,6 +92,10 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TError RedirectToOrchidCompatError("Compat. See tablet orchid for real error");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -224,9 +230,19 @@ TNodeDescriptor TMasterConnector::GetLocalDescriptor() const
 
 void TMasterConnector::ScheduleNodeHeartbeat(TCellTag cellTag, bool immedately)
 {
+    BIND(&TMasterConnector::DoScheduleNodeHeartbeat, MakeStrong(this), cellTag, immedately)
+        .AsyncVia(ControlInvoker_)
+        .Run();
+}
+
+void TMasterConnector::DoScheduleNodeHeartbeat(TCellTag cellTag, bool immedately)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto period = immedately
         ? TDuration::Zero()
         : Config_->IncrementalHeartbeatPeriod;
+    ++HeartbeatsScheduled_[cellTag];
     TDelayedExecutor::Submit(
         BIND(&TMasterConnector::ReportNodeHeartbeat, MakeStrong(this), cellTag)
             .Via(HeartbeatInvoker_),
@@ -285,7 +301,7 @@ void TMasterConnector::RegisterAtMaster()
         GetNodeId());
 
     for (auto cellTag : MasterCellTags_) {
-        ScheduleNodeHeartbeat(cellTag, true);
+        DoScheduleNodeHeartbeat(cellTag, true);
     }
     ScheduleJobHeartbeat(true);
 }
@@ -298,8 +314,9 @@ void TMasterConnector::InitMedia()
 
     const auto& client = Bootstrap_->GetMasterClient();
     TGetClusterMetaOptions options;
-    options.ReadFrom = EMasterChannelKind::Follower;
+    options.ReadFrom = EMasterChannelKind::SecondLevelCache;
     options.PopulateMediumDirectory = true;
+
     auto result = WaitFor(client->GetClusterMeta(options))
         .ValueOrThrow();
 
@@ -568,13 +585,14 @@ void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    --HeartbeatsScheduled_[cellTag];
     auto* delta = GetChunksDelta(cellTag);
     switch (delta->State) {
         case EState::Registered:
             if (CanSendFullNodeHeartbeat(cellTag)) {
                 ReportFullNodeHeartbeat(cellTag);
             } else {
-                ScheduleNodeHeartbeat(cellTag);
+                DoScheduleNodeHeartbeat(cellTag);
             }
             break;
 
@@ -606,6 +624,8 @@ bool TMasterConnector::CanSendFullNodeHeartbeat(TCellTag cellTag)
 
 void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto Logger = DataNodeLogger;
     Logger.AddTag("CellTag: %v", cellTag);
 
@@ -673,7 +693,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
             cellTag);
 
         if (NRpc::IsRetriableError(rspOrError)) {
-            ScheduleNodeHeartbeat(cellTag);
+            DoScheduleNodeHeartbeat(cellTag);
         } else {
             ResetAndScheduleRegisterAtMaster();
         }
@@ -695,7 +715,7 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
     YT_VERIFY(delta->AddedSinceLastSuccess.empty());
     YT_VERIFY(delta->RemovedSinceLastSuccess.empty());
 
-    ScheduleNodeHeartbeat(cellTag);
+    DoScheduleNodeHeartbeat(cellTag);
 }
 
 TFuture<void> TMasterConnector::GetHeartbeatBarrier(TCellTag cellTag)
@@ -705,6 +725,20 @@ TFuture<void> TMasterConnector::GetHeartbeatBarrier(TCellTag cellTag)
 
 void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (IncrementalHeartbeatThrottler_.find(cellTag) == IncrementalHeartbeatThrottler_.end()) {
+        auto incrementalHeartbeatThrottlerConfig = New<TThroughputThrottlerConfig>(
+            Config_->IncrementalHeartbeatThrottlerLimit,
+            Config_->IncrementalHeartbeatThrottlerPeriod);
+        YT_VERIFY(IncrementalHeartbeatThrottler_.emplace(
+            cellTag,
+            CreateReconfigurableThroughputThrottler(std::move(incrementalHeartbeatThrottlerConfig))).second);
+    }
+
+    WaitFor(IncrementalHeartbeatThrottler_[cellTag]->Throttle(1))
+        .ThrowOnError();
+
     auto Logger = DataNodeLogger;
     Logger.AddTag("CellTag: %v", cellTag);
 
@@ -741,21 +775,31 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         *request->add_removed_chunks() = BuildRemoveChunkInfo(chunk);
     }
 
+    THashMap<TCellId, int> CellIdToSlotId;
+
     auto slotManager = Bootstrap_->GetTabletSlotManager();
-    for (auto slot : slotManager->Slots()) {
+    auto slots = slotManager->Slots();
+    for (int slotId = 0; slotId < slots.size(); ++slotId) {
+        const auto& slot = slots[slotId];
         auto* protoSlotInfo = request->add_tablet_slots();
+
         if (slot) {
             ToProto(protoSlotInfo->mutable_cell_info(), slot->GetCellDescriptor().ToInfo());
             protoSlotInfo->set_peer_state(static_cast<int>(slot->GetControlState()));
             protoSlotInfo->set_peer_id(slot->GetPeerId());
             protoSlotInfo->set_dynamic_config_version(slot->GetDynamicConfigVersion());
+            if (slot->GetResponseKeeper()) {
+                protoSlotInfo->set_is_response_keeper_warming_up(slot->GetResponseKeeper()->IsWarmingUp());
+            }
+
+            YT_VERIFY(CellIdToSlotId.emplace(slot->GetCellId(), slotId).second);
         } else {
             protoSlotInfo->set_peer_state(static_cast<int>(NHydra::EPeerState::None));
         }
     }
 
-    THashMap<TTabletId, int> tabletErrorCount;
-    THashMap<TTableReplicaId, int> replicationErrorCount;
+    THashSet<TTableId> tablesWithTabletErrors;
+    THashSet<TTableReplicaId> replicasWithErrors;
 
     auto tabletSnapshots = slotManager->GetTabletSnapshots();
     for (const auto& tabletSnapshot : tabletSnapshots) {
@@ -781,18 +825,38 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
             protoTabletStatistics->set_modification_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->ModificationTime));
             protoTabletStatistics->set_access_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->AccessTime));
 
-            TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TError> errors;
-            for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
-                if (tabletErrorCount[tabletSnapshot->TableId] >= Config_->MaxTabletErrorsInHeartbeat) {
-                    break;
-                }
-                auto error = tabletSnapshot->TabletRuntimeData->Errors[key].Load();
-                if (!error.IsOK()) {
-                    errors[key] = error;
-                    ++tabletErrorCount[tabletSnapshot->TableId];
+            if (tabletSnapshot->CellId) {
+                auto it = CellIdToSlotId.find(tabletSnapshot->CellId);
+                if (it != CellIdToSlotId.end()) {
+                    auto* protoSlotInfo = request->mutable_tablet_slots(it->second);
+                    protoSlotInfo->set_preload_pending_store_count(protoSlotInfo->preload_pending_store_count() +
+                        tabletSnapshot->PreloadPendingStoreCount);
+                    protoSlotInfo->set_preload_completed_store_count(protoSlotInfo->preload_completed_store_count() +
+                        tabletSnapshot->PreloadCompletedStoreCount);
+                    protoSlotInfo->set_preload_failed_store_count(protoSlotInfo->preload_failed_store_count() +
+                        tabletSnapshot->PreloadFailedStoreCount);
                 }
             }
-            ToProto(protoTabletInfo->mutable_errors(), errors);
+
+            int tabletErrorCount = 0;
+
+            // COMPAT(ifsmirnov)
+            TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TError> dummyErrors;
+
+            for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
+                auto error = tabletSnapshot->TabletRuntimeData->Errors[key].Load();
+                if (!error.IsOK()) {
+                    ++tabletErrorCount;
+
+                    // COMPAT(ifsmirnov)
+                    dummyErrors[key] = RedirectToOrchidCompatError;
+                }
+            }
+            protoTabletInfo->set_error_count(tabletErrorCount);
+            if (tabletErrorCount > 0 && !tablesWithTabletErrors.contains(tabletSnapshot->TableId)) {
+                ToProto(protoTabletInfo->mutable_errors(), dummyErrors);
+                tablesWithTabletErrors.insert(tabletSnapshot->TableId);
+            }
 
             for (const auto& pair : tabletSnapshot->Replicas) {
                 auto replicaId = pair.first;
@@ -801,13 +865,16 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
                 ToProto(protoReplicaInfo->mutable_replica_id(), replicaId);
                 replicaSnapshot->RuntimeData->Populate(protoReplicaInfo->mutable_statistics());
 
-                auto error = replicationErrorCount[replicaId] < Config_->MaxReplicationErrorsInHeartbeat
-                    ? replicaSnapshot->RuntimeData->Error.Load()
-                    : TError();
+                auto error = replicaSnapshot->RuntimeData->Error.Load();
                 if (!error.IsOK()) {
-                    ++replicationErrorCount[replicaId];
+                    protoReplicaInfo->set_has_error(true);
+
+                    // COMPAT(ifsmirnov)
+                    if (!replicasWithErrors.contains(replicaId)) {
+                        ToProto(protoReplicaInfo->mutable_error_compat(), RedirectToOrchidCompatError);
+                        replicasWithErrors.insert(replicaId);
+                    }
                 }
-                ToProto(protoReplicaInfo->mutable_error(), error);
             }
 
             auto* protoPerformanceCounters = protoTabletInfo->mutable_performance_counters();
@@ -846,7 +913,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
         YT_LOG_WARNING(rspOrError, "Error reporting incremental node heartbeat to master");
         if (NRpc::IsRetriableError(rspOrError)) {
-            ScheduleNodeHeartbeat(cellTag);
+            DoScheduleNodeHeartbeat(cellTag);
         } else {
             ResetAndScheduleRegisterAtMaster();
         }
@@ -966,7 +1033,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         }
     }
 
-    ScheduleNodeHeartbeat(cellTag);
+    if (HeartbeatsScheduled_[cellTag] == 0) {
+        DoScheduleNodeHeartbeat(cellTag);
+    }
 }
 
 TChunkAddInfo TMasterConnector::BuildAddChunkInfo(IChunkPtr chunk)
@@ -1043,7 +1112,7 @@ void TMasterConnector::Reset()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     if (HeartbeatContext_) {
-        HeartbeatContext_->Cancel();
+        HeartbeatContext_->Cancel(TError("Master disconnected"));
     }
 
     HeartbeatContext_ = New<TCancelableContext>();
@@ -1052,6 +1121,8 @@ void TMasterConnector::Reset()
     NodeId_.store(InvalidNodeId);
     JobHeartbeatCellIndex_ = 0;
     LeaseTransaction_.Reset();
+
+    HeartbeatsScheduled_.clear();
 
     for (auto cellTag : MasterCellTags_) {
         auto* delta = GetChunksDelta(cellTag);

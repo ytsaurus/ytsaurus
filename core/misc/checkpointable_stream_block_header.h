@@ -8,9 +8,9 @@ namespace NYT {
 
 struct TCheckpointableStreamBlockHeader
 {
-    static constexpr ui64 CheckpointSentinel = 0;
+    static constexpr i64 CheckpointSentinel = 0;
 
-    ui64 Length;
+    i64 Length;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

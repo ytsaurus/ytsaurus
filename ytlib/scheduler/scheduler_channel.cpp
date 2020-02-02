@@ -31,10 +31,12 @@ class TSchedulerChannelProvider
 {
 public:
     TSchedulerChannelProvider(
+        TSchedulerConnectionConfigPtr config,
         IChannelFactoryPtr channelFactory,
         IChannelPtr masterChannel,
         const TNetworkPreferenceList& networks)
-        : ChannelFactory_(std::move(channelFactory))
+        : Config_(std::move(config))
+        , ChannelFactory_(std::move(channelFactory))
         , MasterChannel_(std::move(masterChannel))
         , Networks_(networks)
         , EndpointDescription_(Format("Scheduler@%v",
@@ -80,7 +82,7 @@ public:
         auto batchReq = proxy.ExecuteBatch();
         batchReq->AddRequest(TYPathProxy::Get("//sys/scheduler/@addresses"));
         return batchReq->Invoke()
-            .Apply(BIND([=, this_ = MakeStrong(this)] (TObjectServiceProxy::TRspExecuteBatchPtr batchRsp) -> IChannelPtr {
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) -> IChannelPtr {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
                 if (rsp.FindMatching(NYT::NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION("No scheduler is configured");
@@ -93,6 +95,7 @@ public:
                 auto channel = ChannelFactory_->CreateChannel(GetAddressWithNetworkOrThrow(addresses, Networks_));
                 channel = CreateFailureDetectingChannel(
                     channel,
+                    Config_->RpcAcknowledgementTimeout,
                     BIND(&TSchedulerChannelProvider::OnChannelFailed, MakeWeak(this)));
 
                 {
@@ -111,6 +114,7 @@ public:
     }
 
 private:
+    const TSchedulerConnectionConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
     const IChannelPtr MasterChannel_;
     const TNetworkPreferenceList Networks_;
@@ -122,7 +126,7 @@ private:
     IChannelPtr CachedChannel_;
 
 
-    void OnChannelFailed(IChannelPtr channel)
+    void OnChannelFailed(const IChannelPtr& channel, const TError& /*error*/)
     {
         TGuard<TSpinLock> guard(SpinLock_);
         if (CachedChannel_ == channel) {
@@ -142,7 +146,7 @@ IChannelPtr CreateSchedulerChannel(
     YT_VERIFY(channelFactory);
     YT_VERIFY(masterChannel);
 
-    auto channelProvider = New<TSchedulerChannelProvider>(channelFactory, masterChannel, networks);
+    auto channelProvider = New<TSchedulerChannelProvider>(config, channelFactory, masterChannel, networks);
     auto channel = CreateRoamingChannel(channelProvider);
 
     channel = CreateRetryingChannel(config, channel);

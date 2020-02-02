@@ -23,6 +23,7 @@
 #include <yt/server/node/data_node/peer_block_updater.h>
 #include <yt/server/node/data_node/private.h>
 #include <yt/server/node/data_node/session_manager.h>
+#include <yt/server/node/data_node/table_schema_cache.h>
 #include <yt/server/node/data_node/ytree_integration.h>
 #include <yt/server/node/data_node/chunk_meta_manager.h>
 #include <yt/server/node/data_node/skynet_http_handler.h>
@@ -54,6 +55,7 @@
 #include <yt/server/node/tablet_node/store_compactor.h>
 #include <yt/server/node/tablet_node/store_flusher.h>
 #include <yt/server/node/tablet_node/store_trimmer.h>
+#include <yt/server/node/tablet_node/tablet_cell_service.h>
 #include <yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 
 #include <yt/server/lib/transaction_server/timestamp_proxy_service.h>
@@ -64,6 +66,8 @@
 
 #include <yt/server/lib/hydra/snapshot.h>
 #include <yt/server/lib/hydra/file_snapshot_store.h>
+
+#include <yt/server/lib/object_server/object_service_cache.h>
 
 #include <yt/ytlib/program/build_attributes.h>
 
@@ -108,6 +112,7 @@
 #include <yt/core/http/server.h>
 
 #include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/fair_share_thread_pool.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -162,6 +167,7 @@ using namespace NTransactionServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NTableClient;
 using namespace NNet;
 
@@ -251,9 +257,12 @@ void TBootstrap::DoInitialize()
 
     MasterCacheQueue_ = New<TActionQueue>("MasterCache");
     JobThrottlerQueue_ = New<TActionQueue>("JobThrottler");
-    LookupThreadPool_ = New<TThreadPool>(
+    TabletLookupThreadPool_ = New<TThreadPool>(
         Config_->QueryAgent->LookupThreadPoolSize,
-        "Lookup");
+        "TabletLookup",
+        true,
+        true,
+        EInvokerQueueType::SingleLockFreeQueue);
     TableReplicatorThreadPool_ = New<TThreadPool>(
         Config_->TabletNode->TabletManager->ReplicatorThreadPoolSize,
         "Replicator");
@@ -265,6 +274,9 @@ void TBootstrap::DoInitialize()
     StorageLightThreadPool_ = New<TThreadPool>(
         Config_->DataNode->StorageLightThreadCount,
         "StorageLight");
+    StorageLookupThreadPool_ = CreateFairShareThreadPool(
+        Config_->DataNode->StorageLookupThreadCount,
+        "StorageLookup");
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
@@ -284,6 +296,8 @@ void TBootstrap::DoInitialize()
     }
 
     BlobReaderCache_ = New<TBlobReaderCache>(Config_->DataNode, this);
+
+    TableSchemaCache_ = New<TTableSchemaCache>(Config_->DataNode->TableSchemaCache);
 
     JournalDispatcher_ = New<TJournalDispatcher>(Config_->DataNode);
 
@@ -324,12 +338,13 @@ void TBootstrap::DoInitialize()
 
     ChunkCache_ = New<TChunkCache>(Config_->DataNode, this);
 
-    auto createThrottler = [] (const TThroughputThrottlerConfigPtr& config, const TString& name) {
+    auto netThrottlerProfiler = DataNodeProfiler.AppendPath("/net_throttler");
+    auto createThrottler = [&] (const TThroughputThrottlerConfigPtr& config, const TString& name) {
         return CreateNamedReconfigurableThroughputThrottler(
             config,
             name,
             DataNodeLogger,
-            DataNodeProfiler);
+            netThrottlerProfiler);
     };
 
     TotalInThrottler_ = createThrottler(Config_->DataNode->TotalInThrottler, "TotalIn");
@@ -452,6 +467,7 @@ void TBootstrap::DoInitialize()
     JobProxyConfigTemplate_->JobThrottler = Config_->JobThrottler;
 
     JobProxyConfigTemplate_->ClusterConnection = CloneYsonSerializable(Config_->ClusterConnection);
+    JobProxyConfigTemplate_->ClusterConnection->MasterCellDirectorySynchronizer->RetryPeriod = std::nullopt;
 
     auto patchMasterConnectionConfig = [&] (const NNative::TMasterConnectionConfigPtr& config) {
         config->Addresses = {localAddress};
@@ -465,6 +481,10 @@ void TBootstrap::DoInitialize()
     patchMasterConnectionConfig(JobProxyConfigTemplate_->ClusterConnection->PrimaryMaster);
     for (const auto& config : JobProxyConfigTemplate_->ClusterConnection->SecondaryMasters) {
         patchMasterConnectionConfig(config);
+    }
+    if (JobProxyConfigTemplate_->ClusterConnection->MasterCache) {
+        patchMasterConnectionConfig(JobProxyConfigTemplate_->ClusterConnection->MasterCache);
+        JobProxyConfigTemplate_->ClusterConnection->MasterCache->EnableMasterCacheDiscovery = false;
     }
 
     JobProxyConfigTemplate_->SupervisorConnection = New<NYT::NBus::TTcpBusClientConfig>();
@@ -567,7 +587,17 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateTimestampProxyService(
         MasterConnection_->GetTimestampProvider()));
 
-    auto initMasterCacheSerivce = [&] (const auto& masterConfig) {
+    auto cache = New<TObjectServiceCache>(
+        Config_->MasterCacheService,
+        Logger,
+        TProfiler("/cell_node/master_cache"));
+
+    {
+        auto result = GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::MasterCache, Config_->MasterCacheService->Capacity);
+        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving memory for master cache");
+    }
+
+    auto initMasterCacheService = [&] (const auto& masterConfig) {
         return CreateMasterCacheService(
             Config_->MasterCacheService,
             MasterCacheQueue_->GetInvoker(),
@@ -577,15 +607,18 @@ void TBootstrap::DoInitialize()
                     MasterConnection_->GetChannelFactory(),
                     EPeerKind::Follower),
                 masterConfig->RpcTimeout),
+            cache,
             masterConfig->CellId);
     };
 
-    MasterCacheServices_.push_back(initMasterCacheSerivce(
+    MasterCacheServices_.push_back(initMasterCacheService(
         Config_->ClusterConnection->PrimaryMaster));
 
     for (const auto& masterConfig : Config_->ClusterConnection->SecondaryMasters) {
-        MasterCacheServices_.push_back(initMasterCacheSerivce(masterConfig));
+        MasterCacheServices_.push_back(initMasterCacheService(masterConfig));
     }
+
+    RpcServer_->RegisterService(CreateTabletCellService(this));
 
     RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
 
@@ -631,6 +664,8 @@ void TBootstrap::DoRun()
 
     NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_);
 
+    auto storeCompactor = CreateStoreCompactor(Config_->TabletNode, this);
+
     SetNodeByYPath(
         OrchidRoot_,
         "/config",
@@ -654,6 +689,14 @@ void TBootstrap::DoRun()
         "/job_controller",
         CreateVirtualNode(JobController_->GetOrchidService()
             ->Via(GetControlInvoker())));
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/cluster_connection",
+        CreateVirtualNode(MasterConnection_->GetOrchidService()));
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/store_compactor",
+        CreateVirtualNode(GetOrchidService(storeCompactor)));
     SetBuildAttributes(OrchidRoot_, "node");
 
     SkynetHttpServer_->AddHandler(
@@ -673,8 +716,9 @@ void TBootstrap::DoRun()
     PeerBlockDistributor_->Start();
     MasterConnector_->Start();
     SchedulerConnector_->Start();
+
     StartStoreFlusher(Config_->TabletNode, this);
-    StartStoreCompactor(Config_->TabletNode, this);
+    StartStoreCompactor(storeCompactor);
     StartStoreTrimmer(Config_->TabletNode, this);
     StartPartitionBalancer(Config_->TabletNode, this);
 
@@ -731,9 +775,9 @@ IInvokerPtr TBootstrap::GetQueryPoolInvoker(
     return QueryThreadPool_->GetInvoker(poolName, weight, tag);
 }
 
-const IInvokerPtr& TBootstrap::GetLookupPoolInvoker() const
+const IInvokerPtr& TBootstrap::GetTabletLookupPoolInvoker() const
 {
-    return LookupThreadPool_->GetInvoker();
+    return TabletLookupThreadPool_->GetInvoker();
 }
 
 const IInvokerPtr& TBootstrap::GetTableReplicatorPoolInvoker() const
@@ -754,6 +798,12 @@ const IPrioritizedInvokerPtr& TBootstrap::GetStorageHeavyInvoker() const
 const IInvokerPtr& TBootstrap::GetStorageLightInvoker() const
 {
     return StorageLightThreadPool_->GetInvoker();
+}
+
+// NB: Despite other getters we need to return pointer, not a reference to pointer.
+IInvokerPtr TBootstrap::GetStorageLookupInvoker() const
+{
+    return StorageLookupThreadPool_->GetInvoker("default");
 }
 
 const IInvokerPtr& TBootstrap::GetJobThrottlerInvoker() const
@@ -889,6 +939,11 @@ const TPeerBlockUpdaterPtr& TBootstrap::GetPeerBlockUpdater() const
 const TBlobReaderCachePtr& TBootstrap::GetBlobReaderCache() const
 {
     return BlobReaderCache_;
+}
+
+const TTableSchemaCachePtr& TBootstrap::GetTableSchemaCache() const
+{
+    return TableSchemaCache_;
 }
 
 const TJournalDispatcherPtr& TBootstrap::GetJournalDispatcher() const

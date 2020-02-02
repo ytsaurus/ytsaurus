@@ -17,14 +17,17 @@ using namespace NObjectServer;
 using namespace NTabletServer;
 using namespace NTableServer;
 using namespace NTransactionServer;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBeginCopyContext::TBeginCopyContext(
     TTransaction* transaction,
-    ENodeCloneMode mode)
+    ENodeCloneMode mode,
+    const TCypressNode* rootNode)
     : Transaction_(transaction)
     , Mode_(mode)
+    , RootNode_(rootNode)
     , TableSchemaRegistry_(New<TTableSchemaRegistry>())
 {
     SetOutput(&Stream_);
@@ -41,9 +44,14 @@ TCellTagList TBeginCopyContext::GetExternalCellTags()
     return TCellTagList(ExternalCellTags_.begin(), ExternalCellTags_.end());
 }
 
-void TBeginCopyContext::RegisterOpaqueRootId(TNodeId rootId)
+void TBeginCopyContext::RegisterPortalRootId(TNodeId portalRootId)
 {
-    OpaqueRootIds_.push_back(rootId);
+    PortalRootIds_.push_back(portalRootId);
+}
+
+void TBeginCopyContext::RegisterOpaqueChildPath(const NYPath::TYPath& opaqueChildPath)
+{
+    OpaqueChildPaths_.push_back(opaqueChildPath);
 }
 
 void TBeginCopyContext::RegisterExternalCellTag(TCellTag cellTag)

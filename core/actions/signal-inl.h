@@ -62,8 +62,7 @@ void TCallbackList<TResult(TArgs...)>::Clear()
 }
 
 template <class TResult, class... TArgs>
-template <class... TCallArgs>
-void TCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args) const
+void TCallbackList<TResult(TArgs...)>::Fire(const TArgs&... args) const
 {
     TCallbackVector callbacks;
     {
@@ -72,13 +71,12 @@ void TCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args) const
     }
 
     for (const auto& callback : callbacks) {
-        callback.Run(std::forward<TCallArgs>(args)...);
+        callback.Run(args...);
     }
 }
 
 template <class TResult, class... TArgs>
-template <class... TCallArgs>
-void TCallbackList<TResult(TArgs...)>::FireAndClear(TCallArgs&&... args)
+void TCallbackList<TResult(TArgs...)>::FireAndClear(const TArgs&... args)
 {
     TCallbackVector callbacks;
     {
@@ -87,7 +85,7 @@ void TCallbackList<TResult(TArgs...)>::FireAndClear(TCallArgs&&... args)
     }
 
     for (const auto& callback : callbacks) {
-        callback.Run(std::forward<TCallArgs>(args)...);
+        callback.Run(args...);
     }
 }
 
@@ -97,7 +95,7 @@ template <class TResult, class... TArgs>
 void TSingleShotCallbackList<TResult(TArgs...)>::Subscribe(const TCallback& callback)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
-    if (Fired_) {
+    if (Fired_.load(std::memory_order_acquire)) {
         guard.Release();
         std::apply(callback, Args_);
         return;
@@ -109,7 +107,7 @@ template <class TResult, class... TArgs>
 bool TSingleShotCallbackList<TResult(TArgs...)>::TrySubscribe(const TCallback& callback)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
-    if (Fired_) {
+    if (Fired_.load(std::memory_order_acquire)) {
         return false;
     }
     Callbacks_.push_back(callback);
@@ -139,20 +137,20 @@ template <class TResult, class... TArgs>
 template <class... TCallArgs>
 bool TSingleShotCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args)
 {
+    TCallbackVector callbacks;
     {
         NConcurrency::TWriterGuard guard(SpinLock_);
-        if (Fired_) {
+        if (Fired_.load(std::memory_order_acquire)) {
             return false;
         }
-        Fired_ = true;
         Args_ = std::make_tuple(std::forward<TCallArgs>(args)...);
+        callbacks.swap(Callbacks_);
+        Fired_.store(true, std::memory_order_release);
     }
 
-    for (const auto& callback : Callbacks_) {
+    for (const auto& callback : callbacks) {
         std::apply(callback, Args_);
     }
-
-    Callbacks_.clear();
 
     return true;
 }
@@ -160,8 +158,7 @@ bool TSingleShotCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args)
 template <class TResult, class... TArgs>
 bool TSingleShotCallbackList<TResult(TArgs...)>::IsFired() const
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
-    return Fired_;
+    return Fired_.load(std::memory_order_acquire);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

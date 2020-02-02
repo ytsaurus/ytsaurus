@@ -10,6 +10,10 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/master_ypath_proxy.h>
 
+#include <yt/ytlib/api/native/config.h>
+#include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/rpc_helpers.h>
+
 #include <yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/server/master/cell_master/bootstrap.h>
@@ -23,6 +27,8 @@ namespace NYT::NHiveServer {
 
 using namespace NConcurrency;
 using namespace NYTree;
+using namespace NApi;
+using namespace NApi::NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,18 +41,19 @@ class TClusterDirectorySynchronizer::TImpl
 {
 public:
     TImpl(
-        TDuration syncPeriod,
+        TClusterDirectorySynchronizerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap,
         const NHiveClient::TClusterDirectoryPtr& clusterDirectory)
         : Bootstrap_(bootstrap)
         , SyncExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::ClusterDirectorySynchronizer),
             BIND(&TImpl::OnSync, MakeWeak(this)),
-            syncPeriod))
+            config->SyncPeriod))
         , ObjectManager_(Bootstrap_->GetObjectManager())
         , MulticellManager_(Bootstrap_->GetMulticellManager())
         , CellTag_(MulticellManager_->GetPrimaryCellTag())
         , ClusterDirectory_(clusterDirectory)
+        , Config_(config)
     { }
 
     void Start()
@@ -80,6 +87,7 @@ private:
     const NCellMaster::TMulticellManagerPtr MulticellManager_;
     const NObjectClient::TCellTag CellTag_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
+    const TClusterDirectorySynchronizerConfigPtr Config_;
 
     TSpinLock SpinLock_;
     bool Started_ = false;
@@ -113,6 +121,16 @@ private:
         try {
             auto req = NObjectClient::TMasterYPathProxy::GetClusterMeta();
             req->set_populate_cluster_directory(true);
+
+            TMasterReadOptions options{
+                EMasterChannelKind::Cache,
+                Config_->ExpireAfterSuccessfulUpdateTime,
+                Config_->ExpireAfterFailedUpdateTime,
+                1
+            };
+
+            SetBalancingHeader(req, Bootstrap_->GetClusterConnection()->GetConfig(), options);
+            SetCachingHeader(req, Bootstrap_->GetClusterConnection()->GetConfig(), options);
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsSecondaryMaster()) {
@@ -163,7 +181,7 @@ TClusterDirectorySynchronizer::TClusterDirectorySynchronizer(
     const TClusterDirectorySynchronizerConfigPtr& config,
     NCellMaster::TBootstrap* bootstrap,
     const NHiveClient::TClusterDirectoryPtr& clusterDirectory)
-    : Impl_(New<TImpl>(config->SyncPeriod, bootstrap, clusterDirectory))
+    : Impl_(New<TImpl>(config, bootstrap, clusterDirectory))
 { }
 
 void TClusterDirectorySynchronizer::Start()

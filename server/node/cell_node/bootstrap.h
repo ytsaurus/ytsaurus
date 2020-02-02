@@ -59,11 +59,12 @@ public:
         const TString& poolName,
         double weight,
         const NConcurrency::TFairShareThreadPoolTag& tag) const;
-    const IInvokerPtr& GetLookupPoolInvoker() const;
+    const IInvokerPtr& GetTabletLookupPoolInvoker() const;
     const IInvokerPtr& GetTableReplicatorPoolInvoker() const;
     const IInvokerPtr& GetTransactionTrackerInvoker() const;
     const IPrioritizedInvokerPtr& GetStorageHeavyInvoker() const;
     const IInvokerPtr& GetStorageLightInvoker() const;
+    IInvokerPtr GetStorageLookupInvoker() const;
     const IInvokerPtr& GetJobThrottlerInvoker() const;
     const NApi::NNative::IClientPtr& GetMasterClient() const;
     const NApi::NNative::IConnectionPtr& GetMasterConnection() const;
@@ -91,6 +92,7 @@ public:
     const NDataNode::TPeerBlockTablePtr& GetPeerBlockTable() const;
     const NDataNode::TPeerBlockUpdaterPtr& GetPeerBlockUpdater() const;
     const NDataNode::TBlobReaderCachePtr& GetBlobReaderCache() const;
+    const NDataNode::TTableSchemaCachePtr& GetTableSchemaCache() const;
     const NDataNode::TJournalDispatcherPtr& GetJournalDispatcher() const;
     const NDataNode::TMasterConnectorPtr& GetMasterConnector() const;
     const NQueryClient::TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
@@ -133,12 +135,13 @@ private:
 
     NConcurrency::TActionQueuePtr ControlQueue_;
     TLazyIntrusivePtr<NConcurrency::ITwoLevelFairShareThreadPool> QueryThreadPool_;
-    NConcurrency::TThreadPoolPtr LookupThreadPool_;
+    NConcurrency::TThreadPoolPtr TabletLookupThreadPool_;
     NConcurrency::TThreadPoolPtr TableReplicatorThreadPool_;
     NConcurrency::TActionQueuePtr TransactionTrackerQueue_;
     NConcurrency::TThreadPoolPtr StorageHeavyThreadPool_;
     IPrioritizedInvokerPtr StorageHeavyInvoker_;
     NConcurrency::TThreadPoolPtr StorageLightThreadPool_;
+    NConcurrency::IFairShareThreadPoolPtr StorageLookupThreadPool_;
     NConcurrency::TActionQueuePtr MasterCacheQueue_;
     NConcurrency::TActionQueuePtr JobThrottlerQueue_;
 
@@ -171,6 +174,7 @@ private:
     NDataNode::TPeerBlockUpdaterPtr PeerBlockUpdater_;
     NDataNode::TPeerBlockDistributorPtr PeerBlockDistributor_;
     NDataNode::TBlobReaderCachePtr BlobReaderCache_;
+    NDataNode::TTableSchemaCachePtr TableSchemaCache_;
     NDataNode::TJournalDispatcherPtr JournalDispatcher_;
     NDataNode::TMasterConnectorPtr MasterConnector_;
     ICoreDumperPtr CoreDumper_;

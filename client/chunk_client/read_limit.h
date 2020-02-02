@@ -51,6 +51,10 @@ public:
     bool HasChunkIndex() const;
     TReadLimit& SetChunkIndex(i64 chunkIndex);
 
+    i32 GetTabletIndex() const;
+    bool HasTabletIndex() const;
+    TReadLimit& SetTabletIndex(i32 tabletIndex);
+
     bool IsTrivial() const;
 
     void MergeLowerKey(const NTableClient::TOwningKey& key);
