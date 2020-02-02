@@ -1161,9 +1161,8 @@ private:
   }
 };
 
-template <typename KeyT, typename ValueT, unsigned InlineBuckets = 4,
-          typename KeyInfoT = TDenseMapInfo<KeyT>,
-          typename BucketT = NDetail::DenseMapPair<KeyT, ValueT>>
+template <typename KeyT, typename ValueT, unsigned InlineBuckets,
+          typename KeyInfoT, typename BucketT>
 class SmallDenseMap
     : public DenseMapBase<
           SmallDenseMap<KeyT, ValueT, InlineBuckets, KeyInfoT, BucketT>, KeyT,

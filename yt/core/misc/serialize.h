@@ -3,14 +3,10 @@
 #include "public.h"
 #include "assert.h"
 #include "error.h"
-#include "guid.h"
 #include "mpl.h"
-#include "optional.h"
-#include "variant.h"
 #include "property.h"
 #include "ref.h"
 #include "serialize_dump.h"
-#include "dense_map.h"
 
 #include <util/stream/file.h>
 #include <util/stream/input.h>
