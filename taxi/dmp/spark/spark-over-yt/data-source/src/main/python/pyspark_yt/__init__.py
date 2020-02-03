@@ -47,7 +47,7 @@ def create_spark_session(spark_id,
     yt_token = config.get("yt_token") or os.getenv("YT_TOKEN") or default_token()
     yt_client = create_yt_client(yt_proxy, yt_token)
     discovery_dir = discovery_dir or config.get("discovery_dir") or default_discovery_dir(yt_user)
-    log_dir = config.get("log_dir") or default_base_log_dir(discovery_dir)
+    log_dir = config.get("log_dir") or default_base_log_dir(discovery_dir) + os.path.sep + spark_id
     master = get_spark_master(spark_id, discovery_dir, rest=False, yt_client=yt_client)
 
     num_executors = num_executors or config.get("num_executors")
