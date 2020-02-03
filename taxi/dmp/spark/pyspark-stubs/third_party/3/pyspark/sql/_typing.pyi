@@ -5,6 +5,7 @@ from types import FunctionType
 import datetime
 import decimal
 
+from pyspark._typing import PrimitiveType
 import pyspark.sql.column
 import pyspark.sql.types
 from pyspark.sql.column import Column
@@ -16,9 +17,10 @@ import pandas.core.series     # type: ignore
 ColumnOrName = Union[pyspark.sql.column.Column, str]
 DecimalLiteral = decimal.Decimal
 DateTimeLiteral = Union[datetime.datetime, datetime.date]
-LiteralType = Union[bool, int, float, str]
+LiteralType = PrimitiveType
 AtomicDataTypeOrString = Union[pyspark.sql.types.AtomicType, str]
 DataTypeOrString = Union[pyspark.sql.types.DataType, str]
+ReadWriterOptionType = PrimitiveType
 
 RowLike = TypeVar("RowLike", List[Any], Tuple[Any, ...], pyspark.sql.types.Row)
 

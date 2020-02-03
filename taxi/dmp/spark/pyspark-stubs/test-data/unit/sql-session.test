@@ -66,7 +66,7 @@ schema = StructType([
 ])
 
 # Invalid product should have StructType schema
-spark.createDataFrame(data, IntegerType()) # E: Argument 1 to "createDataFrame" of "SparkSession" has incompatible type "List[Tuple[str, int]]"; expected "Union[RDD[Union[Union[datetime, date], Union[bool, int, float, str], Decimal]], Iterable[Union[Union[datetime, date], Union[bool, int, float, str], Decimal]]]"
+spark.createDataFrame(data, IntegerType()) # E: Argument 1 to "createDataFrame" of "SparkSession" has incompatible type "List[Tuple[str, int]]"; expected "Union[RDD[Union[Union[datetime, date], Union[bool, float, int, str], Decimal]], Iterable[Union[Union[datetime, date], Union[bool, float, int, str], Decimal]]]"
 
 # This shouldn't type check, though is technically speaking valid
 # because  samplingRatio is ignored
@@ -75,4 +75,24 @@ spark.createDataFrame(data, schema, samplingRatio=0.1)  # E: No overload variant
                                                         # N:     def [RowLike in (List[Any], Tuple[Any, ...], Row)] createDataFrame(self, data: Union[RDD[RowLike], Iterable[RowLike]], samplingRatio: float = ...) -> DataFrame \
                                                         # N:     def [RowLike in (List[Any], Tuple[Any, ...], Row)] createDataFrame(self, data: Union[RDD[RowLike], Iterable[RowLike]], schema: Union[List[str], Tuple[str, ...]] = ..., verifySchema: bool = ...) -> DataFrame \
                                                         # N:     <4 more similar overloads not shown, out of 6 total overloads>
+[out]
+
+
+[case readWriterOptions]
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.getOrCreate()
+
+spark.read.option("foo", True).option("foo", 1).option("foo", 1.0).option("foo", "1")
+spark.readStream.option("foo", True).option("foo", 1).option("foo", 1.0).option("foo", "1")
+
+spark.read.options(foo=True, bar=1).options(foo=1.0, bar="1")
+spark.readStream.options(foo=True, bar=1).options(foo=1.0, bar="1")
+
+spark.read.load(foo=True)
+spark.readStream.load(foo=True)
+
+spark.read.load(foo=["a"])  # E: Argument "foo" to "load" of "DataFrameReader" has incompatible type "List[str]"; expected "Union[bool, float, int, str]"
+spark.read.option("foo", (1, ))  # E: Argument 2 to "option" of "DataFrameReader" has incompatible type "Tuple[int]"; expected "Union[bool, float, int, str]"
+spark.read.options(bar={1})  # E: Argument "bar" to "options" of "DataFrameReader" has incompatible type "Set[int]"; expected "Union[bool, float, int, str]"
 [out]

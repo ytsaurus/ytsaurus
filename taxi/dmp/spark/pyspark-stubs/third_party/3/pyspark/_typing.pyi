@@ -3,6 +3,8 @@ from typing_extensions import Protocol
 
 T = TypeVar('T', covariant=True)
 
+PrimitiveType = Union[bool, float, int, str]
+
 class SupportsIAdd(Protocol):
     def __iadd__(self, other: SupportsIAdd) -> SupportsIAdd: ...
 
