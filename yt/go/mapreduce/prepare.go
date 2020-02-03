@@ -2,9 +2,12 @@ package mapreduce
 
 import (
 	"context"
+	"math"
+	"strconv"
 
 	"golang.org/x/xerrors"
 
+	"a.yandex-team.ru/library/go/maxprocs"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
 	"a.yandex-team.ru/yt/go/schema"
@@ -69,9 +72,26 @@ func (p *prepare) addJobCommand(job Job, userScript **spec.UserScript, state *jo
 		*userScript = &spec.UserScript{}
 	}
 	(*userScript).Command = jobCommand(job, tableCount)
+	p.setGoMaxProc(*userScript)
 
 	state.Job = job
 	p.actions = append(p.actions, p.uploadJobState(*userScript, state))
+}
+
+func (p *prepare) setGoMaxProc(spec *spec.UserScript) {
+	if spec == nil {
+		return
+	}
+	maxProc := 1
+	if spec.CPULimit > 0 {
+		maxProc = int(math.Ceil(float64(spec.CPULimit)))
+	}
+	if spec.Environment == nil {
+		spec.Environment = make(map[string]string)
+	}
+	if _, ok := spec.Environment[maxprocs.GoMaxProcEnvName]; !ok {
+		spec.Environment[maxprocs.GoMaxProcEnvName] = strconv.Itoa(maxProc)
+	}
 }
 
 func (p *prepare) prepare() error {
