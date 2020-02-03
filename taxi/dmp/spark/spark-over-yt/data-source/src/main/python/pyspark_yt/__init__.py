@@ -2,8 +2,10 @@ import yaml
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
 
-from yt_spark_client.utils import *
+from yt_spark_client.utils import default_token, create_yt_client, default_discovery_dir, default_base_log_dir, \
+    get_spark_master, set_conf, base_spark_conf, default_dynamic_allocation_conf
 from contextlib import contextmanager
+import os
 
 
 @contextmanager
@@ -33,7 +35,8 @@ def create_spark_session(spark_id,
     _MAX_TOTAL_CORES = 400
     _MAX_TOTAL_MEMORY = 1024 * 1024
 
-    if config_path is not None:
+    config_path = config_path or os.getenv("HOME") + os.path.sep + "spark-conf.yaml"
+    if os.path.isfile(config_path):
         with open(config_path) as f:
             config = yaml.load(f)
     else:
