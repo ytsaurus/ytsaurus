@@ -1,4 +1,6 @@
+from yt.common import YtError
 import yt.logger as logger
+
 import yt.packages.requests as requests
 from yt.packages.six import iteritems
 
@@ -25,6 +27,8 @@ def _flatten_dict(dict_):
         if isinstance(value, dict):
             for subkey, subvalue in iteritems(_flatten_dict(value)):
                 result["{}.{}".format(key, subkey)] = subvalue
+        elif isinstance(value, bool):
+            result[key] = 1 if value else 0
         else:
             result[key] = value
     return result
@@ -103,15 +107,14 @@ class YtAclClient(object):
         logger.debug("%s %s (params: %s, body: %s)", method.upper(), url, params, body)
         response = requests.request(method, url, headers=headers, params=_flatten_dict(params),
                                     json=body, verify=self._certificate_path)
+        logger.debug("RESPONSE %s (body: %s)", response.status_code, response.text)
 
-        try:
+        if response.status_code == 400:
+            raise YtError.from_dict(response.json())
+        else:
             response.raise_for_status()
-        except Exception as exc:
-            raise exc.__class__("{} (response: '{}')".format(exc, response.text))
 
-        response_json = response.json()
-        logger.debug("RESPONSE %s (json: %s)", response.status_code, response_json)
-        return response_json
+        return response.json()
 
     @_with_object_id
     def get_acl(self, object_id, include_managed_ace=False):
@@ -156,6 +159,20 @@ class YtAclClient(object):
         """Gets subject responsible for object."""
         return self._make_request("get", "responsible", dict(id=object_id))
 
+    @_with_object_id
+    def set_responsible(self, object_id, version, responsible, inherit_acl=None):
+        """Sets subject responsible for object."""
+        params = dict(id=object_id, version=version)
+        if inherit_acl is not None:
+            params["inherit_acl"] = inherit_acl
+        return self._make_request("post", "responsible", params, responsible)
+
     def get_group(self, group_name):
         """Gets legacy YT group info by group name."""
         return self._make_request("get", "group", dict(group_name=group_name))
+
+    def update_group(self, name, version, group):
+        """Updates legacy YT group."""
+        params = dict(group_name=name, version=version)
+        body = dict(group=group)
+        return self._make_request("post", "group", params, body)
