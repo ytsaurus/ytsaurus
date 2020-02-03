@@ -812,6 +812,34 @@ private:
 
 ////////////////////////////////////////////////////////////////////
 
+TString GetJobStderrWithRetriesAndIgnoreErrors(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const size_t stderrTailSize,
+    const TGetJobStderrOptions& options = TGetJobStderrOptions())
+{
+    TString jobStderr;
+    try {
+        jobStderr = GetJobStderrWithRetries(
+            retryPolicy,
+            auth,
+            operationId,
+            jobId,
+            options);
+    } catch (const TErrorResponse& e) {
+        LOG_ERROR("Cannot get job stderr OperationId: %s JobId: %s Error: %s",
+                  GetGuidAsString(operationId).c_str(),
+                  GetGuidAsString(jobId).c_str(),
+                  e.what());
+    }
+    if (jobStderr.size() > stderrTailSize) {
+        jobStderr = jobStderr.substr(jobStderr.size() - stderrTailSize, stderrTailSize);
+    }
+    return jobStderr;
+}
+
 TVector<TFailedJobInfo> GetFailedJobInfo(
     const IClientRetryPolicyPtr& clientRetryPolicy,
     const TAuth& auth,
@@ -835,27 +863,60 @@ TVector<TFailedJobInfo> GetFailedJobInfo(
         info.JobId = *job.Id;
         info.Error = job.Error.GetOrElse(TYtError(TString("unknown error")));
         if (job.StderrSize.GetOrElse(0) != 0) {
-            try {
-                info.Stderr = GetJobStderrWithRetries(
-                    clientRetryPolicy->CreatePolicyForGenericRequest(),
-                    auth,
-                    operationId,
-                    *job.Id);
-            } catch (const TErrorResponse& e) {
-                // There are cases when due to bad luck we cannot read stderr even if
-                // list_jobs reports that stderr_size > 0.
-                //
-                // Such errors don't have special error code
-                // so we ignore all errors and try our luck on other jobs.
-                LOG_ERROR("Cannot get job stderr OperationId: %s JobId: %s Error: %s",
-                    GetGuidAsString(operationId).c_str(),
-                    GetGuidAsString(*job.Id).c_str(),
-                    e.what());
-            }
-            if (info.Stderr.size() > stderrTailSize) {
-                info.Stderr = info.Stderr.substr(info.Stderr.size() - stderrTailSize, stderrTailSize);
-            }
+            // There are cases when due to bad luck we cannot read stderr even if
+            // list_jobs reports that stderr_size > 0.
+            //
+            // Such errors don't have special error code
+            // so we ignore all errors and try our luck on other jobs.
+            info.Stderr = GetJobStderrWithRetriesAndIgnoreErrors(
+                clientRetryPolicy->CreatePolicyForGenericRequest(),
+                auth,
+                operationId,
+                *job.Id,
+                stderrTailSize);
         }
+    }
+    return result;
+}
+
+struct TGetJobsStderrOptions
+{
+    using TSelf = TGetJobsStderrOptions;
+
+    // How many jobs to download. Which jobs will be chosen is undefined.
+    FLUENT_FIELD_DEFAULT(ui64, MaxJobCount, 10);
+
+    // How much of stderr should be downloaded.
+    FLUENT_FIELD_DEFAULT(ui64, StderrTailSize, 64 * 1024);
+};
+
+static TVector<TString> GetJobsStderr(
+    const IClientRetryPolicyPtr& clientRetryPolicy,
+    const TAuth& auth,
+    const TOperationId& operationId,
+    const TGetJobsStderrOptions& options = TGetJobsStderrOptions())
+{
+    const auto listJobsResult = ListJobs(
+        clientRetryPolicy->CreatePolicyForGenericRequest(),
+        auth,
+        operationId,
+        TListJobsOptions().Limit(options.MaxJobCount_).WithStderr(true));
+    const auto stderrTailSize = options.StderrTailSize_;
+    TVector<TString> result;
+    for (const auto& job : listJobsResult.Jobs) {
+        result.push_back(
+            // There are cases when due to bad luck we cannot read stderr even if
+            // list_jobs reports that stderr_size > 0.
+            //
+            // Such errors don't have special error code
+            // so we ignore all errors and try our luck on other jobs.
+            GetJobStderrWithRetriesAndIgnoreErrors(
+                clientRetryPolicy->CreatePolicyForGenericRequest(),
+                auth,
+                operationId,
+                *job.Id,
+                stderrTailSize)
+            );
     }
     return result;
 }
@@ -2904,11 +2965,21 @@ void TOperationPreparer::CheckValidity() const
 
 TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, TClientPtr client, const TOperationOptions& options)
 {
+    auto retryPolicy = client->GetRetryPolicy();
+    auto auth = client->GetAuth();
     auto operation = ::MakeIntrusive<TOperation>(operationId, std::move(client));
     if (options.Wait_) {
         auto finishedFuture = operation->Watch();
         TWaitProxy::Get()->WaitFuture(finishedFuture);
         finishedFuture.GetValue();
+        if (TConfig::Get()->WriteStderrSuccessfulJobs) {
+            auto stderrs = GetJobsStderr(retryPolicy, auth, operation->GetId());
+            for (const auto& jobStderr : stderrs) {
+                if (!jobStderr.empty()) {
+                    Cerr << jobStderr << '\n';
+                }
+            }
+        }
     }
     return operation;
 }
