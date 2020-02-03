@@ -4,6 +4,8 @@
 #include <mapreduce/yt/common/debug_metrics.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/interface/error_codes.h>
+#include <mapreduce/yt/interface/logging/log.h>
 
 #include <library/unittest/registar.h>
 
@@ -171,6 +173,7 @@ TTestFixture::TTestFixture(const TCreateClientOptions& options)
 
 TTestFixture::~TTestFixture()
 {
+    LOG_INFO("Completing test and aborting all operations")
     while (true) {
         auto result = Client_->ListOperations(
             TListOperationsOptions()
@@ -178,7 +181,17 @@ TTestFixture::~TTestFixture()
                 .Limit(100));
         for (const auto& op : result.Operations) {
             Y_VERIFY(op.Id);
-            Client_->AttachOperation(*op.Id)->AbortOperation();
+            try {
+                Client_->AttachOperation(*op.Id)->AbortOperation();
+            } catch (const TErrorResponse& ex) {
+                if (ex.GetError().ContainsErrorCode(NClusterErrorCodes::NScheduler::NoSuchOperation)) {
+                    LOG_ERROR("Error aborting operation %s: %s",
+                        GetGuidAsString(*op.Id).data(),
+                        ex.what());
+                } else {
+                    Y_FAIL("Unexpected error: %s", ex.what());
+                }
+            }
         }
         if (!result.Incomplete) {
             break;
