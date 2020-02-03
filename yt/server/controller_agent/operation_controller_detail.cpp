@@ -1109,7 +1109,7 @@ void TOperationControllerBase::StartTransactions()
 
     THashMap<TTransactionId, int> inputTransactionIdToResultIndex;
     for (auto transactionId : GetNonTrivialInputTransactionIds()) {
-        if (inputTransactionIdToResultIndex.find(transactionId) == inputTransactionIdToResultIndex.end()) {
+        if (!inputTransactionIdToResultIndex.contains(transactionId)) {
             inputTransactionIdToResultIndex[transactionId] = asyncResults.size();
             asyncResults.push_back(StartTransaction(ETransactionType::Input, InputClient, transactionId));
         }
