@@ -161,7 +161,7 @@ def add_permission(client, object_type, object_id, subject, permission, attribut
     for ace in acl:
         if ace["action"] != "allow":
             continue
-        if (subject.id not in ace["subjects"]) and not ("everyone" in ace["subjects"]):
+        if subject.id not in ace["subjects"]:
             continue
         if permission not in ace["permissions"]:
             continue
