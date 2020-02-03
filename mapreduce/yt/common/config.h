@@ -104,6 +104,10 @@ struct TConfig
     bool EnableLocalModeOptimization = true;
 
     //
+    // If you want see stderr even if you jobs not failed set this true.
+    bool WriteStderrSuccessfulJobs = false;
+
+    //
     // This configuration is useful for debug.
     // If set to ETraceHttpRequestsMode::Error library will dump all http error requests.
     // If set to ETraceHttpRequestsMode::All library will dump all http requests.
