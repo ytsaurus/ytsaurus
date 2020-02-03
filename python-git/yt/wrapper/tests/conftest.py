@@ -4,12 +4,12 @@ from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JO
                       sync_create_cell, get_test_file_path, get_port_locks_path,
                       yatest_common, create_job_events, wait)
 
-from yt.environment import YTInstance
+from yt.environment import YTInstance, arcadia_interop
+from yt.environment.helpers import emergency_exit_within_tests
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.common import update, update_inplace
 from yt.common import which, makedirp, format_error
-from yt.environment import arcadia_interop
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
 
@@ -17,17 +17,17 @@ from yt.packages.six import itervalues
 
 import yt.wrapper as yt
 
+import pytest
 
 import os
 import imp
 import sys
 import uuid
-import glob
 from copy import deepcopy
 import shutil
 import logging
 import socket
-import pytest
+import signal
 
 def pytest_ignore_collect(path, config):
     path = str(path)
@@ -43,11 +43,6 @@ if yatest_common is not None:
         os.makedirs(destination)
         path = arcadia_interop.prepare_yt_environment(destination, use_ytserver_all=True, copy_ytserver_all=True)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
-
-def _pytest_finalize_func(environment, process_call_args):
-    pytest.exit('Process run by command "{0}" is dead! Tests terminated.'
-                .format(" ".join(process_call_args)))
-    environment.stop()
 
 def rmtree(path):
     if os.path.exists(path):
@@ -246,7 +241,7 @@ class YtTestEnvironment(object):
             raise
 
     def check_liveness(self):
-        self.env.check_liveness(callback_func=_pytest_finalize_func)
+        self.env.check_liveness(callback_func=emergency_exit_within_tests)
 
     def reload_global_configuration(self):
         yt.config._init_state()
