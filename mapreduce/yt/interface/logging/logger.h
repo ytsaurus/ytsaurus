@@ -22,7 +22,7 @@ public:
         DEBUG /* "debug", "DEBUG" */
     };
 
-    virtual void Log(ELevel level, const TSourceLocation& sourceLocation, const char* format, va_list args) = 0;
+    virtual void Log(ELevel level, const ::TSourceLocation& sourceLocation, const char* format, va_list args) = 0;
 };
 
 using ILoggerPtr = ::TIntrusivePtr<ILogger>;
