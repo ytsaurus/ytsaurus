@@ -3,13 +3,15 @@ package ru.yandex.yt.ytclient.proxy.internal;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -27,14 +29,22 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
 public final class DataCenter {
     private static final Logger logger = LoggerFactory.getLogger(DataCenter.class);
 
+    private static final int DEFAULT_NUMBER_OF_PROXIES_TO_PING = 3;
+    private static final int DEFAULT_MAX_NUMBER_OF_PROXIES_TO_PING = 5;
+
     private final DataCenterMetricsHolder metricsHolder;
     private final BalancingDestinationMetricsHolder destMetricsHolder;
     private final RpcOptions options;
 
     private final String dc;
-    private final ArrayList<BalancingDestination> backends;
-    private int aliveCount;
     private final double weight;
+
+    private int numberOfProxiesToPing = DEFAULT_NUMBER_OF_PROXIES_TO_PING;
+    private int maxNumberOfProxiesToPing = DEFAULT_MAX_NUMBER_OF_PROXIES_TO_PING;
+    private Set<BalancingDestination> activeProxies;
+    private Set<BalancingDestination> checkingProxies;
+    private LinkedList<BalancingDestination> inactiveProxies;
+    private final ReentrantLock lock = new ReentrantLock();
 
     public DataCenter(String dc, BalancingDestination[] backends) {
         this(dc, backends, -1.0);
@@ -44,8 +54,7 @@ public final class DataCenter {
             String dc,
             BalancingDestination[] backends,
             DataCenterMetricsHolder metricsHolder,
-            BalancingDestinationMetricsHolder destMetricsHolder)
-    {
+            BalancingDestinationMetricsHolder destMetricsHolder) {
         this(dc, backends, -1.0, metricsHolder, destMetricsHolder, new RpcOptions());
     }
 
@@ -57,23 +66,25 @@ public final class DataCenter {
             String dc,
             BalancingDestination[] backends,
             double weight,
-            RpcOptions options)
-    {
+            RpcOptions options) {
         this(dc, backends, weight, options.getDataCenterMetricsHolder(), options.getDestinationMetricsHolder(), options);
     }
 
-    @Deprecated
     public DataCenter(
             String dc,
             BalancingDestination[] backends,
             double weight,
             DataCenterMetricsHolder metricsHolder,
             BalancingDestinationMetricsHolder destMetricsHolder,
-            RpcOptions options)
-    {
+            RpcOptions options) {
         this.dc = dc;
-        this.backends = new ArrayList<>(Arrays.asList(backends));
-        this.aliveCount = backends.length;
+        this.inactiveProxies = new LinkedList<>(Arrays.asList(backends));
+        this.checkingProxies = new HashSet<>();
+        this.activeProxies = new HashSet<>();
+        for (int i = 0; i < numberOfProxiesToPing && i < backends.length; i++) {
+            activeProxies.add(inactiveProxies.removeFirst());
+        }
+
         this.weight = weight;
         this.metricsHolder = metricsHolder;
         this.destMetricsHolder = destMetricsHolder;
@@ -92,89 +103,62 @@ public final class DataCenter {
         return dc;
     }
 
-    private void setAlive(BalancingDestination dst) {
-        synchronized (backends) {
-            if (dst.getIndex() >= aliveCount) {
-                swap(aliveCount, dst.getIndex());
-                aliveCount++;
-                logger.info("backend `{}` is alive", dst);
-            }
-        }
-    }
-
-    private void setDead(BalancingDestination dst, boolean remove, Throwable reason) {
-        synchronized (backends) {
-            if (dst.getIndex() < aliveCount) {
-                aliveCount--;
-                swap(aliveCount, dst.getIndex());
-                logger.info("backend `{}` is dead, reason `{}`", dst, reason.toString());
-                dst.resetTransaction();
-            }
-            if (remove) {
-                int lastIdx = backends.size() - 1;
-                swap(lastIdx, dst.getIndex());
-                backends.remove(lastIdx);
-            }
-        }
-    }
-
     public void addProxies(Set<RpcClient> proxies) {
-        synchronized (backends) {
-            backends.ensureCapacity(backends.size() + proxies.size());
-
-            int index = backends.size();
-            int prevSize = backends.size();
+        lock.lock();
+        try {
             for (RpcClient proxy : proxies) {
-                backends.add(new BalancingDestination(dc, proxy, index ++, destMetricsHolder, options));
-            }
+                BalancingDestination destination = new BalancingDestination(dc, proxy, destMetricsHolder, options);
 
-            if (prevSize == aliveCount) {
-                aliveCount = backends.size();
+                if (activeProxies.size() < numberOfProxiesToPing) {
+                    activeProxies.add(destination);
+                    checkingProxies.add(destination);
+                } else if (checkingProxies.size() < maxNumberOfProxiesToPing) {
+                    checkingProxies.add(destination);
+                } else {
+                    inactiveProxies.addFirst(destination);
+                }
+                logger.info("added proxy `{}`", proxy);
             }
+        } finally {
+            lock.unlock();
         }
     }
 
     public void removeProxies(Set<RpcClient> proxies) {
-        final ArrayList<BalancingDestination> removeList = new ArrayList<>();
-        synchronized (backends) {
-            removeList.ensureCapacity(proxies.size());
-            for (BalancingDestination dest : backends) {
-                if (proxies.contains(dest.getClient())) {
-                    removeList.add(dest);
+        lock.lock();
+        try {
+            activeProxies.removeIf(destination -> {
+                boolean remove = proxies.contains(destination.getClient());
+                if (remove) {
+                    logger.info("proxy `{}` was removed", destination);
                 }
-            }
-        }
-
-        for (BalancingDestination removed: removeList) {
-            setDead(removed, true, new Exception("proxy was removed from list"));
+                return remove;
+            });
+            checkingProxies.removeIf(destination -> proxies.contains(destination.getClient()));
+            inactiveProxies.removeIf(destination -> proxies.contains(destination.getClient()));
+        } finally {
+            lock.unlock();
         }
     }
 
     public boolean isAlive() {
-        return aliveCount > 0;
-    }
-
-    public void setDead(int index, Throwable reason) {
-        setDead(backends.get(index), false, reason);
-    }
-
-    public void setAlive(int index) {
-        setAlive(backends.get(index));
-    }
-
-    public void close() {
-        synchronized (backends) {
-            for (BalancingDestination client : backends) {
-                client.close();
-            }
+        lock.lock();
+        try {
+            return activeProxies.size() > 0;
+        } finally {
+            lock.unlock();
         }
     }
 
-    private void swap(int i, int j) {
-        Collections.swap(backends, i, j);
-
-        backends.get(i).setIndex(i);
-        backends.get(j).setIndex(j);
+    public void close() {
+        lock.lock();
+        try {
+            activeProxies.forEach(BalancingDestination::close);
+            checkingProxies.forEach(BalancingDestination::close);
+            inactiveProxies.forEach(BalancingDestination::close);
+        } finally {
+            lock.unlock();
+        }
     }
 
     public List<RpcClient> getAliveDestinations() {
@@ -182,62 +166,112 @@ public final class DataCenter {
     }
 
     public <T> List<T> getAliveDestinations(Function<BalancingDestination, T> func) {
-        synchronized (backends) {
-            return backends.subList(0, aliveCount).stream().map(func).collect(Collectors.toList());
+        lock.lock();
+        try {
+            return activeProxies.stream().map(func).collect(Collectors.toList());
+        } finally {
+            lock.unlock();
         }
     }
 
-    public List<RpcClient> selectDestinations(final int maxSelect, Random rnd) {
-        return selectDestinations(maxSelect, rnd, BalancingDestination::getClient);
+    public List<RpcClient> selectDestinations(final int maxSelect) {
+        return selectDestinations(maxSelect, BalancingDestination::getClient);
     }
 
-    public <T> List<T> selectDestinations(final int maxSelect, Random rnd, Function<BalancingDestination, T> func) {
+    public <T> List<T> selectDestinations(final int maxSelect, Function<BalancingDestination, T> func) {
         final ArrayList<T> result = new ArrayList<>();
         result.ensureCapacity(maxSelect);
 
-        synchronized (backends) {
-            int count = aliveCount;
-
-            while (count != 0 && result.size() < maxSelect) {
-                int idx = rnd.nextInt(count);
-                result.add(func.apply(backends.get(idx)));
-                swap(idx, count-1);
-                --count;
+        lock.lock();
+        try {
+            for (Iterator<BalancingDestination> i = activeProxies.iterator(); i.hasNext() && result.size() < maxSelect; ) {
+                BalancingDestination destination = i.next();
+                result.add(func.apply(destination));
             }
+        } finally {
+            lock.unlock();
         }
 
         return result;
     }
 
+    public int getNumberOfProxiesToPing() {
+        return numberOfProxiesToPing;
+    }
+
+    public void setNumberOfProxiesToPing(int numberOfProxiesToPing) {
+        this.numberOfProxiesToPing = numberOfProxiesToPing;
+    }
+
+    public int getMaxNumberOfProxiesToPing() {
+        return maxNumberOfProxiesToPing;
+    }
+
+    public void setMaxNumberOfProxiesToPing(int maxNumberOfProxiesToPing) {
+        this.maxNumberOfProxiesToPing = maxNumberOfProxiesToPing;
+    }
+
+    private void moveToInactive(BalancingDestination proxy) {
+        activeProxies.remove(proxy);
+        checkingProxies.remove(proxy);
+        inactiveProxies.addLast(proxy);
+    }
+
     private CompletableFuture<Void> ping(BalancingDestination client, ScheduledExecutorService executorService, Duration pingTimeout) {
         CompletableFuture<Void> f = client.createTransaction(pingTimeout).thenCompose(tx -> client.pingTransaction(tx))
-            .thenAccept(unused -> setAlive(client))
-            .exceptionally(ex -> {
-                setDead(client, false, ex);
-                return null;
-            });
+                .thenAccept(unused -> {
+                    lock.lock();
+                    try {
+                        if (activeProxies.add(client)) {
+                            logger.info("proxy `{}` moved to active", client);
+                        }
+                    } finally {
+                        lock.unlock();
+                    }
+                })
+                .exceptionally(ex -> {
+                    lock.lock();
+                    try {
+                        moveToInactive(client);
+                    } finally {
+                        lock.unlock();
+                    }
+                    logger.info("proxy `{}` ping transaction failed, moved to inactive: {}", client, ex);
+                    return null;
+                });
 
         executorService.schedule(
-            () -> {
-                if (!f.isDone()) {
-                    setDead(client, false, new Exception("ping timeout"));
-                    f.cancel(true);
-                }
-            },
-            pingTimeout.toMillis(), TimeUnit.MILLISECONDS
+                () -> {
+                    if (!f.isDone()) {
+                        lock.lock();
+                        try {
+                            moveToInactive(client);
+                        } finally {
+                            lock.unlock();
+                        }
+                        logger.info("proxy `{}` ping timeout, moved to inactive", client);
+                        f.cancel(true);
+                    }
+                },
+                pingTimeout.toMillis(), TimeUnit.MILLISECONDS
         );
 
         return f;
     }
 
     public CompletableFuture<Void> ping(ScheduledExecutorService executorService, Duration pingTimeout) {
-        synchronized (backends) {
-            CompletableFuture<Void> futures[] = new CompletableFuture[backends.size()];
-            for (int i = 0; i < backends.size(); ++i) {
-                futures[i] = ping(backends.get(i), executorService, pingTimeout);
+        lock.lock();
+        try {
+            while (checkingProxies.size() < numberOfProxiesToPing && inactiveProxies.size() > 0) {
+                checkingProxies.add(inactiveProxies.removeFirst());
             }
-
+            CompletableFuture<?>[] futures =
+                    checkingProxies.stream().map(
+                            proxy -> ping(proxy, executorService, pingTimeout)
+                    ).toArray(CompletableFuture<?>[]::new);
             return CompletableFuture.allOf(futures);
+        } finally {
+            lock.unlock();
         }
     }
 }

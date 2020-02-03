@@ -27,7 +27,6 @@ public class BalancingDestination {
     private final String dc;
     private final RpcClient client;
     private final String id;
-    private int index;
 
     private final ApiServiceClient service;
     private ApiServiceTransaction transaction = null;
@@ -35,17 +34,16 @@ public class BalancingDestination {
     private final String destinationName;
 
     public BalancingDestination(String dc, RpcClient client, int index) {
-        this(dc, client, index, new BalancingDestinationMetricsHolderImpl());
+        this(dc, client, new BalancingDestinationMetricsHolderImpl());
     }
 
-    public BalancingDestination(String dc, RpcClient client, int index, BalancingDestinationMetricsHolder metricsHolder) {
-        this(dc, client, index, metricsHolder, new RpcOptions());
+    public BalancingDestination(String dc, RpcClient client, BalancingDestinationMetricsHolder metricsHolder) {
+        this(dc, client, metricsHolder, new RpcOptions());
     }
 
-    public BalancingDestination(String dc, RpcClient client, int index, BalancingDestinationMetricsHolder metricsHolder, RpcOptions options) {
+    public BalancingDestination(String dc, RpcClient client, BalancingDestinationMetricsHolder metricsHolder, RpcOptions options) {
         this.dc = dc;
         this.client = Objects.requireNonNull(client);
-        this.index = index;
         this.id = String.format("%s/%s", dc, client.toString());
 
         this.destinationName = client.destinationName();
@@ -55,6 +53,7 @@ public class BalancingDestination {
     }
 
     /* for testing only */
+    @Deprecated
     public BalancingDestination(String dc, int index) {
         this.dc = dc;
         BalancingDestination parent = this;
@@ -88,7 +87,6 @@ public class BalancingDestination {
             }
         };
         this.id = String.format("%s/%d", dc, index);
-        this.index = index;
 
         this.destinationName = "local";
         this.metricsHolder = new BalancingDestinationMetricsHolderImpl();
@@ -102,14 +100,6 @@ public class BalancingDestination {
 
     public String dataCenter() {
         return dc;
-    }
-
-    public int getIndex() {
-        return index;
-    }
-
-    public void setIndex(int i) {
-        index = i;
     }
 
     public RpcClient getClient() {

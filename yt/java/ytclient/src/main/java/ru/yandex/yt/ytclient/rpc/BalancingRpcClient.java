@@ -133,12 +133,10 @@ public class BalancingRpcClient implements RpcClient {
             List<RpcClient> clients = entity.getValue();
             BalancingDestination [] destinations = new BalancingDestination[clients.size()];
 
-            int j = 0;
             int index = 0;
 
             for (RpcClient client : clients) {
-                index = j++;
-                destinations[index] = new BalancingDestination(dcName, client, index, balancingDestinationMetricsHolder);
+                destinations[index++] = new BalancingDestination(dcName, client, balancingDestinationMetricsHolder);
             }
             DataCenter dc = new DataCenter(
                     dcName,
