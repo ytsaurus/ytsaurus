@@ -135,7 +135,7 @@ class TStreamTeeLogger
 {
 public:
     TStreamTeeLogger(ELevel cutLevel, IOutputStream* stream, ILoggerPtr oldLogger);
-    void Log(ELevel level, const TSourceLocation& sourceLocation, const char* format, va_list args) override;
+    void Log(ELevel level, const ::TSourceLocation& sourceLocation, const char* format, va_list args) override;
 
 private:
     ILoggerPtr OldLogger_;

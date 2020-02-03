@@ -6,7 +6,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline void LogMessage(ILogger::ELevel level, const TSourceLocation& sourceLocation, const char* format, ...)
+inline void LogMessage(ILogger::ELevel level, const ::TSourceLocation& sourceLocation, const char* format, ...)
 {
     va_list args;
     va_start(args, format);
