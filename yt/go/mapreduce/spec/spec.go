@@ -32,6 +32,9 @@ type UserScript struct {
 
 	TmpfsPath string `yson:"tmpfs_path,omitempty"`
 
+	// CPULimit corresponds to cpu_limit job setting.
+	//
+	// This setting results in GOMAXPROCS set to max(1, ceil(CPULimit)).
 	CPULimit    float32 `yson:"cpu_limit,omitempty"`
 	MemoryLimit int64   `yson:"memory_limit,omitempty"`
 
