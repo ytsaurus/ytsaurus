@@ -2,11 +2,12 @@
 
 #include <yt/core/concurrency/nonblocking_batch.h>
 
-namespace NYT {
-
-using namespace NConcurrency;
+namespace NYT::NConcurrency {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto Quantum = TDuration::MilliSeconds(100);
 
 template <class T>
 void EnqueueAll(TNonblockingBatch<T>& batch, std::initializer_list<T> lst)
@@ -47,7 +48,7 @@ TEST(TBatchTest, Simple)
 
 TEST(TBatchTest, Duration)
 {
-    auto timeout = TDuration::MilliSeconds(20);
+    auto timeout = Quantum;
     auto overTimeout = timeout * 2;
 
     auto b = New<TNonblockingBatch<int>>(2, timeout);
@@ -71,7 +72,7 @@ TEST(TBatchTest, Duration)
 
 TEST(TBatchTest, Deque)
 {
-    auto timeout = TDuration::MilliSeconds(20);
+    auto timeout = Quantum;
     auto overTimeout = timeout * 2;
 
     auto b = New<TNonblockingBatch<int>>(2, timeout);
@@ -115,7 +116,7 @@ TEST(TBatchTest, Deque)
 
 TEST(TBatchTest, Drop)
 {
-    auto timeout = TDuration::MilliSeconds(20);
+    auto timeout = Quantum;
 
     auto b = New<TNonblockingBatch<int>>(2, timeout);
     auto e1 = b->DequeueBatch();
@@ -139,7 +140,7 @@ TEST(TBatchTest, Drop)
 
 TEST(TBatchTest, EnqueueTimeout)
 {
-    auto timeout = TDuration::MilliSeconds(20);
+    auto timeout = Quantum;
     auto overTimeout = timeout * 2;
 
     auto b = New<TNonblockingBatch<int>>(3, timeout);
@@ -156,4 +157,5 @@ TEST(TBatchTest, EnqueueTimeout)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace
+} // namespace NYT::NConcurrency
