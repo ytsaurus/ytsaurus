@@ -1,6 +1,10 @@
 #pragma once
 
-#include <yt/server/node/tablet_node/public.h>
+#include "public.h"
+
+#include <yt/ytlib/chunk_client/chunk_reader.h>
+
+#include <yt/core/misc/shared_range.h>
 
 namespace NYT::NTableClient {
 
@@ -10,7 +14,7 @@ IVersionedReaderPtr CreateRowLookupReader(
     NChunkClient::IChunkReaderPtr chunkReader,
     NChunkClient::TClientBlockReadOptions blockReadOptions,
     TSharedRange<TKey> lookupKeys,
-    NTabletNode::TTabletSnapshotPtr tabletSnapshot,
+    TTabletSnapshotPtr tabletSnapshot,
     bool produceAllVersions);
 
 ////////////////////////////////////////////////////////////////////////////////
