@@ -981,6 +981,7 @@ def run_ya_tests(options, suite_name, test_paths):
         "--test-param", "inside_arcadia=0",
         "-ttt",
         "--dont-merge-split-tests",
+        "--stat",
     ]
     args += test_paths
     args += ya_make_args(options)
