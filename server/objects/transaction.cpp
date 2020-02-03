@@ -2816,7 +2816,7 @@ private:
         std::vector<TAttributeUpdateMatch> matches;
         matches.reserve(requests.size());
         for (const auto& request : requests) {
-            matches.push_back(MatchAttributeUpdate(object, request));
+            MatchAttributeUpdate(object, request, &matches);
         }
 
         for (const auto& match : matches) {
@@ -2896,8 +2896,7 @@ private:
             });
     }
 
-
-    static TUpdateRequest PatchRequestPath(
+    static TUpdateRequest OverwriteRequestPath(
         const TUpdateRequest& request,
         const TYPath& path)
     {
@@ -2910,29 +2909,111 @@ private:
             });
     }
 
-    TAttributeUpdateMatch MatchAttributeUpdate(
+    void ValidateAttributeUpdateMatch(
         TObject* object,
-        const TUpdateRequest& request)
+        const TAttributeUpdateMatch& match)
     {
+        if (!match.Schema->GetUpdatable()) {
+            THROW_ERROR_EXCEPTION("Attribute %Qv does not support updates",
+                match.Schema->GetPath());
+        }
+
+        // In case of empty suffix path there is no need to load attribute and validate read permissions accordingly.
+        if (GetRequestPath(match.Request)) {
+            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
+
+            auto* current = match.Schema;
+            while (current) {
+                if (auto readPermission = current->GetReadPermission(); readPermission != EAccessControlPermission::None) {
+                    accessControlManager->ValidatePermission(object, readPermission);
+                }
+                current = current->GetParent();
+            }
+        }
+    }
+
+    template <class TOnLeafAttribute>
+    void ForEachSetUpdateLeafAttribute(
+        TAttributeSchema* schema,
+        const TSetUpdateRequest& request,
+        const TOnLeafAttribute& onLeafAttribute)
+    {
+        if (!schema->IsComposite()) {
+            onLeafAttribute(schema, request);
+            return;
+        }
+
+        YT_VERIFY(request.Path.Empty());
+
+        if (request.Value->GetType() != ENodeType::Map) {
+            THROW_ERROR_EXCEPTION("Attribute %Qv cannot be updated from %Qlv values",
+                schema->GetPath(),
+                request.Value->GetType());
+        }
+
+        auto mapValue = request.Value->AsMap();
+        auto* etcChild = schema->FindEtcChild();
+        IMapNodePtr etcMapValue;
+        for (const auto& [key, childValue] : mapValue->GetChildren()) {
+            auto* child = schema->FindChild(key);
+            if (child) {
+                ForEachSetUpdateLeafAttribute(
+                    child,
+                    TSetUpdateRequest{TYPath(), childValue},
+                    onLeafAttribute);
+            } else if (etcChild) {
+                if (!etcMapValue) {
+                    etcMapValue = GetEphemeralNodeFactory()->CreateMap();
+                }
+                etcMapValue->AddChild(key, CloneNode(childValue));
+            } else {
+                THROW_ERROR_EXCEPTION("Attribute %Qv has no child with key %Qv",
+                    schema->GetPath(),
+                    key);
+            }
+        }
+
+        if (etcMapValue) {
+            ForEachSetUpdateLeafAttribute(
+                etcChild,
+                TSetUpdateRequest{TYPath(), etcMapValue},
+                onLeafAttribute);
+        }
+    }
+
+    void MatchAttributeUpdate(
+        TObject* object,
+        const TUpdateRequest& request,
+        std::vector<TAttributeUpdateMatch>* matches)
+    {
+        // Permissions argument is a bit redundant, but needed, because it allows resolver to skip permission validation.
         TResolvePermissions permissions;
         auto resolveResult = ResolveAttribute(
             object->GetTypeHandler(),
             GetRequestPath(request),
             &permissions);
 
-        if (!resolveResult.Attribute->GetUpdatable()) {
-            THROW_ERROR_EXCEPTION("Attribute %Qv does not support updates",
-                resolveResult.Attribute->GetPath());
-        }
+        auto addMatch = [=] (TAttributeSchema* schema, TUpdateRequest request) {
+            TAttributeUpdateMatch match{
+                schema,
+                std::move(request)};
+            ValidateAttributeUpdateMatch(object, match);
+            matches->push_back(std::move(match));
+        };
 
-        if (!resolveResult.SuffixPath.empty() && !permissions.ReadPermissions.empty()) {
-            const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-            for (auto permission : permissions.ReadPermissions) {
-                accessControlManager->ValidatePermission(object, permission);
-            }
-        }
+        auto* resolvedSchema = resolveResult.Attribute;
+        auto resolvedRequest = OverwriteRequestPath(request, resolveResult.SuffixPath);
 
-        return {resolveResult.Attribute, PatchRequestPath(request, resolveResult.SuffixPath)};
+        Visit(resolvedRequest,
+            [&] (const TSetUpdateRequest& typedRequest) {
+                ForEachSetUpdateLeafAttribute(
+                    resolvedSchema,
+                    typedRequest,
+                    addMatch);
+            },
+            [&] (TRemoveUpdateRequest& typedRequest) {
+                addMatch(resolvedSchema, std::move(typedRequest));
+            });
     }
 
     void PreloadAttribute(
@@ -2940,6 +3021,7 @@ private:
         TObject* object,
         const TAttributeUpdateMatch& match)
     {
+        // Attribute will be overwritten, no need to load its previous value.
         if (GetRequestPath(match.Request).empty()) {
             return;
         }
@@ -2987,62 +3069,14 @@ private:
         }
     }
 
-    void ApplyCompositeAttributeSetUpdate(
-        TTransaction* transaction,
-        TObject* object,
-        TAttributeSchema* schema,
-        const TSetUpdateRequest& request)
-    {
-        YT_VERIFY(request.Path.Empty());
-
-        if (request.Value->GetType() != ENodeType::Map) {
-            THROW_ERROR_EXCEPTION("Attribute %Qv cannot be updated from %Qlv values",
-                schema->GetPath(),
-                request.Value->GetType());
-        }
-
-        auto mapValue = request.Value->AsMap();
-        auto* etcChild = schema->FindEtcChild();
-        IMapNodePtr etcMapValue;
-        for (const auto& [key, childValue] : mapValue->GetChildren()) {
-            auto* child = schema->FindChild(key);
-            if (child) {
-                ApplyAttributeSetUpdate(
-                    transaction,
-                    object,
-                    child,
-                    TSetUpdateRequest{TYPath(), childValue});
-            } else if (etcChild) {
-                if (!etcMapValue) {
-                    etcMapValue = GetEphemeralNodeFactory()->CreateMap();
-                }
-                etcMapValue->AddChild(key, CloneNode(childValue));
-            } else {
-                THROW_ERROR_EXCEPTION("Attribute %Qv has no child with key %Qv",
-                    schema->GetPath(),
-                    key);
-            }
-        }
-
-        if (etcMapValue) {
-            ApplyAttributeSetUpdate(
-                transaction,
-                object,
-                etcChild,
-                TSetUpdateRequest{TYPath(), etcMapValue});
-        }
-    }
-
     void ApplyAttributeSetUpdate(
         TTransaction* transaction,
         TObject* object,
         TAttributeSchema* schema,
         const TSetUpdateRequest& request)
     {
-        if (schema->IsComposite()) {
-            ApplyCompositeAttributeSetUpdate(transaction, object, schema, request);
-            return;
-        }
+        // Expect leaf attribute, because recursive matching has been performed previously.
+        YT_VERIFY(!schema->IsComposite());
 
         if (!schema->HasValueSetter()) {
             THROW_ERROR_EXCEPTION("Attribute %Qv does not support set updates",
@@ -3068,6 +3102,9 @@ private:
             THROW_ERROR_EXCEPTION("Attribute %Qv does not support remove updates",
                 schema->GetPath());
         }
+
+        // Composite attribute removing requires recursive traversal, which is not performed for remove update for now.
+        YT_VERIFY(!schema->IsComposite());
 
         YT_LOG_DEBUG("Applying remove update (ObjectId: %v, Attribute: %Qv, Path: %Qv)",
             object->GetId(),

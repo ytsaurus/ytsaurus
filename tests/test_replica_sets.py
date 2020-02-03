@@ -1,19 +1,33 @@
 from . import templates
 
-import pytest
+from yp.common import YtResponseError
 
 from yt.yson.yson_types import YsonEntity
+
+import pytest
+
 
 @pytest.mark.usefixtures("yp_env")
 class TestReplicaSets(object):
     def test_permissions(self, yp_env):
         templates.permissions_test_template(yp_env, "replica_set", account_is_mandatory=True)
 
-
     def test_update_spec(self, yp_env):
         account_id = yp_env.yp_client.create_object("account")
         templates.update_spec_test_template(yp_env.yp_client, "replica_set", {"account_id": account_id, "revision_id": "1"},
                                             "/spec/revision_id", "2")
+
+    def test_update_spec_pod_disks_validation(self, yp_env):
+        yp_client = yp_env.yp_client
+        replica_set_id = yp_client.create_object(
+            object_type="replica_set",
+            attributes=dict(spec=dict(account_id="tmp")),
+        )
+        templates.update_spec_pod_disks_validation_test_template(
+            yp_client,
+            "replica_set",
+            replica_set_id,
+        )
 
     def test_simple(self, yp_env):
         yp_client = yp_env.yp_client
@@ -69,7 +83,6 @@ class TestReplicaSets(object):
         result = yp_client.get_object("replica_set", rs_id, selectors=["/status"])[0]
         assert result == status
 
-
     def test_extensible_spec(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -91,7 +104,6 @@ class TestReplicaSets(object):
         yp_client.update_object("replica_set", rs_id, remove_updates=[{"path": "/spec/pod_template_spec/labels"}])
         assert yp_client.get_object("replica_set", rs_id, selectors=["/spec/pod_template_spec/labels/key"])[0] == YsonEntity()
 
-
     def test_extensible_status(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -108,10 +120,8 @@ class TestReplicaSets(object):
         yp_client.update_object("replica_set", rs_id, remove_updates=[{"path": "/status/hello"}])
         assert yp_client.get_object("replica_set", rs_id, selectors=["/status/hello"])[0] == YsonEntity()
 
-
     def test_network_project_permissions(self, yp_env):
         templates.replica_set_network_project_permissions_test_template(yp_env, "replica_set")
-
 
     def test_custom_pods_labels_annotations(self, yp_env):
         yp_client = yp_env.yp_client

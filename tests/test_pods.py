@@ -9,8 +9,9 @@ from .conftest import (
 )
 
 from yp.common import (
-    YtResponseError,
+    YpAuthorizationError,
     YpNoSuchObjectError,
+    YtResponseError,
     wait,
 )
 
@@ -99,6 +100,62 @@ class TestPods(object):
                             disk_specs=[{"total_capacity": hdd_capacity, "total_volume_slots": hdd_volume_slots, "device": "/dev/hdd"},
                                         {"total_capacity": ssd_capacity, "total_volume_slots": ssd_volume_slots, "device": "/dev/ssd", "storage_class": "ssd"}]) == [node_id]
         return node_id
+
+    def test_account_use_permission(self, yp_env):
+        yp_client_root = yp_env.yp_client
+
+        account_id = yp_client_root.create_object("account")
+        user_id = yp_client_root.create_object("user")
+
+        yp_env.sync_access_control()
+
+        with yp_env.yp_instance.create_client(config=dict(user=user_id)) as yp_client_user:
+            pod_set_id = create_pod_set(yp_client_user)
+            pod_id = create_pod_with_boilerplate(yp_client_user, pod_set_id)
+
+        def update_spec(yp_client):
+            yp_client.update_object(
+                "pod",
+                pod_id,
+                set_updates=[dict(
+                    path="/spec",
+                    value=dict(account_id=account_id),
+                )],
+            )
+
+        def update_spec_account_id(yp_client):
+            yp_client.update_object(
+                "pod",
+                pod_id,
+                set_updates=[dict(
+                    path="/spec/account_id",
+                    value=account_id,
+                )],
+            )
+
+        with yp_env.yp_instance.create_client(config=dict(user=user_id)) as yp_client_user:
+            with pytest.raises(YpAuthorizationError):
+                update_spec(yp_client_user)
+            with pytest.raises(YpAuthorizationError):
+                update_spec_account_id(yp_client_user)
+
+        yp_client_root.update_object(
+            "account",
+            account_id,
+            set_updates=[dict(
+                path="/meta/acl/end",
+                value=dict(
+                    action="allow",
+                    subjects=[user_id],
+                    permissions=["use"],
+                ),
+            )],
+        )
+        yp_env.sync_access_control()
+
+        with yp_env.yp_instance.create_client(config=dict(user=user_id)) as yp_client_user:
+            update_spec(yp_client_user)
+            update_spec_account_id(yp_client_user)
 
     def test_pod_set_required_on_create(self, yp_env):
         yp_client = yp_env.yp_client

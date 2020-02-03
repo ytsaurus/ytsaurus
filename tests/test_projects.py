@@ -30,6 +30,8 @@ class TestProjects(object):
         yp_client.create_object("account", attributes={"meta": {"id": "a"}})
         with pytest.raises(YtResponseError):
             yp_client.update_object("project", project_id, set_updates=[{"path": "/spec/account_id", "value": "a"}])
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("project", project_id, set_updates=[{"path": "/spec", "value": dict(account_id="a")}])
 
     def test_owner_updatable(self, yp_env):
         yp_client = yp_env.yp_client

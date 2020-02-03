@@ -24,6 +24,7 @@ public:
                 MakeAttributeSchema("project_id")
                     ->SetAttribute(TNetworkProject::TSpec::ProjectIdSchema)
                     ->SetMandatory()
+                    ->SetUpdatable()
             });
 
         StatusAttributeSchema_

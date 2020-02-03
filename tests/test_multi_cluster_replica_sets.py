@@ -2,6 +2,7 @@ from . import templates
 
 import pytest
 
+
 @pytest.mark.usefixtures("yp_env")
 class TestMultiClusterReplicaSets(object):
     def test_permissions(self, yp_env):
@@ -9,6 +10,18 @@ class TestMultiClusterReplicaSets(object):
 
     def test_update_spec(self, yp_env):
         templates.update_spec_revision_test_template(yp_env.yp_client, "multi_cluster_replica_set")
+
+    def test_update_spec_pod_disks_validation(self, yp_env):
+        yp_client = yp_env.yp_client
+        multi_cluster_replica_set_id = yp_client.create_object(
+            object_type="multi_cluster_replica_set",
+            attributes=dict(spec=dict(account_id="tmp", node_segment_id="default")),
+        )
+        templates.update_spec_pod_disks_validation_test_template(
+            yp_client,
+            "multi_cluster_replica_set",
+            multi_cluster_replica_set_id,
+        )
 
     def test_network_project_permissions(self, yp_env):
         templates.replica_set_network_project_permissions_test_template(yp_env, "multi_cluster_replica_set")

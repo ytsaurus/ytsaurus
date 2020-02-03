@@ -37,6 +37,43 @@ def permissions_test_template(yp_env, object_type, account_is_mandatory=False, m
         client.create_object(object_type, attributes={"meta": meta_specific_fields, "spec": {"account_id": account_id}})
 
 
+def update_spec_pod_disks_validation_test_template(yp_client, object_type, object_id):
+    def update(path, value):
+        yp_client.update_object(object_type, object_id, set_updates=[dict(path=path, value=value)])
+
+    def update_spec(attributes):
+        update(
+            path="/spec",
+            value=dict(
+                pod_template_spec=dict(
+                    spec=dict(
+                        disk_volume_requests=[attributes],
+                    ),
+                ),
+            ),
+        )
+
+    def update_spec_pod_template_spec(attributes):
+        update(
+            path="/spec/pod_template_spec",
+            value=dict(
+                spec=dict(
+                    disk_volume_requests=[attributes],
+                ),
+            ),
+        )
+
+    attributes = dict(id="123", storage_class="hdd")
+    with pytest.raises(YtResponseError):
+        update_spec(attributes)
+    with pytest.raises(YtResponseError):
+        update_spec_pod_template_spec(attributes)
+
+    attributes["quota_policy"] = dict(capacity=123123)
+    update_spec(attributes)
+    update_spec_pod_template_spec(attributes)
+
+
 def update_spec_test_template(yp_client, object_type, initial_spec, update_path, update_value):
     object_id = yp_client.create_object(
         object_type=object_type,

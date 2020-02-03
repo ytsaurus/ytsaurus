@@ -58,9 +58,8 @@ public:
                 MakeEtcAttributeSchema()
                     ->SetAttribute(TStage::TSpec::EtcSchema)
                     ->SetUpdatable()
+                    ->SetValidator<TStage>(std::bind(&TStageTypeHandler::ValidateSpecEtc, this, _1, _2))
             })
-            // TODO(YP-1389) Move validator to EtcAttributeSchema after the bug is fixed.
-            ->SetValidator<TStage>(std::bind(&TStageTypeHandler::ValidateSpec, this, _1, _2))
             ->SetExtensible()
             ->EnableHistory();
 
@@ -116,7 +115,7 @@ private:
             << ex;
     }
 
-    void ValidateSpec(TTransaction* transaction, TStage* stage)
+    void ValidateSpecEtc(TTransaction* transaction, TStage* stage)
     {
         try {
             static const auto extractPodTemplateSpec = [] (const NClient::NApi::NProto::TDeployUnitSpec& deployUnit) -> const NClient::NApi::NProto::TPodTemplateSpec& {
