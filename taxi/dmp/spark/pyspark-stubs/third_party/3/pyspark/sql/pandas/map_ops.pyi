@@ -1,6 +1,6 @@
-from typing import Any, Union
+from typing import Union
 
-from pyspark.sql._typing import ColumnOrName, LiteralType, MapIterPandasUserDefinedFunction, PandasMapIterFunction
+from pyspark.sql.pandas._typing import  MapIterPandasUserDefinedFunction, PandasMapIterFunction
 from pyspark import since as since
 from pyspark.rdd import PythonEvalType as PythonEvalType
 from pyspark.sql.types import StructType

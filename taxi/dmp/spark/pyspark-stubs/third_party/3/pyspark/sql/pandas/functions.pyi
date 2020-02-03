@@ -1,7 +1,8 @@
 from typing import overload
 from typing import Any, Optional, Union, Callable
 
-from pyspark.sql._typing import AtomicDataTypeOrString, ColumnOrName, DataTypeOrString, GroupedMapPandasUserDefinedFunction, MapIterPandasUserDefinedFunction,CogroupedMapPandasUserDefinedFunction, PandasCogroupedMapFunction, PandasCogroupedMapUDFType, PandasGroupedAggFunction, PandasGroupedAggUDFType, PandasGroupedMapFunction, PandasGroupedMapUDFType, PandasMapIterFunction, PandasMapIterUDFType, PandasScalarIterFunction, PandasScalarIterUDFType, PandasScalarToScalarFunction, PandasScalarToStructFunction, PandasScalarUDFType, UserDefinedFunctionLike
+from pyspark.sql._typing import AtomicDataTypeOrString, ColumnOrName, DataTypeOrString, UserDefinedFunctionLike
+from pyspark.sql.pandas._typing import GroupedMapPandasUserDefinedFunction, MapIterPandasUserDefinedFunction,CogroupedMapPandasUserDefinedFunction, PandasCogroupedMapFunction, PandasCogroupedMapUDFType, PandasGroupedAggFunction, PandasGroupedAggUDFType, PandasGroupedMapFunction, PandasGroupedMapUDFType, PandasMapIterFunction, PandasMapIterUDFType, PandasScalarIterFunction, PandasScalarIterUDFType, PandasScalarToScalarFunction, PandasScalarToStructFunction, PandasScalarUDFType
 
 from pyspark import since as since
 from pyspark.rdd import PythonEvalType as PythonEvalType

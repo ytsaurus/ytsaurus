@@ -4,7 +4,8 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, TypeVar
 import pandas.core.frame # type: ignore
 from py4j.java_gateway import JavaObject  # type: ignore
 
-from pyspark.sql._typing import ColumnOrName, LiteralType, MapIterPandasUserDefinedFunction
+from pyspark.sql._typing import ColumnOrName, LiteralType
+from pyspark.sql.pandas._typing import MapIterPandasUserDefinedFunction
 from pyspark.sql.types import *
 from pyspark.sql.context import SQLContext
 from pyspark.sql.group import GroupedData

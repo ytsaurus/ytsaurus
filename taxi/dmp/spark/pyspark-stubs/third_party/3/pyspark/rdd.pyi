@@ -5,7 +5,7 @@ from typing_extensions import Literal
 from numpy import int32, int64, float32, float64, ndarray  # type: ignore
 
 from pyspark._typing import SupportsOrdering
-from pyspark.sql._typing import PandasScalarUDFType, PandasScalarIterUDFType, PandasGroupedMapUDFType, PandasCogroupedMapUDFType, PandasGroupedAggUDFType, PandasMapIterUDFType
+from pyspark.sql.pandas._typing import PandasScalarUDFType, PandasScalarIterUDFType, PandasGroupedMapUDFType, PandasCogroupedMapUDFType, PandasGroupedAggUDFType, PandasMapIterUDFType
 import pyspark.context
 from pyspark.resultiterable import ResultIterable
 from pyspark.serializers import Serializer

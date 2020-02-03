@@ -4,7 +4,8 @@
 from typing import overload
 from typing import Any, Callable, Dict, List, Optional
 
-from pyspark.sql._typing import LiteralType, GroupedMapPandasUserDefinedFunction
+from pyspark.sql._typing import LiteralType
+from pyspark.sql.pandas._typing import GroupedMapPandasUserDefinedFunction
 from pyspark.sql.context import SQLContext
 from pyspark.sql.column import Column
 from pyspark.sql.dataframe import DataFrame

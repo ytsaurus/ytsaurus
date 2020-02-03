@@ -1,6 +1,6 @@
-from typing import Any, Union
+from typing import Union
 
-from pyspark.sql._typing import GroupedMapPandasUserDefinedFunction, CogroupedMapPandasUserDefinedFunction, PandasGroupedMapFunction, PandasCogroupedMapFunction
+from pyspark.sql.pandas._typing import GroupedMapPandasUserDefinedFunction, CogroupedMapPandasUserDefinedFunction, PandasGroupedMapFunction, PandasCogroupedMapFunction
 
 from pyspark import since as since
 from pyspark.rdd import PythonEvalType as PythonEvalType
