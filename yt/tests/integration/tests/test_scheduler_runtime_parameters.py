@@ -146,6 +146,29 @@ class TestRuntimeParameters(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
+    def test_change_pool_of_pending_operation_bug(self):
+        # YT-12147:
+        # 1. There are two pools: parent and child.
+        # 2. Parent reached running_operation_count limit.
+        # 3. Run operation in child pool. It became pending due to the limit at parent.
+        # 4. Issue command to move operation to parent pool.
+        # 5. Validation was obliged to check that operation can be instantly run at new pool
+        # (i.e. there is no operation count violation at new pool).
+        # 6. But validation skipped common prefix of pools due to expectation that operation counts won't change on common prefix.
+        # 7. After performing pool change crash is caused by YT_VERIFY which enforces that operation will immediately become running.
+
+        create_pool("parent", attributes={"max_running_operation_count": 0})
+        create_pool("child", parent_name="parent")
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/parent"))
+
+        op = run_test_vanilla(":", spec={"pool": "child"})
+        op.wait_for_state("pending")
+
+        with pytest.raises(YtError):
+            # core was in TFairShareTree::ChangeOperationPool.
+            update_op_parameters(op.id, parameters={"pool": "parent"})
+
+    @authors("renadeen")
     def test_no_pool_validation_on_change_weight(self):
         create_pool("test_pool")
         op = run_sleeping_vanilla(spec={"pool": "test_pool"})
