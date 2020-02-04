@@ -21,6 +21,8 @@ def main():
     if args.account is not None:
         if not yt.exists("//sys/accounts/" + args.account):
             yt.create("account", attributes={"name": args.account})
+            yt.set("//sys/accounts/{}/@resource_limits/node_count", 1000)
+            yt.set("//sys/accounts/{}/@resource_limits/chunk_count", 100000)
             if yt.exists("//sys/media"):
                 disk_space_path = "disk_space_per_medium/default"
             else:

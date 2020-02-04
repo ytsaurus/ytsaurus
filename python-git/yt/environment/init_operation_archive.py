@@ -4,6 +4,8 @@ import yt.yson as yson
 from yt.wrapper import YtClient, TablePath, config, ypath_join
 from yt.tools.dynamic_tables import make_dynamic_table_attributes, unmount_table_new, mount_table_new
 
+from .init_cluster import get_default_resource_limits
+
 from yt.packages.six.moves import xrange
 
 import argparse
@@ -177,7 +179,10 @@ def set_table_ttl(client, table, ttl=None, auto_compaction_period=None, forbid_o
 def create_operations_archive_account(client):
     if not client.exists("//sys/accounts/{0}".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME)):
         logging.info("Creating account: %s", OPERATIONS_ARCHIVE_ACCOUNT_NAME)
-        client.create("account", attributes={"name": OPERATIONS_ARCHIVE_ACCOUNT_NAME})
+        client.create("account", attributes={
+            "name": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            "resource_limits" : get_default_resource_limits(client)
+        })
         while client.get("//sys/accounts/{0}/@life_stage".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME)) != "creation_committed":
             time.sleep(0.1)
 

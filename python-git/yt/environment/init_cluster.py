@@ -7,8 +7,6 @@ from yt.common import get_value
 import string
 import argparse
 
-TB = 1024 ** 4
-
 def create(type_, name, client):
     try:
         client.create(type_, attributes={"name": name})
@@ -70,9 +68,12 @@ def add_acl(path, new_acl, client):
     else:
         logger.warning("ACL '%s' is already present in %s/@acl", new_acl, path)
 
-# Backwards compatibility.
+# By default, accounts have empty resource limits upon creation.
 def get_default_resource_limits(client):
+    TB = 1024 ** 4
+
     result = {"node_count": 500000, "chunk_count": 1000000}
+    # Backwards compatibility.
     if client.exists("//sys/media"):
         result["disk_space_per_medium"] = {"default": 10 * TB}
     else:
