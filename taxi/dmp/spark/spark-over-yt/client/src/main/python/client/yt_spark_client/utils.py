@@ -29,27 +29,15 @@ def base_spark_conf(yt_proxy, yt_user, log_dir):
     }
 
 
-def default_dynamic_allocation_conf():
+def default_spark_conf(is_dynamic):
     return {
-        "spark.dynamicAllocation.enabled": "true",
+        "spark.dynamicAllocation.enabled": is_dynamic,
         "spark.dynamicAllocation.executorIdleTimeout": "10m",
-        "spark.dynamicAllocation.maxExecutors": 12,
-        "spark.cores.max": "48",
+        "spark.dynamicAllocation.maxExecutors": 5,
+        "spark.cores.max": "20",
         "spark.driver.maxResultSize": "1G",
         "spark.driver.memory": "1G",
         "spark.executor.memory": "8G"
-    }
-
-
-def large_dynamic_allocation_conf():
-    return {
-        "spark.dynamicAllocation.enabled": "true",
-        "spark.dynamicAllocation.executorIdleTimeout": "10m",
-        "spark.dynamicAllocation.maxExecutors": 100,
-        "spark.cores.max": "400",
-        "spark.driver.maxResultSize": "3G",
-        "spark.driver.memory": "3G",
-        "spark.executor.memory": "12G"
     }
 
 

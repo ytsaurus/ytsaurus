@@ -3,7 +3,7 @@ from pyspark import SparkConf
 from pyspark.sql import SparkSession
 
 from yt_spark_client.utils import default_token, create_yt_client, default_discovery_dir, default_base_log_dir, \
-    get_spark_master, set_conf, base_spark_conf, default_dynamic_allocation_conf
+    get_spark_master, set_conf, base_spark_conf, default_spark_conf
 from contextlib import contextmanager
 import os
 
@@ -23,10 +23,11 @@ def create_spark_session(spark_id,
                          discovery_dir=None,
                          config_path=None,
                          app_name=None,
-                         num_executors=12,
+                         num_executors=5,
                          cores_per_executor=4,
                          mb_per_core=1024,
                          driver_memory_mb=None,
+                         dynamic_allocation=False,
                          spark_conf_args=None):
     _MAX_CORES = 32
     _MAX_MEMORY = 64 * 1024
@@ -82,7 +83,7 @@ def create_spark_session(spark_id,
 
     conf = SparkConf()
     set_conf(conf, base_spark_conf(yt_proxy, yt_user, log_dir))
-    set_conf(conf, default_dynamic_allocation_conf())
+    set_conf(conf, default_spark_conf(dynamic_allocation))
     set_conf(conf, spark_conf_args)
     conf.set("spark.hadoop.yt.token", yt_token)
     conf.set("spark.cores.max", str(num_executors * cores_per_executor))
