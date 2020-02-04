@@ -192,20 +192,27 @@ void CommitTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetProxyForHeavyRequest(const TAuth& auth, IRequestRetryPolicyPtr retryPolicy)
+TString GetProxyForHeavyRequest(const TAuth& auth)
 {
     if (!TConfig::Get()->UseHosts) {
         return auth.ServerName;
     }
 
-    TVector<TString> hosts;
     TString hostsEndpoint = TConfig::Get()->Hosts;
     while (hostsEndpoint.StartsWith("/")) {
         hostsEndpoint = hostsEndpoint.substr(1);
     }
     THttpHeader header("GET", hostsEndpoint, false);
-    auto result = NDetail::RetryRequestWithPolicy(retryPolicy, auth, header);
-    ParseJsonStringArray(result.Response, hosts);
+
+    TVector<TString> hosts;
+    {
+        THttpRequest request;
+        // TODO: we need to set socket timeout here
+        request.Connect(auth.ServerName);
+        request.SmallRequest(header, {});
+        ParseJsonStringArray(request.GetResponse(), hosts);
+    }
+
     if (hosts.empty()) {
         ythrow yexception() << "returned list of proxies is empty";
     }
