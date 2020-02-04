@@ -53,7 +53,7 @@ TVector<TRichYPath> CanonizePaths(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetProxyForHeavyRequest(const TAuth& auth, IRequestRetryPolicyPtr retryPolicy = nullptr);
+TString GetProxyForHeavyRequest(const TAuth& auth);
 
 void LogRequestError(
     const THttpRequest& request,
