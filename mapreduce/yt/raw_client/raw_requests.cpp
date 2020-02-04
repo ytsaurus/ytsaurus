@@ -898,6 +898,40 @@ void UnfreezeTable(
     RetryRequestWithPolicy(retryPolicy, auth, header);
 }
 
+void AbortTransaction(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId)
+{
+    THttpHeader header("POST", "abort_tx");
+    header.AddMutationId();
+    header.MergeParameters(NRawClient::SerializeParamsForAbortTransaction(transactionId));
+    RetryRequestWithPolicy(retryPolicy, auth, header);
+}
+
+void CommitTransaction(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId)
+{
+    THttpHeader header("POST", "commit_tx");
+    header.AddMutationId();
+    header.MergeParameters(NRawClient::SerializeParamsForCommitTransaction(transactionId));
+    RetryRequestWithPolicy(retryPolicy, auth, header);
+}
+
+TTransactionId StartTransaction(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& parentTransactionId,
+    const TStartTransactionOptions& options)
+{
+    THttpHeader header("POST", "start_tx");
+    header.AddMutationId();
+    header.MergeParameters(NRawClient::SerializeParamsForStartTransaction(parentTransactionId, options));
+    return ParseGuidFromResponse(RetryRequestWithPolicy(retryPolicy, auth, header).Response);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDetail::NRawClient

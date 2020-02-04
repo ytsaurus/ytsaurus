@@ -20,7 +20,7 @@ TTransactionAbortable::TTransactionAbortable(const TAuth& auth, const TTransacti
 
 void TTransactionAbortable::Abort()
 {
-    AbortTransaction(Auth_, TransactionId_);
+    AbortTransaction(nullptr, Auth_, TransactionId_);
 }
 
 TString TTransactionAbortable::GetType() const

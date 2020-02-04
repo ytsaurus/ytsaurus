@@ -78,14 +78,12 @@ TPingableTransaction::TPingableTransaction(
     , AbortableRegistry_(NDetail::TAbortableRegistry::Get())
     , AbortOnTermination_(true)
 {
-    auto transactionId = StartTransaction(
+    auto transactionId = NDetail::NRawClient::StartTransaction(
+        // TODO: should be proper policy
+        nullptr,
         auth,
         parentId,
-        options.Timeout_,
-        options.Deadline_,
-        options.PingAncestors_,
-        options.Title_,
-        options.Attributes_);
+        options);
 
     auto actualTimeout = options.Timeout_.GetOrElse(TConfig::Get()->TxTimeout);
     Init(auth, transactionId, actualTimeout, options.AutoPingable_);
@@ -184,10 +182,10 @@ void TPingableTransaction::Stop(EStopAction action)
 
     switch (action) {
         case EStopAction::Commit:
-            CommitTransaction(Auth_, TransactionId_);
+            NDetail::NRawClient::CommitTransaction(nullptr, Auth_, TransactionId_);
             break;
         case EStopAction::Abort:
-            AbortTransaction(Auth_, TransactionId_);
+            NDetail::NRawClient::AbortTransaction(nullptr, Auth_, TransactionId_);
             break;
         case EStopAction::Detach:
             // Do nothing.

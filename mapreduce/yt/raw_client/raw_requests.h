@@ -317,6 +317,24 @@ void UnfreezeTable(
     const TYPath& path,
     const TUnfreezeTableOptions& options);
 
+
+// Transactions
+void AbortTransaction(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId);
+
+void CommitTransaction(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId);
+
+TTransactionId StartTransaction(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& parentId,
+    const TStartTransactionOptions& options);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail::NRawClient

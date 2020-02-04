@@ -184,6 +184,16 @@ TNode SerializeParamsForGetTabletInfos(
     const TVector<int>& tabletIndexes,
     const TGetTabletInfosOptions& options);
 
+TNode SerializeParamsForAbortTransaction(
+    const TTransactionId& transactionId);
+
+TNode SerializeParamsForCommitTransaction(
+    const TTransactionId& transactionId);
+
+TNode SerializeParamsForStartTransaction(
+    const TTransactionId& parentTransactionId,
+    const TStartTransactionOptions& options);
+
 ////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDetail::NRawClient
