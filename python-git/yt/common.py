@@ -95,6 +95,13 @@ class YtError(Exception):
                     error)
         return result
 
+    @classmethod
+    def from_dict(cls, dict_):
+        """Restores YtError instance from standard python dict. Reverses simplify()."""
+        inner_errors = [cls.from_dict(inner) for inner in dict_.get("inner_errors", [])]
+        return cls(message=dict_["message"], code=dict_["code"], attributes=dict_.get("attributes"),
+                   inner_errors=inner_errors)
+
     def find_matching_error(self, code=None, predicate=None):
         """
         Find a suberror contained in the error (possibly the error itself) which is either:
