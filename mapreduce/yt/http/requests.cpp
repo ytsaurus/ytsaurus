@@ -40,30 +40,6 @@ bool operator!=(const TAuth& lhs, const TAuth& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TString GetDefaultTransactionTitle(const TProcessState& processState)
-{
-    TStringStream res;
-
-    res << "User transaction. Created by: " << processState.UserName << " on " << processState.HostName
-        << " client: " << processState.ClientVersion << " pid: " << processState.Pid;
-    if (!processState.CommandLine.empty()) {
-        res << " command line:";
-        for (const auto& arg : processState.CommandLine) {
-            res << ' ' << arg;
-        }
-    } else {
-        res << " command line is unknown probably NYT::Initialize was never called";
-    }
-
-#ifndef NDEBUG
-    res << " build: debug";
-#endif
-
-    return res.Str();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 bool ParseBoolFromResponse(const TString& response)
 {
     return GetBool(NodeFromYsonString(response));
@@ -116,78 +92,6 @@ TVector<TRichYPath> CanonizePaths(const TAuth& auth, const TVector<TRichYPath>& 
         result.push_back(CanonizePath(auth, path));
     }
     return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTransactionId StartTransaction(
-    const TAuth& auth,
-    const TTransactionId& parentId,
-    const TMaybe<TDuration>& timeout,
-    const TMaybe<TInstant>& deadline,
-    bool pingAncestors,
-    const TMaybe<TString>& title,
-    const TMaybe<TNode>& maybeAttributes)
-{
-    THttpHeader header("POST", "start_tx");
-    header.AddTransactionId(parentId);
-
-    header.AddMutationId();
-    header.AddParameter("timeout",
-        static_cast<i64>((timeout ? timeout : TConfig::Get()->TxTimeout)->MilliSeconds()));
-    if (deadline) {
-        header.AddParameter("deadline", ::ToString(deadline));
-    }
-    if (pingAncestors) {
-        header.AddParameter("ping_ancestor_transactions", true);
-    }
-
-    if (maybeAttributes && !maybeAttributes->IsMap()) {
-        ythrow TApiUsageError() << "Attributes must be a Map node";
-    }
-    TNode attributes = maybeAttributes ? *maybeAttributes : TNode::CreateMap();
-
-    if (title) {
-        attributes["title"] = *title;
-    } else if (!attributes.HasKey("title")) {
-        attributes["title"] = GetDefaultTransactionTitle(*TProcessState::Get());
-    }
-
-    header.AddParameter("attributes", attributes);
-
-    auto result = NDetail::RetryRequestWithPolicy(nullptr, auth, header);
-    auto txId = ParseGuidFromResponse(result.Response);
-    LOG_DEBUG("Transaction %s started", GetGuidAsString(txId).data());
-    return txId;
-}
-
-static void TransactionRequest(
-    const TAuth& auth,
-    const TString& command,
-    const TTransactionId& transactionId)
-{
-    THttpHeader header("POST", command);
-    header.AddTransactionId(transactionId);
-    header.AddMutationId();
-    NDetail::RetryRequestWithPolicy(nullptr, auth, header);
-}
-
-void AbortTransaction(
-    const TAuth& auth,
-    const TTransactionId& transactionId)
-{
-    TransactionRequest(auth, "abort_tx", transactionId);
-
-    LOG_DEBUG("Transaction %s aborted", GetGuidAsString(transactionId).data());
-}
-
-void CommitTransaction(
-    const TAuth& auth,
-    const TTransactionId& transactionId)
-{
-    TransactionRequest(auth, "commit_tx", transactionId);
-
-    LOG_DEBUG("Transaction %s commited", GetGuidAsString(transactionId).data());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,5 +1,6 @@
 #include "rpc_parameters_serialization.h"
 
+#include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 
 #include <mapreduce/yt/interface/client_method_options.h>
@@ -61,6 +62,29 @@ static void SetFirstLastTabletIndex(TNode* node, const TOptions& options)
     if (options.LastTabletIndex_) {
         (*node)["last_tablet_index"] = *options.LastTabletIndex_;
     }
+}
+
+static TString GetDefaultTransactionTitle()
+{
+    const auto processState = TProcessState::Get();
+    TStringStream res;
+
+    res << "User transaction. Created by: " << processState->UserName << " on " << processState->HostName
+        << " client: " << processState->ClientVersion << " pid: " << processState->Pid;
+    if (!processState->CommandLine.empty()) {
+        res << " command line:";
+        for (const auto& arg : processState->CommandLine) {
+            res << ' ' << arg;
+        }
+    } else {
+        res << " command line is unknown probably NYT::Initialize was never called";
+    }
+
+#ifndef NDEBUG
+    res << " build: debug";
+#endif
+
+    return res.Str();
 }
 
 ////////////////////////////////////////////////////////////////////
@@ -714,5 +738,52 @@ TNode SerializeParamsForGetTabletInfos(
     result["tablet_indexes"].AsList().assign(tabletIndexes.begin(), tabletIndexes.end());
     return result;
 }
+
+TNode SerializeParamsForAbortTransaction(const TTransactionId& transactionId)
+{
+    TNode result;
+    SetTransactionIdParam(&result, transactionId);
+    return result;
+}
+
+TNode SerializeParamsForCommitTransaction(const TTransactionId& transactionId)
+{
+    TNode result;
+    SetTransactionIdParam(&result, transactionId);
+    return result;
+}
+
+TNode SerializeParamsForStartTransaction(
+    const TTransactionId& parentTransactionId,
+    const TStartTransactionOptions& options)
+{
+    TNode result;
+
+    SetTransactionIdParam(&result, parentTransactionId);
+    result["timeout"] = static_cast<i64>((options.Timeout_.GetOrElse(TConfig::Get()->TxTimeout).MilliSeconds()));
+    if (options.Deadline_) {
+        result["deadline"] = ::ToString(options.Deadline_);
+    }
+
+    if (options.PingAncestors_) {
+        result["ping_ancestor_transactions"] = true;
+    }
+
+    if (options.Attributes_ && !options.Attributes_->IsMap()) {
+        ythrow TApiUsageError() << "Attributes must be a Map node";
+    }
+
+    auto attributes = options.Attributes_.GetOrElse(TNode::CreateMap());
+    if (options.Title_) {
+        attributes["title"] = *options.Title_;
+    } else if (!attributes.HasKey("title")) {
+        attributes["title"] = GetDefaultTransactionTitle();
+    }
+    result["attributes"] = attributes;
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDetail::NRawClient
