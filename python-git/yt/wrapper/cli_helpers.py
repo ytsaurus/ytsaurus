@@ -86,3 +86,69 @@ class ParseStructuredArgument(Action):
         old_value = get_value(getattr(namespace, self.dest), {})
         new_value = update(old_value, self.action_load_method(values))
         setattr(namespace, self.dest, new_value)
+
+def get_role_members(node):
+    members = []
+    for n in node:
+        members.append(n.values()[0])
+    return members
+
+def print_aligned(left, right):
+    print("{:<30}{}".format(left, right))
+
+def pretty_print_acls(acl_data, responsibles_data, object_type, show_inherited=False):
+    if object_type in ["path", "account"]:
+        acl = []
+        for ace in acl_data.get("roles", []):
+            if ace.get("state") != "granted":
+                logger.warn("Found role not in granted state [%s]" % ace)
+                continue
+            if ace.get("inherited") == True and not show_inherited:
+                continue
+            permissions = ace.get("permissions")
+            if "user" in ace.get("subject").keys():
+                subjects = ace.get("subject").values()[0]
+            elif "group" in ace.get("subject").keys():
+                subjects = "%s (idm-group:%s)" % (
+                        ace.get("subject").get("url"),
+                        ace.get("subject").get("group")
+                )
+
+            acl.append({"permissions": permissions, "subjects": subjects})
+
+        resps = get_role_members(responsibles_data["responsible"].get("responsible", []))
+        read_appr = get_role_members(responsibles_data["responsible"].get("read_approvers", []))
+        auditors = get_role_members(responsibles_data["responsible"].get("auditors", []))
+
+        disable_inheritance_resps = responsibles_data["responsible"].get("disable_inheritance", False)
+        boss_approval = responsibles_data["responsible"].get("require_boss_approval", False)
+        inherit_acl = responsibles_data.get("inherit_acl", False)
+
+        print_aligned("Responsibles:", " ".join(resps))
+        print_aligned("Read approvers:", " ".join(read_appr))
+        print_aligned("Auditors:", " ".join(auditors))
+        print_aligned("Inherit responsibles:", (not disable_inheritance_resps))
+        print_aligned("Boss approval required:", boss_approval)
+        print_aligned("Inherit ACL:", inherit_acl)
+
+        print("ACL roles:")
+        for ace in acl:
+            print("  {:<20} - {}".format(ace["subjects"], "/".join(ace["permissions"])))
+
+    elif object_type == "group":
+        resps = get_role_members(acl_data["resps"]["responsibles"]["responsible"])
+
+        print_aligned("Responsibles:", " ".join(resps))
+        print("Members:")
+        for member in acl_data["roles"]["members"]:
+            m = ""
+            if "user" in member.keys():
+                m = member["user"]
+            elif "group" in member.keys():
+                m = "{} (idm-group:{})".format(
+                    member.get("url"),
+                    member.get("group")
+                )
+            print("  {}".format(m))
+    else:
+        raise NotImplementedError("showing acls of '{}' objects is not implemented".format(object_type))
