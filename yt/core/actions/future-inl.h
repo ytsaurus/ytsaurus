@@ -288,7 +288,7 @@ private:
         }
 
         // Calling subscribers may release the last reference to this.
-        TIntrusivePtr<TFutureState> this_(this);
+        TIntrusivePtr<TCancelableStateBase> this_(this);
 
         for (const auto& handler : VoidResultHandlers_) {
             RunNoExcept(handler);
