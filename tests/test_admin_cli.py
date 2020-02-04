@@ -5,11 +5,7 @@ from yp.local import (
     INITIAL_DB_VERSION,
 )
 
-from yp.common import (
-    YpContinuationTokenVersionMismatchError,
-    YtError,
-    wait,
-)
+from yp.common import YtError, wait
 
 from yt.wrapper import ypath_join
 from yt.wrapper.errors import YtTabletNotMounted
@@ -33,23 +29,24 @@ def get_yt_proxy_address(yp_env):
 ADMIN_CLI_TESTS_LOCAL_YT_OPTIONS = dict(http_proxy_count=1)
 
 
+def get_db_version(yp_env, yp_path):
+    cli = YpAdminCli()
+    output = cli.check_output([
+        "get-db-version",
+        "--yt-proxy", get_yt_proxy_address(yp_env),
+        "--yp-path", yp_path,
+    ])
+    match = re.match("^Database version: ([0-9]+)$", output)
+    assert match is not None
+    return int(match.group(1))
+
+
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestAdminCli(object):
     LOCAL_YT_OPTIONS = ADMIN_CLI_TESTS_LOCAL_YT_OPTIONS
 
-    def _get_db_version(self, yp_env, yp_path):
-        cli = YpAdminCli()
-        output = cli.check_output([
-            "get-db-version",
-            "--yt-proxy", get_yt_proxy_address(yp_env),
-            "--yp-path", yp_path,
-        ])
-        match = re.match("^Database version: ([0-9]+)$", output)
-        assert match is not None
-        return int(match.group(1))
-
     def test_get_db_version(self, yp_env_configurable):
-        assert self._get_db_version(yp_env_configurable, "//yp") == ACTUAL_DB_VERSION
+        assert get_db_version(yp_env_configurable, "//yp") == ACTUAL_DB_VERSION
 
     def test_validate_db(self, yp_env_configurable):
         cli = YpAdminCli()
@@ -57,35 +54,6 @@ class TestAdminCli(object):
             "validate-db",
             "--address", yp_env_configurable.yp_instance.yp_client_grpc_address,
             "--config", "{enable_ssl=%false}"
-        ])
-        assert output == ""
-
-    def test_init_and_migrate_db(self, yp_env_configurable):
-        yt_client = yp_env_configurable.yp_instance.create_yt_client()
-        yp_path = "//yp_init_db_test"
-        yt_client.create("map_node", yp_path)
-
-        cli = YpAdminCli()
-        output = cli.check_output([
-            "init-db",
-            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
-            "--yp-path", yp_path
-        ])
-        assert output == ""
-
-        def assert_db(version):
-            assert self._get_db_version(yp_env_configurable, yp_path) == version
-            db_tables = yt_client.list(ypath_join(yp_path, "db"))
-            assert all(x in db_tables for x in ("pods", "pod_sets", "node_segments"))
-
-        assert_db(INITIAL_DB_VERSION)
-
-        output = cli.check_output([
-            "migrate-db",
-            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
-            "--yp-path", yp_path,
-            "--version", str(ACTUAL_DB_VERSION),
-            "--no-backup"
         ])
         assert output == ""
 
@@ -98,28 +66,6 @@ class TestAdminCli(object):
             "--src-yp-path", "//yp"
         ])
         assert output == ""
-
-    def test_unmount_mount_db(self, yp_env_configurable):
-        cli = YpAdminCli()
-        output = cli.check_output([
-            "unmount-db",
-            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
-            "--yp-path", "//yp"
-        ])
-        assert output == ""
-
-        yp_client = yp_env_configurable.yp_client
-        with pytest.raises(YtError):
-            yp_client.select_objects("pod", selectors=["/meta/id"])
-
-        output = cli.check_output([
-            "mount-db",
-            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
-            "--yp-path", "//yp"
-        ])
-        assert output == ""
-
-        yp_client.select_objects("pod", selectors=["/meta/id"])
 
     def test_dump_db(self, yp_env_configurable, tmpdir):
         cli = YpAdminCli()
@@ -174,7 +120,7 @@ class TestAdminCli(object):
         timestamp = get_timestamp()
 
         cli = YpAdminCli()
-        output = cli.check_output([
+        cli.check_output([
             "update-finalization-timestamp",
             "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
             "--yp-path", "//yp",
@@ -182,6 +128,66 @@ class TestAdminCli(object):
 
         assert get_timestamp() > timestamp
 
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestAdminCliInitAndMigrateDb(object):
+    LOCAL_YT_OPTIONS = ADMIN_CLI_TESTS_LOCAL_YT_OPTIONS
+
+    def test_init_and_migrate_db(self, yp_env_configurable):
+        yt_client = yp_env_configurable.yp_instance.create_yt_client()
+        yp_path = "//yp_init_db_test"
+        yt_client.create("map_node", yp_path)
+
+        cli = YpAdminCli()
+        output = cli.check_output([
+            "init-db",
+            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
+            "--yp-path", yp_path
+        ])
+        assert output == ""
+
+        def assert_db(version):
+            assert get_db_version(yp_env_configurable, yp_path) == version
+            db_tables = yt_client.list(ypath_join(yp_path, "db"))
+            assert all(x in db_tables for x in ("pods", "pod_sets", "node_segments"))
+
+        assert_db(INITIAL_DB_VERSION)
+
+        output = cli.check_output([
+            "migrate-db",
+            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
+            "--yp-path", yp_path,
+            "--version", str(ACTUAL_DB_VERSION),
+            "--no-backup"
+        ])
+        assert output == ""
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestAdminCliUnmountMountDb(object):
+    LOCAL_YT_OPTIONS = ADMIN_CLI_TESTS_LOCAL_YT_OPTIONS
+
+    def test_unmount_mount_db(self, yp_env_configurable):
+        cli = YpAdminCli()
+        output = cli.check_output([
+            "unmount-db",
+            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
+            "--yp-path", "//yp"
+        ])
+        assert output == ""
+
+        yp_client = yp_env_configurable.yp_client
+        with pytest.raises(YtError):
+            yp_client.select_objects("pod", selectors=["/meta/id"])
+
+        output = cli.check_output([
+            "mount-db",
+            "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
+            "--yp-path", "//yp"
+        ])
+        assert output == ""
+
+        yp_client.select_objects("pod", selectors=["/meta/id"])
 
 @pytest.mark.usefixtures("yp_env_unfreezenable")
 class TestAdminCliFreezeUnfreeze(object):
@@ -282,7 +288,7 @@ class TestAdminCliCleanupHistory(object):
     def _generate_changes(self, yp_client, n=5):
         for i in range(n):
             account_id = yp_client.create_object("account")
-            rs_id = yp_client.create_object(
+            yp_client.create_object(
                 object_type="replica_set",
                 attributes={
                     "spec": {
@@ -322,7 +328,7 @@ class TestAdminCliCleanupHistory(object):
         wait(lambda: self._count_history_events(yt_client) == 4 + 3)
 
         cli = YpAdminCli()
-        output = cli.check_output([
+        cli.check_output([
             "cleanup-history",
             "--yt-proxy", get_yt_proxy_address(yp_env_configurable),
             "--yp-path", "//yp",
