@@ -309,35 +309,46 @@ void TFairShareTree::ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost
     ValidateAllOperationsCountsOnPoolChange(operation->GetId(), newPoolName);
 }
 
-void TFairShareTree::ValidateAllOperationsCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName)
+std::vector<const TCompositeSchedulerElement*> TFairShareTree::GetPoolsToValidateOperationCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName)
 {
     auto operationElement = GetOperationElement(operationId);
-    std::vector<TString> oldPools;
-    const auto* pool = operationElement->GetParent();
+
+    std::vector<const TCompositeSchedulerElement*> poolsToValidate;
+    const auto* pool = GetPoolOrParent(newPoolName).Get();
     while (pool) {
-        oldPools.push_back(pool->GetId());
+        poolsToValidate.push_back(pool);
         pool = pool->GetParent();
     }
 
-    std::vector<TString> newPools;
-    pool = GetPoolOrParent(newPoolName).Get();
+    if (!operationElement->IsOperationRunningInPool()) {
+        // Operation is pending, we must validate all pools.
+        return poolsToValidate;
+    }
+
+    // Operation is running, we can validate only tail of new pools.
+    std::vector<const TCompositeSchedulerElement*> oldPools;
+    pool = operationElement->GetParent();
     while (pool) {
-        newPools.push_back(pool->GetId());
+        oldPools.push_back(pool);
         pool = pool->GetParent();
     }
 
-    while (!newPools.empty() && !oldPools.empty() && newPools.back() == oldPools.back()) {
-        newPools.pop_back();
+    while (!poolsToValidate.empty() && !oldPools.empty() && poolsToValidate.back() == oldPools.back()) {
+        poolsToValidate.pop_back();
         oldPools.pop_back();
     }
 
-    for (const auto& newPool : newPools) {
-        auto currentPool = GetPool(newPool);
+    return poolsToValidate;
+}
+
+void TFairShareTree::ValidateAllOperationsCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName)
+{
+    for (const auto* currentPool : GetPoolsToValidateOperationCountsOnPoolChange(operationId, newPoolName)) {
         if (currentPool->OperationCount() >= currentPool->GetMaxOperationCount()) {
-            THROW_ERROR_EXCEPTION("Max operation count of pool %Qv violated", newPool);
+            THROW_ERROR_EXCEPTION("Max operation count of pool %Qv violated", currentPool->GetId());
         }
         if (currentPool->RunningOperationCount() >= currentPool->GetMaxRunningOperationCount()) {
-            THROW_ERROR_EXCEPTION("Max running operation count of pool %Qv violated", newPool);
+            THROW_ERROR_EXCEPTION("Max running operation count of pool %Qv violated", currentPool->GetId());
         }
     }
 }

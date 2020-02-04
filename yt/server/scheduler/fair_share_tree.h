@@ -105,7 +105,6 @@ public:
     void ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName);
 
     void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName);
-    void ValidateAllOperationsCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName);
     bool RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
@@ -412,6 +411,8 @@ private:
     TCompositeSchedulerElementPtr GetDefaultParentPool();
     TCompositeSchedulerElementPtr GetPoolOrParent(const TPoolName& poolName);
 
+    void ValidateAllOperationsCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName);
+    std::vector<const TCompositeSchedulerElement*> GetPoolsToValidateOperationCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName);
     void ValidateOperationCountLimit(const IOperationStrategyHost* operation, const TPoolName& poolName);
     void ValidateEphemeralPoolLimit(const IOperationStrategyHost* operation, const TPoolName& poolName);
     void DoValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName);
