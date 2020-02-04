@@ -16,6 +16,7 @@ from pipes import quote
 logger = logging.getLogger("Yt.local")
 
 def porto_avaliable():
+    global disable_porto
     if disable_porto:
         return False
 
@@ -23,7 +24,8 @@ def porto_avaliable():
     try:
         conn.connect()
         return True
-    except socket.error as err:
+    except Exception as err:
+        disable_porto = True
         logger.exception("Failed to connect to porto, '%s'", err)
         return False
 
