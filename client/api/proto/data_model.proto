@@ -1665,6 +1665,14 @@ message TEndpointSetStatus
     // Timestamp of the last change of set of endpoints contained in the endpoint_set
     // or change of meta, spec or labels of any endpoint in endpoint_set.
     optional uint64 last_endpoints_update_timestamp = 1;
+
+    message TController
+    {
+        optional NYT.NProto.TError error = 1;
+    }
+
+    // For service controller's report.
+    optional TController controller = 2 [(NYP.NClient.NApi.NProto.etc) = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

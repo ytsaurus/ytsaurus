@@ -427,6 +427,7 @@ extern const struct TEndpointSetsTable
     {
         TDBField Spec{"spec", NTableClient::EValueType::Any};
         TDBField Status_LastEndpointsUpdateTag{"status.last_endpoints_update_tag", NTableClient::EValueType::Boolean};
+        TDBField Status_Etc{"status.etc", NTableClient::EValueType::Any};
     } Fields;
 } EndpointSetsTable;
 

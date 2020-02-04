@@ -104,6 +104,13 @@ message TPodSetSpecEtc
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TEndpointSetStatusEtc
+{
+    NYP.NClient.NApi.NProto.TEndpointSetStatus.TController controller = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TAccountSpecEtc
 {
     NYP.NClient.NApi.NProto.TResourceTotals resource_limits = 2;

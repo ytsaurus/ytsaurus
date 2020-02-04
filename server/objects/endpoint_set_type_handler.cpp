@@ -37,6 +37,10 @@ public:
                 MakeAttributeSchema("last_endpoints_update_timestamp")
                     ->SetPreevaluator<TEndpointSet>(std::bind(&TEndpointSetTypeHandler::PreevaluateLastEndpointsUpdateTimestamp, this, _1, _2))
                     ->SetEvaluator<TEndpointSet>(std::bind(&TEndpointSetTypeHandler::EvaluateLastEndpointsUpdateTimestamp, this, _1, _2, _3)),
+
+                MakeEtcAttributeSchema()
+                    ->SetAttribute(TEndpointSet::TStatus::EtcSchema)
+                    ->SetUpdatable(),
               });
     }
 

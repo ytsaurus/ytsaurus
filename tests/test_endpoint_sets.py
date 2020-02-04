@@ -82,3 +82,47 @@ class TestEndpointSets(object):
             assert_exception(
                 lambda: yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{"path": "/spec/liveness_limit_ratio", "value": liveness_limit_ratio}])
             )
+
+    def test_status_controller(self, yp_env):
+        yp_client = yp_env.yp_client
+        endpoint_set_id = yp_client.create_object("endpoint_set")
+
+        assert not yp_client.get_object("endpoint_set", endpoint_set_id, selectors=["/status/controller"])[0]
+
+        def do_check(code, message, attrs, inner_errors):
+            yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{
+                "path": "/status/controller",
+                "value": {
+                    "error": {
+                        "code": code,
+                        "message": message,
+                        "attributes": {
+                            "attributes": attrs,
+                        },
+                        "inner_errors": inner_errors,
+                    }
+                }
+            }])
+
+            status_controller = yp_client.get_object("endpoint_set", endpoint_set_id, selectors=["/status/controller"])[0]
+            assert status_controller["error"]["code"] == code
+            assert status_controller["error"]["message"] == message
+            assert status_controller["error"]["attributes"] == {"attributes": attrs}
+            assert status_controller["error"]["inner_errors"] == inner_errors
+
+        do_check(
+            code=25,
+            message="Hello world!",
+            attrs=[{"key": "key1", "value": "bytes1"}, {"key": "key2", "value": "bytes2"}],
+            inner_errors=[{"code": 26, "message": "Inner message"}, {"code": 0}],
+        )
+
+        do_check(
+            code=0,
+            message="Good evening!",
+            attrs=[{"key": "key2", "value": "bytes2"}],
+            inner_errors=[{"code": 26,},],
+        )
+
+        yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{"path": "/status/controller", "value": {}}])
+        assert {} == yp_client.get_object("endpoint_set", endpoint_set_id, selectors=["/status/controller"])[0]

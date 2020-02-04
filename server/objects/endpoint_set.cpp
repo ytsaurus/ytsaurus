@@ -15,8 +15,15 @@ const TTimestampAttributeSchema TEndpointSet::TStatus::LastEndpointsUpdateTimest
     &EndpointSetsTable.Fields.Status_LastEndpointsUpdateTag
 };
 
+const TScalarAttributeSchema<TEndpointSet, TEndpointSet::TStatus::TEtc> TEndpointSet::TStatus::EtcSchema{
+    &EndpointSetsTable.Fields.Status_Etc,
+    [] (TEndpointSet* endpointSet) { return &endpointSet->Status().Etc(); }
+};
+
+
 TEndpointSet::TStatus::TStatus(TEndpointSet* endpointSet)
     : LastEndpointsUpdateTimestamp_(endpointSet, &LastEndpointsUpdateTimestampSchema)
+    , Etc_(endpointSet, &EtcSchema)
 { }
 
 TEndpointSet::TEndpointSet(
