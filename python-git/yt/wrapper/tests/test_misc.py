@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path, wait,
+from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path, wait, get_default_resource_limits,
                       get_environment_for_binary_test, check, set_config_options, set_config_option)
 
 from yt.wrapper.errors import YtRetriableError
@@ -787,8 +787,8 @@ class TestCellId(object):
 @pytest.mark.usefixtures("yt_env_multicell")
 class TestExternalize(object):
     def test_externalize(self):
-        yt.create("account", attributes={"name": "a"})
-        yt.create("account", attributes={"name": "b"})
+        yt.create("account", attributes={"name": "a", "resource_limits" : get_default_resource_limits(yt)})
+        yt.create("account", attributes={"name": "b", "resource_limits" : get_default_resource_limits(yt)})
         yt.create("user", attributes={"name": "u"})
         wait(lambda: yt.get("//sys/users/u/@life_stage") == "creation_committed")
         wait(lambda: yt.get("//sys/accounts/a/@life_stage") == "creation_committed")

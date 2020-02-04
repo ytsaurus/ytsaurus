@@ -215,6 +215,19 @@ def run_python_script_with_check(yt_env, script):
 
         return out, err
 
+# By default, accounts have empty resource limits upon creation.
+def get_default_resource_limits(client):
+    TB = 1024 ** 4
+
+    result = {"node_count": 500000, "chunk_count": 1000000}
+    # Backwards compatibility.
+    if client.exists("//sys/media"):
+        result["disk_space_per_medium"] = {"default": 10 * TB}
+    else:
+        result["disk_space"] = 10 * TB
+
+    return result
+
 def sync_create_cell():
     tablet_id = yt.create("tablet_cell", attributes={"size": 1})
     wait(lambda : yt.get("//sys/tablet_cells/{0}/@health".format(tablet_id)) == "good")
