@@ -8,7 +8,7 @@ import yt.wrapper.yson as yson
 from yt.wrapper.common import chunk_iter_stream, MB, \
                               DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources, \
                               chunk_iter_rows, format_disk_space
-from yt.wrapper.cli_helpers import write_silently, run_main, ParseStructuredArgument
+from yt.wrapper.cli_helpers import write_silently, run_main, ParseStructuredArgument, pretty_print_acls
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.spec_builders import MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder, \
                                      MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder, VanillaSpecBuilder
@@ -1359,6 +1359,25 @@ def show_default_config(**args):
 def add_show_default_config_parser(add_parser):
     add_parser("show-default-config", show_default_config)
 
+def add_acl_parser(root_subparsers):
+    parser = fix_parser(root_subparsers.add_parser("acl", description="ACL-related commands"))
+    acl_subparsers = parser.add_subparsers(metavar="acl_command")
+    add_acl_show_parser(acl_subparsers)
+
+def add_acl_show_parser(acl_subparsers):
+    parser = fix_parser(acl_subparsers.add_parser("show", description="Show ACL information"))
+    parser.add_argument("--type", "-t", action="store", required=True, dest="type_",
+        choices=["path", "account", "pool", "bundle", "group"], help="Type of object")
+    parser.add_argument("name", action="store", help="Cypress directory path or full scheduler pool path, or account, bundle, group name")
+    parser.set_defaults(func=acl_show)
+
+def acl_show(type_, name):
+    acl_client = yt.make_acl_client()
+    kwargs = {type_: name}
+    acls = acl_client.get_acl(**kwargs)
+    responsibles = acl_client.get_responsible(**kwargs)
+    pretty_print_acls(acls, responsibles, type_)
+
 
 def main():
     config_parser = ArgumentParser(add_help=False)
@@ -1500,6 +1519,8 @@ def main():
     add_show_default_config_parser(add_parser)
     add_show_spec_parser(add_parser)
 
+    add_acl_parser(subparsers)
+
     if "_ARGCOMPLETE" in os.environ:
         completers.autocomplete(parser, enable_bash_fallback=False,
                                 append_space_if_only_suggestion=False)
@@ -1521,7 +1542,7 @@ def main():
 
     if config_args.tx is not None:
         yt.config.COMMAND_PARAMS["transaction_id"] = config_args.tx
-        yt.config.COMMAND_PARAMS["ping_ancestor_transactions"]  = config_args.ping_ancestor_txs
+        yt.config.COMMAND_PARAMS["ping_ancestor_transactions"] = config_args.ping_ancestor_txs
     if config_args.master_cell_id is not None:
         yt.config.COMMAND_PARAMS["master_cell_id"] = config_args.master_cell_id
     if config_args.proxy is not None:
@@ -1544,13 +1565,15 @@ def main():
 
     func_args = dict(vars(args))
 
-    if func_args["params"] is not None:
+    if func_args.get("params") is not None:
         params = func_args["params"]
         for key in params:
             yt.config.COMMAND_PARAMS[key] = params[key]
 
     for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config", "master_cell_id", "params"):
-        func_args.pop(key)
+        if key in func_args:
+            func_args.pop(key)
+
     args.func(**func_args)
 
 if __name__ == "__main__":
