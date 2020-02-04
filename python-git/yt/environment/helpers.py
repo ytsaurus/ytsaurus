@@ -280,18 +280,6 @@ def canonize_uuid(uuid):
         return part
     return "-".join(map(canonize_part, uuid.split("-")))
 
-def add_binary_path(relative_path):
-    if yatest_common is None and "ARCADIA_PATH" not in os.environ:
-        return
-
-    if yatest_common is not None:
-        binary_path = yatest_common.binary_path(relative_path)
-    else:
-        binary_path = os.path.join(os.environ["ARCADIA_PATH"], relative_path)
-
-    if not which(os.path.basename(binary_path)):
-        os.environ["PATH"] = os.path.dirname(binary_path) + ":" + os.environ["PATH"]
-
 def get_value_from_config(config, key, name):
     d = config
     parts = key.split("/")
