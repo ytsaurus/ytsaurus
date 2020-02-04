@@ -1,3 +1,4 @@
+from .acl_client import make_acl_client
 from .cypress_commands import (search, concatenate, find_free_subpath, create_revision_parameter,
                                get_attribute)
 from .table_commands import create_temp_table, write_table, read_table, read_blob_table
