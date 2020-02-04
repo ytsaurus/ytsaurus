@@ -1,3 +1,6 @@
+from .config import get_config
+from .http_helpers import get_token
+
 from yt.common import YtError
 import yt.logger as logger
 
@@ -9,6 +12,12 @@ import os
 
 DEFAULT_BASE_ACL_SERVICE_URL = "https://idm.yt.yandex-team.ru"
 DEFAULT_CERTIFICATE_BUNDLE_PATH = "/etc/ssl/certs/ca-certificates.crt"
+
+
+def make_acl_client(client=None):
+    cluster = get_config(client)["proxy"]["url"].split(".")[0]
+    token = get_token(client=client)
+    return YtAclClient(cluster, token)
 
 
 def _find_certificate():
@@ -46,7 +55,7 @@ def _get_object_id(path=None, account=None, pool=None, group=None, tablet_cell_b
                              .format("', '".join(keys)))
 
     for key, value in iteritems(no_pool):
-        if key is not None:
+        if value is not None:
             return dict(kind=key, name=value)
 
     if pool is not None or pool_tree is not None:
@@ -104,10 +113,10 @@ class YtAclClient(object):
         params = params or {}
         body = body or {}
 
-        logger.debug("%s %s (params: %s, body: %s)", method.upper(), url, params, body)
+        logger.debug("Sending %s %s (params: %s, body: %s)", method.upper(), url, params, body)
         response = requests.request(method, url, headers=headers, params=_flatten_dict(params),
                                     json=body, verify=self._certificate_path)
-        logger.debug("RESPONSE %s (body: %s)", response.status_code, response.text)
+        logger.debug("Got response %s (body: %s)", response.status_code, response.text)
 
         if response.status_code == 400:
             raise YtError.from_dict(response.json())
