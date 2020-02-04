@@ -1,12 +1,11 @@
 import yt_commands
 
 from yt.environment import YTInstance, init_operation_archive, arcadia_interop
-from yt.common import makedirp, YtError, YtResponseError, format_error
+from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.environment.default_configs import get_dynamic_master_config
 from yt.test_helpers import wait, WaitFailed
-
-from yt.common import update_inplace
+from yt.common import makedirp, YtError, YtResponseError, format_error, update_inplace
 import yt.logger
 
 import pytest
@@ -416,19 +415,6 @@ def resolve_test_paths(name):
     path_to_environment = os.path.join(path_to_sandbox, "run")
     return path_to_sandbox, path_to_environment
 
-def _pytest_finalize_func(environment, process, process_call_args):
-    if process.returncode < 0:
-        what = "terminated by signal {}".format(-process.returncode)
-    else:
-        what = "exited with code {}".format(process.returncode)
-
-    print >>sys.stderr, 'Process run by command "{0}" {1}'.format(" ".join(process_call_args), what)
-    environment.stop()
-
-    print >>sys.stderr, "Killing pytest process"
-    # Avoid dumping useless stacktrace to stderr.
-    os.kill(os.getpid(), signal.SIGKILL)
-
 class Checker(Thread):
     def __init__(self, check_function):
         super(Checker, self).__init__()
@@ -712,7 +698,7 @@ class YTEnvSetup(object):
         for env in [cls.Env] + cls.remote_envs:
             # To avoid strange hangups.
             if env.master_count > 0:
-                liveness_checker = Checker(lambda: env.check_liveness(callback_func=_pytest_finalize_func))
+                liveness_checker = Checker(lambda: env.check_liveness(callback_func=emergency_exit_within_tests))
                 liveness_checker.daemon = True
                 liveness_checker.start()
                 cls.liveness_checkers.append(liveness_checker)
@@ -911,7 +897,7 @@ class YTEnvSetup(object):
         yt_commands._zombie_responses[:] = []
 
         for env in [cls.Env] + cls.remote_envs:
-            env.check_liveness(callback_func=_pytest_finalize_func)
+            env.check_liveness(callback_func=emergency_exit_within_tests)
 
         for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
             driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
