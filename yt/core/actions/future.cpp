@@ -37,6 +37,15 @@ void TFutureStateBase::Subscribe(TVoidResultHandler handler)
 
 bool TFutureStateBase::Cancel(const TError& error) noexcept
 {
+    // NB: Cancel() could have been invoked when the last future reference
+    // is already released.
+    if (!TryRefFuture()) {
+        // The instance is mostly dead anyway.
+        return false;
+    }
+    // The reference is acquired above.
+    TIntrusivePtr<TFutureStateBase> this_(this, /* addReference */ false);
+
     {
         auto guard = Guard(SpinLock_);
         if (Set_ || AbandonedUnset_ || Canceled_) {
@@ -51,8 +60,6 @@ bool TFutureStateBase::Cancel(const TError& error) noexcept
             return false;
         }
     } else {
-        // Calling subscribers may release the last reference to this.
-        TIntrusivePtr<TCancelableStateBase> this_(this);
         for (const auto& handler : CancelHandlers_) {
             RunNoExcept(handler, error);
         }
