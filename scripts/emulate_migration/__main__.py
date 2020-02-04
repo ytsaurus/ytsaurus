@@ -1,9 +1,7 @@
 from __future__ import print_function
 
-from yp.local import (
-    DbManager,
-    get_db_version,
-)
+from yp.local import get_db_version
+from yp.db_manager import DbManager
 
 from yt.wrapper import YtClient
 

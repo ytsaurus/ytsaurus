@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from yp.local import DbManager, backup_yp, get_db_version
+from yp.local import backup_yp, get_db_version
+from yp.db_manager import DbManager
 
 from yt.wrapper import YtClient
 

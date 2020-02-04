@@ -6,7 +6,7 @@ from .conftest import (
     create_pod_with_boilerplate,
 )
 
-from yp.local import DbManager
+from yp.db_manager import DbManager
 
 from yp.common import (
     YpInvalidContinuationTokenError,

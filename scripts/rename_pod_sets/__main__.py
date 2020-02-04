@@ -1,7 +1,8 @@
 import argparse
 import sys
 
-from yp.local import DbManager, get_db_version, backup_yp
+from yp.local import get_db_version, backup_yp
+from yp.db_manager import DbManager
 from yt.wrapper import YtClient
 
 from yp.data_model import EObjectType

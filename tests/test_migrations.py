@@ -4,10 +4,8 @@ from .conftest import (
     create_pod_with_boilerplate,
 )
 
-from yp.local import (
-    ACTUAL_DB_VERSION,
-    DbManager,
-)
+from yp.local import ACTUAL_DB_VERSION
+from yp.db_manager import DbManager
 
 from yp.common import (
     YpTimestampOutOfRangeError,
