@@ -129,6 +129,23 @@ public:
         YT_ASSERT(oldCount > 0);
     }
 
+    bool TryRefFuture()
+    {
+        if (WellKnown_) {
+            return true;
+        }
+        auto oldCount = FutureRefCount_.load();
+        while (true) {
+            if (oldCount == 0) {
+                return false;
+            }
+            auto newCount = oldCount + 1;
+            if (FutureRefCount_.compare_exchange_weak(oldCount, newCount)) {
+                return true;
+            }
+        }
+    }
+
     void UnrefFuture()
     {
         if (WellKnown_) {
@@ -266,6 +283,9 @@ private:
     template <class U, bool MustSet>
     bool DoSet(U&& value) noexcept
     {
+        // Calling subscribers may release the last reference to this.
+        TIntrusivePtr<TFutureStateBase> this_(this);
+
         NConcurrency::TEvent* readyEvent = nullptr;
         bool canceled;
         {
@@ -287,8 +307,6 @@ private:
             readyEvent->NotifyAll();
         }
 
-        // Calling subscribers may release the last reference to this.
-        TIntrusivePtr<TCancelableStateBase> this_(this);
 
         for (const auto& handler : VoidResultHandlers_) {
             RunNoExcept(handler);
