@@ -269,15 +269,9 @@ class YtStuff(object):
         os.makedirs(self.yt_bins_path)
 
         source_prefix = ""
-        yt_package_versions = os.listdir(yatest.common.build_path("yt/packages"))
-        if len(yt_package_versions) > 1:
-            raise RuntimeError("Test should specify not more than one version of YT package in DEPENDS")
-        if len(yt_package_versions) == 1:
-            source_prefix = "yt/packages/" + yt_package_versions[0] + "/"
-
         prepare_yt_binaries(self.yt_bins_path, source_prefix, use_ytserver_all=True, use_from_package=True)
 
-        self.yt_local_exec = [yatest.common.binary_path(source_prefix + "yt_local")]
+        self.yt_local_exec = [yatest.common.binary_path("yt_local")]
 
         user_yt_work_dir_base = self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
         if user_yt_work_dir_base:
