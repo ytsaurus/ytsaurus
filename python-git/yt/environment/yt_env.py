@@ -566,6 +566,13 @@ class YTInstance(object):
     def rewrite_http_proxy_configs(self):
         self._prepare_http_proxies(self._cluster_configuration["http_proxy"], force_overwrite=True)
 
+    def get_node_address(self, index, with_port=True):
+        node_config = self.configs["node"][index]
+        node_address = node_config["address_resolver"]["localhost_fqdn"]
+        if with_port:
+            node_address = "{}:{}".format(node_address, node_config["rpc_port"])
+        return node_address
+
     # TODO(max42): remove this method and rename all its usages to get_http_proxy_address.
     def get_proxy_address(self):
         return self.get_http_proxy_address()
@@ -643,25 +650,48 @@ class YTInstance(object):
 
         self._process_cgroup_paths = []
 
-    def kill_schedulers(self):
-        self.kill_service("scheduler")
+    def kill_schedulers(self, indexes=None):
+        self.kill_service("scheduler", indexes=indexes)
 
-    def kill_controller_agents(self):
-        self.kill_service("controller_agent")
+    def kill_controller_agents(self, indexes=None):
+        self.kill_service("controller_agent", indexes=indexes)
 
-    def kill_nodes(self):
-        self.kill_service("node")
+    def kill_nodes(self, indexes=None, wait_offline=True):
+        self.kill_service("node", indexes=indexes)
 
-    def kill_proxy(self):
-        self.kill_service("proxy")
+        addresses = None
+        if indexes is None:
+            indexes = list(xrange(self.node_count))
+        addresses = [self.get_node_address(index) for index in indexes]
 
-    def kill_master_cell(self, cell_index=0):
-        name = self._get_master_name("master", cell_index)
-        self.kill_service(name)
+        client = self._create_cluster_client()
+        for node in client.list("//sys/cluster_nodes", attributes=["lease_transaction_id"]):
+            if str(node) not in addresses:
+                continue
+            if "lease_transaction_id" in node.attributes:
+                client.abort_transaction(node.attributes["lease_transaction_id"])
+
+        if wait_offline:
+            wait(lambda:
+                all([
+                    node.attributes["state"] == "offline"
+                    for node in client.list("//sys/cluster_nodes", attributes=["state"])
+                    if str(node) in addresses
+                ])
+            )
+
+    def kill_http_proxies(self, indexes=None):
+        self.kill_service("proxy", indexes=indexes)
+
+    def kill_masters_at_cells(self, indexes=None, cell_indexes=None):
+        if cell_indexes is None:
+            cell_indexes = [0]
+        for cell_index in cell_indexes:
+            name = self._get_master_name("master", cell_index)
+            self.kill_service(name, indexes=indexes)
 
     def kill_all_masters(self):
-        for cell_index in xrange(self.secondary_master_cell_count + 1):
-            self.kill_master_cell(cell_index)
+        self.kill_masters_at_cells(indexes=None, cell_indexes=xrange(self.secondary_master_cell_count + 1))
 
     def kill_service(self, name, indexes=None):
         with self._lock:
@@ -1010,7 +1040,7 @@ class YTInstance(object):
         def nodes_ready():
             self._validate_processes_are_running("node")
 
-            nodes = client.list("//sys/nodes", attributes=["state"])
+            nodes = client.list("//sys/cluster_nodes", attributes=["state"])
             return len(nodes) == self.node_count and all(node.attributes["state"] == "online" for node in nodes)
 
         wait_function = lambda: self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 20))
