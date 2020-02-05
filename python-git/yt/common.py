@@ -423,11 +423,14 @@ def format_error(error, attribute_length_limit=300):
     return _pretty_format(error, attribute_length_limit)
 
 
-def which(name, flags=os.X_OK):
+def which(name, flags=os.X_OK, custom_paths=None):
     """Return list of files in system paths with given name."""
     # TODO: check behavior when dealing with symlinks
     result = []
-    for dir in os.environ.get("PATH", "").split(os.pathsep):
+    paths = os.environ.get("PATH", "").split(os.pathsep)
+    if custom_paths is not None:
+        paths = custom_paths + paths
+    for dir in paths:
         path = os.path.join(dir, name)
         if os.access(path, flags):
             result.append(path)
