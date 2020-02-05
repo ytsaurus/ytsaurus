@@ -59,7 +59,6 @@ def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_siz
         raise YtError("Cannot split stream into chunks. "
                       "Expected iterable or file-like object, got {0}".format(repr(stream)))
 
-    print ("RAW", raw, file=sys.stderr)
     if raw:
         if is_filelike:
             if split_rows:
