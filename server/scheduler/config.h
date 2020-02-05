@@ -130,10 +130,10 @@ public:
     TPodDisruptionBudgetControllerConfig()
     {
         RegisterParameter("update_concurrency", UpdateConcurrency)
-            .Default(256)
+            .Default(320)
             .GreaterThanOrEqual(1);
         RegisterParameter("updates_per_iteration", UpdatesPerIteration)
-            .Default(1024)
+            .Default(10240)
             .GreaterThanOrEqual(1);
     }
 };
