@@ -70,7 +70,7 @@ public class TokenAuthentication implements RpcClient {
 
     @Override
     public String toString() {
-        return "TokenAuthentication@" + client.toString();
+        return credentials.getUser() + "@" + client.toString();
     }
 
     @Override

@@ -53,7 +53,7 @@ public class DefaultRpcBusClient implements RpcClient {
     private Session currentSession;
     private boolean closed;
     private final String destinationName; // for debug
-    private final String name; // for debug
+    private final String name; // output in user log
 
     private final DefaultRpcBusClientMetricsHolder metricsHolder;
 

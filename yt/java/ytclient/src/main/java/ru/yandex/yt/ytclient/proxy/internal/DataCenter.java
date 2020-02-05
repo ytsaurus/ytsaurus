@@ -82,7 +82,9 @@ public final class DataCenter {
         this.checkingProxies = new HashSet<>();
         this.activeProxies = new HashSet<>();
         for (int i = 0; i < numberOfProxiesToPing && i < backends.length; i++) {
-            activeProxies.add(inactiveProxies.removeFirst());
+            final BalancingDestination client = inactiveProxies.removeFirst();
+            logger.info("proxy `{}` registered as active", client);
+            activeProxies.add(client);
         }
 
         this.weight = weight;
@@ -112,12 +114,16 @@ public final class DataCenter {
                 if (activeProxies.size() < numberOfProxiesToPing) {
                     activeProxies.add(destination);
                     checkingProxies.add(destination);
+                    logger.info("added active proxy `{}` ({} out of {})", proxy,
+                            activeProxies.size(), numberOfProxiesToPing);
                 } else if (checkingProxies.size() < maxNumberOfProxiesToPing) {
                     checkingProxies.add(destination);
+                    logger.info("added checking proxy `{}` ({} out of {})", proxy,
+                            activeProxies.size(), maxNumberOfProxiesToPing);
                 } else {
                     inactiveProxies.addFirst(destination);
+                    logger.info("added inactive proxy `{}`", proxy);
                 }
-                logger.info("added proxy `{}`", proxy);
             }
         } finally {
             lock.unlock();
