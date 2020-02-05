@@ -9,8 +9,9 @@ from .command import parse_commands
 import yt.logger as logger
 import yt.yson as yson
 import yt.json_wrapper as json
+from yt.common import _pretty_format_for_logging
 
-from yt.packages.six import reraise, add_metaclass, PY3, iterbytes
+from yt.packages.six import reraise, add_metaclass, PY3, iterbytes, iteritems
 from yt.packages.six.moves import xrange, map as imap
 
 import os
@@ -25,6 +26,9 @@ from copy import deepcopy
 
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
+
+def _format_logging_params(params):
+    return ", ".join(["{}: {}".format(key, value) for key, value in iteritems(params)])
 
 def _hexify(message):
     def convert(byte):
@@ -212,6 +216,9 @@ class RequestRetrier(Retrier):
         self.client = client
         self.kwargs = kwargs
 
+        random_generator = get_option("_random_generator", self.client)
+        self.request_id = "%08x" % random_generator.randrange(16**8)
+
         if self.proxy_provider is None:
             self.request_url = self.url
         else:
@@ -247,9 +254,17 @@ class RequestRetrier(Retrier):
             url = self.url.format(proxy=proxy)
             self.request_url = url
 
-        logger.debug("Perform HTTP %s request %s with headers %s", self.method, url, hide_token(self.headers))
+        logging_params = {
+            "headers": hide_token(self.headers),
+            "request_id": self.request_id,
+        }
         if self.log_body and "data" in self.kwargs and self.kwargs["data"] is not None:
-            logger.debug("Body: %r", self.kwargs["data"])
+            logging_params["data"] = self.kwargs["data"]
+
+        logger.debug("Perform HTTP %s request %s (%s)",
+                     self.method,
+                     url,
+                     _format_logging_params(logging_params))
 
         request_start_time = datetime.now()
         _process_request_backoff(request_start_time, client=self.client)
@@ -289,18 +304,32 @@ class RequestRetrier(Retrier):
                 response_format = "json"
             check_response_is_decodable(response, response_format)
 
-        logger.debug("Response headers %r", hide_token(dict(response.headers)))
+        logging_params = {
+            "headers": hide_token(dict(response.headers)),
+            "request_id": self.request_id,
+            "status_code": response.status_code,
+        }
+        logger.debug("Response recieved (%s)", _format_logging_params(logging_params))
 
         _raise_for_status(response, request_info)
         return response
 
     def except_action(self, error, attempt):
-        logger.warning("HTTP %s request %s has failed with error %s, headers: %s",
-                       self.method, self.request_url, repr(error), str(hide_token(dict(self.headers))))
-        self.is_connection_timeout_error = isinstance(error, requests.exceptions.ConnectTimeout)
+        logging_params = {
+            "request_id": self.request_id,
+        }
         if isinstance(error, YtError):
-            # TODO(ignat): str may fail of error contains unicode characters.
-            logger.info("Full error message:\n%s", str(error))
+            try:
+                logging_params["full_error"] = _pretty_format_for_logging(error)
+            except:
+                logger.exception("Failed to format error")
+
+        logger.warning("HTTP %s request %s failed with error %s (%s)",
+                       self.method,
+                       self.request_url,
+                       repr(error),
+                       _format_logging_params(logging_params))
+        self.is_connection_timeout_error = isinstance(error, requests.exceptions.ConnectTimeout)
         if self.proxy_provider is not None:
             self.proxy_provider.on_error_occured(error)
         if self.make_retries:
@@ -310,12 +339,15 @@ class RequestRetrier(Retrier):
             raise
 
     def backoff_action(self, attempt, backoff):
+        logging_params = {
+            "request_id": self.request_id,
+        }
         skip_backoff = get_config(self.client)["proxy"]["skip_backoff_if_connect_timed_out"] \
             and self.is_connection_timeout_error
         if not skip_backoff:
-            logger.warning("Sleep for %.2lf seconds before next retry", backoff)
+            logger.warning("Sleep for %.2lf seconds before next retry (%s)", backoff, _format_logging_params(logging_params))
             time.sleep(backoff)
-        logger.warning("New retry (%d) ...", attempt + 1)
+        logger.warning("New retry (%d) for request id %s...", attempt + 1, self.request_id)
 
 def make_request_with_retries(method, url=None, **kwargs):
     """Performs HTTP request to YT proxy with retries.
