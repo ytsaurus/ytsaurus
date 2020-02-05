@@ -47,11 +47,26 @@ public class RpcClientWithCompression implements RpcClient {
 
     @Override
     public String destinationName() {
-        return "RpcClientWithCompression@" + client.toString();
+        return client.destinationName();
     }
 
     @Override
     public ScheduledExecutorService executor() {
         return client.executor();
+    }
+
+    @Override
+    public String toString() {
+        final Compression in = compression.getRequestCodecId();
+        final Compression out = compression.getResponseCodecId();
+        if (in == out) {
+            if (in == Compression.None) {
+                return client.toString();
+            } else {
+                return in + "@" + client.toString();
+            }
+        } else {
+            return in + "/" + out + "@" + client.toString();
+        }
     }
 }
