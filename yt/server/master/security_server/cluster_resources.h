@@ -17,9 +17,13 @@ namespace NYT::NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Cluster resources occupied by a particular user or object.
-struct TClusterResources
+class TClusterResources
 {
+public:
     TClusterResources();
+
+    //! Get infinite resources.
+    static TClusterResources Infinite();
 
     //! Set node count.
     TClusterResources&& SetNodeCount(i64 nodeCount) &&;
@@ -43,6 +47,8 @@ struct TClusterResources
 
     //! Completely empties disk space counts for all media.
     void ClearDiskSpace();
+
+    bool IsAtLeastOneResourceLessThan(const TClusterResources& rhs) const;
 
 private:
     //! Space occupied on data nodes in bytes per medium.
@@ -91,11 +97,12 @@ class TSerializableClusterResources
 {
 public:
     // For deserialization.
-    TSerializableClusterResources();
+    explicit TSerializableClusterResources(bool serializeDiskSpace = true);
     // For serialization.
     TSerializableClusterResources(
         const NChunkServer::TChunkManagerPtr& chunkManager,
-        const TClusterResources& clusterResources);
+        const TClusterResources& clusterResources,
+        bool serializeDiskSpace = true);
 
     TClusterResources ToClusterResources(const NChunkServer::TChunkManagerPtr& chunkManager) const;
 

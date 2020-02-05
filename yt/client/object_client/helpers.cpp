@@ -92,6 +92,7 @@ bool IsUserType(EObjectType type)
         type == EObjectType::Journal ||
         type == EObjectType::Link ||
         type == EObjectType::Document ||
+        type == EObjectType::Account ||
         type == EObjectType::SchedulerPool ||
         type == EObjectType::SchedulerPoolTree;
 }

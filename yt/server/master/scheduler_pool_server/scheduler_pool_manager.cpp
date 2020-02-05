@@ -139,7 +139,7 @@ public:
         if (!poolTree) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "Pool tree %Qv does not exists",
+                "Pool tree %Qv does not exist",
                 treeName);
         }
         if (name == RootPoolName) {
@@ -149,7 +149,7 @@ public:
         if (!schedulerPool) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
-                "Pool %Qv does not exists",
+                "Pool %Qv does not exist",
                 name);
         }
         return schedulerPool;
@@ -336,6 +336,11 @@ public:
     virtual void UnregisterName(const TString& name, TSchedulerPool* schedulerPool) noexcept override
     {
         Owner_->UnregisterPoolName(name, schedulerPool);
+    }
+
+    virtual void ValidateObjectName(const TString& name) override
+    {
+        ValidatePoolName(name);
     }
 
     virtual TString GetRootPath(const TSchedulerPool* rootPool) const override

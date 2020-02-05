@@ -16,6 +16,8 @@
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/server/master/security_server/account.h>
+
 #include <yt/server/master/scheduler_pool_server/scheduler_pool.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -207,13 +209,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateBeforeAttachChild(
     const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& childProxy)
 {
     auto* impl = TBase::GetThisImpl();
-    if (impl->IsBeingRemoved()) {
-        THROW_ERROR_EXCEPTION(
-            NObjectClient::EErrorCode::InvalidObjectLifeStage,
-            "Cannot attach new children to an object being removed")
-            << TErrorAttribute("life_stage", impl->GetLifeStage())
-            << TErrorAttribute("id", impl->GetId());
-    }
+    impl->ValidateActiveLifeStage();
     auto* childImpl = childProxy->GetThisImpl();
     if (childImpl->IsRoot()) {
         THROW_ERROR_EXCEPTION("Root object cannot have a parent")
@@ -353,24 +349,14 @@ template <class TObject>
 SmallVector<TObject*, 1> TNonversionedMapObjectProxyBase<TObject>::ListDescendants(
     TObject* object)
 {
-    SmallVector<TObject*, 1> descendants;
-    ListDescendants(object, false /* includeRoot */, &descendants);
-    return descendants;
-}
-
-template <class TObject>
-void TNonversionedMapObjectProxyBase<TObject>::ListDescendants(
-    TObject* object,
-    bool includeRoot,
-    SmallVector<TObject*, 1>* descendants)
-{
-    YT_VERIFY(object);
-    if (includeRoot) {
-        descendants->push_back(object);
-    }
-    for (const auto& [_, child] : object->KeyToChild()) {
-        ListDescendants(child, true /* includeRoot */, descendants);
-    }
+    return AccumulateOverMapObjectSubtree(
+        object,
+        SmallVector<TObject*, 1>(),
+        [root = object] (auto* currentObject, auto* descendants) {
+            if (currentObject != root) {
+                descendants->push_back(currentObject);
+            }
+        });
 }
 
 template <class TObject>
@@ -436,7 +422,7 @@ void TNonversionedMapObjectProxyBase<TObject>::RenameSelf(const TString& newName
     auto* parent = impl->GetParent();
     if (!parent) {
         // XXX(kiselyovp) object name is capitalized here, fix this in YT-11362
-        THROW_ERROR_EXCEPTION("Cannot rename a parentless %v", impl->GetObjectName());
+        THROW_ERROR_EXCEPTION("Cannot rename %v as it has no parent", impl->GetObjectName());
     }
     auto oldName = impl->GetName();
     if (oldName == newName) {
@@ -537,13 +523,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateAttachChildDepth(
     }
 
     auto heightLimit = *depthLimit - GetDepth(impl) - 1;
-    try {
-        ValidateHeightLimit(child->GetThisImpl(), heightLimit);
-    } catch (const std::exception& ex) {
-        // XXX(kiselyovp) object name is capitalized here, fix this in YT-11362
-        THROW_ERROR_EXCEPTION("Cannot add a child to %v", impl->GetObjectName())
-            << ex;
-    }
+    ValidateHeightLimit(child->GetThisImpl(), heightLimit);
 }
 
 template <class TObject>
@@ -565,7 +545,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateHeightLimit(
 {
     YT_VERIFY(root);
     if (heightLimit < 0) {
-        THROW_ERROR_EXCEPTION("Tree height limit exceeded");
+        THROW_ERROR_EXCEPTION("%v tree height limit exceeded", root->GetType());
     }
     for (const auto& [child, _] : root->ChildToKey()) {
         ValidateHeightLimit(child, heightLimit - 1);
@@ -905,17 +885,26 @@ void TNonversionedMapObjectFactoryBase<TObject>::AttachChild(
     const TString& key,
     const TProxyPtr& child)
 {
-    parent->ValidateBeforeAttachChild(key, child);
+    try {
+        parent->ValidateBeforeAttachChild(key, child);
 
-    parent->AttachChild(key, child);
-    LogEvent({
-        EEventType::AttachChild,
-        parent,
-        key,
-        child
-    });
+        parent->AttachChild(key, child);
+        LogEvent({
+            EEventType::AttachChild,
+            parent,
+            key,
+            child
+        });
 
-    parent->ValidateAfterAttachChild(key, child);
+        parent->ValidateAfterAttachChild(key, child);
+    } catch (const std::exception& ex) {
+        // XXX(kiselyovp) object name is capitalized here, fix this in YT-11362
+        THROW_ERROR_EXCEPTION(
+            "Failed to attach child %Qv to %v",
+            key,
+            parent->GetObject()->template As<TObject>()->GetObjectName())
+            << ex;
+    }
 }
 
 template <class TObject>
@@ -981,9 +970,11 @@ void TNonversionedMapObjectFactoryBase<TObject>::RollbackEvent(const TFactoryEve
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template class TNonversionedMapObjectFactoryBase<NSchedulerPoolServer::TSchedulerPool>;
+template class TNonversionedMapObjectProxyBase<NSecurityServer::TAccount>;
+template class TNonversionedMapObjectFactoryBase<NSecurityServer::TAccount>;
 
 template class TNonversionedMapObjectProxyBase<NSchedulerPoolServer::TSchedulerPool>;
+template class TNonversionedMapObjectFactoryBase<NSchedulerPoolServer::TSchedulerPool>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

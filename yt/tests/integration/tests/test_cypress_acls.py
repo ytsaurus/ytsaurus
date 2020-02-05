@@ -746,26 +746,21 @@ class TestCypressAcls(CheckPermissionBase):
         set("//tmp/x", {}, authenticated_user="u")
 
     @authors("babenko")
-    def test_guest_can_remove_users_groups_accounts(self):
+    def test_guest_can_remove_users_groups(self):
         create_user("u")
         create_group("g")
-        create_account("a")
 
         with pytest.raises(YtError): remove("//sys/users/u", authenticated_user="guest")
         with pytest.raises(YtError): remove("//sys/groups/g", authenticated_user="guest")
-        with pytest.raises(YtError): remove("//sys/accounts/a", authenticated_user="guest")
 
         set("//sys/schemas/user/@acl/end", make_ace("allow", "guest", "remove"))
         set("//sys/schemas/group/@acl/end", make_ace("allow", "guest", "remove"))
-        set("//sys/schemas/account/@acl/end", make_ace("allow", "guest", "remove"))
 
         remove("//sys/users/u", authenticated_user="guest")
         remove("//sys/groups/g", authenticated_user="guest")
-        remove("//sys/accounts/a", authenticated_user="guest")
 
         remove("//sys/schemas/user/@acl/-1")
         remove("//sys/schemas/group/@acl/-1")
-        remove("//sys/schemas/account/@acl/-1")
 
     @authors("babenko")
     def test_set_acl_upon_construction(self):

@@ -41,6 +41,9 @@ public:
     virtual void ValidateObjectName(const TString& name);
 
 protected:
+    static constexpr int MaxNameLength_ = 100;
+    static constexpr const char* NameRegex_ = "[A-Za-z0-9-_]+";
+
     virtual IObjectProxyPtr DoGetProxy(TObject* object, NTransactionServer::TTransaction* transaction) override;
     virtual TString DoGetName(const TObject* object) override;
     virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* object) override;
@@ -54,6 +57,7 @@ protected:
         NYTree::IAttributeDictionary* attributes);
 
     virtual std::optional<int> GetDepthLimit() const;
+    // TODO(kiselyovp) limit the number of objects in a subtree somehow
 
     friend class TNonversionedMapObjectProxyBase<TObject>;
 };

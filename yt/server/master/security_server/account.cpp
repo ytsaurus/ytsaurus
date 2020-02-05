@@ -11,6 +11,8 @@ namespace NYT::NSecurityServer {
 
 using namespace NYson;
 using namespace NYTree;
+using namespace NCellMaster;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,38 +63,54 @@ TAccountStatistics operator + (const TAccountStatistics& lhs, const TAccountStat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAccount::TAccount(TAccountId id)
-    : TNonversionedObjectBase(id)
-    , Acd_(this)
+TAccount::TAccount(TAccountId id, bool isRoot)
+    : TNonversionedMapObjectBase<TAccount>(id, isRoot)
 { }
 
 TString TAccount::GetObjectName() const
 {
-    return Format("Account %Qv", Name_);
+    return Format("Account %Qv", GetName());
+}
+
+TString TAccount::GetRootName() const
+{
+    YT_VERIFY(IsRoot());
+    return NSecurityClient::RootAccountName;
 }
 
 void TAccount::Save(NCellMaster::TSaveContext& context) const
 {
-    TNonversionedObjectBase::Save(context);
+    TNonversionedMapObjectBase<TAccount>::Save(context);
 
     using NYT::Save;
-    Save(context, Name_);
     Save(context, ClusterStatistics_);
     Save(context, MulticellStatistics_);
     Save(context, ClusterResourceLimits_);
-    Save(context, Acd_);
+    Save(context, AllowChildrenLimitOvercommit_);
 }
 
 void TAccount::Load(NCellMaster::TLoadContext& context)
 {
-    TNonversionedObjectBase::Load(context);
-
     using NYT::Load;
-    Load(context, Name_);
-    Load(context, ClusterStatistics_);
-    Load(context, MulticellStatistics_);
-    Load(context, ClusterResourceLimits_);
-    Load(context, Acd_);
+
+    // COMPAT(kiselyovp)
+    if (context.GetVersion() < EMasterReign::HierarchicalAccounts) {
+        TNonversionedObjectBase::Load(context);
+
+        Load(context, LegacyName_);
+        Load(context, ClusterStatistics_);
+        Load(context, MulticellStatistics_);
+        Load(context, ClusterResourceLimits_);
+        Load(context, Acd_);
+        AllowChildrenLimitOvercommit_ = false;
+    } else {
+        TNonversionedMapObjectBase<TAccount>::Load(context);
+
+        Load(context, ClusterStatistics_);
+        Load(context, MulticellStatistics_);
+        Load(context, ClusterResourceLimits_);
+        Load(context, AllowChildrenLimitOvercommit_);
+    }
 }
 
 TAccountStatistics& TAccount::LocalStatistics()
@@ -103,10 +121,9 @@ TAccountStatistics& TAccount::LocalStatistics()
 bool TAccount::IsDiskSpaceLimitViolated() const
 {
     const auto& usage = ClusterStatistics_.ResourceUsage.DiskSpace();
-    const auto& limits = ClusterResourceLimits_.DiskSpace();
 
     for (const auto& [mediumIndex, diskSpace] : usage) {
-        if (diskSpace >= limits.lookup(mediumIndex)) {
+        if (diskSpace > ClusterResourceLimits_.DiskSpace().lookup(mediumIndex)) {
             return true;
         }
     }
@@ -117,13 +134,14 @@ bool TAccount::IsDiskSpaceLimitViolated() const
 bool TAccount::IsDiskSpaceLimitViolated(int mediumIndex) const
 {
     const auto& usage = ClusterStatistics_.ResourceUsage.DiskSpace();
-    const auto& limits = ClusterResourceLimits_.DiskSpace();
-    return usage.lookup(mediumIndex) > limits.lookup(mediumIndex);
+    auto limit = ClusterResourceLimits_.DiskSpace().lookup(mediumIndex);
+    return usage.lookup(mediumIndex) > limit;
 }
 
 bool TAccount::IsNodeCountLimitViolated() const
 {
-    return ClusterStatistics_.ResourceUsage.NodeCount > ClusterResourceLimits_.NodeCount;
+    // See TSecurityManager::ValidateResourceUsageIncrease for the reason why committed usage is compared here.
+    return ClusterStatistics_.CommittedResourceUsage.NodeCount > ClusterResourceLimits_.NodeCount;
 }
 
 bool TAccount::IsChunkCountLimitViolated() const
@@ -154,7 +172,77 @@ void TAccount::RecomputeClusterStatistics()
     }
 }
 
+void TAccount::AttachChild(const TString& key, TAccount* child) noexcept
+{
+    TNonversionedMapObjectBase<TAccount>::AttachChild(key, child);
+
+    const auto& childLocalResourceUsage = child->LocalStatistics().ResourceUsage;
+    const auto& childLocalCommittedResourceUsage = child->LocalStatistics().CommittedResourceUsage;
+
+    const auto& childResourceUsage = child->ClusterStatistics().ResourceUsage;
+    const auto& childCommittedResourceUsage = child->ClusterStatistics().CommittedResourceUsage;
+
+    for (auto* account = this; account; account = account->GetParent()) {
+        auto& localStatistics = account->LocalStatistics();
+        auto& clusterStatistics = account->ClusterStatistics();
+
+        localStatistics.ResourceUsage += childLocalResourceUsage;
+        clusterStatistics.ResourceUsage += childResourceUsage;
+
+        localStatistics.CommittedResourceUsage += childLocalCommittedResourceUsage;
+        clusterStatistics.CommittedResourceUsage += childCommittedResourceUsage;
+    }
+}
+
+void TAccount::DetachChild(TAccount* child) noexcept
+{
+    TNonversionedMapObjectBase<TAccount>::DetachChild(child);
+
+    const auto& childLocalResourceUsage = child->LocalStatistics().ResourceUsage;
+    const auto& childLocalCommittedResourceUsage = child->LocalStatistics().CommittedResourceUsage;
+
+    const auto& childResourceUsage = child->ClusterStatistics().ResourceUsage;
+    const auto& childCommittedResourceUsage = child->ClusterStatistics().CommittedResourceUsage;
+
+    for (auto* account = this; account; account = account->GetParent()) {
+        auto& localStatistics = account->LocalStatistics();
+        auto& clusterStatistics = account->ClusterStatistics();
+
+        localStatistics.ResourceUsage -= childLocalResourceUsage;
+        clusterStatistics.ResourceUsage -= childResourceUsage;
+
+        localStatistics.CommittedResourceUsage -= childLocalCommittedResourceUsage;
+        clusterStatistics.CommittedResourceUsage -= childCommittedResourceUsage;
+    }
+}
+
+TClusterResources TAccount::ComputeTotalChildrenLimits() const
+{
+    auto result = TClusterResources();
+    for (const auto& [key, child] : KeyToChild()) {
+        result += child->ClusterResourceLimits();
+    }
+    return result;
+}
+
+TClusterResources TAccount::ComputeTotalChildrenResourceUsage() const
+{
+    auto result = TClusterResources();
+    for (const auto& [key, child] : KeyToChild()) {
+        result += child->ClusterStatistics().ResourceUsage;
+    }
+    return result;
+}
+
+TClusterResources TAccount::ComputeTotalChildrenCommittedResourceUsage() const
+{
+    auto result = TClusterResources();
+    for (const auto& [key, child] : KeyToChild()) {
+        result += child->ClusterStatistics().CommittedResourceUsage;
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer
-

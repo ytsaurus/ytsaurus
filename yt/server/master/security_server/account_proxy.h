@@ -2,15 +2,13 @@
 
 #include "private.h"
 
-#include <yt/server/master/cell_master/public.h>
-
-#include <yt/server/master/object_server/public.h>
+#include <yt/server/master/object_server/map_object_proxy.h>
 
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NObjectServer::IObjectProxyPtr CreateAccountProxy(
+TIntrusivePtr<NObjectServer::TNonversionedMapObjectProxyBase<TAccount>> CreateAccountProxy(
     NCellMaster::TBootstrap* bootstrap,
     NObjectServer::TObjectTypeMetadata* metadata,
     TAccount* account);

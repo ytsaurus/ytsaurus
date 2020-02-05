@@ -14,6 +14,8 @@ using TUserId = NObjectClient::TObjectId;
 using TGroupId = NObjectClient::TObjectId;
 using TNetworkProjectId = NObjectClient::TObjectId;
 
+extern const TString RootAccountName;
+extern const TString RootAccountCypressPath;
 extern const TString TmpAccountName;
 extern const TString SysAccountName;
 extern const TString IntermediateAccountName;

@@ -1,6 +1,8 @@
 #include "map_object_type_handler.h"
 #include "map_object_proxy.h"
 
+#include <yt/server/master/security_server/account.h>
+
 #include <yt/server/master/scheduler_pool_server/scheduler_pool.h>
 
 namespace NYT::NObjectServer {
@@ -35,15 +37,16 @@ void TNonversionedMapObjectTypeHandlerBase<TObject>::ValidateObjectName(const TS
     if (name.empty()) {
         THROW_ERROR_EXCEPTION("Name cannot be empty");
     }
-    if (name.StartsWith(NObjectClient::ObjectIdPathPrefix)) {
-        THROW_ERROR_EXCEPTION("Name cannot start with %Qv",
-            NObjectClient::ObjectIdPathPrefix);
+
+    if (name.length() > MaxNameLength_) {
+        THROW_ERROR_EXCEPTION("Name is too long for an object of type %Qv", this->GetType())
+            << TErrorAttribute("length", name.length())
+            << TErrorAttribute("max_length", MaxNameLength_);
     }
-    for (auto ch : name) {
-        if (NYPath::IsSpecialCharacter(ch)) {
-            THROW_ERROR_EXCEPTION("Name cannot contain %Qv symbol",
-                ch);
-        }
+
+    static NRe2::TRe2Ptr regex = New<NRe2::TRe2>(NameRegex_);
+    if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(name), *regex)) {
+        THROW_ERROR_EXCEPTION("Name must match regular expression %Qv", NameRegex_);
     }
 }
 
@@ -107,6 +110,7 @@ std::optional<int> TNonversionedMapObjectTypeHandlerBase<TObject>::GetDepthLimit
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template class TNonversionedMapObjectTypeHandlerBase<NSecurityServer::TAccount>;
 template class TNonversionedMapObjectTypeHandlerBase<NSchedulerPoolServer::TSchedulerPool>;
 
 ////////////////////////////////////////////////////////////////////////////////

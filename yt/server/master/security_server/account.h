@@ -6,6 +6,7 @@
 
 #include <yt/server/master/cell_master/public.h>
 
+#include <yt/server/master/object_server/map_object.h>
 #include <yt/server/master/object_server/object.h>
 
 #include <yt/core/yson/public.h>
@@ -35,21 +36,21 @@ TAccountStatistics  operator +  (const TAccountStatistics& lhs, const TAccountSt
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAccount
-    : public NObjectServer::TNonversionedObjectBase
+    : public NObjectServer::TNonversionedMapObjectBase<TAccount>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, Name);
-
     using TMulticellStatistics = THashMap<NObjectClient::TCellTag, TAccountStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TMulticellStatistics, MulticellStatistics);
     DEFINE_BYVAL_RW_PROPERTY(TAccountStatistics*, LocalStatisticsPtr);
     DEFINE_BYREF_RW_PROPERTY(TAccountStatistics, ClusterStatistics);
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, ClusterResourceLimits);
+    DEFINE_BYVAL_RW_PROPERTY(bool, AllowChildrenLimitOvercommit);
 
-    DEFINE_BYREF_RW_PROPERTY(TAccessControlDescriptor, Acd);
+    // COMPAT(kiselyovp)
+    DEFINE_BYVAL_RW_PROPERTY(TString, LegacyName);
 
 public:
-    explicit TAccount(TAccountId id);
+    explicit TAccount(TAccountId id, bool isRoot = false);
 
     virtual TString GetObjectName() const override;
 
@@ -87,6 +88,19 @@ public:
     TAccountStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);
 
     void RecomputeClusterStatistics();
+
+    //! Attaches a child account and adds its resource usage to its new ancestry.
+    virtual void AttachChild(const TString& key, TAccount* child) noexcept override;
+    //! Unlinks a child account and subtracts its resource usage from its former ancestry.
+    virtual void DetachChild(TAccount* child) noexcept override;
+
+    TClusterResources ComputeTotalChildrenLimits() const;
+
+    TClusterResources ComputeTotalChildrenResourceUsage() const;
+    TClusterResources ComputeTotalChildrenCommittedResourceUsage() const;
+
+private:
+    virtual TString GetRootName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

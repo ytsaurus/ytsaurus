@@ -460,6 +460,16 @@ private:
                 EObjectType::AccountMap);
 
             ScheduleCreateNode(
+                NSecurityClient::RootAccountCypressPath,
+                transactionId,
+                EObjectType::Link,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("target_path").Value(
+                            FromObjectId(Bootstrap_->GetSecurityManager()->GetRootAccount()->GetId()))
+                    .EndMap());
+
+            ScheduleCreateNode(
                 "//sys/users",
                 transactionId,
                 EObjectType::UserMap);
