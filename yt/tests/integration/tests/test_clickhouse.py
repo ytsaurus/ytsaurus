@@ -27,19 +27,26 @@ import random
 import threading
 import pprint
 
-TEST_DIR = os.path.join(os.path.dirname(__file__))
+if arcadia_interop.yatest_common is None:
+    TEST_DIR = os.path.join(os.path.dirname(__file__))
 
-YTSERVER_CLICKHOUSE_PATH = os.environ.get("YTSERVER_CLICKHOUSE_PATH")
-if YTSERVER_CLICKHOUSE_PATH is None:
-    YTSERVER_CLICKHOUSE_PATH = find_executable("ytserver-clickhouse")
+    YTSERVER_CLICKHOUSE_PATH = os.environ.get("YTSERVER_CLICKHOUSE_PATH")
+    if YTSERVER_CLICKHOUSE_PATH is None:
+        YTSERVER_CLICKHOUSE_PATH = find_executable("ytserver-clickhouse")
 
-CLICKHOUSE_TRAMPOLINE_PATH = os.environ.get("CLICKHOUSE_TRAMPOLINE_PATH")
-if CLICKHOUSE_TRAMPOLINE_PATH is None:
-    CLICKHOUSE_TRAMPOLINE_PATH = find_executable("clickhouse-trampoline")
+    CLICKHOUSE_TRAMPOLINE_PATH = os.environ.get("CLICKHOUSE_TRAMPOLINE_PATH")
+    if CLICKHOUSE_TRAMPOLINE_PATH is None:
+        CLICKHOUSE_TRAMPOLINE_PATH = find_executable("clickhouse-trampoline")
 
-YT_LOG_TAILER_PATH = os.environ.get("YT_LOG_TAILER_PATH")
-if YT_LOG_TAILER_PATH is None:
-    YT_LOG_TAILER_PATH = find_executable("ytserver-log-tailer")
+    YT_LOG_TAILER_PATH = os.environ.get("YT_LOG_TAILER_PATH")
+    if YT_LOG_TAILER_PATH is None:
+        YT_LOG_TAILER_PATH = find_executable("ytserver-log-tailer")
+else:
+    TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
+    YTSERVER_CLICKHOUSE_PATH = arcadia_interop.yatest_common.binary_path("ytserver-clickhouse")
+    CLICKHOUSE_TRAMPOLINE_PATH = arcadia_interop.yatest_common.binary_path("clickhouse-trampoline")
+    YT_LOG_TAILER_PATH = arcadia_interop.yatest_common.binary_path("ytserver-log-tailer")
+
 
 DEFAULTS = {
     "memory_footprint": 2 * 1000**3,
@@ -328,11 +335,9 @@ class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    NODE_PORT_SET_SIZE = 5
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    NODE_PORT_SET_SIZE = 25
 
     ENABLE_HTTP_PROXY = True
-    USE_PORTO_FOR_SERVERS = True
 
 
     DELTA_PROXY_CONFIG = {
@@ -352,7 +357,6 @@ class ClickHouseTestBase(YTEnvSetup):
         "exec_agent": {
             "slot_manager": {
                 "job_environment": {
-                    "type": "porto",
                     "memory_watchdog_period": 100,
                 },
             },
@@ -626,18 +630,20 @@ class TestClickHouseCommon(ClickHouseTestBase):
             time.sleep(1)
 
             instances = clique.get_active_instances()
-            # One instnace is dead, but the lock should be alive.
+            # One instance is dead, but the lock should be alive.
             assert len(instances) == 3
 
             for instance in instances:
                 if instance in old_instances:
                     # Avoid sending request to the dead instance.
                     continue
-                response = clique.make_direct_query(instance, "select * from system.clique")
-                assert len(response) == 2
+
+                wait(lambda: len(clique.make_direct_query(instance, "select * from system.clique")) == 2)
 
     @authors("dakovalkov")
     def test_single_interrupt(self):
+        pytest.skip("signal sending is broken in simple job environment")
+
         patch = {
             "interruption_graceful_timeout": 1000,
         }
@@ -661,6 +667,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_double_interrupt(self):
+        pytest.skip("signal sending is broken in simple job environment")
+
         patch = {
             "interruption_graceful_timeout": 10000,
         }
@@ -685,6 +693,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_long_query_interrupt(self):
+        pytest.skip("signal sending is broken in simple job environment")
+
         patch = {
             "interruption_graceful_timeout": 1000,
         }
@@ -751,6 +761,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_reject_request(self):
+        pytest.skip("signal sending is broken in simple job environment")
+
         with Clique(1) as clique:
             instance = clique.get_active_instances()[0]
 
@@ -2173,8 +2185,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             for instance in clique.get_active_instances():
                 if str(instance) == jobs[0]:
-                    with pytest.raises(Exception):
-                        clique.make_direct_query(instance, "select 1")
+                    continue
                 else:
                     assert clique.make_direct_query(instance, "select 1") == [{"1": 1}]
 
@@ -2197,6 +2208,8 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_ban_stopped_instance_in_proxy(self):
+        pytest.skip("signal sending is broken in simple job environment")
+
         patch = {
             "interruption_graceful_timeout": 100000,
         }
@@ -2241,6 +2254,8 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_clique_availability(self):
+        pytest.skip("signal sending is broken in simple job environment")
+
         create("table", "//tmp/table", attributes={"schema": [{"name": "i", "type": "int64"}]})
         write_table("//tmp/table", [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}])
         patch = {
