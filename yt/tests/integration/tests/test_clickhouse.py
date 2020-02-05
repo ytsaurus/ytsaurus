@@ -642,8 +642,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_single_interrupt(self):
-        pytest.skip("signal sending is broken in simple job environment")
-
         patch = {
             "interruption_graceful_timeout": 1000,
         }
@@ -667,8 +665,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_double_interrupt(self):
-        pytest.skip("signal sending is broken in simple job environment")
-
         patch = {
             "interruption_graceful_timeout": 10000,
         }
@@ -693,8 +689,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_long_query_interrupt(self):
-        pytest.skip("signal sending is broken in simple job environment")
-
         patch = {
             "interruption_graceful_timeout": 1000,
         }
@@ -761,8 +755,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_reject_request(self):
-        pytest.skip("signal sending is broken in simple job environment")
-
         with Clique(1) as clique:
             instance = clique.get_active_instances()[0]
 
@@ -2207,8 +2199,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_ban_stopped_instance_in_proxy(self):
-        pytest.skip("signal sending is broken in simple job environment")
-
         patch = {
             "interruption_graceful_timeout": 100000,
         }
@@ -2253,8 +2243,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
     @authors("dakovalkov")
     def test_clique_availability(self):
-        pytest.skip("signal sending is broken in simple job environment")
-
         create("table", "//tmp/table", attributes={"schema": [{"name": "i", "type": "int64"}]})
         write_table("//tmp/table", [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}])
         patch = {

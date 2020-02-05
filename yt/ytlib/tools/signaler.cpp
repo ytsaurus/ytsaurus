@@ -25,8 +25,8 @@ TSignalerConfig::TSignalerConfig()
 
 void TSignalerTool::operator()(const TSignalerConfigPtr& arg) const
 {
-    SafeSetUid(0);
-    return SendSignal(arg->Pids, arg->SignalName);
+    TrySetUid(0);
+    SendSignal(arg->Pids, arg->SignalName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
