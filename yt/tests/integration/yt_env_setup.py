@@ -4,6 +4,13 @@ from yt.environment import YTInstance, init_operation_archive, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.environment.default_configs import get_dynamic_master_config
+from yt.environment.helpers import (
+    Restarter,
+    SCHEDULERS_SERVICE,
+    CONTROLLER_AGENTS_SERVICE,
+    NODES_SERVICE,
+    MASTER_CELL_SERVICE,
+)
 from yt.test_helpers import wait, WaitFailed
 from yt.common import makedirp, YtError, YtResponseError, format_error, update_inplace
 import yt.logger
@@ -439,46 +446,6 @@ class Checker(Thread):
         self._active = False
         self.join()
 
-
-SCHEDULERS_SERVICE = "schedulers"
-CONTROLLER_AGENTS_SERVICE = "controller_agents"
-NODES_SERVICE = "nodes"
-MASTER_CELL_SERVICE = "master_cell"
-
-# TODO(ignat): move it to python-repo
-class Restarter(object):
-    def __init__(self, Env, components, *args, **kwargs):
-        self.Env = Env
-        self.components = components
-        if type(self.components) == str:
-            self.components = [self.components]
-        self.kill_args = args
-        self.kill_kwargs = kwargs
-
-        self.start_dict = {SCHEDULERS_SERVICE: self.Env.start_schedulers,
-                           CONTROLLER_AGENTS_SERVICE: self.Env.start_controller_agents,
-                           NODES_SERVICE: self.Env.start_nodes,
-                           MASTER_CELL_SERVICE: lambda: self.Env.start_all_masters(True)}
-        self.kill_dict = {SCHEDULERS_SERVICE: lambda: self.Env.kill_service("scheduler", *self.kill_args, **self.kill_kwargs),
-                          CONTROLLER_AGENTS_SERVICE: lambda: self.Env.kill_service("controller_agent", *self.kill_args, **self.kill_kwargs),
-                          NODES_SERVICE: lambda: self.Env.kill_service("node", *self.kill_args, **self.kill_kwargs),
-                          MASTER_CELL_SERVICE: lambda: self.Env.kill_all_masters(*self.kill_args, **self.kill_kwargs)}
-
-    def __enter__(self):
-        for comp_name in self.components:
-            try:
-                self.kill_dict[comp_name]()
-            except KeyError:
-                logging.error("Failed to kill {}. No such component.".format(comp_name))
-                raise
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        for comp_name in self.components:
-            try:
-                self.start_dict[comp_name]()
-            except KeyError:
-                logging.error("Failed to start {}. No such component.".format(comp_name))
-                raise
 
 class YTEnvSetup(object):
     NUM_MASTERS = 3
