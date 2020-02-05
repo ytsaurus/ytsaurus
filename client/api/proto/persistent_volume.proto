@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+import "yp/client/api/proto/data_model.proto";
+import "yp/client/api/proto/enums.proto";
+
+option python_package = "yp_proto.yp.client.api.proto";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "PersistentVolume";
+
+option go_package = "a.yandex-team.ru/yp/go/proto/api";
+
+////////////////////////////////////////////////////////////////////////////////
+
+/*
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "PersistentVolume"
+    snake_case_name: "persistent_volume"
+    type_value: 31
+};
+*/
+
+message TPersistentVolumeMetaBase
+{
+    string disk_id = 4;
+}
+
+message TPersistentVolumeSpec
+{
+    message TManagedPolicy
+    {
+        uint64 bandwidth_guarantee = 1;
+        uint64 bandwidth_limit = 2;
+        uint64 capacity = 3;
+    }
+
+    message TRbindPolicy
+    {
+        string mount_path = 1;
+    }
+
+    oneof concrete_policy
+    {
+        TManagedPolicy managed_policy = 1
+        [(NYP.NClient.NApi.NProto.etc) = true];
+
+        TRbindPolicy rbind_policy = 2
+        [(NYP.NClient.NApi.NProto.etc) = true];
+    }
+}
+
+message TPersistentVolumeStatus
+{
+    EPersistentVolumeState state = 1
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
+    // The id of the claim bound to this volume, if any.
+    string bound_claim_id = 2;
+
+    // The id of the pod this volume is currently mounted to, if any.
+    string mounted_to_pod_id = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

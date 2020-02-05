@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+import "yp/client/api/proto/data_model.proto";
+import "yp/client/api/proto/enums.proto";
+
+option python_package = "yp_proto.yp.client.api.proto";
+
+option go_package = "a.yandex-team.ru/yp/go/proto/api";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "PersistentDisk";
+option java_multiple_files = true;
+
+////////////////////////////////////////////////////////////////////////////////
+
+/*
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "PersistentDisk"
+    snake_case_name: "persistent_disk"
+    type_value: 30
+};
+*/
+
+message TPersistentDiskSpec
+{
+    string storage_class = 1
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
+    uint64 total_capacity = 2
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
+    uint64 total_bandwidth = 3
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
+    EPersistentDiskKind kind = 4
+    [(NYP.NClient.NApi.NProto.etc) = true];
+}
+
+message TPersistentDiskStatus
+{
+    string mount_path = 1
+    [(NYP.NClient.NApi.NProto.etc) = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////

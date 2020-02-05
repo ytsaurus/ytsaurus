@@ -182,15 +182,18 @@ message TPerSegmentResourceTotals
 
     optional TMemoryTotals memory = 1;
     optional TCpuTotals cpu = 2;
-    map<string, TDiskTotals> disk_per_storage_class = 3 [(NYT.NYson.NProto.yson_map) = true];
+    map<string, TDiskTotals> disk_per_storage_class = 3
+    [(NYT.NYson.NProto.yson_map) = true];
     optional TInternetAddressTotals internet_address = 4;
-    map<string, TGpuTotals> gpu_per_model = 5 [(NYT.NYson.NProto.yson_map) = true];
+    map<string, TGpuTotals> gpu_per_model = 5
+    [(NYT.NYson.NProto.yson_map) = true];
     optional TNetworkTotals network = 6;
 }
 
 message TResourceTotals
 {
-    map<string, TPerSegmentResourceTotals> per_segment = 1 [(NYT.NYson.NProto.yson_map) = true];
+    map<string, TPerSegmentResourceTotals> per_segment = 1
+    [(NYT.NYson.NProto.yson_map) = true];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -426,10 +429,12 @@ message TNodeStatus
     optional uint64 last_seen_time = 2;
 
     // Timestamp of the last agent handshake.
-    optional uint64 last_handshake_time = 10 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional uint64 last_handshake_time = 10
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     // Master address of the last agent handshake.
-    optional string last_handshake_master_address = 11 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional string last_handshake_master_address = 11
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     // Used for properly sequencing master-agent communication.
     optional uint64 heartbeat_sequence_number = 3;
@@ -438,7 +443,8 @@ message TNodeStatus
     optional string agent_address = 4;
 
     // Version of the agent running at this node (as reported during the last handshake).
-    optional string agent_version = 8 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional string agent_version = 8
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message THfsm
     {
@@ -452,7 +458,8 @@ message TNodeStatus
         optional string message = 3;
     }
     // HFSM info.
-    optional THfsm hfsm = 5 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional THfsm hfsm = 5
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TMaintenance
     {
@@ -469,16 +476,19 @@ message TNodeStatus
         optional TMaintenanceInfo info = 4;
     }
     // Maintenance workflow.
-    optional TMaintenance maintenance = 6 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional TMaintenance maintenance = 6
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     // Each alert indicates that node in some unxpected state.
     // For example, it has no heartbeats for more than N minutes.
     // Scheduler will not assign pod on node with an active alert.
-    repeated TNodeAlert alerts = 12 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated TNodeAlert alerts = 12
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     // Contains ids of pods that are reported to be present at the node
     // but are neither known to exist nor were recently removed.
-    repeated string unknown_pod_ids = 7 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated string unknown_pod_ids = 7
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     // Currently this is an opaque data; cf. YP-809.
     optional google.protobuf.Any host_manager = 9;
@@ -964,7 +974,8 @@ message TPodSpec
         optional uint64 thread_limit = 10;
     };
     // CPU and memory resources to allocate and configure for this pod upon assignment.
-    optional TResourceRequests resource_requests = 3 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional TResourceRequests resource_requests = 3
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TIP6AddressRequest
     {
@@ -995,7 +1006,8 @@ message TPodSpec
         optional string ip4_address_pool_id = 9;
     }
     // IP6 addresses to allocate for this pod upon assignment.
-    repeated TIP6AddressRequest ip6_address_requests = 5 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated TIP6AddressRequest ip6_address_requests = 5
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TIP6SubnetRequest
     {
@@ -1011,7 +1023,8 @@ message TPodSpec
         optional NYT.NYTree.NProto.TAttributeDictionary labels = 2;
     }
     // IP6 subnets to allocate for this pod upon assignment.
-    repeated TIP6SubnetRequest ip6_subnet_requests = 6 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated TIP6SubnetRequest ip6_subnet_requests = 6
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TDiskVolumeRequest
     {
@@ -1053,8 +1066,18 @@ message TPodSpec
             TExclusivePolicy exclusive_policy = 7;
         }
     }
-    // Disk volumes to allocate for this pod upon assignment.
-    repeated TDiskVolumeRequest disk_volume_requests = 13 [(NYP.NClient.NApi.NProto.etc) = true];
+    // Transient disk volumes to allocate for this pod upon assignment.
+    repeated TDiskVolumeRequest disk_volume_requests = 13
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
+    message TDiskVolumeMount
+    {
+        // Persistent volume claim whose associated volume must be mounted into the pod.
+        required string claim_id = 1;
+    }
+    // Persistent disk volumes to mount into this pod upon assignment.
+    repeated TDiskVolumeMount disk_volume_mounts = 25
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TGpuRequest
     {
@@ -1071,14 +1094,16 @@ message TPodSpec
         optional uint64 max_memory = 4;
     }
     // GPUs to allocate for this pod upon assignment.
-    repeated TGpuRequest gpu_requests = 23 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated TGpuRequest gpu_requests = 23
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     // If false then YP will not be scheduling this pod.
     optional bool enable_scheduling = 7;
 
     // If given, controls which nodes are eligible for this pod.
     // Filter is a query language predicate; it can only refer to node labels, not other attributes.
-    optional string node_filter = 8 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional string node_filter = 8
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message THostDevice
     {
@@ -1090,7 +1115,8 @@ message TPodSpec
     }
     // Host devices to configure.
     // https://wiki.yandex-team.ru/porto/propertiesanddata/#resursy
-    repeated THostDevice host_devices = 10 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated THostDevice host_devices = 10
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TSysctlProperty
     {
@@ -1098,7 +1124,8 @@ message TPodSpec
         required string value = 2;
     }
     // Sysctl properties to configure.
-    repeated TSysctlProperty sysctl_properties = 11 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated TSysctlProperty sysctl_properties = 11
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TVirtualServiceOptions
     {
@@ -1106,11 +1133,13 @@ message TPodSpec
         optional uint32 ip6_mtu = 3;
         optional string decapsulator_anycast_address = 4;
     }
-    optional TVirtualServiceOptions virtual_service_options = 12 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional TVirtualServiceOptions virtual_service_options = 12
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     // Determines the kind of "hostname" Porto property: either
     // "persistent" or "transient" pod FQDN can be used.
-    optional EPodHostNameKind host_name_kind = 15 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional EPodHostNameKind host_name_kind = 15
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TSecret
     {
@@ -1120,7 +1149,8 @@ message TPodSpec
     }
 
     // Defines secrets to be delivered to the pod.
-    map<string, TSecret> secrets = 16 [(NYT.NYson.NProto.yson_map) = true];
+    map<string, TSecret> secrets = 16
+    [(NYT.NYson.NProto.yson_map) = true];
 
     // If given, overrides the podset's account.
     optional string account_id = 17;
@@ -1152,15 +1182,18 @@ message TPodSpec
     // "oom_is_fatal: false" will be set if the OOMP_KILL_PROCESS parameter is passed.
     // "oom_is_fatal: true" will be set if the OOMP_REBUILD_POD parameter is passed.
     // Nothing will be set for "oom_is_fatal" property otherwise.
-    optional EPodOutOfMemoryPolicy out_of_memory_policy = 21 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional EPodOutOfMemoryPolicy out_of_memory_policy = 21
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     // Host infrastructure settings.
     // Available on host via node agent REST interface.
-    optional THostInfraInfo host_infra = 22 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional THostInfraInfo host_infra = 22
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     // Host capability names as they will be forwarded to node agent.
     // http://man7.org/linux/man-pages/man7/capabilities.7.html
-    repeated string capabilities = 24 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated string capabilities = 24
+    [(NYP.NClient.NApi.NProto.etc) = true];
 }
 
 enum EEvictionState
@@ -1241,26 +1274,33 @@ message TPodStatus
         optional TPodAgentPayload pod_agent_payload = 5;
 
         // Error in pod execution passed from agent via heartbeat.
-        optional NYT.NProto.TError execution_error = 6 [(NYP.NClient.NApi.NProto.etc) = true];
+        optional NYT.NProto.TError execution_error = 6
+        [(NYP.NClient.NApi.NProto.etc) = true];
 
         // Error occurred while installing this pod to the node.
-        optional NYT.NProto.TError install_error = 9 [(NYP.NClient.NApi.NProto.etc) = true];
+        optional NYT.NProto.TError install_error = 9
+        [(NYP.NClient.NApi.NProto.etc) = true];
 
         // Contains the spec timestamps for which install_error was observed.
-        optional uint64 failed_install_attempt_spec_timestamp = 10 [(NYP.NClient.NApi.NProto.etc) = true];
+        optional uint64 failed_install_attempt_spec_timestamp = 10
+        [(NYP.NClient.NApi.NProto.etc) = true];
 
         // Errors in pod spec validation passed from agent via heartbeat.
-        repeated string validation_failures = 8 [(NYP.NClient.NApi.NProto.etc) = true];
+        repeated string validation_failures = 8
+        [(NYP.NClient.NApi.NProto.etc) = true];
 
         // The instant the last heartbeat from agent containing the status of this pod was received.
-        optional uint64 last_heartbeat_time = 7 [(NYP.NClient.NApi.NProto.etc) = true];
+        optional uint64 last_heartbeat_time = 7
+        [(NYP.NClient.NApi.NProto.etc) = true];
 
         // Pod spec timestamp currently considered as a target by the agent.
-        optional uint64 current_spec_timestamp = 11 [(NYP.NClient.NApi.NProto.etc) = true];
+        optional uint64 current_spec_timestamp = 11
+        [(NYP.NClient.NApi.NProto.etc) = true];
 
         // Describes pod spec currently considered as a target by the agent.
         // Indicates whether the spec is completely applied.
-        optional TCondition current_spec_applied = 12 [(NYP.NClient.NApi.NProto.etc) = true];
+        optional TCondition current_spec_applied = 12
+        [(NYP.NClient.NApi.NProto.etc) = true];
     }
     optional TAgent agent = 2;
 
@@ -1268,7 +1308,8 @@ message TPodStatus
     {
         optional string resource_id = 1;
     }
-    repeated TResourceAllocation scheduled_resource_allocations = 4 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated TResourceAllocation scheduled_resource_allocations = 4
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TIP6AddressAllocation
     {
@@ -1311,7 +1352,8 @@ message TPodStatus
         // Virtual services assigned to this allocation.
         repeated TVirtualService virtual_services = 8;
     }
-    repeated TIP6AddressAllocation ip6_address_allocations = 5 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated TIP6AddressAllocation ip6_address_allocations = 5
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TIP6SubnetAllocation
     {
@@ -1324,11 +1366,13 @@ message TPodStatus
         // Copied from /node/spec/ip6_address_requests/*/labels
         optional NYT.NYTree.NProto.TAttributeDictionary labels = 3;
     }
-    repeated TIP6SubnetAllocation ip6_subnet_allocations = 6 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated TIP6SubnetAllocation ip6_subnet_allocations = 6
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TDiskVolumeAllocation
     {
         // Copied from /pod/spec/disk_volume_requests/*/id.
+        // TODO(babenko): to be removed to name
         optional string id = 1;
 
         // Copied from /pod/spec/disk_volume_requests/*/labels.
@@ -1372,7 +1416,8 @@ message TPodStatus
         // Volume write operation rate limit in operations per second.
         optional uint64 write_operation_rate_limit = 15;
     }
-    repeated TDiskVolumeAllocation disk_volume_allocations = 14 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated TDiskVolumeAllocation disk_volume_allocations = 14
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TGpuAllocation
     {
@@ -1388,7 +1433,8 @@ message TPodStatus
         // Copied from /resource/spec/gpu/uuid
         optional string device_uuid = 4;
     }
-    repeated TGpuAllocation gpu_allocations = 16 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated TGpuAllocation gpu_allocations = 16
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TDns
     {
@@ -1402,7 +1448,8 @@ message TPodStatus
         // This FQDN changes each time pod gets reassigned to another node.
         optional string transient_fqdn = 8;
     }
-    optional TDns dns = 7 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional TDns dns = 7
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TEviction
     {
@@ -1411,7 +1458,8 @@ message TPodStatus
         optional uint64 last_updated = 3;
         optional string message = 4;
     }
-    optional TEviction eviction = 8 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional TEviction eviction = 8
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TMaintenance
     {
@@ -1420,21 +1468,31 @@ message TPodStatus
         optional string message = 3;
         optional TMaintenanceInfo info = 4;
     }
-    optional TMaintenance maintenance = 17 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional TMaintenance maintenance = 17
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     // Node alerts which are periodically fetched from the /node/status/alerts.
     // Empty if pod is not assigned to a node.
-    repeated TNodeAlert node_alerts = 18 [(NYP.NClient.NApi.NProto.etc) = true];
+    repeated TNodeAlert node_alerts = 18
+    [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TScheduling
     {
         option (NYP.NClient.NApi.NProto.etc_type_name) = "TPodStatusSchedulingEtc";
 
-        optional ESchedulingState state = 1 [(NYP.NClient.NApi.NProto.etc) = true];
+        optional ESchedulingState state = 1
+        [(NYP.NClient.NApi.NProto.etc) = true];
+
         optional string node_id = 2;
-        optional uint64 last_updated = 3 [(NYP.NClient.NApi.NProto.etc) = true];
-        optional string message = 4 [(NYP.NClient.NApi.NProto.etc) = true];
-        optional NYT.NProto.TError error = 5 [(NYP.NClient.NApi.NProto.etc) = true];
+
+        optional uint64 last_updated = 3
+        [(NYP.NClient.NApi.NProto.etc) = true];
+
+        optional string message = 4
+        [(NYP.NClient.NApi.NProto.etc) = true];
+
+        optional NYT.NProto.TError error = 5
+        [(NYP.NClient.NApi.NProto.etc) = true];
     }
     optional TScheduling scheduling = 9;
 
@@ -1585,7 +1643,8 @@ message TPodSetSpec
     }
 
     // Permissions to violate constraints applied to all pods of the pod set.
-    optional TViolateNodeSegmentConstraints violate_node_segment_constraints = 6 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional TViolateNodeSegmentConstraints violate_node_segment_constraints = 6
+    [(NYP.NClient.NApi.NProto.etc) = true];
 }
 
 message TPodSetStatus
@@ -1875,7 +1934,8 @@ option (NYP.NClient.NApi.NProto.object_type) = {
 message TAccountSpec
 {
     optional string parent_id = 1;
-    optional TResourceTotals resource_limits = 2 [(NYP.NClient.NApi.NProto.etc) = true];
+    optional TResourceTotals resource_limits = 2
+    [(NYP.NClient.NApi.NProto.etc) = true];
 }
 
 message TAccountStatus

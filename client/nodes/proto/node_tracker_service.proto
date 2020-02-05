@@ -1,10 +1,12 @@
 package NYP.NClient.NNodes.NProto;
 
 import "yp/client/api/proto/data_model.proto";
+import "yp/client/api/proto/enums.proto";
 import "yp/client/api/proto/secrets.proto";
 import "yp/client/api/proto/dynamic_attributes.proto";
 import "yp/client/api/proto/host_infra.proto";
 import "yp/client/api/proto/conditions.proto";
+import "yp/client/api/proto/persistent_volume.proto";
 
 import "yt/core/misc/proto/error.proto";
 
@@ -92,7 +94,21 @@ message TPodSpec
 
     optional NYP.NClient.NApi.NProto.TPodStatus.TDns dns = 8;
 
+    // TODO(babenko): rename to transient_volume_allocations
     repeated NYP.NClient.NApi.NProto.TPodStatus.TDiskVolumeAllocation disk_volume_allocations = 10;
+
+    message TPersistentVolumeMount
+    {
+        // UUID of the volume; this either refers to the existing volume reported by the node
+        // or to the volume whose creation is requested in the same heartbeat.
+        required string volume_uuid = 1;
+
+        // TODO(babenko): rename TDiskVolumeAllocation.id to name.
+        // Altogether, TDiskVolumeAllocation.id and TPersistentVolumeMount.name are pod-wise unique
+        // and enable addressing volumes (both transient and persistent) within a pod.
+        required string name = 2;
+    }
+    repeated TPersistentVolumeMount persistent_volume_mounts = 19;
 
     repeated NYP.NClient.NApi.NProto.TPodStatus.TGpuAllocation gpu_allocations = 16;
 
@@ -121,6 +137,67 @@ message TPodSpec
     repeated string capabilities = 18;
 }
 
+message TPersistentVolumeSpec
+{
+    message TManagedPolicy
+    {
+        // Volume capacity, in bytes.
+        required uint64 capacity = 1;
+
+        // Guaranteed volume read bandwidth in bytes per second.
+        optional uint64 read_bandwidth_guarantee = 3;
+
+        // Volume read bandwidth limit in bytes per second.
+        optional uint64 read_bandwidth_limit = 4;
+
+        // Guaranteed volume write bandwidth in bytes per second.
+        optional uint64 write_bandwidth_guarantee = 5;
+
+        // Volume write bandwidth limit in bytes per second.
+        optional uint64 write_bandwidth_limit = 6;
+
+        // Guaranteed volume read operation rate in operations per second.
+        optional uint64 read_operation_rate_guarantee = 7;
+
+        // Volume read operation rate limit in operations per second.
+        optional uint64 read_operation_rate_limit = 8;
+
+        // Guaranteed volume write operation rate in operations per second.
+        optional uint64 write_operation_rate_guarantee = 9;
+
+        // Volume write operation rate limit in operations per second.
+        optional uint64 write_operation_rate_limit = 10;
+    }
+
+    message TRbindPolicy
+    {
+        // Path to volume data on host FS.
+        required string mount_path = 1;
+    }
+
+    oneof concrete_policy
+    {
+        TManagedPolicy managed_policy = 1;
+        TRbindPolicy rbind_policy = 2;
+    }
+}
+
+message TPersistentDiskStatus
+{
+    // Currently empty.
+}
+
+message TPersistentVolumeStatus
+{
+    required NYP.NClient.NApi.NProto.EPersistentVolumeState state = 1;
+
+    // If given, contains the error occurred during volume lifecycle at agent.
+    optional NYT.NProto.TError execution_error = 2;
+
+    // List of validation errors for latest volume spec.
+    repeated string validation_failures = 3;
+}
+
 message TReqHeartbeat
 {
     message TPodEntry
@@ -147,6 +224,26 @@ message TReqHeartbeat
         optional NYP.NClient.NApi.NProto.EPodCurrentState current_state = 5;
     }
 
+    message TPersistentDiskEntry
+    {
+        // Current disk status.
+        // If missing then no changes happened since the last successful heartbeat.
+        optional TPersistentDiskStatus status = 1;
+    }
+
+    message TPersistentVolumeEntry
+    {
+        // Id of PersistentDisk object indicating the disk where the volume resides.
+        required string disk_id = 1;
+
+        // Timestamp of the current spec.
+        required uint64 current_spec_timestamp = 4;
+
+        // Current volume status.
+        // If missing then no changes happened since the last successful heartbeat.
+        optional TPersistentVolumeStatus status = 5;
+    }
+
     // The id of the node issuing the request; cf. TRspHeartbeat.node_id.
     required string node_id = 1;
 
@@ -158,8 +255,20 @@ message TReqHeartbeat
 
     // All pods currently residing on this node together with their statuses.
     // Some status payloads may be missing (if the agent has no relevant changes)
-    // but all pod ids must be listed.
+    // but all pod IDs must be listed.
     repeated TPodEntry pods = 4;
+
+    // Indicates that the agent supports persistent volumes.
+    // Attempting to create a volume on a node lacking this feature will be detected and logged as an error.
+    optional bool supports_persistent_volumes = 7;
+
+    // All persistent disks currently attached to this node.
+    // Keys are disk IDs.
+    map<string, TPersistentDiskEntry> persistent_disks = 5;
+
+    // All persistent volumes found on disks currently attached to this node.
+    // Keys are volume UUIDs.
+    map<string, TPersistentVolumeEntry> persistent_volumes = 6;
 }
 
 message TRspHeartbeat
@@ -189,6 +298,33 @@ message TRspHeartbeat
         optional NYP.NClient.NApi.NProto.EPodTargetState target_state = 4;
     }
 
+    message TPersistentVolumeCreationRequest
+    {
+        // Disk id where the volume must be created.
+        required string disk_id = 1;
+
+        // Timestamp of volume spec at the moment of creation.
+        required uint64 spec_timestamp = 3;
+
+        // Spec of the newly created volume.
+        required TPersistentVolumeSpec spec = 4;
+    }
+
+    message TPersistentVolumeRemovalRequest
+    {
+        // Currently empty.
+        // May indicate some specific destruction strategy in the future.
+    }
+
+    message TPersistentVolumeUpdateRequest
+    {
+        // Timestamp of volume spec at the moment of update.
+        required uint64 spec_timestamp = 2;
+
+        // New spec to apply.
+        required TPersistentVolumeSpec spec = 3;
+    }
+
     // Describes all pods that are expected to be present at the node.
     // If the node has some pod that is missing in this list, the pod must be dropped.
     // If the node does not have some pod that is present in this list, the pod must be started.
@@ -204,6 +340,31 @@ message TRspHeartbeat
 
     // Describes the data updated on the node.
     optional TNodeEntry node = 2;
+
+    // Instructs the node to create certain persistent volumes.
+    // Keys are volume UUIDs.
+    // Upon receiving the request, node must start reporting this volume in "creating" state.
+    // Once creation is complete, the volume state must change to "active".
+    // Master continues sending these requests for all to-be-created volumes until
+    // it receives a heartbeat within which a volume with the matching id is present.
+    map<string, TPersistentVolumeCreationRequest> persistent_volume_creation_requests = 3;
+
+    // Instructs the node to remove certain persistent volumes.
+    // Keys are volume UUIDs.
+    // Upon receiving the request, node must change the volume state to "removing".
+    // Once removal is complete, the volume must vanish from TReqHeartbeat.persistent_volumes.
+    // Master continues sending these requests for all to-be-removed volumes until
+    // it receives a heartbeat within which no volume with the matching id is present.
+    map<string, TPersistentVolumeRemovalRequest> persistent_volume_removal_requests = 4;
+
+    // Instructs the node to update certain persistent volumes.
+    // Keys are volume UUIDs.
+    // Upon receiving the request, node must change the volume state to "updating".
+    // Once update is complete, the state must change to "active".
+    // Master continues sending these requests for all to-be-updated volumes until
+    // it receives a heartbeat within which a volume with the matching id and spec timestamp
+    // is mentioned.
+    map<string, TPersistentVolumeUpdateRequest> persistent_volume_update_requests = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

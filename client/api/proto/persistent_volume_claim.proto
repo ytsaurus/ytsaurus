@@ -1,0 +1,90 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+import "yp/client/api/proto/data_model.proto";
+
+option python_package = "yp_proto.yp.client.api.proto";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "PersistentVolumeClaim";
+
+option go_package = "a.yandex-team.ru/yp/go/proto/api";
+
+////////////////////////////////////////////////////////////////////////////////
+
+/*
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "PersistentVolumeClaim"
+    snake_case_name: "persistent_volume_claim"
+    type_value: 32
+};
+*/
+
+message TPersistentVolumeClaimSpec
+{
+    // Claims a part of the disk drive.
+    message TQuotaPolicy
+    {
+        // E.g. ssd, hdd.
+        string storage_class = 1;
+
+        // Guaranteed volume capacity.
+        uint64 capacity = 2;
+
+        // Guaranteed volume bandwidth in bytes per second.
+        uint64 bandwidth_guarantee = 3;
+
+        // Volume bandwidth limit in bytes per second.
+        uint64 bandwidth_limit = 4;
+    }
+
+    // Claims the whole disk drive.
+    message TExclusivePolicy
+    {
+        // E.g. ssd, hdd.
+        string storage_class = 1;
+
+        // Minimum capacity the disk must have.
+        // The client, however, will be charged for the whole disk capacity.
+        uint64 min_capacity = 2;
+
+        // Minimum bandwidth in bytes per second the disk must provide.
+        // The client, however, will be charged for the whole disk bandwidth.
+        uint64 min_bandwidth = 3;
+    }
+
+    // Claims an existing persistent volume.
+    message TExistingVolumePolicy
+    {
+        // The id of the existing volume to use.
+        // XXX(babenko): ref?
+        string volume_id = 1;
+    }
+
+    oneof concrete_policy
+    {
+        TQuotaPolicy quota_policy = 1
+        [(NYP.NClient.NApi.NProto.etc) = true];
+
+        TExclusivePolicy exclusive_policy = 2
+        [(NYP.NClient.NApi.NProto.etc) = true];
+
+        TExistingVolumePolicy existing_volume_policy = 3
+        [(NYP.NClient.NApi.NProto.etc) = true];
+    }
+}
+
+message TPersistentVolumeClaimStatus
+{
+    // True if the claim has been satisfied, i.e. assigned a persistent volume.
+    bool bound = 1
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
+    // The id of the persistent volume bound to this claim, if any.
+    string bound_volume_id = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
