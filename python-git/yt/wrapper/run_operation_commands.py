@@ -52,7 +52,7 @@ from .ypath import TablePath
 from .driver import get_api_version
 
 import yt.logger as logger
-from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id, _pretty_format_messages
+from yt.common import YT_NULL_TRANSACTION_ID as null_transaction_id, _pretty_format_for_logging
 
 import sys
 import time
@@ -433,11 +433,12 @@ class OperationRequestRetrier(Retrier):
     def backoff_action(self, iter_number, sleep_backoff):
         for action in self.retry_actions:
             action()
+        error_tail = ""
         if isinstance(self.exception, YtConcurrentOperationsLimitExceeded):
-            logger.warning(_pretty_format_messages(self.exception).replace("\n", "\\n"))
+            error_tail = _pretty_format_for_logging(self.exception)
         logger.warning("Failed to start operation since concurrent operation limit exceeded. "
-                       "Sleep for %.2lf seconds before next (%d) retry.",
-                       sleep_backoff, iter_number)
+                       "Sleep for %.2lf seconds before next (%d) retry.%s",
+                       sleep_backoff, iter_number, error_tail)
         time.sleep(sleep_backoff)
 
 def _make_operation_request(operation_type, spec, sync,
