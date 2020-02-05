@@ -19,7 +19,9 @@ class Correlation:
 
 class KolmogorovSmirnovTest:
     @staticmethod
-    def test(dataset: DataFrame, sampleCol: str, distName: str, *params: float) -> DataFrame: ...
+    def test(
+        dataset: DataFrame, sampleCol: str, distName: str, *params: float
+    ) -> DataFrame: ...
 
 class Summarizer:
     @staticmethod
@@ -47,7 +49,9 @@ class Summarizer:
 
 class SummaryBuilder(JavaWrapper):
     def __init__(self, jSummaryBuilder: JavaObject) -> None: ...
-    def summary(self, featuresCol: Column, weightCol: Optional[Column] = ...) -> Column: ...
+    def summary(
+        self, featuresCol: Column, weightCol: Optional[Column] = ...
+    ) -> Column: ...
 
 class MultivariateGaussian:
     mean: Vector

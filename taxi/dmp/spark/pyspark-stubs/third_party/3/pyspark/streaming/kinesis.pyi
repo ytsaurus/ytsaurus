@@ -8,7 +8,22 @@ def utf8_decoder(s): ...
 
 class KinesisUtils:
     @staticmethod
-    def createStream(ssc, kinesisAppName, streamName, endpointUrl, regionName, initialPositionInStream, checkpointInterval, storageLevel: Any = ..., awsAccessKeyId: Optional[Any] = ..., awsSecretKey: Optional[Any] = ..., decoder: Any = ..., stsAssumeRoleArn: Optional[Any] = ..., stsSessionName: Optional[Any] = ..., stsExternalId: Optional[Any] = ...): ...
+    def createStream(
+        ssc,
+        kinesisAppName,
+        streamName,
+        endpointUrl,
+        regionName,
+        initialPositionInStream,
+        checkpointInterval,
+        storageLevel: Any = ...,
+        awsAccessKeyId: Optional[Any] = ...,
+        awsSecretKey: Optional[Any] = ...,
+        decoder: Any = ...,
+        stsAssumeRoleArn: Optional[Any] = ...,
+        stsSessionName: Optional[Any] = ...,
+        stsExternalId: Optional[Any] = ...,
+    ): ...
 
 class InitialPositionInStream:
     LATEST: Any

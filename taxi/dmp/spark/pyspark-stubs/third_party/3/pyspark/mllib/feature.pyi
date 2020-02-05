@@ -67,7 +67,15 @@ class ChiSqSelector:
     fpr: float
     fdr: float
     fwe: float
-    def __init__(self, numTopFeatures: int = ..., selectorType: str = ..., percentile: float = ..., fpr: float = ..., fdr: float = ..., fwe: float = ...) -> None: ...
+    def __init__(
+        self,
+        numTopFeatures: int = ...,
+        selectorType: str = ...,
+        percentile: float = ...,
+        fpr: float = ...,
+        fdr: float = ...,
+        fwe: float = ...,
+    ) -> None: ...
     def setNumTopFeatures(self, numTopFeatures: int) -> ChiSqSelector: ...
     def setPercentile(self, percentile: float) -> ChiSqSelector: ...
     def setFpr(self, fpr: float) -> ChiSqSelector: ...

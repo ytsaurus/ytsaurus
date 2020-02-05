@@ -3,7 +3,7 @@
 
 from typing import Any, Union
 from pyspark.sql._typing import ColumnOrName
-from py4j.java_gateway import JavaObject # type: ignore
+from py4j.java_gateway import JavaObject  # type: ignore
 
 class Window:
     unboundedPreceding: int

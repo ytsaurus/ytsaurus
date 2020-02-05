@@ -17,7 +17,7 @@ from pyspark.mllib.stat.distribution import MultivariateGaussian
 from pyspark.mllib.util import Saveable, Loader, JavaLoader, JavaSaveable
 from pyspark.streaming.dstream import DStream
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 class BisectingKMeansModel(JavaModelWrapper):
     centers: List[ndarray]
@@ -37,7 +37,14 @@ class BisectingKMeansModel(JavaModelWrapper):
 
 class BisectingKMeans:
     @classmethod
-    def train(self, rdd: RDD[VectorLike], k: int = ..., maxIterations: int = ..., minDivisibleClusterSize: float = ..., seed: int = ...) -> BisectingKMeansModel: ...
+    def train(
+        self,
+        rdd: RDD[VectorLike],
+        k: int = ...,
+        maxIterations: int = ...,
+        minDivisibleClusterSize: float = ...,
+        seed: int = ...,
+    ) -> BisectingKMeansModel: ...
 
 class KMeansModel(Saveable, Loader[KMeansModel]):
     centers: List[ndarray]
@@ -57,9 +64,21 @@ class KMeansModel(Saveable, Loader[KMeansModel]):
 
 class KMeans:
     @classmethod
-    def train(cls, rdd: RDD[VectorLike], k: int, maxIterations: int = ..., initializationMode: str = ..., seed: Optional[int] = ..., initializationSteps: int = ..., epsilon: float = ..., initialModel: Optional[KMeansModel] = ...) -> KMeansModel: ...
+    def train(
+        cls,
+        rdd: RDD[VectorLike],
+        k: int,
+        maxIterations: int = ...,
+        initializationMode: str = ...,
+        seed: Optional[int] = ...,
+        initializationSteps: int = ...,
+        epsilon: float = ...,
+        initialModel: Optional[KMeansModel] = ...,
+    ) -> KMeansModel: ...
 
-class GaussianMixtureModel(JavaModelWrapper, JavaSaveable, JavaLoader[GaussianMixtureModel]):
+class GaussianMixtureModel(
+    JavaModelWrapper, JavaSaveable, JavaLoader[GaussianMixtureModel]
+):
     @property
     def weights(self) -> ndarray: ...
     @property
@@ -79,9 +98,19 @@ class GaussianMixtureModel(JavaModelWrapper, JavaSaveable, JavaLoader[GaussianMi
 
 class GaussianMixture:
     @classmethod
-    def train(cls, rdd: RDD[VectorLike], k: int, convergenceTol: float = ..., maxIterations: int = ..., seed: Optional[int] = ..., initialModel: Optional[GaussianMixtureModel] = ...) -> GaussianMixtureModel: ...
+    def train(
+        cls,
+        rdd: RDD[VectorLike],
+        k: int,
+        convergenceTol: float = ...,
+        maxIterations: int = ...,
+        seed: Optional[int] = ...,
+        initialModel: Optional[GaussianMixtureModel] = ...,
+    ) -> GaussianMixtureModel: ...
 
-class PowerIterationClusteringModel(JavaModelWrapper, JavaSaveable, JavaLoader[PowerIterationClusteringModel]):
+class PowerIterationClusteringModel(
+    JavaModelWrapper, JavaSaveable, JavaLoader[PowerIterationClusteringModel]
+):
     @property
     def k(self) -> int: ...
     def assignments(self) -> RDD[PowerIterationClustering.Assignment]: ...
@@ -90,35 +119,63 @@ class PowerIterationClusteringModel(JavaModelWrapper, JavaSaveable, JavaLoader[P
 
 class PowerIterationClustering:
     @classmethod
-    def train(cls, rdd: RDD[Tuple[int, int, float]], k: int, maxIterations: int = ..., initMode: str = ...) -> PowerIterationClusteringModel: ...
-    class Assignment(NamedTuple('Assignment', [('id', int), ('cluster', int)])): ...
+    def train(
+        cls,
+        rdd: RDD[Tuple[int, int, float]],
+        k: int,
+        maxIterations: int = ...,
+        initMode: str = ...,
+    ) -> PowerIterationClusteringModel: ...
+    class Assignment(NamedTuple("Assignment", [("id", int), ("cluster", int)])): ...
 
 class StreamingKMeansModel(KMeansModel):
     def __init__(self, clusterCenters, clusterWeights) -> None: ...
     @property
     def clusterWeights(self) -> List[float64]: ...
     centers: ndarray
-    def update(self, data: RDD[VectorLike], decayFactor: float, timeUnit: str) -> StreamingKMeansModel: ...
+    def update(
+        self, data: RDD[VectorLike], decayFactor: float, timeUnit: str
+    ) -> StreamingKMeansModel: ...
 
 class StreamingKMeans:
-    def __init__(self, k: int = ..., decayFactor: float = ..., timeUnit: str = ...) -> None: ...
+    def __init__(
+        self, k: int = ..., decayFactor: float = ..., timeUnit: str = ...
+    ) -> None: ...
     def latestModel(self) -> StreamingKMeansModel: ...
     def setK(self, k: int) -> StreamingKMeans: ...
     def setDecayFactor(self, decayFactor: float) -> StreamingKMeans: ...
     def setHalfLife(self, halfLife: float, timeUnit: str) -> StreamingKMeans: ...
-    def setInitialCenters(self, centers: List[VectorLike], weights: List[float]) -> StreamingKMeans: ...
-    def setRandomCenters(self, dim: int, weight: float, seed: int) -> StreamingKMeans: ...
+    def setInitialCenters(
+        self, centers: List[VectorLike], weights: List[float]
+    ) -> StreamingKMeans: ...
+    def setRandomCenters(
+        self, dim: int, weight: float, seed: int
+    ) -> StreamingKMeans: ...
     def trainOn(self, dstream: DStream[VectorLike]) -> None: ...
     def predictOn(self, dstream: DStream[VectorLike]) -> DStream[int]: ...
-    def predictOnValues(self, dstream: DStream[Tuple[T, VectorLike]]) -> DStream[Tuple[T, int]]: ...
+    def predictOnValues(
+        self, dstream: DStream[Tuple[T, VectorLike]]
+    ) -> DStream[Tuple[T, int]]: ...
 
 class LDAModel(JavaModelWrapper, JavaSaveable, Loader[LDAModel]):
     def topicsMatrix(self) -> ndarray: ...
     def vocabSize(self) -> int: ...
-    def describeTopics(self, maxTermsPerTopic: Optional[int] = ...) -> List[Tuple[List[int], List[float]]]: ...
+    def describeTopics(
+        self, maxTermsPerTopic: Optional[int] = ...
+    ) -> List[Tuple[List[int], List[float]]]: ...
     @classmethod
     def load(cls, sc: SparkContext, path: str) -> LDAModel: ...
 
 class LDA:
     @classmethod
-    def train(cls, rdd: RDD[Tuple[int, VectorLike]], k: int = ..., maxIterations: int = ..., docConcentration: float = ..., topicConcentration: float = ..., seed: Optional[int] = ..., checkpointInterval: int = ..., optimizer: str = ...) -> LDAModel: ...
+    def train(
+        cls,
+        rdd: RDD[Tuple[int, VectorLike]],
+        k: int = ...,
+        maxIterations: int = ...,
+        docConcentration: float = ...,
+        topicConcentration: float = ...,
+        seed: Optional[int] = ...,
+        checkpointInterval: int = ...,
+        optimizer: str = ...,
+    ) -> LDAModel: ...

@@ -49,12 +49,85 @@ class DataStreamReader(OptionUtils):
     def schema(self, schema: Union[StructType, str]) -> DataStreamReader: ...
     def option(self, key: str, value: ReadWriterOptionType) -> DataStreamReader: ...
     def options(self, **options: ReadWriterOptionType) -> DataStreamReader: ...
-    def load(self, path: Optional[str] = ..., format: Optional[str] = ..., schema: Optional[StructType] = ..., **options: ReadWriterOptionType) -> DataFrame: ...
-    def json(self, path: str, schema: Optional[str] = ..., primitivesAsString: Optional[Union[bool, str]] = ..., prefersDecimal: Optional[Union[bool, str]] = ..., allowComments: Optional[Union[bool, str]] = ..., allowUnquotedFieldNames: Optional[Union[bool, str]] = ..., allowSingleQuotes: Optional[Union[bool, str]] = ..., allowNumericLeadingZero: Optional[Union[bool, str]] = ..., allowBackslashEscapingAnyCharacter: Optional[Union[bool, str]] = ..., mode: Optional[str] = ..., columnNameOfCorruptRecord: Optional[str] = ..., dateFormat: Optional[str] = ..., timestampFormat: Optional[str] = ..., multiLine: Optional[Union[bool, str]] = ..., allowUnquotedControlChars: Optional[Union[bool, str]] = ..., lineSep: Optional[str] = ..., locale: Optional[str] = ..., dropFieldIfAllNull: Optional[Union[bool, str]] = ..., encoding: Optional[str] = ..., recursiveFileLookup: Optional[bool] = ...) -> DataFrame: ...
-    def orc(self, path: str, mergeSchema: Optional[bool] = ..., recursiveFileLookup: Optional[bool] = ...) -> DataFrame: ...
-    def parquet(self, path: str, mergeSchema: Optional[bool] = ..., recursiveFileLookup: Optional[bool] = ...) -> DataFrame: ...
-    def text(self, path: str,  wholetext: bool = ..., lineSep: Optional[str] = ..., recursiveFileLookup: Optional[bool] = ...) -> DataFrame: ...
-    def csv(self, path: str, schema: Optional[StructType] = ..., sep: Optional[str] = ..., encoding: Optional[str] = ..., quote: Optional[str] = ..., escape: Optional[str] = ..., comment: Optional[str] = ..., header: Optional[Union[bool, str]] = ..., inferSchema: Optional[Union[bool, str]] = ..., ignoreLeadingWhiteSpace: Optional[Union[bool, str]] = ..., ignoreTrailingWhiteSpace: Optional[Union[bool, str]] = ..., nullValue: Optional[str] = ..., nanValue: Optional[str] = ..., positiveInf: Optional[str] = ..., negativeInf: Optional[str] = ..., dateFormat: Optional[str] = ..., timestampFormat: Optional[str] = ..., maxColumns: Optional[Union[int, str]] = ..., maxCharsPerColumn: Optional[Union[int, str]] = ..., mode: Optional[str] = ..., columnNameOfCorruptRecord: Optional[str] = ..., multiLine: Optional[Union[bool, str]] = ..., charToEscapeQuoteEscaping: Optional[Union[bool, str]] = ..., enforceSchema: Optional[Union[bool, str]] = ..., emptyValue: Optional[str] = ..., locale: Optional[str] = ..., lineSep: Optional[str] = ...) -> DataFrame: ...
+    def load(
+        self,
+        path: Optional[str] = ...,
+        format: Optional[str] = ...,
+        schema: Optional[StructType] = ...,
+        **options: ReadWriterOptionType
+    ) -> DataFrame: ...
+    def json(
+        self,
+        path: str,
+        schema: Optional[str] = ...,
+        primitivesAsString: Optional[Union[bool, str]] = ...,
+        prefersDecimal: Optional[Union[bool, str]] = ...,
+        allowComments: Optional[Union[bool, str]] = ...,
+        allowUnquotedFieldNames: Optional[Union[bool, str]] = ...,
+        allowSingleQuotes: Optional[Union[bool, str]] = ...,
+        allowNumericLeadingZero: Optional[Union[bool, str]] = ...,
+        allowBackslashEscapingAnyCharacter: Optional[Union[bool, str]] = ...,
+        mode: Optional[str] = ...,
+        columnNameOfCorruptRecord: Optional[str] = ...,
+        dateFormat: Optional[str] = ...,
+        timestampFormat: Optional[str] = ...,
+        multiLine: Optional[Union[bool, str]] = ...,
+        allowUnquotedControlChars: Optional[Union[bool, str]] = ...,
+        lineSep: Optional[str] = ...,
+        locale: Optional[str] = ...,
+        dropFieldIfAllNull: Optional[Union[bool, str]] = ...,
+        encoding: Optional[str] = ...,
+        recursiveFileLookup: Optional[bool] = ...,
+    ) -> DataFrame: ...
+    def orc(
+        self,
+        path: str,
+        mergeSchema: Optional[bool] = ...,
+        recursiveFileLookup: Optional[bool] = ...,
+    ) -> DataFrame: ...
+    def parquet(
+        self,
+        path: str,
+        mergeSchema: Optional[bool] = ...,
+        recursiveFileLookup: Optional[bool] = ...,
+    ) -> DataFrame: ...
+    def text(
+        self,
+        path: str,
+        wholetext: bool = ...,
+        lineSep: Optional[str] = ...,
+        recursiveFileLookup: Optional[bool] = ...,
+    ) -> DataFrame: ...
+    def csv(
+        self,
+        path: str,
+        schema: Optional[StructType] = ...,
+        sep: Optional[str] = ...,
+        encoding: Optional[str] = ...,
+        quote: Optional[str] = ...,
+        escape: Optional[str] = ...,
+        comment: Optional[str] = ...,
+        header: Optional[Union[bool, str]] = ...,
+        inferSchema: Optional[Union[bool, str]] = ...,
+        ignoreLeadingWhiteSpace: Optional[Union[bool, str]] = ...,
+        ignoreTrailingWhiteSpace: Optional[Union[bool, str]] = ...,
+        nullValue: Optional[str] = ...,
+        nanValue: Optional[str] = ...,
+        positiveInf: Optional[str] = ...,
+        negativeInf: Optional[str] = ...,
+        dateFormat: Optional[str] = ...,
+        timestampFormat: Optional[str] = ...,
+        maxColumns: Optional[Union[int, str]] = ...,
+        maxCharsPerColumn: Optional[Union[int, str]] = ...,
+        mode: Optional[str] = ...,
+        columnNameOfCorruptRecord: Optional[str] = ...,
+        multiLine: Optional[Union[bool, str]] = ...,
+        charToEscapeQuoteEscaping: Optional[Union[bool, str]] = ...,
+        enforceSchema: Optional[Union[bool, str]] = ...,
+        emptyValue: Optional[str] = ...,
+        locale: Optional[str] = ...,
+        lineSep: Optional[str] = ...,
+    ) -> DataFrame: ...
 
 class DataStreamWriter:
     def __init__(self, df: DataFrame) -> None: ...
@@ -73,9 +146,19 @@ class DataStreamWriter:
     def trigger(self, once: bool) -> DataStreamWriter: ...
     @overload
     def trigger(self, continuous: bool) -> DataStreamWriter: ...
-    def start(self, path: Optional[str] = ..., format: Optional[str] = ..., outputMode: Optional[str] = ..., partitionBy: Optional[Union[str, List[str]]] = ..., queryName: Optional[str] = ..., **options: ReadWriterOptionType) -> StreamingQuery: ...
+    def start(
+        self,
+        path: Optional[str] = ...,
+        format: Optional[str] = ...,
+        outputMode: Optional[str] = ...,
+        partitionBy: Optional[Union[str, List[str]]] = ...,
+        queryName: Optional[str] = ...,
+        **options: ReadWriterOptionType
+    ) -> StreamingQuery: ...
     @overload
     def foreach(self, f: Callable[[Row], None]) -> DataStreamWriter: ...
     @overload
     def foreach(self, f: SupportsProcess) -> DataStreamWriter: ...
-    def foreachBatch(self, func: Callable[[DataFrame, int], None]) -> DataStreamWriter: ...
+    def foreachBatch(
+        self, func: Callable[[DataFrame, int], None]
+    ) -> DataStreamWriter: ...

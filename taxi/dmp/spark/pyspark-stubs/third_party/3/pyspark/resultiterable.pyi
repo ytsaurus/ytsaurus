@@ -4,7 +4,7 @@
 from pyspark._typing import SizedIterable
 from typing import Generic, Iterable, Iterator, TypeVar
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 class ResultIterable(SizedIterable[T]):
     data: SizedIterable[T]

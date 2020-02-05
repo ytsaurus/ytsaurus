@@ -4,7 +4,13 @@ from pyspark.ml._typing import P, T
 from pyspark.ml.linalg import Vector
 from pyspark.ml.param.shared import *
 from pyspark.ml.util import *
-from pyspark.ml.wrapper import JavaEstimator as JavaEstimator, JavaModel as JavaModel, JavaParams as JavaParams, JavaPredictionModel as JavaPredictionModel, JavaPredictor as JavaPredictor
+from pyspark.ml.wrapper import (
+    JavaEstimator as JavaEstimator,
+    JavaModel as JavaModel,
+    JavaParams as JavaParams,
+    JavaPredictionModel as JavaPredictionModel,
+    JavaPredictor as JavaPredictor,
+)
 
 class _DecisionTreeModel(JavaPredictionModel[T]):
     @property
@@ -61,7 +67,9 @@ class _RandomForestParams(_TreeEnsembleParams):
     def getNumTrees(self) -> int: ...
     def getBootstrap(self) -> bool: ...
 
-class _GBTParams(_TreeEnsembleParams, HasMaxIter, HasStepSize, HasValidationIndicatorCol):
+class _GBTParams(
+    _TreeEnsembleParams, HasMaxIter, HasStepSize, HasValidationIndicatorCol
+):
     stepSize: Param[float]
     validationTol: Param[float]
     def getValidationTol(self) -> float: ...

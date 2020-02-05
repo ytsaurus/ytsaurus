@@ -31,9 +31,36 @@ class _CrossValidatorParams(_ValidatorParams):
     numFolds: Param[int]
     def getNumFolds(self) -> int: ...
 
-class CrossValidator(Estimator[CrossValidatorModel], _CrossValidatorParams, HasParallelism, HasCollectSubModels, MLReadable[CrossValidator], MLWritable):
-    def __init__(self, *, estimator: Optional[Estimator] = ..., estimatorParamMaps: Optional[List[ParamMap]] = ..., evaluator: Optional[Evaluator] = ..., numFolds: int = ..., seed: Optional[int] = ..., parallelism: int = ..., collectSubModels: bool = ...) -> None: ...
-    def setParams(self, *, estimator: Optional[Estimator] = ..., estimatorParamMaps: Optional[List[ParamMap]] = ..., evaluator: Optional[Evaluator] = ..., numFolds: int = ..., seed: Optional[int] = ..., parallelism: int = ..., collectSubModels: bool = ...) -> CrossValidator: ...
+class CrossValidator(
+    Estimator[CrossValidatorModel],
+    _CrossValidatorParams,
+    HasParallelism,
+    HasCollectSubModels,
+    MLReadable[CrossValidator],
+    MLWritable,
+):
+    def __init__(
+        self,
+        *,
+        estimator: Optional[Estimator] = ...,
+        estimatorParamMaps: Optional[List[ParamMap]] = ...,
+        evaluator: Optional[Evaluator] = ...,
+        numFolds: int = ...,
+        seed: Optional[int] = ...,
+        parallelism: int = ...,
+        collectSubModels: bool = ...
+    ) -> None: ...
+    def setParams(
+        self,
+        *,
+        estimator: Optional[Estimator] = ...,
+        estimatorParamMaps: Optional[List[ParamMap]] = ...,
+        evaluator: Optional[Evaluator] = ...,
+        numFolds: int = ...,
+        seed: Optional[int] = ...,
+        parallelism: int = ...,
+        collectSubModels: bool = ...
+    ) -> CrossValidator: ...
     def setEstimator(self, value: Estimator) -> CrossValidator: ...
     def setEstimatorParamMaps(self, value: List[ParamMap]) -> CrossValidator: ...
     def setEvaluator(self, value: Evaluator) -> CrossValidator: ...
@@ -46,11 +73,18 @@ class CrossValidator(Estimator[CrossValidatorModel], _CrossValidatorParams, HasP
     @classmethod
     def read(cls: Type[CrossValidator]) -> MLReader: ...
 
-class CrossValidatorModel(Model, _CrossValidatorParams, MLReadable[CrossValidatorModel], MLWritable):
+class CrossValidatorModel(
+    Model, _CrossValidatorParams, MLReadable[CrossValidatorModel], MLWritable
+):
     bestModel: Model
     avgMetrics: List[float]
     subModels: List[List[Model]]
-    def __init__(self, bestModel: Model, avgMetrics: List[float] = ...,  subModels: Optional[List[List[Model]]] = ...) -> None: ...
+    def __init__(
+        self,
+        bestModel: Model,
+        avgMetrics: List[float] = ...,
+        subModels: Optional[List[List[Model]]] = ...,
+    ) -> None: ...
     def copy(self, extra: Optional[ParamMap] = ...) -> CrossValidatorModel: ...
     def write(self) -> MLWriter: ...
     @classmethod
@@ -60,9 +94,36 @@ class _TrainValidationSplitParams(_ValidatorParams):
     trainRatio: Param[float]
     def getTrainRatio(self) -> float: ...
 
-class TrainValidationSplit(Estimator[TrainValidationSplitModel], _TrainValidationSplitParams, HasParallelism, HasCollectSubModels, MLReadable[TrainValidationSplit], MLWritable):
-    def __init__(self, *, estimator: Optional[Estimator] = ..., estimatorParamMaps: Optional[List[ParamMap]] = ..., evaluator: Optional[Evaluator] = ..., trainRatio: float = ..., parallelism: int = ..., collectSubModels: bool = ..., seed: Optional[int] = ...) -> None: ...
-    def setParams(self, *, estimator: Optional[Estimator] = ..., estimatorParamMaps: Optional[List[ParamMap]] = ..., evaluator: Optional[Evaluator] = ..., trainRatio: float = ..., parallelism: int = ..., collectSubModels: bool = ..., seed: Optional[int] = ...) -> TrainValidationSplit: ...
+class TrainValidationSplit(
+    Estimator[TrainValidationSplitModel],
+    _TrainValidationSplitParams,
+    HasParallelism,
+    HasCollectSubModels,
+    MLReadable[TrainValidationSplit],
+    MLWritable,
+):
+    def __init__(
+        self,
+        *,
+        estimator: Optional[Estimator] = ...,
+        estimatorParamMaps: Optional[List[ParamMap]] = ...,
+        evaluator: Optional[Evaluator] = ...,
+        trainRatio: float = ...,
+        parallelism: int = ...,
+        collectSubModels: bool = ...,
+        seed: Optional[int] = ...
+    ) -> None: ...
+    def setParams(
+        self,
+        *,
+        estimator: Optional[Estimator] = ...,
+        estimatorParamMaps: Optional[List[ParamMap]] = ...,
+        evaluator: Optional[Evaluator] = ...,
+        trainRatio: float = ...,
+        parallelism: int = ...,
+        collectSubModels: bool = ...,
+        seed: Optional[int] = ...
+    ) -> TrainValidationSplit: ...
     def setEstimator(self, value: Estimator) -> TrainValidationSplit: ...
     def setEstimatorParamMaps(self, value: List[ParamMap]) -> TrainValidationSplit: ...
     def setEvaluator(self, value: Evaluator) -> TrainValidationSplit: ...
@@ -75,13 +136,25 @@ class TrainValidationSplit(Estimator[TrainValidationSplitModel], _TrainValidatio
     @classmethod
     def read(cls: Type[TrainValidationSplit]) -> MLReader: ...
 
-class TrainValidationSplitModel(Model, _TrainValidationSplitParams, MLReadable[TrainValidationSplitModel], MLWritable):
+class TrainValidationSplitModel(
+    Model,
+    _TrainValidationSplitParams,
+    MLReadable[TrainValidationSplitModel],
+    MLWritable,
+):
     bestModel: Model
     validationMetrics: List[float]
     subModels: List[Model]
-    def __init__(self, bestModel: Model, validationMetrics: List[float] = ..., subModels: Optional[List[Model]] = ...) -> None: ...
+    def __init__(
+        self,
+        bestModel: Model,
+        validationMetrics: List[float] = ...,
+        subModels: Optional[List[Model]] = ...,
+    ) -> None: ...
     def setEstimator(self, value: Estimator) -> TrainValidationSplitModel: ...
-    def setEstimatorParamMaps(self, value: List[ParamMap]) -> TrainValidationSplitModel: ...
+    def setEstimatorParamMaps(
+        self, value: List[ParamMap]
+    ) -> TrainValidationSplitModel: ...
     def setEvaluator(self, value: Evaluator) -> TrainValidationSplitModel: ...
     def copy(self, extra: Optional[ParamMap] = ...) -> TrainValidationSplitModel: ...
     def write(self) -> MLWriter: ...

@@ -17,11 +17,18 @@ basestring: Type[str]
 
 class MLUtils:
     @staticmethod
-    def loadLibSVMFile(sc: SparkContext, path: str, numFeatures: int = ..., minPartitions: Optional[int] = ...) -> RDD[LabeledPoint]: ...
+    def loadLibSVMFile(
+        sc: SparkContext,
+        path: str,
+        numFeatures: int = ...,
+        minPartitions: Optional[int] = ...,
+    ) -> RDD[LabeledPoint]: ...
     @staticmethod
     def saveAsLibSVMFile(data: RDD[LabeledPoint], dir: str) -> None: ...
     @staticmethod
-    def loadLabeledPoints(sc: SparkContext, path: str, minPartitions: Optional[int] = ...) -> RDD[LabeledPoint]: ...
+    def loadLabeledPoints(
+        sc: SparkContext, path: str, minPartitions: Optional[int] = ...
+    ) -> RDD[LabeledPoint]: ...
     @staticmethod
     def appendBias(data: Vector) -> Vector: ...
     @staticmethod
@@ -51,6 +58,21 @@ class JavaLoader(Loader[T]):
 
 class LinearDataGenerator:
     @staticmethod
-    def generateLinearInput(intercept: float, weights: VectorLike, xMean: VectorLike, xVariance: VectorLike, nPoints: int, seed: int, eps: float) -> List[LabeledPoint]: ...
+    def generateLinearInput(
+        intercept: float,
+        weights: VectorLike,
+        xMean: VectorLike,
+        xVariance: VectorLike,
+        nPoints: int,
+        seed: int,
+        eps: float,
+    ) -> List[LabeledPoint]: ...
     @staticmethod
-    def generateLinearRDD(sc: SparkContext, nexamples: int, nfeatures: int, eps: float, nParts: int = ..., intercept: float = ...) -> RDD[LabeledPoint]: ...
+    def generateLinearRDD(
+        sc: SparkContext,
+        nexamples: int,
+        nfeatures: int,
+        eps: float,
+        nParts: int = ...,
+        intercept: float = ...,
+    ) -> RDD[LabeledPoint]: ...

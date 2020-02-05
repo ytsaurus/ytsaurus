@@ -1,7 +1,7 @@
 from collections import namedtuple
 from typing import Any
 
-CallSite = namedtuple('CallSite', 'function file linenum')
+CallSite = namedtuple("CallSite", "function file linenum")
 
 def first_spark_call(): ...
 

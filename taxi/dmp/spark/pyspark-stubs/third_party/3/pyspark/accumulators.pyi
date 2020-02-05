@@ -16,8 +16,15 @@ from typing import Any
 class Accumulator(Generic[T]):
     aid: int
     accum_param: AccumulatorParam[T]
-    def __init__(self, aid: int, value: T, accum_param: AccumulatorParam[T]) -> None: ...
-    def __reduce__(self) -> Tuple[Callable[[int, int, AccumulatorParam[T]], Accumulator[T]], Tuple[int, int, AccumulatorParam[T]]]: ...
+    def __init__(
+        self, aid: int, value: T, accum_param: AccumulatorParam[T]
+    ) -> None: ...
+    def __reduce__(
+        self,
+    ) -> Tuple[
+        Callable[[int, int, AccumulatorParam[T]], Accumulator[T]],
+        Tuple[int, int, AccumulatorParam[T]],
+    ]: ...
     @property
     def value(self) -> T: ...
     @value.setter
@@ -40,6 +47,11 @@ class _UpdateRequestHandler(SocketServer.StreamRequestHandler):
 
 class AccumulatorServer(SocketServer.TCPServer):
     auth_token: str
-    def __init__(self, server_address: Tuple[str, int], RequestHandlerClass: Type[socketserver.BaseRequestHandler], auth_token: str) -> None: ...
+    def __init__(
+        self,
+        server_address: Tuple[str, int],
+        RequestHandlerClass: Type[socketserver.BaseRequestHandler],
+        auth_token: str,
+    ) -> None: ...
     server_shutdown: bool
     def shutdown(self) -> None: ...

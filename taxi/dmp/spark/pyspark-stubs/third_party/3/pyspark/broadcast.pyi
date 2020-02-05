@@ -4,10 +4,17 @@
 import threading
 from typing import Any, Generic, Optional, TypeVar
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 class Broadcast(Generic[T]):
-    def __init__(self, sc: Optional[Any] = ..., value: Optional[T] = ..., pickle_registry: Optional[Any] = ..., path: Optional[Any] = ..., sock_file: Optional[Any] = ...) -> None: ...
+    def __init__(
+        self,
+        sc: Optional[Any] = ...,
+        value: Optional[T] = ...,
+        pickle_registry: Optional[Any] = ...,
+        path: Optional[Any] = ...,
+        sock_file: Optional[Any] = ...,
+    ) -> None: ...
     def dump(self, value: Any, f: Any) -> None: ...
     def load_from_path(self, path: Any): ...
     def load(self, file: Any): ...
