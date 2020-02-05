@@ -8,15 +8,21 @@ from yt_env_setup import YTEnvSetup
 
 from distutils.spawn import find_executable
 
-TEST_DIR = os.path.join(os.path.dirname(__file__))
+if arcadia_interop.yatest_common is None:
+    TEST_DIR = os.path.join(os.path.dirname(__file__))
 
-YT_LOG_TAILER_BINARY = os.environ.get("YT_LOG_TAILER_BINARY")
-if YT_LOG_TAILER_BINARY is None:
-    YT_LOG_TAILER_BINARY = find_executable("ytserver-log-tailer")
+    YT_LOG_TAILER_BINARY = os.environ.get("YT_LOG_TAILER_BINARY")
+    if YT_LOG_TAILER_BINARY is None:
+        YT_LOG_TAILER_BINARY = find_executable("ytserver-log-tailer")
 
-YT_DUMMY_LOGGER_BINARY = os.environ.get("YT_DUMMY_LOGGER_BINARY")
-if YT_DUMMY_LOGGER_BINARY is None:
-    YT_DUMMY_LOGGER_BINARY = find_executable("dummy_logger")
+    YT_DUMMY_LOGGER_BINARY = os.environ.get("YT_DUMMY_LOGGER_BINARY")
+    if YT_DUMMY_LOGGER_BINARY is None:
+        YT_DUMMY_LOGGER_BINARY = find_executable("dummy_logger")
+else:
+    TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
+    YT_LOG_TAILER_BINARY = arcadia_interop.yatest_common.binary_path("ytserver-log-tailer")
+    YT_DUMMY_LOGGER_BINARY  =arcadia_interop.yatest_common.binary_path("dummy_logger")
+
 #################################################################
 
 
