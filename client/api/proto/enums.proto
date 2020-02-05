@@ -114,22 +114,22 @@ enum EPersistentVolumeKind
 
 enum EPersistentVolumeState
 {
-    DVS_NONE = 0
+    PVS_NONE = 0
     [(NYT.NYson.NProto.enum_value_name) = "none"];
 
-    DVS_CREATING = 100
+    PVS_CREATING = 100
     [(NYT.NYson.NProto.enum_value_name) = "creating"];
 
-    DVS_ACTIVE = 200
+    PVS_ACTIVE = 200
     [(NYT.NYson.NProto.enum_value_name) = "active"];
 
-    DVS_UPDATING = 300
+    PVS_UPDATING = 300
     [(NYT.NYson.NProto.enum_value_name) = "updating"];
 
-    DVS_REMOVING = 400
+    PVS_REMOVING = 400
     [(NYT.NYson.NProto.enum_value_name) = "removing"];
 
-    DVS_FAILED = 500
+    PVS_FAILED = 500
     [(NYT.NYson.NProto.enum_value_name) = "failed"];
 }
 
