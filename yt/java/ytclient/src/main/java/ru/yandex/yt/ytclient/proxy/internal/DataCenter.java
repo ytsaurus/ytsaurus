@@ -83,8 +83,9 @@ public final class DataCenter {
         this.activeProxies = new HashSet<>();
         for (int i = 0; i < numberOfProxiesToPing && i < backends.length; i++) {
             final BalancingDestination client = inactiveProxies.removeFirst();
-            logger.info("proxy `{}` registered as active", client);
+            logger.info("proxy `{}` registered as active/checking", client);
             activeProxies.add(client);
+            checkingProxies.add(client);
         }
 
         this.weight = weight;
