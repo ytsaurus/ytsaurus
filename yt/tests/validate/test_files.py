@@ -10,7 +10,7 @@ def is_test_file(filename):
 def list_yamake_test(ya_make):
     tests = set()
     for line in open(yatest.common.source_path(ya_make)):
-        line = line.strip()
+        line = line.strip().split("/")[-1]
         if is_test_file(line):
             tests.add(line)
     return tests
