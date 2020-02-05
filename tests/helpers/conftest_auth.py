@@ -6,21 +6,14 @@ from yp.tests.blackbox_recipe.lib import fake_blackbox, fake_tvm
 AUTH_YP_MASTER_CONFIG = {
     "authentication_manager": {
         "require_authentication": True,
-        "tvm_service": {
-            "host": "localhost",
-            "port": None,
-            "token": None,
-            "src": "yp",
-        },
+        "tvm_service": {"host": "localhost", "port": None, "token": None, "src": "yp",},
         "blackbox_service": {
             "host": "localhost",
             "port": None,
             "secure": False,
             "use_tvm": True,
         },
-        "blackbox_token_authenticator": {
-            "scope": "yp:api",
-        },
+        "blackbox_token_authenticator": {"scope": "yp:api",},
     },
 }
 
@@ -35,18 +28,9 @@ BLACKBOX_OAUTH_REQUEST_TEMPLATE = (
 )
 
 BLACKBOX_OAUTH_RESPONSE = {
-    "status": {
-        "value": "VALID",
-        "id": 0,
-    },
-    "attributes": {
-        "1008": "root",
-    },
-    "oauth": {
-        "client_id": "deadbeef",
-        "client_name": "Mr. R00t",
-        "scope": "yp:api",
-    },
+    "status": {"value": "VALID", "id": 0,},
+    "attributes": {"1008": "root",},
+    "oauth": {"client_id": "deadbeef", "client_name": "Mr. R00t", "scope": "yp:api",},
     "error": "OK",
 }
 
@@ -61,21 +45,27 @@ def _make_auth_yp_master_config():
 
 
 @pytest.fixture(scope="class")
-def test_environment_auth(request):
+def set_bb_response(request):
+    def _set(bb_request, bb_response):
+        fake_blackbox.set_response(bb_request, bb_response)
+        request.addfinalizer(lambda: fake_blackbox.delete_response(bb_request))
+
+    return _set
+
+
+@pytest.fixture(scope="class")
+def test_environment_auth(request, set_bb_response):
     assert fake_tvm.initialized()
     assert fake_blackbox.initialized()
 
     req = BLACKBOX_OAUTH_REQUEST_TEMPLATE.format(TEST_OAUTH_TOKEN)
-    fake_blackbox.set_response(req, BLACKBOX_OAUTH_RESPONSE)
-    request.addfinalizer(lambda: fake_blackbox.delete_response(req))
+    set_bb_response(req, BLACKBOX_OAUTH_RESPONSE)
 
     yp_master_config = update(
-        _make_auth_yp_master_config(),
-        getattr(request.cls, "YP_MASTER_CONFIG", None)
+        _make_auth_yp_master_config(), getattr(request.cls, "YP_MASTER_CONFIG", None)
     )
     yp_client_config = update(
-        AUTH_YP_CLIENT_CONFIG,
-        getattr(request.cls, "YP_CLIENT_CONFIG", None)
+        AUTH_YP_CLIENT_CONFIG, getattr(request.cls, "YP_CLIENT_CONFIG", None)
     )
     environment = YpTestEnvironment(
         yp_master_config=yp_master_config,
@@ -83,8 +73,12 @@ def test_environment_auth(request):
         enable_ssl=getattr(request.cls, "ENABLE_SSL", False),
         local_yt_options=getattr(request.cls, "LOCAL_YT_OPTIONS", None),
         start=getattr(request.cls, "START", True),
-        start_yp_heavy_scheduler=getattr(request.cls, "START_YP_HEAVY_SCHEDULER", False),
-        yp_heavy_scheduler_config=getattr(request.cls, "YP_HEAVY_SCHEDULER_CONFIG", None),
+        start_yp_heavy_scheduler=getattr(
+            request.cls, "START_YP_HEAVY_SCHEDULER", False
+        ),
+        yp_heavy_scheduler_config=getattr(
+            request.cls, "YP_HEAVY_SCHEDULER_CONFIG", None
+        ),
     )
     request.addfinalizer(lambda: environment.cleanup())
     return environment
