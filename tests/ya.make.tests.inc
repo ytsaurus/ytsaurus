@@ -32,6 +32,7 @@ SET(YP_TEST_SRCS
     test_heavy_scheduler.py
     test_history_api.py
     test_http_api.py
+    test_horizontal_pod_autoscaler.py
     test_ids.py
     test_internet_address.py
     test_ip4_address_pool.py

@@ -1020,6 +1020,27 @@ extern const struct TReleaseRuleToDeployTicketsTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct THorizontalPodAutoscalersTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    THorizontalPodAutoscalersTable()
+        : TDBTable("horizontal_pod_autoscalers")
+    {
+        Key = {&Fields.Meta_ReplicaSetId, &TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Meta_ReplicaSetId{"meta.replica_set_id", NTableClient::EValueType::String};
+        TDBField Spec{"spec", NTableClient::EValueType::Any};
+        TDBField Status{"status", NTableClient::EValueType::Any};
+    } Fields;
+} HorizontalPodAutoscalersTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const std::vector<const TDBTable*> Tables;
 
 ////////////////////////////////////////////////////////////////////////////////

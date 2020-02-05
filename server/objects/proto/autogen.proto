@@ -6,18 +6,19 @@ package NYP.NServer.NObjects.NProto;
 
 
 import "yp/client/api/proto/data_model.proto";
-import "yp/client/api/proto/replica_set.proto";
-import "yp/client/api/proto/multi_cluster_replica_set.proto";
-import "yp/client/api/proto/resource_cache.proto";
-import "yp/client/api/proto/dynamic_resource.proto";
-import "yp/client/api/proto/stage.proto";
-import "yp/client/api/proto/host_infra.proto";
-import "yp/client/api/proto/deploy.proto";
 import "yp/client/api/proto/deploy_patch.proto";
+import "yp/client/api/proto/deploy.proto";
 import "yp/client/api/proto/deploy_ticket.proto";
+import "yp/client/api/proto/dynamic_resource.proto";
+import "yp/client/api/proto/horizontal_pod_autoscaler.proto";
+import "yp/client/api/proto/host_infra.proto";
+import "yp/client/api/proto/multi_cluster_replica_set.proto";
 import "yp/client/api/proto/project.proto";
 import "yp/client/api/proto/release.proto";
 import "yp/client/api/proto/release_rule.proto";
+import "yp/client/api/proto/replica_set.proto";
+import "yp/client/api/proto/resource_cache.proto";
+import "yp/client/api/proto/stage.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
@@ -118,13 +119,13 @@ message TAccountSpecEtc
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReplicaSetSpecEtc
+message TDeployTicketSpecEtc
 {
-    string revision_id = 1;
-    uint32 replica_count = 2;
-    NYP.NClient.NApi.NProto.TPodTemplateSpec pod_template_spec = 3;
-    NYP.NClient.NApi.NProto.TReplicaSetSpec.TDeploymentStrategy deployment_strategy = 4;
-    NYP.NClient.NApi.NProto.TReplicaSetSpec.TConstraints constraints = 6;
+    map<string, NYP.NClient.NApi.NProto.TDeployPatchSpec> patches = 2 [(NYT.NYson.NProto.yson_map) = true];
+    string title = 3;
+    string description = 4;
+    repeated string responsibles = 5;
+    string recipe_id = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,26 +136,6 @@ message TMultiClusterReplicaSetSpecEtc
     NYP.NClient.NApi.NProto.TPodTemplateSpec pod_template_spec = 3;
     NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec.TDeploymentStrategy deployment_strategy = 4;
     repeated NYP.NClient.NApi.NProto.TMultiClusterReplicaSetSpec.TClusterReplicaSetSpecPreferences clusters = 5;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TStageSpecEtc
-{
-    uint32 revision = 1;
-    map<string, NYP.NClient.NApi.NProto.TDeployUnitSpec> deploy_units = 2 [(NYT.NYson.NProto.yson_map) = true];
-    NYP.NClient.NApi.NProto.TStageSpec.TRevisionInfo revision_info = 4;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TDeployTicketSpecEtc
-{
-    map<string, NYP.NClient.NApi.NProto.TDeployPatchSpec> patches = 2 [(NYT.NYson.NProto.yson_map) = true];
-    string title = 3;
-    string description = 4;
-    repeated string responsibles = 5;
-    string recipe_id = 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -186,6 +167,26 @@ message TReleaseRuleSpecEtc
     NYP.NClient.NApi.NProto.TAutoCommitPolicy auto_commit_policy = 4;
     string recipe_id = 5;
     NYP.NClient.NApi.NProto.TReleaseRuleSpec.ESelectorSource selector_source = 7;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReplicaSetSpecEtc
+{
+    string revision_id = 1;
+    uint32 replica_count = 2;
+    NYP.NClient.NApi.NProto.TPodTemplateSpec pod_template_spec = 3;
+    NYP.NClient.NApi.NProto.TReplicaSetSpec.TDeploymentStrategy deployment_strategy = 4;
+    NYP.NClient.NApi.NProto.TReplicaSetSpec.TConstraints constraints = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TStageSpecEtc
+{
+    uint32 revision = 1;
+    map<string, NYP.NClient.NApi.NProto.TDeployUnitSpec> deploy_units = 2 [(NYT.NYson.NProto.yson_map) = true];
+    NYP.NClient.NApi.NProto.TStageSpec.TRevisionInfo revision_info = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

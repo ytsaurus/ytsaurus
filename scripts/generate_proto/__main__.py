@@ -8,39 +8,41 @@ import yt_proto.yt.core.yson.proto.protobuf_interop_pb2 as protobuf_interop_pb2
 
 
 def get_modules():
-    import yp_proto.yp.client.api.proto.replica_set_pb2 as replica_set_pb2
-    import yp_proto.yp.client.api.proto.resource_cache_pb2 as resource_cache_pb2
-    import yp_proto.yp.client.api.proto.multi_cluster_replica_set_pb2 as multi_cluster_replica_set_pb2
-    import yp_proto.yp.client.api.proto.dynamic_resource_pb2 as dynamic_resource_pb2
-    import yp_proto.yp.client.api.proto.stage_pb2 as stage_pb2
-    import yp_proto.yp.client.api.proto.host_infra_pb2 as host_infra_pb2
-    import yp_proto.yp.client.api.proto.deploy_pb2 as deploy_pb2
     import yp_proto.yp.client.api.proto.deploy_patch_pb2 as deploy_patch_pb2
+    import yp_proto.yp.client.api.proto.deploy_pb2 as deploy_pb2
     import yp_proto.yp.client.api.proto.deploy_ticket_pb2 as deploy_ticket_pb2
     import yp_proto.yp.client.api.proto.persistent_disk_pb2 as persistent_disk_pb2
     import yp_proto.yp.client.api.proto.persistent_volume_pb2 as persistent_volume_pb2
     import yp_proto.yp.client.api.proto.persistent_volume_claim_pb2 as persistent_volume_claim_pb2
+    import yp_proto.yp.client.api.proto.dynamic_resource_pb2 as dynamic_resource_pb2
+    import yp_proto.yp.client.api.proto.horizontal_pod_autoscaler_pb2 as horizontal_pod_autoscaler_pb2
+    import yp_proto.yp.client.api.proto.host_infra_pb2 as host_infra_pb2
+    import yp_proto.yp.client.api.proto.multi_cluster_replica_set_pb2 as multi_cluster_replica_set_pb2
     import yp_proto.yp.client.api.proto.project_pb2 as project_pb2
     import yp_proto.yp.client.api.proto.release_pb2 as release_pb2
     import yp_proto.yp.client.api.proto.release_rule_pb2 as release_rule_pb2
+    import yp_proto.yp.client.api.proto.replica_set_pb2 as replica_set_pb2
+    import yp_proto.yp.client.api.proto.resource_cache_pb2 as resource_cache_pb2
+    import yp_proto.yp.client.api.proto.stage_pb2 as stage_pb2
 
     return [
         data_model_pb2,
-        replica_set_pb2,
-        multi_cluster_replica_set_pb2,
-        resource_cache_pb2,
-        dynamic_resource_pb2,
-        stage_pb2,
-        host_infra_pb2,
-        deploy_pb2,
         deploy_patch_pb2,
+        deploy_pb2,
         deploy_ticket_pb2,
         persistent_disk_pb2,
         persistent_volume_pb2,
         persistent_volume_claim_pb2,
+        dynamic_resource_pb2,
+        horizontal_pod_autoscaler_pb2,
+        host_infra_pb2,
+        multi_cluster_replica_set_pb2,
         project_pb2,
         release_pb2,
-        release_rule_pb2
+        release_rule_pb2,
+        replica_set_pb2,
+        resource_cache_pb2,
+        stage_pb2,
     ]
 
 

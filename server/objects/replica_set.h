@@ -27,6 +27,9 @@ public:
 
     virtual EObjectType GetType() const override;
 
+    using THorizontalPodAutoscalerAttribute = TChildrenAttribute<THorizontalPodAutoscaler>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(THorizontalPodAutoscalerAttribute, HorizontalPodAutoscaler);
+
     class TSpec
     {
     public:

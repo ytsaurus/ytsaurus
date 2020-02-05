@@ -15,17 +15,18 @@ logger = None
 
 # Group public-object-creators is allowed to create objects of these types.
 PUBLIC_OBJECT_TYPES = [
-    "pod_set",
-    "pod",
-    "endpoint_set",
-    "endpoint",
-    "replica_set",
-    "multi_cluster_replica_set",
-    "stage",
-    "project",
-    "release_rule",
-    "release",
     "deploy_ticket"
+    "endpoint",
+    "endpoint_set",
+    "horizontal_pod_autoscaler",
+    "multi_cluster_replica_set",
+    "pod",
+    "pod_set",
+    "project",
+    "release",
+    "release_rule",
+    "replica_set",
+    "stage",
 ]
 
 

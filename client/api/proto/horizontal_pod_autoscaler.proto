@@ -1,0 +1,124 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yp/client/api/proto/conditions.proto";
+import "yp/client/api/proto/data_model.proto";
+import "yt/core/yson/proto/protobuf_interop.proto";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option python_package = "yp_proto.yp.client.api.proto";
+option go_package = "a.yandex-team.ru/yp/go/proto/api";
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "HorizontalPodAutoscaler";
+option java_multiple_files = true;
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "HorizontalPodAutoscaler"
+    snake_case_name: "horizontal_pod_autoscaler"
+    type_value: 26
+};
+
+message THorizontalPodAutoscalerSpecMetaBase
+{
+    // Target object to scale.
+    oneof pod_deploy_primitive {
+        string replica_set_id = 1;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Autoscaler will use pod average cpu usage (currently - for last 5 min) as a metric
+message TCPUMetricSpec
+{
+    // Target interval of cpu usage.
+    // Autoscaler will skip scaling if:
+    //  current_metric ∈ [lower_bound, upper_bound]
+    // Validation: values from 0 to 1
+    // Validation: lower_bound <= upper_bound
+    float lower_bound = 1;
+    float upper_bound = 2;
+}
+
+message TReplicaSetScaleSpec
+{
+    // Lower limit for the number of replicas to which the autoscaler can scale down.
+    // Validation: zero value is accepted only if max_replicas is zero
+    uint32 min_replicas = 1;
+
+    // Upper limit for the number of replicas to which the autoscaler can scale up.
+    // Validation - it cannot be less that min_replicas.
+    uint32 max_replicas = 2;
+
+    // Metric contains the specification for which to use to calculate the desired replica count.
+    // The desired replica count is calculated as follows:
+    //   desired_replicas := ceil(current_metric / target_metric * current_replicas)
+    //   where: target_metric ∈ [metric.lower_bound, metric.upper_bound]
+    // Ergo, metric used must decrease as the pod count is increased, and vice-versa.
+    oneof metric {
+        TCPUMetricSpec cpu = 3;
+    }
+
+    // The period since last upscale, before another upscale can be performed in horizontal pod autoscaler.
+    // Metric upscale reaction time should be less than specified delay.
+    // Otherwise autoscaler would perform several consecutive upscales which may lead to quota shortage.
+    // Validation: not less that 5 min
+    // Default: 20 min (may change)
+    google.protobuf.Duration upscale_delay = 4;
+
+    // The period since last downscale, before another downscale can be performed in horizontal pod autoscaler.
+    // Metric downscale reaction time should be less than specified delay.
+    // Otherwise autoscaler would perform several consecutive downscales which may lead to service degradation.
+    // Validation: not less that 5 min
+    // Default: 40 min (may change)
+    google.protobuf.Duration downscale_delay = 5;
+}
+
+message THorizontalPodAutoscalerSpec
+{
+    oneof pod_deploy_primitive {
+        TReplicaSetScaleSpec replica_set = 1;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReplicaSetScaleStatus
+{
+    // Current number of replicas of pods managed by this autoscaler, as last seen by the autoscaler.
+    uint32 current_replicas = 1;
+
+    // The desired number of replicas of pods managed by this autoscaler, as last calculated by the autoscaler.
+    uint32 desired_replicas = 2;
+
+    // The last read state of the metric used by this autoscaler.
+    float metric_value = 3;
+
+    // The last times autoscaler scaled the number of pods.
+    // Used by the autoscaler to control how often the number of pods is changed.
+    google.protobuf.Timestamp last_upscale_time = 4;
+    google.protobuf.Timestamp last_downscale_time = 5;
+}
+
+message THorizontalPodAutoscalerStatus
+{
+    // Set of confiditons according to https://wiki.yandex-team.ru/deploy/for-deploy-developers/errorLogging/#conditions
+    // current_replicas is equal to desired_replicas and deploy_unit is ready.
+    NYP.NClient.NApi.NProto.TCondition ready = 1;
+    // Changing replicas count is in progress.
+    NYP.NClient.NApi.NProto.TCondition in_progress = 2;
+    // Some failure happened during evaluating metric or pushing new replica count.
+    NYP.NClient.NApi.NProto.TCondition failed = 3;
+
+    oneof pod_deploy_primitive {
+        TReplicaSetScaleStatus replica_set = 4;
+    }
+
+    // YP timestamp of THorizontalPodAutoscalerSpec, as last seen by the autoscaler.
+    uint64 spec_timestamp = 5;
+}

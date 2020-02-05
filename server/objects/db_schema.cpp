@@ -53,6 +53,7 @@ const TDeployTicketsTable DeployTicketsTable;
 const TStageToDeployTicketsTable StageToDeployTicketsTable;
 const TReleaseToDeployTicketsTable ReleaseToDeployTicketsTable;
 const TReleaseRuleToDeployTicketsTable ReleaseRuleToDeployTicketsTable;
+const THorizontalPodAutoscalersTable HorizontalPodAutoscalersTable;
 
 const TWatchLogSchema WatchLogSchema;
 
@@ -105,6 +106,7 @@ const std::vector<const TDBTable*> Tables = {
     &StageToDeployTicketsTable,
     &ReleaseToDeployTicketsTable,
     &ReleaseRuleToDeployTicketsTable,
+    &HorizontalPodAutoscalersTable,
 };
 
 ////////////////////////////////////////////////////////////////////////////////

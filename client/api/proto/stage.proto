@@ -6,9 +6,10 @@ import "yp/client/api/proto/conditions.proto";
 import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/deploy.proto";
 import "yp/client/api/proto/downloadable_resources.proto";
+import "yp/client/api/proto/horizontal_pod_autoscaler.proto";
 import "yp/client/api/proto/multi_cluster_replica_set.proto";
-import "yp/client/api/proto/replica_set.proto";
 import "yp/client/api/proto/pod_agent.proto";
+import "yp/client/api/proto/replica_set.proto";
 
 import "yt/core/yson/proto/protobuf_interop.proto";
 
@@ -99,7 +100,12 @@ message TDeployUnitSpec
     {
         message TPerClusterSettings
         {
-            uint32 pod_count = 1;
+            oneof pod_count_policy {
+                uint32 pod_count = 1;
+
+                // Will spawn horizontal pod autoscaler above replica set
+                NYP.NClient.NApi.NProto.TReplicaSetScaleSpec autoscale = 3;
+            }
             // If present, override replica_set_template.deployment_strategy value.
             NYP.NClient.NApi.NProto.TReplicaSetSpec.TDeploymentStrategy deployment_strategy = 2;
         }

@@ -13,18 +13,19 @@ option go_package = "a.yandex-team.ru/yp/go/proto/api";
 
 
 import "yp/client/api/proto/data_model.proto";
-import "yp/client/api/proto/replica_set.proto";
-import "yp/client/api/proto/multi_cluster_replica_set.proto";
-import "yp/client/api/proto/resource_cache.proto";
-import "yp/client/api/proto/dynamic_resource.proto";
-import "yp/client/api/proto/stage.proto";
-import "yp/client/api/proto/host_infra.proto";
-import "yp/client/api/proto/deploy.proto";
 import "yp/client/api/proto/deploy_patch.proto";
+import "yp/client/api/proto/deploy.proto";
 import "yp/client/api/proto/deploy_ticket.proto";
+import "yp/client/api/proto/dynamic_resource.proto";
+import "yp/client/api/proto/horizontal_pod_autoscaler.proto";
+import "yp/client/api/proto/host_infra.proto";
+import "yp/client/api/proto/multi_cluster_replica_set.proto";
 import "yp/client/api/proto/project.proto";
 import "yp/client/api/proto/release.proto";
 import "yp/client/api/proto/release_rule.proto";
+import "yp/client/api/proto/replica_set.proto";
+import "yp/client/api/proto/resource_cache.proto";
+import "yp/client/api/proto/stage.proto";
 import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
@@ -87,23 +88,17 @@ enum EObjectType
     OT_POD_DISRUPTION_BUDGET = 20
     [(NYT.NYson.NProto.enum_value_name) = "pod_disruption_budget"];
 
-    OT_REPLICA_SET = 13
-    [(NYT.NYson.NProto.enum_value_name) = "replica_set"];
-
-    OT_MULTI_CLUSTER_REPLICA_SET = 16
-    [(NYT.NYson.NProto.enum_value_name) = "multi_cluster_replica_set"];
-
-    OT_RESOURCE_CACHE = 15
-    [(NYT.NYson.NProto.enum_value_name) = "resource_cache"];
+    OT_DEPLOY_TICKET = 25
+    [(NYT.NYson.NProto.enum_value_name) = "deploy_ticket"];
 
     OT_DYNAMIC_RESOURCE = 17
     [(NYT.NYson.NProto.enum_value_name) = "dynamic_resource"];
 
-    OT_STAGE = 19
-    [(NYT.NYson.NProto.enum_value_name) = "stage"];
+    OT_HORIZONTAL_POD_AUTOSCALER = 26
+    [(NYT.NYson.NProto.enum_value_name) = "horizontal_pod_autoscaler"];
 
-    OT_DEPLOY_TICKET = 25
-    [(NYT.NYson.NProto.enum_value_name) = "deploy_ticket"];
+    OT_MULTI_CLUSTER_REPLICA_SET = 16
+    [(NYT.NYson.NProto.enum_value_name) = "multi_cluster_replica_set"];
 
     OT_PROJECT = 22
     [(NYT.NYson.NProto.enum_value_name) = "project"];
@@ -113,6 +108,15 @@ enum EObjectType
 
     OT_RELEASE_RULE = 23
     [(NYT.NYson.NProto.enum_value_name) = "release_rule"];
+
+    OT_REPLICA_SET = 13
+    [(NYT.NYson.NProto.enum_value_name) = "replica_set"];
+
+    OT_RESOURCE_CACHE = 15
+    [(NYT.NYson.NProto.enum_value_name) = "resource_cache"];
+
+    OT_STAGE = 19
+    [(NYT.NYson.NProto.enum_value_name) = "stage"];
 
     OT_NULL = -1
     [(NYT.NYson.NProto.enum_value_name) = "null"];
@@ -507,7 +511,7 @@ message TPodDisruptionBudget
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReplicaSetMeta
+message TDeployTicketMeta
 {
     string id = 1;
     string uuid = 12;
@@ -518,57 +522,11 @@ message TReplicaSetMeta
     repeated TAccessControlEntry acl = 11;
 }
 
-message TReplicaSet
+message TDeployTicket
 {
-    TReplicaSetMeta meta = 1;
-    TReplicaSetSpec spec = 2;
-    TReplicaSetStatus status = 3;
-    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TMultiClusterReplicaSetMeta
-{
-    string id = 1;
-    string uuid = 12;
-    string name = 13;
-    EObjectType type = 2;
-    uint64 creation_time = 3;
-    bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-}
-
-message TMultiClusterReplicaSet
-{
-    TMultiClusterReplicaSetMeta meta = 1;
-    TMultiClusterReplicaSetSpec spec = 2;
-    TMultiClusterReplicaSetStatus status = 3;
-    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
-    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TResourceCacheMeta
-{
-    string id = 1;
-    string uuid = 12;
-    string name = 13;
-    EObjectType type = 2;
-    uint64 creation_time = 3;
-    bool inherit_acl = 10;
-    repeated TAccessControlEntry acl = 11;
-    // Custom fields:
-    string pod_set_id = 5;
-}
-
-message TResourceCache
-{
-    TResourceCacheMeta meta = 1;
-    TResourceCacheSpec spec = 2;
-    TResourceCacheStatus status = 3;
+    TDeployTicketMeta meta = 1;
+    TDeployTicketSpec spec = 2;
+    TDeployTicketStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
@@ -599,7 +557,7 @@ message TDynamicResource
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TStageMeta
+message THorizontalPodAutoscalerMeta
 {
     string id = 1;
     string uuid = 12;
@@ -608,22 +566,20 @@ message TStageMeta
     uint64 creation_time = 3;
     bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
-    // Custom fields:
-    string project_id = 4;
 }
 
-message TStage
+message THorizontalPodAutoscaler
 {
-    TStageMeta meta = 1;
-    TStageSpec spec = 2;
-    TStageStatus status = 3;
+    THorizontalPodAutoscalerMeta meta = 1;
+    THorizontalPodAutoscalerSpec spec = 2;
+    THorizontalPodAutoscalerStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TDeployTicketMeta
+message TMultiClusterReplicaSetMeta
 {
     string id = 1;
     string uuid = 12;
@@ -634,11 +590,11 @@ message TDeployTicketMeta
     repeated TAccessControlEntry acl = 11;
 }
 
-message TDeployTicket
+message TMultiClusterReplicaSet
 {
-    TDeployTicketMeta meta = 1;
-    TDeployTicketSpec spec = 2;
-    TDeployTicketStatus status = 3;
+    TMultiClusterReplicaSetMeta meta = 1;
+    TMultiClusterReplicaSetSpec spec = 2;
+    TMultiClusterReplicaSetStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }
@@ -707,6 +663,76 @@ message TReleaseRule
     TReleaseRuleMeta meta = 1;
     TReleaseRuleSpec spec = 2;
     TReleaseRuleStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReplicaSetMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TReplicaSet
+{
+    TReplicaSetMeta meta = 1;
+    TReplicaSetSpec spec = 2;
+    TReplicaSetStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TResourceCacheMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string pod_set_id = 5;
+}
+
+message TResourceCache
+{
+    TResourceCacheMeta meta = 1;
+    TResourceCacheSpec spec = 2;
+    TResourceCacheStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TStageMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string project_id = 4;
+}
+
+message TStage
+{
+    TStageMeta meta = 1;
+    TStageSpec spec = 2;
+    TStageStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }

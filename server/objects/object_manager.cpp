@@ -9,6 +9,7 @@
 #include "endpoint_set_type_handler.h"
 #include "endpoint_type_handler.h"
 #include "group_type_handler.h"
+#include "horizontal_pod_autoscaler_type_handler.h"
 #include "internet_address_type_handler.h"
 #include "ip4_address_pool_type_handler.h"
 #include "multi_cluster_replica_set_type_handler.h"
@@ -21,8 +22,8 @@
 #include "pod_type_handler.h"
 #include "private.h"
 #include "project_type_handler.h"
-#include "release_type_handler.h"
 #include "release_rule_type_handler.h"
+#include "release_type_handler.h"
 #include "replica_set_type_handler.h"
 #include "resource_cache_type_handler.h"
 #include "resource_type_handler.h"
@@ -111,6 +112,7 @@ public:
         RegisterTypeHandler(CreateReleaseRuleTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateReleaseTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateDeployTicketTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreateHorizontalPodAutoscalerTypeHandler(Bootstrap_));
 
         for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
             if (auto typeHandler = FindTypeHandler(type)) {

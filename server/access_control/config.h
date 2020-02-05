@@ -41,18 +41,20 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("cluster_state_allowed_object_types", ClusterStateAllowedObjectTypes)
             .Default({
-                NObjects::EObjectType::NetworkProject,
                 NObjects::EObjectType::Account,
-                NObjects::EObjectType::EndpointSet,
-                NObjects::EObjectType::MultiClusterReplicaSet,
-                NObjects::EObjectType::ReplicaSet,
-                NObjects::EObjectType::PodSet,
-                NObjects::EObjectType::Stage,
                 NObjects::EObjectType::DynamicResource,
+                NObjects::EObjectType::EndpointSet,
+                NObjects::EObjectType::HorizontalPodAutoscaler,
                 NObjects::EObjectType::IP4AddressPool,
+                NObjects::EObjectType::MultiClusterReplicaSet,
+                NObjects::EObjectType::NetworkProject,
+                NObjects::EObjectType::PodSet,
                 NObjects::EObjectType::Project,
                 NObjects::EObjectType::ReleaseRule,
-                NObjects::EObjectType::ResourceCache});
+                NObjects::EObjectType::ReplicaSet,
+                NObjects::EObjectType::ResourceCache,
+                NObjects::EObjectType::Stage,
+            });
     }
 };
 

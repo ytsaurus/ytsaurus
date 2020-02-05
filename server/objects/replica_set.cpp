@@ -1,7 +1,8 @@
-#include "replica_set.h"
 #include "account.h"
-#include "node_segment.h"
 #include "db_schema.h"
+#include "node_segment.h"
+#include "replica_set.h"
+#include "horizontal_pod_autoscaler.h"
 
 namespace NYP::NServer::NObjects {
 
@@ -42,6 +43,7 @@ TReplicaSet::TReplicaSet(
     IObjectTypeHandler* typeHandler,
     ISession* session)
     : TObject(id, TObjectId(), typeHandler, session)
+    , HorizontalPodAutoscaler_(this)
     , Spec_(this)
     , Status_(this, &StatusSchema)
 { }
