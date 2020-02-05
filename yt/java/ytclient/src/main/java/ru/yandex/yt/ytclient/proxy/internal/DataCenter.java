@@ -114,12 +114,12 @@ public final class DataCenter {
                 if (activeProxies.size() < numberOfProxiesToPing) {
                     activeProxies.add(destination);
                     checkingProxies.add(destination);
-                    logger.info("added active proxy `{}` ({} out of {})", proxy,
+                    logger.info("added active/checking proxy `{}` ({} out of {})", proxy,
                             activeProxies.size(), numberOfProxiesToPing);
                 } else if (checkingProxies.size() < maxNumberOfProxiesToPing) {
                     checkingProxies.add(destination);
                     logger.info("added checking proxy `{}` ({} out of {})", proxy,
-                            activeProxies.size(), maxNumberOfProxiesToPing);
+                            checkingProxies.size(), maxNumberOfProxiesToPing);
                 } else {
                     inactiveProxies.addFirst(destination);
                     logger.info("added inactive proxy `{}`", proxy);
