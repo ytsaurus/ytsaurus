@@ -231,6 +231,9 @@ def add_start_subparser(subparsers):
     parser.add_argument("--cell-tag", type=int, default=0,
                         help="cluster cell tag")
 
+    parser.add_argument("--ytserver-all-path",
+                        help="Use specified ytserver_all binary instead of per-service binaries in PATH")
+
     # Compatibility options
     parser.add_argument("--masters-count", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--nodes-count", type=int, help=argparse.SUPPRESS)

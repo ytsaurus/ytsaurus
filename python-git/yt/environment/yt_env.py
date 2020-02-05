@@ -7,7 +7,10 @@ from .helpers import (
     wait_for_removing_file_lock, get_value_from_config, WaitFailed)
 from .porto_helpers import PortoSubprocess, porto_avaliable
 from .watcher import ProcessWatcher
-from .arcadia_interop import get_gdb_path
+try:
+    from .arcadia_interop import get_gdb_path
+except:
+    get_gdb_path = None
 
 from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which
 from yt.wrapper.common import generate_uuid, flatten
@@ -71,12 +74,19 @@ def _parse_version(s):
     abi = tuple(parts[:2])
     return BinaryVersion(abi, literal)
 
-def _which_yt_binaries():
+def _get_yt_binary_path(binary, custom_paths):
+    paths = which(binary, custom_paths=custom_paths)
+    if paths:
+        return paths[0]
+    return None
+
+def _get_yt_versions(custom_paths):
     result = {}
     binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler"]
     for binary in binaries:
-        if which(binary):
-            version_string = subprocess.check_output([binary, "--version"], stderr=subprocess.STDOUT)
+        binary_path = _get_yt_binary_path(binary, custom_paths=custom_paths)
+        if binary_path is not None:
+            version_string = subprocess.check_output([binary_path, "--version"], stderr=subprocess.STDOUT)
             result[binary] = _parse_version(version_string)
     return result
 
@@ -130,7 +140,8 @@ class YTInstance(object):
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
                  add_binaries_to_path=True, enable_master_cache=None, driver_backend="native",
-                 enable_structured_master_logging=False, use_native_client=False, run_watcher=True, capture_stderr_to_file=None):
+                 enable_structured_master_logging=False, use_native_client=False, run_watcher=True, capture_stderr_to_file=None,
+                 ytserver_all_path=None):
         # TODO(renadeen): remove extended_master_config when stable will get test_structured_security_logs
 
         _configure_logger()
@@ -143,7 +154,36 @@ class YTInstance(object):
 
         self._subprocess_module = PortoSubprocess if use_porto_for_servers else subprocess
 
-        self._binaries = _which_yt_binaries()
+        self.path = os.path.realpath(os.path.abspath(path))
+        self.bin_path = os.path.abspath(os.path.join(self.path, "bin"))
+        self.logs_path = os.path.abspath(os.path.join(self.path, "logs"))
+        self.configs_path = os.path.abspath(os.path.join(self.path, "configs"))
+        self.runtime_data_path = os.path.abspath(os.path.join(self.path, "runtime_data"))
+        self.pids_filename = os.path.join(self.path, "pids.txt")
+
+        self._load_existing_environment = False
+        if os.path.exists(self.path):
+            if not preserve_working_dir:
+                shutil.rmtree(self.path, ignore_errors=True)
+            else:
+                self._load_existing_environment = True
+
+        if not self._load_existing_environment:
+            if ytserver_all_path is not None:
+                if not os.path.exists(ytserver_all_path):
+                    raise YtError("ytserver-all binary is missing at path " + ytserver_all_path)
+                makedirp(self.bin_path)
+                programs = ["master", "clock", "node", "job-proxy", "exec",
+                            "proxy", "http-proxy", "tools", "scheduler", "controller-agent"]
+                for program in programs:
+                    os.symlink(ytserver_all_path, os.path.join(self.bin_path, "ytserver-" + program))
+
+        if os.path.exists(self.bin_path):
+            self.custom_paths = [self.bin_path]
+        else:
+            self.custom_paths = None
+
+        self._binaries = _get_yt_versions(custom_paths=self.custom_paths)
         if ("ytserver-master" in self._binaries and
             "ytserver-node" in self._binaries and
             "ytserver-scheduler" in self._binaries):
@@ -178,21 +218,8 @@ class YTInstance(object):
         self._uuid = generate_uuid(self._random_generator)
         self._lock = RLock()
 
-        self.path = os.path.realpath(os.path.abspath(path))
-        self.logs_path = os.path.abspath(os.path.join(self.path, "logs"))
-        self.configs_path = os.path.abspath(os.path.join(self.path, "configs"))
-        self.runtime_data_path = os.path.abspath(os.path.join(self.path, "runtime_data"))
-        self.pids_filename = os.path.join(self.path, "pids.txt")
-
         self.configs = defaultdict(list)
         self.config_paths = defaultdict(list)
-
-        self._load_existing_environment = False
-        if os.path.exists(self.path):
-            if not preserve_working_dir:
-                shutil.rmtree(self.path, ignore_errors=True)
-            else:
-                self._load_existing_environment = True
 
         makedirp(self.path)
         makedirp(self.logs_path)
@@ -867,7 +894,7 @@ class YTInstance(object):
             args = None
             cgroup_paths = None
             if self.abi_version[0] == 19:
-                args = ["ytserver-" + component]
+                args = [_get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)]
                 if self._kill_child_processes:
                     args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
             else:
@@ -1416,8 +1443,7 @@ class YTInstance(object):
         for index, process in enumerate(self._service_processes[name]):
             if process is None:
                 continue
-            if process.poll() is None:
-
+            if get_gdb_path is not None and process.poll() is None:
                 subprocess.check_call(
                     "{} -p {} -ex 'set confirm off' -ex 'set pagination off' -ex 'thread apply all bt' -ex 'quit'".format(get_gdb_path(), process.pid),
                     stdout=open(os.path.join(self.backtraces_path, "gdb.{}-{}".format(name, index)), "w"),
