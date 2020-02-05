@@ -133,7 +133,8 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
 
     def do():
         list_objects_results = yt_commands.execute_batch([
-            yt_commands.make_batch_request("list", return_only_value=True, path="//sys/" + type,
+            yt_commands.make_batch_request("list", return_only_value=True,
+                path="//sys/" + ("account_tree" if type == "accounts" else type),
                 attributes=["id", "builtin", "life_stage"]) for type in TYPES],
                 driver=driver)
 

@@ -815,7 +815,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("kiselyovp")
     def test_get_with_attributes_objects(self):
-        assert get("//sys/accounts/tmp", attributes=["name"]) == to_yson_type(None, {"name" : "tmp"})
+        assert get("//sys/accounts/tmp", attributes=["name"]) == to_yson_type({}, {"name" : "tmp"})
         assert get("//sys/users/root", attributes=["name", "type"]) == to_yson_type(None, {"name" : "root", "type" : "user"})
 
     @authors("babenko")
@@ -2145,7 +2145,6 @@ class TestCypress(YTEnvSetup):
             create("some_invalid_type", "//tmp/s")
         with pytest.raises(YtError):
             create("sorted_dynamic_tablet_store", "//tmp/s")
-
 
     @authors("aozeritsky")
     def test_attributes_content_revision(self):

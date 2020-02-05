@@ -7,16 +7,31 @@ from flaky import flaky
 from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 
+from yt.yson import to_yson_type, YsonEntity
+
 ##################################################################
 
-class TestAccounts(YTEnvSetup):
+class AccountsTestSuiteBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 16
 
     REPLICATOR_REACTION_TIME = 3.5
 
+    _root_account_name = "root"
+    _non_root_builtin_accounts = ["sys", "tmp", "intermediate", "chunk_wise_accounting_migration"]
+    _builtin_accounts = [_root_account_name] + _non_root_builtin_accounts
+
     def _replicator_sleep(self):
         sleep(self.REPLICATOR_REACTION_TIME)
+
+    def _build_resource_limits(self, node_count=0, chunk_count=0, tablet_count=0, tablet_static_memory=0, disk_space=0):
+        return {
+            "disk_space_per_medium": {"default": disk_space},
+            "chunk_count": chunk_count,
+            "node_count": node_count,
+            "tablet_count": tablet_count,
+            "tablet_static_memory": tablet_static_memory
+        }
 
     def _get_disk_space_for_medium(self, disk_space_map, medium_name = "default"):
         return disk_space_map.get(medium_name, 0)
@@ -30,8 +45,8 @@ class TestAccounts(YTEnvSetup):
     def _get_account_node_count_limit(self, account):
         return get("//sys/accounts/{0}/@resource_limits/node_count".format(account))
 
-    def _set_account_node_count_limit(self, account, value):
-        set("//sys/accounts/{0}/@resource_limits/node_count".format(account), value)
+    def _set_account_node_count_limit(self, account, value, **kwargs):
+        set("//sys/accounts/{0}/@resource_limits/node_count".format(account), value, **kwargs)
 
     def _get_account_chunk_count_limit(self, account):
         return get("//sys/accounts/{0}/@resource_limits/chunk_count".format(account))
@@ -40,13 +55,38 @@ class TestAccounts(YTEnvSetup):
         set("//sys/accounts/{0}/@resource_limits/chunk_count".format(account), value)
 
     def _set_account_zero_limits(self, account):
-        set("//sys/accounts/{0}/@resource_limits".format(account), {
-            "disk_space_per_medium": {"default" : 0},
-            "chunk_count": 0,
-            "node_count": 0,
-            "tablet_count": 0,
-            "tablet_static_memory": 0
-        })
+        set("//sys/accounts/{0}/@resource_limits".format(account), self._build_resource_limits())
+
+    def _multiply_recursive(self, dict_or_value, multiplier):
+        if not isinstance(dict_or_value, dict):
+            return dict_or_value * multiplier
+        result = {}
+        for key in dict_or_value:
+            result[key] = self._multiply_recursive(dict_or_value[key], multiplier)
+        return result
+
+    def _add_recursive(self, lhs, rhs):
+        assert isinstance(lhs, dict) == isinstance(rhs, dict)
+        if not isinstance(lhs, dict):
+            return lhs + rhs
+        result = {}
+        for key in lhs:
+            if key in rhs:
+                result[key] = self._add_recursive(lhs[key], rhs[key])
+            else:
+                result[key] = lhs[key]
+        for key in rhs:
+            if key not in lhs:
+                result[key] = rhs[key]
+        return result
+
+    def _subtract_recursive(self, lhs, rhs):
+        return self._add_recursive(lhs, self._multiply_recursive(rhs, -1))
+
+    def _multiply_account_limits(self, account, multiplier):
+        old_limits = get("//sys/accounts/{0}/@resource_limits".format(account))
+        new_limits = self._multiply_recursive(old_limits, multiplier)
+        set("//sys/accounts/{0}/@resource_limits".format(account), new_limits)
 
     def _is_account_disk_space_limit_violated(self, account):
         return get("//sys/accounts/{0}/@violated_resource_limits/disk_space".format(account))
@@ -64,17 +104,30 @@ class TestAccounts(YTEnvSetup):
     def _get_tx_chunk_count(self, tx, account):
         return get("#{0}/@resource_usage/{1}/chunk_count".format(tx, account))
 
+    def teardown_method(self, method):
+        for cell_index in xrange(self.Env.secondary_master_cell_count + 1):
+            driver = get_driver(cell_index)
+            accounts = ls("//sys/accounts", driver=driver)
+            for account in accounts:
+                if account.startswith("#"):
+                    assert not exists("//sys/accounts/{0}".format(account), driver=driver)
+        super(AccountsTestSuiteBase, self).teardown_method(method)
+
+##################################################################
+
+class TestAccounts(AccountsTestSuiteBase):
     @authors("babenko", "ignat")
     def test_init(self):
-        assert sorted(ls("//sys/accounts")) == sorted(["sys", "tmp", "intermediate", "chunk_wise_accounting_migration"])
+        assert sorted(ls("//sys/accounts")) == sorted(self._builtin_accounts)
         assert get("//@account") == "sys"
         assert get("//sys/@account") == "sys"
         assert get("//tmp/@account") == "tmp"
+        assert get("//sys/account_tree/@ref_counter") == get("//sys/accounts/@count")
 
     @authors("ignat")
     def test_account_create1(self):
         create_account("max")
-        assert sorted(ls("//sys/accounts")) == sorted(["sys", "tmp", "intermediate", "chunk_wise_accounting_migration", "max"])
+        assert sorted(ls("//sys/accounts")) == sorted(self._builtin_accounts + ["max"])
         assert get_account_disk_space("max") == 0
         assert self._get_account_node_count("max") == 0
         assert self._get_account_chunk_count("max") == 0
@@ -97,6 +150,13 @@ class TestAccounts(YTEnvSetup):
     @authors("babenko", "ignat")
     def test_empty_name_fail(self):
         with pytest.raises(YtError): create_account("")
+
+    @authors("kiselyovp")
+    def test_odd_names(self):
+        for name in ["max/", "tmp/nested", "na\\me", "na@me", "na&me", "na*me", "na#me", "na[me", "na]me", "na$me", "a" * 101]:
+            with pytest.raises(YtError): create_account(name)
+        create_account("1337-th15-15_F1N3")
+        assert exists("//sys/accounts/1337-th15-15_F1N3")
 
     @authors("babenko", "ignat")
     def test_account_attr1(self):
@@ -158,15 +218,21 @@ class TestAccounts(YTEnvSetup):
     def test_remove_immediately(self):
         create_account("max")
         remove_account("max")
-        wait(lambda: not exists("//sys/accounts/max"))
 
-    @authors("babenko", "ignat")
+    @authors("babenko", "ignat", "kiselyovp")
     def test_remove_delayed(self):
         create_account("max")
         set("//tmp/a", {})
         set("//tmp/a/@account", "max")
         remove_account("max", sync_deletion=False)
+
         assert get("//sys/accounts/max/@life_stage") == "removal_started"
+        with pytest.raises(YtError): create("map_node", "//tmp/b", attributes={"account": "max"})
+        create("map_node", "//tmp/b")
+        with pytest.raises(YtError): set("//tmp/b/@account", "max")
+        remove_account("max", sync_deletion=False)
+        assert get("//sys/accounts/max/@life_stage") == "removal_started"
+
         remove("//tmp/a")
         wait(lambda: not exists("//sys/accounts/max"))
 
@@ -454,6 +520,17 @@ class TestAccounts(YTEnvSetup):
 
         # Shouldn't work 'cause node count usage is checked synchronously.
         with pytest.raises(YtError): copy("//tmp/a/t1", "//tmp/a/t2")
+
+    @authors("kiselyovp")
+    def test_node_count_limits6(self):
+        create_account("max", empty=True)
+        self._set_account_node_count_limit("max", 1)
+        create("map_node", "//tmp/node", attributes={"account": "max"})
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/fail", attributes={"account": "max"})
+        remove("//tmp/node")
+        wait(lambda: self._get_account_node_count("max") == 0)
+        create("map_node", "//tmp/noderino", attributes={"account": "max"})
 
     @authors("ignat")
     def test_chunk_count_limits1(self):
@@ -1122,6 +1199,20 @@ class TestAccounts(YTEnvSetup):
             create_account("x", attributes={"resource_limits": 123})
         assert not exists("//sys/accounts/x")
 
+        with pytest.raises(YtError):
+            create_account("y", attributes={"resource_limits": {}})
+        assert not exists("//sys/accounts/y")
+
+        with pytest.raises(YtError):
+            create_account("z", attributes={
+                "resource_limits": {
+                    "disk_space_per_medium": {"default": -1},
+                    "chunk_count": 0,
+                    "node_count": 0,
+                    "tablet_count": 0,
+                    "tablet_static_memory": 0}})
+        assert not exists("//sys/accounts/z")
+
     @authors("shakurov")
     def test_requisitions(self):
         create_medium("hdd6")
@@ -1137,10 +1228,10 @@ class TestAccounts(YTEnvSetup):
         requisition = get("#" + chunk_id + "/@requisition")
         assert len(requisition) == 1
         assert requisition[0] == {
-            "account" : "tmp",
-            "medium" : "default",
-            "replication_policy" : {"replication_factor" : 3, "data_parts_only" : False},
-            "committed" : True
+            "account": "tmp",
+            "medium": "default",
+            "replication_policy": {"replication_factor": 3, "data_parts_only": False},
+            "committed": True
         }
 
         # Link the chunk to another table...
@@ -1149,8 +1240,8 @@ class TestAccounts(YTEnvSetup):
 
         # ...and modify the original table's properties in some way.
         tbl_media = get("//tmp/t/@media")
-        tbl_media["hdd6"] = {"replication_factor": 7, "data_parts_only" : True}
-        tbl_media["default"] = {"replication_factor": 4, "data_parts_only" : False}
+        tbl_media["hdd6"] = {"replication_factor": 7, "data_parts_only": True}
+        tbl_media["default"] = {"replication_factor": 4, "data_parts_only": False}
         set("//tmp/t/@media", tbl_media)
 
         self._replicator_sleep()
@@ -1159,22 +1250,22 @@ class TestAccounts(YTEnvSetup):
         requisition = sorted(requisition, key=itemgetter("account", "medium"))
         assert requisition == [
             {
-                "account" : "a",
-                "medium" : "default",
-                "replication_policy" : {"replication_factor" : 3, "data_parts_only" : False},
-                "committed" : True
+                "account": "a",
+                "medium": "default",
+                "replication_policy": {"replication_factor": 3, "data_parts_only": False},
+                "committed": True
             },
             {
-                "account" : "tmp",
-                "medium" : "default",
-                "replication_policy" : {"replication_factor" : 4, "data_parts_only" : False},
-                "committed" : True
+                "account": "tmp",
+                "medium": "default",
+                "replication_policy": {"replication_factor": 4, "data_parts_only": False},
+                "committed": True
             },
             {
-                "account" : "tmp",
-                "medium" : "hdd6",
-                "replication_policy" : {"replication_factor" : 7, "data_parts_only" : True},
-                "committed" : True
+                "account": "tmp",
+                "medium": "hdd6",
+                "replication_policy": {"replication_factor": 7, "data_parts_only": True},
+                "committed": True
             }
         ]
 
@@ -1389,6 +1480,1129 @@ class TestAccounts(YTEnvSetup):
 
         wait(totals_match)
 
+
+class TestAccountTree(AccountsTestSuiteBase):
+    USE_DYNAMIC_TABLES = True
+
+    def _create_account_acl(self, users):
+        return [
+            make_ace("allow", users, ["use", "modify_children"], "object_only"),
+            make_ace("allow", users, ["write", "remove", "administer"], "descendants_only"),
+        ]
+
+    def setup(self):
+        self._old_schema_acl = get("//sys/schemas/account/@acl")
+        set("//sys/schemas/account/@acl", [
+            make_ace("allow", "everyone", "read"),
+            make_ace("allow", "users", "create")])
+
+    def teardown(self):
+        set("//sys/schemas/account/@acl", self._old_schema_acl)
+
+    # XXX(kiselyovp) test for changing multiple attributes at the same time? (name/parent_name/resource_limits, incorrect values are welcome)
+    # XXX(kiselyovp) a test for "account migration"
+
+    @authors("kiselyovp")
+    def test_root_account(self):
+        assert exists("//sys/accounts/{0}".format(self._root_account_name))
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/test", attributes={"account": self._root_account_name})
+        create("table", "//tmp/t")
+        with pytest.raises(YtError):
+            set("//tmp/t/@account", self._root_account_name)
+
+        root_attributes = get("//sys/accounts/{0}/@".format(self._root_account_name))
+        for attribute in ["resource_usage", "committed_resource_usage", "multicell_statistics", "resource_limits",
+                          "upper_resource_limits", "own_resource_limits", "violated_resource_limits"]:
+            assert attribute not in root_attributes
+        for attribute in ["recursive_resource_usage", "recursive_committed_resource_usage", "recursive_violated_resource_limits"]:
+            assert attribute in root_attributes
+
+        with pytest.raises(YtError):
+            self._set_account_zero_limits(self._root_account_name)
+        with pytest.raises(YtError):
+            set("//sys/accounts/{0}/@parent_name".format(self._root_account_name), "sys")
+
+    @authors("kiselyovp")
+    def test_create1(self):
+        with pytest.raises(YtError): create_account(self._root_account_name)
+        create_account("max", empty=True)
+        assert ls("//sys/account_tree/max") == []
+
+        create_account("a1", "max", empty=True)
+        create_account("a2", "max", empty=True)
+        assert sorted(ls("//sys/account_tree")) == sorted(self._non_root_builtin_accounts +  ["max"])
+        assert sorted(ls("//sys/accounts")) == sorted(self._builtin_accounts + ["max", "a1", "a2"])
+        assert sorted(ls("//sys/account_tree/max")) == ["a1", "a2"]
+        assert ls("//sys/account_tree/max/a1") == []
+        with pytest.raises(YtError): ls("//sys/account_tree/max/")
+        with pytest.raises(YtError): ls("//sys/account_tree/max/3")
+
+    @authors("kiselyovp")
+    def test_create2(self):
+        with pytest.raises(YtError):
+            create("map_node", "//sys/accounts/tmp/node")
+        with pytest.raises(YtError):
+            create("file", "//sys/account_tree/file")
+        with pytest.raises(YtError):
+            create("account", "//tmp/account")
+
+    @authors("kiselyovp")
+    def test_create3(self):
+        create_account("max", empty=True)
+        create_account("nested", "max", empty=True)
+        with pytest.raises(YtError): create_account("max", empty=True)
+        with pytest.raises(YtError): create_account("max", "max", empty=True)
+        with pytest.raises(YtError): create_account("nested", empty=True)
+        with pytest.raises(YtError): create_account("nested", "max", empty=True)
+        with pytest.raises(YtError): create_account("child", "fake", empty=True)
+
+    @authors("kiselyovp")
+    def test_create4(self):
+        create_account("a0", empty=True)
+        create_account("a1", empty=True)
+        create_account("a2", "a0", empty=True)
+        create_account("a3", "a0", empty=True)
+        with pytest.raises(YtError): create_account("a0", "a1", empty=True)
+        with pytest.raises(YtError): create_account("a1", "a1", empty=True)
+        with pytest.raises(YtError): create_account("a2", "a1", empty=True)
+        with pytest.raises(YtError): create_account("a3", empty=True)
+
+    @authors("kiselyovp")
+    def test_create5(self):
+        parent_id = create_account("yt", empty=True)
+        assert create_account("yt", empty=True, ignore_existing=True) == parent_id
+        child_id = create_account("never_mind", "yt", empty=True, ignore_existing=True)
+        with pytest.raises(YtError): create_account("never_mind", empty=True, ignore_existing=True)
+        assert create_account("never_mind", "yt", empty=True, ignore_existing=True) == child_id
+
+    @authors("kiselyovp")
+    def test_depth_limit1(self):
+        depth_limit = 10
+        for i in range(1, depth_limit + 1):
+            create_account(str(i), None if i == 1 else str(i - 1), empty=True)
+
+        with pytest.raises(YtError): create_account(str(depth_limit + 1), str(depth_limit), empty=True)
+
+    @authors("kiselyovp")
+    def test_depth_limit2(self):
+        depth_limit = 10
+        left_depth = (depth_limit + 1) / 2
+        right_depth = depth_limit / 2 + 1
+
+        for i in range(1, left_depth + 1):
+            create_account("L" + str(i), None if i == 1 else "L" + str(i - 1), empty=True)
+        for i in range(1, right_depth + 1):
+            create_account("R" + str(i), None if i == 1 else "R" + str(i - 1), empty=True)
+        with pytest.raises(YtError):
+            set("//sys/account_tree/R1/@parent_name", "L" + str(left_depth))
+        set("//sys/account_tree/R1/@parent_name", "L" + str(left_depth - 1))
+        with pytest.raises(YtError): create_account("2deep4u", "R" + str(right_depth), empty=True)
+
+    @authors("kiselyovp")
+    def test_get(self):
+        create_account("max", empty=True)
+        create_account("a1", "max", empty=True)
+        create_account("a2", "max", empty=True)
+
+        max_subtree = {"a1": {}, "a2": {}}
+        root_subtree = {account: {} for account in self._non_root_builtin_accounts}
+        root_subtree["max"] = max_subtree
+
+        assert get("//sys/accounts") == {account: YsonEntity() for account in self._builtin_accounts + ["max", "a1", "a2"]}
+
+        assert get("//sys/accounts/sys") == {}
+        assert get("//sys/account_tree/sys") == {}
+        assert get("//sys/accounts/a1") == {}
+        assert get("//sys/account_tree/max/a1") == {}
+        assert get("//sys/accounts/a2") == {}
+        assert get("//sys/account_tree/max/a2") == {}
+        assert get("//sys/accounts/max") == max_subtree
+        assert get("//sys/account_tree/max") == max_subtree
+        assert get("//sys/accounts/" + self._root_account_name) == root_subtree
+        assert get("//sys/account_tree") == root_subtree
+
+    @authors("kiselyovp")
+    def test_get_with_attributes(self):
+        create_account("max", empty=True)
+        create_account("a1", "max", empty=True)
+        create_account("a2", "max", empty=True)
+
+        max_with_attributes = to_yson_type(
+            {account: to_yson_type({}, {"name": account, "type": "account"}) for account in ["a1", "a2"]},
+            {"name": "max", "type": "account"})
+        root_dict = {account: to_yson_type({}, {"name": account, "type": "account"}) for account in self._non_root_builtin_accounts}
+        root_dict["max"] = max_with_attributes
+        root_with_attributes = to_yson_type(root_dict, {"name": self._root_account_name, "type": "account"})
+        assert get("//sys/accounts/max", attributes=["name", "type"]) == max_with_attributes
+        assert get("//sys/account_tree", attributes=["name", "type"]) == root_with_attributes
+
+    @authors("kiselyovp")
+    def test_list_with_attributes(self):
+        create_account("max", empty=True)
+        create_account("child", "max", empty=True)
+        create_account("child2", "max", empty=True)
+        create_account("grandchild", "child", empty=True)
+        assert ls("//sys/account_tree/max", attributes=["name", "type"]) ==\
+            [to_yson_type(account, {"name": account, "type": "account"}) for account in ["child", "child2"]]
+
+    @authors("kiselyovp")
+    def test_set(self):
+        with pytest.raises(YtError):
+            set("//sys/accounts/" + self._root_account_name, {"key" : "value"})
+        assert exists("//sys/account_tree/tmp")
+        with pytest.raises(YtError):
+            set("//sys/accounts/tmp", {"key" : "value"}, force=True)
+        with pytest.raises(YtError):
+            set("//sys/accounts/tmp", {"key1" : {"key2" : {}}}, recursive=True)
+
+    @authors("kiselyovp")
+    def test_remove1(self):
+        create_account("max", empty=True)
+        create_account("nested", "max", empty=True)
+        remove_account("nested", sync_deletion=False)
+        assert exists("//sys/account_tree/max")
+        wait(lambda: not exists("//sys/account_tree/max/nested"))
+        with pytest.raises(YtError): remove("//sys/account_tree/max/nested")
+        remove("//sys/account_tree/max/nested", force=True)
+
+    @authors("kiselyovp")
+    def test_remove2(self):
+        create_account("max", empty=True)
+        create_account("max42", "max", empty=True)
+        create_account("max69", "max", empty=True)
+        with pytest.raises(YtError): remove_account("max", recursive=False)
+        remove_account("max")
+        assert not exists("//sys/account_tree/max/max42")
+        assert not exists("//sys/account_tree/max/max69")
+
+    @authors("kiselyovp")
+    def test_remove3(self):
+        create_account("max")
+        create_account("max42", "max")
+        create_account("max69", "max", empty=True)
+
+        create("map_node", "//tmp/max42", attributes={"account": "max42"})
+        remove_account("max", recursive=True, force=True, sync_deletion=False)
+        wait(lambda: not exists("//sys/account_tree/max/max69"))
+        assert exists("//sys/account_tree/max/max42")
+        assert get("//sys/account_tree/max/@life_stage") == "removal_started"
+        with pytest.raises(YtError): create_account("child", "max42", empty=True)
+        with pytest.raises(YtError): create_account("child", "max", empty=True)
+        create_account("child", empty=True)
+        with pytest.raises(YtError): set("//sys/account_tree/child/@parent_name", "max")
+
+        remove("//tmp/max42")
+        wait(lambda: not exists("//sys/account_tree/max"))
+
+    @authors("kiselyovp")
+    def test_remove4(self):
+        create_account("max")
+        create_account("a1", "max", empty=True)
+        create_account("a2", "max", empty=True)
+
+        remove("//sys/accounts/a1/*")
+        assert exists("//sys/accounts/a1")
+        remove("//sys/account_tree/max/*")
+        wait(lambda: not exists("//sys/account_tree/max/a1"))
+        wait(lambda: not exists("//sys/account_tree/max/a2"))
+
+        create_account("a1", "max")
+        create_account("a2", "max", empty=True)
+
+        create("table", "//tmp/t", attributes={"account": "a1"})
+        remove("//sys/account_tree/max/*")
+        wait(lambda: not exists("//sys/account_tree/max/a2"))
+        assert exists("//sys/account_tree/max/a1")
+        assert get("//sys/accounts/a1/@life_stage") == "removal_started"
+        remove("//tmp/t")
+        wait(lambda: not exists("//sys/account_tree/max/a1"))
+
+        assert get("//sys/accounts/max/@life_stage") == "creation_committed"
+
+    @authors("kiselyovp")
+    def test_rename(self):
+        create_account("max")
+        create_account("42", "max", empty=True)
+        create_account("69", "max")
+
+        with pytest.raises(YtError): set("//sys/accounts/42/@name", "")
+        with pytest.raises(YtError): set("//sys/accounts/42/@name", self._root_account_name)
+        with pytest.raises(YtError): set("//sys/accounts/42/@name", "max/420")
+        with pytest.raises(YtError): set("//sys/accounts/42/@name", "69")
+        with pytest.raises(YtError): set("//sys/accounts/42/@name", 420)
+        with pytest.raises(YtError): set("//sys/accounts/42/@name", "slash/42")
+        with pytest.raises(YtError): set("//sys/accounts/42/@name", "a" * 101)
+        set("//sys/accounts/42/@name", "42")
+        assert exists("//sys/account_tree/max/42")
+        old_id = get("//sys/accounts/42/@id")
+        set("//sys/accounts/42/@name", "420")
+        assert get("//sys/accounts/420/@id") == old_id
+        assert not exists("//sys/account_tree/max/42")
+        assert not exists("//sys/account_tree/420")
+        assert exists("//sys/account_tree/max/420")
+
+        create("map_node", "//tmp/max69", attributes={"account": "69"})
+        assert get("//tmp/max69/@account") == "69"
+        set("//sys/accounts/69/@name", "1337")
+        assert not exists("//sys/account_tree/max/69")
+        assert exists("//sys/account_tree/max/1337")
+        assert get("//tmp/max69/@account") == "1337"
+
+    @authors("kiselyovp")
+    def test_move1(self):
+        create_account("metrika")
+        create("map_node", "//tmp/metrika")
+        with pytest.raises(YtError): copy("//sys/account_tree/metrika", "//sys/account_tree/market")
+        with pytest.raises(YtError): move("//tmp/metrika", "//sys/account_tree/metrika/node")
+        with pytest.raises(YtError): move("//tmp/metrika", "//sys/account_tree/node")
+        with pytest.raises(YtError): move("//sys/account_tree/metrika", "//tmp/metrika/account")
+        with pytest.raises(YtError): move("//sys/account_tree", "//tmp/metrika/account")
+        with pytest.raises(YtError): move("//sys/account_tree", "//sys/account_tree/tmp/tree")
+
+    @authors("kiselyovp")
+    def test_move2(self):
+        create_account("metrika")
+        with pytest.raises(YtError): move("//sys/account_tree/metrika", "//sys/account_tree/metrika")
+        create_account("prod", "metrika")
+        with pytest.raises(YtError): move("//sys/account_tree/metrika/prod", "//sys/account_tree/metrika-prod", force=True)
+        with pytest.raises(YtError): move("//sys/account_tree/metrika/prod", "//sys/account_tree/tmp", force=True)
+        with pytest.raises(YtError): move("//sys/account_tree/metrika/prod", "//sys/account_tree/metrika-prod", recursive=True)
+        with pytest.raises(YtError): move("//sys/account_tree/metrika", "//sys/account_tree/metrika/prod/surprise", recursive=True)
+        with pytest.raises(YtError): move("//sys/account_tree/metrika", "//sys/account_tree/metrika/surprise")
+        with pytest.raises(YtError): move("//sys/account_tree/metrika", "//sys/account_tree/metrika/prod/surprise")
+        with pytest.raises(YtError): move("//sys/account_tree/metrika/fake", "//sys/account_tree/fake")
+
+        with pytest.raises(YtError): move("//sys/account_tree/metrika/prod", "//sys/account_tree/market/prod")
+        create_account("market")
+        with pytest.raises(YtError): move("//sys/account_tree/metrika/prod", "//sys/account_tree/market")
+        assert copy("//sys/account_tree/metrika/prod", "//sys/account_tree/market", ignore_existing=True)\
+            == get("//sys/account_tree/market/@id")
+
+        with pytest.raises(YtError): move("//sys/account_tree/metrika/prod", "//sys/account_tree/market/market")
+        with pytest.raises(YtError): move("//sys/account_tree/metrika/prod", "//sys/account_tree/market/tmp")
+        with pytest.raises(YtError): move("//sys/account_tree/market", "//sys/account_tree/metrika/prod/sys")
+        with pytest.raises(YtError): move("//sys/account_tree/market", "//sys/account_tree/metrika/sys")
+        with pytest.raises(YtError): move("//sys/account_tree/market", "//sys/account_tree/tmp/prod")
+
+    @authors("kiselyovp")
+    def test_move3(self):
+        create_account("metrika")
+        create_account("metrika-dev", "metrika")
+        create_account("metrika-prod", "metrika", empty=True)
+        create_account("market")
+        create_account("market-dev", "market")
+        create_account("market-prod", "market", empty=True)
+
+        with pytest.raises(YtError): move("//sys/account_tree/metrika/metrika-dev", "//sys/account_tree/metrika/metrika-prod/0")
+
+        old_id = get("//sys/accounts/market-prod/@id")
+        move("//sys/account_tree/market/market-prod", "//sys/account_tree/metrika/market-prod")
+        assert get("//sys/accounts/market-prod/@id") == old_id
+        assert self._get_account_node_count_limit("market-prod") == 0
+        assert not exists("//sys/account_tree/market/market-prod")
+        assert ls("//sys/account_tree/market") == ["market-dev"]
+
+    @authors("kiselyovp")
+    def test_move4(self):
+        create_account("metrika")
+        create_account("market")
+        create_account("metrika-dev", "metrika")
+        create("file", "//tmp/f")
+        write_file("//tmp/f", "abacaba")
+        set("//tmp/f/@account", "metrika-dev")
+
+        set("//sys/accounts/metrika-dev/@parent_name", "market")
+        assert not exists("//sys/account_tree/metrika/metrika-dev")
+        assert exists("//sys/account_tree/market/metrika-dev")
+        assert get("//tmp/f/@account", "metrika-dev")
+
+        set("//sys/accounts/metrika-dev/@parent_name", self._root_account_name)
+        assert not exists("//sys/account_tree/market/metrika-dev")
+        assert exists("//sys/account_tree/metrika-dev")
+        assert get("//tmp/f/@account", "metrika-dev")
+
+        move("//sys/account_tree/metrika-dev", "//sys/account_tree/metrika/dev")
+        assert not exists("//sys/account_tree/metrika-dev")
+        assert exists("//sys/account_tree/metrika/dev")
+        assert get("//tmp/f/@account", "dev")
+
+    @authors("kiselyovp")
+    def test_move_removed_account(self):
+        create_account("max")
+        create_account("tesuto")
+        create("file", "//tmp/file", attributes={"account": "tesuto"})
+        remove_account("tesuto", sync_deletion=False)
+        assert exists("//sys/account_tree/tesuto")
+
+        with pytest.raises(YtError): move("//sys/account_tree/max", "//sys/account_tree/tesuto/max")
+        set("//sys/accounts/tesuto/@parent_name", "max")
+        assert exists("//sys/account_tree/max/tesuto")
+        assert not exists("//sys/account_tree/tesuto")
+        set("//sys/accounts/tesuto/@name", "test")
+        assert get("//tmp/file/@account") == "test"
+        assert exists("//sys/account_tree/max/test")
+
+        remove_account("max", sync_deletion=False)
+        remove("//tmp/file")
+        wait(lambda: not exists("//sys/accounts/max"))
+
+    @authors("kiselyovp")
+    def test_move_removed_account_fail(self):
+        create_account("yt")
+        create("map_node", "//tmp/yt", attributes={"account": "yt"})
+        remove_account("yt", sync_deletion=False)
+
+        create_account("YaMR", empty=True)
+        with pytest.raises(YtError):
+            move("//sys/account_tree/yt", "//sys/account_tree/YaMR/2.0")
+
+        for cell_index in xrange(self.Env.secondary_master_cell_count + 1):
+            driver = get_driver(cell_index)
+            assert not exists("//sys/account_tree/YaMR/yt", driver=driver)
+            assert not exists("//sys/account_tree/YaMR/2.0", driver=driver)
+            assert exists("//sys/account_tree/yt", driver=driver)
+        assert get("//tmp/yt/@account") == "yt"
+
+    @authors("kiselyovp")
+    def test_move_child_from_removed_account(self):
+        create_account("YaMR")
+        create_account("dev", "YaMR")
+        create("map_node", "//tmp/dev", attributes={"account": "dev"})
+
+        create_account("yt")
+        remove_account("YaMR", sync_deletion=False)
+        assert get("//sys/accounts/YaMR/@life_stage") == "removal_started"
+        assert exists("//sys/accounts/dev")
+        set("//sys/accounts/dev/@name", "development")
+        assert get("//sys/account_tree/YaMR/@life_stage") == "removal_started"
+
+        set("//sys/account_tree/YaMR/development/@parent_name", "yt")
+        wait(lambda: not exists("//sys/accounts/YaMR"))
+
+    # XXX(kiselyovp) maybe test other limits, not just node count
+
+    @authors("shakurov")
+    def test_nested_limits1(self):
+        create_account("yt", empty=True)
+        self._set_account_node_count_limit("yt", 4)
+        create_account("max", "yt", empty=True)
+        create_account("min", "yt", empty=True)
+        self._set_account_node_count_limit("max", 3)
+        self._set_account_node_count_limit("min", 1)
+
+        create("map_node", "//tmp/dir1", attributes={"account": "min"})
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/dir2", attributes={"account": "min"})
+        create("map_node", "//tmp/dir2", attributes={"account": "max"})
+        create("map_node", "//tmp/dir3", attributes={"account": "max"})
+        create("map_node", "//tmp/dir4", attributes={"account": "max"})
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/dir5", attributes={"account": "max"})
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/dir5", attributes={"account": "yt"})
+
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("max", 4)
+        set("//sys/account_tree/yt/@allow_children_limit_overcommit", True)
+        self._set_account_node_count_limit("max", 4)
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("max", 5)
+
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/dir5", attributes={"account": "max"})
+        remove("//tmp/dir1")
+        wait(lambda: get("//sys/accounts/min/@resource_usage/node_count") == 0)
+        create("map_node", "//tmp/dir5", attributes={"account": "max"})
+
+        self._set_account_node_count_limit("max", 3)
+
+        assert self._is_account_node_count_limit_violated("max")
+        assert not self._is_account_node_count_limit_violated("yt")
+
+    @authors("shakurov")
+    def test_nested_limits2(self):
+        create_account("yt", empty=True)
+        self._set_account_node_count_limit("yt", 4)
+        with pytest.raises(YtError):
+            create_account("max", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=5)})
+
+        create("map_node", "//tmp/yt", attributes={"account": "yt"})
+
+        create_account("min", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=1)})
+        create("map_node", "//tmp/yt/d1", attributes={"account": "min"})
+
+        create_account("max", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=3)})
+        create("map_node", "//tmp/yt/d2", attributes={"account": "max"})
+        create("map_node", "//tmp/yt/d3", attributes={"account": "max"})
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/yt/d4", attributes={"account": "max"})
+
+    @authors("shakurov")
+    def test_nested_limits3(self):
+        create_account("yt", empty=True)
+        self._set_account_node_count_limit("yt", 4)
+
+        create_account("min", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=1)})
+        create("map_node", "//tmp/d1", attributes={"account": "min"})
+        with pytest.raises(YtError): create("map_node", "//tmp/d2", attributes={"account": "min"})
+        move("//sys/account_tree/yt/min", "//sys/account_tree/yt/minimal")
+        with pytest.raises(YtError): create("map_node", "//tmp/d3", attributes={"account": "minimal"})
+        set("//sys/accounts/minimal/@name", "min")
+        with pytest.raises(YtError): create("map_node", "//tmp/d4", attributes={"account": "min"})
+
+    @authors("shakurov")
+    def test_nested_usage(self):
+        create_account("yt", attributes={"resource_limits": self._build_resource_limits(node_count=10)})
+        create_account("yt-dev", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=5)})
+        create_account("yt-dev-spof", "yt-dev", attributes={"resource_limits": self._build_resource_limits(node_count=2)})
+        create_account("yt-dev-dt", "yt-dev", empty=True)
+        create_account("yt-dev-spof-1", "yt-dev-spof", empty=True)
+        create("table", "//tmp/yt", attributes={"account": "yt-dev-spof"})
+
+        wait(lambda: \
+             get("//sys/accounts/yt/@recursive_resource_usage/node_count") == 1 and \
+             get("//sys/accounts/yt-dev/@recursive_resource_usage/node_count") == 1 and \
+             get("//sys/accounts/yt-dev-spof/@recursive_resource_usage/node_count") == 1 and \
+             get("//sys/accounts/yt-dev-spof-1/@recursive_resource_usage/node_count") == 0 and \
+             get("//sys/accounts/yt-dev-dt/@recursive_resource_usage/node_count") == 0)
+
+        remove("//tmp/yt")
+
+        wait(lambda: \
+             get("//sys/accounts/yt/@recursive_resource_usage/node_count") == 0 and \
+             get("//sys/accounts/yt-dev/@recursive_resource_usage/node_count") == 0 and \
+             get("//sys/accounts/yt-dev-spof/@recursive_resource_usage/node_count") == 0 and \
+             get("//sys/accounts/yt-dev-spof-1/@recursive_resource_usage/node_count") == 0 and \
+             get("//sys/accounts/yt-dev-dt/@recursive_resource_usage/node_count") == 0)
+
+    @authors("kiselyovp")
+    def test_nested_usage2(self):
+        create_account("yt")
+        self._multiply_account_limits("yt", 4)
+        create_account("yt-dev", "yt")
+        self._multiply_account_limits("yt-dev", 2)
+        create_account("yt-prod", "yt")
+        create_account("yt-morda", "yt-dev")
+
+        create("map_node", "//tmp/yt", attributes={"account": "yt"})
+        create("map_node", "//tmp/yt/yt-dev", attributes={"account": "yt-dev"})
+        create("map_node", "//tmp/yt/yt-prod", attributes={"account": "yt-prod"})
+        create("map_node", "//tmp/yt/yt-dev/yt-morda", attributes={"account": "yt-morda"})
+        create("file", "//tmp/yt/file")
+        write_file("//tmp/yt/file", "abacaba")
+        create("table", "//tmp/yt/yt-prod/table")
+        write_table("//tmp/yt/yt-prod/table", {"a" : "b"})
+        # TODO(kiselyovp) does this wait guarantee we'd see the entire resource usage?
+        wait(lambda: get("//sys/accounts/yt-prod/@committed_resource_usage/disk_space") > 0)
+        create("table", "//tmp/yt/yt-dev/yt-morda/table")
+        tx = start_transaction()
+        write_table("//tmp/yt/yt-dev/yt-morda/table", {"a" : "b", "c" : "d"}, tx=tx)
+        wait(lambda: get("//sys/accounts/yt-morda/@resource_usage/disk_space") > 0)
+
+        def check_recursive_usage(account, descendants):
+            for attribute in ["resource_usage", "committed_resource_usage"]:
+                usage = {}
+                for descendant in descendants:
+                    descendant_usage = get("//sys/accounts/{0}/@{1}".format(descendant, attribute))
+                    usage = self._add_recursive(usage, descendant_usage)
+                expected_usage = get("//sys/accounts/{0}/@recursive_{1}".format(account, attribute))
+                assert expected_usage == usage
+
+        check_recursive_usage("yt", ["yt", "yt-dev", "yt-prod", "yt-morda"])
+        check_recursive_usage("yt-dev", ["yt-dev", "yt-morda"])
+        check_recursive_usage("yt-prod", ["yt-prod"])
+        check_recursive_usage("yt-morda", ["yt-morda"])
+
+    @authors("shakurov")
+    def test_nested_usage_account_removal(self):
+        create_account("yt", attributes={"resource_limits": self._build_resource_limits(node_count=10)})
+        create_account("yt-dev", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=5)})
+        create_account("yt-dev-spof", "yt-dev", attributes={"resource_limits": self._build_resource_limits(node_count=2)})
+        create_account("yt-dev-dt", "yt-dev", empty=True)
+        create_account("yt-dev-spof-1", "yt-dev-spof", empty=True)
+        create("table", "//tmp/yt", attributes={"account": "yt-dev-spof"})
+
+        wait(lambda: \
+             get("//sys/accounts/yt/@recursive_resource_usage/node_count") == 1 and \
+             get("//sys/accounts/yt-dev/@recursive_resource_usage/node_count") == 1 and \
+             get("//sys/accounts/yt-dev-spof/@recursive_resource_usage/node_count") == 1 and \
+             get("//sys/accounts/yt-dev-spof-1/@recursive_resource_usage/node_count") == 0 and \
+             get("//sys/accounts/yt-dev-dt/@recursive_resource_usage/node_count") == 0)
+
+        remove_account("yt-dev-spof-1")
+        remove_account("yt-dev-spof", sync_deletion=False)
+
+        wait(lambda: \
+             get("//sys/accounts/yt/@recursive_resource_usage/node_count") == 1 and \
+             get("//sys/accounts/yt-dev/@recursive_resource_usage/node_count") == 1 and \
+             get("//sys/accounts/yt-dev-dt/@recursive_resource_usage/node_count") == 0)
+
+    @authors("kiselyovp")
+    def test_no_overdraft_after_move(self):
+        create_account("metrika", empty=True)
+        self._set_account_node_count_limit("metrika", 3)
+        create_account("metrika-dev", "metrika", empty=True)
+        self._set_account_node_count_limit("metrika-dev", 2)
+
+        create("map_node", "//tmp/metrika", attributes={"account": "metrika"})
+        create("map_node", "//tmp/metrika/dev", attributes={"account": "metrika-dev"})
+        create("map_node", "//tmp/metrika/dev/webvisor")
+        assert not self._is_account_node_count_limit_violated("metrika")
+        self._set_account_node_count_limit("metrika", 2)
+        assert self._is_account_node_count_limit_violated("metrika")
+
+        move("//sys/account_tree/metrika/metrika-dev", "//sys/account_tree/metrika-dev")
+        wait(lambda: not self._is_account_node_count_limit_violated("metrika"))
+
+        create("map_node", "//tmp/metrika/admin")
+        wait(lambda: not self._is_account_node_count_limit_violated("metrika"))
+
+    @authors("kiselyovp")
+    def test_failed_move_from_overdrafted(self):
+        create_account("metrika", empty=True)
+        self._set_account_node_count_limit("metrika", 2)
+        create_account("metrika-dev", "metrika", empty=True)
+        self._set_account_node_count_limit("metrika-dev", 1)
+
+        create("map_node", "//tmp/metrika", attributes={"account": "metrika"})
+        create("map_node", "//tmp/metrika-dev", attributes={"account": "metrika-dev"})
+        self._set_account_node_count_limit("metrika", 1)
+
+        create_account("empty", empty=True)
+        with pytest.raises(YtError):
+            set("//sys/accounts/metrika-dev/@parent_name", "empty")
+        assert not exists("//sys/account_tree/empty/metrika-dev")
+        assert exists("//sys/account_tree/metrika/metrika-dev")
+        assert get("//sys/accounts/metrika-dev/@parent_name") == "metrika"
+
+    @authors("kiselyovp")
+    def test_read_acl(self):
+        create_user("u")
+        create_account("parent", empty=True)
+        get("//sys/accounts/parent", authenticated_user="u")
+        set("//sys/accounts/parent/@acl/end", make_ace("deny", "u", "read"))
+        with pytest.raises(YtError): get("//sys/accounts/parent", authenticated_user="u")
+        create_account("child", "parent", empty=True)
+        with pytest.raises(YtError): get("//sys/accounts/child", authenticated_user="u")
+
+    @authors("kiselyovp")
+    def test_write_acl(self):
+        create_user("u")
+        create_account("parent", empty=True)
+        with pytest.raises(YtError):
+            create_account("child", "parent", empty=True, authenticated_user="u")
+        with pytest.raises(YtError):
+            set("//sys/accounts/parent/@resource_limits/node_count", 1, authenticated_user="u")
+
+        set("//sys/accounts/parent/@acl/end", make_ace("allow", "u", "write"))
+        set("//sys/accounts/parent/@resource_limits/node_count", 1, authenticated_user="u")
+        create_account(
+            "child",
+            "parent",
+            attributes={"resource_limits": self._build_resource_limits(node_count=1)},
+            authenticated_user="u")
+
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/u", attributes={"account": "parent"}, authenticated_user="u")
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/u", attributes={"account": "child"}, authenticated_user="u")
+
+    @authors("kiselyovp")
+    def test_modify_children_acl(self):
+        create_user("u")
+        create_account("parent", empty=True, attributes={"acl": [make_ace("allow", "u", "modify_children")]})
+        with pytest.raises(YtError):
+            set("//sys/accounts/parent/@resource_limits/node_count", 1, authenticated_user="u")
+        set("//sys/accounts/parent/@resource_limits/node_count", 1)
+
+        create_account(
+            "child",
+            "parent",
+            attributes={"resource_limits": self._build_resource_limits(node_count=1)},
+            authenticated_user="u")
+
+        with pytest.raises(YtError):
+            set("//sys/accounts/child/@resource_limits/node_count", 0, authenticated_user="u")
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/u", attributes={"account": "parent"}, authenticated_user="u")
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/u", attributes={"account": "child"}, authenticated_user="u")
+
+    @authors("kiselyovp")
+    def test_administer_acl(self):
+        create_user("u1")
+        create_user("u2")
+        create_account("parent", attributes={"acl": [make_ace("allow", "u1", "administer")]})
+        with pytest.raises(YtError):
+            set("//sys/accounts/parent/@acl/end", make_ace("allow", "u2", "use"), authenticated_user="u2")
+        with pytest.raises(YtError):
+            create_account("child", "parent", empty=True, authenticated_user="u1")
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/u1", attributes={"account": "parent"}, authenticated_user="u1")
+
+        set("//sys/accounts/parent/@acl", self._create_account_acl("u1"), authenticated_user="u1")
+        create("map_node", "//tmp/u1", attributes={"account": "parent"}, authenticated_user="u1")
+        # administer permission for parent is needed to create a child with acl
+        with pytest.raises(YtError):
+            create_account(
+                "child",
+                "parent",
+                empty=True,
+                attributes={"acl": [make_ace("allow", "u2", "use")]},
+                authenticated_user="u1")
+        create_account(
+            "child",
+            "parent",
+            attributes={"resource_limits": self._build_resource_limits(node_count=1)},
+            authenticated_user="u1")
+        set("//sys/accounts/child/@acl/end", make_ace("allow", "u2", "use"))
+        create("map_node", "//tmp/u2", attributes={"account": "child"}, authenticated_user="u2")
+
+    @authors("kiselyovp")
+    def test_remove_acl(self):
+        create_user("u")
+        create_account("parent", attributes={"acl": [make_ace("allow", "u", "remove")]})
+        create_account("child", "parent", empty=True)
+
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/u", attributes={"account": "parent"}, authenticated_user="u")
+        # write or modify_children permission for parent of the account being removed
+        with pytest.raises(YtError): remove_account("parent", authenticated_user="u")
+        with pytest.raises(YtError): remove_account("child", authenticated_user="u")
+        set("//sys/accounts/parent/@acl/end", make_ace("allow", "u", "modify_children"))
+        remove_account("child", authenticated_user="u")
+
+        set("//sys/accounts/parent/@acl", [make_ace("allow", "u", ["write"])])
+        create_account("child", "parent", empty=True)
+        with pytest.raises(YtError): remove_account("child", authenticated_user="u")
+        set("//sys/accounts/child/@acl/end", make_ace("allow", "u", ["remove"]))
+        remove_account("child", authenticated_user="u")
+
+    @authors("kiselyovp")
+    def test_nested_acls1(self):
+        create_user("user")
+        with pytest.raises(YtError):
+            create_account("account", "tmp", empty=True, authenticated_user="user")
+
+    # XXX(kiselyovp) these tests are too large
+    # XXX(kiselyovp) a decorator to inject authenticated_user into commands
+    @authors("kiselyovp")
+    def test_nested_acls2(self):
+        create_user("babenko")
+        create_user("max42")
+        create_user("kiselyovp")
+
+        with pytest.raises(YtError):
+            create_account("logozhuj", empty=True, authenticated_user="babenko")
+        create_account("yt", empty=True, attributes={
+            "acl": self._create_account_acl("babenko")
+        })
+        with pytest.raises(YtError): set("//sys/accounts/yt/@name", "logozhuj", authenticated_user="babenko")
+        with pytest.raises(YtError): remove_account("yt", authenticated_user="babenko")
+        create_account("max42", "yt", empty=True, authenticated_user="babenko")
+        set(
+            "//sys/account_tree/yt/max42/@acl",
+            self._create_account_acl("max42"),
+            authenticated_user="babenko"
+        )
+        create_account("kiselyovp", "yt", empty=True, authenticated_user="babenko")
+        set(
+            "//sys/account_tree/yt/kiselyovp/@acl",
+            self._create_account_acl("kiselyovp"),
+            authenticated_user="babenko"
+        )
+
+        with pytest.raises(YtError):
+            set("//sys/account_tree/yt/max42/@parent_name", "kiselyovp", authenticated_user="kiselyovp")
+        with pytest.raises(YtError):
+            remove_account("max42", authenticated_user="kiselyovp")
+        with pytest.raises(YtError):
+            remove_account("kiselyovp", authenticated_user="kiselyovp")
+        with pytest.raises(YtError):
+            remove_account("yt", authenticated_user="kiselyovp")
+        assert sorted(ls("//sys/account_tree/yt", authenticated_user="kiselyovp")) == ["kiselyovp", "max42"]
+        with pytest.raises(YtError):
+            create_account("surprise", "max42", empty=True, authenticated_user="kiselyovp")
+
+        create_account("tesuto", "kiselyovp", empty=True, authenticated_user="kiselyovp")
+        with pytest.raises(YtError):
+            set(
+                "//sys/account_tree/yt/kiselyovp/@acl/end",
+                make_ace("allow", "max42", "use"),
+                authenticated_user="kiselyovp"
+            )
+        create_account("empty", "tesuto", empty=True, authenticated_user="kiselyovp")
+        set(
+            "//sys/accounts/tesuto/@acl/end",
+            make_ace("deny", "max42", "read"),
+            authenticated_user="kiselyovp"
+        )
+        with pytest.raises(YtError):
+            get("//sys/accounts/tesuto", authenticated_user="max42")
+        with pytest.raises(YtError):
+            get("//sys/account_tree/yt/kiselyovp/tesuto/empty", authenticated_user="max42")
+        set("//sys/accounts/tesuto/@acl", [], authenticated_user="babenko")
+        remove_account("tesuto", authenticated_user="kiselyovp")
+
+        remove_account("max42", authenticated_user="babenko")
+        remove_account("kiselyovp", authenticated_user="babenko")
+
+    @authors("kiselyovp")
+    def test_nested_acls3(self):
+        create_user("babenko")
+        create_user("kiselyovp")
+
+        create_account("yt", empty=True, attributes={"acl": self._create_account_acl("babenko")})
+        create_account("yt-dev", "yt", empty=True, authenticated_user="babenko")
+        create_account(
+            "yt-tests",
+            "yt-dev",
+            empty=True,
+            attributes={"acl": [make_ace("deny", "kiselyovp", "read")]},
+            authenticated_user="babenko")
+        with pytest.raises(YtError):
+            get("//sys/account_tree/yt/yt-dev/yt-tests", authenticated_user="kiselyovp")
+
+    @authors("kiselyovp")
+    def test_nested_acls4(self):
+        create_user("babenko")
+        create_user("renadeen")
+        create_user("andozer")
+
+        create_account("yt", empty=True)
+        self._set_account_node_count_limit("yt", 15)
+        set("//sys/account_tree/yt/@acl", self._create_account_acl("babenko"))
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("yt", 100500, authenticated_user="babenko")
+
+        create_account("yt-dev", "yt", empty=True, authenticated_user="babenko")
+        create_account("yt-prod", "yt", empty=True, authenticated_user="babenko")
+        self._set_account_node_count_limit("yt-dev", 4, authenticated_user="babenko")
+        self._set_account_node_count_limit("yt-prod", 8, authenticated_user="babenko")
+        set(
+            "//sys/account_tree/yt/yt-dev/@acl",
+            self._create_account_acl("renadeen") + [make_ace("allow", "renadeen", "use")],
+            authenticated_user="babenko"
+        )
+        set(
+            "//sys/account_tree/yt/yt-prod/@acl",
+            self._create_account_acl(["renadeen", "andozer"]) + [make_ace("allow", ["renadeen", "andozer"], "use")],
+            authenticated_user="babenko"
+        )
+
+        create("map_node", "//tmp/yt", attributes={
+            "acl": [make_ace("allow", "everyone", ["read", "write", "remove"])]
+        })
+        set("//tmp/yt/@account", "yt", authenticated_user="babenko")
+        create("map_node", "//tmp/yt/renadeen", attributes={"account": "yt-dev"}, authenticated_user="renadeen")
+        create("map_node", "//tmp/yt/andozer", attributes={"account": "yt-prod"}, authenticated_user="andozer")
+
+        create("map_node", "//tmp/yt/renadeen/never_mind")
+        create_account("huj", "yt-dev", empty=True, authenticated_user="renadeen")
+        self._set_account_node_count_limit("huj", 1, authenticated_user="renadeen")
+        set("//tmp/yt/renadeen/never_mind/@account", "huj", authenticated_user="renadeen")
+
+        with pytest.raises(YtError):
+            set("//tmp/yt/renadeen/never_mind/@account", "yt", authenticated_user="renadeen")
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/yt/renadeen/work", attributes={"account": "huj"}, authenticated_user="renadeen")
+        create_account("kurwa", "yt-dev", empty=True, authenticated_user="renadeen")
+        self._set_account_node_count_limit("kurwa", 2)
+        create("map_node", "//tmp/yt/renadeen/work", attributes={"account": "kurwa"}, authenticated_user="renadeen")
+
+        with pytest.raises(YtError):
+            set("//sys/accounts/kurwa/@name", "work", authenticated_user="andozer")
+        with pytest.raises(YtError):
+            create_account("work", "yt-dev", empty=True, authenticated_user="andozer")
+        with pytest.raises(YtError):
+            remove_account("huj", authenticated_user="andozer")
+
+        set("//sys/accounts/kurwa/@name", "work", authenticated_user="babenko")
+        assert get("//tmp/yt/renadeen/work/@account") == "work"
+        remove_account("huj", authenticated_user="babenko", sync_deletion=False)
+        remove("//tmp/yt/renadeen/never_mind")
+        wait(lambda: not exists("//sys/accounts/huj"))
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/yt/babenko", attributes={"account": "work"}, authenticated_user="babenko")
+        set("//sys/account_tree/yt/yt-dev/@acl/end", make_ace("allow", "babenko", "use"))
+        create("map_node", "//tmp/yt/babenko", attributes={"account": "work"}, authenticated_user="babenko")
+
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("yt-prod", 10, authenticated_user="andozer")
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("yt", 100500, authenticated_user="andozer")
+        with pytest.raises(YtError):
+            move("//sys/account_tree/yt/yt-dev/work", "//sys/account_tree/yt/yt-prod/work", authenticated_user="andozer")
+        create_account("interface", "yt-prod", empty=True, authenticated_user="andozer")
+        self._set_account_node_count_limit("interface", 1, authenticated_user="andozer")
+        create("map_node", "//tmp/yt/andozer/interface", attributes={"account": "interface"}, authenticated_user="andozer")
+        set("//sys/accounts/interface/@parent_name", "yt-dev", authenticated_user="renadeen")
+        remove("//tmp/yt/andozer/interface")
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/yt/andozer/interface", attributes={"account": "interface"}, authenticated_user="andozer")
+        wait(lambda: self._get_account_node_count("interface") == 0)
+        create("map_node", "//tmp/yt/renadeen/morda", attributes={"account": "interface"}, authenticated_user="renadeen")
+        with pytest.raises(YtError):
+            move("//sys/account_tree/yt/yt-dev/interface", "//sys/account_tree/yt/yt-prod/interface", authenticated_user="andozer")
+        move("//sys/account_tree/yt/yt-dev/interface", "//sys/account_tree/yt/yt-prod/morda", authenticated_user="babenko")
+
+    @authors("kiselyovp")
+    def test_parent_name_and_path(self):
+        create_account("yt", empty=True)
+        create_account("yt-dev", "yt", empty=True)
+        create_account("yt-tesuto", "yt-dev", empty=True)
+
+        with pytest.raises(YtError): get("//sys/accounts/{0}/@parent_name".format(self._root_account_name))
+        assert get("//sys/accounts/{0}/@path".format(self._root_account_name)) == "//sys/account_tree"
+        assert get("//sys/accounts/yt/@parent_name") == self._root_account_name
+        assert get("//sys/accounts/yt/@path") == "//sys/account_tree/yt"
+        assert get("//sys/accounts/yt-dev/@parent_name") == "yt"
+        assert get("//sys/accounts/yt-dev/@path") == "//sys/account_tree/yt/yt-dev"
+        assert get("//sys/accounts/yt-tesuto/@parent_name") == "yt-dev"
+        assert get("//sys/accounts/yt-tesuto/@path") == "//sys/account_tree/yt/yt-dev/yt-tesuto"
+
+        create_account("yt-prod", "yt", empty=True)
+        move("//sys/account_tree/yt/yt-dev/yt-tesuto", "//sys/account_tree/yt/yt-prod/yt-test")
+        assert get("//sys/accounts/yt-test/@parent_name") == "yt-prod"
+        assert get("//sys/accounts/yt-test/@path") == "//sys/account_tree/yt/yt-prod/yt-test"
+
+    @authors("shakurov")
+    def test_recursive_violated_resource_limits(self):
+        create_medium("hdd7")
+        limits_x = self._build_resource_limits(node_count=1000, chunk_count=1000, tablet_count=1000, tablet_static_memory=100500, disk_space=100500)
+        limits_2x = self._build_resource_limits(node_count=2000, chunk_count=2000, tablet_count=2000, tablet_static_memory=201000, disk_space=201000)
+        create_account("yt", attributes={"resource_limits": limits_2x})
+        create_account("yt-dev", "yt", attributes={"resource_limits": limits_x})
+        create_account("yt-dyntables", "yt-dev", attributes={"resource_limits": limits_x})
+        create_account("yt-prod", "yt", attributes={"resource_limits": limits_x})
+
+        no_violated_limits = self._build_resource_limits()
+        no_violated_limits["disk_space_per_medium"] = {}
+
+        assert get("//sys/accounts/yt/@recursive_violated_resource_limits") == no_violated_limits
+        assert get("//sys/accounts/yt-dev/@recursive_violated_resource_limits") == no_violated_limits
+        assert get("//sys/accounts/yt-dyntables/@recursive_violated_resource_limits") == no_violated_limits
+        assert get("//sys/accounts/yt-prod/@recursive_violated_resource_limits") == no_violated_limits
+
+        create("map_node", "//tmp/yt", attributes={"account": "yt"})
+        create("map_node", "//tmp/yt-dev", attributes={"account": "yt-dev"})
+        create("map_node", "//tmp/yt-prod", attributes={"account": "yt-prod"})
+
+        ###### yt-dyntables ######
+        sync_create_cells(1)
+        create_dynamic_table(
+            "//tmp/yt-dev/dynamic",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"}],
+            account="yt-dyntables")
+        sync_mount_table("//tmp/yt-dev/dynamic")
+        insert_rows("//tmp/yt-dev/dynamic", [{"key" : 0, "value" : "0"}])
+        sync_unmount_table("//tmp/yt-dev/dynamic")
+
+        set("//tmp/yt-dev/dynamic/@in_memory_mode", "uncompressed")
+        sync_mount_table("//tmp/yt-dev/dynamic")
+        wait(lambda: get("//sys/accounts/yt-dyntables/@resource_usage/tablet_static_memory") != 0)
+
+        # violate tablet count and tablet static memory limits for yt-dyntables
+        set("//sys/accounts/yt-dyntables/@resource_limits/tablet_count", 0)
+        set("//sys/accounts/yt-dyntables/@resource_limits/tablet_static_memory", 0)
+
+        assert get("//sys/accounts/yt-dyntables/@recursive_violated_resource_limits") == {
+            "node_count": 0,
+            "chunk_count": 0,
+            "tablet_count": 1,
+            "tablet_static_memory": 1,
+            "disk_space_per_medium": {}}
+
+        ###### yt-dev ######
+
+        # violate node, chunk and default medium disk space limits for yt-dev
+        create("table", "//tmp/yt-dev/table")
+        write_table("//tmp/yt-dev/table", {"a" : "b"})
+        self._set_account_node_count_limit("yt-dyntables", 0)
+        self._set_account_node_count_limit("yt-dev", 0)
+        self._set_account_chunk_count_limit("yt-dyntables", 0)
+        self._set_account_chunk_count_limit("yt-dyntables", 0)
+        set_account_disk_space_limit("yt-dyntables", 0)
+        set_account_disk_space_limit("yt-dev", 0)
+
+        wait(lambda: get("//sys/accounts/yt-dev/@recursive_violated_resource_limits") == {
+            "node_count": 2,
+            "chunk_count": 1,
+            "tablet_count": 1,
+            "tablet_static_memory": 1,
+            "disk_space_per_medium": {"default": 2}})
+
+        ###### yt-prod ######
+
+        create("file", "//tmp/yt-prod/file")
+        write_file("//tmp/yt-prod/file", "abacaba")
+        set("//tmp/yt-prod/file/@primary_medium", "hdd7")
+
+        # violate hdd7 disk space limit for yt-prod
+        set_account_disk_space_limit("yt-prod", 0, "hdd7")
+
+        wait(lambda: get("//sys/accounts/yt-prod/@recursive_violated_resource_limits") == {
+            "node_count": 0,
+            "chunk_count": 0,
+            "tablet_count": 0,
+            "tablet_static_memory": 0,
+            "disk_space_per_medium": {"hdd7": 1}})
+
+        ###### yt ######
+
+        # violate hdd7 disk space limit for yt
+        copy("//tmp/yt-prod/file", "//tmp/yt/file", pessimistic_quota_check=False)
+        # violate node count limit for yt
+        self._set_account_node_count_limit("yt-prod", 0)
+        self._set_account_node_count_limit("yt", 0)
+
+        wait(lambda: get("//sys/accounts/yt/@recursive_violated_resource_limits") == {
+            "node_count": 4,
+            "chunk_count": 1,
+            "tablet_count": 1,
+            "tablet_static_memory": 1,
+            "disk_space_per_medium": {"default": 2, "hdd7": 2}})
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("allow_overcommit", [False, True])
+    def test_single_child_overcommit_impossible(self, allow_overcommit):
+        create_account("yt", attributes={
+            "resource_limits": self._build_resource_limits(node_count=1),
+            "allow_children_limit_overcommit": allow_overcommit})
+        with pytest.raises(YtError):
+            create_account("yt-dev", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=2)})
+        create_account("yt-dev", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=1)})
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("yt-dev", 2)
+        set("//sys/accounts/yt/@allow_children_limit_overcommit", not allow_overcommit)
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("yt-dev", 2)
+
+    @authors("shakurov")
+    def test_allow_children_limit_overcommit_validation(self):
+        limits = self._build_resource_limits(node_count=1)
+        create_account("yt", attributes={"resource_limits": limits, "allow_children_limit_overcommit": True})
+        create_account("yt-dev", "yt", attributes={"resource_limits": limits})
+        create_account("yt-front", "yt", attributes={"resource_limits": limits})
+        with pytest.raises(YtError):
+            set("//sys/accounts/yt/@allow_children_limit_overcommit", False)
+
+        self._set_account_node_count_limit("yt-front", 0)
+        set("//sys/accounts/yt/@allow_children_limit_overcommit", True)
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("allow_overcommit", [False, True])
+    def test_move_overcommit_impossible_single_child(self, allow_overcommit):
+        create_account("yt", attributes={"resource_limits": self._build_resource_limits(node_count=1), "allow_children_limit_overcommit": allow_overcommit})
+        create_account("yt2", attributes={"resource_limits": self._build_resource_limits(node_count=2)})
+
+        with pytest.raises(YtError):
+            set("//sys/account_tree/yt2/@parent_name", "yt")
+
+        self._set_account_node_count_limit("yt2", 1)
+
+        set("//sys/account_tree/yt2/@parent_name", "yt")
+
+    @authors("shakurov")
+    def test_move_overcommit_impossible_children_sum(self):
+        create_account("yt", attributes={"resource_limits": self._build_resource_limits(node_count=2)})
+        create_account("yt-dev", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=1)})
+        create_account("yt2", attributes={"resource_limits": self._build_resource_limits(node_count=3)})
+
+        with pytest.raises(YtError):
+            move("//sys/account_tree/yt2", "//sys/account_tree/yt")
+        set("//sys/accounts/yt/@allow_children_limit_overcommit", True)
+        with pytest.raises(YtError):
+            set("//sys/account_tree/yt2/@parent_name", "yt")
+
+        self._set_account_node_count_limit("yt2", 2)
+        set("//sys/account_tree/yt2/@parent_name", "yt")
+
+    @authors("shakurov")
+    def test_parent_overdraft(self):
+        limits = self._build_resource_limits(node_count=1)
+        create_account("yt", attributes={"resource_limits": limits, "allow_children_limit_overcommit": True})
+        create_account("yt-dev", "yt", attributes={"resource_limits": limits})
+        create_account("yt-front", "yt", attributes={"resource_limits": limits})
+        create("map_node", "//tmp/d1", attributes={"account": "yt-front"})
+
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/d2", attributes={"account": "yt-dev"})
+
+    @authors("shakurov")
+    def test_ancestor_overdraft(self):
+        limits = self._build_resource_limits(node_count=1)
+        create_account("yt", attributes={"resource_limits": limits, "allow_children_limit_overcommit": True})
+        create_account("yt-dev", "yt", attributes={"resource_limits": limits})
+        create_account("yt-dt", "yt-dev", attributes={"resource_limits": limits})
+        create_account("yt-front", "yt", attributes={"resource_limits": limits})
+        create("map_node", "//tmp/d1", attributes={"account": "yt-front"})
+
+        with pytest.raises(YtError):
+            create("map_node", "//tmp/d2", attributes={"account": "yt-dt"})
+
+    @authors("shakurov")
+    def test_change_limits_overcommit_impossible(self):
+        create_account("yt", attributes={"resource_limits": self._build_resource_limits(node_count=4)})
+        create_account("yt-dev", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=2)})
+        create_account("yt-front", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=2)})
+
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("yt-dev", 5)
+
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("yt-dev", 3)
+
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("yt", 1)
+
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("yt", 2)
+
+        set("//sys/accounts/yt/@allow_children_limit_overcommit", True)
+
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("yt-dev", 5)
+
+        self._set_account_node_count_limit("yt-dev", 3)
+
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("yt", 1)
+
+        self._set_account_node_count_limit("yt", 3)
+
+    @authors("shakurov")
+    def test_negative_limits(self):
+        with pytest.raises(YtError):
+            create_account("yt", attributes={"resource_limits": self._build_resource_limits(node_count=-1)})
+
+        create_account("yt", attributes={"resource_limits": self._build_resource_limits(node_count=1)})
+
+        with pytest.raises(YtError):
+            self._set_account_node_count_limit("yt", -1)
+
+    @authors("kiselyovp")
+    def test_overcommit_disk_space_with_zero_limit(self):
+        create_medium("hdd8")
+        limits = self._build_resource_limits()
+        limits["disk_space_per_medium"]["hdd8"] = 1024
+        create_account("yt", attributes={"resource_limits": self._build_resource_limits(disk_space=1000)})
+
+        with pytest.raises(YtError):
+            create_account("yt-dev", "yt", attributes={"resource_limits": limits})
+
+        create_account("yt-dev", attributes={"resource_limits": limits})
+        with pytest.raises(YtError):
+            set("//sys/accounts/yt-dev/@parent_name", "yt")
+
+        create_account("yt-prod", "yt", empty=True)
+        with pytest.raises(YtError):
+            set_account_disk_space_limit("yt-prod", 1024, "hdd8")
+
+
 ##################################################################
 
 class TestAccountsMulticell(TestAccounts):
@@ -1419,3 +2633,7 @@ class TestAccountsMulticell(TestAccounts):
 
         wait(lambda: len(get("#" + chunk_id + "/@owning_nodes")) == 1)
         wait(lambda: len(get("#" + chunk_id + "/@requisition")) == 1)
+
+class TestAccountTreeMulticell(TestAccountTree):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    NUM_SCHEDULERS = 1

@@ -120,6 +120,7 @@ DEFINE_ENUM(EMasterReign,
     ((PrevRandomSeed)                                               (1201))  // aleksandra-zh
     ((FixDenseMapSerialization)                                     (1202))  // aleksandra-zh
     ((YT_12145_FixReplicatedTablesCopy)                             (1203))  // babenko
+    ((HierarchicalAccounts)                                         (1204))  // kiselyovp
 );
 
 ////////////////////////////////////////////////////////////////////////////////

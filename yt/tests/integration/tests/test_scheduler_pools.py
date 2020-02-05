@@ -250,7 +250,6 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
     def test_standard_move_of_pool_trees_is_forbidden2(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool_tree("another_tree", wait_for_orchid=False)
-        create_pool("nirvana", pool_tree="another_tree")
 
         with pytest.raises(YtError):
             move("//sys/pool_trees/my_tree", "//sys/pool_trees/another_tree/nirvana")

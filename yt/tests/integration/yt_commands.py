@@ -1168,12 +1168,23 @@ def gc_collect(driver=None):
 def clear_metadata_caches(driver=None):
     _get_driver(driver=driver).clear_metadata_caches()
 
-def create_account(name, **kwargs):
+
+def create_account(name, parent_name=None, empty=False, **kwargs):
     sync = kwargs.pop('sync_creation', True)
     kwargs["type"] = "account"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
+    if parent_name is not None:
+        kwargs["attributes"]["parent_name"] = parent_name
+    if not empty and "resource_limits" not in kwargs["attributes"]:
+        kwargs["attributes"]["resource_limits"] = {
+            "disk_space_per_medium": {"default" : 2 ** 30},
+            "chunk_count": 100000,
+            "node_count": 1000,
+            "tablet_count": 0,
+            "tablet_static_memory": 0
+        }
     execute_command("create", kwargs)
     if sync:
         wait(lambda: get("//sys/accounts/{0}/@life_stage".format(name)) == 'creation_committed')
