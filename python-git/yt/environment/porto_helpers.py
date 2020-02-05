@@ -48,7 +48,7 @@ class PortoSubprocess(object):
         name = generate_uuid()
         command = " ".join(["'" + quote(a) + "'" for a in args])
         p = PortoSubprocess()
-        p._container = conn.Create(str(name))
+        p._container = conn.Create(str(name), weak=True)
         p._portoName = name
         p._connection = conn
         p._container.SetProperty("command", command)
