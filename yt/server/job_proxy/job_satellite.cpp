@@ -120,6 +120,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRootlessPidsHolder
+    : public IPidsHolder
+{
+public:
+    explicit TRootlessPidsHolder()
+    { }
+
+    virtual std::vector<int> GetPids() override
+    {
+        return GetPidsUnderParent(getpid());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TContainerPidsHolder
     : public IPidsHolder
 {
@@ -235,7 +250,11 @@ void TJobProbeTools::Init(TJobId jobId)
             break;
 
         case EJobEnvironmentType::Simple:
-            PidsHolder_.reset(new TSimplePidsHolder(Uid_));
+            if (HasRootPermissions()) {
+                PidsHolder_.reset(new TSimplePidsHolder(Uid_));
+            } else {
+                PidsHolder_.reset(new TRootlessPidsHolder());
+            }
             break;
 
         default:
