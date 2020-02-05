@@ -174,29 +174,41 @@ private:
                     Context_.PodDisruptionBudgetController->Run(Context_.Cluster);
                 }
             }
-            if (shouldRunStage(ESchedulerLoopStage::RunPodMaintenanceController)) {
+            {
                 auto controller = New<TPodMaintenanceController>(Bootstrap_);
 
                 // COMPAT(bidzilya): Do not request eviction explicitly, let controllers decide.
-                PROFILE_TIMING("/time/pod_maintenance/abort_eviction") {
-                    controller->AbortEviction(Context_.Cluster);
+                if (shouldRunStage(ESchedulerLoopStage::RunPodMaintenanceAbortEviction)) {
+                    PROFILE_TIMING("/time/pod_maintenance/abort_eviction") {
+                        controller->AbortEviction(Context_.Cluster);
+                    }
                 }
-                PROFILE_TIMING("/time/pod_maintenance/request_eviction") {
-                    controller->RequestEviction(Context_.Cluster);
-                }
-
-                PROFILE_TIMING("/time/pod_maintenance/reset_maintenance") {
-                    controller->ResetMaintenance(Context_.Cluster);
-                }
-                PROFILE_TIMING("/time/pod_maintenance/request_maintenance") {
-                    controller->RequestMaintenance(Context_.Cluster);
-                }
-                PROFILE_TIMING("/time/pod_maintenance/sync_in_progress_maintenance") {
-                    controller->SyncInProgressMaintenance(Context_.Cluster);
+                if (shouldRunStage(ESchedulerLoopStage::RunPodMaintenanceRequestEviction)) {
+                    PROFILE_TIMING("/time/pod_maintenance/request_eviction") {
+                        controller->RequestEviction(Context_.Cluster);
+                    }
                 }
 
-                PROFILE_TIMING("/time/pod_maintenance/sync_node_alerts") {
-                    controller->SyncNodeAlerts(Context_.Cluster);
+                if (shouldRunStage(ESchedulerLoopStage::RunPodMaintenanceResetMaintenance)) {
+                    PROFILE_TIMING("/time/pod_maintenance/reset_maintenance") {
+                        controller->ResetMaintenance(Context_.Cluster);
+                    }
+                }
+                if (shouldRunStage(ESchedulerLoopStage::RunPodMaintenanceRequestMaintenance)) {
+                    PROFILE_TIMING("/time/pod_maintenance/request_maintenance") {
+                        controller->RequestMaintenance(Context_.Cluster);
+                    }
+                }
+                if (shouldRunStage(ESchedulerLoopStage::RunPodMaintenanceSyncInProgressMaintenance)) {
+                    PROFILE_TIMING("/time/pod_maintenance/sync_in_progress_maintenance") {
+                        controller->SyncInProgressMaintenance(Context_.Cluster);
+                    }
+                }
+
+                if (shouldRunStage(ESchedulerLoopStage::RunPodMaintenanceSyncNodeAlerts)) {
+                    PROFILE_TIMING("/time/pod_maintenance/sync_node_alerts") {
+                        controller->SyncNodeAlerts(Context_.Cluster);
+                    }
                 }
             }
             if (shouldRunStage(ESchedulerLoopStage::RevokePodsWithAcknowledgedEviction)) {

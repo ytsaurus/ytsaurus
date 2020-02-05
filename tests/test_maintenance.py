@@ -314,7 +314,7 @@ class TestPodMaintenanceController(object):
         assert not is_controller_disabled()
 
         yp_env_configurable.set_cypress_config_patch(dict(scheduler=dict(disable_stage=dict(
-            run_pod_maintenance_controller=True,
+            run_pod_maintenance_request_eviction=True,
         ))))
 
         wait(is_controller_disabled, iter=5, sleep_backoff=10)

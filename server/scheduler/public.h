@@ -53,15 +53,21 @@ DEFINE_ENUM(EPodNodeScoreType,
 using TPodNodeScoreValue = double;
 using TNodeScoreValue = int;
 
+// In the invocation order.
 DEFINE_ENUM(ESchedulerLoopStage,
-    (AcknowledgeNodeMaintenance)
-    (RemoveOrphanedAllocations)
-    (RevokePodsWithAcknowledgedEviction)
-    (RunPodDisruptionBudgetController)
-    (RunPodMaintenanceController)
-    (SchedulePods)
-    (UpdateAccountsStatus)
     (UpdateNodeSegmentsStatus)
+    (UpdateAccountsStatus)
+    (RunPodDisruptionBudgetController)
+    (RunPodMaintenanceAbortEviction)
+    (RunPodMaintenanceRequestEviction)
+    (RunPodMaintenanceResetMaintenance)
+    (RunPodMaintenanceRequestMaintenance)
+    (RunPodMaintenanceSyncInProgressMaintenance)
+    (RunPodMaintenanceSyncNodeAlerts)
+    (RevokePodsWithAcknowledgedEviction)
+    (RemoveOrphanedAllocations)
+    (AcknowledgeNodeMaintenance)
+    (SchedulePods)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
