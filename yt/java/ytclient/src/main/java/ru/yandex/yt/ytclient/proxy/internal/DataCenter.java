@@ -221,6 +221,8 @@ public final class DataCenter {
         activeProxies.remove(proxy);
         checkingProxies.remove(proxy);
         inactiveProxies.addLast(proxy);
+
+        proxy.resetTransaction();
     }
 
     private CompletableFuture<Void> ping(BalancingDestination client, ScheduledExecutorService executorService, Duration pingTimeout) {
