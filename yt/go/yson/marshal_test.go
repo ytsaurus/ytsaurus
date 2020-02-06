@@ -56,6 +56,16 @@ func TestRoundtripBasicTypes(t *testing.T) {
 	testRoundtrip(t, "")
 	testRoundtrip(t, []byte{})
 
+	var nilByteSlice []byte
+	testRoundtrip(t, nilByteSlice)
+	var nilByteSlicePtr *[]byte
+	testRoundtrip(t, nilByteSlicePtr)
+
+	var nilSlice []int
+	testRoundtrip(t, nilSlice)
+	var nilSlicePtr *[]int
+	testRoundtrip(t, nilSlicePtr)
+
 	testRoundtrip(t, "foo0")
 	testRoundtrip(t, []byte{0x01, 0x02, 0x03})
 
