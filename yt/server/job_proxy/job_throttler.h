@@ -12,12 +12,6 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EJobThrottlerType,
-    (InBandwidth)
-    (OutBandwidth)
-    (OutRps)
-);
-
 // These throttlers limit total network bandwidth to/from node,
 // coordinating network usage of all jobs via RPC calls to yt_node.
 // Only method #Throttle is supported.
