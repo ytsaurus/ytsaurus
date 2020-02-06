@@ -90,7 +90,7 @@ object SparkPackagePlugin extends AutoPlugin {
 
         import sys.process._
         IO.listFiles(f).foreach {
-          case ff if ff.isDirectory && IO.listFiles(ff).nonEmpty =>
+          case ff if ff.isDirectory && IO.listFiles(ff).nonEmpty && Set("egg-info", "dist", "build").forall(n => !ff.getName.contains(n)) =>
             IO.delete(new File(s"/tmp/${ff.getName}.zip"))
             val processString = s"zip /tmp/${ff.getName}.zip ${IO.listFiles(ff).map(i => ff.getName + File.separator + i.getName).mkString(" ")}"
             println(processString)
