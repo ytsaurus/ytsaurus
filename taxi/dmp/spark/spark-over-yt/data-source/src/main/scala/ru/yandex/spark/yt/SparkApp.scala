@@ -15,7 +15,7 @@ trait SparkApp extends App {
 
   override def main(args: Array[String]): Unit = {
     try {
-      val spark = createSparkSession(sparkConf)
+      val spark = SparkSession.builder.config(sparkConf).getOrCreate()
       try {
         run(args)(spark, YtClientProvider.ytClient)
       } finally {
