@@ -1,6 +1,7 @@
 #ifdef __linux__
 
 #include "porto_executor.h"
+#include "config.h"
 
 #include "private.h"
 
@@ -63,18 +64,18 @@ class TPortoExecutor
 {
 public:
     TPortoExecutor(
-        const TString& name,
-        std::unique_ptr<Porto::TPortoApi> api,
-        TDuration retryTime,
-        TDuration pollPeriod)
-        : Queue_(New<TActionQueue>(Format("Porto:%v", name)))
-        , Api_(std::move(api))
-        , RetryTime_(retryTime)
-    {
-        PollExecutor_ = New<TPeriodicExecutor>(
+        TPortoExecutorConfigPtr config,
+        const TString& threadNameSuffix)
+        : Config_(std::move(config))
+        , Queue_(New<TActionQueue>(Format("Porto:%v", threadNameSuffix)))
+        , PollExecutor_(New<TPeriodicExecutor>(
             Queue_->GetInvoker(),
             BIND(&TPortoExecutor::DoPoll, MakeWeak(this)),
-            pollPeriod);
+            Config_->PollPeriod))
+    {
+        Api_->SetTimeout(Config_->ApiTimeout.Seconds());
+        Api_->SetDiskTimeout(Config_->ApiDiskTimeout.Seconds());
+
         PollExecutor_->Start();
     }
 
@@ -211,11 +212,12 @@ public:
     }
 
 private:
+    const TPortoExecutorConfigPtr Config_;
     const TActionQueuePtr Queue_;
-    const std::unique_ptr<Porto::TPortoApi> Api_;
-    const TDuration RetryTime_;
 
-    TPeriodicExecutorPtr PollExecutor_;
+    const std::unique_ptr<Porto::TPortoApi> Api_ = std::make_unique<Porto::TPortoApi>();
+    const TPeriodicExecutorPtr PollExecutor_;
+
     std::vector<TString> Containers_;
     THashMap<TString, TPromise<int>> ContainersMap_;
     TSingleShotCallbackList<void(const TError&)> Failed_;
@@ -251,7 +253,7 @@ private:
                 message);
         }
 
-        if (error == EPortoErrorCode::Unknown && TInstant::Now() - time < RetryTime_) {
+        if (error == EPortoErrorCode::Unknown && TInstant::Now() - time < Config_->RetriesTimeout) {
             return;
         }
 
@@ -487,10 +489,11 @@ const std::vector<TString> TPortoExecutor::ContainerRequestVars_ = {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IPortoExecutorPtr CreatePortoExecutor(const TString& name, TDuration retryTime, TDuration pollPeriod)
+IPortoExecutorPtr CreatePortoExecutor(
+    TPortoExecutorConfigPtr config,
+    const TString& threadNameSuffix)
 {
-    auto api = std::make_unique<Porto::TPortoApi>();
-    return New<TPortoExecutor>(name, std::move(api), retryTime, pollPeriod);
+    return New<TPortoExecutor>(std::move(config), threadNameSuffix);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
