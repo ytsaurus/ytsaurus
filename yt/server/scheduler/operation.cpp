@@ -38,6 +38,7 @@ void Serialize(const TOperationEvent& event, IYsonConsumer* consumer)
         .BeginMap()
             .Item("time").Value(event.Time)
             .Item("state").Value(event.State)
+            .Item("attributes").Value(event.Attributes)
         .EndMap();
 }
 
@@ -239,10 +240,12 @@ TCodicilGuard TOperation::MakeCodicilGuard() const
     return TCodicilGuard(CodicilData_);
 }
 
-void TOperation::SetStateAndEnqueueEvent(EOperationState state)
+void TOperation::SetStateAndEnqueueEvent(
+    EOperationState state,
+    const THashMap<TString, TString>& attributes)
 {
     State_ = state;
-    Events_.emplace_back(TOperationEvent({TInstant::Now(), state}));
+    Events_.emplace_back(TOperationEvent({TInstant::Now(), state, attributes}));
     ShouldFlush_ = true;
 }
 

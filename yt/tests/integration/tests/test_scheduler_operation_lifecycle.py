@@ -446,7 +446,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op = map(in_="//tmp/t_in", out="//tmp/t_out", command="cat")
         assert get(op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default/pool") == "root"
 
-    @authors("babenko")
+    @authors("babenko", "gritukan")
     @require_ytserver_root_privileges
     def test_operation_events_attribute(self):
         self._prepare_tables()
@@ -464,6 +464,13 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
                    "completing",
                    "completed"
                ] == [event["state"] for event in events]
+
+        def event_contains_agent_address(event):
+            if not "controller_agent_address" in event["attributes"]:
+                return False
+            return len(event["attributes"]["controller_agent_address"]) > 0
+
+        assert any(event_contains_agent_address(event) for event in events)
 
     @authors("ignat")
     def test_exceed_job_time_limit(self):
