@@ -529,6 +529,7 @@ message TDeployTicket
     TDeployTicketStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    TDeployTicketControl control = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -643,7 +644,6 @@ message TRelease
     TReleaseStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
-    TDeployTicketControl control = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
