@@ -656,7 +656,8 @@ TTransaction::TTransaction(
     const TStartTransactionOptions& options)
     : TClientBase(auth, parentTransactionId, parentClient->GetRetryPolicy())
     , PingableTx_(
-        new TPingableTransaction(
+        MakeHolder<TPingableTransaction>(
+            parentClient->GetRetryPolicy(),
             auth,
             parentTransactionId,
             options))
@@ -673,6 +674,7 @@ TTransaction::TTransaction(
     : TClientBase(auth, transactionId, parentClient->GetRetryPolicy())
     , PingableTx_(
         new TPingableTransaction(
+            parentClient->GetRetryPolicy(),
             auth,
             transactionId,
             options))

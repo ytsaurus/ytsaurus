@@ -21,6 +21,7 @@ public:
     //
     // Start a new transaction.
     TPingableTransaction(
+        const IClientRetryPolicyPtr& retryPolicy,
         const TAuth& auth,
         const TTransactionId& parentId,
         const TStartTransactionOptions& options);
@@ -28,6 +29,7 @@ public:
     //
     // Attach to an existing transaction.
     TPingableTransaction(
+        const IClientRetryPolicyPtr& retryPolicy,
         const TAuth& auth,
         const TTransactionId& transactionId,
         const TAttachTransactionOptions& options);
@@ -49,6 +51,7 @@ private:
     };
 
 private:
+    IClientRetryPolicyPtr ClientRetryPolicy_;
     TAuth Auth_;
     TTransactionId TransactionId_;
     TDuration MinPingInterval_;

@@ -60,7 +60,7 @@ public:
         SecondaryParameters_ = FormIORequestParameters(secondaryPath, options);
 
         if (options.CreateTransaction_) {
-            WriteTransaction_.ConstructInPlace(auth, parentId, TStartTransactionOptions());
+            WriteTransaction_.ConstructInPlace(ClientRetryPolicy_, auth, parentId, TStartTransactionOptions());
             auto append = path.Append_.GetOrElse(false);
             auto lockMode = (append  ? LM_SHARED : LM_EXCLUSIVE);
             NDetail::NRawClient::Lock(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, WriteTransaction_->GetId(), path.Path_, lockMode);

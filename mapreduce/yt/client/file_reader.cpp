@@ -37,7 +37,7 @@ TStreamReaderBase::TStreamReaderBase(
     const TTransactionId& transactionId)
     : ClientRetryPolicy_(std::move(clientRetryPolicy))
     , Auth_(auth)
-    , ReadTransaction_(MakeHolder<TPingableTransaction>(auth, transactionId, TStartTransactionOptions()))
+    , ReadTransaction_(MakeHolder<TPingableTransaction>(ClientRetryPolicy_, auth, transactionId, TStartTransactionOptions()))
 {
 }
 

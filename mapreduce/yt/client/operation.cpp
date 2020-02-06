@@ -2777,7 +2777,8 @@ private:
 TOperationPreparer::TOperationPreparer(TClientPtr client, TTransactionId transactionId)
     : Client_(std::move(client))
     , TransactionId_(transactionId)
-    , FileTransaction_(new TPingableTransaction(
+    , FileTransaction_(MakeHolder<TPingableTransaction>(
+        Client_->GetRetryPolicy(),
         Client_->GetAuth(),
         TransactionId_,
         TStartTransactionOptions()))

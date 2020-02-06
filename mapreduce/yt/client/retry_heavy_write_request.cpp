@@ -16,6 +16,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 void RetryHeavyWriteRequest(
+    const IClientRetryPolicyPtr& clientRetryPolicy,
     const TAuth& auth,
     const TTransactionId& parentId,
     THttpHeader& header,
@@ -25,7 +26,7 @@ void RetryHeavyWriteRequest(
     header.SetToken(auth.Token);
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
-        TPingableTransaction attemptTx(auth, parentId, TStartTransactionOptions());
+        TPingableTransaction attemptTx(clientRetryPolicy, auth, parentId, TStartTransactionOptions());
 
         auto input = streamMaker();
         TString requestId;

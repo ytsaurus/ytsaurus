@@ -71,16 +71,17 @@ TString TPingRetryPolicy::GetAttemptDescription() const
 ////////////////////////////////////////////////////////////////////////////////
 
 TPingableTransaction::TPingableTransaction(
+    const IClientRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& parentId,
     const TStartTransactionOptions& options)
-    : Auth_(auth)
+    : ClientRetryPolicy_(retryPolicy)
+    , Auth_(auth)
     , AbortableRegistry_(NDetail::TAbortableRegistry::Get())
     , AbortOnTermination_(true)
 {
     auto transactionId = NDetail::NRawClient::StartTransaction(
-        // TODO: should be proper policy
-        nullptr,
+        ClientRetryPolicy_->CreatePolicyForGenericRequest(),
         auth,
         parentId,
         options);
@@ -90,15 +91,17 @@ TPingableTransaction::TPingableTransaction(
 }
 
 TPingableTransaction::TPingableTransaction(
+    const IClientRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TAttachTransactionOptions& options)
-    : Auth_(auth)
+    : ClientRetryPolicy_(retryPolicy)
+    , Auth_(auth)
     , AbortableRegistry_(NDetail::TAbortableRegistry::Get())
     , AbortOnTermination_(options.AbortOnTermination_)
 {
     auto timeoutNode = NDetail::NRawClient::TryGet(
-        /* retryPolicy = */ nullptr,
+        ClientRetryPolicy_->CreatePolicyForGenericRequest(),
         auth,
         TTransactionId(),
         "#" + GetGuidAsString(transactionId) + "/@timeout",
@@ -182,10 +185,16 @@ void TPingableTransaction::Stop(EStopAction action)
 
     switch (action) {
         case EStopAction::Commit:
-            NDetail::NRawClient::CommitTransaction(nullptr, Auth_, TransactionId_);
+            NDetail::NRawClient::CommitTransaction(
+                ClientRetryPolicy_->CreatePolicyForGenericRequest(),
+                Auth_,
+                TransactionId_);
             break;
         case EStopAction::Abort:
-            NDetail::NRawClient::AbortTransaction(nullptr, Auth_, TransactionId_);
+            NDetail::NRawClient::AbortTransaction(
+                ClientRetryPolicy_->CreatePolicyForGenericRequest(),
+                Auth_,
+                TransactionId_);
             break;
         case EStopAction::Detach:
             // Do nothing.
