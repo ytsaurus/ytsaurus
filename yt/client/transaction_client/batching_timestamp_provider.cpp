@@ -40,23 +40,8 @@ public:
             PendingRequests_.back().Count = count;
             PendingRequests_.back().Promise = NewPromise<TTimestamp>();
             result = PendingRequests_.back().Promise.ToFuture().ToUncancelable();
-            auto now = NProfiling::GetInstant();
 
-            if (GenerateInProgress_) {
-                return result;
-            }
-
-            if (LastRequestTime_ + BatchPeriod_ < now) {
-                SendGenerateRequest(guard);
-            } else if (PendingRequests_.size() == 1) {
-                TDelayedExecutor::Submit(BIND([=, this_ = MakeStrong(this)] {
-                    TGuard<TSpinLock> guard(SpinLock_);
-                    if (GenerateInProgress_) {
-                        return;
-                    }
-                    SendGenerateRequest(guard);
-                }), BatchPeriod_ - (now - LastRequestTime_));
-            }
+            MaybeScheduleSendGenerateRequest(guard);
         }
         return result;
     }
@@ -95,11 +80,37 @@ private:
 
     TSpinLock SpinLock_;
     bool GenerateInProgress_ = false;
+    bool FlushScheduled_ = false;
     std::vector<TRequest> PendingRequests_;
 
     TPeriodicExecutorPtr LatestTimestampExecutor_;
 
     TInstant LastRequestTime_;
+
+    void MaybeScheduleSendGenerateRequest(TGuard<TSpinLock>& guard)
+    {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+        if (PendingRequests_.empty() || GenerateInProgress_) {
+            return;
+        }
+
+        auto now = NProfiling::GetInstant();
+
+        if (LastRequestTime_ + BatchPeriod_ < now) {
+            SendGenerateRequest(guard);
+        } else if (!FlushScheduled_) {
+            FlushScheduled_ = true;
+            TDelayedExecutor::Submit(BIND([=, this_ = MakeStrong(this)] {
+                TGuard<TSpinLock> guard(SpinLock_);
+                FlushScheduled_ = false;
+                if (GenerateInProgress_) {
+                    return;
+                }
+                SendGenerateRequest(guard);
+            }), BatchPeriod_ - (now - LastRequestTime_));
+        }
+    }
 
     void SendGenerateRequest(TGuard<TSpinLock>& guard)
     {
@@ -139,9 +150,7 @@ private:
             YT_VERIFY(GenerateInProgress_);
             GenerateInProgress_ = false;
 
-            if (!PendingRequests_.empty()) {
-                SendGenerateRequest(guard);
-            }
+            MaybeScheduleSendGenerateRequest(guard);
         }
 
         if (firstTimestampOrError.IsOK()) {
