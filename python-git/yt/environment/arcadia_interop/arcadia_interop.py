@@ -5,7 +5,9 @@ import yt.logger as yt_logger
 import os
 import fcntl
 import time
+import stat
 import shutil
+import subprocess
 import logging
 
 try:
@@ -25,6 +27,9 @@ def is_inside_distbuild():
     if yatest_common.get_param("teamcity"):
         return False
 
+    if yatest_common.get_param("yt.localbuild"):
+        return False
+
     return True
 
 def get_root_paths(source_prefix="", inside_arcadia=None):
@@ -38,7 +43,27 @@ def get_root_paths(source_prefix="", inside_arcadia=None):
         global_root = ""
     return yt_root, python_root, global_root
 
-def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=False, use_from_package=False, copy_ytserver_all=False):
+
+SUDO_WRAPPER ="""#!/bin/sh
+
+exec sudo -En {} {} {} {} "$@"
+"""
+
+
+def insert_sudo_wrapper(bin_dir):
+    sudofixup = yatest_common.binary_path("yt-sudo-fixup")
+    
+    for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
+        bin_path = os.path.join(bin_dir, binary)
+        orig_path = os.path.join(bin_dir, binary + ".orig")
+        os.rename(bin_path, orig_path)
+
+        with open(bin_path, "w") as trampoline:
+            trampoline.write(SUDO_WRAPPER.format(sudofixup, os.getuid(), orig_path, binary))
+            os.chmod(bin_path, 0755)
+
+
+def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=False, use_from_package=False, copy_ytserver_all=False, need_suid=False):
     def get_binary_path(path):
         if arcadia_root is None:
             return yatest_common.binary_path(path)
@@ -84,6 +109,9 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
         else:
             binary_path = get_binary_path("{0}yt/server/{1}/ytserver-{2}".format(yt_root, server_dir, binary))
             os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
+
+    if need_suid:
+        insert_sudo_wrapper(destination)
 
     watcher_path = get_binary_path(python_root + "yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
     shutil.copy(watcher_path, os.path.join(destination, "yt_env_watcher"))

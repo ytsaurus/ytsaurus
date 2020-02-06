@@ -63,8 +63,6 @@ class PortoSubprocess(object):
             p._container.SetProperty("stderr_path", stderr.name)
         if cwd is not None:
             p._container.SetProperty("cwd", cwd)
-        if preexec_fn is not None:
-            logger.warning("preexec_fn is not implemented via porto")
         if not close_fds:
             logger.warning("fds inherit is not implemented via porto")
 
