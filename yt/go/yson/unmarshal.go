@@ -242,11 +242,11 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 		var b []byte
 		b, err = decodeString(r)
 
-		if len(b) != 0 {
+		if b == nil {
+			*vv = nil
+		} else {
 			*vv = make([]byte, len(b))
 			copy(*vv, b)
-		} else {
-			*vv = nil
 		}
 	case *RawValue:
 		var raw []byte

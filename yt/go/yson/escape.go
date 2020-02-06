@@ -156,6 +156,7 @@ func escapeC(b []byte) (escaped []byte) {
 }
 
 func unescapeC(b []byte) (unescaped []byte) {
+	unescaped = []byte{}
 	for i := 0; i < len(b); i++ {
 		if b[i] != '\\' {
 			unescaped = append(unescaped, b[i])

@@ -379,6 +379,11 @@ func (w *Writer) String(s string) {
 }
 
 func (w *Writer) Bytes(b []byte) {
+	if b == nil {
+		w.Entity()
+		return
+	}
+
 	w.indent()
 	if w.err != nil {
 		return
