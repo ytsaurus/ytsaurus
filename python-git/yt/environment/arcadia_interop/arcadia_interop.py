@@ -36,11 +36,11 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
         else:
             return os.path.join(arcadia_root, path)
 
-    yt_root, python_root, global_root = get_root_paths(source_prefix=source_prefix, inside_arcadia=inside_arcadia)
+    yt_root, _, _ = get_root_paths(source_prefix=source_prefix, inside_arcadia=inside_arcadia)
 
     if use_ytserver_all:
         if use_from_package:
-            ytserver_all = yatest_common.binary_path("yt/packages/19_4/ytserver-all")
+            ytserver_all = yatest_common.binary_path("ytserver-all")
         else:
             ytserver_all = None
             try:
@@ -73,13 +73,13 @@ def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside
             else:
                 os.symlink(ytserver_all, os.path.join(destination, "ytserver-" + binary))
         else:
-            binary_path = get_binary_path("{0}yt/server/{1}/ytserver-{2}".format(yt_root, server_dir, binary))
+            binary_path = get_binary_path("ytserver-{0}".format(binary))
             os.symlink(binary_path, os.path.join(destination, "ytserver-" + binary))
 
-    watcher_path = get_binary_path(python_root + "yt/environment/bin/yt_env_watcher_make/yt_env_watcher")
+    watcher_path = get_binary_path("yt_env_watcher")
     shutil.copy(watcher_path, os.path.join(destination, "yt_env_watcher"))
 
-    logrotate_path = get_binary_path(global_root + "infra/nanny/logrotate/logrotate")
+    logrotate_path = get_binary_path("logrotate")
     shutil.copy(logrotate_path, os.path.join(destination, "logrotate"))
 
 def prepare_yt_environment(destination, **kwargs):
