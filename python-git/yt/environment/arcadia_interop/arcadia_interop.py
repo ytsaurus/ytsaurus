@@ -60,7 +60,7 @@ def insert_sudo_wrapper(bin_dir):
 
         with open(bin_path, "w") as trampoline:
             trampoline.write(SUDO_WRAPPER.format(sudofixup, os.getuid(), orig_path, binary))
-            os.chmod(bin_path, 0755)
+            os.chmod(bin_path, 0o755)
 
 
 def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=False, use_from_package=False, copy_ytserver_all=False, need_suid=False):
