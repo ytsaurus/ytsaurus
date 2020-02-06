@@ -39,7 +39,7 @@ yt.logger.LOGGER.setLevel(logging.DEBUG)
 
 ##################################################################
 
-def prepare_yatest_environment():
+def prepare_yatest_environment(need_suid):
     if arcadia_interop.yatest_common is None:
         return
 
@@ -51,7 +51,7 @@ def prepare_yatest_environment():
         destination = os.path.join(ram_drive_path, "build")
     if not os.path.exists(destination):
         os.makedirs(destination)
-        path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False, use_ytserver_all=True, copy_ytserver_all=True)
+        path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False, use_ytserver_all=True, copy_ytserver_all=True, need_suid=need_suid)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
     global SANDBOX_ROOTDIR
@@ -625,14 +625,18 @@ class YTEnvSetup(object):
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 
+        need_suid = False
         if cls.get_param("REQUIRE_YTSERVER_ROOT_PRIVILEGES", False):
+            need_suid = True
             check_root_privileges()
 
         if cls.get_param("USE_PORTO_FOR_SERVERS", False):
-            if arcadia_interop.yatest_common is not None:
+            need_suid = True
+            if arcadia_interop.is_inside_distbuild():
                 pytest.skip("porto is not available on distbuild")
 
         if cls.get_param("REQUIRE_SUID_TOOL", False):
+            need_suid = True
             if arcadia_interop.yatest_common is not None:
                 pytest.skip("SUID ytserver-tool is not available on distbuild")
 
@@ -653,7 +657,7 @@ class YTEnvSetup(object):
         log_rotator.start()
         cls.liveness_checkers.append(log_rotator)
 
-        prepare_yatest_environment() # It initializes SANDBOX_ROOTDIR
+        prepare_yatest_environment(need_suid=need_suid) # It initializes SANDBOX_ROOTDIR
         cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         # For running in parallel
