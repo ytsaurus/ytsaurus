@@ -832,9 +832,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     {"name": "timestamp", "type": "Nullable(UInt64)"},
                     {"name": "interval_", "type": "Nullable(Int64)"},
                 ]
-            assert clique.make_query('select * from "//tmp/t1"') == [{
-                # ClickHouse returns string values in local time, so this time is UTC +tz hours.
-                'datetime': datetime.fromtimestamp(1).isoformat(' '),
+            assert clique.make_query('select toTimeZone(datetime, \'UTC\') as datetime, date, timestamp, interval_ from "//tmp/t1"') == [{
+                'datetime': '1970-01-01 00:00:01',
                 'date': '1970-01-03',
                 'timestamp': 3,
                 'interval_': 4,}]
@@ -1847,7 +1846,7 @@ class TestQueryRegistry(ClickHouseTestBase):
         with pytest.raises(YtError):
             with Clique(1, config_patch={"memory_watchdog": {"memory_limit": 2 * 1024**3, "period": 50}}) as clique:
                 clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
-        assert "OOM" in str(clique.op.get_error())
+                assert "OOM" in str(clique.op.get_error())
 
     @authors("max42")
     @pytest.mark.skipif(True, reason="temporarily broken")
