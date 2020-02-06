@@ -200,6 +200,14 @@ def get_ya_cache_dir(options):
         ya_cache = os.path.join(options.working_directory, "ya_cache")
     return ya_cache
 
+def get_git_depth(options):
+    git_depth = os.path.join(options.checkout_directory, "git-depth.py")
+    run_result = run(
+        [git_depth],
+        cwd=options.checkout_directory,
+        capture_output=True)
+    return run_result.stdout.rstrip("\n")
+
 def ya_make_env(options):
     return {
         "YA_CACHE_DIR": get_ya_cache_dir(options),
