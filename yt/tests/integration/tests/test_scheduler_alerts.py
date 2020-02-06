@@ -196,6 +196,22 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "unused_tmpfs_space" not in op.get_alerts()
 
+        set("//sys/controller_agents/config/operation_alerts", {"tmpfs_alert_memory_usage_mute_ratio": 0.0})
+
+        op = map(
+            command="echo abcdef >local_file; sleep 1.5; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 5 * 1024 * 1024,
+                    "tmpfs_path": ".",
+                }
+            }
+        )
+
+        assert "unused_tmpfs_space" not in op.get_alerts()
+
     @authors("ignat")
     def test_missing_input_chunks_alert(self):
         create_test_tables(attributes={"replication_factor": 1})
