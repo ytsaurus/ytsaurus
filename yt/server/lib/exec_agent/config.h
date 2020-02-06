@@ -6,6 +6,8 @@
 
 #include <yt/server/lib/job_proxy/config.h>
 
+#include <yt/server/lib/containers/config.h>
+
 #include <yt/server/lib/misc/config.h>
 
 #include <yt/ytlib/cgroup/config.h>
@@ -89,8 +91,8 @@ class TPortoJobEnvironmentConfig
     : public TJobEnvironmentConfig
 {
 public:
-    TDuration PortoWaitTime;
-    TDuration PortoPollPeriod;
+    NContainers::TPortoExecutorConfigPtr PortoExecutor;
+
     TDuration BlockIOWatchdogPeriod;
 
     std::optional<TDuration> ResourceLimitsUpdatePeriod;
@@ -102,10 +104,9 @@ public:
 
     TPortoJobEnvironmentConfig()
     {
-        RegisterParameter("porto_wait_time", PortoWaitTime)
-            .Default(TDuration::Seconds(10));
-        RegisterParameter("porto_poll_period", PortoPollPeriod)
-            .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("porto_executor", PortoExecutor)
+            .DefaultNew();
+
         RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)
             .Default(TDuration::Seconds(60));
 

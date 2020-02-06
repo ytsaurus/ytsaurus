@@ -34,6 +34,8 @@ DECLARE_REFCOUNTED_STRUCT(IContainerManager)
 DECLARE_REFCOUNTED_STRUCT(IInstance)
 DECLARE_REFCOUNTED_STRUCT(IPortoExecutor)
 
+DECLARE_REFCOUNTED_CLASS(TPortoExecutorConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NContainers

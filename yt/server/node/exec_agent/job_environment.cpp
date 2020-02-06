@@ -429,7 +429,7 @@ public:
     TPortoJobEnvironment(TPortoJobEnvironmentConfigPtr config, TBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
         , Config_(std::move(config))
-        , PortoExecutor_(CreatePortoExecutor("environ", Config_->PortoWaitTime, Config_->PortoPollPeriod))
+        , PortoExecutor_(CreatePortoExecutor(Config_->PortoExecutor, "environ"))
     {  }
 
     virtual void CleanProcesses(int slotIndex) override
