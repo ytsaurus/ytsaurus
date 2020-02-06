@@ -186,4 +186,4 @@ class YtAclClient(object):
         """Updates legacy YT group."""
         params = dict(group_name=name, version=version)
         body = dict(group=group)
-        return self._make_request("post", "group", params, body)
+        return self._make_request("put", "group", params, body)
