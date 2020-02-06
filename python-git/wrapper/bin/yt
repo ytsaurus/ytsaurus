@@ -5,10 +5,11 @@ from __future__ import print_function
 from yt.common import copy_docstring_from
 
 import yt.wrapper.yson as yson
+from yt.wrapper.acl_cli_helpers import acl_show, acl_request
 from yt.wrapper.common import chunk_iter_stream, MB, \
                               DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources, \
                               chunk_iter_rows, format_disk_space
-from yt.wrapper.cli_helpers import write_silently, run_main, ParseStructuredArgument, pretty_print_acls
+from yt.wrapper.cli_helpers import write_silently, run_main, ParseStructuredArgument
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.spec_builders import MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder, \
                                      MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder, VanillaSpecBuilder
@@ -1361,22 +1362,66 @@ def add_show_default_config_parser(add_parser):
 
 def add_acl_parser(root_subparsers):
     parser = fix_parser(root_subparsers.add_parser("acl", description="ACL-related commands"))
-    acl_subparsers = parser.add_subparsers(metavar="acl_command")
-    add_acl_show_parser(acl_subparsers)
-
-def add_acl_show_parser(acl_subparsers):
-    parser = fix_parser(acl_subparsers.add_parser("show", description="Show ACL information"))
     parser.add_argument("--type", "-t", action="store", required=True, dest="type_",
         choices=["path", "account", "pool", "bundle", "group"], help="Type of object")
     parser.add_argument("name", action="store", help="Cypress directory path or full scheduler pool path, or account, bundle, group name")
+    acl_subparsers = parser.add_subparsers(metavar="acl_command")
+    add_acl_show_parser(acl_subparsers)
+    add_acl_request_parser(acl_subparsers)
+
+def add_acl_show_parser(acl_subparsers):
+    parser = fix_parser(acl_subparsers.add_parser("show", description="Show ACL information"))
     parser.set_defaults(func=acl_show)
 
-def acl_show(type_, name):
-    acl_client = yt.make_acl_client()
-    kwargs = {type_: name}
-    acls = acl_client.get_acl(**kwargs)
-    responsibles = acl_client.get_responsible(**kwargs)
-    pretty_print_acls(acls, responsibles, type_)
+def add_acl_request_parser(acl_subparsers):
+    parser = fix_parser(acl_subparsers.add_parser("request", description="Show ACL information"))
+
+    # Approvers definition
+    parser.add_argument("--responsibles", "-r", action="store", dest="responsibles",
+        nargs="*", default=[], help="User logins space separated")
+    parser.add_argument("--read-approvers", "-ra", action="store", dest="read_approvers",
+        nargs="*", default=[], help="User logins space separated")
+    parser.add_argument("--auditors", "-a", action="store", dest="auditors",
+        nargs="*", default=[], help="User logins space separated")
+
+    # Flags definition
+    inherit_acl_group = parser.add_mutually_exclusive_group(required=False)
+    inherit_acl_group.add_argument("--inherit-acl", "-ia", action="store_const", dest="inherit_acl",
+        const=True, help="Enable ACL inheritance")
+    inherit_acl_group.add_argument("--no-inherit-acl", "-nia", action="store_const", dest="inherit_acl",
+        const=False, help="Disable ACL inheritance")
+
+    inherit_resps_group = parser.add_mutually_exclusive_group(required=False)
+    inherit_resps_group.add_argument("--inherit-responsibles", "-ir", action="store_const", dest="inherit_resps",
+        const=True, help="Enable inheritance responsibles, read apporvers, auditors, boss_approval")
+    inherit_resps_group.add_argument("--no-inherit-responsibles", "-nir", action="store_const", dest="inherit_resps",
+        const=False, help="Disable inheritance of responsibles, read apporvers, auditors, boss_approval")
+
+    boss_approval_group = parser.add_mutually_exclusive_group(required=False)
+    boss_approval_group.add_argument("--boss-approval", "-ba", action="store_const", dest="boss_approval",
+        const=True, help="Enable boss approval requirement for personal roles")
+    boss_approval_group.add_argument("--no-boss-approval", "-nba", action="store_const", dest="boss_approval",
+        const=False, help="Disable boss approval requirement for personal roles")
+
+    parser.add_argument("--members", "-m", action="store", dest="members",
+        nargs="*", default=[], help="Members list to remove or add. Only for groups")
+
+    parser.add_argument("--revoke-all-roles", dest="revoke_all_roles",
+        default=False, action="store_true", help="Revoke all roles")
+
+    # ACL options
+    parser.add_argument("--permissions", "-p", action="store", dest="permissions",
+        choices=["R", "RW", "M", "U"], default="",
+        help="Permissions like: R - read; RW - read, write, remove; M - mount, U - use")
+
+    parser.add_argument("--subjects", "-s", dest="subjects", nargs="*", default=[],
+        help="Space separated user logins or staff/ABC groups like idm-group:ID")
+
+    parser.add_argument("--comment", dest="comment", help="Comment for the role")
+    parser.add_argument("--dry-run", action = "store_true", dest = "dry_run",
+        help = "Do not make real changes", default = False)
+
+    parser.set_defaults(func=acl_request)
 
 
 def main():
