@@ -132,7 +132,8 @@ ITimestampProviderPtr TClient::CreateTimestampProvider() const
 {
     return CreateBatchingTimestampProvider(
         NRpcProxy::CreateTimestampProvider(Channel_, Connection_->GetConfig()->RpcTimeout),
-        Connection_->GetConfig()->TimestampProviderUpdatePeriod);
+        Connection_->GetConfig()->TimestampProviderUpdatePeriod,
+        Connection_->GetConfig()->TimestampProviderBatchPeriod);
 }
 
 ITransactionPtr TClient::AttachTransaction(
