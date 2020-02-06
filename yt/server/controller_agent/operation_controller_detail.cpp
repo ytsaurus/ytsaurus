@@ -3308,6 +3308,25 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
             continue;
         }
 
+        std::optional<i64> maxMemoryUsage;
+        for (const auto& jobState : { EJobState::Completed, EJobState::Failed }) {
+            auto statistic = "/user_job/max_memory" + JobHelper.GetStatisticsSuffix(jobState, task->GetJobType());
+            auto summary = FindSummary(JobStatistics, statistic);
+            if (summary) {
+                if (!maxMemoryUsage) {
+                    maxMemoryUsage = 0;
+                }
+                *maxMemoryUsage = std::max(*maxMemoryUsage, summary->GetMax());
+            }
+        }
+
+        if (maxMemoryUsage) {
+            auto memoryUsageRatio = static_cast<double>(*maxMemoryUsage) / userJobSpecPtr->MemoryLimit;
+            if (memoryUsageRatio > Config->OperationAlerts->TmpfsAlertMemoryUsageMuteRatio) {
+                continue;
+            }
+        }
+
         userJobSpecPerJobType.insert(std::make_pair(jobType, userJobSpecPtr));
 
         auto maxUsedTmpfsSizes = task->GetMaximumUsedTmpfsSizes();
@@ -3337,8 +3356,8 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
 
     double minUnusedSpaceRatio = 1.0 - Config->OperationAlerts->TmpfsAlertMaxUnusedSpaceRatio;
 
-    for (const auto& [jobId, maxUsedTmpfsSizes] : maximumUsedTmpfsSizesPerJobType) {
-        const auto& userJobSpecPtr = userJobSpecPerJobType[jobId];
+    for (const auto& [jobType, maxUsedTmpfsSizes] : maximumUsedTmpfsSizesPerJobType) {
+        const auto& userJobSpecPtr = userJobSpecPerJobType[jobType];
 
         YT_VERIFY(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
 
@@ -3358,7 +3377,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
             if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
                 auto error = TError(
                     "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size in volume %Qv",
-                    jobId,
+                    jobType,
                     minUnusedSpaceRatio * 100.0,
                     tmpfsVolumes[index]->Path)
                     << TErrorAttribute("max_used_tmpfs_size", *maxUsedTmpfsSize)

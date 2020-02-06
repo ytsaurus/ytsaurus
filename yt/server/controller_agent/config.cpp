@@ -30,6 +30,10 @@ TOperationAlertsConfig::TOperationAlertsConfig()
         .Default(512_MB)
         .GreaterThan(0);
 
+    RegisterParameter("tmpfs_alert_memory_usage_mute_ratio", TmpfsAlertMemoryUsageMuteRatio)
+        .InRange(0.0, 1.0)
+        .Default(0.8);
+
     RegisterParameter("aborted_jobs_alert_max_aborted_time", AbortedJobsAlertMaxAbortedTime)
         .Default((i64) 10 * 60 * 1000)
         .GreaterThan(0);
