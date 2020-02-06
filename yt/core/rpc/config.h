@@ -200,7 +200,7 @@ public:
         RegisterParameter("addresses", Addresses);
         RegisterParameter("max_concurrent_discover_requests", MaxConcurrentDiscoverRequests)
             .GreaterThan(0)
-            .Default(1);
+            .Default(3);
         RegisterParameter("hashes_per_peer", HashesPerPeer)
             .Default(10);
     }
