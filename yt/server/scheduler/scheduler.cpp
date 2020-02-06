@@ -3427,12 +3427,16 @@ private:
 
         agentTracker->AssignOperationToAgent(operation, agent);
 
+        THashMap<TString, TString> eventAttributes = {
+            {"controller_agent_address", GetDefaultAddress(agent->GetAgentAddresses())},
+        };
+
         if (operation->RevivalDescriptor()) {
-            operation->SetStateAndEnqueueEvent(EOperationState::Reviving);
+            operation->SetStateAndEnqueueEvent(EOperationState::Reviving, eventAttributes);
             operation->GetCancelableControlInvoker()->Invoke(
                 BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation));
         } else {
-            operation->SetStateAndEnqueueEvent(EOperationState::Initializing);
+            operation->SetStateAndEnqueueEvent(EOperationState::Initializing, eventAttributes);
             operation->GetCancelableControlInvoker()->Invoke(
                 BIND(&TImpl::DoInitializeOperation, MakeStrong(this), operation));
         }

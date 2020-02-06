@@ -35,6 +35,7 @@ struct TOperationEvent
 {
     TInstant Time;
     EOperationState State;
+    THashMap<TString, TString> Attributes;
 };
 
 void Serialize(const TOperationEvent& schema, NYson::IYsonConsumer* consumer);
@@ -300,8 +301,10 @@ public:
     //! Returns the codicil guard holding the operation id.
     TCodicilGuard MakeCodicilGuard() const;
 
-    //! Sets operation state and adds the corresponding event.
-    void SetStateAndEnqueueEvent(EOperationState state);
+    //! Sets operation state and adds the corresponding event with given attributes.
+    void SetStateAndEnqueueEvent(
+        EOperationState state,
+        const THashMap<TString, TString>& attributes = {});
 
     //! Slot index machinery.
     std::optional<int> FindSlotIndex(const TString& treeId) const override;
