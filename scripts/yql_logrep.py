@@ -78,6 +78,8 @@ def find_tables(ytclient, prefix, start_time, end_time):
     dir_1d = prefix + "/1d"
 
     def full_list(dir_name):
+        if not ytclient.exists(dir_name):
+            return []
         return [(dir_name + "/" + name) for name in ytclient.list(dir_name)]
 
     res_30min, full = _filter_table_paths(full_list(dir_30min), "30min", start_time, end_time)
