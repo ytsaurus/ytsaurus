@@ -54,6 +54,17 @@ public:
     using TStatus = NYP::NClient::NApi::NProto::TDeployTicketStatus;
     static const TScalarAttributeSchema<TDeployTicket, TStatus> StatusSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TStatus>, Status);
+
+    void UpdateTicketStatus(
+        EDeployPatchActionType type,
+        const TString& reason,
+        const TString& message);
+
+    void UpdatePatchStatus(
+        const TString& patchId,
+        EDeployPatchActionType type,
+        const TString& reason,
+        const TString& message);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

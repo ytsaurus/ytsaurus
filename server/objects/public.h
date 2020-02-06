@@ -170,6 +170,20 @@ DEFINE_ENUM(EEventType,
     ((ObjectUpdated)  (3))
 );
 
+DEFINE_ENUM(EDeployPatchActionType,
+    ((None)   (0))
+    ((Commit) (1))
+    ((Skip)   (2))
+    ((OnHold) (3))
+    ((Wait)   (4))
+);
+
+DEFINE_ENUM(EDeployTicketPatchSelectorType,
+    ((None)    (0))
+    ((Full)    (1))
+    ((Partial) (2))
+);
+
 constexpr int TypicalColumnCountPerDBTable = 16;
 
 using NClient::NApi::TObjectId;

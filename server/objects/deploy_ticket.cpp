@@ -60,6 +60,29 @@ EObjectType TDeployTicket::GetType() const
     return EObjectType::DeployTicket;
 }
 
+void TDeployTicket::UpdateTicketStatus(
+    EDeployPatchActionType type,
+    const TString& reason,
+    const TString& message)
+{
+    auto* deployTicketAction = Status()->mutable_action();
+    deployTicketAction->set_type(static_cast<NClient::NApi::NProto::EDeployPatchActionType>(type));
+    deployTicketAction->set_reason(reason);
+    deployTicketAction->set_message(message);
+}
+
+void TDeployTicket::UpdatePatchStatus(
+    const TString& patchId,
+    EDeployPatchActionType type,
+    const TString& reason,
+    const TString& message)
+{
+    auto* deployPatchAction = (*Status()->mutable_patches())[patchId].mutable_action();
+    deployPatchAction->set_type(static_cast<NClient::NApi::NProto::EDeployPatchActionType>(type));
+    deployPatchAction->set_reason(reason);
+    deployPatchAction->set_message(message);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NObjects

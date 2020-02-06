@@ -67,3 +67,48 @@ message TDeployTicketStatus
     // <patch id> -> <patch status>.
     map<string, NYP.NClient.NApi.NProto.TDeployPatchStatus> patches = 3 [(NYT.NYson.NProto.yson_map) = true];
 }
+
+enum EDeployTicketPatchSelectorType
+{
+    // None selector type.
+    DTPST_NONE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "none"];
+
+    // Full patch selector type.
+    DTPST_FULL = 1
+    [(NYT.NYson.NProto.enum_value_name) = "full"];
+
+    // Partial patch selector type. Need list of patches for action.
+    DTPST_PARTIAL = 2
+    [(NYT.NYson.NProto.enum_value_name) = "partial"];
+}
+
+message TDeployTicketControl
+{
+    message TPatchSelector
+    {
+        EDeployTicketPatchSelectorType type = 1;
+        repeated string patch_ids = 2;
+    }
+
+    message TActionOptions
+    {
+        TPatchSelector patch_selector = 1;
+        string message = 2;
+        string reason = 3;
+    }
+
+    message TSkipAction
+    {
+        TActionOptions options = 1;
+    }
+
+    message TCommitAction
+    {
+        TActionOptions options = 1;
+        string recipe_id = 2;
+    }
+
+    TSkipAction skip = 1;
+    TCommitAction commit = 2;
+}

@@ -21,6 +21,7 @@ SET(YP_TEST_SRCS
     test_client_discovery.py
     test_config.py
     test_cypress_auth.py
+    test_deploy_ticket_control.py
     test_deploy_tickets.py
     test_disk_bandwidth_resource.py
     test_dns_record_set.py
