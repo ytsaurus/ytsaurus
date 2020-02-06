@@ -41,6 +41,7 @@ object YtClientProvider {
 
   def close(): Unit = {
     cachedClient.foreach(_.close())
+    fsClient.foreach(_._2.close())
   }
 
   def close(fs: YtFileSystem): Unit = {

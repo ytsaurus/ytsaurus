@@ -7,6 +7,7 @@ from yt.wrapper.cypress_commands import list as yt_list, create, exists
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
 from yt.wrapper.run_operation_commands import run_operation
 from yt.wrapper.spec_builders import VanillaSpecBuilder
+from yt.wrapper import YPath
 
 from .utils import get_spark_master, base_spark_conf, create_yt_client
 
@@ -55,7 +56,7 @@ def _parse_memory(memory_str):
 
 
 def _wait_master_start(op, spark_id, discovery_dir, client):
-    operation_path = "{0}/instances/{1}/operation/{2}".format(discovery_dir, spark_id, op.id)
+    operation_path = YPath(discovery_dir).join("instances").join(spark_id).join("operation").join(op.id)
     for state in op.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0)):
         if state.is_running() and exists(operation_path, client=client):
             return op
@@ -123,7 +124,8 @@ def shell(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_h
 
 def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, yt_pool,
            worker_cores, worker_memory, worker_num, master_memory_limit="2G"):
-    with open("{}/conf/spark-launch.yaml".format(os.getenv("SPARK_HOME"))) as f:
+    spark_home = os.getenv("SPARK_HOME")
+    with open(os.path.join(spark_home, "conf", "spark-launch.yaml")) as f:
         config = yaml.load(f, Loader=yaml.BaseLoader)
 
     recovery_opts = "-Dspark.deploy.recoveryMode=CUSTOM " \
@@ -152,8 +154,9 @@ def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, y
     unpack_tar = "tar --warning=no-unknown-keyword -xf {0}.tgz".format(config["spark_name"])
     run_launcher = "/opt/jdk8/bin/java -Xmx512m -cp {0}".format(config["spark_launcher_name"])
 
-    file_paths = ["{0}/{1}.tgz".format(config["spark_yt_base_path"], config["spark_name"]),
-                  "{0}/{1}".format(config["spark_yt_base_path"], config["spark_launcher_name"])]
+    spark_yt_base_path = YPath(config["spark_yt_base_path"])
+    file_paths = [spark_yt_base_path.join(config["spark_name"] + ".tgz"),
+                  spark_yt_base_path.join(config["spark_launcher_name"])]
 
     layer_paths = ["//home/sashbel/delta/jdk/layer_with_jdk_lastest.tar.gz",
                    "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"]
@@ -167,20 +170,23 @@ def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, y
         .format(unpack_tar, run_launcher, spark_id, worker_cores, worker_memory,
                 config["start_port"], worker_opts)
 
-    log_dir = "{}/{}".format(log_base_dir, spark_id)
+    log_dir = YPath(log_base_dir).join(spark_id)
     history_command = "{0} && {1} ru.yandex.spark.launcher.HistoryServerLauncher --id {2} --log-path yt:/{3} " \
                       "--port {4} --opts \"'{5}'\"" \
         .format(unpack_tar, run_launcher, spark_id, log_dir, config["start_port"], history_opts)
+
+    discovery_dir = YPath(discovery_dir)
+    instances_discovery_dir = discovery_dir.join("instances")
 
     environment = {
         "JAVA_HOME": "/opt/jdk8",
         "SPARK_HOME": config["spark_name"],
         "YT_PROXY": yt_proxy,
-        "SPARK_DISCOVERY_PATH": "{0}/instances".format(discovery_dir)
+        "SPARK_DISCOVERY_PATH": str(instances_discovery_dir)
     }
 
     operation_spec = {
-        "stderr_table_path": "{0}/logs/stderr_{1}".format(discovery_dir, spark_id),
+        "stderr_table_path": str(discovery_dir.join("logs").join("stderr_" + spark_id)),
         "pool": yt_pool,
         "annotations": {
             "is_spark": True
@@ -241,10 +247,10 @@ def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, y
             .spec(operation_spec)
 
     yt_client = create_yt_client(yt_proxy, yt_token)
-    create("map_node", "{0}/instances".format(discovery_dir), recursive=True, ignore_existing=True, client=yt_client)
+    create("map_node", instances_discovery_dir, recursive=True, ignore_existing=True, client=yt_client)
     create("map_node", log_dir, recursive=True, ignore_existing=True, client=yt_client)
     op = run_operation(spec_builder, sync=False, client=yt_client)
     _wait_master_start(op, spark_id, discovery_dir, yt_client)
-    master_address = yt_list("{0}/instances/{1}/webui".format(discovery_dir, spark_id), client=yt_client)[0]
+    master_address = yt_list(instances_discovery_dir.join(spark_id).join("webui"), client=yt_client)[0]
 
     print("Spark Master's Web UI: http://{0}".format(master_address))

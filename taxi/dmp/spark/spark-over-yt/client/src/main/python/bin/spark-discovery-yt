@@ -10,6 +10,7 @@ import yt
 from yt.wrapper.cypress_commands import list
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.operation_commands import get_operation_url
+from yt.wrapper import YPath
 
 from yt_spark_client.utils import default_discovery_dir
 
@@ -27,7 +28,7 @@ yt.wrapper.config.config['proxy']['url'] = args.proxy or os.getenv("YT_PROXY")
 
 def get_address(name):
     try:
-        return list("{0}/instances/{1}/{2}".format(discovery_dir, args.id, name))[0]
+        return list(YPath(discovery_dir).join("instances").join(args.id).join(name))[0]
     except YtHttpResponseError as e:
         print(e.message, file=sys.stderr)
         for inner in e.inner_errors:
