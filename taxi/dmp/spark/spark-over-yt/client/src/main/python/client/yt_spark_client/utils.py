@@ -31,7 +31,7 @@ def format_memory(memory_bytes):
 
 def get_spark_master(spark_id, discovery_dir, rest, yt_client):
     master_path = "rest" if rest else "address"
-    master = yt_list(discovery_dir.join("instances").join(spark_id).join(master_path), client=yt_client)[0]
+    master = yt_list(YPath(discovery_dir).join("instances").join(spark_id).join(master_path), client=yt_client)[0]
     return "spark://{0}".format(master)
 
 
@@ -77,7 +77,7 @@ def default_discovery_dir(yt_user):
 
 
 def default_base_log_dir(discovery_dir):
-    return os.getenv("SPARK_YT_LOG_DIR") or discovery_dir.join("logs")
+    return os.getenv("SPARK_YT_LOG_DIR") or YPath(discovery_dir).join("logs")
 
 
 def default_user():

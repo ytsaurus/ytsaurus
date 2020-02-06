@@ -23,7 +23,7 @@ def spark_session(conf=SparkConf()):
 
 def connect(num_executors=5,
             spark_id=None,
-            yt_cluster=None,
+            yt_proxy=None,
             discovery_dir=None,
             config_path=None,
             app_name=None,
@@ -39,7 +39,7 @@ def connect(num_executors=5,
     _MAX_TOTAL_CORES = 400
     _MAX_TOTAL_MEMORY = parse_memory("1024G")
 
-    config_path = config_path or os.path.join(os.getenv("HOME"), "spark-conf.yaml")
+    config_path = config_path or os.path.join(os.getenv("HOME"), "spyt.yaml")
     if os.path.isfile(config_path):
         with open(config_path) as f:
             config = yaml.load(f)
@@ -47,12 +47,13 @@ def connect(num_executors=5,
         config = {}
 
     spark_id = spark_id or config.get("spark_id")
-    yt_proxy = yt_cluster or config.get("yt_proxy", os.getenv("YT_PROXY"))
+    yt_proxy = yt_proxy or config.get("yt_proxy", os.getenv("YT_PROXY"))
     yt_user = config.get("yt_user") or os.getenv("YT_USER") or os.getenv("USER")
     yt_token = config.get("yt_token") or os.getenv("YT_TOKEN") or default_token()
     yt_client = create_yt_client(yt_proxy, yt_token)
     discovery_dir = discovery_dir or config.get("discovery_dir") or default_discovery_dir(yt_user)
-    log_dir = config.get("log_dir") or os.path.join(default_base_log_dir(discovery_dir), spark_id)
+    log_dir = config.get("log_dir") or default_base_log_dir(discovery_dir).join(spark_id)
+
     master = get_spark_master(spark_id, discovery_dir, rest=False, yt_client=yt_client)
 
     num_executors = num_executors or config.get("num_executors")
