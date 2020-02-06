@@ -21,9 +21,11 @@ class TBatchingTimestampProvider
 public:
     TBatchingTimestampProvider(
         ITimestampProviderPtr underlying,
-        TDuration updatePeriod)
+        TDuration updatePeriod,
+        TDuration batchPeriod)
         : Underlying_(std::move(underlying))
         , UpdatePeriod_(updatePeriod)
+        , BatchPeriod_(batchPeriod)
     { }
 
     virtual TFuture<TTimestamp> GenerateTimestamps(int count) override
@@ -37,14 +39,25 @@ public:
             PendingRequests_.emplace_back();
             PendingRequests_.back().Count = count;
             PendingRequests_.back().Promise = NewPromise<TTimestamp>();
-            result = PendingRequests_.back().Promise.ToFuture();
-            // TODO(sandello): Cancellation?
-            if (!GenerateInProgress_) {
-                YT_VERIFY(PendingRequests_.size() == 1);
+            result = PendingRequests_.back().Promise.ToFuture().ToUncancelable();
+            auto now = NProfiling::GetInstant();
+
+            if (GenerateInProgress_) {
+                return result;
+            }
+
+            if (LastRequestTime_ + BatchPeriod_ < now) {
                 SendGenerateRequest(guard);
+            } else if (PendingRequests_.size() == 1) {
+                TDelayedExecutor::Submit(BIND([=, this_ = MakeStrong(this)] {
+                    TGuard<TSpinLock> guard(SpinLock_);
+                    if (GenerateInProgress_) {
+                        return;
+                    }
+                    SendGenerateRequest(guard);
+                }), BatchPeriod_ - (now - LastRequestTime_));
             }
         }
-
         return result;
     }
 
@@ -72,6 +85,7 @@ public:
 private:
     const ITimestampProviderPtr Underlying_;
     const TDuration UpdatePeriod_;
+    const TDuration BatchPeriod_;
 
     struct TRequest
     {
@@ -85,6 +99,7 @@ private:
 
     TPeriodicExecutorPtr LatestTimestampExecutor_;
 
+    TInstant LastRequestTime_;
 
     void SendGenerateRequest(TGuard<TSpinLock>& guard)
     {
@@ -92,6 +107,7 @@ private:
 
         YT_VERIFY(!GenerateInProgress_);
         GenerateInProgress_ = true;
+        LastRequestTime_ = NProfiling::GetInstant();
 
         std::vector<TRequest> requests;
         requests.swap(PendingRequests_);
@@ -163,9 +179,10 @@ private:
 
 ITimestampProviderPtr CreateBatchingTimestampProvider(
     ITimestampProviderPtr underlying,
-    TDuration updatePeriod)
+    TDuration updatePeriod,
+    TDuration batchPeriod)
 {
-    return New<TBatchingTimestampProvider>(std::move(underlying), updatePeriod);
+    return New<TBatchingTimestampProvider>(std::move(underlying), updatePeriod, batchPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
