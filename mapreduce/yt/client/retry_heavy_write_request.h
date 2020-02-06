@@ -7,6 +7,7 @@ namespace NYT {
 ///////////////////////////////////////////////////////////////////////////////
 
 void RetryHeavyWriteRequest(
+    const IClientRetryPolicyPtr& clientRetryPolicy,
     const TAuth& auth,
     const TTransactionId& parentId,
     THttpHeader& header,

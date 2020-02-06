@@ -53,7 +53,7 @@ TClientReader::TClientReader(
     , RetriesLeft_(InitialRetryCount_)
 {
     if (options.CreateTransaction_) {
-        ReadTransaction_ = MakeHolder<TPingableTransaction>(auth, transactionId, TStartTransactionOptions());
+        ReadTransaction_ = MakeHolder<TPingableTransaction>(ClientRetryPolicy_, Auth_, transactionId, TStartTransactionOptions());
         Path_.Path(Snapshot(ClientRetryPolicy_, Auth_, ReadTransaction_->GetId(), path.Path_));
     }
 
