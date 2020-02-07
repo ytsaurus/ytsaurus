@@ -979,6 +979,7 @@ def run_ya_tests(options, suite_name, test_paths, dist=True):
         "-ttt",
         "--dont-merge-split-tests",
         "--stat",
+        "--build-results-report", os.path.join(sandbox_storage, "ya_make_results_report.txt"),
     ]
     if dist:
         args += ["--dist", "-E"]
