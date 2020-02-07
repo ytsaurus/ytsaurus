@@ -9,7 +9,7 @@ from yt.environment.helpers import (
     SCHEDULERS_SERVICE,
     CONTROLLER_AGENTS_SERVICE,
     NODES_SERVICE,
-    MASTER_CELL_SERVICE,
+    MASTERS_SERVICE,
 )
 from yt.test_helpers import wait, WaitFailed
 from yt.common import makedirp, YtError, YtResponseError, format_error, update_inplace

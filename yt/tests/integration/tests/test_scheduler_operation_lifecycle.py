@@ -1,6 +1,6 @@
 from yt_env_setup import (
     YTEnvSetup, wait, Restarter, require_ytserver_root_privileges, unix_only, is_asan_build,
-    SCHEDULERS_SERVICE, MASTER_CELL_SERVICE,
+    SCHEDULERS_SERVICE, MASTERS_SERVICE,
 )
 
 from yt_commands import *
@@ -1117,7 +1117,7 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
 
         time.sleep(5)
 
-        with Restarter(self.Env, MASTER_CELL_SERVICE):
+        with Restarter(self.Env, MASTERS_SERVICE):
             time.sleep(10)
             release_breakpoint()
             time.sleep(50)

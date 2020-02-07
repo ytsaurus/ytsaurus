@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, wait, Restarter, MASTER_CELL_SERVICE
+from yt_env_setup import YTEnvSetup, wait, Restarter, MASTERS_SERVICE
 from yt_commands import *
 from yt_helpers import Metric
 
@@ -311,5 +311,5 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
 
         assert self.hydra_monitor()["read_only"]
 
-        with Restarter(self.Env, MASTER_CELL_SERVICE):
+        with Restarter(self.Env, MASTERS_SERVICE):
             pass

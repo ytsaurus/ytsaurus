@@ -1,7 +1,7 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, wait, parametrize_external,\
-    Restarter, NODES_SERVICE, MASTER_CELL_SERVICE
+    Restarter, NODES_SERVICE, MASTERS_SERVICE
 from yt_commands import *
 
 from yt.environment.helpers import assert_items_equal
@@ -1190,7 +1190,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
         build_snapshot(cell_id=None)
-        with Restarter(self.Env, MASTER_CELL_SERVICE):
+        with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]

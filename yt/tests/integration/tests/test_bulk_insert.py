@@ -2,8 +2,7 @@ import pytest
 
 from test_dynamic_tables import DynamicTablesBase
 
-from yt_env_setup import YTEnvSetup, unix_only, wait, parametrize_external, Restarter,\
-    NODES_SERVICE, MASTER_CELL_SERVICE
+from yt_env_setup import YTEnvSetup, unix_only, wait, parametrize_external, Restarter, NODES_SERVICE
 from yt_commands import *
 import yt.yson as yson
 
