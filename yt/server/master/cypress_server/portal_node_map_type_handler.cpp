@@ -22,27 +22,27 @@ using namespace NObjectServer;
 
 template <class TNode>
 class TVirtualPortalNodeMapBase
-    : public TVirtualMapBase
+    : public TVirtualMulticellMapBase
 {
 public:
     TVirtualPortalNodeMapBase(
         TBootstrap* bootstrap,
         INodePtr owningNode,
         const THashMap<TNodeId, TNode*>* nodes)
-        : TVirtualMapBase(owningNode)
-        , Bootstrap_(bootstrap)
+        : TVirtualMulticellMapBase(bootstrap, owningNode)
         , Nodes_(nodes)
     { }
 
 private:
     using TBase = TVirtualMapBase;
 
-    TBootstrap* const Bootstrap_;
     const THashMap<TNodeId, TNode*>* const Nodes_;
 
-    virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
+    virtual std::vector<TObjectId> GetKeys(i64 sizeLimit) const override
     {
-        std::vector<TString> result;
+        std::vector<TObjectId> result;
+        result.reserve(std::min<i64>(sizeLimit, Nodes_->size()));
+
         for (auto [id, node] : *Nodes_) {
             if (result.size() >= sizeLimit) {
                 break;
@@ -50,9 +50,14 @@ private:
             if (!IsObjectAlive(node)) {
                 continue;
             }
-            result.push_back(ToString(id));
+            result.push_back(id);
         }
         return result;
+    }
+
+    virtual bool IsValid(TObject* object) const
+    {
+        return true;
     }
 
     virtual i64 GetSize() const override
@@ -60,25 +65,15 @@ private:
         return Nodes_->size();
     }
 
-    virtual IYPathServicePtr FindItemService(TStringBuf key) const override
+    virtual TYPath GetWellKnownPath() const override
     {
-        TNodeId id;
-        if  (!TNodeId::FromString(key, &id)) {
-            return nullptr;
+        if constexpr(std::is_same_v<TNode, TPortalEntranceNode>) {
+            return "//sys/portal_entrances";
+        } else if constexpr(std::is_same_v<TNode, TPortalExitNode>) {
+            return "//sys/portal_exits";
+        } else {
+            static_assert(TDependentFalse<TNode>::value, "Unexpected portal node type");
         }
-
-        auto it =  Nodes_->find(id);
-        if (it == Nodes_->end()) {
-            return nullptr;
-        }
-
-        auto* node = it->second;
-        if (!IsObjectAlive(node)) {
-            return nullptr;
-        }
-
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        return cypressManager->GetNodeProxy(node);
     }
 };
 
