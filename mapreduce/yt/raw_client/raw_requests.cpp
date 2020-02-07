@@ -800,27 +800,6 @@ TCheckPermissionResponse CheckPermission(
     return ParseCheckPermissionResponse(NodeFromYsonString(response.Response));
 }
 
-TVector<TTabletInfo> ParseGetTabletInfosResponse(const TNode& node)
-{
-    TVector<TTabletInfo> tabletInfos;
-    const TVector<TNode>& nodeTabletInfos = node.AsMap().FindPtr("tablets")->AsList();
-    tabletInfos.reserve(nodeTabletInfos.size());
-    for (const auto& nodeInfo : nodeTabletInfos) {
-        TTabletInfo tabletInfo;
-        if (auto totalRowCount = nodeInfo.AsMap().FindPtr("total_row_count")) {
-            tabletInfo.TotalRowCount = totalRowCount->AsInt64();
-        }
-        if (auto trimmedRowCount = nodeInfo.AsMap().FindPtr("trimmed_row_count")) {
-            tabletInfo.TrimmedRowCount = trimmedRowCount->AsInt64();
-        }
-        if (auto barrierTimestamp = nodeInfo.AsMap().FindPtr("barrier_timestamp")) {
-            tabletInfo.BarrierTimestamp = barrierTimestamp->AsUint64();
-        }
-        tabletInfos.push_back(tabletInfo);
-    }
-    return tabletInfos;
-}
-
 TVector<TTabletInfo> GetTabletInfos(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
@@ -831,7 +810,9 @@ TVector<TTabletInfo> GetTabletInfos(
     THttpHeader header("POST", "api/v4/get_tablet_infos", false);
     header.MergeParameters(SerializeParamsForGetTabletInfos(path, tabletIndexes, options));
     auto response = RetryRequestWithPolicy(retryPolicy, auth, header);
-    return ParseGetTabletInfosResponse(NodeFromYsonString(response.Response));
+    TVector<TTabletInfo> result;
+    Deserialize(result, *NodeFromYsonString(response.Response).AsMap().FindPtr("tablets"));
+    return result;
 }
 
 void AlterTable(

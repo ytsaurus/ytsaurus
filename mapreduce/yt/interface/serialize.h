@@ -6,6 +6,32 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+void Deserialize(TMaybe<T>& value, const TNode& node)
+{
+    value.ConstructInPlace();
+    Deserialize(value.GetRef(), node);
+}
+
+template <class T>
+void Deserialize(TVector<T>& value, const TNode& node)
+{
+    for (const auto& element : node.AsList()) {
+        value.emplace_back();
+        Deserialize(value.back(), element);
+    }
+}
+
+template <class T>
+void Deserialize(THashMap<TString, T>& value, const TNode& node)
+{
+    for (const auto& item : node.AsMap()) {
+        Deserialize(value[item.first], item.second);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IYsonConsumer;
 
 void Serialize(const TKey& key, IYsonConsumer* consumer);
@@ -24,8 +50,8 @@ void Serialize(const TTableSchema& tableSchema, IYsonConsumer* consumer);
 void Deserialize(EValueType& valueType, const TNode& node);
 void Deserialize(TTableSchema& tableSchema, const TNode& node);
 void Deserialize(TColumnSchema& columnSchema, const TNode& node);
-void Deserialize(TVector<TTableColumnarStatistics>& statistics, const TNode& node);
-void Deserialize(TVector<TTableColumnarStatistics>& statistics, const TNode& node);
+void Deserialize(TTableColumnarStatistics& statistics, const TNode& node);
+void Deserialize(TTabletInfo& tabletInfos, const TNode& node);
 
 void Serialize(const TGUID& path, IYsonConsumer* consumer);
 void Deserialize(TGUID& value, const TNode& node);
