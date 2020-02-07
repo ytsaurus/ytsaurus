@@ -51,7 +51,7 @@ class TestDownloadCoreDump(object):
 
         gdb_binary = "gdb" if yatest_common is None else yatest_common.gdb_path()
         gdb_output = os.path.join(test_core_dumps_dir, "gdb_output.log")
-        gdb_command = ["gdb",
+        gdb_command = [gdb_binary,
                        "-ex", "set logging file " + gdb_output,
                        "-ex", "set logging overwrite on",
                        "-ex", "set logging on",
