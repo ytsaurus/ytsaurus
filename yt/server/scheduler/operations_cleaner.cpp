@@ -1114,8 +1114,7 @@ private:
 
         auto operations = FetchOperationsFromCypressForCleaner(
             listOperationsResult.OperationsToArchive,
-            createBatchRequest,
-            Config_->FetchBatchSize);
+            createBatchRequest);
 
         // NB: needed for us to store the latest operation for each alias in operation_aliases archive table.
         std::sort(operations.begin(), operations.end(), [] (const auto& lhs, const auto& rhs) {
@@ -1205,97 +1204,45 @@ DELEGATE_SIGNAL(TOperationsCleaner, void(const std::vector<TArchiveOperationRequ
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-template <class TForwardIt, class TFunctor, class TSize>
-void SplitAndApply(
-    TForwardIt begin,
-    TForwardIt end,
-    TFunctor functor,
-    TSize chunkSize = 1)
-{
-    if (chunkSize < 1) {
-        throw std::invalid_argument("Chunk size must be greater than zero");
-    }
-
-    auto current = begin;
-    while (current != end) {
-        auto distance = std::distance(current, end);
-        auto it = current;
-        if (distance < chunkSize) {
-            std::advance(it, distance);
-        } else {
-            std::advance(it, chunkSize);
-        }
-        functor(current, it);
-        current = it;
-    }
-}
-
-template <class T, class TFunctor, class TSize>
-void SplitAndApply(
-    const std::vector<T>& vec,
-    TFunctor functor,
-    TSize chunkSize = 1)
-{
-    SplitAndApply(
-        vec.begin(),
-        vec.end(),
-        [functor] (typename std::vector<T>::const_iterator begin, typename std::vector<T>::const_iterator end) {
-            std::vector<T> tmp(begin, end);
-            functor(tmp);
-        },
-        chunkSize);
-}
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
     const std::vector<TOperationId>& operationIds,
-    TCallback<TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest,
-    int batchSize)
+    TCallback<TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest)
 {
     using NYT::ToProto;
 
     std::vector<TArchiveOperationRequest> result;
 
-    auto fetchBatch = [&] (const std::vector<TOperationId>& batch) {
-        auto batchReq = createBatchRequest();
+    auto batchReq = createBatchRequest();
 
-        for (auto operationId : batch) {
-            auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
-            ToProto(req->mutable_attributes()->mutable_keys(), TArchiveOperationRequest::GetAttributeKeys());
-            batchReq->AddRequest(req, "get_op_attributes");
+    for (auto operationId : operationIds) {
+        auto req = TYPathProxy::Get(GetOperationPath(operationId) + "/@");
+        ToProto(req->mutable_attributes()->mutable_keys(), TArchiveOperationRequest::GetAttributeKeys());
+        batchReq->AddRequest(req, "get_op_attributes");
+    }
+
+    auto rspOrError = WaitFor(batchReq->Invoke());
+    auto error = GetCumulativeError(rspOrError);
+    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error requesting operations attributes for archivation");
+
+    auto rsps = rspOrError.Value()->GetResponses<TYPathProxy::TRspGet>("get_op_attributes");
+    YT_VERIFY(operationIds.size() == rsps.size());
+
+    for (int index = 0; index < operationIds.size(); ++index) {
+        auto attributes = ConvertToAttributes(TYsonString(rsps[index].Value()->value()));
+        auto operationId = TOperationId::FromString(attributes->Get<TString>("key"));
+        YT_VERIFY(operationId == operationIds[index]);
+
+        try {
+            TArchiveOperationRequest req;
+            req.InitializeFromAttributes(*attributes);
+            result.push_back(req);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error initializing operation archivation request")
+                << TErrorAttribute("operation_id", operationId)
+                << TErrorAttribute("attributes", ConvertToYsonString(*attributes, EYsonFormat::Text))
+                << ex;
         }
-
-        auto rspOrError = WaitFor(batchReq->Invoke());
-        auto error = GetCumulativeError(rspOrError);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error requesting operations attributes for archivation");
-
-        auto rsps = rspOrError.Value()->GetResponses<TYPathProxy::TRspGet>("get_op_attributes");
-        YT_VERIFY(batch.size() == rsps.size());
-
-        for (int index = 0; index < batch.size(); ++index) {
-            auto attributes = ConvertToAttributes(TYsonString(rsps[index].Value()->value()));
-            auto operationId = TOperationId::FromString(attributes->Get<TString>("key"));
-            YT_VERIFY(operationId == batch[index]);
-
-            try {
-                TArchiveOperationRequest req;
-                req.InitializeFromAttributes(*attributes);
-                result.push_back(req);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Error initializing operation archivation request")
-                    << TErrorAttribute("operation_id", operationId)
-                    << TErrorAttribute("attributes", ConvertToYsonString(*attributes, EYsonFormat::Text))
-                    << ex;
-            }
-        }
-    };
-
-    NDetail::SplitAndApply(operationIds, fetchBatch, batchSize);
+    }
 
     return result;
 }
