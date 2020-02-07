@@ -29,12 +29,15 @@ class TestRuntimeParameters(YTEnvSetup):
             command="sleep 100",
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"weight": 5},
+            spec={"weight": 5, "annotations": {"foo": "abc"}},
             track=False)
         wait(lambda: op.get_state() == "running", iter=10)
 
         progress_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default".format(op.id)
         assert get(progress_path + "/weight") == 5.0
+
+        annotations_path = op.get_path() + "/@runtime_parameters/annotations"
+        assert get(annotations_path) == {"foo": "abc"}
 
         update_op_parameters(op.id, parameters={
             "scheduling_options_per_pool_tree": {
@@ -44,7 +47,10 @@ class TestRuntimeParameters(YTEnvSetup):
                         "user_slots": 0
                     }
                 }
-            }
+            },
+            "annotations": {
+                "foo": "bar",
+            },
         })
 
         default_tree_parameters_path = op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default"
@@ -55,6 +61,7 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: are_almost_equal(get(progress_path + "/weight"), 3.0))
         # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.
         wait(lambda: get(progress_path + "/resource_limits")["user_slots"] == 0, iter=5)
+        wait(lambda: get(annotations_path) == {"foo": "bar"})
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -64,6 +71,7 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: are_almost_equal(get(progress_path + "/weight"), 3.0))
         # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.
         wait(lambda: get(progress_path + "/resource_limits")["user_slots"] == 0, iter=5)
+        wait(lambda: get(annotations_path) == {"foo": "bar"})
 
     @authors("renadeen")
     def test_change_pool_of_default_pooltree(self):

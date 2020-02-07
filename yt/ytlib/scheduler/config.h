@@ -604,7 +604,10 @@ public:
     //! These fields are not used in scheduler but specified in order
     //! to not appear in unrecognized spec.
     NYTree::IMapNodePtr StartedBy;
+
+    // TODO(gritukan@): Drop it in favor of `Annotations["description"]'.
     NYTree::IMapNodePtr Description;
+
     NYTree::IMapNodePtr Annotations;
 
     //! If true, enables the columnar statistics machinery to estimate job sizes.
@@ -1246,6 +1249,7 @@ public:
     std::vector<TString> Owners;
     NSecurityClient::TSerializableAccessControlList Acl;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
+    NYTree::IMapNodePtr Annotations;
 
     TOperationRuntimeParameters();
 };
@@ -1277,6 +1281,7 @@ public:
     std::optional<TString> Pool;
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
+    std::optional<NYTree::IMapNodePtr> Annotations;
 
     TOperationRuntimeParametersUpdate();
 

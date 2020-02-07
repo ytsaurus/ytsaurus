@@ -271,6 +271,55 @@ class TestSchedulerRestart(YTEnvSetup):
 
         assert brief_spec == get(op.get_path() + "/@brief_spec")
 
+    # COMPAT(gritukan)
+    @authors("gritukan")
+    def test_description_after_revival(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"foo": 0}])
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"annotations": {"abc": "def"}, "description": {"foo": "bar"}})
+
+        wait_breakpoint()
+
+        op.wait_fresh_snapshot()
+
+        annotations_path = op.get_path() + "/@runtime_parameters/annotations"
+
+        required_annotations = {
+            "abc": "def",
+            "description": {
+                "foo": "bar",
+            },
+        }
+
+        def check_cypress():
+            return exists(annotations_path) and get(annotations_path) == required_annotations
+
+        def check_get_operation():
+            result = get_operation(op.id, attributes=["runtime_parameters"])["runtime_parameters"]
+            return result.get("annotations", None) == required_annotations
+
+        wait(check_cypress)
+        wait(check_get_operation)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            remove(annotations_path)
+            assert not exists(annotations_path)
+
+        wait(check_cypress)
+        wait(check_get_operation)
+
+        release_breakpoint()
+        op.track()
+
 ##################################################################
 
 class TestControllerAgentReconnection(YTEnvSetup):

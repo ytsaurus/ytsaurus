@@ -33,7 +33,6 @@ TOrderedByIdTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     , FullSpec(nameTable->RegisterName("full_spec"))
     , RuntimeParameters(nameTable->RegisterName("runtime_parameters"))
     , SlotIndexPerPoolTree(nameTable->RegisterName("slot_index_per_pool_tree"))
-    , Annotations(nameTable->RegisterName("annotations"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

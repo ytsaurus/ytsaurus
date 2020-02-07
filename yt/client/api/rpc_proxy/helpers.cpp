@@ -565,9 +565,6 @@ void ToProto(NProto::TOperation* protoOperation, const NApi::TOperation& operati
     if (operation.UnrecognizedSpec) {
         protoOperation->set_unrecognized_spec(operation.UnrecognizedSpec.GetData());
     }
-    if (operation.Annotations) {
-        protoOperation->set_annotations(operation.Annotations.GetData());
-    }
 
     if (operation.BriefProgress) {
         protoOperation->set_brief_progress(operation.BriefProgress.GetData());
@@ -650,11 +647,6 @@ void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOpera
         operation->UnrecognizedSpec = NYson::TYsonString(protoOperation.unrecognized_spec());
     } else {
         operation->UnrecognizedSpec = NYson::TYsonString();
-    }
-    if (protoOperation.has_annotations()) {
-        operation->Annotations = NYson::TYsonString(protoOperation.annotations());
-    } else {
-        operation->Annotations = NYson::TYsonString();
     }
 
     if (protoOperation.has_brief_progress()) {

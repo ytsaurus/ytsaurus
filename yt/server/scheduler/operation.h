@@ -254,8 +254,6 @@ public:
     //! Alias for the operation.
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Alias);
 
-    DEFINE_BYREF_RO_PROPERTY(NYTree::IMapNodePtr, Annotations);
-
     //! ACEs that are always included in operation ACL
     //! regardless any ACL specification and any ACL changes made by user.
     DEFINE_BYREF_RO_PROPERTY(NSecurityClient::TSerializableAccessControlList, BaseAcl);
@@ -347,7 +345,6 @@ public:
         NTransactionClient::TTransactionId userTransactionId,
         TOperationSpecBasePtr spec,
         NYson::TYsonString specString,
-        NYTree::IMapNodePtr annotations,
         NYTree::IMapNodePtr secureVault,
         TOperationRuntimeParametersPtr runtimeParameters,
         NSecurityClient::TSerializableAccessControlList baseAcl,
