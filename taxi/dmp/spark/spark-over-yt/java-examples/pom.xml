@@ -47,7 +47,7 @@
         <dependency>
             <groupId>ru.yandex</groupId>
             <artifactId>spark-yt-data-source_2.12</artifactId>
-            <version>0.0.20-SNAPSHOT</version>
+            <version>0.0.20</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>
