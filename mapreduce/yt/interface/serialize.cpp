@@ -10,32 +10,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-void Deserialize(TMaybe<T>& value, const TNode& node)
-{
-    value.ConstructInPlace();
-    Deserialize(value.GetRef(), node);
-}
-
-template <class T>
-void Deserialize(TVector<T>& value, const TNode& node)
-{
-    for (const auto& element : node.AsList()) {
-        value.emplace_back();
-        Deserialize(value.back(), element);
-    }
-}
-
-template <class T>
-void Deserialize(THashMap<TString, T>& value, const TNode& node)
-{
-    for (const auto& item : node.AsMap()) {
-        Deserialize(value[item.first], item.second);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 // const auto& nodeMap = node.AsMap();
 #define DESERIALIZE_ITEM(NAME, MEMBER) \
     if (const auto* item = nodeMap.FindPtr(NAME)) { \
@@ -401,17 +375,12 @@ void Serialize(const TAttributeFilter& filter, IYsonConsumer* consumer)
     BuildYsonFluently(consumer).List(filter.Attributes_);
 }
 
-void Deserialize(TVector<TTableColumnarStatistics>& statisticsList, const TNode& node)
+void Deserialize(TTableColumnarStatistics& statistics, const TNode& node)
 {
-    for (const auto& element : node.AsList()) {
-        const auto& nodeMap = element.AsMap();
-        statisticsList.emplace_back();
-        auto& statistics = statisticsList.back();
-
-        DESERIALIZE_ITEM("column_data_weights", statistics.ColumnDataWeight);
-        DESERIALIZE_ITEM("legacy_chunks_data_weight", statistics.LegacyChunksDataWeight);
-        DESERIALIZE_ITEM("timestamp_total_weight", statistics.TimestampTotalWeight);
-    }
+    const auto& nodeMap = node.AsMap();
+    DESERIALIZE_ITEM("column_data_weights", statistics.ColumnDataWeight);
+    DESERIALIZE_ITEM("legacy_chunks_data_weight", statistics.LegacyChunksDataWeight);
+    DESERIALIZE_ITEM("timestamp_total_weight", statistics.TimestampTotalWeight);
 }
 
 void Serialize(const TGUID& value, IYsonConsumer* consumer)
@@ -422,6 +391,14 @@ void Serialize(const TGUID& value, IYsonConsumer* consumer)
 void Deserialize(TGUID& value, const TNode& node)
 {
     value = GetGuid(node.AsString());
+}
+
+void Deserialize(TTabletInfo& value, const TNode& node)
+{
+    auto nodeMap = node.AsMap();
+    DESERIALIZE_ITEM("total_row_count", value.TotalRowCount)
+    DESERIALIZE_ITEM("trimmed_row_count", value.TrimmedRowCount)
+    DESERIALIZE_ITEM("barrier_timestamp", value.BarrierTimestamp)
 }
 
 #undef DESERIALIZE_ITEM

@@ -96,25 +96,6 @@ struct TCheckPermissionResponse
     TVector<TCheckPermissionResult> Columns;
 };
 
-/// @brief Contains information about tablet
-/// This struct is returned by @ref NYT::IClient::GetTabletInfos
-struct TTabletInfo
-{
-    /// @brief Indicates the total number of rows added to the tablet (including trimmed ones).
-    /// Currently only provided for ordered tablets.
-    i64 TotalRowCount = 0;
-
-    /// @brief Contains the number of front rows that are trimmed and are not guaranteed to be accessible.
-    /// Only makes sense for ordered tablet.
-    i64 TrimmedRowCount = 0;
-
-    /// @brief Contains the barrier timestamp of the tablet cell containing the tablet, which lags behind the current timestamp.
-    /// It is guaranteed that all transactions with commit timestamp not exceeding the barrier
-    /// are fully committed; e.g. all their addes rows are visible (and are included in TTabletInfo::TotalRowCount).
-    /// Mostly makes sense for ordered tablets.
-    ui64 BarrierTimestamp;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 /// @brief Interface representing a lock obtained from @ref NYT::ITransaction::Lock.
