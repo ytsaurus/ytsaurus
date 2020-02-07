@@ -1190,176 +1190,88 @@ void TClient::DoMountTable(
     const TYPath& path,
     const TMountTableOptions& options)
 {
-    if (Connection_->GetConfig()->UseTabletService) {
-        NTabletClient::NProto::TReqMount req;
-        if (options.FirstTabletIndex) {
-            req.set_first_tablet_index(*options.FirstTabletIndex);
-        }
-        if (options.LastTabletIndex) {
-            req.set_last_tablet_index(*options.LastTabletIndex);
-        }
-        if (options.CellId) {
-            ToProto(req.mutable_cell_id(), options.CellId);
-        }
-        if (!options.TargetCellIds.empty()) {
-            ToProto(req.mutable_target_cell_ids(), options.TargetCellIds);
-        }
-        req.set_freeze(options.Freeze);
-
-        auto mountTimestamp = WaitFor(Connection_->GetTimestampProvider()->GenerateTimestamps())
-            .ValueOrThrow();
-        req.set_mount_timestamp(mountTimestamp);
-
-        ExecuteTabletServiceRequest(path, "Mounting", &req);
-    } else {
-        auto req = TTableYPathProxy::Mount(path);
-        SetMutationId(req, options);
-
-        if (options.FirstTabletIndex) {
-            req->set_first_tablet_index(*options.FirstTabletIndex);
-        }
-        if (options.LastTabletIndex) {
-            req->set_last_tablet_index(*options.LastTabletIndex);
-        }
-        if (options.CellId) {
-            ToProto(req->mutable_cell_id(), options.CellId);
-        }
-        if (!options.TargetCellIds.empty()) {
-            ToProto(req->mutable_target_cell_ids(), options.TargetCellIds);
-        }
-        req->set_freeze(options.Freeze);
-
-        auto mountTimestamp = WaitFor(Connection_->GetTimestampProvider()->GenerateTimestamps())
-            .ValueOrThrow();
-        req->set_mount_timestamp(mountTimestamp);
-
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
-            .ThrowOnError();
+    NTabletClient::NProto::TReqMount req;
+    if (options.FirstTabletIndex) {
+        req.set_first_tablet_index(*options.FirstTabletIndex);
     }
+    if (options.LastTabletIndex) {
+        req.set_last_tablet_index(*options.LastTabletIndex);
+    }
+    if (options.CellId) {
+        ToProto(req.mutable_cell_id(), options.CellId);
+    }
+    if (!options.TargetCellIds.empty()) {
+        ToProto(req.mutable_target_cell_ids(), options.TargetCellIds);
+    }
+    req.set_freeze(options.Freeze);
+
+    auto mountTimestamp = WaitFor(Connection_->GetTimestampProvider()->GenerateTimestamps())
+        .ValueOrThrow();
+    req.set_mount_timestamp(mountTimestamp);
+
+    ExecuteTabletServiceRequest(path, "Mounting", &req);
 }
 
 void TClient::DoUnmountTable(
     const TYPath& path,
     const TUnmountTableOptions& options)
 {
-    if (Connection_->GetConfig()->UseTabletService) {
-        NTabletClient::NProto::TReqUnmount req;
-        if (options.FirstTabletIndex) {
-            req.set_first_tablet_index(*options.FirstTabletIndex);
-        }
-        if (options.LastTabletIndex) {
-            req.set_last_tablet_index(*options.LastTabletIndex);
-        }
-        req.set_force(options.Force);
-
-        ExecuteTabletServiceRequest(path, "Unmounting", &req);
-    } else {
-        auto req = TTableYPathProxy::Unmount(path);
-        SetMutationId(req, options);
-        if (options.FirstTabletIndex) {
-            req->set_first_tablet_index(*options.FirstTabletIndex);
-        }
-        if (options.LastTabletIndex) {
-            req->set_last_tablet_index(*options.LastTabletIndex);
-        }
-        req->set_force(options.Force);
-
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
-            .ThrowOnError();
+    NTabletClient::NProto::TReqUnmount req;
+    if (options.FirstTabletIndex) {
+        req.set_first_tablet_index(*options.FirstTabletIndex);
     }
+    if (options.LastTabletIndex) {
+        req.set_last_tablet_index(*options.LastTabletIndex);
+    }
+    req.set_force(options.Force);
+
+    ExecuteTabletServiceRequest(path, "Unmounting", &req);
 }
 
 void TClient::DoRemountTable(
     const TYPath& path,
     const TRemountTableOptions& options)
 {
-    if (Connection_->GetConfig()->UseTabletService) {
-        NTabletClient::NProto::TReqRemount req;
-        if (options.FirstTabletIndex) {
-            req.set_first_tablet_index(*options.FirstTabletIndex);
-        }
-        if (options.LastTabletIndex) {
-            req.set_last_tablet_index(*options.LastTabletIndex);
-        }
-
-        ExecuteTabletServiceRequest(path, "Remounting", &req);
-    } else {
-        auto req = TTableYPathProxy::Remount(path);
-        SetMutationId(req, options);
-        if (options.FirstTabletIndex) {
-            req->set_first_tablet_index(*options.FirstTabletIndex);
-        }
-        if (options.LastTabletIndex) {
-            req->set_last_tablet_index(*options.LastTabletIndex);
-        }
-
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
-            .ThrowOnError();
+    NTabletClient::NProto::TReqRemount req;
+    if (options.FirstTabletIndex) {
+        req.set_first_tablet_index(*options.FirstTabletIndex);
     }
+    if (options.LastTabletIndex) {
+        req.set_last_tablet_index(*options.LastTabletIndex);
+    }
+
+    ExecuteTabletServiceRequest(path, "Remounting", &req);
 }
 
 void TClient::DoFreezeTable(
     const TYPath& path,
     const TFreezeTableOptions& options)
 {
-    if (Connection_->GetConfig()->UseTabletService) {
-        NTabletClient::NProto::TReqFreeze req;
-        if (options.FirstTabletIndex) {
-            req.set_first_tablet_index(*options.FirstTabletIndex);
-        }
-        if (options.LastTabletIndex) {
-            req.set_last_tablet_index(*options.LastTabletIndex);
-        }
-
-        ExecuteTabletServiceRequest(path, "Freezing", &req);
-    } else {
-        auto req = TTableYPathProxy::Freeze(path);
-        SetMutationId(req, options);
-        if (options.FirstTabletIndex) {
-            req->set_first_tablet_index(*options.FirstTabletIndex);
-        }
-        if (options.LastTabletIndex) {
-            req->set_last_tablet_index(*options.LastTabletIndex);
-        }
-
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
-            .ThrowOnError();
+    NTabletClient::NProto::TReqFreeze req;
+    if (options.FirstTabletIndex) {
+        req.set_first_tablet_index(*options.FirstTabletIndex);
     }
+    if (options.LastTabletIndex) {
+        req.set_last_tablet_index(*options.LastTabletIndex);
+    }
+
+    ExecuteTabletServiceRequest(path, "Freezing", &req);
 }
 
 void TClient::DoUnfreezeTable(
     const TYPath& path,
     const TUnfreezeTableOptions& options)
 {
-    if (Connection_->GetConfig()->UseTabletService) {
-        NTabletClient::NProto::TReqUnfreeze req;
+    NTabletClient::NProto::TReqUnfreeze req;
 
-        if (options.FirstTabletIndex) {
-            req.set_first_tablet_index(*options.FirstTabletIndex);
-        }
-        if (options.LastTabletIndex) {
-            req.set_last_tablet_index(*options.LastTabletIndex);
-        }
-
-        ExecuteTabletServiceRequest(path, "Unfreezing", &req);
-    } else {
-        auto req = TTableYPathProxy::Unfreeze(path);
-        SetMutationId(req, options);
-        if (options.FirstTabletIndex) {
-            req->set_first_tablet_index(*options.FirstTabletIndex);
-        }
-        if (options.LastTabletIndex) {
-            req->set_last_tablet_index(*options.LastTabletIndex);
-        }
-
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
-            .ThrowOnError();
+    if (options.FirstTabletIndex) {
+        req.set_first_tablet_index(*options.FirstTabletIndex);
     }
+    if (options.LastTabletIndex) {
+        req.set_last_tablet_index(*options.LastTabletIndex);
+    }
+
+    ExecuteTabletServiceRequest(path, "Unfreezing", &req);
 }
 
 NTabletClient::NProto::TReqReshard TClient::MakeReshardRequest(
@@ -1396,21 +1308,11 @@ void TClient::DoReshardTableWithPivotKeys(
     const std::vector<TOwningKey>& pivotKeys,
     const TReshardTableOptions& options)
 {
-    if (Connection_->GetConfig()->UseTabletService) {
-        auto req = MakeReshardRequest(options);
-        ToProto(req.mutable_pivot_keys(), pivotKeys);
-        req.set_tablet_count(pivotKeys.size());
+    auto req = MakeReshardRequest(options);
+    ToProto(req.mutable_pivot_keys(), pivotKeys);
+    req.set_tablet_count(pivotKeys.size());
 
-        ExecuteTabletServiceRequest(path, "Resharding", &req);
-    } else {
-        auto req = MakeYPathReshardRequest(path, options);
-        ToProto(req->mutable_pivot_keys(), pivotKeys);
-        req->set_tablet_count(pivotKeys.size());
-
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
-            .ThrowOnError();
-    }
+    ExecuteTabletServiceRequest(path, "Resharding", &req);
 }
 
 void TClient::DoReshardTableWithTabletCount(
@@ -1418,19 +1320,10 @@ void TClient::DoReshardTableWithTabletCount(
     int tabletCount,
     const TReshardTableOptions& options)
 {
-    if (Connection_->GetConfig()->UseTabletService) {
-        auto req = MakeReshardRequest(options);
-        req.set_tablet_count(tabletCount);
+    auto req = MakeReshardRequest(options);
+    req.set_tablet_count(tabletCount);
 
-        ExecuteTabletServiceRequest(path, "Resharding", &req);
-    } else {
-        auto req = MakeYPathReshardRequest(path, options);
-        req->set_tablet_count(tabletCount);
-
-        auto proxy = CreateWriteProxy<TObjectServiceProxy>();
-        WaitFor(proxy->Execute(req))
-            .ThrowOnError();
-    }
+    ExecuteTabletServiceRequest(path, "Resharding", &req);
 }
 
 std::vector<TTabletActionId> TClient::DoReshardTableAutomatic(
