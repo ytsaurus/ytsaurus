@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, MASTER_CELL_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import *
 from yt.environment.helpers import assert_items_equal
 
@@ -181,7 +181,7 @@ class TestMasterSnapshots(YTEnvSetup):
 
         build_snapshot(cell_id=None)
 
-        with Restarter(self.Env, MASTER_CELL_SERVICE):
+        with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
         for s in checker_state_list:
@@ -219,7 +219,7 @@ class TestAllMastersSnapshots(YTEnvSetup):
 
         build_master_snapshots()
 
-        with Restarter(self.Env, MASTER_CELL_SERVICE):
+        with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
         for s in checker_state_list:
