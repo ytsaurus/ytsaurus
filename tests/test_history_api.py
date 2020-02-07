@@ -374,3 +374,46 @@ class TestHistoryApi(object):
             value = event["results"][0]["value"]
             assert set(value.keys()) == set(["status"])
             assert set(value["status"].keys()) == set(["scheduling", "eviction"])
+
+    def test_descending_time_order(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        create_nodes(yp_client, 1)
+        pod_set_id = create_pod_set(yp_client)
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(enable_scheduling=True))
+
+        wait(lambda: is_pod_assigned(yp_client, pod_id))
+
+        for _ in range(3):
+            yp_client.request_pod_eviction(pod_id, "Test")
+            yp_client.abort_pod_eviction(pod_id, "Test")
+
+        def _get_events(limit, descending_time_order, continuation_token=None):
+            options = {"descending_time_order": descending_time_order, "limit": limit}
+            if continuation_token:
+                options["continuation_token"] = continuation_token
+
+            return yp_client.select_object_history("pod", pod_id, [""], options=options)
+
+        def _get_all_events(limit, descending_time_order):
+            events = []
+            continuation_token = None
+            current_events = []
+
+            while continuation_token is None or len(current_events) == limit:
+                response = _get_events(limit, descending_time_order, continuation_token)
+                current_events = response["events"]
+                continuation_token = response["continuation_token"]
+                events.extend(current_events)
+
+            return events
+
+        limit = 2
+        events = _get_all_events(limit, False)
+        events_reversed = _get_all_events(limit, True)
+
+        assert len(events) == 8
+        assert events == list(reversed(events_reversed))
+
+        event_times = list(map(lambda event: event["time"], events))
+        assert event_times == list(sorted(event_times))

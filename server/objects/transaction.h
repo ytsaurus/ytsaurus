@@ -190,6 +190,7 @@ struct TSelectObjectHistoryOptions
     std::optional<int> Limit;
     std::optional<TString> ContinuationToken;
     TTimeInterval TimeInterval;
+    std::optional<bool> DescendingTimeOrder;
 };
 
 void FromProto(

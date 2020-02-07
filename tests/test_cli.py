@@ -415,3 +415,49 @@ class TestCli(object):
         assert len(result) == 1
         assert len(result[0]) == 4
         assert result[0][2] == float(sum(memory_limits)) / len(memory_limits)
+
+    def test_object_history_descending_time_order(self, yp_env):
+        cli = create_cli(yp_env)
+        yp_client = yp_env.yp_client
+
+        create_nodes(yp_client, 1)
+        pod_set_id = create_pod_set_via_cli(cli)
+
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(enable_scheduling=True))
+
+        wait(lambda: is_pod_assigned(yp_client, pod_id))
+        for _ in range(3):
+            cli.check_output(["request-pod-eviction", pod_id, "Test"])
+            cli.check_output(["abort-pod-eviction", pod_id, "Test"])
+
+        def _get_events(limit, descending_time_order, continuation_token=None):
+            query = ["select-object-history", "pod", pod_id, "--limit", str(limit)]
+            if descending_time_order:
+                query.append("--descending_time_order")
+            if continuation_token is not None:
+                query.extend(["--continuation-token", continuation_token])
+
+            return cli.check_yson_output(query)
+
+        def _get_all_events(limit, descending_time_order):
+            events = []
+            continuation_token = None
+            current_events = []
+
+            while continuation_token is None or len(current_events) == limit:
+                response = _get_events(limit, descending_time_order, continuation_token)
+                current_events = response["events"]
+                continuation_token = response["continuation_token"]
+                events.extend(current_events)
+
+            return events
+
+        limit = 2
+        events = _get_all_events(limit, False)
+        events_reversed = _get_all_events(limit, True)
+
+        assert len(events) == 8
+        assert events == list(reversed(events_reversed))
+
+        event_times = list(map(lambda event: event["time"], events))
+        assert event_times == list(sorted(event_times))

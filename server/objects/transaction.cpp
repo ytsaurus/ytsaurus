@@ -165,6 +165,10 @@ void FromProto(
     if (protoOptions.has_interval()) {
         FromProto(&options->TimeInterval, protoOptions.interval());
     }
+
+    if (protoOptions.has_descending_time_order()) {
+        options->DescendingTimeOrder = protoOptions.descending_time_order();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -250,11 +254,12 @@ void FormatValue(
     const TSelectObjectHistoryOptions& options,
     TStringBuf /*format*/)
 {
-    builder->AppendFormat("{Uuid: %v, Limit: %v, ContinuationToken: %Qv, TimeInterval: %v}",
+    builder->AppendFormat("{Uuid: %v, Limit: %v, ContinuationToken: %Qv, TimeInterval: %v, DescendingTimeOrder: %v}",
         options.Uuid,
         options.Limit,
         options.ContinuationToken,
-        options.TimeInterval);
+        options.TimeInterval,
+        options.DescendingTimeOrder);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3373,6 +3378,10 @@ private:
 
         queryBuilder.AppendFormat(" order by [%v]",
             HistoryEventsTable.Fields.Time.Name);
+
+        if (options.DescendingTimeOrder && *options.DescendingTimeOrder) {
+            queryBuilder.AppendFormat(" desc");
+        }
 
         if (continuationToken) {
             queryBuilder.AppendFormat(" offset %v",

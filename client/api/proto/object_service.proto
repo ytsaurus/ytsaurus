@@ -777,6 +777,9 @@ message TSelectObjectHistoryOptions
 
     // Time interval to select.
     optional TTimeInterval interval = 4;
+
+    // If true, then order history by descending time.
+    optional bool descending_time_order = 5;
 }
 
 message TReqSelectObjectHistory
