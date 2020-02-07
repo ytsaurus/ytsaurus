@@ -2,9 +2,6 @@
 
 #include "retry_heavy_write_request.h"
 
-#include <mapreduce/yt/common/helpers.h>
-#include <mapreduce/yt/common/wait_proxy.h>
-
 #include <mapreduce/yt/http/requests.h>
 
 #include <mapreduce/yt/interface/errors.h>
@@ -58,16 +55,14 @@ void TRetryfulWriter::DoFinish()
         FilledBuffers_.Stop();
         Thread_.Join();
     }
-    if (WriteTransaction_) {
-        WriteTransaction_->Commit();
-    }
-
     if (Exception_) {
         WriterState_ = Error;
         std::rethrow_exception(Exception_);
-    } else if (WriterState_ == Ok) {
-        WriterState_ = Completed;
     }
+    if (WriteTransaction_) {
+        WriteTransaction_->Commit();
+    }
+    WriterState_ = Completed;
 }
 
 void TRetryfulWriter::FlushBuffer(bool lastBlock)
