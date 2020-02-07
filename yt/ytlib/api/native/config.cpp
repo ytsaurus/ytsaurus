@@ -144,9 +144,6 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("default_list_operations_timeout", DefaultListOperationsTimeout)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("use_tablet_service", UseTabletService)
-        .Default(true);
-
     RegisterParameter("cache_sticky_group_size_override", CacheStickyGroupSizeOverride)
         .Default();
 

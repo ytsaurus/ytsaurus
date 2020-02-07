@@ -111,8 +111,6 @@ public:
     TDuration DefaultGetJobTimeout;
     TDuration DefaultListOperationsTimeout;
 
-    bool UseTabletService;
-
     std::optional<int> CacheStickyGroupSizeOverride;
 
     TDuration IdleChannelTtl;
