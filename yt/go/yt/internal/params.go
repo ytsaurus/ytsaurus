@@ -702,6 +702,10 @@ func writeInsertRowsOptions(w *yson.Writer, o *yt.InsertRowsOptions) {
 		w.MapKeyString("require_sync_replica")
 		w.Any(o.RequireSyncReplica)
 	}
+	if o.Update != nil {
+		w.MapKeyString("update")
+		w.Any(o.Update)
+	}
 	writeTransactionOptions(w, o.TransactionOptions)
 }
 

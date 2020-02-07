@@ -825,6 +825,7 @@ type LookupRowsOptions struct {
 type InsertRowsOptions struct {
 	Atomicity          *string `http:"atomicity,omitnil"`
 	RequireSyncReplica *bool   `http:"require_sync_replica,omitnil"`
+	Update             *bool   `http:"update,omitnil"`
 
 	*TransactionOptions
 }
