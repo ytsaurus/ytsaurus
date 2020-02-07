@@ -159,7 +159,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
         create_pool("parent", attributes={"max_running_operation_count": 0})
         create_pool("child", parent_name="parent")
-        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/parent"))
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/child"))
 
         op = run_test_vanilla(":", spec={"pool": "child"})
         op.wait_for_state("pending")
