@@ -594,8 +594,6 @@ public:
         auto runtimeParameters = New<TOperationRuntimeParameters>();
         Strategy_->InitOperationRuntimeParameters(runtimeParameters, spec, baseAcl, user, type);
 
-        auto annotations = parseSpecResult.SpecNode->FindChild("annotations");
-
         auto operation = New<TOperation>(
             operationId,
             type,
@@ -603,7 +601,6 @@ public:
             transactionId,
             spec,
             std::move(parseSpecResult.SpecString),
-            annotations ? annotations->AsMap() : nullptr,
             secureVault,
             runtimeParameters,
             std::move(baseAcl),

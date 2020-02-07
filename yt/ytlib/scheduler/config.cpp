@@ -408,6 +408,8 @@ TOperationSpecBase::TOperationSpecBase()
         .Default();
     RegisterParameter("annotations", Annotations)
         .Default();
+
+    // COMPAT(gritukan): Drop it in favor of `Annotations["description"]'.
     RegisterParameter("description", Description)
         .Default();
 
@@ -1533,6 +1535,9 @@ TOperationRuntimeParameters::TOperationRuntimeParameters()
 
     RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree);
 
+    RegisterParameter("annotations", Annotations)
+        .Optional();
+
     RegisterPostprocessor([&] {
         ValidateOperationAcl(Acl);
         ProcessAclAndOwnersParameters(&Acl, &Owners);
@@ -1567,6 +1572,8 @@ TOperationRuntimeParametersUpdate::TOperationRuntimeParametersUpdate()
         .Optional();
     RegisterParameter("scheduling_options_per_pool_tree", SchedulingOptionsPerPoolTree)
         .Default();
+    RegisterParameter("annotations", Annotations)
+        .Optional();
 
     RegisterPostprocessor([&] {
         if (Acl.has_value()) {
@@ -1638,6 +1645,18 @@ TOperationRuntimeParametersPtr UpdateRuntimeParameters(
             treeParams->Pool = TPoolName(*update->Pool, std::nullopt);
         }
     }
+
+    if (update->Annotations) {
+        auto annotationsPatch = *update->Annotations;
+        if (!result->Annotations) {
+            result->Annotations = annotationsPatch;
+        } else if (!annotationsPatch) {
+            result->Annotations = nullptr;
+        } else {
+            result->Annotations = NYTree::PatchNode(result->Annotations, annotationsPatch)->AsMap();
+        }
+    }
+
     return result;
 }
 

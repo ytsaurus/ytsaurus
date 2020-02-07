@@ -113,7 +113,6 @@ TOperation::TOperation(
     TTransactionId userTransactionId,
     TOperationSpecBasePtr spec,
     TYsonString specString,
-    IMapNodePtr annotations,
     IMapNodePtr secureVault,
     TOperationRuntimeParametersPtr runtimeParameters,
     NSecurityClient::TSerializableAccessControlList baseAcl,
@@ -135,7 +134,6 @@ TOperation::TOperation(
     , Spec_(std::move(spec))
     , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , Alias_(alias)
-    , Annotations_(std::move(annotations))
     , BaseAcl_(std::move(baseAcl))
     , Id_(id)
     , Type_(type)
@@ -147,6 +145,20 @@ TOperation::TOperation(
     , RuntimeParameters_(std::move(runtimeParameters))
     , ErasedTrees_(std::move(erasedTrees))
 {
+    // COMPAT(gritukan)
+    auto annotations = Spec_->Annotations;
+    auto description = Spec_->Description;
+    if (description) {
+        if (!annotations) {
+            annotations = GetEphemeralNodeFactory()->CreateMap();
+        }
+        annotations->AddChild("description", description);
+    }
+
+    if (annotations && !RuntimeParameters_->Annotations) {
+        RuntimeParameters_->Annotations = annotations;
+    }
+
     YT_VERIFY(SpecString_);
     Restart(TError()); // error is fake
 }

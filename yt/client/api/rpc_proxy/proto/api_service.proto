@@ -1849,7 +1849,7 @@ message TOperation
     optional bytes spec = 10; // YSON
     optional bytes full_spec = 11; // YSON
     optional bytes unrecognized_spec = 12; // YSON
-    optional bytes annotations = 13; // YSON
+    reserved 13; // deprecated
 
     optional bytes brief_progress = 14; // YSON
     optional bytes progress = 15; // YSON

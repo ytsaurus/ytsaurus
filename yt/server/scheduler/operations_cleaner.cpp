@@ -179,6 +179,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
         }
     };
 
+    auto runtimeParametersMapNode = ConvertToNode(request.RuntimeParameters)->AsMap();
     auto specMapNode = ConvertToNode(request.Spec)->AsMap();
 
     std::vector<TString> parts;
@@ -186,7 +187,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     parts.push_back(request.AuthenticatedUser);
     parts.push_back(FormatEnum(request.State));
     parts.push_back(FormatEnum(request.OperationType));
-    if (auto node = specMapNode->FindChild("annotations")) {
+    if (auto node = runtimeParametersMapNode->FindChild("annotations")) {
         parts.push_back(ConvertToYsonString(node, EYsonFormat::Text).GetData());
     }
 
@@ -303,10 +304,6 @@ TUnversionedRow BuildOrderedByIdTableRow(
 
     if (version >= 27 && request.SlotIndexPerPoolTree) {
         builder.AddValue(MakeUnversionedAnyValue(request.SlotIndexPerPoolTree.GetData(), index.SlotIndexPerPoolTree));
-    }
-
-    if (version >= 29 && request.Annotations) {
-        builder.AddValue(MakeUnversionedAnyValue(request.Annotations.GetData(), index.Annotations));
     }
 
     return rowBuffer->Capture(builder.GetRow());

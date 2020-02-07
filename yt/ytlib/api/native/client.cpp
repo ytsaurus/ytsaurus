@@ -625,6 +625,7 @@ static const THashSet<TString> SupportedOperationAttributes = {
     "operation_type",
     "progress",
     "spec",
+    // COMPAT(gritukan): Drop it.
     "annotations",
     "full_spec",
     "unrecognized_spec",
@@ -703,9 +704,7 @@ std::vector<TString> TClient::MakeArchiveOperationAttributes(const THashSet<TStr
         } else if (attribute == "type") {
             result.emplace_back("operation_type");
         } else if (attribute == "annotations") {
-            if (DoGetOperationsArchiveVersion() >= 29) {
-                result.push_back(attribute);
-            }
+            // COMPAT(gritukan): This field is deprecated.
         } else {
             result.push_back(attribute);
         }
