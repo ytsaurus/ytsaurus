@@ -15,17 +15,17 @@
 
     <repositories>
         <repository>
-            <id>Yandex1</id>
+            <id>YandexMedia</id>
             <name>Yandex artifactory</name>
             <url>http://artifactory.yandex.net/artifactory/yandex_media_releases</url>
         </repository>
         <repository>
-            <id>Yandex2</id>
+            <id>YandexSpark</id>
             <name>Yandex artifactory</name>
             <url>http://artifactory.yandex.net/artifactory/yandex_spark_releases</url>
         </repository>
         <repository>
-            <id>Yandex3</id>
+            <id>YandexSparkSnapshots</id>
             <name>Yandex artifactory</name>
             <url>http://artifactory.yandex.net/artifactory/yandex_spark_snapshots</url>
         </repository>
@@ -47,7 +47,7 @@
         <dependency>
             <groupId>ru.yandex</groupId>
             <artifactId>spark-yt-data-source_2.12</artifactId>
-            <version>0.0.18-SNAPSHOT</version>
+            <version>0.0.20-SNAPSHOT</version>
             <scope>provided</scope>
         </dependency>
     </dependencies>

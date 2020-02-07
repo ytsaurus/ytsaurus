@@ -2,13 +2,37 @@ import sys
 sys.path.append("/usr/lib/yandex/spark/python")
 
 import yaml
+import re
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
 
 from yt_spark_client.utils import default_token, create_yt_client, default_discovery_dir, default_base_log_dir, \
-    get_spark_master, set_conf, base_spark_conf, default_spark_conf, parse_memory, format_memory
+    get_spark_master, set_conf, base_spark_conf, default_spark_conf
 from contextlib import contextmanager
 import os
+
+
+def _parse_memory(memory_str):
+    units = {"gb": 1024 * 1024 * 1024, "mb": 1024 * 1024, "kb": 1024, "bb": 1, "b": 1}
+    if memory_str is None:
+        return None
+    m = re.match("(\d+)(.*)", memory_str)
+    value = int(m.group(1))
+    unit = m.group(2).lower().strip()
+    if len(unit) <= 1:
+        unit = unit + "b"
+    return value * units[unit]
+
+
+def _format_memory(memory_bytes):
+    units = {"gb": 1024 * 1024 * 1024, "mb": 1024 * 1024, "kb": 1024, "bb": 1, "b": 1}
+    if memory_bytes % units["gb"] == 0:
+        return "{}G".format(memory_bytes // units["gb"])
+    if memory_bytes % units["mb"] == 0:
+        return "{}M".format(memory_bytes // units["mb"])
+    if memory_bytes % units["kb"] == 0:
+        return "{}K".format(memory_bytes // units["kb"])
+    return "{}B".format(memory_bytes)
 
 
 @contextmanager
@@ -33,16 +57,16 @@ def connect(num_executors=5,
             dynamic_allocation=False,
             spark_conf_args=None):
     _MAX_CORES = 32
-    _MAX_MEMORY = parse_memory("64G")
-    _MIN_MEMORY = parse_memory("512Mb")
+    _MAX_MEMORY = _parse_memory("64G")
+    _MIN_MEMORY = _parse_memory("512Mb")
     _MAX_EXECUTORS = 100
     _MAX_TOTAL_CORES = 400
-    _MAX_TOTAL_MEMORY = parse_memory("1024G")
+    _MAX_TOTAL_MEMORY = _parse_memory("1024G")
 
     config_path = config_path or os.path.join(os.getenv("HOME"), "spyt.yaml")
     if os.path.isfile(config_path):
         with open(config_path) as f:
-            config = yaml.load(f)
+            config = yaml.load(f, Loader=yaml.BaseLoader)
     else:
         config = {}
 
@@ -58,8 +82,8 @@ def connect(num_executors=5,
 
     num_executors = num_executors or config.get("num_executors")
     cores_per_executor = cores_per_executor or config.get("cores_per_executor")
-    executor_memory_per_core = parse_memory(executor_memory_per_core or config.get("executor_memory_per_core"))
-    driver_memory = parse_memory(driver_memory or config.get("driver_memory"))
+    executor_memory_per_core = _parse_memory(executor_memory_per_core or config.get("executor_memory_per_core"))
+    driver_memory = _parse_memory(driver_memory or config.get("driver_memory"))
 
     if driver_memory < _MIN_MEMORY or driver_memory > _MAX_MEMORY:
         raise AssertionError("Invalid amount of driver memory")
@@ -94,7 +118,7 @@ def connect(num_executors=5,
     conf.set("spark.cores.max", str(num_executors * cores_per_executor))
     conf.set("spark.dynamicAllocation.maxExecutors", str(num_executors))
     conf.set("spark.executor.cores", str(cores_per_executor))
-    conf.set("spark.executor.memory", format_memory(executor_memory))
-    conf.set("spark.driver.memory", format_memory(driver_memory))
+    conf.set("spark.executor.memory", _format_memory(executor_memory))
+    conf.set("spark.driver.memory", _format_memory(driver_memory))
 
     return SparkSession.builder.config(conf=conf).appName(app_name).master(master).getOrCreate()
