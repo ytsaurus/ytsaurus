@@ -272,6 +272,8 @@ public:
 
     NAuth::TAuthenticationManagerConfigPtr Auth;
 
+    bool RetryRequestQueueSizeLimitExceeded;
+
     TCoordinatorConfigPtr Coordinator;
     TApiConfigPtr Api;
 
@@ -303,6 +305,9 @@ public:
 
         RegisterParameter("ui_redirect_url", UIRedirectUrl)
             .Default();
+
+        RegisterParameter("retry_request_queue_size_limit_exceeded", RetryRequestQueueSizeLimitExceeded)
+            .Default(true);
 
         RegisterParameter("coordinator", Coordinator)
             .DefaultNew();
