@@ -726,35 +726,21 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(transaction, EPermission::Write);
 
-        auto oldState = persistent ? transaction->GetPersistentState() : transaction->GetState();
-        if (oldState == ETransactionState::Active) {
-            RunPrepareTransactionActions(transaction, persistent);
-
-            transaction->SetState(persistent
-                ? ETransactionState::PersistentCommitPrepared
-                : ETransactionState::TransientCommitPrepared);
-
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
-                transactionId,
-                persistent,
-                prepareTimestamp);
+        auto state = persistent ? transaction->GetPersistentState() : transaction->GetState();
+        if (state != ETransactionState::Active) {
+            return;
         }
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        RunPrepareTransactionActions(transaction, persistent);
 
-        if (persistent && !transaction->ReplicatedToCellTags().empty()) {
-            NProto::TReqPrepareTransactionCommit request;
-            ToProto(request.mutable_transaction_id(), transactionId);
-            request.set_prepare_timestamp(prepareTimestamp);
-            multicellManager->PostToMasters(request, transaction->ReplicatedToCellTags());
-        }
+        transaction->SetState(persistent
+            ? ETransactionState::PersistentCommitPrepared
+            : ETransactionState::TransientCommitPrepared);
 
-        if (!transaction->ExternalizedToCellTags().empty()) {
-            NProto::TReqPrepareTransactionCommit request;
-            ToProto(request.mutable_transaction_id(), MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag()));
-            request.set_prepare_timestamp(prepareTimestamp);
-            multicellManager->PostToMasters(request, transaction->ExternalizedToCellTags());
-        }
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %llx)",
+            transactionId,
+            persistent,
+            prepareTimestamp);
     }
 
     void PrepareTransactionAbort(TTransactionId transactionId, bool force)
@@ -767,12 +753,14 @@ public:
             transaction->ThrowInvalidState();
         }
 
-        if (state == ETransactionState::Active) {
-            transaction->SetState(ETransactionState::TransientAbortPrepared);
-
-            YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
-                transactionId);
+        if (state != ETransactionState::Active) {
+            return;
         }
+
+        transaction->SetState(ETransactionState::TransientAbortPrepared);
+
+        YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
+            transactionId);
     }
 
     void CommitTransaction(
