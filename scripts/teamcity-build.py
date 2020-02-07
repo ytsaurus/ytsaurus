@@ -974,6 +974,7 @@ def run_ya_tests(options, suite_name, test_paths):
         "-ttt",
         "--dont-merge-split-tests",
         "--stat",
+        "--build-result-reports", os.path.join(sandbox_storage, "ya_make_results_report.txt"),
     ]
     args += test_paths
     args += ya_make_args(options)
