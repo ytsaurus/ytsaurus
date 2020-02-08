@@ -736,7 +736,7 @@ TPartition* TTablet::GetPartition(TPartitionId partitionId)
 
 void TTablet::MergePartitions(int firstIndex, int lastIndex)
 {
-    YT_LOG_DEBUG("Merging paritions (PartitionIds: %v, FirstIndex: %v, LastIndex: %v)",
+    YT_LOG_DEBUG("Merging partitions (PartitionIds: %v, FirstIndex: %v, LastIndex: %v)",
         MakeFormattableView(
             MakeRange(
                 PartitionList_.data() + firstIndex,
@@ -796,7 +796,7 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
 {
     YT_VERIFY(IsPhysicallySorted());
 
-    YT_LOG_DEBUG("Splitting parition (PartitionId: %v, Index: %v, SplitFactor: %v)",
+    YT_LOG_DEBUG("Splitting partition (PartitionId: %v, Index: %v, SplitFactor: %v)",
         PartitionList_[index]->GetId(),
         index,
         pivotKeys.size());

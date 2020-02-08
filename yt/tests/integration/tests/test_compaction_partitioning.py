@@ -123,7 +123,10 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         # Create 3 chunks [{2}, {3}], [{4}, {5}] and [{6}, {7}].
         # Then create two chunks in eden [{3}, {4}] and [{5}, {6}], which don't overlap.
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", attributes={
+            "enable_lsm_verbose_logging": True
+        })
+
         sync_mount_table("//tmp/t")
 
         def _check(stores, overlaps):
@@ -205,7 +208,9 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
     def test_partitioning_with_chunk_views(self):
         # Creating two chunks [{0}, {1}, {2}] and [{2}, {3}] and check whether they become partitioned.
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t", )
+        self._create_simple_table("//tmp/t", attributes={
+            "enable_lsm_verbose_logging": True
+        })
 
         self._create_partitions(partition_count=2, do_overlap=True)
 

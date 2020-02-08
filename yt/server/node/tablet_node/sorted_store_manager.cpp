@@ -368,8 +368,8 @@ void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDes
         }
 
         auto boundaryKeysExt = GetProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(extensions);
-        auto minBoundaryKey = WidenKey(FromProto<TOwningKey> (boundaryKeysExt.min()), schema.GetKeyColumnCount());
-        auto maxBoundaryKey = WidenKey(FromProto<TOwningKey> (boundaryKeysExt.max()), schema.GetKeyColumnCount());
+        auto minBoundaryKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.min()), schema.GetKeyColumnCount());
+        auto maxBoundaryKey = WidenKey(FromProto<TOwningKey>(boundaryKeysExt.max()), schema.GetKeyColumnCount());
 
         // COMPAT(akozhikhov)
         if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewsForPivots))  {
@@ -421,6 +421,16 @@ void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDes
                 return std::tie(lhs.Key, lhs.Type, lhs.DescriptorIndex, lhs.DataSize) <
                        std::tie(rhs.Key, rhs.Type, rhs.DescriptorIndex, rhs.DataSize);
         });
+
+        if (Tablet_->GetConfig()->EnableLsmVerboseLogging) {
+            YT_LOG_DEBUG("Considering store boundaries during table mount (BoundaryCount: %v)",
+                chunkBoundaries.size());
+            for (const auto& boundary : chunkBoundaries) {
+                YT_LOG_DEBUG("Next chunk boundary (Key: %v, Type: %v, DescriptorIndex: %v, DataSize: %v)",
+                    boundary.Key, boundary.Type, boundary.DescriptorIndex, boundary.DataSize);
+            }
+        }
+
         std::vector<TOwningKey> pivotKeys{Tablet_->GetPivotKey()};
 
         // COMPAT(akozhikhov)
@@ -479,7 +489,6 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
     }
 
     auto Logger = this->Logger;
-    Logger.AddTag("%v", Tablet_->GetLoggingId());
 
     for (auto& [partitionId, addedStores] : addedStoresByPartition) {
         if (partitionId == Tablet_->GetEden()->GetId()) {
