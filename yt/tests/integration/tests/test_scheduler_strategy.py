@@ -1006,8 +1006,8 @@ class TestSchedulerPreemption(YTEnvSetup):
         update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
         wait(lambda: op.get_job_count("running") == 0)
         op.track()
-        assert op.get_job_count("completed") == 1
-        assert op.get_job_count("total") == 1
+        assert op.get_job_count("completed", from_orchid=False) == 1
+        assert op.get_job_count("total", from_orchid=False) == 1
         assert read_table("//tmp/t_out") == [{"interrupt": 42}]
 
     @authors("dakovalkov")
