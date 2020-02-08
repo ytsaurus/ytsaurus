@@ -5,6 +5,7 @@
 #include "action.h"
 
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/config.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cell_tracker.h>
@@ -60,13 +61,8 @@ class TTransactionManager::TImpl
 {
 public:
     TImpl(
-        TTransactionManagerConfigPtr config,
-        TCellId primaryCellId,
         IConnectionPtr connection,
-        const TString& user,
-        ITimestampProviderPtr timestampProvider,
-        TCellDirectoryPtr cellDirectory,
-        TCellTrackerPtr downedCellTracker);
+        const TString& user);
 
     TFuture<TTransactionPtr> Start(
         ETransactionType type,
@@ -81,10 +77,11 @@ public:
 private:
     friend class TTransaction;
 
+    const TWeakPtr<IConnection> Connection_;
     const TTransactionManagerConfigPtr Config_;
     const TCellId PrimaryCellId_;
-    const TWeakPtr<IConnection> Connection_;
-
+    const TCellTag PrimaryCellTag_;
+    const TCellTagList SecondaryCellTags_;
     const TString User_;
     const ITimestampProviderPtr TimestampProvider_;
     const TCellDirectoryPtr CellDirectory_;
@@ -124,7 +121,7 @@ public:
         : Owner_(owner)
         , Logger(NLogging::TLogger(TransactionClientLogger)
             .AddTag("ConnectionCellTag: %v",
-                CellTagFromId(Owner_->PrimaryCellId_)))
+                Owner_->PrimaryCellTag_))
     { }
 
     ~TImpl()
@@ -148,9 +145,9 @@ public:
 
         Type_ = type;
         if (Type_ == ETransactionType::Master) {
-            CoordinatorMasterCellTag_ = options.CoordinatorMasterCellTag.value_or(CellTagFromId(Owner_->PrimaryCellId_));
+            CoordinatorMasterCellTag_ = options.CoordinatorMasterCellTag == InvalidCellTag ? Owner_->PrimaryCellTag_ : options.CoordinatorMasterCellTag;
             CoordinatorMasterCellId_ = ReplaceCellTagInId(Owner_->PrimaryCellId_, CoordinatorMasterCellTag_);
-            ReplicatedToMasterCellTags_ = options.ReplicateToMasterCellTags;
+            ReplicatedToMasterCellTags_ = options.ReplicateToMasterCellTags.value_or(Owner_->SecondaryCellTags_);
         }
         AutoAbort_ = options.AutoAbort;
         PingPeriod_ = options.PingPeriod;
@@ -340,11 +337,17 @@ public:
         return Timeout_.value_or(Owner_->Config_->DefaultTransactionTimeout);
     }
 
-
-    void RegisterParticipant(TCellId cellId)
+    TCellTagList GetReplicatedToCellTags() const
     {
-        YT_VERIFY(TypeFromId(cellId) == EObjectType::TabletCell ||
-               TypeFromId(cellId) == EObjectType::ClusterCell);
+        return ReplicatedToMasterCellTags_;
+    }
+
+
+    void RegisterParticipant(TCellId cellId, bool prepareOnly)
+    {
+        YT_VERIFY(
+            TypeFromId(cellId) == EObjectType::TabletCell ||
+            TypeFromId(cellId) == EObjectType::MasterCell);
 
         if (Atomicity_ != EAtomicity::Full) {
             return;
@@ -358,9 +361,13 @@ public:
             }
 
             if (RegisteredParticipantIds_.insert(cellId).second) {
-                YT_LOG_DEBUG("Transaction participant registered (TransactionId: %v, CellId: %v)",
+                YT_LOG_DEBUG("Transaction participant registered (TransactionId: %v, CellId: %v, PrepareOnly: %v)",
                     Id_,
-                    cellId);
+                    cellId,
+                    prepareOnly);
+                if (prepareOnly) {
+                    YT_VERIFY(PrepareOnlyRegisteredParticipantIds_.insert(cellId).second);
+                }
             }
         }
     }
@@ -450,7 +457,7 @@ private:
     // Only initialized for master transactions.
     TCellTag CoordinatorMasterCellTag_ = InvalidCellTag;
     TCellId CoordinatorMasterCellId_;
-    std::optional<TCellTagList> ReplicatedToMasterCellTags_;
+    TCellTagList ReplicatedToMasterCellTags_;
 
     bool AutoAbort_ = false;
     std::optional<TDuration> PingPeriod_;
@@ -468,6 +475,7 @@ private:
     TSingleShotCallbackList<void()> Aborted_;
 
     THashSet<TCellId> RegisteredParticipantIds_;
+    THashSet<TCellId> PrepareOnlyRegisteredParticipantIds_;
     THashSet<TCellId> ConfirmedParticipantIds_;
 
     TCellId CoordinatorCellId_;
@@ -513,7 +521,7 @@ private:
 
     static void ValidateTabletStartOptions(const TTransactionStartOptions& options)
     {
-        if (options.CoordinatorMasterCellTag) {
+        if (options.CoordinatorMasterCellTag != InvalidCellTag) {
             THROW_ERROR_EXCEPTION("Cannot specify a master coordinator for tablet transaction");
         }
         if (options.ReplicateToMasterCellTags) {
@@ -681,7 +689,7 @@ private:
             ? options.Id
             : MakeTabletTransactionId(
                 Atomicity_,
-                CellTagFromId(Owner_->PrimaryCellId_),
+                Owner_->PrimaryCellTag_,
                 StartTimestamp_,
                 TabletTransactionHashCounter++);
 
@@ -708,7 +716,7 @@ private:
 
         Id_ = MakeTabletTransactionId(
             Atomicity_,
-            CellTagFromId(Owner_->PrimaryCellId_),
+            Owner_->PrimaryCellTag_,
             StartTimestamp_,
             TabletTransactionHashCounter++);
 
@@ -759,22 +767,22 @@ private:
         try {
             YT_VERIFY(CoordinatorCellId_);
 
-            YT_LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v)",
+            auto supervisorParticipantCellIds = GetSupervisorParticipantIds();
+            auto supervisorPrepareOnlyParticipantCellIds = GetSupervisorPrepareOnlyParticipantIds();
+            YT_LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v, "
+                "ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v)",
                 Id_,
-                CoordinatorCellId_);
+                CoordinatorCellId_,
+                supervisorParticipantCellIds,
+                supervisorPrepareOnlyParticipantCellIds);
 
             auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(CoordinatorCellId_);
             auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
             auto req = proxy.CommitTransaction();
             req->SetUser(Owner_->User_);
-
             ToProto(req->mutable_transaction_id(), Id_);
-            auto participantIds = GetRegisteredParticipantIds();
-            for (auto cellId : participantIds) {
-                if (cellId != CoordinatorCellId_) {
-                    ToProto(req->add_participant_cell_ids(), cellId);
-                }
-            }
+            ToProto(req->mutable_participant_cell_ids(), supervisorParticipantCellIds);
+            ToProto(req->mutable_prepare_only_participant_cell_ids(), supervisorPrepareOnlyParticipantCellIds);
             req->set_force_2pc(options.Force2PC);
             req->set_generate_prepare_timestamp(options.GeneratePrepareTimestamp);
             req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
@@ -1092,6 +1100,32 @@ private:
         return std::vector<TCellId>(RegisteredParticipantIds_.begin(), RegisteredParticipantIds_.end());
     }
 
+    std::vector<TCellId> GetSupervisorParticipantIds()
+    {
+        auto guard = Guard(SpinLock_);
+        std::vector<TCellId> result;
+        result.reserve(RegisteredParticipantIds_.size());
+        for (auto cellId : RegisteredParticipantIds_) {
+            if (cellId != CoordinatorCellId_) {
+                result.push_back(cellId);
+            }
+        }
+        return result;
+    }
+
+    std::vector<TCellId> GetSupervisorPrepareOnlyParticipantIds()
+    {
+        auto guard = Guard(SpinLock_);
+        std::vector<TCellId> result;
+        result.reserve(RegisteredParticipantIds_.size());
+        for (auto cellId : PrepareOnlyRegisteredParticipantIds_) {
+            if (cellId != CoordinatorCellId_) {
+                result.push_back(cellId);
+            }
+        }
+        return result;
+    }
+
     std::vector<TCellId> GetConfirmedParticipantIds()
     {
         auto guard = Guard(SpinLock_);
@@ -1103,31 +1137,23 @@ private:
         auto guard = Guard(SpinLock_);
         return RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end();
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TImpl::TImpl(
-    TTransactionManagerConfigPtr config,
-    TCellId primaryCellId,
     IConnectionPtr connection,
-    const TString& user,
-    ITimestampProviderPtr timestampProvider,
-    TCellDirectoryPtr cellDirectory,
-    TCellTrackerPtr downedCellTracker)
-    : Config_(config)
-    , PrimaryCellId_(primaryCellId)
-    , Connection_(connection)
+    const TString& user)
+    : Connection_(connection)
+    , Config_(connection->GetConfig()->TransactionManager)
+    , PrimaryCellId_(connection->GetPrimaryMasterCellId())
+    , PrimaryCellTag_(connection->GetPrimaryMasterCellTag())
+    , SecondaryCellTags_(connection->GetSecondaryMasterCellTags())
     , User_(user)
-    , TimestampProvider_(timestampProvider)
-    , CellDirectory_(cellDirectory)
-    , DownedCellTracker_(downedCellTracker)
-{
-    YT_VERIFY(Config_);
-    YT_VERIFY(TimestampProvider_);
-    YT_VERIFY(CellDirectory_);
-}
+    , TimestampProvider_(connection->GetTimestampProvider())
+    , CellDirectory_(connection->GetCellDirectory())
+    , DownedCellTracker_(connection->GetDownedCellTracker())
+{ }
 
 TFuture<TTransactionPtr> TTransactionManager::TImpl::Start(
     ETransactionType type,
@@ -1235,9 +1261,14 @@ TDuration TTransaction::GetTimeout() const
     return Impl_->GetTimeout();
 }
 
-void TTransaction::RegisterParticipant(TCellId cellId)
+TCellTagList TTransaction::GetReplicatedToCellTags() const
 {
-    Impl_->RegisterParticipant(cellId);
+    return Impl_->GetReplicatedToCellTags();
+}
+
+void TTransaction::RegisterParticipant(TCellId cellId, bool prepareOnly)
+{
+    Impl_->RegisterParticipant(cellId, prepareOnly);
 }
 
 void TTransaction::ConfirmParticipant(TCellId cellId)
@@ -1261,24 +1292,12 @@ DELEGATE_SIGNAL(TTransaction, void(), Aborted, *Impl_);
 ////////////////////////////////////////////////////////////////////////////////
 
 TTransactionManager::TTransactionManager(
-    TTransactionManagerConfigPtr config,
-    TCellId primaryCellId,
     IConnectionPtr connection,
-    const TString& user,
-    ITimestampProviderPtr timestampProvider,
-    TCellDirectoryPtr cellDirectory,
-    TCellTrackerPtr downedCellTracker)
+    const TString& user)
     : Impl_(New<TImpl>(
-        std::move(config),
-        primaryCellId,
         std::move(connection),
-        user,
-        std::move(timestampProvider),
-        std::move(cellDirectory),
-        std::move(downedCellTracker)))
+        user))
 { }
-
-TTransactionManager::~TTransactionManager() = default;
 
 TFuture<TTransactionPtr> TTransactionManager::Start(
     ETransactionType type,

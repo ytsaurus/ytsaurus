@@ -137,12 +137,14 @@ public:
     TFuture<void> CommitTransaction(
         TTransactionId transactionId,
         const TString& userName,
-        const std::vector<TCellId>& participantCellIds)
+        const std::vector<TCellId>& participantCellIds,
+        const std::vector<TCellId>& prepareOnlyParticipantCellIds)
     {
         return MessageToError(
             CoordinatorCommitTransaction(
                 transactionId,
                 participantCellIds,
+                prepareOnlyParticipantCellIds,
                 false,
                 true,
                 false,
@@ -583,15 +585,17 @@ private:
 
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
+            auto prepareOnlyParticipantCellIds = FromProto<std::vector<TCellId>>(request->prepare_only_participant_cell_ids());
             auto force2PC = request->force_2pc();
             auto generatePrepareTimestamp = request->generate_prepare_timestamp();
             auto inheritCommitTimestamp = request->inherit_commit_timestamp();
-            auto coordinatorCommitMode = static_cast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
+            auto coordinatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
 
-            context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, Force2PC: %v, "
-                "GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, CoordinatorCommitMode: %v",
+            context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, "
+                "Force2PC: %v, GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, CoordinatorCommitMode: %v",
                 transactionId,
                 participantCellIds,
+                prepareOnlyParticipantCellIds,
                 force2PC,
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
@@ -606,6 +610,7 @@ private:
             auto asyncResponseMessage = owner->CoordinatorCommitTransaction(
                 transactionId,
                 participantCellIds,
+                prepareOnlyParticipantCellIds,
                 force2PC,
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
@@ -764,6 +769,7 @@ private:
     TFuture<TSharedRefArray> CoordinatorCommitTransaction(
         TTransactionId transactionId,
         const std::vector<TCellId>& participantCellIds,
+        const std::vector<TCellId>& prepareOnlyParticipantCellIds,
         bool force2PC,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
@@ -783,6 +789,7 @@ private:
             transactionId,
             mutationId,
             participantCellIds,
+            prepareOnlyParticipantCellIds,
             force2PC || !participantCellIds.empty(),
             generatePrepareTimestamp,
             inheritCommitTimestamp,
@@ -838,6 +845,7 @@ private:
         ToProto(request.mutable_transaction_id(), commit->GetTransactionId());
         ToProto(request.mutable_mutation_id(), commit->GetMutationId());
         ToProto(request.mutable_participant_cell_ids(), commit->ParticipantCellIds());
+        ToProto(request.mutable_prepare_only_participant_cell_ids(), commit->PrepareOnlyParticipantCellIds());
         request.set_generate_prepare_timestamp(commit->GetGeneratePrepareTimestamp());
         request.set_inherit_commit_timestamp(commit->GetInheritCommitTimestamp());
         request.set_coordinator_commit_mode(static_cast<int>(commit->GetCoordinatorCommitMode()));
@@ -946,7 +954,8 @@ private:
         auto* commit = FindCommit(transactionId);
 
         if (commit && commit->GetPersistentState() != ECommitState::Start) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit simple transaction in wrong state; ignored (TransactionId: %v, State: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Requested to commit simple transaction in wrong state; ignored "
+                "(TransactionId: %v, State: %v)",
                 transactionId,
                 commit->GetPersistentState());
             return;
@@ -977,10 +986,11 @@ private:
             commit = CreateTransientCommit(
                 transactionId,
                 mutationId,
-                std::vector<TCellId>(),
-                false,
-                true,
-                false,
+                /* participantCellIds */ {},
+                /* prepareOnlyParticipantCellIds */ {},
+                /* distributed */ false,
+                /* generatePrepareTimestamp */ true,
+                /* inheritCommitTimestamp */ false,
                 ETransactionCoordinatorCommitMode::Eager,
                 userName);
             commit->CommitTimestamps() = commitTimestamps;
@@ -995,19 +1005,21 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
+        auto prepareOnlyParticipantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
         auto generatePrepareTimestamp = request->generate_prepare_timestamp();
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
-        auto coordindatorCommitMode = static_cast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
+        auto coordindatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
         auto prepareTimestamp = request->prepare_timestamp();
         const auto& userName = request->user_name();
-        TCommit* commit;
 
         // Ensure commit existence (possibly moving it from transient to persistent).
+        TCommit* commit;
         try {
             commit = GetOrCreatePersistentCommit(
                 transactionId,
                 mutationId,
                 participantCellIds,
+                prepareOnlyParticipantCellIds,
                 true,
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
@@ -1081,9 +1093,10 @@ private:
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(),
             "Distributed commit phase two started "
-            "(TransactionId: %v, ParticipantCellIds: %v, CommitTimestamps: %v)",
+            "(TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CommitTimestamps: %v)",
             transactionId,
             commit->ParticipantCellIds(),
+            commit->PrepareOnlyParticipantCellIds(),
             commitTimestamps);
 
         YT_VERIFY(commit->GetDistributed());
@@ -1312,6 +1325,7 @@ private:
         TTransactionId transactionId,
         TMutationId mutationId,
         const std::vector<TCellId>& participantCellIds,
+        const std::vector<TCellId>& prepareOnlyParticipantCellIds,
         bool distributed,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
@@ -1322,6 +1336,7 @@ private:
             transactionId,
             mutationId,
             participantCellIds,
+            prepareOnlyParticipantCellIds,
             distributed,
             generatePrepareTimestamp,
             inheritCommitTimestamp,
@@ -1334,6 +1349,7 @@ private:
         TTransactionId transactionId,
         TMutationId mutationId,
         const std::vector<TCellId>& participantCellIds,
+        const std::vector<TCellId>& prepareOnlyParticipantCellIds,
         bool distributed,
         bool generatePrepareTimstamp,
         bool inheritCommitTimstamp,
@@ -1355,6 +1371,7 @@ private:
                 transactionId,
                 mutationId,
                 participantCellIds,
+                prepareOnlyParticipantCellIds,
                 distributed,
                 generatePrepareTimstamp,
                 inheritCommitTimstamp,
@@ -1706,10 +1723,19 @@ private:
 
     void SendParticipantRequest(TCommit* commit, TCellId cellId)
     {
+        auto state = commit->GetTransientState();
+        if (state != ECommitState::Prepare && commit->IsPrepareOnlyParticipant(cellId)) {
+            commit->RespondedCellIds().insert(cellId);
+            YT_LOG_DEBUG("Omitting participant request (TransactionId: %v, ParticipantCellId: %v, State: %v)",
+                commit->GetTransactionId(),
+                cellId,
+                state);
+            return;
+        }
+
         auto participant = GetParticipant(cellId);
 
         TFuture<void> response;
-        auto state = commit->GetTransientState();
         switch (state) {
             case ECommitState::Prepare:
                 response = participant->PrepareTransaction(commit);
@@ -1869,12 +1895,13 @@ private:
         return
             version == 5 || // babenko
             version == 6 || // savrus: Add User to TCommit
-            version == 7;   // savrus: Add tablet cell life stage
+            version == 7 || // savrus: Add tablet cell life stage
+            version == 8;   // babenko: YT-12139: Add prepare only participants
     }
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 7;
+        return 8;
     }
 
 
@@ -1999,12 +2026,14 @@ std::vector<NRpc::IServicePtr> TTransactionSupervisor::GetRpcServices()
 TFuture<void> TTransactionSupervisor::CommitTransaction(
     TTransactionId transactionId,
     const TString& userName,
-    const std::vector<TCellId>& participantCellIds)
+    const std::vector<TCellId>& participantCellIds,
+    const std::vector<TCellId>& prepareOnlyParticipantCellIds)
 {
     return Impl_->CommitTransaction(
         transactionId,
         userName,
-        participantCellIds);
+        participantCellIds,
+        prepareOnlyParticipantCellIds);
 }
 
 TFuture<void> TTransactionSupervisor::AbortTransaction(

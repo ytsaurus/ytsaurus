@@ -351,7 +351,7 @@ struct TTransactionStartOptions
     //! Only for master transactions.
     //! Indicates the master cell the transaction will be initially started at and controlled by
     //! (primary cell by default).
-    std::optional<NObjectClient::TCellTag> CoordinatorMasterCellTag;
+    NObjectClient::TCellTag CoordinatorMasterCellTag = NObjectClient::InvalidCellTag;
 
     //! Only for master transactions.
     //! Indicates the cells the transaction will be replicated to (all by default).
