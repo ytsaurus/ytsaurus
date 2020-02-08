@@ -12,6 +12,9 @@ from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split
 from yt.wrapper.stream import _ChunkStream
 from yt.wrapper.default_config import retries_config as get_default_retries_config
+
+import yt.environment.arcadia_interop as arcadia_interop
+
 from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson
@@ -127,8 +130,15 @@ class TestYtBinary(object):
         makedirp(sandbox_dir)
 
         test_binary = get_test_file_path("test_yt.sh", use_files=False)
-        proc = subprocess.Popen([test_binary], env=env, stderr=sys.stderr, cwd=sandbox_dir)
+
+        output_file = os.path.join(sandbox_dir, "stderr")
+        output = open(output_file, "w")
+        proc = subprocess.Popen([test_binary], env=env, stdout=output, stderr=output, cwd=sandbox_dir)
         proc.communicate()
+
+        if arcadia_interop is not None:
+            sys.stderr.write(open(output_file).read())
+
         assert proc.returncode == 0
 
 @pytest.mark.usefixtures("yt_env")
