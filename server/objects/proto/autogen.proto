@@ -9,6 +9,9 @@ import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/deploy_patch.proto";
 import "yp/client/api/proto/deploy.proto";
 import "yp/client/api/proto/deploy_ticket.proto";
+import "yp/client/api/proto/persistent_disk.proto";
+import "yp/client/api/proto/persistent_volume.proto";
+import "yp/client/api/proto/persistent_volume_claim.proto";
 import "yp/client/api/proto/dynamic_resource.proto";
 import "yp/client/api/proto/horizontal_pod_autoscaler.proto";
 import "yp/client/api/proto/host_infra.proto";
@@ -47,6 +50,7 @@ message TPodSpecEtc
     repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6AddressRequest ip6_address_requests = 5;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6SubnetRequest ip6_subnet_requests = 6;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TDiskVolumeRequest disk_volume_requests = 13;
+    repeated NYP.NClient.NApi.NProto.TPodSpec.TDiskVolumeMount disk_volume_mounts = 25;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TGpuRequest gpu_requests = 23;
     string node_filter = 8;
     repeated NYP.NClient.NApi.NProto.TPodSpec.THostDevice host_devices = 10;
@@ -126,6 +130,54 @@ message TDeployTicketSpecEtc
     string description = 4;
     repeated string responsibles = 5;
     string recipe_id = 8;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPersistentDiskSpecEtc
+{
+    string storage_class = 1;
+    uint64 total_capacity = 2;
+    uint64 total_bandwidth = 3;
+    NYP.NClient.NApi.NProto.EPersistentDiskKind kind = 4;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPersistentDiskStatusEtc
+{
+    string mount_path = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPersistentVolumeSpecEtc
+{
+    NYP.NClient.NApi.NProto.TPersistentVolumeSpec.TManagedPolicy managed_policy = 1;
+    NYP.NClient.NApi.NProto.TPersistentVolumeSpec.TRbindPolicy rbind_policy = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPersistentVolumeStatusEtc
+{
+    NYP.NClient.NApi.NProto.EPersistentVolumeState state = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPersistentVolumeClaimSpecEtc
+{
+    NYP.NClient.NApi.NProto.TPersistentVolumeClaimSpec.TQuotaPolicy quota_policy = 1;
+    NYP.NClient.NApi.NProto.TPersistentVolumeClaimSpec.TExclusivePolicy exclusive_policy = 2;
+    NYP.NClient.NApi.NProto.TPersistentVolumeClaimSpec.TExistingVolumePolicy existing_volume_policy = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPersistentVolumeClaimStatusEtc
+{
+    bool bound = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
