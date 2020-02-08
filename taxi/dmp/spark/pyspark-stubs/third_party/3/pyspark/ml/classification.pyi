@@ -69,7 +69,6 @@ class _LinearSVCParams(
     HasWeightCol,
     HasAggregationDepth,
     HasThreshold,
-    HasBlockSize,
 ):
     threshold: Param[float]
 
@@ -93,8 +92,7 @@ class LinearSVC(
         standardization: bool = ...,
         threshold: float = ...,
         weightCol: Optional[str] = ...,
-        aggregationDepth: int = ...,
-        blockSize: int = ...
+        aggregationDepth: int = ...
     ) -> None: ...
     def setParams(
         self,
@@ -110,8 +108,7 @@ class LinearSVC(
         standardization: bool = ...,
         threshold: float = ...,
         weightCol: Optional[str] = ...,
-        aggregationDepth: int = ...,
-        blockSize: int = ...
+        aggregationDepth: int = ...
     ) -> LinearSVC: ...
     def setMaxIter(self, value: int) -> LinearSVC: ...
     def setRegParam(self, value: float) -> LinearSVC: ...
@@ -121,7 +118,6 @@ class LinearSVC(
     def setThreshold(self, value: float) -> LinearSVC: ...
     def setWeightCol(self, value: str) -> LinearSVC: ...
     def setAggregationDepth(self, value: int) -> LinearSVC: ...
-    def setBlockSize(self, value: int) -> LinearSVC: ...
 
 class LinearSVCModel(
     JavaClassificationModel[Vector],
@@ -623,7 +619,6 @@ class _MultilayerPerceptronParams(
     HasTol,
     HasStepSize,
     HasSolver,
-    HasBlockSize,
 ):
     layers: Param[List[int]]
     blockSize: Param[int]
