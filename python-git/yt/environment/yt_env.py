@@ -12,7 +12,7 @@ try:
 except:
     get_gdb_path = None
 
-from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which
+from yt.common import YtError, remove_file, makedirp, set_pdeathsig
 from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
@@ -62,6 +62,20 @@ def set_environment_driver_logging_config(config):
 class YtEnvRetriableError(YtError):
     pass
 
+# TODO(ignat): replace with 'which' from yt.common after next major release.
+def _which(name, flags=os.X_OK, custom_paths=None):
+    """Return list of files in system paths with given name."""
+    # TODO: check behavior when dealing with symlinks
+    result = []
+    paths = os.environ.get("PATH", "").split(os.pathsep)
+    if custom_paths is not None:
+        paths = custom_paths + paths
+    for dir in paths:
+        path = os.path.join(dir, name)
+        if os.access(path, flags):
+            result.append(path)
+    return result
+
 def _parse_version(s):
     if "version:" in s:
         # "ytserver  version: 0.17.3-unknown~debug~0+local"
@@ -75,7 +89,7 @@ def _parse_version(s):
     return BinaryVersion(abi, literal)
 
 def _get_yt_binary_path(binary, custom_paths):
-    paths = which(binary, custom_paths=custom_paths)
+    paths = _which(binary, custom_paths=custom_paths)
     if paths:
         return paths[0]
     return None
