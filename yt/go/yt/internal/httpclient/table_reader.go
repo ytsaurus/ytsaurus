@@ -3,6 +3,7 @@ package httpclient
 import (
 	"fmt"
 	"io"
+	"reflect"
 
 	"golang.org/x/xerrors"
 
@@ -33,6 +34,7 @@ func (r *tableReader) Scan(value interface{}) error {
 		return xerrors.New("call to Scan() after EOF")
 	}
 
+	zeroInitialize(value)
 	r.err = yson.Unmarshal(r.value, value)
 	return r.err
 }
@@ -108,4 +110,14 @@ var _ yt.TableReader = (*tableReader)(nil)
 
 func newTableReader(r io.ReadCloser) *tableReader {
 	return &tableReader{raw: r, y: yson.NewReaderKind(r, yson.StreamListFragment)}
+}
+
+func zeroInitialize(v interface{}) {
+	value := reflect.ValueOf(v)
+	if value.Kind() != reflect.Ptr {
+		return
+	}
+
+	value = value.Elem()
+	value.Set(reflect.Zero(value.Type()))
 }

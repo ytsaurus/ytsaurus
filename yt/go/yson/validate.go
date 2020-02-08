@@ -195,12 +195,12 @@ func Valid(data []byte) error {
 	return valid(data, StreamNode)
 }
 
-// ValidListFragment chacks that byte sequence is a valid YSON list fragment.
+// ValidListFragment checks that byte sequence is a valid YSON list fragment.
 func ValidListFragment(data []byte) error {
 	return valid(data, StreamListFragment)
 }
 
-// ValidMapFragment chacks that byte sequence is a valid YSON map fragment.
+// ValidMapFragment checks that byte sequence is a valid YSON map fragment.
 func ValidMapFragment(data []byte) error {
 	return valid(data, StreamMapFragment)
 }

@@ -6,15 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"a.yandex-team.ru/yt/go/migrate"
-	"a.yandex-team.ru/yt/go/schema"
-
-	"a.yandex-team.ru/yt/go/yt"
-
 	"github.com/stretchr/testify/assert"
-
 	"github.com/stretchr/testify/require"
 
+	"a.yandex-team.ru/yt/go/migrate"
+	"a.yandex-team.ru/yt/go/schema"
+	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
 )
 
@@ -41,6 +38,7 @@ func TestTablets(t *testing.T) {
 	keys := []interface{}{
 		&testKey{"bar"},
 		&testKey{"foo"},
+		&testKey{"baz"},
 	}
 
 	rows := []interface{}{
@@ -60,7 +58,7 @@ func TestTablets(t *testing.T) {
 	r, err := env.YT.LookupRows(env.Ctx, testTable, keys, nil)
 	require.NoError(t, err)
 
-	checkResult := func(r yt.TableReader) {
+	checkResult := func(r yt.TableReader, keepMissingRows bool) {
 		var row testRow
 
 		require.True(t, r.Next())
@@ -71,15 +69,26 @@ func TestTablets(t *testing.T) {
 		require.NoError(t, r.Scan(&row))
 		assert.Equal(t, rows[1], &row)
 
+		if keepMissingRows {
+			require.True(t, r.Next())
+			out := &testRow{}
+			require.NoError(t, r.Scan(&out))
+			assert.Nil(t, out)
+		}
+
 		require.False(t, r.Next())
 		require.NoError(t, r.Err())
 	}
 
-	checkResult(r)
+	checkResult(r, false)
+
+	r, err = env.YT.LookupRows(env.Ctx, testTable, keys, &yt.LookupRowsOptions{KeepMissingRows: true})
+	require.NoError(t, err)
+	checkResult(r, true)
 
 	r, err = env.YT.SelectRows(env.Ctx, fmt.Sprintf("* from [%s]", testTable), nil)
 	require.NoError(t, err)
-	checkResult(r)
+	checkResult(r, false)
 
 	tx, err = env.YT.BeginTabletTx(ctx, nil)
 	require.NoError(t, err)

@@ -83,7 +83,7 @@ func TestRoundtripArrays(t *testing.T) {
 	testRoundtrip(t, [3]interface{}{uint64(1), 2.3, "4"})
 }
 
-func TestMarhalStruct(t *testing.T) {
+func TestMarshalStruct(t *testing.T) {
 	var simple simpleStruct
 	simple.String = "bar0"
 	simple.Int = 10

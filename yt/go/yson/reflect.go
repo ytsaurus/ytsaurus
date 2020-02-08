@@ -3,6 +3,8 @@ package yson
 import (
 	"reflect"
 	"sync"
+
+	"a.yandex-team.ru/library/go/core/xerrors"
 )
 
 type field struct {
@@ -43,6 +45,11 @@ func newStructType(t reflect.Type) *structType {
 		for i := 0; i < t.NumField(); i++ {
 			f := t.Field(i)
 
+			tag, skip := ParseTag(f.Name, f.Tag)
+			if skip {
+				continue
+			}
+
 			var index []int
 			index = append(index, fieldStack...)
 			index = append(index, i)
@@ -54,18 +61,18 @@ func newStructType(t reflect.Type) *structType {
 					ft = ft.Elem()
 				}
 
-				if ft.Kind() != reflect.Struct {
+				if isUnexported && ft.Kind() != reflect.Struct {
 					continue
 				}
 
-				visitFields(index, ft)
-				continue
+				_, tagged := f.Tag.Lookup("yson")
+				if !tagged {
+					if ft.Kind() == reflect.Struct {
+						visitFields(index, ft)
+						continue
+					}
+				}
 			} else if isUnexported {
-				continue
-			}
-
-			tag, skip := ParseTag(f.Name, f.Tag)
-			if skip {
 				continue
 			}
 
@@ -208,6 +215,7 @@ func decodeReflectSlice(d *Reader, v reflect.Value) error {
 	slice := v.Elem()
 	elementType := slice.Type().Elem()
 
+	slice.Set(reflect.Zero(slice.Type()))
 	for i := 0; true; i++ {
 		if ok, err := d.NextListItem(); err != nil {
 			return err
@@ -345,15 +353,19 @@ func decodeReflectMap(r *Reader, v reflect.Value) error {
 	return nil
 }
 
-func fieldByIndex(v reflect.Value, index []int, initPtr bool) (reflect.Value, bool) {
+func fieldByIndex(v reflect.Value, index []int, initPtr bool) (reflect.Value, bool, error) {
 	for i, fieldIndex := range index {
 		if i != 0 {
 			if v.Kind() == reflect.Ptr {
 				if v.IsNil() {
 					if initPtr {
+						if !v.CanSet() {
+							err := xerrors.Errorf("yson: cannot set embedded pointer to unexported field: %v", v.Type())
+							return reflect.Value{}, false, err
+						}
 						v.Set(reflect.New(v.Type().Elem()))
 					} else {
-						return reflect.Value{}, false
+						return reflect.Value{}, false, nil
 					}
 				}
 
@@ -364,7 +376,7 @@ func fieldByIndex(v reflect.Value, index []int, initPtr bool) (reflect.Value, bo
 		v = v.Field(fieldIndex)
 	}
 
-	return v, true
+	return v, true, nil
 }
 
 func decodeMapFragment(r *Reader, v reflect.Value, fields map[string]*field) error {
@@ -388,7 +400,10 @@ func decodeMapFragment(r *Reader, v reflect.Value, fields map[string]*field) err
 			continue
 		}
 
-		field, _ := fieldByIndex(v, structField.index, true)
+		field, _, err := fieldByIndex(v, structField.index, true)
+		if err != nil {
+			return err
+		}
 		if err = decodeAny(r, field.Addr().Interface()); err != nil {
 			if typeError, ok := err.(*TypeError); ok {
 				return &TypeError{
@@ -447,6 +462,10 @@ func decodeReflectStruct(r *Reader, v reflect.Value) error {
 	e, err = r.Next(false)
 	if err != nil {
 		return err
+	}
+
+	if e == EventLiteral && r.Type() == TypeEntity {
+		return nil
 	}
 
 	if e != EventBeginMap {

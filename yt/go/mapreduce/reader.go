@@ -2,6 +2,7 @@ package mapreduce
 
 import (
 	"io"
+	"reflect"
 
 	"a.yandex-team.ru/yt/go/yson"
 )
@@ -104,7 +105,7 @@ func (r *reader) Scan(value interface{}) error {
 		panic("Scan() called out of sequence")
 	}
 
-	return yson.Unmarshal([]byte(r.value.Value), value)
+	return yson.Unmarshal(r.value.Value, value)
 }
 
 func (r *reader) MustScan(value interface{}) {
@@ -137,6 +138,7 @@ func (r *reader) Next() bool {
 		}
 
 		d := yson.Decoder{R: r.reader}
+		zeroInitialize(&r.value)
 		r.err = d.Decode(&r.value)
 		if r.err != nil {
 			return false
@@ -178,4 +180,14 @@ func newReader(r io.Reader, ctx *jobContext) *reader {
 		reader: yson.NewReaderKind(r, yson.StreamListFragment),
 		eof:    false,
 	}
+}
+
+func zeroInitialize(v interface{}) {
+	value := reflect.ValueOf(v)
+	if value.Kind() != reflect.Ptr {
+		return
+	}
+
+	value = value.Elem()
+	value.Set(reflect.Zero(value.Type()))
 }

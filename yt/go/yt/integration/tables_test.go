@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"a.yandex-team.ru/library/go/ptr"
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
-
-	"github.com/stretchr/testify/require"
 )
 
 type exampleRow struct {
@@ -34,6 +34,7 @@ func TestTables(t *testing.T) {
 
 		require.NoError(t, w.Write(exampleRow{"foo", 1}))
 		require.NoError(t, w.Write(exampleRow{"bar", 2}))
+		require.NoError(t, w.Write(exampleRow{B: 3}))
 		require.NoError(t, w.Commit())
 
 		r, err := env.YT.ReadTable(ctx, name, nil)
@@ -48,6 +49,10 @@ func TestTables(t *testing.T) {
 		require.True(t, r.Next())
 		require.NoError(t, r.Scan(&s))
 		require.Equal(t, exampleRow{"bar", 2}, s)
+
+		require.True(t, r.Next())
+		require.NoError(t, r.Scan(&s))
+		require.Equal(t, exampleRow{"", 3}, s)
 
 		require.False(t, r.Next())
 		require.NoError(t, r.Err())

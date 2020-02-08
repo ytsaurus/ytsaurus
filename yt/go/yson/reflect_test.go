@@ -136,9 +136,9 @@ func TestDecodeRawValueWithAttrs(t *testing.T) {
 	require.Equal(t, 1, v.TableIndex)
 	require.Equal(t, "{A=1}", string(v.Value))
 
-	require.NoError(t, Unmarshal([]byte("{A=1}"), &v))
-	require.Equal(t, 0, v.TableIndex)
-	require.Equal(t, "{A=1}", string(v.Value))
+	require.NoError(t, Unmarshal([]byte("{A=2}"), &v))
+	require.Equal(t, 1, v.TableIndex)
+	require.Equal(t, "{A=2}", string(v.Value))
 }
 
 type intWithAttrs struct {
@@ -153,7 +153,7 @@ func TestDecodeIntWithAttrs(t *testing.T) {
 	require.Equal(t, 1, v.TableIndex)
 	require.Equal(t, 11, v.Value)
 
-	require.NoError(t, Unmarshal([]byte("11"), &v))
-	require.Equal(t, 0, v.TableIndex)
-	require.Equal(t, 11, v.Value)
+	require.NoError(t, Unmarshal([]byte("12"), &v))
+	require.Equal(t, 1, v.TableIndex)
+	require.Equal(t, 12, v.Value)
 }

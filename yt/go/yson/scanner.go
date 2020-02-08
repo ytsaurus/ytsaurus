@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 )
 
-const maxYsonDepth = 256
+const maxYSONDepth = 256
 
 type opcode byte
 
@@ -78,7 +78,7 @@ type scanner struct {
 	fragment     bool                        // decoded stream is fragment
 	binaryLength int64                       // length of currently processed binary chunk
 	stringLength [binary.MaxVarintLen64]byte // scratch buffer for decoding string length
-	inVarint     bool                        // wether we are inside varint or not
+	inVarint     bool                        // whether we are inside varint or not
 	varintSize   int                         // current varint size up to this point
 	lastLiteral  literalKind                 // type of the last decoded literal
 
@@ -565,7 +565,7 @@ func (s *scanner) popParseState() {
 
 func (s *scanner) pushParseState(state parseState) {
 	s.parseState = append(s.parseState, state)
-	if len(s.parseState) > maxYsonDepth {
+	if len(s.parseState) > maxYSONDepth {
 		s.step = stateError
 		s.err = &SyntaxError{"nesting depth limit reached"}
 	}
