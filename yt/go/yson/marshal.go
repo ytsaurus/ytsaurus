@@ -404,7 +404,7 @@ func encodeReflectStruct(w *Writer, value reflect.Value) (err error) {
 
 	encodeMapFragment := func(fields []*field) (err error) {
 		for _, field := range fields {
-			fieldValue, ok := fieldByIndex(value, field.index, false)
+			fieldValue, ok, _ := fieldByIndex(value, field.index, false)
 			if !ok {
 				continue
 			}

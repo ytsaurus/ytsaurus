@@ -28,27 +28,43 @@ type (
 
 func TestNullHandling(t *testing.T) {
 	var jsonTest NullTest
-	msgJSON := `{"int": null, "map": null, "array": null, "str": null, "bytes": null}`
+	msgJSON := `{"val": null, "int": null, "map": null, "array": null, "str": null, "bytes": null}`
 	require.NoError(t, json.Unmarshal([]byte(msgJSON), &jsonTest))
 
 	var ysonTest NullTest
-	msgYson := `{int=#;map=#;array=#;str=#;bytes=#}`
-	require.NoError(t, yson.Unmarshal([]byte(msgYson), &ysonTest))
+	msgYSON := `{val=#;int=#;map=#;array=#;str=#;bytes=#}`
+	require.NoError(t, yson.Unmarshal([]byte(msgYSON), &ysonTest))
 
 	require.Equal(t, jsonTest, ysonTest)
+
+	{
+		s := &NullTest{}
+		err := json.Unmarshal([]byte(`null`), &s)
+		require.Nil(t, err)
+	}
+
+	{
+		s := &NullTest{}
+		err := yson.Unmarshal([]byte(`#`), &s)
+		require.Nil(t, err)
+	}
 }
 
 type (
 	MyInt      int
 	MyUint     uint
 	MyIntSlice []int
+	MyArray    [4]int
 	MyString   string
+	MyMap      map[string][]int
 
 	TypedefTest struct {
 		I  MyInt
 		U  MyUint
 		II MyIntSlice
+		A  MyArray
 		S  MyString
+		M  MyMap
 	}
 )
 
@@ -57,7 +73,9 @@ func TestTypedefTypes(t *testing.T) {
 		I:  1337,
 		U:  1234,
 		II: []int{1, 3, 3, 7},
+		A:  [4]int{1, 3, 3, 7},
 		S:  "foobar",
+		M:  map[string][]int{"e": {1, 3, 3, 7}, "1": {2, 3}},
 	}
 
 	var out TypedefTest
@@ -86,51 +104,256 @@ func TestMapKeys(t *testing.T) {
 	require.Equal(t, in, out)
 }
 
-type (
-	InnerA struct {
-		A int
-	}
-
-	InnerB struct {
-		B int
-	}
-
-	EmbeddingTest struct {
-		InnerA
-		*InnerB
-	}
-)
-
 func TestFieldEmbedding(t *testing.T) {
-	{
-		var in, out EmbeddingTest
-		in.A = 10
-		in.InnerB = &InnerB{B: 20}
+	type makeInOut func() (interface{}, interface{})
 
+	for _, tc := range []struct {
+		name   string
+		init   makeInOut
+		js, ys string
+	}{
+		{
+			name: "untagged",
+			init: func() (in interface{}, out interface{}) {
+				type I1 struct {
+					ID int
+				}
+
+				type I2 struct {
+					ID2 int
+				}
+
+				type S struct {
+					I1
+					*I2
+				}
+
+				in = &S{
+					I1: I1{ID: 10},
+					I2: &I2{ID2: 20},
+				}
+				out = &S{}
+
+				return
+			},
+			js: `{"ID":10,"ID2":20}`,
+			ys: `{ID=10;ID2=20;}`,
+		},
+		{
+			name: "untagged_nil",
+			init: func() (in interface{}, out interface{}) {
+				type I struct {
+					ID int
+				}
+
+				type S struct {
+					*I
+				}
+
+				return &S{I: nil}, &S{}
+			},
+			js: `{}`,
+			ys: `{}`,
+		},
+		{
+			name: "untagged_basic_type",
+			init: func() (in interface{}, out interface{}) {
+				type ID = int
+
+				type S struct {
+					A int `yson:"a" json:"a"`
+					ID
+				}
+
+				return &S{A: 10, ID: 20}, &S{}
+			},
+			js: `{"a":10,"ID":20}`,
+			ys: `{a=10;ID=20;}`,
+		},
+		{
+			name: "tagged_basic_type",
+			init: func() (in interface{}, out interface{}) {
+				type ID = int
+
+				type S struct {
+					A   int `yson:"a" json:"a"`
+					*ID `yson:"id" json:"id"`
+				}
+
+				id := 20
+				return &S{A: 10, ID: &id}, &S{}
+			},
+			js: `{"a":10,"id":20}`,
+			ys: `{a=10;id=20;}`,
+		},
+		{
+			name: "untagged_declaration",
+			init: func() (in interface{}, out interface{}) {
+				type ID string
+
+				type S struct {
+					A int `yson:"a" json:"a"`
+					ID
+				}
+
+				id := ID("str")
+				return &S{A: 10, ID: id}, &S{}
+			},
+			js: `{"a":10,"ID":"str"}`,
+			ys: `{a=10;ID=str;}`,
+		},
+		{
+			name: "tagged_declaration",
+			init: func() (in interface{}, out interface{}) {
+				type ID string
+
+				type S struct {
+					A   int `yson:"a" json:"a"`
+					*ID `yson:"id" json:"id"`
+				}
+
+				id := ID("str")
+				return &S{A: 10, ID: &id}, &S{}
+			},
+			js: `{"a":10,"id":"str"}`,
+			ys: `{a=10;id=str;}`,
+		},
+		{
+			name: "untagged_unexported",
+			init: func() (in interface{}, out interface{}) {
+				type i struct {
+					ID string `yson:"id" json:"id"`
+				}
+
+				type S struct {
+					i
+				}
+
+				return &S{i: i{ID: "str"}}, &S{}
+			},
+			js: `{"id":"str"}`,
+			ys: `{id=str;}`,
+		},
+		{
+			name: "untagged_unexported_ptr",
+			init: func() (in interface{}, out interface{}) {
+				type i struct {
+					ID string `yson:"id" json:"id"`
+				}
+
+				type S struct {
+					*i
+				}
+
+				return &S{i: &i{ID: "str"}}, &S{i: &i{}}
+			},
+			js: `{"id":"str"}`,
+			ys: `{id=str;}`,
+		},
+		{
+			name: "embedded_value",
+			init: func() (in interface{}, out interface{}) {
+				type I struct {
+					ID string `yson:"id" json:"id"`
+				}
+
+				type S struct {
+					*I `yson:"i" json:"i"`
+				}
+
+				return &S{I: &I{ID: "str"}}, &S{}
+			},
+			js: `{"i":{"id":"str"}}`,
+			ys: `{i={id=str;};}`,
+		},
+		{
+			name: "embedded_attr",
+			init: func() (in interface{}, out interface{}) {
+				type I struct {
+					ID string `yson:"id" json:"id"`
+				}
+
+				type S struct {
+					I `yson:"i,attr" json:"i"`
+				}
+
+				return &S{I: I{ID: "str"}}, &S{}
+			},
+			js: `{"i":{"id":"str"}}`,
+			ys: `<i={id=str;};>{}`,
+		},
+		{
+			name: "attr_of_embedded_attr",
+			init: func() (in interface{}, out interface{}) {
+				type I struct {
+					ID string `yson:"id,attr" json:"id"`
+				}
+
+				type S struct {
+					I `yson:"i,attr" json:"i"`
+				}
+
+				return &S{I: I{ID: "str"}}, &S{}
+			},
+			js: `{"i":{"id":"str"}}`,
+			ys: `<i=<id=str;>{};>{}`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			{
+				in, out := tc.init()
+				js, err := json.Marshal(in)
+				require.NoError(t, err)
+				require.Equal(t, tc.js, string(js))
+
+				require.NoError(t, json.Unmarshal(js, out))
+				require.Equal(t, in, out)
+			}
+
+			{
+				in, out := tc.init()
+				ys, err := yson.MarshalFormat(in, yson.FormatText)
+				require.NoError(t, err)
+				require.Equal(t, tc.ys, string(ys))
+
+				require.NoError(t, yson.Unmarshal(ys, out))
+				require.Equal(t, in, out)
+			}
+		})
+	}
+}
+
+func TestSkippedEmbeddedField(t *testing.T) {
+	type I struct {
+		ID string `yson:"id" json:"id"`
+	}
+
+	type S struct {
+		*I `yson:"-" json:"-"`
+	}
+
+	{
+		in := &S{I: &I{ID: "str"}}
 		js, err := json.Marshal(in)
 		require.NoError(t, err)
-		require.Equal(t, `{"A":10,"B":20}`, string(js))
+		require.Equal(t, `{}`, string(js))
 
-		require.NoError(t, json.Unmarshal(js, &out))
-		require.Equal(t, in, out)
+		out := &S{}
+		err = json.Unmarshal([]byte(`{"id":"str"}`), out)
+		require.NoError(t, err)
+		require.Equal(t, &S{}, out)
 	}
 
 	{
-		var in, out EmbeddingTest
-		in.A = 10
-		in.InnerB = &InnerB{B: 20}
-
-		js, err := yson.MarshalFormat(in, yson.FormatText)
+		in := &S{I: &I{ID: "str"}}
+		ys, err := yson.MarshalFormat(in, yson.FormatText)
 		require.NoError(t, err)
-		require.Equal(t, `{A=10;B=20;}`, string(js))
+		require.Equal(t, `{}`, string(ys))
 
-		require.NoError(t, yson.Unmarshal(js, &out))
-		require.Equal(t, in, out)
-
-		in.InnerB = nil
-		js, err = yson.MarshalFormat(in, yson.FormatText)
+		out := &S{}
+		err = yson.Unmarshal([]byte(`{id=str;}`), out)
 		require.NoError(t, err)
-		require.Equal(t, `{A=10;}`, string(js))
+		require.Equal(t, &S{}, out)
 	}
 }
 
@@ -308,5 +531,40 @@ func TestNilPointerUnmarshal(t *testing.T) {
 		ys, err := yson.Marshal(u)
 		require.NoError(t, err)
 		require.NoError(t, yson.Unmarshal(ys, &u2))
+	}
+}
+
+func TestUnmarshalEmbeddedUnexportedNilPtr(t *testing.T) {
+	type i struct {
+		ID string `yson:"id" json:"id"`
+	}
+
+	type S struct {
+		*i
+	}
+
+	{
+		s := &S{}
+		err := json.Unmarshal([]byte(`{"id":"str"}`), s)
+		require.NotNil(t, err)
+	}
+
+	{
+		s := &S{}
+		err := yson.Unmarshal([]byte(`{id=str;}`), s)
+		require.NotNil(t, err)
+	}
+}
+
+func TestUnmarshalEmbeddedUnexportedNonStruct(t *testing.T) {
+	type i interface{}
+	type S struct {
+		i
+	}
+
+	{
+		s := &S{}
+		err := yson.Unmarshal([]byte(`{i=4;}`), s)
+		require.Nil(t, err)
 	}
 }

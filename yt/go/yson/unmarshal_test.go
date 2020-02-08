@@ -42,8 +42,8 @@ func TestUnmarshalZeroInitializes(t *testing.T) {
 	var v simplestStruct
 	v.A = 1
 
-	require.NoError(t, Unmarshal([]byte("{}"), &v))
-	require.Equal(t, 0, v.A)
+	require.NoError(t, Unmarshal([]byte(`{}`), &v))
+	require.Equal(t, 1, v.A)
 }
 
 func TestUnmarshalRecursionLimit(t *testing.T) {
@@ -53,7 +53,7 @@ func TestUnmarshalRecursionLimit(t *testing.T) {
 	require.Error(t, Unmarshal([]byte(in), &value))
 }
 
-func TestUnmarhalListFragment(t *testing.T) {
+func TestUnmarshalListFragment(t *testing.T) {
 	in := "{A=1;};{B=2;};"
 
 	r := NewReaderKindFromBytes([]byte(in), StreamListFragment)
@@ -79,15 +79,15 @@ func TestUnmarhalListFragment(t *testing.T) {
 	require.False(t, ok)
 }
 
-type nestedStruct struct {
-	A int
-}
-
-type outerStruct struct {
-	B *nestedStruct
-}
-
 func TestUnmarshalPointerField(t *testing.T) {
+	type nestedStruct struct {
+		A int
+	}
+
+	type outerStruct struct {
+		B *nestedStruct
+	}
+
 	var s outerStruct
 
 	require.NoError(t, Unmarshal([]byte("{B={A=1}}"), &s))
@@ -97,10 +97,20 @@ func TestUnmarshalPointerField(t *testing.T) {
 }
 
 func TestUnmarshalEntity(t *testing.T) {
+	type nestedStruct struct {
+		A int `yson:"A,attr"`
+	}
+
+	type outerStruct struct {
+		B *nestedStruct
+	}
+
 	var s outerStruct
 
 	require.NoError(t, Unmarshal([]byte("{B=#}"), &s))
 	assert.Nil(t, s.B)
 
-	require.Error(t, Unmarshal([]byte("{B=<foo=bar>#}"), &s))
+	require.NoError(t, Unmarshal([]byte("{B=<A=12>#}"), &s))
+	require.NotNil(t, s.B)
+	require.Equal(t, 12, s.B.A)
 }
