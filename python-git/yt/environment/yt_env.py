@@ -46,18 +46,18 @@ CGROUP_TYPES = frozenset(["cpuacct", "cpu", "blkio", "freezer"])
 BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 
 # Used to configure driver logging exactly once per environment (as a set of YT instances).
-_environment_driver_logging_config = None
+_environment_driver_logging_config_per_type = {}
 
-def get_environment_driver_logging_config(default_config):
-    if _environment_driver_logging_config is None:
+def get_environment_driver_logging_config(default_config, driver_type):
+    if driver_type not in _environment_driver_logging_config_per_type:
         return default_config
-    return _environment_driver_logging_config
+    return _environment_driver_logging_config_per_type[driver_type]
 
-def set_environment_driver_logging_config(config):
+def set_environment_driver_logging_config(config, driver_type):
     if config is None:
         raise YtError("Could not set environment driver logging config to None")
-    global _environment_driver_logging_config
-    _environment_driver_logging_config = config
+    global _environment_driver_logging_config_per_type
+    _environment_driver_logging_config_per_type[driver_type] = config
 
 class YtEnvRetriableError(YtError):
     pass
@@ -768,16 +768,18 @@ class YTInstance(object):
     def _configure_driver_logging(self):
         try:
             import yt_driver_bindings
+            print("NATIVE DRIVER", self.driver_logging_config, file=sys.stderr)
             yt_driver_bindings.configure_logging(
-                get_environment_driver_logging_config(self.driver_logging_config)
+                get_environment_driver_logging_config(self.driver_logging_config, "native")
             )
         except ImportError:
             pass
 
         try:
             import yt_driver_rpc_bindings
+            print("RPC DRIVER", self.driver_logging_config, file=sys.stderr)
             yt_driver_rpc_bindings.configure_logging(
-                get_environment_driver_logging_config(self.rpc_driver_logging_config)
+                get_environment_driver_logging_config(self.rpc_driver_logging_config, "rpc")
             )
         except ImportError:
             pass
