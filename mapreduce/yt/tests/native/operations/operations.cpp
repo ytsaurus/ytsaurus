@@ -59,7 +59,8 @@ static void WaitOperationPredicate(
             return predicate(operation->GetAttributes());
         });
     } catch (const TWaitFailedException& exception) {
-        ythrow yexception() << "Wait for operation " << operation->GetId() << " failed: " << failMsg << exception.what();
+        ythrow yexception() << "Wait for operation " << operation->GetId() << " failed: "
+            << failMsg << ".\n" << exception.what();
     }
 }
 
@@ -404,6 +405,35 @@ public:
     }
 };
 REGISTER_MAPPER(THugeStderrMapper);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TWriteFileThenSleepMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    TWriteFileThenSleepMapper() = default;
+
+    TWriteFileThenSleepMapper(TString fileName, TDuration sleepDuration)
+        : FileName_(std::move(fileName))
+        , SleepDuration_(sleepDuration)
+    { }
+
+    virtual void Do(TReader*, TWriter* ) override
+    {
+        {
+            TOFStream os(FileName_);
+            os << "I'm here";
+        }
+        Sleep(SleepDuration_);
+    }
+
+    Y_SAVELOAD_JOB(FileName_, SleepDuration_);
+
+private:
+    TString FileName_;
+    TDuration SleepDuration_;
+};
+REGISTER_MAPPER(TWriteFileThenSleepMapper);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3201,6 +3231,10 @@ Y_UNIT_TEST_SUITE(Operations)
             new TIdReducer));
         afterFinishTimes.push_back(TInstant::Now());
 
+        for (const auto& operation : operations) {
+            WaitOperationHasBriefProgress(operation);
+        }
+
         {
             auto result = client->ListOperations(
                 TListOperationsOptions()
@@ -3256,8 +3290,7 @@ Y_UNIT_TEST_SUITE(Operations)
             UNIT_ASSERT_VALUES_EQUAL(*attrs.AuthenticatedUser, "root");
 
             UNIT_ASSERT(result.PoolCounts);
-            // TODO(levysotsky) Uncomment this check after YT-Arcadia sync.
-            // UNIT_ASSERT_VALUES_EQUAL(*result.PoolCounts, (THashMap<TString, i64>{{"root", 3}}));
+            UNIT_ASSERT_VALUES_EQUAL(*result.PoolCounts, (THashMap<TString, i64>{{"root", 3}}));
 
             UNIT_ASSERT(result.UserCounts);
             UNIT_ASSERT_VALUES_EQUAL(*result.UserCounts, (THashMap<TString, i64>{{"root", 3}}));
@@ -3267,9 +3300,9 @@ Y_UNIT_TEST_SUITE(Operations)
 
             UNIT_ASSERT(result.TypeCounts);
             THashMap<EOperationType, i64> expectedTypeCounts = {
-                    {EOperationType::Map, 1},
-                    {EOperationType::Sort, 1},
-                    {EOperationType::Reduce, 1}};
+                {EOperationType::Map, 1},
+                {EOperationType::Sort, 1},
+                {EOperationType::Reduce, 1}};
             UNIT_ASSERT_VALUES_EQUAL(*result.TypeCounts, expectedTypeCounts);
 
             UNIT_ASSERT(result.WithFailedJobsCount);
@@ -3997,24 +4030,21 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->Finish();
         }
 
+        auto fileName = MakeTempName(NFs::CurrentWorkingDirectory().c_str());
+        TTempFile tempFile(fileName);
+
         auto operation = client->Map(
             TMapOperationSpec()
-            .AddInput<TNode>(workingDir + "/input")
-            .AddOutput<TNode>(workingDir + "/output")
-            .MaxFailedJobCount(1),
-            new TSleepingMapper(TDuration::Seconds(30)),
+                .AddInput<TNode>(workingDir + "/input")
+                .AddOutput<TNode>(workingDir + "/output"),
+            new TWriteFileThenSleepMapper(
+                tempFile.Name(),
+                TDuration::Seconds(300)),
             TOperationOptions().Wait(false));
 
-        Y_DEFER {
-            operation->AbortOperation();
-        };
-
         WaitForPredicate([&] {
-            auto jobs = operation->ListJobs().Jobs;
-            if (jobs.empty()) {
-                return false;
-            }
-            return jobs.front().State == EJobState::Running;
+            TIFStream is(tempFile.Name());
+            return is.ReadAll().Size() > 0;
         });
 
         auto suspendOptions = TSuspendOperationOptions()
@@ -4027,12 +4057,13 @@ Y_UNIT_TEST_SUITE(Operations)
 
         UNIT_ASSERT_VALUES_EQUAL(operation->GetAttributes().Suspended, true);
 
+        WaitOperationHasBriefProgress(operation);
         WaitOperationPredicate(
             operation,
             [] (const TOperationAttributes& attrs) {
-                return attrs.BriefProgress && attrs.BriefProgress->Aborted == 1;
+                return attrs.BriefProgress->Aborted >= 1;
             },
-            "expected exactly one aborted job");
+            "expected at least one aborted job");
 
         if (useOperationMethods) {
             operation->ResumeOperation();
@@ -4469,7 +4500,10 @@ Y_UNIT_TEST_SUITE(OperationWatch)
             .Output(workingDir + "/output"),
             TOperationOptions().Wait(false));
         operation->Watch().Wait();
-        // Request brief progress via poller
+
+        WaitOperationHasBriefProgress(operation);
+
+        // Request brief progress via poller.
         auto briefProgress = operation->GetBriefProgress();
         UNIT_ASSERT(briefProgress.Defined());
         UNIT_ASSERT(briefProgress->Total > 0);

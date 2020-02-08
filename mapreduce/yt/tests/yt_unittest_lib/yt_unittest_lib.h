@@ -124,7 +124,7 @@ class TWaitFailedException
     : public TWithBackTrace<yexception>
 { };
 
-void WaitForPredicate(const std::function<bool()>& predicate, TDuration timeout = TDuration::Seconds(30));
+void WaitForPredicate(const std::function<bool()>& predicate, TDuration timeout = TDuration::Seconds(60));
 
 ////////////////////////////////////////////////////////////////////////////////
 

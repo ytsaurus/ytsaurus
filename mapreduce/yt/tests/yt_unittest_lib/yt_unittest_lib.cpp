@@ -173,7 +173,7 @@ TTestFixture::TTestFixture(const TCreateClientOptions& options)
 
 TTestFixture::~TTestFixture()
 {
-    LOG_INFO("Completing test and aborting all operations")
+    LOG_INFO("Completing test and aborting all operations");
     while (true) {
         auto result = Client_->ListOperations(
             TListOperationsOptions()
