@@ -21,6 +21,7 @@ TCommit::TCommit(
     TTransactionId transationId,
     TMutationId mutationId,
     const std::vector<TCellId>& participantCellIds,
+    const std::vector<TCellId>& prepareOnlyParticipantCellIds,
     bool distributed,
     bool generatePrepareTimestamp,
     bool inheritCommitTimestamp,
@@ -29,6 +30,7 @@ TCommit::TCommit(
     : TransactionId_(transationId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(participantCellIds)
+    , PrepareOnlyParticipantCellIds_(prepareOnlyParticipantCellIds)
     , Distributed_(distributed)
     , GeneratePrepareTimestamp_(generatePrepareTimestamp)
     , InheritCommitTimestamp_(inheritCommitTimestamp)
@@ -46,6 +48,13 @@ void TCommit::SetResponseMessage(TSharedRefArray message)
     ResponseMessagePromise_.TrySet(std::move(message));
 }
 
+bool TCommit::IsPrepareOnlyParticipant(TCellId cellId) const
+{
+    return
+        std::find(PrepareOnlyParticipantCellIds_.begin(), PrepareOnlyParticipantCellIds_.end(), cellId) !=
+        PrepareOnlyParticipantCellIds_.end();
+}
+
 void TCommit::Save(TSaveContext& context) const
 {
     using NYT::Save;
@@ -54,6 +63,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, TransactionId_);
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);
+    Save(context, PrepareOnlyParticipantCellIds_);
     Save(context, Distributed_);
     Save(context, GeneratePrepareTimestamp_);
     Save(context, InheritCommitTimestamp_);
@@ -71,6 +81,10 @@ void TCommit::Load(TLoadContext& context)
     Load(context, TransactionId_);
     Load(context, MutationId_);
     Load(context, ParticipantCellIds_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 8) {
+        Load(context, PrepareOnlyParticipantCellIds_);
+    }
     Load(context, Distributed_);
     // COMPAT(babenko)
     if (context.GetVersion() >= 5) {

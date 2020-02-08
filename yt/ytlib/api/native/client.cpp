@@ -294,13 +294,8 @@ TClient::TClient(
     JobProberProxy_ = std::make_unique<TJobProberServiceProxy>(GetSchedulerChannel());
 
     TransactionManager_ = New<TTransactionManager>(
-        Connection_->GetConfig()->TransactionManager,
-        Connection_->GetConfig()->PrimaryMaster->CellId,
         Connection_,
-        Options_.GetUser(),
-        Connection_->GetTimestampProvider(),
-        Connection_->GetCellDirectory(),
-        Connection_->GetDownedCellTracker());
+        Options_.GetUser());
 
     FunctionImplCache_ = CreateFunctionImplCache(
         Connection_->GetConfig()->FunctionImplCache,

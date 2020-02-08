@@ -71,7 +71,7 @@ TCellConfig::TCellConfig()
 
     RegisterPostprocessor([&] () {
         auto type = TypeFromId(CellId);
-        if (type != EObjectType::ClusterCell && type != EObjectType::TabletCell) {
+        if (type != EObjectType::MasterCell && type != EObjectType::TabletCell) {
             THROW_ERROR_EXCEPTION("Cell id %v has invalid type %Qlv",
                 CellId,
                 type);
