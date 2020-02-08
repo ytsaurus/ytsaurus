@@ -50,8 +50,14 @@ def prepare_yatest_environment(need_suid):
     if arcadia_interop.yatest_common is None:
         return
 
-    ram_drive_path = arcadia_interop.yatest_common.get_param("ram_drive_path")
+    global SANDBOX_ROOTDIR
+    global SANDBOX_STORAGE_ROOTDIR
+    if arcadia_interop.yatest_common.get_param("teamcity"):
+        SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox"))
+        SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
+        return
 
+    ram_drive_path = arcadia_interop.yatest_common.get_param("ram_drive_path")
     if ram_drive_path is None:
         destination = os.path.join(arcadia_interop.yatest_common.work_path(), "build")
     else:
@@ -61,13 +67,11 @@ def prepare_yatest_environment(need_suid):
         path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False, use_ytserver_all=True, copy_ytserver_all=True, need_suid=need_suid)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
-    global SANDBOX_ROOTDIR
     if ram_drive_path is None:
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.work_path()
     else:
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.output_ram_drive_path()
 
-    global SANDBOX_STORAGE_ROOTDIR
     SANDBOX_STORAGE_ROOTDIR = arcadia_interop.yatest_common.output_path()
 
 def _abort_transactions(driver=None):
@@ -369,12 +373,14 @@ def is_gcc_build():
     return "GCC" in svnrevision
 
 def check_root_privileges():
-    if arcadia_interop.yatest_common is not None:
+    if arcadia_interop.is_inside_distbuild():
         pytest.skip("root is not available inside distbuild")
 
     for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node",
                    "ytserver-tools"]:
         binary_path = find_executable(binary)
+        if binary_path is None:
+            pytest.fail('Executable {} is not found in PATH'.format(binary))
         binary_stat = os.stat(binary_path)
         if (binary_stat.st_mode & stat.S_ISUID) == 0:
             pytest.fail('This test requires a suid bit set for "{}"'.format(binary))
@@ -564,7 +570,7 @@ class YTEnvSetup(object):
             http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0,
             http_proxy_ports=cls.get_param("HTTP_PROXY_PORTS", index),
             rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
-            watcher_config={"disable_logrotate": True} if arcadia_interop.yatest_common is not None else None,
+            watcher_config={"disable_logrotate": True},
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
             kill_child_processes=True,
             use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
@@ -604,7 +610,7 @@ class YTEnvSetup(object):
 
         if cls.get_param("REQUIRE_SUID_TOOL", False):
             need_suid = True
-            if arcadia_interop.yatest_common is not None:
+            if arcadia_interop.is_inside_distbuild():
                 pytest.skip("SUID ytserver-tool is not available on distbuild")
 
         # Initialize `cls` fields before actual setup to make teardown correct.
@@ -768,7 +774,7 @@ class YTEnvSetup(object):
         if SANDBOX_STORAGE_ROOTDIR is not None:
             makedirp(SANDBOX_STORAGE_ROOTDIR)
 
-            if arcadia_interop.yatest_common is None:
+            if not arcadia_interop.is_inside_distbuild():
                 # XXX(psushin): unlink all porto volumes.
                 remove_all_volumes(cls.path_to_run)
 
