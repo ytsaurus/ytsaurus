@@ -47,7 +47,6 @@ else:
     CLICKHOUSE_TRAMPOLINE_PATH = arcadia_interop.yatest_common.binary_path("clickhouse-trampoline")
     YT_LOG_TAILER_PATH = arcadia_interop.yatest_common.binary_path("ytserver-log-tailer")
 
-
 DEFAULTS = {
     "memory_footprint": 2 * 1000**3,
     "memory_limit": 5 * 1000**3,

@@ -954,27 +954,42 @@ def run_unit_tests(options, build_context):
         process_core_dumps(options, "unit_tests", sandbox_current)
         rmtree(sandbox_current)
 
-def run_ya_tests(options, suite_name, test_paths):
+def run_ya_tests(options, suite_name, test_paths, dist=True):
     # NB: tests are disabled under ASAN because random hangups in python, see YT-11297.
     if options.disable_tests or options.use_asan:
         teamcity_message("Skipping ya make tests since tests are disabled")
         return
 
-    _, sandbox_storage = get_sandbox_dirs(options, suite_name)
+    sandbox_current, sandbox_storage = get_sandbox_dirs(options, suite_name)
     junit_output = os.path.join(options.working_directory, "junit_yatest_{}.xml".format(suite_name))
 
     env = ya_make_env(options)
+    if not dist:
+        env["PATH"] = "{0}:/usr/sbin:{1}".format(get_bin_dir(options), os.environ.get("PATH", ""))
+        env["TESTS_SANDBOX"] = sandbox_current
+        env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
+        env["YT_CORE_PATH"] = options.core_path
+
     args = [
         os.path.join(options.checkout_directory, "ya"),
         "make",
-        "--dist",
-        "-E", "--output", sandbox_storage,
+        "--output", sandbox_storage,
         "--junit", junit_output,
         "--test-param", "inside_arcadia=0",
         "-ttt",
         "--dont-merge-split-tests",
         "--stat",
     ]
+    if dist:
+        args += ["--dist", "-E"]
+    else:
+        build_type = options.ya_build_type + ("-asan" if options.use_asan else "")
+        args += [
+            "--test-threads=" + str(INTEGRATION_TESTS_PARALLELISM[build_type]),
+            "-T",
+            "--test-param", "teamcity=1",
+        ]
+
     args += test_paths
     args += ya_make_args(options)
     args += ya_make_definition_args(options)
@@ -982,13 +997,18 @@ def run_ya_tests(options, suite_name, test_paths):
         return # disable ya tests in ASAN build, while ya tests are flaky
         args += ["--sanitize=address"]
 
+    def except_action():
+        save_failed_test(options, suite_name, save_artifacts=False)
+        if not dist:
+            process_core_dumps(options, suite_name, sandbox_current)
+
     try:
         run_ya_command_with_retries(
             args,
             env=env,
             cwd=options.checkout_directory,
             # In case of yatest artifacts are rebuilded in dist build and included to the sandbox.
-            except_action=lambda: save_failed_test(options, suite_name, save_artifacts=False))
+            except_action=except_action)
     finally:
         if os.path.exists(sandbox_storage):
             sudo_rmtree(sandbox_storage)
@@ -997,6 +1017,11 @@ def run_ya_tests(options, suite_name, test_paths):
 @only_for_projects("yt")
 def run_ya_integration_tests(options, build_context):
     run_ya_tests(options, "ya_integration", ["yt/tests"])
+
+@build_step
+@only_for_projects("yt")
+def run_ya_integration_locally(options, build_context):
+    run_ya_tests(options, "ya_integration_local", ["yt/tests"], dist=False)
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):
     yt_processes_cleanup()
@@ -1102,7 +1127,7 @@ def run_yt_integration_tests(options, build_context):
         teamcity_message("Integration tests are skipped since all tests are disabled")
         return
 
-    pytest_args = []
+    pytest_args = ["-k", "TestSchedulerCommon"]
     if options.enable_parallel_testing:
         build_type = options.ya_build_type + ("-asan" if options.use_asan else "")
         pytest_args.extend(["--process-count", str(INTEGRATION_TESTS_PARALLELISM[build_type])])
