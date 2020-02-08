@@ -263,7 +263,11 @@ def _wait_for_jobs_to_vanish(driver=None):
 
 def find_ut_file(file_name):
     if arcadia_interop.yatest_common is not None:
-        pytest.skip("Access to .bc files is not supported inside distbuild")
+        import library.python.resource as rs
+        with open(file_name, 'wb') as bc:
+            bc_content = rs.find("/llvm_bc/" + file_name.split(".")[0])
+            bc.write(bc_content)
+        return file_name
 
     unittester_path = find_executable("unittester-ytlib")
     assert unittester_path is not None
