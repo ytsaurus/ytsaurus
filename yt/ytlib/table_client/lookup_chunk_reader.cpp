@@ -1,6 +1,5 @@
 #include "lookup_chunk_reader.h"
-
-#include <yt/server/node/tablet_node/tablet.h>
+#include "tablet_snapshot.h"
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/public.h>
@@ -15,7 +14,6 @@
 namespace NYT::NTableClient {
 
 using namespace NChunkClient;
-using namespace NTabletNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
