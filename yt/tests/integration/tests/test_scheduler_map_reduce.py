@@ -776,7 +776,7 @@ print "x={0}\ty={1}".format(x, y)
         op = map_reduce(in_="//tmp/t1",
                         out="//tmp/t2",
                         spec={"min_locality_input_data_weight": 1,
-                              "enable_paritioned_data_balancing": True,
+                              "enable_partitioned_data_balancing": True,
                               "data_size_per_map_job": 1,
                               "mapper": {"format": "dsv"},
                               "reducer": {"format": "dsv"}},
