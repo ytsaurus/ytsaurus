@@ -11,11 +11,8 @@
 #include <yt/client/table_client/wire_protocol.h>
 #include <yt/client/table_client/versioned_reader.h>
 
-#include <yt/server/node/data_node/chunk.h>
-
 #include <yt/core/misc/range.h>
 #include <yt/core/misc/linear_probe.h>
-
 
 namespace NYT::NTableClient {
 

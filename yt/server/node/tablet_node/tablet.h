@@ -11,6 +11,8 @@
 
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/unversioned_row.h>
+
+#include <yt/ytlib/table_client/tablet_snapshot.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 
 #include <yt/ytlib/tablet_client/public.h>
@@ -119,21 +121,18 @@ DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTabletSnapshot
-    : public TIntrinsicRefCounted
+    : public NTableClient::TTabletSnapshot
 {
     NHydra::TCellId CellId;
     NHydra::IHydraManagerPtr HydraManager;
-    TTabletId TabletId;
+    NTabletClient::TTabletId TabletId;
     TString LoggingId;
-    NHydra::TRevision MountRevision = NHydra::NullRevision;
     NYPath::TYPath TablePath;
-    NObjectClient::TObjectId TableId;
     TTableMountConfigPtr Config;
     TTabletChunkWriterConfigPtr WriterConfig;
     TTabletWriterOptionsPtr WriterOptions;
     TOwningKey PivotKey;
     TOwningKey NextPivotKey;
-    NTableClient::TTableSchema TableSchema;
     NTableClient::TTableSchema PhysicalSchema;
     NTableClient::TTableSchema QuerySchema;
     NTableClient::TSchemaData PhysicalSchemaData;

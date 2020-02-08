@@ -63,6 +63,8 @@ DECLARE_REFCOUNTED_STRUCT(IChunkLookupHashTable)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkState)
 
+DECLARE_REFCOUNTED_STRUCT(TTabletSnapshot)
+
 struct TOwningBoundaryKeys;
 
 struct TBlobTableSchema;
