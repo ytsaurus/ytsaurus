@@ -190,7 +190,7 @@ class YTInstance(object):
                 programs = ["master", "clock", "node", "job-proxy", "exec",
                             "proxy", "http-proxy", "tools", "scheduler", "controller-agent"]
                 for program in programs:
-                    os.symlink(ytserver_all_path, os.path.join(self.bin_path, "ytserver-" + program))
+                    os.symlink(os.path.abspath(ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
 
         if os.path.exists(self.bin_path):
             self.custom_paths = [self.bin_path]
