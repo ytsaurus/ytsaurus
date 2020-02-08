@@ -994,7 +994,8 @@ def run_ya_tests(options, suite_name, test_paths, dist=True):
     args += ya_make_args(options)
     args += ya_make_definition_args(options)
     if options.use_asan:
-        return # disable ya tests in ASAN build, while ya tests are flaky
+        if dist:
+            return # disable ya tests in ASAN build, while ya tests are flaky
         args += ["--sanitize=address"]
 
     def except_action():
@@ -1127,7 +1128,8 @@ def run_yt_integration_tests(options, build_context):
         teamcity_message("Integration tests are skipped since all tests are disabled")
         return
 
-    pytest_args = ["-k", "TestSchedulerCommon"]
+    # Run small portion of tests using pytest. Make sure it is still working.
+    pytest_args = ["-k", "TestSchedulerCommon"] 
     if options.enable_parallel_testing:
         build_type = options.ya_build_type + ("-asan" if options.use_asan else "")
         pytest_args.extend(["--process-count", str(INTEGRATION_TESTS_PARALLELISM[build_type])])
