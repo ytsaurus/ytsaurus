@@ -135,7 +135,7 @@ def init_drivers(clusters):
 
             # Setup driver logging for all instances in the environment as in the primary cluster.
             if instance._cluster_name == "primary":
-                set_environment_driver_logging_config(instance.driver_logging_config)
+                set_environment_driver_logging_config(instance.driver_logging_config, instance.driver_backend)
 
             secondary_drivers = []
             for secondary_driver_config in secondary_driver_configs:
