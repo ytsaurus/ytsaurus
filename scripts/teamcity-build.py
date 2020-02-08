@@ -562,8 +562,8 @@ def package(options, build_context):
             "yandex-yt-clock.json",
             "yandex-yt-node.json",
             "yandex-yt-proxy.json",
-            "yandex-yt-perl.json",
-            "yandex-yt-perl-abi.json",
+#            "yandex-yt-perl.json",
+#            "yandex-yt-perl-abi.json",
             "yandex-yt-scheduler.json",
             "yandex-yt-src.json",
         ]
@@ -1062,8 +1062,8 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, pyth
     env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
     env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
     env["YT_CORE_PATH"] = options.core_path
-    if options.build_system == "ya":
-        env["PERL5LIB"] = get_bin_dir(options)
+#    if options.build_system == "ya":
+#        env["PERL5LIB"] = get_bin_dir(options)
     for var in ["TEAMCITY_YT_TOKEN", "TEAMCITY_SANDBOX_TOKEN"]:
         if var in os.environ:
             env[var] = os.environ[var]
@@ -1193,7 +1193,7 @@ def run_python_libraries_tests(options, build_context):
                    "YT_ENABLE_REQUEST_LOGGING": "1",
                })
 
-@build_step
+# @build_step
 @only_for_projects("yt")
 def run_perl_tests(options, build_context):
     if not options.build_enable_perl:
