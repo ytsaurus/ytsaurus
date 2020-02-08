@@ -35,27 +35,6 @@ bool TTopologyZone::CanAllocateAntiaffinityVacancies(const TPod* pod) const
     return it == PodSetVacancyAllocators_.end() || it->second.CanAllocate(pod);
 }
 
-int TTopologyZone::GetAntiaffinityVacancyCount(const TPod* pod) const
-{
-    // NB! Do not add elements to the map to prevent excessive memory consumption
-    // due to wasteful allocations per every unsuccessful scheduling iteration.
-    auto it = PodSetVacancyAllocators_.find(pod->GetPodSet());
-
-    if (it == PodSetVacancyAllocators_.end()) {
-        auto* podSet = pod->GetPodSet();
-        int vacancies = podSet->SchedulablePods().size();
-        for (const auto& constraint : podSet->AntiaffinityConstraints()) {
-            if (constraint.key() == Key_) {
-                vacancies = std::min(vacancies,
-                    static_cast<int>(constraint.max_pods()));
-            }
-        }
-        return vacancies;
-    } else {
-        return it->second.GetVacancyCount(pod);
-    }
-}
-
 void TTopologyZone::AllocateAntiaffinityVacancies(const TPod* pod)
 {
     const auto* podSet = pod->GetPodSet();
@@ -73,6 +52,19 @@ void TTopologyZone::AllocateAntiaffinityVacancies(const TPod* pod)
             TAntiaffinityVacancyAllocator(topologyZoneConstraints)).first;
     }
     it->second.Allocate(pod);
+}
+
+std::optional<int> TTopologyZone::TryEstimateAntiaffinityVacancyCount(const TPod* pod) const
+{
+    auto it = PodSetVacancyAllocators_.find(pod->GetPodSet());
+    if (it == PodSetVacancyAllocators_.end()) {
+        return 1;
+    }
+    const auto& allocator = it->second;
+    if (allocator.IsBlocked()) {
+        return std::nullopt;
+    }
+    return allocator.GetVacancyCount(pod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

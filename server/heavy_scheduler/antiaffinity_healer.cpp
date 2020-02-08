@@ -190,8 +190,10 @@ private:
                 if (ignorePodIds.find(pod->GetId()) != ignorePodIds.end()) {
                     continue;
                 }
-                int vacancyCount = zone->GetAntiaffinityVacancyCount(pod);
-                if (vacancyCount + evictingPodCount < 0) {
+                auto optionalVacancyCount = zone->TryEstimateAntiaffinityVacancyCount(pod);
+                // If finishing even all currently requested evictions (#evictingPodCount) is not enough to
+                // prevent overcommit, try to request yet another eviction.
+                if (optionalVacancyCount && *optionalVacancyCount + evictingPodCount < 0) {
                     YT_LOG_DEBUG_IF(Verbose_,
                         "Found pod that overcommits antiaffinity (PodId: %v, PodSetId: %v, TopologyZone: %v)",
                         pod->GetId(),

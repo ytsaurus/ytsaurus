@@ -23,8 +23,12 @@ public:
     const TString& GetValue() const;
 
     bool CanAllocateAntiaffinityVacancies(const TPod* pod) const;
-    int GetAntiaffinityVacancyCount(const TPod* pod) const;
     void AllocateAntiaffinityVacancies(const TPod* pod);
+
+    //! Returns exact vacancy count if corresponding antiaffinity allocator is initialized
+    //! (e.g. in case of overcommit), otherwise just returns 1 as a lower bound.
+    //! Returns nullopt if result cannot be determined (e.g. in case of previous errors).
+    std::optional<int> TryEstimateAntiaffinityVacancyCount(const TPod* pod) const;
 
 private:
     const TString Key_;

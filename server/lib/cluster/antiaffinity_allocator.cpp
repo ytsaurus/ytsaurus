@@ -74,6 +74,9 @@ bool TAntiaffinityVacancyAllocator::CanAllocate(const TPod* pod) const
 
 int TAntiaffinityVacancyAllocator::GetVacancyCount(const TPod* pod) const
 {
+    // Result for the blocked antiaffinity allocator cannot be properly defined.
+    YT_VERIFY(!Blocked_);
+
     int vacancyCount = CommonVacancyLimit_ - CommonVacancyCount_;
 
     for (const auto& [groupIdPath, vacancyLimit] : GroupIdPathVacancyLimit_) {
@@ -122,6 +125,11 @@ void TAntiaffinityVacancyAllocator::Allocate(const TPod* pod)
 
         it->second += 1;
     }
+}
+
+bool TAntiaffinityVacancyAllocator::IsBlocked() const
+{
+    return Blocked_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
