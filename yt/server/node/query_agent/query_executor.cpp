@@ -88,6 +88,8 @@ using namespace NTabletClient;
 using namespace NTabletNode;
 using namespace NYTree;
 
+using NTabletNode::TTabletSnapshotPtr;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
