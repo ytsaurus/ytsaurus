@@ -123,6 +123,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixDenseMapSerialization)                                     (1202))  // aleksandra-zh
     ((YT_12145_FixReplicatedTablesCopy)                             (1203))  // babenko
     ((HierarchicalAccounts)                                         (1204))  // kiselyovp
+    ((FixDoBranch)                                                  (1205))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
