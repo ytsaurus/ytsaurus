@@ -361,15 +361,16 @@ def skip_if_porto(func):
 
 def is_asan_build():
     if arcadia_interop.yatest_common is not None:
-        return False
+        return arcadia_interop.yatest_common.context.sanitize == "address"
 
     binary = find_executable("ytserver-master")
     version = subprocess.check_output([binary, "--version"])
     return "asan" in version
 
-
 def is_gcc_build():
     if arcadia_interop.yatest_common is not None:
+        return arcadia_interop.yatest_common.c_compiler_path().endswith("gcc")
+
         return False
 
     binary = find_executable("ytserver-clickhouse")
