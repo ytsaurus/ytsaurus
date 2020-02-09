@@ -840,6 +840,17 @@ class TestCypress(YTEnvSetup):
         tx = start_transaction()
         assert ls("//sys/transactions", attributes=["type"]) == [to_yson_type(tx, attributes={"type": "transaction"})]
 
+    @authors("aleksandra-zh")
+    def test_map_node_branch(self):
+        create("map_node", "//tmp/m")
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+        create("table", "//tmp/m/t", tx=tx1)
+        lock("//tmp/m", tx=tx2, mode="snapshot")
+        assert get("//tmp/m/t/@key", tx=tx2) == "t"
+        remove("//tmp/m/t", tx=tx1)
+        assert get("//tmp/m/t/@key", tx=tx2) == "t"
+
     @authors("babenko", "ignat")
     def test_exists(self):
         assert exists("//tmp")
