@@ -40,7 +40,8 @@ namespace {
 TString GetParentFor(const TString& type)
 {
 #ifdef _linux_
-    auto rawData = TUnbufferedFileInput("/proc/self/cgroup").ReadAll();
+    auto rawData = TUnbufferedFileInput("/proc/self/cgroup")
+        .ReadAll();
     auto result = ParseProcessCGroups(rawData);
     return result[type];
 #else
@@ -52,21 +53,25 @@ TString GetParentFor(const TString& type)
 
 std::vector<TString> ReadAllValues(const TString& fileName)
 {
-    auto raw = TUnbufferedFileInput(fileName).ReadAll();
-    YT_LOG_DEBUG(
-        "File %v contains %Qv",
+    auto raw = TUnbufferedFileInput(fileName)
+        .ReadAll();
+
+    YT_LOG_DEBUG("File %v contains %Qv",
         fileName,
         raw);
 
     TVector<TString> values;
-    StringSplitter(raw.data()).SplitBySet(" \n").SkipEmpty().Collect(&values);
-    return std::vector<TString>(values.begin(), values.end());
+    StringSplitter(raw.data())
+        .SplitBySet(" \n")
+        .SkipEmpty()
+        .Collect(&values);
+    return values;
 }
 
 TDuration FromJiffies(ui64 jiffies)
 {
-    static long ticksPerSecond = sysconf(_SC_CLK_TCK);
-    return TDuration::MicroSeconds(1000 * 1000 * jiffies / ticksPerSecond);
+    static const auto TicksPerSecond = sysconf(_SC_CLK_TCK);
+    return TDuration::MicroSeconds(1000 * 1000 * jiffies / TicksPerSecond);
 }
 
 #endif
@@ -138,7 +143,8 @@ TNonOwningCGroup::TNonOwningCGroup(const TString& type, const TString& name)
         CGroupRootPath,
         type,
         GetParentFor(type),
-        name}))
+        name
+    }))
 { }
 
 TNonOwningCGroup::TNonOwningCGroup(TNonOwningCGroup&& other)
@@ -282,16 +288,14 @@ void TNonOwningCGroup::Lock() const
 {
     Traverse(
         BIND([] (const TNonOwningCGroup& group) { group.DoLock(); }),
-        BIND([] (const TNonOwningCGroup& group) {})
-    );
+        BIND([] (const TNonOwningCGroup& group) {}));
 }
 
 void TNonOwningCGroup::Unlock() const
 {
     Traverse(
         BIND([] (const TNonOwningCGroup& group) {}),
-        BIND([] (const TNonOwningCGroup& group) { group.DoUnlock(); })
-    );
+        BIND([] (const TNonOwningCGroup& group) { group.DoUnlock(); }));
 }
 
 void TNonOwningCGroup::Kill() const
@@ -300,23 +304,20 @@ void TNonOwningCGroup::Kill() const
 
     Traverse(
         BIND([] (const TNonOwningCGroup& group) { group.DoKill(); }),
-        BIND([] (const TNonOwningCGroup& group) {})
-    );
+        BIND([] (const TNonOwningCGroup& group) {}));
 }
 
 void TNonOwningCGroup::RemoveAllSubcgroups() const
 {
-    auto this_ = this;
     Traverse(
         BIND([] (const TNonOwningCGroup& group) {
             group.TryUnlock();
         }),
-        BIND([this_] (const TNonOwningCGroup& group) {
+        BIND([this_ = this] (const TNonOwningCGroup& group) {
             if (this_ != &group) {
                 group.DoRemove();
             }
-        })
-    );
+        }));
 }
 
 void TNonOwningCGroup::RemoveRecursive() const
@@ -480,14 +481,12 @@ const TString TCpuAccounting::Name = "cpuacct";
 
 TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const TCpuAccounting::TStatistics& rhs)
 {
-    lhs.UserTime = lhs.UserTime > rhs.UserTime
-        ? lhs.UserTime - rhs.UserTime
-        : TDuration::Zero();
-
-    lhs.SystemTime = lhs.SystemTime > rhs.SystemTime
-        ? lhs.SystemTime - rhs.SystemTime
-        : TDuration::Zero();
-
+    #define XX(name) lhs.name -= rhs.name;
+    XX(UserTime)
+    XX(SystemTime)
+    XX(WaitTime)
+    XX(ThrottledTime)
+    #undef XX
     return lhs;
 }
 
@@ -536,12 +535,10 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatisticsRecursive() const
 TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
 {
     auto statistics = GetStatisticsRecursive();
-
     for (auto& cgroup : GetChildren()) {
         auto cpuCGroup = TCpuAccounting(std::move(cgroup));
         statistics -= cpuCGroup.GetStatisticsRecursive();
     }
-
     return statistics;
 }
 
@@ -549,8 +546,10 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
 {
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
-            .Item("user").Value(statistics.UserTime.MilliSeconds())
-            .Item("system").Value(statistics.SystemTime.MilliSeconds())
+            .Item("user").Value(statistics.UserTime)
+            .Item("system").Value(statistics.SystemTime)
+            .Item("wait").Value(statistics.WaitTime)
+            .Item("throttled").Value(statistics.ThrottledTime)
         .EndMap();
 }
 
@@ -776,10 +775,11 @@ std::map<TString, TString> ParseProcessCGroups(const TString& str)
     TVector<TString> values;
     StringSplitter(str.data()).SplitBySet(":\n").SkipEmpty().Collect(&values);
     for (size_t i = 0; i + 2 < values.size(); i += 3) {
+        // Check format.
         FromString<int>(values[i]);
 
-        const TString& subsystemsSet = values[i + 1];
-        const TString& name = values[i + 2];
+        const auto& subsystemsSet = values[i + 1];
+        const auto& name = values[i + 2];
 
         TVector<TString> subsystems;
         StringSplitter(subsystemsSet.data()).Split(',').SkipEmpty().Collect(&subsystems);
@@ -799,22 +799,12 @@ std::map<TString, TString> ParseProcessCGroups(const TString& str)
 
 bool IsValidCGroupType(const TString& type)
 {
-    if (type == TCpuAccounting::Name) {
-        return true;
-    }
-    if (type == TCpu::Name) {
-        return true;
-    }
-    if (type == TBlockIO::Name) {
-        return true;
-    }
-    if (type == TMemory::Name) {
-        return true;
-    }
-    if (type == TFreezer::Name) {
-        return true;
-    }
-    return false;
+    return
+        type == TCpuAccounting::Name ||
+        type == TCpu::Name ||
+        type == TBlockIO::Name ||
+        type == TMemory::Name ||
+        type == TFreezer::Name;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -127,9 +127,9 @@ public:
     TCGroupsResourceTracker(
         TCGroupJobEnvironmentConfigPtr config,
         const TString& path)
-    : CGroupsConfig_(config)
-    , Path_(path)
-    , CGroups_(path)
+        : CGroupsConfig_(std::move(config))
+        , Path_(path)
+        , CGroups_(path)
     { }
 
     virtual TCpuStatistics GetCpuStatistics() const override
@@ -137,7 +137,7 @@ public:
         if (CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
             return CGroups_.CpuAccounting.GetStatistics();
         }
-        THROW_ERROR_EXCEPTION("Cpu accounting cgroup is not supported");
+        THROW_ERROR_EXCEPTION("CPU accounting cgroup is not supported");
     }
 
     virtual TBlockIOStatistics GetBlockIOStatistics() const override
@@ -145,12 +145,13 @@ public:
         if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
             return CGroups_.BlockIO.GetStatistics();
         }
-        THROW_ERROR_EXCEPTION("Block io cgroup is not supported");
+        THROW_ERROR_EXCEPTION("Block IO cgroup is not supported");
     }
 
 protected:
     const TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
     const TString Path_;
+
     TCGroups CGroups_;
 };
 
@@ -308,25 +309,30 @@ public:
         UpdateResourceUsage();
 
         auto guard = Guard(SpinLock_);
-        auto error = CheckErrors(ResourceUsage_,
-            EStatField::CpuUsageSystem,
-            EStatField::CpuUsageUser);
 
+        auto error = CheckErrors(
+            ResourceUsage_,
+            EStatField::CpuUsageSystem,
+            EStatField::CpuUsageUser,
+            EStatField::CpuWaitTime,
+            EStatField::CpuThrottled);
         if (!error.IsOK()) {
             if (CpuStatistics_) {
-                YT_LOG_WARNING(error, "Unable to get cpu statistics, using last one");
+                YT_LOG_WARNING(error, "Unable to get CPU statistics; using the last one");
                 return *CpuStatistics_;
             } else {
-                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get cpu statistics");
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get CPU statistics");
             }
         }
 
-        // porto returns nanosecond
-        TCpuStatistics cpuStatistics;
-        cpuStatistics.SystemTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuUsageSystem].Value() / 1000);
-        cpuStatistics.UserTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuUsageUser].Value() / 1000);
-
-        CpuStatistics_= cpuStatistics;
+        // Porto reports times in ns.
+        TCpuStatistics cpuStatistics{
+            .UserTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuUsageUser].Value() / 1000),
+            .SystemTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuUsageSystem].Value() / 1000),
+            .WaitTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuWaitTime].Value() / 1000),
+            .ThrottledTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuThrottled].Value() / 1000)
+        };
+        CpuStatistics_ = cpuStatistics;
         return cpuStatistics;
     }
 
@@ -335,25 +341,25 @@ public:
         UpdateResourceUsage();
 
         auto guard = Guard(SpinLock_);
+
         auto error = CheckErrors(ResourceUsage_,
             EStatField::IOReadByte,
             EStatField::IOWriteByte,
             EStatField::IOOperations);
-
         if (!error.IsOK()) {
             if (BlockIOStatistics_) {
-                YT_LOG_WARNING(error, "Unable to get io statistics, using last one");
+                YT_LOG_WARNING(error, "Unable to get IO statistics; using the last one");
                 return *BlockIOStatistics_;
             } else {
-                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get io statistics");
+                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get IO statistics");
             }
         }
 
-        TBlockIOStatistics blockIOStatistics;
-        blockIOStatistics.BytesRead = ResourceUsage_[EStatField::IOReadByte].Value();
-        blockIOStatistics.BytesWritten = ResourceUsage_[EStatField::IOWriteByte].Value();
-        blockIOStatistics.IOTotal = ResourceUsage_[EStatField::IOOperations].Value();
-
+        TBlockIOStatistics blockIOStatistics{
+            .BytesRead = ResourceUsage_[EStatField::IOReadByte].Value(),
+            .BytesWritten = ResourceUsage_[EStatField::IOWriteByte].Value(),
+            .IOTotal = ResourceUsage_[EStatField::IOOperations].Value()
+        };
         BlockIOStatistics_ = blockIOStatistics;
         return blockIOStatistics;
     }
@@ -363,31 +369,31 @@ public:
         UpdateResourceUsage();
 
         auto guard = Guard(SpinLock_);
+
         auto error = CheckErrors(ResourceUsage_,
             EStatField::Rss,
             EStatField::MappedFiles,
             EStatField::MajorFaults);
-
         if (!error.IsOK()) {
             if (MemoryStatistics_) {
-                YT_LOG_WARNING(error, "Unable to get memory statistics, using last one");
+                YT_LOG_WARNING(error, "Unable to get memory statistics; using the last one");
                 return *MemoryStatistics_;
             } else {
                 THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get memory statistics");
             }
         }
 
-        TMemoryStatistics memoryStatistics;
-        memoryStatistics.Rss = ResourceUsage_[EStatField::Rss].Value();
-        memoryStatistics.MappedFile = ResourceUsage_[EStatField::MappedFiles].Value();
-        memoryStatistics.MajorPageFaults = ResourceUsage_[EStatField::MajorFaults].Value();
-
+        TMemoryStatistics memoryStatistics{
+            .Rss = ResourceUsage_[EStatField::Rss].Value(),
+            .MappedFile = ResourceUsage_[EStatField::MappedFiles].Value(),
+            .MajorPageFaults = ResourceUsage_[EStatField::MajorFaults].Value()
+        };
         MemoryStatistics_ = memoryStatistics;
         return memoryStatistics;
     }
 
 private:
-    IInstancePtr Instance_;
+    const IInstancePtr Instance_;
     const TDuration StatUpdatePeriod_;
 
     TSpinLock SpinLock_;
@@ -503,7 +509,7 @@ public:
                 auto coreHandler = binaryPathOrError.Value() + " \"${CORE_PID}\" 0 \"${CORE_TASK_NAME}\""
                     " 1 /dev/null /dev/null " + *coreHandlerSocketPath;
 
-                YT_LOG_DEBUG("Enable core forwarding for porto container (CoreHandler: %v)",
+                YT_LOG_DEBUG("Enable core forwarding for Porto container (CoreHandler: %v)",
                     coreHandler);
                 Instance_->SetCoreDumpHandler(coreHandler);
             } else {
@@ -538,11 +544,12 @@ private:
     const TString SlotAbsoluteName_;
     const TDuration BlockIOWatchdogPeriod_;
     const bool UsePortoMemoryTracking_;
-    IPortoExecutorPtr PortoExecutor_;
-    IInstancePtr Instance_;
-    TPortoResourceTrackerPtr ResourceTracker_;
+    const IPortoExecutorPtr PortoExecutor_;
+    const IInstancePtr Instance_;
+    const TPortoResourceTrackerPtr ResourceTracker_;
 };
 
+DECLARE_REFCOUNTED_CLASS(TPortoUserJobEnvironment)
 DEFINE_REFCOUNTED_TYPE(TPortoUserJobEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -560,6 +567,7 @@ public:
         : RootFS_(rootFS)
         , GpuDevices_(std::move(gpuDevices))
         , BlockIOWatchdogPeriod_(config->BlockIOWatchdogPeriod)
+        , SlotAbsoluteName_(GetAbsoluteName(Self_))
         , PortoExecutor_(CreatePortoExecutor(config->PortoExecutor, "environ"))
         , Self_(GetSelfPortoInstance(PortoExecutor_))
         , ResourceTracker_(New<TPortoResourceTracker>(Self_, TDuration::MilliSeconds(100)))
@@ -567,12 +575,6 @@ public:
         , HostName_(hostName)
     {
         PortoExecutor_->SubscribeFailed(BIND(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
-
-        auto absoluteName = Self_->GetAbsoluteName();
-        // ../yt_jobs_meta/slot_meta_N/job_proxy_ID
-        auto jobProxyStart = absoluteName.find_last_of('/');
-
-        SlotAbsoluteName_ = absoluteName.substr(0, jobProxyStart);
     }
 
     virtual TCpuStatistics GetCpuStatistics() const override
@@ -669,24 +671,34 @@ private:
     std::optional<TRootFS> RootFS_;
     const std::vector<TString> GpuDevices_;
     const TDuration BlockIOWatchdogPeriod_;
-    TString SlotAbsoluteName_;
-    IPortoExecutorPtr PortoExecutor_;
-    IInstancePtr Self_;
-    TPortoResourceTrackerPtr ResourceTracker_;
-    bool UsePortoMemoryTracking_ = false;
+    const TString SlotAbsoluteName_;
+    const IPortoExecutorPtr PortoExecutor_;
+    const IInstancePtr Self_;
+    const TPortoResourceTrackerPtr ResourceTracker_;
     const std::vector<TIP6Address> NetworkAddresses_;
     const std::optional<TString> HostName_;
 
+    bool UsePortoMemoryTracking_ = false;
+
+    static TString GetAbsoluteName(const IInstancePtr& instance)
+    {
+        auto absoluteName = instance->GetAbsoluteName();
+        // ../yt_jobs_meta/slot_meta_N/job_proxy_ID
+        auto jobProxyStart = absoluteName.find_last_of('/');
+        return absoluteName.substr(0, jobProxyStart);
+    }
+
     void OnFatalError(const TError& error)
     {
-        // We cant abort user job (the reason is we need porto to do it),
-        // so we will abort job proxy
-        YT_LOG_ERROR(error, "Fatal error during porto polling");
+        // We can't abort the user job (the reason is we need Porto to do this),
+        // so we will abort the job proxy.
+        YT_LOG_ERROR(error, "Fatal error during Porto polling");
         NLogging::TLogManager::Get()->Shutdown();
-        _exit(static_cast<int>(EJobProxyExitCode::PortoManagmentFailed));
+        _exit(static_cast<int>(EJobProxyExitCode::PortoManagementFailed));
     }
 };
 
+DECLARE_REFCOUNTED_CLASS(TPortoJobProxyEnvironment)
 DEFINE_REFCOUNTED_TYPE(TPortoJobProxyEnvironment)
 
 #endif

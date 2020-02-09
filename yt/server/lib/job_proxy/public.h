@@ -23,7 +23,7 @@ DEFINE_ENUM(EJobProxyExitCode,
     ((JobProxyPrepareFailed)  (27))
     ((InvalidSpecVersion)     (28))
     ((ResourceOverdraft)      (29))
-    ((PortoManagmentFailed)   (30))
+    ((PortoManagementFailed)  (30))
 );
 
 DEFINE_ENUM(EJobThrottlerType,

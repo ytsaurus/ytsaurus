@@ -118,6 +118,8 @@ public:
     {
         TDuration UserTime;
         TDuration SystemTime;
+        TDuration WaitTime;
+        TDuration ThrottledTime;
     };
 
     explicit TCpuAccounting(const TString& name);
@@ -126,7 +128,7 @@ public:
     TStatistics GetStatistics() const;
 
 private:
-    TCpuAccounting(TNonOwningCGroup&& nonOwningCGroup);
+    explicit TCpuAccounting(TNonOwningCGroup&& nonOwningCGroup);
 };
 
 void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer);
@@ -232,13 +234,6 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::map<TString, TString> ParseProcessCGroups(const TString& str);
-
-template <typename T>
-T GetCurrentCGroup()
-{
-    return T("");
-}
-
 bool IsValidCGroupType(const TString& type);
 
 ////////////////////////////////////////////////////////////////////////////////

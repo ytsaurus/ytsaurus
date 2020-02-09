@@ -17,7 +17,8 @@ namespace NYT::NContainers {
 DEFINE_ENUM(EStatField,
     (CpuUsageUser)
     (CpuUsageSystem)
-    (CpuStolenTime)
+    (CpuWaitTime)
+    (CpuThrottled)
     (Rss)
     (MappedFiles)
     (MajorFaults)
