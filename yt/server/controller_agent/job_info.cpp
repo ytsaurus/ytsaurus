@@ -138,6 +138,9 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     // it can increase the size of snapshot significantly.
     Persist(context, Phase);
     Persist(context, JobCompetitionId);
+    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::JobHasCompetitorsFlag)) {
+        Persist(context, HasCompetitors);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

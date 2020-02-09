@@ -6,8 +6,6 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
-#include <yt/ytlib/job_tracker_client/helpers.h>
-
 #include <yt/core/ytree/public.h>
 
 namespace NYT::NControllerAgent {

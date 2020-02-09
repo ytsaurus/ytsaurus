@@ -30,6 +30,7 @@ message TReleaseJobFlags
     required bool archive_stderr = 2;
     required bool archive_fail_context = 3;
     required bool archive_profile = 4;
+    optional bool has_competitors = 5;
 };
 
 // Describes the current job status.

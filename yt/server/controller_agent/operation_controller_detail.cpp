@@ -2711,7 +2711,8 @@ void TOperationControllerBase::BuildJobAttributes(
                 .Value(job->StatisticsYson ? job->StatisticsYson : EmptyMapYson);
         })
         .Item("suspicious").Value(job->Suspicious)
-        .Item("job_competition_id").Value(job->JobCompetitionId);
+        .Item("job_competition_id").Value(job->JobCompetitionId)
+        .Item("has_competitors").Value(job->HasCompetitors);
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
@@ -2760,7 +2761,8 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         .Item("statistics").Value(jobSummary.Statistics)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType)
-        .Item("job_competition_id").Value(joblet->JobCompetitionId);
+        .Item("job_competition_id").Value(joblet->JobCompetitionId)
+        .Item("has_competitors").Value(joblet->HasCompetitors);
 }
 
 IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
@@ -4605,6 +4607,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     }
 
     summary->ReleaseFlags.ArchiveProfile = true;
+    summary->ReleaseFlags.HasCompetitors = joblet->HasCompetitors;
 
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
 
@@ -8501,8 +8504,19 @@ void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason a
         TError("Job is aborted by controller") << TErrorAttribute("abort_reason", abortReason));
 }
 
+void TOperationControllerBase::MarkJobHasCompetitors(TJobId jobId)
+{
+    GetJoblet(jobId)->HasCompetitors = true;
+}
+
 void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId)
 {
+    if (Spec_->TestingOperationOptions->RegisterSpeculativeJobOnJobScheduledOnce) {
+        const auto& joblet = JobletMap[jobId];
+        if (joblet->JobIndex == 0) {
+            task->TryRegisterSpeculativeJob(joblet);
+        }
+    }
     if (Spec_->TestingOperationOptions->RegisterSpeculativeJobOnJobScheduled) {
         const auto& joblet = JobletMap[jobId];
         if (!joblet->Speculative) {

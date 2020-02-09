@@ -894,6 +894,9 @@ TFuture<TListJobsResult> TClient::ListJobs(
     if (options.JobCompetitionId) {
         ToProto(req->mutable_job_competition_id(), options.JobCompetitionId);
     }
+    if (options.WithCompetitors) {
+        req->set_with_competitors(*options.WithCompetitors);
+    }
 
     req->set_sort_field(static_cast<NProto::EJobSortField>(options.SortField));
     req->set_sort_order(static_cast<NProto::EJobSortDirection>(options.SortOrder));

@@ -21,6 +21,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((GroupedSpeculativeJobs)               (300220))
     ((ImproveSpeculativeHeuristic)          (300221))
     ((TabletIndexInMROverOrderedDynTables)  (300222))
+    ((JobHasCompetitorsFlag)                (300223))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -98,6 +98,7 @@ struct TJobTableDescriptor
         const int FailContextSize;
         const int CoreInfos;
         const int JobCompetitionId;
+        const int HasCompetitors;
     };
 
     const NTableClient::TNameTablePtr NameTable;

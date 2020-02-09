@@ -884,6 +884,7 @@ struct TListJobsOptions
     std::optional<bool> WithStderr;
     std::optional<bool> WithFailContext;
     std::optional<bool> WithSpec;
+    std::optional<bool> WithCompetitors;
 
     EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
@@ -1020,6 +1021,7 @@ struct TJob
     std::optional<ui64> StderrSize;
     std::optional<ui64> FailContextSize;
     std::optional<bool> HasSpec;
+    std::optional<bool> HasCompetitors;
     NJobTrackerClient::TJobId JobCompetitionId;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;

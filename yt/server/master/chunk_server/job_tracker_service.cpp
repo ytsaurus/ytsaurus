@@ -4,6 +4,8 @@
 #include "chunk_manager.h"
 #include "job.h"
 
+#include <yt/server/lib/controller_agent/helpers.h>
+
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/master_hydra_service.h>
 
@@ -14,7 +16,6 @@
 #include <yt/ytlib/chunk_client/proto/job.pb.h>
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
-#include <yt/ytlib/job_tracker_client/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 

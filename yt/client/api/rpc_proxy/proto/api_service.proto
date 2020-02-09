@@ -1451,6 +1451,7 @@ message TReqListJobs
     optional uint64 running_jobs_lookbehind_period = 16 [default = 60000000]; // TDuration, 1 minute by default
 
     optional NYT.NProto.TGuid job_competition_id = 17;
+    optional bool with_competitors = 18;
 
     optional TMasterReadOptions master_read_options = 102;
 }
@@ -1941,6 +1942,7 @@ message TJob
     optional EJobState controller_agent_state = 16;
     optional EJobState archive_state = 17;
     optional NYT.NProto.TGuid job_competition_id = 18;
+    optional bool has_competitors = 19;
 }
 
 message TListJobsStatistics
