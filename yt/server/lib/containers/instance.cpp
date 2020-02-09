@@ -10,6 +10,7 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/collection_helpers.h>
 
 #include <infra/porto/api/libporto.hpp>
 
@@ -24,9 +25,11 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 // Porto passes command string to wordexp, where quota (') symbol
 // is delimiter. So we must replace it with concatenation ('"'"').
-static TString EscapeForWordexp(const char* in)
+TString EscapeForWordexp(const char* in)
 {
     TString buffer;
     while (*in) {
@@ -40,16 +43,14 @@ static TString EscapeForWordexp(const char* in)
     return buffer;
 }
 
-using TPortoStatRule = std::pair<TString, TCallback<i64(const TString& input)>>;
-
-static i64 Extract(const TString& input, const TString& pattern, const TString& terminator = "\n")
+i64 Extract(const TString& input, const TString& pattern, const TString& terminator = "\n")
 {
     auto start = input.find(pattern) + pattern.length();
     auto end = input.find(terminator, start);
     return std::stol(input.substr(start, (end == input.npos) ? end : end - start));
 }
 
-static i64 ExtractSum(const TString& input, const TString& pattern, const TString& delimiter, const TString& terminator = "\n")
+i64 ExtractSum(const TString& input, const TString& pattern, const TString& delimiter, const TString& terminator = "\n")
 {
     i64 sum = 0;
     TString::size_type pos = 0;
@@ -71,6 +72,35 @@ static i64 ExtractSum(const TString& input, const TString& pattern, const TStrin
     }
     return sum;
 }
+
+using TPortoStatRule = std::pair<TString, TCallback<i64(const TString& input)>>;
+
+const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
+    { EStatField::CpuUsageUser,     { "cpu_usage",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
+    { EStatField::CpuUsageSystem,   { "cpu_usage_system",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
+    { EStatField::CpuWaitTime,      { "cpu_wait_time",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
+    { EStatField::CpuThrottled,     { "cpu_throttled",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
+    { EStatField::Rss,              { "memory.stat",
+        BIND([] (const TString& in) { return Extract(in, "total_rss");          } ) } },
+    { EStatField::MappedFiles,      { "memory.stat",
+        BIND([] (const TString& in) { return Extract(in, "total_mapped_file");  } ) } },
+    { EStatField::IOOperations,     { "io_ops",
+        BIND([] (const TString& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
+    { EStatField::IOReadByte,       { "io_read",
+        BIND([] (const TString& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
+    { EStatField::IOWriteByte,      { "io_write",
+        BIND([] (const TString& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
+    { EStatField::MaxMemoryUsage,   { "memory.max_usage_in_bytes",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } },
+    { EStatField::MajorFaults,      { "major_faults",
+        BIND([] (const TString& in) { return std::stol(in);                     } ) } }
+};
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -252,33 +282,43 @@ public:
     virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const override
     {
         std::vector<TString> properties;
-        TUsage result;
-        try {
-            for (auto field : fields) {
-                const auto& rules = StatRules_.at(field);
-                properties.push_back(rules.first);
+        for (auto field : fields) {
+            if (auto it = PortoStatRules.find(field)) {
+                const auto& rule = it->second;
+                properties.push_back(rule.first);
+            } else {
+                THROW_ERROR_EXCEPTION("Unknown resource field %Qlv requested", field)
+                    << TErrorAttribute("container", Name_);
             }
-        } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Unknown resource field requested");
-            THROW_ERROR_EXCEPTION("Unknown resource field requested")
-                << TErrorAttribute("container", Name_)
-                << ex;
         }
 
         auto response = WaitFor(Executor_->GetProperties(Name_, properties))
             .ValueOrThrow();
 
+        TUsage result;
         for (auto field : fields) {
-            const auto& rules = StatRules_.at(field);
-            TErrorOr<ui64>& record = result[field];
-            try {
-                auto data = response.at(rules.first)
-                    .ValueOrThrow();
-                record = rules.second(data);
-            } catch (const std::exception& ex) {
-                record = TError("Unable to get %Qv from porto", rules.first)
-                    << TErrorAttribute("container", Name_)
-                    << ex;
+            const auto& rule = GetOrCrash(PortoStatRules, field);
+            auto& record = result[field];
+            if (auto it = response.find(rule.first); it != response.end()) {
+                const auto& valueOrError = it->second;
+                if (valueOrError.IsOK()) {
+                    const auto& value = valueOrError.Value();
+                    try {
+                        record = rule.second(value);
+                    } catch (const std::exception& ex) {
+                        record = TError("Error parsing Porto property %Qlv", field)
+                            << TErrorAttribute("container", Name_)
+                            << TErrorAttribute("property_value", value)
+                            << ex;
+                    }
+                } else {
+                    record = TError("Error getting Porto property %Qlv", field)
+                        << TErrorAttribute("container", Name_)
+                        << valueOrError;
+                }
+             } else {
+                record = TError("Missing property %Qlv in Porto response", field)
+                    << TErrorAttribute("container", Name_);
             }
         }
         return result;
@@ -307,14 +347,14 @@ public:
 
         const auto& cpuLimitRsp = response.at("cpu_limit");
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(cpuLimitRsp, "Failed to get cpu limit from porto");
+        THROW_ERROR_EXCEPTION_IF_FAILED(cpuLimitRsp, "Failed to get CPU limit from porto");
 
         double cpuLimit;
 
         YT_VERIFY(cpuLimitRsp.Value().EndsWith('c'));
         auto cpuLimitValue = TStringBuf(cpuLimitRsp.Value().begin(), cpuLimitRsp.Value().size() - 1);
         if (!TryFromString<double>(cpuLimitValue, cpuLimit)) {
-            THROW_ERROR_EXCEPTION("Failed to parse cpu limit value from porto")
+            THROW_ERROR_EXCEPTION("Failed to parse CPU limit value from porto")
                 << TErrorAttribute("cpu_limit", cpuLimitRsp.Value());
         }
 
@@ -429,45 +469,58 @@ public:
         const std::vector<const char*>& argv,
         const std::vector<const char*>& env) override
     {
-        TString command;
-
-        for (auto arg : argv) {
-            command += TString("'") + EscapeForWordexp(arg) + TString("'");
-            command += " ";
+        TStringBuilder commandBuilder;
+        for (const auto* arg : argv) {
+            commandBuilder.AppendString("'");
+            commandBuilder.AppendString(EscapeForWordexp(arg));
+            commandBuilder.AppendString("' ");
         }
+        auto command = commandBuilder.Flush();
 
         YT_LOG_DEBUG("Executing porto container (Command: %v)", command);
+        SetProperty("command", command);
 
-        if (!User_) {
+        if (User_) {
+            SetProperty("user", *User_);
+        } else {
             // NB(psushin): Make sure subcontainer starts with the same user.
             // For unknown reason in the cloud we've seen user_job containers with user=loadbase.
             SetProperty("user", ToString(::getuid()));
-        } else {
-            SetProperty("user", User_);
         }
 
         // Enable core dumps for all container instances.
         SetProperty("ulimit", "core: unlimited");
-        TString controllers = "freezer;cpu;cpuacct;net_cls;blkio;devices;pids";
+
+        std::vector<TString> controllers{
+            "freezer",
+            "cpu",
+            "cpuacct",
+            "net_cls",
+            "blkio",
+            "devices",
+            "pids"
+        };
         if (RequireMemoryController_) {
-            controllers += ";memory";
+            controllers.push_back("memory");
         }
-        SetProperty("controllers", controllers);
+        SetProperty("controllers", JoinToString(controllers, AsStringBuf(";")));
+
         SetProperty("enable_porto", Isolate_ ? "isolate" : "full");
         SetProperty("isolate", Isolate_ ? "true" : "false");
-        SetProperty("command", command);
 
         TStringBuilder envBuilder;
-        for (auto arg : env) {
+        for (const auto* arg : env) {
             envBuilder.AppendString(arg);
-            envBuilder.AppendChar(';');
+            envBuilder.AppendString(";");
         }
         SetProperty("env", envBuilder.Flush());
 
         // Wait for all pending actions - do not start real execution if
         // preparation has failed
-        WaitForActions().ThrowOnError();
-        TFuture<void> startAction = Executor_->Start(Name_);
+        WaitForActions()
+            .ThrowOnError();
+        auto startAction = Executor_->Start(Name_);
+
         // Wait for starting process - here we get error if exec has failed
         // i.e. no such file, execution bit, etc
         // In theory it is not necessarily to wait here, but in this case
@@ -483,16 +536,16 @@ public:
 
 private:
     const TString Name_;
-    mutable IPortoExecutorPtr Executor_;
-    std::vector<TFuture<void>> Actions_;
-    static const std::map<EStatField, TPortoStatRule> StatRules_;
-    const NLogging::TLogger Logger;
+    const IPortoExecutorPtr Executor_;
     const bool AutoDestroy_;
+    const NLogging::TLogger Logger;
+
+    std::vector<TFuture<void>> Actions_;
     bool Destroyed_ = false;
     bool HasRoot_ = false;
     bool Isolate_ = false;
     bool RequireMemoryController_ = false;
-    TString User_;
+    std::optional<TString> User_;
 
     TPortoInstance(
         const TString& name,
@@ -500,9 +553,9 @@ private:
         bool autoDestroy)
         : Name_(name)
         , Executor_(executor)
+        , AutoDestroy_(autoDestroy)
         , Logger(NLogging::TLogger(ContainersLogger)
             .AddTag("Container: %v", Name_))
-        , AutoDestroy_(autoDestroy)
     { }
 
     void SetProperty(const TString& key, const TString& value)
@@ -518,29 +571,6 @@ private:
     }
 
     DECLARE_NEW_FRIEND();
-};
-
-const std::map<EStatField, TPortoStatRule> TPortoInstance::StatRules_ = {
-    { EStatField::CpuUsageUser,    { "cpu_usage",
-        BIND([](const TString& in) { return std::stol(in);                     } ) } },
-    { EStatField::CpuUsageSystem,  { "cpu_usage_system",
-        BIND([](const TString& in) { return std::stol(in);                     } ) } },
-    { EStatField::CpuStolenTime,   { "cpu_wait_time",
-        BIND([](const TString& in) { return std::stol(in);                     } ) } },
-    { EStatField::Rss,             { "memory.stat",
-        BIND([](const TString& in) { return Extract(in, "total_rss");          } ) } },
-    { EStatField::MappedFiles,     { "memory.stat",
-        BIND([](const TString& in) { return Extract(in, "total_mapped_file");  } ) } },
-    { EStatField::IOOperations,    { "io_ops",
-        BIND([](const TString& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
-    { EStatField::IOReadByte,      { "io_read",
-        BIND([](const TString& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
-    { EStatField::IOWriteByte,     { "io_write",
-        BIND([](const TString& in) { return ExtractSum(in, "sd", ":", ";");    } ) } },
-    { EStatField::MaxMemoryUsage,  { "memory.max_usage_in_bytes",
-        BIND([](const TString& in) { return std::stol(in);                     } ) } },
-    { EStatField::MajorFaults,     { "major_faults",
-        BIND([](const TString& in) { return std::stol(in);                     } ) } }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

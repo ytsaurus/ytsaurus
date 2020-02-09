@@ -1652,20 +1652,22 @@ private:
         }
 
         if (auto jobProxyFailedError = resultError.FindMatching(NExecAgent::EErrorCode::JobProxyFailed)) {
-            if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode))
-            {
+            if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode)) {
                 auto exitCode = NExecAgent::EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
-                if (exitCode == EJobProxyExitCode::HeartbeatFailed ||
-                    exitCode == EJobProxyExitCode::ResultReportFailed ||
-                    exitCode == EJobProxyExitCode::ResourcesUpdateFailed ||
-                    exitCode == EJobProxyExitCode::GetJobSpecFailed ||
-                    exitCode == EJobProxyExitCode::InvalidSpecVersion ||
-                    exitCode == EJobProxyExitCode::PortoManagmentFailed)
-                {
-                    return EAbortReason::Other;
-                }
-                if (exitCode == EJobProxyExitCode::ResourceOverdraft) {
-                    return EAbortReason::ResourceOverdraft;
+                switch (exitCode) {
+                    case EJobProxyExitCode::HeartbeatFailed:
+                    case EJobProxyExitCode::ResultReportFailed:
+                    case EJobProxyExitCode::ResourcesUpdateFailed:
+                    case EJobProxyExitCode::GetJobSpecFailed:
+                    case EJobProxyExitCode::InvalidSpecVersion:
+                    case EJobProxyExitCode::PortoManagementFailed:
+                        return EAbortReason::Other;
+
+                    case EJobProxyExitCode::ResourceOverdraft:
+                        return EAbortReason::ResourceOverdraft;
+
+                    default:
+                        break;
                 }
             }
         }
