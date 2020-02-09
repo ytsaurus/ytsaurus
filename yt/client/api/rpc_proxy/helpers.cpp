@@ -751,6 +751,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.JobCompetitionId) {
         ToProto(protoJob->mutable_job_competition_id(), job.JobCompetitionId);
     }
+    if (job.HasCompetitors) {
+        protoJob->set_has_competitors(*job.HasCompetitors);
+    }
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -844,6 +847,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         FromProto(&job->JobCompetitionId, protoJob.job_competition_id());
     } else {
         job->JobCompetitionId = {};
+    }
+    if (protoJob.has_has_competitors()) {
+        job->HasCompetitors = protoJob.has_competitors();
+    } else {
+        job->HasCompetitors = false;
     }
 }
 

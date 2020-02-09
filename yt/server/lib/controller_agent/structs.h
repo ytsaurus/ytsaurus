@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "helpers.h"
+
 #include <yt/server/lib/scheduler/public.h>
 
 #include <yt/server/lib/scheduler/structs.h>
@@ -9,8 +11,6 @@
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/ytlib/chunk_client/public.h>
-
-#include <yt/ytlib/job_tracker_client/helpers.h>
 
 #include <yt/core/misc/phoenix.h>
 

@@ -2,7 +2,7 @@
 #include "private.h"
 #include "gpu_manager.h"
 
-#include <yt/server/lib/job_agent/config.h>
+#include <yt/server/lib/controller_agent/helpers.h>
 
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
@@ -16,7 +16,6 @@
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
-#include <yt/ytlib/job_tracker_client/helpers.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
@@ -37,7 +36,6 @@
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
-#include <yt/core/misc/statistics.h>
 
 #include <yt/core/net/helpers.h>
 
@@ -843,7 +841,7 @@ void TJobController::TImpl::RemoveJob(
     YT_VERIFY(job->GetResourceUsage() == ZeroNodeResources());
 
     if (releaseFlags.ArchiveJobSpec) {
-        YT_LOG_INFO("Archivind job spec (JobId: %v)", job->GetId());
+        YT_LOG_INFO("Archiving job spec (JobId: %v)", job->GetId());
         job->ReportSpec();
     }
 
@@ -864,6 +862,11 @@ void TJobController::TImpl::RemoveJob(
     if (releaseFlags.ArchiveProfile) {
         YT_LOG_INFO("Archiving profile (JobId: %v)", job->GetId());
         job->ReportProfile();
+    }
+
+    if (releaseFlags.HasCompetitors) {
+        YT_LOG_INFO("Archiving has_competitors flag (JobId: %v)", job->GetId());
+        job->ReportStatistics(TJobStatistics().HasCompetitors(true));
     }
 
     bool shouldSave = releaseFlags.ArchiveJobSpec || releaseFlags.ArchiveStderr;

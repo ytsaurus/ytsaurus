@@ -136,6 +136,8 @@ struct ITaskHost
     virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) = 0;
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) = 0;
+
+    virtual void MarkJobHasCompetitors(TJobId jobId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

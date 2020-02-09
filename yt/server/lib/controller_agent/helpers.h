@@ -1,7 +1,6 @@
 #pragma once
 
-#include "public.h"
-
+#include <yt/ytlib/job_tracker_client/public.h>
 #include <yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
 namespace NYT::NJobTrackerClient {
@@ -18,6 +17,7 @@ struct TReleaseJobFlags
     bool ArchiveStderr = false;
     bool ArchiveFailContext = false;
     bool ArchiveProfile = false;
+    bool HasCompetitors = false;
 
     bool IsNonTrivial() const;
 

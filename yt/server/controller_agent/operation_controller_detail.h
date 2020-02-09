@@ -367,6 +367,7 @@ public:
     virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) override;
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
+    virtual void MarkJobHasCompetitors(TJobId jobId) override;
 
 protected:
     const IOperationControllerHostPtr Host;
@@ -1036,7 +1037,7 @@ private:
     int RetainedJobCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;
 
-    // Containts finished jobs (right now it is used only for archive job spec flag).
+    // Finished jobs to be sent to scheduler in EAgentToSchedulerJobEventType::Released.
     THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
     std::vector<std::pair<TJobId, NYson::TYsonString>> RetainedFinishedJobs_;
 
@@ -1073,7 +1074,7 @@ private:
     int SnapshotIndex_ = 0;
     //! Index of a snapshot that is building right now.
     std::optional<int> RecentSnapshotIndex_ = std::nullopt;
-    //! Timestamp of last successfull uploaded snapshot.
+    //! Timestamp of last successful uploaded snapshot.
     TInstant LastSuccessfulSnapshotTime_ = TInstant::Zero();
 
     bool AvailableExecNodesObserved_ = false;

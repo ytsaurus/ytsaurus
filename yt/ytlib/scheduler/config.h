@@ -455,6 +455,7 @@ public:
     bool FailGetJobSpec;
 
     bool RegisterSpeculativeJobOnJobScheduled;
+    bool RegisterSpeculativeJobOnJobScheduledOnce;
 
     TTestingOperationOptions();
 };

@@ -84,6 +84,7 @@ TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
     , FailContextSize(n->RegisterName("fail_context_size"))
     , CoreInfos(n->RegisterName("core_infos"))
     , JobCompetitionId(n->RegisterName("job_competition_id"))
+    , HasCompetitors(n->RegisterName("has_competitors"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

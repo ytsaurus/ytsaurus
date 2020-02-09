@@ -4,6 +4,8 @@
 
 #include "scheduling_context.h"
 
+#include <yt/server/lib/controller_agent/helpers.h>
+
 #include <yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/server/lib/scheduler/exec_node_descriptor.h>
 
@@ -12,8 +14,6 @@
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
-
-#include <yt/ytlib/job_tracker_client/helpers.h>
 
 #include <yt/ytlib/scheduler/proto/scheduler_service.pb.h>
 #include <yt/ytlib/scheduler/job_resources.h>

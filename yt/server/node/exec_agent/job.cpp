@@ -125,7 +125,7 @@ public:
             GetType());
 
         JobEvents_.emplace_back(JobState_, JobPhase_);
-        ReportStatistics(MakeDefaultJobStatistics());
+        ReportStatistics(MakeDefaultJobStatistics().HasCompetitors(false));
     }
 
     virtual void Start() override
