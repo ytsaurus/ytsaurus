@@ -1,5 +1,6 @@
 from .conftest import (
     are_pods_assigned,
+    assert_over_time,
     attach_pod_set_to_disruption_budget,
     create_nodes,
     create_pod_set,
@@ -89,9 +90,46 @@ class TestSchedulerCluster(BaseTestSchedulerCluster):
         )
         wait_pod_is_assigned(yp_client, pod_id)
 
+    def _validate_scheduler_lifelessness(self, yp_client):
+        pod_set_id = create_pod_set(yp_client)
+        pod_id = create_pod_with_boilerplate(
+            yp_client,
+            pod_set_id,
+            spec=dict(enable_scheduling=True),
+        )
+        def get_state(pod_id):
+            return yp_client.get_object(
+                "pod",
+                pod_id,
+                selectors=["/status/scheduling/state"],
+            )[0]
+        assert_over_time(lambda: "pending" == get_state(pod_id))
+
     def test_cluster_load(self, yp_env):
         yp_client = yp_env.yp_client
         self.impl(yp_client)
+        self._validate_scheduler_liveness(yp_client)
+
+    def test_cluster_load_with_validation_errors(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        create_nodes(yp_client, 1)
+
+        node_segment_id = yp_client.create_object(
+            "node_segment",
+            attributes=dict(spec=dict(node_filter="abracadabra")),
+        )
+        self._validate_scheduler_lifelessness(yp_client)
+
+        yp_env.set_cypress_config_patch(
+            dict(
+                scheduler=dict(
+                    cluster=dict(
+                        bypass_validation_errors=True,
+                    ),
+                ),
+            ),
+        )
         self._validate_scheduler_liveness(yp_client)
 
 

@@ -479,6 +479,16 @@ class TestAntiaffinity(object):
     def test_antiaffinity_constraints_unique_bucket_limit(self, yp_env):
         yp_client = yp_env.yp_client
 
+        yp_env.set_cypress_config_patch(
+            dict(
+                scheduler=dict(
+                    cluster=dict(
+                        bypass_validation_errors=True,
+                    ),
+                ),
+            ),
+        )
+
         antiaffinity_constraints_names = ["key", "max_pods", "pod_group_id_path"]
         topology_zones = ["node", "rack", "dc"]
 
@@ -507,12 +517,12 @@ class TestAntiaffinity(object):
 
         create_nodes(yp_client, 2)
 
-        # Default AntiaffinityConstraintUniqueBucketLimit is 50
+        # Default value is 50.
         antiaffinity_constraints_unique_bucket_limit = 50
 
         antiaffinity_constraints_buckets_over_limit = []
 
-        # Topology zone (key) = "node", group_id_path count exceeds limit
+        # Topology zone (key) = "node", group_id_path count exceeds limit.
         antiaffinity_constraints_buckets_over_limit.append(
             [
                 ("node", node_pod_limit, "/labels/group_id_type_%d" % index)
@@ -522,7 +532,7 @@ class TestAntiaffinity(object):
 
         # Topology zone (key) has 3 types, group_id_path has (limit // 3) = 16 variants (and one empty variant).
         # So antiaffinity constraints bucket count is 3 * (16 + 1) = 51 - exceeds limit,
-        # though every parameter count is under limit
+        # though every parameter count is under limit.
         antiaffinity_constraints_buckets_over_limit.append(
             [
                 (topology_zone, node_pod_limit, "/labels/group_id_type_%d" % index)
@@ -536,7 +546,7 @@ class TestAntiaffinity(object):
         )
 
         # Take only antiaffinity_constraints_unique_bucket_limit buckets.
-        # So antiaffinity constraints bucket count in under limit
+        # So antiaffinity constraints bucket count in under limit.
         antiaffinity_constraints_buckets_under_limit = [
             buckets_over_limit[:antiaffinity_constraints_unique_bucket_limit]
             for buckets_over_limit in antiaffinity_constraints_buckets_over_limit

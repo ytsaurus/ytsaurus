@@ -134,6 +134,8 @@ public:
                 Clear();
             }
 
+            Config_ = std::move(config);
+
             YT_LOG_INFO("Starting snapshot transaction");
 
             PROFILE_TIMING("/time/start_transaction") {
@@ -200,7 +202,7 @@ public:
                     });
             }
 
-            InitializePodSets(config->AntiaffinityConstraintsUniqueBucketLimit);
+            InitializePodSets();
 
             PROFILE_TIMING("/time/read_pods") {
                 Reader_->ReadPods(
@@ -265,6 +267,8 @@ private:
     const IClusterReaderPtr Reader_;
     const IObjectFilterEvaluatorPtr NodeFilterEvaluator_;
 
+    TClusterConfigPtr Config_;
+
     NObjects::TTimestamp Timestamp_ = NObjects::NullTimestamp;
     THashMap<TObjectId, std::unique_ptr<TNode>> NodeMap_;
     THashMap<TObjectId, std::unique_ptr<TPod>> PodMap_;
@@ -293,6 +297,13 @@ private:
             std::move(object)).second);
     }
 
+    void OnValidationError()
+    {
+        if (!Config_->BypassValidationErrors) {
+            THROW_ERROR_EXCEPTION("Error validating cluster snapshot invariants");
+        }
+    }
+
 
     void InitializeInternetAddresses()
     {
@@ -305,6 +316,7 @@ private:
                     internetAddressId,
                     ip4AddressPoolId);
                 invalidInternetAddressIds.push_back(internetAddressId);
+                OnValidationError();
                 continue;
             }
         }
@@ -332,6 +344,7 @@ private:
                 YT_LOG_WARNING("Account refers to an unknown parent (AccountId: %v, ParentId: %v)",
                     account->GetId(),
                     parentId);
+                OnValidationError();
                 continue;
             }
             account->SetParent(parent);
@@ -373,6 +386,7 @@ private:
                 YT_LOG_ERROR("Invalid node segment; scheduling for this segment is disabled (NodeSegmentId: %v)",
                     nodeSegmentId);
                 invalidNodeSegmentIds.push_back(nodeSegmentId);
+                OnValidationError();
                 continue;
             }
 
@@ -389,18 +403,19 @@ private:
         }
     }
 
-    void InitializePodSets(int antiaffinityConstraintsUniqueBucketLimit)
+    void InitializePodSets()
     {
         std::vector<TObjectId> invalidPodSetIds;
         for (const auto& [podSetId, podSet] : PodSetMap_) {
             const int antiaffinityConstraintsUniqueBucketCount = GetAntiaffinityConstraintsUniqueBucketCount(
                 podSet->AntiaffinityConstraints());
-            if (antiaffinityConstraintsUniqueBucketCount > antiaffinityConstraintsUniqueBucketLimit) {
+            if (antiaffinityConstraintsUniqueBucketCount > Config_->AntiaffinityConstraintsUniqueBucketLimit) {
                 YT_LOG_WARNING("Pod set count of unique antiaffinity constraints buckets exceeds limit (PodSetId: %v, Count: %v, Limit: %v)",
                     podSetId,
                     antiaffinityConstraintsUniqueBucketCount,
-                    antiaffinityConstraintsUniqueBucketLimit);
+                    Config_->AntiaffinityConstraintsUniqueBucketLimit);
                 invalidPodSetIds.push_back(podSetId);
+                OnValidationError();
                 continue;
             }
 
@@ -411,6 +426,7 @@ private:
                     podSetId,
                     nodeSegmentId);
                 invalidPodSetIds.push_back(podSetId);
+                OnValidationError();
                 continue;
             }
 
@@ -421,6 +437,7 @@ private:
                     podSetId,
                     accountId);
                 invalidPodSetIds.push_back(podSetId);
+                OnValidationError();
                 continue;
             }
 
@@ -431,6 +448,7 @@ private:
                     podSetId,
                     podDisruptionBudgetId);
                 invalidPodSetIds.push_back(podSetId);
+                OnValidationError();
                 continue;
             }
 
@@ -454,6 +472,7 @@ private:
                     podId,
                     podSetId);
                 invalidPodIds.push_back(podId);
+                OnValidationError();
                 continue;
             }
 
@@ -464,6 +483,7 @@ private:
                     podId,
                     nodeId);
                 invalidPodIds.push_back(podId);
+                OnValidationError();
                 continue;
             }
 
@@ -474,6 +494,7 @@ private:
                     podId,
                     accountId);
                 invalidPodIds.push_back(podId);
+                OnValidationError();
                 continue;
             }
 
@@ -499,6 +520,7 @@ private:
                     resourceId,
                     nodeId);
                 invalidResourceIds.push_back(resourceId);
+                OnValidationError();
                 continue;
             }
 
@@ -692,6 +714,7 @@ private:
                 ENodeType::Map,
                 topologyNode->GetType(),
                 nodeId);
+            OnValidationError();
             return {};
         }
 
@@ -705,6 +728,7 @@ private:
                     ENodeType::String,
                     valueNode->GetType(),
                     nodeId);
+                OnValidationError();
                 continue;
             }
 
@@ -756,6 +780,7 @@ private:
         NodeSegmentMap_.clear();
         ResourceMap_.clear();
         Timestamp_ = NullTimestamp;
+        Config_.Reset();
     }
 };
 
