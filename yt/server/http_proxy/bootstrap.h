@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/rpc_proxy/public.h>
-
 #include <yt/ytlib/auth/public.h>
 
 #include <yt/ytlib/api/public.h>
