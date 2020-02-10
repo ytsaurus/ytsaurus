@@ -10,7 +10,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 option python_package = "yp_proto.yp.client.api.proto";
-option go_package = "a.yandex-team.ru/yp/go/proto/api";
+option go_package = "a.yandex-team.ru/yp/go/proto/ypapi";
 option java_package = "ru.yandex.yp.client.api";
 option java_outer_classname = "HorizontalPodAutoscaler";
 option java_multiple_files = true;

@@ -5,7 +5,7 @@ option python_package = "yp_proto.yp.client.api.proto";
 option java_package = "ru.yandex.yp.client.discovery";
 option java_outer_classname = "Discovery";
 
-option go_package = "a.yandex-team.ru/yp/go/proto/api";
+option go_package = "a.yandex-team.ru/yp/go/proto/ypapi";
 
 ////////////////////////////////////////////////////////////////////////////////
 
