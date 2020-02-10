@@ -7,6 +7,14 @@ except ImportError:
 
 import logging
 
+def set_log_level_from_config(logger):
+    if not logger_config.LOG_LEVEL:
+        logger.setLevel(level=logging.__dict__["INFO"])
+    else:
+        if logger_config.LOG_LEVEL.upper() == "NOTSET":
+            raise Exception("LOG_LEVEL couldn't be defined as NOTSET")
+        logger.setLevel(level=logging.__dict__[logger_config.LOG_LEVEL.upper()])
+
 logging.getLogger("yt.packages.requests.packages.urllib3").setLevel(logging.WARNING)
 
 try:
@@ -18,7 +26,9 @@ except:
     LOGGER = logging.getLogger("Yt")
 
 LOGGER.propagate = False
-LOGGER.setLevel(level=logging.__dict__[logger_config.LOG_LEVEL.upper()])
+
+set_log_level_from_config(LOGGER)
+
 if logger_config.LOG_PATH is None:
     LOGGER.addHandler(logging.StreamHandler())
 else:

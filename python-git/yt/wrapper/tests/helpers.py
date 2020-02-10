@@ -138,7 +138,7 @@ def _filter_simple_types(obj):
         return dict([(key, _filter_simple_types(value)) for key, value in iteritems(obj)])
     return None
 
-def get_environment_for_binary_test(yt_env):
+def get_environment_for_binary_test(yt_env, enable_request_logging=True):
     binaries_dir = os.path.join(os.path.dirname(get_tests_location()), "bin")
 
     if yatest_common is None:
@@ -155,8 +155,8 @@ def get_environment_for_binary_test(yt_env):
         "YT_USE_TOKEN": "0",
         "YT_VERSION": yt.config["api_version"],
         "YT_PRINT_BACKTRACE": "1",
-        "YT_SCRIPT_PATH": yt_binary,
-        "MAPREDUCE_YT_SCRIPT_PATH": mapreduce_binary,
+        "YT_CLI_PATH": yt_binary,
+        "MAPREDUCE_YT_CLI_PATH": mapreduce_binary,
     }
     if yatest_common is None:
         env["PYTHONPATH"] = os.environ["PYTHONPATH"]
@@ -170,6 +170,8 @@ def get_environment_for_binary_test(yt_env):
 
         config["driver_config"] = None
         config["driver_config_path"] = filename
+
+    config["enable_request_logging"] = enable_request_logging
 
     env["YT_CONFIG_PATCHES"] = yson._dumps_to_native_str(config)
     return env
