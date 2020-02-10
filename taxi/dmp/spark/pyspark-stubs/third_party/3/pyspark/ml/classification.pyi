@@ -619,13 +619,12 @@ class _MultilayerPerceptronParams(
     HasTol,
     HasStepSize,
     HasSolver,
+    HasBlockSize
 ):
     layers: Param[List[int]]
-    blockSize: Param[int]
     solver: Param[str]
     initialWeights: Param[Vector]
     def getLayers(self) -> List[int]: ...
-    def getBlockSize(self) -> int: ...
     def getInitialWeights(self) -> Vector: ...
 
 class MultilayerPerceptronClassifier(
