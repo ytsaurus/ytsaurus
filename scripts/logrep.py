@@ -586,9 +586,11 @@ def find_files_to_grep(log_directories, expected_log_prefix, start_time_str, end
     def pick_files(log_list):
         begin_idx = binsearch_last_log_smaller_than(log_list, start_time_str)
         end_idx = binsearch_last_log_smaller_than(log_list, end_time_str)
-        if begin_idx < 0:
-            return []
         assert end_idx >= begin_idx
+        if end_idx < 0:
+            return []
+        if begin_idx == -1:
+            begin_idx = 0
         return log_list[begin_idx:end_idx + 1]
 
     def post_filter(log_list):
