@@ -46,9 +46,9 @@ private:
 #endif
 
     TFreeList FreeList_;
-    TFreeList AllocatedSegments_;
-    std::atomic<size_t> Count_ = {1};
-    std::atomic<size_t> Capacity_ = {0};
+    TFreeList Segments_;
+    std::atomic<size_t> RefCount_ = {1};
+    std::atomic<size_t> SegmentsCount_ = {0};
 
     void AllocateMore();
 };
