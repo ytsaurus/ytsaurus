@@ -600,6 +600,13 @@ void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
             ReportIncrementalNodeHeartbeat(cellTag);
             break;
 
+        case EState::Offline:
+            // Out of order heartbeat can be requested when node is offline.
+            YT_LOG_WARNING("Heartbeat can't be sent because node is offline, retrying (CellTag: %v)",
+                cellTag);
+            DoScheduleNodeHeartbeat(cellTag);
+            break;
+
         default:
             YT_ABORT();
     }
