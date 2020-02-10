@@ -15,7 +15,7 @@ case class YtTableSparkSettings(configuration: Configuration) extends YtTableSet
 
   private def schema: StructType = configuration.ytConf(Schema)
 
-  override def ytSchema: YTreeNode = SchemaConverter.ytSchema(schema, sortColumns)
+  override def ytSchema: YTreeNode = SchemaConverter.ytLogicalSchema(schema, sortColumns)
 
   override def options: Map[String, String] = {
     val optionsKeys = configuration.ytConf(Options)

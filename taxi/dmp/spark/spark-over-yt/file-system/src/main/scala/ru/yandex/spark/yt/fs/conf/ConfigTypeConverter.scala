@@ -19,13 +19,27 @@ object ConfigTypeConverter {
       case name if name.startsWith("m#") =>
         MapType(StringType, sparkType(name.drop(2)))
       case _ =>
-        ColumnValueType.fromName(sType) match {
-          case ColumnValueType.STRING => StringType
-          case ColumnValueType.INT64 => LongType
-          case ColumnValueType.DOUBLE => DoubleType
-          case ColumnValueType.BOOLEAN => BooleanType
-          case ColumnValueType.UINT64 => LongType
-          case ColumnValueType.ANY => BinaryType
+        import YtLogicalType._
+        YtLogicalType.fromName(sType) match {
+          case Null => NullType
+          case Int64 => LongType
+          case Uint64 => LongType
+          case Double => DoubleType
+          case Boolean => BooleanType
+          case String => StringType
+          case Any => BinaryType
+          case Int8 => ShortType
+          case Uint8 => ShortType
+          case Int16 => IntegerType
+          case Uint16 => IntegerType
+          case Int32 => IntegerType
+          case Uint32 => IntegerType
+//          case Utf8 => StringType
+//          case Date =>
+//          case Datetime => IntegerType
+//          case Timestamp => LongType
+//          case Interval =>
+//          case Void =>
           case _ => throw new IllegalArgumentException(s"Unsupported type: $sType")
         }
     }
@@ -33,12 +47,13 @@ object ConfigTypeConverter {
 
   def stringType(sparkType: DataType): String = {
     sparkType match {
-      case StringType => ColumnValueType.STRING.getName
-      case IntegerType => ColumnValueType.INT64.getName
-      case LongType => ColumnValueType.INT64.getName
-      case DoubleType => ColumnValueType.DOUBLE.getName
-      case BooleanType => ColumnValueType.BOOLEAN.getName
-      case BinaryType => ColumnValueType.ANY.getName
+      case StringType => YtLogicalType.String.name
+      case ShortType => YtLogicalType.Int8.name
+      case IntegerType => YtLogicalType.Int32.name
+      case LongType => YtLogicalType.Int64.name
+      case DoubleType => YtLogicalType.Double.name
+      case BooleanType => YtLogicalType.Boolean.name
+      case BinaryType => YtLogicalType.Any.name
       case ArrayType(elementType, _) => "a#" + stringType(elementType)
       case StructType(fields) => "s#" + fields.map(f => f.name -> stringType(f.dataType)).asJson.noSpaces
       case MapType(StringType, valueType, _) => "m#" + stringType(valueType)
