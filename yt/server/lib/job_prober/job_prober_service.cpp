@@ -1,10 +1,8 @@
 #include "job_prober_service.h"
-#include "private.h"
-#include "job_proxy.h"
-#include "user_job.h"
 
 #include <yt/server/lib/shell/shell_manager.h>
 
+#include <yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/tools/tools.h>
@@ -17,17 +15,20 @@
 
 #include <util/system/fs.h>
 
-namespace NYT::NJobProxy {
+namespace NYT::NJobProber {
 
 using namespace NRpc;
 using namespace NJobProberClient;
 using namespace NConcurrency;
-using namespace NJobAgent;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NTools;
 using namespace NShell;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const NLogging::TLogger JobProberLogger("JobProber");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,7 +40,7 @@ public:
         : TServiceBase(
             controlInvoker,
             TJobProberServiceProxy::GetDescriptor(),
-            JobProxyLogger)
+            JobProberLogger)
         , JobProxy_(jobProxy)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
@@ -125,11 +126,6 @@ private:
     }
 };
 
-IServicePtr CreateJobProberService(TJobProxyPtr jobProxy)
-{
-    return New<TJobProberService>(jobProxy, jobProxy->GetControlInvoker());
-}
-
 IServicePtr CreateJobProberService(IJobProbePtr jobProbe, IInvokerPtr controlInvoker)
 {
     return New<TJobProberService>(jobProbe, controlInvoker);
@@ -137,4 +133,4 @@ IServicePtr CreateJobProberService(IJobProbePtr jobProbe, IInvokerPtr controlInv
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobProxy
+} // namespace NYT::NJobProber

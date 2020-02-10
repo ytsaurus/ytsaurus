@@ -1,5 +1,4 @@
 #include "job_satellite_connection.h"
-#include "private.h"
 
 #include <yt/core/bus/tcp/config.h>
 
@@ -7,13 +6,17 @@
 
 #include <util/system/fs.h>
 
-namespace NYT::NJobProxy {
+namespace NYT::NJobSatelliteConnection {
 
 using NJobTrackerClient::TJobId;
 using NYson::EYsonFormat;
 using NExecAgent::EJobEnvironmentType;
 
 using namespace NBus;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TString SatelliteConfigFileName("satellite_config.yson");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,4 +66,4 @@ void TJobSatelliteConnection::MakeConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobProxy
+} // namespace NYT::NJobSatelliteConnection

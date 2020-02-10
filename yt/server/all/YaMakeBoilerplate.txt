@@ -19,4 +19,5 @@ PEERDIR(
     ${YT_ROOT}/yt/server/rpc_proxy
     ${YT_ROOT}/yt/server/job_proxy
     ${YT_ROOT}/yt/server/log_tailer
+    ${YT_ROOT}/yt/server/exec
 )

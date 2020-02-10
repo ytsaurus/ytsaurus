@@ -1,11 +1,12 @@
+#include "job_satellite.h"
+
+#include <yt/server/lib/job_satellite_connection/job_satellite_connection.h>
+
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_cgroup_mixin.h>
 #include <yt/ytlib/program/program_tool_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
-
-#include <yt/server/job_proxy/job_satellite.h>
-#include <yt/server/job_proxy/job_satellite_connection.h>
 
 #include <yt/core/logging/log_manager.h>
 
@@ -20,8 +21,9 @@
     #include <sys/resource.h>
 #endif
 
-namespace NYT::NJobProxy {
+namespace NYT::NExec {
 
+using namespace NJobSatelliteConnection;
 using namespace NYTree;
 using namespace NYson;
 
@@ -238,4 +240,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobProxy
+} // namespace NYT::NExec

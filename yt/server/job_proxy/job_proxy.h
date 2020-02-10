@@ -3,10 +3,11 @@
 #include "public.h"
 #include "private.h"
 #include "job.h"
-#include "job_satellite_connection.h"
 #include "environment.h"
 
 #include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
+
+#include <yt/server/lib/job_satellite_connection/job_satellite_connection.h>
 
 #include <yt/ytlib/api/native/public.h>
 
