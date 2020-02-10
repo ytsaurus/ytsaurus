@@ -7,7 +7,9 @@ import org.apache.spark.SparkException
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.{AnalysisException, Encoders, Row, SaveMode}
 import org.scalatest.{FlatSpec, Matchers}
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
+import ru.yandex.spark.yt.fs.conf.YtLogicalType
 import ru.yandex.spark.yt.test.{TestUtils, TmpTable}
 import ru.yandex.spark.yt.utils.YtTableUtils
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
@@ -417,6 +419,39 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUti
     (1 to 9).toDF.coalesce(3).write.option("sort_columns", "value").yt(tmpPath)
 
     //TODO add assert
+  }
+
+  it should "read int32" in {
+    import scala.collection.JavaConverters._
+
+    val schema = YTree.builder()
+      .beginAttributes()
+      .key("strict").value(true)
+      .key("unique_keys").value(false)
+      .endAttributes
+      .value(
+        Seq(
+          YTree.builder()
+            .beginMap()
+            .key("name").value("a")
+            .key("type").value(YtLogicalType.Int32.name)
+            .key("required").value(false)
+            .buildMap
+        ).asJava)
+      .build
+    val physicalSchema = new TableSchema.Builder()
+      .setUniqueKeys(false)
+      .addValue("a", ColumnValueType.INT64)
+      .build()
+    writeTableFromYson(Seq(
+      """{a = 1}""",
+      """{a = 2}"""
+    ), tmpPath, schema, physicalSchema)
+
+
+    val result = spark.read.yt(tmpPath)
+    result.schema.fields.head.dataType shouldEqual IntegerType
+    result.collect() should contain theSameElementsAs Seq(Row(1), Row(2))
   }
 }
 

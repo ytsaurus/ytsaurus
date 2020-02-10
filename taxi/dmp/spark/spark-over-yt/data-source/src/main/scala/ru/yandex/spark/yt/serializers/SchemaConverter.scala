@@ -1,10 +1,11 @@
 package ru.yandex.spark.yt.serializers
 
 import org.apache.spark.sql.types._
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType.StructFieldMeta
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.spark.yt.fs.conf.ConfigTypeConverter
+import ru.yandex.spark.yt.fs.conf.{ConfigTypeConverter, YtLogicalType}
 import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
 
 object SchemaConverter {
@@ -23,6 +24,7 @@ object SchemaConverter {
 
   def ytType(sparkType: DataType): ColumnValueType = {
     sparkType match {
+      case ShortType => ColumnValueType.INT64
       case StringType => ColumnValueType.STRING
       case IntegerType => ColumnValueType.INT64
       case LongType => ColumnValueType.INT64
@@ -34,7 +36,6 @@ object SchemaConverter {
       case BinaryType => ColumnValueType.ANY
     }
   }
-
 
   def structField(fieldName: String,
                   stringDataType: String,
@@ -83,6 +84,53 @@ object SchemaConverter {
     schema.foldLeft(Seq.empty[(String, String)]) { case (result, f) =>
       (s"${f.name}_hint", ConfigTypeConverter.stringType(f.dataType)) +: result
     }.toMap
+  }
+
+  def ytLogicalType(sparkType: DataType): YtLogicalType = sparkType match {
+    case ShortType => YtLogicalType.Int8
+    case StringType => YtLogicalType.String
+    case IntegerType => YtLogicalType.Int32
+    case LongType => YtLogicalType.Int64
+    case DoubleType => YtLogicalType.Double
+    case BooleanType => YtLogicalType.Boolean
+    case _: ArrayType => YtLogicalType.Any
+    case _: StructType => YtLogicalType.Any
+    case _: MapType => YtLogicalType.Any
+    case BinaryType => YtLogicalType.Any
+  }
+
+  def ytLogicalSchema(sparkSchema: StructType, sortColumns: Seq[String]): YTreeNode = {
+    import scala.collection.JavaConverters._
+
+    val columns = sortColumns.map{ name =>
+      val sparkField = sparkSchema(name)
+      YTree.builder
+        .beginMap
+        .key("name").value(name)
+        .key("type").value(ytLogicalType(sparkField.dataType).name)
+        .key("required").value(!sparkField.nullable)
+        .key("sort_order").value(ColumnSortOrder.ASCENDING.getName)
+        .buildMap
+    } ++ sparkSchema.flatMap{
+      case field if !sortColumns.contains(field.name) =>
+        Some(
+          YTree.builder
+            .beginMap
+            .key("name").value(field.name)
+            .key("type").value(ytLogicalType(field.dataType).name)
+            .key("required").value(!field.nullable)
+            .buildMap
+        )
+      case _ => None
+    }
+
+    YTree.builder
+      .beginAttributes
+      .key("strict").value(true)
+      .key("unique_keys").value(false)
+      .endAttributes
+      .value(columns.asJava)
+      .build
   }
 
   def ytSchema(sparkSchema: StructType, sortColumns: Seq[String]): YTreeNode = {

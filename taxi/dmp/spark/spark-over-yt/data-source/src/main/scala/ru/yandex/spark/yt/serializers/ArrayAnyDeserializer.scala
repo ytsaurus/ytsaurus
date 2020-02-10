@@ -48,7 +48,15 @@ class ArrayAnyDeserializer(schema: StructType) extends WireRowDeserializer[Array
 
   override def onEntity(): Unit = addValue(null)
 
-  override def onInteger(value: Long): Unit = addValue(value)
+  override def onInteger(value: Long): Unit = {
+    if (_index < _values.length) {
+      indexedSchema(_index) match {
+        case LongType => addValue(value)
+        case IntegerType => addValue(value.toInt)
+        case ShortType => addValue(value.toShort)
+      }
+    }
+  }
 
   override def onBoolean(value: Boolean): Unit = addValue(value)
 

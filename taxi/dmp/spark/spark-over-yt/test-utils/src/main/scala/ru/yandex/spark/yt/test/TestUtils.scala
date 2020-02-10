@@ -16,6 +16,10 @@ import scala.annotation.tailrec
 
 trait TestUtils {
   def writeTableFromYson(rows: Seq[String], path: String, schema: TableSchema)(implicit yt: YtClient): Unit = {
+    writeTableFromYson(rows, path, schema.toYTree, schema)
+  }
+
+  def writeTableFromYson(rows: Seq[String], path: String, schema: YTreeNode, physicalSchema: TableSchema)(implicit yt: YtClient): Unit = {
     import scala.collection.JavaConverters._
 
     val serializer = new YTreeSerializer[String] {
@@ -28,12 +32,12 @@ trait TestUtils {
 
       override def deserialize(node: YTreeNode): String = ???
     }
-    yt.createNode(path, ObjectType.Table, Map("schema" -> schema.toYTree).asJava).join()
+    yt.createNode(path, ObjectType.Table, Map("schema" -> schema).asJava).join()
     val writer = yt.writeTable(new WriteTable[String](path, serializer)).join()
 
     @tailrec
     def write(): Unit = {
-      if (!writer.write(rows.asJava, schema)) {
+      if (!writer.write(rows.asJava, physicalSchema)) {
         writer.readyEvent().join()
         write()
       }
