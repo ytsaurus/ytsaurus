@@ -22,6 +22,7 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/statistics.h>
+#include <yt/core/misc/atomic_object.h>
 
 namespace NYT::NJobProxy {
 
@@ -73,8 +74,8 @@ private:
     const NJobTrackerClient::TOperationId OperationId_;
     const NJobTrackerClient::TJobId JobId_;
 
-    //! Can be null if running in non-porto and non-cgroups environment.
-    IJobProxyEnvironmentPtr JobProxyEnvironment_;
+    //! Can be forever null if running in non-porto and non-cgroups environment.
+    TAtomicObject<IJobProxyEnvironmentPtr> JobProxyEnvironment_;
 
     TCpuMonitorPtr CpuMonitor_;
 
@@ -121,7 +122,7 @@ private:
     TInstant LastRefCountedTrackerLogTime_;
     i64 LastLoggedJobProxyMaxMemoryUsage_ = 0;
 
-    IJobPtr Job_;
+    TAtomicObject<IJobPtr> Job_;
 
     IJobSpecHelperPtr JobSpecHelper_;
 
@@ -132,6 +133,14 @@ private:
     NConcurrency::IThroughputThrottlerPtr InBandwidthThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
+
+
+    void SetJob(IJobPtr job);
+    IJobPtr FindJob() const;
+    IJobPtr GetJobOrThrow();
+
+    void SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment);
+    IJobProxyEnvironmentPtr FindJobProxyEnvironment() const;
 
     NJobTrackerClient::NProto::TJobResult DoRun();
     void SendHeartbeat();

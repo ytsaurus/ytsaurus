@@ -128,37 +128,44 @@ TString TJobProxy::GetSlotPath() const
 
 std::vector<NChunkClient::TChunkId> TJobProxy::DumpInputContext()
 {
-    return Job_->DumpInputContext();
+    auto job = GetJobOrThrow();
+    return job->DumpInputContext();
 }
 
 TString TJobProxy::GetStderr()
 {
-    return Job_->GetStderr();
+    auto job = GetJobOrThrow();
+    return job->GetStderr();
 }
 
 TYsonString TJobProxy::StraceJob()
 {
-    return Job_->StraceJob();
+    auto job = GetJobOrThrow();
+    return job->StraceJob();
 }
 
 void TJobProxy::SignalJob(const TString& signalName)
 {
-    Job_->SignalJob(signalName);
+    auto job = GetJobOrThrow();
+    job->SignalJob(signalName);
 }
 
 TYsonString TJobProxy::PollJobShell(const TYsonString& parameters)
 {
-    return Job_->PollJobShell(parameters);
+    auto job = GetJobOrThrow();
+    return job->PollJobShell(parameters);
 }
 
 void TJobProxy::Interrupt()
 {
-    Job_->Interrupt();
+    auto job = GetJobOrThrow();
+    job->Interrupt();
 }
 
 void TJobProxy::Fail()
 {
-    Job_->Fail();
+    auto job = GetJobOrThrow();
+    job->Fail();
 }
 
 IServerPtr TJobProxy::GetRpcServer() const
@@ -188,11 +195,16 @@ IThroughputThrottlerPtr TJobProxy::GetOutRpsThrottler() const
 
 void TJobProxy::SendHeartbeat()
 {
+    auto job = FindJob();
+    if (!job) {
+        return;
+    }
+
     auto req = SupervisorProxy_->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId_);
-    req->set_progress(Job_->GetProgress());
+    req->set_progress(job->GetProgress());
     req->set_statistics(ConvertToYsonString(GetStatistics()).GetData());
-    req->set_stderr_size(Job_->GetStderrSize());
+    req->set_stderr_size(job->GetStderrSize());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
 
@@ -312,8 +324,8 @@ void TJobProxy::Run()
         .WithTimeout(RpcServerShutdownTimeout)
         .Get();
 
-    if (Job_) {
-        auto failedChunkIds = Job_->GetFailedChunkIds();
+    if (auto job = FindJob()) {
+        auto failedChunkIds = job->GetFailedChunkIds();
         if (!failedChunkIds.empty()) {
             YT_LOG_INFO("Failed chunks found (ChunkIds: %v)",
                 failedChunkIds);
@@ -328,10 +340,10 @@ void TJobProxy::Run()
             ToProto(schedulerResultExt->add_failed_chunk_ids(), actualChunkId);
         }
 
-        auto interruptDescriptor = Job_->GetInterruptDescriptor();
+        auto interruptDescriptor = job->GetInterruptDescriptor();
 
         if (!interruptDescriptor.UnreadDataSliceDescriptors.empty()) {
-            auto inputStatistics = GetTotalInputDataStatistics(Job_->GetStatistics());
+            auto inputStatistics = GetTotalInputDataStatistics(job->GetStatistics());
             if (inputStatistics.row_count() > 0) {
                 // NB(psushin): although we definitely have read some of the rows, the job may have made no progress,
                 // since all of these row are from foreign tables, and therefor the ReadDataSliceDescriptors is empty.
@@ -408,8 +420,40 @@ TString TJobProxy::AdjustPath(const TString& path) const
     return adjustedPath;
 }
 
+void TJobProxy::SetJob(IJobPtr job)
+{
+    Job_.Store(std::move(job));
+}
+
+IJobPtr TJobProxy::FindJob() const
+{
+    return Job_.Load();
+}
+
+IJobPtr TJobProxy::GetJobOrThrow()
+{
+    auto job = FindJob();
+    if (!job) {
+        THROW_ERROR_EXCEPTION("Job is not initialized yet");
+    }
+    return job;
+}
+
+void TJobProxy::SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment)
+{
+    JobProxyEnvironment_.Store(std::move(environment));
+}
+
+IJobProxyEnvironmentPtr TJobProxy::FindJobProxyEnvironment() const
+{
+    return JobProxyEnvironment_.Load();
+}
+
 TJobResult TJobProxy::DoRun()
 {
+    IJobPtr job;
+    IJobProxyEnvironmentPtr environment;
+
     try {
         // Use everything.
 
@@ -447,7 +491,7 @@ TJobResult TJobProxy::DoRun()
             return rootFS;
         };
 
-        JobProxyEnvironment_ = CreateJobProxyEnvironment(
+        environment = CreateJobProxyEnvironment(
             Config_->JobEnvironment,
             createRootFS(),
             Config_->GpuDevices,
@@ -518,12 +562,12 @@ TJobResult TJobProxy::DoRun()
 
     RefCountedTrackerLogPeriod_ = FromProto<TDuration>(schedulerJobSpecExt.job_proxy_ref_counted_tracker_log_period());
 
-    if (JobProxyEnvironment_) {
-        JobProxyEnvironment_->SetCpuShare(CpuShare_);
+    if (environment) {
+        environment->SetCpuShare(CpuShare_);
         if (schedulerJobSpecExt.has_user_job_spec() &&
             schedulerJobSpecExt.user_job_spec().set_container_cpu_limit())
         {
-            JobProxyEnvironment_->SetCpuLimit(CpuShare_);
+            environment->SetCpuLimit(CpuShare_);
         }
     }
 
@@ -544,31 +588,34 @@ TJobResult TJobProxy::DoRun()
     if (schedulerJobSpecExt.has_user_job_spec()) {
         const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
 
-        if (JobProxyEnvironment_ && userJobSpec.use_porto_memory_tracking()) {
-            JobProxyEnvironment_->EnablePortoMemoryTracking();
+        if (environment && userJobSpec.use_porto_memory_tracking()) {
+            environment->EnablePortoMemoryTracking();
         }
 
         JobProxyMemoryReserve_ -= userJobSpec.memory_reserve();
         YT_LOG_DEBUG("Adjusting job proxy memory limit (JobProxyMemoryReserve: %v, UserJobMemoryReserve: %v)",
             JobProxyMemoryReserve_,
             userJobSpec.memory_reserve());
-        Job_ = CreateUserJob(
+        job = CreateUserJob(
             this,
             userJobSpec,
             JobId_,
             Ports_,
             std::make_unique<TUserJobWriteController>(this));
     } else {
-        Job_ = CreateBuiltinJob();
+        job = CreateBuiltinJob();
     }
 
-    Job_->Initialize();
+    job->Initialize();
 
     MemoryWatchdogExecutor_->Start();
     HeartbeatExecutor_->Start();
     CpuMonitor_->Start();
 
-    return Job_->Run();
+    SetJob(job);
+    SetJobProxyEnvironment(environment);
+
+    return job->Run();
 }
 
 void TJobProxy::ReportResult(
@@ -588,11 +635,12 @@ void TJobProxy::ReportResult(
     req->set_statistics(statistics.GetData());
     req->set_start_time(ToProto<i64>(startTime));
     req->set_finish_time(ToProto<i64>(finishTime));
-    if (Job_ && GetJobSpecHelper()->GetSchedulerJobSpecExt().has_user_job_spec()) {
-        ToProto(req->mutable_core_infos(), Job_->GetCoreInfos());
+    auto job = FindJob();
+    if (job && GetJobSpecHelper()->GetSchedulerJobSpecExt().has_user_job_spec()) {
+        ToProto(req->mutable_core_infos(), job->GetCoreInfos());
 
         try {
-            auto failContext = Job_->GetFailContext();
+            auto failContext = job->GetFailContext();
             if (failContext) {
                 req->set_fail_context(*failContext);
             }
@@ -607,7 +655,7 @@ void TJobProxy::ReportResult(
         }
 
         try{
-            auto profile = Job_->GetProfile();
+            auto profile = job->GetProfile();
             if (profile) {
                 req->set_profile_type(profile->Type);
                 req->set_profile_blob(profile->Blob);
@@ -626,18 +674,22 @@ void TJobProxy::ReportResult(
 
 TStatistics TJobProxy::GetStatistics() const
 {
-    auto statistics = Job_ ? Job_->GetStatistics() : TStatistics();
+    TStatistics statistics;
 
-    if (JobProxyEnvironment_) {
+    if (auto job = FindJob()) {
+        statistics = job->GetStatistics();
+    }
+
+    if (auto environment = FindJobProxyEnvironment()) {
         try {
-            auto cpuStatistics = JobProxyEnvironment_->GetCpuStatistics();
+            auto cpuStatistics = environment->GetCpuStatistics();
             statistics.AddSample("/job_proxy/cpu", cpuStatistics);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get cpu statistics from resource controller");
         }
 
         try {
-            auto blockIOStatistics = JobProxyEnvironment_->GetBlockIOStatistics();
+            auto blockIOStatistics = environment->GetBlockIOStatistics();
             statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get block IO statistics from resource controller");
@@ -663,8 +715,8 @@ TStatistics TJobProxy::GetStatistics() const
 
 IUserJobEnvironmentPtr TJobProxy::CreateUserJobEnvironment() const
 {
-    if (JobProxyEnvironment_) {
-        return JobProxyEnvironment_->CreateUserJobEnvironment(ToString(JobId_));
+    if (auto environment = FindJobProxyEnvironment()) {
+        return environment->CreateUserJobEnvironment(ToString(JobId_));
     } else {
         return nullptr;
     }
@@ -712,8 +764,8 @@ void TJobProxy::OnResourcesUpdated(i64 memoryReserve, const TError& error)
 {
     if (!error.IsOK()) {
         YT_LOG_ERROR(error, "Failed to update resource usage");
-        if (Job_) {
-            Job_->Cleanup();
+        if (auto job = FindJob()) {
+            job->Cleanup();
         }
         Exit(EJobProxyExitCode::ResourcesUpdateFailed);
     }
@@ -852,8 +904,8 @@ void TJobProxy::EnsureStderrResult(TJobResult* jobResult)
 
 void TJobProxy::Exit(EJobProxyExitCode exitCode)
 {
-    if (Job_) {
-        Job_->Cleanup();
+    if (auto job = FindJob()) {
+        job->Cleanup();
     }
 
     NLogging::TLogManager::Get()->Shutdown();
@@ -871,15 +923,18 @@ void TJobProxy::SetCpuShare(double cpuShare)
 
 TDuration TJobProxy::GetSpentCpuTime() const
 {
-    TDuration result = TDuration::Zero();
-    if (JobProxyEnvironment_) {
-        const auto& proxyCpu = JobProxyEnvironment_->GetCpuStatistics();
-        result += proxyCpu.SystemTime + proxyCpu.UserTime;
-    }
-    if (Job_) {
-        const auto& jobCpu = Job_->GetCpuStatistics();
+    auto result = TDuration::Zero();
+
+    if (auto job = FindJob()) {
+        auto jobCpu = job->GetCpuStatistics();
         result += jobCpu.SystemTime + jobCpu.UserTime;
     }
+
+    if (auto environment = FindJobProxyEnvironment()) {
+        auto proxyCpu = environment->GetCpuStatistics();
+        result += proxyCpu.SystemTime + proxyCpu.UserTime;
+    }
+
     return result;
 }
 
