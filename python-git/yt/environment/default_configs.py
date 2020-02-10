@@ -96,6 +96,7 @@ b"""
         account_statistics_gossip_period = 150;
         user_statistics_flush_period = 50;
         request_rate_smoothing_period = 60000;
+        account_master_memory_usage_update_period = 500;
     };
 
     node_tracker = {
@@ -160,6 +161,7 @@ b"""
         account_statistics_gossip_period = 150;
         user_statistics_flush_period = 50;
         request_rate_smoothing_period = 60000;
+        account_master_memory_usage_update_period = 500;
         enable_delayed_membership_closure_recomputation = %false;
     };
 
