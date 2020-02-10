@@ -17,10 +17,10 @@ class ProcessWatcher(object):
                  process_pids, process_log_paths,
                  lock_path, config_dir, logs_dir, runtime_dir,
                  config=None, process_runner=None):
-        if config is None:
-            self._config = get_watcher_config()
-        else:
-            self._config = config
+        self._config = get_watcher_config()
+        if config is not None:
+            for k, v in config.items():
+                self._config[k] = v
 
         self._lock_path = lock_path
         self._log_path = os.path.join(logs_dir, "watcher.log")
@@ -39,14 +39,18 @@ class ProcessWatcher(object):
         self._process = None
 
     def start(self):
-        self._process = self._process_runner([
+        watcher_cmd = [
             self._binary_path,
             "--lock-file-path", self._lock_path,
             "--logrotate-config-path", self._config_path,
             "--logrotate-state-file", self._state_path,
             "--logrotate-interval", str(self._config["logs_rotate_interval"]),
             "--log-path", self._log_path
-        ])
+        ]
+        if self._config.get("disable_logrotate"):
+            watcher_cmd += ["--disable-logrotate"]
+
+        self._process = self._process_runner(watcher_cmd)
 
         def watcher_lock_created():
             if self._process.poll() is not None:
@@ -75,10 +79,8 @@ class ProcessWatcher(object):
             "size {0}".format(self._config["logs_rotate_size"]),
             "missingok",
             "copytruncate",
-            "nodelaycompress",
             "nomail",
             "noolddir",
-            "compress",
             "create",
             "postrotate",
             "\n".join(postrotate_commands),
