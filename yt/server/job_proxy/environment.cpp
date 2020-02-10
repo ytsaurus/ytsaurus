@@ -567,11 +567,11 @@ public:
         : RootFS_(rootFS)
         , GpuDevices_(std::move(gpuDevices))
         , BlockIOWatchdogPeriod_(config->BlockIOWatchdogPeriod)
-        , SlotAbsoluteName_(GetAbsoluteName(Self_))
         , PortoExecutor_(CreatePortoExecutor(config->PortoExecutor, "environ"))
         , Self_(GetSelfPortoInstance(PortoExecutor_))
         , ResourceTracker_(New<TPortoResourceTracker>(Self_, TDuration::MilliSeconds(100)))
         , NetworkAddresses_(std::move(networkAddresses))
+        , SlotAbsoluteName_(GetAbsoluteName(Self_))
         , HostName_(hostName)
     {
         PortoExecutor_->SubscribeFailed(BIND(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
@@ -671,11 +671,11 @@ private:
     std::optional<TRootFS> RootFS_;
     const std::vector<TString> GpuDevices_;
     const TDuration BlockIOWatchdogPeriod_;
-    const TString SlotAbsoluteName_;
     const IPortoExecutorPtr PortoExecutor_;
     const IInstancePtr Self_;
     const TPortoResourceTrackerPtr ResourceTracker_;
     const std::vector<TIP6Address> NetworkAddresses_;
+    const TString SlotAbsoluteName_;
     const std::optional<TString> HostName_;
 
     bool UsePortoMemoryTracking_ = false;
