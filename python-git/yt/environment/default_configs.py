@@ -19,7 +19,8 @@ def get_logging_config(enable_debug_logging=True, enable_structured_logging=Fals
             },
             "info": {
                 "type": "file",
-                "file_name": "{path}/{name}.log",
+                "file_name": "{path}/{name}.log.gz",
+                "enable_compression": True,
             }
         }
     }
@@ -31,7 +32,8 @@ def get_logging_config(enable_debug_logging=True, enable_structured_logging=Fals
         })
         config["writers"]["debug"] = {
             "type": "file",
-            "file_name": "{path}/{name}.debug.log",
+            "file_name": "{path}/{name}.debug.log.gz",
+            "enable_compression": True,
         }
     if enable_structured_logging:
         config["rules"].append({
@@ -387,11 +389,13 @@ b"""
             writers = {
                 info = {
                     type = file;
-                    file_name = "{path}/{name}.log";
+                    file_name = "{path}/{name}.log.gz";
+                    enable_compression = %true;
                 };
                 debug = {
                     type = file;
-                    file_name = "{path}/{name}.debug.log";
+                    file_name = "{path}/{name}.debug.log.gz";
+                    enable_compression = %true;
                 };
             }
         };
@@ -446,11 +450,13 @@ b"""
         writers = {
             info = {
                 type = file;
-                file_name = "{path}/{name}.log";
+                file_name = "{path}/{name}.log.gz";
+                enable_compression = %true;
             };
             debug = {
                 type = file;
-                file_name = "{path}/{name}.debug.log";
+                file_name = "{path}/{name}.debug.log.gz";
+                enable_compression = %true;
             };
         }
     };
