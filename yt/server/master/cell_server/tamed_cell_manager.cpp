@@ -1051,14 +1051,16 @@ private:
             protoInfo->set_peer_id(peerId);
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
+            protoInfo->set_abandon_leader_lease_during_recovery(GetDynamicConfig()->AbandonLeaderLeaseDuringRecovery);
 
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot configuration update requested "
-                "(Address: %v, CellId: %v, PeerId: %v, Version: %v, PrerequisiteTransactionId: %v)",
+                "(Address: %v, CellId: %v, PeerId: %v, Version: %v, PrerequisiteTransactionId: %v, AbandonLeaderLeaseDuringRecovery: %v)",
                 node->GetDefaultAddress(),
                 cellId,
                 peerId,
                 cellDescriptor.ConfigVersion,
-                prerequisiteTransactionId);
+                prerequisiteTransactionId,
+                protoInfo->abandon_leader_lease_during_recovery());
         };
 
         auto requestUpdateSlot = [&] (const TCellBase* cell) {
@@ -1188,6 +1190,7 @@ private:
             cellIdToPeerState.emplace(cellId, state);
 
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
+            cell->UpdatePeerState(peerId, state);
             YT_VERIFY(actualCells.insert(cell).second);
 
             // Populate slot.
@@ -1309,7 +1312,6 @@ private:
             AddToAddressToCellMap(descriptor, cell, peerId);
             cell->AssignPeer(descriptor, peerId);
             cell->UpdatePeerSeenTime(peerId, mutationTimestamp);
-
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer assigned (CellId: %v, Address: %v, PeerId: %v)",
                 cellId,
                 descriptor.GetDefaultAddress(),

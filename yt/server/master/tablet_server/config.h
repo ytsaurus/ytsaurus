@@ -439,6 +439,9 @@ public:
 
     bool DecommissionThroughExtraPeers;
 
+    // TODO(gritukan): Move it to node dynamic config when it will be ready.
+    bool AbandonLeaderLeaseDuringRecovery;
+
     //! This parameter is used only for testing purposes.
     std::optional<TDuration> DecommissionedLeaderReassignmentTimeout;
 
@@ -490,6 +493,8 @@ public:
             .Default(false);
         RegisterParameter("decommissioned_leader_reassignment_timeout", DecommissionedLeaderReassignmentTimeout)
             .Default();
+        RegisterParameter("abandon_leader_lease_during_recovery", AbandonLeaderLeaseDuringRecovery)
+            .Default(false);
 
         // COMPAT(savrus) Special parameter to apply old file configs on fly.
         RegisterParameter("compatibility_version", CompatibilityVersion)

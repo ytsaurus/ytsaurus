@@ -1988,3 +1988,8 @@ class TestDynamicTablesWithModernCompressionRpcProxy(DynamicTablesSingleCellBase
         "response_codec": "quick_lz",
         "enable_legacy_rpc_codecs": False
     }
+
+class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSingleCellBase):
+    def setup_method(self, method):
+        super(DynamicTablesSingleCellBase, self).setup_method(method)
+        set("//sys/@config/tablet_manager/abandon_leader_lease_during_recovery", True)

@@ -27,6 +27,7 @@ protected:
     TRecoveryBase(
         TDistributedHydraManagerConfigPtr config,
         const TDistributedHydraManagerOptions& options,
+        const TDistributedHydraManagerDynamicOptions& dynamicOptions,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
@@ -45,6 +46,7 @@ protected:
 
     const TDistributedHydraManagerConfigPtr Config_;
     const TDistributedHydraManagerOptions Options_;
+    const TDistributedHydraManagerDynamicOptions DynamicOptions_;
     const NElection::TCellManagerPtr CellManager_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     const IChangelogStorePtr ChangelogStore_;
@@ -84,6 +86,7 @@ public:
     TLeaderRecovery(
         TDistributedHydraManagerConfigPtr config,
         const TDistributedHydraManagerOptions& options,
+        const TDistributedHydraManagerDynamicOptions& dynamicOptions,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
@@ -117,6 +120,7 @@ public:
     TFollowerRecovery(
         TDistributedHydraManagerConfigPtr config,
         const TDistributedHydraManagerOptions& options,
+        const TDistributedHydraManagerDynamicOptions& dynamicOptions,
         NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,

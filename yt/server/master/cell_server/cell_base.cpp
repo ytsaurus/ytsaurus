@@ -213,6 +213,12 @@ void TCellBase::UpdatePeerSeenTime(TPeerId peerId, TInstant when)
     peer.LastSeenTime = when;
 }
 
+void TCellBase::UpdatePeerState(TPeerId peerId, EPeerState peerState)
+{
+    auto& peer = Peers_[peerId];
+    peer.LastSeenState = peerState;
+}
+
 TNode::TCellSlot* TCellBase::FindCellSlot(TPeerId peerId) const
 {
     auto* node = Peers_[peerId].Node;
