@@ -192,6 +192,9 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
     }
 
     private void updateProxies() {
+        if (!running.get()) {
+            return; // ---
+        }
         if (proxies.isEmpty() && clusterUrl.isPresent()) {
             updateProxiesFromHttp();
         } else {
@@ -210,6 +213,10 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
 
         responseFuture.addListener(() -> {
             try {
+                if (!running.get()) {
+                    return; // ---
+                }
+
                 Response response = responseFuture.get();
 
                 if (response.getStatusCode() != 200) {
@@ -258,14 +265,17 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
         List<DiscoveryServiceClient> clients = new ArrayList<>(proxies.values());
         DiscoveryServiceClient client = clients.get(rnd.nextInt(clients.size()));
         client.discoverProxies(proxyRole.getOrNull()).whenComplete((result, error) -> {
+            if (!running.get()) {
+                return; // ---
+            }
             try {
                 if (error != null) {
-                    logger.error("Error on update proxies {}", error);
+                    logger.error("Error on update proxies", error);
                 } else {
                     processProxies(new HashSet<>(result.stream().map(HostPort::parse).collect(Collectors.toList())));
                 }
             } catch (Throwable e) {
-                logger.error("Error on process proxies {}", e, e);
+                logger.error("Error on process proxies", e);
             }
 
             if (running.get()) {
@@ -284,9 +294,9 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
 
         if (proxies.isEmpty()) {
             if (clusterUrl.isPresent()) {
-                logger.warn("Empty proxies list. Bootstraping from the initial list: {}", clusterUrl);
+                logger.warn("Empty proxies list. Bootstrapping from the initial list: {}", clusterUrl);
             } else {
-                logger.warn("Empty proxies list. Bootstraping from the initial list: {}", initialAddresses);
+                logger.warn("Empty proxies list. Bootstrapping from the initial list: {}", initialAddresses);
                 addProxies(initialAddresses);
             }
         }
