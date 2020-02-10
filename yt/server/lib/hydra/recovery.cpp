@@ -7,6 +7,7 @@
 #include "changelog_discovery.h"
 
 #include <yt/ytlib/election/cell_manager.h>
+#include <yt/ytlib/election/config.h>
 
 #include <yt/ytlib/hydra/proto/hydra_manager.pb.h>
 #include <yt/ytlib/hydra/hydra_service_proxy.h>
@@ -29,6 +30,7 @@ using namespace NHydra::NProto;
 TRecoveryBase::TRecoveryBase(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
+    const TDistributedHydraManagerDynamicOptions& dynamicOptions,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
@@ -38,6 +40,7 @@ TRecoveryBase::TRecoveryBase(
     TVersion syncVersion)
     : Config_(config)
     , Options_(options)
+    , DynamicOptions_(dynamicOptions)
     , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
     , ChangelogStore_(changelogStore)
@@ -336,6 +339,7 @@ bool TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
 TLeaderRecovery::TLeaderRecovery(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
+    const TDistributedHydraManagerDynamicOptions& dynamicOptions,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
@@ -345,6 +349,7 @@ TLeaderRecovery::TLeaderRecovery(
     : TRecoveryBase(
         config,
         options,
+        dynamicOptions,
         cellManager,
         decoratedAutomaton,
         changelogStore,
@@ -369,13 +374,68 @@ void TLeaderRecovery::DoRun()
 
     NProfiling::TWallTimer timer;
     RecoverToVersion(EpochContext_->ReachableVersion);
+
+    bool previousLeaderLeaseAbandoned = false;
+    if (DynamicOptions_.AbandonLeaderLeaseDuringRecovery) {
+        auto currentSegmentId = SyncVersion_.SegmentId;
+
+        YT_LOG_INFO("Trying to abandon old leader lease (CurrentSegmentId: %v)",
+            currentSegmentId);
+
+        std::vector<TFuture<THydraServiceProxy::TRspAbandonLeaderLeasePtr>> futures;
+        for (int peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
+            auto peerChannel = CellManager_->GetPeerChannel(peerId);
+            if (!peerChannel) {
+                YT_LOG_INFO("Peer channel is not configured (PeerId: %v)", peerId);
+                continue;
+            }
+
+            THydraServiceProxy proxy(std::move(peerChannel));
+
+            auto tryAbandonLeaderLeaseRequest = proxy.AbandonLeaderLease();
+            tryAbandonLeaderLeaseRequest->SetTimeout(Config_->AbandonLeaderLeaseRequestTimeout);
+            tryAbandonLeaderLeaseRequest->set_segment_id(SyncVersion_.SegmentId);
+            tryAbandonLeaderLeaseRequest->set_peer_id(CellManager_->GetSelfPeerId());
+            futures.push_back(tryAbandonLeaderLeaseRequest->Invoke());
+        }
+
+        auto rspsOrError = WaitFor(CombineAll(futures));
+        if (rspsOrError.IsOK()) {
+            const auto& rsps = rspsOrError.Value();
+            for (int peerId = 0; peerId < rsps.size(); ++peerId) {
+                const auto& rspOrError = rsps[peerId];
+                if (rspOrError.IsOK()) {
+                    auto peerLastLeadingSegmentId = rspOrError.Value()->last_leading_segment_id();
+                    YT_LOG_INFO("Peer response received (PeerId: %v, LastLeadingSegmentId: %v)",
+                        peerId,
+                        peerLastLeadingSegmentId);
+
+                    if (peerLastLeadingSegmentId + 1 == currentSegmentId) {
+                        YT_LOG_INFO("Previous leader lease abandoned (PeerId: %v)", peerId);
+                        YT_VERIFY(!previousLeaderLeaseAbandoned);
+                        previousLeaderLeaseAbandoned = true;
+                        break;
+                    }
+                } else {
+                    YT_LOG_INFO(rspOrError, "Failed to abandon peer leader lease (PeerId: %v)", peerId);
+                }
+            }
+        } else {
+            YT_LOG_INFO(rspsOrError, "Failed to abandon leader lease");
+        }
+    }
+
     auto elapsedTime = timer.GetElapsedTime();
 
-    if (Config_->DisableLeaderLeaseGraceDelay) {
+    if (previousLeaderLeaseAbandoned) {
+        YT_LOG_INFO("Ignoring leader lease grace delay");
+    } else if (Config_->DisableLeaderLeaseGraceDelay) {
         YT_LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
     } else if (elapsedTime < Config_->LeaderLeaseGraceDelay) {
         YT_LOG_INFO("Waiting for previous leader lease to expire");
         TDelayedExecutor::WaitForDuration(Config_->LeaderLeaseGraceDelay - elapsedTime);
+    } else {
+        YT_LOG_INFO("Leader lease grace delay already expired");
     }
 }
 
@@ -391,6 +451,7 @@ bool TLeaderRecovery::IsLeader() const
 TFollowerRecovery::TFollowerRecovery(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
+    const TDistributedHydraManagerDynamicOptions& dynamicOptions,
     TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
@@ -401,6 +462,7 @@ TFollowerRecovery::TFollowerRecovery(
     : TRecoveryBase(
         config,
         options,
+        dynamicOptions,
         cellManager,
         decoratedAutomaton,
         changelogStore,

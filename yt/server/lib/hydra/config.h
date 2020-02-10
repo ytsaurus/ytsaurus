@@ -336,6 +336,19 @@ public:
     //! Time to sleep before building a snapshot. Needed for testing.
     TDuration BuildSnapshotDelay;
 
+    //! Persistent stores initialization has exponential retries.
+    //! Minimum persistent store initializing backoff time.
+    TDuration MinPersistentStoreInitializationBackoffTime;
+
+    //! Maximum persistent store initializing backoff time.
+    TDuration MaxPersistentStoreInitializationBackoffTime;
+
+    //! Persistent store initializing backoff time multiplier.
+    double PersistentStoreInitializationBackoffTimeMultiplier;
+
+    //! Abandon leader lease request timeout.
+    TDuration AbandonLeaderLeaseRequestTimeout;
+
     TDistributedHydraManagerConfig()
     {
         RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
@@ -410,6 +423,16 @@ public:
 
         RegisterParameter("build_snapshot_delay", BuildSnapshotDelay)
             .Default(TDuration::Zero());
+
+        RegisterParameter("min_persistent_store_initialization_backoff_time", MinPersistentStoreInitializationBackoffTime)
+            .Default(TDuration::MilliSeconds(200));
+        RegisterParameter("max_persistent_store_initialization_backoff_time", MaxPersistentStoreInitializationBackoffTime)
+            .Default(TDuration::Seconds(5));
+        RegisterParameter("persistent_store_initialization_backoff_time_multiplier", PersistentStoreInitializationBackoffTimeMultiplier)
+            .Default(1.5);
+
+        RegisterParameter("abandon_leader_lease_request_timeout", AbandonLeaderLeaseRequestTimeout)
+            .Default(TDuration::Seconds(5));
 
         RegisterPostprocessor([&] () {
             if (!DisableLeaderLeaseGraceDelay && LeaderLeaseGraceDelay <= LeaderLeaseTimeout) {

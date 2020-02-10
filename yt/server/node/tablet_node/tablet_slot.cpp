@@ -201,7 +201,7 @@ public:
         return CellDescriptor_;
     }
 
-    const IHydraManagerPtr& GetHydraManager() const
+    const IDistributedHydraManagerPtr& GetHydraManager() const
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -375,6 +375,9 @@ public:
             }
         }
 
+        TDistributedHydraManagerDynamicOptions hydraManagerDynamicOptions;
+        hydraManagerDynamicOptions.AbandonLeaderLeaseDuringRecovery = configureInfo.abandon_leader_lease_during_recovery();
+
         auto newPrerequisiteTransactionId = FromProto<TTransactionId>(configureInfo.prerequisite_transaction_id());
         if (newPrerequisiteTransactionId != PrerequisiteTransactionId_) {
             YT_LOG_INFO("Prerequisite transaction updated (TransactionId: %v -> %v)",
@@ -420,7 +423,8 @@ public:
 
         auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
 
-        if (GetHydraManager()) {
+        if (auto slotHydraManager = GetHydraManager()) {
+            slotHydraManager->SetDynamicOptions(hydraManagerDynamicOptions);
             CellManager_->Reconfigure(cellConfig, PeerId_);
 
             YT_LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
@@ -464,7 +468,8 @@ public:
                 CellManager_,
                 ChangelogStoreFactoryThunk_,
                 SnapshotStoreThunk_,
-                hydraManagerOptions);
+                hydraManagerOptions,
+                hydraManagerDynamicOptions);
             SetHydraManager(hydraManager);
 
             hydraManager->SubscribeStartLeading(BIND(&TImpl::OnStartEpoch, MakeWeak(this)));
@@ -661,7 +666,7 @@ private:
     IElectionManagerPtr ElectionManager_;
 
     TSpinLock HydraManagerLock_;
-    IHydraManagerPtr HydraManager_;
+    IDistributedHydraManagerPtr HydraManager_;
 
     TResponseKeeperPtr ResponseKeeper_;
 
@@ -691,7 +696,7 @@ private:
     NLogging::TLogger Logger;
 
 
-    void SetHydraManager(IHydraManagerPtr hydraManager)
+    void SetHydraManager(IDistributedHydraManagerPtr hydraManager)
     {
         auto guard = Guard(HydraManagerLock_);
         std::swap(HydraManager_, hydraManager);
@@ -923,7 +928,7 @@ const TCellDescriptor& TTabletSlot::GetCellDescriptor() const
     return Impl_->GetCellDescriptor();
 }
 
-const IHydraManagerPtr& TTabletSlot::GetHydraManager() const
+const IDistributedHydraManagerPtr& TTabletSlot::GetHydraManager() const
 {
     return Impl_->GetHydraManager();
 }

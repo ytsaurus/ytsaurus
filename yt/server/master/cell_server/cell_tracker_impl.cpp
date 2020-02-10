@@ -420,11 +420,18 @@ void TCellTrackerImpl::SchedulePeerRevocation(TCellBase* cell, ICellBalancer* ba
         auto error = IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), GetDynamicConfig()->PeerRevocationTimeout);
 
         if (!error.IsOK()) {
-            // If decommission through extra peers is enabled we never revoke leader during decommission.
-            if (GetDynamicConfig()->DecommissionThroughExtraPeers && error.FindMatching(EErrorCode::NodeDecommissioned) &&
-                peerId == cell->GetLeadingPeerId())
-            {
-                continue;
+            if (GetDynamicConfig()->DecommissionThroughExtraPeers && error.FindMatching(EErrorCode::NodeDecommissioned)) {
+                // If decommission through extra peers is enabled we never revoke leader during decommission.
+                if (peerId == cell->GetLeadingPeerId()) {
+                    continue;
+                }
+
+                // Do not revoke old leader until decommission is finished.
+                if (cell->PeerCount()) {
+                    continue;
+                }
+
+                // Followers are decommssioned by simple revocation.
             }
 
             YT_LOG_DEBUG(error, "Schedule peer revocation (CellId: %v, PeerId: %v, Address: %v)",
@@ -456,7 +463,7 @@ bool TCellTrackerImpl::SchedulePeerCountChange(TCellBase* cell, TReqReassignPeer
         ToProto(updatePeerCountRequest->mutable_cell_id(), cell->GetId());
         updatePeerCountRequest->set_peer_count(static_cast<int>(cell->Peers().size() + 1));
         return true;
-    } else if (!leaderDecommissioned && hasExtraPeers) {
+    } else if (!leaderDecommissioned && leadingPeer.LastSeenState == EPeerState::Leading && hasExtraPeers) {
         // Decommission finished, extra peers can be dropped.
         auto* updatePeerCountRequest = request->add_peer_count_updates();
         ToProto(updatePeerCountRequest->mutable_cell_id(), cell->GetId());
