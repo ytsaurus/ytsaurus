@@ -3,6 +3,7 @@ from mapreduce.yt.python.yt_stuff import YtStuff, YtConfig
 import yt.yson as yson
 
 from yt.common import update, get_value
+import yt.environment.init_operation_archive
 
 from library.python.testing.recipe import set_env
 
@@ -35,9 +36,14 @@ def start(args):
     parser.add_argument("--controller-agent-config", action=ParseStructuredArgument)
     parser.add_argument("--job-controller-resource-limits", action=ParseStructuredArgument)
     parser.add_argument("--node-chunk-store-quota", type=int)
+    parser.add_argument("--init-operation-archive", action="store_true")
     parsed_args, _ = parser.parse_known_args(args)
 
     config_args = dict((key, value) for key, value in vars(parsed_args).items() if value is not None)
+
+    init_operation_archive = config_args.get("init_operation_archive", False)
+    del config_args["init_operation_archive"]
+
     if "local_cypress_dir_in_source_path" in config_args:
         config_args["local_cypress_dir"] = yatest.common.test_source_path(config_args["local_cypress_dir_in_source_path"])
         del config_args["local_cypress_dir_in_source_path"]
@@ -67,6 +73,9 @@ def start(args):
         fout.write(str(yt_stuff.yt_proxy_port))
 
     set_env("YT_PROXY", "localhost:" + str(yt_stuff.yt_proxy_port))
+
+    if init_operation_archive:
+        yt.environment.init_operation_archive.create_tables_latest_version(yt_stuff.get_yt_client())
 
     return yt_stuff
 
