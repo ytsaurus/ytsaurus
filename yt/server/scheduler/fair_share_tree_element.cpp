@@ -2007,6 +2007,11 @@ void TOperationElementSharedState::SetPreemptable(bool value)
     Preemptable_.store(value);
 }
 
+bool TOperationElementSharedState::GetPreemptable() const
+{
+    return Preemptable_;
+}
+
 bool TOperationElementSharedState::IsJobKnown(TJobId jobId) const
 {
     TReaderGuard guard(JobPropertiesMapLock_);
@@ -2413,7 +2418,12 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesL
     bool isFairShareRatioEqualToDemandRatio =
         std::abs(Attributes_.DemandRatio - GetFairShareRatio()) < RatioComparisonPrecision &&
         Attributes_.DemandRatio > RatioComparisonPrecision;
-    OperationElementSharedState_->SetPreemptable(!isFairShareRatioEqualToDemandRatio);
+    bool newPreemptableValue = !isFairShareRatioEqualToDemandRatio;
+    bool oldPreemptableValue = OperationElementSharedState_->GetPreemptable();
+    if (oldPreemptableValue != newPreemptableValue) {
+        YT_LOG_DEBUG("XXX Preemptable status changed %v -> %v", oldPreemptableValue, newPreemptableValue);
+        OperationElementSharedState_->SetPreemptable(newPreemptableValue);
+    }
 
     UpdatePreemptableJobsList();
 }
