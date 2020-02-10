@@ -1,7 +1,7 @@
 #!/bin/bash -eux
 
 PIDS=""
-YT="$PYTHON_BINARY $YT_SCRIPT_PATH"
+YT="$PYTHON_BINARY $YT_CLI_PATH"
 
 add_pid_to_kill() {
     PIDS="$PIDS $1"
