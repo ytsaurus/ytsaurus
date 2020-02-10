@@ -101,7 +101,7 @@ private:
     const NConcurrency::TActionQueuePtr JobThread_;
     const NConcurrency::TActionQueuePtr ControlThread_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     NNodeTrackerClient::TNodeDescriptor LocalDescriptor_;
 

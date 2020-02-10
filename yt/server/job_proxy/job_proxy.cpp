@@ -103,12 +103,11 @@ TJobProxy::TJobProxy(
     , JobId_(jobId)
     , JobThread_(New<TActionQueue>("JobMain"))
     , ControlThread_(New<TActionQueue>("Control"))
-    , Logger(JobProxyLogger)
-{
-    Logger.AddTag("OperationId: %v, JobId: %v",
-        OperationId_,
-        JobId_);
-}
+    , Logger(NLogging::TLogger(JobProxyLogger)
+        .AddTag("OperationId: %v, JobId: %v",
+            OperationId_,
+            JobId_))
+{ }
 
 TString TJobProxy::GetPreparationPath() const
 {
