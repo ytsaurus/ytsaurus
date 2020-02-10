@@ -1,21 +1,20 @@
 #pragma once
 
-#include "public.h"
-#include "job_satellite_connection.h"
+#include <yt/server/lib/job_satellite_connection/public.h>
 
 #include <util/generic/string.h>
 
-namespace NYT::NJobProxy {
+namespace NYT::NExec {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void RunJobSatellite(
-    TJobSatelliteConnectionConfigPtr config,
+    NJobSatelliteConnection::TJobSatelliteConnectionConfigPtr config,
     int uid,
     const std::vector<TString>& env,
     const TString& jobId);
-void NotifyExecutorPrepared(TJobSatelliteConnectionConfigPtr config);
+void NotifyExecutorPrepared(NJobSatelliteConnection::TJobSatelliteConnectionConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobProxy
+} // namespace NYT::NExec

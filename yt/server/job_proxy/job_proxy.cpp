@@ -1,6 +1,5 @@
 #include "job_proxy.h"
 #include "cpu_monitor.h"
-#include "job_prober_service.h"
 #include "merge_job.h"
 #include "partition_job.h"
 #include "partition_sort_job.h"
@@ -9,13 +8,16 @@
 #include "sorted_merge_job.h"
 #include "user_job.h"
 #include "user_job_write_controller.h"
-#include "user_job_synchronizer.h"
 #include "job_throttler.h"
 
 #include <yt/server/lib/containers/public.h>
 
 #include <yt/server/lib/exec_agent/config.h>
 #include <yt/server/lib/exec_agent/proto/supervisor_service.pb.h>
+
+#include <yt/server/lib/job_prober/job_prober_service.h>
+
+#include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
 #include <yt/ytlib/api/native/connection.h>
 
@@ -82,6 +84,7 @@ using namespace NScheduler::NProto;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
+using namespace NJobProber;
 using namespace NJobProberClient;
 using namespace NJobProxy;
 using namespace NJobTrackerClient;
@@ -456,7 +459,7 @@ TJobResult TJobProxy::DoRun()
         TrafficMeter_->Start();
 
         RpcServer_ = NRpc::NBus::CreateBusServer(CreateTcpBusServer(Config_->BusServer));
-        RpcServer_->RegisterService(CreateJobProberService(this));
+        RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));
         RpcServer_->Start();
 
         auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);

@@ -11,7 +11,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT::NJobProxy {
+namespace NYT::NUserJobSynchronizerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,11 +66,7 @@ DEFINE_REFCOUNTED_TYPE(TUserJobSynchronizer)
 ////////////////////////////////////////////////////////////////////////////////
 
 IUserJobSynchronizerClientPtr CreateUserJobSynchronizerClient(NBus::TTcpBusClientConfigPtr config);
-NRpc::IServicePtr CreateUserJobSynchronizerService(
-    const NLogging::TLogger& logger,
-    IUserJobSynchronizerClientPtr jobControl,
-    IInvokerPtr controlInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobProxy
+} // namespace NYT::NUserJobSynchronizerClient
