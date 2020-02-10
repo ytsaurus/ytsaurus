@@ -1027,7 +1027,7 @@ class JsonFormat(Format):
                 return string
             else:
                 if is_encode_utf8_false:
-                    raise YtFormatError("Cannot interpret unicode string by non-utf-8 encoding without 'encode_utf8' on server side")
+                    raise YtFormatError("Cannot interpret unicode string by non-utf-8 encoding when 'encode_utf8' disabled")
                 if self._encoding is None:
                     # Just check that string consists only of ascii symbols.
                     string.encode("ascii")
@@ -1036,7 +1036,10 @@ class JsonFormat(Format):
                     return string.encode(self._encoding).decode("latin1")
         elif isinstance(string, binary_type):
             if is_encode_utf8_false:
-                raise YtFormatError("Cannot interpret text string as bytes string when 'encode_utf8' disabled and encoding is None")
+                try:
+                    return string.decode("ascii")
+                except:
+                    raise YtFormatError("Cannot interpret binary non-ascii string as bytes when 'encode_utf8' disabled")
             else:
                 return string.decode("latin1")
         else:
