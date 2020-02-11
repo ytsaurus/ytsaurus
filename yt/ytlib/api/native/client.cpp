@@ -2945,7 +2945,7 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
             }
             if (!finishedJobsOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to get finished jobs from the operation archive")
-                    << jobsInProgressOrError;
+                    << finishedJobsOrError;
             }
             if (!statisticsOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to get finished job statistics from the operation archive")
