@@ -22,6 +22,7 @@ from threading import Thread
 import copy
 import json
 import os
+import os.path
 import pytest
 import random
 import threading
@@ -42,7 +43,15 @@ if arcadia_interop.yatest_common is None:
     if YT_LOG_TAILER_PATH is None:
         YT_LOG_TAILER_PATH = find_executable("ytserver-log-tailer")
 else:
-    TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
+    TEST_DIR = None
+    # XXX(max42): eliminate this ugly hack by exporting YT_ROOT into env variable from ya.make.
+    POSSIBLE_TEST_DIR_PATHS = ["yt/tests/integration/tests", "yt/19_4/yt/tests/integration/tests"]
+    for possible_test_dir_path in POSSIBLE_TEST_DIR_PATHS:
+        test_dir = arcadia_interop.yatest_common.source_path(possible_test_dir_path)
+        if os.path.exists(test_dir):
+            TEST_DIR = test_dir
+            break
+    assert TEST_DIR is not None
     YTSERVER_CLICKHOUSE_PATH = arcadia_interop.yatest_common.binary_path("ytserver-clickhouse")
     CLICKHOUSE_TRAMPOLINE_PATH = arcadia_interop.yatest_common.binary_path("clickhouse-trampoline")
     YT_LOG_TAILER_PATH = arcadia_interop.yatest_common.binary_path("ytserver-log-tailer")
