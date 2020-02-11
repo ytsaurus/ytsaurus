@@ -87,4 +87,44 @@ Y_UNIT_TEST_SUITE(PathTemplate) {
             child3->ToPathSafe("//usr", "/home", "/yt", "/table2"),
             "//usr/home/yt/table2");
     }
+
+    Y_UNIT_TEST(UnsafeRelativePaths) {
+        const auto root = MakeRootNode();
+        const auto subpath1 = MakeChildNode(root);
+        const auto subpath2 = MakeChildNode(subpath1);
+        const auto subpath3 = MakeChildNode(subpath2);
+        const auto table1 = MakeChildNode(subpath3, "/table1");
+
+        UNIT_ASSERT_VALUES_EQUAL(subpath3->UnsafePathRelativeTo(subpath2, "/home"), "/home");
+        UNIT_ASSERT_VALUES_EQUAL(subpath3->UnsafePathRelativeTo(subpath1, "/home", "/tmp"), "/home/tmp");
+        UNIT_ASSERT_VALUES_EQUAL(
+            table1->UnsafePathRelativeTo(subpath1, "/home", "/tmp"),
+            "/home/tmp/table1");
+        UNIT_ASSERT_VALUES_EQUAL(
+            table1->UnsafePathRelativeTo(root, "//home", "/tmp", "/tables"),
+            "//home/tmp/tables/table1");
+        UNIT_ASSERT_VALUES_EQUAL(
+            table1->ToPathUnsafe("//home", "/tmp", "/tables", "/tables"),
+            "//home/tmp/tables/tables/table1");
+    }
+
+    Y_UNIT_TEST(SafeRelativePaths) {
+        const auto root = MakeSafeRootNode();
+        const auto subpath1 = MakeSafeChildNode(root);
+        const auto subpath2 = MakeSafeChildNode(subpath1);
+        const auto subpath3 = MakeSafeChildNode(subpath2);
+        const auto table1 = MakeSafeChildNode(subpath3, "/table1");
+
+        UNIT_ASSERT_VALUES_EQUAL(subpath3->SafePathRelativeTo(subpath2, "/home"), "/home");
+        UNIT_ASSERT_VALUES_EQUAL(subpath3->SafePathRelativeTo(subpath1, "/home", "/tmp"), "/home/tmp");
+        UNIT_ASSERT_VALUES_EQUAL(
+            table1->SafePathRelativeTo(subpath1, "/home", "/tmp"),
+            "/home/tmp/table1");
+        UNIT_ASSERT_VALUES_EQUAL(
+            table1->SafePathRelativeTo(root, "//home", "/tmp", "/tables"),
+            "//home/tmp/tables/table1");
+        UNIT_ASSERT_VALUES_EQUAL(
+            table1->ToPathSafe("//home", "/tmp", "/tables", "/tables"),
+            "//home/tmp/tables/tables/table1");
+    }
 }
