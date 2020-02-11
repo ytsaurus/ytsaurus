@@ -68,6 +68,8 @@ import urllib3
 urllib3.disable_warnings()
 import requests
 
+YT_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+
 KB = 1024
 MB = 1024 * KB
 GB = 1024 * MB
@@ -91,6 +93,12 @@ try:
     from releaselib.sandbox import client as sandbox_client
 except:
     sandbox_client = None
+
+def get_relative_yt_root(options):
+    return ""
+
+def get_relative_python_root(options):
+    return ""
 
 def yt_processes_cleanup():
     kill_by_name("^ytserver")
@@ -944,7 +952,7 @@ def run_unit_tests(options, build_context):
                     "gdb",
                     "--batch",
                     "--return-child-result",
-                    "--command={0}/scripts/teamcity-build/teamcity-gdb-script".format(options.checkout_directory),
+                    "--command={0}/scripts/teamcity-build/teamcity-gdb-script".format(YT_ROOT),
                     "--args",
                 ] + args
             run(args, cwd=sandbox_current, timeout=20 * 60)
@@ -1018,12 +1026,12 @@ def run_ya_tests(options, suite_name, test_paths, dist=True):
 @build_step
 @only_for_projects("yt")
 def run_ya_integration_tests(options, build_context):
-    run_ya_tests(options, "ya_integration", ["yt/tests"])
+    run_ya_tests(options, "ya_integration", [os.path.join(get_relative_yt_root(options), "yt/tests")])
 
 @build_step
 @only_for_projects("yt")
 def run_ya_integration_locally(options, build_context):
-    run_ya_tests(options, "ya_integration_local", ["yt/tests"], dist=False)
+    run_ya_tests(options, "ya_integration_local", [os.path.join(get_relative_yt_root(options), "yt/tests")], dist=False)
 
 def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, python_version=None):
     yt_processes_cleanup()
@@ -1165,6 +1173,7 @@ def run_ya_python_tests(options, build_context):
         "python/yt/wrapper/tests/py2",
         "python/yt/wrapper/tests/py3",
     ]
+    targets = [os.path.join(get_relative_python_root(), target) for target in targets]
     run_ya_tests(options, "ya_python", targets)
 
 @build_step
