@@ -23,11 +23,11 @@ option (NYP.NClient.NApi.NProto.object_type) = {
     type_value: 26
 };
 
-message THorizontalPodAutoscalerSpecMetaBase
+message THorizontalPodAutoscalerMetaBase
 {
     // Target object to scale.
     oneof pod_deploy_primitive {
-        string replica_set_id = 1;
+        string replica_set_id = 4;
     }
 }
 

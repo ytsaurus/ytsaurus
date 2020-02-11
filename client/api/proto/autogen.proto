@@ -570,6 +570,8 @@ message THorizontalPodAutoscalerMeta
     uint64 creation_time = 3;
     bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string replica_set_id = 4;
 }
 
 message THorizontalPodAutoscaler
