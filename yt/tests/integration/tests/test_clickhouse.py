@@ -57,8 +57,8 @@ else:
     YT_LOG_TAILER_PATH = arcadia_interop.yatest_common.binary_path("ytserver-log-tailer")
 
 DEFAULTS = {
-    "memory_footprint": 2 * 1000**3,
-    "memory_limit": 5 * 1000**3,
+    "memory_footprint": 1 * 1000**3,
+    "memory_limit": int(4.5 * 1000**3),
     "host_ytserver_clickhouse_path": YTSERVER_CLICKHOUSE_PATH,
     "host_clickhouse_trampoline_path": CLICKHOUSE_TRAMPOLINE_PATH,
     "cpu_limit": 1,
