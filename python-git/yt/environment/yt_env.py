@@ -51,9 +51,13 @@ _environment_driver_logging_config_per_type = {}
 def get_environment_driver_logging_config(default_config, driver_type):
     if driver_type not in _environment_driver_logging_config_per_type:
         return default_config
+    # COMPAT
+    if None in _environment_driver_logging_config_per_type:
+        return _environment_driver_logging_config_per_type[None]
     return _environment_driver_logging_config_per_type[driver_type]
 
-def set_environment_driver_logging_config(config, driver_type):
+# COMPAT: default None value is for compatibility only.
+def set_environment_driver_logging_config(config, driver_type=None):
     if config is None:
         raise YtError("Could not set environment driver logging config to None")
     global _environment_driver_logging_config_per_type
