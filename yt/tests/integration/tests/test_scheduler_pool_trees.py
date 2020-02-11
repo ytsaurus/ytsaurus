@@ -798,7 +798,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
     def _check_tree_for_operation_jobs(self, op, possible_trees, expected_job_count=None):
         if expected_job_count is not None:
-            wait(lambda: len(list_jobs(op.id)["jobs"]) == expected_job_count)
+            wait(lambda: len(list_jobs(op.id)["jobs"]) >= expected_job_count)
         jobs = list_jobs(op.id)["jobs"]
         op_tree = self._get_tree_for_job(jobs[0])
         assert op_tree in possible_trees
@@ -808,7 +808,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
     def _run_vanilla_and_check_tree(self, spec, possible_trees, job_count=10):
         op = run_test_vanilla("sleep 0.6", job_count=job_count, spec=spec, track=True)
-        wait(lambda: len(list_jobs(op.id)["jobs"]) == job_count)
+        wait(lambda: len(list_jobs(op.id)["jobs"]) >= job_count)
         erased_trees = get(op.get_path() + "/@erased_trees")
 
         op_tree = self._check_tree_for_operation_jobs(op, possible_trees, job_count)
