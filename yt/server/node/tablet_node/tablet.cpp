@@ -67,6 +67,11 @@ void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, T
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDeleteListFlusher::~TDeleteListFlusher()
+{
+    FlushDeleteList();
+}
+
 TRowCache::TRowCache(size_t elementCount, IMemoryUsageTrackerPtr memoryTracker)
     : Allocator(std::move(memoryTracker))
     , Cache(elementCount)
