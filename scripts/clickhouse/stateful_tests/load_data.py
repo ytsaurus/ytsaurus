@@ -19,8 +19,23 @@ clickhouse_to_yt_type = {
     'UInt32' : 'uint32',
     'UInt64' : 'uint64',
     'UInt8' : 'uint8',
+    'Float64' : 'double',
 }
 
+default_yt_type_value = {
+    'date': yson.YsonUint64(0),
+    'datetime': yson.YsonUint64(0),
+    'int16': yson.YsonInt64(0),
+    'int32': yson.YsonInt64(0),
+    'int64': yson.YsonInt64(0),
+    'int8': yson.YsonInt64(0),
+    'string': yson.YsonString(""),
+    'uint16': yson.YsonUint64(0),
+    'uint32': yson.YsonUint64(0),
+    'uint64': yson.YsonUint64(0),
+    'uint8': yson.YsonUint64(0),
+    'double': yson.YsonDouble(0.0),
+}
 
 def parse_clickhouse_schema_field(schema, index):
     while index < len(schema) and schema[index].isspace():
@@ -45,39 +60,68 @@ def parse_clickhouse_schema_field(schema, index):
     type = schema[type_start_index:index]
     index += 1
 
-    return (index, name, type)
+    return (index, [name], type)
 
 
 def parse_clickhouse_schema(schema):
     parse_result = []
-
     char_index = 0
     while char_index < len(schema):
         char_index, name, type = parse_clickhouse_schema_field(schema, char_index)
-        if type.startswith('Nested('):
+        if type.startswith('Nested'):
             nested_schema = parse_clickhouse_schema(type[len('Nested(') : -1])
             for nested_name, nested_type in nested_schema:
-                parse_result.append((name + '.' + nested_name, nested_type))
+                parse_result.append((name + nested_name, nested_type))
+        elif type.startswith('FixedString'):
+            parse_result.append((name, 'String'))
         else:
             parse_result.append((name, type))
     return parse_result
 
 
+def is_field_simple(name_path, clickhouse_type):
+    return len(name_path) == 1 and clickhouse_type in clickhouse_to_yt_type
+
+def is_field_list(name_path, clickhouse_type):
+    return clickhouse_type.startswith('Array')
+
+def is_field_struct(name_path, clickhouse_type):
+    return len(name_path) > 1
+
+def create_simple_yt_schema_field(name, clickhouse_type):
+    return {'name': name, 'type': clickhouse_to_yt_type[clickhouse_type], 'required': 'true'};
+
+def create_list_yt_schema_field(name, clickhouse_type):
+    return {'name': name, 'type_v3': {'type_name': 'list', 'item': clickhouse_to_yt_type[clickhouse_type[len('Array('):-1]]}, 'required': 'true'};
+
+def create_struct_yt_schema_field(clickhouse_schema, column_index):
+    name_path, clickhouse_type = clickhouse_schema[column_index]
+    struct_schema_field = {'name': name_path[0], 'type_v3': {'type_name': 'struct', 'members':[]}}
+    while column_index < len(clickhouse_schema) and name_path[0] == struct_schema_field['name']:
+        struct_schema_field['type_v3']['members'].append(create_simple_yt_schema_field(name_path[1], clickhouse_type))
+        column_index += 1
+        if column_index < len(clickhouse_schema):
+            name_path, clickhouse_type = clickhouse_schema[column_index]
+    return struct_schema_field, column_index - 1
+
+
 def create_yt_schema(clickhouse_schema):
     yt_schema = []
-    supported_column_indexes = []
     column_index = 0
-    for name, clickhouse_type in clickhouse_schema:
-        if ('.' not in name) and (clickhouse_type in clickhouse_to_yt_type):
-            yt_schema.append({
-                'name': name,
-                'type':clickhouse_to_yt_type[clickhouse_type],
-                'required': 'true'})
-            supported_column_indexes.append(column_index)
+    while column_index < len(clickhouse_schema):
+        name_path, clickhouse_type = clickhouse_schema[column_index]
+        if is_field_simple(name_path, clickhouse_type):
+            yt_schema.append(create_simple_yt_schema_field(name_path[0], clickhouse_type))
+        elif is_field_list(name_path, clickhouse_type):
+            yt_schema.append(create_list_yt_schema_field(name_path[0], clickhouse_type))
+        elif len(name_path) > 1:
+            struct_schema_field, column_index = create_struct_yt_schema_field(clickhouse_schema, column_index)
+            yt_schema.append(struct_schema_field)
         else:
-            print 'drop column:', name, 'with type:', clickhouse_type
+            raise Exception("cannot parse clickhouse schema field: name_path:", name_path, "type:", clickhouse_type)
         column_index += 1
-    return (yt_schema, supported_column_indexes)
+
+    return yt_schema
 
 
 def parse_csv_row(line):
@@ -95,45 +139,75 @@ def parse_csv_row(line):
 
 def clickhouse_to_yt_date(clickhouse_date):
     if clickhouse_date == "0000-00-00":
-        return 0
+        return yson.YsonUint64(0)
     else:
-        return (datetime.datetime.strptime(clickhouse_date, '%Y-%m-%d') - datetime.datetime(1970,1,1)).days
+        return yson.YsonUint64((datetime.datetime.strptime(clickhouse_date, '%Y-%m-%d') - datetime.datetime(1970,1,1)).days)
 
 
 def clickhouse_to_yt_datetime(clickhouse_datetime):
     if clickhouse_datetime == "0000-00-00 00:00:00":
-        return 0
+        return yson.YsonUint64(0)
     else:
-        return int((datetime.datetime.strptime(clickhouse_datetime, '%Y-%m-%d %H:%M:%S') - datetime.datetime(1970,1,1)).total_seconds())
+        return yson.YsonUint64((datetime.datetime.strptime(clickhouse_datetime, '%Y-%m-%d %H:%M:%S') - datetime.datetime(1970,1,1)).total_seconds())
 
+def cast_value_to_yt_type(value, item_schema):
+    if 'type' in item_schema:
+        type = item_schema['type']
+        if value.startswith('['):
+            return default_yt_type_value[type]
+        if type == 'string':
+            return yson.YsonString(value)
+        elif type == 'date':
+            return clickhouse_to_yt_date(value)
+        elif type == 'datetime':
+            return clickhouse_to_yt_datetime(value)
+        elif type.startswith("int"):
+            return yson.YsonInt64(value)
+        elif type.startswith("uint"):
+            return yson.YsonUint64(value)
+        elif type.startswith("double"):
+            return yson.YsonDouble(float(value))
+    else:
+        if item_schema['type_v3']['type_name'] == 'list':
+            result = []
+            if value != '[]':
+                for splitted_value in value[1:-1].split(','):
+                    result.append(cast_value_to_yt_type(splitted_value, {'type': item_schema['type_v3']['item']}))
+            return result
 
-def table_data_generator(input_path, schema, supported_column_indexes):
+def table_data_generator(input_path, name_paths, yt_schema):
     input_table_file = open(input_path)
     line = input_table_file.readline().decode('ascii', errors='ignore')
     while line:
         if len(line) == 0:
             break
-        row = parse_csv_row(line)
+        row_values = parse_csv_row(line)
+        assert len(row_values) == len(clickhouse_schema)
+
         row_data = {}
-        schema_index = 0
-        for index in supported_column_indexes:
-            name = schema[schema_index]['name']
-            type = schema[schema_index]['type']
-            value = row[index]
-            row_data[name] = value
-            if type == 'date':
-                row_data[name] = clickhouse_to_yt_date(value)
-            elif type == 'datetime':
-                row_data[name] = clickhouse_to_yt_datetime(value)
-            elif type != 'string':
-                try:
-                    row_data[name] = int(value)
-                except ValueError:
-                    pass
-            schema_index += 1
+        for column_index in range(len(row_values)):
+            def fill_row_data_item(row_data_item, name_path, value, yt_schema):
+                name = name_path[0]
+                item_schema = {}
+                for schema in yt_schema:
+                    if schema['name'] == name:
+                        item_schema = schema
+                if len(name_path) > 1:
+                    if name not in row_data_item:
+                        row_data_item[name] = {}
+                    yt_subschema = {}
+                    fill_row_data_item(row_data_item[name], name_path[1:], value, item_schema['type_v3']['members'])
+                else:
+                    if 'type' in item_schema:
+                        yt_type = item_schema['type']
+                    else:
+                        yt_type = item_schema['type_v3']['item']
+                    row_data_item[name] = cast_value_to_yt_type(value, item_schema)
+            fill_row_data_item(row_data, name_paths[column_index], row_values[column_index], yt_schema)
+            column_index += 1
+
         line = input_table_file.readline().decode('ascii', errors='ignore')
         yield row_data
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -146,11 +220,10 @@ if __name__ == "__main__":
     args=parser.parse_args()
 
     clickhouse_schema = parse_clickhouse_schema(open(args.schema).read().replace('\n', ''))
-
-    yt_schema, supported_column_indexes = create_yt_schema(clickhouse_schema)
+    yt_schema = create_yt_schema(clickhouse_schema)
 
     creation_attributes = yson.loads(args.creation_attributes)
     creation_attributes['schema'] = yt_schema
     yt_wrapper.create('table', args.output, attributes=creation_attributes)
 
-    yt_wrapper.write_table(args.output, table_data_generator(args.input, yt_schema, supported_column_indexes))
+    yt_wrapper.write_table(args.output, table_data_generator(args.input, [name_path for name_path, clickhuose_type in clickhouse_schema], yt_schema))
