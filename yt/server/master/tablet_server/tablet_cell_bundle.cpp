@@ -43,6 +43,18 @@ void TTabletCellBundle::DecreaseActiveTabletActionCount()
     --ActiveTabletActionCount_;
 }
 
+std::vector<const TTabletCell*> TTabletCellBundle::GetAliveCells() const
+{
+    std::vector<const TTabletCell*> cells;
+    for (const auto* cell : Cells()) {
+        if (IsObjectAlive(cell) && !cell->IsDecommissionStarted() && cell->GetCellBundle() == this) {
+            YT_VERIFY(cell->GetType() == EObjectType::TabletCell);
+            cells.push_back(cell->As<TTabletCell>());
+        }
+    }
+    return cells;
+}
+
 void TTabletCellBundle::Save(TSaveContext& context) const
 {
     TCellBundle::Save(context);
