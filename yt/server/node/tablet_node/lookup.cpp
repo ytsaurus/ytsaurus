@@ -467,6 +467,8 @@ void LookupRows(
         columnFilter,
         tabletSnapshot->ColumnEvaluator);
 
+    THazardPtrFlushGuard flushGuard;
+
     TLookupSession session(
         std::move(tabletSnapshot),
         timestamp,
@@ -516,6 +518,8 @@ void VersionedLookupRows(
         tabletSnapshot->ColumnEvaluator,
         true,
         false);
+
+    THazardPtrFlushGuard flushGuard;
 
     // NB: TLookupSession captures TColumnFilter by const ref.
     static const TColumnFilter UniversalColumnFilter;

@@ -23,6 +23,13 @@ inline void ReleaseHazardPointer();
 
 void ScheduleObjectDeletion(void* ptr, TDeleter deleter);
 bool ScanDeleteList();
+void FlushDeleteList();
+
+struct THazardPtrFlushGuard
+{
+    THazardPtrFlushGuard();
+    ~THazardPtrFlushGuard();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

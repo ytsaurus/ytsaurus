@@ -2,7 +2,9 @@
 
 #include <yt/core/misc/lock_free_stack.h>
 #include <yt/core/misc/small_vector.h>
+
 #include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/fiber_api.h>
 
 #include <pthread.h>
 
@@ -249,6 +251,22 @@ bool ScanDeleteList()
     bool hasNewPointers = HazardPointerManager.Scan(threadState);
 
     return hasNewPointers || threadState->DeleteList.size() > HazardPointerManager.GetThreadCount();
+}
+
+void FlushDeleteList()
+{
+    while (ScanDeleteList());
+}
+
+THazardPtrFlushGuard::THazardPtrFlushGuard()
+{
+    NConcurrency::PushContextHandler(FlushDeleteList, nullptr);
+}
+
+THazardPtrFlushGuard::~THazardPtrFlushGuard()
+{
+    NConcurrency::PopContextHandler();
+    FlushDeleteList();
 }
 
 /////////////////////////////////////////////////////////////////////////////
