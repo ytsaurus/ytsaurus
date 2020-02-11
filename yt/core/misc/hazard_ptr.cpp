@@ -195,7 +195,8 @@ bool THazardPointerManager::Scan(TThreadState* threadState)
 
     threadState->Scanning = false;
 
-    return pushedCount == deleteList.size();
+    YT_VERIFY(pushedCount <= deleteList.size());
+    return pushedCount < deleteList.size();
 }
 
 void THazardPointerManager::DestroyThread(void* ptr)
