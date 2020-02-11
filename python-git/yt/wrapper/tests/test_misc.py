@@ -133,7 +133,7 @@ class TestYtBinary(object):
 
         output_file = os.path.join(sandbox_dir, "stderr")
         output = open(output_file, "w")
-        proc = subprocess.Popen([test_binary], env=env, stdout=output, stderr=output, cwd=sandbox_dir)
+        proc = Popen([test_binary], env=env, stdout=output, stderr=output, cwd=sandbox_dir)
         proc.communicate()
 
         if arcadia_interop is not None:
