@@ -130,14 +130,14 @@ def add_hybrid_argument(parser, name, group_required=True, **kwargs):
     group.add_argument(name, nargs="?", action=DoNotReplaceAction, **kwargs)
     group.add_argument("--" + name.replace("_", "-"), **kwargs)
 
-def download_file(path, destination_path):
+def download_file(path, destination_path, client):
     with open(destination_path, "wb") as f:
-        for chunk in chunk_iter_stream(yt.read_file(path), 16 * MB):
+        for chunk in chunk_iter_stream(client.read_file(path), 16 * MB):
             f.write(chunk)
 
-def download_table(path, destination_path):
+def download_table(path, destination_path, client):
     with open(destination_path, "wb") as f:
-        for r in yt.read_table(path, format=path.attributes["format"], raw=True):
+        for r in client.read_table(path, format=path.attributes["format"], raw=True):
             f.write(r)
 
 def run_job(job_path, env=None):
@@ -148,15 +148,15 @@ def run_job(job_path, env=None):
     p = subprocess.Popen([run_script], env=env, close_fds=False)
     sys.exit(p.wait())
 
-def download_job_input(operation_id, job_id, job_input_path, get_context_action):
+def download_job_input(operation_id, job_id, job_input_path, get_context_action, client):
     if get_context_action == "dump_job_context":
         logger.info("Job is running, using its input context as local input")
-        output_path = yt.find_free_subpath(_get_remote_temp_files_directory(client=None))
-        yt.dump_job_context(job_id, output_path)
+        output_path = client.find_free_subpath(_get_remote_temp_files_directory(client=None))
+        client.dump_job_context(job_id, output_path)
         try:
-            download_file(output_path, job_input_path)
+            download_file(output_path, job_input_path, client)
         finally:
-            yt.remove(output_path, force=True)
+            client.remove(output_path, force=True)
     elif get_context_action in ["get_job_fail_context", "get_job_input"]:
         if get_context_action == "get_job_fail_context":
             logger.info("Job is failed, using its fail context as local input")
@@ -176,13 +176,13 @@ def download_job_input(operation_id, job_id, job_input_path, get_context_action)
 
     logger.info("Job input is downloaded to %s", job_input_path)
 
-def get_job_info(operation_id, job_id):
-    job_info = yt.get_job(operation_id, job_id)
+def get_job_info(operation_id, job_id, client):
+    job_info = client.get_job(operation_id, job_id)
     job_is_running = job_info["state"] == "running"
     return JobInfo(job_info["type"], is_running=job_is_running)
 
-def ensure_backend_is_supported():
-    backend = yt.config.get_backend_type(yt)
+def ensure_backend_is_supported(client):
+    backend = yt.config.get_backend_type(client=client)
     if backend != "http":
         print(
             "ERROR: yt-job-tool can only work with `http` backend, "
@@ -191,10 +191,10 @@ def ensure_backend_is_supported():
         exit(1)
 
 def prepare_job_environment(operation_id, job_id, job_path, run=False, get_context_mode=INPUT_CONTEXT_MODE):
-    def _download_files(op_spec, sandbox_path):
+    def _download_files(op_spec, sandbox_path, client):
         for index, file_ in enumerate(op_spec[job_spec_section]["file_paths"]):
-            file_original_attrs = yt.get(file_ + "&/@", attributes=["key", "file_name"])
-            file_attrs = yt.get(file_ + "/@", attributes=["type"])
+            file_original_attrs = client.get(file_ + "&/@", attributes=["key", "file_name"])
+            file_attrs = client.get(file_ + "/@", attributes=["type"])
 
             file_name = file_.attributes.get("file_name")
             if file_name is None:
@@ -208,9 +208,9 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
             destination_path = os.path.join(sandbox_path, *file_name_parts)
             node_type = file_attrs["type"]
             if node_type == "file":
-                download_file(file_, destination_path)
+                download_file(file_, destination_path, client)
             elif node_type == "table":
-                download_table(file_, destination_path)
+                download_table(file_, destination_path, client)
             else:
                 raise yt.YtError("Unknown format of job file node: {0}".format(node_type))
 
@@ -219,19 +219,21 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
 
             logger.info("Done")
 
+    client = yt.YtClient(config=yt.config.config)
+
     if get_context_mode not in (INPUT_CONTEXT_MODE, FULL_INPUT_MODE):
         raise YtError("Incorrect get_context_mode {}, expected one of ({}, {})",
             repr(get_context_mode), repr(INPUT_CONTEXT_MODE), repr(FULL_INPUT_MODE))
 
     # NB: we should explicitly reset this option to default value since CLI usually set True to it.
-    yt.config["default_value_of_raw_option"] = None
+    client.config["default_value_of_raw_option"] = None
 
-    ensure_backend_is_supported()
+    ensure_backend_is_supported(client)
 
     if job_path is None:
         job_path = os.path.join(os.getcwd(), "job_" + job_id)
 
-    operation_info = yt.get_operation(operation_id, attributes=["operation_type", "spec"])
+    operation_info = client.get_operation(operation_id, attributes=["operation_type", "spec"])
     op_type = operation_info["operation_type"]
     op_spec = operation_info["spec"]
     if op_type in ["remote_copy", "sort", "merge"]:
@@ -240,7 +242,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
 
     logger.info("Preparing job environment for job %s, operation %s", job_id, operation_id)
 
-    job_info = get_job_info(operation_id, job_id)
+    job_info = get_job_info(operation_id, job_id, client)
     if get_context_mode == FULL_INPUT_MODE:
         get_context_action = "get_job_input"
     elif job_info.is_running:
@@ -251,14 +253,14 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
     if job_info.job_type not in JOB_TYPE_TO_SPEC_TYPE:
         raise yt.YtError("Unknown job type \"{0}\"".format(repr(job_info.job_type)))
 
-    full_info = yt.get_operation(operation_id)
+    full_info = client.get_operation(operation_id)
 
     job_spec_section = JOB_TYPE_TO_SPEC_TYPE[job_info.job_type]
 
     makedirp(job_path)
     job_input_path = os.path.join(job_path, "input")
 
-    download_job_input(operation_id, job_id, job_input_path, get_context_action)
+    download_job_input(operation_id, job_id, job_input_path, get_context_action, client)
 
     # Sandbox files
     sandbox_path = os.path.join(job_path, "sandbox")
@@ -266,11 +268,11 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
 
     file_count = len(op_spec[job_spec_section]["file_paths"])
     try:
-        with yt.Transaction(transaction_id=full_info["user_transaction_id"]):
-            _download_files(op_spec, sandbox_path)
+        with client.Transaction(transaction_id=full_info["user_transaction_id"]):
+            _download_files(op_spec, sandbox_path, client)
     except YtResponseError as err:
         if err.is_no_such_transaction():
-            _download_files(op_spec, sandbox_path)
+            _download_files(op_spec, sandbox_path, client)
         else:
             raise
 
