@@ -155,26 +155,10 @@ message TBoxJugglerConfig
     uint32 port = 3;
 }
 
-message TDockerImageContents
-{
-    // Image for which contents were retrieved.
-    TDockerImageDescription description = 1;
-    // Layer order is from bottom to top, reverse to porto and pod agent
-    repeated TDownloadableResource layers = 2;
-    // Start command and arguments like ["/bin/sh", "-c", "java -jar /run.jar"]
-    repeated string command = 3;
-    // Username for start command
-    string user = 4;
-    // Group name for start command
-    string group = 5;
-    // Working dir for start command
-    string working_dir = 6;
-    // Environment variables
-    map<string, string> environment = 7 [(NYT.NYson.NProto.yson_map) = true];
-}
-
 message TDeployUnitStatus
 {
+    reserved 7;
+    reserved "docker_image_contents";
     // Spec that is currently being deployed. May be older than contents of TStageSpec.
     TDeployUnitSpec current_target = 1;
     // Deploy of current_target has started, but has not completed yet.
@@ -190,8 +174,6 @@ message TDeployUnitStatus
     uint32 target_revision = 5;
     // YP timestamp of stage spec from which 'current_target' was derived.
     uint64 target_spec_timestamp = 6;
-    // Resolved docker images from spec.
-    repeated TDockerImageContents docker_image_contents = 7;
     // User-specified itype if unit spec has one, controller-generated default otherwise.
     // Current default is "deploy".
     string yasm_itype = 8;
