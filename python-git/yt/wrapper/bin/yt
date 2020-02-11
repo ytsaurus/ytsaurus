@@ -33,29 +33,36 @@ from datetime import datetime
 
 DESCRIPTION = '''Shell utility to work with YT system.\n
 Cypress (metainformation tree) commands:
-    create, remove, exists, list, find, get, set,
-    copy, link, move
+    exists, list, find, create, get, set, remove, copy, move, link, concatenate, externalize
 File commands:
-    write-file, read-file
+    read-file, write-file
 Table commands:
-    read, write, alter-table, create-temp-table
-Tablet commands:
-    mount-table, unmount-table, remount-table, reshard-table,
-    reshard-table-automatic, balance-tablet-cells
-ACL commands:
-    add-member, remove-member, check-permission
+    read-table, read-blob-table, write-table, create-temp-table,
+    alter-table, get-table-columnar-statistics
+Dynamic table commands:
+    mount-table, unmount-table, remount-table, freeze-table, unfreeze-table, get-tablet-infos,
+    reshard-table, reshard-table-automatic, balance-tablet-cells, trim-rows, alter-table-replica,
+    select-rows, explain, lookup-rows, insert-rows, delete-rows
+Run operation commands:
+    erase, merge, sort, map, reduce, join-reduce, remote-copy, vanilla, map-reduce
 Operation commands:
-    map-reduce, map, sort, reduce, join-reduce, merge, erase,
-    remote-copy, vanilla, abort-op, suspend-op, resume-op, track-op, complete-op,
-    update-op-parameters, get-operation, list-operations
-Transaction commands:
-    lock, unlock, start-tx, abort-tx, commit-tx, ping-tx
+    abort-op, suspend-op, resume-op, complete-op, update-op-parameters,
+    get-operation, list-operations, track-op
 Job commands:
-    get-job-stderr, get-job-input, get-job-input-paths,
-    run-job-shell, abort-job, get-job, list-jobs
+    run-job-shell, abort-job, get-job-stderr, get-job-input,
+    get-job-input-paths, get-job, list-jobs
+Transaction commands:
+    start-tx, commit-tx, abort-tx, ping-tx,
+    lock, unlock
+ACL (permission) commands:
+    check-permission, add-member, remove-member,
+    acl, acl show, acl request
+Operation tools:
+    shuffle, transform
+Diagnostics:
+    job-tool, download-core-dump
 Other commands:
-    transform, show-spec, show-default-config
-    download-core-dump'''
+    show-spec, start-clickhouse-clique, execute, execute-batch, sky-share, show-default-config'''
 
 EPILOG = '''Examples:
 
