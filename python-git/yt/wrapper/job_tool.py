@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from yt.common import makedirp, YtError
+from yt.common import makedirp, YtError, YtResponseError
 from yt.wrapper.cli_helpers import ParseStructuredArgument
 from yt.wrapper.common import DoNotReplaceAction, chunk_iter_stream, MB
 from yt.wrapper.file_commands import _get_remote_temp_files_directory
@@ -167,7 +167,7 @@ def download_job_input(operation_id, job_id, job_input_path, get_context_action)
                 job_input_stream = get_job_input(job_id)
             except YtError as err:
                 raise YtError("Failed to download job input. To get job fail context, use option --context",
-                                    inner_errors=[err])
+                              inner_errors=[err])
         with open(job_input_path, "wb") as out:
             for chunk in chunk_iter_stream(job_input_stream, 16 * MB):
                 out.write(chunk)
@@ -191,6 +191,34 @@ def ensure_backend_is_supported():
         exit(1)
 
 def prepare_job_environment(operation_id, job_id, job_path, run=False, get_context_mode=INPUT_CONTEXT_MODE):
+    def _download_files(op_spec, sandbox_path):
+        for index, file_ in enumerate(op_spec[job_spec_section]["file_paths"]):
+            file_original_attrs = yt.get(file_ + "&/@", attributes=["key", "file_name"])
+            file_attrs = yt.get(file_ + "/@", attributes=["type"])
+
+            file_name = file_.attributes.get("file_name")
+            if file_name is None:
+                file_name = file_original_attrs.get("file_name")
+            if file_name is None:
+                file_name = file_original_attrs.get("key")
+
+            file_name_parts = file_name.split("/")
+            makedirp(os.path.join(sandbox_path, *file_name_parts[:-1]))
+            logger.info("Downloading job file \"%s\" (%d of %d)", file_name, index + 1, file_count)
+            destination_path = os.path.join(sandbox_path, *file_name_parts)
+            node_type = file_attrs["type"]
+            if node_type == "file":
+                download_file(file_, destination_path)
+            elif node_type == "table":
+                download_table(file_, destination_path)
+            else:
+                raise yt.YtError("Unknown format of job file node: {0}".format(node_type))
+
+            if file_.attributes.get("executable", False):
+                os.chmod(destination_path, os.stat(destination_path).st_mode | stat.S_IXUSR)
+
+            logger.info("Done")
+
     if get_context_mode not in (INPUT_CONTEXT_MODE, FULL_INPUT_MODE):
         raise YtError("Incorrect get_context_mode {}, expected one of ({}, {})",
             repr(get_context_mode), repr(INPUT_CONTEXT_MODE), repr(FULL_INPUT_MODE))
@@ -223,6 +251,8 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
     if job_info.job_type not in JOB_TYPE_TO_SPEC_TYPE:
         raise yt.YtError("Unknown job type \"{0}\"".format(repr(job_info.job_type)))
 
+    full_info = yt.get_operation(operation_id)
+
     job_spec_section = JOB_TYPE_TO_SPEC_TYPE[job_info.job_type]
 
     makedirp(job_path)
@@ -235,32 +265,15 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
     makedirp(sandbox_path)
 
     file_count = len(op_spec[job_spec_section]["file_paths"])
-    for index, file_ in enumerate(op_spec[job_spec_section]["file_paths"]):
-        file_original_attrs = yt.get(file_ + "&/@", attributes=["key", "file_name"])
-        file_attrs = yt.get(file_ + "/@", attributes=["type"])
-
-        file_name = file_.attributes.get("file_name")
-        if file_name is None:
-            file_name = file_original_attrs.get("file_name")
-        if file_name is None:
-            file_name = file_original_attrs.get("key")
-
-        file_name_parts = file_name.split("/")
-        makedirp(os.path.join(sandbox_path, *file_name_parts[:-1]))
-        logger.info("Downloading job file \"%s\" (%d of %d)", file_name, index + 1, file_count)
-        destination_path = os.path.join(sandbox_path, *file_name_parts)
-        node_type = file_attrs["type"]
-        if node_type == "file":
-            download_file(file_, destination_path)
-        elif node_type == "table":
-            download_table(file_, destination_path)
+    try:
+        with yt.Transaction(transaction_id=full_info["user_transaction_id"]):
+            _download_files(op_spec, sandbox_path)
+    except YtResponseError as err:
+        if err.is_no_such_transaction():
+            _download_files(op_spec, sandbox_path)
         else:
-            raise yt.YtError("Unknown format of job file node: {0}".format(node_type))
+            raise
 
-        if file_.attributes.get("executable", False):
-            os.chmod(destination_path, os.stat(destination_path).st_mode | stat.S_IXUSR)
-
-        logger.info("Done")
 
     if file_count > 0:
         logger.info("Job files were downloaded to %s", sandbox_path)

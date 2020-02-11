@@ -1,8 +1,9 @@
 from .helpers import (get_tests_sandbox, TEST_DIR, get_tests_location, wait_record_in_job_archive,
                       yatest_common, get_operation_path)
 
-from yt.common import to_native_str
+from yt.common import to_native_str, YT_NULL_TRANSACTION_ID
 import yt.subprocess_wrapper as subprocess
+from yt.wrapper.errors import YtOperationFailedError
 from yt.wrapper.ypath import YPath
 import yt.environment.arcadia_interop as arcadia_interop
 
@@ -302,3 +303,31 @@ class TestJobTool(object):
         with open(os.path.join(path, "sandbox", "table_as_file.json")) as inf:
             table_as_file_saved = json.load(inf)
             assert table_as_file_saved == TABLE_AS_FILE_DATA
+
+    def test_user_transaction(self, yt_env_job_archive):
+        with yt.Transaction():
+            file_ = TEST_DIR + "/_test_file"
+            yt.write_file(file_, b"stringdata")
+
+            table = TEST_DIR + "/table"
+            yt.write_table(table, [{"key": "1", "value": "2"}])
+
+            try:
+                op = yt.run_map("exit 1", table, TEST_DIR + "/output", yt_files=[file_], format=self.TEXT_YSON,
+                                sync=False)
+                op.wait()
+            except YtOperationFailedError:
+                assert True
+
+            with yt.Transaction(transaction_id=YT_NULL_TRANSACTION_ID):
+                job_id = yt.list(get_operation_path(op.id) + "/jobs")[0]
+                path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id,
+                                                     get_context_mode=FULL_INPUT_MODE)
+                p = subprocess.Popen([os.path.join(path, "run.sh")],
+                                     env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]},
+                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                _, p_stderr = p.communicate()
+
+                job_path = os.path.join(yt_env_job_archive.env.path, "test_job_tool", "job_" + job_id)
+                sandbox_path = os.path.join(job_path, "sandbox")
+                assert os.listdir(sandbox_path)[0] == "_test_file"
