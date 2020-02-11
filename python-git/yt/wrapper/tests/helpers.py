@@ -77,8 +77,7 @@ def get_python():
     if yatest_common is None:
         return sys.executable
     else:
-        _, python_root, _ = arcadia_interop.get_root_paths()
-        return yatest_common.binary_path(python_root + "/yt/wrapper/tests/yt_python/yt-python")
+        return yatest_common.binary_path("yt-python")
 
 @contextmanager
 def set_config_option(name, value, final_action=None):
