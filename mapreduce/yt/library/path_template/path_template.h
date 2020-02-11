@@ -30,14 +30,26 @@ namespace NYtPathTemplate {
     public:
         /// @brief Returns full path of node
         /// emptySubPaths - list of paths that will replace it's and parent's empty nodes
-        /// Fails when number of subpath is differnt from it's and parent's empty nodes count
+        /// Fails when number of subpaths is different from it's and parent's empty nodes count
         template<class ...Args>
         [[nodiscard]] NYT::TCypressPath ToPathUnsafe(Args ...emptySubPaths) const {
             return ToPathImpl({emptySubPaths...});
         }
 
+        /// @brief Returns path against some parent node
+        /// emptySubPaths - list of paths that will replace it's and parent's empty nodes
+        /// Fails when number of subpaths is different from relative path's empty nodes conut
+        template<class ...Args>
+        [[nodiscard]] NYT::TCypressPath UnsafePathRelativeTo(TPathTemplatePtr parent, Args ...emptySubPaths) const {
+            return PathRelativeToImpl(parent, {emptySubPaths...});
+        }
+
     protected:
         [[nodiscard]] NYT::TCypressPath ToPathImpl(const std::initializer_list<NYT::TCypressPath>& emptySubPaths) const;
+
+        [[nodiscard]] NYT::TCypressPath PathRelativeToImpl(
+            TPathTemplatePtr parent,
+            const std::initializer_list<NYT::TCypressPath>& emptySubPaths) const;
 
     private:
         /// @brief Creates root node of TPathTemplate

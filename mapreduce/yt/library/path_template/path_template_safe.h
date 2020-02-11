@@ -20,6 +20,14 @@ namespace NYtPathTemplate {
             return ToPathImpl({emptySubPaths...});
         }
 
+        /// @copybrief NYT::TCypressPath TPathTemplate::UnsafePathRelativeTo(TPathTemplatePtr, Args...)
+        /// do not throws
+        template<class TParentType, class ...Args>
+        [[nodiscard]] NYT::TCypressPath SafePathRelativeTo(TParentType parent, Args ...emptySubPaths) const noexcept {
+            static_assert(sizeof...(emptySubPaths) == EmptyNodes - TParentType::TValueType::EmptyNodesCount);
+            return PathRelativeToImpl(parent, {emptySubPaths...});
+        }
+
         static TIntrusiveConstPtr<ThisType> MakeNode(
             std::optional<NYT::TCypressPath> path,
             TPathTemplatePtr parent = TPathTemplatePtr())
