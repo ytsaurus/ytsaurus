@@ -1,5 +1,10 @@
 #pragma once
 
+///
+/// @file mapreduce/yt/interface/format.h
+///
+/// Header containing class to work with raw [YT formats](https://yt.yandex-team.ru/docs/description/storage/formats.html).
+
 #include "node.h"
 
 #include <contrib/libs/protobuf/message.h>
@@ -8,37 +13,86 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/// @deprecated
+/// @see https://wiki.yandex-team.ru/yt/userdoc/formats/#yamreddsv
 struct TYamredDsvAttributes
 {
-    // https://wiki.yandex-team.ru/yt/userdoc/formats/#yamreddsv
+    /// Names of key columns.
     TVector<TString> KeyColumnNames;
+
+    /// Names of subkey columns.
     TVector<TString> SubkeyColumnNames;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Data format for communication with YT proxies.
-struct TFormat {
+/// @brief Class representing YT data format.
+///
+/// Normally the user does not need to use it.
+/// However, the class is handy for "raw" operations and table reading and writing,
+/// e.g. @ref NYT::IOperationClient::RawMap and other raw operations,
+/// @ref NYT::IIOClient::CreateRawReader and @ref NYT::IIOClient::CreateRawWriter.
+/// Anyway, the static factory methods should be preferred to the constructor.
+///
+/// @see [YT doc](https://yt.yandex-team.ru/docs/description/storage/formats.html).
+struct TFormat
+{
 public:
+    /// Format representation understandable by YT.
     TNode Config;
 
 public:
+    /// @brief Construct format from given YT format representation.
+    ///
+    /// @note Prefer using static factory methods (e.g. @ref NYT::TFormat::YsonBinary, @ref NYT::TFormat::YsonText, @ref NYT::TFormat::Protobuf).
     explicit TFormat(const TNode& config = TNode());
 
-    // Prefer using these methods to create your formats.
+    /// @brief Create text YSON format.
+    ///
+    /// @see [the doc](https://yt.yandex-team.ru/docs/description/storage/formats.html#YSON)
     static TFormat YsonText();
+
+    /// @brief Create binary YSON format.
+    ///
+    /// @see [the doc](https://yt.yandex-team.ru/docs/description/storage/formats.html#YSON)
     static TFormat YsonBinary();
+
+    /// @brief Create YaMR format.
+    ///
+    /// @deprecated
     static TFormat YaMRLenval();
+
+    /// @brief Create protobuf format from protobuf message descriptors.
+    ///
+    /// @see [the doc](https://yt.yandex-team.ru/docs/api/c++/protobuf.html).
     static TFormat Protobuf(const TVector<const ::google::protobuf::Descriptor*>& descriptors);
 
+    /// @brief Create protobuf format for the message specified in template parameter.
+    ///
+    /// `T` must be inherited from `Message`.
+    ///
+    /// @see [the doc](https://yt.yandex-team.ru/docs/api/c++/protobuf.html).
     template<typename T>
     static inline TFormat Protobuf();
 
+    /// @brief Is the format text YSON?
+    ///
+    /// @see [the doc](https://yt.yandex-team.ru/docs/description/storage/formats.html#YSON)
     bool IsTextYson() const;
 
+    /// @brief Is the format protobuf?
+    ///
+    /// @see [the doc](https://yt.yandex-team.ru/docs/api/c++/protobuf.html)
     bool IsProtobuf() const;
 
+    /// @brief Is the format YaMR?
+    ///
+    /// @deprecated
     bool IsYamredDsv() const;
+
+    /// @brief For YAMR format returns its attributes in structured way.
+    ///
+    /// @deprecated
     TYamredDsvAttributes GetYamredDsvAttributes() const;
 };
 
@@ -49,6 +103,10 @@ TFormat TFormat::Protobuf() {
     return TFormat::Protobuf({T::descriptor()});
 }
 
+/// @brief Create table schema from protobuf message descriptor.
+///
+/// @param messageDescriptor Message descriptor
+/// @param keepFieldsWithoutExtension Add to schema fields without "column_name" or "key_column_name" extensions.
 TTableSchema CreateTableSchema(
     const ::google::protobuf::Descriptor& messageDescriptor,
     bool keepFieldsWithoutExtension);

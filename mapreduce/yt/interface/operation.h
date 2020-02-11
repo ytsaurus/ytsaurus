@@ -1,5 +1,12 @@
 #pragma once
 
+///
+/// @file mapreduce/yt/interface/operation.h
+///
+/// Header containing interface to run operations in YT
+/// and retrieve information about them.
+/// @see [the doc](https://yt.yandex-team.ru/docs/description/mr/map_reduce_overview.html).
+
 #include "client_method_options.h"
 #include "errors.h"
 #include "io.h"

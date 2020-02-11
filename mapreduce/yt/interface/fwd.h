@@ -1,5 +1,11 @@
 #pragma once
 
+///
+/// @file mapreduce/yt/interface/fwd.h
+///
+/// Header containing mostly forward declarations of types.
+
+
 #include <util/generic/fwd.h>
 #include <util/system/types.h>
 
