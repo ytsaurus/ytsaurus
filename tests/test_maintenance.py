@@ -301,13 +301,15 @@ class TestPodMaintenanceController(object):
                 iter=20,
                 sleep_backoff=1,
             )
-            if not result:
-                # Rollback.
+            def rollback():
                 assert get_pod_eviction_state(yp_client, pod_id) == "requested"
                 transaction_id = yp_client.start_transaction()
                 yp_client.update_hfsm_state(node_id, "up", "Test", transaction_id=transaction_id)
+                # Conflict with pod maintenance controller (/pod/status/maintenance shares lock with /pod/status/eviction) is possible.
                 yp_client.abort_pod_eviction(pod_id, "Test", transaction_id=transaction_id)
                 yp_client.commit_transaction(transaction_id)
+            if not result:
+                with_lock_conflict_retries(rollback)()
             return result
 
         # Test that pod maintenance controller works fine.

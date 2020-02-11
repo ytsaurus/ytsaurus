@@ -21,6 +21,9 @@ from yp.local import set_account_infinite_resource_limits
 
 from yp.common import YtResponseError, wait, WaitFailed
 
+from yt.wrapper.errors import YtTabletTransactionLockConflict
+from yt.wrapper.retries import run_with_retries
+
 from yt.yson import YsonEntity, YsonUint64
 
 import yt.common
@@ -328,7 +331,8 @@ class TestScheduler(object):
 
         yp_client.update_hfsm_state(node_id, "prepare_maintenance", "test")
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/eviction/state"])[0] == "requested")
-        yp_client.acknowledge_pod_eviction(pod_id, "test")
+        # Conflict with pod maintenance controller (/pod/status/maintenance shares lock with /pod/status/eviction) is possible.
+        run_with_retries(lambda: yp_client.acknowledge_pod_eviction(pod_id, "test"), exceptions=(YtTabletTransactionLockConflict,))
         wait(lambda: yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"])[0] == "")
 
         scheduled_allocations, disk_allocations, gpu_allocations = get_allocations()
