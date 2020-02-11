@@ -16,6 +16,10 @@ import (
 )
 
 func checkNotInsideJob() error {
+	if mapreduce.RequestsFromJobAllowed() {
+		return nil
+	}
+
 	if mapreduce.InsideJob() {
 		return xerrors.New("requests to cluster from jobs are forbidden")
 	}
