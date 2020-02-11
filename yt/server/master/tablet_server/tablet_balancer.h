@@ -25,12 +25,6 @@ public:
 
     void OnTabletHeartbeat(TTablet* tablet);
 
-    std::vector<TTabletActionId> SyncBalanceCells(
-        TTabletCellBundle* bundle,
-        const std::optional<std::vector<NTableServer::TTableNode*>>& tables);
-
-    std::vector<TTabletActionId> SyncBalanceTablets(NTableServer::TTableNode* table);
-
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

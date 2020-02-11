@@ -1,3 +1,4 @@
+#include "balancing_helpers.h"
 #include "config.h"
 #include "private.h"
 #include "public.h"
@@ -115,7 +116,7 @@ public:
             return;
         }
 
-        auto size = GetTabletSize(tablet);
+        auto size = GetTabletBalancingSize(tablet, Bootstrap_->GetTabletManager());
         auto bounds = GetTabletSizeConfig(tablet);
         if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
             auto bundleId = tablet->GetTable()->GetTabletCellBundle()->GetId();
@@ -128,42 +129,7 @@ public:
         }
     }
 
-    std::vector<TTabletActionId> SyncBalanceCells(
-        TTabletCellBundle* bundle,
-        const std::optional<std::vector<TTableNode*>>& tables)
-    {
-        if (bundle->GetActiveTabletActionCount() > 0) {
-            return {};
-        }
-
-        SpawnedTabletActionIds_.clear();
-        std::optional<THashSet<const TTableNode*>> tablesSet;
-        if (tables) {
-            tablesSet = THashSet<const TTableNode*>(tables->begin(), tables->end());
-        }
-        ReassignInMemoryTablets(bundle, tablesSet, true);
-
-        // TODO(ifsmirnov): turn it on someday.
-        // ReassignExtMemoryTablets(bundle, tablesSet, true);
-
-        return std::move(SpawnedTabletActionIds_);
-    }
-
-    std::vector<TTabletActionId> SyncBalanceTablets(TTableNode* table)
-    {
-        SpawnedTabletActionIds_.clear();
-        BalanceTablets(table);
-        return std::move(SpawnedTabletActionIds_);
-    }
-
 private:
-    struct TTabletSizeConfig
-    {
-        i64 MinTabletSize;
-        i64 MaxTabletSize;
-        i64 DesiredTabletSize;
-    };
-
     const NCellMaster::TBootstrap* Bootstrap_;
 
     TTabletBalancerMasterConfigPtr Config_ = New<TTabletBalancerMasterConfig>();
@@ -176,7 +142,7 @@ private:
     THashMap<TTabletCellBundleId, std::deque<TTabletId>> TabletIdQueue_;
 
     THashSet<TTabletId> QueuedTabletIds_;
-    THashSet<const TTablet*> TouchedTablets_;
+    TTabletBalancerContext Context_;
     THashSet<const TTableNode*> TablesWithActiveActions_;
     THashSet<TTabletCellBundleId> BundlesPendingCellBalancing_;
     TTimeFormula FallbackBalancingSchedule_;
@@ -195,20 +161,9 @@ private:
         ConfigCheckExecutor_->SetPeriod(Config_->ConfigCheckPeriod);
     }
 
-    bool IsTabletReshardable(const TTablet* tablet, bool ignoreConfig = false)
+    bool IsTabletReshardable(const TTablet* tablet) const
     {
-        return tablet &&
-            IsObjectAlive(tablet) &&
-            (tablet->GetState() == ETabletState::Mounted || tablet->GetState() == ETabletState::Frozen) &&
-            (!tablet->GetAction() || tablet->GetAction()->IsFinished()) &&
-            IsObjectAlive(tablet->GetTable()) &&
-            (ignoreConfig || tablet->GetTable()->TabletBalancerConfig()->EnableAutoReshard) &&
-            tablet->GetTable()->IsPhysicallySorted() &&
-            IsObjectAlive(tablet->GetCell()) &&
-            IsObjectAlive(tablet->GetCell()->GetTabletCellBundle()) &&
-            (ignoreConfig || tablet->GetCell()->GetTabletCellBundle()->TabletBalancerConfig()->EnableTabletSizeBalancer) &&
-            tablet->Replicas().empty() &&
-            IsTabletUntouched(tablet);
+        return NTabletServer::IsTabletReshardable(tablet, /*ignoreConfig*/ false) && IsTabletUntouched(tablet);
     }
 
     const TTimeFormula& GetBundleSchedule(const TTabletCellBundle* bundle)
@@ -266,7 +221,7 @@ private:
         }
 
         BundlesPendingCellBalancing_ = std::move(bundlesForCellBalancingOnNextIteration);
-        TouchedTablets_.clear();
+        Context_.TouchedTablets.clear();
         PurgeDeletedBundles();
 
         size_t totalSize = 0;
@@ -289,7 +244,7 @@ private:
             for (auto* bundle : forMove) {
                 YT_LOG_DEBUG("Balancing in memory cells for bundle (Bundle: %v)",
                     bundle->GetName());
-                ReassignInMemoryTablets(bundle, std::nullopt, false);
+                ReassignInMemoryTablets(bundle);
             }
         }
 
@@ -357,25 +312,12 @@ private:
         return cells;
     }
 
-    TGuid GenerateCorrelationId(bool sync)
-    {
-        if (sync) {
-            auto* mutationContext = NHydra::GetCurrentMutationContext();
-            auto& gen = mutationContext->RandomGenerator();
-            ui64 lo = gen.Generate<ui64>();
-            ui64 hi = gen.Generate<ui64>();
-            return TGuid(lo, hi);
-        } else {
-            return TGuid::Create();
-        }
-    }
-
-    void CreateMoveAction(TTablet* tablet, TTabletCellId targetCellId, bool sync)
+    void CreateMoveAction(TTablet* tablet, TTabletCellId targetCellId)
     {
         auto* table = tablet->GetTable();
         auto* srcCell = tablet->GetCell();
 
-        auto correlationId = GenerateCorrelationId(sync);
+        auto correlationId = TGuid::Create();
         YT_LOG_DEBUG("Tablet balancer would like to move tablet "
             "(TableId: %v, InMemoryMode: %v, TabletId: %v, SrcCellId: %v, DstCellId: %v, "
             "Bundle: %v, TabletBalancerCorrelationId: %v)",
@@ -387,40 +329,18 @@ private:
             table->GetTabletCellBundle()->GetName(),
             correlationId);
 
-        if (sync) {
-            try {
-                const auto& tabletManager = Bootstrap_->GetTabletManager();
-                auto* dstCell = tabletManager->GetTabletCellOrThrow(targetCellId);
-                auto* action = tabletManager->CreateTabletAction(
-                    TObjectId{},
-                    ETabletActionKind::Move,
-                    {tablet},
-                    {dstCell},
-                    {}, // pivotKeys
-                    std::nullopt, // tabletCount
-                    false, // skipFreezing
-                    correlationId,
-                    TInstant::Zero());
-                SpawnedTabletActionIds_.push_back(action->GetId());
-            } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Tablet balancer failed to create tablet action (Kind: %v, TabletBalancerCorrelationId: %v",
-                    ETabletActionKind::Move,
-                    correlationId);
-            }
-        } else {
-            TReqCreateTabletAction request;
-            request.set_kind(static_cast<int>(ETabletActionKind::Move));
-            ToProto(request.mutable_tablet_ids(), std::vector<TTabletId>{tablet->GetId()});
-            ToProto(request.mutable_cell_ids(), std::vector<TTabletCellId>{targetCellId});
-            ToProto(request.mutable_correlation_id(), correlationId);
+        TReqCreateTabletAction request;
+        request.set_kind(static_cast<int>(ETabletActionKind::Move));
+        ToProto(request.mutable_tablet_ids(), std::vector<TTabletId>{tablet->GetId()});
+        ToProto(request.mutable_cell_ids(), std::vector<TTabletCellId>{targetCellId});
+        ToProto(request.mutable_correlation_id(), correlationId);
 
-            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger);
-        }
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger);
     }
 
-    void CreateReshardAction(const std::vector<TTablet*>& tablets, int newTabletCount, i64 size, bool sync)
+    void CreateReshardAction(const std::vector<TTablet*>& tablets, int newTabletCount, i64 size)
     {
         YT_VERIFY(!tablets.empty());
 
@@ -430,7 +350,7 @@ private:
         }
 
         auto* table = tablets[0]->GetTable();
-        auto correlationId = GenerateCorrelationId(sync);
+        auto correlationId = TGuid::Create();
         YT_LOG_DEBUG("Tablet balancer would like to reshard tablets "
             "(TableId: %v, TabletIds: %v, NewTabletCount: %v, TotalSize: %v, Bundle: %v, TabletBalancerCorrelationId: %v)",
             table->GetId(),
@@ -440,44 +360,23 @@ private:
             table->GetTabletCellBundle()->GetName(),
             correlationId);
 
-        if (sync) {
-            try {
-                const auto& tabletManager = Bootstrap_->GetTabletManager();
-                auto* action = tabletManager->CreateTabletAction(
-                    TObjectId{},
-                    ETabletActionKind::Reshard,
-                    tablets,
-                    {}, // cells
-                    {}, // pivotKeys
-                    newTabletCount,
-                    false, // skipFreezing
-                    correlationId,
-                    TInstant::Zero());
-                SpawnedTabletActionIds_.push_back(action->GetId());
-            } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Tablet balancer failed to create tablet action (Kind: %v, TabletBalancerCorrelationId: %v",
-                    ETabletActionKind::Reshard,
-                    correlationId);
-            }
-        } else {
-            TReqCreateTabletAction request;
-            request.set_kind(static_cast<int>(ETabletActionKind::Reshard));
-            ToProto(request.mutable_tablet_ids(), tabletIds);
-            request.set_tablet_count(newTabletCount);
-            ToProto(request.mutable_correlation_id(), correlationId);
+        TReqCreateTabletAction request;
+        request.set_kind(static_cast<int>(ETabletActionKind::Reshard));
+        ToProto(request.mutable_tablet_ids(), tabletIds);
+        request.set_tablet_count(newTabletCount);
+        ToProto(request.mutable_correlation_id(), correlationId);
 
-            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            CreateMutation(hydraManager, request)
-                ->CommitAndLog(Logger);
-        }
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        CreateMutation(hydraManager, request)
+            ->CommitAndLog(Logger);
     }
 
-    int ApplyMoveActions(bool sync)
+    int ApplyMoveActions()
     {
         int actionCount = 0;
         for (const auto& pair : TabletToTargetCellMap_) {
             if (pair.first->GetCell() != pair.second) {
-                CreateMoveAction(pair.first, pair.second->GetId(), sync);
+                CreateMoveAction(pair.first, pair.second->GetId());
                 ++actionCount;
             }
         }
@@ -486,133 +385,27 @@ private:
         return actionCount;
     }
 
-    void ReassignInMemoryTablets(
-        const TTabletCellBundle* bundle,
-        const std::optional<THashSet<const TTableNode*>>& movableTables,
-        bool sync)
+    void ReassignInMemoryTablets(const TTabletCellBundle* bundle)
     {
-        const auto& config = bundle->TabletBalancerConfig();
-        if (!sync && !config->EnableInMemoryCellBalancer) {
+        if (!bundle->TabletBalancerConfig()->EnableInMemoryCellBalancer) {
             return;
         }
 
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        auto descriptors = NTabletServer::ReassignInMemoryTablets(
+            bundle,
+            std::nullopt, // movableTables,
+            false, // ignoreTableWiseConfig
+            &Context_,
+            Bootstrap_->GetTabletManager());
 
-        auto softThresholdViolated = [&config] (i64 min, i64 max) {
-            return max > 0 && 1.0 * (max - min) / max > config->SoftInMemoryCellBalanceThreshold;
-        };
-
-        auto hardThresholdViolated = [&config] (i64 min, i64 max) {
-            return max > 0 && 1.0 * (max - min) / max > config->HardInMemoryCellBalanceThreshold;
-        };
-
-        auto cells = GetAliveCells(bundle);
-
-        if (cells.empty()) {
-            return;
-        }
-
-        struct TMemoryUsage {
-            i64 Memory;
-            const TTabletCell* TabletCell;
-
-            bool operator<(const TMemoryUsage& other) const
-            {
-                if (Memory != other.Memory) {
-                    return Memory < other.Memory;
-                }
-                return TabletCell->GetId() < other.TabletCell->GetId();
+        if (!descriptors.empty()) {
+            for (auto descriptor : descriptors) {
+                CreateMoveAction(descriptor.Tablet, descriptor.TabletCellId);
             }
-            bool operator>(const TMemoryUsage& other) const
-            {
-                return other < *this;
-            }
-        };
 
-        std::vector<TMemoryUsage> memoryUsage;
-        i64 total = 0;
-        memoryUsage.reserve(cells.size());
-        for (const auto* cell : cells) {
-            i64 size = cell->GossipStatistics().Local().MemorySize;
-            total += size;
-            memoryUsage.push_back({size, cell});
-        }
-
-        auto minmaxCells = std::minmax_element(memoryUsage.begin(), memoryUsage.end());
-        if (!hardThresholdViolated(minmaxCells.first->Memory, minmaxCells.second->Memory)) {
-            return;
-        }
-
-        std::sort(memoryUsage.begin(), memoryUsage.end());
-        i64 mean = total / cells.size();
-        std::priority_queue<TMemoryUsage, std::vector<TMemoryUsage>, std::greater<TMemoryUsage>> queue;
-
-        for (const auto& cell : memoryUsage) {
-            if (cell.Memory >= mean) {
-                break;
-            }
-            queue.push(cell);
-        }
-
-        int actionCount = 0;
-        for (int index = memoryUsage.size() - 1; index >= 0; --index) {
-            auto cellSize = memoryUsage[index].Memory;
-            auto* cell = memoryUsage[index].TabletCell;
-
-            std::vector<TTablet*> tablets(cell->Tablets().begin(), cell->Tablets().end());
-            std::sort(tablets.begin(), tablets.end(), [] (TTablet* lhs, TTablet* rhs) {
-                return lhs->GetId() < rhs->GetId();
-            });
-
-            for (auto* tablet : tablets) {
-                if (tablet->GetInMemoryMode() == EInMemoryMode::None) {
-                    continue;
-                }
-
-                if (!sync && !tablet->GetTable()->TabletBalancerConfig()->EnableAutoTabletMove) {
-                    continue;
-                }
-
-                if (movableTables && !movableTables->contains(tablet->GetTable())) {
-                    continue;
-                }
-
-                if (queue.empty() || cellSize <= mean) {
-                    break;
-                }
-
-                auto top = queue.top();
-
-                if (!softThresholdViolated(top.Memory, cellSize)) {
-                    break;
-                }
-
-                auto statistics = tabletManager->GetTabletStatistics(tablet);
-                auto tabletSize = statistics.MemorySize;
-
-                if (tabletSize == 0) {
-                    continue;
-                }
-
-                if (tabletSize < cellSize - top.Memory) {
-                    queue.pop();
-                    top.Memory += tabletSize;
-                    cellSize -= tabletSize;
-                    if (top.Memory < mean) {
-                        queue.push(top);
-                    }
-
-                    CreateMoveAction(tablet, top.TabletCell->GetId(), sync);
-
-                    ++actionCount;
-                }
-            }
-        }
-
-        if (!sync) {
             Profiler.Enqueue(
                 "/in_memory_moves",
-                actionCount,
+                descriptors.size(),
                 NProfiling::EMetricType::Gauge,
                 {bundle->GetProfilingTag()});
         }
@@ -853,7 +646,7 @@ private:
             ReassignSlackTablets(slackTabletsVector);
         }
 
-        int actionCount = ApplyMoveActions(false /*sync*/);
+        int actionCount = ApplyMoveActions();
 
         Profiler.Enqueue(
             "/ext_memory_moves",
@@ -862,35 +655,17 @@ private:
             {bundle->GetProfilingTag()});
     }
 
-    bool BalanceTablet(TTablet* tablet, bool sync)
+    bool BalanceTablet(TTablet* tablet)
     {
-        if (!IsTabletReshardable(tablet, sync) ||
+        if (!IsTabletReshardable(tablet) ||
             TablesWithActiveActions_.contains(tablet->GetTable()))
         {
             return false;
         }
 
-        auto size = GetTabletSize(tablet);
         auto bounds = GetTabletSizeConfig(tablet);
-        if (size < bounds.MinTabletSize || size > bounds.MaxTabletSize) {
-            if (MergeSplitTablet(tablet, bounds, sync)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
-    void BalanceTablets(const TTableNode* table)
-    {
-        TouchedTablets_.clear();
-        for (const auto* tablet : table->Tablets()) {
-            if (tablet->GetAction()) {
-                return;
-            }
-        }
-        for (auto* tablet : table->Tablets()) {
-            BalanceTablet(tablet, true);
-        }
+        return MergeSplitTablet(tablet, bounds);
     }
 
     void BalanceTablets(const TTabletCellBundle* bundle)
@@ -914,7 +689,7 @@ private:
             QueuedTabletIds_.erase(tabletId);
 
             auto* tablet = tabletManager->FindTablet(tabletId);
-            actionCount += BalanceTablet(tablet, false /*sync*/);
+            actionCount += BalanceTablet(tablet);
         }
 
         Profiler.Enqueue(
@@ -924,86 +699,24 @@ private:
             {bundle->GetProfilingTag()});
     }
 
-    i64 GetTabletSize(TTablet* tablet)
+    bool IsTabletUntouched(const TTablet* tablet) const
     {
-        const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto statistics = tabletManager->GetTabletStatistics(tablet);
-        return tablet->GetInMemoryMode() == EInMemoryMode::None
-            ? statistics.UncompressedDataSize
-            : statistics.MemorySize;
+        return Context_.IsTabletUntouched(tablet);
     }
 
-    bool IsTabletUntouched(const TTablet* tablet)
+    bool MergeSplitTablet(TTablet* tablet, const TTabletSizeConfig& bounds)
     {
-        return TouchedTablets_.find(tablet) == TouchedTablets_.end();
-    }
+        auto descriptors = NTabletServer::MergeSplitTablet(
+            tablet,
+            bounds,
+            &Context_,
+            Bootstrap_->GetTabletManager());
 
-    bool MergeSplitTablet(TTablet* tablet, const TTabletSizeConfig& bounds, bool sync)
-    {
-        auto* table = tablet->GetTable();
-
-        i64 desiredSize = bounds.DesiredTabletSize;
-        i64 size = GetTabletSize(tablet);
-
-        if (size < bounds.MinTabletSize && table->Tablets().size() == 1) {
-            return false;
+        for (auto descriptor : descriptors) {
+            CreateReshardAction(descriptor.Tablets, descriptor.TabletCount, descriptor.DataSize);
         }
 
-        if (desiredSize == 0) {
-            desiredSize = 1;
-        }
-
-        int startIndex = tablet->GetIndex();
-        int endIndex = tablet->GetIndex();
-
-        auto sizeGood = [&] () {
-            int tabletCount = std::clamp<i64>(DivRound(size, desiredSize), 1, MaxTabletCount);
-            i64 tabletSize = size / tabletCount;
-            return tabletSize >= bounds.MinTabletSize && tabletSize <= bounds.MaxTabletSize;
-        };
-
-        while (!sizeGood() &&
-            startIndex > 0 &&
-            IsTabletUntouched(table->Tablets()[startIndex - 1]) &&
-            table->Tablets()[startIndex - 1]->GetState() == tablet->GetState())
-        {
-            --startIndex;
-            size += GetTabletSize(table->Tablets()[startIndex]);
-        }
-        while (!sizeGood() &&
-            endIndex < table->Tablets().size() - 1 &&
-            IsTabletUntouched(table->Tablets()[endIndex + 1]) &&
-            table->Tablets()[endIndex + 1]->GetState() == tablet->GetState())
-        {
-            ++endIndex;
-            size += GetTabletSize(table->Tablets()[endIndex]);
-        }
-
-        int newTabletCount = std::clamp<i64>(DivRound(size, desiredSize), 1, MaxTabletCount);
-
-        if (endIndex == startIndex && tablet->NodeStatistics().partition_count() == 1) {
-            return false;
-        }
-
-
-        if (newTabletCount == endIndex - startIndex + 1 && newTabletCount == 1) {
-            YT_LOG_DEBUG("Tablet balancer is unable to reshard tablet (TableId: %v, TabletId: %v, TabletSize: %v)",
-                table->GetId(),
-                tablet->GetId(),
-                size);
-            return false;
-        }
-
-        std::vector<TTablet*> tablets;
-        for (int index = startIndex; index <= endIndex; ++index) {
-            auto* tablet = table->Tablets()[index];
-            tablets.push_back(tablet);
-            TouchedTablets_.insert(tablet);
-        }
-
-        CreateReshardAction(tablets, newTabletCount, size, sync);
-
-        return true;
+        return !descriptors.empty();
     }
 
     void PurgeDeletedBundles()
@@ -1019,64 +732,6 @@ private:
             TabletIdQueue_.erase(bundleId);
         }
     }
-
-    TTabletSizeConfig GetTabletSizeConfig(TTablet* tablet)
-    {
-        i64 minTabletSize;
-        i64 maxTabletSize;
-        i64 desiredTabletSize = 0;
-
-        const auto& config = tablet->GetCell()->GetTabletCellBundle()->TabletBalancerConfig();
-        auto* table = tablet->GetTable();
-        auto desiredTabletCount = table->GetDesiredTabletCount();
-        auto statistics = table->ComputeTotalStatistics();
-        i64 tableSize = tablet->GetInMemoryMode() == EInMemoryMode::Compressed
-            ? statistics.compressed_data_size()
-            : statistics.uncompressed_data_size();
-        i64 cellCount = tablet->GetCell()->GetTabletCellBundle()->Cells().size() *
-            config->TabletToCellRatio;
-
-        if (!desiredTabletCount) {
-            minTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-                ? config->MinTabletSize
-                : config->MinInMemoryTabletSize;
-            maxTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-                ? config->MaxTabletSize
-                : config->MaxInMemoryTabletSize;
-            desiredTabletSize = tablet->GetInMemoryMode() == EInMemoryMode::None
-                ? config->DesiredTabletSize
-                : config->DesiredInMemoryTabletSize;
-
-            auto tableMinTabletSize = table->GetMinTabletSize();
-            auto tableMaxTabletSize = table->GetMaxTabletSize();
-            auto tableDesiredTabletSize = table->GetDesiredTabletSize();
-
-            if (tableMinTabletSize && tableMaxTabletSize && tableDesiredTabletSize &&
-                *tableMinTabletSize < *tableDesiredTabletSize &&
-                *tableDesiredTabletSize < *tableMaxTabletSize)
-            {
-                minTabletSize = *tableMinTabletSize;
-                maxTabletSize = *tableMaxTabletSize;
-                desiredTabletSize = *tableDesiredTabletSize;
-            }
-        } else {
-            cellCount = *desiredTabletCount;
-        }
-
-        if (cellCount == 0) {
-            cellCount = 1;
-        }
-
-        auto tabletSize = DivCeil(tableSize, cellCount);
-        if (desiredTabletSize < tabletSize) {
-            desiredTabletSize = tabletSize;
-            minTabletSize = static_cast<i64>(desiredTabletSize / 1.9);
-            maxTabletSize = static_cast<i64>(desiredTabletSize * 1.9);
-        }
-
-        return TTabletSizeConfig{minTabletSize, maxTabletSize, desiredTabletSize};
-    }
-
 
     void OnCheckConfig()
     {
@@ -1143,18 +798,6 @@ void TTabletBalancer::Reconfigure(TTabletBalancerMasterConfigPtr config)
 void TTabletBalancer::OnTabletHeartbeat(TTablet* tablet)
 {
     Impl_->OnTabletHeartbeat(tablet);
-}
-
-std::vector<TTabletActionId> TTabletBalancer::SyncBalanceCells(
-    TTabletCellBundle* bundle,
-    const std::optional<std::vector<NTableServer::TTableNode*>>& tables)
-{
-    return Impl_->SyncBalanceCells(bundle, tables);
-}
-
-std::vector<TTabletActionId> TTabletBalancer::SyncBalanceTablets(NTableServer::TTableNode* table)
-{
-    return Impl_->SyncBalanceTablets(table);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

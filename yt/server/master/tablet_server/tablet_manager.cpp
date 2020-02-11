@@ -1,3 +1,4 @@
+#include "balancing_helpers.h"
 #include "config.h"
 #include "cypress_integration.h"
 #include "private.h"
@@ -1618,15 +1619,125 @@ public:
     }
 
 
+    TGuid GenerateTabletBalancerCorrelationId() const
+    {
+        auto mutationContext = GetCurrentMutationContext();
+        auto& gen = mutationContext->RandomGenerator();
+        ui64 lo = gen.Generate<ui64>();
+        ui64 hi = gen.Generate<ui64>();
+        return TGuid(lo, hi);
+    }
+
+    TTabletActionId SpawnTabletAction(const TReshardDescriptor& descriptor)
+    {
+        std::vector<TTabletId> tabletIds;
+        for (const auto& tablet : descriptor.Tablets) {
+            tabletIds.push_back(tablet->GetId());
+        }
+
+        auto* table = descriptor.Tablets[0]->GetTable();
+
+        auto correlationId = GenerateTabletBalancerCorrelationId();
+
+        YT_LOG_DEBUG("Automatically resharding tablets "
+            "(TableId: %v, TabletIds: %v, NewTabletCount: %v, TotalSize: %v, Bundle: %v, "
+            "TabletBalancerCorrelationId: %v, Sync: true)",
+            table->GetId(),
+            tabletIds,
+            descriptor.TabletCount,
+            descriptor.DataSize,
+            table->GetTabletCellBundle()->GetName(),
+            correlationId);
+
+        try {
+            auto* action = CreateTabletAction(
+                TObjectId{},
+                ETabletActionKind::Reshard,
+                descriptor.Tablets,
+                {}, // cells
+                {}, // pivotKeys
+                descriptor.TabletCount,
+                false, // skipFreezing
+                correlationId,
+                TInstant::Zero());
+            return action->GetId();
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Failed to create tablet action during sync reshard (TabletBalancerCorrelationId: %v)",
+                correlationId);
+            return NullObjectId;
+        }
+
+    }
+
+    TTabletActionId SpawnTabletAction(const TTabletMoveDescriptor& descriptor)
+    {
+        auto* table = descriptor.Tablet->GetTable();
+
+        auto correlationId = GenerateTabletBalancerCorrelationId();
+
+        YT_LOG_DEBUG("Moving tablet during cell balancing "
+            "(TableId: %v, InMemoryMode: %v, TabletId: %v, SrcCellId: %v, DstCellId: %v, "
+            "Bundle: %v, TabletBalancerCorrelationId: %v, Sync: true)",
+            table->GetId(),
+            table->GetInMemoryMode(),
+            descriptor.Tablet->GetId(),
+            descriptor.Tablet->GetCell()->GetId(),
+            descriptor.TabletCellId,
+            table->GetTabletCellBundle()->GetName(),
+            correlationId);
+
+        try {
+            auto* action = CreateTabletAction(
+                TObjectId{},
+                ETabletActionKind::Move,
+                {descriptor.Tablet},
+                {GetTabletCellOrThrow(descriptor.TabletCellId)},
+                {}, // pivotKeys
+                std::nullopt, // tabletCount
+                false, // skipFreezing
+                correlationId,
+                TInstant::Zero());
+            return action->GetId();
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG("Failed to create tablet action during sync cells balancing (TabletBalancerCorrelationId: %v)",
+                correlationId);
+            return NullObjectId;
+        }
+    }
+
     std::vector<TTabletActionId> SyncBalanceCells(
         TTabletCellBundle* bundle,
         const std::optional<std::vector<TTableNode*>>& tables,
         bool keepActions)
     {
-        auto actions = TabletBalancer_->SyncBalanceCells(bundle, tables);
+        if (bundle->GetActiveTabletActionCount() > 0) {
+            return {};
+        }
+
+        std::optional<THashSet<const TTableNode*>> tablesSet;
+        if (tables) {
+            tablesSet = THashSet<const TTableNode*>(tables->begin(), tables->end());
+        }
+
+        std::vector<TTabletActionId> actions;
+        TTabletBalancerContext context;
+        auto descriptors = ReassignInMemoryTablets(
+            bundle,
+            tablesSet,
+            true, // ignoreConfig
+            &context,
+            Bootstrap_->GetTabletManager());
+
+        for (auto descriptor : descriptors) {
+            if (auto actionId = SpawnTabletAction(descriptor)) {
+                actions.push_back(actionId);
+            }
+        }
+
         if (keepActions) {
             SetSyncTabletActionsKeepalive(actions);
         }
+
         return actions;
     }
 
@@ -1642,7 +1753,32 @@ public:
             THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
         }
 
-        auto actions = TabletBalancer_->SyncBalanceTablets(table);
+        for (const auto& tablet : table->Tablets()) {
+            if (tablet->GetAction()) {
+                return {};
+            }
+        }
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+        std::vector<TTabletActionId> actions;
+        TTabletBalancerContext context;
+        for (const auto& tablet : table->Tablets()) {
+            if (!IsTabletReshardable(tablet, /*ignoreConfig*/ true) || !context.IsTabletUntouched(tablet)) {
+                continue;
+            }
+
+            auto bounds = GetTabletSizeConfig(tablet);
+
+            auto descriptors = MergeSplitTablet(tablet, bounds, &context, tabletManager);
+
+            for (auto descriptor : descriptors) {
+                if (auto actionId = SpawnTabletAction(descriptor)) {
+                    actions.push_back(actionId);
+                }
+            }
+        }
+
         if (keepActions) {
             SetSyncTabletActionsKeepalive(actions);
         }
