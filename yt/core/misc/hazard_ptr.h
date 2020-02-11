@@ -22,7 +22,7 @@ void* AcquireHazardPointer(const TPtrLoader& ptrLoader, void* localPtr);
 inline void ReleaseHazardPointer();
 
 void ScheduleObjectDeletion(void* ptr, TDeleter deleter);
-void ScanDeleteList();
+bool ScanDeleteList();
 
 ////////////////////////////////////////////////////////////////////////////////
 
