@@ -24,6 +24,8 @@ import pandas.core.series  # type: ignore[import]
 PandasDataFrame: Type[DataFrameLike] = pandas.core.frame.DataFrame
 PandasSeries: Type[SeriesLike] = pandas.core.series.Series
 
+DataFrameOrSeriesLike = Union[DataFrameLike, SeriesLike]
+
 # UDF annotations
 PandasScalarUDFType = Literal[200]
 PandasScalarIterUDFType = Literal[204]
@@ -33,149 +35,201 @@ PandasGroupedAggUDFType = Literal[202]
 PandasMapIterUDFType = Literal[205]
 
 class PandasVariadicScalarToScalarFunction(Protocol):
-    def __call__(self, *_: SeriesLike) -> SeriesLike: ...
+    def __call__(self, *_: DataFrameOrSeriesLike) -> SeriesLike: ...
 
 PandasScalarToScalarFunction = Union[
     PandasVariadicScalarToScalarFunction,
-    Callable[[SeriesLike], SeriesLike],
-    Callable[[SeriesLike, SeriesLike], SeriesLike],
-    Callable[[SeriesLike, SeriesLike, SeriesLike], SeriesLike],
-    Callable[[SeriesLike, SeriesLike, SeriesLike, SeriesLike], SeriesLike],
-    Callable[[SeriesLike, SeriesLike, SeriesLike, SeriesLike, SeriesLike], SeriesLike],
+    Callable[[DataFrameOrSeriesLike], SeriesLike],
+    Callable[[DataFrameOrSeriesLike, DataFrameOrSeriesLike], SeriesLike],
     Callable[
-        [SeriesLike, SeriesLike, SeriesLike, SeriesLike, SeriesLike, SeriesLike],
+        [DataFrameOrSeriesLike, DataFrameOrSeriesLike, DataFrameOrSeriesLike],
         SeriesLike,
     ],
     Callable[
         [
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
         ],
         SeriesLike,
     ],
     Callable[
         [
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
         ],
         SeriesLike,
     ],
     Callable[
         [
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
         ],
         SeriesLike,
     ],
     Callable[
         [
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+        ],
+        SeriesLike,
+    ],
+    Callable[
+        [
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+        ],
+        SeriesLike,
+    ],
+    Callable[
+        [
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+        ],
+        SeriesLike,
+    ],
+    Callable[
+        [
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
         ],
         SeriesLike,
     ],
 ]
 
 class PandasVariadicScalarToStructFunction(Protocol):
-    def __call__(self, *_: SeriesLike) -> DataFrameLike: ...
+    def __call__(self, *_: DataFrameOrSeriesLike) -> DataFrameLike: ...
 
 PandasScalarToStructFunction = Union[
     PandasVariadicScalarToStructFunction,
-    Callable[[SeriesLike], DataFrameLike],
-    Callable[[SeriesLike, SeriesLike], DataFrameLike],
-    Callable[[SeriesLike, SeriesLike, SeriesLike], DataFrameLike],
-    Callable[[SeriesLike, SeriesLike, SeriesLike, SeriesLike], DataFrameLike],
+    Callable[[DataFrameOrSeriesLike], DataFrameLike],
+    Callable[[DataFrameOrSeriesLike, DataFrameOrSeriesLike], DataFrameLike],
     Callable[
-        [SeriesLike, SeriesLike, SeriesLike, SeriesLike, SeriesLike], DataFrameLike
-    ],
-    Callable[
-        [SeriesLike, SeriesLike, SeriesLike, SeriesLike, SeriesLike, SeriesLike],
+        [DataFrameOrSeriesLike, DataFrameOrSeriesLike, DataFrameOrSeriesLike],
         DataFrameLike,
     ],
     Callable[
         [
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
         ],
         DataFrameLike,
     ],
     Callable[
         [
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
         ],
         DataFrameLike,
     ],
     Callable[
         [
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
         ],
         DataFrameLike,
     ],
     Callable[
         [
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
-            SeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+        ],
+        DataFrameLike,
+    ],
+    Callable[
+        [
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+        ],
+        DataFrameLike,
+    ],
+    Callable[
+        [
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+        ],
+        DataFrameLike,
+    ],
+    Callable[
+        [
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
+            DataFrameOrSeriesLike,
         ],
         DataFrameLike,
     ],
 ]
 
 PandasScalarIterFunction = Callable[
-    [Iterable[Union[SeriesLike, Tuple[SeriesLike, ...], DataFrameLike]]],
+    [Iterable[Union[DataFrameOrSeriesLike, Tuple[DataFrameOrSeriesLike, ...]]]],
     Iterable[SeriesLike],
 ]
 

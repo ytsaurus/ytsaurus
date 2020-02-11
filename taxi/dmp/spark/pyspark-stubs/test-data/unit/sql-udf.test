@@ -1,6 +1,7 @@
 [case scalarUDF]
 from pyspark.sql.pandas.functions import pandas_udf, PandasUDFType
 import pandas.core.series  # type: ignore[import]
+import pandas.core.frame  # type: ignore[import]
 
 @pandas_udf("str", PandasUDFType.SCALAR)
 def f(x: pandas.core.series.Series) -> pandas.core.series.Series:
@@ -13,6 +14,10 @@ def g(x: pandas.core.series.Series, y: pandas.core.series.Series) -> pandas.core
 @pandas_udf("str", PandasUDFType.SCALAR)
 def h(*xs: pandas.core.series.Series) -> pandas.core.series.Series:
     return xs[0]
+
+@pandas_udf("str", PandasUDFType.SCALAR)
+def k(x: pandas.core.frame.DataFrame, y: pandas.core.series.Series) -> pandas.core.series.Series:
+    return x
 
 pandas_udf(lambda x: x, "str", PandasUDFType.SCALAR)
 pandas_udf(lambda x, y: x, "str", PandasUDFType.SCALAR)
