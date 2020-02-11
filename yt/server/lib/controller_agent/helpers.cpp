@@ -32,9 +32,7 @@ void TReleaseJobFlags::Persist(const TStreamPersistenceContext& context)
     Persist(context, ArchiveJobSpec);
     Persist(context, ArchiveFailContext);
     Persist(context, ArchiveProfile);
-    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::JobHasCompetitorsFlag)) {
-        Persist(context, HasCompetitors);
-    }
+    Persist(context, HasCompetitors);
 }
 
 TString ToString(const TReleaseJobFlags& releaseFlags)
