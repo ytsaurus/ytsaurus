@@ -21,7 +21,7 @@
 ///   - @ref NYT::Initialize() initialization function for this library;
 ///   - @ref NYT::IClient main interface to work with YT cluster;
 ///   - @ref NYT::CreateClient() function that creates client for particular cluster;
-///   - @ref NYT::IOperationClient ancestor of IClient containing the set of methods to run operations.
+///   - @ref NYT::IOperationClient ancestor of @ref NYT::IClient containing the set of methods to run operations.
 ///
 /// Tutorial on using this library can be found [here](https://wiki.yandex-team.ru/yt/userdoc/cppapi/tutorial/).
 
