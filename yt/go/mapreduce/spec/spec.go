@@ -10,6 +10,8 @@ import (
 	"a.yandex-team.ru/yt/go/yt"
 )
 
+const EnvAllowRequests = "YT_ALLOW_REQUESTS_FROM_JOBS"
+
 type File struct {
 	FileName            string      `yson:"file_name,attr,omitempty"`
 	Format              interface{} `yson:"format,attr,omitempty"`
@@ -152,6 +154,18 @@ func (s *Spec) AddSecureVaultVar(name, value string) *Spec {
 	}
 
 	s.SecureVault[name] = value
+	return s
+}
+
+func (s *Spec) AllowRequestsFromJob() *Spec {
+	s.VisitUserScripts(func(script *UserScript) {
+		if script.Environment == nil {
+			script.Environment = map[string]string{}
+		}
+
+		script.Environment[EnvAllowRequests] = "1"
+	})
+
 	return s
 }
 
