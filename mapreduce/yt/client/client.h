@@ -428,9 +428,9 @@ public:
         const TJobId& jobId,
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) override;
 
-    TString SkyShareTable(const TYPath& tablePath) override;
-
-    TNode::TListType SkyShareTableByKey(const TYPath& tablePath, const TKeyColumns& keyColumns) override;
+    TNode::TListType SkyShareTable(
+        const TYPath& tablePath,
+        const TSkyShareTableOptions& options = TSkyShareTableOptions()) override;
 
     TCheckPermissionResponse CheckPermission(
         const TString& user,

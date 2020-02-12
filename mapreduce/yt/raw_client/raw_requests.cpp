@@ -705,35 +705,11 @@ TYPath PutFileToCache(
     return NodeFromYsonString(result.Response).AsString();
 }
 
-TString SkyShareTable(
-    const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
-    const TYPath& tablePath)
-{
-    THttpHeader header("POST", "api/v1/share", /*IsApi*/ false);
-    auto dotPos = auth.ServerName.find('.');
-    if (dotPos == TString::npos) {
-        ythrow yexception() << "Invalid server name";
-    }
-    TString proxyName = auth.ServerName.substr(0, dotPos);
-    header.MergeParameters(SerializeParamsForSkyShareTable(proxyName, tablePath));
-    TAuth skyApiHost({"skynet-manager.yt.yandex.net", ""});
-    TResponseInfo response = {};
-
-    // As documented at https://wiki.yandex-team.ru/yt/userdoc/blob_tables/#shag3.sozdajomrazdachu
-    // first request returns HTTP status code 202 (Accepted). And we need retrying until we have 200 (OK).
-    while (response.HttpCode != 200) {
-        response = RetryRequestWithPolicy(retryPolicy, skyApiHost, header, "");
-        TWaitProxy::Get()->Sleep(TDuration::Seconds(5));
-    }
-    return response.Response;
-}
-
-TNode::TListType SkyShareTableByKey(
+TNode::TListType SkyShareTable(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TYPath& tablePath,
-    const TKeyColumns& keyColumns)
+    const TSkyShareTableOptions& options)
 {
     THttpHeader header("POST", "api/v1/share", /*IsApi*/ false);
     auto dotPos = auth.ServerName.find('.');
@@ -741,7 +717,7 @@ TNode::TListType SkyShareTableByKey(
         ythrow yexception() << "Invalid server name";
     }
     TString proxyName = auth.ServerName.substr(0, dotPos);
-    header.MergeParameters(SerializeParamsForSkyShareTableByKey(proxyName, tablePath, keyColumns));
+    header.MergeParameters(SerializeParamsForSkyShareTable(proxyName, tablePath, options));
     TAuth skyApiHost({"skynet-manager.yt.yandex.net", ""});
     TResponseInfo response = {};
 
@@ -751,7 +727,17 @@ TNode::TListType SkyShareTableByKey(
         response = RetryRequestWithPolicy(retryPolicy, skyApiHost, header, "");
         TWaitProxy::Get()->Sleep(TDuration::Seconds(5));
     }
-    return NodeFromJsonString(response.Response)["torrents"].AsList();
+
+    if (options.KeyColumns_) {
+        return NodeFromJsonString(response.Response)["torrents"].AsList();
+    } else {
+        TNode torrent;
+
+        torrent["key"] = TNode::CreateList();
+        torrent["rbtorrent"] = response.Response;
+
+        return TNode::TListType{ torrent };
+    }
 }
 
 TCheckPermissionResponse ParseCheckPermissionResponse(const TNode& node)

@@ -667,4 +667,19 @@ struct TGetTabletInfosOptions
     using TSelf = TGetTabletInfosOptions;
 };
 
+/// options for @ref NYT::IClient::SkyShareTable
+struct TSkyShareTableOptions
+{
+    using TSelf = TSkyShareTableOptions;
+
+    /// @brief Key columns that are used to group files in a table into torrents.
+    ///
+    /// One torrent is created for each value of `KeyColumns` columns.
+    /// If not specified, all files go into single torrent.
+    FLUENT_FIELD_OPTION(TKeyColumns, KeyColumns)
+
+    /// @brief Allow skynet manager to return fastbone links to skynet. See YT-11437
+    FLUENT_FIELD_OPTION(bool, EnableFastbone)
+};
+
 } // namespace NYT

@@ -681,30 +681,28 @@ TNode SerializeParamsForPutFileToCache(
 
 TNode SerializeParamsForSkyShareTable(
     const TString& serverName,
-    const TYPath& tablePath)
-{
-    TNode result;
-    SetPathParam(&result, tablePath);
-    result["cluster"] = serverName;
-    return result;
-}
-
-TNode SerializeParamsForSkyShareTableByKey(
-    const TString& serverName,
     const TYPath& tablePath,
-    const TKeyColumns& keyColumns)
+    const TSkyShareTableOptions& options)
 {
-    auto keyColumnsList = TNode::CreateList();
-    for (const auto& s : keyColumns.Parts_) {
-        if (s.empty()) {
-            continue;
-        }
-        keyColumnsList.Add(s);
-    }
     TNode result;
     SetPathParam(&result, tablePath);
     result["cluster"] = serverName;
-    result["key_columns"] = keyColumnsList;
+
+    if (options.KeyColumns_) {
+        auto keyColumnsList = TNode::CreateList();
+        for (const auto& s : options.KeyColumns_->Parts_) {
+            if (s.empty()) {
+                continue;
+            }
+            keyColumnsList.Add(s);
+        }
+        result["key_columns"] = keyColumnsList;
+    }
+
+    if (options.EnableFastbone_) {
+        result["enable_fastbone"] = *options.EnableFastbone_;
+    }
+
     return result;
 }
 
