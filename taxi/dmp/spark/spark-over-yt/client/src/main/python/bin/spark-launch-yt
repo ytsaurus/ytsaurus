@@ -1,31 +1,33 @@
 #!/usr/bin/env python
 
-import argparse
-import os
-
 from yt_spark_client import launch
-from yt_spark_client.utils import default_token, default_discovery_dir, default_base_log_dir
+from yt_spark_client import utils as spark_utils
+from yt_spark_client.utils import default_token
 
-parser = argparse.ArgumentParser(description="Spark over YT")
-parser.add_argument("--id", required=True)
-parser.add_argument("--worker-cores", required=True, type=int)
-parser.add_argument("--worker-memory", required=True)
-parser.add_argument("--worker-num", required=True, type=int)
-parser.add_argument("--proxy", required=False)
-parser.add_argument("--pool", required=False)
-parser.add_argument("--discovery-dir", required=False)
-parser.add_argument("--log-dir", required=False)
-parser.add_argument("--master-memory-limit", required=False)
 
-args = parser.parse_args()
+def main():
+    parser = spark_utils.get_default_arg_parser(description="Spark over YT")
 
-user = os.getenv("YT_USER") or os.getenv("USER")
-proxy = args.proxy or os.getenv("YT_PROXY")
-discovery_dir = args.discovery_dir or default_discovery_dir(user)
-log_dir = args.log_dir or default_base_log_dir(discovery_dir)
-master_memory_limit = args.master_memory_limit or "2G"
-pool = args.pool or user
+    parser.add_argument("--worker-cores", required=True, type=int)
+    parser.add_argument("--worker-memory", required=True)
+    parser.add_argument("--worker-num", required=True, type=int)
+    parser.add_argument("--pool", required=False)
+    parser.add_argument("--master-memory-limit", required=False)
 
-launch(args.id, discovery_dir, log_dir,
-       proxy, user, default_token(), pool,
-       args.worker_cores, args.worker_memory, args.worker_num, master_memory_limit)
+    args, unknown_args = spark_utils.parse_args(parser)
+
+    launch(spark_id=args.id,
+           discovery_dir=args.discovery_dir,
+           log_base_dir=args.log_dir,
+           yt_proxy=args.proxy,
+           yt_user=args.yt_user,
+           yt_token=default_token(),
+           yt_pool=args.pool or args.yt_user,
+           worker_cores=args.worker_cores,
+           worker_memory=args.worker_memory,
+           worker_num=args.worker_num,
+           master_memory_limit=args.master_memory_limit)
+
+
+if __name__ == '__main__':
+    main()

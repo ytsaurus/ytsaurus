@@ -1,3 +1,5 @@
+import argparse
+
 import os
 import re
 
@@ -10,8 +12,8 @@ def parse_memory(memory_str):
     units = {"gb": 1024 * 1024 * 1024, "mb": 1024 * 1024, "kb": 1024, "bb": 1, "b": 1}
     if memory_str is None:
         return None
-    m = re.match("(\d+)(.*)", memory_str)
-    value = long(m.group(1))
+    m = re.match(r"(\d+)(.*)", memory_str)
+    value = int(m.group(1))
     unit = m.group(2).lower().strip()
     if len(unit) <= 1:
         unit = unit + "b"
@@ -82,3 +84,26 @@ def default_base_log_dir(discovery_dir):
 
 def default_user():
     return os.getenv("YT_USER") or os.getenv("USER")
+
+
+def default_proxy():
+    return os.getenv("YT_PROXY")
+
+
+def get_default_arg_parser(**kwargs):
+    parser = argparse.ArgumentParser(**kwargs)
+    parser.add_argument("--id", required=True)
+    parser.add_argument("--discovery-dir", required=False)
+    parser.add_argument("--log-dir", required=False)
+    parser.add_argument("--proxy", required=False, default=default_proxy())
+    parser.add_argument("--yt-user", required=False, default=default_user())
+    return parser
+
+
+def parse_args(parser=None, parser_arguments=None):
+    parser_arguments = parser_arguments or {}
+    parser = parser or get_default_arg_parser(**parser_arguments)
+    args, unknown_args = parser.parse_known_args()
+    args.discovery_dir = args.discovery_dir or default_discovery_dir(args.yt_user)
+    args.log_dir = args.log_dir or default_base_log_dir(args.discovery_dir).join(args.id)
+    return args, unknown_args

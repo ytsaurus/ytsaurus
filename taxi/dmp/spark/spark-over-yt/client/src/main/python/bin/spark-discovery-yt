@@ -2,47 +2,45 @@
 
 from __future__ import print_function
 
-import argparse
-import os
 import sys
 
 import yt
+from yt.wrapper import YPath
 from yt.wrapper.cypress_commands import list
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.operation_commands import get_operation_url
-from yt.wrapper import YPath
 
-from yt_spark_client.utils import default_discovery_dir
-
-parser = argparse.ArgumentParser(description="Spark Discovery")
-parser.add_argument("--id", required=True)
-parser.add_argument("--proxy", required=False)
-parser.add_argument("--discovery-dir", required=False)
-
-args = parser.parse_args()
-
-user = os.getenv("YT_USER") or os.getenv("USER")
-discovery_dir = args.discovery_dir or default_discovery_dir(user)
-yt.wrapper.config.config['proxy']['url'] = args.proxy or os.getenv("YT_PROXY")
+from yt_spark_client import utils as spark_utils
 
 
-def get_address(name):
+def get_address(name, spark_id, discovery_dir):
     try:
-        return list(YPath(discovery_dir).join("instances").join(args.id).join(name))[0]
+        path = YPath(discovery_dir).join("instances").join(spark_id).join(name)
+        return list(path)[0]
     except YtHttpResponseError as e:
         print(e.message, file=sys.stderr)
         for inner in e.inner_errors:
             print(inner["message"], file=sys.stderr)
 
 
-master = get_address("address")
-master_web_ui = get_address("webui")
-master_rest = get_address("rest")
-operation = get_address("operation")
-shs = get_address("shs")
+def main():
+    args, unknowm_args = spark_utils.parse_args(parser_arguments=dict(description="Spark Discovery"))
 
-print("Master: %s" % master)
-print("Master Web UI: http://%s/" % master_web_ui)
-print("Master REST API Endpoint: %s" % master_rest)
-print("Operation: %s" % get_operation_url(operation))
-print("Spark History Server: http://%s/" % shs)
+    # TODO switch to YtClient
+    yt.wrapper.config.config['proxy']['url'] = args.proxy
+
+    master = get_address("address", args.id, args.discovery_dir)
+    master_web_ui = get_address("webui", args.id, args.discovery_dir)
+    master_rest = get_address("rest", args.id, args.discovery_dir)
+    operation = get_address("operation", args.id, args.discovery_dir)
+    shs = get_address("shs", args.id, args.discovery_dir)
+
+    print("Master: %s" % master)
+    print("Master Web UI: http://%s/" % master_web_ui)
+    print("Master REST API Endpoint: %s" % master_rest)
+    print("Operation: %s" % get_operation_url(operation))
+    print("Spark History Server: http://%s/" % shs)
+
+
+if __name__ == '__main__':
+    main()
