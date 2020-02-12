@@ -64,11 +64,27 @@ def get_output_descriptor_list(output_table_count, use_yamr_descriptors):
         # descriptor #5 is for job statistics
         return [2, 5] + [3 * i + 1 for i in xrange(output_table_count)]
 
+def parse_bash_command_line(command_line):
+    """Splits command_line into 3 strings: environment_variables, command, arguments.
+    """
+    environment_variables = ""
+    command_with_args = command_line.split(None, 1)
+
+    while len(command_with_args) == 2:
+        if "=" in command_with_args[0]:
+            environment_variables += command_with_args[0] + " "
+            command_with_args = command_with_args[1].split(None, 1)
+        else:
+            return environment_variables.strip(), command_with_args[0], command_with_args[1]
+
+    return "", command_line, ""
+
 def make_run_sh(job_path, operation_id, job_id, sandbox_path, command, environment,
                 input_path, output_path, output_table_count, use_yamr_descriptors):
     output_descriptor_list = get_output_descriptor_list(output_table_count, use_yamr_descriptors)
 
-    run_sh_path = os.path.join(job_path, "run.sh")
+    command_run_sh_path = os.path.join(job_path, "run.sh")
+    gdb_run_sh_path = os.path.join(job_path, "run_gdb.sh")
 
     # Stderr is treated separately.
     output_descriptor_list.remove(2)
@@ -90,7 +106,7 @@ def make_run_sh(job_path, operation_id, job_id, sandbox_path, command, environme
     else:
         run_bash_env_command = ""
 
-    script = """\
+    environment_script = """\
 #!/usr/bin/env bash
 
 SANDBOX_DIR="$(dirname $0)/{sandbox_suffix}"
@@ -105,25 +121,40 @@ export YT_JOB_ID={job_id}
 export YT_STARTED_BY_JOB_TOOL=1
 {environment}
 
-INPUT_DATA="{input_rel_path}"
-
 {run_bash_env_command}
-
-({command}) < $INPUT_DATA {output_descriptors_spec}
 """.format(
         sandbox_suffix=sandbox_suffix,
         operation_id=operation_id,
         job_id=job_id,
-        command=command,
         run_bash_env_command=run_bash_env_command,
         environment=make_environment_string(environment),
         input_rel_path=input_rel_path,
-        output_rel_path=output_rel_path,
+        output_rel_path=output_rel_path)
+
+    command_script = """\
+({command}) < {input_rel_path} {output_descriptors_spec}
+""".format(
+        command=command,
+        input_rel_path=input_rel_path,
         output_descriptors_spec=output_descriptors_spec)
 
-    with open(run_sh_path, "w") as out:
-        out.write(script)
-    os.chmod(run_sh_path, 0o744)
+    gdb_environment_variables, gdb_command, gdb_arguments = parse_bash_command_line(command)
+
+    gdb_script = """\
+gdb {gdb_command} -ex 'set args {gdb_args} < {input_rel_path} {output_descriptors_spec}' -ex 'set environment {gdb_env}'
+""".format(
+        gdb_command=gdb_command,
+        gdb_args=gdb_arguments,
+        gdb_env=gdb_environment_variables,
+        input_rel_path=input_rel_path,
+        output_descriptors_spec=output_descriptors_spec)
+
+    for run_sh_path, script in [(command_run_sh_path, command_script),
+                                (gdb_run_sh_path, gdb_script),
+                                ]:
+        with open(run_sh_path, "w") as out:
+            out.write(environment_script + script)
+        os.chmod(run_sh_path, 0o744)
 
 def add_hybrid_argument(parser, name, group_required=True, **kwargs):
     group = parser.add_mutually_exclusive_group(required=group_required)
