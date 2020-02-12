@@ -2286,23 +2286,12 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     auto jobId = jobSummary->Id;
     auto abandoned = jobSummary->Abandoned;
 
-    // NB: We should not explicitly tell node to remove abandoned job because it may be still
-    // running at the node.
-    if (!abandoned) {
-        CompletedJobIdsReleaseQueue_.Push(jobId);
-    }
-
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
         Spec_->TestingOperationOptions->ControllerFailure &&
         *Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
     {
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::TestingError, "Testing exception");
-    }
-
-    if (State != EControllerState::Running) {
-        YT_LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
-        return;
     }
 
     const auto& result = jobSummary->Result;
@@ -2342,6 +2331,17 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     if (maybeAbortReason) {
         YT_LOG_DEBUG("Job is considered aborted since its competitor has already completed (JobId: %v)", jobId);
         OnJobAborted(std::make_unique<TAbortedJobSummary>(*jobSummary, *maybeAbortReason), /* byScheduler */ false);
+        return;
+    }
+
+    // NB: We should not explicitly tell node to remove abandoned job because it may be still
+    // running at the node.
+    if (!abandoned) {
+        CompletedJobIdsReleaseQueue_.Push(jobId);
+    }
+
+    if (State != EControllerState::Running) {
+        YT_LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
         return;
     }
 
