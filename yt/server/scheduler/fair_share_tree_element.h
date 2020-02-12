@@ -101,7 +101,7 @@ struct TScheduleJobsProfilingCounters
 
 struct TFairShareSchedulingStage
 {
-    TFairShareSchedulingStage(const TString& loggingName, TScheduleJobsProfilingCounters profilingCounters);
+    TFairShareSchedulingStage(TString loggingName, TScheduleJobsProfilingCounters profilingCounters);
 
     const TString LoggingName;
     TScheduleJobsProfilingCounters ProfilingCounters;
@@ -113,7 +113,7 @@ class TFairShareContext
 {
 public:
     TFairShareContext(
-        const ISchedulingContextPtr& schedulingContext,
+        ISchedulingContextPtr schedulingContext,
         bool enableSchedulingInfoLogging,
         const NLogging::TLogger& logger);
 
@@ -201,8 +201,8 @@ protected:
     TSchedulerElementFixedState(
         ISchedulerStrategyHost* host,
         IFairShareTreeHost* treeHost,
-        const TFairShareStrategyTreeConfigPtr& treeConfig,
-        const TString& treeId);
+        TFairShareStrategyTreeConfigPtr treeConfig,
+        TString treeId);
 
     ISchedulerStrategyHost* const Host_;
     IFairShareTreeHost* const TreeHost_;
@@ -353,8 +353,8 @@ protected:
     TSchedulerElement(
         ISchedulerStrategyHost* host,
         IFairShareTreeHost* treeHost,
-        const TFairShareStrategyTreeConfigPtr& treeConfig,
-        const TString& treeId,
+        TFairShareStrategyTreeConfigPtr treeConfig,
+        TString treeId,
         const NLogging::TLogger& logger);
     TSchedulerElement(
         const TSchedulerElement& other,
@@ -540,7 +540,7 @@ DEFINE_REFCOUNTED_TYPE(TCompositeSchedulerElement)
 class TPoolFixedState
 {
 protected:
-    explicit TPoolFixedState(const TString& id);
+    explicit TPoolFixedState(TString id);
 
     const TString Id_;
     bool DefaultConfigured_ = true;
