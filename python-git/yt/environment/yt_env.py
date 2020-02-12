@@ -772,7 +772,6 @@ class YTInstance(object):
     def _configure_driver_logging(self):
         try:
             import yt_driver_bindings
-            print("NATIVE DRIVER", self.driver_logging_config, file=sys.stderr)
             yt_driver_bindings.configure_logging(
                 get_environment_driver_logging_config(self.driver_logging_config, "native")
             )
@@ -781,7 +780,6 @@ class YTInstance(object):
 
         try:
             import yt_driver_rpc_bindings
-            print("RPC DRIVER", self.driver_logging_config, file=sys.stderr)
             yt_driver_rpc_bindings.configure_logging(
                 get_environment_driver_logging_config(self.rpc_driver_logging_config, "rpc")
             )
