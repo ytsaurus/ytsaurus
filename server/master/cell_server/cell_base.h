@@ -56,6 +56,7 @@ public:
         NNodeTrackerClient::TNodeDescriptor Descriptor;
         NNodeTrackerServer::TNode* Node = nullptr;
         TInstant LastSeenTime;
+        EPeerState LastSeenState = EPeerState::None;
 
         void Persist(NCellMaster::TPersistenceContext& context);
     };
@@ -100,6 +101,7 @@ public:
     void AttachPeer(NNodeTrackerServer::TNode* node, TPeerId peerId);
     void DetachPeer(NNodeTrackerServer::TNode* node);
     void UpdatePeerSeenTime(TPeerId peerId, TInstant when);
+    void UpdatePeerState(TPeerId peerId, EPeerState peerState);
 
     NNodeTrackerServer::TNode::TCellSlot* FindCellSlot(TPeerId peerId) const;
 

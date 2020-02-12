@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE, MASTER_CELL_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE, MASTERS_SERVICE
 
 from yt_commands import *
 
@@ -63,7 +63,7 @@ class TestMasterCellAddition(YTEnvSetup):
 
             assert get("//sys/topmost_transactions/@count") == 0
 
-            with Restarter(cls.Env, MASTER_CELL_SERVICE):
+            with Restarter(cls.Env, MASTERS_SERVICE):
                 for i in xrange(len(cls.PATCHED_CONFIGS)):
                     cls.PATCHED_CONFIGS[i]["secondary_masters"].append(cls.STASHED_CELL_CONFIGS[i])
 

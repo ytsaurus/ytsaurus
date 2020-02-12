@@ -92,7 +92,11 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     SetBuildAttributes(orchidRoot, "http_proxy");
 
-    Connection_ = CreateConnection(ConvertTo<NNative::TConnectionConfigPtr>(Config_->Driver));
+    NNative::TConnectionOptions connectionOptions;
+    connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
+    Connection_ = CreateConnection(
+        ConvertTo<NNative::TConnectionConfigPtr>(Config_->Driver),
+        connectionOptions);
     // Force-start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
     SetupClients();

@@ -935,9 +935,11 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
 
             branchedNode->ChildCountDelta() = originatingNodeChildren.size();
             branchedNode->MutableKeyToChild(objectManager) = originatingNodeChildren;
+            auto& childToKey = branchedNode->MutableChildToKey(objectManager);
             for (const auto& [key, childNode] : SortHashMapByKeys(branchedNode->KeyToChild())) {
                 if (childNode) {
                     objectManager->RefObject(childNode);
+                    YT_VERIFY(childToKey.emplace(childNode, key).second);
                 }
             }
         }

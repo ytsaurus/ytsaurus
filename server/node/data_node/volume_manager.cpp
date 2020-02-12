@@ -1565,8 +1565,8 @@ public:
                 auto location = New<TLayerLocation>(
                     locationConfig,
                     bootstrap->GetConfig()->DataNode->DiskHealthChecker,
-                    CreatePortoExecutor(Format("volume_%v", index), config->PortoRetryTimeout, config->PortoPollPeriod),
-                    CreatePortoExecutor(Format("layer_%v", index), config->PortoRetryTimeout, config->PortoPollPeriod),
+                    CreatePortoExecutor(config->PortoExecutor, Format("volume_%v", index)),
+                    CreatePortoExecutor(config->PortoExecutor, Format("layer_%v", index)),
                     id);
                 Locations_.push_back(location);
             } catch (const std::exception& ex) {
@@ -1578,10 +1578,7 @@ public:
             }
         }
 
-        auto tmpfsExecutor = CreatePortoExecutor(
-            Format("tmpfs_layer"),
-            config->PortoRetryTimeout,
-            config->PortoPollPeriod);
+        auto tmpfsExecutor = CreatePortoExecutor(config->PortoExecutor, "tmpfs_layer");
         LayerCache_ = New<TLayerCache>(config, Locations_, tmpfsExecutor, bootstrap);
 
         auto instance = GetSelfPortoInstance(tmpfsExecutor);

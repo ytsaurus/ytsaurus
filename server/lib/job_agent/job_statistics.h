@@ -69,6 +69,7 @@ struct TJobStatistics
     void SetFailContext(const TString& failContext);
     void SetProfile(const TJobProfile& profile);
     void SetCoreInfos(NCoreDump::TCoreInfos coreInfos);
+    void SetHasCompetitors(bool hasCompetitors);
 
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TOperationId, OperationId)
     DEFINE_FORWARD_RW_PROPERTY(NJobTrackerClient::TJobId, JobId)
@@ -87,6 +88,7 @@ struct TJobStatistics
     DEFINE_FORWARD_RW_PROPERTY(std::optional<TJobProfile>, Profile)
     DEFINE_FORWARD_RW_PROPERTY(std::optional<NCoreDump::TCoreInfos>, CoreInfos)
     DEFINE_BYREF_RW_PROPERTY(NJobTrackerClient::TJobId, JobCompetitionId)
+    DEFINE_FORWARD_RW_PROPERTY(std::optional<bool>, HasCompetitors)
 };
 
 ////////////////////////////////////////////////////////////////////////////////

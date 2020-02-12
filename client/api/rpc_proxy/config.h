@@ -36,6 +36,7 @@ public:
     TDuration RpcTimeout;
     std::optional<TDuration> RpcAcknowledgementTimeout;
     TDuration TimestampProviderUpdatePeriod;
+    TDuration TimestampProviderBatchPeriod;
     TDuration DefaultTransactionTimeout;
     TDuration DefaultSelectRowsTimeout;
     TDuration DefaultTotalStreamingTimeout;

@@ -21,7 +21,7 @@ void* TArenaPool::Allocate()
     while (true) {
         void* obj = FreeList_.Extract();
         if (Y_LIKELY(obj)) {
-            ++Count_;
+            ++RefCount_;
             return obj;
         }
         AllocateMore();
@@ -33,11 +33,11 @@ TArenaPool::~TArenaPool()
     FreeList_.ExtractAll();
 
     if (MemoryTracker_) {
-        size_t totalSize = Capacity_.load() * (sizeof(TFreeListItem) + ChunkSize_ * BatchSize_);
+        size_t totalSize = SegmentsCount_.load() * (sizeof(TFreeListItem) + ChunkSize_ * BatchSize_);
         MemoryTracker_->Release(totalSize);
     }
 
-    auto* segment = AllocatedSegments_.ExtractAll();
+    auto* segment = Segments_.ExtractAll();
     while (segment) {
         auto* next = segment->Next;
         NYTAlloc::Free(segment);
@@ -53,7 +53,7 @@ void TArenaPool::Free(void* obj)
 
 size_t TArenaPool::Unref()
 {
-    auto count = --Count_;
+    auto count = --RefCount_;
     if (count > 0) {
         return count;
     }
@@ -74,11 +74,11 @@ void TArenaPool::AllocateMore()
     auto* ptr = NYTAlloc::Allocate(totalSize);
 
     // Save segments in list to free them in destructor.
-    AllocatedSegments_.Put(static_cast<TFreeListItem*>(ptr));
+    Segments_.Put(static_cast<TFreeListItem*>(ptr));
 
     auto* objs = static_cast<char*>(ptr) + sizeof(TFreeListItem);
 
-    Capacity_ += BatchSize_;
+    ++SegmentsCount_;
 
     for (size_t index = 0; index < BatchSize_; ++index) {
         FreeList_.Put(reinterpret_cast<TFreeListItem*>(objs + ChunkSize_ * index));

@@ -17,6 +17,7 @@
     XX(AggressiveStarvationEnabled, aggressive_starvation_enabled) \
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \
+    XX(AllowChildrenLimitOvercommit, allow_children_limit_overcommit) \
     XX(AllowedProfilingTags, allowed_profiling_tags) \
     XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \
     XX(Annotation, annotation) \
@@ -256,7 +257,9 @@
     XX(Racks, racks) \
     XX(ReadQuorum, read_quorum) \
     XX(ReadRequestRateLimit, read_request_rate_limit) \
+    XX(RecursiveCommittedResourceUsage, recursive_committed_resource_usage) \
     XX(RecursiveResourceUsage, recursive_resource_usage) \
+    XX(RecursiveViolatedResourceLimits, recursive_violated_resource_limits) \
     XX(RefCounter, ref_counter) \
     XX(RegisterTime, register_time) \
     XX(Registered, registered) \

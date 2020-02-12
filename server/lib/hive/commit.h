@@ -42,6 +42,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NRpc::TMutationId, MutationId);
     DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceId, TraceId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, PrepareOnlyParticipantCellIds);
     DEFINE_BYVAL_RO_PROPERTY(bool, Distributed);
     DEFINE_BYVAL_RO_PROPERTY(bool, GeneratePrepareTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(bool, InheritCommitTimestamp);
@@ -59,6 +60,7 @@ public:
         TTransactionId transactionId,
         NRpc::TMutationId mutationId,
         const std::vector<TCellId>& participantCellIds,
+        const std::vector<TCellId>& prepareOnlyPrticipantCellIds,
         bool distributed,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
@@ -67,6 +69,8 @@ public:
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);
+
+    bool IsPrepareOnlyParticipant(TCellId cellId) const;
 
     void Save(NHydra::TSaveContext& context) const;
     void Load(NHydra::TLoadContext& context);

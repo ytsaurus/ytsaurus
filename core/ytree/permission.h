@@ -37,7 +37,7 @@ DEFINE_BIT_ENUM(EPermission,
     //! Applies to: operations
     ((Manage)         (0x0800))
 
-    //! Applies to: map objects
+    //! Applies to: accounts, pools, composite Cypress nodes
     ((ModifyChildren) (0x1000))
 );
 

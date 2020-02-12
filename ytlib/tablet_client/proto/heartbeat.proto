@@ -109,6 +109,8 @@ message TConfigureTabletSlotInfo
     required NYT.NHiveClient.NProto.TCellDescriptor cell_descriptor = 1;
     required NYT.NProto.TGuid prerequisite_transaction_id = 2;
     optional int32 peer_id = 3;
+    // TODO(gritukan): Remove it when dynamic node config will be ready.
+    optional bool abandon_leader_lease_during_recovery = 4;
 }
 
 message TUpdateTabletSlotInfo

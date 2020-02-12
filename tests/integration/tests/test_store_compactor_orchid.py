@@ -45,6 +45,7 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
 
         tablets = [get("//tmp/t{0}/@tablets/0".format(tablet_idx)) for tablet_idx in range(NUM_TABLES)]
         tablet_ids = [tablets[i]["tablet_id"] for i in range(NUM_TABLES)]
+        tablet_ids.sort()
 
         def _compaction_task_finished():
             compaction_tasks = get("//sys/cluster_nodes/{0}/orchid/store_compactor/compaction_tasks".format(node))
@@ -52,7 +53,7 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
                 # We don't want to predict priorities in integration test
                 del task["task_priority"]
                 del task["partition_id"]
-            compaction_tasks["finished_tasks"].sort()
+            compaction_tasks["finished_tasks"].sort(key=lambda x: x["tablet_id"])
 
             expected_compaction_tasks = {
                 "task_count": 0,

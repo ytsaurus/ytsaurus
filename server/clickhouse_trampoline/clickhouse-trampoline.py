@@ -106,6 +106,7 @@ def run_ytserver_clickhouse(ytserver_clickhouse_bin, monitoring_port):
     args += ["--monitoring-port", monitoring_port or os.environ["YT_PORT_1"]]
     args += ["--tcp-port", os.environ["YT_PORT_2"]]
     args += ["--http-port", os.environ["YT_PORT_3"]]
+    args += ["--pdeathsig", "9"]
     return start_process(args)
 
 

@@ -549,18 +549,6 @@ private:
                 *ypathExt->mutable_original_additional_paths() = ypathExt->additional_paths();
             }
 
-            // COMPAT(savrus) Support old mount/unmount/etc interface.
-            if (ypathExt->mutating() && (requestHeader.method() == "Mount" ||
-                requestHeader.method() == "Unmount" ||
-                requestHeader.method() == "Freeze" ||
-                requestHeader.method() == "Unfreeze" ||
-                requestHeader.method() == "Remount" ||
-                requestHeader.method() == "Reshard"))
-            {
-                ypathExt->set_mutating(false);
-                SetSuppressAccessTracking(&requestHeader, true);
-            }
-
             subrequest.RequestMessage = SetRequestHeader(subrequest.RequestMessage, requestHeader);
             subrequest.TraceContext = NRpc::CreateCallTraceContext(
                 requestHeader.service(),

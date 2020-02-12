@@ -21,12 +21,14 @@ struct TBound
         , Included(included)
     { }
 
-    bool operator == (const TBound& other) const {
+    bool operator == (const TBound& other) const
+    {
         return Value == other.Value
             && Included == other.Included;
     }
 
-    bool operator != (const TBound& other) const {
+    bool operator != (const TBound& other) const
+    {
         return !(*this == other);
     }
 

@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTER_CELL_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, MASTERS_SERVICE
 from yt_commands import *
 from time import sleep
 
@@ -172,7 +172,7 @@ class TestRemoveClusterNodes(YTEnvSetup):
 
             build_snapshot(cell_id=None)
 
-            with Restarter(self.Env, MASTER_CELL_SERVICE):
+            with Restarter(self.Env, MASTERS_SERVICE):
                 pass
 
 

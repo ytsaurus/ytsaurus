@@ -35,7 +35,6 @@ struct TOrderedByIdTableDescriptor
         const int FullSpec;
         const int RuntimeParameters;
         const int SlotIndexPerPoolTree;
-        const int Annotations;
     };
 
     const NTableClient::TNameTablePtr NameTable;
@@ -99,6 +98,7 @@ struct TJobTableDescriptor
         const int FailContextSize;
         const int CoreInfos;
         const int JobCompetitionId;
+        const int HasCompetitors;
     };
 
     const NTableClient::TNameTablePtr NameTable;

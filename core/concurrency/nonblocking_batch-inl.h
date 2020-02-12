@@ -13,8 +13,8 @@ namespace NYT::NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TNonblockingBatch<T>::TNonblockingBatch(size_t batchElements, TDuration batchDuration)
-    : MaxBatchElements_(batchElements)
+TNonblockingBatch<T>::TNonblockingBatch(int maxBatchSize, TDuration batchDuration)
+    : MaxBatchSize_(maxBatchSize)
     , BatchDuration_(batchDuration)
 { }
 
@@ -88,7 +88,9 @@ void TNonblockingBatch<T>::StartTimer(TGuard<TSpinLock>& guard)
 template <class T>
 bool TNonblockingBatch<T>::IsFlushNeeded(TGuard<TSpinLock>& guard) const
 {
-    return CurrentBatch_.size() == MaxBatchElements_ || TimerState_ == ETimerState::Finished;
+    return
+        static_cast<int>(CurrentBatch_.size()) == MaxBatchSize_ ||
+        TimerState_ == ETimerState::Finished;
 }
 
 template <class T>
@@ -117,11 +119,11 @@ void TNonblockingBatch<T>::CheckReturn(TGuard<TSpinLock>& guard)
 }
 
 template <class T>
-void TNonblockingBatch<T>::OnBatchTimeout(ui64 gen)
+void TNonblockingBatch<T>::OnBatchTimeout(ui64 generation)
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    if (gen != FlushGeneration_) {
-        // chunk had been prepared
+    if (generation != FlushGeneration_) {
+        // Chunk had been prepared.
         return;
     }
     TimerState_ = ETimerState::Finished;

@@ -1,12 +1,24 @@
 import yt_commands
 
 from yt.environment import YTInstance, init_operation_archive, arcadia_interop
-from yt.common import makedirp, YtError, YtResponseError, format_error
+from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.environment.default_configs import get_dynamic_master_config
-from yt.test_helpers import wait, WaitFailed
 
-from yt.common import update_inplace
+try:
+    from yt.environment.helpers import (
+        Restarter,
+        SCHEDULERS_SERVICE,
+        CONTROLLER_AGENTS_SERVICE,
+        NODES_SERVICE,
+        MASTERS_SERVICE,
+    )
+except ImportError:
+    # Let's hope we won't need Restarter :(
+    pass
+
+from yt.test_helpers import wait, WaitFailed
+from yt.common import makedirp, YtError, YtResponseError, format_error, update_inplace
 import yt.logger
 
 import pytest
@@ -40,28 +52,32 @@ yt.logger.LOGGER.setLevel(logging.DEBUG)
 
 ##################################################################
 
-def prepare_yatest_environment():
+def prepare_yatest_environment(need_suid):
     if arcadia_interop.yatest_common is None:
         return
 
-    ram_drive_path = arcadia_interop.yatest_common.get_param("ram_drive_path")
+    global SANDBOX_ROOTDIR
+    global SANDBOX_STORAGE_ROOTDIR
+    if arcadia_interop.yatest_common.get_param("teamcity"):
+        SANDBOX_ROOTDIR = os.environ.get("TESTS_SANDBOX", os.path.abspath("tests.sandbox"))
+        SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
+        return
 
+    ram_drive_path = arcadia_interop.yatest_common.get_param("ram_drive_path")
     if ram_drive_path is None:
         destination = os.path.join(arcadia_interop.yatest_common.work_path(), "build")
     else:
         destination = os.path.join(ram_drive_path, "build")
     if not os.path.exists(destination):
         os.makedirs(destination)
-        path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False, use_ytserver_all=True, copy_ytserver_all=True)
+        path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False, use_ytserver_all=True, copy_ytserver_all=True, need_suid=need_suid)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
-    global SANDBOX_ROOTDIR
     if ram_drive_path is None:
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.work_path()
     else:
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.output_ram_drive_path()
 
-    global SANDBOX_STORAGE_ROOTDIR
     SANDBOX_STORAGE_ROOTDIR = arcadia_interop.yatest_common.output_path()
 
 def _abort_transactions(driver=None):
@@ -134,7 +150,8 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
 
     def do():
         list_objects_results = yt_commands.execute_batch([
-            yt_commands.make_batch_request("list", return_only_value=True, path="//sys/" + type,
+            yt_commands.make_batch_request("list", return_only_value=True,
+                path="//sys/" + ("account_tree" if type == "accounts" else type),
                 attributes=["id", "builtin", "life_stage"]) for type in TYPES],
                 driver=driver)
 
@@ -252,7 +269,11 @@ def _wait_for_jobs_to_vanish(driver=None):
 
 def find_ut_file(file_name):
     if arcadia_interop.yatest_common is not None:
-        pytest.skip("Access to .bc files is not supported inside distbuild")
+        import library.python.resource as rs
+        with open(file_name, 'wb') as bc:
+            bc_content = rs.find("/llvm_bc/" + file_name.split(".")[0])
+            bc.write(bc_content)
+        return file_name
 
     unittester_path = find_executable("unittester-ytlib")
     assert unittester_path is not None
@@ -346,15 +367,16 @@ def skip_if_porto(func):
 
 def is_asan_build():
     if arcadia_interop.yatest_common is not None:
-        return False
+        return arcadia_interop.yatest_common.context.sanitize == "address"
 
     binary = find_executable("ytserver-master")
     version = subprocess.check_output([binary, "--version"])
     return "asan" in version
 
-
 def is_gcc_build():
     if arcadia_interop.yatest_common is not None:
+        return arcadia_interop.yatest_common.c_compiler_path().endswith("gcc")
+
         return False
 
     binary = find_executable("ytserver-clickhouse")
@@ -362,12 +384,14 @@ def is_gcc_build():
     return "GCC" in svnrevision
 
 def check_root_privileges():
-    if arcadia_interop.yatest_common is not None:
+    if arcadia_interop.is_inside_distbuild():
         pytest.skip("root is not available inside distbuild")
 
     for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node",
                    "ytserver-tools"]:
         binary_path = find_executable(binary)
+        if binary_path is None:
+            pytest.fail('Executable {} is not found in PATH'.format(binary))
         binary_stat = os.stat(binary_path)
         if (binary_stat.st_mode & stat.S_ISUID) == 0:
             pytest.fail('This test requires a suid bit set for "{}"'.format(binary))
@@ -416,19 +440,6 @@ def resolve_test_paths(name):
     path_to_environment = os.path.join(path_to_sandbox, "run")
     return path_to_sandbox, path_to_environment
 
-def _pytest_finalize_func(environment, process, process_call_args):
-    if process.returncode < 0:
-        what = "terminated by signal {}".format(-process.returncode)
-    else:
-        what = "exited with code {}".format(process.returncode)
-
-    print >>sys.stderr, 'Process run by command "{0}" {1}'.format(" ".join(process_call_args), what)
-    environment.stop()
-
-    print >>sys.stderr, "Killing pytest process"
-    # Avoid dumping useless stacktrace to stderr.
-    os.kill(os.getpid(), signal.SIGKILL)
-
 class Checker(Thread):
     def __init__(self, check_function):
         super(Checker, self).__init__()
@@ -452,46 +463,6 @@ class Checker(Thread):
         self._active = False
         self.join()
 
-
-SCHEDULERS_SERVICE = "schedulers"
-CONTROLLER_AGENTS_SERVICE = "controller_agents"
-NODES_SERVICE = "nodes"
-MASTER_CELL_SERVICE = "master_cell"
-
-# TODO(ignat): move it to python-repo
-class Restarter(object):
-    def __init__(self, Env, components, *args, **kwargs):
-        self.Env = Env
-        self.components = components
-        if type(self.components) == str:
-            self.components = [self.components]
-        self.kill_args = args
-        self.kill_kwargs = kwargs
-
-        self.start_dict = {SCHEDULERS_SERVICE: self.Env.start_schedulers,
-                           CONTROLLER_AGENTS_SERVICE: self.Env.start_controller_agents,
-                           NODES_SERVICE: self.Env.start_nodes,
-                           MASTER_CELL_SERVICE: lambda: self.Env.start_all_masters(True)}
-        self.kill_dict = {SCHEDULERS_SERVICE: lambda: self.Env.kill_service("scheduler", *self.kill_args, **self.kill_kwargs),
-                          CONTROLLER_AGENTS_SERVICE: lambda: self.Env.kill_service("controller_agent", *self.kill_args, **self.kill_kwargs),
-                          NODES_SERVICE: lambda: self.Env.kill_service("node", *self.kill_args, **self.kill_kwargs),
-                          MASTER_CELL_SERVICE: lambda: self.Env.kill_all_masters(*self.kill_args, **self.kill_kwargs)}
-
-    def __enter__(self):
-        for comp_name in self.components:
-            try:
-                self.kill_dict[comp_name]()
-            except KeyError:
-                logging.error("Failed to kill {}. No such component.".format(comp_name))
-                raise
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        for comp_name in self.components:
-            try:
-                self.start_dict[comp_name]()
-            except KeyError:
-                logging.error("Failed to start {}. No such component.".format(comp_name))
-                raise
 
 class YTEnvSetup(object):
     NUM_MASTERS = 3
@@ -610,7 +581,7 @@ class YTEnvSetup(object):
             http_proxy_count=cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0,
             http_proxy_ports=cls.get_param("HTTP_PROXY_PORTS", index),
             rpc_proxy_count=cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0,
-            watcher_config={"disable_logrotate": True} if arcadia_interop.yatest_common is not None else None,
+            watcher_config={"disable_logrotate": True},
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
             kill_child_processes=True,
             use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
@@ -638,15 +609,19 @@ class YTEnvSetup(object):
     def setup_class(cls, test_name=None, run_id=None):
         logging.basicConfig(level=logging.INFO)
 
+        need_suid = False
         if cls.get_param("REQUIRE_YTSERVER_ROOT_PRIVILEGES", False):
+            need_suid = True
             check_root_privileges()
 
         if cls.get_param("USE_PORTO_FOR_SERVERS", False):
-            if arcadia_interop.yatest_common is not None:
+            need_suid = True
+            if arcadia_interop.is_inside_distbuild():
                 pytest.skip("porto is not available on distbuild")
 
         if cls.get_param("REQUIRE_SUID_TOOL", False):
-            if arcadia_interop.yatest_common is not None:
+            need_suid = True
+            if arcadia_interop.is_inside_distbuild():
                 pytest.skip("SUID ytserver-tool is not available on distbuild")
 
         # Initialize `cls` fields before actual setup to make teardown correct.
@@ -666,7 +641,7 @@ class YTEnvSetup(object):
         log_rotator.start()
         cls.liveness_checkers.append(log_rotator)
 
-        prepare_yatest_environment() # It initializes SANDBOX_ROOTDIR
+        prepare_yatest_environment(need_suid=need_suid) # It initializes SANDBOX_ROOTDIR
         cls.path_to_test = os.path.join(SANDBOX_ROOTDIR, test_name)
 
         # For running in parallel
@@ -712,7 +687,7 @@ class YTEnvSetup(object):
         for env in [cls.Env] + cls.remote_envs:
             # To avoid strange hangups.
             if env.master_count > 0:
-                liveness_checker = Checker(lambda: env.check_liveness(callback_func=_pytest_finalize_func))
+                liveness_checker = Checker(lambda: env.check_liveness(callback_func=emergency_exit_within_tests))
                 liveness_checker.daemon = True
                 liveness_checker.start()
                 cls.liveness_checkers.append(liveness_checker)
@@ -810,7 +785,7 @@ class YTEnvSetup(object):
         if SANDBOX_STORAGE_ROOTDIR is not None:
             makedirp(SANDBOX_STORAGE_ROOTDIR)
 
-            if arcadia_interop.yatest_common is None:
+            if not arcadia_interop.is_inside_distbuild():
                 # XXX(psushin): unlink all porto volumes.
                 remove_all_volumes(cls.path_to_run)
 
@@ -911,7 +886,7 @@ class YTEnvSetup(object):
         yt_commands._zombie_responses[:] = []
 
         for env in [cls.Env] + cls.remote_envs:
-            env.check_liveness(callback_func=_pytest_finalize_func)
+            env.check_liveness(callback_func=emergency_exit_within_tests)
 
         for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
             driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))

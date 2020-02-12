@@ -57,6 +57,75 @@ static const NLogging::TLogger Logger("Proc");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<int> GetParentPid(int pid)
+{
+    TFileInput in(Format("/proc/%v/status", pid));
+    TString line;
+    while (in.ReadLine(line)) {
+        const TString ppidMarker = "PPid:\t";
+        if (line.StartsWith(ppidMarker)) {
+            line = line.substr(ppidMarker.size());
+            return FromString<int>(line);
+        }
+    }
+
+    return {};
+}
+
+std::vector<int> GetPidsUnderParent(int targetPid)
+{
+#ifdef _linux_
+    std::vector<int> result;
+    std::map<int, int> parents;
+
+    DIR* dirStream = ::opendir("/proc");
+    YT_VERIFY(dirStream != nullptr);
+
+    struct dirent* ep;
+    while ((ep = ::readdir(dirStream)) != nullptr) {
+        const char* begin = ep->d_name;
+        char* end = nullptr;
+        int pid = static_cast<int>(strtol(begin, &end, 10));
+        if (begin == end) {
+            // Not a pid.
+            continue;
+        }
+
+        auto path = Format("/proc/%v/status", pid);
+        try {
+            auto ppid = GetParentPid(pid);
+            if (ppid) {
+                parents[pid] = *ppid;
+            }
+        } catch(...) {
+            // Assume that the process has already completed.
+            continue;
+        }
+    }
+
+    for (auto [pid, ppid] : parents) {
+        while (true) {
+            if (ppid == targetPid) {
+                result.push_back(pid);
+            }
+
+            auto it = parents.find(ppid);
+            if (it == parents.end()) {
+                break;
+            } else {
+                ppid = it->second;
+            }
+        }
+    }
+
+    YT_VERIFY(::closedir(dirStream) == 0);
+    return result;
+
+#else
+    return {};
+#endif
+}
+
 std::vector<int> GetPidsByUid(int uid)
 {
 #ifdef _linux_
@@ -567,20 +636,28 @@ void SafeMakeNonblocking(int fd)
     }
 }
 
-void SafeSetUid(int uid)
+bool TrySetUid(int uid)
 {
 #ifdef _linux_
     // NB(psushin): setting real uid is really important, e.g. for acceess() call.
     if (setresuid(uid, uid, uid) != 0) {
-        THROW_ERROR_EXCEPTION("setresuid failed to set uid to %v", uid)
-                << TError::FromSystem();
+        return false;
     }
 #else
     if (setuid(uid) != 0) {
-        THROW_ERROR_EXCEPTION("setuid failed to set uid to %v", uid)
-            << TError::FromSystem();
+        return false;
     }
 #endif
+
+    return true;
+}
+
+void SafeSetUid(int uid)
+{
+    if (!TrySetUid(uid)) {
+        THROW_ERROR_EXCEPTION("failed to set uid to %v", uid)
+                << TError::FromSystem();
+    }
 }
 
 TString SafeGetUsernameByUid(int uid)
@@ -803,7 +880,10 @@ void SendSignal(const std::vector<int>& pids, const TString& signalName)
     ValidateSignalName(signalName);
     auto sig = FindSignalIdBySignalName(signalName);
     for (int pid : pids) {
-        kill(pid, *sig);
+        if (kill(pid, *sig) != 0 && errno != ESRCH) {
+            THROW_ERROR_EXCEPTION("Unable to kill process %d", pid)
+                << TError::FromSystem();
+        }
     }
 }
 

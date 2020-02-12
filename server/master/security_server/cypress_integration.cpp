@@ -1,3 +1,4 @@
+#include "private.h"
 #include "cypress_integration.h"
 #include "account.h"
 #include "group.h"
@@ -32,6 +33,10 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = SecurityServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVirtualAccountMap
     : public TVirtualMapBase
 {
@@ -39,7 +44,9 @@ public:
     TVirtualAccountMap(TBootstrap* bootstrap, INodePtr owningNode)
         : TVirtualMapBase(owningNode)
         , Bootstrap_(bootstrap)
-    { }
+    {
+        SetOpaque(true);
+    }
 
 private:
     using TBase = TVirtualMapBase;
@@ -49,7 +56,21 @@ private:
     virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        return ToNames(GetValues(securityManager->Accounts(), sizeLimit));
+        std::vector<TString> names;
+        names.reserve(std::min<size_t>(securityManager->Accounts().size(), sizeLimit));
+
+        for (auto [accountId, account] : securityManager->Accounts()) {
+            if (names.size() >= sizeLimit) {
+                break;
+            }
+            if (!account->GetParent() && account != securityManager->GetRootAccount() && IsObjectAlive(account)) {
+                YT_LOG_ALERT("Unattended account (Id: %v)",
+                    account->GetId());
+            }
+            names.push_back(account->GetName());
+        }
+
+        return names;
     }
 
     virtual i64 GetSize() const override
@@ -62,7 +83,7 @@ private:
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->FindAccountByName(TString(key));
-        if (!IsObjectAlive(account)) {
+        if (!account) {
             return nullptr;
         }
 
@@ -74,8 +95,8 @@ private:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->push_back(EInternedAttributeKey::TotalResourceUsage);
-        descriptors->push_back(EInternedAttributeKey::TotalCommittedResourceUsage);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TotalResourceUsage));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TotalCommittedResourceUsage));
         descriptors->push_back(EInternedAttributeKey::TotalResourceLimits);
     }
 
@@ -83,13 +104,11 @@ private:
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto* rootAccount = securityManager->GetRootAccount();
 
         switch (key) {
             case EInternedAttributeKey::TotalResourceUsage: {
-                TClusterResources resources;
-                for (const auto& [accountId, account] : securityManager->Accounts()) {
-                    resources += account->ClusterStatistics().ResourceUsage;
-                }
+                const auto& resources = rootAccount->ClusterStatistics().ResourceUsage;
                 auto serializer = New<TSerializableClusterResources>(chunkManager, resources);
                 BuildYsonFluently(consumer)
                     .Value(serializer);
@@ -97,10 +116,7 @@ private:
             }
 
             case EInternedAttributeKey::TotalCommittedResourceUsage: {
-                TClusterResources resources;
-                for (const auto& [accountId, account] : securityManager->Accounts()) {
-                    resources += account->ClusterStatistics().CommittedResourceUsage;
-                }
+                const auto& resources = rootAccount->ClusterStatistics().CommittedResourceUsage;
                 auto serializer = New<TSerializableClusterResources>(chunkManager, resources);
                 BuildYsonFluently(consumer)
                     .Value(serializer);
@@ -108,10 +124,7 @@ private:
             }
 
             case EInternedAttributeKey::TotalResourceLimits: {
-                TClusterResources resources;
-                for (const auto& [accountId, account] : securityManager->Accounts()) {
-                    resources += account->ClusterResourceLimits();
-                }
+                auto resources = rootAccount->ComputeTotalChildrenLimits();
                 auto serializer = New<TSerializableClusterResources>(chunkManager, resources);
                 BuildYsonFluently(consumer)
                     .Value(serializer);

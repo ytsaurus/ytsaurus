@@ -6,15 +6,19 @@ from yt_env_setup import (
 from yt_commands import *
 from yt_helpers import *
 
+from yt.yson import YsonEntity
+
 import pytest
+from flaky import flaky
 
 import pprint
 import random
-import sys
 import time
+from StringIO import StringIO
 
+##################################################################
 
-class TestSchedulerRevive(YTEnvSetup):
+class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -159,6 +163,34 @@ class TestSchedulerRevive(YTEnvSetup):
                 break
         assert ok
 
+class TestSchedulerRestart(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "finished_job_storing_timeout": 15000,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
+            "snapshot_period": 3000,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "total_confirmation_period": 5000
+            }
+        }
+    }
+
     @authors("ignat")
     def test_live_preview(self):
         create_user("u")
@@ -238,6 +270,632 @@ class TestSchedulerRevive(YTEnvSetup):
         wait(lambda: op.get_state() == "completed")
 
         assert brief_spec == get(op.get_path() + "/@brief_spec")
+
+    # COMPAT(gritukan)
+    @authors("gritukan")
+    def test_description_after_revival(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"foo": 0}])
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"annotations": {"abc": "def"}, "description": {"foo": "bar"}})
+
+        wait_breakpoint()
+
+        op.wait_fresh_snapshot()
+
+        annotations_path = op.get_path() + "/@runtime_parameters/annotations"
+
+        required_annotations = {
+            "abc": "def",
+            "description": {
+                "foo": "bar",
+            },
+        }
+
+        def check_cypress():
+            return exists(annotations_path) and get(annotations_path) == required_annotations
+
+        def check_get_operation():
+            result = get_operation(op.id, attributes=["runtime_parameters"])["runtime_parameters"]
+            return result.get("annotations", None) == required_annotations
+
+        wait(check_cypress)
+        wait(check_get_operation)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            remove(annotations_path)
+            assert not exists(annotations_path)
+
+        wait(check_cypress)
+        wait(check_get_operation)
+
+        release_breakpoint()
+        op.track()
+
+##################################################################
+
+class TestControllerAgentReconnection(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "controller_agent_tracker": {
+                "heartbeat_timeout": 2000,
+            },
+            "testing_options": {
+                "finish_operation_transition_delay": 2000,
+            },
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "operation_time_limit_check_period": 100,
+            "operation_build_progress_period": 100,
+        }
+    }
+
+    def _create_table(self, table):
+        create("table", table, attributes={"replication_factor": 1})
+
+    def _wait_for_state(self, op, state):
+        wait(lambda: op.get_state() == state)
+
+    @authors("ignat")
+    @flaky(max_runs=3)
+    def test_connection_time(self):
+        def get_connection_time():
+            controller_agents = ls("//sys/controller_agents/instances")
+            assert len(controller_agents) == 1
+            return datetime.strptime(get("//sys/controller_agents/instances/{}/@connection_time".format(controller_agents[0])), "%Y-%m-%dT%H:%M:%S.%fZ")
+
+        time.sleep(3)
+
+        assert datetime.utcnow() - get_connection_time() > timedelta(seconds=3)
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        assert datetime.utcnow() - get_connection_time() < timedelta(seconds=3)
+
+    @authors("ignat")
+    def test_abort_operation_without_controller_agent(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        for wait_transition_state in (False, True):
+            for iter in xrange(2):
+                op = map(
+                    command="sleep 1000",
+                    in_=["//tmp/t_in"],
+                    out="//tmp/t_out",
+                    track=False)
+
+                self._wait_for_state(op, "running")
+
+                with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+                    if wait_transition_state:
+                        self._wait_for_state(op, "waiting_for_agent")
+                    op.abort()
+
+                self._wait_for_state(op, "aborted")
+
+    @authors("ignat")
+    def test_complete_operation_without_controller_agent(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            track=False)
+        self._wait_for_state(op, "running")
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            with pytest.raises(YtError):
+                op.complete()
+
+        self._wait_for_state(op, "running")
+        op.complete()
+        self._wait_for_state(op, "completed")
+
+    @authors("ignat")
+    def test_complete_operation_on_controller_agent_connection(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "testing": {
+                    "delay_inside_revive": 10000,
+                }
+            },
+            track=False)
+        self._wait_for_state(op, "running")
+
+        snapshot_path = op.get_path() + "/snapshot"
+        wait(lambda: exists(snapshot_path))
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        with pytest.raises(YtError):
+            op.complete()
+
+        self._wait_for_state(op, "running")
+        op.complete()
+
+        self._wait_for_state(op, "completed")
+
+    @authors("ignat")
+    def test_abort_operation_on_controller_agent_connection(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "testing": {
+                    "delay_inside_revive": 10000,
+                }
+            },
+            track=False)
+        self._wait_for_state(op, "running")
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        op.abort()
+        self._wait_for_state(op, "aborted")
+
+
+@authors("levysotsky")
+class TestControllerAgentZombieOrchids(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "zombie_operation_orchids": {
+                "clean_period": 15 * 1000,
+            },
+        }
+    }
+
+    def _create_table(self, table):
+        create("table", table, attributes={"replication_factor": 1})
+
+    def _get_operation_orchid_path(self, op):
+        controller_agent = get(op.get_path() + "/@controller_agent_address")
+        return "//sys/controller_agents/instances/{}/orchid/controller_agent/operations/{}"\
+            .format(controller_agent, op.id)
+
+    def test_zombie_operation_orchids(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="cat",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out")
+
+        orchid_path = self._get_operation_orchid_path(op)
+        wait(lambda: exists(orchid_path))
+        assert get(orchid_path + "/state") == "completed"
+        wait(lambda: not exists(orchid_path))
+
+    def test_retained_finished_jobs(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", [{"foo": "bar1"}, {"foo": "bar2"}])
+
+        op = map(
+            command='if [[ "$YT_JOB_INDEX" == "0" ]] ; then exit 1; fi; cat',
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "data_size_per_job": 1,
+            })
+
+        orchid_path = self._get_operation_orchid_path(op)
+        wait(lambda: exists(orchid_path))
+        retained_finished_jobs = get(orchid_path + "/retained_finished_jobs")
+        assert len(retained_finished_jobs) == 1
+        (job_id, attributes), = retained_finished_jobs.items()
+        assert attributes["job_type"] == "map"
+        assert attributes["state"] == "failed"
+
+##################################################################
+
+class TestRaceBetweenShardAndStrategy(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2   # snapshot upload replication factor is 2; unable to configure
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "operation_time_limit_check_period": 100,
+            "operation_build_progress_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 100
+            }
+        }
+    }
+
+    @authors("renadeen")
+    def test_race_between_shard_and_strategy(self):
+        # Scenario:
+        # 1. operation is running
+        # 2. controller fails, scheduler disables operation and it disappears from tree snapshot
+        # 3. job completed event arrives to node shard but is not processed until job revival
+        # 4. controller returns, scheduler revives operation
+        # 5. node shard revives job and sets JobsReady=true
+        # 6. scheduler should enable operation but a bit delayed
+        # 7. node shard manages to process job completed event cause job is revived
+        #    but operation still is not present at tree snapshot (due to not being enabled)
+        #    and strategy discards job completed event telling node to remove it forever
+        # 8. job resource usage is stuck in scheduler and next job won't be scheduled ever
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            spec={
+                "testing": {"delay_inside_materialize": 1000},
+                "resource_limits": {"user_slots": 1}
+            })
+        wait_breakpoint()
+        op.wait_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            release_breakpoint()
+
+        wait(lambda: op.get_state() == "completed")
+
+
+class TestRaceBetweenPoolTreeRemovalAndRegisterOperation(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2   # snapshot upload replication factor is 2; unable to configure
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100   # pool trees config update period
+        }
+    }
+
+    @authors("renadeen")
+    def test_race_between_pool_tree_removal_and_register_operation(self):
+        # Scenario:
+        # 1. operation is running
+        # 2. user updates node_filter of pool tree
+        # 3. scheduler removes and adds that tree
+        # 4. scheduler unregisters and aborts all operations of removed tree before publishing new trees
+        # 5. abort of operation causes fiber switch
+        # 6. new operation registers in old tree that is being removed
+        # 7. all aborts are completed, scheduler publishes new tree structure (without new operation)
+        # 8. operation tries to complete scheduler doesn't know this operation and crashes
+
+        set("//sys/cluster_nodes/{}/@user_tags/end".format(ls("//sys/cluster_nodes")[0]), "my_tag")
+        time.sleep(0.5)
+
+        run_test_vanilla(
+            "sleep 1000",
+            job_count=1,
+            spec={"testing": {"delay_inside_abort": 1000}}
+        )
+
+        set("//sys/pool_trees/default/@nodes_filter", "my_tag")
+        time.sleep(0.2)
+        try:
+            run_test_vanilla(":", job_count=1)
+            assert False
+        except YtError as err:
+            assert err.contains_text("tree \"default\" is being removed")
+
+##################################################################
+
+class OperationReviveBase(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "testing_options": {
+                "finish_operation_transition_delay": 2000,
+            },
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "operation_time_limit_check_period": 100,
+            "operation_build_progress_period": 100,
+        }
+    }
+
+    def _create_table(self, table):
+        create("table", table, attributes={"replication_factor": 1})
+
+    def _prepare_tables(self):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        self._create_table("//tmp/t_out")
+
+    def _wait_for_state(self, op, state):
+        wait(lambda: op.get_state() == state)
+
+    @authors("ignat")
+    def test_missing_transactions(self):
+        self._prepare_tables()
+
+        op = self._start_op(with_breakpoint("echo '{foo=bar}'; BREAKPOINT"), track=False)
+
+        for iter in xrange(5):
+            self._wait_for_state(op, "running")
+            with Restarter(self.Env, SCHEDULERS_SERVICE):
+                set(op.get_path() + "/@input_transaction_id", "0-0-0-0")
+            time.sleep(1)
+
+        release_breakpoint()
+        op.track()
+
+        assert op.get_state() == "completed"
+
+    # NB: we hope that we check aborting state before operation comes to aborted state but we cannot guarantee that this happen.
+    @authors("ignat")
+    @flaky(max_runs=3)
+    def test_aborting(self):
+        self._prepare_tables()
+
+        op = self._start_op("echo '{foo=bar}'; sleep 10", track=False)
+
+        self._wait_for_state(op, "running")
+
+        op.abort(ignore_result=True)
+
+        self._wait_for_state(op, "aborting")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            assert op.get_state() == "aborting"
+
+        with pytest.raises(YtError):
+            op.track()
+
+        assert op.get_state() == "aborted"
+
+    # NB: we hope that complete finish first phase before we kill scheduler. But we cannot guarantee that this happen.
+    @authors("ignat")
+    @flaky(max_runs=3)
+    def test_completing(self):
+        self._prepare_tables()
+
+        op = self._start_op("echo '{foo=bar}'; sleep 10", track=False)
+
+        self._wait_for_state(op, "running")
+
+        op.complete(ignore_result=True)
+
+        self._wait_for_state(op, "completing")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            assert op.get_state() == "completing"
+
+        op.track()
+
+        assert op.get_state() == "completed"
+
+        if self.OP_TYPE == "map":
+            assert read_table("//tmp/t_out") == []
+
+    # NB: test rely on timings and can flap if we hang at some point.
+    @authors("ignat")
+    @flaky(max_runs=3)
+    @pytest.mark.parametrize("stage", ["stage" + str(index) for index in xrange(1, 8)])
+    def test_completing_with_sleep(self, stage):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        self._create_table("//tmp/t_out")
+
+        op = self._start_op(
+            "echo '{foo=bar}'; " + events_on_fs().execute_once("sleep 100"),
+            track=False,
+            spec={
+                "testing": {
+                    "delay_inside_operation_commit": 5000,
+                    "delay_inside_operation_commit_stage": stage,
+                },
+                "job_count": 2
+            })
+
+        self._wait_for_state(op, "running")
+
+        wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("running") == 1)
+
+        op.wait_fresh_snapshot()
+
+        # This request will be retried with the new incarnation of the scheduler.
+        op.complete(ignore_result=True)
+
+        self._wait_for_state(op, "completing")
+
+        # Wait to perform complete before sleep.
+        time.sleep(1.5)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            assert op.get_state() == "completing"
+
+        # complete_operation retry may come when operation is in reviving state. In this case we should complete operation again.
+        wait(lambda: op.get_state() in ("running", "completed"))
+
+        if op.get_state() == "running":
+            op.complete()
+
+        op.track()
+
+        events = get(op.get_path() + "/@events")
+
+        events_prefix = [
+            "starting",
+            "waiting_for_agent",
+            "initializing",
+            "preparing",
+            "pending",
+            "materializing",
+            "running",
+            "completing",
+            "orphaned"
+        ]
+        if stage <= "stage5":
+            expected_events = events_prefix + ["waiting_for_agent", "reviving", "pending", "reviving_jobs", "running", "completing", "completed"]
+        else:
+            expected_events = events_prefix + ["completed"]
+
+        actual_events = [event["state"] for event in events]
+
+        print_debug("Expected: ", expected_events)
+        print_debug("Actual:   ", actual_events)
+        assert expected_events == actual_events
+
+        assert op.get_state() == "completed"
+
+        if self.OP_TYPE == "map":
+            assert read_table("//tmp/t_out") == [{"foo": "bar"}]
+
+    @authors("ignat")
+    def test_abort_during_complete(self):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", [{"foo": "bar"}] * 2)
+
+        remove("//tmp/t_out", force=True)
+        self._create_table("//tmp/t_out")
+
+        op = self._start_op(
+            "echo '{foo=bar}'; " + events_on_fs().execute_once("sleep 100"),
+            track=False,
+            spec={
+                "testing": {
+                    "delay_inside_operation_commit": 4000,
+                    "delay_inside_operation_commit_stage": "stage4",
+                },
+                "job_count": 2
+            })
+
+        self._wait_for_state(op, "running")
+
+        op.wait_fresh_snapshot()
+
+        op.complete(ignore_result=True)
+
+        self._wait_for_state(op, "completing")
+
+        # Wait to perform complete before sleep.
+        time.sleep(2)
+
+        op.abort()
+        op.track()
+
+        assert op.get_state() == "completed"
+
+    @authors("ignat")
+    def test_failing(self):
+        self._prepare_tables()
+
+        op = self._start_op("exit 1", track=False, spec={"max_failed_job_count": 1})
+
+        self._wait_for_state(op, "failing")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            assert op.get_state() == "failing"
+
+        with pytest.raises(YtError):
+            op.track()
+
+        assert op.get_state() == "failed"
+
+    @authors("ignat")
+    def test_revive_failed_jobs(self):
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = self._start_op(
+            "sleep 1; false",
+            spec={"max_failed_job_count": 10000},
+            track=False)
+
+        self._wait_for_state(op, "running")
+
+        def failed_jobs_exist():
+            return op.get_job_count("failed") >= 3
+
+        wait(failed_jobs_exist)
+
+        suspend_op(op.id)
+
+        op.wait_fresh_snapshot()
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait(lambda: op.get_job_count("failed") >= 3)
+
+class TestSchedulerReviveForMap(OperationReviveBase):
+    OP_TYPE = "map"
+
+    def _start_op(self, command, **kwargs):
+        return map(command=command, in_=["//tmp/t_in"], out="//tmp/t_out", **kwargs)
+
+class TestSchedulerReviveForVanilla(OperationReviveBase):
+    OP_TYPE = "vanilla"
+
+    def _start_op(self, command, **kwargs):
+        spec = kwargs.pop("spec", {})
+        job_count = spec.pop("job_count", 1)
+        spec["tasks"] = {"main": {"command": command, "job_count": job_count}}
+        return vanilla(spec=spec, **kwargs)
 
 ################################################################################
 
@@ -417,7 +1075,9 @@ class TestJobRevival(TestJobRevivalBase):
         if aborted_job_count != aborted_on_revival_job_count:
             print_debug("There were aborted jobs other than during the revival process:")
             for op in ops:
-                pprint.pprint(dict(get(op.get_path() + "/@progress/jobs/aborted")), stream=sys.stderr)
+                output = StringIO()
+                pprint.pprint(dict(get(op.get_path() + "/@progress/jobs/aborted")), stream=output)
+                print_debug(output.getvalue())
 
         for output_table in output_tables:
             assert sorted(read_table(output_table, verbose=False)) == [{"a": i} for i in range(op_count)]
@@ -553,4 +1213,63 @@ class TestDisabledJobRevival(TestJobRevivalBase):
         op.track()
 
         assert read_table("//tmp/t_out") == [{"a": 1}]
+
+##################################################################
+
+class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "connect_retry_backoff_time": 100,
+            "fair_share_update_period": 100,
+            "profiling_update_period": 100,
+            "fair_share_profiling_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
+        }
+    }
+
+    @authors("ignat")
+    def test_preserve_slot_index_after_revive(self):
+        self._create_table("//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": "y"}])
+
+        def get_slot_index(op_id):
+            path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/slot_index".format(op_id)
+            wait(lambda: exists(path) and get(path) != YsonEntity())
+            return get(path)
+
+        for i in xrange(3):
+            self._create_table("//tmp/t_out_" + str(i))
+
+        op1 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_0", track=False)
+        op2 = map(command="sleep 2; cat", in_="//tmp/t_in", out="//tmp/t_out_1", track=False)
+        op3 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_2", track=False)
+
+        assert get_slot_index(op1.id) == 0
+        assert get_slot_index(op2.id) == 1
+        assert get_slot_index(op3.id) == 2
+
+        op2.track()  # this makes slot index 1 available again since operation is completed
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        time.sleep(2.0)
+
+        assert get_slot_index(op1.id) == 0
+        assert get_slot_index(op3.id) == 2
+
+        op2 = map(command="sleep 1000; cat", in_="//tmp/t_in", out="//tmp/t_out_1", track=False)
+
+        assert get_slot_index(op2.id) == 1
+
+##################################################################
 

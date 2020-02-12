@@ -50,6 +50,19 @@ void TLogRotator::RotateLogs()
         return;
     }
 
+    bool logWriterLoggingStarted = false;
+    for (const auto& logReader : Bootstrap_->GetLogTailer()->GetLogReaders()) {
+        if (logReader->GetTotalBytesRead()) {
+            logWriterLoggingStarted = true;
+            break;
+        }
+    }
+
+    if (!logWriterLoggingStarted) {
+        YT_LOG_INFO("Log writer didn't write any log yet, ignoring rotation");
+        return;
+    }
+
     for (const auto& file : LogFilePaths_) {
         int segmentCount = 0;
         while (Exists(GetLogSegmentPath(file, segmentCount))) {

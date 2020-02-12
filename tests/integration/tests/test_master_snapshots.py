@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, MASTER_CELL_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import *
 from yt.environment.helpers import assert_items_equal
 
@@ -79,6 +79,56 @@ def check_removed_account():
         chunk_id = get_singular_chunk_id("//tmp/a2_table{0}".format(i))
         wait(lambda: len(get("#{0}/@requisition".format(chunk_id))) == 1)
 
+def check_hierarchical_accounts():
+    create_account("b1")
+    create_account("b2")
+    create_account("b11", "b1")
+    create_account("b21", "b2")
+
+    create("table", "//tmp/b11_table", attributes={"account": "b11"})
+    write_table("//tmp/b11_table", {"a": "b"})
+    create("table", "//tmp/b21_table", attributes={"account": "b21"})
+    write_table("//tmp/b21_table", {"a": "b", "c" : "d"})
+    remove_account("b2", sync_deletion=False)
+
+    # XXX(kiselyovp) this might be flaky
+    b11_disk_usage = get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default")
+    b21_disk_usage = get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default")
+    assert b11_disk_usage > 0
+    assert b21_disk_usage > 0
+
+    yield
+
+    accounts = ls("//sys/accounts")
+
+    for account in accounts:
+        assert not account.startswith("#")
+
+    topmost_accounts = ls("//sys/account_tree")
+    for account in ["sys", "tmp", "intermediate", "chunk_wise_accounting_migration", "b1", "b2"]:
+        assert account in accounts
+        assert account in topmost_accounts
+    for account in ["b11", "b21", "root"]:
+        assert account in accounts
+        assert account not in topmost_accounts
+
+    assert get("//sys/account_tree/@ref_counter") == len(topmost_accounts) + 1
+
+    assert ls("//sys/account_tree/b1") == ["b11"]
+    assert ls("//sys/account_tree/b2") == ["b21"]
+    assert ls("//sys/account_tree/b1/b11") == []
+    assert ls("//sys/account_tree/b2/b21") == []
+
+    assert get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default") == b21_disk_usage
+    assert get("//sys/accounts/b2/@recursive_resource_usage/disk_space_per_medium/default") == b21_disk_usage
+
+    set("//tmp/b21_table/@account", "b11")
+    wait(lambda: not exists("//sys/account_tree/b2"))
+    assert not exists("//sys/accounts/b2")
+    assert exists("//sys/accounts/b11")
+
+    assert get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default") == b11_disk_usage + b21_disk_usage
+
 def check_dynamic_tables():
     sync_create_cells(1)
     create_dynamic_table("//tmp/t", schema=[
@@ -121,6 +171,7 @@ class TestMasterSnapshots(YTEnvSetup):
             check_forked_schema,
             check_dynamic_tables,
             check_security_tags,
+            check_hierarchical_accounts,
             check_removed_account # keep this item last as it's sensitive to timings
         ]
 
@@ -130,7 +181,7 @@ class TestMasterSnapshots(YTEnvSetup):
 
         build_snapshot(cell_id=None)
 
-        with Restarter(self.Env, MASTER_CELL_SERVICE):
+        with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
         for s in checker_state_list:
@@ -168,7 +219,7 @@ class TestAllMastersSnapshots(YTEnvSetup):
 
         build_master_snapshots()
 
-        with Restarter(self.Env, MASTER_CELL_SERVICE):
+        with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
         for s in checker_state_list:

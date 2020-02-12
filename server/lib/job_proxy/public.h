@@ -26,6 +26,12 @@ DEFINE_ENUM(EJobProxyExitCode,
     ((PortoManagmentFailed)   (30))
 );
 
+DEFINE_ENUM(EJobThrottlerType,
+    (InBandwidth)
+    (OutBandwidth)
+    (OutRps)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy

@@ -56,6 +56,8 @@
 #include <yt/ytlib/job_proxy/helpers.h>
 #include <yt/ytlib/job_proxy/user_job_read_controller.h>
 
+#include <yt/ytlib/job_prober_client/job_node_descriptor_cache.h>
+
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
@@ -290,13 +292,8 @@ TClient::TClient(
     JobProberProxy_ = std::make_unique<TJobProberServiceProxy>(GetSchedulerChannel());
 
     TransactionManager_ = New<TTransactionManager>(
-        Connection_->GetConfig()->TransactionManager,
-        Connection_->GetConfig()->PrimaryMaster->CellId,
         Connection_,
-        Options_.GetUser(),
-        Connection_->GetTimestampProvider(),
-        Connection_->GetCellDirectory(),
-        Connection_->GetDownedCellTracker());
+        Options_.GetUser());
 
     FunctionImplCache_ = CreateFunctionImplCache(
         Connection_->GetConfig()->FunctionImplCache,
@@ -621,6 +618,7 @@ static const THashSet<TString> SupportedOperationAttributes = {
     "operation_type",
     "progress",
     "spec",
+    // COMPAT(gritukan): Drop it.
     "annotations",
     "full_spec",
     "unrecognized_spec",
@@ -651,6 +649,7 @@ static const THashSet<TString> SupportedJobAttributes = {
     "events",
     "has_spec",
     "job_competition_id",
+    "has_competitors",
 };
 
 // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
@@ -699,9 +698,7 @@ std::vector<TString> TClient::MakeArchiveOperationAttributes(const THashSet<TStr
         } else if (attribute == "type") {
             result.emplace_back("operation_type");
         } else if (attribute == "annotations") {
-            if (DoGetOperationsArchiveVersion() >= 29) {
-                result.push_back(attribute);
-            }
+            // COMPAT(gritukan): This field is deprecated.
         } else {
             result.push_back(attribute);
         }
@@ -1187,23 +1184,17 @@ bool TClient::IsNoSuchJobOrOperationError(const TError& error)
 
 // Get job node descriptor from scheduler and check that user has |requiredPermissions|
 // for accessing the corresponding operation.
-TErrorOr<TNodeDescriptor> TClient::GetJobNodeDescriptor(
+TErrorOr<TNodeDescriptor> TClient::TryGetJobNodeDescriptor(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
-    TNodeDescriptor jobNodeDescriptor;
-    auto req = JobProberProxy_->GetJobNode();
-    ToProto(req->mutable_job_id(), jobId);
-    req->set_required_permissions(static_cast<ui32>(requiredPermissions));
-    auto rspOrError = WaitFor(req->Invoke());
-    if (!rspOrError.IsOK()) {
-        return TError("Failed to get job node descriptor")
-            << std::move(rspOrError)
-            << TErrorAttribute("job_id", jobId);
-    }
-    auto rsp = rspOrError.Value();
-    FromProto(&jobNodeDescriptor, rsp->node_descriptor());
-    return jobNodeDescriptor;
+    const auto& cache = Connection_->GetJobNodeDescriptorCache();
+    NJobProberClient::TJobNodeDescriptorKey key{
+        .User = Options_.GetUser(),
+        .JobId = jobId,
+        .Permissions = requiredPermissions
+    };
+    return WaitFor(cache->Get(key));
 }
 
 IChannelPtr TClient::TryCreateChannelToJobNode(
@@ -1211,7 +1202,7 @@ IChannelPtr TClient::TryCreateChannelToJobNode(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
-    auto jobNodeDescriptorOrError = GetJobNodeDescriptor(jobId, requiredPermissions);
+    auto jobNodeDescriptorOrError = TryGetJobNodeDescriptor(jobId, requiredPermissions);
     if (jobNodeDescriptorOrError.IsOK()) {
         return ChannelFactory_->CreateChannel(jobNodeDescriptorOrError.ValueOrThrow());
     }
@@ -1228,17 +1219,14 @@ IChannelPtr TClient::TryCreateChannelToJobNode(
         auto jobYsonString = WaitFor(GetJob(operationId, jobId, options))
             .ValueOrThrow();
         auto address = ConvertToNode(jobYsonString)->AsMap()->GetChild("address")->GetValue<TString>();
-        auto nodeChannel = ChannelFactory_->CreateChannel(address);
 
-        NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
-        auto jobSpecOrError = GetJobSpecFromJobNode(jobId, jobProberServiceProxy);
+        auto nodeChannel = ChannelFactory_->CreateChannel(address);
+        auto jobSpecOrError = TryGetJobSpecFromJobNode(jobId, nodeChannel);
         if (!jobSpecOrError.IsOK()) {
             return nullptr;
         }
 
-        auto jobSpec = jobSpecOrError
-            .ValueOrThrow();
-
+        const auto& jobSpec = jobSpecOrError.Value();
         ValidateJobSpecVersion(jobId, jobSpec);
         ValidateOperationAccess(jobId, jobSpec, requiredPermissions);
 
@@ -1249,36 +1237,42 @@ IChannelPtr TClient::TryCreateChannelToJobNode(
     }
 }
 
-TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::GetJobSpecFromJobNode(
+TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryGetJobSpecFromJobNode(
     TJobId jobId,
-    NJobProberClient::TJobProberServiceProxy& jobProberServiceProxy)
+    const NRpc::IChannelPtr& nodeChannel)
 {
+    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+
     auto req = jobProberServiceProxy.GetSpec();
     ToProto(req->mutable_job_id(), jobId);
+
     auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
         return TError("Failed to get job spec from job node")
             << std::move(rspOrError)
             << TErrorAttribute("job_id", jobId);
     }
-    const auto& spec = rspOrError.Value()->spec();
+
+    const auto& rsp = rspOrError.Value();
+    const auto& spec = rsp->spec();
     ValidateJobSpecVersion(jobId, spec);
     return spec;
 }
 
 // Get job spec from node and check that user has |requiredPermissions|
 // for accessing the corresponding operation.
-TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::GetJobSpecFromJobNode(
+TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryGetJobSpecFromJobNode(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
-    auto jobNodeDescriptorOrError = GetJobNodeDescriptor(jobId, requiredPermissions);
+    auto jobNodeDescriptorOrError = TryGetJobNodeDescriptor(jobId, requiredPermissions);
     if (!jobNodeDescriptorOrError.IsOK()) {
         return TError(std::move(jobNodeDescriptorOrError));
     }
-    auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptorOrError.ValueOrThrow());
-    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
-    return GetJobSpecFromJobNode(jobId, jobProberServiceProxy);
+
+    const auto& nodeDescriptor = jobNodeDescriptorOrError.Value();
+    auto nodeChannel = ChannelFactory_->CreateChannel(nodeDescriptor);
+    return TryGetJobSpecFromJobNode(jobId, nodeChannel);
 }
 
 // Get job spec from job archive and check that user has |requiredPermissions|
@@ -1343,11 +1337,12 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
     TJobId jobId,
     const TGetJobInputOptions& /*options*/)
 {
-    NJobTrackerClient::NProto::TJobSpec jobSpec;
-    auto jobSpecFromProxyOrError = GetJobSpecFromJobNode(jobId, EPermissionSet(EPermission::Read));
+    auto jobSpecFromProxyOrError = TryGetJobSpecFromJobNode(jobId, EPermissionSet(EPermission::Read));
     if (!jobSpecFromProxyOrError.IsOK() && !IsNoSuchJobOrOperationError(jobSpecFromProxyOrError)) {
         THROW_ERROR jobSpecFromProxyOrError;
     }
+
+    NJobTrackerClient::NProto::TJobSpec jobSpec;
     if (jobSpecFromProxyOrError.IsOK()) {
         jobSpec = std::move(jobSpecFromProxyOrError.Value());
     } else {
@@ -1416,7 +1411,7 @@ TYsonString TClient::DoGetJobInputPaths(
     const TGetJobInputPathsOptions& /*options*/)
 {
     NJobTrackerClient::NProto::TJobSpec jobSpec;
-    auto jobSpecFromProxyOrError = GetJobSpecFromJobNode(jobId, EPermissionSet(EPermission::Read));
+    auto jobSpecFromProxyOrError = TryGetJobSpecFromJobNode(jobId, EPermissionSet(EPermission::Read));
     if (!jobSpecFromProxyOrError.IsOK() && !IsNoSuchJobOrOperationError(jobSpecFromProxyOrError)) {
         THROW_ERROR jobSpecFromProxyOrError;
     }
@@ -1590,7 +1585,6 @@ TSharedRef TClient::DoGetJobStderrFromNode(
     TJobId jobId)
 {
     auto nodeChannel = TryCreateChannelToJobNode(operationId, jobId, EPermissionSet(EPermission::Read));
-
     if (!nodeChannel) {
         return TSharedRef();
     }
@@ -2629,6 +2623,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
     auto hasSpecIndex = builder.AddSelectExpression("has_spec");
     auto failContextSizeIndex = builder.AddSelectExpression("fail_context_size");
     auto jobCompetitionIdIndex = builder.AddSelectExpression("job_competition_id");
+    auto hasCompetitorsIndex = builder.AddSelectExpression("has_competitors");
 
     int coreInfosIndex = -1;
     {
@@ -2648,7 +2643,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
     if (options.WithSpec) {
         if (*options.WithSpec) {
-            builder.AddWhereConjunct("has_spec AND NOT is_null(has_spec)");
+            builder.AddWhereConjunct("has_spec");
         } else {
             builder.AddWhereConjunct("NOT has_spec OR is_null(has_spec)");
         }
@@ -2672,6 +2667,14 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
     if (options.JobCompetitionId) {
         builder.AddWhereConjunct(Format("job_competition_id = %Qv", options.JobCompetitionId));
+    }
+
+    if (options.WithCompetitors) {
+        if (*options.WithCompetitors) {
+            builder.AddWhereConjunct("has_competitors");
+        } else {
+            builder.AddWhereConjunct("is_null(has_competitors) OR NOT has_competitors");
+        }
     }
 
     if (options.SortField != EJobSortField::None) {
@@ -2770,6 +2773,10 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
             if (row[jobCompetitionIdIndex].Type != EValueType::Null) {
                 job.JobCompetitionId = TJobId::FromString(FromUnversionedValue<TStringBuf>(row[jobCompetitionIdIndex]));
+            }
+
+            if (row[hasCompetitorsIndex].Type != EValueType::Null) {
+                job.HasCompetitors = row[hasCompetitorsIndex].Data.Boolean;
             }
 
             if (row[hasSpecIndex].Type != EValueType::Null) {
@@ -2938,7 +2945,7 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
             }
             if (!finishedJobsOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to get finished jobs from the operation archive")
-                    << jobsInProgressOrError;
+                    << finishedJobsOrError;
             }
             if (!statisticsOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to get finished job statistics from the operation archive")
@@ -2992,6 +2999,7 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
         "core_infos",
         "uncompressed_data_size",
         "job_competition_id",
+        "has_competitors",
     };
 
     auto batchReq = proxy.ExecuteBatch();
@@ -3061,6 +3069,12 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
                 }
             }
 
+            if (options.WithCompetitors) {
+                if (options.WithCompetitors != attributes.Find<bool>("has_competitors")) {
+                    continue;
+                }
+            }
+
             jobs.emplace_back();
             auto& job = jobs.back();
 
@@ -3082,6 +3096,7 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
             job.InputPaths = attributes.FindYson("input_paths");
             job.CoreInfos = attributes.FindYson("core_infos");
             job.JobCompetitionId = attributes.Find<TJobId>("job_competition_id").value_or(TJobId());
+            job.HasCompetitors = attributes.Find<bool>("has_competitors").value_or(false);
         }
 
         return result;
@@ -3107,6 +3122,7 @@ static void ParseJobsFromControllerAgentResponse(
     auto needStderrSize = attributes.contains("stderr_size");
     auto needBriefStatistics = attributes.contains("brief_statistics");
     auto needJobCompetitionId = attributes.contains("job_competition_id");
+    auto needHasCompetitors = attributes.contains("has_competitors");
 
     for (const auto& [jobIdString, jobNode] : jobNodes) {
         if (!filter(jobNode)) {
@@ -3155,8 +3171,15 @@ static void ParseJobsFromControllerAgentResponse(
             job.BriefStatistics = ConvertToYsonString(jobMapNode->GetChild("brief_statistics"));
         }
         if (needJobCompetitionId) {
-            if (auto child = jobMapNode->FindChild("job_competition_id")) {  //COMPAT(renadeen): can remove this check when this commit will be on all clusters
+            //COMPAT(renadeen): can remove this check when 19.8 will be on all clusters
+            if (auto child = jobMapNode->FindChild("job_competition_id")) {
                 job.JobCompetitionId = ConvertTo<TJobId>(child);
+            }
+        }
+        if (needHasCompetitors) {
+            //COMPAT(renadeen): can remove this check when 19.8 will be on all clusters
+            if (auto child = jobMapNode->FindChild("has_competitors")) {
+                job.HasCompetitors = ConvertTo<bool>(child);
             }
         }
     }
@@ -3183,20 +3206,25 @@ static void ParseJobsFromControllerAgentResponse(
     auto items = ConvertToNode(NYson::TYsonString(rsp->value()))->AsMap();
     *totalCount += items->GetChildren().size();
 
-    auto filter = [&] (const INodePtr& jobNode) {
+    auto filter = [&] (const INodePtr& jobNode) -> bool {
         auto stderrSize = jobNode->AsMap()->GetChild("stderr_size")->GetValue<i64>();
         auto failContextSizeNode = jobNode->AsMap()->FindChild("fail_context_size");
         auto failContextSize = failContextSizeNode
             ? failContextSizeNode->GetValue<i64>()
             : 0;
         auto jobCompetitionIdNode = jobNode->AsMap()->FindChild("job_competition_id");
-        auto jobCompetitionId = jobCompetitionIdNode  //COMPAT(renadeen): can remove this check when this commit will be on all clusters
+        auto jobCompetitionId = jobCompetitionIdNode  //COMPAT(renadeen): can remove this check when 19.8 will be on all clusters
             ? ConvertTo<TJobId>(jobCompetitionIdNode)
             : TJobId();
+        auto hasCompetitorsNode = jobNode->AsMap()->FindChild("has_competitors");
+        auto hasCompetitors = hasCompetitorsNode  //COMPAT(renadeen): can remove this check when 19.8 will be on all clusters
+            ? ConvertTo<bool>(hasCompetitorsNode)
+            : false;
         return
             (!options.WithStderr || *options.WithStderr == (stderrSize > 0)) &&
             (!options.WithFailContext || *options.WithFailContext == (failContextSize > 0)) &&
-            (!options.JobCompetitionId || options.JobCompetitionId == jobCompetitionId);
+            (!options.JobCompetitionId || options.JobCompetitionId == jobCompetitionId) &&
+            (!options.WithCompetitors || options.WithCompetitors == hasCompetitors);
     };
 
     ParseJobsFromControllerAgentResponse(
@@ -3229,6 +3257,7 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
         "stderr_size",
         "brief_statistics",
         "job_competition_id",
+        "has_competitors"
     };
 
     TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
@@ -3351,6 +3380,7 @@ static void MergeJob(TSourceJob&& source, TJob* target)
     MERGE_NULLABLE_FIELD(InputPaths);
     MERGE_NULLABLE_FIELD(CoreInfos);
     MERGE_NULLABLE_FIELD(JobCompetitionId);
+    MERGE_NULLABLE_FIELD(HasCompetitors);
 #undef MERGE_NULLABLE_FIELD
     if (source.StderrSize && target->StderrSize.value_or(0) < source.StderrSize) {
         target->StderrSize = source.StderrSize;
@@ -3810,6 +3840,9 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     if (auto jobCompetitionId = FindValue<TJobId>(row, columnFilter, table.Index.JobCompetitionId)) {
         job.JobCompetitionId = *jobCompetitionId;
     }
+    if (auto hasCompetitors = FindValue<bool>(row, columnFilter, table.Index.HasCompetitors)) {
+        job.HasCompetitors = *hasCompetitors;
+    }
 
     return job;
 }
@@ -3890,6 +3923,7 @@ TYsonString TClient::DoGetJob(
         "events",
         "has_spec",
         "job_competition_id",
+        "has_competitors",
     };
 
     const auto& attributes = options.Attributes.value_or(DefaultAttributes);

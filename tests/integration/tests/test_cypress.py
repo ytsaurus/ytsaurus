@@ -815,7 +815,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("kiselyovp")
     def test_get_with_attributes_objects(self):
-        assert get("//sys/accounts/tmp", attributes=["name"]) == to_yson_type(None, {"name" : "tmp"})
+        assert get("//sys/accounts/tmp", attributes=["name"]) == to_yson_type({}, {"name" : "tmp"})
         assert get("//sys/users/root", attributes=["name", "type"]) == to_yson_type(None, {"name" : "root", "type" : "user"})
 
     @authors("babenko")
@@ -839,6 +839,17 @@ class TestCypress(YTEnvSetup):
     def test_list_with_attributes_virtual_maps(self):
         tx = start_transaction()
         assert ls("//sys/transactions", attributes=["type"]) == [to_yson_type(tx, attributes={"type": "transaction"})]
+
+    @authors("aleksandra-zh")
+    def test_map_node_branch(self):
+        create("map_node", "//tmp/m")
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+        create("table", "//tmp/m/t", tx=tx1)
+        lock("//tmp/m", tx=tx2, mode="snapshot")
+        assert get("//tmp/m/t/@key", tx=tx2) == "t"
+        remove("//tmp/m/t", tx=tx1)
+        assert get("//tmp/m/t/@key", tx=tx2) == "t"
 
     @authors("babenko", "ignat")
     def test_exists(self):
@@ -2145,7 +2156,6 @@ class TestCypress(YTEnvSetup):
             create("some_invalid_type", "//tmp/s")
         with pytest.raises(YtError):
             create("sorted_dynamic_tablet_store", "//tmp/s")
-
 
     @authors("aozeritsky")
     def test_attributes_content_revision(self):

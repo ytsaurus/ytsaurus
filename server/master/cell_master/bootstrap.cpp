@@ -456,7 +456,6 @@ NNative::IConnectionPtr TBootstrap::CreateClusterConnection() const
         config->SecondaryMasters.push_back(cloneMasterConfig(secondaryMaster));
     }
     config->TimestampProvider = Config_->TimestampProvider;
-    config->UseTabletService = true;
 
     return NNative::CreateConnection(config);
 }

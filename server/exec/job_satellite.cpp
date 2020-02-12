@@ -1,13 +1,30 @@
 #include "job_satellite.h"
-#include "job_prober_service.h"
-#include "job_satellite_connection.h"
-#include "user_job.h"
-#include "user_job_synchronizer.h"
-#include "private.h"
 
 #include <yt/server/lib/exec_agent/public.h>
 
+#include <yt/server/lib/job_prober/job_prober_service.h>
+
+#include <yt/server/lib/job_satellite_connection/job_satellite_connection.h>
+
 #include <yt/server/lib/shell/shell_manager.h>
+
+#include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
+
+#include <yt/ytlib/cgroup/cgroup.h>
+
+#include <yt/ytlib/job_prober_client/job_probe.h>
+
+#include <yt/ytlib/job_tracker_client/public.h>
+
+#include <yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/ytlib/tools/tools.h>
+#include <yt/ytlib/tools/stracer.h>
+#include <yt/ytlib/tools/signaler.h>
+
+#include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/library/process/process.h>
 
 #include <yt/core/bus/tcp/config.h>
 #include <yt/core/bus/tcp/server.h>
@@ -17,31 +34,17 @@
 #include <yt/core/logging/config.h>
 #include <yt/core/logging/log_manager.h>
 
+#include <yt/core/misc/finally.h>
 #include <yt/core/misc/fs.h>
-#include <yt/library/process/process.h>
+#include <yt/core/misc/proc.h>
+#include <yt/core/misc/shutdown.h>
 
 #include <yt/core/rpc/bus/server.h>
 #include <yt/core/rpc/server.h>
 
-#include <yt/ytlib/tools/tools.h>
-#include <yt/ytlib/tools/stracer.h>
-#include <yt/ytlib/tools/signaler.h>
-
-#include <yt/core/ytree/convert.h>
-
 #include <yt/core/yson/string.h>
 
-#include <yt/core/misc/finally.h>
-#include <yt/core/misc/proc.h>
-
-#include <yt/ytlib/cgroup/cgroup.h>
-
-#include <yt/ytlib/job_tracker_client/public.h>
-
-#include <yt/client/node_tracker_client/node_directory.h>
-#include <yt/ytlib/node_tracker_client/helpers.h>
-
-#include <yt/core/misc/shutdown.h>
+#include <yt/core/ytree/convert.h>
 
 #include <util/generic/guid.h>
 #include <util/system/fs.h>
@@ -50,13 +53,16 @@
 #include <sys/wait.h>
 #include <sys/ioctl.h>
 
-namespace NYT::NJobProxy {
+namespace NYT::NExec {
 
 using namespace NRpc;
 using namespace NYT::NBus;
 using namespace NConcurrency;
+using namespace NJobProber;
+using namespace NJobSatelliteConnection;
 using namespace NShell;
 using namespace NTools;
+using namespace NUserJobSynchronizerClient;
 
 using NChunkClient::TChunkId;
 using NYTree::INodePtr;
@@ -116,6 +122,21 @@ public:
 
 private:
     const int Uid_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRootlessPidsHolder
+    : public IPidsHolder
+{
+public:
+    explicit TRootlessPidsHolder()
+    { }
+
+    virtual std::vector<int> GetPids() override
+    {
+        return GetPidsUnderParent(getpid());
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -235,7 +256,11 @@ void TJobProbeTools::Init(TJobId jobId)
             break;
 
         case EJobEnvironmentType::Simple:
-            PidsHolder_.reset(new TSimplePidsHolder(Uid_));
+            if (HasRootPermissions()) {
+                PidsHolder_.reset(new TSimplePidsHolder(Uid_));
+            } else {
+                PidsHolder_.reset(new TRootlessPidsHolder());
+            }
             break;
 
         default:
@@ -601,4 +626,4 @@ void NotifyExecutorPrepared(TJobSatelliteConnectionConfigPtr config)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobProxy
+} // namespace NYT::NExec

@@ -271,7 +271,7 @@ bool TJobStatistics::IsEmpty() const
 {
     return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ ||
              Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ ||
-             CoreInfos_);
+             CoreInfos_ || HasCompetitors_);
 }
 
 void TJobStatistics::SetOperationId(NJobTrackerClient::TOperationId operationId)
@@ -358,6 +358,11 @@ void TJobStatistics::SetProfile(const TJobProfile& profile)
 void TJobStatistics::SetCoreInfos(TCoreInfos coreInfos)
 {
     CoreInfos_ = std::move(coreInfos);
+}
+
+void TJobStatistics::SetHasCompetitors(bool hasCompetitors)
+{
+    HasCompetitors_ = hasCompetitors;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

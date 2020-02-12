@@ -3,15 +3,7 @@
 #include "public.h"
 #include "serialize.h"
 
-#include <yt/server/master/chunk_server/public.h>
-
 #include <yt/server/lib/hydra/composite_automaton.h>
-
-#include <yt/server/master/table_server/public.h>
-
-#include <yt/server/master/object_server/public.h>
-
-#include <yt/server/master/security_server/public.h>
 
 #include <yt/ytlib/object_client/public.h>
 #include <yt/client/object_client/helpers.h>

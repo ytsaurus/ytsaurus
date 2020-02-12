@@ -2,5 +2,5 @@
 
 int main(int argc, const char** argv)
 {
-    return NYT::NJobProxy::TExecProgram().Run(argc, argv);
+    return NYT::NExec::TExecProgram().Run(argc, argv);
 }

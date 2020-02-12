@@ -222,12 +222,22 @@ TWallTimer::TWallTimer()
 
 TInstant TWallTimer::GetStartTime() const
 {
-    return CpuInstantToInstant(StartTime_);
+    return CpuInstantToInstant(GetStartCpuTime());
 }
 
 TDuration TWallTimer::GetElapsedTime() const
 {
-    return CpuDurationToDuration(Duration_ + GetCurrentDuration());
+    return CpuDurationToDuration(GetElapsedCpuTime());
+}
+
+TCpuInstant TWallTimer::GetStartCpuTime() const
+{
+    return StartTime_;
+}
+
+TCpuDuration TWallTimer::GetElapsedCpuTime() const
+{
+    return Duration_ + GetCurrentDuration();
 }
 
 TValue TWallTimer::GetElapsedValue() const

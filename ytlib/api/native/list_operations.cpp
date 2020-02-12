@@ -14,6 +14,7 @@ namespace NYT::NApi::NNative {
 using namespace NScheduler;
 using namespace NSecurityClient;
 using namespace NTableClient;
+using namespace NYTree;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -82,7 +83,20 @@ public:
     { }
 
     void OnEndOperation()
-    { }
+    {
+        // COMPAT(gritukan)
+        if (Annotations_) {
+            IMapNodePtr RuntimeParametersMapNode;
+            if (Operation_.RuntimeParameters) {
+                RuntimeParametersMapNode = ConvertToNode(Operation_.RuntimeParameters)->AsMap();
+            } else {
+                RuntimeParametersMapNode = GetEphemeralNodeFactory()->CreateMap();
+            }
+            RuntimeParametersMapNode->AddChild("annotations", ConvertToNode(Annotations_));
+
+            Operation_.RuntimeParameters = ConvertToYsonString(RuntimeParametersMapNode);
+        }
+    }
 
     void OnId(TOperationId id)
     {
@@ -188,14 +202,17 @@ public:
         TransferAndGetYson("alerts", Operation_.Alerts, cursor);
     }
 
+    // COMPAT(gritukan)
     void OnAnnotations(TYsonPullParserCursor* cursor)
     {
-        TransferAndGetYson("annotations", Operation_.Annotations, cursor);
+        TransferAndGetYson("annotations", Annotations_, cursor);
     }
 
 private:
     TOperation& Operation_;
     const THashSet<TString>& Attributes_;
+
+    TYsonString Annotations_;
 
 private:
     void TransferAndGetYson(TStringBuf attribute, TYsonString& result, TYsonPullParserCursor* cursor)
@@ -499,6 +516,9 @@ public:
                         }
                     });
                 });
+            } else if (key == AsStringBuf("annotations")) {
+                cursor->Next();
+                OnAnnotations(cursor);
             } else {
                 cursor->Next();
                 cursor->SkipComplexValue();
@@ -529,6 +549,7 @@ public:
         cursor->SkipComplexValue();
     }
 
+    // COMPAT(gritukan): Move it to `OnRuntimeParameters'.
     void OnAnnotations(TYsonPullParserCursor* cursor)
     {
         if (!Options_.SubstrFilter || SubstringFound_) {

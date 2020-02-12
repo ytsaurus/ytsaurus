@@ -1,4 +1,4 @@
-package NYT.NJobProxy.NProto;
+package NYT.NUserJobSynchronizerClient.NProto;
 
 import "yt/core/misc/proto/error.proto";
 

@@ -53,17 +53,12 @@ TYsonString TClient::DoPollJobShell(
     const TYsonString& parameters,
     const TPollJobShellOptions& options)
 {
-    auto jobNodeDescriptor = GetJobNodeDescriptor(jobId, EPermissionSet(EPermission::Manage | EPermission::Read))
+    auto jobNodeDescriptor = TryGetJobNodeDescriptor(jobId, EPermissionSet(EPermission::Manage | EPermission::Read))
         .ValueOrThrow();
     auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
-
-    YT_LOG_DEBUG("Polling job shell (JobId: %v)", jobId);
-
     NJobProberClient::TJobProberServiceProxy proxy(nodeChannel);
 
-    auto spec = GetJobSpecFromJobNode(jobId, proxy)
-        .ValueOrThrow();
-
+    YT_LOG_DEBUG("Polling job shell (JobId: %v)", jobId);
     auto req = proxy.PollJobShell();
     ToProto(req->mutable_job_id(), jobId);
     ToProto(req->mutable_parameters(), parameters.GetData());

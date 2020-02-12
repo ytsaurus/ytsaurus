@@ -189,8 +189,6 @@ void TSchedulerPoolProxy::ValidateChildNameAvailability(const TString& newChildN
 {
     TNonversionedMapObjectProxyBase::ValidateChildNameAvailability(newChildName);
 
-    ValidatePoolName(newChildName);
-
     auto poolTreeName = GetPoolTreeName(GetThisImpl());
     if (Bootstrap_->GetSchedulerPoolManager()->FindSchedulerPoolByName(poolTreeName, newChildName)) {
         THROW_ERROR_EXCEPTION(

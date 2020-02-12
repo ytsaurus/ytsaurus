@@ -461,6 +461,9 @@ private:
                 jobCompetitionIdString = ToString(statistics.JobCompetitionId());
                 builder.AddValue(MakeUnversionedStringValue(jobCompetitionIdString, Table_.Index.JobCompetitionId));
             }
+            if (GetSharedData()->GetOperationArchiveVersion() >= 33 && statistics.HasCompetitors().has_value()) {
+                builder.AddValue(MakeUnversionedBooleanValue(statistics.HasCompetitors().value(), Table_.Index.HasCompetitors));
+            }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());
         }

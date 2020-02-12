@@ -594,8 +594,6 @@ public:
         auto runtimeParameters = New<TOperationRuntimeParameters>();
         Strategy_->InitOperationRuntimeParameters(runtimeParameters, spec, baseAcl, user, type);
 
-        auto annotations = parseSpecResult.SpecNode->FindChild("annotations");
-
         auto operation = New<TOperation>(
             operationId,
             type,
@@ -603,7 +601,6 @@ public:
             transactionId,
             spec,
             std::move(parseSpecResult.SpecString),
-            annotations ? annotations->AsMap() : nullptr,
             secureVault,
             runtimeParameters,
             std::move(baseAcl),
@@ -3427,12 +3424,16 @@ private:
 
         agentTracker->AssignOperationToAgent(operation, agent);
 
+        THashMap<TString, TString> eventAttributes = {
+            {"controller_agent_address", GetDefaultAddress(agent->GetAgentAddresses())},
+        };
+
         if (operation->RevivalDescriptor()) {
-            operation->SetStateAndEnqueueEvent(EOperationState::Reviving);
+            operation->SetStateAndEnqueueEvent(EOperationState::Reviving, eventAttributes);
             operation->GetCancelableControlInvoker()->Invoke(
                 BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation));
         } else {
-            operation->SetStateAndEnqueueEvent(EOperationState::Initializing);
+            operation->SetStateAndEnqueueEvent(EOperationState::Initializing, eventAttributes);
             operation->GetCancelableControlInvoker()->Invoke(
                 BIND(&TImpl::DoInitializeOperation, MakeStrong(this), operation));
         }

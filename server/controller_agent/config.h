@@ -71,6 +71,9 @@ public:
     // this threshold then operation alert will not be set.
     i64 TmpfsAlertMinUnusedSpaceThreshold;
 
+    // Minimum memory usage ratio required to mute tmpfs usage alert.
+    double TmpfsAlertMemoryUsageMuteRatio;
+
     // Maximum allowed aborted jobs time. If it is violated
     // then operation alert will be set.
     i64 AbortedJobsAlertMaxAbortedTime;

@@ -35,8 +35,6 @@ struct TArchiveOperationRequest
     std::optional<TString> Alias;
     // Archive version >= 27
     NYson::TYsonString SlotIndexPerPoolTree;
-    // Archive version >= 29
-    NYson::TYsonString Annotations;
 
     void InitializeFromOperation(const TOperationPtr& operation);
 
@@ -102,8 +100,7 @@ DEFINE_REFCOUNTED_TYPE(TOperationsCleaner)
 
 std::vector<TArchiveOperationRequest> FetchOperationsFromCypressForCleaner(
     const std::vector<TOperationId>& operationIds,
-    TCallback<NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest,
-    int batchSize);
+    TCallback<NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr()> createBatchRequest);
 
 ////////////////////////////////////////////////////////////////////////////////
 

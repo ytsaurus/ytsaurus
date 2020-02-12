@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "hydra_manager.h"
 
 #include <yt/server/lib/election/public.h>
 
@@ -23,7 +23,34 @@ struct TDistributedHydraManagerOptions
     NProfiling::TTagIdList ProfilingTagIds;
 };
 
-IHydraManagerPtr CreateDistributedHydraManager(
+struct TDistributedHydraManagerDynamicOptions
+{
+    bool AbandonLeaderLeaseDuringRecovery = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IDistributedHydraManager
+    : public IHydraManager
+{
+    //! Returns dynamic config.
+    /*
+     *   \note Thread affinity: any
+     */
+    virtual TDistributedHydraManagerDynamicOptions GetDynamicOptions() const = 0;
+
+    //! Sets new dynamic config
+    /*
+     *   \note Thread affinity: any
+     */
+    virtual void SetDynamicOptions(const TDistributedHydraManagerDynamicOptions& options) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IDistributedHydraManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IDistributedHydraManagerPtr CreateDistributedHydraManager(
     TDistributedHydraManagerConfigPtr config,
     IInvokerPtr controlInvoker,
     IInvokerPtr automatonInvoker,
@@ -33,7 +60,8 @@ IHydraManagerPtr CreateDistributedHydraManager(
     NElection::TCellManagerPtr cellManager,
     IChangelogStoreFactoryPtr changelogStoreFactory,
     ISnapshotStorePtr snapshotStore,
-    const TDistributedHydraManagerOptions& options = {});
+    const TDistributedHydraManagerOptions& options = {},
+    const TDistributedHydraManagerDynamicOptions& dynamicOptions = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

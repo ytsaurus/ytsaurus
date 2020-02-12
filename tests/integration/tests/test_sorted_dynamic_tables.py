@@ -113,13 +113,25 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
         assert partition_count > 1
         partition_count += 1 - int(do_overlap)
 
-        def _wait_not_in_eden(tablet_index):
+        def _force_compact_tablet(tablet_index):
             set("//tmp/t/@forced_compaction_revision", 1)
+
+            chunk_list_id = get("//tmp/t/@chunk_list_id")
+            tablet_chunk_list_id = get("#{0}/@child_ids/{1}".format(chunk_list_id, tablet_index))
+            tablet_chunk_ids = __builtin__.set(get("#{}/@child_ids".format(tablet_chunk_list_id)))
+            assert len(tablet_chunk_ids) > 0
+            for id in tablet_chunk_ids:
+                type = get("#{}/@type".format(id))
+                assert type == "chunk" or type == "chunk_view"
+
             sync_mount_table("//tmp/t", first_tablet_index=tablet_index, last_tablet_index=tablet_index)
-            tablet_id = get("//tmp/t/@tablets/{0}/tablet_id".format(tablet_index))
-            address = get_tablet_leader_address(tablet_id)
-            # Only dynamic store should be in eden.
-            wait(lambda: len(self._find_tablet_orchid(address, tablet_id)["eden"]["stores"]) == 1)
+
+            def _check():
+                new_tablet_chunk_ids = __builtin__.set(get("#{}/@child_ids".format(tablet_chunk_list_id)))
+                assert len(new_tablet_chunk_ids) > 0
+                return len(new_tablet_chunk_ids.intersection(tablet_chunk_ids)) == 0
+            wait(lambda: _check())
+
             sync_unmount_table("//tmp/t")
 
         def _write_row(tablet_index, key_count=2):
@@ -127,7 +139,7 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
             rows = [{"key": tablet_index * 2 + i} for i in range(key_count)]
             insert_rows("//tmp/t", rows)
             sync_unmount_table("//tmp/t")
-            _wait_not_in_eden(tablet_index=tablet_index)
+            _force_compact_tablet(tablet_index=tablet_index)
 
         set("//tmp/t/@min_partition_data_size", 1)
 

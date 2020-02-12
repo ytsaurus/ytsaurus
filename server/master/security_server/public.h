@@ -71,6 +71,8 @@ using TInternedSecurityTags = TInternedObject<TSecurityTags>;
 using TSecurityTagsRegistry = TInternRegistry<TSecurityTags>;
 using TSecurityTagsRegistryPtr = TInternRegistryPtr<TSecurityTags>;
 
+constexpr int AccountTreeDepthLimit = 10;
+
 DECLARE_REFCOUNTED_CLASS(TDynamicSecurityManagerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TSecurityManager)

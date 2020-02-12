@@ -146,3 +146,16 @@ message TRspForceBuildSnapshot
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqAbandonLeaderLease
+{
+    required int32 segment_id = 1;
+    required int32 peer_id = 2;
+}
+
+message TRspAbandonLeaderLease
+{
+    required int32 last_leading_segment_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

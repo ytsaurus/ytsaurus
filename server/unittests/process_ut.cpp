@@ -15,12 +15,13 @@
 
 #include <yt/server/lib/misc/process.h>
 
+#include <yt/server/lib/containers/config.h>
 #include <yt/server/lib/containers/porto_executor.h>
 #include <yt/server/lib/containers/instance.h>
 
 #include <util/system/platform.h>
 
-namespace NYT {
+namespace NYT::NContainers {
 namespace {
 
 using namespace NConcurrency;
@@ -32,11 +33,16 @@ static TString GetUniqueName()
     return "yt_ut_" + ToString(TGuid::Create());
 }
 
+IPortoExecutorPtr CreatePortoExecutor()
+{
+    return CreatePortoExecutor(New<TPortoExecutorConfig>(), "default");
+}
+
 TEST(TPortoProcessTest, Basic)
 {
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("/bin/ls", portoInstance, true);
     TFuture<void> finished;
     ASSERT_NO_THROW(finished = p->Spawn());
@@ -49,9 +55,9 @@ TEST(TPortoProcessTest, Basic)
 
 TEST(TPortoProcessTest, RunFromPathEnv)
 {
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("ls", portoInstance, true);
     TFuture<void> finished;
     ASSERT_NO_THROW(finished = p->Spawn());
@@ -64,9 +70,9 @@ TEST(TPortoProcessTest, RunFromPathEnv)
 
 TEST(TPortoProcessTest, MultiBasic)
 {
-    auto portoExecutor = NContainers::CreatePortoExecutor();
-    auto c1 = NContainers::CreatePortoInstance(GetUniqueName(), portoExecutor);
-    auto c2 = NContainers::CreatePortoInstance(GetUniqueName(), portoExecutor);
+    auto portoExecutor = CreatePortoExecutor();
+    auto c1 = CreatePortoInstance(GetUniqueName(), portoExecutor);
+    auto c2 = CreatePortoInstance(GetUniqueName(), portoExecutor);
     auto p1 = New<TPortoProcess>("/bin/ls", c1, true);
     auto p2 = New<TPortoProcess>("/bin/ls", c2, true);
     TFuture<void> f1;
@@ -83,9 +89,9 @@ TEST(TPortoProcessTest, MultiBasic)
 
 TEST(TPortoProcessTest, InvalidPath)
 {
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("/some/bad/path/binary", portoInstance, true);
     TFuture<void> finished;
     ASSERT_NO_THROW(finished = p->Spawn());
@@ -98,9 +104,9 @@ TEST(TPortoProcessTest, InvalidPath)
 
 TEST(TPortoProcessTest, StdOut)
 {
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("/bin/date", portoInstance, true);
 
     auto outStream = p->GetStdOutReader();
@@ -121,9 +127,9 @@ TEST(TPortoProcessTest, StdOut)
 
 TEST(TPortoProcessTest, GetCommandLine)
 {
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     EXPECT_EQ("/bin/bash", p->GetCommandLine());
     p->AddArgument("-c");
@@ -135,9 +141,9 @@ TEST(TPortoProcessTest, GetCommandLine)
 
 TEST(TPortoProcessTest, ProcessReturnCode0)
 {
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     p->AddArgument("-c");
     p->AddArgument("exit 0");
@@ -153,9 +159,9 @@ TEST(TPortoProcessTest, ProcessReturnCode0)
 
 TEST(TPortoProcessTest, ProcessReturnCode123)
 {
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     p->AddArgument("-c");
     p->AddArgument("exit 123");
@@ -172,9 +178,9 @@ TEST(TPortoProcessTest, ProcessReturnCode123)
 
 TEST(TPortoProcessTest, Params1)
 {
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     p->AddArgument("-c");
     p->AddArgument("if test 3 -gt 1; then exit 7; fi");
@@ -187,9 +193,9 @@ TEST(TPortoProcessTest, Params1)
 
 TEST(TPortoProcessTest, Params2)
 {
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     p->AddArgument("-c");
     p->AddArgument("if test 1 -gt 3; then exit 7; fi");
@@ -206,9 +212,9 @@ TEST(TPortoProcessTest, InheritEnvironment)
     const char* value = "42";
     setenv(name, value, 1);
 
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     p->AddArgument("-c");
     p->AddArgument("if test $SPAWN_TEST_ENV_VAR = 42; then exit 7; fi");
@@ -223,9 +229,9 @@ TEST(TPortoProcessTest, InheritEnvironment)
 
 TEST(TPortoProcessTest, Kill)
 {
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("/bin/sleep", portoInstance, true);
     p->AddArgument("5");
 
@@ -245,9 +251,9 @@ TEST(TPortoProcessTest, Kill)
 
 TEST(TPortoProcessTest, KillFinished)
 {
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("/bin/bash", portoInstance, true);
     p->AddArgument("-c");
     p->AddArgument("true");
@@ -263,9 +269,9 @@ TEST(TPortoProcessTest, KillFinished)
 
 TEST(TPortoProcessTest, PollDuration)
 {
-    auto portoInstance = NContainers::CreatePortoInstance(
+    auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
-        NContainers::CreatePortoExecutor());
+        CreatePortoExecutor());
     auto p = New<TPortoProcess>("/bin/sleep", portoInstance, true, TDuration::MilliSeconds(1));
     p->AddArgument("1");
 
@@ -277,6 +283,6 @@ TEST(TPortoProcessTest, PollDuration)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT
+} // namespace NYT::NContainers
 
 #endif

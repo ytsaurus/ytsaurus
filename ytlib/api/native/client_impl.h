@@ -822,7 +822,7 @@ private:
 
     // Get job node descriptor from scheduler and check that user has |requiredPermissions|
     // for accessing the corresponding operation.
-    TErrorOr<NNodeTrackerClient::TNodeDescriptor> GetJobNodeDescriptor(
+    TErrorOr<NNodeTrackerClient::TNodeDescriptor> TryGetJobNodeDescriptor(
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
 
@@ -831,12 +831,12 @@ private:
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
 
-    TErrorOr<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(
+    TErrorOr<NJobTrackerClient::NProto::TJobSpec> TryGetJobSpecFromJobNode(
         NScheduler::TJobId jobId,
-        NJobProberClient::TJobProberServiceProxy& jobProberServiceProxy);
+        const NRpc::IChannelPtr& nodeChannel);
     // Get job spec from node and check that user has |requiredPermissions|
     // for accessing the corresponding operation.
-    TErrorOr<NJobTrackerClient::NProto::TJobSpec> GetJobSpecFromJobNode(
+    TErrorOr<NJobTrackerClient::NProto::TJobSpec> TryGetJobSpecFromJobNode(
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
     // Get job spec from job archive and check that user has |requiredPermissions|

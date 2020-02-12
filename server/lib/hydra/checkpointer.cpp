@@ -303,6 +303,8 @@ private:
         Owner_->EpochContext_->EpochUserAutomatonInvoker->Invoke(
             BIND(&TSession::OnRotationSucceeded, MakeStrong(this)));
 
+        Owner_->DecoratedAutomaton_->SetLastLeadingSegmentId(Version_.SegmentId + 1);
+
         ChangelogPromise_.Set();
     }
 

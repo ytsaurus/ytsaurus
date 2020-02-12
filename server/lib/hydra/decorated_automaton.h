@@ -232,6 +232,9 @@ public:
     bool IsBuildingSnapshotNow() const;
     int GetLastSuccessfulSnapshotId() const;
 
+    void SetLastLeadingSegmentId(int segmentId);
+    int GetLastLeadingSegmentId() const;
+
 private:
     friend class TUserLockGuard;
     friend class TSystemLockGuard;
@@ -283,6 +286,8 @@ private:
     std::atomic<bool> BuildingSnapshot_ = false;
     TInstant LastSnapshotTime_;
     std::atomic<int> LastSuccessfulSnapshotId_ = -1;
+
+    int LastLeadingSegmentId_ = -1;
 
     NProto::TMutationHeader MutationHeader_; // pooled instance
     TRingQueue<TPendingMutation> PendingMutations_;
