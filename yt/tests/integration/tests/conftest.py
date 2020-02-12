@@ -32,12 +32,15 @@ def pytest_runtest_makereport(item, call, __multicall__):
     rep = __multicall__.execute()
     if hasattr(item, "cls") and hasattr(item.cls, "Env") and item.cls.Env is not None:
         rep.environment_path = item.cls.Env.path
-    authors = _get_first_marker(item, name="authors")
-    if authors is not None:
-        rep.nodeid += " ({})".format(", ".join(authors))
     return rep
+
+def pytest_collection_modifyitems(items, config):
+    for item in items:
+        authors = _get_first_marker(item, name="authors")
+        if authors is not None:
+            item._nodeid += " ({})".format(", ".join(authors))
 
 def pytest_itemcollected(item):
     authors = _get_first_marker(item, name="authors")
     if authors is None:
-        raise RuntimeError("Test {} is not marked with @authors".format(item.nodeid))
+        raise RuntimeError("Test {} is not marked with @authors".format(item._nodeid))
