@@ -964,7 +964,7 @@ def run_unit_tests(options, build_context):
 
 def run_ya_tests(options, suite_name, test_paths, dist=True):
     # NB: tests are disabled under ASAN because random hangups in python, see YT-11297.
-    if options.disable_tests or options.use_asan:
+    if options.disable_tests or (options.use_asan and dist):
         teamcity_message("Skipping ya make tests since tests are disabled")
         return
 
@@ -1003,8 +1003,6 @@ def run_ya_tests(options, suite_name, test_paths, dist=True):
     args += ya_make_args(options)
     args += ya_make_definition_args(options)
     if options.use_asan:
-        if dist:
-            return # disable ya tests in ASAN build, while ya tests are flaky
         args += ["--sanitize=address"]
 
     def except_action():
