@@ -868,7 +868,8 @@ class YTEnvSetup(object):
                     attributes={
                         "account": "tmp",
                         "exit_cell_tag": 1,
-                        "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
+                        "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]},
+                                {"action": "allow", "permissions": ["read"], "subjects": ["everyone"]}],
                     },
                     force=True,
                     driver=driver)
