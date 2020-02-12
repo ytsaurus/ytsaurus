@@ -79,9 +79,10 @@ public:
         auto sessionIdMD5 = TMD5Hasher().Append(credentials.SessionId).GetHexDigestUpper();
         auto sslSessionIdMD5 = TMD5Hasher().Append(credentials.SslSessionId.value_or("")).GetHexDigestUpper();
         YT_LOG_DEBUG(
-            "Authenticating user via session cookie (SessionIdMD5: %v, SslSessionIdMD5: %v)",
+            "Authenticating user via session cookie (SessionIdMD5: %v, SslSessionIdMD5: %v, UserIP: %v)",
             sessionIdMD5,
-            sslSessionIdMD5);
+            sslSessionIdMD5,
+            credentials.UserIP.FormatIP());
 
         THashMap<TString, TString> params = {
             {"sessionid", credentials.SessionId},
@@ -165,9 +166,11 @@ ICookieAuthenticatorPtr CreateBlackboxCookieAuthenticator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TCookieAuthenticatorCacheKey = std::pair<TString, std::optional<TString>>;
+
 class TCachingCookieAuthenticator
     : public ICookieAuthenticator
-    , private TAsyncExpiringCache<TCookieCredentials, TAuthenticationResult>
+    , private TAsyncExpiringCache<TCookieAuthenticatorCacheKey, TAuthenticationResult>
 {
 public:
     TCachingCookieAuthenticator(
@@ -180,15 +183,43 @@ public:
 
     virtual TFuture<TAuthenticationResult> Authenticate(const TCookieCredentials& credentials) override
     {
-        return Get(credentials);
+        TCookieAuthenticatorCacheKey cacheKey{credentials.SessionId, credentials.SslSessionId};
+
+        {
+            auto guard = Guard(LastUserIPLock_);
+            LastUserIP_[cacheKey] = credentials.UserIP;
+        }
+
+        return Get(cacheKey);
     }
 
 private:
     const ICookieAuthenticatorPtr UnderlyingAuthenticator_;
 
-    virtual TFuture<TAuthenticationResult> DoGet(const TCookieCredentials& credentials) override
+    THashMap<TCookieAuthenticatorCacheKey, NNet::TNetworkAddress> LastUserIP_;
+    TSpinLock LastUserIPLock_;
+
+    virtual TFuture<TAuthenticationResult> DoGet(const TCookieAuthenticatorCacheKey& cacheKey) override
     {
+        TCookieCredentials credentials;
+        credentials.SessionId = cacheKey.first;
+        credentials.SslSessionId = cacheKey.second;
+
+        {
+            auto guard = Guard(LastUserIPLock_);
+            auto it = LastUserIP_.find(cacheKey);
+            if (it != LastUserIP_.end()) {
+                credentials.UserIP = it->second;
+            }
+        }
+
         return UnderlyingAuthenticator_->Authenticate(credentials);
+    }
+
+    virtual void OnErase(const TCookieAuthenticatorCacheKey& cacheKey) override
+    {
+        auto guard = Guard(LastUserIPLock_);
+        LastUserIP_.erase(cacheKey);
     }
 };
 
