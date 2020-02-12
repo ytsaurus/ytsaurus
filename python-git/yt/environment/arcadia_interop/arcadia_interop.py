@@ -5,7 +5,9 @@ import yt.logger as yt_logger
 import os
 import fcntl
 import time
+import stat
 import shutil
+import subprocess
 import logging
 
 try:
