@@ -103,18 +103,18 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareSchedulingStage::TFairShareSchedulingStage(const TString& loggingName, TScheduleJobsProfilingCounters profilingCounters)
-    : LoggingName(loggingName)
+TFairShareSchedulingStage::TFairShareSchedulingStage(TString loggingName, TScheduleJobsProfilingCounters profilingCounters)
+    : LoggingName(std::move(loggingName))
     , ProfilingCounters(std::move(profilingCounters))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFairShareContext::TFairShareContext(
-    const ISchedulingContextPtr& schedulingContext,
+    ISchedulingContextPtr schedulingContext,
     bool enableSchedulingInfoLogging,
     const NLogging::TLogger& logger)
-    : SchedulingContext(schedulingContext)
+    : SchedulingContext(std::move(schedulingContext))
     , EnableSchedulingInfoLogging(enableSchedulingInfoLogging)
     , Logger(logger)
 { }
@@ -232,13 +232,13 @@ void TFairShareContext::LogStageStatistics()
 TSchedulerElementFixedState::TSchedulerElementFixedState(
     ISchedulerStrategyHost* host,
     IFairShareTreeHost* treeHost,
-    const TFairShareStrategyTreeConfigPtr& treeConfig,
-    const TString& treeId)
+    TFairShareStrategyTreeConfigPtr treeConfig,
+    TString treeId)
     : Host_(host)
     , TreeHost_(treeHost)
-    , TreeConfig_(treeConfig)
-    , TotalResourceLimits_(host->GetResourceLimits(treeConfig->NodesFilter))
-    , TreeId_(treeId)
+    , TreeConfig_(std::move(treeConfig))
+    , TotalResourceLimits_(host->GetResourceLimits(TreeConfig_->NodesFilter))
+    , TreeId_(std::move(treeId))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -264,7 +264,7 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
-void TSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* , TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -274,7 +274,7 @@ void TSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttribu
     ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
 }
 
-void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* )
 {
     YT_VERIFY(Mutable_);
 
@@ -283,7 +283,7 @@ void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
     UpdateDynamicAttributes(dynamicAttributesList);
 }
 
-void TSchedulerElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TSchedulerElement::UpdateTopDown(TDynamicAttributesList* , TUpdateFairShareContext* )
 {
     YT_VERIFY(Mutable_);
 }
@@ -519,10 +519,10 @@ void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& d
 TSchedulerElement::TSchedulerElement(
     ISchedulerStrategyHost* host,
     IFairShareTreeHost* treeHost,
-    const TFairShareStrategyTreeConfigPtr& treeConfig,
-    const TString& treeId,
+    TFairShareStrategyTreeConfigPtr treeConfig,
+    TString treeId,
     const NLogging::TLogger& logger)
-    : TSchedulerElementFixedState(host, treeHost, treeConfig, treeId)
+    : TSchedulerElementFixedState(host, treeHost, std::move(treeConfig), std::move(treeId))
     , ResourceTreeElement_(New<TResourceTreeElement>())
     , Logger(logger)
 { }
@@ -672,7 +672,7 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     NProfiling::TTagId profilingTag,
     const TString& treeId,
     const NLogging::TLogger& logger)
-    : TSchedulerElement(host, treeHost, treeConfig, treeId, logger)
+    : TSchedulerElement(host, treeHost, std::move(treeConfig), treeId, logger)
     , ProfilingTag_(profilingTag)
 { }
 
@@ -1195,7 +1195,7 @@ void TCompositeSchedulerElement::ComputeByFitting(
     }
 }
 
-void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* /* context */)
+void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList* , TUpdateFairShareContext* )
 {
     YT_VERIFY(Mutable_);
 
@@ -1484,8 +1484,8 @@ int TCompositeSchedulerElement::GetAvailableRunningOperationCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPoolFixedState::TPoolFixedState(const TString& id)
-    : Id_(id)
+TPoolFixedState::TPoolFixedState(TString id)
+    : Id_(std::move(id))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1503,13 +1503,13 @@ TPool::TPool(
     : TCompositeSchedulerElement(
         host,
         treeHost,
-        treeConfig,
+        std::move(treeConfig),
         profilingTag,
         treeId,
         NLogging::TLogger(logger).AddTag("PoolId: %v", id))
     , TPoolFixedState(id)
 {
-    DoSetConfig(config);
+    DoSetConfig(std::move(config));
     DefaultConfigured_ = defaultConfigured;
 }
 
@@ -1549,7 +1549,7 @@ void TPool::SetConfig(TPoolConfigPtr config)
 {
     YT_VERIFY(Mutable_);
 
-    DoSetConfig(config);
+    DoSetConfig(std::move(config));
     DefaultConfigured_ = false;
 }
 
@@ -2326,10 +2326,10 @@ TOperationElement::TOperationElement(
     : TSchedulerElement(
         host,
         treeHost,
-        treeConfig,
+        std::move(treeConfig),
         treeId,
         NLogging::TLogger(logger).AddTag("OperationId: %v", operation->GetId()))
-    , TOperationElementFixedState(operation, controllerConfig)
+    , TOperationElementFixedState(operation, std::move(controllerConfig))
     , RuntimeParameters_(std::move(runtimeParameters))
     , Spec_(spec)
     , OperationElementSharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod, Logger))
