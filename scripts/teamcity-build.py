@@ -1173,7 +1173,7 @@ def run_ya_python_tests(options, build_context):
         "python/yt/wrapper/tests/py2",
         "python/yt/wrapper/tests/py3",
     ]
-    targets = [os.path.join(get_relative_python_root(), target) for target in targets]
+    targets = [os.path.join(get_relative_python_root(options), target) for target in targets]
     run_ya_tests(options, "ya_python", targets)
 
 @build_step
