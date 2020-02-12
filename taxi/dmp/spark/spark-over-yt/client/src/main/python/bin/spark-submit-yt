@@ -1,22 +1,22 @@
 #!/usr/bin/env python
 
-import argparse
 import os
 
 from yt_spark_client import raw_submit
-from yt_spark_client.utils import default_token, default_discovery_dir, default_base_log_dir
+from yt_spark_client import utils as spark_utils
 
-parser = argparse.ArgumentParser(description="Spark Submit")
-parser.add_argument("--id", required=True)
-parser.add_argument("--discovery-dir", required=False)
-parser.add_argument("--log-dir", required=False)
-parser.add_argument("--proxy", required=False)
 
-args, unknown_args = parser.parse_known_args()
+def main():
+    args, unknown_args = spark_utils.parse_args(parser_arguments=dict(description="Spark Submit"))
+    raw_submit(spark_id=args.id,
+               discovery_dir=args.discovery_dir,
+               log_dir=args.log_dir,
+               yt_proxy=args.proxy,
+               yt_user=args.yt_user,
+               yt_token=spark_utils.default_token(),
+               spark_home=os.getenv("SPARK_HOME"),
+               spark_args=unknown_args)
 
-user = os.getenv("YT_USER") or os.getenv("USER")
-proxy = args.proxy or os.getenv("YT_PROXY")
-discovery_dir = args.discovery_dir or default_discovery_dir(user)
-log_dir = args.log_dir or default_base_log_dir(discovery_dir).join(args.id)
 
-raw_submit(args.id, discovery_dir, log_dir, proxy, user, default_token(), os.getenv("SPARK_HOME"), *unknown_args)
+if __name__ == '__main__':
+    main()

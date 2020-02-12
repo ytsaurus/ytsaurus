@@ -47,8 +47,8 @@ def _parse_memory(memory_str):
     units = {"gb": 1024 * 1024 * 1024, "mb": 1024 * 1024, "kb": 1024, "bb": 1, "b": 1}
     if memory_str is None:
         return None
-    m = re.match("(\d+)(.*)", memory_str)
-    value = long(m.group(1))
+    m = re.match(r"(\d+)(.*)", memory_str)
+    value = int(m.group(1))
     unit = m.group(2).lower().strip()
     if len(unit) <= 1:
         unit = unit + "b"
@@ -100,37 +100,40 @@ def submit_python(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token,
 
     _add_job_args(job_args, spark_args)
 
-    raw_submit(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home, *spark_args)
+    raw_submit(spark_id=spark_id,
+               discovery_dir=discovery_dir,
+               log_dir=log_dir,
+               yt_proxy=yt_proxy,
+               yt_user=yt_user,
+               yt_token=yt_token,
+               spark_home=spark_home,
+               spark_args=spark_args)
 
 
-def raw_submit(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home, *args):
+def raw_submit(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home, spark_args):
     spark_base_args = ["/usr/local/bin/spark-submit"]
     _add_master(spark_id, discovery_dir, spark_base_args, rest=True, client=create_yt_client(yt_proxy, yt_token))
     _add_base_spark_conf(yt_proxy, yt_user, log_dir, spark_base_args)
     spark_env = _create_spark_env(yt_user, yt_token, spark_home)
 
     # replace stdin to avoid https://bugs.openjdk.java.net/browse/JDK-8211842
-    subprocess.call(spark_base_args + list(args), env=spark_env, stdin=subprocess.PIPE)
+    subprocess.call(spark_base_args + spark_args, env=spark_env, stdin=subprocess.PIPE)
 
 
-def shell(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home, *args):
+def shell(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home, spark_args):
     spark_base_args = ["/usr/local/bin/spark-shell"]
     _add_master(spark_id, discovery_dir, spark_base_args, rest=False, client=create_yt_client(yt_proxy, yt_token))
     _add_base_spark_conf(yt_proxy, yt_user, log_dir, spark_base_args)
     spark_env = _create_spark_env(yt_user, yt_token, spark_home)
 
-    os.execve("/usr/local/bin/spark-shell", spark_base_args + list(args), spark_env)
+    os.execve("/usr/local/bin/spark-shell", spark_base_args + spark_args, spark_env)
 
 
 def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, yt_pool,
-           worker_cores, worker_memory, worker_num, master_memory_limit="2G"):
+           worker_cores, worker_memory, worker_num, master_memory_limit):
     spark_home = os.getenv("SPARK_HOME")
     with open(os.path.join(spark_home, "conf", "spark-launch.yaml")) as f:
         config = yaml.load(f, Loader=yaml.BaseLoader)
-
-    recovery_opts = "-Dspark.deploy.recoveryMode=CUSTOM " \
-                    "-Dspark.deploy.recoveryMode.factory=org.apache.spark.deploy.master.YtRecoveryModeFactory " \
-                    "-Dspark.deploy.yt.path=/home/sashbel/master"
 
     worker_opts = "-Dspark.worker.cleanup.enabled=true " \
                   "-Dspark.shuffle.service.enabled=true " \
@@ -204,6 +207,7 @@ def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, y
 
     alias = "spark_{}_{}".format(yt_user, spark_id)
 
+    master_memory_limit = master_memory_limit or "2G"
     spec_builder = \
         VanillaSpecBuilder() \
             .begin_task("master") \
