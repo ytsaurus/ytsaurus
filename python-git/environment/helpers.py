@@ -2,6 +2,9 @@ from yt.wrapper.common import generate_uuid
 
 from yt.common import to_native_str, YtError, which
 
+import signal
+import sys
+
 # COMPAT for tests.
 try:
     from yt.test_helpers import (are_almost_equal, wait, unorderable_list_difference,
@@ -297,3 +300,16 @@ def get_value_from_config(config, key, name):
         if d is None:
             raise YtError('Failed to get required key "{0}" from {1} config'.format(key, name))
     return d
+
+def emergency_exit_within_tests(test_environment, process, call_arguments):
+    if process.returncode < 0:
+        what = "terminated by signal {}".format(-process.returncode)
+    else:
+        what = "exited with code {}".format(process.returncode)
+
+    print >>sys.stderr, 'Process run by command "{0}" {1}'.format(" ".join(call_arguments), what)
+    test_environment.stop()
+
+    print >>sys.stderr, "Killing pytest process"
+    # Avoid dumping useless stacktrace to stderr.
+    os.kill(os.getpid(), signal.SIGKILL)
