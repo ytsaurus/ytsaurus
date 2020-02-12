@@ -13,7 +13,7 @@ object CommonPlugin extends AutoPlugin {
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
     resolvers += "Arcadia" at "http://artifactory.yandex.net/artifactory/yandex_media_releases",
     resolvers += MavenCache("local-maven", Path.userHome / ".m2" / "repository"),
-    version in ThisBuild := "0.0.24",
+    version in ThisBuild := "0.0.25-SNAPSHOT",
     organization := "ru.yandex",
     name := s"spark-yt-${name.value}",
     scalaVersion := "2.12.8",
