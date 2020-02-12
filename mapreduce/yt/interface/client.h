@@ -484,20 +484,19 @@ public:
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) = 0;
 
     ///
-    /// @brief Create rbtorrent for given table written in special format.
+    /// @brief Create one or several rbtorrents for files in a blob table.
     ///
-    /// [More info.](https://wiki.yandex-team.ru/yt/userdoc/blob_tables/#shag3.sozdajomrazdachu)
-    virtual TString SkyShareTable(const TYPath& tablePath) = 0;
-
-    ///
-    /// @brief Create a set of rbtorrents, one torrent for each value of `keyColumns` columns.
+    /// If specified, one torrent is created for each value of `KeyColumns` option.
+    /// Otherwise, a single torrent with all files of a table is created.
     ///
     /// @return list of nodes, each node has two fields
-    ///  * `key`: list of key columns values
-    ///  * `rbtorrent`: rbtorrent string
-    virtual TNode::TListType SkyShareTableByKey(
+    ///  * `key`: list of key columns values. Empty if `KeyColumns` is not specified.
+    ///  * `rbtorrent`: rbtorrent string (with `rbtorrent:` prefix)
+    ///
+    /// @see [More info.](https://wiki.yandex-team.ru/yt/userdoc/blob_tables/#shag3.sozdajomrazdachu)
+    virtual TNode::TListType SkyShareTable(
         const TYPath& tablePath,
-        const TKeyColumns& keyColumns) = 0;
+        const TSkyShareTableOptions& options) = 0;
 
     ///
     /// @brief Check if `user` has `permission` to access a Cypress node at `path`.

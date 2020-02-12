@@ -255,16 +255,15 @@ TYPath PutFileToCache(
 // SkyShare
 //
 
-TString SkyShareTable(
-    const IRequestRetryPolicyPtr& retryPolicy,
-    const TAuth& auth,
-    const TYPath& tablePath);
-
-TNode::TListType SkyShareTableByKey(
+TNode::TListType SkyShareTable(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TYPath& tablePath,
-    const TKeyColumns& keyColumns);
+    const TSkyShareTableOptions& options);
+
+//
+// Misc
+//
 
 TCheckPermissionResponse CheckPermission(
     const IRequestRetryPolicyPtr& retryPolicy,

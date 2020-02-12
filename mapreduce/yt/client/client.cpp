@@ -1002,16 +1002,11 @@ IFileReaderPtr TClient::GetJobStderr(
     return NRawClient::GetJobStderr(Auth_, operationId, jobId, options);
 }
 
-TString TClient::SkyShareTable(const TYPath& tablePath)
-{
-    return NRawClient::SkyShareTable(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, tablePath);
-}
-
-TNode::TListType TClient::SkyShareTableByKey(
+TNode::TListType TClient::SkyShareTable(
     const TYPath& tablePath,
-    const TKeyColumns& keyColumns)
+    const TSkyShareTableOptions& options)
 {
-    return NRawClient::SkyShareTableByKey(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, tablePath, keyColumns);
+    return NRawClient::SkyShareTable(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, tablePath, options);
 }
 
 TCheckPermissionResponse TClient::CheckPermission(
