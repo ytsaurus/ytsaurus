@@ -1,13 +1,14 @@
 package ru.yandex.spark.yt.utils
 
 import java.time.{Duration => JavaDuration}
+import java.util.{Optional, ArrayList => JArrayList}
 
 import io.netty.channel.nio.NioEventLoopGroup
 import org.apache.log4j.Logger
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.inside.yt.kosher.impl.{YtUtils => InsideYtUtils}
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.{YtClient, YtCluster}
 import ru.yandex.yt.ytclient.rpc.RpcOptions
 
 import scala.concurrent.duration.Duration
@@ -24,9 +25,11 @@ object YtClientUtils {
       val rpcOptions = new RpcOptions()
       rpcOptions.setTimeouts(config.timeout)
 
+      val cluster = new YtCluster(config.shortProxy, config.fullProxy, 80, new JArrayList(), Optional.of("spark"))
+
       val client = new YtClient(
         connector,
-        config.shortProxy,
+        cluster,
         config.rpcCredentials,
         rpcOptions
       )
