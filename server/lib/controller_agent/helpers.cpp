@@ -1,7 +1,11 @@
 #include "helpers.h"
 
+#include <yt/server/lib/controller_agent/serialize.h>
+
 #include <yt/core/misc/format.h>
 #include <yt/core/misc/phoenix.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NJobTrackerClient {
 
@@ -16,27 +20,30 @@ TString JobTypeAsKey(EJobType jobType)
 
 bool TReleaseJobFlags::IsNonTrivial() const
 {
-    return ArchiveJobSpec || ArchiveStderr || ArchiveFailContext || ArchiveProfile;
+    return ArchiveJobSpec || ArchiveStderr || ArchiveFailContext || ArchiveProfile || HasCompetitors;
 }
 
 void TReleaseJobFlags::Persist(const TStreamPersistenceContext& context)
 {
+    using namespace NYT::NControllerAgent;
     using NYT::Persist;
 
     Persist(context, ArchiveStderr);
     Persist(context, ArchiveJobSpec);
     Persist(context, ArchiveFailContext);
     Persist(context, ArchiveProfile);
+    Persist(context, HasCompetitors);
 }
 
 TString ToString(const TReleaseJobFlags& releaseFlags)
 {
     return Format(
-        "ArchiveStderr: %v, ArchiveJobSpec: %v, ArchiveFailContext: %v, ArchiveProfile: %v",
+        "ArchiveStderr: %v, ArchiveJobSpec: %v, ArchiveFailContext: %v, ArchiveProfile: %v, HasCompetitors: %v",
         releaseFlags.ArchiveStderr,
         releaseFlags.ArchiveJobSpec,
         releaseFlags.ArchiveFailContext,
-        releaseFlags.ArchiveProfile);
+        releaseFlags.ArchiveProfile,
+        releaseFlags.HasCompetitors);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,6 +56,7 @@ void ToProto(NProto::TReleaseJobFlags* protoReleaseJobFlags, const NJobTrackerCl
     protoReleaseJobFlags->set_archive_stderr(releaseJobFlags.ArchiveStderr);
     protoReleaseJobFlags->set_archive_fail_context(releaseJobFlags.ArchiveFailContext);
     protoReleaseJobFlags->set_archive_profile(releaseJobFlags.ArchiveProfile);
+    protoReleaseJobFlags->set_has_competitors(releaseJobFlags.HasCompetitors);
 }
 
 void FromProto(NJobTrackerClient::TReleaseJobFlags* releaseJobFlags, const NProto::TReleaseJobFlags& protoReleaseJobFlags)
@@ -57,6 +65,7 @@ void FromProto(NJobTrackerClient::TReleaseJobFlags* releaseJobFlags, const NProt
     releaseJobFlags->ArchiveStderr = protoReleaseJobFlags.archive_stderr();
     releaseJobFlags->ArchiveFailContext = protoReleaseJobFlags.archive_fail_context();
     releaseJobFlags->ArchiveProfile = protoReleaseJobFlags.archive_profile();
+    releaseJobFlags->HasCompetitors = protoReleaseJobFlags.has_competitors();
 }
 
 void ToProto(NProto::TJobToRemove* protoJobToRemove, const NJobTrackerClient::TJobToRelease& jobToRelease)

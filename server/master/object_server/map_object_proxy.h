@@ -111,7 +111,6 @@ protected:
     virtual TSelfPtr ResolveNameOrThrow(const TString& name) = 0;
 
     virtual SmallVector<TObject*, 1> ListDescendants(TObject* object) override;
-    void ListDescendants(TObject* object, bool includeRoot, SmallVector<TObject*, 1>* descendants);
 
     virtual void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
@@ -214,7 +213,7 @@ protected:
 
     virtual void RemoveCreatedObjects();
 
-    //! NB: in case of failure, the implementation must not leave any unattended objects
+    //! NB: in case of failure, the implementation must not leave any unattended objects.
     virtual TObject* DoCreateObject(NYTree::IAttributeDictionary* attributes) = 0;
 
     void LogEvent(const TFactoryEvent& event);

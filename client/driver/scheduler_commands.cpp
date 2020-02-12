@@ -272,6 +272,8 @@ TListJobsCommand::TListJobsCommand()
         .Optional();
     RegisterParameter("with_fail_context", Options.WithFailContext)
         .Optional();
+    RegisterParameter("with_competitors", Options.WithCompetitors)
+        .Optional();
     RegisterParameter("job_competition_id", Options.JobCompetitionId)
         .Optional();
 

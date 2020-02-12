@@ -1109,7 +1109,7 @@ void TOperationControllerBase::StartTransactions()
 
     THashMap<TTransactionId, int> inputTransactionIdToResultIndex;
     for (auto transactionId : GetNonTrivialInputTransactionIds()) {
-        if (inputTransactionIdToResultIndex.find(transactionId) == inputTransactionIdToResultIndex.end()) {
+        if (!inputTransactionIdToResultIndex.contains(transactionId)) {
             inputTransactionIdToResultIndex[transactionId] = asyncResults.size();
             asyncResults.push_back(StartTransaction(ETransactionType::Input, InputClient, transactionId));
         }
@@ -2711,7 +2711,8 @@ void TOperationControllerBase::BuildJobAttributes(
                 .Value(job->StatisticsYson ? job->StatisticsYson : EmptyMapYson);
         })
         .Item("suspicious").Value(job->Suspicious)
-        .Item("job_competition_id").Value(job->JobCompetitionId);
+        .Item("job_competition_id").Value(job->JobCompetitionId)
+        .Item("has_competitors").Value(job->HasCompetitors);
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
@@ -2760,7 +2761,8 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         .Item("statistics").Value(jobSummary.Statistics)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType)
-        .Item("job_competition_id").Value(joblet->JobCompetitionId);
+        .Item("job_competition_id").Value(joblet->JobCompetitionId)
+        .Item("has_competitors").Value(joblet->HasCompetitors);
 }
 
 IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
@@ -3308,6 +3310,25 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
             continue;
         }
 
+        std::optional<i64> maxMemoryUsage;
+        for (const auto& jobState : { EJobState::Completed, EJobState::Failed }) {
+            auto statistic = "/user_job/max_memory" + JobHelper.GetStatisticsSuffix(jobState, task->GetJobType());
+            auto summary = FindSummary(JobStatistics, statistic);
+            if (summary) {
+                if (!maxMemoryUsage) {
+                    maxMemoryUsage = 0;
+                }
+                *maxMemoryUsage = std::max(*maxMemoryUsage, summary->GetMax());
+            }
+        }
+
+        if (maxMemoryUsage) {
+            auto memoryUsageRatio = static_cast<double>(*maxMemoryUsage) / userJobSpecPtr->MemoryLimit;
+            if (memoryUsageRatio > Config->OperationAlerts->TmpfsAlertMemoryUsageMuteRatio) {
+                continue;
+            }
+        }
+
         userJobSpecPerJobType.insert(std::make_pair(jobType, userJobSpecPtr));
 
         auto maxUsedTmpfsSizes = task->GetMaximumUsedTmpfsSizes();
@@ -3337,8 +3358,8 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
 
     double minUnusedSpaceRatio = 1.0 - Config->OperationAlerts->TmpfsAlertMaxUnusedSpaceRatio;
 
-    for (const auto& [jobId, maxUsedTmpfsSizes] : maximumUsedTmpfsSizesPerJobType) {
-        const auto& userJobSpecPtr = userJobSpecPerJobType[jobId];
+    for (const auto& [jobType, maxUsedTmpfsSizes] : maximumUsedTmpfsSizesPerJobType) {
+        const auto& userJobSpecPtr = userJobSpecPerJobType[jobType];
 
         YT_VERIFY(userJobSpecPtr->TmpfsVolumes.size() == maxUsedTmpfsSizes.size());
 
@@ -3358,7 +3379,7 @@ void TOperationControllerBase::AnalyzeTmpfsUsage()
             if (minUnusedSpaceThresholdOvercome && minUnusedSpaceRatioViolated) {
                 auto error = TError(
                     "Jobs of type %Qlv use less than %.1f%% of requested tmpfs size in volume %Qv",
-                    jobId,
+                    jobType,
                     minUnusedSpaceRatio * 100.0,
                     tmpfsVolumes[index]->Path)
                     << TErrorAttribute("max_used_tmpfs_size", *maxUsedTmpfsSize)
@@ -4586,6 +4607,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     }
 
     summary->ReleaseFlags.ArchiveProfile = true;
+    summary->ReleaseFlags.HasCompetitors = joblet->HasCompetitors;
 
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
 
@@ -8482,8 +8504,19 @@ void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason a
         TError("Job is aborted by controller") << TErrorAttribute("abort_reason", abortReason));
 }
 
+void TOperationControllerBase::MarkJobHasCompetitors(TJobId jobId)
+{
+    GetJoblet(jobId)->HasCompetitors = true;
+}
+
 void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId)
 {
+    if (Spec_->TestingOperationOptions->RegisterSpeculativeJobOnJobScheduledOnce) {
+        const auto& joblet = JobletMap[jobId];
+        if (joblet->JobIndex == 0) {
+            task->TryRegisterSpeculativeJob(joblet);
+        }
+    }
     if (Spec_->TestingOperationOptions->RegisterSpeculativeJobOnJobScheduled) {
         const auto& joblet = JobletMap[jobId];
         if (!joblet->Speculative) {

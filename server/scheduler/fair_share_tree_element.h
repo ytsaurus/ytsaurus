@@ -683,6 +683,7 @@ public:
         double aggressivePreemptionSatisfactionThreshold,
         int* moveCount);
 
+    bool GetPreemptable() const;
     void SetPreemptable(bool value);
 
     bool IsJobKnown(TJobId jobId) const;

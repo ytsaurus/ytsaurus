@@ -20,7 +20,7 @@ using namespace NApi;
 ////////////////////////////////////////////////////////////////////////////////
 
 const int PoolNameMaxLength = 100;
-const char* PoolNameRegex = "[\\w\\-]+";
+const char* PoolNameRegex = "[A-Za-z0-9-_]+";
 
 TError CheckPoolName(const TString& poolName)
 {

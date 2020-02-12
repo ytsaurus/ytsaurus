@@ -42,6 +42,8 @@ public:
 
     void OnTermination();
 
+    i64 GetTotalBytesRead() const;
+
 private:
     TLogFileConfigPtr Config_;
     TBootstrap* const Bootstrap_;
@@ -60,6 +62,7 @@ private:
     TLogRecordBuffer RecordsBuffer_;
 
     i64 FileOffset_ = 0;
+    i64 TotalBytesRead_ = 0;
 
     std::vector<std::pair<TString, TString>> ExtraLogTableColumns_;
 

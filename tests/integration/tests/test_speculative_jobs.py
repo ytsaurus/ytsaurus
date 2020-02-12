@@ -451,3 +451,41 @@ class TestListSpeculativeJobs(YTEnvSetup):
         op.track()
         assert_get_and_list_jobs(op.id, some_job_id)
 
+    @authors("renadeen")
+    def test_with_competitors_flag_in_list_jobs(self):
+        def assert_list_jobs(op_id, data_source):
+            def group_jobs_by_competition():
+                all_jobs = list_jobs(op_id, data_source=data_source)["jobs"]
+                assert len(all_jobs) == 3
+                result = {}
+                has_competitors_count = 0
+                for job in all_jobs:
+                    if job["has_competitors"]:
+                        has_competitors_count += 1
+                    competition_id = job["job_competition_id"]
+                    if competition_id not in result:
+                        result[competition_id] = []
+                    result[competition_id].append(job["id"])
+                assert has_competitors_count == 2
+                return result
+
+            grouped = group_jobs_by_competition()
+            with_competitors = list_jobs(op_id, data_source=data_source, with_competitors=True)["jobs"]
+            assert len(with_competitors) == 2
+            first, second = with_competitors
+            assert first["job_competition_id"] == second["job_competition_id"]
+            assert sorted([first["id"], second["id"]]) == sorted(grouped[first["job_competition_id"]])
+
+        spec = {
+            "testing": {"register_speculative_job_on_job_scheduled_once": True},
+            "max_speculative_job_count_per_task": 10,
+        }
+        
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=2)
+        wait_breakpoint(job_count=3)
+        assert_list_jobs(op.id, "runtime")
+
+        release_breakpoint()
+        op.track()
+        # Operation completed but ReleaseFlags get to archive after some delay.
+        wait_assert(assert_list_jobs, op.id, "archive")

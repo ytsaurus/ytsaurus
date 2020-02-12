@@ -4,7 +4,7 @@
 
 #include <yt/server/node/cell_node/public.h>
 
-#include <yt/server/lib/hydra/public.h>
+#include <yt/server/lib/hydra/distributed_hydra_manager.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/public.h>
@@ -61,7 +61,7 @@ public:
     NHydra::TPeerId GetPeerId() const;
     const NHiveClient::TCellDescriptor& GetCellDescriptor() const;
 
-    const NHydra::IHydraManagerPtr& GetHydraManager() const;
+    const NHydra::IDistributedHydraManagerPtr& GetHydraManager() const;
     const NRpc::TResponseKeeperPtr& GetResponseKeeper() const;
     const TTabletAutomatonPtr& GetAutomaton() const;
 

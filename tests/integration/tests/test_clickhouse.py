@@ -22,28 +22,43 @@ from threading import Thread
 import copy
 import json
 import os
+import os.path
 import pytest
 import random
 import threading
 import pprint
 
-TEST_DIR = os.path.join(os.path.dirname(__file__))
+if arcadia_interop.yatest_common is None:
+    TEST_DIR = os.path.join(os.path.dirname(__file__))
 
-YTSERVER_CLICKHOUSE_PATH = os.environ.get("YTSERVER_CLICKHOUSE_PATH")
-if YTSERVER_CLICKHOUSE_PATH is None:
-    YTSERVER_CLICKHOUSE_PATH = find_executable("ytserver-clickhouse")
+    YTSERVER_CLICKHOUSE_PATH = os.environ.get("YTSERVER_CLICKHOUSE_PATH")
+    if YTSERVER_CLICKHOUSE_PATH is None:
+        YTSERVER_CLICKHOUSE_PATH = find_executable("ytserver-clickhouse")
 
-CLICKHOUSE_TRAMPOLINE_PATH = os.environ.get("CLICKHOUSE_TRAMPOLINE_PATH")
-if CLICKHOUSE_TRAMPOLINE_PATH is None:
-    CLICKHOUSE_TRAMPOLINE_PATH = find_executable("clickhouse-trampoline")
+    CLICKHOUSE_TRAMPOLINE_PATH = os.environ.get("CLICKHOUSE_TRAMPOLINE_PATH")
+    if CLICKHOUSE_TRAMPOLINE_PATH is None:
+        CLICKHOUSE_TRAMPOLINE_PATH = find_executable("clickhouse-trampoline")
 
-YT_LOG_TAILER_PATH = os.environ.get("YT_LOG_TAILER_PATH")
-if YT_LOG_TAILER_PATH is None:
-    YT_LOG_TAILER_PATH = find_executable("ytserver-log-tailer")
+    YT_LOG_TAILER_PATH = os.environ.get("YT_LOG_TAILER_PATH")
+    if YT_LOG_TAILER_PATH is None:
+        YT_LOG_TAILER_PATH = find_executable("ytserver-log-tailer")
+else:
+    TEST_DIR = None
+    # XXX(max42): eliminate this ugly hack by exporting YT_ROOT into env variable from ya.make.
+    POSSIBLE_TEST_DIR_PATHS = ["yt/tests/integration/tests", "yt/19_4/yt/tests/integration/tests"]
+    for possible_test_dir_path in POSSIBLE_TEST_DIR_PATHS:
+        test_dir = arcadia_interop.yatest_common.source_path(possible_test_dir_path)
+        if os.path.exists(test_dir):
+            TEST_DIR = test_dir
+            break
+    assert TEST_DIR is not None
+    YTSERVER_CLICKHOUSE_PATH = arcadia_interop.yatest_common.binary_path("ytserver-clickhouse")
+    CLICKHOUSE_TRAMPOLINE_PATH = arcadia_interop.yatest_common.binary_path("clickhouse-trampoline")
+    YT_LOG_TAILER_PATH = arcadia_interop.yatest_common.binary_path("ytserver-log-tailer")
 
 DEFAULTS = {
-    "memory_footprint": 2 * 1000**3,
-    "memory_limit": 5 * 1000**3,
+    "memory_footprint": 1 * 1000**3,
+    "memory_limit": int(4.5 * 1000**3),
     "host_ytserver_clickhouse_path": YTSERVER_CLICKHOUSE_PATH,
     "host_clickhouse_trampoline_path": CLICKHOUSE_TRAMPOLINE_PATH,
     "cpu_limit": 1,
@@ -328,11 +343,9 @@ class ClickHouseTestBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    NODE_PORT_SET_SIZE = 5
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    NODE_PORT_SET_SIZE = 25
 
     ENABLE_HTTP_PROXY = True
-    USE_PORTO_FOR_SERVERS = True
 
 
     DELTA_PROXY_CONFIG = {
@@ -352,7 +365,6 @@ class ClickHouseTestBase(YTEnvSetup):
         "exec_agent": {
             "slot_manager": {
                 "job_environment": {
-                    "type": "porto",
                     "memory_watchdog_period": 100,
                 },
             },
@@ -626,15 +638,15 @@ class TestClickHouseCommon(ClickHouseTestBase):
             time.sleep(1)
 
             instances = clique.get_active_instances()
-            # One instnace is dead, but the lock should be alive.
+            # One instance is dead, but the lock should be alive.
             assert len(instances) == 3
 
             for instance in instances:
                 if instance in old_instances:
                     # Avoid sending request to the dead instance.
                     continue
-                response = clique.make_direct_query(instance, "select * from system.clique")
-                assert len(response) == 2
+
+                wait(lambda: len(clique.make_direct_query(instance, "select * from system.clique")) == 2)
 
     @authors("dakovalkov")
     def test_single_interrupt(self):
@@ -820,9 +832,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     {"name": "timestamp", "type": "Nullable(UInt64)"},
                     {"name": "interval_", "type": "Nullable(Int64)"},
                 ]
-            assert clique.make_query('select * from "//tmp/t1"') == [{
-                # ClickHouse returns string values in local time, so this time is UTC +tz hours.
-                'datetime': datetime.fromtimestamp(1).isoformat(' '),
+            assert clique.make_query('select toTimeZone(datetime, \'UTC\') as datetime, date, timestamp, interval_ from "//tmp/t1"') == [{
+                'datetime': '1970-01-01 00:00:01',
                 'date': '1970-01-03',
                 'timestamp': 3,
                 'interval_': 4,}]
@@ -1835,7 +1846,7 @@ class TestQueryRegistry(ClickHouseTestBase):
         with pytest.raises(YtError):
             with Clique(1, config_patch={"memory_watchdog": {"memory_limit": 2 * 1024**3, "period": 50}}) as clique:
                 clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
-        assert "OOM" in str(clique.op.get_error())
+                assert "OOM" in str(clique.op.get_error())
 
     @authors("max42")
     @pytest.mark.skipif(True, reason="temporarily broken")
@@ -2173,8 +2184,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             for instance in clique.get_active_instances():
                 if str(instance) == jobs[0]:
-                    with pytest.raises(Exception):
-                        clique.make_direct_query(instance, "select 1")
+                    continue
                 else:
                     assert clique.make_direct_query(instance, "select 1") == [{"1": 1}]
 

@@ -73,7 +73,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         wait(lambda: smoothed_cpu_delta.update().get(verbose=True) < max_cpu_delta.update().get(verbose=True))
 
     @authors("renadeen")
-    @pytest.mark.xfail(run=True, reason="Works fine locally but fails at tc. Need to observe it a bit.")
+    @pytest.mark.skip(reason="Works fine locally but fails at tc. Need to observe it a bit.")
     def test_busy(self):
         spec = copy.deepcopy(SPEC_WITH_CPU_MONITOR)
         spec["job_cpu_monitor"]["min_cpu_limit"] = 1
@@ -248,7 +248,7 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("renadeen")
-    @pytest.mark.xfail(run = False, reason = "Currently broken")
+    @pytest.mark.skip(reason = "Currently broken")
     def test_node_aborts_job_on_lack_of_memory(self):
         memory_consume_command = 'python -c "import time\ncount = 100*1000*1000\nx = list(range(count))\ntime.sleep(1000)"'
         op1 = run_test_vanilla(with_breakpoint("BREAKPOINT; " + memory_consume_command, "Op1"), spec={

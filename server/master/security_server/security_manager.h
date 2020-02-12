@@ -112,6 +112,9 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(Group, TGroup);
     DECLARE_ENTITY_MAP_ACCESSORS(NetworkProject, TNetworkProject);
 
+    //! Creates an account.
+    TAccount* CreateAccount(NCypressClient::TObjectId hintId = NCypressClient::NullObjectId);
+
     //! Returns account with a id (throws if none).
     TAccount* GetAccountOrThrow(TAccountId id);
 
@@ -122,12 +125,15 @@ public:
     TAccount* GetAccountByNameOrThrow(const TString& name);
 
     //! Returns "root" built-in account.
+    TAccount* GetRootAccount();
+
+    //! Returns "sys" built-in account.
     TAccount* GetSysAccount();
 
     //! Returns "tmp" built-in account.
     TAccount* GetTmpAccount();
 
-    //! Return "intermediate" built-in account.
+    //! Returns "intermediate" built-in account.
     TAccount* GetIntermediateAccount();
 
     //! Return "chunk_wise_accounting_migration" built-in account ID.
@@ -138,6 +144,14 @@ public:
      *  The account will be deprecated shortly after the migration.
      */
     TAccount* GetChunkWiseAccountingMigrationAccount();
+
+    using TViolatedResourceLimits = TClusterResources;
+    //! Returns recursive violated resource limits for account's subtree.
+    TViolatedResourceLimits GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const;
+
+    //! Sets |resourceLimits| as |account|'s cluster resource limits.
+    //! Throws if it would violate the invariants.
+    void TrySetResourceLimits(TAccount* account, const TClusterResources& resourceLimits);
 
     //! Adds the #chunk to the resource usage of accounts mentioned in #requisition.
     void UpdateResourceUsage(
@@ -167,13 +181,11 @@ public:
     void SetAccount(
         NCypressServer::TCypressNode* node,
         TAccount* newAccount,
-        NTransactionServer::TTransaction* transaction);
+        NTransactionServer::TTransaction* transaction) noexcept;
 
     //! Removes account association (if any) from the node.
     void ResetAccount(NCypressServer::TCypressNode* node);
 
-    //! Updates the name of the account.
-    void RenameAccount(TAccount* account, const TString& newName);
 
 
     //! Returns user with a given name (|nullptr| if none).
@@ -310,8 +322,17 @@ public:
     /*!
      *  If NHive::IsHiveMutation returns |true| then this check is suppressed.
      */
-    void ValidateResourceUsageIncrease(TAccount* account, const TClusterResources& delta);
+    void ValidateResourceUsageIncrease(
+        TAccount* account,
+        const TClusterResources& delta,
+        bool allowRootAccount = false);
 
+    //! Throws if making #childAccount a child of #parentAccount would violate the invariants.
+    void ValidateAttachChildAccount(TAccount* parentAccount, TAccount* childAccount);
+
+    //! Sets the 'AllowChildrenLimitOvercommit' flag for the specified account.
+    //! Throws if setting the flag would violate the invariants.
+    void SetAccountAllowChildrenLimitOvercommit(TAccount* account, bool overcommitAllowed);
 
     //! Sets or resets banned flag for a given user.
     void SetUserBanned(TUser* user, bool banned);

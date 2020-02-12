@@ -11,6 +11,8 @@
 
 #include <yt/ytlib/hydra/public.h>
 
+#include <yt/ytlib/object_client/public.h>
+
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/rpc/public.h>
@@ -79,14 +81,22 @@ public:
     //! Returns the transaction timeout.
     TDuration GetTimeout() const;
 
+    //! Returns the tags of the cells this transaction is replicated to.
+    //! Only supported for master transactions that are created locally, not attached.
+    NObjectClient::TCellTagList GetReplicatedToCellTags() const;
+
 
     //! Once a participant is registered, it will be pinged.
-    void RegisterParticipant(NElection::TCellId cellId);
+    //! If #prepareOnly is true then this participant will only be contacted
+    //! during prepare phase but not during commit or abort (this is helpful when
+    //! master cell acts as a participant but gets transaction replicated to it
+    //! from another cell).
+    void RegisterParticipant(NObjectClient::TCellId cellId, bool prepareOnly);
 
     //! Once a participant is confirmed, its pings must succeeded, otherwise
     //! the transaction fails. The transaction must already be registered prior
     //! to this call.
-    void ConfirmParticipant(NElection::TCellId cellId);
+    void ConfirmParticipant(NObjectClient::TCellId cellId);
 
     //! Choose transaction coordinator.
     void ChooseCoordinator(const TTransactionCommitOptions& options);
@@ -130,15 +140,8 @@ class TTransactionManager
 {
 public:
     TTransactionManager(
-        TTransactionManagerConfigPtr config,
-        NHiveClient::TCellId primaryCellId,
         NApi::NNative::IConnectionPtr connection,
-        const TString& user,
-        ITimestampProviderPtr timestampProvider,
-        NHiveClient::TCellDirectoryPtr cellDirectory,
-        NHiveClient::TCellTrackerPtr downedCellTracker);
-
-    ~TTransactionManager();
+        const TString& user);
 
     //! Asynchronously starts a new transaction.
     /*!

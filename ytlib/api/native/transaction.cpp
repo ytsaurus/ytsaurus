@@ -210,8 +210,9 @@ public:
     {
         auto guard = Guard(SpinLock_);
 
-        YT_VERIFY(TypeFromId(cellId) == EObjectType::TabletCell ||
-               TypeFromId(cellId) == EObjectType::ClusterCell);
+        YT_VERIFY(
+            TypeFromId(cellId) == EObjectType::TabletCell ||
+            TypeFromId(cellId) == EObjectType::MasterCell);
 
         if (State_ != ETransactionState::Active) {
             THROW_ERROR_EXCEPTION("Cannot add action since transaction %v is already in %Qlv state",
@@ -1243,7 +1244,7 @@ private:
                 case EObjectType::TabletCell:
                     asyncResult = SendTabletActions(transaction, channel);
                     break;
-                case EObjectType::ClusterCell:
+                case EObjectType::MasterCell:
                     asyncResult = SendMasterActions(transaction, channel);
                     break;
                 default:
@@ -1504,9 +1505,13 @@ private:
             cellSession->RegisterRequests(requestCount);
         }
 
+        auto replicatedToCellTags = Transaction_->GetReplicatedToCellTags();
         for (const auto& pair : CellIdToSession_) {
             auto cellId = pair.first;
-            Transaction_->RegisterParticipant(cellId);
+            bool prepareOnly =
+                TypeFromId(cellId) == EObjectType::MasterCell &&
+                std::find(replicatedToCellTags.begin(), replicatedToCellTags.end(), CellTagFromId(cellId)) != replicatedToCellTags.end();
+            Transaction_->RegisterParticipant(cellId, prepareOnly);
         }
 
         {
@@ -1577,7 +1582,8 @@ private:
 
                 for (const auto& prepareResult : prepareResults) {
                     for (auto cellId : prepareResult.ParticipantCellIds) {
-                        Transaction_->RegisterParticipant(cellId);
+                        // XXX(babenko): handle prepare-only participants in cross-cluster commits
+                        Transaction_->RegisterParticipant(cellId, false);
                     }
                 }
             }

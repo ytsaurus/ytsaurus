@@ -75,4 +75,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TObject, class TFunctor>
+void TraverseMapObjectSubtreeTopDown(TObject* object, TFunctor functor);
+
+template <class TObject, class TResult, class TFunctor>
+TResult AccumulateOverMapObjectSubtree(TObject* object, TResult init, TFunctor functor);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NObjectServer
+
+#define MAP_OBJECT_INL_H_
+#include "map_object-inl.h"
+#undef MAP_OBJECT_INL_H_

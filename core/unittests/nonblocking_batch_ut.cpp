@@ -2,21 +2,24 @@
 
 #include <yt/core/concurrency/nonblocking_batch.h>
 
-namespace NYT {
-
-using namespace NConcurrency;
+namespace NYT::NConcurrency {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr auto Quantum = TDuration::MilliSeconds(100);
+
 template <class T>
-void EnqueueAll(TNonblockingBatch<T>& batch, std::initializer_list<T> lst)
+void EnqueueAll(
+    const TNonblockingBatchPtr<int>& batch,
+    std::initializer_list<T> list)
 {
-    for (auto&& v : lst) {
-        batch.Enqueue(std::move(v));
+    for (auto&& element : list) {
+        batch->Enqueue(std::move(element));
     }
 }
 
-TEST(TBatchTest, Simple)
+TEST(TNonblockingBatchTest, Simple)
 {
     auto b = New<TNonblockingBatch<int>>(3, TDuration::Max());
     b->Enqueue(1);
@@ -45,9 +48,9 @@ TEST(TBatchTest, Simple)
     ASSERT_EQ(e3.Get().ValueOrThrow(), std::vector<int>({0, 1, 2}));
 }
 
-TEST(TBatchTest, Duration)
+TEST(TNonblockingBatchTest, Duration)
 {
-    auto timeout = TDuration::MilliSeconds(20);
+    auto timeout = Quantum;
     auto overTimeout = timeout * 2;
 
     auto b = New<TNonblockingBatch<int>>(2, timeout);
@@ -69,13 +72,13 @@ TEST(TBatchTest, Duration)
     ASSERT_EQ(e2.Get().ValueOrThrow(), std::vector<int>({2, 3}));
 }
 
-TEST(TBatchTest, Deque)
+TEST(TNonblockingBatchTest, Dequeue)
 {
-    auto timeout = TDuration::MilliSeconds(20);
+    auto timeout = Quantum;
     auto overTimeout = timeout * 2;
 
     auto b = New<TNonblockingBatch<int>>(2, timeout);
-    EnqueueAll(*b, {1, 2, 3, 4, 5});
+    EnqueueAll(b, {1, 2, 3, 4, 5});
     {
         auto e = b->DequeueBatch();
         ASSERT_TRUE(e.IsSet());
@@ -93,7 +96,7 @@ TEST(TBatchTest, Deque)
         ASSERT_TRUE(e.IsSet());
         ASSERT_EQ(e.Get().ValueOrThrow(), std::vector<int>({5}));
     }
-    EnqueueAll(*b, {6, 7, 8});
+    EnqueueAll(b, {6, 7, 8});
     {
         auto e = b->DequeueBatch();
         ASSERT_TRUE(e.IsSet());
@@ -102,7 +105,7 @@ TEST(TBatchTest, Deque)
     {
         auto e = b->DequeueBatch();
         ASSERT_FALSE(e.IsSet());
-        EnqueueAll(*b, {9, 10, 11});
+        EnqueueAll(b, {9, 10, 11});
         ASSERT_TRUE(e.IsSet());
         ASSERT_EQ(e.Get().ValueOrThrow(), std::vector<int>({8, 9}));
     }
@@ -113,16 +116,16 @@ TEST(TBatchTest, Deque)
     }
 }
 
-TEST(TBatchTest, Drop)
+TEST(TNonblockingBatchTest, Drop)
 {
-    auto timeout = TDuration::MilliSeconds(20);
+    auto timeout = Quantum;
 
     auto b = New<TNonblockingBatch<int>>(2, timeout);
     auto e1 = b->DequeueBatch();
     auto e2 = b->DequeueBatch();
     ASSERT_FALSE(e1.IsSet());
     ASSERT_FALSE(e2.IsSet());
-    EnqueueAll(*b, {1, 2, 3});
+    EnqueueAll(b, {1, 2, 3});
     ASSERT_TRUE(e1.IsSet());
     ASSERT_FALSE(e2.IsSet());
     b->Drop();
@@ -137,9 +140,9 @@ TEST(TBatchTest, Drop)
     ASSERT_EQ(e3.Get().ValueOrThrow(), std::vector<int>());
 }
 
-TEST(TBatchTest, EnqueueTimeout)
+TEST(TNonblockingBatchTest, EnqueueTimeout)
 {
-    auto timeout = TDuration::MilliSeconds(20);
+    auto timeout = Quantum;
     auto overTimeout = timeout * 2;
 
     auto b = New<TNonblockingBatch<int>>(3, timeout);
@@ -156,4 +159,5 @@ TEST(TBatchTest, EnqueueTimeout)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace
+} // namespace NYT::NConcurrency

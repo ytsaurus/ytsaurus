@@ -132,7 +132,8 @@ ITimestampProviderPtr TClient::CreateTimestampProvider() const
 {
     return CreateBatchingTimestampProvider(
         NRpcProxy::CreateTimestampProvider(Channel_, Connection_->GetConfig()->RpcTimeout),
-        Connection_->GetConfig()->TimestampProviderUpdatePeriod);
+        Connection_->GetConfig()->TimestampProviderUpdatePeriod,
+        Connection_->GetConfig()->TimestampProviderBatchPeriod);
 }
 
 ITransactionPtr TClient::AttachTransaction(
@@ -892,6 +893,9 @@ TFuture<TListJobsResult> TClient::ListJobs(
     }
     if (options.JobCompetitionId) {
         ToProto(req->mutable_job_competition_id(), options.JobCompetitionId);
+    }
+    if (options.WithCompetitors) {
+        req->set_with_competitors(*options.WithCompetitors);
     }
 
     req->set_sort_field(static_cast<NProto::EJobSortField>(options.SortField));

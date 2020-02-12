@@ -30,6 +30,7 @@
 #include <yt/server/lib/hydra/composite_automaton.h>
 #include <yt/server/lib/hydra/entity_map.h>
 
+#include <yt/server/master/object_server/map_object_type_handler.h>
 #include <yt/server/master/object_server/type_handler_detail.h>
 
 #include <yt/server/master/table_server/table_node.h>
@@ -110,7 +111,7 @@ TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager::TAccountTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TAccount>
+    : public TNonversionedMapObjectTypeHandlerBase<TAccount>
 {
 public:
     explicit TAccountTypeHandler(TImpl* owner);
@@ -118,12 +119,11 @@ public:
     virtual ETypeFlags GetFlags() const override
     {
         return
+            TBase::GetFlags() |
             ETypeFlags::ReplicateCreate |
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
-            ETypeFlags::Creatable |
             ETypeFlags::TwoPhaseCreation |
-            ETypeFlags::Removable |
             ETypeFlags::TwoPhaseRemoval;
     }
 
@@ -138,27 +138,37 @@ public:
 
     virtual std::unique_ptr<TObject> InstantiateObject(TObjectId id) override;
 
+    virtual TObject* FindObjectByAttributes(const NYTree::IAttributeDictionary* attributes) override;
+
+    virtual void RegisterName(const TString& name, TAccount* account) noexcept override;
+    virtual void UnregisterName(const TString& name, TAccount* account) noexcept override;
+
+    virtual TString GetRootPath(const TAccount* rootAccount) const override;
+
+protected:
+    virtual TCellTagList DoGetReplicationCellTags(const TAccount* /*account*/) override
+    {
+        return TObjectTypeHandlerBase<TAccount>::AllSecondaryCellTags();
+    }
+
 private:
+    using TBase = TNonversionedMapObjectTypeHandlerBase<TAccount>;
+
     TImpl* const Owner_;
 
-    virtual TCellTagList DoGetReplicationCellTags(const TAccount* /*object*/) override
+    virtual TString DoGetName(const TAccount* account) override
     {
-        return AllSecondaryCellTags();
+        return Format("account %Qv", account->GetName());
     }
 
-    virtual TString DoGetName(const TAccount* object) override
+    virtual std::optional<int> GetDepthLimit() const override
     {
-        return Format("account %Qv", object->GetName());
+        return AccountTreeDepthLimit;
     }
 
-    virtual IObjectProxyPtr DoGetProxy(TAccount* account, TTransaction* transaction) override;
+    virtual TProxyPtr GetMapObjectProxy(TAccount* account) override;
 
     virtual void DoZombifyObject(TAccount* account) override;
-
-    virtual TAccessControlDescriptor* DoFindAcd(TAccount* account) override
-    {
-        return &account->Acd();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,7 +189,7 @@ public:
             ETypeFlags::Removable;
     }
 
-    virtual TCellTagList GetReplicationCellTags(const TObject* /*object*/) override
+    virtual TCellTagList DoGetReplicationCellTags(const TUser* /*object*/) override
     {
         return AllSecondaryCellTags();
     }
@@ -327,6 +337,7 @@ public:
 
         auto cellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
 
+        RootAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffb);
         SysAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xffffffffffffffff);
         TmpAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffe);
         IntermediateAccountId_ = MakeWellKnownId(EObjectType::Account, cellTag, 0xfffffffffffffffd);
@@ -386,26 +397,15 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(NetworkProject, TNetworkProject);
 
 
-    TAccount* CreateAccount(const TString& name, TObjectId hintId)
+    TAccount* CreateAccount(TObjectId hintId = NullObjectId)
     {
-        ValidateAccountName(name);
-
-        if (FindAccountByName(name)) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::AlreadyExists,
-                "Account %Qv already exists",
-                name);
-        }
-
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Account, hintId);
-        return DoCreateAccount(id, name);
+        return DoCreateAccount(id);
     }
 
     void DestroyAccount(TAccount* account)
-    {
-        YT_VERIFY(AccountNameMap_.erase(account->GetName()) == 1);
-    }
+    { }
 
     TAccount* GetAccountOrThrow(TAccountId id)
     {
@@ -421,14 +421,26 @@ public:
 
     TAccount* FindAccountByName(const TString& name)
     {
+        // Access buggy parentless accounts by id.
+        if (name.StartsWith(NObjectClient::ObjectIdPathPrefix)) {
+            TStringBuf idString(name, NObjectClient::ObjectIdPathPrefix.size());
+            auto id = TObjectId::FromString(idString);
+            auto* account = AccountMap_.Find(id);
+            if (!IsObjectAlive(account) || account->GetName() != name) {
+                return nullptr;
+            }
+            return account;
+        }
+
         auto it = AccountNameMap_.find(name);
-        return it == AccountNameMap_.end() ? nullptr : it->second;
+        auto* account = it == AccountNameMap_.end() ? nullptr : it->second;
+        return IsObjectAlive(account) ? account : nullptr;
     }
 
     TAccount* GetAccountByNameOrThrow(const TString& name)
     {
         auto* account = FindAccountByName(name);
-        if (!IsObjectAlive(account)) {
+        if (!account) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::NoSuchAccount,
                 "No such account %Qv",
@@ -437,6 +449,21 @@ public:
         return account;
     }
 
+    void RegisterAccountName(const TString& name, TAccount* account) noexcept
+    {
+        YT_VERIFY(account);
+        YT_VERIFY(AccountNameMap_.emplace(name, account).second);
+    }
+
+    void UnregisterAccountName(const TString& name) noexcept
+    {
+        YT_VERIFY(AccountNameMap_.erase(name) == 1);
+    }
+
+    TAccount* GetRootAccount()
+    {
+        return GetBuiltin(RootAccount_);
+    }
 
     TAccount* GetSysAccount()
     {
@@ -456,6 +483,95 @@ public:
     TAccount* GetChunkWiseAccountingMigrationAccount()
     {
         return GetBuiltin(ChunkWiseAccountingMigrationAccount_);
+    }
+
+    TViolatedResourceLimits GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const
+    {
+        return AccumulateOverMapObjectSubtree(
+            account,
+            TViolatedResourceLimits(),
+            [] (const TAccount* account, TViolatedResourceLimits* violatedLimits) {
+                if (account->IsNodeCountLimitViolated()) {
+                    ++violatedLimits->NodeCount;
+                }
+                if (account->IsChunkCountLimitViolated()) {
+                    ++violatedLimits->ChunkCount;
+                }
+                if (account->IsTabletCountLimitViolated()) {
+                    ++violatedLimits->TabletCount;
+                }
+                if (account->IsTabletStaticMemoryLimitViolated()) {
+                    ++violatedLimits->TabletStaticMemory;
+                }
+
+                for (const auto& [mediumIndex, usage] : account->ClusterStatistics().ResourceUsage.DiskSpace()) {
+                    if (account->IsDiskSpaceLimitViolated(mediumIndex)) {
+                        violatedLimits->AddToMediumDiskSpace(mediumIndex, 1);
+                    }
+                }
+            });
+    }
+
+    void ValidateResourceLimits(TAccount* account, const TClusterResources& resourceLimits)
+    {
+        if (!Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
+            return;
+        }
+
+        if (resourceLimits.IsAtLeastOneResourceLessThan(TClusterResources())) {
+            THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: limits cannot be negative",
+                account->GetName());
+        }
+
+        const auto& currentResourceLimits = account->ClusterResourceLimits();
+        if (resourceLimits.IsAtLeastOneResourceLessThan(currentResourceLimits)) {
+            for (const auto& [key, child] : SortHashMapByKeys(account->KeyToChild())) {
+                if (resourceLimits.IsAtLeastOneResourceLessThan(child->ClusterResourceLimits())) {
+                    THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: "
+                        "the limit cannot be below that of its child account %Qv",
+                        account->GetName(),
+                        child->GetName());
+                }
+            }
+
+            if (!account->GetAllowChildrenLimitOvercommit()) {
+                auto totalChildrenLimits = account->ComputeTotalChildrenLimits();
+
+                if (resourceLimits.IsAtLeastOneResourceLessThan(totalChildrenLimits)) {
+                    THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: "
+                        "the limit cannot be below the sum of its children limits",
+                        account->GetName());
+                }
+            }
+        }
+
+        if (currentResourceLimits.IsAtLeastOneResourceLessThan(resourceLimits)) {
+            if (auto* parent = account->GetParent()) {
+                const auto& parentResourceLimits = parent->ClusterResourceLimits();
+                if (parentResourceLimits.IsAtLeastOneResourceLessThan(resourceLimits)) {
+                    THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: "
+                        "the limit cannot be above that of its parent",
+                        account->GetName());
+                }
+
+                if (!parent->GetAllowChildrenLimitOvercommit()) {
+                    auto totalChildrenLimits =
+                        parent->ComputeTotalChildrenLimits() - currentResourceLimits + resourceLimits;
+
+                    if (parentResourceLimits.IsAtLeastOneResourceLessThan(totalChildrenLimits)) {
+                        THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: "
+                            "the change would overcommit its parent",
+                            account->GetName());
+                    }
+                }
+            }
+        }
+    }
+
+    void TrySetResourceLimits(TAccount* account, const TClusterResources& resourceLimits)
+    {
+        ValidateResourceLimits(account, resourceLimits);
+        account->ClusterResourceLimits() = resourceLimits;
     }
 
     void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
@@ -541,7 +657,7 @@ public:
     void SetAccount(
         TCypressNode* node,
         TAccount* newAccount,
-        TTransaction* transaction)
+        TTransaction* transaction) noexcept
     {
         YT_VERIFY(node);
         YT_VERIFY(newAccount);
@@ -600,15 +716,23 @@ public:
         auto resources = TClusterResources()
             .SetNodeCount(node->GetDeltaResourceUsage().NodeCount) * delta;
 
-        account->ClusterStatistics().ResourceUsage += resources;
-        account->LocalStatistics().ResourceUsage += resources;
+        ChargeAccountAncestry(
+            account,
+            [&] (TAccount* account) {
+                account->ClusterStatistics().ResourceUsage += resources;
+                account->LocalStatistics().ResourceUsage += resources;
+            });
 
         if (transaction) {
             auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
             *transactionUsage += resources;
         } else {
-            account->ClusterStatistics().CommittedResourceUsage += resources;
-            account->LocalStatistics().CommittedResourceUsage += resources;
+            ChargeAccountAncestry(
+                account,
+                [&] (TAccount* account) {
+                    account->ClusterStatistics().CommittedResourceUsage += resources;
+                    account->LocalStatistics().CommittedResourceUsage += resources;
+                });
         }
     }
 
@@ -640,36 +764,20 @@ public:
 
         YT_ASSERT(resourceUsageDelta.NodeCount == 0);
         YT_ASSERT(resourceUsageDelta.ChunkCount == 0);
-        for (const auto& item : resourceUsageDelta.DiskSpace()) {
-            YT_ASSERT(item.second == 0);
+        for (auto [mediumIndex, diskUsage] : resourceUsageDelta.DiskSpace()) {
+            YT_ASSERT(diskUsage == 0);
         }
 
-        account->ClusterStatistics().ResourceUsage += resourceUsageDelta;
-        account->LocalStatistics().ResourceUsage += resourceUsageDelta;
-        if (committed) {
-            account->ClusterStatistics().CommittedResourceUsage += resourceUsageDelta;
-            account->LocalStatistics().CommittedResourceUsage += resourceUsageDelta;
-        }
-    }
-
-    void RenameAccount(TAccount* account, const TString& newName)
-    {
-        ValidateAccountName(newName);
-
-        if (newName == account->GetName()) {
-            return;
-        }
-
-        if (FindAccountByName(newName)) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::AlreadyExists,
-                "Account %Qv already exists",
-                newName);
-        }
-
-        YT_VERIFY(AccountNameMap_.erase(account->GetName()) == 1);
-        YT_VERIFY(AccountNameMap_.emplace(newName, account).second);
-        account->SetName(newName);
+        ChargeAccountAncestry(
+            account,
+            [&] (TAccount* account) {
+                account->ClusterStatistics().ResourceUsage += resourceUsageDelta;
+                account->LocalStatistics().ResourceUsage += resourceUsageDelta;
+                if (committed) {
+                    account->ClusterStatistics().CommittedResourceUsage += resourceUsageDelta;
+                    account->LocalStatistics().CommittedResourceUsage += resourceUsageDelta;
+                }
+            });
     }
 
     void DestroySubject(TSubject* subject)
@@ -1348,7 +1456,8 @@ public:
 
     void ValidateResourceUsageIncrease(
         TAccount* account,
-        const TClusterResources& delta)
+        const TClusterResources& delta,
+        bool allowRootAccount)
     {
         if (IsHiveMutation()) {
             return;
@@ -1356,62 +1465,127 @@ public:
 
         account->ValidateActiveLifeStage();
 
-        const auto& usage = account->ClusterStatistics().ResourceUsage;
-        const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;
-        const auto& limits = account->ClusterResourceLimits();
+        if (!allowRootAccount && account == GetRootAccount()) {
+            THROW_ERROR_EXCEPTION("Root account cannot be used");
+        }
 
-        for (const auto& [index, deltaSpace] : delta.DiskSpace()) {
-            auto usageSpace = usage.DiskSpace().lookup(index);
-            auto limitsSpace = limits.DiskSpace().lookup(index);
+        auto* initialAccount = account;
 
-            if (usageSpace + deltaSpace > limitsSpace) {
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                const auto* medium = chunkManager->GetMediumByIndex(index);
-                THROW_ERROR_EXCEPTION(
-                    NSecurityClient::EErrorCode::AccountLimitExceeded,
-                    "Account %Qv is over disk space limit in medium %Qv",
-                    account->GetName(),
-                    medium->GetName())
-                    << TErrorAttribute("usage", usage.DiskSpace())
-                    << TErrorAttribute("limit", limits.DiskSpace());
+        auto throwOverdraftError = [&] (
+            const char* resourceType,
+            TAccount* overdraftedAccount,
+            const auto& usage,
+            const auto& limit,
+            const TMedium* medium = nullptr)
+        {
+            auto errorMessage = Format("%v %Qv is over %v limit%v%v",
+                overdraftedAccount == initialAccount
+                    ? "Account"
+                    : overdraftedAccount == initialAccount->GetParent()
+                        ? "Parent account"
+                        : "Ancestor account",
+                overdraftedAccount->GetName(),
+                resourceType,
+                medium
+                    ? Format(" in medium %Qv", medium->GetName())
+                    : TString(),
+                overdraftedAccount != initialAccount
+                    ? Format(" (while validating account %Qv)", initialAccount->GetName())
+                    : TString());
+
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AccountLimitExceeded, errorMessage)
+                << TErrorAttribute("usage", usage)
+                << TErrorAttribute("limit", limit);
+        };
+
+        for (; account; account = account->GetParent()) {
+            const auto& usage = account->ClusterStatistics().ResourceUsage;
+            const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;
+            const auto& limits = account->ClusterResourceLimits();
+
+            for (auto [index, deltaSpace] : delta.DiskSpace()) {
+                auto usageSpace = usage.DiskSpace().lookup(index);
+                auto limitsSpace = limits.DiskSpace().lookup(index);
+
+                if (usageSpace + deltaSpace > limitsSpace) {
+                    const auto& chunkManager = Bootstrap_->GetChunkManager();
+                    const auto* medium = chunkManager->GetMediumByIndex(index);
+
+                    throwOverdraftError("disk space", account, usageSpace, limitsSpace, medium);
+                }
+            }
+            // Branched nodes are usually "paid for" by the originating node's
+            // account, which is wrong, but can't be easily avoided. To mitigate the
+            // issue, only committed node count is checked here. All this does is
+            // effectively ignores non-trunk nodes, which constitute the majority of
+            // problematic nodes.
+            if (delta.NodeCount > 0 && committedUsage.NodeCount + delta.NodeCount > limits.NodeCount) {
+                throwOverdraftError("Cypress node count", account, committedUsage.NodeCount, limits.NodeCount);
+            }
+            if (delta.ChunkCount > 0 && usage.ChunkCount + delta.ChunkCount > limits.ChunkCount) {
+                throwOverdraftError("chunk count", account, usage.ChunkCount, limits.ChunkCount);
+            }
+            if (delta.TabletCount > 0 && usage.TabletCount + delta.TabletCount > limits.TabletCount) {
+                throwOverdraftError("tablet count", account, usage.TabletCount, limits.TabletCount);
+            }
+            if (delta.TabletStaticMemory > 0 && usage.TabletStaticMemory + delta.TabletStaticMemory > limits.TabletStaticMemory) {
+                throwOverdraftError("tablet static memory", account, usage.TabletStaticMemory, limits.TabletStaticMemory);
             }
         }
-        // Branched nodes are usually "paid for" by the originating node's
-        // account, which is wrong, but can't be easily avoided. To mitigate the
-        // issue, only committed node count is checked here. All this does is
-        // effectively ignores non-trunk nodes, which constitute the majority of
-        // problematic nodes.
-        if (delta.NodeCount > 0 && committedUsage.NodeCount + delta.NodeCount > limits.NodeCount) {
-            THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AccountLimitExceeded,
-                "Account %Qv is over Cypress node count limit",
-                account->GetName())
-                << TErrorAttribute("usage", committedUsage.NodeCount)
-                << TErrorAttribute("limit", limits.NodeCount);
+
+    }
+
+    void ValidateAttachChildAccount(TAccount* parentAccount, TAccount* childAccount)
+    {
+        const auto& childUsage = childAccount->ClusterStatistics().ResourceUsage;
+        const auto& childLimits = childAccount->ClusterResourceLimits();
+
+        const auto& parentLimits = parentAccount->ClusterResourceLimits();
+        if (parentLimits.IsAtLeastOneResourceLessThan(childLimits)) {
+            THROW_ERROR_EXCEPTION("Failed to change account %Qv parent to %Qv: "
+                "child resource limit cannot be above that of its parent",
+                childAccount->GetName(),
+                parentAccount->GetName());
         }
-        if (delta.ChunkCount > 0 && usage.ChunkCount + delta.ChunkCount > limits.ChunkCount) {
-            THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AccountLimitExceeded,
-                "Account %Qv is over chunk count limit",
-                account->GetName())
-                << TErrorAttribute("usage", usage.ChunkCount)
-                << TErrorAttribute("limit", limits.ChunkCount);
+
+        if (!parentAccount->GetAllowChildrenLimitOvercommit()) {
+            auto totalChildrenLimits =
+                parentAccount->ComputeTotalChildrenLimits() + childLimits;
+
+            if (parentLimits.IsAtLeastOneResourceLessThan(totalChildrenLimits)) {
+                THROW_ERROR_EXCEPTION("Failed to change account %Qv parent to %Qv: "
+                    "the sum of children limits cannot be above parent limits",
+                    childAccount->GetName(),
+                    parentAccount->GetName());
+            }
         }
-        if (delta.TabletCount > 0 && usage.TabletCount + delta.TabletCount > limits.TabletCount) {
-            THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AccountLimitExceeded,
-                "Account %Qv is over tablet count limit",
-                account->GetName())
-                << TErrorAttribute("usage", usage.TabletCount)
-                << TErrorAttribute("limit", limits.TabletCount);
+
+        ValidateResourceUsageIncrease(parentAccount, childUsage, true /*allowRootAccount*/);
+    }
+
+    void SetAccountAllowChildrenLimitOvercommit(
+        TAccount* account,
+        bool overcommitAllowed)
+    {
+        if (!overcommitAllowed && account->GetAllowChildrenLimitOvercommit()) {
+            auto totalChildrenLimits = account->ComputeTotalChildrenLimits();
+            const auto& limits = account->ClusterResourceLimits();
+            if (limits.IsAtLeastOneResourceLessThan(totalChildrenLimits)) {
+                THROW_ERROR_EXCEPTION("Failed to disable children limit overcommit for account %Qv because it is currently overcommitted",
+                    account->GetName());
+            }
         }
-        if (delta.TabletStaticMemory > 0 && usage.TabletStaticMemory + delta.TabletStaticMemory > limits.TabletStaticMemory) {
-            THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AccountLimitExceeded,
-                "Account %Qv is over tablet static memory limit",
-                account->GetName())
-                << TErrorAttribute("usage", usage.TabletStaticMemory)
-                << TErrorAttribute("limit", limits.TabletStaticMemory);
+
+        account->SetAllowChildrenLimitOvercommit(overcommitAllowed);
+    }
+
+    // This is just a glorified for-each, but it's worth giving it a semantic name.
+    template <class T>
+    void ChargeAccountAncestry(TAccount* account, T&& chargeIndividualAccount)
+    {
+        for (; account; account = account->GetParent()) {
+            chargeIndividualAccount(account);
         }
     }
 
@@ -1518,6 +1692,9 @@ private:
     NHydra::TEntityMap<TAccount> AccountMap_;
     THashMap<TString, TAccount*> AccountNameMap_;
 
+    TAccountId RootAccountId_;
+    TAccount* RootAccount_ = nullptr;
+
     TAccountId SysAccountId_;
     TAccount* SysAccount_ = nullptr;
 
@@ -1596,6 +1773,9 @@ private:
 
     bool MustRecomputeMembershipClosure_ = false;
 
+    // COMPAT(kiselyovp)
+    bool MustInitializeAccountHierarchy_ = false;
+
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
         auto isErasure = erasureCodec != NErasure::ECodec::None;
@@ -1626,7 +1806,7 @@ private:
     }
 
     template <class T>
-    void ComputeChunkResourceDelta(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta, T doCharge)
+    void ComputeChunkResourceDelta(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta, T&& doCharge)
     {
         auto chunkDiskSpace = chunk->ChunkInfo().disk_space();
         auto erasureCodec = chunk->GetErasureCodec();
@@ -1664,7 +1844,11 @@ private:
                 }
             }
 
-            doCharge(account, mediumIndex, chunkCount, diskSpace, entry.Committed);
+            ChargeAccountAncestry(
+                account,
+                [&] (TAccount* account) {
+                    doCharge(account, mediumIndex, chunkCount, diskSpace, entry.Committed);
+                });
 
             lastAccount = account;
             lastMediumIndex = mediumIndex;
@@ -1673,17 +1857,10 @@ private:
     }
 
 
-    TAccount* DoCreateAccount(TAccountId id, const TString& name)
+    TAccount* DoCreateAccount(TAccountId id)
     {
-        auto accountHolder = std::make_unique<TAccount>(id);
-        accountHolder->SetName(name);
-        // Give some reasonable initial resource limits.
-        accountHolder->ClusterResourceLimits().SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_GB);
-        accountHolder->ClusterResourceLimits().NodeCount = 1000;
-        accountHolder->ClusterResourceLimits().ChunkCount = 100000;
-
+        auto accountHolder = std::make_unique<TAccount>(id, id == RootAccountId_);
         auto* account = AccountMap_.Insert(id, std::move(accountHolder));
-        YT_VERIFY(AccountNameMap_.emplace(account->GetName(), account).second);
 
         InitializeAccountStatistics(account);
 
@@ -1902,6 +2079,9 @@ private:
 
         // COMPAT(ifsmirnov)
         RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterReign::ChunkViewToParentsArray;
+
+        // COMPAT(kiselyovp)
+        MustInitializeAccountHierarchy_ = context.GetVersion() < EMasterReign::HierarchicalAccounts;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -1917,15 +2097,24 @@ private:
 
         AccountNameMap_.clear();
         for (auto [accountId, account] : AccountMap_) {
-            // Reconstruct account name map.
-            if (IsObjectAlive(account)) {
-                YT_VERIFY(AccountNameMap_.emplace(account->GetName(), account).second);
-            }
-
-
             // Initialize statistics for this cell.
             // NB: This also provides the necessary data migration for pre-0.18 versions.
             InitializeAccountStatistics(account);
+
+            // COMPAT(kiselyovp)
+            if (MustInitializeAccountHierarchy_) {
+                continue;
+            }
+            if (!IsObjectAlive(account)) {
+                continue;
+            }
+            if (!account->GetParent() && account->GetId() != RootAccountId_) {
+                YT_LOG_ALERT("Unattended account found in snapshot (Id: %v)",
+                    account->GetId());
+            } else {
+                // Reconstruct account name map.
+                RegisterAccountName(account->GetName(), account);
+            }
         }
 
         UserNameMap_.clear();
@@ -1959,7 +2148,6 @@ private:
             if (!IsObjectAlive(group)) {
                 continue;
             }
-
             // Reconstruct group name map.
             YT_VERIFY(GroupNameMap_.emplace(group->GetName(), group).second);
         }
@@ -1976,6 +2164,31 @@ private:
 
         InitBuiltins();
 
+        // COMPAT(kiselyovp)
+        if (MustInitializeAccountHierarchy_) {
+            if (ChunkWiseAccountingMigrationAccount_->ClusterResourceLimits().DiskSpace().lookup(NChunkServer::DefaultStoreMediumIndex) >
+                std::numeric_limits<i64>::max() / 4)
+            {
+                auto newResourceLimits = ChunkWiseAccountingMigrationAccount_->ClusterResourceLimits();
+                newResourceLimits.SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, std::numeric_limits<i64>::max() / 4);
+                TrySetResourceLimits(ChunkWiseAccountingMigrationAccount_, newResourceLimits);
+            }
+
+            for (auto [accountId, account] : AccountMap_) {
+                YT_VERIFY(!account->GetParent());
+                if (!IsObjectAlive(account) || account == RootAccount_) {
+                    continue;
+                }
+
+                auto name = account->GetLegacyName();
+                account->SetLegacyName("");
+                RootAccount_->AttachChild(name, account);
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                objectManager->RefObject(RootAccount_);
+                RegisterAccountName(name, account);
+            }
+        }
+
         // COMPAT(shakurov)
         RecomputeAccountResourceUsage();
     }
@@ -1984,29 +2197,6 @@ private:
     {
         if (!ValidateAccountResourceUsage_ && !RecomputeAccountResourceUsage_) {
             return;
-        }
-
-        // NB: transaction resource usage isn't recomputed.
-
-        // For migration purposes, assume all chunks except for staged ones
-        // belong to a special migration account. This will be corrected by the
-        // next chunk requisition update, but the initial state must be correct!
-
-        // Reset resource usage: some chunks are (probably) taken into account
-        // multiple times here, which renders chunk count and disk space numbers useless.
-        // Node counts, tablet counts and tablet static memory usage are probably
-        // correct, but we'll recompute them anyway.
-        if (RecomputeAccountResourceUsage_) {
-            for (auto [id, account] : AccountMap_) {
-                account->LocalStatistics().ResourceUsage = TClusterResources();
-                account->LocalStatistics().CommittedResourceUsage = TClusterResources();
-
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                if (multicellManager->IsPrimaryMaster()) {
-                    account->ClusterStatistics().ResourceUsage = TClusterResources();
-                    account->ClusterStatistics().CommittedResourceUsage = TClusterResources();
-                }
-            }
         }
 
         struct TStat
@@ -2158,6 +2348,7 @@ private:
         UsersGroup_ = nullptr;
         SuperusersGroup_ = nullptr;
 
+        RootAccount_ = nullptr;
         SysAccount_ = nullptr;
         TmpAccount_ = nullptr;
         IntermediateAccount_ = nullptr;
@@ -2316,39 +2507,46 @@ private:
         }
 
         // Accounts
+        // root, infinite resources, not meant to be used
+        if (EnsureBuiltinAccountInitialized(RootAccount_, RootAccountId_, RootAccountName)) {
+            RootAccount_->ClusterResourceLimits() = TClusterResources::Infinite();
+        }
 
-        // sys, 1 TB disk space, 100 000 nodes, 1 000 000 chunks, 100 000 tablets, 10TB tablet static memory, allowed for: root
+        // sys, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks, 100 000 tablets, 10TB tablet static memory, allowed for: root
         if (EnsureBuiltinAccountInitialized(SysAccount_, SysAccountId_, SysAccountName)) {
-            SysAccount_->ClusterResourceLimits() = TClusterResources()
+            auto resourceLimits = TClusterResources()
                 .SetNodeCount(100000)
                 .SetChunkCount(1000000000)
                 .SetTabletCount(100000)
                 .SetTabletStaticMemory(10_TB)
                 .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
+            TrySetResourceLimits(SysAccount_, resourceLimits);
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
                 EPermission::Use));
         }
 
-        // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
+        // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks allowed for: users
         if (EnsureBuiltinAccountInitialized(TmpAccount_, TmpAccountId_, TmpAccountName)) {
-            TmpAccount_->ClusterResourceLimits() = TClusterResources()
+            auto resourceLimits = TClusterResources()
                 .SetNodeCount(100000)
                 .SetChunkCount(1000000000)
                 .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
+            TrySetResourceLimits(TmpAccount_, resourceLimits);
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
                 EPermission::Use));
         }
 
-        // intermediate, 1 TB disk space, 100 000 nodes, 1 000 000 chunks allowed for: users
+        // intermediate, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks allowed for: users
         if (EnsureBuiltinAccountInitialized(IntermediateAccount_, IntermediateAccountId_, IntermediateAccountName)) {
-            IntermediateAccount_->ClusterResourceLimits() = TClusterResources()
+            auto resourceLimits = TClusterResources()
                 .SetNodeCount(100000)
                 .SetChunkCount(1000000000)
                 .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
+            TrySetResourceLimits(IntermediateAccount_, resourceLimits);
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
@@ -2357,11 +2555,11 @@ private:
 
         // chunk_wise_accounting_migration, maximum disk space, maximum nodes, maximum chunks allowed for: root
         if (EnsureBuiltinAccountInitialized(ChunkWiseAccountingMigrationAccount_, ChunkWiseAccountingMigrationAccountId_, ChunkWiseAccountingMigrationAccountName)) {
-            ChunkWiseAccountingMigrationAccount_->ClusterResourceLimits() = TClusterResources()
+            auto resourceLimits = TClusterResources()
                 .SetNodeCount(std::numeric_limits<int>::max())
-                .SetChunkCount(std::numeric_limits<int>::max());
-            ChunkWiseAccountingMigrationAccount_->ClusterResourceLimits()
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, std::numeric_limits<i64>::max());
+                .SetChunkCount(std::numeric_limits<int>::max())
+                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, std::numeric_limits<i64>::max() / 4);
+            TrySetResourceLimits(ChunkWiseAccountingMigrationAccount_, resourceLimits);
             ChunkWiseAccountingMigrationAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
@@ -2410,7 +2608,17 @@ private:
         if (account) {
             return false;
         }
-        account = DoCreateAccount(id, name);
+
+        account = DoCreateAccount(id);
+
+        if (id != RootAccountId_) {
+            YT_VERIFY(RootAccount_);
+            RootAccount_->AttachChild(name, account);
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->RefObject(RootAccount_);
+        }
+        RegisterAccountName(name, account);
+
         return true;
     }
 
@@ -2493,7 +2701,7 @@ private:
 
         NProto::TReqSetAccountStatistics request;
         request.set_cell_tag(multicellManager->GetCellTag());
-        for (auto [id, account] : AccountMap_) {
+        for (auto [accountId, account] : AccountMap_) {
             if (!IsObjectAlive(account)) {
                 continue;
             }
@@ -2531,8 +2739,9 @@ private:
         for (const auto& entry : request->entries()) {
             auto accountId = FromProto<TAccountId>(entry.account_id());
             auto* account = FindAccount(accountId);
-            if (!IsObjectAlive(account))
+            if (!IsObjectAlive(account)) {
                 continue;
+            }
 
             auto newStatistics = FromProto<TAccountStatistics>(entry.statistics());
             if (multicellManager->IsPrimaryMaster()) {
@@ -2550,7 +2759,6 @@ private:
             DoRecomputeMembershipClosure();
         }
     }
-
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
@@ -2610,21 +2818,12 @@ private:
         }
     }
 
-
-    static void ValidateAccountName(const TString& name)
-    {
-        if (name.empty()) {
-            THROW_ERROR_EXCEPTION("Account name cannot be empty");
-        }
-    }
-
     static void ValidateSubjectName(const TString& name)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Subject name cannot be empty");
         }
     }
-
 
     class TPermissionChecker
     {
@@ -2948,7 +3147,7 @@ private:
 
     void OnProfiling()
     {
-        for (auto [userId, user] : Users()) {
+        for (auto [userId, user] : UserMap_) {
             if (!IsObjectAlive(user)) {
                 continue;
             }
@@ -2979,7 +3178,7 @@ DEFINE_ENTITY_MAP_ACCESSORS(TSecurityManager::TImpl, NetworkProject, TNetworkPro
 ////////////////////////////////////////////////////////////////////////////////
 
 TSecurityManager::TAccountTypeHandler::TAccountTypeHandler(TImpl* owner)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->AccountMap_)
+    : TNonversionedMapObjectTypeHandlerBase<TAccount>(owner->Bootstrap_, &owner->AccountMap_)
     , Owner_(owner)
 { }
 
@@ -2988,25 +3187,55 @@ TObject* TSecurityManager::TAccountTypeHandler::CreateObject(
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<TString>("name");
-    return Owner_->CreateAccount(name, hintId);
+    auto parentName = attributes->GetAndRemove<TString>("parent_name", NSecurityClient::RootAccountName);
+    auto* parent = Owner_->GetAccountByNameOrThrow(parentName);
+    attributes->Set("hint_id", hintId);
+
+    auto* account = CreateObjectImpl(name, parent, attributes);
+    return account;
 }
 
 std::unique_ptr<TObject> TSecurityManager::TAccountTypeHandler::InstantiateObject(TObjectId id)
 {
-    return std::make_unique<TAccount>(id);
+    return std::make_unique<TAccount>(id, id == Owner_->RootAccountId_);
 }
 
-IObjectProxyPtr TSecurityManager::TAccountTypeHandler::DoGetProxy(
-    TAccount* account,
-    TTransaction* /*transaction*/)
+TObject* TSecurityManager::TAccountTypeHandler::FindObjectByAttributes(
+    const NYTree::IAttributeDictionary* attributes)
+{
+    auto name = attributes->Get<TString>("name");
+    auto parentName = attributes->Get<TString>("parent_name", RootAccountName);
+    auto* parent = Owner_->GetAccountByNameOrThrow(parentName);
+
+    return parent->FindChild(name);
+}
+
+TIntrusivePtr<TNonversionedMapObjectProxyBase<TAccount>> TSecurityManager::TAccountTypeHandler::GetMapObjectProxy(
+    TAccount* account)
 {
     return CreateAccountProxy(Owner_->Bootstrap_, &Metadata_, account);
 }
 
 void TSecurityManager::TAccountTypeHandler::DoZombifyObject(TAccount* account)
 {
-    TObjectTypeHandlerWithMapBase::DoZombifyObject(account);
+    TNonversionedMapObjectTypeHandlerBase<TAccount>::DoZombifyObject(account);
     Owner_->DestroyAccount(account);
+}
+
+void TSecurityManager::TAccountTypeHandler::RegisterName(const TString& name, TAccount* account) noexcept
+{
+    Owner_->RegisterAccountName(name, account);
+}
+
+void TSecurityManager::TAccountTypeHandler::UnregisterName(const TString& name, TAccount* /* account */) noexcept
+{
+    Owner_->UnregisterAccountName(name);
+}
+
+TString TSecurityManager::TAccountTypeHandler::GetRootPath(const TAccount* rootAccount) const
+{
+    YT_VERIFY(rootAccount == Owner_->GetRootAccount());
+    return RootAccountCypressPath;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3109,6 +3338,11 @@ void TSecurityManager::Initialize()
     return Impl_->Initialize();
 }
 
+TAccount* TSecurityManager::CreateAccount(TObjectId hintId)
+{
+    return Impl_->CreateAccount(hintId);
+}
+
 TAccount* TSecurityManager::GetAccountOrThrow(TAccountId id)
 {
     return Impl_->GetAccountOrThrow(id);
@@ -3122,6 +3356,11 @@ TAccount* TSecurityManager::FindAccountByName(const TString& name)
 TAccount* TSecurityManager::GetAccountByNameOrThrow(const TString& name)
 {
     return Impl_->GetAccountByNameOrThrow(name);
+}
+
+TAccount* TSecurityManager::GetRootAccount()
+{
+    return Impl_->GetRootAccount();
 }
 
 TAccount* TSecurityManager::GetSysAccount()
@@ -3142,6 +3381,16 @@ TAccount* TSecurityManager::GetIntermediateAccount()
 TAccount* TSecurityManager::GetChunkWiseAccountingMigrationAccount()
 {
     return Impl_->GetChunkWiseAccountingMigrationAccount();
+}
+
+TClusterResources TSecurityManager::GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const
+{
+    return Impl_->GetAccountRecursiveViolatedResourceLimits(account);
+}
+
+void TSecurityManager::TrySetResourceLimits(TAccount* account, const TClusterResources& resourceLimits)
+{
+    Impl_->TrySetResourceLimits(account, resourceLimits);
 }
 
 void TSecurityManager::UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
@@ -3169,7 +3418,10 @@ void TSecurityManager::RecomputeTransactionAccountResourceUsage(TTransaction* tr
     Impl_->RecomputeTransactionResourceUsage(transaction);
 }
 
-void TSecurityManager::SetAccount(TCypressNode* node, TAccount* newAccount, TTransaction* transaction)
+void TSecurityManager::SetAccount(
+    TCypressNode* node,
+    TAccount* newAccount,
+    TTransaction* transaction) noexcept
 {
     Impl_->SetAccount(node, newAccount, transaction);
 }
@@ -3177,11 +3429,6 @@ void TSecurityManager::SetAccount(TCypressNode* node, TAccount* newAccount, TTra
 void TSecurityManager::ResetAccount(TCypressNode* node)
 {
     Impl_->ResetAccount(node);
-}
-
-void TSecurityManager::RenameAccount(TAccount* account, const TString& newName)
-{
-    Impl_->RenameAccount(account, newName);
 }
 
 TUser* TSecurityManager::FindUserByName(const TString& name)
@@ -3389,11 +3636,25 @@ void TSecurityManager::LogAndThrowAuthorizationError(
 
 void TSecurityManager::ValidateResourceUsageIncrease(
     TAccount* account,
-    const TClusterResources& delta)
+    const TClusterResources& delta,
+    bool allowRootAccount)
 {
     Impl_->ValidateResourceUsageIncrease(
         account,
-        delta);
+        delta,
+        allowRootAccount);
+}
+
+void TSecurityManager::ValidateAttachChildAccount(TAccount* parentAccount, TAccount* childAccount)
+{
+    Impl_->ValidateAttachChildAccount(parentAccount, childAccount);
+}
+
+void TSecurityManager::SetAccountAllowChildrenLimitOvercommit(
+    TAccount* account,
+    bool overcommitAllowed)
+{
+    Impl_->SetAccountAllowChildrenLimitOvercommit(account, overcommitAllowed);
 }
 
 void TSecurityManager::SetUserBanned(TUser* user, bool banned)

@@ -24,6 +24,7 @@ DEFINE_ENUM(ELinuxErrorCode,
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<int> GetPidsByUid(int uid = -1);
+std::vector<int> GetPidsUnderParent(int targetPid);
 
 //! Gets the resident set size of a process.
 /*!
@@ -84,6 +85,7 @@ void SafeSetTtyWindowSize(int slaveFD, int height, int width);
 bool TryMakeNonblocking(int fd);
 void SafeMakeNonblocking(int fd);
 
+bool TrySetUid(int uid);
 void SafeSetUid(int uid);
 
 TString SafeGetUsernameByUid(int uid);

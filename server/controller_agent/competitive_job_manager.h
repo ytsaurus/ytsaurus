@@ -18,6 +18,7 @@ class TCompetitiveJobManager
 {
 public:
     TCompetitiveJobManager(
+        std::function<void(TJobId)> markJobHasCompetitorsCallback,
         std::function<void(TJobId, EAbortReason)> abortJobCallback,
         const NLogging::TLogger& logger,
         int maxSpeculativeJobCount);
@@ -68,6 +69,7 @@ private:
     };
 
     std::function<void(TJobId, EAbortReason)> AbortJobCallback_;
+    std::function<void(TJobId)> MarkJobHasCompetitorsCallback_;
     TProgressCounterPtr JobCounter_;
     const NLogging::TLogger& Logger;
 

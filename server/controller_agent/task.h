@@ -280,6 +280,8 @@ private:
     void UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics);
 
     void AbortJobViaScheduler(TJobId jobId, EAbortReason reason);
+
+    void MarkJobHasCompetitors(TJobId jobId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

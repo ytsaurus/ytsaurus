@@ -9,7 +9,7 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(ETimerState,
+DEFINE_ENUM(ETNonblockingBatchTimerState,
     (Initial)
     (Started)
     (Finished)
@@ -30,7 +30,7 @@ class TNonblockingBatch
 public:
     using TBatch = std::vector<T>;
 
-    TNonblockingBatch(size_t batchElements, TDuration batchDuration);
+    TNonblockingBatch(int maxBatchSize, TDuration batchDuration);
     ~TNonblockingBatch();
 
     template <class... U>
@@ -40,11 +40,12 @@ public:
     void Drop();
 
 private:
-    const size_t MaxBatchElements_;
+    using ETimerState = ETNonblockingBatchTimerState;
+
+    const int MaxBatchSize_;
     const TDuration BatchDuration_;
 
     TSpinLock SpinLock_;
-
     TBatch CurrentBatch_;
     ETimerState TimerState_ = ETimerState::Initial;
     std::queue<TBatch> Batches_;
@@ -57,7 +58,7 @@ private:
     bool IsFlushNeeded(TGuard<TSpinLock>& guard) const;
     void CheckFlush(TGuard<TSpinLock>& guard);
     void CheckReturn(TGuard<TSpinLock>& guard);
-    void OnBatchTimeout(ui64 gen);
+    void OnBatchTimeout(ui64 generation);
 };
 
 template <class T>

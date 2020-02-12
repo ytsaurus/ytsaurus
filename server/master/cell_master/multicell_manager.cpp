@@ -764,7 +764,7 @@ private:
 
     TFuture<void> OnIncomingMessageUpstreamSync(TCellId srcCellId)
     {
-        if (srcCellId == GetPrimaryCellId() || CellTagFromId(srcCellId) != EObjectType::ClusterCell) {
+        if (srcCellId == GetPrimaryCellId() || CellTagFromId(srcCellId) != EObjectType::MasterCell) {
             return VoidFuture;
         }
         return SyncWithPrimaryCell();

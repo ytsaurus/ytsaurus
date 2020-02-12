@@ -565,9 +565,6 @@ void ToProto(NProto::TOperation* protoOperation, const NApi::TOperation& operati
     if (operation.UnrecognizedSpec) {
         protoOperation->set_unrecognized_spec(operation.UnrecognizedSpec.GetData());
     }
-    if (operation.Annotations) {
-        protoOperation->set_annotations(operation.Annotations.GetData());
-    }
 
     if (operation.BriefProgress) {
         protoOperation->set_brief_progress(operation.BriefProgress.GetData());
@@ -650,11 +647,6 @@ void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOpera
         operation->UnrecognizedSpec = NYson::TYsonString(protoOperation.unrecognized_spec());
     } else {
         operation->UnrecognizedSpec = NYson::TYsonString();
-    }
-    if (protoOperation.has_annotations()) {
-        operation->Annotations = NYson::TYsonString(protoOperation.annotations());
-    } else {
-        operation->Annotations = NYson::TYsonString();
     }
 
     if (protoOperation.has_brief_progress()) {
@@ -759,6 +751,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.JobCompetitionId) {
         ToProto(protoJob->mutable_job_competition_id(), job.JobCompetitionId);
     }
+    if (job.HasCompetitors) {
+        protoJob->set_has_competitors(*job.HasCompetitors);
+    }
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -852,6 +847,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         FromProto(&job->JobCompetitionId, protoJob.job_competition_id());
     } else {
         job->JobCompetitionId = {};
+    }
+    if (protoJob.has_has_competitors()) {
+        job->HasCompetitors = protoJob.has_competitors();
+    } else {
+        job->HasCompetitors = false;
     }
 }
 

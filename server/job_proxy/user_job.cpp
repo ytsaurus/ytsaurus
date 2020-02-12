@@ -4,19 +4,22 @@
 #include "private.h"
 #include "job_detail.h"
 #include "stderr_writer.h"
+#include "user_job_synchronizer_service.h"
 #include "user_job_write_controller.h"
-#include "job_satellite_connection.h"
-#include "user_job_synchronizer.h"
 #include "environment.h"
 #include "core_processor_service.h"
 
 #include <yt/server/lib/job_proxy/config.h>
+
+#include <yt/server/lib/job_satellite_connection/job_satellite_connection.h>
 
 #include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
 #include <yt/server/lib/misc/public.h>
 
 #include <yt/server/lib/shell/shell_manager.h>
+
+#include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
@@ -99,6 +102,7 @@ using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NCGroup;
 using namespace NJobAgent;
+using namespace NJobSatelliteConnection;
 using namespace NChunkClient;
 using namespace NFileClient;
 using namespace NChunkClient::NProto;
@@ -109,6 +113,7 @@ using namespace NCoreDump;
 using namespace NExecAgent;
 using namespace NYPath;
 using namespace NJobTrackerClient;
+using namespace NUserJobSynchronizerClient;
 
 using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobSpec;

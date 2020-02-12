@@ -144,9 +144,6 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("default_list_operations_timeout", DefaultListOperationsTimeout)
         .Default(TDuration::Seconds(60));
 
-    RegisterParameter("use_tablet_service", UseTabletService)
-        .Default(true);
-
     RegisterParameter("cache_sticky_group_size_override", CacheStickyGroupSizeOverride)
         .Default();
 
@@ -161,11 +158,19 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(15));
     RegisterParameter("hive_sync_rpc_timeout", HiveSyncRpcTimeout)
         .Default(TDuration::Seconds(30));
+
     RegisterParameter("name", Name)
         .Default("default");
 
+    RegisterParameter("job_node_descriptor_cache", JobNodeDescriptorCache)
+        .DefaultNew();
+
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
+
+        JobNodeDescriptorCache->ExpireAfterAccessTime = TDuration::Minutes(5);
+        JobNodeDescriptorCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
+        JobNodeDescriptorCache->RefreshTime = TDuration::Minutes(1);
     });
 }
 

@@ -1,9 +1,13 @@
-from yt_env_setup import YTEnvSetup, patch_porto_env_only, get_porto_delta_node_config
+from yt_env_setup import (
+    YTEnvSetup, patch_porto_env_only, get_porto_delta_node_config, unix_only,
+    Restarter, SCHEDULERS_SERVICE,
+)
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.yson import *
-from yt.test_helpers import assert_items_equal, are_almost_equal
+from yt.test_helpers import are_almost_equal
+from yt.common import update
 
 from flaky import flaky
 
@@ -574,8 +578,6 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
 
         assert op.get_error().contains_code(1200)
 
-##################################################################
-
 @patch_porto_env_only(TestSandboxTmpfs)
 class TestSandboxTmpfsPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = get_porto_delta_node_config()
@@ -798,3 +800,599 @@ class TestNetworkIsolation(YTEnvSetup):
         assert hostname.startswith("slot_")
         release_breakpoint()
         op.track()
+
+##################################################################
+
+@unix_only
+class TestJobStderr(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 16
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
+            "map_operation_options": {
+                "job_splitter": {
+                    "min_job_time": 5000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                },
+            },
+        }
+    }
+
+    @authors("ignat")
+    def test_stderr_ok(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        command = """cat > /dev/null; echo stderr 1>&2; echo {operation='"'$YT_OPERATION_ID'"'}';'; echo {job_index=$YT_JOB_INDEX};"""
+
+        op = map(in_="//tmp/t1", out="//tmp/t2", command=command)
+
+        assert read_table("//tmp/t2") == [{"operation": op.id}, {"job_index": 0}]
+        check_all_stderrs(op, "stderr\n", 1)
+
+    @authors("ignat")
+    def test_stderr_failed(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        command = "echo stderr 1>&2 ; exit 1"
+
+        op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command=command)
+
+        with pytest.raises(YtError):
+            op.track()
+
+        check_all_stderrs(op, "stderr\n", 10)
+
+    @authors("ignat")
+    def test_stderr_limit(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; echo stderr 1>&2; exit 125",
+            spec={"max_failed_job_count": 5})
+
+        # If all jobs failed then operation is also failed
+        with pytest.raises(YtError):
+            op.track()
+
+        check_all_stderrs(op, "stderr\n", 5)
+
+    @authors("ignat")
+    def test_stderr_max_size(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"foo": "bar"})
+
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; python -c 'print \"head\" + \"0\" * 10000000; print \"1\" * 10000000 + \"tail\"' >&2;",
+            spec={"max_failed_job_count": 1, "mapper": {"max_stderr_size": 1000000}})
+
+        jobs_path = op.get_path() + "/jobs"
+        assert get(jobs_path + "/@count") == 1
+        stderr_path = "{0}/{1}/stderr".format(jobs_path, ls(jobs_path)[0])
+        stderr = read_file(stderr_path, verbose=False).strip()
+
+        # Stderr buffer size is equal to 1000000, we should add it to limit
+        assert len(stderr) <= 4000000
+        assert stderr[:1004] == "head" + "0" * 1000
+        assert stderr[-1004:] == "1" * 1000 + "tail"
+        assert "skipped" in stderr
+
+    @authors("prime")
+    def test_stderr_chunks_not_created_for_completed_jobs(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in xrange(100)])
+
+        # One job hangs, so that we can poke into transaction.
+        command = """
+                if [ "$YT_JOB_INDEX" -eq 1 ]; then
+                    sleep 1000
+                else
+                    cat > /dev/null; echo message > /dev/stderr
+                fi;"""
+
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=command,
+            spec={"job_count": 10, "max_stderr_count": 0})
+
+        def enough_jobs_completed():
+            if not exists(op.get_path() + "/@progress"):
+                return False
+            progress = get(op.get_path() + "/@progress")
+            if "jobs" in progress and "completed" in progress["jobs"]:
+                return progress["jobs"]["completed"]["total"] > 8
+            return False
+
+        wait(enough_jobs_completed)
+
+        stderr_tx = get(op.get_path() + "/@async_scheduler_transaction_id")
+        staged_objects = get("//sys/transactions/{0}/@staged_object_ids".format(stderr_tx))
+        assert sum(len(ids) for ids in staged_objects.values()) == 0, str(staged_objects)
+
+    @authors("ignat")
+    def test_stderr_of_failed_jobs(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"row_id": "row_" + str(i)} for i in xrange(20)])
+
+        command = with_breakpoint("""
+                BREAKPOINT;
+                IS_FAILING_JOB=$(($YT_JOB_INDEX>=19));
+                echo stderr 1>&2;
+                if [ $IS_FAILING_JOB -eq 1 ]; then
+                    if mkdir {lock_dir}; then
+                        exit 125;
+                    else
+                        exit 0
+                    fi;
+                else
+                    exit 0;
+                fi;"""
+                    .format(lock_dir=events_on_fs()._get_event_filename("lock_dir")))
+        op = map(
+            track=False,
+            label="stderr_of_failed_jobs",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=command,
+            spec={"max_failed_job_count": 1, "max_stderr_count": 10, "job_count": 20})
+
+        release_breakpoint()
+        with pytest.raises(YtError):
+            op.track()
+
+        # The default number of stderr is 10. We check that we have 11-st stderr of failed job,
+        # that is last one.
+        check_all_stderrs(op, "stderr\n", 11)
+
+    @authors("ignat")
+    def test_stderr_with_missing_tmp_quota(self):
+        create_account("test_account")
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"} for _ in xrange(5)])
+
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; echo 'stderr' >&2;",
+            spec={"max_failed_job_count": 1, "job_node_account": "test_account"})
+        check_all_stderrs(op, "stderr\n", 1)
+
+        multicell_sleep()
+        resource_usage = get("//sys/accounts/test_account/@resource_usage")
+        assert resource_usage["node_count"] >= 2
+        assert resource_usage["chunk_count"] >= 1
+        assert resource_usage["disk_space_per_medium"].get("default", 0) > 0
+
+        jobs = ls(op.get_path() + "/jobs")
+        get(op.get_path() + "/jobs/{}".format(jobs[0]))
+        get(op.get_path() + "/jobs/{}/stderr".format(jobs[0]))
+        recursive_resource_usage = get(op.get_path() + "/jobs/{0}/@recursive_resource_usage".format(jobs[0]))
+
+        assert recursive_resource_usage["chunk_count"] == resource_usage["chunk_count"]
+        assert recursive_resource_usage["disk_space_per_medium"]["default"] == \
+            resource_usage["disk_space_per_medium"]["default"]
+        assert recursive_resource_usage["node_count"] == resource_usage["node_count"]
+
+        set("//sys/accounts/test_account/@resource_limits/chunk_count", 0)
+        set("//sys/accounts/test_account/@resource_limits/node_count", 0)
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat > /dev/null; echo 'stderr' >&2;",
+            spec={"max_failed_job_count": 1, "job_node_account": "test_account"})
+        check_all_stderrs(op, "stderr\n", 0)
+
+class TestJobStderrMulticell(TestJobStderr):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+@patch_porto_env_only(TestJobStderr)
+class TestJobStderrPorto(YTEnvSetup):
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    USE_PORTO_FOR_SERVERS = True
+
+##################################################################
+
+class TestUserFiles(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 16
+    NUM_SCHEDULERS = 1
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
+            "map_operation_options": {
+                "job_splitter": {
+                    "min_job_time": 5000,
+                    "min_total_data_size": 1024,
+                    "update_period": 100,
+                    "candidate_percentile": 0.8,
+                    "max_jobs_per_split": 3,
+                },
+            },
+        }
+    }
+
+    @authors("ignat")
+    def test_file_with_integer_name(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"hello": "world"}])
+
+        file = "//tmp/1000"
+        create("file", file)
+        write_file(file, "{value=42};\n")
+
+        map(in_="//tmp/t_input",
+            out=["//tmp/t_output"],
+            command="cat 1000 >&2; cat",
+            file=[file],
+            verbose=True)
+
+        assert read_table("//tmp/t_output") == [{"hello": "world"}]
+
+    @authors("ignat")
+    def test_file_with_subdir(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"hello": "world"}])
+
+        file = "//tmp/test_file"
+        create("file", file)
+        write_file(file, "{value=42};\n")
+
+        map(in_="//tmp/t_input",
+            out=["//tmp/t_output"],
+            command="cat dir/my_file >&2; cat",
+            file=[to_yson_type("//tmp/test_file", attributes={"file_name": "dir/my_file"})],
+            verbose=True)
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/t_input",
+                out=["//tmp/t_output"],
+                command="cat dir/my_file >&2; cat",
+                file=[to_yson_type("//tmp/test_file", attributes={"file_name": "../dir/my_file"})],
+                spec={"max_failed_job_count": 1},
+                verbose=True)
+
+        assert read_table("//tmp/t_output") == [{"hello": "world"}]
+
+    @authors("levysotsky")
+    def test_unlinked_file(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+
+        write_table("//tmp/t_input", [{"hello": "world"}])
+
+        file = "//tmp/test_file"
+        create("file", file)
+        write_file(file, "{value=42};\n")
+        tx = start_transaction(timeout=30000)
+        file_id = get(file + "/@id")
+        assert lock(file, mode="snapshot", tx=tx)
+        remove(file)
+
+        map(in_="//tmp/t_input",
+            out=["//tmp/t_output"],
+            command="cat my_file; cat",
+            file=[to_yson_type("#" + file_id, attributes={"file_name": "my_file"})],
+            verbose=True)
+
+        with pytest.raises(YtError):
+            # TODO(levysotsky): Error is wrong.
+            # Instead of '#' + file it must be '#' + file_id.
+            map(in_="//tmp/t_input",
+                out=["//tmp/t_output"],
+                command="cat my_file; cat",
+                file=[to_yson_type("#" + file)],
+                spec={"max_failed_job_count": 1},
+                verbose=True)
+
+        assert read_table("//tmp/t_output") == [{"value": 42}, {"hello": "world"}]
+
+    @authors("levysotsky")
+    def test_file_names_priority(self):
+        create("table", "//tmp/input")
+        write_table("//tmp/input", {"foo": "bar"})
+        create("table", "//tmp/output")
+
+        file1 = "//tmp/file1"
+        file2 = "//tmp/file2"
+        file3 = "//tmp/file3"
+        for f in [file1, file2, file3]:
+            create("file", f)
+            write_file(f, "{{name=\"{}\"}};\n".format(f))
+        set(file2 + "/@file_name", "file2_name_in_attribute")
+        set(file3 + "/@file_name", "file3_name_in_attribute")
+
+        map(in_="//tmp/input",
+            out="//tmp/output",
+            command="cat > /dev/null; cat file1; cat file2_name_in_attribute; cat file3_name_in_path",
+            file=[file1, file2, to_yson_type(file3, attributes={"file_name": "file3_name_in_path"})])
+
+        assert read_table("//tmp/output") == [{"name": "//tmp/file1"}, {"name": "//tmp/file2"}, {"name": "//tmp/file3"}]
+
+    @authors("ignat")
+    @unix_only
+    def test_with_user_files(self):
+        create("table", "//tmp/input")
+        write_table("//tmp/input", {"foo": "bar"})
+
+        create("table", "//tmp/output")
+
+        file1 = "//tmp/some_file.txt"
+        file2 = "//tmp/renamed_file.txt"
+        file3 = "//tmp/link_file.txt"
+
+        create("file", file1)
+        create("file", file2)
+
+        write_file(file1, "{value=42};\n")
+        write_file(file2, "{a=b};\n")
+        link(file2, file3)
+
+        create("table", "//tmp/table_file")
+        write_table("//tmp/table_file", {"text": "info", "other": "trash"})
+
+        map(in_="//tmp/input",
+            out="//tmp/output",
+            command="cat > /dev/null; cat some_file.txt; cat my_file.txt; cat table_file;",
+            file=[file1, "<file_name=my_file.txt>" + file2, "<format=yson; columns=[text]>//tmp/table_file"])
+
+        assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}]
+
+        map(in_="//tmp/input",
+            out="//tmp/output",
+            command="cat > /dev/null; cat link_file.txt; cat my_file.txt;",
+            file=[file3, "<file_name=my_file.txt>" + file3])
+
+        assert read_table("//tmp/output") == [{"a": "b"}, {"a": "b"}]
+
+        with pytest.raises(YtError):
+            map(in_="//tmp/input",
+                out="//tmp/output",
+                command="cat",
+                file=["<format=invalid_format>//tmp/table_file"])
+
+        # missing format
+        with pytest.raises(YtError):
+            map(in_="//tmp/input",
+                out="//tmp/output",
+                command="cat",
+                file=["//tmp/table_file"])
+
+    @authors("ignat")
+    @unix_only
+    def test_empty_user_files(self):
+        create("table", "//tmp/input")
+        write_table("//tmp/input", {"foo": "bar"})
+
+        create("table", "//tmp/output")
+
+        file1 = "//tmp/empty_file.txt"
+        create("file", file1)
+
+        table_file = "//tmp/table_file"
+        create("table", table_file)
+
+        command = "cat > /dev/null; cat empty_file.txt; cat table_file"
+
+        map(in_="//tmp/input",
+            out="//tmp/output",
+            command=command,
+            file=[file1, "<format=yamr>" + table_file])
+
+        assert read_table("//tmp/output") == []
+
+    @authors("ignat")
+    @unix_only
+    def test_multi_chunk_user_files(self):
+        create("table", "//tmp/input")
+        write_table("//tmp/input", {"foo": "bar"})
+
+        create("table", "//tmp/output")
+
+        file1 = "//tmp/regular_file"
+        create("file", file1)
+        write_file(file1, "{value=42};\n")
+        set(file1 + "/@compression_codec", "lz4")
+        write_file("<append=true>" + file1, "{a=b};\n")
+
+        table_file = "//tmp/table_file"
+        create("table", table_file)
+        write_table(table_file, {"text": "info"})
+        set(table_file + "/@compression_codec", "snappy")
+        write_table("<append=true>" + table_file, {"text": "info"})
+
+        command = "cat > /dev/null; cat regular_file; cat table_file"
+
+        map(in_="//tmp/input",
+            out="//tmp/output",
+            command=command,
+            file=[file1, "<format=yson>" + table_file])
+
+        assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text": "info"}, {"text": "info"}]
+
+    @authors("ignat")
+    def test_erasure_user_files(self):
+        create("table", "//tmp/input")
+        write_table("//tmp/input", {"foo": "bar"})
+
+        create("table", "//tmp/output")
+
+        create("file", "//tmp/regular_file", attributes={"erasure_coded": "lrc_12_2_2"})
+        write_file("<append=true>//tmp/regular_file", "{value=42};\n")
+        write_file("<append=true>//tmp/regular_file", "{a=b};\n")
+
+        create("table", "//tmp/table_file", attributes={"erasure_codec": "reed_solomon_6_3"})
+        write_table("<append=true>//tmp/table_file", {"text1": "info1"})
+        write_table("<append=true>//tmp/table_file", {"text2": "info2"})
+
+        command = "cat > /dev/null; cat regular_file; cat table_file"
+
+        map(in_="//tmp/input",
+            out="//tmp/output",
+            command=command,
+            file=["//tmp/regular_file", "<format=yson>//tmp/table_file"])
+
+        assert read_table("//tmp/output") == [{"value": 42}, {"a": "b"}, {"text1": "info1"}, {"text2": "info2"}]
+
+class TestUserFilesMulticell(TestUserFiles):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+@patch_porto_env_only(TestUserFiles)
+class TestUserFilesPorto(YTEnvSetup):
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    USE_PORTO_FOR_SERVERS = True
+
+##################################################################
+
+class TestSecureVault(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    secure_vault = {
+        "int64": 42424243,
+        "uint64": YsonUint64(1234),
+        "string": "penguin",
+        "boolean": True,
+        "double": 3.14,
+        "composite": {"token1": "SeNsItIvE", "token2": "InFo"},
+    }
+
+    def run_map_with_secure_vault(self, spec=None):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+        merged_spec = {"secure_vault": self.secure_vault, "max_failed_job_count": 1}
+        if spec is not None:
+            merged_spec = update(merged_spec, spec)
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            spec=merged_spec,
+            command="""
+                echo {YT_SECURE_VAULT=$YT_SECURE_VAULT}\;;
+                echo {YT_SECURE_VAULT_int64=$YT_SECURE_VAULT_int64}\;;
+                echo {YT_SECURE_VAULT_uint64=$YT_SECURE_VAULT_uint64}\;;
+                echo {YT_SECURE_VAULT_string=$YT_SECURE_VAULT_string}\;;
+                echo {YT_SECURE_VAULT_boolean=$YT_SECURE_VAULT_boolean}\;;
+                echo {YT_SECURE_VAULT_double=$YT_SECURE_VAULT_double}\;;
+                echo {YT_SECURE_VAULT_composite=\\"$YT_SECURE_VAULT_composite\\"}\;;
+           """)
+        return op
+
+    def check_content(self, res):
+        assert len(res) == 7
+        assert res[0] == {"YT_SECURE_VAULT": self.secure_vault}
+        assert res[1] == {"YT_SECURE_VAULT_int64": self.secure_vault["int64"]}
+        assert res[2] == {"YT_SECURE_VAULT_uint64": self.secure_vault["uint64"]}
+        assert res[3] == {"YT_SECURE_VAULT_string": self.secure_vault["string"]}
+        # Boolean values are represented with 0/1.
+        assert res[4] == {"YT_SECURE_VAULT_boolean": 1}
+        assert res[5] == {"YT_SECURE_VAULT_double": self.secure_vault["double"]}
+        # Composite values are not exported as separate environment variables.
+        assert res[6] == {"YT_SECURE_VAULT_composite": ""}
+
+
+    @authors("ignat")
+    def test_secure_vault_not_visible(self):
+        op = self.run_map_with_secure_vault()
+        cypress_info = str(op.get_path() + "/@")
+        scheduler_info = str(get("//sys/scheduler/orchid/scheduler/operations/{0}".format(op.id)))
+        op.track()
+
+        # Check that secure environment variables is neither presented in the Cypress node of the
+        # operation nor in scheduler Orchid representation of the operation.
+        for info in [cypress_info, scheduler_info]:
+            for sensible_text in ["42424243", "SeNsItIvE", "InFo"]:
+                assert info.find(sensible_text) == -1
+
+    @authors("ignat")
+    def test_secure_vault_simple(self):
+        op = self.run_map_with_secure_vault()
+        op.track()
+        res = read_table("//tmp/t_out")
+        self.check_content(res)
+
+    @authors("ignat")
+    def test_secure_vault_with_revive(self):
+        op = self.run_map_with_secure_vault()
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+        op.track()
+        res = read_table("//tmp/t_out")
+        self.check_content(res)
+
+    @authors("ignat")
+    def test_secure_vault_with_revive_with_new_storage_scheme(self):
+        op = self.run_map_with_secure_vault(spec={"enable_compatible_storage_mode": True})
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+        op.track()
+        res = read_table("//tmp/t_out")
+        self.check_content(res)
+
+    @authors("ignat")
+    def test_allowed_variable_names(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", {"foo": "bar"})
+        create("table", "//tmp/t_out")
+        with pytest.raises(YtError):
+            map(track=False,
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"secure_vault": {"=_=": 42}},
+                command="cat")
+        with pytest.raises(YtError):
+            map(track=False,
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"secure_vault": {"x" * (2**16 + 1): 42}},
+                command="cat")
+
+##################################################################

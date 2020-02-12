@@ -58,7 +58,13 @@ bool TTentativeTreeEligibility::CanScheduleJob(
         return true;
     }
 
-    if (Disabled_ || IsTreeBanned(treeId)) {
+    if (Disabled_) {
+        YT_LOG_DEBUG("Cannot schedule job in tentative tree since tentative trees are disabled in task");
+        return false;
+    }
+
+    if (IsTreeBanned(treeId)) {
+        YT_LOG_DEBUG("Cannot schedule job in tentative tree since tree %Qv is banned for operation", treeId);
         return false;
     }
 
@@ -73,8 +79,7 @@ bool TTentativeTreeEligibility::CanScheduleJob(
 
     if (remainingSampleJobCount > 0 && runningJobCount >= remainingSampleJobCount)
     {
-        // Wait for a sample of jobs to finish before allowing the rest of the
-        // jobs to start.
+        YT_LOG_DEBUG("Cannot schedule job in tentative tree %Qv since we wait for a sample of jobs to finish before allowing the rest of the jobs to start", treeId);
         return false;
     }
 

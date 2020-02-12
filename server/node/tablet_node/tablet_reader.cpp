@@ -316,7 +316,7 @@ namespace {
 ISchemafulReaderPtr CreateSchemafulPartitionReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
-    TPartitionSnapshotPtr paritionSnapshot,
+    TPartitionSnapshotPtr partitionSnapshot,
     const TSharedRange<TKey>& keys,
     TTimestamp timestamp,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
@@ -337,7 +337,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
     };
 
     takeStores(tabletSnapshot->GetEdenStores());
-    takeStores(paritionSnapshot->Stores);
+    takeStores(partitionSnapshot->Stores);
 
     YT_LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %llx, WorkloadDescriptor: %v, "
         " ReadSessionId: %v, StoreIds: %v, StoreRanges: %v)",

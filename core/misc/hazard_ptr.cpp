@@ -56,13 +56,14 @@ public:
         }
     };
 
-    void Scan(TThreadState* threadState);
+    bool Scan(TThreadState* threadState);
     void DestroyThread(void* ptr);
 
-    friend void ScheduleObjectDeletion(void* ptr, TDeleter deleter);
-    friend void ScanDeleteList();
-
     static inline TThreadState* GetThreadState();
+    size_t GetThreadCount() const
+    {
+        return ThreadCount_.load(std::memory_order_relaxed);
+    }
 
 private:
     TThreadState* AllocateThread();
@@ -114,7 +115,7 @@ THazardPointerManager::~THazardPointerManager()
 
 THazardPointerManager::TThreadState* THazardPointerManager::GetThreadState()
 {
-    if (!ThreadState_) {
+    if (Y_UNLIKELY(!ThreadState_)) {
         ThreadState_ = HazardPointerManager.AllocateThread();
     }
 
@@ -137,7 +138,7 @@ THazardPointerManager::TThreadState* THazardPointerManager::AllocateThread()
     return threadState;
 }
 
-void THazardPointerManager::Scan(TThreadState* threadState)
+bool THazardPointerManager::Scan(TThreadState* threadState)
 {
     threadState->Scanning = true;
 
@@ -177,12 +178,14 @@ void THazardPointerManager::Scan(TThreadState* threadState)
             }));
     }
 
+    size_t pushedCount = 0;
     auto popCount = deleteList.size();
     while (popCount-- > 0) {
         auto item = std::move(deleteList.front());
         deleteList.pop();
         if (std::binary_search(protectedPointers.begin(), protectedPointers.end(), item.Ptr)) {
             deleteList.push(item);
+            ++pushedCount;
         } else {
             item.Deleter(item.Ptr);
         }
@@ -191,6 +194,9 @@ void THazardPointerManager::Scan(TThreadState* threadState)
     protectedPointers.clear();
 
     threadState->Scanning = false;
+
+    YT_VERIFY(pushedCount <= deleteList.size());
+    return pushedCount < deleteList.size();
 }
 
 void THazardPointerManager::DestroyThread(void* ptr)
@@ -227,20 +233,22 @@ void ScheduleObjectDeletion(void* ptr, TDeleter deleter)
         return;
     }
 
-    auto threadCount = HazardPointerManager.ThreadCount_.load();
+    auto threadCount = HazardPointerManager.GetThreadCount();
 
     while (threadState->DeleteList.size() >= 2 * threadCount) {
         HazardPointerManager.Scan(threadState);
     }
 }
 
-void ScanDeleteList()
+bool ScanDeleteList()
 {
     auto* threadState = HazardPointerManager.GetThreadState();
 
     YT_VERIFY(!threadState->Scanning);
 
-    HazardPointerManager.Scan(threadState);
+    bool hasNewPointers = HazardPointerManager.Scan(threadState);
+
+    return hasNewPointers || threadState->DeleteList.size() > HazardPointerManager.GetThreadCount();
 }
 
 /////////////////////////////////////////////////////////////////////////////

@@ -1,10 +1,16 @@
 import sys
 import os
 
-sys.path.insert(0, os.path.abspath('../../../python'))
-sys.path.append(os.path.abspath('.'))
+try:
+    import yatest.common as yatest_common
+except ImportError:
+    yatest_common = None
 
-pytest_plugins = "yt.test_runner.plugin"
+if yatest_common is None:
+    sys.path.insert(0, os.path.abspath('../../../python'))
+    sys.path.append(os.path.abspath('.'))
+
+    pytest_plugins = "yt.test_runner.plugin"
 
 def pytest_configure(config):
     for line in [

@@ -1971,6 +1971,9 @@ private:
         if (request->has_with_spec()) {
             options.WithSpec = request->with_spec();
         }
+        if (request->has_with_competitors()) {
+            options.WithCompetitors = request->with_competitors();
+        }
         if (request->has_job_competition_id()) {
             options.JobCompetitionId = FromProto<NJobTrackerClient::TJobId>(request->job_competition_id());
         }
@@ -1990,7 +1993,7 @@ private:
 
         context->SetRequestInfo(
             "OperationId: %v, Type: %v, State: %v, Address: %v, IncludeCypress: %v, "
-            "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v",
+            "IncludeControllerAgent: %v, IncludeArchive: %v, JobCompetitionId: %v, WithCompetitors: %v",
             operationId,
             options.Type,
             options.State,
@@ -1998,7 +2001,8 @@ private:
             options.IncludeCypress,
             options.IncludeControllerAgent,
             options.IncludeArchive,
-            options.JobCompetitionId);
+            options.JobCompetitionId,
+            options.WithCompetitors);
 
         CompleteCallWith(
             client,

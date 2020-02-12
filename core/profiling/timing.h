@@ -55,6 +55,9 @@ public:
     TDuration GetElapsedTime() const;
     TValue GetElapsedValue() const;
 
+    TCpuInstant GetStartCpuTime() const;
+    TCpuDuration GetElapsedCpuTime() const;
+
     void Start();
     void Stop();
     void Restart();

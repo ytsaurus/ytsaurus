@@ -906,6 +906,12 @@ private:
                 }
             }
 
+            // COMPAT(gritukan)
+            auto annotations = attributes.Find<IMapNodePtr>("annotations");
+            if (annotations) {
+                runtimeParameters->Annotations = annotations;
+            }
+
             auto operation = New<TOperation>(
                 operationId,
                 attributes.Get<EOperationType>("operation_type"),
@@ -913,7 +919,6 @@ private:
                 attributes.Get<TTransactionId>("user_transaction_id"),
                 spec,
                 specString,
-                attributes.Find<IMapNodePtr>("annotations"),
                 secureVault,
                 runtimeParameters,
                 Owner_->Bootstrap_->GetScheduler()->GetOperationBaseAcl(),
@@ -992,8 +997,7 @@ private:
 
             auto operations = FetchOperationsFromCypressForCleaner(
                 OperationIdsToArchive_,
-                createBatchRequest,
-                Owner_->Config_->OperationsCleaner->FetchBatchSize);
+                createBatchRequest);
 
             for (auto& operation : operations) {
                 operationsCleaner->SubmitForArchivation(std::move(operation));
@@ -1385,18 +1389,18 @@ private:
                 req->set_value(operation->BuildAlertsString().GetData());
             }
 
-            // Set annottaions.
-            if (operation->Annotations()) {
-                auto req = multisetReq->add_subrequests();
-                req->set_key("annotations");
-                req->set_value(ConvertToYsonString(operation->Annotations()).GetData());
-            }
-
             // Set erased trees.
             {
                 auto req = multisetReq->add_subrequests();
                 req->set_key("erased_trees");
                 req->set_value(ConvertToYsonString(operation->ErasedTrees()).GetData());
+            }
+
+            // Set runtime parameters.
+            {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("runtime_parameters");
+                req->set_value(ConvertToYsonString(operation->GetRuntimeParameters()).GetData());
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");

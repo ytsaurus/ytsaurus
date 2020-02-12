@@ -6,6 +6,8 @@
 
 #include <yt/server/lib/misc/config.h>
 
+#include <yt/server/lib/containers/config.h>
+
 #include <yt/ytlib/chunk_client/config.h>
 
 #include <yt/ytlib/table_client/config.h>
@@ -488,9 +490,8 @@ class TVolumeManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    NContainers::TPortoExecutorConfigPtr PortoExecutor;
     std::vector<TLayerLocationConfigPtr> LayerLocations;
-    TDuration PortoRetryTimeout;
-    TDuration PortoPollPeriod;
     double CacheCapacityFraction;
     int LayerImportConcurrency;
 
@@ -498,15 +499,10 @@ public:
 
     TVolumeManagerConfig()
     {
+        RegisterParameter("porto_executor", PortoExecutor)
+            .DefaultNew();
+
         RegisterParameter("layer_locations", LayerLocations);
-
-        RegisterParameter("porto_retry_timeout", PortoRetryTimeout)
-            .Default(TDuration::Seconds(1))
-            .GreaterThan(TDuration::Zero());
-
-        RegisterParameter("porto_poll_period", PortoPollPeriod)
-            .Default(TDuration::MilliSeconds(200))
-            .GreaterThan(TDuration::Zero());
 
         RegisterParameter("cache_capacity_fraction", CacheCapacityFraction)
             .Default(0.8)

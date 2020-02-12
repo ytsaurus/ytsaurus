@@ -55,7 +55,7 @@ DECLARE_REFCOUNTED_CLASS(TDistributedHydraManager)
 
 class TDistributedHydraManager
     : public THydraServiceBase
-    , public IHydraManager
+    , public IDistributedHydraManager
 {
 public:
     class TElectionCallbacks
@@ -143,7 +143,8 @@ public:
         TCellManagerPtr cellManager,
         IChangelogStoreFactoryPtr changelogStoreFactory,
         ISnapshotStorePtr snapshotStore,
-        const TDistributedHydraManagerOptions& options)
+        const TDistributedHydraManagerOptions& options,
+        const TDistributedHydraManagerDynamicOptions& dynamicOptions)
         : THydraServiceBase(
             controlInvoker,
             THydraServiceProxy::GetDescriptor(),
@@ -162,6 +163,7 @@ public:
         , ChangelogStoreFactory_(changelogStoreFactory)
         , SnapshotStore_(snapshotStore)
         , Options_(options)
+        , DynamicOptions_(dynamicOptions)
         , ElectionCallbacks_(New<TElectionCallbacks>(this))
         , Profiler(HydraProfiler.AddTags(Options_.ProfilingTagIds))
     {
@@ -192,6 +194,7 @@ public:
             .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Poke)
             .SetInvoker(DecoratedAutomaton_->GetDefaultGuardedUserInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonLeaderLease));
     }
 
     virtual void Initialize() override
@@ -475,6 +478,22 @@ public:
         return DecoratedAutomaton_->GetCurrentReign();
     }
 
+    virtual TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TGuard<TSpinLock> guard(DynamicOptionsLock_);
+        return DynamicOptions_;
+    }
+
+    virtual void SetDynamicOptions(const TDistributedHydraManagerDynamicOptions& options) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        TGuard<TSpinLock> guard(DynamicOptionsLock_);
+        DynamicOptions_ = options;
+    }
+
     DEFINE_SIGNAL(void(), StartLeading);
     DEFINE_SIGNAL(void(), LeaderRecoveryComplete);
     DEFINE_SIGNAL(void(), LeaderActive);
@@ -502,6 +521,9 @@ private:
     const IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     const ISnapshotStorePtr SnapshotStore_;
     const TDistributedHydraManagerOptions Options_;
+
+    TDistributedHydraManagerDynamicOptions DynamicOptions_;
+    TSpinLock DynamicOptionsLock_;
 
     const IElectionCallbacksPtr ElectionCallbacks_;
 
@@ -961,6 +983,41 @@ private:
             }));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NProto, AbandonLeaderLease)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto senderSegmentId = request->segment_id();
+        auto senderPeerId = request->peer_id();
+        context->SetRequestInfo("SegmentId: %v, PeerId: %v",
+            senderSegmentId,
+            senderPeerId);
+
+        auto currentSegmentId = DecoratedAutomaton_->GetAutomatonVersion().SegmentId;
+        auto lastLeadingSegmentId = DecoratedAutomaton_->GetLastLeadingSegmentId();
+
+        bool isLeading = false;
+        auto controlState = GetControlState();
+        if (controlState == EPeerState::Leading || controlState == EPeerState::LeaderRecovery) {
+            isLeading = true;
+        }
+
+        if (isLeading && senderSegmentId == currentSegmentId + 1) {
+            YT_LOG_INFO("Stopping leading (SenderSegmentId: %v, CurrentSegmentId: %v)",
+                senderSegmentId,
+                currentSegmentId);
+
+            ElectionManager_->Abandon();
+        }
+
+        context->SetResponseInfo("SegmentId: %v, LastLeadingSegmentId: %v",
+            currentSegmentId,
+            lastLeadingSegmentId);
+
+        response->set_last_leading_segment_id(lastLeadingSegmentId);
+        context->Reply();
+    }
+
     i64 GetElectionPriority()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1044,6 +1101,7 @@ private:
 
         YT_LOG_INFO("Initializing persistent stores");
 
+        auto backoffTime = Config_->MinPersistentStoreInitializationBackoffTime;
         while (true) {
             try {
                 auto asyncMaxSnapshotId = SnapshotStore_->GetLatestSnapshotId();
@@ -1071,7 +1129,10 @@ private:
                 break;
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Error initializing persistent stores, backing off and retrying");
-                TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
+                TDelayedExecutor::WaitForDuration(backoffTime);
+                backoffTime = std::min(
+                    backoffTime * Config_->PersistentStoreInitializationBackoffTimeMultiplier,
+                    Config_->MaxPersistentStoreInitializationBackoffTime);
             }
         }
 
@@ -1301,6 +1362,7 @@ private:
             epochContext->LeaderRecovery = New<TLeaderRecovery>(
                 Config_,
                 Options_,
+                GetDynamicOptions(),
                 CellManager_,
                 DecoratedAutomaton_,
                 ChangelogStore_,
@@ -1587,6 +1649,7 @@ private:
         epochContext->FollowerRecovery = New<TFollowerRecovery>(
             Config_,
             Options_,
+            GetDynamicOptions(),
             CellManager_,
             DecoratedAutomaton_,
             ChangelogStore_,
@@ -1921,7 +1984,7 @@ DEFINE_REFCOUNTED_TYPE(TDistributedHydraManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IHydraManagerPtr CreateDistributedHydraManager(
+IDistributedHydraManagerPtr CreateDistributedHydraManager(
     TDistributedHydraManagerConfigPtr config,
     IInvokerPtr controlInvoker,
     IInvokerPtr automatonInvoker,
@@ -1931,7 +1994,8 @@ IHydraManagerPtr CreateDistributedHydraManager(
     TCellManagerPtr cellManager,
     IChangelogStoreFactoryPtr changelogStoreFactory,
     ISnapshotStorePtr snapshotStore,
-    const TDistributedHydraManagerOptions& options)
+    const TDistributedHydraManagerOptions& options,
+    const TDistributedHydraManagerDynamicOptions& dynamicOptions)
 {
     YT_VERIFY(config);
     YT_VERIFY(controlInvoker);
@@ -1953,7 +2017,8 @@ IHydraManagerPtr CreateDistributedHydraManager(
         cellManager,
         changelogStoreFactory,
         snapshotStore,
-        options);
+        options,
+        dynamicOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

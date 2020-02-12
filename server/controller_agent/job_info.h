@@ -49,6 +49,7 @@ struct TJobInfoBase
     NYson::TYsonString StatisticsYson;
     EJobPhase Phase = EJobPhase::Missing;
     TJobId JobCompetitionId;
+    bool HasCompetitors = false;
 
     virtual void Persist(const TPersistenceContext& context);
 };

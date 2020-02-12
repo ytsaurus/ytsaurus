@@ -28,7 +28,6 @@
 #include <yt/ytlib/chunk_client/key_set.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
-#include <yt/ytlib/job_tracker_client/helpers.h>
 #include <yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/ytlib/table_client/config.h>

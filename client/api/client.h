@@ -351,7 +351,7 @@ struct TTransactionStartOptions
     //! Only for master transactions.
     //! Indicates the master cell the transaction will be initially started at and controlled by
     //! (primary cell by default).
-    std::optional<NObjectClient::TCellTag> CoordinatorMasterCellTag;
+    NObjectClient::TCellTag CoordinatorMasterCellTag = NObjectClient::InvalidCellTag;
 
     //! Only for master transactions.
     //! Indicates the cells the transaction will be replicated to (all by default).
@@ -884,6 +884,7 @@ struct TListJobsOptions
     std::optional<bool> WithStderr;
     std::optional<bool> WithFailContext;
     std::optional<bool> WithSpec;
+    std::optional<bool> WithCompetitors;
 
     EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;
@@ -979,7 +980,6 @@ struct TOperation
     NYson::TYsonString Spec;
     NYson::TYsonString FullSpec;
     NYson::TYsonString UnrecognizedSpec;
-    NYson::TYsonString Annotations;
 
     NYson::TYsonString BriefProgress;
     NYson::TYsonString Progress;
@@ -1021,6 +1021,7 @@ struct TJob
     std::optional<ui64> StderrSize;
     std::optional<ui64> FailContextSize;
     std::optional<bool> HasSpec;
+    std::optional<bool> HasCompetitors;
     NJobTrackerClient::TJobId JobCompetitionId;
     NYson::TYsonString Error;
     NYson::TYsonString BriefStatistics;

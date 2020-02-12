@@ -330,7 +330,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        for (const auto* replica : table->Replicas()) {
+        for (const auto* replica : GetValuesSortedByKey(table->Replicas())) {
             if (replica->GetClusterName() == clusterName &&
                 replica->GetReplicaPath() == replicaPath)
             {
@@ -1019,9 +1019,9 @@ public:
                         state);
                 }
 
-                for (const auto& pair : tablet->Replicas()) {
-                    const auto* replica = pair.first;
-                    const auto& replicaInfo = pair.second;
+                for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
+                    const auto* replica = it->first;
+                    const auto& replicaInfo = it->second;
                     if (replica->TransitioningTablets().count(tablet) > 0) {
                         THROW_ERROR_EXCEPTION("Cannot unmount tablet %v since replica %v is in %Qlv state",
                             tablet->GetId(),
@@ -1493,7 +1493,7 @@ public:
         if (table->GetType() == EObjectType::ReplicatedTable) {
             auto* replicatedTable = table->As<TReplicatedTableNode>();
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            for (auto* replica : replicatedTable->Replicas()) {
+            for (auto* replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                 replica->SetTable(nullptr);
                 replica->TransitioningTablets().clear();
                 objectManager->UnrefObject(replica);
@@ -1767,7 +1767,7 @@ public:
 
             YT_VERIFY(mode == ENodeCloneMode::Copy);
 
-            for (const auto* replica : replicatedSourceTable->Replicas()) {
+            for (const auto* replica : GetValuesSortedByKey(replicatedSourceTable->Replicas())) {
                 std::vector<i64> currentReplicationRowIndexes;
 
                 for (int tabletIndex = 0; tabletIndex < static_cast<int>(sourceTablets.size()); ++tabletIndex) {
@@ -3261,7 +3261,7 @@ private:
 
             if (table->IsReplicated()) {
                 const auto* replicatedTable = table->As<TReplicatedTableNode>();
-                for (auto* replica : replicatedTable->Replicas()) {
+                for (auto* replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                     YT_VERIFY(newTablet->Replicas().emplace(replica, TTableReplicaInfo()).second);
                 }
             }
@@ -4697,9 +4697,9 @@ private:
         YT_VERIFY(cell->Tablets().erase(tablet) == 1);
         objectManager->UnrefObject(cell);
 
-        for (auto& pair : tablet->Replicas()) {
-            auto* replica = pair.first;
-            auto& replicaInfo = pair.second;
+        for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
+            auto* replica = it->first;
+            auto& replicaInfo = it->second;
             if (replica->TransitioningTablets().erase(tablet) == 1) {
                 YT_LOG_ALERT_UNLESS(IsRecovery(), "Table replica is still transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v)",
                     tablet->GetTable()->GetId(),
@@ -5472,9 +5472,9 @@ private:
         auto* mailbox = hiveManager->GetMailbox(cell->GetId());
         hiveManager->PostMessage(mailbox, request);
 
-        for (auto& pair : tablet->Replicas()) {
-            auto* replica = pair.first;
-            auto& replicaInfo = pair.second;
+        for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
+            auto* replica = it->first;
+            auto& replicaInfo = it->second;
             if (replica->TransitioningTablets().count(tablet) > 0) {
                 StopReplicaTransition(tablet, replica, &replicaInfo, ETableReplicaState::None);
             }

@@ -1091,3 +1091,46 @@ done
 
 class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+##################################################################
+
+class TestMaxTotalSliceCount(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "max_total_slice_count": 3,
+        }
+    }
+
+    @authors("ignat")
+    @unix_only
+    def test_hit_limit(self):
+        create("table", "//tmp/t_primary")
+        write_table("//tmp/t_primary", [
+            {"key": 0},
+            {"key": 10}], sorted_by=['key'])
+
+        create("table", "//tmp/t_foreign")
+        write_table("<append=true; sorted_by=[key]>//tmp/t_foreign", [{"key": 0}, {"key": 1}, {"key": 2}])
+        write_table("<append=true; sorted_by=[key]>//tmp/t_foreign", [{"key": 3}, {"key": 4}, {"key": 5}])
+        write_table("<append=true; sorted_by=[key]>//tmp/t_foreign", [{"key": 6}, {"key": 7}, {"key": 8}])
+
+        create("table", "//tmp/t_out")
+        try:
+            join_reduce(
+                in_=["//tmp/t_primary", "<foreign=true>//tmp/t_foreign"],
+                out="//tmp/t_out",
+                join_by=["key"],
+                command="cat > /dev/null")
+        except YtError as err:
+            # TODO(bidzilya): check error code here when it is possible.
+            # assert err.contains_code(20000)
+            pass
+        else:
+            assert False, "Did not throw!"
+
+##################################################################
+

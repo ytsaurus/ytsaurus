@@ -111,8 +111,6 @@ public:
     TDuration DefaultGetJobTimeout;
     TDuration DefaultListOperationsTimeout;
 
-    bool UseTabletService;
-
     std::optional<int> CacheStickyGroupSizeOverride;
 
     TDuration IdleChannelTtl;
@@ -124,6 +122,8 @@ public:
 
     //! Is visible in profiling as tag `connection_name`.
     TString Name;
+
+    TAsyncExpiringCacheConfigPtr JobNodeDescriptorCache;
 
     TConnectionConfig();
 };

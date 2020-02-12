@@ -179,19 +179,12 @@ class TestJournalsChangeMedia(YTEnvSetup):
         create("journal", "//tmp/j1")
         write_journal("//tmp/j1", self.DATA, journal_writer={"ignore_closing": True})
 
+        assert not get("//tmp/j1/@sealed")
+        chunk_id = get_singular_chunk_id("//tmp/j1")
+        assert not get("#{0}/@sealed".format(chunk_id))
+        node_to_patch = str(get("#{0}/@stored_replicas".format(chunk_id))[0])
+
         with Restarter(self.Env, NODES_SERVICE):
-            assert not get("//tmp/j1/@sealed")
-
-            chunk_ids = get("//tmp/j1/@chunk_ids")
-            unsealed_chunk_id = None
-            for chunk_id in chunk_ids:
-                if not get("#{0}/@sealed".format(chunk_id)):
-                    unsealed_chunk_id = chunk_id
-                    break
-            assert unsealed_chunk_id is not None
-
-            node_to_patch = str(get("#{0}/@stored_replicas".format(unsealed_chunk_id))[0])
-
             create_medium("ssd")
 
             patched_node_config = False

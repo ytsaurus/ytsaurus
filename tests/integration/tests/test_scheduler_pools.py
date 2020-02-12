@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, Restarter, MASTER_CELL_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 from yt_commands import *
 
 
@@ -250,7 +250,6 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
     def test_standard_move_of_pool_trees_is_forbidden2(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool_tree("another_tree", wait_for_orchid=False)
-        create_pool("nirvana", pool_tree="another_tree")
 
         with pytest.raises(YtError):
             move("//sys/pool_trees/my_tree", "//sys/pool_trees/another_tree/nirvana")
@@ -378,7 +377,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana")
 
         build_snapshot(cell_id=None)
-        with Restarter(self.Env, MASTER_CELL_SERVICE):
+        with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
         assert get("//sys/pool_trees") == {
@@ -398,7 +397,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
                 break
 
         build_snapshot(cell_id=None)
-        with Restarter(self.Env, MASTER_CELL_SERVICE):
+        with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
     def test_validation_works_after_load_from_snapshot(self):
@@ -407,7 +406,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana")
 
         build_snapshot(cell_id=None)
-        with Restarter(self.Env, MASTER_CELL_SERVICE):
+        with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
         with pytest.raises(YtError):
@@ -695,7 +694,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/@some_unknown_attribute", "xxx")
 
         build_snapshot(cell_id=None)
-        with Restarter(self.Env, MASTER_CELL_SERVICE):
+        with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
         assert get("//sys/pool_trees/my_tree/@default_parent_pool") == "research"

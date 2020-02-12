@@ -171,6 +171,11 @@ void TLogFileReader::OnTermination()
     DoReadLog();
 }
 
+i64 TLogFileReader::GetTotalBytesRead() const
+{
+    return TotalBytesRead_;
+}
+
 void TLogFileReader::DoReadLog()
 {
     YT_LOG_INFO("Reading started");
@@ -197,6 +202,7 @@ void TLogFileReader::DoOpenLogFile()
         TFileStat fstat(file.GetHandle());
         YT_LOG_INFO("Log is not open; trying to open (Inode: %v)", fstat.INode);
         Log_ = TUnbufferedFileInput(file);
+        FileOffset_ = 0;
         YT_LOG_INFO("File opened");
     }
 }
@@ -235,6 +241,7 @@ void TLogFileReader::DoReadBuffer()
             }
         }
         FileOffset_ += bytesRead;
+        TotalBytesRead_ += bytesRead;
     }
 }
 
