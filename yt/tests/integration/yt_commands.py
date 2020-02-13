@@ -135,7 +135,11 @@ def init_drivers(clusters):
 
             # Setup driver logging for all instances in the environment as in the primary cluster.
             if instance._cluster_name == "primary":
-                set_environment_driver_logging_config(instance.driver_logging_config, instance.driver_backend)
+                # XXX(max42): remove this when Python sync is over.
+                try:
+                    set_environment_driver_logging_config(instance.driver_logging_config, instance.driver_backend)
+                except TypeError:
+                    set_environment_driver_logging_config(instance.driver_logging_config)
 
             secondary_drivers = []
             for secondary_driver_config in secondary_driver_configs:
