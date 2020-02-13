@@ -262,6 +262,11 @@ class TestPoolMetrics(YTEnvSetup):
                     return False
             return metric_delta.get("parent", verbose=True) == metric_delta.get(child, verbose=True)
 
+        # TODO(eshcherbin): This is used for flap diagnostics. Remove when the test is fixed.
+        time.sleep(2)
+        for pool in ["parent", "child1", "child2", "child3"]:
+            total_time_delta.update().get(pool, verbose=True)
+
         # NB: profiling is built asynchronously in separate thread and can contain non-consistent information.
         wait(lambda: check_metrics(total_time_operation_completed_delta, "child1"))
         wait(lambda: check_metrics(total_time_operation_failed_delta, "child2"))
