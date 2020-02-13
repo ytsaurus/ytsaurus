@@ -4,13 +4,19 @@ from yt.environment import YTInstance, init_operation_archive, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.environment.default_configs import get_dynamic_master_config
-from yt.environment.helpers import (
-    Restarter,
-    SCHEDULERS_SERVICE,
-    CONTROLLER_AGENTS_SERVICE,
-    NODES_SERVICE,
-    MASTERS_SERVICE,
-)
+
+try:
+    from yt.environment.helpers import (
+        Restarter,
+        SCHEDULERS_SERVICE,
+        CONTROLLER_AGENTS_SERVICE,
+        NODES_SERVICE,
+        MASTERS_SERVICE,
+    )
+except ImportError:
+    # Let's hope we won't need Restarter :(
+    pass
+
 from yt.test_helpers import wait, WaitFailed
 from yt.common import makedirp, YtError, YtResponseError, format_error, update_inplace
 import yt.logger
