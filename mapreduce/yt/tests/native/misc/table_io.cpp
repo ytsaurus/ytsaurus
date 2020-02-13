@@ -1893,6 +1893,139 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
         }
     }
 
+    Y_UNIT_TEST(WithOffset)
+    {
+        const std::vector<TString> testDataParts = {
+            TString(1024 * 1024 * 4, 'a'),
+            TString(1024 * 1024 * 4, 'b'),
+            TString(1024 * 1024 * 4, 'c'),
+            TString(1027, 'd'),
+        };
+
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath(workingDir + "/table").Schema(TTableSchema()
+                                                             .AddColumn("filename", VT_STRING, SO_ASCENDING)
+                                                             .AddColumn("part_index", VT_INT64, SO_ASCENDING)
+                                                             .AddColumn("data", VT_STRING)));
+
+            for (size_t i = 0; i != testDataParts.size(); ++i) {
+                TNode row;
+                row["filename"] = "myfile_big";
+                row["part_index"] = static_cast<i64>(i);
+                row["data"] = testDataParts[i];
+                writer->AddRow(row);
+            };
+
+            {
+                TNode row;
+                row["filename"] = "myfile_small";
+                row["part_index"] = 0;
+                row["data"] = "small";
+                writer->AddRow(row);
+            }
+
+            writer->Finish();
+        }
+
+        {
+            i64 offset = 3;
+            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_small"},
+                TBlobTableReaderOptions().Offset(offset));
+            UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), /*sma*/"ll");
+        }
+
+        {
+            i64 offset = 1e7;
+            TString expected;
+            for (const auto& part : testDataParts) {
+                expected += part;
+            }
+            expected = expected.substr(offset);
+            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_big"},
+                TBlobTableReaderOptions().Offset(offset));
+            UNIT_ASSERT_EQUAL(reader->ReadAll(), expected);
+        }
+    }
+
+    Y_UNIT_TEST(WithAbortableHttpResponse)
+    {
+        Cout << TConfig::Get()->ReadRetryCount << Endl;
+
+        TConfig::Get()->UseAbortableResponse = true;
+        const std::vector<TString> testDataParts = {
+            TString(1024 * 1024 * 4, 'a'),
+            TString(1024 * 1024 * 4, 'b'),
+            TString(1024 * 1024 * 4, 'c'),
+            TString(1027, 'd'),
+        };
+
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(
+                TRichYPath(workingDir + "/table").Schema(TTableSchema()
+                                                             .AddColumn("filename", VT_STRING, SO_ASCENDING)
+                                                             .AddColumn("part_index", VT_INT64, SO_ASCENDING)
+                                                             .AddColumn("data", VT_STRING)));
+
+            for (size_t i = 0; i != testDataParts.size(); ++i) {
+                TNode row;
+                row["filename"] = "myfile_big";
+                row["part_index"] = static_cast<i64>(i);
+                row["data"] = testDataParts[i];
+                writer->AddRow(row);
+            };
+
+            {
+                TNode row;
+                row["filename"] = "myfile_small";
+                row["part_index"] = 0;
+                row["data"] = "small";
+                writer->AddRow(row);
+            }
+
+            writer->Finish();
+        }
+
+        {
+            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_small"});
+            int n = 3;
+            TString buf;
+            buf.resize(n);
+            UNIT_ASSERT_VALUES_EQUAL(reader->Read(buf.Detach(), n), n);
+            UNIT_ASSERT_VALUES_EQUAL(buf, "sma");
+            TAbortableHttpResponse::AbortAll("/read_blob_table");
+            UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "ll");
+        }
+
+        {
+            TString expected;
+            for (const auto& part : testDataParts) {
+                expected += part;
+            }
+            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_big"});
+            int firstPartSize = 1e7;
+            TString firstPart;
+            firstPart.resize(firstPartSize);
+            int currentSize = 0;
+            while (currentSize != firstPartSize) {
+                currentSize += reader->Read(firstPart.Detach() + currentSize, firstPartSize - currentSize);
+            }
+
+            TAbortableHttpResponse::AbortAll("/read_blob_table");
+
+            auto secondPart = reader->ReadAll();
+            UNIT_ASSERT_EQUAL(firstPart + secondPart, expected);
+        }
+    }
+
     Y_UNIT_TEST(WrongPartSize)
     {
         const std::vector<TString> testDataParts = {

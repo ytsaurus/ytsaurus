@@ -169,9 +169,16 @@ THolder<THttpRequest> TBlobTableReader::CreateRequest(const TAuth& auth, const T
     header.AddTransactionId(transactionId);
     header.SetOutputFormat(TMaybe<TFormat>()); // Binary format
 
-    const ui64 startPartIndex = readBytes / Options_.PartSize_;
-    const ui64 skipBytes = readBytes - Options_.PartSize_ * startPartIndex;
-    TNode params = PathToParamNode(TRichYPath(Path_).AddRange(TReadRange().Exact(TReadLimit().Key(Key_))));
+    const ui64 currentOffset = Options_.Offset_ + readBytes;
+    const i64 startPartIndex = currentOffset / Options_.PartSize_;
+    const ui64 skipBytes = currentOffset - Options_.PartSize_ * startPartIndex;
+    auto lowerLimitKey = Key_;
+    lowerLimitKey.Parts_.push_back(startPartIndex);
+    auto upperLimitKey = Key_;
+    upperLimitKey.Parts_.push_back(std::numeric_limits<i64>::max());
+    TNode params = PathToParamNode(TRichYPath(Path_).AddRange(TReadRange()
+        .LowerLimit(TReadLimit().Key(lowerLimitKey))
+        .UpperLimit(TReadLimit().Key(upperLimitKey))));
     params["start_part_index"] = TNode(startPartIndex);
     params["offset"] = skipBytes;
     if (Options_.PartIndexColumnName_) {
