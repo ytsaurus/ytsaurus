@@ -619,7 +619,7 @@ class _MultilayerPerceptronParams(
     HasTol,
     HasStepSize,
     HasSolver,
-    HasBlockSize
+    HasBlockSize,
 ):
     layers: Param[List[int]]
     solver: Param[str]
