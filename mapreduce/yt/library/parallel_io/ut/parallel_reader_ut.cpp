@@ -22,6 +22,7 @@ using namespace NYT::NTesting;
     UNIT_TEST(RangesSeveralTables); \
     UNIT_TEST(NetworkProblemsFullOutage); \
     UNIT_TEST(NetworkProblemsRetriableOutage); \
+    UNIT_TEST(WithColumnSelector); \
     UNIT_TEST_SUITE_END()
 
 bool operator==(const TTestMessage& left, const TTestMessage& right)
@@ -58,6 +59,7 @@ public:
         TestReader(
             "//testing/table",
             rows,
+            rows,
             /* ranges */ {{0, rowCount}},
             TParallelTableReaderOptions()
                 .Ordered(Ordered)
@@ -69,6 +71,7 @@ public:
     {
         TestReader(
             "//testing/table",
+            TVector<TNode>{},
             TVector<TNode>{},
             /* ranges */ {{0,0}},
             TParallelTableReaderOptions()
@@ -86,6 +89,7 @@ public:
         };
         TestReader(
             "//testing/table",
+            rows,
             rows,
             /* ranges */ {{0, rows.size()}},
             TParallelTableReaderOptions()
@@ -118,6 +122,29 @@ public:
     void NetworkProblemsRetriableOutage()
     {
         TestWithOutage(3, 2);
+    }
+
+    void WithColumnSelector() {
+        TVector<TNode> rows{
+            TNode()("x", 1)("y", 4)("z", 7),
+            TNode()("x", 2)("y", 5)("z", 8),
+            TNode()("x", 3)("y", 6)("z", 9),
+        };
+
+        TVector<TNode> correctResult{
+            TNode()("x", 1)("z", 7),
+            TNode()("x", 2)("z", 8),
+            TNode()("x", 3)("z", 9),
+        };
+
+        auto client = CreateTestClient();
+        auto path = TRichYPath("//testing/table").Columns({"x", "z"});
+        TestReader(
+            path,
+            rows,
+            correctResult,
+            {{0, rows.size()}},
+            TParallelTableReaderOptions().Ordered(Ordered));
     }
 
 private:
@@ -176,6 +203,7 @@ private:
     void TestReader(
         TVector<TRichYPath> paths,
         const TVector<TVector<T>>& rows,
+        const TVector<TVector<T>>& expectedRows,
         const TVector<std::pair<size_t, size_t>>& ranges,
         const TParallelTableReaderOptions& options)
     {
@@ -207,10 +235,9 @@ private:
 
         auto resultIt = result.begin();
         for (size_t tableIndex = 0; tableIndex != paths.size(); ++tableIndex) {
-            const auto& tableRows = rows[tableIndex];
+            const auto& tableRows = expectedRows[tableIndex];
             for (const auto& range : actualRanges) {
                 for (size_t rowIndex = range.first; rowIndex != range.second; ++rowIndex) {
-                    LOG_DEBUG("tableIdx = %d, rowIdx = %d", tableIndex, rowIndex);
                     UNIT_ASSERT_VALUES_EQUAL(resultIt->TableIndex, tableIndex);
                     UNIT_ASSERT_VALUES_EQUAL(resultIt->RowIndex, rowIndex);
                     UNIT_ASSERT_VALUES_EQUAL(resultIt->Row, tableRows[rowIndex]);
@@ -225,10 +252,11 @@ private:
     void TestReader(
         const TRichYPath& paths,
         const TVector<T>& rows,
+        const TVector<T>& expectedRows,
         const TVector<std::pair<size_t, size_t>>& ranges,
         const TParallelTableReaderOptions& options)
     {
-        TestReader<T>(TVector<TRichYPath>{paths}, TVector<TVector<T>>{rows}, ranges, options);
+        TestReader<T>(TVector<TRichYPath>{paths}, TVector<TVector<T>>{rows}, TVector<TVector<T>>{expectedRows}, ranges, options);
     }
 
     void TestRanges(int tableCount)
@@ -253,6 +281,7 @@ private:
         TestReader(
             paths,
             writtenRows,
+            writtenRows,
             ranges,
             TParallelTableReaderOptions()
                 .Ordered(Ordered)
@@ -276,6 +305,7 @@ private:
                 .Schema(TTableSchema()
                     .AddColumn(TColumnSchema().Name("x").Type(EValueType::VT_UINT64))
                     .AddColumn(TColumnSchema().Name("y").Type(EValueType::VT_UINT64))),
+            rows,
             rows,
             /* ranges */ {{0, rowCount}},
             TParallelTableReaderOptions()

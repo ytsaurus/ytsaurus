@@ -616,6 +616,11 @@ TTableReaderPtr<T> CreateParallelTableReader(
                                 .LowerLimit(TReadLimit().RowIndex(0))
                                 .UpperLimit(TReadLimit().RowIndex(rowCount)));
                     });
+            } else {
+                for (const auto& range : path.Ranges_) {
+                    Y_ENSURE(range.LowerLimit_.RowIndex_.Defined(), "Lower limit must be specified as row index");
+                    Y_ENSURE(range.UpperLimit_.RowIndex_.Defined(), "Upper limit must be specified as row index");
+                }
             }
         }
         batchRequest->ExecuteBatch();
@@ -640,7 +645,45 @@ TTableReaderPtr<T> CreateParallelTableReader(
     rangeReaderOptions.Config_ = options.Config_;
 
     Y_ENSURE_EX(options.ThreadCount_ >= 1, TApiUsageError() << "ThreadCount can not be zero");
-    auto rangeSize = options.BufferedRowCountLimit_ / options.ThreadCount_;
+
+    i64 memoryPerRow = 1;
+    TVector<TRichYPath> pathsForColumnStatistics;
+
+    auto batchRequest = client->CreateBatchRequest();
+    for (const auto& path : rangeReaderPaths) {
+        if (path.Columns_) {
+            pathsForColumnStatistics.push_back(path);
+        } else {
+            batchRequest->Get(path.Path_ + "/@data_weight").Subscribe([&] (const NThreading::TFuture<TNode>& future) {
+                auto dataWeight = future.GetValueSync().AsInt64();
+                auto rowCount = 1;
+                for (const auto& range : path.Ranges_) {
+                    rowCount += *range.UpperLimit_.RowIndex_ - *range.LowerLimit_.RowIndex_;
+                }
+                memoryPerRow += dataWeight / rowCount;
+            });
+        }
+    }
+    batchRequest->ExecuteBatch();
+
+    if (!pathsForColumnStatistics.empty()) {
+        auto columnarStatistics = rangeReaderClient->GetTableColumnarStatistics(pathsForColumnStatistics);
+        for (size_t i = 0; i < columnarStatistics.size(); ++i) {
+            auto dataWeight = columnarStatistics[i].LegacyChunksDataWeight;
+            for (const auto& [columnName, columnWeight] : columnarStatistics[i].ColumnDataWeight) {
+                dataWeight += columnWeight;
+            }
+            auto rowCount = 1;
+            for (const auto& range : pathsForColumnStatistics[i].Ranges_) {
+                rowCount += *range.UpperLimit_.RowIndex_ - *range.LowerLimit_.RowIndex_;
+            }
+            memoryPerRow += dataWeight / rowCount;
+        }
+    }
+
+    ui64 rangeSize = Min(options.MemoryLimit_ / memoryPerRow, options.BufferedRowCountLimit_);
+    rangeSize /= options.ThreadCount_;
+    rangeSize += 1;
     auto factory = ::MakeIntrusive<NDetail::TEqualRangeTableReaderFactory<T>>(
         std::move(rangeReaderClient),
         std::move(rangeReaderPaths),
