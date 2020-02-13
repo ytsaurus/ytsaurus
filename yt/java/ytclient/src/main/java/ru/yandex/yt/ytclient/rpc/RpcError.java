@@ -13,12 +13,27 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
 public class RpcError extends RuntimeException {
     private final TError error;
 
-    RpcError(TError error) {
+    public RpcError(TError error) {
         super(errorMessage(error));
         this.error = error;
         for (TError innerError : error.getInnerErrorsList()) {
             addSuppressed(new RpcError(innerError));
         }
+    }
+
+    public static boolean isUnrecoverable(Throwable e) {
+        return !(e instanceof RpcError) || ((RpcError) e).isUnrecoverable();
+    }
+
+    public boolean isUnrecoverable() {
+        int code = error.getCode();
+        return code == RpcErrorCode.Timeout.code ||
+                code == RpcErrorCode.ProxyBanned.code ||
+                code == RpcErrorCode.TransportError.code ||
+                code == RpcErrorCode.Unavailable.code ||
+                code == RpcErrorCode.NoSuchService.code ||
+                code == RpcErrorCode.NoSuchMethod.code ||
+                code == RpcErrorCode.ProtocolError.code;
     }
 
     public TError getError() {

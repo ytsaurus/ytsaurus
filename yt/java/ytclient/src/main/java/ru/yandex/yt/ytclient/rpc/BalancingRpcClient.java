@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -19,7 +18,6 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.bolts.collection.Tuple3;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.proxy.internal.BalancingDestination;
 import ru.yandex.yt.ytclient.proxy.internal.BalancingResponseHandler;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
 import ru.yandex.yt.ytclient.proxy.internal.Manifold;
@@ -86,8 +84,7 @@ public class BalancingRpcClient implements RpcClient {
             BusConnector connector,
             RpcFailoverPolicy failoverPolicy,
             String dataCenter,
-            Map<String, List<RpcClient>> dataCenters)
-    {
+            Map<String, List<RpcClient>> dataCenters) {
         this(
                 failoverTimeout,
                 globalTimeout,
@@ -131,31 +128,22 @@ public class BalancingRpcClient implements RpcClient {
         for (Map.Entry<String, List<RpcClient>> entity : dataCenters.entrySet()) {
             String dcName = entity.getKey();
             List<RpcClient> clients = entity.getValue();
-            BalancingDestination [] destinations = new BalancingDestination[clients.size()];
 
-            int index = 0;
-
-            for (RpcClient client : clients) {
-                destinations[index++] = new BalancingDestination(dcName, client, balancingDestinationMetricsHolder);
-            }
             DataCenter dc = new DataCenter(
                     dcName,
-                    destinations,
+                    clients,
                     -1.0,
                     dataCenterMetricsHolder,
-                    balancingDestinationMetricsHolder,
                     new RpcOptions());
 
-            index = i++;
-            this.dataCenters[index] = dc;
+            this.dataCenters[i] = dc;
             if (dcName.equals(dataCenterName)) {
                 this.localDataCenter = dc;
-                this.dataCenters[index] = this.dataCenters[0];
+                this.dataCenters[i] = this.dataCenters[0];
                 this.dataCenters[0] = this.localDataCenter;
             }
+            i++;
         }
-
-        schedulePing();
     }
 
     @Override
@@ -172,31 +160,12 @@ public class BalancingRpcClient implements RpcClient {
     }
 
     public RpcClient getAliveClient() {
-        List<RpcClient> r = Manifold.selectDestinations(dataCenters, 1, localDataCenter != null, rnd, ! failoverPolicy.randomizeDcs());
+        List<RpcClient> r = Manifold.selectDestinations(dataCenters, 1, localDataCenter != null, rnd, !failoverPolicy.randomizeDcs());
         if (r.isEmpty()) {
             return null;
         } else {
             return r.get(0);
         }
-    }
-
-    private void schedulePing() {
-        executorService.schedule(
-            () -> pingDataCenters(),
-            pingTimeout.toMillis(),
-            TimeUnit.MILLISECONDS);
-    }
-
-    private void pingDataCenters() {
-        logger.debug("ping");
-
-        CompletableFuture<Void> futures[] = new CompletableFuture[dataCenters.length];
-        int i = 0;
-        for (DataCenter entry : dataCenters) {
-            futures[i++] = entry.ping(executorService, pingTimeout);
-        }
-
-        schedulePing();
     }
 
     @Override
@@ -206,7 +175,7 @@ public class BalancingRpcClient implements RpcClient {
 
     @Override
     public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
-        List<RpcClient> destinations = Manifold.selectDestinations(dataCenters, 3, localDataCenter != null, rnd, ! failoverPolicy.randomizeDcs());
+        List<RpcClient> destinations = Manifold.selectDestinations(dataCenters, 3, localDataCenter != null, rnd, !failoverPolicy.randomizeDcs());
 
         CompletableFuture<Tuple3<RpcClient, TResponseHeader, List<byte[]>>> f = new CompletableFuture<>();
 

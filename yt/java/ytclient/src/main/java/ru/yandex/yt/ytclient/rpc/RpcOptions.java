@@ -24,6 +24,8 @@ public class RpcOptions {
     private Duration failoverTimeout = Duration.ofMillis(30000); // sends fallback request to other proxy after this timeout
     private Duration proxyUpdateTimeout = Duration.ofMillis(60000);
     private Duration pingTimeout = Duration.ofMillis(5000); // marks proxy as dead/live after this timeout
+    private Duration channelPoolRebalanceInterval = Duration.ofMinutes(10);
+    private int channelPoolSize = 3;
 
     // steaming options
     private Duration readTimeout = Duration.ofMillis(60000);
@@ -229,5 +231,23 @@ public class RpcOptions {
 
     public BalancingDestinationMetricsHolder getDestinationMetricsHolder() {
         return destinationMetricsHolder;
+    }
+
+    public Duration getChannelPoolRebalanceInterval() {
+        return channelPoolRebalanceInterval;
+    }
+
+    public RpcOptions setChannelPoolRebalanceInterval(Duration channelPoolRebalanceInterval) {
+        this.channelPoolRebalanceInterval = channelPoolRebalanceInterval;
+        return this;
+    }
+
+    public int getChannelPoolSize() {
+        return channelPoolSize;
+    }
+
+    public RpcOptions setChannelPoolSize(int channelPoolSize) {
+        this.channelPoolSize = channelPoolSize;
+        return this;
     }
 }
