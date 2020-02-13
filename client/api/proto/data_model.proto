@@ -418,6 +418,9 @@ message TNodeAlert
 
     // Human-readable description.
     optional string description = 4;
+
+    // Dynamically typed description.
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 5;
 }
 
 message TNodeStatus
