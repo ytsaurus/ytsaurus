@@ -117,6 +117,7 @@ _default_provision = {
     },
     "enable_debug_logging": True,
     "enable_structured_master_logging": False,
+    "enable_structured_scheduler_logging": False,
     "fqdn": socket.getfqdn(),
     "enable_master_cache": False,
 }
@@ -560,7 +561,9 @@ class ConfigsProvider_19(ConfigsProvider):
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
-                                             "scheduler-" + str(index), provision["enable_debug_logging"])
+                                             "scheduler-" + str(index),
+                                             provision["enable_debug_logging"],
+                                             provision["enable_structured_scheduler_logging"])
 
             _set_bind_retry_options(config, key="bus_server")
 
@@ -855,7 +858,9 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
             config["logging"] = init_logging(config.get("logging"), controller_agent_logs_dir,
-                                             "controller-agent-" + str(index), provision["enable_debug_logging"])
+                                             "controller-agent-" + str(index),
+                                             provision["enable_debug_logging"],
+                                             provision["enable_structured_scheduler_logging"])
 
             _set_bind_retry_options(config, key="bus_server")
 
