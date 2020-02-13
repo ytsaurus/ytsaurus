@@ -24,19 +24,6 @@ namespace {
 
 using NDetail::EProtobufType;
 
-TString GetColumnName(const FieldDescriptor& field) {
-    const auto& options = field.options();
-    const auto columnName = options.GetExtension(column_name);
-    if (!columnName.empty()) {
-        return columnName;
-    }
-    const auto keyColumnName = options.GetExtension(key_column_name);
-    if (!keyColumnName.empty()) {
-        return keyColumnName;
-    }
-    return field.name();
-}
-
 enum class EProtobufSerializationMode
 {
     Protobuf,
@@ -224,7 +211,7 @@ TNode MakeProtoFormatFieldConfig(
 {
     auto fieldConfig = TNode::CreateMap();
     fieldConfig["field_number"] = fieldDescriptor->number();
-    fieldConfig["name"] = GetColumnName(*fieldDescriptor);
+    fieldConfig["name"] = NDetail::GetColumnName(*fieldDescriptor);
 
     const auto& options = fieldDescriptor->options();
 
@@ -381,7 +368,7 @@ TVariant<TNode, TOtherColumns> CreateFieldRawTypeV2(
                     "are not allowed inside embedded messages)";
             } else if (HoldsAlternative<TNode>(type)) {
                 fields.Add(TNode()
-                    ("name", GetColumnName(innerFieldDescriptor))
+                    ("name", NDetail::GetColumnName(innerFieldDescriptor))
                     ("type", Get<TNode>(type)));
             } else {
                 Y_FAIL();
@@ -424,6 +411,21 @@ TVariant<TNode, TOtherColumns> CreateFieldRawTypeV2(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString NDetail::GetColumnName(const FieldDescriptor& field) {
+    const auto& options = field.options();
+    const auto columnName = options.GetExtension(column_name);
+    if (!columnName.empty()) {
+        return columnName;
+    }
+    const auto keyColumnName = options.GetExtension(key_column_name);
+    if (!keyColumnName.empty()) {
+        return keyColumnName;
+    }
+    return field.name();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTableSchema CreateTableSchema(
     const Descriptor& messageDescriptor,
     bool keepFieldsWithoutExtension)
@@ -446,7 +448,7 @@ TTableSchema CreateTableSchema(
             continue;
         } else if (HoldsAlternative<TNode>(type)) {
             TColumnSchema column;
-            column.Name(GetColumnName(fieldDescriptor));
+            column.Name(NDetail::GetColumnName(fieldDescriptor));
             column.RawTypeV2(std::move(Get<TNode>(type)));
             result.AddColumn(std::move(column));
         } else {
