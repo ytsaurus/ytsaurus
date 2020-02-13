@@ -38,6 +38,7 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr int MissingSystemColumn = -1;
+static constexpr int MissingRowRangeIndexTag = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,6 +170,89 @@ void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiff
         static_assert(wireType == EWireType::Int64, "Bad wireType");
     }
 }
+
+class TRowAndRangeIndexWriter
+{
+public:
+    template <ERowRangeIndexMode Mode>
+    void WriteRowIndex(const TUnversionedValue& value, TCheckedInDebugSkiffWriter* writer, TWriteContext* context)
+    {
+        if (value.Type == EValueType::Int64) {
+            const auto currentRowIndex = value.Data.Int64;
+            if (RowIndex_ + 1 == currentRowIndex) {
+                writer->WriteVariant8Tag(0);
+            } else {
+                writer->WriteVariant8Tag(1);
+                writer->WriteInt64(value.Data.Int64);
+            }
+            RowIndex_ = currentRowIndex;
+        } else if (value.Type == EValueType::Null) {
+            if constexpr (Mode == ERowRangeIndexMode::Incremental) {
+                THROW_ERROR_EXCEPTION("Row index requested but reader did not return it");
+            } else {
+                static_assert(Mode == ERowRangeIndexMode::IncrementalWithError);
+                writer->WriteVariant8Tag(MissingRowRangeIndexTag);
+            }
+            RowIndex_ = Undefined;
+        }
+    }
+
+    template <ERowRangeIndexMode Mode>
+    void WriteRangeIndex(const TUnversionedValue& value, TCheckedInDebugSkiffWriter* writer, TWriteContext* context)
+    {
+        if (value.Type == EValueType::Int64) {
+            const auto currentRangeIndex = value.Data.Int64;
+            if (RangeIndex_ == currentRangeIndex) {
+                writer->WriteVariant8Tag(0);
+            } else {
+                writer->WriteVariant8Tag(1);
+                writer->WriteInt64(currentRangeIndex);
+            }
+            RangeIndex_ = currentRangeIndex;
+        } else if (value.Type == EValueType::Null) {
+            if constexpr (Mode == ERowRangeIndexMode::Incremental) {
+                THROW_ERROR_EXCEPTION("Range index requested but reader did not return it");
+            } else {
+                static_assert(Mode == ERowRangeIndexMode::IncrementalWithError);
+                writer->WriteVariant8Tag(MissingRowRangeIndexTag);
+            }
+        }
+    }
+
+    Y_FORCE_INLINE void PrepareTableIndex(i64 tableIndex)
+    {
+        if (TableIndex_ != tableIndex) {
+            TableIndex_ = tableIndex;
+            RowIndex_ = Undefined;
+            RangeIndex_ = Undefined;
+        }
+    }
+
+    Y_FORCE_INLINE void PrepareRangeIndex(i64 rangeIndex)
+    {
+        if (rangeIndex != RangeIndex_) {
+            RangeIndex_ = Undefined;
+            RowIndex_ = Undefined;
+        }
+    }
+
+    Y_FORCE_INLINE void ResetRangeIndex()
+    {
+        PrepareRangeIndex(Undefined);
+    }
+
+    Y_FORCE_INLINE void ResetRowIndex()
+    {
+        RowIndex_ = Undefined;
+    }
+
+private:
+    static constexpr i64 Undefined = -2;
+
+    i64 TableIndex_ = Undefined;
+    i64 RangeIndex_ = Undefined;
+    i64 RowIndex_ = Undefined;
+};
 
 TUnversionedValueToSkiffConverter CreateSimpleValueConverter(EWireType wireType, bool required)
 {
@@ -309,10 +393,12 @@ struct TSkiffWriterTableDescription
 {
     std::vector<TSkiffEncodingInfo> KnownFields;
     std::vector<TDenseFieldWriterInfo> DenseFieldInfos;
-    bool HasOtherColumns = false;
     int KeySwitchFieldIndex = -1;
     int RangeIndexFieldIndex = -1;
     int RowIndexFieldIndex = -1;
+    ERowRangeIndexMode RangeIndexMode = ERowRangeIndexMode::Incremental;
+    ERowRangeIndexMode RowIndexMode = ERowRangeIndexMode::Incremental;
+    bool HasOtherColumns = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -353,8 +439,12 @@ public:
             auto& writerTableDescription = TableDescriptionList_.back();
             writerTableDescription.HasOtherColumns = commonTableDescription.HasOtherColumns;
             writerTableDescription.KeySwitchFieldIndex = commonTableDescription.KeySwitchFieldIndex.value_or(MissingSystemColumn);
+
             writerTableDescription.RowIndexFieldIndex = commonTableDescription.RowIndexFieldIndex.value_or(MissingSystemColumn);
+            writerTableDescription.RowIndexMode = commonTableDescription.RowIndexMode;
+
             writerTableDescription.RangeIndexFieldIndex = commonTableDescription.RangeIndexFieldIndex.value_or(MissingSystemColumn);
+            writerTableDescription.RangeIndexMode = commonTableDescription.RangeIndexMode;
 
             auto& knownFields = writerTableDescription.KnownFields;
 
@@ -385,7 +475,31 @@ public:
                 knownFields[id] = TSkiffEncodingInfo::Dense(i);
 
                 TUnversionedValueToSkiffConverter converter;
-                if (auto complexConverter = createComplexValueConverter(denseField, /*sparse*/ false)) {
+                if (denseField.Name() == RowIndexColumnName) {
+                    auto method =
+                        commonTableDescription.RowIndexMode == ERowRangeIndexMode::Incremental
+                        ? (&TRowAndRangeIndexWriter::WriteRowIndex<ERowRangeIndexMode::Incremental>)
+                        : (&TRowAndRangeIndexWriter::WriteRowIndex<ERowRangeIndexMode::IncrementalWithError>);
+
+                    converter = std::bind(
+                        method,
+                        &RowAndRangeIndexWriter_,
+                        std::placeholders::_1,
+                        std::placeholders::_2,
+                        std::placeholders::_3);
+                } else if (denseField.Name() == RangeIndexColumnName) {
+                    auto method =
+                        commonTableDescription.RangeIndexMode == ERowRangeIndexMode::Incremental
+                        ? (&TRowAndRangeIndexWriter::WriteRangeIndex<ERowRangeIndexMode::Incremental>)
+                        : (&TRowAndRangeIndexWriter::WriteRangeIndex<ERowRangeIndexMode::IncrementalWithError>);
+
+                    converter = std::bind(
+                        method,
+                        &RowAndRangeIndexWriter_,
+                        std::placeholders::_1,
+                        std::placeholders::_2,
+                        std::placeholders::_3);
+                } else if (auto complexConverter = createComplexValueConverter(denseField, /*sparse*/ false)) {
                     converter = *complexConverter;
                 } else {
                     converter = CreateSimpleValueConverter(denseField.ValidatedSimplify(), denseField.IsRequired());
@@ -465,8 +579,8 @@ private:
         writeContext.NameTable = NameTable_;
         writeContext.TmpBuffer = &YsonBuffer_;
 
-        for (size_t rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-            auto row = rows[rowIndex];
+        for (size_t rowIndexInBatch = 0; rowIndexInBatch < rowCount; ++rowIndexInBatch) {
+            auto row = rows[rowIndexInBatch];
             CurrentRow_ = &row;
             auto finallyGuard = Finally([&] {
                 CurrentRow_ = nullptr;
@@ -495,10 +609,10 @@ private:
             const auto rowIndexFieldIndex = TableDescriptionList_[tableIndex].RowIndexFieldIndex;
             const auto rangeIndexFieldIndex = TableDescriptionList_[tableIndex].RangeIndexFieldIndex;
 
-            const bool isLastRowInBatch = rowIndex + 1 == rowCount;
+            const bool isLastRowInBatch = rowIndexInBatch + 1 == rowCount;
 
-            constexpr ui16 missingColumnPlaceholder = ui16(-1);
-            constexpr ui16 keySwitchColumnPlaceholder = ui16(-2);
+            constexpr ui16 missingColumnPlaceholder = -1;
+            constexpr ui16 keySwitchColumnPlaceholder = -2;
             DenseIndexes_.assign(denseFields.size(), missingColumnPlaceholder);
             SparseFields_.clear();
             OtherValueIndexes_.clear();
@@ -507,8 +621,8 @@ private:
                 DenseIndexes_[keySwitchFieldIndex] = keySwitchColumnPlaceholder;
             }
 
-            ui32 rowIndexValueId = -1;
-            ui32 rangeIndexValueId = -1;
+            ui16 rowIndexValueId = missingColumnPlaceholder;
+            ui16 rangeIndexValueId = missingColumnPlaceholder;
 
             for (ui32 valueIndex = 0; valueIndex < valueCount; ++valueIndex) {
                 const auto& value = row[valueIndex];
@@ -548,36 +662,24 @@ private:
                 }
             }
             if (rowIndexFieldIndex != MissingSystemColumn || rangeIndexFieldIndex != MissingSystemColumn) {
-                bool needUpdateRangeIndex = tableIndex != TableIndex_;
-                if (rangeIndexValueId != static_cast<ui32>(-1)) {
+                RowAndRangeIndexWriter_.PrepareTableIndex(tableIndex);
+                if (rangeIndexFieldIndex != MissingSystemColumn) {
+                    DenseIndexes_[rangeIndexFieldIndex] = rangeIndexValueId;
+                }
+                if (rangeIndexValueId != missingColumnPlaceholder) {
                     YT_VERIFY(row[rangeIndexValueId].Type == EValueType::Int64);
                     const auto rangeIndex = row[rangeIndexValueId].Data.Int64;
-                    needUpdateRangeIndex = needUpdateRangeIndex || rangeIndex != RangeIndex_;
-                    if (rangeIndexFieldIndex != MissingSystemColumn) {
-                        if (needUpdateRangeIndex) {
-                            DenseIndexes_[rangeIndexFieldIndex] = rangeIndexValueId;
-                        }
-                    }
-                    RangeIndex_ = rangeIndex;
+                    RowAndRangeIndexWriter_.PrepareRangeIndex(rangeIndex);
                 } else if (rangeIndexFieldIndex != MissingSystemColumn) {
-                    THROW_ERROR_EXCEPTION("Range index requested but reader did not return it")
-                        << GetRowPositionErrorAttributes();
+                    RowAndRangeIndexWriter_.ResetRangeIndex();
                 }
-                if (rowIndexValueId != static_cast<ui32>(-1)) {
-                    YT_VERIFY(row[rowIndexValueId].Type == EValueType::Int64);
-                    const auto rowIndex = row[rowIndexValueId].Data.Int64;
-                    bool needUpdateRowIndex = needUpdateRangeIndex || rowIndex != RowIndex_ + 1;
-                    if (rowIndexFieldIndex != MissingSystemColumn) {
-                        if (needUpdateRowIndex) {
-                            DenseIndexes_[rowIndexFieldIndex] = rowIndexValueId;
-                        }
+
+                if (rowIndexFieldIndex != MissingSystemColumn) {
+                    DenseIndexes_[rowIndexFieldIndex] = rowIndexValueId;
+                    if (rowIndexValueId == missingColumnPlaceholder) {
+                        RowAndRangeIndexWriter_.ResetRowIndex();
                     }
-                    RowIndex_ = rowIndex;
-                } else if (rowIndexFieldIndex != MissingSystemColumn) {
-                    THROW_ERROR_EXCEPTION("Row index requested but reader did not return it")
-                        << GetRowPositionErrorAttributes();
                 }
-                TableIndex_ = tableIndex;
             }
 
             SkiffWriter_->WriteVariant16Tag(tableIndex);
@@ -657,14 +759,12 @@ private:
     // Table #i is described by element with index i.
     std::vector<TSkiffWriterTableDescription> TableDescriptionList_;
 
-    i64 TableIndex_ = -1;
-    i64 RangeIndex_ = -1;
-    i64 RowIndex_ = -1;
-
     std::vector<TUnversionedValueYsonWriter> UnversionedValueToYsonConverter_;
 
     // Buffer that we are going to reuse in order to reduce memory allocations.
     TBuffer YsonBuffer_;
+
+    TRowAndRangeIndexWriter RowAndRangeIndexWriter_;
 
     const TUnversionedRow* CurrentRow_ = nullptr;
 };

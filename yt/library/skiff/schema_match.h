@@ -13,6 +13,11 @@ extern const TString KeySwitchColumnName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ERowRangeIndexMode,
+    (Incremental)
+        (IncrementalWithError)
+)
+
 class TFieldDescription
 {
 public:
@@ -39,8 +44,13 @@ struct TSkiffTableDescription
 
     // Indexes of $key_switch/$row_index/$range_index field inside dense part of the row.
     std::optional<size_t> KeySwitchFieldIndex;
+
     std::optional<size_t> RowIndexFieldIndex;
     std::optional<size_t> RangeIndexFieldIndex;
+
+    // $row_index/$range_index field can be written in several modes.
+    ERowRangeIndexMode RowIndexMode = ERowRangeIndexMode::Incremental;
+    ERowRangeIndexMode RangeIndexMode = ERowRangeIndexMode::Incremental;
 
     // Whether or not row contains $other_columns field.
     bool HasOtherColumns = false;

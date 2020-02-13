@@ -13,16 +13,6 @@ using namespace NYTree;
 const TString KeySwitchColumnName = "$key_switch";
 const TString OtherColumnsName = "$other_columns";
 const TString SparseColumnsName = "$sparse_columns";
-static const TSkiffSchemaPtr OptionalInt64 = CreateVariant8Schema({
-    CreateSimpleTypeSchema(EWireType::Nothing),
-    CreateSimpleTypeSchema(EWireType::Int64),
-});
-
-////////////////////////////////////////////////////////////////////////////////
-
-static bool IsOptionalInt64(TSkiffSchemaPtr skiffSchema);
-static bool IsSkiffSpecialColumn(TStringBuf columnName);
-static TSkiffTableDescription CreateTableDescription(const NSkiff::TSkiffSchemaPtr& skiffSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,21 +24,30 @@ static void ThrowInvalidSkiffTypeError(const TString& columnName, TSkiffSchemaPt
         GetShortDebugString(actualType));
 }
 
-static bool IsOptionalInt64(TSkiffSchemaPtr skiffSchema)
+static ERowRangeIndexMode GetRowRangeIndexMode(const TSkiffSchemaPtr& skiffSchema, TStringBuf columnName)
 {
+    auto throwRowRangeIndexError = [&] {
+        THROW_ERROR_EXCEPTION("Column %Qv has unsupported Skiff type: %Qv",
+            columnName,
+            GetShortDebugString(skiffSchema));
+    };
+
     if (skiffSchema->GetWireType() != EWireType::Variant8) {
-        return false;
+        throwRowRangeIndexError();
     }
-    auto children = skiffSchema->GetChildren();
-    if (children.size() != 2) {
-        return false;
+
+    std::vector<EWireType> children;
+    for (const auto& child : skiffSchema->GetChildren()) {
+        children.emplace_back(child->GetWireType());
     }
-    if (children[0]->GetWireType() != EWireType::Nothing ||
-        children[1]->GetWireType() != EWireType::Int64)
-    {
-        return false;
+
+    if (children == std::vector{EWireType::Nothing, EWireType::Int64}) {
+        return ERowRangeIndexMode::Incremental;
+    } else if (children == std::vector{EWireType::Nothing, EWireType::Int64, EWireType::Nothing}) {
+        return ERowRangeIndexMode::IncrementalWithError;
     }
-    return true;
+    throwRowRangeIndexError();
+    Y_UNREACHABLE();
 }
 
 static bool IsSkiffSpecialColumn(
@@ -147,21 +146,11 @@ static TSkiffTableDescription CreateTableDescription(
             }
             result.KeySwitchFieldIndex = i;
         } else if (childName == rowIndexColumnName) {
-            if (!IsOptionalInt64(child)) {
-                ThrowInvalidSkiffTypeError(
-                    childName,
-                    OptionalInt64,
-                    child);
-            }
             result.RowIndexFieldIndex = i;
+            result.RowIndexMode = GetRowRangeIndexMode(child, childName);
         } else if (childName == rangeIndexColumnName) {
-            if (!IsOptionalInt64(child)) {
-                ThrowInvalidSkiffTypeError(
-                    childName,
-                    OptionalInt64,
-                    child);
-            }
             result.RangeIndexFieldIndex = i;
+            result.RangeIndexMode = GetRowRangeIndexMode(child, childName);
         }
         result.DenseFieldDescriptionList.emplace_back(childName, child);
     }
