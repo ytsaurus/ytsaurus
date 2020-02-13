@@ -68,6 +68,8 @@ void TDriverResponseHolder::HoldOutputStream(std::unique_ptr<IOutputStream>& out
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString TDriverResponse::TypeName_;
+
 TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TDriverResponse>::PythonClass(self, args, kwargs)
     , Holder_(New<TDriverResponseHolder>())
@@ -154,8 +156,8 @@ void TDriverResponse::InitType(const TString& moduleName)
         return;
     }
 
-    TString typeName = moduleName + ".Response";
-    behaviors().name(typeName.c_str());
+    TypeName_ = moduleName + ".Response";
+    behaviors().name(TypeName_.c_str());
     behaviors().doc("Command response");
     behaviors().supportGetattro();
     behaviors().supportSetattro();

@@ -149,6 +149,8 @@ void TBufferedStream::Move(char* dest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString TBufferedStreamWrap::TypeName_;
+
 TBufferedStreamWrap::TBufferedStreamWrap(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TBufferedStreamWrap>::PythonClass(self, args, kwargs)
     , Stream_(New<TBufferedStream>(Py::ConvertToLongLong(ExtractArgument(args, kwargs, "size"))))
@@ -214,8 +216,8 @@ void TBufferedStreamWrap::InitType(const TString& moduleName)
         return;
     }
 
-    TString typeName = moduleName + ".BufferedStream";
-    behaviors().name(typeName.c_str());
+    TypeName_ = moduleName + ".BufferedStream";
+    behaviors().name(TypeName_.c_str());
     behaviors().doc("Buffered stream to perform read and download asynchronously");
     behaviors().supportGetattro();
     behaviors().supportSetattro();
