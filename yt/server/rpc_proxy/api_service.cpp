@@ -3158,7 +3158,9 @@ private:
 
         context->SetRequestInfo(
             "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v",
-            path);
+            path,
+            options.Unordered,
+            options.OmitInaccessibleColumns);
 
         auto tableReader = WaitFor(client->CreateTableReader(path, options))
             .ValueOrThrow();
@@ -3328,9 +3330,9 @@ private:
         }
 
         context->SetRequestInfo("Path: %v, MD5: %v, CachePath: %v",
-                                path,
-                                md5,
-                                options.CachePath);
+            path,
+            md5,
+            options.CachePath);
 
         CompleteCallWith(
             client,
