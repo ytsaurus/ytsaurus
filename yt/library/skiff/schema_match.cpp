@@ -98,9 +98,7 @@ static TSkiffTableDescription CreateTableDescription(
 
     auto children = skiffSchema->GetChildren();
 
-    YT_VERIFY(!children.empty());
-
-    if (children.back()->GetName() == OtherColumnsName) {
+    if (!children.empty() && children.back()->GetName() == OtherColumnsName) {
         otherColumnsField = children.back();
         result.HasOtherColumns = true;
         children.pop_back();

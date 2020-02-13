@@ -42,7 +42,6 @@ static void VerifyNonemptyChildren(const TSkiffSchemaList& children, EWireType w
 
 TTupleSchemaPtr CreateTupleSchema(TSkiffSchemaList children)
 {
-    VerifyNonemptyChildren(children, EWireType::Tuple);
     return New<TTupleSchema>(std::move(children));
 }
 
