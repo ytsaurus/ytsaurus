@@ -208,9 +208,9 @@ class TestYamrMode(object):
         yt.run_reduce("cat", source_table=input_table, destination_table=output_table)
         assert list(yt.read_table(output_table)) == data[::-1]
 
+    @pytest.mark.skipif("yatest_common is not None")
     def test_run_operations(self):
-        if not which("g++") and yatest_common is not None:
-            pytest.skip()
+        assert which("g++")
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
