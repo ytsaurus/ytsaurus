@@ -22,6 +22,8 @@
 #include <mapreduce/yt/interface/fluent.h>
 #include <mapreduce/yt/interface/job_statistics.h>
 
+#include <mapreduce/yt/interface/protos/extension.pb.h>
+
 #include <mapreduce/yt/interface/logging/log.h>
 
 #include <library/yson/node/serialize.h>
@@ -62,6 +64,8 @@
 #include <util/system/mutex.h>
 #include <util/system/rwlock.h>
 #include <util/system/thread.h>
+
+#include <util/generic/hash_set.h>
 
 #include <library/digest/md5/md5.h>
 
@@ -240,6 +244,117 @@ ENodeReaderFormat GetNodeReaderFormat(const TSpec& spec, bool allowSkiff)
     }
 }
 
+TVector<TString> GetYtColumns(const NProtoBuf::Descriptor& desc) {
+    TVector<TString> result;
+    for (int i = 0; i < desc.field_count(); ++i) {
+        const auto* field = desc.field(i);
+        result.push_back(NDetail::GetColumnName(*field));
+    }
+    return result;
+}
+
+bool IsOtherColumns(const NProtoBuf::FieldDescriptor& descriptor) {
+    for (int i = 0; i < descriptor.options().ExtensionSize(NYT::flags); ++i) {
+        if (descriptor.options().GetExtension(NYT::flags, i) == NYT::EWrapperFieldFlag::OTHER_COLUMNS) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool HasOtherColumns(const NProtoBuf::Descriptor& desc) {
+    for (int i = 0; i < desc.field_count(); ++i) {
+        if (IsOtherColumns(*desc.field(i))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static THashSet<TString> GetColumnsUsedInOperation(const TJoinReduceOperationSpec& spec)
+{
+    return THashSet<TString>(spec.JoinBy_.Parts_.begin(), spec.JoinBy_.Parts_.end());
+}
+
+static THashSet<TString> GetColumnsUsedInOperation(const TReduceOperationSpec& spec) {
+    THashSet<TString> result(spec.SortBy_.Parts_.begin(), spec.SortBy_.Parts_.end());
+    result.insert(spec.ReduceBy_.Parts_.begin(), spec.ReduceBy_.Parts_.end());
+    if (spec.JoinBy_) {
+        result.insert(spec.JoinBy_->Parts_.begin(), spec.JoinBy_->Parts_.end());
+    }
+    return result;
+}
+
+static THashSet<TString> GetColumnsUsedInOperation(const TMapReduceOperationSpec& spec)
+{
+    THashSet<TString> result(spec.SortBy_.Parts_.begin(), spec.SortBy_.Parts_.end());
+    result.insert(spec.ReduceBy_.Parts_.begin(), spec.ReduceBy_.Parts_.end());
+    return result;
+}
+
+static THashSet<TString> GetColumnsUsedInOperation(const TMapOperationSpec&)
+{
+    return THashSet<TString>();
+}
+
+static THashSet<TString> GetColumnsUsedInOperation(const TVanillaTask&)
+{
+    return THashSet<TString>();
+}
+
+template <class TSpec>
+TStructuredJobTableList SetColumnsFromProtobufDescriptionAndSpec(
+    const TStructuredJobTableList& tableList,
+    const TSpec& spec)
+{
+    TStructuredJobTableList newTableList = tableList;
+    for (auto& table : newTableList) {
+        auto& richYPath = *table.RichYPath;
+        if (HoldsAlternative<TProtobufTableStructure>(table.Description)) {
+            auto descriptor = ::Get<TProtobufTableStructure>(table.Description).Descriptor;
+            if (descriptor && !HasOtherColumns(*descriptor)) {
+                auto fromDescriptor = GetYtColumns(*descriptor);
+                THashSet<TString> columnsSet(fromDescriptor.begin(), fromDescriptor.end());
+                if (richYPath.Columns_) {
+                    THashSet<TString> intersectionSet;
+                    for (const auto &column : richYPath.Columns_->Parts_) {
+                        if (columnsSet.contains(column)) {
+                            intersectionSet.insert(column);
+                        }
+                    }
+                    columnsSet = intersectionSet;
+                }
+                auto columnsUsedInOperations = GetColumnsUsedInOperation(spec);
+                columnsSet.insert(columnsUsedInOperations.begin(), columnsUsedInOperations.end());
+                richYPath.Columns(TVector<TString>(columnsSet.begin(), columnsSet.end()));
+            }
+        }
+    }
+    return newTableList;
+}
+
+template <class TSpec>
+TVector<TRichYPath> SetColumnsAndGetPathList(
+    const TStructuredJobTableList& tableList,
+    const TSpec& spec,
+    const TOperationOptions& options,
+    const TMaybe<TSchemaInferenceResult>& jobSchemaInferenceResult,
+    bool inferSchemaFromDescriptions)
+{
+    bool hasInputQuery = options.Spec_.Defined() && options.Spec_->IsMap() && options.Spec_->HasKey("input_query");
+    if (!hasInputQuery) {
+        return GetPathList(
+            SetColumnsFromProtobufDescriptionAndSpec(tableList, spec),
+            jobSchemaInferenceResult,
+            inferSchemaFromDescriptions);
+    } else {
+        return GetPathList(
+            tableList,
+            jobSchemaInferenceResult,
+            inferSchemaFromDescriptions);
+    }
+}
+
 template <class TSpec>
 TSimpleOperationIo CreateSimpleOperationIo(
     const IStructuredJob& structuredJob,
@@ -292,10 +407,20 @@ TSimpleOperationIo CreateSimpleOperationIo(
             preparer.GetClientRetryPolicy(),
             preparer.GetTransactionId()));
 
-    auto outputPaths = GetPathList(structuredOutputs, jobSchemaInferenceResult, inferOutputSchema);
+    auto outputPaths = GetPathList(
+        structuredOutputs,
+        jobSchemaInferenceResult,
+        inferOutputSchema);
+
+    auto inputPaths = SetColumnsAndGetPathList(
+        structuredInputs,
+        spec,
+        options,
+        /*schemaInferenceResult*/ Nothing(),
+        /*inferSchema*/ false);
 
     return TSimpleOperationIo {
-        GetPathList(structuredInputs, /*schemaInferenceResult*/ Nothing(), /*inferSchema*/ false),
+        inputPaths,
         outputPaths,
 
         inputFormat,
@@ -1748,7 +1873,13 @@ TOperationId ExecuteMapReduce(
 
     const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
 
-    operationIo.Inputs = GetPathList(structuredInputs, /*jobSchemaInferenceResult*/ Nothing(), /*inferSchema*/ false);
+    operationIo.Inputs = SetColumnsAndGetPathList(
+        structuredInputs,
+        spec,
+        options,
+        /*jobSchemaInferenceResult*/ Nothing(),
+        /*inferSchema*/ false);
+
     VerifyHasElements(operationIo.Inputs, "inputs");
 
     TSchemaInferenceResult currentInferenceResult;
@@ -1944,7 +2075,11 @@ TOperationId ExecuteMapReduce(
                 structuredOutputs));
     }
 
-    operationIo.Outputs = GetPathList(structuredOutputs, reducerInferenceResult, inferOutputSchema);
+    operationIo.Outputs = GetPathList(
+        structuredOutputs,
+        reducerInferenceResult,
+        inferOutputSchema);
+
     VerifyHasElements(operationIo.Outputs, "outputs");
 
     return DoExecuteMapReduce(
