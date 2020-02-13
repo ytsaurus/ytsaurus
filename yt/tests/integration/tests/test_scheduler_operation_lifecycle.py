@@ -14,6 +14,7 @@ from distutils.spawn import find_executable
 import pytest
 from flaky import flaky
 
+import shutil
 import time
 import subprocess
 from datetime import datetime, timedelta
@@ -1152,6 +1153,11 @@ class TestSafeAssertionsMode(YTEnvSetup):
             "enable_controller_failure_spec_option": True,
         },
     }
+
+    @classmethod
+    def teardown_class(cls):
+        shutil.rmtree(cls.core_path)
+        super(TestSafeAssertionsMode, cls).teardown_class()
 
     @classmethod
     def modify_controller_agent_config(cls, config):
