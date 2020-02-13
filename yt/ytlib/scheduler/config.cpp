@@ -182,6 +182,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("cancellation_stage", CancelationStage)
         .Default();
+    RegisterParameter("log_residual_custom_job_metrics_on_termination", LogResidualCustomJobMetricsOnTermination)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

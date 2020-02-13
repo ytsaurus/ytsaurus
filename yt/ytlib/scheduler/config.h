@@ -457,6 +457,8 @@ public:
     bool RegisterSpeculativeJobOnJobScheduled;
     bool RegisterSpeculativeJobOnJobScheduledOnce;
 
+    bool LogResidualCustomJobMetricsOnTermination;
+
     TTestingOperationOptions();
 };
 
