@@ -106,7 +106,8 @@ class TestControllerMemoryUsage(YTEnvSetup):
                 assert entry["operation_id"] == YsonEntity()
             assert entry["alive"] == False
 
-class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
+# Enable after YT-12227 
+class DISABLED_TestControllerAgentMemoryPickStrategy(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 2
 
