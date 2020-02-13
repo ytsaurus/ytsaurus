@@ -154,6 +154,9 @@ struct TBlobTableReaderOptions
     // Size of each part. All blob parts except the last part of the blob must be of this size
     // otherwise blob table reader emits error.
     FLUENT_FIELD_DEFAULT(ui64, PartSize, 4 * 1024 * 1024);
+
+    /// @brief Offset from which to start reading
+    FLUENT_FIELD_DEFAULT(i64, Offset, 0);
 };
 
 // https://wiki.yandex-team.ru/yt/userdoc/fairshare/#resursy
