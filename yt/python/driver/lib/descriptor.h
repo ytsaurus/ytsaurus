@@ -34,6 +34,8 @@ public:
 
 private:
     NDriver::TCommandDescriptor Descriptor_;
+
+    static TString TypeName_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
