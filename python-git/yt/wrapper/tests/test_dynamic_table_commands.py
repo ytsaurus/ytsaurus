@@ -227,10 +227,6 @@ class TestDynamicTableCommands(object):
         if mode != "native":
             mode = yt.config["api_version"]
 
-        commands = get_command_list()
-        if "alter_table_replica" not in commands:
-            pytest.skip()
-
         test_name = "TestYtWrapper" + mode.capitalize()
         dir = os.path.join(get_tests_sandbox(), test_name)
         id = "run_" + uuid.uuid4().hex[:8]

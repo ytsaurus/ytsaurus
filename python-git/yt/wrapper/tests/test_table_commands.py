@@ -150,9 +150,6 @@ class TestTableCommands(object):
             self._test_read_write()
 
     def test_read_parallel(self, yt_env_with_rpc):
-        if yt_env_with_rpc.version <= "19.6" and yt.config["backend"] == "rpc":
-            pytest.skip()
-
         with set_config_option("read_parallel/enable", True):
             self._test_read_write()
 
@@ -252,9 +249,6 @@ class TestTableCommands(object):
             assert rsp.response_parameters["approximate_row_count"] == 0
 
     def test_start_row_index_parallel(self, yt_env_with_rpc):
-        if yt_env_with_rpc.version <= "19.6" and yt.config["backend"] == "rpc":
-            pytest.skip()
-
         with set_config_option("read_parallel/enable", True):
             self.test_start_row_index()
 
@@ -762,9 +756,6 @@ class TestTableCommandsHuge(object):
         assert row_count == 10 ** power
 
     def test_read_parallel_huge_table(self, yt_env_with_rpc):
-        if yt_env_with_rpc.version <= "19.6" and yt.config["backend"] == "rpc":
-            pytest.skip()
-
         with set_config_option("read_parallel/enable", True):
             self.test_huge_table()
 

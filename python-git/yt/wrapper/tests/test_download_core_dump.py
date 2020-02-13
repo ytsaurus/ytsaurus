@@ -11,11 +11,11 @@ import subprocess
 import time
 
 
+@pytest.mark.skipif("yatest_common is not None")
 @pytest.mark.usefixtures("yt_env_with_porto")
 class TestDownloadCoreDump(object):
     def test_download_core_dump(self):
-        if not which("g++") and yatest_common is not None:
-            pytest.skip()
+        assert which("g++")
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -66,8 +66,7 @@ class TestDownloadCoreDump(object):
         os.remove(core_output_file)
 
     def test_error_core_dump(self):
-        if not which("g++") and yatest_common is not None:
-            pytest.skip()
+        assert which("g++")
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
