@@ -4697,7 +4697,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     const auto& connection = Host->GetClient()->GetNativeConnection();
     for (const auto& table : OutputTables_) {
         if (table->Dynamic) {
-            suppressionErrors.emplace_back("Output table %v is dynamic", ToString(table->Path, EYsonFormat::Text));
+            suppressionErrors.emplace_back("Output table %v is dynamic", ToString(table->Path));
             break;
         }
     }
@@ -4708,7 +4708,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         {
             suppressionErrors.emplace_back(
                 "Output table %v is non-external and cluster is multicell",
-                ToString(table->Path, EYsonFormat::Text));
+                ToString(table->Path));
             break;
         }
     }
@@ -4718,7 +4718,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         if (table->Schema.HasNontrivialSchemaModification()) {
             suppressionErrors.emplace_back(
                 "Input table %v has non-trivial schema modification",
-                ToString(table->Path, EYsonFormat::Text));
+                ToString(table->Path));
             break;
         }
     }
