@@ -168,7 +168,7 @@ public interface ApiService extends DiscoverableRpcService {
 
     RpcClientRequestBuilder<TReqCreateNode.Builder, RpcClientResponse<TRspCreateNode>> createNode();
 
-    RpcClientRequestBuilder<TReqGetTableMountInfo.Builder, RpcClientResponse<TRspGetTableMountInfo>> getMountInfo();
+    RpcClientRequestBuilder<TReqGetTableMountInfo.Builder, RpcClientResponse<TRspGetTableMountInfo>> getTableMountInfo();
 
     RpcClientRequestBuilder<TReqRemoveNode.Builder, RpcClientResponse<TRspRemoveNode>> removeNode();
 

@@ -371,7 +371,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<TRspGetTableMountInfo> getMountInfo(String path) {
         RpcClientRequestBuilder<TReqGetTableMountInfo.Builder, RpcClientResponse<TRspGetTableMountInfo>> builder =
-                service.getMountInfo();
+                service.getTableMountInfo();
 
         builder.body().setPath(path);
 

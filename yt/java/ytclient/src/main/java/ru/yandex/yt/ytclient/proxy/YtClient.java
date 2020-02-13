@@ -10,7 +10,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -25,9 +24,11 @@ import ru.yandex.bolts.collection.Cf;
 import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.misc.RandomList;
-import ru.yandex.yt.ytclient.proxy.internal.BalancingDestination;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
+import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.internal.Manifold;
+import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
+import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactoryImpl;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
@@ -44,7 +45,6 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     private final Random rnd = new Random();
 
     private final DataCenter[] dataCenters;
-    private final ScheduledExecutorService executorService;
     private final RpcOptions options;
     private final DataCenter localDataCenter;
 
@@ -91,7 +91,6 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         discovery = new ArrayList<>();
 
         this.dataCenters = new DataCenter[clusters.size()];
-        this.executorService = connector.eventLoopGroup();
         this.options = options;
 
         if (options.getUseClientsCache() && options.getClientsCacheSize() > 0
@@ -114,15 +113,14 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
 
         DataCenter localDataCenter = null;
 
+        RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(connector, credentials, compression);
+        Random rnd = new Random();
+
         try {
             for (YtCluster entry : clusters) {
                 final String dataCenterName = entry.name;
 
-                final DataCenter dc = new DataCenter(
-                        dataCenterName,
-                        new BalancingDestination[0],
-                        -1.0,
-                        options);
+                final DataCenter dc = new DataCenter(dataCenterName, -1.0, options);
 
                 dataCenters[dataCenterIndex++] = dc;
 
@@ -132,9 +130,9 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
 
                 final PeriodicDiscoveryListener listener = new PeriodicDiscoveryListener() {
                     @Override
-                    public void onProxiesAdded(Set<RpcClient> proxies) {
+                    public void onProxiesSet(Set<HostPort> proxies) {
                         if (!proxies.isEmpty()) {
-                            dc.addProxies(proxies);
+                            dc.setProxies(proxies, rpcClientFactory, rnd);
                             wakeUp();
                         }
                     }
@@ -145,11 +143,6 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                         if (discoveriesFailed.size() == clusters.size()) {
                             wakeUp(e);
                         }
-                    }
-
-                    @Override
-                    public void onProxiesRemoved(Set<RpcClient> proxies) {
-                        dc.removeProxies(proxies);
                     }
                 };
 
@@ -176,14 +169,6 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         }
 
         this.localDataCenter = localDataCenter;
-
-        try {
-            schedulePing();
-        } catch (Throwable e) {
-            logger.error("Cannot schedule ping", e);
-            IoUtils.closeQuietly(this);
-            throw e;
-        }
     }
 
     public YtClient(
@@ -249,29 +234,10 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         }
     }
 
-    private void schedulePing() {
-        executorService.schedule(
-                this::pingDataCenters,
-                options.getPingTimeout().toMillis(),
-                TimeUnit.MILLISECONDS);
-    }
-
-    private void pingDataCenters() {
-        logger.debug("ping");
-
-        CompletableFuture<Void> futures[] = new CompletableFuture[dataCenters.length];
-        int i = 0;
-        for (DataCenter entry : dataCenters) {
-            futures[i++] = entry.ping(executorService, options.getPingTimeout());
-        }
-
-        schedulePing();
-    }
-
     public Map<String, List<ApiServiceClient>> getAliveDestinations() {
         final Map<String, List<ApiServiceClient>> result = new HashMap<>();
         for (DataCenter dc : dataCenters) {
-            result.put(dc.getName(), dc.getAliveDestinations(BalancingDestination::getService));
+            result.put(dc.getName(), dc.getAliveDestinations(slot -> new ApiServiceClient(slot.getClient(), options)));
         }
         return result;
     }

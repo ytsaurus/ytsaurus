@@ -40,7 +40,7 @@ public class Manifold {
         for (int i = 0; i < n; ++i) {
             DataCenter dc = selectedDc[i];
 
-            List<RpcClient> select = dc.selectDestinations(Math.min(maxSelect, 2));
+            List<RpcClient> select = dc.selectDestinations(Math.min(maxSelect, 2), rnd);
             maxSelect -= select.size();
 
             r.addAll(select);

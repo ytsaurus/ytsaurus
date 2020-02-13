@@ -1,11 +1,9 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.io.Closeable;
-import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -16,7 +14,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Sets;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.DefaultAsyncHttpClientConfig;
 import org.asynchttpclient.ListenableFuture;
@@ -31,9 +28,9 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.bus.DefaultBusFactory;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
+import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
+import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactoryImpl;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
@@ -46,7 +43,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
 
     private final BusConnector connector;
     private final String datacenterName;
-    private final Map<HostPort, DiscoveryServiceClient> proxies;
+    private final Set<HostPort> proxies;
     private final Duration updatePeriod;
     private final RpcOptions options;
     private final Random rnd;
@@ -69,8 +66,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
             RpcOptions options,
             RpcCredentials credentials,
             RpcCompression compression,
-            PeriodicDiscoveryListener listener)
-    {
+            PeriodicDiscoveryListener listener) {
         this.connector = Objects.requireNonNull(connector);
         this.datacenterName = Objects.requireNonNull(datacenterName);
         this.updatePeriod = options.getProxyUpdateTimeout();
@@ -78,7 +74,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
         this.rnd = new Random();
         this.proxyRole = Option.ofNullable(proxyRole);
         this.clusterUrl = Option.ofNullable(clusterUrl);
-        this.proxies = new HashMap<>();
+        this.proxies = new HashSet<>();
         this.credentials = Objects.requireNonNull(credentials);
         this.compression = Objects.requireNonNull(compression);
         this.listenerOpt = Option.ofNullable(listener);
@@ -100,7 +96,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
 
         try {
             this.initialAddresses = initialAddresses.stream().map(HostPort::parse).collect(Collectors.toList());
-            addProxies(this.initialAddresses);
+            setProxies(this.initialAddresses);
         } catch (Throwable e) {
             logger.error("Error on construction periodic discovery", e);
             IoUtils.closeQuietly(this);
@@ -113,81 +109,26 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
     }
 
     public Set<String> getAddresses() {
-        return proxies.keySet().stream().map(HostPort::toString).collect(Collectors.toSet());
+        return proxies.stream().map(HostPort::toString).collect(Collectors.toSet());
     }
 
-    public List<RpcClient> getProxies() {
-        return proxies.values().stream().map(DiscoveryServiceClient::getClient).collect(Collectors.toList());
-    }
-
-    private void removeProxies(Collection<HostPort> list) {
-        final Set<RpcClient> removeList = new HashSet<>();
-        for (HostPort addr : list) {
-            try {
-                DiscoveryServiceClient client = proxies.remove(addr);
-                if (client != null) {
-                    logger.info("Proxy removed: {}", addr);
-                    client.getClient().close();
-                    removeList.add(client.getClient());
-                } else {
-                    logger.warn("Cannot remove proxy: {}", addr);
-                }
-            } catch (Throwable e) {
-                for (PeriodicDiscoveryListener listener : listenerOpt) {
-                    listener.onError(e);
-                }
-
-                logger.error("Error on proxy remove {}: {}", addr, e, e);
-            }
-        }
-
+    private void setProxies(Collection<HostPort> list) {
+        logger.info("New proxy list added");
+        proxies.clear();
+        proxies.addAll(list);
         for (PeriodicDiscoveryListener listener : listenerOpt) {
             try {
-                listener.onProxiesRemoved(removeList);
+                listener.onProxiesSet(proxies);
             } catch (Throwable e) {
-                logger.error("Error on proxy remove {}: {}", removeList, e, e);
-            }
-        }
-    }
-
-    private void addProxies(Collection<HostPort> list) {
-        final Set<RpcClient> addList = new HashSet<>();
-        for (HostPort addr : list) {
-            try {
-                DiscoveryServiceClient client = createDiscoveryServiceClient(addr);
-                logger.debug("New proxy added: {}", addr);
-                proxies.put(addr, client);
-                addList.add(client.getClient());
-            } catch (Throwable e) {
-                for (PeriodicDiscoveryListener listener : listenerOpt) {
-                    listener.onError(e);
-                }
-
-                logger.error("Error on address parse {}: {}", addr, e, e);
-            }
-        }
-
-        for (PeriodicDiscoveryListener listener : listenerOpt) {
-            try {
-                listener.onProxiesAdded(addList);
-            } catch (Throwable e) {
-                logger.error("Error on proxy remove {}: {}", addList, e, e);
+                listener.onError(e);
+                logger.error("Error on proxy set {}: {}", list, e, e);
             }
         }
     }
 
     private DiscoveryServiceClient createDiscoveryServiceClient(HostPort addr) {
-        final String host = addr.getHost();
-        final int port = addr.getPort();
-        RpcClient rpcClient = new DefaultRpcBusClient(
-                new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)), datacenterName);
-        if (!compression.isEmpty()) {
-            rpcClient = rpcClient.withCompression(compression);
-        }
-        if (!credentials.isEmpty()) {
-            rpcClient = rpcClient.withTokenAuthentication(credentials);
-        }
-
+        RpcClientFactory factory = new RpcClientFactoryImpl(connector, credentials, compression);
+        RpcClient rpcClient = factory.create(addr, datacenterName);
         return new DiscoveryServiceClient(rpcClient, options);
     }
 
@@ -262,8 +203,9 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
     }
 
     private void updateProxiesFromRpc() {
-        List<DiscoveryServiceClient> clients = new ArrayList<>(proxies.values());
-        DiscoveryServiceClient client = clients.get(rnd.nextInt(clients.size()));
+        List<HostPort> clients = new ArrayList<>(proxies);
+        HostPort clientAddr = clients.get(rnd.nextInt(clients.size()));
+        DiscoveryServiceClient client = createDiscoveryServiceClient(clientAddr);
         client.discoverProxies(proxyRole.getOrNull()).whenComplete((result, error) -> {
             if (!running.get()) {
                 return; // ---
@@ -285,19 +227,14 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
     }
 
     private void processProxies(Set<HostPort> list) {
-        Set<HostPort> addresses = proxies.keySet();
-        Set<HostPort> removed = Sets.difference(addresses, list).immutableCopy();
-        Set<HostPort> added = Sets.difference(list, addresses).immutableCopy();
-
-        removeProxies(removed);
-        addProxies(added);
+        setProxies(list);
 
         if (proxies.isEmpty()) {
             if (clusterUrl.isPresent()) {
                 logger.warn("Empty proxies list. Bootstrapping from the initial list: {}", clusterUrl);
             } else {
                 logger.warn("Empty proxies list. Bootstrapping from the initial list: {}", initialAddresses);
-                addProxies(initialAddresses);
+                setProxies(initialAddresses);
             }
         }
     }
