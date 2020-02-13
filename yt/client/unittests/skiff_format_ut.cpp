@@ -1980,6 +1980,18 @@ TEST(TSkiffParser, TestBadWireTypeForSimpleColumn)
     );
 }
 
+TEST(TSkiffParser, TestEmptyColumns)
+{
+    auto skiffSchema = CreateTupleSchema({});
+    TCollectingValueConsumer collectedRows;
+    auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
+
+    parser->Read(AsStringBuf("\x00\x00\x00\x00"));
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 2);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

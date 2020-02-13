@@ -240,11 +240,6 @@ public:
 
         while (Parser_->HasMoreData()) {
             auto tag = Parser_->ParseVariant16Tag();
-            if (tag >= TableDescriptions_.size()) {
-                THROW_ERROR_EXCEPTION("Unknown table index variant16 tag")
-                        << TErrorAttribute("tag", tag);
-            }
-
             if (tag > 0) {
                 THROW_ERROR_EXCEPTION("Unkwnown table index varint16 tag %v",
                     tag);
@@ -295,13 +290,15 @@ private:
         bool HasOtherColumns = false;
     };
 
-    TSkiffSchemaList SkiffSchemaList_;
+    const TSkiffSchemaList SkiffSchemaList_;
 
-    IValueConsumer* ValueConsumer_;
+    IValueConsumer* const ValueConsumer_;
+
     TYsonToUnversionedValueConverter YsonToUnversionedValueConverter_;
     TYsonMapToUnversionedValueConverter OtherColumnsConsumer_;
 
     std::unique_ptr<TCheckedInDebugSkiffParser> Parser_;
+    // TODO(ermolovd): this actually must
     std::vector<TTableDescription> TableDescriptions_;
 };
 

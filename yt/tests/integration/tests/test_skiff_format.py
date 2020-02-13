@@ -339,3 +339,29 @@ class TestSkiffFormat(YTEnvSetup):
         write_table("//tmp/table2", skiff_dump, is_raw=True, input_format=format)
 
         assert read_table("//tmp/table1") == read_table("//tmp/table2")
+
+    @authors("ermolovd")
+    def test_read_empty_columns(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [
+            {"foo_column": 1},
+            {"foo_column": 2},
+            {"foo_column": 3},
+        ])
+
+        format = yson.YsonString("skiff")
+        format.attributes["table_skiff_schemas"] = [
+            {
+                "wire_type": "tuple",
+                "children": []
+            }
+        ]
+
+        read_data = read_table("//tmp/t_in{}", output_format=format)
+        assert read_data == "\x00\x00\x00\x00\x00\x00"
+
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_out", read_data, input_format=format, is_raw=True)
+
+        assert read_table("//tmp/t_out") == [{}, {}, {}]
+
