@@ -1298,17 +1298,9 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
-        {
-            std::vector<TString> textSrcPaths;
-            textSrcPaths.reserve(srcPaths.size());
-            for (const auto& srcPath : srcPaths) {
-                textSrcPaths.push_back(ToString(srcPath, EYsonFormat::Text));
-            }
-
-            context->SetRequestInfo("SrcPaths: %v, DstPath: %v",
-                textSrcPaths,
-                ToString(dstPath, EYsonFormat::Text));
-        }
+        context->SetRequestInfo("SrcPaths: %v, DstPath: %v",
+            srcPaths,
+            dstPath);
 
         CompleteCallWith(
             client,
@@ -3010,7 +3002,7 @@ private:
 
         context->SetRequestInfo(
             "Path: %v, ComputeMD5: %v",
-            ToString(path, EYsonFormat::Text),
+            path,
             options.ComputeMD5);
 
         auto fileWriter = client->CreateFileWriter(path, options);
@@ -3166,9 +3158,7 @@ private:
 
         context->SetRequestInfo(
             "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v",
-            ToString(path, EYsonFormat::Text),
-            options.Unordered,
-            options.OmitInaccessibleColumns);
+            path);
 
         auto tableReader = WaitFor(client->CreateTableReader(path, options))
             .ValueOrThrow();
@@ -3239,7 +3229,7 @@ private:
 
         context->SetRequestInfo(
             "Path: %v",
-            ToString(path, EYsonFormat::Text));
+            path);
 
         auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
             .ValueOrThrow();
@@ -3338,9 +3328,9 @@ private:
         }
 
         context->SetRequestInfo("Path: %v, MD5: %v, CachePath: %v",
-            path,
-            md5,
-            options.CachePath);
+                                path,
+                                md5,
+                                options.CachePath);
 
         CompleteCallWith(
             client,
@@ -3380,15 +3370,7 @@ private:
             FromProto(&options, request->transactional_options());
         }
 
-        {
-            std::vector<TString> textPath;
-            textPath.reserve(path.size());
-            for (const auto& subPath : path) {
-                textPath.push_back(ToString(subPath, EYsonFormat::Text));
-            }
-
-            context->SetRequestInfo("Path: %v", textPath);
-        }
+        context->SetRequestInfo("Path: %v", path);
 
         CompleteCallWith(
             client,
