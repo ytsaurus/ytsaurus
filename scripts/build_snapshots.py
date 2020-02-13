@@ -40,7 +40,7 @@ def build_snapshot(proxy, cell, set_read_only):
 
 
 def verify_proxy(proxy):
-    url = 'https://' + proxy + "/api/v4"
+    url = 'http://' + proxy + "/api/v4"
     try:
         r = requests.get(url)
     except requests.exceptions.SSLError as e:
