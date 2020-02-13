@@ -52,7 +52,7 @@ public:
         const NYTree::IAttributeDictionary& endpointAttributes,
         const NNet::TNetworkAddress& endpointAddress,
         const std::optional<TString>& address,
-        const std::optional<TString>& unixDomainName,
+        const std::optional<TString>& unixDomainSocketPath,
         IMessageHandlerPtr handler,
         NConcurrency::IPollerPtr poller);
 
@@ -149,7 +149,8 @@ private:
     const std::unique_ptr<NYTree::IAttributeDictionary> EndpointAttributes_;
     const NNet::TNetworkAddress EndpointAddress_;
     const std::optional<TString> Address_;
-    const std::optional<TString> UnixDomainName_;
+    const std::optional<TString> UnixDomainSocketPath_;
+    const std::optional<TString> AbstractUnixDomainSocketName_;
     const IMessageHandlerPtr Handler_;
     const NConcurrency::IPollerPtr Poller_;
 

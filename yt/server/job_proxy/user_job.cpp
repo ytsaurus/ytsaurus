@@ -167,6 +167,7 @@ public:
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
         , JobSatelliteConnection_(
+            Host_->GetSlotPath(),
             jobId,
             host->GetConfig()->BusServer,
             JobEnvironmentType_,
@@ -206,12 +207,12 @@ public:
         }
 
         if (UserJobEnvironment_) {
-            YT_VERIFY(host->GetConfig()->BusServer->UnixDomainName);
+            YT_VERIFY(host->GetConfig()->BusServer->UnixDomainSocketPath);
             YT_VERIFY(UserId_);
             Process_ = UserJobEnvironment_->CreateUserJobProcess(
                 ExecProgramName,
                 *UserId_,
-                UserJobSpec_.has_core_table_spec() ? std::make_optional(*host->GetConfig()->BusServer->UnixDomainName) : std::nullopt);
+                UserJobSpec_.has_core_table_spec() ? std::make_optional(*host->GetConfig()->BusServer->UnixDomainSocketPath) : std::nullopt);
 
             BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
                 AuxQueue_->GetInvoker(),

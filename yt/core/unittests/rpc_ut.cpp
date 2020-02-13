@@ -14,6 +14,8 @@
 
 #include <yt/core/bus/public.h>
 
+#include <yt/core/misc/fs.h>
+
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/bus/server.h>
 
@@ -700,20 +702,20 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TTcpBusClient creates abstract unix sockets, supported only on Linux.
+// TRpcOverUnixDomainImpl creates unix domain sockets, supported only on Linux.
 class TRpcOverUnixDomainImpl
 {
 public:
     static IBusServerPtr MakeBusServer()
     {
-        auto busConfig = TTcpBusServerConfig::CreateUnixDomain("unix_domain");
+        auto busConfig = TTcpBusServerConfig::CreateUnixDomain("./socket");
         return CreateTcpBusServer(busConfig);
     }
 
     static IChannelPtr CreateChannel(const TString& address)
     {
         auto clientConfig = TTcpBusClientConfig::CreateUnixDomain(
-            address == DefaultAddress ? "unix_domain" : address);
+            address == DefaultAddress ? "./socket" : address);
         auto client = CreateTcpBusClient(clientConfig);
         return NRpc::NBus::CreateBusChannel(client);
     }

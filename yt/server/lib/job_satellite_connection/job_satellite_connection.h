@@ -50,6 +50,7 @@ class TJobSatelliteConnection
 {
 public:
     TJobSatelliteConnection(
+        const TString& slotPath,
         NJobTrackerClient::TJobId jobId,
         NBus::TTcpBusServerConfigPtr jobProxyRpcServerConfig,
         NExecAgent::EJobEnvironmentType environmentType,

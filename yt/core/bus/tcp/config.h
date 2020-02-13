@@ -38,7 +38,7 @@ class TTcpBusServerConfig
 {
 public:
     std::optional<int> Port;
-    std::optional<TString> UnixDomainName;
+    std::optional<TString> UnixDomainSocketPath;
     int MaxBacklogSize;
     int MaxSimultaneousConnections;
     //! "Default" network is considered when checking if the network is under heavy load.
@@ -49,7 +49,7 @@ public:
     TTcpBusServerConfig();
 
     static TTcpBusServerConfigPtr CreateTcp(int port);
-    static TTcpBusServerConfigPtr CreateUnixDomain(const TString& address);
+    static TTcpBusServerConfigPtr CreateUnixDomain(const TString& socketPath);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTcpBusServerConfig)
@@ -62,7 +62,7 @@ class TTcpBusClientConfig
 public:
     std::optional<TString> Address;
     std::optional<TString> NetworkName;
-    std::optional<TString> UnixDomainName;
+    std::optional<TString> UnixDomainSocketPath;
 
     TTcpBusClientConfig()
     {
@@ -70,19 +70,19 @@ public:
             .Default();
         RegisterParameter("network_name", NetworkName)
             .Default();
-        RegisterParameter("unix_domain_name", UnixDomainName)
+        RegisterParameter("unix_domain_socket_path", UnixDomainSocketPath)
             .Default();
 
         RegisterPostprocessor([&] () {
-            if (!Address && !UnixDomainName) {
-                THROW_ERROR_EXCEPTION("\"address\" and \"unix_domain_name\" cannot be both missing");
+            if (!Address && !UnixDomainSocketPath) {
+                THROW_ERROR_EXCEPTION("\"address\" and \"unix_domain_socket_path\" cannot be both missing");
             }
         });
     }
 
     static TTcpBusClientConfigPtr CreateTcp(const TString& address);
     static TTcpBusClientConfigPtr CreateTcp(const TString& address, const TString& network);
-    static TTcpBusClientConfigPtr CreateUnixDomain(const TString& address);
+    static TTcpBusClientConfigPtr CreateUnixDomain(const TString& socketPath);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTcpBusClientConfig)

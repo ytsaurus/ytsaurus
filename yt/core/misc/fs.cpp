@@ -8,6 +8,7 @@
 
 #include <util/folder/dirut.h>
 #include <util/folder/filelist.h>
+#include <util/string/split.h>
 #include <util/system/shellcommand.h>
 
 #include <array>
@@ -144,7 +145,11 @@ TString GetRealPath(const TString& path)
             break;
         }
     }
-    parts.push_back(RealPath(curPath));
+    if (!curPath.empty()) {
+        parts.push_back(RealPath(curPath));
+    } else {
+        parts.push_back(LOCSLASH_S);
+    }
 
     Reverse(parts.begin(), parts.end());
     return CombinePaths(parts);
@@ -247,6 +252,52 @@ std::vector<TString> EnumerateDirectories(const TString& path, int depth)
         }
     }
     return result;
+}
+
+TString GetRelativePath(const TString& from, const TString& to)
+{
+    std::vector<TString> tokensFrom;
+    StringSplitter(GetRealPath(from)).Split(LOCSLASH_C).Collect(&tokensFrom);
+    std::vector<TString> tokensTo;
+    StringSplitter(GetRealPath(to)).Split(LOCSLASH_C).Collect(&tokensTo);
+
+    int commonPrefixLength = 0;
+    while (commonPrefixLength < std::min(tokensFrom.size(), tokensTo.size()) &&
+        tokensFrom[commonPrefixLength] == tokensTo[commonPrefixLength])
+    {
+        ++commonPrefixLength;
+    }
+
+    std::vector<TString> relativePathTokens;
+    relativePathTokens.reserve(tokensFrom.size() + tokensTo.size() - 2 * commonPrefixLength);
+    for (int index = 0; index < tokensFrom.size() - commonPrefixLength; ++index) {
+        relativePathTokens.push_back("..");
+    }
+    for (int index = commonPrefixLength; index < tokensTo.size(); ++index) {
+        relativePathTokens.push_back(tokensTo[index]);
+    }
+
+    if (relativePathTokens.empty()) {
+        return ".";
+    }
+
+    return CombinePaths(relativePathTokens);
+}
+
+TString GetRelativePath(const TString& path)
+{
+    return GetRelativePath(NFs::CurrentWorkingDirectory(), path);
+}
+
+TString GetShortestPath(const TString& path)
+{
+    auto absolutePath = GetRealPath(path);
+    auto relativePath = GetRelativePath(path);
+    if (absolutePath.length() < relativePath.length()) {
+        return absolutePath;
+    } else {
+        return relativePath;
+    }
 }
 
 TDiskSpaceStatistics GetDiskSpaceStatistics(const TString& path)

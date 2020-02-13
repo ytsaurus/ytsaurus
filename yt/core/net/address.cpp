@@ -10,9 +10,10 @@
 #include <yt/core/net/dns_resolver.h>
 #include <yt/core/net/local_address.h>
 
-#include <yt/core/misc/lazy_ptr.h>
-#include <yt/core/misc/singleton.h>
 #include <yt/core/misc/async_expiring_cache.h>
+#include <yt/core/misc/lazy_ptr.h>
+#include <yt/core/misc/fs.h>
+#include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -310,22 +311,32 @@ TNetworkAddress TNetworkAddress::CreateIPv6Loopback(int port)
     return TNetworkAddress(reinterpret_cast<const sockaddr&>(serverAddress), sizeof(serverAddress));
 }
 
-TNetworkAddress TNetworkAddress::CreateUnixDomainAddress(const TString& name)
+TNetworkAddress TNetworkAddress::CreateUnixDomainSocketAddress(const TString& socketPath)
 {
 #ifdef _linux_
     // Abstract unix sockets are supported only on Linux.
     sockaddr_un sockAddr;
+    if (socketPath.size() > sizeof(sockAddr.sun_path)) {
+        THROW_ERROR_EXCEPTION("Unix domain socket path is too long")
+            << TErrorAttribute("socket_path", socketPath)
+            << TErrorAttribute("max_socket_path_length", sizeof(sockAddr.sun_path));
+    }
+
     memset(&sockAddr, 0, sizeof(sockAddr));
     sockAddr.sun_family = AF_UNIX;
-    memcpy(sockAddr.sun_path + 1, name.data(), name.length());
+    memcpy(sockAddr.sun_path, socketPath.data(), socketPath.length());
     return TNetworkAddress(
         *reinterpret_cast<sockaddr*>(&sockAddr),
         sizeof (sockAddr.sun_family) +
-        sizeof (char) +
-        name.length());
+        socketPath.length());
 #else
     YT_ABORT();
 #endif
+}
+
+TNetworkAddress TNetworkAddress::CreateAbstractUnixDomainSocketAddress(const TString& socketName)
+{
+    return CreateUnixDomainSocketAddress(TString("\0", 1) + socketName);
 }
 
 TNetworkAddress TNetworkAddress::Parse(TStringBuf address)
@@ -406,7 +417,8 @@ TString ToString(const TNetworkAddress& address, bool withPort)
                 auto quoted = Format("%Qv", addressRef);
                 return Format("unix://[%v]", quoted.substr(1, quoted.size() - 2));
             } else {
-                return Format("unix://%v", typedAddr->sun_path);
+                auto addressRef = TString(typedAddr->sun_path, address.GetLength() - sizeof(sa_family_t));
+                return Format("unix://%v", NFS::GetRealPath(addressRef));
             }
         }
 #endif
