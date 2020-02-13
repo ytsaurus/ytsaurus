@@ -62,6 +62,7 @@ def prepare_objects(yp_client):
 
     stage_id = yp_client.create_object("stage", attributes={
         "spec": {
+            "revision": 1,
             "deploy_units": {
                 deploy_unit: {
                     "replica_set": {
@@ -221,6 +222,9 @@ class TestCommitDeployTicket(object):
         check_action_state(patch_actions_result[0], "commit", "COMMITTED", "Parent COMMITTED: new commit")
         check_action_state(patch_actions_result[1], "commit", "COMMITTED", "Parent COMMITTED: new commit")
 
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 2
+
     def test_partial_commit(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         stage_id, ticket_id = prepare_objects(yp_client)
@@ -244,6 +248,9 @@ class TestCommitDeployTicket(object):
 
         check_action_state(patch_actions_result[0], "commit", "COMMITTED", "new commit")
         check_action_state(patch_actions_result[1], "on_hold", "ON_HOLD", "hold")
+
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 2
 
     def test_full_commit_when_some_patches_already_committed(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -277,6 +284,9 @@ class TestCommitDeployTicket(object):
 
         check_action_state(patch_actions_result[0], "commit", "COMMITTED", "old commit")
         check_action_state(patch_actions_result[1], "commit", "COMMITTED", "Parent COMMITTED: new commit")
+
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 2
 
 
     def test_commit_patch_which_already_committed(self, yp_env_configurable):
@@ -314,6 +324,9 @@ class TestCommitDeployTicket(object):
         check_action_state(patch_actions_result[0], "commit", "COMMITTED", "old commit")
         check_action_state(patch_actions_result[1], "on_hold", "ON_HOLD", "hold")
 
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
+
     def test_commit_ticket_which_already_committed(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         stage_id, ticket_id = prepare_objects(yp_client)
@@ -333,6 +346,9 @@ class TestCommitDeployTicket(object):
         ticket_action_result = yp_client.get_object("deploy_ticket", ticket_id, selectors=["/status/action"])[0]
         check_action_state(ticket_action_result, "commit", "COMMITTED", "old commit")
 
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
+
     def test_full_skip(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         stage_id, ticket_id = prepare_objects(yp_client)
@@ -350,6 +366,9 @@ class TestCommitDeployTicket(object):
         check_action_state(patch_actions_result[0], "skip", "SKIPPED", "Parent SKIPPED: skip ticket")
         check_action_state(patch_actions_result[1], "skip", "SKIPPED", "Parent SKIPPED: skip ticket")
 
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
+
     def test_partial_skip(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         stage_id, ticket_id = prepare_objects(yp_client)
@@ -366,6 +385,9 @@ class TestCommitDeployTicket(object):
 
         check_action_state(patch_actions_result[0], "skip", "SKIPPED", "skip patch")
         check_action_state(patch_actions_result[1], "on_hold", "ON_HOLD", "hold")
+
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
 
     def test_full_skip_when_some_patches_already_skipped(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -393,6 +415,9 @@ class TestCommitDeployTicket(object):
         check_action_state(patch_actions_result[0], "skip", "SKIPPED", "skip patch")
         check_action_state(patch_actions_result[1], "skip", "SKIPPED", "Parent SKIPPED: skip ticket")
 
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
+
     def test_skip_patch_which_already_has_terminal_state(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         stage_id, ticket_id = prepare_objects(yp_client)
@@ -417,6 +442,9 @@ class TestCommitDeployTicket(object):
         check_action_state(patch_actions_result[0], "commit", "COMMITTED", "old commit")
         check_action_state(patch_actions_result[1], "on_hold", "ON_HOLD", "hold")
 
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
+
     def test_skip_ticket_which_already_has_terminal_state(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         stage_id, ticket_id = prepare_objects(yp_client)
@@ -436,6 +464,9 @@ class TestCommitDeployTicket(object):
         ticket_action_result = yp_client.get_object("deploy_ticket", ticket_id, selectors=["/status/action"])[0]
         check_action_state(ticket_action_result, "commit", "COMMITTED", "old commit")
 
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
+
     def test_commit_when_deploy_unit_does_not_exist(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         stage_id, ticket_id = prepare_objects(yp_client)
@@ -448,6 +479,9 @@ class TestCommitDeployTicket(object):
         with pytest.raises(YtResponseError):
             yp_client.commit_deploy_ticket(ticket_id=ticket_id, type="full", message="commit ticket", reason="COMMITTED")
 
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
+
     def test_commit_when_pod_deploy_primitive_does_not_set(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         stage_id, ticket_id = prepare_objects(yp_client)
@@ -459,6 +493,9 @@ class TestCommitDeployTicket(object):
 
         with pytest.raises(YtResponseError):
             yp_client.commit_deploy_ticket(ticket_id=ticket_id, type="full", message="commit ticket", reason="COMMITTED")
+
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
 
     def test_commit_when_resource_id_does_not_exist(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -481,6 +518,9 @@ class TestCommitDeployTicket(object):
         with pytest.raises(YtResponseError):
             yp_client.commit_deploy_ticket(ticket_id=ticket_id, type="full", message="commit ticket", reason="COMMITTED")
 
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
+
     def test_commit_when_resource_type_from_patch_does_not_exist_in_release(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         stage_id, ticket_id = prepare_objects(yp_client)
@@ -492,3 +532,35 @@ class TestCommitDeployTicket(object):
 
         with pytest.raises(YtResponseError):
             yp_client.commit_deploy_ticket(ticket_id=ticket_id, type="full", message="commit ticket", reason="COMMITTED")
+
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
+
+    def test_partial_commit_when_patch_id_does_not_exist(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+        stage_id, ticket_id = prepare_objects(yp_client)
+
+        with pytest.raises(YtResponseError):
+            yp_client.commit_deploy_ticket(ticket_id=ticket_id, type="partial", patch_ids=["unknown"], message="new commit", reason="COMMITTED")
+
+        ticket_action_result = yp_client.get_object("deploy_ticket", ticket_id, selectors=["/status/action"])[0]
+        check_action_state(ticket_action_result, "on_hold", "ON_HOLD", "hold")
+
+        static_resources = yp_client.get_object("stage", stage_id, selectors=[
+            "/spec/deploy_units/test-deploy-unit/replica_set/replica_set_template/pod_template_spec/spec/pod_agent_payload/spec/resources/static_resources"
+        ])[0]
+
+        check_static_resource_state(static_resources[0], "default", "default", {})
+        check_static_resource_state(static_resources[1], "default", "default", {})
+
+        patch_actions_result = yp_client.get_object("deploy_ticket", ticket_id, selectors=[
+            "/status/patches/{}/action".format(deploy_patch1),
+            "/status/patches/{}/action".format(deploy_patch2)
+        ])
+
+        check_action_state(patch_actions_result[0], "on_hold", "ON_HOLD", "hold")
+        check_action_state(patch_actions_result[1], "on_hold", "ON_HOLD", "hold")
+
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
+

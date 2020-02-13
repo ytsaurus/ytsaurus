@@ -169,6 +169,26 @@ private:
         return alivePatches;
     }
 
+    static void ValidatePatchesExistInDeployTicket(
+        const TDeployTicket* deployTicket,
+        const std::vector<TObjectId>& patchIds)
+    {
+        const auto& specPatches = deployTicket->Spec().Etc().Load().patches();
+        const auto& statusPatches = deployTicket->Status().Load().patches();
+        for (const auto& patchId : patchIds) {
+            if (!specPatches.count(patchId)) {
+                THROW_ERROR_EXCEPTION("Patch %Qv does not exist in spec of deploy ticket %Qv",
+                    patchId,
+                    deployTicket->GetId());
+            }
+            if (!statusPatches.count(patchId)) {
+                THROW_ERROR_EXCEPTION("Patch %Qv does not exist in status of deploy ticket %Qv",
+                    patchId,
+                    deployTicket->GetId());
+            }
+        }
+    }
+
     static void ValidatePatchStates(const TDeployTicket* deployTicket, const std::vector<TString>& patchIds)
     {
         for (const auto& patchId : patchIds) {
@@ -334,6 +354,7 @@ private:
         const TString& message,
         const TString& reason)
     {
+        ValidatePatchesExistInDeployTicket(deployTicket, patchIds);
         ValidatePatchStates(deployTicket, patchIds);
 
         THashMap<TString, std::vector<TStaticResourceInfo>> staticResourceTypeToInfo;
@@ -385,6 +406,10 @@ private:
         } else {
             THROW_ERROR_EXCEPTION("Empty payload in release %Qv", release->GetId());
         }
+
+        if (!patchIds.empty()) {
+            stage->Spec().Etc()->set_revision(stage->Spec().Etc()->revision() + 1);
+        }
     }
 
     static void CommitTicket(
@@ -406,6 +431,7 @@ private:
         const TString& message,
         const TString& reason)
     {
+        ValidatePatchesExistInDeployTicket(deployTicket, patchIds);
         ValidatePatchStates(deployTicket, patchIds);
 
         for (const auto& patchId : patchIds) {
