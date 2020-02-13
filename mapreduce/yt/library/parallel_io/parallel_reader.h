@@ -23,7 +23,13 @@ struct TParallelTableReaderOptions
     //
     // NOTE: Actual memory consumption depends on the underlying readers,
     // e.g. each YSON TNode reader allocates additional buffer for parsed rows.
-    FLUENT_FIELD_DEFAULT(size_t, BufferedRowCountLimit, 10000);
+    //
+    // This field is deprecated, use `MemoryLimit` instead
+    FLUENT_FIELD_DEFAULT(size_t, BufferedRowCountLimit, 1'000'000);
+
+    // Maximum number of rows allowed to be stored in memory
+    // is calculated as Min(BufferedRowCountLimit, MemoryLimit / "Average weight row in table")
+    FLUENT_FIELD_DEFAULT(size_t, MemoryLimit, 300'000'000);
 
     // Number of created reader threads.
     //
