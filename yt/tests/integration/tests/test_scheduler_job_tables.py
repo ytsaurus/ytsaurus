@@ -595,7 +595,8 @@ class TestCoreTable(YTEnvSetup):
                     "1", # rlimit_core is always 1 when core forwarder is called in our case.
                     self.JOB_PROXY_UDS_NAME_DIR, fallback_path]
             print_debug(repr(args))
-            process = subprocess.Popen(args, bufsize=0, stdin=subprocess.PIPE)
+            # NB(gritukan): Path to socket can be too long, let's move core-forwarder closer to it.
+            process = subprocess.Popen(args, bufsize=0, stdin=subprocess.PIPE, cwd=self.JOB_PROXY_UDS_NAME_DIR)
             size = 0
             core_data = ""
             for chunk in input_data:

@@ -65,7 +65,7 @@ public:
 
         RegisterPostprocessor([&] {
             if (RpcPort > 0) {
-                if (BusServer->Port || BusServer->UnixDomainName) {
+                if (BusServer->Port || BusServer->UnixDomainSocketPath) {
                     THROW_ERROR_EXCEPTION("Explicit socket configuration for bus server is forbidden");
                 }
                 BusServer->Port = RpcPort;

@@ -29,7 +29,7 @@ static constexpr auto PerConnectionLivenessChecksPeriod = TDuration::Seconds(10)
 TNetworkAddress GetLocalBusAddress(int port)
 {
     auto name = Format("yt-local-bus-%v", port);
-    return TNetworkAddress::CreateUnixDomainAddress(name);
+    return TNetworkAddress::CreateAbstractUnixDomainSocketAddress(name);
 }
 
 bool IsLocalBusTransportEnabled()

@@ -4,6 +4,7 @@
 #include "dispatcher_impl.h"
 
 #include <yt/core/misc/enum.h>
+#include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/string.h>
 
@@ -27,6 +28,7 @@
 namespace NYT::NBus {
 
 using namespace NConcurrency;
+using namespace NFS;
 using namespace NNet;
 using namespace NYTree;
 using namespace NYson;
@@ -60,7 +62,7 @@ TTcpConnection::TTcpConnection(
     const IAttributeDictionary& endpointAttributes,
     const TNetworkAddress& endpointAddress,
     const std::optional<TString>& address,
-    const std::optional<TString>& unixDomainName,
+    const std::optional<TString>& unixDomainSocketPath,
     IMessageHandlerPtr handler,
     IPollerPtr poller)
     : Config_(std::move(config))
@@ -70,7 +72,7 @@ TTcpConnection::TTcpConnection(
     , EndpointAttributes_(endpointAttributes.Clone())
     , EndpointAddress_(endpointAddress)
     , Address_(address)
-    , UnixDomainName_(unixDomainName)
+    , UnixDomainSocketPath_(unixDomainSocketPath)
     , Handler_(std::move(handler))
     , Poller_(std::move(poller))
     , Logger(NLogging::TLogger(BusLogger)
@@ -228,15 +230,16 @@ void TTcpConnection::Open()
 
 void TTcpConnection::ResolveAddress()
 {
-    if (UnixDomainName_) {
+    if (UnixDomainSocketPath_) {
         if (!IsLocalBusTransportEnabled()) {
             Abort(TError(NBus::EErrorCode::TransportError, "Local bus transport is not available"));
             return;
         }
 
         NetworkName_ = LocalNetworkName;
+        // NB(gritukan): Unix domain socket path cannot be longer than 108 symbols, so let's try to shorten it.
         OnAddressResolved(
-            TNetworkAddress::CreateUnixDomainAddress(*UnixDomainName_));
+            TNetworkAddress::CreateUnixDomainSocketAddress(GetShortestPath(*UnixDomainSocketPath_)));
     } else {
         TStringBuf hostName;
         try {

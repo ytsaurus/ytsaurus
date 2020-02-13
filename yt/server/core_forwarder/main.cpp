@@ -73,10 +73,10 @@ protected:
         try {
             TString jobProxySocketNameFile = JobProxySocketNameDirectory_ + "/" + ToString(UserId_);
             if (JobProxySocketPath_ || Exists(jobProxySocketNameFile)) {
-                auto jobProxySocketName = JobProxySocketPath_
+                auto jobProxySocketPath = JobProxySocketPath_
                     ? *JobProxySocketPath_
                     : TUnbufferedFileInput(jobProxySocketNameFile).ReadLine();
-                ForwardCore(jobProxySocketName);
+                ForwardCore(jobProxySocketPath);
             } else {
                 WriteCoreToDisk();
             }
@@ -125,11 +125,11 @@ protected:
         syslog(LOG_INFO, "Finished writing core to disk (Size: %" PRId64 ")", size);
     }
 
-    void ForwardCore(const TString& socketName)
+    void ForwardCore(const TString& socketPath)
     {
-        syslog(LOG_INFO, "Sending core to job proxy (SocketName: %s)", socketName.c_str());
+        syslog(LOG_INFO, "Sending core to job proxy (SocketPath: %s)", socketPath.c_str());
 
-        auto coreProcessorClient = CreateTcpBusClient(TTcpBusClientConfig::CreateUnixDomain(socketName));
+        auto coreProcessorClient = CreateTcpBusClient(TTcpBusClientConfig::CreateUnixDomain(socketPath));
         auto coreProcessorChannel = NRpc::NBus::CreateBusChannel(coreProcessorClient);
 
         TCoreProcessorServiceProxy proxy(coreProcessorChannel);

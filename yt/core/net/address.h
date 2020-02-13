@@ -62,7 +62,8 @@ public:
 
     static TNetworkAddress CreateIPv6Any(int port);
     static TNetworkAddress CreateIPv6Loopback(int port);
-    static TNetworkAddress CreateUnixDomainAddress(const TString& name);
+    static TNetworkAddress CreateUnixDomainSocketAddress(const TString& socketPath);
+    static TNetworkAddress CreateAbstractUnixDomainSocketAddress(const TString& socketName);
 
     bool IsUnix() const;
     bool IsIP4() const;

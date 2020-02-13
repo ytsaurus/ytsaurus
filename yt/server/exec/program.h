@@ -8,6 +8,7 @@
 #include <yt/ytlib/program/program_tool_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
 
+#include <yt/core/logging/formatter.h>
 #include <yt/core/logging/log_manager.h>
 
 #include <yt/library/process/pipe.h>
@@ -88,6 +89,8 @@ public:
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
+        ExecutorStderr_ = TFile{"../executor_stderr", EOpenModeFlag::WrOnly | EOpenModeFlag::ForAppend | EOpenModeFlag::OpenAlways};
+
         if (HandleConfigOptions()) {
             return;
         }
@@ -99,12 +102,6 @@ protected:
             RunJobSatellite(GetConfig(), Uid_, Environment_, JobId_);
         }
         TThread::SetCurrentThreadName("ExecMain");
-
-        try {
-            SafeCreateStderrFile("../executor_stderr");
-        } catch (...) {
-            Exit(3);
-        }
 
         // Don't start any other singleton or parse config in executor mode.
         // Explicitly shut down log manager to ensure it doesn't spoil dup-ed descriptors.
@@ -164,7 +161,7 @@ protected:
         }
 
         if (!executorError.IsOK()) {
-            fprintf(stderr, "Failed to prepare pipes, unexpected executor error\n%s", ToString(executorError).data());
+            LogToStderr(Format("Failed to prepare pipes, unexpected executor error\n%v", executorError));
             Exit(4);
         }
 
@@ -184,10 +181,6 @@ protected:
             if (Pty_ > 2) {
                 SafeClose(Pty_);
             }
-        }
-
-        if (Uid_ > 0) {
-            SetUid(Uid_);
         }
 
         std::vector<char*> env;
@@ -214,9 +207,13 @@ protected:
             try {
                 NotifyExecutorPrepared(GetConfig());
             } catch (const std::exception& ex) {
-                fprintf(stderr, "Unable to notify job proxy\n%s", ex.what());
+                LogToStderr(Format("Unable to notify job proxy\n%v", ex.what()));
                 Exit(5);
             }
+        }
+
+        if (Uid_ > 0) {
+            SetUid(Uid_);
         }
 
         TryExecve(
@@ -224,11 +221,30 @@ protected:
             args.data(),
             env.data());
 
-        fprintf(stderr, "execve failed: %s", TError::FromSystem().GetMessage().data());
+        LogToStderr(Format("execve failed: %v", TError::FromSystem()));
         Exit(6);
     }
 
+    virtual void OnError(const TString& message) const noexcept override
+    {
+        LogToStderr(message);
+    }
+
 private:
+    void LogToStderr(const TString& message) const
+    {
+        auto logRecord = Format("%v (JobId: %v)", message, JobId_);
+
+        if (!ExecutorStderr_.IsOpen()) {
+            Cerr << logRecord << Endl;
+            return;
+        }
+
+        ExecutorStderr_.Write(logRecord.data(), logRecord.size());
+        ExecutorStderr_.Flush();
+    }
+
+    mutable TFile ExecutorStderr_;
     TString Command_;
     std::vector<NPipes::TNamedPipeConfig> Pipes_;
     std::vector<TString> Environment_;
