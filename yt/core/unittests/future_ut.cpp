@@ -617,6 +617,14 @@ static TFuture<int> AsyncDivide(int a, int b, TDuration delay)
     return promise;
 }
 
+TEST_F(TFutureTest, TestCancelDelayed)
+{
+    auto future = NConcurrency::TDelayedExecutor::MakeDelayed(TDuration::Seconds(10));
+    future.Cancel(TError("Canceled"));
+    EXPECT_TRUE(future.IsSet());
+    EXPECT_FALSE(future.Get().IsOK());
+}
+
 TEST_F(TFutureTest, CombineEmpty)
 {
     std::vector<TFuture<int>> futures;
