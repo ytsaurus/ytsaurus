@@ -132,7 +132,7 @@ bool operator== (const TRichYPath& lhs, const TRichYPath& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TRichYPath& path, NYson::EYsonFormat ysonFormat = NYson::EYsonFormat::Binary);
+TString ToString(const TRichYPath& path);
 
 std::vector<TRichYPath> Normalize(const std::vector<TRichYPath>& paths);
 
