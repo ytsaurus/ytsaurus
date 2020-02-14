@@ -9,8 +9,17 @@ import requests
 logging.basicConfig(level=logging.INFO, format='%(asctime)s\t%(levelname).1s\t%(module)s:%(lineno)d\t%(message)s')
 
 
-unsupported_tests = ['00150_quantiles_timing_precision', '00090_thread_pool_deadlock']
-unsupported_query_words = ['ParsedParams', 'GeneralInterests', 'SET', 'CREATE', 'URLCategories', 'GoalsReached', 'Goals', 'PREWHERE', 'DROP', 'RENAME']
+unsupported_tests = [
+        '00010_quantiles_segfault', # uses remote, same as local clickhouse
+        '00090_thread_pool_deadlock', # test of clickhouse-client
+#       '00024_random_counters', # too big
+        '00031_array_enumerate_uniq',
+        '00067_union_all', # uses remote, same as local clickhouse
+        '00147_global_in_aggregate_function', # uses remote, same as local clickhouse
+        '00149_quantiles_timing_distributed', # uses distribution
+]
+
+unsupported_query_words = ['ParsedParams', 'GeneralInterests', 'SET', 'CREATE', 'URLCategories', 'GoalsReached', 'Goals', 'PREWHERE', 'DROP', 'RENAME', 'system.columns']
 
 def is_query_supported(query):
     for unsupported_word in unsupported_query_words:
@@ -45,7 +54,7 @@ class QueryExecutor:
                     status_code=responce.status_code, headers=responce.headers, content=responce.content))
             raise ValueError
         responce.raise_for_status()
-        return responce.content.strip().split('\n')
+        return responce.content.rstrip().split('\n')
 
 
 def execute_tests(tests, query_executor):
@@ -69,7 +78,8 @@ def execute_tests(tests, query_executor):
                     print "EXCEPTION"
                     logging.critical("raised exception on query: {}".format(query_executor.patch_paths(query)))
                     exit()
-                result.extend(responce)
+                if responce != [''] or len(test['queries']) == 1:
+                    result.extend(responce)
 
         if skipped:
             print "SKIPPED"
