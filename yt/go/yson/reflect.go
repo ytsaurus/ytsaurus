@@ -1,7 +1,9 @@
 package yson
 
 import (
+	"encoding"
 	"reflect"
+	"strconv"
 	"sync"
 
 	"a.yandex-team.ru/library/go/core/xerrors"
@@ -302,10 +304,25 @@ func decodeReflectPtr(r *Reader, v reflect.Value) error {
 	return decodeAny(r, v.Interface())
 }
 
+var (
+	textUnmarshalerType   = reflect.TypeOf((*encoding.TextUnmarshaler)(nil)).Elem()
+	binaryUnmarshalerType = reflect.TypeOf((*encoding.BinaryUnmarshaler)(nil)).Elem()
+)
+
 func decodeReflectMap(r *Reader, v reflect.Value) error {
 	kt := v.Type().Elem().Key()
-	if kt.Kind() != reflect.String {
-		return &UnsupportedTypeError{v.Type().Elem()}
+
+	switch kt.Kind() {
+	case reflect.String,
+		reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	default:
+		switch {
+		case reflect.PtrTo(kt).Implements(textUnmarshalerType),
+			reflect.PtrTo(kt).Implements(binaryUnmarshalerType):
+		default:
+			return &UnsupportedTypeError{v.Type().Elem()}
+		}
 	}
 
 	e, err := r.Next(true)
@@ -334,13 +351,49 @@ func decodeReflectMap(r *Reader, v reflect.Value) error {
 			break
 		}
 
-		keyName := r.String()
+		var kv reflect.Value
+		switch {
+		case kt.Kind() == reflect.String:
+			kv = reflect.ValueOf(r.String()).Convert(kt)
+		case reflect.PtrTo(kt).Implements(textUnmarshalerType):
+			kv = reflect.New(kt)
+			err := kv.Interface().(encoding.TextUnmarshaler).UnmarshalText(r.currentString)
+			if err != nil {
+				return err
+			}
+			kv = kv.Elem()
+		case reflect.PtrTo(kt).Implements(binaryUnmarshalerType):
+			kv = reflect.New(kt)
+			err := kv.Interface().(encoding.BinaryUnmarshaler).UnmarshalBinary(r.currentString)
+			if err != nil {
+				return err
+			}
+			kv = kv.Elem()
+		default:
+			switch kt.Kind() {
+			case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
+				n, err := strconv.ParseInt(r.String(), 10, 64)
+				if err != nil || reflect.Zero(kt).OverflowInt(n) {
+					return ErrIntegerOverflow
+				}
+				kv = reflect.ValueOf(n).Convert(kt)
+			case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+				n, err := strconv.ParseUint(r.String(), 10, 64)
+				if err != nil || reflect.Zero(kt).OverflowUint(n) {
+					return ErrIntegerOverflow
+				}
+				kv = reflect.ValueOf(n).Convert(kt)
+			default:
+				panic("yson: Unexpected key type")
+			}
+		}
+
 		elem := reflect.New(elementType)
 		if err = decodeAny(r, elem.Interface()); err != nil {
 			return err
 		}
 
-		m.SetMapIndex(reflect.ValueOf(keyName).Convert(kt), elem.Elem())
+		m.SetMapIndex(kv, elem.Elem())
 	}
 
 	if e, err = r.Next(false); err != nil {

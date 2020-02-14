@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 	"time"
 )
 
@@ -87,7 +88,13 @@ func (e *Encoder) Encode(value interface{}) (err error) {
 //     // Field appears in YSON under key "-"
 //     Field int `yson:"-,"`
 //
-// Map values are encoded as YSON maps. A map's key type must be a string.
+// Map values are encoded as YSON maps. The map's key type must either be a
+// string, an integer type, or implement encoding.TextMarshaler, or implement encoding.BinaryMarshaler.
+// The map keys are used as YSON map keys by applying the following rules:
+//   - keys of any string type are used directly
+//   - encoding.TextMarshalers are marshaled
+//   - encoding.BinaryMarshalers are marshaled
+//   - integer keys are converted to strings
 //
 // Pointer values are encoded as the value pointed to. A nil pointer encodes as the YSON entity value.
 //
@@ -361,16 +368,32 @@ func encodeReflect(w *Writer, value reflect.Value) error {
 	return fmt.Errorf("yson: type %T not supported", value.Interface())
 }
 
+var (
+	textMarshalerType   = reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
+	binaryMarshalerType = reflect.TypeOf((*encoding.BinaryMarshaler)(nil)).Elem()
+)
+
 func encodeReflectMap(w *Writer, value reflect.Value) (err error) {
-	if value.Type().Key().Kind() != reflect.String {
-		return fmt.Errorf("yson: maps with non string keys are not supported")
+	switch value.Type().Key().Kind() {
+	case reflect.String,
+		reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	default:
+		switch {
+		case value.Type().Key().Implements(textMarshalerType),
+			value.Type().Key().Implements(binaryMarshalerType):
+		default:
+			return fmt.Errorf("yson: unsupported map key type")
+		}
 	}
 
 	w.BeginMap()
 
 	mr := value.MapRange()
 	for mr.Next() {
-		w.MapKeyString(mr.Key().String())
+		if err := encodeMapKey(w, mr.Key()); err != nil {
+			return err
+		}
 
 		if err = encodeAny(w, mr.Value().Interface()); err != nil {
 			return err
@@ -379,6 +402,44 @@ func encodeReflectMap(w *Writer, value reflect.Value) (err error) {
 
 	w.EndMap()
 	return w.Err()
+}
+
+func encodeMapKey(w *Writer, v reflect.Value) error {
+	if v.Kind() == reflect.String {
+		w.MapKeyString(v.String())
+		return nil
+	}
+
+	if tm, ok := v.Interface().(encoding.TextMarshaler); ok {
+		buf, err := tm.MarshalText()
+		if err != nil {
+			return err
+		}
+		w.MapKeyBytes(buf)
+		return nil
+	}
+
+	if bm, ok := v.Interface().(encoding.BinaryMarshaler); ok {
+		buf, err := bm.MarshalBinary()
+		if err != nil {
+			return err
+		}
+		w.MapKeyBytes(buf)
+		return nil
+	}
+
+	switch v.Kind() {
+	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
+		s := strconv.FormatInt(v.Int(), 10)
+		w.MapKeyString(s)
+		return nil
+	case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		s := strconv.FormatUint(v.Uint(), 10)
+		w.MapKeyString(s)
+		return nil
+	default:
+		panic("yson: unsupported map key type")
+	}
 }
 
 func isZeroValue(v reflect.Value) bool {
