@@ -109,6 +109,24 @@ DEFINE_REFCOUNTED_TYPE(TNodeSegmentTypeHandlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStageTypeHandlerConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    // History.
+    bool EnableStatusHistory;
+
+    TStageTypeHandlerConfig()
+    {
+        RegisterParameter("enable_status_history", EnableStatusHistory)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TStageTypeHandlerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TObjectManagerConfig
     : public NYT::NYTree::TYsonSerializable
 {
@@ -122,6 +140,7 @@ public:
     TPodTypeHandlerConfigPtr PodTypeHandler;
     TPodSetTypeHandlerConfigPtr PodSetTypeHandler;
     TNodeSegmentTypeHandlerConfigPtr NodeSegmentTypeHandler;
+    TStageTypeHandlerConfigPtr StageTypeHandler;
 
     // Extensible attributes.
     bool EnableExtensibleAttributes;
@@ -145,6 +164,8 @@ public:
         RegisterParameter("pod_set_type_handler", PodSetTypeHandler)
             .DefaultNew();
         RegisterParameter("node_segment_type_handler", NodeSegmentTypeHandler)
+            .DefaultNew();
+        RegisterParameter("stage_type_handler", StageTypeHandler)
             .DefaultNew();
 
         RegisterParameter("enable_extensible_attributes", EnableExtensibleAttributes)

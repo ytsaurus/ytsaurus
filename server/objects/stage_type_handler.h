@@ -6,7 +6,7 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IObjectTypeHandler> CreateStageTypeHandler(NMaster::TBootstrap* bootstrap, TPodSpecValidationConfigPtr validationConfig);
+std::unique_ptr<IObjectTypeHandler> CreateStageTypeHandler(NMaster::TBootstrap* bootstrap, TStageTypeHandlerConfigPtr config, TPodSpecValidationConfigPtr validationConfig);
 void ValidateTvmConfig(const NClient::NApi::NProto::TTvmConfig& config);
 void ValidateStageAndDeployUnitId(const TObjectId& id, const TString& description);
 void ValidatePodAgentSpec(const NInfra::NPodAgent::API::TPodAgentSpec& spec);

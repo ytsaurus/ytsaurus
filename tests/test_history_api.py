@@ -45,6 +45,14 @@ class TestHistoryApiDisabledTypes(object):
 
 @pytest.mark.usefixtures("yp_env")
 class TestHistoryApi(object):
+    YP_MASTER_CONFIG = dict(
+        object_manager=dict(
+            stage_type_handler=dict(
+                enable_status_history=True,
+            )
+        ),
+    )
+
     def test_filters(self, yp_env):
         yp_client = yp_env.yp_client
 
@@ -214,6 +222,23 @@ class TestHistoryApi(object):
 
         history_events = yp_client.select_object_history("stage", stage_id, ["/spec"], {"uuid": "b"})["events"]
         assert len(history_events) == 0
+
+    @pytest.mark.usefixtures("yp_env_configurable")
+    def test_stage_status_deploy_unit_conditions_filter(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+        stage = {
+            "spec": {"account_id": "tmp"},
+            "status": {"deploy_units": {"unit-id": {"in_progress": {"status": "false"}}}}
+        }
+        stage_id = yp_client.create_object(
+            "stage",
+            attributes=stage,
+        )
+        yp_client.update_object("stage", stage_id, set_updates=[{"path": "/status/revision", "value": 123}])
+        yp_client.update_object("stage", stage_id, set_updates=[{"path": "/status/revision", "value": 456}])
+        assert len(yp_client.select_object_history("stage", stage_id, ["/status"])["events"]) == 1
+        yp_client.update_object("stage", stage_id, set_updates=[{"path": "/status/deploy_units/unit-id/in_progress/status", "value": "true"}])
+        assert len(yp_client.select_object_history("stage", stage_id, ["/status"])["events"]) == 2
 
     def test_pod_status_scheduling_filter(self, yp_env):
         yp_client = yp_env.yp_client

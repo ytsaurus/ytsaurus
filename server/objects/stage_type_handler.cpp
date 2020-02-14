@@ -30,8 +30,9 @@ class TStageTypeHandler
     : public TObjectTypeHandlerBase
 {
 public:
-    TStageTypeHandler(NMaster::TBootstrap* bootstrap, TPodSpecValidationConfigPtr validationConfig)
+    TStageTypeHandler(NMaster::TBootstrap* bootstrap, TStageTypeHandlerConfigPtr config, TPodSpecValidationConfigPtr validationConfig)
         : TObjectTypeHandlerBase(bootstrap, EObjectType::Stage)
+        , Config_(std::move(config))
         , PodSpecValidationConfig_(std::move(validationConfig))
     { }
 
@@ -68,6 +69,12 @@ public:
             ->SetUpdatable()
             ->SetExtensible();
 
+        if (Config_->EnableStatusHistory) {
+            StatusAttributeSchema_
+                ->EnableHistory(THistoryEnabledAttributeSchema()
+                    .SetValueFilter<TStage>(std::bind(&TStageTypeHandler::DeployUnitConditionsHistoryFilter, this, _1)));
+        }
+
         IdAttributeSchema_
             ->SetValidator<TStage>(ValidateId);
     }
@@ -96,6 +103,7 @@ public:
     }
 
 private:
+    const TStageTypeHandlerConfigPtr Config_;
     const TPodSpecValidationConfigPtr PodSpecValidationConfig_;
 
     void ValidateAccount(TTransaction* /*transaction*/, TStage* stage)
@@ -173,11 +181,33 @@ private:
             ThrowValidationError(ex, NClient::NApi::EErrorCode::InvalidObjectId, stage->GetId());
         }
     }
+
+    bool DeployUnitConditionsHistoryFilter(TStage* stage)
+    {
+        const auto& oldUnitStatuses = stage->Status().LoadOld().deploy_units();
+        const auto& newUnitStatuses = stage->Status().Load().deploy_units();
+        if (oldUnitStatuses.size() != newUnitStatuses.size()) {
+            return true;
+        }
+        for (const auto& [unitId, oldUnitStatus] : oldUnitStatuses) {
+            const auto newUnitStatusesIt = newUnitStatuses.find(unitId);
+            if (newUnitStatusesIt == newUnitStatuses.end()) {
+                return true;
+            }
+            const auto& newUnitStatus = newUnitStatusesIt->second;
+            if (oldUnitStatus.ready().status() != newUnitStatus.ready().status() ||
+                oldUnitStatus.in_progress().status() != newUnitStatus.in_progress().status() ||
+                oldUnitStatus.failed().status() != newUnitStatus.failed().status()) {
+                return true;
+            }
+        }
+        return false;
+    }
 };
 
-std::unique_ptr<IObjectTypeHandler> CreateStageTypeHandler(NMaster::TBootstrap* bootstrap, TPodSpecValidationConfigPtr validationConfig)
+std::unique_ptr<IObjectTypeHandler> CreateStageTypeHandler(NMaster::TBootstrap* bootstrap, TStageTypeHandlerConfigPtr config, TPodSpecValidationConfigPtr validationConfig)
 {
-    return std::unique_ptr<IObjectTypeHandler>(new TStageTypeHandler(bootstrap, std::move(validationConfig)));
+    return std::unique_ptr<IObjectTypeHandler>(new TStageTypeHandler(bootstrap, std::move(config), std::move(validationConfig)));
 }
 
 void ValidateTvmConfig(const NClient::NApi::NProto::TTvmConfig& config)
