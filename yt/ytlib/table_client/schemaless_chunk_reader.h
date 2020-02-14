@@ -50,7 +50,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const NChunkClient::TReadRange& readRange,
-    std::optional<int> partitionTag = std::nullopt);
+    std::optional<int> partitionTag = std::nullopt,
+    const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
 ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TChunkStatePtr& chunkState,
@@ -65,7 +66,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
-    std::optional<int> partitionTag = std::nullopt);
+    std::optional<int> partitionTag = std::nullopt,
+    const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

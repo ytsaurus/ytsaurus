@@ -18,7 +18,9 @@ using namespace NConcurrency;
 class TDispatcher::TImpl
 {
 public:
-    TImpl() = default;
+    TImpl()
+        : ReaderMemoryManagerInvoker_(CreateSerializedInvoker(GetReaderInvoker()))
+    { }
 
     void Configure(TDispatcherConfigPtr config)
     {
@@ -41,9 +43,15 @@ public:
         return WriterThread_->GetInvoker();
     }
 
+    const IInvokerPtr& GetReaderMemoryManagerInvoker()
+    {
+        return ReaderMemoryManagerInvoker_;
+    }
+
 private:
     const TActionQueuePtr WriterThread_ = New<TActionQueue>("ChunkWriter");
     const TThreadPoolPtr ReaderThreadPool_ = New<TThreadPool>(TDispatcherConfig::DefaultChunkReaderPoolSize, "ChunkReader");
+    const IInvokerPtr ReaderMemoryManagerInvoker_;
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -83,6 +91,11 @@ IInvokerPtr TDispatcher::GetReaderInvoker()
 IInvokerPtr TDispatcher::GetWriterInvoker()
 {
     return Impl_->GetWriterInvoker();
+}
+
+const IInvokerPtr& TDispatcher::GetReaderMemoryManagerInvoker()
+{
+    return Impl_->GetReaderMemoryManagerInvoker();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

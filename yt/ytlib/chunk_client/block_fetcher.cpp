@@ -111,6 +111,7 @@ TBlockFetcher::TBlockFetcher(
     }
 
     MemoryManager_->SetTotalSize(totalBlockUncompressedSize);
+    MemoryManager_->SetPrefetchMemorySize(Config_->WindowSize);
 
     YT_LOG_DEBUG("Creating block fetcher (Blocks: %v)",
         blockIndexes);
@@ -265,7 +266,9 @@ void TBlockFetcher::FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGua
                 std::min(
                     static_cast<i64>(blockInfo.UncompressedDataSize),
                     memoryUsageGuard->Guard.GetSlots()));
-            Window_[FirstUnfetchedWindowIndex_].MemoryUsageGuard = New<TMemoryUsageGuard>(std::move(transferred));
+            Window_[FirstUnfetchedWindowIndex_].MemoryUsageGuard = New<TMemoryUsageGuard>(
+                std::move(transferred),
+                memoryUsageGuard->MemoryManager);
 
             TBlockId blockId(ChunkReader_->GetChunkId(), blockIndex);
             auto uncompressedBlock = BlockCache_->Find(blockId, EBlockType::UncompressedData);
