@@ -8,10 +8,12 @@ namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TRetryChecker = TCallback<bool(const TError&)>;
+
 //! Constructs a channel that implements a simple retry policy.
 /*!
  *  The channel determines if the request must be retried by calling
- *  #NRpc::IsRetriableError.
+ *  #retryChecker (which is #NRpc::IsRetriableError by default).
  *
  *  The channel makes at most #TRetryingChannelConfig::RetryAttempts
  *  attempts totally spending at most #TRetryingChannelConfig::RetryTimeout time
@@ -23,7 +25,7 @@ namespace NYT::NRpc {
 IChannelPtr CreateRetryingChannel(
     TRetryingChannelConfigPtr config,
     IChannelPtr underlyingChannel,
-    TCallback<bool(const TError&)> isRetriableError = BIND(&IsRetriableError));
+    TRetryChecker retryChecker = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
