@@ -1,6 +1,8 @@
 #!/usr/bin/python2.7
 import argparse
 import datetime
+import dateutil.tz
+import time
 import os
 import yt.wrapper as yt_wrapper
 import yt.yson as yson
@@ -29,7 +31,7 @@ default_yt_type_value = {
     'int32': yson.YsonInt64(0),
     'int64': yson.YsonInt64(0),
     'int8': yson.YsonInt64(0),
-    'string': yson.YsonString(""),
+    'string': "",
     'uint16': yson.YsonUint64(0),
     'uint32': yson.YsonUint64(0),
     'uint64': yson.YsonUint64(0),
@@ -148,15 +150,19 @@ def clickhouse_to_yt_datetime(clickhouse_datetime):
     if clickhouse_datetime == "0000-00-00 00:00:00":
         return yson.YsonUint64(0)
     else:
-        return yson.YsonUint64((datetime.datetime.strptime(clickhouse_datetime, '%Y-%m-%d %H:%M:%S') - datetime.datetime(1970,1,1)).total_seconds())
+        result = (datetime.datetime.strptime(clickhouse_datetime, '%Y-%m-%d %H:%M:%S') - datetime.datetime(1970,1,1, hour=4)).total_seconds()
+        if result < 0:
+            print "negative date after timezone shift:", result
+            return yson.YsonUint64(0)
+        return result
 
 def cast_value_to_yt_type(value, item_schema):
     if 'type' in item_schema:
         type = item_schema['type']
-        if value.startswith('['):
-            return default_yt_type_value[type]
         if type == 'string':
-            return yson.YsonString(value)
+            return value
+        elif value.startswith('['):
+            return default_yt_type_value[type]
         elif type == 'date':
             return clickhouse_to_yt_date(value)
         elif type == 'datetime':
@@ -177,7 +183,7 @@ def cast_value_to_yt_type(value, item_schema):
 
 def table_data_generator(input_path, name_paths, yt_schema):
     input_table_file = open(input_path)
-    line = input_table_file.readline().decode('ascii', errors='ignore')
+    line = input_table_file.readline().decode('utf-8', errors='replace')
     while line:
         if len(line) == 0:
             break
@@ -206,7 +212,7 @@ def table_data_generator(input_path, name_paths, yt_schema):
             fill_row_data_item(row_data, name_paths[column_index], row_values[column_index], yt_schema)
             column_index += 1
 
-        line = input_table_file.readline().decode('ascii', errors='ignore')
+        line = input_table_file.readline().decode('utf-8', errors='replace')
         yield row_data
 
 if __name__ == "__main__":
