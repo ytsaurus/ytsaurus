@@ -537,6 +537,32 @@ int TTableSchema::GetValueColumnCount() const
     return GetColumnCount() - GetKeyColumnCount();
 }
 
+TTableSchema TTableSchema::SetKeyColumnCount(int keyColumnCount) const
+{
+    TTableSchema schema = *this;
+
+    for (int columnIndex = 0; columnIndex < schema.GetColumnCount(); ++columnIndex) {
+        auto& column = schema.Columns_[columnIndex];
+        if (columnIndex < keyColumnCount) {
+            column.SetSortOrder(ESortOrder::Ascending);
+        } else {
+            column.SetSortOrder(std::nullopt);
+        }
+    }
+
+    schema.KeyColumnCount_ = keyColumnCount;
+
+    return schema;
+}
+
+TTableSchema TTableSchema::SetUniqueKeys(bool uniqueKeys) const
+{
+    TTableSchema schema = *this;
+    schema.UniqueKeys_ = uniqueKeys;
+
+    return schema;
+}
+
 bool TTableSchema::HasNontrivialSchemaModification() const
 {
     return GetSchemaModification() != ETableSchemaModification::None;

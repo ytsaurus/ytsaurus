@@ -171,6 +171,13 @@ public:
     //! The resulting schema is validated.
     static TTableSchema FromKeyColumns(const TKeyColumns& keyColumns);
 
+    //! Returns schema with first `keyColumnCount' columns sorted in ascending order
+    //! and other columns non-sorted.
+    TTableSchema SetKeyColumnCount(int keyColumnCount) const;
+
+    //! Returns schema with `UniqueKeys' set to given value.
+    TTableSchema SetUniqueKeys(bool uniqueKeys) const;
+
     //! For sorted tables, return the current schema as-is.
     //! For ordered tables, prepends the current schema with |(tablet_index, row_index)| key columns.
     TTableSchema ToQuery() const;

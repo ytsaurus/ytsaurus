@@ -656,7 +656,7 @@ TOwningKey GetUpperBoundKeyOrThrow(const TChunkView* chunkView)
 TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree)
 {
     if (IsEmpty(chunkTree)) {
-        THROW_ERROR_EXCEPTION("Cannot compute max key in chunk list %v since it contains no chunks",
+        THROW_ERROR_EXCEPTION("Cannot compute upper bound key in chunk list %v since it contains no chunks",
             chunkTree->GetId());
     }
 
@@ -743,6 +743,53 @@ TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree)
 
             case EObjectType::ChunkList:
                 currentChunkTree = getFirstNonemptyChild(currentChunkTree->AsChunkList());
+                break;
+
+            default:
+                YT_ABORT();
+        }
+    }
+}
+
+TOwningKey GetMaxKeyOrThrow(const TChunk* chunk)
+{
+    auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
+        chunk->ChunkMeta().extensions());
+    if (!optionalBoundaryKeysExt) {
+        THROW_ERROR_EXCEPTION("Cannot compute max key in chunk %v since it's missing boundary info",
+            chunk->GetId());
+    }
+
+    return FromProto<TOwningKey>(optionalBoundaryKeysExt->max());
+}
+
+TOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree)
+{
+    if (IsEmpty(chunkTree)) {
+        THROW_ERROR_EXCEPTION("Cannot compute max key in chunk list %v since it contains no chunks",
+            chunkTree->GetId());
+    }
+
+    auto getLastNonemptyChild = [] (const TChunkList* chunkList) {
+        const auto& children = chunkList->Children();
+        for (auto it = children.rbegin(); it != children.rend(); ++it) {
+            const auto* child = *it;
+            if (!IsEmpty(child)) {
+                return child;
+            }
+        }
+        YT_ABORT();
+    };
+
+    const auto* currentChunkTree = chunkTree;
+    while (true) {
+        switch (currentChunkTree->GetType()) {
+            case EObjectType::Chunk:
+            case EObjectType::ErasureChunk:
+                return GetMaxKeyOrThrow(currentChunkTree->AsChunk());
+
+            case EObjectType::ChunkList:
+                currentChunkTree = getLastNonemptyChild(currentChunkTree->AsChunkList());
                 break;
 
             default:
