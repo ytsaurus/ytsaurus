@@ -30,7 +30,9 @@ ETransactionState TTransactionBase<TBase>::GetPersistentState() const
 template <class TBase>
 void TTransactionBase<TBase>::ThrowInvalidState() const
 {
-    THROW_ERROR_EXCEPTION("Transaction %v is in %Qlv state",
+    THROW_ERROR_EXCEPTION(
+        NTransactionClient::EErrorCode::InvalidTransactionState,
+        "Transaction %v is in %Qlv state",
         this->Id_,
         this->State_);
 }
