@@ -26,7 +26,8 @@ public:
         TChunkReaderConfigPtr config,
         NChunkClient::IChunkReaderPtr underlyingReader,
         NChunkClient::IBlockCachePtr blockCache,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions);
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+        const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
 protected:
     const TColumnarChunkMetaPtr ChunkMeta_;
@@ -35,7 +36,7 @@ protected:
     const NChunkClient::IBlockCachePtr BlockCache_;
     const NChunkClient::TClientBlockReadOptions BlockReadOptions_;
 
-    const NChunkClient::TChunkReaderMemoryManagerPtr MemoryManager_;
+    NChunkClient::TChunkReaderMemoryManagerPtr MemoryManager_;
     NChunkClient::TBlockFetcherPtr BlockFetcher_;
 
     TFuture<void> ReadyEvent_ = VoidFuture;

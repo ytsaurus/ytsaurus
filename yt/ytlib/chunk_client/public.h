@@ -154,6 +154,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkSpecFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkReaderStatistics)
 
+DECLARE_REFCOUNTED_CLASS(IReaderMemoryManager)
 DECLARE_REFCOUNTED_CLASS(TChunkReaderMemoryManager)
 
 struct TChunkReaderMemoryManagerOptions;
@@ -192,6 +193,9 @@ using TDataCenterName = std::optional<TString>;
 struct IBlocksExtCache;
 
 DECLARE_REFCOUNTED_STRUCT(TMemoryUsageGuard)
+
+DECLARE_REFCOUNTED_STRUCT(IMultiReaderMemoryManager)
+DECLARE_REFCOUNTED_STRUCT(IReaderMemoryManagerHost)
 
 ////////////////////////////////////////////////////////////////////////////////
 
