@@ -8,11 +8,8 @@ from .conftest import (
     get_pod_scheduling_status,
     is_error_pod_scheduling_status,
     is_pod_assigned,
-    update,
     wait,
 )
-
-from yt.yson import YsonEntity
 
 from yt.common import flatten
 
@@ -476,32 +473,45 @@ class TestAntiaffinity(object):
 
         wait(lambda: is_pod_assigned(yp_client, new_pod_id))
 
-    def test_antiaffinity_constraints_unique_bucket_limit(self, yp_env):
-        yp_client = yp_env.yp_client
 
-        yp_env.set_cypress_config_patch(
-            dict(
-                scheduler=dict(
-                    cluster=dict(
-                        bypass_validation_errors=True,
-                    ),
-                ),
-            ),
-        )
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestAntiaffinityConstraintsUniqueBucketLimit(object):
+    ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT = 5
+
+    YP_MASTER_CONFIG = {
+        "scheduler": {
+            "cluster": {
+                "antiaffinity_constraints_unique_bucket_limit": ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT,
+                "bypass_validation_errors": True,
+            }
+        }
+    }
+
+    def test(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
 
         antiaffinity_constraints_names = ["key", "max_pods", "pod_group_id_path"]
         topology_zones = ["node", "rack", "dc"]
 
+        pod_count = 2
+        node_pod_limit = 1
+
+        create_nodes(yp_client, 2)
+
         def prepare_objects_with_pod_group_id_paths(antiaffinity_constraints_buckets):
-            pod_group_ids = self._prepare_objects(
+            pod_set_id = create_pod_set(
                 yp_client,
-                pod_per_group_count=pod_count,
-                antiaffinity_constraints=[
+                spec=dict(antiaffinity_constraints=[
                     dict(zip(antiaffinity_constraints_names, bucket))
                     for bucket in antiaffinity_constraints_buckets
-                ],
+                ]),
             )
-            return pod_group_ids
+            return [create_pod_with_boilerplate(
+                yp_client,
+                pod_set_id,
+                spec={"enable_scheduling": True},
+                labels=dict(group_id="test_group_id"),
+            ) for _ in range(pod_count)]
 
         def is_pending_pod(pod_id):
             scheduling_status = get_pod_scheduling_status(yp_client, pod_id)
@@ -512,32 +522,24 @@ class TestAntiaffinity(object):
         def are_pending_pods(pod_ids):
             return all(map(is_pending_pod, pod_ids))
 
-        pod_count = 2
-        node_pod_limit = 1
-
-        create_nodes(yp_client, 2)
-
-        # Default value is 50.
-        antiaffinity_constraints_unique_bucket_limit = 50
-
         antiaffinity_constraints_buckets_over_limit = []
 
         # Topology zone (key) = "node", group_id_path count exceeds limit.
         antiaffinity_constraints_buckets_over_limit.append(
             [
                 ("node", node_pod_limit, "/labels/group_id_type_%d" % index)
-                for index in xrange(antiaffinity_constraints_unique_bucket_limit + 1)
+                for index in xrange(self.ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT + 1)
             ]
         )
 
-        # Topology zone (key) has 3 types, group_id_path has (limit // 3) = 16 variants (and one empty variant).
-        # So antiaffinity constraints bucket count is 3 * (16 + 1) = 51 - exceeds limit,
+        # Topology zone (key) has 3 types, group_id_path has (limit // 3) = 1 variants (and one empty variant).
+        # So antiaffinity constraints bucket count is 3 * (1 + 1) = 6 - exceeds limit,
         # though every parameter count is under limit.
         antiaffinity_constraints_buckets_over_limit.append(
             [
                 (topology_zone, node_pod_limit, "/labels/group_id_type_%d" % index)
                 for topology_zone in topology_zones
-                for index in xrange(antiaffinity_constraints_unique_bucket_limit // 3)
+                for index in xrange(self.ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT // 3)
             ] +
             [
                 (topology_zone, node_pod_limit + 1)
@@ -548,13 +550,13 @@ class TestAntiaffinity(object):
         # Take only antiaffinity_constraints_unique_bucket_limit buckets.
         # So antiaffinity constraints bucket count in under limit.
         antiaffinity_constraints_buckets_under_limit = [
-            buckets_over_limit[:antiaffinity_constraints_unique_bucket_limit]
+            buckets_over_limit[:self.ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT]
             for buckets_over_limit in antiaffinity_constraints_buckets_over_limit
         ]
 
-        assert all(map(lambda buckets: len(buckets) > antiaffinity_constraints_unique_bucket_limit,
+        assert all(map(lambda buckets: len(buckets) > self.ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT,
                        antiaffinity_constraints_buckets_over_limit))
-        assert all(map(lambda buckets: len(buckets) <= antiaffinity_constraints_unique_bucket_limit,
+        assert all(map(lambda buckets: len(buckets) <= self.ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT,
                        antiaffinity_constraints_buckets_under_limit))
 
         pod_ids_under_limit = flatten(
@@ -569,4 +571,4 @@ class TestAntiaffinity(object):
 
         wait(lambda: are_pods_assigned(yp_client, pod_ids_under_limit))
 
-        assert_over_time(lambda: are_pending_pods(pod_ids_over_limit))
+        assert_over_time(lambda: are_pending_pods(pod_ids_over_limit), iter=5, sleep_backoff=3)
