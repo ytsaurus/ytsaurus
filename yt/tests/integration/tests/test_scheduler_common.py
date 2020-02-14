@@ -6,7 +6,7 @@ from yt_helpers import *
 
 from yt.yson import *
 from yt.wrapper import JsonFormat
-from yt.common import date_string_to_timestamp
+from yt.common import date_string_to_timestamp, update
 
 import pytest
 
@@ -18,9 +18,21 @@ import __builtin__
 
 ##################################################################
 
+SCHEDULER_COMMON_NODE_CONFIG_PATCH = {
+    "exec_agent": {
+        "job_controller": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
+            }
+        }
+    }
+}
+
 class TestSchedulerCommon(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 16
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
@@ -49,7 +61,10 @@ class TestSchedulerCommon(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = get_cgroup_delta_node_config()
+    DELTA_NODE_CONFIG = update(
+        get_cgroup_delta_node_config(),
+        SCHEDULER_COMMON_NODE_CONFIG_PATCH
+    )
 
     @authors("ignat")
     def test_failed_jobs_twice(self):
@@ -743,32 +758,6 @@ class TestSchedulerCommon(YTEnvSetup):
         assert new_nested_input_transaction_ids[0] != nested_tx
 
     @authors("babenko")
-    def test_ban_nodes_with_failed_jobs(self):
-        create("table", "//tmp/t1")
-        write_table("//tmp/t1", [{"foo": i} for i in range(10)])
-
-        create("table", "//tmp/t2")
-
-        op = map(
-            track=False,
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command="exit 1",
-            spec={
-                "resource_limits": {
-                    "cpu": 1
-                },
-                "max_failed_job_count": 10,
-                "ban_nodes_with_failed_jobs": True
-            })
-        with pytest.raises(YtError):
-            op.track()
-
-        jobs = ls(op.get_path() + "/jobs", attributes=["state", "address"])
-        assert all(job.attributes["state"] == "failed" for job in jobs)
-        assert len(__builtin__.set(job.attributes["address"] for job in jobs)) == 10
-
-    @authors("babenko")
     def test_update_lock_transaction_timeout(self):
         lock_tx = get("//sys/scheduler/lock/@locks/0/transaction_id")
         new_timeout = get("#{}/@timeout".format(lock_tx)) + 1234
@@ -780,7 +769,10 @@ class TestSchedulerCommonMulticell(TestSchedulerCommon):
 
 @patch_porto_env_only(TestSchedulerCommon)
 class TestSchedulerCommonPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    DELTA_NODE_CONFIG = update(
+        get_porto_delta_node_config(),
+        SCHEDULER_COMMON_NODE_CONFIG_PATCH
+    )
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################

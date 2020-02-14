@@ -18,9 +18,21 @@ import base64
 
 ##################################################################
 
+SCHEDULER_MAP_COMMANDS_NODE_CONFIG_PATCH = {
+    "exec_agent": {
+        "job_controller": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
+            }
+        }
+    }
+}
+
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 16
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
@@ -46,6 +58,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
             },
         }
     }
+
+    DELTA_NODE_CONFIG = SCHEDULER_MAP_COMMANDS_NODE_CONFIG_PATCH
 
     @authors("ignat")
     def test_empty_table(self):
@@ -1316,7 +1330,10 @@ done
 
 @patch_porto_env_only(TestSchedulerMapCommands)
 class TestSchedulerMapCommandsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    DELTA_NODE_CONFIG = update(
+        get_porto_delta_node_config(),
+        SCHEDULER_MAP_COMMANDS_NODE_CONFIG_PATCH
+    )
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
@@ -1470,7 +1487,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
 class TestInputOutputFormats(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 16
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
     DELTA_SCHEDULER_CONFIG = {
@@ -1493,6 +1510,18 @@ class TestInputOutputFormats(YTEnvSetup):
                     "max_jobs_per_split": 3,
                 },
             },
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 5,
+                    "cpu": 5,
+                    "memory": 5 * 1024 ** 3,
+                }
+            }
         }
     }
 

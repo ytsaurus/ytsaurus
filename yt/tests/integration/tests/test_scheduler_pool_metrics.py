@@ -21,6 +21,14 @@ def get_cypress_metrics(operation_id, key, aggr="sum"):
 
 ##################################################################
 
+POOL_METRICS_NODE_CONFIG_PATCH = {
+    "exec_agent": {
+        "scheduler_connector": {
+            "heartbeat_period": 100,  # 100 msec
+        },
+    }
+}
+
 class TestPoolMetrics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -71,13 +79,7 @@ class TestPoolMetrics(YTEnvSetup):
 
     DELTA_NODE_CONFIG = yt.common.update(
         get_cgroup_delta_node_config(),
-        {
-            "exec_agent": {
-                "scheduler_connector": {
-                    "heartbeat_period": 100,  # 100 msec
-                },
-            }
-        }
+        POOL_METRICS_NODE_CONFIG_PATCH
     )
 
     @authors("ignat")
@@ -476,7 +478,10 @@ class TestPoolMetrics(YTEnvSetup):
 
 @patch_porto_env_only(TestPoolMetrics)
 class TestPoolMetricsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        POOL_METRICS_NODE_CONFIG_PATCH
+    )
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
