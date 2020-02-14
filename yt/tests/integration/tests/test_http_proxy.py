@@ -268,7 +268,8 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
     def _build_snapshot(self, set_read_only):
         params = {
             "cell_id": self.Env.configs["master"][0]["primary_master"]["cell_id"],
-            "set_read_only": set_read_only
+            "set_read_only": set_read_only,
+            "wait_for_snapshot_completion": False
         }
         headers = {
             'X-YT-Parameters': yson.dumps(params),
