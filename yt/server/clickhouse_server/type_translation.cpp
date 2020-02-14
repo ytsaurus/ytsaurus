@@ -26,16 +26,22 @@ NTableClient::TLogicalTypePtr AdaptTypeToClickHouse(const NTableClient::TLogical
             auto simpleLogicalType = valueType->AsSimpleTypeRef().GetElement();
             switch (simpleLogicalType) {
                 case ESimpleLogicalValueType::Int64:
-                case ESimpleLogicalValueType::Int32:
-                case ESimpleLogicalValueType::Int16:
-                case ESimpleLogicalValueType::Int8:
                     return SimpleLogicalType(ESimpleLogicalValueType::Int64);
+                case ESimpleLogicalValueType::Int32:
+                    return SimpleLogicalType(ESimpleLogicalValueType::Int32);
+                case ESimpleLogicalValueType::Int16:
+                    return SimpleLogicalType(ESimpleLogicalValueType::Int16);
+                case ESimpleLogicalValueType::Int8:
+                    return SimpleLogicalType(ESimpleLogicalValueType::Int8);
 
                 case ESimpleLogicalValueType::Uint64:
-                case ESimpleLogicalValueType::Uint32:
-                case ESimpleLogicalValueType::Uint16:
-                case ESimpleLogicalValueType::Uint8:
                     return SimpleLogicalType(ESimpleLogicalValueType::Uint64);
+                case ESimpleLogicalValueType::Uint32:
+                    return SimpleLogicalType(ESimpleLogicalValueType::Uint32);
+                case ESimpleLogicalValueType::Uint16:
+                    return SimpleLogicalType(ESimpleLogicalValueType::Uint16);
+                case ESimpleLogicalValueType::Uint8:
+                    return SimpleLogicalType(ESimpleLogicalValueType::Uint8);
 
                 case ESimpleLogicalValueType::Double:
                     return SimpleLogicalType(ESimpleLogicalValueType::Double);
@@ -65,7 +71,7 @@ NTableClient::TLogicalTypePtr AdaptTypeToClickHouse(const NTableClient::TLogical
                     return SimpleLogicalType(ESimpleLogicalValueType::Int64);
 
                 default:
-                    THROW_ERROR_EXCEPTION("YT value type %Qlv not supported", simpleLogicalType);         
+                    THROW_ERROR_EXCEPTION("YT value type %Qlv not supported", simpleLogicalType);
             };
         }
         case ELogicalMetatype::Optional:
@@ -132,8 +138,26 @@ EClickHouseColumnType RepresentYtType(const TLogicalTypePtr& valueType)
             case ESimpleLogicalValueType::Int64:
                 return EClickHouseColumnType::Int64;
 
+            case ESimpleLogicalValueType::Int32:
+                return EClickHouseColumnType::Int32;
+
+            case ESimpleLogicalValueType::Int16:
+                return EClickHouseColumnType::Int16;
+
+            case ESimpleLogicalValueType::Int8:
+                return EClickHouseColumnType::Int8;
+
             case ESimpleLogicalValueType::Uint64:
                 return EClickHouseColumnType::UInt64;
+
+            case ESimpleLogicalValueType::Uint32:
+                return EClickHouseColumnType::UInt32;
+
+            case ESimpleLogicalValueType::Uint16:
+                return EClickHouseColumnType::UInt16;
+
+            case ESimpleLogicalValueType::Uint8:
+                return EClickHouseColumnType::UInt8;
 
             case ESimpleLogicalValueType::Double:
                 return EClickHouseColumnType::Double;
@@ -166,21 +190,27 @@ EClickHouseColumnType RepresentYtType(const TLogicalTypePtr& valueType)
 }
 
 TLogicalTypePtr RepresentClickHouseType(const DB::DataTypePtr& type)
-{   
+{
     if (type->isNullable()) {
         return OptionalLogicalType(RepresentClickHouseType(DB::removeNullable(type)));
     }
     switch (type->getTypeId()) {
         case DB::TypeIndex::Int64:
-        case DB::TypeIndex::Int32:
-        case DB::TypeIndex::Int16:
-        case DB::TypeIndex::Int8:
             return SimpleLogicalType(ESimpleLogicalValueType::Int64);
+        case DB::TypeIndex::Int32:
+            return SimpleLogicalType(ESimpleLogicalValueType::Int32);
+        case DB::TypeIndex::Int16:
+            return SimpleLogicalType(ESimpleLogicalValueType::Int16);
+        case DB::TypeIndex::Int8:
+            return SimpleLogicalType(ESimpleLogicalValueType::Int8);
         case DB::TypeIndex::UInt64:
-        case DB::TypeIndex::UInt32:
-        case DB::TypeIndex::UInt16:
-        case DB::TypeIndex::UInt8:
             return SimpleLogicalType(ESimpleLogicalValueType::Uint64);
+        case DB::TypeIndex::UInt32:
+            return SimpleLogicalType(ESimpleLogicalValueType::Uint32);
+        case DB::TypeIndex::UInt16:
+            return SimpleLogicalType(ESimpleLogicalValueType::Uint16);
+        case DB::TypeIndex::UInt8:
+            return SimpleLogicalType(ESimpleLogicalValueType::Uint8);
         case DB::TypeIndex::Float32:
         case DB::TypeIndex::Float64:
             return SimpleLogicalType(ESimpleLogicalValueType::Double);
