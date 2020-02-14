@@ -108,7 +108,7 @@ message TReplicaSetScaleStatus
 message THorizontalPodAutoscalerStatus
 {
     // Set of confiditons according to https://wiki.yandex-team.ru/deploy/for-deploy-developers/errorLogging/#conditions
-    // current_replicas is equal to desired_replicas and deploy_unit is ready.
+    // current_replicas is equal to desired_replicas and replica_set is ready.
     NYP.NClient.NApi.NProto.TCondition ready = 1;
     // Changing replicas count is in progress.
     NYP.NClient.NApi.NProto.TCondition in_progress = 2;
