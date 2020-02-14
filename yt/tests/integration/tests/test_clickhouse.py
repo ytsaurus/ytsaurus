@@ -1654,6 +1654,33 @@ class TestClickHouseSchema(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
+    @authors("evgenstf")
+    def test_int_types(self):
+        with Clique(5) as clique:
+            create("table", "//tmp/test_table", attributes={"schema": [
+                {"name": "int64_value", "type": "int64"},
+                {"name": "int32_value", "type": "int32"},
+                {"name": "int16_value", "type": "int16"},
+                {"name": "int8_value", "type": "int8"},
+                {"name": "uint64_value", "type": "uint64"},
+                {"name": "uint32_value", "type": "uint32"},
+                {"name": "uint16_value", "type": "uint16"},
+                {"name": "uint8_value", "type": "uint8"},
+            ]})
+            name_to_expected_type = {
+                'int64_value': 'Nullable(Int64)',
+                'int32_value': 'Nullable(Int32)',
+                'int16_value': 'Nullable(Int16)',
+                'int8_value':  'Nullable(Int8)',
+                'uint64_value': 'Nullable(UInt64)',
+                'uint32_value': 'Nullable(Uint32)',
+                'uint16_value': 'Nullable(Uint16)',
+                'uint8_value': 'Nullable(Uint8)',
+            }
+            table_description = clique.make_query('describe "//tmp/test_table"')
+            for column_description in table_description:
+                assert name_to_expected_type[column_description['name']] == column_description['type']
+
     @authors("max42")
     def test_missing_schema(self):
         create("table", "//tmp/t")
