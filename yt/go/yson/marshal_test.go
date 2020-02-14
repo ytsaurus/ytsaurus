@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -107,6 +108,70 @@ func TestMarshalMaps(t *testing.T) {
 	}
 
 	testRoundtrip(t, s)
+}
+
+type textMarshaler uuid.UUID
+
+func (m textMarshaler) MarshalText() (text []byte, err error) {
+	return uuid.UUID(m).MarshalText()
+}
+
+func (m *textMarshaler) UnmarshalText(text []byte) error {
+	var i uuid.UUID
+	if err := i.UnmarshalText(text); err != nil {
+		return err
+	}
+	*m = textMarshaler(i)
+	return nil
+}
+
+type binaryMarshaler uuid.UUID
+
+func (m binaryMarshaler) MarshalBinary() (data []byte, err error) {
+	return uuid.UUID(m).MarshalBinary()
+}
+
+func (m *binaryMarshaler) UnmarshalBinary(data []byte) error {
+	var i uuid.UUID
+	if err := i.UnmarshalBinary(data); err != nil {
+		return err
+	}
+	*m = binaryMarshaler(i)
+	return nil
+}
+
+func TestMarshalMapKeys(t *testing.T) {
+	testRoundtrip(t, map[string]string{"1": "2"})
+
+	type MyString string
+	testRoundtrip(t, map[MyString]MyString{"1": "2"})
+
+	testRoundtrip(t, map[int]int{1: 2})
+	testRoundtrip(t, map[int16]int16{1: 2})
+	testRoundtrip(t, map[int32]int32{1: 2})
+	testRoundtrip(t, map[int64]int64{1: 2})
+
+	testRoundtrip(t, map[uint]uint{1: 2})
+	testRoundtrip(t, map[uint16]uint16{1: 2})
+	testRoundtrip(t, map[uint32]uint32{1: 2})
+	testRoundtrip(t, map[uint64]uint64{1: 2})
+
+	type IntAlias int
+	testRoundtrip(t, map[IntAlias]IntAlias{1: 2})
+
+	newTextMarshaler := func() textMarshaler {
+		v, err := uuid.NewV4()
+		require.Nil(t, err)
+		return textMarshaler(v)
+	}
+	testRoundtrip(t, map[textMarshaler]textMarshaler{newTextMarshaler(): newTextMarshaler()})
+
+	newBinaryMarshaler := func() binaryMarshaler {
+		v, err := uuid.NewV4()
+		require.Nil(t, err)
+		return binaryMarshaler(v)
+	}
+	testRoundtrip(t, map[binaryMarshaler]binaryMarshaler{newBinaryMarshaler(): newBinaryMarshaler()})
 }
 
 type customMarshal struct{}
