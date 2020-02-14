@@ -13,7 +13,13 @@ from yt.yson import to_yson_type, YsonEntity
 
 class AccountsTestSuiteBase(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 16
+    NUM_NODES = 3
+
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
+    }
 
     REPLICATOR_REACTION_TIME = 3.5
 

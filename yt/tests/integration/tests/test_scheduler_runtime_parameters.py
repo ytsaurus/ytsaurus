@@ -250,7 +250,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
                 "resource_limits": {
                     "user_slots": 2,
                     "cpu": 2,
-                    "memory": 10 * 1024 ** 3,
+                    "memory": 2 * 1024 ** 3,
                 }
             }
         }

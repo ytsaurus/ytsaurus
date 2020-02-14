@@ -19,32 +19,9 @@ import base64
 
 class TestMapOnDynamicTables(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 16
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100,
-            "operations_update_period": 10,
-            "running_jobs_update_period": 10,
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operations_update_period": 10,
-            "map_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 5000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
-            },
-        }
-    }
 
     def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
         if "schema" not in attributes:
@@ -452,32 +429,9 @@ class MRoverOrderedDynTablesHelper(YTEnvSetup):
 
 class TestInputOutputForOrderedWithTabletIndex(MRoverOrderedDynTablesHelper):
     NUM_MASTERS = 1
-    NUM_NODES = 16
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100,
-            "operations_update_period": 10,
-            "running_jobs_update_period": 10,
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operations_update_period": 10,
-            "map_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 5000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
-            },
-        }
-    }
 
     @authors("akozhikhov")
     def test_ordered_tablet_index_correctness(self):

@@ -283,7 +283,7 @@ class TestDumpJobContextRpcProxy(TestRpcProxyBase):
 
 class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
     NUM_MASTERS = 1
-    NUM_NODES = 16
+    NUM_NODES = 3
     NUM_SCHEDULERS = 0
 
     REPLICATOR_REACTION_TIME = 3.5
