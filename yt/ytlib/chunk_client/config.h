@@ -109,6 +109,16 @@ public:
 
     NErasure::ECodec ErasureCodec;
 
+    //! Key column count in table schema and chunk schema might differ.
+    //! By default they are assumed to be equal, this value overrides
+    //! key column count in table schema, if set.
+    std::optional<int> TableKeyColumnCount;
+
+    //! Unique keys schema flag in table schema and chunk schema might differ.
+    //! By default they are assumed to be equal, this value overrides
+    //! unique keys schema flag in table schema, if set.
+    std::optional<bool> TableUniqueKeys;
+
     TMultiChunkWriterOptions()
     {
         RegisterParameter("replication_factor", ReplicationFactor)
@@ -126,6 +136,10 @@ public:
             .Default(NErasure::ECodec::None);
         RegisterParameter("table_index", TableIndex)
             .Default(-1);
+        RegisterParameter("table_key_column_count", TableKeyColumnCount)
+            .Default();
+        RegisterParameter("table_unique_keys", TableUniqueKeys)
+            .Default();
     }
 };
 

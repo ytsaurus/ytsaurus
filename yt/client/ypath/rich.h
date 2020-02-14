@@ -123,6 +123,12 @@ public:
     // "partially_sorted"
     bool GetPartiallySorted() const;
 
+    // "chunk_key_column_count"
+    std::optional<int> GetChunkKeyColumnCount() const;
+
+    // "chunk_unique_keys"
+    std::optional<bool> GetChunkUniqueKeys() const;
+
 private:
     TYPath Path_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;

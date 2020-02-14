@@ -1298,9 +1298,15 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
+        options.ChunkMetaFetcherConfig = New<NChunkClient::TFetcherConfig>();
+
         context->SetRequestInfo("SrcPaths: %v, DstPath: %v",
             srcPaths,
             dstPath);
+
+        if (request->has_fetcher()) {
+            options.ChunkMetaFetcherConfig->NodeRpcTimeout = FromProto<TDuration>(request->fetcher().node_rpc_timeout());
+        }
 
         CompleteCallWith(
             client,

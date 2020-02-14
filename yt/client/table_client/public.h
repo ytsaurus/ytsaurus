@@ -117,6 +117,7 @@ DEFINE_ENUM(EErrorCode,
     ((IncompatibleKeyColumns)     (311))
     ((ReaderDeadlineExpired)      (312))
     ((TimestampOutOfRange)        (313))
+    ((InvalidSchemaValue)         (314))
 );
 
 DEFINE_ENUM(EControlAttribute,

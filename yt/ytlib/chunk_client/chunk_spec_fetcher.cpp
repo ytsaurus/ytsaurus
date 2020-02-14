@@ -107,6 +107,24 @@ void TChunkSpecFetcher::Add(
         state.ReqCount - oldReqCount);
 }
 
+std::vector<NProto::TChunkSpec> TChunkSpecFetcher::GetChunkSpecsOrderedNaturally() const
+{
+    std::vector<std::vector<NProto::TChunkSpec>> chunkSpecsPerTable(TableCount_);
+    for (const auto& chunkSpec : ChunkSpecs_) {
+        auto tableIndex = chunkSpec.table_index();
+        YT_VERIFY(tableIndex < chunkSpecsPerTable.size());
+        chunkSpecsPerTable[tableIndex].push_back(chunkSpec);
+    }
+
+    std::vector<NProto::TChunkSpec> chunkSpecs;
+    chunkSpecs.reserve(TotalChunkCount_);
+    for (const auto& table : chunkSpecsPerTable) {
+        chunkSpecs.insert(chunkSpecs.end(), table.begin(), table.end());
+    }
+
+    return chunkSpecs;
+}
+
 TChunkSpecFetcher::TCellState& TChunkSpecFetcher::GetCellState(TCellTag cellTag)
 {
     auto it = CellTagToState_.find(cellTag);

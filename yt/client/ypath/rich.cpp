@@ -621,6 +621,16 @@ bool TRichYPath::GetPartiallySorted() const
     return GetAttribute<bool>(*this, "partially_sorted", false);
 }
 
+std::optional<int> TRichYPath::GetChunkKeyColumnCount() const
+{
+    return FindAttribute<int>(*this, "chunk_key_column_count");
+}
+
+std::optional<bool> TRichYPath::GetChunkUniqueKeys() const
+{
+    return FindAttribute<bool>(*this, "chunk_unique_keys");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ConvertToString(const TRichYPath& path, EYsonFormat ysonFormat)

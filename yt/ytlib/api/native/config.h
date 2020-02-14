@@ -125,6 +125,9 @@ public:
 
     TAsyncExpiringCacheConfigPtr JobNodeDescriptorCache;
 
+    int MaxChunksPerFetch;
+    int MaxChunksPerLocateRequest;
+
     TConnectionConfig();
 };
 

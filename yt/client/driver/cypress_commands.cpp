@@ -424,6 +424,8 @@ TConcatenateCommand::TConcatenateCommand()
 
 void TConcatenateCommand::DoExecute(ICommandContextPtr context)
 {
+    Options.ChunkMetaFetcherConfig = context->GetConfig()->Fetcher;
+
     auto asyncResult = context->GetClient()->ConcatenateNodes(
         SourcePaths,
         DestinationPath,

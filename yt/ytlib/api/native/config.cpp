@@ -165,6 +165,14 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("job_node_descriptor_cache", JobNodeDescriptorCache)
         .DefaultNew();
 
+    RegisterParameter("max_chunks_per_fetch", MaxChunksPerFetch)
+        .Default(100'000)
+        .GreaterThan(0);
+
+    RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
+        .Default(10'000)
+        .GreaterThan(0);
+
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
 

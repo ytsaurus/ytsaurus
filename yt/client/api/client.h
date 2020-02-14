@@ -624,7 +624,9 @@ struct TConcatenateNodesOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
     , public TMutatingOptions
-{ };
+{
+    NChunkClient::TFetcherConfigPtr ChunkMetaFetcherConfig;
+};
 
 struct TNodeExistsOptions
     : public TTimeoutOptions

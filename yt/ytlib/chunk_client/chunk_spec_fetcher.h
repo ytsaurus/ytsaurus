@@ -45,6 +45,9 @@ public:
 
     TFuture<void> Fetch();
 
+    //! Returns fetched chunk specs ordered by table index.
+    std::vector<NProto::TChunkSpec> GetChunkSpecsOrderedNaturally() const;
+
 private:
     NApi::NNative::IClientPtr Client_;
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_;

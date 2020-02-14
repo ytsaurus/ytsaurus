@@ -42,11 +42,12 @@ default_api_version = 4
 SortOrderViolation = 301
 UniqueKeyViolation = 306
 SchemaViolation = 307
+InvalidSchemaValue = 314
 AuthorizationErrorCode = 901
+UnrecognizedConfigOption = 1400
 NoSuchOperation = 1915
 NoSuchAttribute = 1920
 TabletNotMounted = 1702
-UnrecognizedConfigOption = 1400
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01

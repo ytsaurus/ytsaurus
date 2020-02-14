@@ -82,11 +82,13 @@ void TChunkMetaFetcher::OnResponse(
 
     const auto& responses = rspOrError.Value();
 
+    YT_VERIFY(responses.size() == requestedChunkIndexes.size());
+
     for (int index = 0; index < requestedChunkIndexes.size(); ++index) {
         int chunkIndex = requestedChunkIndexes[index];
         auto& rsp = responses[index];
         if (ChunkMetas_.size() <= chunkIndex) {
-            ChunkMetas_.resize(chunkIndex);
+            ChunkMetas_.resize(chunkIndex + 1);
         }
         YT_VERIFY(!rsp->net_throttling());
         ChunkMetas_[chunkIndex] = New<TRefCountedChunkMeta>(std::move(rsp->chunk_meta()));
