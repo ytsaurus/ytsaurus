@@ -50,7 +50,10 @@ class TestStages(object):
 
         }
 
-        templates.network_project_permissions_test_template(yp_env, "stage", project_id, spec)
+        user_id = yp_env.yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        yp_env.sync_access_control()
+
+        templates.network_project_permissions_test_template(yp_env, "stage", project_id, spec, {}, user_id)
 
     def test_template_network_project_permissions(self, yp_env):
         project_id = "project_id"
@@ -75,7 +78,10 @@ class TestStages(object):
             }
         }
 
-        templates.network_project_permissions_test_template(yp_env, "stage", project_id, spec)
+        user_id = yp_env.yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        yp_env.sync_access_control()
+
+        templates.network_project_permissions_test_template(yp_env, "stage", project_id, spec, {}, user_id)
 
     def test_check_virtual_service_existence(self, yp_env):
         project_id = "project_id"

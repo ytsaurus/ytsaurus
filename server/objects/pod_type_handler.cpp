@@ -866,17 +866,6 @@ private:
 
 namespace {
 
-THashSet<TObjectId> ExtractVirtualServiceIds(const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6AddressRequest>& ip6AddressRequests)
-{
-    THashSet<TObjectId> result;
-    for (const auto& request : ip6AddressRequests) {
-        for (const auto& virtualServiceId : request.virtual_service_ids()) {
-            result.insert(virtualServiceId);
-        }
-    }
-    return result;
-}
-
 void ValidateNetworkRequests(
     TAccessControlManagerPtr accessControlManager,
     TTransaction* transaction,
@@ -893,10 +882,19 @@ void ValidateNetworkRequests(
         validateUsePermission(networkProject);
     };
 
-    auto oldVirtualServiceIds = ExtractVirtualServiceIds(oldIp6AddressRequests);
+    THashSet<TObjectId> oldVirtualServiceIds;
+    THashSet<TObjectId> oldNetworkProjectIds;
+    for (const auto& request : oldIp6AddressRequests) {
+        oldNetworkProjectIds.insert(request.network_id());
+        for (const auto& virtualServiceId : request.virtual_service_ids()) {
+            oldVirtualServiceIds.insert(virtualServiceId);
+        }
+    }
 
     for (const auto& request : newIp6AddressRequests) {
-        validateNetworkProject(request.network_id());
+        if (oldNetworkProjectIds.find(request.network_id()) == oldNetworkProjectIds.end()) {
+            validateNetworkProject(request.network_id());
+        }
 
         for (const auto& virtualServiceId : request.virtual_service_ids()) {
             if (oldVirtualServiceIds.find(virtualServiceId) == oldVirtualServiceIds.end()) {

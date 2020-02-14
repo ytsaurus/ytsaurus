@@ -107,10 +107,13 @@ def replica_set_network_project_permissions_test_template(yp_env, replica_set_ob
         }
     }
 
-    network_project_permissions_test_template(yp_env, replica_set_object_type, network_project, spec)
+    user_id = yp_env.yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+    yp_env.sync_access_control()
+
+    network_project_permissions_test_template(yp_env, replica_set_object_type, network_project, spec, {}, user_id)
 
 
-def network_project_permissions_test_template(yp_env, object_type, network_project, spec):
+def network_project_permissions_test_template(yp_env, object_type, network_project, spec, meta, user_id):
     yp_client = yp_env.yp_client
 
     yp_client.create_object("network_project", attributes={
@@ -118,12 +121,13 @@ def network_project_permissions_test_template(yp_env, object_type, network_proje
         "meta": {"id": network_project}
     })
 
-    user_id = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
-    yp_env.sync_access_control()
-
+    # creation fails because user does not have access to the project
     with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
         with pytest.raises(YpAuthorizationError):
-            client.create_object(object_type, attributes={"spec": spec})
+            client.create_object(object_type, attributes={
+                "spec": spec,
+                "meta": meta
+            })
 
     yp_client.update_object("network_project", network_project, set_updates=[
         {"path": "/meta/acl/end", "value": {"action": "allow", "permissions": ["use"], "subjects": [user_id]}}
@@ -131,4 +135,15 @@ def network_project_permissions_test_template(yp_env, object_type, network_proje
     yp_env.sync_access_control()
 
     with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
-        client.create_object(object_type, attributes={"spec": spec})
+        stage_id = client.create_object(object_type, attributes={
+            "spec": spec,
+            "meta": meta
+        })
+
+    yp_client.remove_object("network_project", network_project)
+
+    # spec is now invalid as it is, but update succeeds because it does not change network project
+    with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
+        client.update_object(object_type, stage_id, set_updates=[
+            {"path": "/spec", "value": spec}
+        ])

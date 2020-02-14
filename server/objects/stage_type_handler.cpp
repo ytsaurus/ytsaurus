@@ -156,7 +156,10 @@ private:
                 }
 
                 if (deployUnit.has_network_defaults()) {
-                    ValidateDefaultNetworkProject(transaction, deployUnit.network_defaults());
+                    const auto& oldNetworkDefaults = oldUnitsIt != oldUnits.end()
+                        ? oldUnitsIt->second.network_defaults()
+                        : NClient::NApi::NProto::TNetworkDefaults::default_instance();
+                    ValidateDefaultNetworkProject(transaction, deployUnit.network_defaults(), oldNetworkDefaults);
                 }
             }
         } catch (const std::exception& ex) {
@@ -164,9 +167,10 @@ private:
         }
     }
 
-    void ValidateDefaultNetworkProject(TTransaction* transaction, const NClient::NApi::NProto::TNetworkDefaults& networkDefaults)
+    void ValidateDefaultNetworkProject(TTransaction* transaction, const NClient::NApi::NProto::TNetworkDefaults& networkDefaults,
+        const NClient::NApi::NProto::TNetworkDefaults& oldNetworkDefaults)
     {
-        if (!networkDefaults.network_id().empty()) {
+        if (!networkDefaults.network_id().empty() && networkDefaults.network_id() != oldNetworkDefaults.network_id()) {
             auto* networkProject = transaction->GetNetworkProject(networkDefaults.network_id());
             const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
             accessControlManager->ValidatePermission(networkProject, NAccessControl::EAccessControlPermission::Use);

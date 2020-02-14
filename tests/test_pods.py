@@ -1,3 +1,5 @@
+from . import templates
+
 from .conftest import (
     ZERO_RESOURCE_REQUESTS,
     create_nodes,
@@ -1347,3 +1349,31 @@ class TestPods(object):
 
         assert initial_pod_dump_nonschedulable == updated_pod_dump_nonschedulable
         assert initial_pod_dump == updated_pod_dump
+
+    def test_network_project_permissions(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        project_id = "project_id"
+        pod_set_id = yp_client.create_object("pod_set")
+
+        spec = {
+            "ip6_address_requests": [{
+                "network_id": project_id,
+                "vlan_id": "backbone"
+            }],
+            "resource_requests": ZERO_RESOURCE_REQUESTS
+        }
+
+        meta = {
+            "pod_set_id": pod_set_id
+        }
+
+        user_id = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        yp_env.sync_access_control()
+
+        yp_client.update_object("pod_set", pod_set_id, set_updates=[
+            {"path": "/meta/acl/end", "value": {"action": "allow", "permissions": ["write"], "subjects": [user_id]}}
+        ])
+        yp_env.sync_access_control()
+
+        templates.network_project_permissions_test_template(yp_env, "pod", project_id, spec, meta, user_id)
