@@ -12,6 +12,7 @@
 #include "resource_vector.h"
 #include "swap_defragmentator.h"
 #include "task.h"
+#include "task_manager.h"
 #include "yt_connector.h"
 
 #include <yp/server/lib/cluster/cluster.h>
@@ -26,118 +27,6 @@ namespace NYP::NServer::NHeavyScheduler {
 using namespace NCluster;
 
 using namespace NConcurrency;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTaskManager
-{
-public:
-    explicit TTaskManager(TTaskManagerConfigPtr config)
-        : Config_(std::move(config))
-        , Profiler_(NProfiling::TProfiler(NHeavyScheduler::Profiler)
-            .AppendPath("/task_manager"))
-    { }
-
-    int GetTaskSlotCount(ETaskSource source) const
-    {
-        return Config_->TaskSlotsPerSource[source] - static_cast<int>(Tasks_[source].size());
-    }
-
-    void ReconcileState(const TClusterPtr& cluster)
-    {
-        for (const auto& tasks : Tasks_) {
-            for (const auto& task : tasks) {
-                task->ReconcileState(cluster);
-            }
-        }
-    }
-
-    THashSet<TObjectId> GetInvolvedPodIds() const
-    {
-        THashSet<TObjectId> podIds;
-        for (const auto& tasks : Tasks_) {
-            for (const auto& task : tasks) {
-                for (auto podId : task->GetInvolvedPodIds()) {
-                    YT_VERIFY(podIds.insert(std::move(podId)).second);
-                }
-            }
-        }
-        return podIds;
-    }
-
-    void RemoveFinishedTasks()
-    {
-        auto now = TInstant::Now();
-
-        int timedOutCount = 0;
-        int succeededCount = 0;
-        int failedCount = 0;
-        int activeCount = 0;
-
-        for (auto& tasks : Tasks_) {
-            auto finishedIt = std::partition(
-                tasks.begin(),
-                tasks.end(),
-                [&] (const ITaskPtr& task) {
-                    if (task->GetState() == ETaskState::Succeeded) {
-                        ++succeededCount;
-                        return false;
-                    }
-                    if (task->GetState() == ETaskState::Failed) {
-                        ++failedCount;
-                        return false;
-                    }
-                    if (task->GetStartTime() + Config_->TaskTimeLimit < now) {
-                        ++timedOutCount;
-                        YT_LOG_DEBUG("Task time limit exceeded (TaskId: %v, StartTime: %v, TimeLimit: %v)",
-                            task->GetId(),
-                            task->GetStartTime(),
-                            Config_->TaskTimeLimit);
-                        return false;
-                    }
-                    ++activeCount;
-                    return true;
-                });
-
-            tasks.erase(finishedIt, tasks.end());
-        }
-
-        Profiler_.Update(Profiling_.TimedOutCounter, timedOutCount);
-        Profiler_.Update(Profiling_.SucceededCounter, succeededCount);
-        Profiler_.Update(Profiling_.FailedCounter, failedCount);
-        Profiler_.Update(Profiling_.ActiveCounter, activeCount);
-    }
-
-    void Add(ITaskPtr task, ETaskSource source)
-    {
-        Tasks_[source].push_back(std::move(task));
-    }
-
-    int TaskCount() const
-    {
-        int count = 0;
-        for (auto& tasks : Tasks_) {
-            count += static_cast<int>(tasks.size());
-        }
-        return count;
-    }
-
-private:
-    const TTaskManagerConfigPtr Config_;
-    const NProfiling::TProfiler Profiler_;
-
-    TEnumIndexedVector<ETaskSource, std::vector<ITaskPtr>> Tasks_;
-
-    struct TProfiling
-    {
-        NProfiling::TSimpleGauge TimedOutCounter{"/timed_out"};
-        NProfiling::TSimpleGauge SucceededCounter{"/succeeded"};
-        NProfiling::TSimpleGauge FailedCounter{"/failed"};
-        NProfiling::TSimpleGauge ActiveCounter{"/active"};
-    };
-
-    TProfiling Profiling_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,7 +51,7 @@ public:
                 Config_->ClusterReader,
                 Bootstrap_->GetClient()),
             CreateLabelFilterEvaluator()))
-        , TaskManager_(Config_->TaskManager)
+        , TaskManager_(New<TTaskManager>(Config_->TaskManager))
         , DisruptionThrottler_(New<TDisruptionThrottler>(
             Config_->DisruptionThrottler,
             Config_->Verbose))
@@ -194,7 +83,7 @@ private:
 
     TClusterPtr Cluster_;
 
-    TTaskManager TaskManager_;
+    TTaskManagerPtr TaskManager_;
     TDisruptionThrottlerPtr DisruptionThrottler_;
 
     TSwapDefragmentatorPtr SwapDefragmentator_;
@@ -235,8 +124,8 @@ private:
 
         DisruptionThrottler_->ReconcileState(Cluster_);
 
-        TaskManager_.ReconcileState(Cluster_);
-        TaskManager_.RemoveFinishedTasks();
+        TaskManager_->ReconcileState(Cluster_);
+        TaskManager_->RemoveFinishedTasks();
 
         EvictionGarbageCollector_->Run(Cluster_);
 
@@ -246,17 +135,17 @@ private:
             return;
         }
 
-        auto ignorePodIds = TaskManager_.GetInvolvedPodIds();
+        auto ignorePodIds = TaskManager_->GetInvolvedPodIds();
 
         {
             auto tasks = SwapDefragmentator_->CreateTasks(
                 Cluster_,
                 DisruptionThrottler_,
                 ignorePodIds,
-                TaskManager_.GetTaskSlotCount(ETaskSource::SwapDefragmentator),
-                TaskManager_.TaskCount());
+                TaskManager_->GetTaskSlotCount(ETaskSource::SwapDefragmentator),
+                TaskManager_->TaskCount());
             for (auto& task : tasks) {
-                TaskManager_.Add(std::move(task), ETaskSource::SwapDefragmentator);
+                TaskManager_->Add(std::move(task), ETaskSource::SwapDefragmentator);
             }
         }
 
@@ -265,10 +154,10 @@ private:
                 Cluster_,
                 DisruptionThrottler_,
                 ignorePodIds,
-                TaskManager_.GetTaskSlotCount(ETaskSource::AntiaffinityHealer),
-                TaskManager_.TaskCount());
+                TaskManager_->GetTaskSlotCount(ETaskSource::AntiaffinityHealer),
+                TaskManager_->TaskCount());
             for (auto& task : tasks) {
-                TaskManager_.Add(std::move(task), ETaskSource::AntiaffinityHealer);
+                TaskManager_->Add(std::move(task), ETaskSource::AntiaffinityHealer);
             }
         }
     }
