@@ -57,6 +57,9 @@ class SchedulerCluster(SchedulerClusterBase):
     def get_by_type(self, type_):
         return getattr(self, self._get_attribute_name_by_type(type_))
 
+    def set_by_type(self, type_, objects):
+        return setattr(self, self._get_attribute_name_by_type(type_), objects)
+
     @staticmethod
     def _get_attribute_name_by_type(type_):
         if type_ == "internet_address":
