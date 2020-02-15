@@ -1187,7 +1187,7 @@ class TestMutations(ClickHouseTestBase):
                 {"name": "i64", "type": "int64", "sort_order": "ascending", "required": True},
                 {"name": "ui64", "type": "uint64", "required": True},
                 {"name": "dbl", "type": "double", "required": True},
-                {"name": "i32", "type": "int64", "required": True},
+                {"name": "i32", "type": "int32", "required": True},
                 {"name": "dt", "type": "date", "required": True},
                 {"name": "dtm", "type": "datetime", "required": True},
             ], strict=True, unique_keys=False)
@@ -1205,7 +1205,7 @@ class TestMutations(ClickHouseTestBase):
                 {"name": "i64", "type": "int64", "sort_order": "ascending", "required": False},
                 {"name": "ui64", "type": "uint64", "required": False},
                 {"name": "dbl", "type": "double", "required": False},
-                {"name": "i32", "type": "int64", "required": False},
+                {"name": "i32", "type": "int32", "required": False},
                 {"name": "dt", "type": "date", "required": False},
                 {"name": "dtm", "type": "datetime", "required": False},
             ], strict=True, unique_keys=False)
@@ -1267,7 +1267,7 @@ class TestMutations(ClickHouseTestBase):
                   {"name": "dbl", "type": "double", "required": False},
                   {"name": "bool", "type": "boolean", "required": False}]
         schema_copied = copy.deepcopy(schema)
-        schema_copied[4]["type"] = "uint64"
+        schema_copied[4]["type"] = "uint8"
         create("table", "//tmp/s1", attributes={"schema": schema,
                                                 "compression_codec": "snappy"})
 
