@@ -163,6 +163,8 @@ public:
     //! List of operation types which should not be run in that tree as tentative.
     std::optional<THashSet<EOperationType>> NonTentativeOperationTypes;
 
+    double LogFairShareRatioDisagreementThreshold;
+
     TFairShareStrategyTreeConfig();
 };
 

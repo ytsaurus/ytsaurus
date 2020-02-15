@@ -1327,6 +1327,9 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList* dynamic
                     child->GetId(),
                     child->GetParent()->GetId(),
                     uncertaintyRatio);
+                if (Attributes_.FairShareRatio > TreeConfig_->LogFairShareRatioDisagreementThreshold) {
+                    context->FairShareRatioDisagreementHappened = true;
+                }
             }
         },
         Attributes_.FairShareRatio);

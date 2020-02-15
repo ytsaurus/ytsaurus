@@ -135,6 +135,10 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("non_tentative_operation_types", NonTentativeOperationTypes)
         .Default(std::nullopt);
 
+    RegisterParameter("log_fair_share_ratio_disagreement_threshold", LogFairShareRatioDisagreementThreshold)
+        // Effectively disabled.
+        .Default(1.0);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")

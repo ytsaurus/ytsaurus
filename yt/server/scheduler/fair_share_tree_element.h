@@ -78,6 +78,7 @@ struct TUpdateFairShareContext
     TInstant Now;
     TJobResources TotalResourceLimits;
     TEnumIndexedVector<EUnschedulableReason, int> UnschedulableReasons;
+    bool FairShareRatioDisagreementHappened = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
