@@ -1673,9 +1673,9 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 'int16_value': 'Nullable(Int16)',
                 'int8_value':  'Nullable(Int8)',
                 'uint64_value': 'Nullable(UInt64)',
-                'uint32_value': 'Nullable(Uint32)',
-                'uint16_value': 'Nullable(Uint16)',
-                'uint8_value': 'Nullable(Uint8)',
+                'uint32_value': 'Nullable(UInt32)',
+                'uint16_value': 'Nullable(UInt16)',
+                'uint8_value': 'Nullable(UInt8)',
             }
             table_description = clique.make_query('describe "//tmp/test_table"')
             for column_description in table_description:
