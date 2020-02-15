@@ -96,10 +96,6 @@ public:
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
 
         if (IsSecondaryMaster()) {
-            // NB: This causes a cyclic reference but we don't care.
-            const auto& hiveManager = Bootstrap_->GetHiveManager();
-            hiveManager->SubscribeIncomingMessageUpstreamSync(BIND(&TImpl::OnIncomingMessageUpstreamSync, MakeStrong(this)));
-
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
             hydraManager->SubscribeUpstreamSync(BIND(&TImpl::OnHydraUpstreamSync, MakeStrong(this)));
         }
@@ -752,27 +748,14 @@ private:
         return result;
     }
 
-    // XXX(babenko): tx cells
-    TFuture<void> SyncWithPrimaryCell()
+    TFuture<void> OnHydraUpstreamSync()
     {
+        // XXX(babenko): tx cells
         if (!IsLocalMasterCellRegistered()) {
             return VoidFuture;
         }
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         return hiveManager->SyncWith(GetPrimaryCellId(), false);
-    }
-
-    TFuture<void> OnIncomingMessageUpstreamSync(TCellId srcCellId)
-    {
-        if (srcCellId == GetPrimaryCellId() || CellTagFromId(srcCellId) != EObjectType::MasterCell) {
-            return VoidFuture;
-        }
-        return SyncWithPrimaryCell();
-    }
-
-    TFuture<void> OnHydraUpstreamSync()
-    {
-        return SyncWithPrimaryCell();
     }
 
 
