@@ -69,6 +69,8 @@ def run_pytest(python_version):
     test_files = [
         os.path.join(yatest.common.source_path(), PYTHON_ROOT, "yt/wrapper/tests", name)
         for name in test_paths
+        # Temporarily disable this test.
+        if "download_core_dump" not in name
     ]
 
     cgroup = None
