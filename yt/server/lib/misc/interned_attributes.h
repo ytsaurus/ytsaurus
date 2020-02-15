@@ -176,6 +176,7 @@
     XX(LockMode, lock_mode) \
     XX(LockedNodeIds, locked_node_ids) \
     XX(Locks, locks) \
+    XX(LogFairShareRatioDisagreementThreshold, log_fair_share_ratio_disagreement_threshold) \
     XX(LowerLimit, lower_limit) \
     XX(MasterCacheNodes, master_cache_nodes) \
     XX(MasterMetaSize, master_meta_size) \
