@@ -1197,6 +1197,8 @@ void TClient::DoConcatenateNodes(
             YT_LOG_DEBUG("Chunk metas fecthed (ChunkMetaCount: %v)",
                 srcChunkMetas.size());
 
+            YT_VERIFY(srcChunkSpecs.size() == srcChunkMetas.size());
+
             YT_LOG_DEBUG("Validating chunks schemas");
 
             const auto& outputTableSchema = outputSchemaInferer->GetOutputTableSchema();
@@ -1204,6 +1206,11 @@ void TClient::DoConcatenateNodes(
             for (int chunkIndex = 0; chunkIndex < srcChunkSpecs.size(); ++chunkIndex) {
                 const auto& chunkMeta = srcChunkMetas[chunkIndex];
                 const auto& chunkSpec = srcChunkSpecs[chunkIndex];
+                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+
+                if (!chunkMeta) {
+                    THROW_ERROR_EXCEPTION("Chunk %v meta was not fetched", chunkId);
+                }
 
                 auto chunkSchemaExt =
                     FindProtoExtension<NTableClient::NProto::TTableSchemaExt>(chunkMeta->extensions());
@@ -1226,7 +1233,7 @@ void TClient::DoConcatenateNodes(
                     THROW_ERROR_EXCEPTION(
                         NTableClient::EErrorCode::SchemaViolation,
                         "Output table schema forces keys to be unique while chunk %v schema does not",
-                        FromProto<TChunkId>(chunkSpec.chunk_id()));
+                        chunkId);
                 }
             }
 
