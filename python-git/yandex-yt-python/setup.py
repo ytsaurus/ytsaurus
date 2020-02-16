@@ -65,9 +65,9 @@ def main():
     )
 
     try:
-	os.remove(yt_completion_destination)
+        os.remove(yt_completion_destination)
     except OSError:
-	pass
+        pass
 
 if __name__ == "__main__":
     main()
