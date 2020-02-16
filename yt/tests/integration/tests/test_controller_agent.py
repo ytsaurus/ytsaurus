@@ -107,7 +107,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
             assert entry["alive"] == False
 
 # Enable after YT-12227 
-class DISABLED_TestControllerAgentMemoryPickStrategy(YTEnvSetup):
+class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 2
 
