@@ -6,6 +6,7 @@ def main():
     from setuptools import setup, find_packages
 
     import os
+    import shutil
     import sys
 
     version = get_version()
@@ -22,6 +23,8 @@ def main():
     if not is_debian and version not in stable_versions:
         version = version + "a1"
 
+    yt_completion_destination = "yandex-yt-python/yt_completion" + str(sys.version_info[0])
+
     binaries = [
         "yt/wrapper/bin/mapreduce-yt",
         "yt/wrapper/bin/yt",
@@ -33,7 +36,8 @@ def main():
     scripts = []
     if is_debian:
         scripts = [binary + str(sys.version_info[0]) for binary in binaries]
-        data_files.append(("/etc/bash_completion.d/", ["yandex-yt-python/yt_completion" + str(sys.version_info[0])]))
+        shutil.copy("yandex-yt-python/yt_completion", yt_completion_destination)
+        data_files.append(("/etc/bash_completion.d/", [yt_completion_destination]))
     else:  # python egg or wheel
         scripts = binaries
 
@@ -59,6 +63,11 @@ def main():
 
         data_files=data_files
     )
+
+    try:
+	os.remove(yt_completion_destination)
+    except OSError:
+	pass
 
 if __name__ == "__main__":
     main()
