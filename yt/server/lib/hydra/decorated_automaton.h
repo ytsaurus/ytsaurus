@@ -50,9 +50,7 @@ struct TEpochContext
     std::atomic_flag Restarting = ATOMIC_FLAG_INIT;
     bool LeaderLeaseExpired = false;
 
-    TIntrusivePtr<NConcurrency::TAsyncBatcher<void>> UpstreamSyncBatcher;
-    NProfiling::TWallTimer UpstreamSyncTimer;
-
+    TIntrusivePtr<NConcurrency::TAsyncBatcher<void>> LeaderSyncBatcher;
     std::optional<TVersion> LeaderSyncVersion;
     TPromise<void> LeaderSyncPromise;
 

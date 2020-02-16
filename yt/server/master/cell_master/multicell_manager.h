@@ -81,7 +81,7 @@ public:
     NObjectClient::TCellId GetCellId();
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag);
     NObjectClient::TCellTag GetCellTag();
- 
+
     NObjectClient::TCellId GetPrimaryCellId();
     NObjectClient::TCellTag GetPrimaryCellTag();
 
@@ -146,6 +146,25 @@ public:
     //! Returns the mailbox used for communicating with the primary master cell.
     //! May return null if the cell is not connected yet.
     NHiveServer::TMailbox* FindPrimaryMasterMailbox();
+
+
+    //! Synchronizes with the upstream.
+    /*!
+     *  Used to prevent stale reads by ensuring that the automaton has seen enough mutations
+     *  from all "upstream" services.
+     *
+     *  Synchronization requests are automatically batched together.
+     *
+     *  Internally, this combines two means of synchronization:
+     *  1) follower-with-leader synchronization
+     *  2) primary-to-secondary cell synchronization
+     *
+     *  Synchronizer (1) has no effect at leader.
+     *  Synchronizer (2) has no effect at primary cell.
+     *
+     *  \note Thread affinity: any
+     */
+    TFuture<void> SyncWithUpstream();
 
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), ValidateSecondaryMasterRegistration);
     DECLARE_SIGNAL(void(NObjectClient::TCellTag), ReplicateKeysToSecondaryMaster);
