@@ -340,6 +340,17 @@ b"""
         };
 
         enable_udf = %true;
+
+        block_cache = {
+            compressed_data = {
+                capacity = 0;
+                shard_count = 1;
+            };
+            uncompressed_data = {
+                capacity = 0;
+                shard_count = 1;
+            };
+        };
     };
 
     data_node = {
@@ -358,9 +369,11 @@ b"""
         block_cache = {
             compressed_data = {
                 capacity = 0;
+                shard_count = 1;
             };
             uncompressed_data = {
                 capacity = 0;
+                shard_count = 1;
             };
         };
 
