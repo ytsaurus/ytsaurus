@@ -201,6 +201,8 @@ def add_start_subparser(subparsers):
     parser.add_argument("--proxy-port", type=int, nargs="+", help="proxy ports for http proxy; number of values should be equal to http-proxy-count.")
     parser.add_argument("--enable-debug-logging", action="store_true", default=False,
                         help="set logging level threshold to DEBUG")
+    parser.add_argument("--enable-logging-compression", action="store_true", default=False,
+                        help="enables logging compression by server")
     parser.add_argument("--tmpfs-path", help="path to mounted tmpfs. "
                                              "Will be used to store performance critical parts.")
     parser.add_argument("--port-range-start", type=int,

@@ -6,7 +6,8 @@ except ImportError:
 
 """This module provides default ytserver configs"""
 
-def get_logging_config(enable_debug_logging=True, enable_structured_logging=False):
+def get_logging_config(enable_debug_logging, enable_compression, enable_structured_logging):
+    suffix = ".gz" if enable_compression else ""
     config = {
         "abort_on_alert": True,
         "rules": [
@@ -19,8 +20,8 @@ def get_logging_config(enable_debug_logging=True, enable_structured_logging=Fals
             },
             "info": {
                 "type": "file",
-                "file_name": "{path}/{name}.log.gz",
-                "enable_compression": True,
+                "file_name": "{path}/{name}.log" + suffix,
+                "enable_compression": enable_compression,
             }
         }
     }
@@ -32,8 +33,8 @@ def get_logging_config(enable_debug_logging=True, enable_structured_logging=Fals
         })
         config["writers"]["debug"] = {
             "type": "file",
-            "file_name": "{path}/{name}.debug.log.gz",
-            "enable_compression": True,
+            "file_name": "{path}/{name}.debug.log"  + suffix,
+            "enable_compression": enable_compression,
         }
     if enable_structured_logging:
         config["rules"].append({
@@ -308,8 +309,8 @@ b"""
 """)
 
 # COMPAT(babenko): drop unsuccess_heartbeat_backoff_time
-def get_node_config(enable_debug_logging=True):
-    config = yson.loads(
+def get_node_config():
+    return yson.loads(
 b"""
 {
     orchid_cache_update_period = 0;
@@ -405,32 +406,6 @@ b"""
 
         job_proxy_heartbeat_period = 200;
 
-        job_proxy_logging = {
-            rules = [
-                {
-                    min_level = info;
-                    writers = [ info ];
-                };
-                {
-                    min_level = debug;
-                    exclude_categories = [ Bus ];
-                    writers = [ debug ];
-                };
-            ];
-            writers = {
-                info = {
-                    type = file;
-                    file_name = "{path}/{name}.log.gz";
-                    enable_compression = %true;
-                };
-                debug = {
-                    type = file;
-                    file_name = "{path}/{name}.debug.log.gz";
-                    enable_compression = %true;
-                };
-            }
-        };
-
         job_controller = {
             total_confirmation_period = 5000;
             cpu_per_tablet_slot = 0.0;
@@ -469,45 +444,12 @@ b"""
         };
     };
 
-    logging = {
-        abort_on_alert = %true;
-        rules = [
-            {
-                min_level = info;
-                writers = [ info ];
-            };
-            {
-                min_level = debug;
-                writers = [ debug ];
-                exclude_categories = ["Bus"];
-            };
-        ];
-        writers = {
-            info = {
-                type = file;
-                file_name = "{path}/{name}.log.gz";
-                enable_compression = %true;
-            };
-            debug = {
-                type = file;
-                file_name = "{path}/{name}.debug.log.gz";
-                enable_compression = %true;
-            };
-        }
-    };
 
     dynamic_config_manager = {
         config_fetch_period = 50;
     };
 }
 """)
-    if not enable_debug_logging:
-        del config["logging"]["rules"][1]
-        del config["logging"]["writers"]["debug"]
-        del config["exec_agent"]["job_proxy_logging"]["rules"][1]
-        del config["exec_agent"]["job_proxy_logging"]["writers"]["debug"]
-
-    return config
 
 def get_dynamic_node_config():
     return yson.loads(
@@ -573,7 +515,7 @@ b"""
 
 def get_watcher_config():
     return {
-        "logs_rotate_max_part_count": 1000,
+        "logs_rotate_max_part_count": 100,
         "logs_rotate_size": "1M",
-        "logs_rotate_interval": 5,
+        "logs_rotate_interval": 600,
     }
