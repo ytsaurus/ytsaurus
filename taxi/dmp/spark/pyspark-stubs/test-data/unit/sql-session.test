@@ -34,7 +34,7 @@ spark.createDataFrame([1, 2, 3], IntegerType())
 spark.createDataFrame(["foo", "bar"], "string")
 [out]
 
-[case createDataFrameScalarsInalid]
+[case createDataFrameScalarsInvalid]
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType
 
@@ -52,7 +52,7 @@ spark.createDataFrame(["foo", "bar"]) # E: Value of type variable "RowLike" of "
 spark.createDataFrame([1, 2, 3], schema) # E: Value of type variable "RowLike" of "createDataFrame" of "SparkSession" cannot be "int"
 [out]
 
-[case createDataFrameStructsInalid]
+[case createDataFrameStructsInvalid]
 from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, IntegerType
 

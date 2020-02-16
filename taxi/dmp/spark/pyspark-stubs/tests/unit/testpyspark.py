@@ -13,6 +13,7 @@ TypeCheckSuite.files = [
     "ml-regression.test",
     "resultiterable.test",
     "sql-column.test",
+    "sql-dataframe.test",
     "sql-pandas-typing-compatibility.test",
     "sql-readwriter.test",
     "sql-session.test",
