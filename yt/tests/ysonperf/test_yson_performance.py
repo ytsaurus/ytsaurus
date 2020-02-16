@@ -1,3 +1,5 @@
+from yt_env_setup import is_asan_build
+
 import yt.yson as yson
 
 from flaky import flaky
@@ -75,7 +77,7 @@ class TestYsonPerformance(object):
         ("numbers.yson", 2.5, 2.5)
     ])
     def test_yson_performance(self, dataset, expected_loads_time, expected_dumps_time):
-        if is_debug() or yson.TYPE != "BINARY":
+        if is_debug() or is_asan_build() or yson.TYPE != "BINARY":
             pytest.skip()
 
         dataset_path = os.path.join(self.DATASETS_PATH, dataset)
