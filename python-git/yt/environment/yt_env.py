@@ -151,7 +151,7 @@ class YTInstance(object):
                  scheduler_count=1, defer_scheduler_start=False,
                  controller_agent_count=None, defer_controller_agent_start=False,
                  http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, cell_tag=0,
-                 enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
+                 enable_debug_logging=True, enable_logging_compression=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, local_port_range=None, port_range_start=None, node_port_set_size=None,
                  fqdn=None, jobs_resource_limits=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
@@ -298,6 +298,8 @@ class YTInstance(object):
         self.has_rpc_proxy = rpc_proxy_count > 0
         self.rpc_proxy_count = rpc_proxy_count
         self._enable_debug_logging = enable_debug_logging
+        self._enable_logging_compression = enable_logging_compression
+        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAaa", enable_logging_compression, file=sys.stderr)
         self._cell_tag = cell_tag
         self._kill_child_processes = kill_child_processes
         self._started = False
@@ -306,6 +308,14 @@ class YTInstance(object):
 
         self._run_watcher = run_watcher
         self.watcher_config = watcher_config
+        if self.watcher_config is None:
+            self.watcher_config = {}
+
+        # Enable logrotate compression if logs are not compressed by default.
+        if not self._enable_logging_compression:
+            self.watcher_config["logs_rotate_compress"] = True
+        else:
+            self.watcher_config["disable_logrotate"] = True
 
         self._prepare_environment(jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                                   node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, node_port_set_size,
@@ -445,6 +455,7 @@ class YTInstance(object):
         provision["driver"]["backend"] = self.driver_backend
         provision["fqdn"] = self._hostname
         provision["enable_debug_logging"] = self._enable_debug_logging
+        provision["enable_logging_compression"] = self._enable_logging_compression
         if enable_master_cache is not None:
             provision["enable_master_cache"] = enable_master_cache
         provision["enable_structured_master_logging"] = enable_structured_master_logging
@@ -1334,13 +1345,13 @@ class YTInstance(object):
             self.configs[name] = config
             self.config_paths[name] = config_path
 
-        self.driver_logging_config = init_logging(None, self.logs_path, "driver", self._enable_debug_logging)
-        self.rpc_driver_logging_config = init_logging(None, self.logs_path, "rpc_driver", self._enable_debug_logging)
+        self.driver_logging_config = init_logging(None, self.logs_path, "driver", self._enable_debug_logging, self._enable_logging_compression)
+        self.rpc_driver_logging_config = init_logging(None, self.logs_path, "rpc_driver", self._enable_debug_logging, self._enable_logging_compression)
 
     def _prepare_console_driver(self):
         config = {}
         config["driver"] = self.configs["driver"]
-        config["logging"] = init_logging(None, self.path, "console_driver", self._enable_debug_logging)
+        config["logging"] = init_logging(None, self.path, "console_driver", self._enable_debug_logging, self._enable_logging_compression)
 
         config_path = os.path.join(self.path, "console_driver_config.yson")
 

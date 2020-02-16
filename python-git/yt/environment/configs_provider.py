@@ -120,6 +120,7 @@ _default_provision = {
     "enable_structured_scheduler_logging": False,
     "fqdn": socket.getfqdn(),
     "enable_master_cache": False,
+    "enable_logging_compression": True,
 }
 
 def get_default_provision():
@@ -231,9 +232,9 @@ class ConfigsProvider(object):
     def _build_rpc_proxy_configs(self, provision, master_connection_configs, ports_generator):
         pass
 
-def init_logging(node, path, name, enable_debug_logging, enable_structured_logging=False):
+def init_logging(node, path, name, enable_debug_logging, enable_compression, enable_structured_logging=False):
     if not node:
-        node = default_configs.get_logging_config(enable_debug_logging, enable_structured_logging)
+        node = default_configs.get_logging_config(enable_debug_logging, enable_compression, enable_structured_logging)
 
     def process(node, key, value):
         if isinstance(value, str):
@@ -394,8 +395,9 @@ class ConfigsProvider_19(ConfigsProvider):
 
                 config["logging"] = init_logging(config.get("logging"), master_logs_dir,
                                                  "master-{0}-{1}".format(cell_index, master_index),
-                                                 provision["enable_debug_logging"],
-                                                 provision["enable_structured_master_logging"])
+                                                 enable_debug_logging=provision["enable_debug_logging"],
+                                                 enable_compression=provision["enable_logging_compression"],
+                                                 enable_structured_logging=provision["enable_structured_master_logging"])
 
                 _set_bind_retry_options(config, key="bus_server")
 
@@ -458,7 +460,8 @@ class ConfigsProvider_19(ConfigsProvider):
 
             config["logging"] = init_logging(config.get("logging"), clock_logs_dir,
                                              "clock-{0}".format(clock_index),
-                                             provision["enable_debug_logging"])
+                                             enable_debug_logging=provision["enable_debug_logging"],
+                                             enable_compression=provision["enable_logging_compression"])
 
             _set_bind_retry_options(config, key="bus_server")
 
@@ -562,8 +565,9 @@ class ConfigsProvider_19(ConfigsProvider):
             config["monitoring_port"] = next(ports_generator)
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
                                              "scheduler-" + str(index),
-                                             provision["enable_debug_logging"],
-                                             provision["enable_structured_scheduler_logging"])
+                                             enable_debug_logging=provision["enable_debug_logging"],
+                                             enable_compression=provision["enable_logging_compression"],
+                                             enable_structured_logging=provision["enable_structured_scheduler_logging"])
 
             _set_bind_retry_options(config, key="bus_server")
 
@@ -598,7 +602,8 @@ class ConfigsProvider_19(ConfigsProvider):
                 proxy_config.get("logging"),
                 proxy_logs_dir,
                 "http-proxy-{}".format(index),
-                provision["enable_debug_logging"],
+                enable_debug_logging=provision["enable_debug_logging"],
+                enable_compression=provision["enable_logging_compression"],
                 enable_structured_logging=True)
 
             _set_bind_retry_options(proxy_config)
@@ -618,7 +623,7 @@ class ConfigsProvider_19(ConfigsProvider):
         current_user = 10000
 
         for index in xrange(provision["node"]["count"]):
-            config = default_configs.get_node_config(provision["enable_debug_logging"])
+            config = default_configs.get_node_config()
 
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
 
@@ -680,14 +685,18 @@ class ConfigsProvider_19(ConfigsProvider):
             set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])
 
             config["logging"] = init_logging(config.get("logging"), node_logs_dir, "node-{0}".format(index),
-                                             provision["enable_debug_logging"])
+                                             enable_debug_logging=provision["enable_debug_logging"],
+                                             enable_compression=provision["enable_logging_compression"])
 
             job_proxy_logging = get_at(config, "exec_agent/job_proxy_logging")
             log_name = "job_proxy-{0}".format(index)
             set_at(
                 config,
                 "exec_agent/job_proxy_logging",
-                init_logging(job_proxy_logging, node_logs_dir, log_name, provision["enable_debug_logging"]))
+                init_logging(job_proxy_logging, node_logs_dir, log_name,
+                             enable_debug_logging=provision["enable_debug_logging"],
+                             enable_compression=provision["enable_logging_compression"])
+            )
 
             set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)
             set_at(config, "tablet_node/hydra_manager/restart_backoff_time", 100)
@@ -791,8 +800,12 @@ class ConfigsProvider_19(ConfigsProvider):
                 }
             }
             config["cluster_connection"] = self._build_cluster_connection_config(master_connection_configs)
-            config["logging"] = init_logging(config.get("logging"), proxy_logs_dir,
-                "rpc-proxy-{}".format(rpc_proxy_index), provision["enable_debug_logging"])
+            config["logging"] = init_logging(
+                config.get("logging"),
+                proxy_logs_dir,
+                "rpc-proxy-{}".format(rpc_proxy_index),
+                enable_debug_logging=provision["enable_debug_logging"],
+                enable_compression=provision["enable_logging_compression"])
 
             configs.append(config)
 
@@ -859,8 +872,9 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
             config["monitoring_port"] = next(ports_generator)
             config["logging"] = init_logging(config.get("logging"), controller_agent_logs_dir,
                                              "controller-agent-" + str(index),
-                                             provision["enable_debug_logging"],
-                                             provision["enable_structured_scheduler_logging"])
+                                             enable_debug_logging=provision["enable_debug_logging"],
+                                             enable_compression=provision["enable_logging_compression"],
+                                             enable_structured_logging=provision["enable_structured_scheduler_logging"])
 
             _set_bind_retry_options(config, key="bus_server")
 
