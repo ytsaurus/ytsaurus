@@ -1097,11 +1097,6 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     WaitFor(asyncUpdate)
         .ThrowOnError();
 
-    if (updateContext.FairShareRatioDisagreementHappened) {
-        YT_LOG_DEBUG("XXX Significant fair share ratio disagreement happened, log full information about pools and operations");
-        OnFairShareLoggingAt(TInstant::Now());
-    }
-
     YT_LOG_DEBUG("Fair share tree update finished (UnschedulableReasons: %v)",
         updateContext.UnschedulableReasons);
 
@@ -1153,6 +1148,11 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     rootElementSnapshot->Config = Config_;
 
     RootElementSnapshot_ = rootElementSnapshot;
+
+    if (updateContext.FairShareRatioDisagreementHappened) {
+        YT_LOG_DEBUG("XXX Significant fair share ratio disagreement happened, log full information about pools and operations");
+        OnFairShareLoggingAt(TInstant::Now());
+    }
 
     auto treeSnapshot = New<TFairShareTreeSnapshot>(
         this,
