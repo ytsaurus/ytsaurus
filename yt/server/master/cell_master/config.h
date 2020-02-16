@@ -85,10 +85,15 @@ public:
     //! Applies to follower-to-leader forwarding and cross-cell interactions.
     TMasterConnectionConfigPtr MasterConnection;
 
+    //! Maximum time to wait before syncing with upstream cells.
+    TDuration UpstreamSyncDelay;
+
     TMulticellManagerConfig()
     {
         RegisterParameter("master_connection", MasterConnection)
             .DefaultNew();
+        RegisterParameter("upstream_sync_delay", UpstreamSyncDelay)
+            .Default(TDuration::MilliSeconds(10));
     }
 };
 
@@ -101,7 +106,6 @@ class TDynamicMulticellManagerConfig
 {
 public:
     TDuration CellStatisticsGossipPeriod;
-
     THashMap<NObjectServer::TCellTag, EMasterCellRoles> CellRoles;
 
     TDynamicMulticellManagerConfig()

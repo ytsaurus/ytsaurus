@@ -399,7 +399,7 @@ public:
         return AlivePeers_;
     }
 
-    virtual TFuture<void> SyncWithUpstream() override
+    virtual TFuture<void> SyncWithLeader() override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -410,12 +410,12 @@ public:
                 "Not an active peer"));
         }
 
-        if (epochContext->LeaderId == CellManager_->GetSelfPeerId() && UpstreamSync_.Empty()) {
+        if (epochContext->LeaderId == CellManager_->GetSelfPeerId()) {
             // NB: Leader lease is already checked in IsActive.
             return VoidFuture;
         }
 
-        return epochContext->UpstreamSyncBatcher->Run();
+        return epochContext->LeaderSyncBatcher->Run();
     }
 
     virtual TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override
@@ -504,7 +504,6 @@ public:
     DEFINE_SIGNAL(void(), StopFollowing);
 
     DEFINE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
-    DEFINE_SIGNAL(TFuture<void>(), UpstreamSync);
 
     DEFINE_SIGNAL(void (const TPeerIdSet&), AlivePeerSetChanged);
 
@@ -528,7 +527,7 @@ private:
     const IElectionCallbacksPtr ElectionCallbacks_;
 
     const NProfiling::TProfiler Profiler;
-    NProfiling::TAggregateGauge UpstreamSyncTimeGauge_{"/upstream_sync_time"};
+    NProfiling::TAggregateGauge LeaderSyncTimeGauge_{"/leader_sync_time"};
 
     std::atomic<bool> ReadOnly_ = {false};
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();
@@ -546,6 +545,10 @@ private:
     TEpochContextPtr AutomatonEpochContext_;
 
     TPeerIdSet AlivePeers_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
 
     DECLARE_RPC_SERVICE_METHOD(NProto, LookupChangelog)
     {
@@ -1680,9 +1683,9 @@ private:
             epochContext->EpochUserAutomatonInvoker,
             BIND(&TDistributedHydraManager::OnHeartbeatMutationCommit, MakeWeak(this)),
             Config_->HeartbeatMutationPeriod);
-        epochContext->UpstreamSyncBatcher = New<TAsyncBatcher<void>>(
-            BIND(&TDistributedHydraManager::DoSyncWithUpstream, MakeWeak(this), MakeWeak(epochContext)),
-            Config_->UpstreamSyncDelay);
+        epochContext->LeaderSyncBatcher = New<TAsyncBatcher<void>>(
+            BIND_DONT_CAPTURE_TRACE_CONTEXT(&TDistributedHydraManager::DoSyncWithLeader, MakeWeak(this), MakeWeak(epochContext)),
+            Config_->LeaderSyncDelay);
 
         YT_VERIFY(!ControlEpochContext_);
         ControlEpochContext_ = epochContext;
@@ -1751,7 +1754,7 @@ private:
         }
 
         auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
-        AutomatonEpochContext_->UpstreamSyncBatcher->Cancel(error);
+        AutomatonEpochContext_->LeaderSyncBatcher->Cancel(error);
         if (AutomatonEpochContext_->LeaderSyncPromise) {
             AutomatonEpochContext_->LeaderSyncPromise.TrySet(error);
         }
@@ -1760,7 +1763,7 @@ private:
     }
 
 
-    static TFuture<void> DoSyncWithUpstream(
+    static TFuture<void> DoSyncWithLeader(
         const TWeakPtr<TDistributedHydraManager>& weakThis,
         const TWeakPtr<TEpochContext>& weakEpochContext)
     {
@@ -1772,62 +1775,47 @@ private:
             return MakeFuture(TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"));
         }
 
+        NProfiling::TWallTimer timer;
+
         const auto& Logger = this_->Logger;
-        YT_LOG_DEBUG("Synchronizing with upstream");
+        YT_LOG_DEBUG("Synchronizing with leader");
 
-        epochContext->UpstreamSyncTimer.Restart();
-
-        return BIND(&TDistributedHydraManager::DoSyncWithUpstreamCore, this_, epochContext)
+        return BIND(&TDistributedHydraManager::DoSyncWithLeaderCore, this_, timer)
             .AsyncVia(epochContext->EpochUserAutomatonInvoker)
             .Run();
     }
 
-    TFuture<void> DoSyncWithUpstreamCore(const TEpochContextPtr& epochContext)
+    TFuture<void> DoSyncWithLeaderCore(const NProfiling::TWallTimer& timer)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        std::vector<TFuture<void>> asyncResults;
-        if (GetAutomatonState() == EPeerState::Following) {
-            asyncResults.push_back(DoSyncWithLeader());
-        }
-        for (const auto& callback : UpstreamSync_.ToVector()) {
-            asyncResults.push_back(callback.Run());
-        }
-
-        // NB: Many subscribers are typically waiting for the upstream sync to complete.
+        // NB: Many subscribers are typically waiting for the leader sync to complete.
         // Make sure the promise is set in a large thread pool.
-        return CombineAll(asyncResults).Apply(
-            BIND(&TDistributedHydraManager::OnUpstreamSyncReached, MakeStrong(this), epochContext)
+        return StartSyncWithLeader().Apply(
+            BIND(&TDistributedHydraManager::OnLeaderSyncReached, MakeStrong(this), timer)
                 .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
-    void OnUpstreamSyncReached(
-        const TEpochContextPtr& epochContext,
-        const TErrorOr<std::vector<TError>>& resultsOrError)
+    void OnLeaderSyncReached(const NProfiling::TWallTimer& timer, const TError& error)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        const auto& results = resultsOrError.ValueOrThrow();
-        TError combinedError;
-        for (const auto& error : results) {
-            if (!error.IsOK()) {
-                if (combinedError.IsOK()) {
-                    combinedError = TError(
-                        NRpc::EErrorCode::Unavailable,
-                        "Error synchronizing with upstream");
-                }
-                combinedError.InnerErrors().push_back(error);
-            }
-        }
-        combinedError.ThrowOnError();
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            error,
+            NRpc::EErrorCode::Unavailable,
+            "Error synchronizing with leader");
 
-        YT_LOG_DEBUG("Upstream synchronization complete");
-        Profiler.Update(UpstreamSyncTimeGauge_, epochContext->UpstreamSyncTimer.GetElapsedValue());
+        YT_LOG_DEBUG("Leader synchronization complete");
+        Profiler.Update(LeaderSyncTimeGauge_, timer.GetElapsedValue());
     }
 
-    TFuture<void> DoSyncWithLeader()
+    TFuture<void> StartSyncWithLeader()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (GetAutomatonState() == EPeerState::Leading) {
+            return VoidFuture;
+        }
 
         YT_LOG_DEBUG("Synchronizing with leader");
 
@@ -1973,11 +1961,6 @@ private:
     {
         return this;
     }
-
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TDistributedHydraManager)
