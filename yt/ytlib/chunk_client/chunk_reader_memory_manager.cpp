@@ -19,6 +19,7 @@ TChunkReaderMemoryManager::TChunkReaderMemoryManager(
     TWeakPtr<IReaderMemoryManagerHost> hostMemoryManager)
     : Options_(std::move(options))
     , ReservedMemorySize_(Options_.BufferSize)
+    , PrefetchMemorySize_(Options_.BufferSize)
     , AsyncSemaphore_(New<TAsyncSemaphore>(Options_.BufferSize))
     , HostMemoryManager_(std::move(hostMemoryManager))
 { }
