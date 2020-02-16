@@ -182,18 +182,18 @@ class TestLocalMode(object):
             logs_path = lyt.logs_path
 
         for index in xrange(master_count):
-            name = "master-0-" + str(index) + ".log.gz"
+            name = "master-0-" + str(index) + ".log"
             assert os.path.exists(os.path.join(logs_path, name))
 
         for index in xrange(node_count):
-            name = "node-" + str(index) + ".log.gz"
+            name = "node-" + str(index) + ".log"
             assert os.path.exists(os.path.join(logs_path, name))
 
         for index in xrange(scheduler_count):
-            name = "scheduler-" + str(index) + ".log.gz"
+            name = "scheduler-" + str(index) + ".log"
             assert os.path.exists(os.path.join(logs_path, name))
 
-        assert os.path.exists(os.path.join(logs_path, "http-proxy-0.log.gz"))
+        assert os.path.exists(os.path.join(logs_path, "http-proxy-0.log"))
         assert os.path.exists(os.path.join(path, "stderrs"))
 
     def test_user_configs_path(self):
@@ -246,7 +246,7 @@ class TestLocalMode(object):
         # Some log file may be missing if we exited during log rotation.
         presented = 0
         for file_index in xrange(1, 5):
-            presented += os.path.exists(os.path.join(logs_path, "http-proxy-0.debug.log.gz.{0}".format(file_index)))
+            presented += os.path.exists(os.path.join(logs_path, "http-proxy-0.debug.log.{0}.gz".format(file_index)))
         assert presented in (3, 4)
 
     def test_commands_sanity(self):
