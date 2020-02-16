@@ -541,16 +541,22 @@ class TestRetries(object):
 
     def test_concatenate(self):
         yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
+        override_options = {
+            "write_retries/enable": True,
+            "write_retries/count": 10,
+            "concatenate_retries/count": 10,
+        }
         try:
-            tableA = TEST_DIR + "/tableA"
-            tableB = TEST_DIR + "/tableB"
-            output_table = TEST_DIR + "/outputTable"
+            with set_config_options(override_options):
+                tableA = TEST_DIR + "/tableA"
+                tableB = TEST_DIR + "/tableB"
+                output_table = TEST_DIR + "/outputTable"
 
-            yt.write_table(tableA, [{"x": 1, "y": 2}])
-            yt.write_table(tableB, [{"x": 10, "y": 20}])
-            yt.concatenate([tableA, tableB], output_table)
+                yt.write_table(tableA, [{"x": 1, "y": 2}])
+                yt.write_table(tableB, [{"x": 10, "y": 20}])
+                yt.concatenate([tableA, tableB], output_table)
 
-            assert [{"x": 1, "y": 2}, {"x": 10, "y": 20}] == list(yt.read_table(output_table))
+                assert [{"x": 1, "y": 2}, {"x": 10, "y": 20}] == list(yt.read_table(output_table))
         finally:
             yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
 
