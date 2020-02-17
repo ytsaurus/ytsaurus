@@ -95,6 +95,9 @@ protected:
             return;
         }
 
+        // Make RSS predictable.
+        NYTAlloc::SetEnableEagerMemoryRelease(true);
+
         ConfigureUids();
         ConfigureCrashHandler();
 
