@@ -301,7 +301,6 @@ class YTInstance(object):
         self.rpc_proxy_count = rpc_proxy_count
         self._enable_debug_logging = enable_debug_logging
         self._enable_logging_compression = enable_logging_compression
-        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAaa", enable_logging_compression, file=sys.stderr)
         self._cell_tag = cell_tag
         self._kill_child_processes = kill_child_processes
         self._started = False
