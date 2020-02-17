@@ -155,6 +155,11 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
+        if (RequiredMemory_.find(reader) == RequiredMemory_.end()) {
+            // Reader is already unregistered. Do nothing.
+            return;
+        }
+
         DoRemoveReaderInfo(reader);
         DoAddReaderInfo(reader);
         DoRebalance();
