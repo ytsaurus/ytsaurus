@@ -663,6 +663,19 @@ TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
     }
 }
 
+void TSchedulerElement::LogDetailedInfo() const
+{
+    auto maxPossibleResourceUsage = Min(TotalResourceLimits_, MaxPossibleResourceUsage_);
+    auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
+
+    YT_LOG_DEBUG("XXX Detailed information (TotalResourceLimits: %v, Demand: %v, Usage: %v, MaxPossibleResourceUsage: %v, RecursiveMaxPossibleResourceUsage: %v)",
+        FormatResources(TotalResourceLimits_),
+        FormatResources(ResourceDemand()),
+        FormatResources(GetLocalResourceUsage()),
+        FormatResources(maxPossibleResourceUsage),
+        FormatResources(possibleUsage));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(

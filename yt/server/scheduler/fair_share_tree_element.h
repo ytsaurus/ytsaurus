@@ -347,6 +347,9 @@ public:
 
     TJobResources ComputeResourceLimits() const;
 
+    // XXX(ignat)
+    void LogDetailedInfo() const;
+
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
 
