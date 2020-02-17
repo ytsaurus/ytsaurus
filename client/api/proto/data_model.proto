@@ -1712,12 +1712,14 @@ message TEndpointSetSpec
      * Will start working after YP-1502.
      *
      * If "ready" pods count >= ceil(liveness_limit_ratio * pods_count) - liveness_limit_ratio has no affect.
-     * Else - irrelevant endpoints will be deleted one by one (in unspecified order)
-     * until number of endpoints reaches ceil(liveness_limit_ratio * pods_count)
      *
-     * In case, when liveness_limit_ratio is increased (e.g 0.0 -> 0.5), but endpoints count
-     * is less than ceil(liveness_limit_ratio(increased value) * pods_count) - enpoints will be created
-     * one by one (in unspecified order) until number of endpoints reaches ceil(liveness_limit_ratio * pods_count).
+     * In case when endpoints count is less than ceil(liveness_limit_ratio * pods_count),
+     * enpoints will be created one by one (in unspecified order, even for not ready pods)
+     * until number of endpoints reaches ceil(liveness_limit_ratio * pods_count).
+     *
+     * In case when endpoints count is greater than ceil(liveness_limit_ratio * pods_count),
+     * endpoints, pointing to "unready" pods, will be deleted one by one (in unspecified order)
+     * until number of endpoints reaches ceil(liveness_limit_ratio * pods_count).
      */
     optional double liveness_limit_ratio = 4 [default = 0.0];
 }
