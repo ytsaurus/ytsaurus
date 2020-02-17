@@ -70,6 +70,11 @@ TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> 
             .AsyncVia(Invoker_));
 }
 
+void TChunkMetaFetcher::OnFetchingStarted()
+{
+    ChunkMetas_.resize(Chunks_.size());
+}
+
 void TChunkMetaFetcher::OnResponse(
     NYT::NNodeTrackerClient::TNodeId nodeId,
     std::vector<int> requestedChunkIndexes,
@@ -95,10 +100,8 @@ void TChunkMetaFetcher::OnResponse(
     for (int index = 0; index < requestedChunkIndexes.size(); ++index) {
         int chunkIndex = requestedChunkIndexes[index];
         auto& rsp = responses[index];
-        if (ChunkMetas_.size() <= chunkIndex) {
-            ChunkMetas_.resize(chunkIndex + 1);
-        }
         YT_VERIFY(!rsp->net_throttling());
+        YT_VERIFY(chunkIndex < ChunkMetas_.size());
         ChunkMetas_[chunkIndex] = New<TRefCountedChunkMeta>(std::move(rsp->chunk_meta()));
     }
 }
