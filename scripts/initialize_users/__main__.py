@@ -795,6 +795,20 @@ def initialize_users(cluster, dry_run):
                 client, "group", User("robot-deploy-auth-t"), right_c
             )
 
+        # YPSUPPORT-49
+        if cluster in ("sas-test", "man-pre"):
+            add_schema_permissions(
+                client, "stage", User("robot-deploy-auth-t"), right_rw
+            )
+            add_schema_permissions(
+                client, "account", User("robot-deploy-auth-t"), right_u
+            )
+        if cluster == "xdc":
+            add_schema_permissions(client, "stage", User("robot-deploy-auth"), right_rw)
+            add_schema_permissions(
+                client, "account", User("robot-deploy-auth"), right_u
+            )
+
         create_accounts(client, cluster, accounts)
 
         allow_account_usage(client, account="odin", subject=User("odin"))
