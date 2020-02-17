@@ -1152,6 +1152,14 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     if (updateContext.FairShareRatioDisagreementHappened) {
         YT_LOG_DEBUG("XXX Significant fair share ratio disagreement happened, log full information about pools and operations");
         OnFairShareLoggingAt(TInstant::Now());
+        for (const auto& [operationId, element] : RootElementSnapshot_->OperationIdToElement) {
+            element->LogDetailedInfo();
+        }
+        if (Config_->EnablePoolStarvation) {
+            for (const auto& [poolName, element] : RootElementSnapshot_->PoolNameToElement) {
+                element->LogDetailedInfo();
+            }
+        }
     }
 
     auto treeSnapshot = New<TFairShareTreeSnapshot>(
