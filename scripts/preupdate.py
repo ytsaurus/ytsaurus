@@ -21,16 +21,17 @@ class Colors:
     END = "\033[0m"
 
 CHANGELOG_FILES = [
-    ("yt/server/master/cell_master/serialize.cpp", ["masters"]),
-    ("yt/server/node/tablet_node/serialize.cpp", ["nodes"]),
-    ("yt/server/controller_agent/serialize.cpp", ["controller_agents"]),
+    ("yt/server/master/cell_master/serialize.h", ["masters"]),
+    ("yt/server/node/tablet_node/serialize.h", ["nodes"]),
+    ("yt/server/lib/controller_agent/serialize.h", ["controller_agents"]),
+    ("yt/server/lib/controller_agent/serialize.cpp", ["controller_agents"]),
     ("yt/server/lib/hive/transaction_supervisor.cpp", ["masters", "nodes"]),
     ("Changelog", ["general"]),
 ]
 
 PRECAUTION_MESSAGES = {
     "masters": "Master snapshot with --set-read-only must be built",
-    "nodes": "Tablet cells must be deleted and created from scratch",
+    "nodes": "Tablet cells reign changed",
     "controller_agents": "Controller agent snapshot version changed",
 }
 
