@@ -809,6 +809,12 @@ def initialize_users(cluster, dry_run):
                 client, "account", User("robot-deploy-auth"), right_u
             )
 
+        # YPSUPPORT-48
+        if cluster in ("sas-test", "man-pre"):
+            add_schema_permissions(
+                client, "resource_cache", Group("abc:service-scope:3494:5"), right_crw,
+            )
+
         create_accounts(client, cluster, accounts)
 
         allow_account_usage(client, account="odin", subject=User("odin"))
