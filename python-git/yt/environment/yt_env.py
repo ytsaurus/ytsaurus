@@ -188,6 +188,8 @@ class YTInstance(object):
                 self._load_existing_environment = True
 
         if not self._load_existing_environment:
+            if ytserver_all_path is None:
+                ytserver_all_path = os.environ.get("YTSERVER_ALL_PATH")
             if ytserver_all_path is not None:
                 if not os.path.exists(ytserver_all_path):
                     raise YtError("ytserver-all binary is missing at path " + ytserver_all_path)
