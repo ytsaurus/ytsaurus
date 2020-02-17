@@ -138,6 +138,11 @@ private:
                 ValidateStageAndDeployUnitId(idAndDeployUnit.first, "Deploy unit id");
                 const auto& deployUnit = idAndDeployUnit.second;
 
+                if (!deployUnit.has_replica_set() && !deployUnit.has_multi_cluster_replica_set()) {
+                    THROW_ERROR_EXCEPTION("Empty pod deploy primitive in deploy unit %Qv, stage %Qv",
+                        idAndDeployUnit.first,
+                        stage->GetId());
+                }
                 const auto& podTemplateSpec = extractPodTemplateSpec(deployUnit);
                 const auto oldUnitsIt = oldUnits.find(idAndDeployUnit.first);
                 const auto& oldPodTemplateSpec = oldUnitsIt != oldUnits.end()

@@ -61,10 +61,11 @@ public:
         const TString& message);
 
     void UpdatePatchStatus(
-        const TString& patchId,
+        const TObjectId& patchId,
         EDeployPatchActionType type,
         const TString& reason,
-        const TString& message);
+        const TString& message,
+        TTimestamp startTimestamp);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -72,11 +72,14 @@ void TDeployTicket::UpdateTicketStatus(
 }
 
 void TDeployTicket::UpdatePatchStatus(
-    const TString& patchId,
+    const TObjectId& patchId,
     EDeployPatchActionType type,
     const TString& reason,
-    const TString& message)
+    const TString& message,
+    TTimestamp startTimestamp)
 {
+    (*Status()->mutable_patches())[patchId].set_stage_spec_timestamp(startTimestamp);
+
     auto* deployPatchAction = (*Status()->mutable_patches())[patchId].mutable_action();
     deployPatchAction->set_type(static_cast<NClient::NApi::NProto::EDeployPatchActionType>(type));
     deployPatchAction->set_reason(reason);

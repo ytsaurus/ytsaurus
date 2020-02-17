@@ -151,14 +151,15 @@ private:
         return CheckedEnumCast<EDeployPatchActionType>(deployTicket->Status().Load().action().type());
     }
 
-    static EDeployPatchActionType GetPatchState(const TDeployTicket* deployTicket, const TString& patchId)
+    static EDeployPatchActionType GetPatchState(const TDeployTicket* deployTicket, const TObjectId& patchId)
     {
-        return CheckedEnumCast<EDeployPatchActionType>(deployTicket->Status().Load().patches().at(patchId).action().type());
+        const auto& patch = GetPatchOrThrow(deployTicket->Status().Load().patches(), patchId, deployTicket->GetId(), "status");
+        return CheckedEnumCast<EDeployPatchActionType>(patch.action().type());
     }
 
-    static std::vector<TString> GetAlivePatches(const TDeployTicket* deployTicket)
+    static std::vector<TObjectId> GetAlivePatches(const TDeployTicket* deployTicket)
     {
-        std::vector<TString> alivePatches;
+        std::vector<TObjectId> alivePatches;
         for (const auto& patchIdToSpec : deployTicket->Spec().Etc().Load().patches()) {
             auto state = GetPatchState(deployTicket, patchIdToSpec.first);
             if (state != EDeployPatchActionType::Commit && state != EDeployPatchActionType::Skip) {
@@ -169,27 +170,7 @@ private:
         return alivePatches;
     }
 
-    static void ValidatePatchesExistInDeployTicket(
-        const TDeployTicket* deployTicket,
-        const std::vector<TObjectId>& patchIds)
-    {
-        const auto& specPatches = deployTicket->Spec().Etc().Load().patches();
-        const auto& statusPatches = deployTicket->Status().Load().patches();
-        for (const auto& patchId : patchIds) {
-            if (!specPatches.count(patchId)) {
-                THROW_ERROR_EXCEPTION("Patch %Qv does not exist in spec of deploy ticket %Qv",
-                    patchId,
-                    deployTicket->GetId());
-            }
-            if (!statusPatches.count(patchId)) {
-                THROW_ERROR_EXCEPTION("Patch %Qv does not exist in status of deploy ticket %Qv",
-                    patchId,
-                    deployTicket->GetId());
-            }
-        }
-    }
-
-    static void ValidatePatchStates(const TDeployTicket* deployTicket, const std::vector<TString>& patchIds)
+    static void ValidatePatchStates(const TDeployTicket* deployTicket, const std::vector<TObjectId>& patchIds)
     {
         for (const auto& patchId : patchIds) {
             auto state = GetPatchState(deployTicket, patchId);
@@ -211,198 +192,321 @@ private:
         }
     }
 
-    struct TStaticResourceInfo
+    template <typename TDeployPatchColumn>
+    static const TDeployPatchColumn& GetPatchOrThrow(
+        const google::protobuf::Map<google::protobuf::string, TDeployPatchColumn>& patches,
+        const TObjectId& patchId,
+        const TObjectId& deployTicketId,
+        const TString& patchColumnDescription)
     {
-        TString PatchId;
-        TString ResourceRef;
-        TString DeployUnitId;
+        auto patchIt = patches.find(patchId);
+        if (patchIt == patches.end()) {
+            THROW_ERROR_EXCEPTION("Patch %Qv does not exist in %Qv of deploy ticket %Qv",
+                patchId,
+                patchColumnDescription,
+                deployTicketId);
+        }
+
+        return patchIt->second;
+    }
+
+    static const NClient::NApi::NProto::TSandboxResource& GetReleaseResourceOrThrow(
+        const THashMap<TString, NClient::NApi::NProto::TSandboxResource>& resourceTypeToResource,
+        const TString& resourceType,
+        const TObjectId& patchId,
+        const TObjectId& releaseId)
+    {
+        auto releaseResourceIt = resourceTypeToResource.find(resourceType);
+        if (releaseResourceIt == resourceTypeToResource.end()) {
+            THROW_ERROR_EXCEPTION("Sandbox resource type %Qv of patch %Qv does not exist in release %Qv",
+                resourceType,
+                patchId,
+                releaseId);
+        }
+
+        return releaseResourceIt->second;
+    }
+
+    template <typename TResourceType>
+    static TResourceType* GetUpdatableStaticResourceOrThrow(
+        const THashMap<TObjectId, TResourceType*>& resourceIdToResource,
+        const TString& resourceRef,
+        const TString& resourceDescription,
+        const TObjectId& deployUnitId,
+        const TObjectId& stageId)
+    {
+        auto staticResourceIt = resourceIdToResource.find(resourceRef);
+        if (staticResourceIt == resourceIdToResource.end()) {
+            THROW_ERROR_EXCEPTION("%Qv id %Qv does not exist in deploy unit %Qv, stage %Qv",
+                resourceDescription,
+                resourceRef,
+                deployUnitId,
+                stageId);
+        }
+
+        return staticResourceIt->second;
+    }
+
+    struct TStaticResourcesInfo
+    {
+        THashMap<TObjectId, NInfra::NPodAgent::API::TResource*> ResourceIdToResource;
+        THashMap<TObjectId, NInfra::NPodAgent::API::TLayer*> LayerIdToLayer;
     };
 
-    static void ValidateResourceInDeployUnit(const TStage* stage, const TStaticResourceInfo& staticResourceInfo)
+    static const TStaticResourcesInfo& GetStaticResourcesInfoOrThrow(
+        const THashMap<TObjectId, TStaticResourcesInfo>& deployUnitToStaticResources,
+        const TObjectId& deployUnitId,
+        const TObjectId& stageId)
     {
-        if (!stage->Spec().Etc().Load().deploy_units().count(staticResourceInfo.DeployUnitId)) {
+        auto staticResourcesInfoIt = deployUnitToStaticResources.find(deployUnitId);
+        if (staticResourcesInfoIt == deployUnitToStaticResources.end()) {
             THROW_ERROR_EXCEPTION("Deploy unit %Qv does not exist in stage %Qv",
-                staticResourceInfo.DeployUnitId,
-                stage->GetId());
+                deployUnitId,
+                stageId);
         }
 
-        const auto& deployUnit = stage->Spec().Etc().Load().deploy_units().at(staticResourceInfo.DeployUnitId);
-
-        if (!deployUnit.has_replica_set() && !deployUnit.has_multi_cluster_replica_set()) {
-            THROW_ERROR_EXCEPTION("Empty pod deploy primitive in deploy unit %Qv, stage %Qv",
-                staticResourceInfo.DeployUnitId,
-                stage->GetId());
-        }
-
-        const auto& podTemplateSpec = deployUnit.has_replica_set()
-            ? deployUnit.replica_set().replica_set_template().pod_template_spec()
-            : deployUnit.multi_cluster_replica_set().replica_set().pod_template_spec();
-
-        bool resourceRefExistsInDeployUnit = false;
-        for (const auto& staticResource : podTemplateSpec.spec().pod_agent_payload().spec().resources().static_resources()) {
-            if (staticResource.id() == staticResourceInfo.ResourceRef) {
-                resourceRefExistsInDeployUnit = true;
-                break;
-            }
-        }
-
-        if (!resourceRefExistsInDeployUnit) {
-            THROW_ERROR_EXCEPTION("Static resource id %Qv does not exist in deploy unit %Qv, stage %Qv",
-                staticResourceInfo.ResourceRef,
-                staticResourceInfo.DeployUnitId,
-                stage->GetId());
-        }
+        return staticResourcesInfoIt->second;
     }
 
-    static void ValidateReleaseResources(
-        const TRelease* release,
-        const TStage* stage,
-        const THashMap<TString, std::vector<TStaticResourceInfo>>& staticResourceTypeToInfo)
-    {
-        THashMap<TString, std::vector<TStaticResourceInfo>> checkingResources = staticResourceTypeToInfo;
-        for (const auto& releaseResource : release->Spec().Etc().Load().sandbox().resources()) {
-            if (checkingResources.contains(releaseResource.type())) {
-
-                auto& resourcesInfo = checkingResources[releaseResource.type()];
-                while(!resourcesInfo.empty()) {
-                    ValidateResourceInDeployUnit(stage, resourcesInfo.back());
-                    resourcesInfo.pop_back();
-                }
-
-                checkingResources.erase(releaseResource.type());
-            }
-        }
-
-        // All types from patch must be in release.
-        if (!checkingResources.empty()) {
-            TStringBuilder builder;
-            TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
-
-            for (const auto& resource : checkingResources) {
-                for (const auto& resourceInfo : resource.second) {
-                    delimitedBuilder->AppendString(resourceInfo.PatchId);
-                }
-            }
-
-            THROW_ERROR_EXCEPTION("Resource types of patches %Qv do not exist in release %Qv",
-                builder.Flush(),
-                release->GetId());
-        }
-    }
-
-    static void UpdateResource(
-        NInfra::NPodAgent::API::TResource& resource,
+    static void UpdateResourceMeta(
+        NInfra::NPodAgent::API::TSandboxResource* resourceMeta,
         const NClient::NApi::NProto::TSandboxRelease& sandboxRelease,
         const NClient::NApi::NProto::TSandboxResource& releaseResource)
     {
-        resource.set_url(releaseResource.skynet_id());
-        resource.mutable_verification()->set_checksum(releaseResource.file_md5().empty()
-            ? "EMPTY:"
-            : ("MD5:" + releaseResource.file_md5()));
+        resourceMeta->set_task_type(sandboxRelease.task_type());
+        resourceMeta->set_task_id(sandboxRelease.task_id());
+        resourceMeta->set_resource_type(releaseResource.type());
+        resourceMeta->set_resource_id(releaseResource.resource_id());
+    }
 
-        auto* sandboxResourceMeta = resource.mutable_meta()->mutable_sandbox_resource();
-        sandboxResourceMeta->set_task_type(sandboxRelease.task_type());
-        sandboxResourceMeta->set_task_id(sandboxRelease.task_id());
-        sandboxResourceMeta->set_resource_type(releaseResource.type());
-        sandboxResourceMeta->set_resource_id(releaseResource.resource_id());
+    static TString ConvertMD5ToChecksum(const TString& fileMD5)
+    {
+        return fileMD5.empty()
+            ? "EMPTY:"
+            : ("MD5:" + fileMD5);
+    }
+
+    static void UpdateStaticResource(
+        NInfra::NPodAgent::API::TResource* resource,
+        const NClient::NApi::NProto::TSandboxRelease& sandboxRelease,
+        const NClient::NApi::NProto::TSandboxResource& releaseResource)
+    {
+        resource->set_url(releaseResource.skynet_id());
+        resource->mutable_verification()->set_checksum(ConvertMD5ToChecksum(releaseResource.file_md5()));
+
+        auto* resourceMeta = resource->mutable_meta()->mutable_sandbox_resource();
+        UpdateResourceMeta(resourceMeta, sandboxRelease, releaseResource);
+    }
+
+    static void UpdateLayer(
+        NInfra::NPodAgent::API::TLayer* layer,
+        const NClient::NApi::NProto::TSandboxRelease& sandboxRelease,
+        const NClient::NApi::NProto::TSandboxResource& releaseResource)
+    {
+        layer->set_url(releaseResource.skynet_id());
+        layer->set_checksum(ConvertMD5ToChecksum(releaseResource.file_md5()));
+
+        auto* resourceMeta = layer->mutable_meta()->mutable_sandbox_resource();
+        UpdateResourceMeta(resourceMeta, sandboxRelease, releaseResource);
+    }
+
+    static void UpdateCommittedPatchStatus(
+        TDeployTicket* deployTicket,
+        const TObjectId& patchId,
+        const TString& message,
+        const TString& reason,
+        TTimestamp startTimestamp)
+    {
+        YT_LOG_DEBUG("Deploy patch %v committed (Message: %v)",
+            patchId,
+            message);
+
+        deployTicket->UpdatePatchStatus(
+            patchId,
+            EDeployPatchActionType::Commit,
+            reason,
+            message,
+            startTimestamp);
+    }
+
+    static THashMap<TString, NClient::NApi::NProto::TSandboxResource> PrepareReleaseResources(
+        const NClient::NApi::NProto::TSandboxRelease& sandboxRelease)
+    {
+        THashMap<TString, NClient::NApi::NProto::TSandboxResource> releaseResources;
+        for (const auto& releaseResource : sandboxRelease.resources()) {
+            if (!releaseResources.contains(releaseResource.type())) {
+                releaseResources[releaseResource.type()] = releaseResource;
+            }
+        }
+
+        return releaseResources;
+    }
+
+    static THashMap<TObjectId, TStaticResourcesInfo> PrepareStaticResources(TStage* stage)
+    {
+        THashMap<TObjectId, TStaticResourcesInfo> staticResources;
+
+        for (auto& deployUnitIdToSpec : *stage->Spec().Etc()->mutable_deploy_units()) {
+
+            const auto& deployUnitId = deployUnitIdToSpec.first;
+            auto& deployUnitSpec = deployUnitIdToSpec.second;
+
+            auto* podTemplateSpec = deployUnitSpec.has_replica_set()
+                ? deployUnitSpec.mutable_replica_set()->mutable_replica_set_template()->mutable_pod_template_spec()
+                : deployUnitSpec.mutable_multi_cluster_replica_set()->mutable_replica_set()->mutable_pod_template_spec();
+
+            auto* resources = podTemplateSpec->mutable_spec()->mutable_pod_agent_payload()->mutable_spec()->mutable_resources();
+
+            for (auto& layer : *resources->mutable_layers()) {
+                staticResources[deployUnitId].LayerIdToLayer[layer.id()] = &layer;
+            }
+
+            for (auto& staticResource : *resources->mutable_static_resources()) {
+                staticResources[deployUnitId].ResourceIdToResource[staticResource.id()] = &staticResource;
+            }
+        }
+
+        return staticResources;
     }
 
     static void ProcessStaticResources(
         TDeployTicket* deployTicket,
         TStage* stage,
-        THashMap<TString, std::vector<TStaticResourceInfo>>& staticResourceTypeToInfo,
+        const std::vector<TObjectId>& patchIds,
         const NClient::NApi::NProto::TSandboxRelease& sandboxRelease,
         const TString& message,
-        const TString& reason)
+        const TString& reason,
+        TTimestamp startTimestamp)
     {
-        for (const auto& releaseResource : sandboxRelease.resources()) {
+        auto resourceTypeToResource = PrepareReleaseResources(sandboxRelease);
+        auto deployUnitToResources = PrepareStaticResources(stage);
 
-            if (staticResourceTypeToInfo.contains(releaseResource.type())) {
-                for (const auto& staticResourceInfo : staticResourceTypeToInfo.at(releaseResource.type())) {
+        const auto& deployTicketId = deployTicket->GetId();
+        const auto& stageId = stage->GetId();
+        const auto& releaseId = deployTicket->Spec().Release().Load()->GetId();
+        const auto& patches = deployTicket->Spec().Etc().Load().patches();
 
-                    auto& deployUnit = (*stage->Spec().Etc()->mutable_deploy_units())[staticResourceInfo.DeployUnitId];
+        for (const auto& patchId : patchIds) {
+            const auto& patch = GetPatchOrThrow(patches, patchId, deployTicketId, "spec");
 
-                    auto* podTemplateSpec = deployUnit.has_replica_set()
-                        ? deployUnit.mutable_replica_set()->mutable_replica_set_template()->mutable_pod_template_spec()
-                        : deployUnit.mutable_multi_cluster_replica_set()->mutable_replica_set()->mutable_pod_template_spec();
+            const auto& staticResource = patch.sandbox().static_();
 
-                    for (auto& staticResource : *podTemplateSpec->mutable_spec()->mutable_pod_agent_payload()->mutable_spec()->mutable_resources()->mutable_static_resources()) {
+            const auto& resourceType = patch.sandbox().sandbox_resource_type();
+            const auto& releaseResource = GetReleaseResourceOrThrow(resourceTypeToResource, resourceType, patchId, releaseId);
 
-                        if (staticResource.id() == staticResourceInfo.ResourceRef) {
-                            UpdateResource(staticResource, sandboxRelease, releaseResource);
+            const auto& deployUnitId = staticResource.deploy_unit_id();
+            auto& staticResourcesInfo = GetStaticResourcesInfoOrThrow(deployUnitToResources, deployUnitId, stageId);
 
-                            YT_LOG_DEBUG("Deploy patch %v committed (Message: %v)",
-                                staticResourceInfo.PatchId,
-                                message);
+            if (staticResource.static_resource_ref()) {
+                auto* updatableResource = GetUpdatableStaticResourceOrThrow(
+                    staticResourcesInfo.ResourceIdToResource,
+                    staticResource.static_resource_ref(),
+                    "Static resource",
+                    deployUnitId,
+                    stageId);
 
-                            deployTicket->UpdatePatchStatus(
-                                staticResourceInfo.PatchId,
-                                EDeployPatchActionType::Commit,
-                                reason,
-                                message);
-                        }
-                    }
-                }
-                staticResourceTypeToInfo.erase(releaseResource.type());
+                UpdateStaticResource(updatableResource, sandboxRelease, releaseResource);
+                UpdateCommittedPatchStatus(deployTicket, patchId, message, reason, startTimestamp);
+            } else if (staticResource.layer_ref()) {
+                auto* updatableLayer = GetUpdatableStaticResourceOrThrow(
+                    staticResourcesInfo.LayerIdToLayer,
+                    staticResource.layer_ref(),
+                    "Layer",
+                    deployUnitId,
+                    stageId);
+
+                UpdateLayer(updatableLayer, sandboxRelease, releaseResource);
+                UpdateCommittedPatchStatus(deployTicket, patchId, message, reason, startTimestamp);
+            } else {
+                THROW_ERROR_EXCEPTION("Empty static resource ref in deploy patch %Qv", patchId);
             }
+        }
+    }
+
+    static NClient::NApi::NProto::TDockerImageDescription& GetDockerImageDescriptionOrThrow(
+        google::protobuf::Map<google::protobuf::string, NClient::NApi::NProto::TDeployUnitSpec>& deployUnits,
+        const TObjectId& deployUnitId,
+        const TObjectId& boxId,
+        const TObjectId& stageId)
+    {
+        auto deployUnitIt = deployUnits.find(deployUnitId);
+        if (deployUnitIt == deployUnits.end()) {
+            THROW_ERROR_EXCEPTION("Deploy unit %Qv does not exist in stage %Qv",
+                deployUnitId,
+                stageId);
+        }
+
+        auto& dockerImages = *deployUnitIt->second.mutable_images_for_boxes();
+
+        auto dockerImageDescriptionIt = dockerImages.find(boxId);
+        if (dockerImageDescriptionIt == dockerImages.end()) {
+            THROW_ERROR_EXCEPTION("Docker image for box %Qv does not exist in deploy unit %Qv, stage %Qv",
+                boxId,
+                deployUnitId,
+                stageId);
+        }
+
+        return dockerImageDescriptionIt->second;
+    }
+
+    static void ProcessDockerResources(
+        TDeployTicket* deployTicket,
+        TStage* stage,
+        const std::vector<TObjectId>& patchIds,
+        const TString& imageName,
+        const TString& imageTag,
+        const TString& message,
+        const TString& reason,
+        TTimestamp startTimestamp)
+    {
+        const auto& patches = deployTicket->Spec().Etc().Load().patches();
+        auto& deployUnits = *stage->Spec().Etc()->mutable_deploy_units();
+
+        for (const auto& patchId : patchIds) {
+            const auto& patch = GetPatchOrThrow(patches, patchId, deployTicket->GetId(), "spec");
+            const auto& dockerRef = patch.docker().docker_image_ref();
+
+            auto& dockerImageDescription = GetDockerImageDescriptionOrThrow(
+                deployUnits,
+                dockerRef.deploy_unit_id(),
+                dockerRef.box_id(),
+                stage->GetId());
+
+            dockerImageDescription.set_name(imageName);
+            dockerImageDescription.set_tag(imageTag);
+
+            UpdateCommittedPatchStatus(deployTicket, patchId, message, reason, startTimestamp);
         }
     }
 
     static void CommitPatches(
         TDeployTicket* deployTicket,
-        const std::vector<TString>& patchIds,
+        const std::vector<TObjectId>& patchIds,
         const TString& message,
-        const TString& reason)
+        const TString& reason,
+        TTimestamp startTimestamp)
     {
-        ValidatePatchesExistInDeployTicket(deployTicket, patchIds);
         ValidatePatchStates(deployTicket, patchIds);
-
-        THashMap<TString, std::vector<TStaticResourceInfo>> staticResourceTypeToInfo;
-        const auto& patches = deployTicket->Spec().Etc().Load().patches();
-
-        for (const auto& patchId : patchIds) {
-            const auto& patch = patches.at(patchId);
-
-            if (patch.has_sandbox()) {
-                if (patch.sandbox().has_static_()) {
-                    const auto& staticResource = patch.sandbox().static_();
-                    if (staticResource.static_resource_ref()) {
-                        staticResourceTypeToInfo[patch.sandbox().sandbox_resource_type()].push_back({
-                            patchId,
-                            staticResource.static_resource_ref(),
-                            staticResource.deploy_unit_id()
-                        });
-                    } else if (staticResource.layer_ref()) {
-                        // TODO(staroverovad): layer resources DEPLOY-1797
-                        THROW_ERROR_EXCEPTION("Not implemented");
-                    } else {
-                        THROW_ERROR_EXCEPTION("Empty static resource ref in deploy patch %Qv", patchId);
-                    }
-                } else if (patch.sandbox().has_dynamic()) {
-                    // TODO: dynamic resources after DEPLOY-1709
-                    THROW_ERROR_EXCEPTION("Not implemented");
-                } else {
-                    THROW_ERROR_EXCEPTION("Empty sandbox resource ref in deploy patch %Qv", patchId);
-                }
-            } else if (patch.has_docker()) {
-                // TODO(staroverovad): docker resources DEPLOY-1798
-                THROW_ERROR_EXCEPTION("Not implemented");
-            } else {
-                THROW_ERROR_EXCEPTION("Empty payload in deploy patch %Qv", patchId);
-            }
-        }
 
         const auto* release = deployTicket->Spec().Release().Load();
         auto* stage = deployTicket->Spec().Stage().Load();
 
         if (release->Spec().Etc().Load().has_sandbox()) {
-            ValidateReleaseResources(release, stage, staticResourceTypeToInfo);
             const auto& sandboxRelease = release->Spec().Etc().Load().sandbox();
-            ProcessStaticResources(deployTicket, stage, staticResourceTypeToInfo, sandboxRelease, message, reason);
+            ProcessStaticResources(deployTicket, stage, patchIds, sandboxRelease, message, reason, startTimestamp);
 
         } else if (release->Spec().Etc().Load().has_docker()) {
-            // TODO(staroverovad): docker resources DEPLOY-1798
-            THROW_ERROR_EXCEPTION("Not implemented");
+            const auto& docker = release->Spec().Etc().Load().docker();
+            ProcessDockerResources(
+                deployTicket,
+                stage,
+                patchIds,
+                docker.image_name(),
+                docker.image_tag(),
+                message,
+                reason,
+                startTimestamp);
+
         } else {
             THROW_ERROR_EXCEPTION("Empty payload in release %Qv", release->GetId());
         }
@@ -413,7 +517,7 @@ private:
     }
 
     static void CommitTicket(
-        TTransaction* /*transaction*/,
+        TTransaction* transaction,
         TDeployTicket* deployTicket,
         const NClient::NApi::NProto::TDeployTicketControl_TCommitAction& control)
     {
@@ -422,16 +526,17 @@ private:
             control.options(),
             EDeployPatchActionType::Commit,
             CommitPatches,
-            "commit");
+            "commit",
+            transaction->GetStartTimestamp());
     }
 
     static void SkipPatches(
         TDeployTicket* deployTicket,
-        const std::vector<TString>& patchIds,
+        const std::vector<TObjectId>& patchIds,
         const TString& message,
-        const TString& reason)
+        const TString& reason,
+        TTimestamp startTimestamp)
     {
-        ValidatePatchesExistInDeployTicket(deployTicket, patchIds);
         ValidatePatchStates(deployTicket, patchIds);
 
         for (const auto& patchId : patchIds) {
@@ -443,12 +548,13 @@ private:
                 patchId,
                 EDeployPatchActionType::Skip,
                 reason,
-                message);
+                message,
+                startTimestamp);
         }
     }
 
     static void SkipTicket(
-        TTransaction* /*transaction*/,
+        TTransaction* transaction,
         TDeployTicket* deployTicket,
         const NClient::NApi::NProto::TDeployTicketControl_TSkipAction& control)
     {
@@ -457,7 +563,8 @@ private:
             control.options(),
             EDeployPatchActionType::Skip,
             SkipPatches,
-            "skip");
+            "skip",
+            transaction->GetStartTimestamp());
     }
 
     template <class TTicketAction>
@@ -466,7 +573,8 @@ private:
         const NClient::NApi::NProto::TDeployTicketControl_TActionOptions& action,
         EDeployPatchActionType actionType,
         TTicketAction&& ticketAction,
-        const TString& actionDescription)
+        const TString& actionDescription,
+        TTimestamp startTimestamp)
     {
         ValidateTicketState(deployTicket);
 
@@ -479,7 +587,12 @@ private:
                 deployTicket->Spec().Etc().Load().title(),
                 action.message());
 
-            ticketAction(deployTicket, GetAlivePatches(deployTicket), patchesMessage, action.reason());
+            ticketAction(
+                deployTicket,
+                GetAlivePatches(deployTicket),
+                patchesMessage,
+                action.reason(),
+                startTimestamp);
 
             deployTicket->UpdateTicketStatus(
                 actionType,
@@ -487,7 +600,7 @@ private:
                 action.message());
 
         } else if (action.patch_selector().type() == EDeployTicketPatchSelectorType::Partial){
-            std::vector<TString> patchIdsToAction;
+            std::vector<TObjectId> patchIdsToAction;
             for (const auto& patchId : action.patch_selector().patch_ids()) {
                 patchIdsToAction.push_back(patchId);
             }
@@ -499,7 +612,12 @@ private:
                 deployTicket->Spec().Etc().Load().title(),
                 action.message());
 
-            ticketAction(deployTicket, patchIdsToAction, action.message(), action.reason());
+            ticketAction(
+                deployTicket,
+                patchIdsToAction,
+                action.message(),
+                action.reason(),
+                startTimestamp);
         } else {
             THROW_ERROR_EXCEPTION("Ticket %Qv has none action type", deployTicket->GetId());
         }

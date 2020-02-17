@@ -26,9 +26,11 @@ class TestStages(object):
         with pytest.raises(YtResponseError):
             yp_client.create_object("stage", attributes={"meta": {"id": "val"}, "spec": {"account_id": "tmp", "deploy_units": {"inv*": {}}}})
 
-        stage_id = yp_client.create_object("stage", attributes={"meta": {"id": "val"}, "spec": {"account_id": "tmp", "deploy_units": {"correct_deploy_unit_id": {}}}})
+        stage_id = yp_client.create_object("stage", attributes={"meta": {"id": "val"}, "spec": {"account_id": "tmp", "deploy_units": {"correct_deploy_unit_id": {"replica_set":{}}}}})
         with pytest.raises(YtResponseError):
             yp_client.update_object("stage", stage_id, set_updates=[{"path": "/spec", "value": {"account_id": "tmp", "deploy_units": {"inv*": {}}}}])
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("stage", stage_id, set_updates=[{"path": "/spec", "value": {"account_id": "tmp", "deploy_units": {"correct_deploy_unit_id": {}}}}])
 
     def test_update_project_id(self, yp_env):
         yp_client = yp_env.yp_client
@@ -42,6 +44,11 @@ class TestStages(object):
             "account_id": "tmp",
             "deploy_units": {
                 "Unit": {
+                    "replica_set": {
+                        "replica_set_template": {
+                            "pod_template_spec": {}
+                        }
+                    },
                     "network_defaults": {
                         "network_id": project_id
                     }
