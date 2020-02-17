@@ -78,13 +78,12 @@ def check_table_index(format, raw_row, raw_table_switcher, rows, process_output=
 def test_yson_format():
     format = yt.YsonFormat(format="text")
     row = {"a": 1, "b": 2}
-    serialized_row = b'{"a"=1;"b"=2}'
+    serialized_row = b'{"a"=1;"b"=2;}'
     yson_rows = list(format.load_rows(BytesIO(serialized_row)))
     assert yson_rows == [row]
     stream = BytesIO()
     format.dump_row(row, stream)
-    # COMPAT: '.replace(";}", "}")' is for compatibility with different yson representations in different branches.
-    assert stream.getvalue().rstrip(b";\n").replace(b";}", b"}") in [serialized_row, b'{"b"=2;"a"=1}']
+    assert stream.getvalue().rstrip(b";\n") in [serialized_row, b'{"b"=2;"a"=1;}']
 
     format = yt.YsonFormat(format="binary")
     assert format.dumps_row({"a": 1}).rstrip(b";\n") == yson.dumps({"a": 1}, yson_format="binary")
@@ -103,8 +102,7 @@ def test_yson_table_switch():
     stream = BytesIO()
     format.dump_rows(output_rows, stream)
     dumped_output = stream.getvalue()
-    # COMPAT: '.replace(";}", "}")' and '.replace(";>", ">")' is for compatibility with different yson representations in different branches.
-    assert dumped_output.replace(b";}", b"}").replace(b";>", b">") == b'{"a"=1};\n<"table_index"=1>#;\n{"a"=1};\n{"b"=2};\n'
+    assert dumped_output == b'{"a"=1;};\n<"table_index"=1;>#;\n{"a"=1;};\n{"b"=2;};\n'
 
 def test_yson_iterator_mode():
     format = yt.YsonFormat(control_attributes_mode="iterator")
