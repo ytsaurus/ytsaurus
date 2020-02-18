@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"strconv"
 	"time"
 )
 
@@ -89,12 +88,11 @@ func (e *Encoder) Encode(value interface{}) (err error) {
 //     Field int `yson:"-,"`
 //
 // Map values are encoded as YSON maps. The map's key type must either be a
-// string, an integer type, or implement encoding.TextMarshaler, or implement encoding.BinaryMarshaler.
+// string, implement encoding.TextMarshaler, or implement encoding.BinaryMarshaler.
 // The map keys are used as YSON map keys by applying the following rules:
 //   - keys of any string type are used directly
 //   - encoding.TextMarshalers are marshaled
 //   - encoding.BinaryMarshalers are marshaled
-//   - integer keys are converted to strings
 //
 // Pointer values are encoded as the value pointed to. A nil pointer encodes as the YSON entity value.
 //
@@ -375,9 +373,7 @@ var (
 
 func encodeReflectMap(w *Writer, value reflect.Value) (err error) {
 	switch value.Type().Key().Kind() {
-	case reflect.String,
-		reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	case reflect.String:
 	default:
 		switch {
 		case value.Type().Key().Implements(textMarshalerType),
@@ -428,18 +424,7 @@ func encodeMapKey(w *Writer, v reflect.Value) error {
 		return nil
 	}
 
-	switch v.Kind() {
-	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
-		s := strconv.FormatInt(v.Int(), 10)
-		w.MapKeyString(s)
-		return nil
-	case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		s := strconv.FormatUint(v.Uint(), 10)
-		w.MapKeyString(s)
-		return nil
-	default:
-		panic("yson: unsupported map key type")
-	}
+	panic("yson: unsupported map key type")
 }
 
 func isZeroValue(v reflect.Value) bool {
