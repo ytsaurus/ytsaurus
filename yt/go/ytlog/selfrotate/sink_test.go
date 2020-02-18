@@ -109,6 +109,8 @@ func TestSink(t *testing.T) {
 				time.Sleep(time.Second / 10)
 			}
 
+			_ = w.Close()
+
 			files, err := ioutil.ReadDir(dir)
 			require.NoError(t, err)
 
