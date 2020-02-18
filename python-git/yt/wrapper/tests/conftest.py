@@ -28,6 +28,11 @@ import shutil
 import logging
 import socket
 import signal
+import warnings
+
+# Disables """cryptography/hazmat/primitives/constant_time.py:26: CryptographyDeprecationWarning: Support for your Python version is deprecated.
+# The next version of cryptography will remove support. Please upgrade to a 2.7.x release that supports hmac.compare_digest as soon as possible."""
+warnings.filterwarnings(action="ignore", module="cryptography.hazmat.primitives.*")
 
 def pytest_ignore_collect(path, config):
     path = str(path)
