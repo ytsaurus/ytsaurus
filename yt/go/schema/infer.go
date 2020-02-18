@@ -210,7 +210,7 @@ func InferMap(value interface{}) (s Schema, err error) {
 func reflectValueOfType(value interface{}, k reflect.Kind) (v reflect.Value, err error) {
 	// Check for nil, reflect of nil value causes panic
 	if value == nil {
-		err = xerrors.Errorf("can't infer schema from nil value")
+		err = xerrors.New("can't infer schema from nil value")
 		return
 	}
 
