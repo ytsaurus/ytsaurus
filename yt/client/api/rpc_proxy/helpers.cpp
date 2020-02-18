@@ -754,6 +754,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.HasCompetitors) {
         protoJob->set_has_competitors(*job.HasCompetitors);
     }
+    if (job.IsStale) {
+        protoJob->set_is_stale(*job.IsStale);
+    }
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -852,6 +855,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->HasCompetitors = protoJob.has_competitors();
     } else {
         job->HasCompetitors = false;
+    }
+    if (protoJob.has_is_stale()) {
+        job->IsStale = protoJob.is_stale();
+    } else {
+        job->IsStale.reset();
     }
 }
 
