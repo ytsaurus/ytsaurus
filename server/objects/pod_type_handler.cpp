@@ -32,7 +32,7 @@
 
 #include <yt/core/yson/protobuf_interop.h>
 
-#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <contrib/libs/protobuf/util/message_differencer.h>
 
 namespace NYP::NServer::NObjects {
 
@@ -221,7 +221,13 @@ public:
                     ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TAcknowledgeMaintenance>(std::bind(&TPodTypeHandler::AcknowledgeMaintenance, this, _1, _2, _3)),
 
                 MakeAttributeSchema("renounce_maintenance")
-                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TRenounceMaintenance>(std::bind(&TPodTypeHandler::RenounceMaintenance, this, _1, _2, _3))
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TRenounceMaintenance>(std::bind(&TPodTypeHandler::RenounceMaintenance, this, _1, _2, _3)),
+
+                MakeAttributeSchema("add_scheduling_hint")
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TAddSchedulingHint>(std::bind(&TPodTypeHandler::AddSchedulingHint, this, _1, _2, _3)),
+
+                MakeAttributeSchema("remove_scheduling_hint")
+                    ->SetControl<TPod, NClient::NApi::NProto::TPodControl_TRemoveSchedulingHint>(std::bind(&TPodTypeHandler::RemoveSchedulingHint, this, _1, _2, _3))
             });
 
         LabelsAttributeSchema_
@@ -475,6 +481,30 @@ private:
         }
     }
 
+    void ValidateSchedulingHints(TPod* pod)
+    {
+        const auto& schedulingHints = pod->Spec().Etc().Load().scheduling().hints();
+        const auto& oldSchedulingHints = pod->Spec().Etc().LoadOld().scheduling().hints();
+
+        bool equal = true;
+
+        if (schedulingHints.size() != oldSchedulingHints.size()) {
+            equal = false;
+        } else {
+            google::protobuf::util::MessageDifferencer messageDifferencer;
+            for (int index = 0; index < schedulingHints.size(); ++index) {
+                if (!messageDifferencer.Compare(schedulingHints.Get(index), oldSchedulingHints.Get(index))) {
+                    equal = false;
+                    break;
+                }
+            }
+        }
+
+        if (!equal) {
+            THROW_ERROR_EXCEPTION("Changing scheduling hints manually is forbidden");
+        }
+    }
+
     void ValidateSpec(TTransaction* transaction, TPod* pod)
     {
         const auto& spec = pod->Spec();
@@ -502,6 +532,7 @@ private:
             ValidatePodSpecEtc(Bootstrap_->GetAccessControlManager(), transaction, specEtc.LoadOld(), specEtc.Load(), Config_->SpecValidation);
             ValidateNodeSegmentConstraints(pod);
             ValidateThreadLimitChange(pod);
+            ValidateSchedulingHints(pod);
         }
 
         if (spec.IssPayload().IsChanged()) {
@@ -760,6 +791,35 @@ private:
             /* infoUpdate */ TGenericPreserveUpdate());
     }
 
+    void AddSchedulingHint(
+        TTransaction* transaction,
+        TPod* pod,
+        const NClient::NApi::NProto::TPodControl_TAddSchedulingHint& control)
+    {
+        if (!transaction->GetNode(control.node_id())->DoesExist()) {
+            THROW_ERROR_EXCEPTION("Node with id %Qv does not exist",
+                control.node_id());
+        }
+
+        YT_LOG_DEBUG("Add scheduling hint (PodId: %v, NodeId: %v, Strong: %v)",
+            pod->GetId(),
+            control.node_id(),
+            control.strong());
+
+        pod->AddSchedulingHint(control.node_id(), control.strong());
+    }
+
+    void RemoveSchedulingHint(
+        TTransaction* /*transaction*/,
+        TPod* pod,
+        const NClient::NApi::NProto::TPodControl_TRemoveSchedulingHint& control)
+    {
+        YT_LOG_DEBUG("Remove scheduling hint (PodId: %v, Uuid: %v)",
+            pod->GetId(),
+            control.uuid());
+
+        pod->RemoveSchedulingHint(control.uuid());
+    }
 
     void ValidateAccount(TTransaction* /*transaction*/, TPod* pod)
     {

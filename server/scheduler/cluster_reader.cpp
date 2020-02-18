@@ -532,6 +532,7 @@ std::unique_ptr<TPod> TClusterReader::ParseObjectFromRow<TPod>(
         specEtc.ip6_address_requests(),
         specEtc.ip6_subnet_requests(),
         std::move(*specEtc.mutable_node_filter()),
+        specEtc.scheduling().hints(),
         enableScheduling,
         std::move(*statusEtc.mutable_eviction()),
         std::move(*statusSchedulingEtc.mutable_error()),

@@ -43,6 +43,7 @@ std::unique_ptr<TPod> CreateMockPod(ui64 cpuCapacity, ui64 memoryCapacity)
         NObjects::TPodIP6AddressRequests(),
         NObjects::TPodIP6SubnetRequests(),
         /* node filter */ TString(),
+        NObjects::TSchedulingHints(),
         /* enable scheduling */ true,
         NClient::NApi::NProto::TPodStatus_TEviction(),
         NYT::NProto::TError(),

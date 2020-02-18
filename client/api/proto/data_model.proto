@@ -957,6 +957,26 @@ message TPodSpec
     // XXX(babenko): WILL BE REMOVED SOON. DON'T USE.
     optional string node_id = 2;
 
+    message TSchedulingHint
+    {
+        optional string uuid = 1;
+        optional google.protobuf.Timestamp creation_time = 2;
+        optional string node_id = 3;
+
+        // If true, scheduler must satisfy hint (if there are strong hints with different node ids, the pod will not be scheduled).
+        // If false, node_id from hint is preferred, but not obligated.
+        optional bool strong = 4;
+    }
+
+    message TScheduling
+    {
+        // Hints, that scheduler will take into account during planning of pod allocation.
+        repeated TSchedulingHint hints = 1;
+    }
+
+    optional TScheduling scheduling = 26
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
     message TResourceRequests
     {
         optional uint64 vcpu_guarantee = 1;
@@ -1577,6 +1597,20 @@ message TPodControl
         optional string message = 1;
     }
 
+    message TAddSchedulingHint
+    {
+        optional string node_id = 1;
+
+        // See TPodSpec_TSchedulingHint.
+        optional bool strong = 2;
+    }
+
+    message TRemoveSchedulingHint
+    {
+        // Uuid of hint in /spec/scheduling/hints to remove.
+        optional string uuid = 1;
+    }
+
     // Acknowledges eviction of the pod.
     // Pod must have /status/eviction/state == "requested" prior to this call and
     // the latter changes it to "acknowledged".
@@ -1609,6 +1643,12 @@ message TPodControl
 
     // Renounces previously acknowledged maintenance of the pod.
     optional TRenounceMaintenance renounce_maintenance = 7;
+
+    // Adds scheduling hint.
+    optional TAddSchedulingHint add_scheduling_hint = 9;
+
+    // Removes scheduling hint.
+    optional TRemoveSchedulingHint remove_scheduling_hint = 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

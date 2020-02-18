@@ -1,10 +1,12 @@
 #include "pod.h"
-#include "pod_set.h"
+
+#include "account.h"
+#include "db_schema.h"
+#include "helpers.h"
 #include "node.h"
 #include "node_segment.h"
-#include "account.h"
 #include "pod_disruption_budget.h"
-#include "db_schema.h"
+#include "pod_set.h"
 
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -243,6 +245,27 @@ void TPod::ResetAgentStatus()
     Status().Agent().PodAgentPayload()->Clear();
     Status().Agent().Etc()->Clear();
     Status().AgentSpecTimestamp() = NullTimestamp;
+}
+
+void TPod::AddSchedulingHint(
+    const TObjectId& nodeId,
+    bool strong)
+{
+    auto* specEtc = Spec().Etc().Get();
+    auto* protoSchedulingHint = specEtc->mutable_scheduling()->add_hints();
+    protoSchedulingHint->set_uuid(GenerateUuid());
+    auto now = TInstant::Now();
+    protoSchedulingHint->mutable_creation_time()->set_seconds(now.Seconds());
+    protoSchedulingHint->mutable_creation_time()->set_nanos(now.NanoSecondsOfSecond());
+    protoSchedulingHint->set_node_id(nodeId);
+    protoSchedulingHint->set_strong(strong);
+}
+
+void TPod::RemoveSchedulingHint(
+    const TObjectId& uuid)
+{
+    auto* schedulingHints = Spec().Etc().Get()->mutable_scheduling()->mutable_hints();
+    RemoveObjectWithUuid(schedulingHints, uuid);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

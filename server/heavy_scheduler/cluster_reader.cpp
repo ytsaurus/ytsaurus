@@ -442,6 +442,7 @@ struct TParseObjectTraits<TPod>
             VectorToProtoRepeated(ip6AddressRequestsVector),
             VectorToProtoRepeated(ip6SubnetRequestsVector),
             std::move(nodeFilter),
+            VectorToProtoRepeated(std::vector<NClient::NApi::NProto::TPodSpec_TSchedulingHint>()), // TODO(vett0): Support scheduling hints.
             enableScheduling,
             std::move(eviction),
             std::move(*scheduling.mutable_error()),

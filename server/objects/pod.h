@@ -162,6 +162,13 @@ public:
         EPodMaintenanceState state,
         const TString& message,
         TGenericUpdate<NClient::NApi::NProto::TMaintenanceInfo> infoUpdate);
+
+    void AddSchedulingHint(
+        const TObjectId& nodeId,
+        bool strong);
+
+    void RemoveSchedulingHint(
+        const TObjectId& uuid);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

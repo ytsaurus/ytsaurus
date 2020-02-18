@@ -461,3 +461,42 @@ class TestCli(object):
 
         event_times = list(map(lambda event: event["time"], events))
         assert event_times == list(sorted(event_times))
+
+    def test_scheduling_hints(self, yp_env):
+        cli = create_cli(yp_env)
+        yp_client = yp_env.yp_client
+
+        big_node_id = create_nodes(yp_client, 1, cpu_total_capacity=300)[0]
+        small_node_id = create_nodes(yp_client, 1, cpu_total_capacity=100)[0]
+        pod_set_id = create_pod_set_via_cli(cli)
+
+        pod_id_simple = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(
+            enable_scheduling=True,
+            resource_requests=dict(vcpu_guarantee=100, vcpu_limit=100)))
+
+        wait(lambda: is_pod_assigned(yp_client, pod_id_simple))
+        assert get_pod_scheduling_status(yp_client, pod_id_simple)["node_id"] == big_node_id
+
+        pod_id_hint = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(
+            resource_requests=dict(vcpu_guarantee=100, vcpu_limit=100)))
+
+        cli.check_output(["add-scheduling-hint", pod_id_hint, small_node_id, "--strong"])
+        cli.check_output(["add-scheduling-hint", pod_id_hint, big_node_id])
+        scheduling_hints = yp_client.get_object("pod", pod_id_hint, ["/spec/scheduling/hints"])[0]
+
+        assert len(scheduling_hints) == 2
+        assert scheduling_hints[0]["node_id"] == small_node_id
+        assert bool(scheduling_hints[0]["strong"]) is True
+        assert scheduling_hints[1]["node_id"] == big_node_id
+        assert bool(scheduling_hints[1]["strong"]) is False
+
+        cli.check_output(["remove-scheduling-hint", pod_id_hint, scheduling_hints[1]["uuid"]])
+        new_scheduling_hints = yp_client.get_object("pod", pod_id_hint, ["/spec/scheduling/hints"])[0]
+
+        assert len(new_scheduling_hints) == 1
+        assert new_scheduling_hints[0] == scheduling_hints[0]
+
+        yp_client.update_object("pod", pod_id_hint, [dict(path="/spec/enable_scheduling", value=True)])
+
+        wait(lambda: is_pod_assigned(yp_client, pod_id_hint))
+        assert get_pod_scheduling_status(yp_client, pod_id_simple)["node_id"] == big_node_id

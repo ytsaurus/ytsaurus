@@ -184,18 +184,8 @@ void TNode::UpdateMaintenanceStatus(
 void TNode::RemoveAlert(
     const TObjectId& uuid)
 {
-    if (!uuid) {
-        THROW_ERROR_EXCEPTION("Alert uuid must be specified");
-    }
     auto* alerts = Status().Etc().Get()->mutable_alerts();
-    for (int i = 0; i < alerts->size(); ++i) {
-        if (alerts->Get(i).uuid() == uuid) {
-            alerts->DeleteSubrange(i, 1);
-            return;
-        }
-    }
-    THROW_ERROR_EXCEPTION("Could not remove missing alert with uuid %v",
-        uuid);
+    RemoveObjectWithUuid(alerts, uuid);
 }
 
 void TNode::AddAlert(

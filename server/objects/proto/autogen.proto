@@ -46,6 +46,7 @@ message TNodeStatusEtc
 
 message TPodSpecEtc
 {
+    NYP.NClient.NApi.NProto.TPodSpec.TScheduling scheduling = 26;
     NYP.NClient.NApi.NProto.TPodSpec.TResourceRequests resource_requests = 3;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6AddressRequest ip6_address_requests = 5;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6SubnetRequest ip6_subnet_requests = 6;

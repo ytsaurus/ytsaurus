@@ -137,4 +137,22 @@ TTimestamp GetBarrierTimestamp(const std::vector<NYT::NApi::TTabletInfo>& tablet
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TObjectType>
+void RemoveObjectWithUuid(::google::protobuf::RepeatedPtrField<TObjectType>* objects, const TObjectId& uuid)
+{
+    if (!uuid) {
+        THROW_ERROR_EXCEPTION("Object uuid must be specified");
+    }
+    for (int index = 0; index < objects->size(); ++index) {
+        if (objects->Get(index).uuid() == uuid) {
+            objects->DeleteSubrange(index, 1);
+            return;
+        }
+    }
+    THROW_ERROR_EXCEPTION("Could not remove missing object with uuid %v",
+        uuid);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYP::NServer::NObjects

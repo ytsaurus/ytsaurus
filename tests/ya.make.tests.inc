@@ -61,6 +61,7 @@ SET(YP_TEST_SRCS
     test_retries.py
     test_scheduler.py
     test_scheduler_cluster.py
+    test_scheduler_hints.py
     test_scheduler_node_score.py
     test_schemas.py
     test_scripts.py

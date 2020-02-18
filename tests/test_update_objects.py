@@ -1,4 +1,4 @@
-from .conftest import DEFAULT_ACCOUNT_ID
+from .conftest import DEFAULT_ACCOUNT_ID, create_pod_set
 
 from yp.local import set_account_infinite_resource_limits
 
@@ -266,3 +266,42 @@ class TestUpdateObjects(object):
 
                 for obj in object_sample:
                     obj.validate(yp_client)
+
+    def test_batch_add_to_array_end(self, yp_env):
+        username = "simple_user"
+        yp_env.yp_client.create_object("user", attributes={"meta": {"id": username}})
+        yp_env.sync_access_control()
+
+        ace_types = ["read", "write", "use"]
+
+        with yp_env.yp_instance.create_client(config=dict(user=username)) as yp_client:
+            pod_set_ids = [create_pod_set(yp_client) for _ in range(2)]
+
+            start_acls = yp_client.get_objects("pod_set", pod_set_ids, ["/meta/acl"])
+
+            yp_client.update_objects([dict(
+                object_type="pod_set",
+                object_id=pod_set_ids[0],
+                set_updates=[dict(
+                    path="/meta/acl/end",
+                    value=dict(action="allow", subjects=[username], permissions=[permission]))],
+            ) for permission in ace_types])
+
+            yp_client.update_object("pod_set", pod_set_ids[1], [dict(
+                path="/meta/acl/end",
+                value=dict(action="allow", subjects=[username], permissions=[permission])
+            ) for permission in ace_types])
+
+            end_acls = yp_client.get_objects("pod_set", pod_set_ids, ["/meta/acl"])
+
+            for acls in [start_acls, end_acls]:
+                assert acls[0] == acls[1]
+
+            for start_acl, end_acl in zip(start_acls, end_acls):
+                assert len(end_acl[0]) == len(start_acl[0]) + len(ace_types)
+                assert all(map(lambda pair: pair[0] == pair[1], zip(start_acl[0], end_acl[0])))
+
+                for ace_type, ace in zip(ace_types, end_acl[0][len(start_acl):]):
+                    assert ace["action"] == "allow"
+                    assert ace["subjects"] == [username]
+                    assert ace["permissions"] == [ace_type]

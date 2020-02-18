@@ -31,6 +31,9 @@ using TPodIP6AddressRequests = ::google::protobuf::RepeatedPtrField<
 using TPodIP6SubnetRequests = ::google::protobuf::RepeatedPtrField<
     NClient::NApi::NProto::TPodSpec_TIP6SubnetRequest>;
 
+using TSchedulingHints = ::google::protobuf::RepeatedPtrField<
+    NClient::NApi::NProto::TPodSpec_TSchedulingHint>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 using NClient::NApi::EEvictionReason;

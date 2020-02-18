@@ -212,6 +212,11 @@ public:
                 << TError(nodesOrError);
         }
 
+        auto nodeOrError = TryAllocateConsideringSchedulingHints(pod, nodes);
+        if (!nodeOrError.IsOK() || nodeOrError.Value()) {
+            return nodeOrError;
+        }
+
         TAllocator allocator;
         switch (NodeSelectionStrategy_) {
             case EAllocatorNodeSelectionStrategy::Random: {
@@ -287,6 +292,62 @@ private:
             allocator->Allocate(resultNode, pod);
         }
         return resultNode;
+    }
+
+    TErrorOr<TNode*> TryAllocateConsideringSchedulingHints(TPod* pod, const std::vector<TNode*>& nodes)
+    {
+        if (pod->SchedulingHints().empty()) {
+            return nullptr;
+        }
+
+        THashMap<TObjectId, TNode*> nodesMap;
+        for (auto* node : nodes) {
+            nodesMap[node->GetId()] = node;
+        }
+
+        TNode* strongSchedulingHintNode = nullptr;
+        std::vector<TNode*> weakSchedulingHintNodes;
+
+        for (const auto& schedulingHint : pod->SchedulingHints()) {
+            auto nodeIt = nodesMap.find(schedulingHint.node_id());
+
+            if (schedulingHint.strong()) {
+                if (nodeIt == nodesMap.end()) {
+                    return TError("Strong scheduling hint %Qv node id %Qv is not schedulable or does not satisfy node filter",
+                        schedulingHint.uuid(),
+                        schedulingHint.node_id());
+                }
+                if (!strongSchedulingHintNode) {
+                    strongSchedulingHintNode = nodeIt->second;
+                } else if (strongSchedulingHintNode->GetId() != nodeIt->first) {
+                    return TError("Expected at most one unique strong scheduling hint node id, but got %Qv and %Qv",
+                        strongSchedulingHintNode->GetId(),
+                        nodeIt->first);
+                }
+            } else {
+                if (nodeIt != nodesMap.end()) {
+                    weakSchedulingHintNodes.push_back(nodeIt->second);
+                }
+            }
+        }
+
+        TAllocator allocator;
+
+        if (strongSchedulingHintNode) {
+            if (allocator.CanAllocate(strongSchedulingHintNode, pod)) {
+                allocator.Allocate(strongSchedulingHintNode, pod);
+                return strongSchedulingHintNode;
+            }
+            return TError("Cannot allocate pod on requested strong scheduling hint node %Qv. %v",
+                strongSchedulingHintNode->GetId(),
+                GetHumanReadableDescription(allocator.GetDiagnostics()));
+        } else if (!weakSchedulingHintNodes.empty()) {
+            auto* resultNode = AllocateMinimumScoreNode(pod, weakSchedulingHintNodes, &allocator);
+            if (resultNode) {
+                return resultNode;
+            }
+        }
+        return nullptr;
     }
 };
 

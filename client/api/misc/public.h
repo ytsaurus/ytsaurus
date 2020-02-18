@@ -16,6 +16,7 @@ class TPodSpec_TDiskVolumeRequest;
 class TPodSpec_TGpuRequest;
 class TPodSpec_TIP6AddressRequest;
 class TPodSpec_TIP6SubnetRequest;
+class TPodSpec_TSchedulingHint;
 
 class TPodStatus_TGpuAllocation;
 

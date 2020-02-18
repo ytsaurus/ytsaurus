@@ -65,6 +65,7 @@ TPod::TPod(
     const NObjects::TPodIP6AddressRequests& ip6AddressRequests,
     const NObjects::TPodIP6SubnetRequests& ip6SubnetRequests,
     TString nodeFilter,
+    const NObjects::TSchedulingHints& schedulingHints,
     bool enableScheduling,
     NClient::NApi::NProto::TPodStatus_TEviction eviction,
     NYT::NProto::TError schedulingError,
@@ -81,6 +82,7 @@ TPod::TPod(
     , IP6AddressRequests_(ip6AddressRequests)
     , IP6SubnetRequests_(ip6SubnetRequests)
     , NodeFilter_(std::move(nodeFilter))
+    , SchedulingHints_(schedulingHints)
     , EnableScheduling_(enableScheduling)
     , Eviction_(std::move(eviction))
     , SchedulingError_(std::move(schedulingError))
