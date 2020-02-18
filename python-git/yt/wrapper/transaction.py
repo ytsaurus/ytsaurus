@@ -123,7 +123,7 @@ class Transaction(object):
             pinger_client = YtClient(config=deepcopy(get_config(self._client)))
             # For sticky transaction we must use the same client as at transaction creation.
             for option in ("_driver", "_requests_session"):
-                set_option("_driver", get_option("_driver", client=self._client), client=pinger_client)
+                set_option(option, get_option(option, client=self._client), client=pinger_client)
             delay = (timeout / 1000.0) / max(2, get_request_retry_count(self._client))
             self._ping_thread = PingTransaction(
                 self.transaction_id,
