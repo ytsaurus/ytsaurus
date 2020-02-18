@@ -2174,7 +2174,7 @@ Y_UNIT_TEST_SUITE(Operations)
     template<typename TUrlRow, typename TGoodUrl, typename THostRow, class TMapper, class TReducer>
     void TestMapReduceMapOutput()
     {
-        TTestFixture fixture;
+       TTestFixture fixture;
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
         {
@@ -4278,89 +4278,6 @@ Y_UNIT_TEST_SUITE(Operations)
                     .Spec(TNode()("input_query", "foo AS foo WHERE foo >= " + ToString(k)))),
             TOperationFailedError,
             "Column filter and QL filter cannot appear in the same operation");
-    }
-
-    Y_UNIT_TEST(ProtobufOrderingColumns) {
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
-
-        auto inputTable = TRichYPath(workingDir + "/input2");
-        auto outputTable = TRichYPath(workingDir + "/output2");
-        auto writer = client->CreateTableWriter<TNode>(inputTable);
-        TString key = "HttpCode";
-        auto data = TNode()("foo", "1")("Host", "2")("Path", "3")("HttpCode", 4);
-        writer->AddRow(data);
-        writer->Finish();
-        client->Sort(
-            inputTable,
-            inputTable,
-            key);
-        TVector<TString> ResultColumns = {"Host", "Path", "HttpCode"};
-        Sort(ResultColumns.begin(), ResultColumns.end());
-
-        auto test = [&] () {
-            client->Map(
-                TMapOperationSpec()
-                    .AddInput<TNode>(TRichYPath(inputTable).Columns(ResultColumns))
-                    .AddOutput<TNode>(outputTable),
-                new TIdMapper);
-            auto result = ReadTable(client, outputTable.Path_);
-
-            auto check = [&](IOperationPtr op) {
-                auto resultWithColumnOrderingByProtobuf = ReadTable(client, outputTable.Path_);
-                auto spec = *client->GetOperation(op->GetId()).Spec;
-                TVector<TRichYPath> columns2;
-                Deserialize(columns2, spec["input_table_paths"]);
-                UNIT_ASSERT_VALUES_EQUAL(columns2.size(), 1);
-                Sort(columns2[0].Columns_->Parts_.begin(), columns2[0].Columns_->Parts_.end());
-                UNIT_ASSERT_VALUES_EQUAL(columns2[0].Columns_->Parts_, ResultColumns);
-                UNIT_ASSERT_VALUES_EQUAL(resultWithColumnOrderingByProtobuf, result);
-            };
-
-            check(
-                client->MapReduce(
-                    TMapReduceOperationSpec()
-                        .AddInput<TUrlRow>(inputTable)
-                        .AddOutput<TUrlRow>(outputTable)
-                        .ReduceBy(key),
-                    new TUrlRowIdMapper,
-                    new TUrlRowIdReducer)
-            );
-
-            check(
-                client->MapReduce(
-                    TMapReduceOperationSpec()
-                        .AddInput<TUrlRow>(inputTable)
-                        .AddOutput<TUrlRow>(outputTable)
-                        .ReduceBy(key),
-                    nullptr,
-                    new TUrlRowIdReducer)
-            );
-
-            check(
-                client->Map(
-                    TMapOperationSpec()
-                        .AddInput<TUrlRow>(inputTable)
-                        .AddOutput<TUrlRow>(outputTable),
-            new TUrlRowIdMapper)
-            );
-
-            check(
-                client->Reduce(
-                    TReduceOperationSpec()
-                        .AddInput<TUrlRow>(inputTable)
-                        .AddOutput<TUrlRow>(outputTable)
-                        .ReduceBy(key),
-            new TUrlRowIdReducer)
-            );
-        };
-
-        test();
-        inputTable.Columns({"foo", "Path", "HttpCode"});
-        ResultColumns = {"Path", "HttpCode"};
-        Sort(ResultColumns.begin(), ResultColumns.end());
-        test();
     }
 
 } // Y_UNIT_TEST_SUITE(Operations)
