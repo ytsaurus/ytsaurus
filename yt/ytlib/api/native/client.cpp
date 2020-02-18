@@ -3459,6 +3459,11 @@ static void MergeThreeVectors(
         comparator);
 }
 
+void FillIsJobStale(TJob* job)
+{
+    job->IsStale = (!job->ControllerAgentState && job->ArchiveState == EJobState::Running);
+}
+
 TListJobsResult TClient::DoListJobs(
     TOperationId operationId,
     const TListJobsOptions& options)
@@ -3689,6 +3694,14 @@ TListJobsResult TClient::DoListJobs(
     auto beginIt = std::min(result.Jobs.end(), result.Jobs.begin() + options.Offset);
     auto endIt = std::min(result.Jobs.end(), beginIt + options.Limit);
     result.Jobs = std::vector<TJob>(std::make_move_iterator(beginIt), std::make_move_iterator(endIt));
+
+    // If controller agent was queried, we can fill |IsStale| field correctly.
+    if (includeControllerAgent) {
+        for (auto& job : result.Jobs) {
+            FillIsJobStale(&job);
+        }
+    }
+
     return result;
 }
 

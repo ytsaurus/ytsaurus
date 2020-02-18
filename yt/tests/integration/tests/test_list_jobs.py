@@ -486,32 +486,49 @@ class TestListJobs(YTEnvSetup):
             before_start_time = datetime.utcnow()
             op, job_ids = self._run_op_and_wait_mapper_breakpoint()
 
-            job_id = job_ids["completed_map"][0]
+            wait(op.get_running_jobs)
+            aborted_map_job_id = job_ids["completed_map"].pop()
+            abort_job(aborted_map_job_id)
 
             release_breakpoint(breakpoint_name="mapper")
             release_breakpoint(breakpoint_name="reducer")
             op.track()
 
+            completed_map_job_id = job_ids["completed_map"][0]
             def has_job_state_converged():
-                set_job_in_table(op.id, job_id, {"transient_state": "running"})
+                set_job_in_table(op.id, completed_map_job_id, {"transient_state": "running"})
                 time.sleep(1)
-                return get_job_from_table(op.id, job_id)["transient_state"] == "running"
+                return get_job_from_table(op.id, completed_map_job_id)["transient_state"] == "running" and \
+                     get_job_from_table(op.id, aborted_map_job_id)["transient_state"] == "aborted"
             wait(has_job_state_converged)
 
-            res = checked_list_jobs(op.id)
-            res_jobs = [job for job in res["jobs"] if job["id"] == job_id]
-            assert len(res_jobs) == 1
-            res_job = res_jobs[0]
+            def check_times(job):
+                start_time = date_string_to_datetime(completed_map_job["start_time"])
+                assert completed_map_job.get("finish_time") is not None
+                finish_time = date_string_to_datetime(completed_map_job.get("finish_time"))
+                assert before_start_time < start_time < finish_time < datetime.now()
 
-            start_time = date_string_to_datetime(res_job["start_time"])
-            assert res_job.get("finish_time") is not None
-            finish_time = date_string_to_datetime(res_job.get("finish_time"))
-            assert before_start_time < start_time < finish_time < datetime.now()
-            assert res_job["controller_agent_state"] == "completed"
-            assert res_job["archive_state"] == "running"
-            assert res_job["type"] == "partition_map"
+            res = checked_list_jobs(op.id)
+
+            completed_map_job_list = [job for job in res["jobs"] if job["id"] == completed_map_job_id]
+            assert len(completed_map_job_list) == 1
+            completed_map_job = completed_map_job_list[0]
+
+
+            check_times(completed_map_job)
+            assert completed_map_job["controller_agent_state"] == "completed"
+            assert completed_map_job["archive_state"] == "running"
+            assert completed_map_job["type"] == "partition_map"
             stderr_size = len("STDERR-OUTPUT\n")
-            assert res_job["stderr_size"] == stderr_size
+            assert completed_map_job["stderr_size"] == stderr_size
+
+            aborted_map_job_list = [job for job in res["jobs"] if job["id"] == aborted_map_job_id]
+            assert len(aborted_map_job_list) == 1
+            aborted_map_job = aborted_map_job_list[0]
+
+            check_times(aborted_map_job)
+            assert aborted_map_job["type"] == "partition_map"
+            assert aborted_map_job.get("abort_reason") == "user_request"
 
     @authors("levysotsky")
     @add_failed_operation_stderrs_to_error_message
@@ -709,6 +726,46 @@ class TestListJobs(YTEnvSetup):
             wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")
             release_breakpoint()
             op.track()
+
+    @authors("levysotsky")
+    @add_failed_operation_stderrs_to_error_message
+    def test_stale_jobs(self):
+        # We need to switch off cypress job nodes to make list_jobs
+        # go to both archive and CA.
+        with cypress_job_nodes_context_manager(False):
+            input_table, output_table = self._create_tables()
+            op = map(
+                track=False,
+                in_=input_table,
+                out=output_table,
+                command=with_breakpoint("cat ; BREAKPOINT"),
+                spec={
+                    "mapper": {
+                        "input_format": "json",
+                        "output_format": "json",
+                    },
+                    "map_job_count" : 1,
+                },
+            )
+
+            job_id, = wait_breakpoint()
+            release_breakpoint()
+            op.track()
+
+            def has_job_state_converged():
+                set_job_in_table(op.id, job_id, {"transient_state": "running"})
+                time.sleep(1)
+                return get_job_from_table(op.id, job_id)["transient_state"] == "running"
+            wait(has_job_state_converged)
+
+            res = checked_list_jobs(op.id)
+            res_jobs = [job for job in res["jobs"] if job["id"] == job_id]
+            assert len(res_jobs) == 1
+            res_job = res_jobs[0]
+
+            assert res_job.get("controller_agent_state") is None
+            assert res_job["archive_state"] == "running"
+            assert res_job.get("is_stale") == True
 
 ##################################################################
 
