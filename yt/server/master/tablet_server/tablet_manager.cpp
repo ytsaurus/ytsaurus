@@ -603,6 +603,8 @@ public:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->LockNode(table, nullptr, ELockMode::Exclusive);
 
+        table->ValidateNoCurrentMountTransaction("Cannot create tablet action");
+
         for (const auto* tablet : tablets) {
             if (tablet->GetTable() != table) {
                 THROW_ERROR_EXCEPTION("Tablets %v and %v belong to different tables",

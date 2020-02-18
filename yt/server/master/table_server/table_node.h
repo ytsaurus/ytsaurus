@@ -164,6 +164,9 @@ public:
 
     void UpdateExpectedTabletState(NTabletClient::ETabletState state);
 
+    void LockCurrentMountTransaction(NTransactionClient::TTransactionId transactionId);
+    void UnlockCurrentMountTransaction(NTransactionClient::TTransactionId transactionId);
+
     void ValidateNoCurrentMountTransaction(TStringBuf message) const;
     void ValidateTabletStateFixed(TStringBuf message) const;
     void ValidateAllTabletsFrozenOrUnmounted(TStringBuf message) const;
