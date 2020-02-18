@@ -13,6 +13,7 @@ void RunJobSatellite(
     int uid,
     const std::vector<TString>& env,
     const TString& jobId);
+
 void NotifyExecutorPrepared(NJobSatelliteConnection::TJobSatelliteConnectionConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
