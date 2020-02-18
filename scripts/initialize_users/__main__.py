@@ -442,36 +442,6 @@ ACCOUNTS = [
 ]
 
 
-def accounts_override_xdc(cluster, accounts, client):
-    # XDC accounts not presented in ABC, so order monitoring resources inplace
-    accounts.append(
-        Account(
-            "abc:service:1979",
-            {
-                "default": {
-                    "cpu": 100000,
-                    "memory": 1099511627776,
-                    "hdd": 1099511627776000,
-                    "ssd": 1099511627776000,
-                    "ipv4": 0,
-                }
-            },
-        )
-    )
-
-
-def accounts_override_man_pre(cluster, accounts, client):
-    pass
-
-
-def accounts_override_sas(cluster, accounts, client):
-    pass
-
-
-def accounts_override_man(cluster, accounts, client):
-    pass
-
-
 def is_cluster_with_qyp_dev_segment(cluster, client):
     try:
         client.get_object("node_segment", "dev", ["/meta/id"])
@@ -541,23 +511,6 @@ def setup_dev_segment(cluster, accounts, client):
         ],
     }
     accounts.extend(cluster_to_accounts.get(cluster, []))
-
-
-def accounts_override(cluster, accounts, client):
-    if cluster == "xdc":
-        accounts_override_xdc(cluster, accounts, client)
-
-    if cluster == "man-pre":
-        accounts_override_man_pre(cluster, accounts, client)
-
-    if cluster == "sas":
-        accounts_override_sas(cluster, accounts, client)
-
-    if cluster == "man":
-        accounts_override_man(cluster, accounts, client)
-
-    if is_cluster_with_qyp_dev_segment(cluster, client):
-        setup_dev_segment(cluster, accounts, client)
 
 
 ####################################################################################################
@@ -668,7 +621,8 @@ def initialize_users(cluster, dry_run):
                 logger.exception("Error running %s", configurator.__name__)
 
         accounts = copy.deepcopy(ACCOUNTS)
-        accounts_override(cluster, accounts, client)
+        if is_cluster_with_qyp_dev_segment(cluster, client):
+            setup_dev_segment(cluster, accounts, client)
 
         for subject_id in ("odin", "nanny-robot", "robot-yp-export"):
             create(client, User(subject_id))
