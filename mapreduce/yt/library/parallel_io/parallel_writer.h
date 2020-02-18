@@ -8,11 +8,13 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
     struct TParallelTableWriterOptions
-        : public TTableWriterOptions
+        : public TIOOptions<TParallelTableWriterOptions>
     {
-        using TSelf = TParallelTableWriterOptions;
         // Number of created writer threads.
         FLUENT_FIELD_DEFAULT(size_t, ThreadCount, 5);
+
+        // @ref NYT::TTableWriterOptions
+        FLUENT_FIELD_DEFAULT(TTableWriterOptions, TableWriterOptions, TTableWriterOptions());
     };
 
     // Create writer that uses multiple threads to write to a table.

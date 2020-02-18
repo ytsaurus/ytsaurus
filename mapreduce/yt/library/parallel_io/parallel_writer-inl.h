@@ -39,7 +39,7 @@ public:
         : Rows_(1000)
         , Transaction_(client->StartTransaction())
         , Path_(path)
-        , Options_(options)
+        , Options_(options.TableWriterOptions_)
     {
         if (!Path_.Append_.GetOrElse(false)) {
             if (Transaction_->Exists(Path_.Path_)) {
@@ -158,7 +158,7 @@ private:
     TVector<THolder<TThread>> Threads_;
     ITransactionPtr Transaction_;
     TRichYPath Path_;
-    const TParallelTableWriterOptions Options_;
+    const TTableWriterOptions Options_;
     std::exception_ptr Exception_ = nullptr;
 
     struct ThreadArgs
