@@ -3,7 +3,6 @@ package yson
 import (
 	"encoding"
 	"reflect"
-	"strconv"
 	"sync"
 
 	"a.yandex-team.ru/library/go/core/xerrors"
@@ -313,9 +312,7 @@ func decodeReflectMap(r *Reader, v reflect.Value) error {
 	kt := v.Type().Elem().Key()
 
 	switch kt.Kind() {
-	case reflect.String,
-		reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	case reflect.String:
 	default:
 		switch {
 		case reflect.PtrTo(kt).Implements(textUnmarshalerType),
@@ -370,22 +367,7 @@ func decodeReflectMap(r *Reader, v reflect.Value) error {
 			}
 			kv = kv.Elem()
 		default:
-			switch kt.Kind() {
-			case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
-				n, err := strconv.ParseInt(r.String(), 10, 64)
-				if err != nil || reflect.Zero(kt).OverflowInt(n) {
-					return ErrIntegerOverflow
-				}
-				kv = reflect.ValueOf(n).Convert(kt)
-			case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				n, err := strconv.ParseUint(r.String(), 10, 64)
-				if err != nil || reflect.Zero(kt).OverflowUint(n) {
-					return ErrIntegerOverflow
-				}
-				kv = reflect.ValueOf(n).Convert(kt)
-			default:
-				panic("yson: Unexpected key type")
-			}
+			panic("yson: Unexpected key type")
 		}
 
 		elem := reflect.New(elementType)

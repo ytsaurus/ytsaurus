@@ -146,19 +146,6 @@ func TestMarshalMapKeys(t *testing.T) {
 	type MyString string
 	testRoundtrip(t, map[MyString]MyString{"1": "2"})
 
-	testRoundtrip(t, map[int]int{1: 2})
-	testRoundtrip(t, map[int16]int16{1: 2})
-	testRoundtrip(t, map[int32]int32{1: 2})
-	testRoundtrip(t, map[int64]int64{1: 2})
-
-	testRoundtrip(t, map[uint]uint{1: 2})
-	testRoundtrip(t, map[uint16]uint16{1: 2})
-	testRoundtrip(t, map[uint32]uint32{1: 2})
-	testRoundtrip(t, map[uint64]uint64{1: 2})
-
-	type IntAlias int
-	testRoundtrip(t, map[IntAlias]IntAlias{1: 2})
-
 	newTextMarshaler := func() textMarshaler {
 		v, err := uuid.NewV4()
 		require.Nil(t, err)
