@@ -208,7 +208,7 @@ void RunSimulation(const TSchedulerSimulatorConfigPtr& config)
         operations,
         earliestTime);
 
-    simulatorControlThread->Initialize(poolTreesNode, earliestTime);
+    simulatorControlThread->Initialize(poolTreesNode);
     WaitFor(simulatorControlThread->AsyncRun())
         .ThrowOnError();
 }

@@ -163,7 +163,7 @@ struct ISchedulerStrategy
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;
 
-    virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode, TInstant now) = 0;
+    virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode) = 0;
 
     virtual void ValidatePoolTreesAreNotRemoved(const TOperationPtr& operation) = 0;
 
@@ -217,6 +217,10 @@ struct ISchedulerStrategy
     virtual std::vector<std::pair<TOperationId, TError>> GetUnschedulableOperations() = 0;
 
     virtual void ScanWaitingForPoolOperations() = 0;
+
+    virtual TFuture<void> GetFullFairShareUpdateFinished() = 0;
+
+    virtual bool IsOperationTreeSetConsistentWithSnapshots(TOperationId operationId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)

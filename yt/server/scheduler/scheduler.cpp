@@ -1083,9 +1083,17 @@ public:
         } else {
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
             asyncMaterializeResult = operation->GetController()->Materialize();
+
+            bool shouldWaitForFullFairShareUpdate = operation->Spec()->ScheduleInSingleTree &&
+                !Strategy_->IsOperationTreeSetConsistentWithSnapshots(operation->GetId());
+            auto maybeFullFairShareUpdateFinished = shouldWaitForFullFairShareUpdate
+                ? Strategy_->GetFullFairShareUpdateFinished()
+                : VoidFuture;
+
             asyncCombineResult = Combine(std::vector<TFuture<void>>({
                 asyncMaterializeResult.As<void>(),
-                ResetOperationRevival(operation)
+                ResetOperationRevival(operation),
+                maybeFullFairShareUpdateFinished
             }));
         }
 
@@ -1962,7 +1970,7 @@ private:
             return;
         }
 
-        Strategy_->UpdatePoolTrees(poolTreesNode, TInstant::Now());
+        Strategy_->UpdatePoolTrees(poolTreesNode);
     }
 
 

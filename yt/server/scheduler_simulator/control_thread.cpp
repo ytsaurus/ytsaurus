@@ -111,11 +111,11 @@ TSimulatorControlThread::TSimulatorControlThread(
     }
 }
 
-void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode, TInstant now)
+void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode)
 {
     YT_VERIFY(!Initialized_.load());
     WaitFor(
-        BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesNode, now)
+        BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesNode)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run())
         .ThrowOnError();
