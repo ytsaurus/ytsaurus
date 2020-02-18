@@ -539,7 +539,7 @@ int TTableSchema::GetValueColumnCount() const
 
 TTableSchema TTableSchema::SetKeyColumnCount(int keyColumnCount) const
 {
-    TTableSchema schema = *this;
+    auto schema = *this;
 
     for (int columnIndex = 0; columnIndex < schema.GetColumnCount(); ++columnIndex) {
         auto& column = schema.Columns_[columnIndex];
@@ -557,7 +557,7 @@ TTableSchema TTableSchema::SetKeyColumnCount(int keyColumnCount) const
 
 TTableSchema TTableSchema::SetUniqueKeys(bool uniqueKeys) const
 {
-    TTableSchema schema = *this;
+    auto schema = *this;
     schema.UniqueKeys_ = uniqueKeys;
 
     return schema;

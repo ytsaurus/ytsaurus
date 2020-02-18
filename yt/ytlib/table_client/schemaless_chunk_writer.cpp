@@ -1892,8 +1892,8 @@ private:
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::SchemaViolation,
                     "Chunk key column count is less than table schema key column count")
-                        << TErrorAttribute("chunk_key_column_count", *chunkKeyColumnCount)
-                        << TErrorAttribute("table_key_column_count", GetSchema().GetKeyColumnCount());
+                    << TErrorAttribute("chunk_key_column_count", *chunkKeyColumnCount)
+                    << TErrorAttribute("table_key_column_count", GetSchema().GetKeyColumnCount());
             }
 
             chunkSchema = chunkSchema.SetKeyColumnCount(*chunkKeyColumnCount);

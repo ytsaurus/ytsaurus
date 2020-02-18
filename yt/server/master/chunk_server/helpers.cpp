@@ -756,7 +756,7 @@ TOwningKey GetMaxKeyOrThrow(const TChunk* chunk)
     auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
     if (!optionalBoundaryKeysExt) {
-        THROW_ERROR_EXCEPTION("Cannot compute max key in chunk %v since it's missing boundary info",
+        THROW_ERROR_EXCEPTION("Cannot compute max key in chunk %v since it is missing boundary info",
             chunk->GetId());
     }
 
