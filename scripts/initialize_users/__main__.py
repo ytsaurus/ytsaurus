@@ -442,6 +442,25 @@ ACCOUNTS = [
 ]
 
 
+def accounts_override_xdc(cluster, accounts, client):
+    # XDC accounts not presented in ABC, so order monitoring resources inplace
+    assert cluster == "xdc"
+    accounts.append(
+        Account(
+            "abc:service:1979",
+            {
+                "default": {
+                    "cpu": 100000,
+                    "memory": 1099511627776,
+                    "hdd": 1099511627776000,
+                    "ssd": 1099511627776000,
+                    "ipv4": 0,
+                }
+            },
+        )
+    )
+
+
 def is_cluster_with_qyp_dev_segment(cluster, client):
     try:
         client.get_object("node_segment", "dev", ["/meta/id"])
@@ -621,6 +640,8 @@ def initialize_users(cluster, dry_run):
                 logger.exception("Error running %s", configurator.__name__)
 
         accounts = copy.deepcopy(ACCOUNTS)
+        if cluster == "xdc":
+            accounts_override_xdc(cluster, accounts, client)
         if is_cluster_with_qyp_dev_segment(cluster, client):
             setup_dev_segment(cluster, accounts, client)
 
