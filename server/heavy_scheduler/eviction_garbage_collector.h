@@ -10,9 +10,9 @@ class TEvictionGarbageCollector
     : public TRefCounted
 {
 public:
-    TEvictionGarbageCollector(
-        TEvictionGarbageCollectorConfigPtr config,
-        NClient::NApi::NNative::IClientPtr client);
+    explicit TEvictionGarbageCollector(
+        THeavyScheduler* heavyScheduler,
+        TEvictionGarbageCollectorConfigPtr config);
 
     void Run(const NCluster::TClusterPtr& cluster);
 

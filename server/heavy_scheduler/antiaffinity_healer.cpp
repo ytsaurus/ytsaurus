@@ -1,10 +1,13 @@
 #include "antiaffinity_healer.h"
 
-#include "task.h"
+#include "bootstrap.h"
 #include "config.h"
 #include "disruption_throttler.h"
+#include "heavy_scheduler.h"
 #include "helpers.h"
 #include "private.h"
+#include "task.h"
+#include "task_manager.h"
 
 #include <yp/server/lib/cluster/cluster.h>
 #include <yp/server/lib/cluster/node.h>
@@ -99,20 +102,13 @@ class TAntiaffinityHealer::TImpl
 {
 public:
     TImpl(
-        TAntiaffinityHealerConfigPtr config,
-        IClientPtr client,
-        bool verbose)
-        : Config_(std::move(config))
-        , Client_(std::move(client))
-        , Verbose_(verbose)
+        THeavyScheduler* heavyScheduler,
+        TAntiaffinityHealerConfigPtr config)
+        : HeavyScheduler_(heavyScheduler)
+        , Config_(std::move(config))
     { }
 
-    std::vector<ITaskPtr> CreateTasks(
-        const TClusterPtr& cluster,
-        const TDisruptionThrottlerPtr& disruptionThrottler,
-        const THashSet<TObjectId>& ignorePodIds,
-        int maxTaskCount,
-        int currentTotalTaskCount)
+    void CreateTasks(const TClusterPtr& cluster)
     {
         auto podSets = cluster->GetPodSets();
         Shuffle(podSets.begin(), podSets.end());
@@ -120,45 +116,22 @@ public:
             ? podSets.end()
             : podSets.begin() + Config_->PodSetsPerIterationLimit;
 
-        std::vector<ITaskPtr> tasks;
         for (auto podSetIt = podSets.begin(); podSetIt < podSetEnd; ++podSetIt) {
-            int tasksLeft = maxTaskCount - static_cast<int>(tasks.size());
-            int minSuitableNodeCount = Config_->SafeSuitableNodeCount
-                + currentTotalTaskCount
-                + static_cast<int>(tasks.size());
-
-            auto podSetTasks = CreatePodSetTasks(
-                *podSetIt,
-                disruptionThrottler,
-                ignorePodIds,
-                tasksLeft,
-                minSuitableNodeCount);
-
-            tasks.insert(tasks.end(),
-                std::make_move_iterator(podSetTasks.begin()),
-                std::make_move_iterator(podSetTasks.end()));
+            CreatePodSetTasks(*podSetIt);
         }
-
-        return tasks;
     }
 
 private:
+    THeavyScheduler* const HeavyScheduler_;
     const TAntiaffinityHealerConfigPtr Config_;
-    const IClientPtr Client_;
-    const bool Verbose_;
 
-    std::vector<ITaskPtr> CreatePodSetTasks(
-        TPodSet* podSet,
-        const TDisruptionThrottlerPtr& disruptionThrottler,
-        const THashSet<TObjectId>& ignorePodIds,
-        int maxTaskCount,
-        int minSuitableNodeCount)
+    void CreatePodSetTasks(TPodSet* podSet)
     {
         auto topologyZonePods = GetTopologyZonePods(podSet);
 
         std::vector<TTopologyZone*> topologyZones;
         topologyZones.reserve(topologyZonePods.size());
-        for (auto const& [zone, pods] : topologyZonePods) {
+        for (const auto& [zone, pods] : topologyZonePods) {
             topologyZones.push_back(zone);
         }
 
@@ -173,7 +146,8 @@ private:
                 return topologyZonePods[lhs].size() < topologyZonePods[rhs].size();
             });
 
-        std::vector<ITaskPtr> tasks;
+        const auto& taskManager = HeavyScheduler_->GetTaskManager();
+        const auto& disruptionThrottler = HeavyScheduler_->GetDisruptionThrottler();
 
         // NB: in case of antiaffinity constraints with shards, we might not add all pods eligible
         // for eviction to `candidates`. This is fine: we request eviction for some of the eligible
@@ -187,23 +161,25 @@ private:
             }
 
             for (auto* pod : topologyZonePods[zone]) {
-                if (ignorePodIds.find(pod->GetId()) != ignorePodIds.end()) {
+                if (taskManager->HasTaskInvolvingPod(pod)) {
                     continue;
                 }
                 auto optionalVacancyCount = zone->TryEstimateAntiaffinityVacancyCount(pod);
                 // If finishing even all currently requested evictions (#evictingPodCount) is not enough to
                 // prevent overcommit, try to request yet another eviction.
                 if (optionalVacancyCount && *optionalVacancyCount + evictingPodCount < 0) {
-                    YT_LOG_DEBUG_IF(Verbose_,
+                    YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
                         "Found pod that overcommits antiaffinity (PodId: %v, PodSetId: %v, TopologyZone: %v)",
                         pod->GetId(),
                         podSet->GetId(),
                         *zone);
+                    int minSuitableNodeCount = Config_->SafeSuitableNodeCount + taskManager->TaskCount();
                     if (!disruptionThrottler->ThrottleEviction(pod)
-                        && HasEnoughSuitableNodes(pod, minSuitableNodeCount, Verbose_))
+                        && HasEnoughSuitableNodes(pod, minSuitableNodeCount, HeavyScheduler_->GetVerbose()))
                     {
-                        if (static_cast<int>(tasks.size()) < maxTaskCount) {
-                            tasks.push_back(CreateEvictionTask(Client_, pod));
+                        if (taskManager->GetTaskSlotCount(ETaskSource::AntiaffinityHealer) > 0) {
+                            taskManager->Add(CreateEvictionTask(HeavyScheduler_->GetClient(), pod),
+                                ETaskSource::AntiaffinityHealer);
                             disruptionThrottler->RegisterPodEviction(pod);
                             evictingPodCount += 1;
                         } else {
@@ -215,12 +191,9 @@ private:
                 }
             }
         }
-
-        return tasks;
     }
 
-    THashMap<TTopologyZone*, std::vector<TPod*>> GetTopologyZonePods(
-        TPodSet* podSet)
+    THashMap<TTopologyZone*, std::vector<TPod*>> GetTopologyZonePods(TPodSet* podSet)
     {
         THashMap<TTopologyZone*, std::vector<TPod*>> topologyZonePods;
         for (auto* pod : podSet->SchedulablePods()) {
@@ -238,25 +211,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TAntiaffinityHealer::TAntiaffinityHealer(
-    TAntiaffinityHealerConfigPtr config,
-    IClientPtr client,
-    bool verbose)
-    : Impl_(New<TImpl>(std::move(config), std::move(client), verbose))
+    THeavyScheduler* heavyScheduler,
+    TAntiaffinityHealerConfigPtr config)
+    : Impl_(New<TImpl>(heavyScheduler, std::move(config)))
 { }
 
-std::vector<ITaskPtr> TAntiaffinityHealer::CreateTasks(
-    const TClusterPtr& cluster,
-    const TDisruptionThrottlerPtr& disruptionThrottler,
-    const THashSet<TObjectId>& ignorePodIds,
-    int maxTaskCount,
-    int currentTotalTaskCount)
+void TAntiaffinityHealer::CreateTasks(const TClusterPtr& cluster)
 {
-    return Impl_->CreateTasks(
-        cluster,
-        disruptionThrottler,
-        ignorePodIds,
-        maxTaskCount,
-        currentTotalTaskCount);
+    Impl_->CreateTasks(cluster);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

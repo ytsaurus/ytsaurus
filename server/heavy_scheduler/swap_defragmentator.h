@@ -14,17 +14,10 @@ class TSwapDefragmentator
 {
 public:
     TSwapDefragmentator(
-        TSwapDefragmentatorConfigPtr config,
-        NClient::NApi::NNative::IClientPtr client,
-        TObjectId nodeSegment,
-        bool verbose);
+        THeavyScheduler* heavyScheduler,
+        TSwapDefragmentatorConfigPtr config);
 
-    std::vector<ITaskPtr> CreateTasks(
-        const NCluster::TClusterPtr& cluster,
-        const TDisruptionThrottlerPtr& disruptionThrottler,
-        const THashSet<NCluster::TObjectId>& ignorePodIds,
-        int maxTaskCount,
-        int currentTotalTaskCount);
+    void CreateTasks(const NCluster::TClusterPtr& cluster);
 
 private:
     class TImpl;

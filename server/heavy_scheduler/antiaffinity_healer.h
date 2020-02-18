@@ -13,16 +13,10 @@ class TAntiaffinityHealer
 {
 public:
     TAntiaffinityHealer(
-        TAntiaffinityHealerConfigPtr config,
-        NClient::NApi::NNative::IClientPtr client,
-        bool verbose);
+        THeavyScheduler* heavyScheduler,
+        TAntiaffinityHealerConfigPtr config);
 
-    std::vector<ITaskPtr> CreateTasks(
-        const NCluster::TClusterPtr& cluster,
-        const TDisruptionThrottlerPtr& disruptionThrottler,
-        const THashSet<TObjectId>& ignorePodIds,
-        int maxTaskCount,
-        int currentTotalTaskCount);
+    void CreateTasks(const NCluster::TClusterPtr& cluster);
 
 private:
     class TImpl;

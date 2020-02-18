@@ -5,6 +5,7 @@
 #include "task.h"
 
 #include <yp/server/lib/cluster/cluster.h>
+#include <yp/server/lib/cluster/pod.h>
 
 namespace NYP::NServer::NHeavyScheduler {
 
@@ -36,17 +37,9 @@ public:
         }
     }
 
-    THashSet<TObjectId> GetInvolvedPodIds() const
+    bool HasTaskInvolvingPod(TPod* pod) const
     {
-        THashSet<TObjectId> podIds;
-        for (const auto& tasks : Tasks_) {
-            for (const auto& task : tasks) {
-                for (auto podId : task->GetInvolvedPodIds()) {
-                    YT_VERIFY(podIds.insert(std::move(podId)).second);
-                }
-            }
-        }
-        return podIds;
+        return InvolvedPodIds_.find(pod->GetId()) != InvolvedPodIds_.end();
     }
 
     void RemoveFinishedTasks()
@@ -86,6 +79,15 @@ public:
             tasks.erase(finishedIt, tasks.end());
         }
 
+        InvolvedPodIds_.clear();
+        for (const auto& tasks : Tasks_) {
+            for (const auto& task : tasks) {
+                for (auto& podId : task->GetInvolvedPodIds()) {
+                    InvolvedPodIds_.insert(std::move(podId));
+                }
+            }
+        }
+
         Profiler_.Update(Profiling_.TimedOutCounter, timedOutCount);
         Profiler_.Update(Profiling_.SucceededCounter, succeededCount);
         Profiler_.Update(Profiling_.FailedCounter, failedCount);
@@ -94,6 +96,9 @@ public:
 
     void Add(ITaskPtr task, ETaskSource source)
     {
+        for (auto& podId : task->GetInvolvedPodIds()) {
+            InvolvedPodIds_.insert(std::move(podId));
+        }
         Tasks_[source].push_back(std::move(task));
     }
 
@@ -111,6 +116,7 @@ private:
     const NProfiling::TProfiler Profiler_;
 
     TEnumIndexedVector<ETaskSource, std::vector<ITaskPtr>> Tasks_;
+    THashSet<TObjectId> InvolvedPodIds_;
 
     struct TProfiling
     {
@@ -150,9 +156,9 @@ int TTaskManager::GetTaskSlotCount(ETaskSource source) const
     return Impl_->GetTaskSlotCount(source);
 }
 
-THashSet<TObjectId> TTaskManager::GetInvolvedPodIds() const
+bool TTaskManager::HasTaskInvolvingPod(TPod* pod) const
 {
-    return Impl_->GetInvolvedPodIds();
+    return Impl_->HasTaskInvolvingPod(pod);
 }
 
 int TTaskManager::TaskCount() const

@@ -20,7 +20,7 @@ public:
 
     int GetTaskSlotCount(ETaskSource source) const;
 
-    THashSet<TObjectId> GetInvolvedPodIds() const;
+    bool HasTaskInvolvingPod(NCluster::TPod* pod) const;
 
     int TaskCount() const;
 

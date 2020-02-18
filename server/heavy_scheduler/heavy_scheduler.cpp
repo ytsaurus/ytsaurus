@@ -34,8 +34,8 @@ class THeavyScheduler::TImpl
     : public TRefCounted
 {
 public:
-    TImpl(
-        TBootstrap* bootstrap,
+    TImpl(TBootstrap* bootstrap,
+        THeavyScheduler* heavyScheduler,
         THeavySchedulerConfigPtr config)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
@@ -49,29 +49,51 @@ public:
                 .AppendPath("/cluster"),
             CreateClusterReader(
                 Config_->ClusterReader,
-                Bootstrap_->GetClient()),
+                bootstrap->GetClient()),
             CreateLabelFilterEvaluator()))
         , TaskManager_(New<TTaskManager>(Config_->TaskManager))
         , DisruptionThrottler_(New<TDisruptionThrottler>(
             Config_->DisruptionThrottler,
             Config_->Verbose))
         , SwapDefragmentator_(New<TSwapDefragmentator>(
-            Config_->SwapDefragmentator,
-            Bootstrap_->GetClient(),
-            Config_->NodeSegment,
-            Config_->Verbose))
+            heavyScheduler,
+            Config_->SwapDefragmentator))
         , AntiaffinityHealer_(New<TAntiaffinityHealer>(
-            Config_->AntiaffinityHealer,
-            Bootstrap_->GetClient(),
-            Config_->Verbose))
+            heavyScheduler,
+            Config_->AntiaffinityHealer))
         , EvictionGarbageCollector_(New<TEvictionGarbageCollector>(
-            Config_->EvictionGarbageCollector,
-            Bootstrap_->GetClient()))
+            heavyScheduler,
+            Config_->EvictionGarbageCollector))
     { }
 
     void Initialize()
     {
         IterationExecutor_->Start();
+    }
+
+    const TTaskManagerPtr& GetTaskManager() const
+    {
+        return TaskManager_;
+    }
+
+    const TDisruptionThrottlerPtr& GetDisruptionThrottler() const
+    {
+        return DisruptionThrottler_;
+    }
+
+    const NClient::NApi::NNative::IClientPtr& GetClient() const
+    {
+        return Bootstrap_->GetClient();
+    }
+
+    const TObjectId& GetNodeSegment() const
+    {
+        return Config_->NodeSegment;
+    }
+
+    bool GetVerbose() const
+    {
+        return Config_->Verbose;
     }
 
 private:
@@ -81,14 +103,13 @@ private:
     DECLARE_THREAD_AFFINITY_SLOT(IterationThread);
     const TPeriodicExecutorPtr IterationExecutor_;
 
-    TClusterPtr Cluster_;
+    const TClusterPtr Cluster_;
+    const TTaskManagerPtr TaskManager_;
+    const TDisruptionThrottlerPtr DisruptionThrottler_;
 
-    TTaskManagerPtr TaskManager_;
-    TDisruptionThrottlerPtr DisruptionThrottler_;
-
-    TSwapDefragmentatorPtr SwapDefragmentator_;
-    TAntiaffinityHealerPtr AntiaffinityHealer_;
-    TEvictionGarbageCollectorPtr EvictionGarbageCollector_;
+    const TSwapDefragmentatorPtr SwapDefragmentator_;
+    const TAntiaffinityHealerPtr AntiaffinityHealer_;
+    const TEvictionGarbageCollectorPtr EvictionGarbageCollector_;
 
     struct TProfiling
     {
@@ -129,36 +150,12 @@ private:
 
         EvictionGarbageCollector_->Run(Cluster_);
 
-        if (!CheckClusterHealth()) {
+        if (CheckClusterHealth()) {
+            SwapDefragmentator_->CreateTasks(Cluster_);
+            AntiaffinityHealer_->CreateTasks(Cluster_);
+        } else {
             // NB: CheckClusterHealth() writes to the log, no need to do it here.
             Profiler.Update(Profiling_.UnhealthyClusterCounter, 1);
-            return;
-        }
-
-        auto ignorePodIds = TaskManager_->GetInvolvedPodIds();
-
-        {
-            auto tasks = SwapDefragmentator_->CreateTasks(
-                Cluster_,
-                DisruptionThrottler_,
-                ignorePodIds,
-                TaskManager_->GetTaskSlotCount(ETaskSource::SwapDefragmentator),
-                TaskManager_->TaskCount());
-            for (auto& task : tasks) {
-                TaskManager_->Add(std::move(task), ETaskSource::SwapDefragmentator);
-            }
-        }
-
-        {
-            auto tasks = AntiaffinityHealer_->CreateTasks(
-                Cluster_,
-                DisruptionThrottler_,
-                ignorePodIds,
-                TaskManager_->GetTaskSlotCount(ETaskSource::AntiaffinityHealer),
-                TaskManager_->TaskCount());
-            for (auto& task : tasks) {
-                TaskManager_->Add(std::move(task), ETaskSource::AntiaffinityHealer);
-            }
         }
     }
 
@@ -179,15 +176,38 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THeavyScheduler::THeavyScheduler(
-    TBootstrap* bootstrap,
-    THeavySchedulerConfigPtr config)
-    : Impl_(New<TImpl>(bootstrap, std::move(config)))
+THeavyScheduler::THeavyScheduler(TBootstrap* bootstrap, THeavySchedulerConfigPtr config)
+    : Impl_(New<TImpl>(bootstrap, this, std::move(config)))
 { }
 
 void THeavyScheduler::Initialize()
 {
     Impl_->Initialize();
+}
+
+const TTaskManagerPtr& THeavyScheduler::GetTaskManager() const
+{
+    return Impl_->GetTaskManager();
+}
+
+const TDisruptionThrottlerPtr& THeavyScheduler::GetDisruptionThrottler() const
+{
+    return Impl_->GetDisruptionThrottler();
+}
+
+const NClient::NApi::NNative::IClientPtr& THeavyScheduler::GetClient() const
+{
+    return Impl_->GetClient();
+}
+
+const TObjectId& THeavyScheduler::GetNodeSegment() const
+{
+    return Impl_->GetNodeSegment();
+}
+
+bool THeavyScheduler::GetVerbose() const
+{
+    return Impl_->GetVerbose();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

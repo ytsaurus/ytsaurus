@@ -14,6 +14,12 @@ public:
 
     void Initialize();
 
+    const TTaskManagerPtr& GetTaskManager() const;
+    const TDisruptionThrottlerPtr& GetDisruptionThrottler() const;
+    const NClient::NApi::NNative::IClientPtr& GetClient() const;
+    const TObjectId& GetNodeSegment() const;
+    bool GetVerbose() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

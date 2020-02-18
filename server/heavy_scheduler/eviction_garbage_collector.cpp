@@ -1,6 +1,8 @@
 #include "eviction_garbage_collector.h"
 
+#include "bootstrap.h"
 #include "config.h"
+#include "heavy_scheduler.h"
 #include "private.h"
 
 #include <yp/server/lib/cluster/cluster.h>
@@ -29,10 +31,10 @@ class TEvictionGarbageCollector::TImpl
 {
 public:
     TImpl(
-        TEvictionGarbageCollectorConfigPtr config,
-        IClientPtr client)
-        : Config_(std::move(config))
-        , Client_(std::move(client))
+        THeavyScheduler* heavyScheduler,
+        TEvictionGarbageCollectorConfigPtr config)
+        : HeavyScheduler_(heavyScheduler)
+        , Config_(std::move(config))
         , Profiler_(TProfiler(NHeavyScheduler::Profiler)
             .AppendPath("/eviction_garbage_collector"))
     { }
@@ -47,8 +49,8 @@ public:
     }
 
 private:
+    THeavyScheduler* const HeavyScheduler_;
     const TEvictionGarbageCollectorConfigPtr Config_;
-    const IClientPtr Client_;
     const TProfiler Profiler_;
 
     TSimpleGauge CandidateCounter_{"/candidate"};
@@ -84,7 +86,7 @@ private:
 
         for (const auto& candidateId : candidateIds) {
             try {
-                auto startTransactionResult = WaitFor(Client_->StartTransaction())
+                auto startTransactionResult = WaitFor(HeavyScheduler_->GetClient()->StartTransaction())
                     .ValueOrThrow();
                 const auto& transactionId = startTransactionResult.TransactionId;
                 auto startTimestamp = startTransactionResult.StartTimestamp;
@@ -93,7 +95,7 @@ private:
                 options.IgnoreNonexistent = true;
                 options.Timestamp = startTimestamp;
 
-                auto payloads = WaitFor(Client_->GetObject(
+                auto payloads = WaitFor(HeavyScheduler_->GetClient()->GetObject(
                     candidateId,
                     EObjectType::Pod,
                     {"/status/eviction"},
@@ -120,13 +122,13 @@ private:
                 }
 
                 WaitFor(AbortPodEviction(
-                    Client_,
+                    HeavyScheduler_->GetClient(),
                     candidateId,
                     "Garbage collecting Heavy Scheduler eviction",
                     transactionId))
                     .ValueOrThrow();
 
-                WaitFor(Client_->CommitTransaction(transactionId))
+                WaitFor(HeavyScheduler_->GetClient()->CommitTransaction(transactionId))
                     .ValueOrThrow();
 
                 YT_LOG_DEBUG("Successfully garbage collected eviction (PodId: %v)",
@@ -149,11 +151,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TEvictionGarbageCollector::TEvictionGarbageCollector(
-    TEvictionGarbageCollectorConfigPtr config,
-    IClientPtr client)
-    : Impl_(New<TEvictionGarbageCollector::TImpl>(
-        std::move(config),
-        std::move(client)))
+    THeavyScheduler* heavyScheduler,
+    TEvictionGarbageCollectorConfigPtr config)
+    : Impl_(New<TEvictionGarbageCollector::TImpl>(heavyScheduler, std::move(config)))
 { }
 
 void TEvictionGarbageCollector::Run(const TClusterPtr& cluster)
