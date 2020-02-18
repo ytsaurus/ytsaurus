@@ -1,4 +1,5 @@
 import sys
+
 sys.path.append("/usr/lib/yandex/spark/python")
 
 import yaml
@@ -6,10 +7,11 @@ import re
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
 
-from yt_spark_client.utils import default_token, create_yt_client, default_discovery_dir, default_base_log_dir, \
-    get_spark_master, set_conf, base_spark_conf, default_spark_conf
+from yt_spark_client.utils import default_token, default_discovery_dir, get_spark_master, set_conf, base_spark_conf, \
+    default_spark_conf, SparkDiscovery
 from contextlib import contextmanager
 import os
+from yt.wrapper import YtClient
 
 
 def _parse_memory(memory_str):
@@ -46,16 +48,16 @@ def spark_session(conf=SparkConf()):
 
 
 def connect(num_executors=5,
-            spark_id=None,
             yt_proxy=None,
-            discovery_dir=None,
+            discovery_path=None,
             config_path=None,
             app_name=None,
             cores_per_executor=4,
             executor_memory_per_core="4G",
             driver_memory="1G",
             dynamic_allocation=False,
-            spark_conf_args=None):
+            spark_conf_args=None,
+            spark_id=None):
     _MAX_CORES = 32
     _MAX_MEMORY = _parse_memory("64G")
     _MIN_MEMORY = _parse_memory("512Mb")
@@ -72,13 +74,12 @@ def connect(num_executors=5,
 
     spark_id = spark_id or config.get("spark_id")
     yt_proxy = yt_proxy or config.get("yt_proxy", os.getenv("YT_PROXY"))
-    yt_user = config.get("yt_user") or os.getenv("YT_USER") or os.getenv("USER")
-    yt_token = config.get("yt_token") or os.getenv("YT_TOKEN") or default_token()
-    yt_client = create_yt_client(yt_proxy, yt_token)
-    discovery_dir = discovery_dir or config.get("discovery_dir") or default_discovery_dir(yt_user)
-    log_dir = config.get("log_dir") or default_base_log_dir(discovery_dir).join(spark_id)
+    yt_token = config.get("yt_token") or default_token()
+    yt_client = YtClient(proxy=yt_proxy, token=yt_token)
+    discovery_path = discovery_path or config.get("discovery_path") or config.get("discovery_dir") or default_discovery_dir()
 
-    master = get_spark_master(spark_id, discovery_dir, rest=False, yt_client=yt_client)
+    discovery = SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
+    master = get_spark_master(discovery, rest=False, yt_client=yt_client)
 
     num_executors = num_executors or config.get("num_executors")
     cores_per_executor = cores_per_executor or config.get("cores_per_executor")
@@ -111,7 +112,7 @@ def connect(num_executors=5,
     app_name = app_name or "PySpark for {}".format(os.environ['USER'])
 
     conf = SparkConf()
-    set_conf(conf, base_spark_conf(yt_proxy, yt_user, log_dir))
+    set_conf(conf, base_spark_conf(yt_client, discovery))
     set_conf(conf, default_spark_conf(dynamic_allocation))
     set_conf(conf, spark_conf_args)
     conf.set("spark.hadoop.yt.token", yt_token)

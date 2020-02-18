@@ -14,8 +14,8 @@ object WorkerLauncher extends App with SparkLauncher {
 
   run(workerArgs.ytConfig, workerArgs.discoveryPath) { discoveryService =>
     log.info("Waiting for master http address")
-    val masterAddress = discoveryService.waitAddress(workerArgs.id, 5 minutes)
-      .getOrElse(throw new IllegalStateException(s"Unknown master id: ${workerArgs.id}"))
+    val masterAddress = discoveryService.waitAddress(5 minutes)
+      .getOrElse(throw new IllegalStateException(s"Empty discovery path ${workerArgs.discoveryPath}, master is not started"))
 
     log.info(s"Starting worker for master $masterAddress")
     log.info(s"Worker opts: ${workerArgs.opts}")
@@ -30,8 +30,7 @@ object WorkerLauncher extends App with SparkLauncher {
   }
 }
 
-case class WorkerLauncherArgs(id: String,
-                              port: Option[Int],
+case class WorkerLauncherArgs(port: Option[Int],
                               webUiPort: Int,
                               cores: Int,
                               memory: String,
@@ -41,7 +40,6 @@ case class WorkerLauncherArgs(id: String,
 
 object WorkerLauncherArgs {
   def apply(args: Args): WorkerLauncherArgs = WorkerLauncherArgs(
-    args.required("id"),
     args.optional("port").map(_.toInt),
     args.optional("web-ui-port").map(_.toInt).getOrElse(8081),
     args.required("cores").toInt,

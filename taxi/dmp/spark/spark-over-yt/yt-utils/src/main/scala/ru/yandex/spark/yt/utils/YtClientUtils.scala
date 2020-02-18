@@ -25,7 +25,12 @@ object YtClientUtils {
       val rpcOptions = new RpcOptions()
       rpcOptions.setTimeouts(config.timeout)
 
-      val cluster = new YtCluster(config.shortProxy, config.fullProxy, 80, new JArrayList(), Optional.of("spark"))
+      val cluster = new YtCluster(
+        config.shortProxy,
+        config.fullProxy,
+        config.port,
+        new JArrayList(),
+        config.proxyRole.map(Optional.of[String]).getOrElse(Optional.empty[String]))
 
       val client = new YtClient(
         connector,

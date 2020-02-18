@@ -19,34 +19,34 @@ class CypressDiscoveryService(config: YtClientConfiguration,
   private val client = YtClientUtils.createRpcClient(config)
   private val yt = client.yt
 
-  private def addressPath(id: String): String = s"$discoveryPath/$id/address"
+  private def addressPath: String = s"$discoveryPath/spark_address"
 
-  private def webUiPath(id: String): String = s"$discoveryPath/$id/webui"
+  private def webUiPath: String = s"$discoveryPath/webui"
 
-  private def restPath(id: String): String = s"$discoveryPath/$id/rest"
+  private def restPath: String = s"$discoveryPath/rest"
 
-  private def operationPath(id: String): String = s"$discoveryPath/$id/operation"
+  private def operationPath: String = s"$discoveryPath/operation"
 
-  private def shsPath(id: String): String = s"$discoveryPath/$id/shs"
+  private def shsPath: String = s"$discoveryPath/shs"
 
-  override def register(id: String, operationId: String, address: Address): Unit = {
-    getAddress(id) match {
-      case Some(address) if DiscoveryService.isAlive(address.hostAndPort) && getOperation(id).exists(_ != operationId) =>
-        throw new IllegalStateException(s"Spark instance with id $id already exists")
+  override def register(operationId: String, address: Address): Unit = {
+    discoverAddress() match {
+      case Some(address) if DiscoveryService.isAlive(address.hostAndPort) && operation.exists(_ != operationId) =>
+        throw new IllegalStateException(s"Spark instance with path $discoveryPath already exists")
       case Some(_) =>
-        log.info(s"Spark instance with id $id registered, but is not alive, rewriting id")
-        removeAddress(id)
+        log.info(s"Spark instance with path $discoveryPath registered, but is not alive, rewriting id")
+        removeAddress()
       case _ =>
-        log.info(s"Spark instance with id $id doesn't exist, registering new one")
+        log.info(s"Spark instance with path $discoveryPath doesn't exist, registering new one")
     }
 
     val tm = new TransactionManager(yt)
     val transaction = tm.start(JDuration.standardMinutes(1)).join()
     try {
-      createNode(s"${addressPath(id)}/${address.hostAndPort}", transaction)
-      createNode(s"${webUiPath(id)}/${address.webUiHostAndPort}", transaction)
-      createNode(s"${restPath(id)}/${address.restHostAndPort}", transaction)
-      createNode(s"${operationPath(id)}/$operationId", transaction)
+      createNode(s"$addressPath/${address.hostAndPort}", transaction)
+      createNode(s"$webUiPath/${address.webUiHostAndPort}", transaction)
+      createNode(s"$restPath/${address.restHostAndPort}", transaction)
+      createNode(s"$operationPath/$operationId", transaction)
     } catch {
       case e: Throwable =>
         yt.abortTransaction(transaction, true)
@@ -56,11 +56,11 @@ class CypressDiscoveryService(config: YtClientConfiguration,
   }
 
 
-  override def registerSHS(id: String, address: Address): Unit = {
+  override def registerSHS(address: Address): Unit = {
     val tm = new TransactionManager(yt)
     val transaction = tm.start(JDuration.standardMinutes(1)).join()
-    removeNode(shsPath(id), Some(transaction))
-    createNode(s"${shsPath(id)}/${address.hostAndPort}", transaction)
+    removeNode(shsPath, Some(transaction))
+    createNode(s"$shsPath/${address.hostAndPort}", transaction)
     yt.commitTransaction(transaction, true)
   }
 
@@ -84,19 +84,19 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     HostAndPort.fromString(yt.getNode(path).join().asMap().keys().first())
   }
 
-  override def getAddress(id: String): Option[Address] = Try {
-    val hostAndPort = cypressHostAndPort(addressPath(id))
-    val webUiHostAndPort = cypressHostAndPort(webUiPath(id))
-    val restHostAndPort = cypressHostAndPort(restPath(id))
+  override def discoverAddress(): Option[Address] = Try {
+    val hostAndPort = cypressHostAndPort(addressPath)
+    val webUiHostAndPort = cypressHostAndPort(webUiPath)
+    val restHostAndPort = cypressHostAndPort(restPath)
     Address(hostAndPort, webUiHostAndPort, restHostAndPort)
   }.toOption
 
-  private def getOperation(id: String): Option[String] = Try {
-    yt.getNode(operationPath(id)).join().asMap().keys().first()
+  private def operation: Option[String] = Try {
+    yt.getNode(operationPath).join().asMap().keys().first()
   }.toOption
 
-  override def waitAddress(id: String, timeout: Duration): Option[Address] = {
-    DiscoveryService.waitFor(getAddress(id).filter(a => DiscoveryService.isAlive(a.hostAndPort)), timeout.toMillis)
+  override def waitAddress(timeout: Duration): Option[Address] = {
+    DiscoveryService.waitFor(discoverAddress().filter(a => DiscoveryService.isAlive(a.hostAndPort)), timeout.toMillis)
   }
 
   override def waitAlive(hostPort: HostAndPort, timeout: Duration): Boolean = {
@@ -118,15 +118,11 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     }
   }
 
-  override def removeId(id: String): Unit = {
-    removeNode(s"$discoveryPath/$id")
-  }
-
-  override def removeAddress(id: String): Unit = {
-    removeNode(addressPath(id))
-    removeNode(webUiPath(id))
-    removeNode(restPath(id))
-    removeNode(operationPath(id))
+  override def removeAddress(): Unit = {
+    removeNode(addressPath)
+    removeNode(webUiPath)
+    removeNode(restPath)
+    removeNode(operationPath)
   }
 
   override def close(): Unit = {

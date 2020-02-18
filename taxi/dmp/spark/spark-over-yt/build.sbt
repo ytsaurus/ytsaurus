@@ -126,7 +126,8 @@ lazy val `client` = (project in file("client"))
   )
   .settings(
     publishYtArtifacts += tarArchiveBuild.value,
-    publishYtArtifacts ++= (publishYtArtifacts in `spark-launcher`).value
+    publishYtArtifacts ++= (publishYtArtifacts in `spark-launcher`).value,
+    publishYtConfig ++= sparkLaunchConfig.value
   )
 
 lazy val root = (project in file("."))
