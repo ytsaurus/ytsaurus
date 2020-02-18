@@ -689,7 +689,7 @@ class ConfigsProvider_19(ConfigsProvider):
                                              enable_compression=provision["enable_logging_compression"])
 
             job_proxy_logging = get_at(config, "exec_agent/job_proxy_logging")
-            log_name = "job_proxy-{0}".format(index)
+            log_name = "job_proxy-{0}-slot-%slot_index%".format(index)
             set_at(
                 config,
                 "exec_agent/job_proxy_logging",
