@@ -47,9 +47,11 @@ inline void TStringBuilderBase::AppendChar(char ch)
 inline void TStringBuilderBase::AppendChar(char ch, int n)
 {
     YT_ASSERT(n >= 0);
-    char* dst = Preallocate(n);
-    ::memset(dst, ch, n);
-    Advance(n);
+    if (Y_LIKELY(0 != n)) {
+        char* dst = Preallocate(n);
+        ::memset(dst, ch, n);
+        Advance(n);
+    }
 }
 
 inline void TStringBuilderBase::AppendString(TStringBuf str)
