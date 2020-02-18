@@ -700,6 +700,13 @@ TEST_W(TSchedulerTest, FiberTiming)
     CheckCurrentFiberRunDuration(TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
 }
 
+TEST_W(TSchedulerTest, CancelDelayedFuture)
+{
+    auto future = TDelayedExecutor::MakeDelayed(TDuration::Seconds(10));
+    future.Cancel(TError("Error"));
+    EXPECT_TRUE(future.IsSet());
+}
+
 void CheckTraceContextTime(const NTracing::TTraceContextPtr& traceContext, TDuration lo, TDuration hi)
 {
     auto actual = traceContext->GetElapsedTime();
