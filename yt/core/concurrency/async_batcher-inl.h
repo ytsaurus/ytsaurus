@@ -40,7 +40,9 @@ TFuture<T> TAsyncBatcher<T>::Run()
             }
         }
     }
-    return PendingPromise_;
+    return PendingPromise_
+        .ToFuture()
+        .ToUncancelable();
 }
 
 template <class T>
