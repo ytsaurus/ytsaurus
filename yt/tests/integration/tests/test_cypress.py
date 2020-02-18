@@ -1499,7 +1499,7 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError): set("//tmp/t/@expiration_time", str(self._now()))
         unlock("//tmp/t", tx=tx)
         set("//tmp/t/@expiration_time", str(self._now()))
-        time.sleep(0.2)
+        time.sleep(1)
         assert not exists("//tmp/t")
 
     @authors("babenko")
@@ -1623,15 +1623,10 @@ class TestCypress(YTEnvSetup):
     def test_expiration_time_versioning5(self):
         tx = start_transaction()
         create("table", "//tmp/t1", attributes={"expiration_time": str(self._now())}, tx=tx)
-
         time.sleep(1)
-
         assert exists("//tmp/t1", tx=tx)
-
         commit_transaction(tx)
-
-        time.sleep(0.2)
-
+        time.sleep(1)
         assert not exists("//tmp/t1")
 
     @authors("babenko")
