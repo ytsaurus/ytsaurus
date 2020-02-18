@@ -85,6 +85,8 @@ using namespace NNet;
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
 
+static const TString SlotIndexPattern("\%slot_index\%");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob
@@ -1295,6 +1297,13 @@ private:
         if (RootVolume_) {
             proxyConfig->RootPath = RootVolume_->GetPath();
             proxyConfig->Binds = Config_->RootFSBinds;
+        }
+        // This replace logic used for testing puproses.
+        for (const auto& [name, writerConfig]: proxyConfig->Logging->WriterConfigs) {
+            size_t index = writerConfig->FileName.find(SlotIndexPattern);
+            if (index != TString::npos) {
+                writerConfig->FileName.replace(index, SlotIndexPattern.size(), ToString(Slot_->GetSlotIndex()));
+            }
         }
 
         for (const auto& slot : GpuSlots_) {
