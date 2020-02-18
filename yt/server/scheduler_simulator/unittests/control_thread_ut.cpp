@@ -259,7 +259,7 @@ TEST_F(TControlThreadTest, TestSingleOperation)
         operations,
         earliestTime);
 
-    simulatorControlThread->Initialize(CreatePoolTreesConfig(), earliestTime);
+    simulatorControlThread->Initialize(CreatePoolTreesConfig());
     WaitFor(simulatorControlThread->AsyncRun())
         .ThrowOnError();
 
@@ -299,7 +299,7 @@ TEST_F(TControlThreadTest, TestTwoComplementaryOperations)
         operations,
         earliestTime);
 
-    simulatorControlThread->Initialize(CreatePoolTreesConfig(), earliestTime);
+    simulatorControlThread->Initialize(CreatePoolTreesConfig());
     WaitFor(simulatorControlThread->AsyncRun())
         .ThrowOnError();
 
@@ -348,7 +348,7 @@ TEST_F(TControlThreadTest, TestNormalPreemption)
         operations,
         earliestTime);
 
-    simulatorControlThread->Initialize(CreatePoolTreesConfig(), earliestTime);
+    simulatorControlThread->Initialize(CreatePoolTreesConfig());
     WaitFor(simulatorControlThread->AsyncRun())
         .ThrowOnError();
 
