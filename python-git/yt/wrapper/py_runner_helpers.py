@@ -43,10 +43,11 @@ class WrappedStreams(object):
         sys.stdout = self.stdout
 
 class Context(object):
-    def __init__(self, table_index=None, row_index=None, range_index=None):
+    def __init__(self, table_index=None, row_index=None, range_index=None, tablet_index=None):
         self.table_index = table_index
         self.row_index = row_index
         self.range_index = range_index
+        self.tablet_index = tablet_index
 
 def convert_callable_to_generator(func):
     def generator(*args):
@@ -93,6 +94,7 @@ def enrich_context(rows, context):
             context.table_index = get_value(getattr(rows, "table_index", None), context.table_index)
             context.row_index = getattr(rows, "row_index", None)
             context.range_index = getattr(rows, "range_index", None)
+            context.tablet_index = getattr(rows, "tablet_index", None)
             yield row
 
     return generate_rows()
@@ -148,6 +150,7 @@ class group_by_key_switch(object):
             self.context.table_index = get_value(getattr(self.rows, "table_index", None), self.context.table_index)
             self.context.row_index = getattr(self.rows, "row_index", None)
             self.context.range_index = getattr(self.rows, "range_index", None)
+            self.context.tablet_index = getattr(self.rows, "tablet_index", None)
 
     def _grouper(self):
         while True:
