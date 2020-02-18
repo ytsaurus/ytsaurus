@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
-from yt_spark_client import launch
+from yt.wrapper import YtClient
+from yt.wrapper.http_helpers import get_user_name
+from yt_spark_client import start_spark_cluster
 from yt_spark_client import utils as spark_utils
 from yt_spark_client.utils import default_token
 
@@ -12,21 +14,27 @@ def main():
     parser.add_argument("--worker-memory", required=True)
     parser.add_argument("--worker-num", required=True, type=int)
     parser.add_argument("--pool", required=False)
+    parser.add_argument("--tmpfs-limit", required=False)
     parser.add_argument("--master-memory-limit", required=False)
+    parser.add_argument("--history-server-memory-limit", required=False)
+    parser.add_argument("--operation-alias", required=False)
+    parser.add_argument("--dynamic-config-path", required=False)
 
     args, unknown_args = spark_utils.parse_args(parser)
 
-    launch(spark_id=args.id,
-           discovery_dir=args.discovery_dir,
-           log_base_dir=args.log_dir,
-           yt_proxy=args.proxy,
-           yt_user=args.yt_user,
-           yt_token=default_token(),
-           yt_pool=args.pool or args.yt_user,
-           worker_cores=args.worker_cores,
-           worker_memory=args.worker_memory,
-           worker_num=args.worker_num,
-           master_memory_limit=args.master_memory_limit)
+    yt_client = YtClient(proxy=args.proxy, token=default_token())
+
+    start_spark_cluster(worker_cores=args.worker_cores,
+                        worker_memory=args.worker_memory,
+                        worker_num=args.worker_num,
+                        operation_alias=args.operation_alias,
+                        discovery_path=args.discovery_path,
+                        pool=args.pool or get_user_name(client=yt_client),
+                        tmpfs_limit=args.tmpfs_limit,
+                        master_memory_limit=args.master_memory_limit,
+                        history_server_memory_limit=args.history_server_memory_limit,
+                        dynamic_config_path=args.dynamic_config_path,
+                        client=yt_client)
 
 
 if __name__ == '__main__':

@@ -1,6 +1,0 @@
-spark_yt_base_path: {{spark_yt_base_path}}
-spark_launcher_name: {{launcher_name}}
-spark_name: {{spark_name}}
-shuffle_service_port: 27000
-start_port: 27001
-port_max_retries: 200

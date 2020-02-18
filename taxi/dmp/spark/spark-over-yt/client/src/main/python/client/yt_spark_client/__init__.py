@@ -1,15 +1,16 @@
+import json
 import os
 import re
 import subprocess
-
-import yaml
-from yt.wrapper.cypress_commands import list as yt_list, create, exists
+from yt.wrapper import YPath
+from yt.wrapper.cypress_commands import exists
+from yt.wrapper.file_commands import read_file
+from yt.wrapper.http_helpers import get_token, get_user_name
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
 from yt.wrapper.run_operation_commands import run_operation
 from yt.wrapper.spec_builders import VanillaSpecBuilder
-from yt.wrapper import YPath
 
-from .utils import get_spark_master, base_spark_conf, create_yt_client
+from .utils import get_spark_master, base_spark_conf, SparkDiscovery, determine_cluster
 
 
 def _add_conf(spark_conf, spark_args):
@@ -19,13 +20,13 @@ def _add_conf(spark_conf, spark_args):
             spark_args.append("{}={}".format(k, v))
 
 
-def _add_master(spark_id, discovery_dir, spark_args, rest, client):
+def _add_master(discovery, spark_args, rest, client=None):
     spark_args.append("--master")
-    spark_args.append(get_spark_master(spark_id, discovery_dir, rest, client))
+    spark_args.append(get_spark_master(discovery, rest, yt_client=client))
 
 
-def _add_base_spark_conf(yt_proxy, yt_user, log_dir, spark_args):
-    _add_conf(base_spark_conf(yt_proxy, yt_user, log_dir), spark_args)
+def _add_base_spark_conf(client, discovery, spark_args):
+    _add_conf(base_spark_conf(client, discovery), spark_args)
 
 
 def _add_job_args(job_args, spark_args):
@@ -35,8 +36,10 @@ def _add_job_args(job_args, spark_args):
             spark_args.append(v)
 
 
-def _create_spark_env(yt_user, yt_token, spark_home):
+def _create_spark_env(client, spark_home):
     spark_env = os.environ.copy()
+    yt_token = get_token(client=client)
+    yt_user = get_user_name(client=client)
     spark_env["SPARK_USER"] = yt_user
     spark_env["YT_TOKEN"] = yt_token
     spark_env["SPARK_HOME"] = spark_home
@@ -55,8 +58,8 @@ def _parse_memory(memory_str):
     return value * units[unit]
 
 
-def _wait_master_start(op, spark_id, discovery_dir, client):
-    operation_path = YPath(discovery_dir).join("instances").join(spark_id).join("operation").join(op.id)
+def _wait_master_start(op, spark_discovery, client):
+    operation_path = spark_discovery.operation().join(op.id)
     for state in op.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0)):
         if state.is_running() and exists(operation_path, client=client):
             return op
@@ -73,8 +76,7 @@ def _jmx_opts(port):
            "-Dcom.sun.management.jmxremote.ssl=false".format(port)
 
 
-def submit(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home,
-           deploy_mode, spark_conf, job_class, jar_path, job_args):
+def submit(discovery_path, spark_home, deploy_mode, spark_conf, job_class, jar_path, job_args, client=None):
     spark_args = ["--deploy-mode", deploy_mode]
 
     _add_conf(spark_conf, spark_args)
@@ -85,11 +87,13 @@ def submit(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_
 
     _add_job_args(job_args, spark_args)
 
-    raw_submit(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home, *spark_args)
+    raw_submit(discovery_path=discovery_path,
+               spark_home=spark_home,
+               spark_args=spark_args,
+               client=client)
 
 
-def submit_python(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home,
-                  deploy_mode, spark_conf, main_py_path, py_files, job_args):
+def submit_python(discovery_path, spark_home, deploy_mode, spark_conf, main_py_path, py_files, job_args, client=None):
     spark_args = ["--deploy-mode", deploy_mode]
 
     _add_conf(spark_conf, spark_args)
@@ -100,97 +104,95 @@ def submit_python(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token,
 
     _add_job_args(job_args, spark_args)
 
-    raw_submit(spark_id=spark_id,
-               discovery_dir=discovery_dir,
-               log_dir=log_dir,
-               yt_proxy=yt_proxy,
-               yt_user=yt_user,
-               yt_token=yt_token,
+    raw_submit(discovery_path=discovery_path,
                spark_home=spark_home,
-               spark_args=spark_args)
+               spark_args=spark_args,
+               client=client)
 
 
-def raw_submit(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home, spark_args):
+def raw_submit(discovery_path, spark_home, spark_args, client=None, spark_id=None):
     spark_base_args = ["/usr/local/bin/spark-submit"]
-    _add_master(spark_id, discovery_dir, spark_base_args, rest=True, client=create_yt_client(yt_proxy, yt_token))
-    _add_base_spark_conf(yt_proxy, yt_user, log_dir, spark_base_args)
-    spark_env = _create_spark_env(yt_user, yt_token, spark_home)
+    discovery = SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
+    _add_master(discovery, spark_base_args, rest=True, client=client)
+    _add_base_spark_conf(client, discovery, spark_base_args)
+    spark_env = _create_spark_env(client, spark_home)
 
     # replace stdin to avoid https://bugs.openjdk.java.net/browse/JDK-8211842
     subprocess.call(spark_base_args + spark_args, env=spark_env, stdin=subprocess.PIPE)
 
 
-def shell(spark_id, discovery_dir, log_dir, yt_proxy, yt_user, yt_token, spark_home, spark_args):
+def shell(discovery_path, spark_home, spark_args, client=None, spark_id=None):
     spark_base_args = ["/usr/local/bin/spark-shell"]
-    _add_master(spark_id, discovery_dir, spark_base_args, rest=False, client=create_yt_client(yt_proxy, yt_token))
-    _add_base_spark_conf(yt_proxy, yt_user, log_dir, spark_base_args)
-    spark_env = _create_spark_env(yt_user, yt_token, spark_home)
+    discovery = SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
+    _add_master(discovery, spark_base_args, rest=False, client=client)
+    _add_base_spark_conf(client, discovery, spark_base_args)
+    spark_env = _create_spark_env(client, spark_home)
 
     os.execve("/usr/local/bin/spark-shell", spark_base_args + spark_args, spark_env)
 
 
-def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, yt_pool,
-           worker_cores, worker_memory, worker_num, master_memory_limit):
-    spark_home = os.getenv("SPARK_HOME")
-    with open(os.path.join(spark_home, "conf", "spark-launch.yaml")) as f:
-        config = yaml.load(f, Loader=yaml.BaseLoader)
+def _read_launch_config(dynamic_config_path, client=None):
+    path = dynamic_config_path or "//sys/spark/bin/releases/spark-launch.json"
+    return json.load(read_file(path, client=client))
 
-    worker_opts = "-Dspark.worker.cleanup.enabled=true " \
-                  "-Dspark.shuffle.service.enabled=true " \
-                  "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.fs.YtFileSystem " \
-                  "-Dspark.port.maxRetries={0} " \
-                  "-Dspark.shuffle.service.port={1}" \
-        .format(config["port_max_retries"], config["shuffle_service_port"])
 
-    history_opts = "-Dspark.history.fs.cleaner.enabled=true " \
-                   "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.fs.YtFileSystem " \
-                   "-Dspark.port.maxRetries={0} " \
-                   "-Dspark.shuffle.service.port={1}" \
-        .format(config["port_max_retries"], config["shuffle_service_port"])
-
-    master_opts = "-Dspark.port.maxRetries={0} " \
-                  "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.fs.YtFileSystem " \
-                  "-Dspark.master.rest.enabled=true " \
-                  "-Dspark.master.rest.port={1}" \
-        .format(config["port_max_retries"], config["start_port"])
-
+def _launcher_command(component, config, opts):
     unpack_tar = "tar --warning=no-unknown-keyword -xf {0}.tgz".format(config["spark_name"])
     run_launcher = "/opt/jdk8/bin/java -Xmx512m -cp {0}".format(config["spark_launcher_name"])
 
-    spark_yt_base_path = YPath(config["spark_yt_base_path"])
-    file_paths = [spark_yt_base_path.join(config["spark_name"] + ".tgz"),
-                  spark_yt_base_path.join(config["spark_launcher_name"])]
+    return "{0} && {1} ru.yandex.spark.launcher.{2}Launcher --port {3} --opts \"'{4}'\" " \
+        .format(unpack_tar, run_launcher, component, config["start_port"], opts)
+
+
+def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
+                               worker_cores, worker_memory, worker_num,
+                               tmpfs_limit, master_memory_limit, history_server_memory_limit,
+                               pool, client):
+    yt_proxy = determine_cluster(client)
+    if "hahn" in yt_proxy or "arnold" in yt_proxy:
+        proxy_role_opt = "-Dspark.hadoop.yt.proxyRole=spark "
+    else:
+        proxy_role_opt = ""
+    common_ops = proxy_role_opt + \
+                 "-Dspark.hadoop.fs.yt.impl=ru.yandex.spark.yt.fs.YtFileSystem " \
+                 "-Dspark.port.maxRetries={0} " \
+                 "-Dspark.shuffle.service.port={1} " \
+                     .format(dynamic_config["port_max_retries"], dynamic_config["shuffle_service_port"])
+
+    worker_opts = "-Dspark.worker.cleanup.enabled=true -Dspark.shuffle.service.enabled=true " + common_ops
+
+    history_opts = "-Dspark.history.fs.cleaner.enabled=true " + common_ops
+
+    master_opts = "-Dspark.master.rest.enabled=true " \
+                  "-Dspark.master.rest.port={0} ".format(dynamic_config["start_port"]) + common_ops
+
+    spark_yt_base_path = YPath(dynamic_config["spark_yt_base_path"])
+    file_paths = [spark_yt_base_path.join(dynamic_config["spark_name"] + ".tgz"),
+                  spark_yt_base_path.join(dynamic_config["spark_launcher_name"])]
 
     layer_paths = ["//home/sashbel/delta/jdk/layer_with_jdk_lastest.tar.gz",
                    "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"]
 
-    master_command = "{0} && {1} ru.yandex.spark.launcher.MasterLauncher --id {2} --operation-id $YT_OPERATION_ID " \
-                     "--port {3} --web-ui-port {3} --opts \"'{4}'\"" \
-        .format(unpack_tar, run_launcher, spark_id, config["start_port"], master_opts)
+    master_command = _launcher_command("Master", dynamic_config, master_opts) + \
+                     "--operation-id $YT_OPERATION_ID --web-ui-port {}".format(dynamic_config["start_port"])
 
-    worker_command = "{0} && {1} ru.yandex.spark.launcher.WorkerLauncher --id {2} --cores {3} --memory {4} " \
-                     "--port {5} --web-ui-port {5} --opts \"'{6}'\"" \
-        .format(unpack_tar, run_launcher, spark_id, worker_cores, worker_memory,
-                config["start_port"], worker_opts)
+    worker_command = _launcher_command("Worker", dynamic_config, worker_opts) + \
+                     "--cores {0} --memory {1} --web-ui-port {2}".format(worker_cores, worker_memory,
+                                                                         dynamic_config["start_port"])
 
-    log_dir = YPath(log_base_dir).join(spark_id)
-    history_command = "{0} && {1} ru.yandex.spark.launcher.HistoryServerLauncher --id {2} --log-path yt:/{3} " \
-                      "--port {4} --opts \"'{5}'\"" \
-        .format(unpack_tar, run_launcher, spark_id, log_dir, config["start_port"], history_opts)
-
-    discovery_dir = YPath(discovery_dir)
-    instances_discovery_dir = discovery_dir.join("instances")
+    history_command = _launcher_command("HistoryServer", dynamic_config, history_opts) + \
+                      "--log-path yt:/{}".format(spark_discovery.event_log())
 
     environment = {
         "JAVA_HOME": "/opt/jdk8",
-        "SPARK_HOME": config["spark_name"],
+        "SPARK_HOME": dynamic_config["spark_name"],
         "YT_PROXY": yt_proxy,
-        "SPARK_DISCOVERY_PATH": str(instances_discovery_dir)
+        "SPARK_DISCOVERY_PATH": str(spark_discovery.discovery())
     }
 
     operation_spec = {
-        "stderr_table_path": str(discovery_dir.join("logs").join("stderr_" + spark_id)),
-        "pool": yt_pool,
+        "stderr_table_path": str(spark_discovery.stderr()),
+        "pool": pool,
         "annotations": {
             "is_spark": True
         }
@@ -200,61 +202,96 @@ def launch(spark_id, discovery_dir, log_base_dir, yt_proxy, yt_user, yt_token, y
         "restart_completed_jobs": True
     }
 
+    user = get_user_name(client=client)
     secure_vault = {
-        "YT_USER": yt_user,
-        "YT_TOKEN": yt_token
+        "YT_USER": user,
+        "YT_TOKEN": get_token(client=client)
     }
 
-    alias = "spark_{}_{}".format(yt_user, spark_id)
+    master_memory_limit = master_memory_limit or dynamic_config.get("master_memory_limit") or "2G"
+    history_server_memory_limit = history_server_memory_limit or dynamic_config.get(
+        "history_server_memory_limit") or "8G"
+    tmpfs_limit = tmpfs_limit or dynamic_config.get("tmpfs_limit") or "100G"
 
-    master_memory_limit = master_memory_limit or "2G"
-    spec_builder = \
-        VanillaSpecBuilder() \
-            .begin_task("master") \
-                .job_count(1) \
-                .file_paths(file_paths) \
-                .command(master_command) \
-                .memory_limit(_parse_memory(master_memory_limit)) \
-                .memory_reserve_factor(1.0) \
-                .cpu_limit(2) \
-                .environment(environment) \
-                .layer_paths(layer_paths) \
-                .spec(task_spec) \
-            .end_task() \
-            .begin_task("history") \
-                .job_count(1) \
-                .file_paths(file_paths) \
-                .command(history_command) \
-                .memory_limit(_parse_memory("8G")) \
-                .memory_reserve_factor(1.0) \
-                .cpu_limit(1) \
-                .environment(environment) \
-                .layer_paths(layer_paths) \
-                .spec(task_spec) \
-            .end_task() \
-            .begin_task("workers") \
-                .job_count(worker_num) \
-                .file_paths(file_paths) \
-                .command(worker_command) \
-                .memory_limit(_parse_memory(worker_memory) + _parse_memory("100G")) \
-                .memory_reserve_factor(1.0) \
-                .cpu_limit(worker_cores + 2) \
-                .environment(environment) \
-                .layer_paths(layer_paths) \
-                .spec(task_spec) \
-                .tmpfs_path("tmpfs") \
-            .end_task() \
-            .secure_vault(secure_vault) \
-            .max_failed_job_count(5) \
-            .max_stderr_count(150) \
-            .title(alias) \
-            .spec(operation_spec)
+    return VanillaSpecBuilder() \
+        .begin_task("master") \
+        .job_count(1) \
+        .file_paths(file_paths) \
+        .command(master_command) \
+        .memory_limit(_parse_memory(master_memory_limit)) \
+        .memory_reserve_factor(1.0) \
+        .cpu_limit(2) \
+        .environment(environment) \
+        .layer_paths(layer_paths) \
+        .spec(task_spec) \
+        .end_task() \
+        .begin_task("history") \
+        .job_count(1) \
+        .file_paths(file_paths) \
+        .command(history_command) \
+        .memory_limit(_parse_memory(history_server_memory_limit)) \
+        .memory_reserve_factor(1.0) \
+        .cpu_limit(1) \
+        .environment(environment) \
+        .layer_paths(layer_paths) \
+        .spec(task_spec) \
+        .end_task() \
+        .begin_task("workers") \
+        .job_count(worker_num) \
+        .file_paths(file_paths) \
+        .command(worker_command) \
+        .memory_limit(_parse_memory(worker_memory) + _parse_memory(tmpfs_limit)) \
+        .memory_reserve_factor(1.0) \
+        .cpu_limit(worker_cores + 2) \
+        .environment(environment) \
+        .layer_paths(layer_paths) \
+        .spec(task_spec) \
+        .tmpfs_path("tmpfs") \
+        .end_task() \
+        .secure_vault(secure_vault) \
+        .max_failed_job_count(5) \
+        .max_stderr_count(150) \
+        .title(operation_alias or "spark_{}".format(user)) \
+        .spec(operation_spec)
 
-    yt_client = create_yt_client(yt_proxy, yt_token)
-    create("map_node", instances_discovery_dir, recursive=True, ignore_existing=True, client=yt_client)
-    create("map_node", log_dir, recursive=True, ignore_existing=True, client=yt_client)
-    op = run_operation(spec_builder, sync=False, client=yt_client)
-    _wait_master_start(op, spark_id, discovery_dir, yt_client)
-    master_address = yt_list(instances_discovery_dir.join(spark_id).join("webui"), client=yt_client)[0]
 
+def start_spark_cluster(worker_cores, worker_memory, worker_num,
+                        operation_alias=None, discovery_path=None, pool=None,
+                        tmpfs_limit=None, master_memory_limit=None, history_server_memory_limit=None,
+                        dynamic_config_path=None, client=None):
+    """Start Spark cluster
+    :param operation_alias: alias for the underlying YT operation
+    :param pool: pool for the underlying YT operation
+    :param discovery_path: Cypress path for discovery files and logs
+    :param worker_cores: number of cores that will be available on worker
+    :param worker_memory: amount of memory that will be available on worker
+    :param worker_num: number of workers
+    :param tmpfs_limit: limit of tmpfs usage, default 150G
+    :param master_memory_limit: memory limit for master, default 2G
+    :param history_server_memory_limit: memory limit for history server, default 8G
+    :param dynamic_config_path: YT path of dynamic config
+    :param client: YtClient
+    :return:
+    """
+    spark_discovery = SparkDiscovery(discovery_path=discovery_path)
+    dynamic_config = _read_launch_config(dynamic_config_path=dynamic_config_path, client=client)
+
+    spec_builder = build_spark_operation_spec(operation_alias=operation_alias,
+                                              spark_discovery=spark_discovery,
+                                              dynamic_config=dynamic_config,
+                                              worker_cores=worker_cores,
+                                              worker_memory=worker_memory,
+                                              worker_num=worker_num,
+                                              tmpfs_limit=tmpfs_limit,
+                                              master_memory_limit=master_memory_limit,
+                                              history_server_memory_limit=history_server_memory_limit,
+                                              pool=pool,
+                                              client=client)
+
+    spark_discovery.create(client)
+    op = run_operation(spec_builder, sync=False, client=client)
+    _wait_master_start(op, spark_discovery, client)
+    master_address = SparkDiscovery.get(spark_discovery.master_webui(), client=client)
     print("Spark Master's Web UI: http://{0}".format(master_address))
+
+    return op

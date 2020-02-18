@@ -1,18 +1,27 @@
 import java.io.File
 
+import _root_.io.circe.generic.auto._
+import _root_.io.circe.syntax._
 import com.typesafe.sbt.packager.linux.LinuxPackageMapping
+import ru.yandex.sbt.YtPublishPlugin
 import sbt.Keys._
 import sbt.PluginTrigger.NoTrigger
 import sbt._
 
 import scala.annotation.tailrec
 import scala.language.postfixOps
-import ru.yandex.sbt.YtPublishPlugin
 
 object SparkPackagePlugin extends AutoPlugin {
   override def requires = super.requires && YtPublishPlugin
 
   override def trigger = NoTrigger
+
+  case class SparkLaunchConfig(spark_yt_base_path: String,
+                               spark_launcher_name: String,
+                               spark_name: String,
+                               shuffle_service_port: Int = 27000,
+                               start_port: Int = 27001,
+                               port_max_retries: Int = 200)
 
   object autoImport {
     val sparkPackage = taskKey[File]("Build spark and add custom files")
@@ -23,7 +32,7 @@ object SparkPackagePlugin extends AutoPlugin {
     val sparkAdditionalBin = settingKey[Seq[File]]("Scripts to copy in SPARK_HOME/bin")
     val sparkAdditionalPython = settingKey[Seq[File]]("Files to copy in SPARK_HOME/python")
     val sparkName = settingKey[String]("Spark name, for example spark-2.4.4-0.0.1-SNAPSHOT")
-    val sparkLaunchConfigTemplate = settingKey[File]("Spark launch config template")
+    val sparkLaunchConfig = taskKey[Seq[File]]("Spark launch config")
     val sparkLauncherName = settingKey[String]("Name of spark-launcher jar")
 
     def createPackageMapping(src: File, dst: String): LinuxPackageMapping = {
@@ -58,8 +67,17 @@ object SparkPackagePlugin extends AutoPlugin {
       val pythonDir = sourceDirectory.value / "main" / "python" / "bin"
       pythonDir.listFiles()
     },
-    sparkLaunchConfigTemplate := {
-      (resourceDirectory in Compile).value / "spark-launch.yaml.template"
+    sparkLaunchConfig := {
+      val conf = SparkLaunchConfig(
+        spark_yt_base_path = publishYtDir.value,
+        spark_launcher_name = s"${sparkLauncherName.value}-${(version in ThisBuild).value}.jar",
+        spark_name = sparkName.value
+      )
+
+      val file = target.value / "spark-launch.json"
+      IO.write(file, conf.asJson.spaces4SortKeys)
+
+      Seq(file)
     },
     sparkPackage := {
       val sparkHome = baseDirectory.value.getParentFile.getParentFile / "spark"
@@ -85,7 +103,7 @@ object SparkPackagePlugin extends AutoPlugin {
       IO.copyDirectory(sourceDirectory.value / "main" / "python" / "client", sparkDist / "bin" / "python")
 
       val ytClient = sourceDirectory.value / "main" / "python" / "client"
-      (ytClient +: sparkAdditionalPython.value).foreach{ f =>
+      (ytClient +: sparkAdditionalPython.value).foreach { f =>
         IO.copyDirectory(f, sparkDist / "python")
 
         import sys.process._
@@ -101,26 +119,9 @@ object SparkPackagePlugin extends AutoPlugin {
         }
       }
 
-      createFileFromTemplate(sparkLaunchConfigTemplate.value, Map(
-        "spark_yt_base_path" -> publishYtDir.value,
-        "launcher_name" -> s"${sparkLauncherName.value}-${(version in ThisBuild).value}.jar",
-        "spark_name" -> sparkName.value
-      ), sparkDist / "conf" / "spark-launch.yaml")
-
       sparkDist
     }
   )
-
-  private def createFileFromTemplate(templateFile: File, parameters: Map[String, String], dstFile: File): Unit = {
-    import yamusca.imports._
-
-    val context = Context(parameters.mapValues(Value.of).toSeq: _*)
-    val template = mustache.parse(IO.read(templateFile)) match {
-      case Right(templ) => templ
-      case Left((_, message)) => throw new RuntimeException(message)
-    }
-    IO.write(dstFile, mustache.render(template)(context))
-  }
 
   private def buildSpark(sparkHome: String): Unit = {
     import scala.language.postfixOps

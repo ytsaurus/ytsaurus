@@ -11,19 +11,17 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 trait DiscoveryService extends AutoCloseable {
-  def register(id: String, operationId: String, address: Address): Unit
+  def register(operationId: String, address: Address): Unit
 
-  def registerSHS(id: String, address: Address): Unit
+  def registerSHS(address: Address): Unit
 
-  def getAddress(id: String): Option[Address]
+  def discoverAddress(): Option[Address]
 
-  def waitAddress(id: String, timeout: Duration): Option[Address]
+  def waitAddress(timeout: Duration): Option[Address]
 
   def waitAlive(hostPort: HostAndPort, timeout: Duration): Boolean
 
-  def removeAddress(id: String): Unit
-
-  def removeId(id: String): Unit
+  def removeAddress(): Unit
 }
 
 object DiscoveryService {
@@ -34,7 +32,7 @@ object DiscoveryService {
     val start = System.currentTimeMillis()
 
     f match {
-      case r @ Some(_) => r
+      case r@Some(_) => r
       case _ =>
         log.info("Sleep 5 seconds before next retry")
         Thread.sleep(5000)
