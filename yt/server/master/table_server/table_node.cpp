@@ -545,6 +545,19 @@ void TTableNode::ValidateNoCurrentMountTransaction(TStringBuf message) const
     }
 }
 
+void TTableNode::LockCurrentMountTransaction(TTransactionId transactionId)
+{
+    YT_ASSERT(!static_cast<bool>(GetCurrentMountTransactionId()));
+    SetCurrentMountTransactionId(transactionId);
+}
+
+void TTableNode::UnlockCurrentMountTransaction(TTransactionId transactionId)
+{
+    if (GetCurrentMountTransactionId() == transactionId) {
+        SetCurrentMountTransactionId(TTransactionId());
+    }
+}
+
 void TTableNode::ValidateTabletStateFixed(TStringBuf message) const
 {
     ValidateNoCurrentMountTransaction(message);
