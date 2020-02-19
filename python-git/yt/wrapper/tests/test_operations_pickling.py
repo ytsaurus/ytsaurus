@@ -7,6 +7,7 @@ from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_
 from yt.wrapper.spec_builders import VanillaSpecBuilder, MapSpecBuilder
 import yt.subprocess_wrapper as subprocess
 
+# It is used in skipif expression.
 from yt.packages.six import PY3
 from yt.packages.six.moves import xrange
 
@@ -27,7 +28,7 @@ import sys
 import time
 import os
 
-@pytest.mark.usefixtures("yt_env")
+@pytest.mark.usefixtures("yt_env_with_increased_memory")
 class TestOperationsPickling(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
@@ -138,7 +139,7 @@ class TestOperationsPickling(object):
             sys.platform = old_platform
 
     @add_failed_operation_stderrs_to_error_message
-    def test_eggs_file_usage_from_operation(self, yt_env):
+    def test_eggs_file_usage_from_operation(self, yt_env_with_increased_memory):
         script = """\
 from __future__ import print_function
 
@@ -154,7 +155,7 @@ if __name__ == "__main__":
 """
         yt.write_table(TEST_DIR + "/table", [{"x": 1, "y": 1}])
 
-        dir_ = yt_env.env.path
+        dir_ = yt_env_with_increased_memory.env.path
         with tempfile.NamedTemporaryFile("w", dir=dir_, prefix="mapper", delete=False) as f:
             mapper = script.format(yt.config["proxy"]["url"],
                                    TEST_DIR + "/table",
@@ -201,7 +202,7 @@ if __name__ == "__main__":
             if old_ld_library_path:
                 os.environ["LD_LIBRARY_PATH"] = old_ld_library_path
 
-    def test_disable_yt_accesses_from_job(self, yt_env):
+    def test_disable_yt_accesses_from_job(self, yt_env_with_increased_memory):
         if yt.config["backend"] == "native":
             pytest.skip()
 
@@ -234,7 +235,7 @@ if __name__ == "__main__":
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
 
-        dir_ = yt_env.env.path
+        dir_ = yt_env_with_increased_memory.env.path
         for script in [first_script, second_script]:
             with tempfile.NamedTemporaryFile("w", dir=dir_, prefix="mapper", delete=False) as f:
                 mapper = script.format(yt.config["proxy"]["url"],
@@ -258,7 +259,7 @@ if __name__ == "__main__":
 
             assert b"Did you forget to surround" in yt.read_file(stderr_path).read()
 
-    def test_python_operations_pickling(self, yt_env):
+    def test_python_operations_pickling(self, yt_env_with_increased_memory):
         test_script = """\
 from __future__ import print_function
 import yt.wrapper as yt
@@ -345,7 +346,7 @@ class Mapper(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}, {"x": 2}, {"x": 3}])
         run_python_script_with_check(
-            yt_env,
+            yt_env_with_increased_memory,
             _format_script(simple_pickling_test, source_table=table, destination_table=table))
         check(yt.read_table(table), [{"x": 1}, {"x": 2}, {"x": 3}])
 
@@ -355,19 +356,19 @@ class Mapper(object):
             script = (methods_pickling_test[0].format(decorator=decorator, self=self_),
                       methods_pickling_test[1])
             run_python_script_with_check(
-                yt_env,
+                yt_env_with_increased_memory,
                 _format_script(script, source_table=table, destination_table=table))
             check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
         yt.write_table(table, [{"x": 1}, {"y": 2}])
         run_python_script_with_check(
-            yt_env,
+            yt_env_with_increased_memory,
             _format_script(metaclass_pickling_test, source_table=table, destination_table=table))
         check(yt.read_table(table), [{"x": 2}, {"y": 2}], ordered=False)
 
         yt.write_table(table, [{"x": 1}, {"x": 2}, {"x": 3}])
         run_python_script_with_check(
-            yt_env,
+            yt_env_with_increased_memory,
             _format_script(methods_call_order_test, source_table=table, destination_table=table))
         assert list(yt.read_table(table)) == [{"x": 666}, {"x": 667}, {"x": 668}]
 
@@ -382,7 +383,7 @@ class Mapper(object):
         assert sorted(list(op.get_job_statistics()["custom"])) == ["python_job_preparation_time"]
         check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
-    def test_relative_imports_with_run_module(self, yt_env):
+    def test_relative_imports_with_run_module(self, yt_env_with_increased_memory):
         yt.write_table("//tmp/input_table", [{"value": 0}])
         subprocess.check_call([sys.executable, "-m", "test_rel_import_module.run"],
                                cwd=get_test_files_dir_path(), env=self.env)
