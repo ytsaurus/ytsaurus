@@ -8,6 +8,7 @@ namespace NYT {
 
 // Simple wrapper around
 class TZeroCopyOutputStreamWriter
+    : private TNonCopyable
 {
 public:
     explicit TZeroCopyOutputStreamWriter(IZeroCopyOutput* output);

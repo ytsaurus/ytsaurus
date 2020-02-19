@@ -7,6 +7,7 @@
 #endif
 
 #include <yt/core/misc/optional.h>
+#include <yt/core/misc/parser_helpers.h>
 
 namespace NYT::NYson {
 
@@ -178,6 +179,8 @@ constexpr char ItemTypeToMarker(EYsonItemType itemType)
             return NDetail::BeginListSymbol;
         case EYsonItemType::EndList:
             return NDetail::EndListSymbol;
+        case EYsonItemType::EntityValue:
+            return NDetail::EntitySymbol;
         default:
             THROW_ERROR_EXCEPTION("Can not convert item type %Qlv to marker",
                 itemType);
@@ -208,6 +211,8 @@ auto TYsonPullParser::ParseItem() -> std::conditional_t<IsOptional, bool, void>
                 SyntaxChecker_.OnBeginList();
             } else if constexpr (ItemType == EYsonItemType::EndList) {
                 SyntaxChecker_.OnEndList();
+            } else if constexpr (ItemType == EYsonItemType::EntityValue) {
+                SyntaxChecker_.OnSimpleNonstring(EYsonItemType::EntityValue);
             } else {
                 static_assert(ItemType == EYsonItemType::BeginList);
             }
@@ -253,28 +258,43 @@ bool TYsonPullParser::ParseOptionalBeginList()
     return ParseItem<EYsonItemType::BeginList, true>();
 }
 
-bool TYsonPullParser::IsEndList()
+bool TYsonPullParser::IsMarker(char marker)
 {
     MaybeSkipSemicolon();
 
     auto c = Lexer_.GetChar<false>();
-    if (c == NDetail::EndListSymbol) {
+    if (c == marker) {
         return true;
     } else {
-        while (c == ';' || isspace(c)) {
+        while (c == ';' || IsSpace(c)) {
             Lexer_.Advance(1);
             if (c == ';') {
                 SyntaxChecker_.OnSeparator();
             }
             c = Lexer_.GetChar<false>();
         }
-        return c == NDetail::EndListSymbol;
+        return c == marker;
     }
+}
+
+bool TYsonPullParser::IsEndList()
+{
+    return IsMarker(NDetail::EndListSymbol);
+}
+
+bool TYsonPullParser::IsEntity()
+{
+    return IsMarker(NDetail::EntitySymbol);
 }
 
 void TYsonPullParser::ParseEndList()
 {
     ParseItem<EYsonItemType::EndList, false>();
+}
+
+void TYsonPullParser::ParseEntity()
+{
+    ParseItem<EYsonItemType::EntityValue, false>();
 }
 
 template <typename TValue, EYsonItemType ItemType>
