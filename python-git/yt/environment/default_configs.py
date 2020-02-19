@@ -78,24 +78,24 @@ b"""
 
     timestamp_manager = {
         commit_advance = 2000;
-        request_backoff_time = 10;
-        calibration_period = 10;
+        request_backoff_time = 100;
+        calibration_period = 200;
     };
 
     chunk_manager = {
         chunk_refresh_delay = 300;
-        chunk_refresh_period = 10;
-        chunk_properties_update_period = 10;
+        chunk_refresh_period = 200;
+        chunk_properties_update_period = 200;
     };
 
     cypress_manager = {
-        statistics_flush_period = 50;
+        statistics_flush_period = 200;
     };
 
     security_manager = {
-        user_statistics_gossip_period = 150;
-        account_statistics_gossip_period = 150;
-        user_statistics_flush_period = 50;
+        user_statistics_gossip_period = 200;
+        account_statistics_gossip_period = 200;
+        user_statistics_flush_period = 200;
         request_rate_smoothing_period = 60000;
         account_master_memory_usage_update_period = 500;
     };
@@ -106,7 +106,7 @@ b"""
     };
 
     object_manager = {
-        gc_sweep_period = 10;
+        gc_sweep_period = 200;
     };
 
     hive_manager = {
@@ -123,7 +123,7 @@ b"""
     };
 
     multicell_manager = {
-        cell_statistics_gossip_period = 80;
+        cell_statistics_gossip_period = 200;
     };
 
     cell_directory_synchronizer = {
@@ -144,8 +144,8 @@ b"""
 
     chunk_manager = {
         chunk_refresh_delay = 300;
-        chunk_refresh_period = 10;
-        chunk_properties_update_period = 10;
+        chunk_refresh_period = 100;
+        chunk_properties_update_period = 100;
     };
 
     node_tracker = {
@@ -158,23 +158,23 @@ b"""
     };
 
     security_manager = {
-        user_statistics_gossip_period = 150;
-        account_statistics_gossip_period = 150;
-        user_statistics_flush_period = 50;
+        user_statistics_gossip_period = 200;
+        account_statistics_gossip_period = 200;
+        user_statistics_flush_period = 200;
         request_rate_smoothing_period = 60000;
         account_master_memory_usage_update_period = 500;
         enable_delayed_membership_closure_recomputation = %false;
     };
 
     cypress_manager = {
-        statistics_flush_period = 50;
-        expiration_check_period = 100;
-        expiration_backoff_time = 100;
+        statistics_flush_period = 200;
+        expiration_check_period = 200;
+        expiration_backoff_time = 200;
         enable_unlock_command = %true;
     };
 
     multicell_manager = {
-        cell_statistics_gossip_period = 80;
+        cell_statistics_gossip_period = 200;
     };
 }
 """)
