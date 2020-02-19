@@ -794,9 +794,7 @@ void TMapNodeChildren::Insert(const TObjectManagerPtr& objectManager, const TStr
     MasterMemoryUsage_ += key.size();
 
     if (child) {
-        if (objectManager) {
-            objectManager->RefObject(child);
-        }
+        objectManager->RefObject(child);
         YT_VERIFY(ChildToKey_.emplace(child, key).second);
     }
 }
@@ -956,30 +954,7 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, ChildCountDelta_);
-
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::SnapshotLockableMapNodes) {
-        Children_.ResetToDefaultConstructed();
-
-        TMapNodeChildren::TKeyToChild keyToChild;
-        TMapSerializer<
-            TDefaultSerializer,
-            TNonversionedObjectRefSerializer
-        >::Load(context, keyToChild);
-
-        // Passing a nullptr as the object manager is a dirty hack: in this
-        // particular case, we're sure there's no CoW sharing, and the object
-        // manager won't actually be used.
-        auto& children = MutableChildren(nullptr);
-
-        for (const auto& [key, childNode] : keyToChild) {
-            if (childNode) {
-                children.Insert(nullptr, key, childNode);
-            }
-        }
-    } else {
-        Load(context, Children_);
-    }
+    Load(context, Children_);
 }
 
 int TMapNode::GetGCWeight() const

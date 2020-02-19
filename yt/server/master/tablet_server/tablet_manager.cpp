@@ -1605,7 +1605,6 @@ public:
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        // TODO
         auto resourceUsageDelta = TClusterResources()
             .SetTabletStaticMemory(totalMemorySizeDelta);
         securityManager->UpdateTabletResourceUsage(originatingNode, resourceUsageDelta);
