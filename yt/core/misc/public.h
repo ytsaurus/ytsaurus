@@ -105,6 +105,8 @@ constexpr TChecksum NullChecksum = 0;
 template <class T, unsigned Size>
 class SmallVector;
 
+class TRef;
+
 namespace NDetail {
 
 template <typename KeyT, typename ValueT>
