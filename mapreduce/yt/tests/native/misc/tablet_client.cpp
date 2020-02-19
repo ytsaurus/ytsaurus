@@ -1,6 +1,7 @@
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
 #include <mapreduce/yt/interface/errors.h>
+#include <mapreduce/yt/interface/error_codes.h>
 #include <mapreduce/yt/util/wait_for_tablets_state.h>
 
 #include <library/unittest/registar.h>
@@ -425,6 +426,31 @@ Y_UNIT_TEST_SUITE(TabletClient) {
         UNIT_ASSERT_VALUES_EQUAL(infos[0].TotalRowCount, 0);
         UNIT_ASSERT_VALUES_EQUAL(infos[0].TrimmedRowCount, 0);
         UNIT_ASSERT_LE(infos[0].BarrierTimestamp, ts);
+
+        client->UnmountTable(tablePath);
+        WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);
+    }
+
+    Y_UNIT_TEST(TestInsertRowsEarlyError)
+    {
+        TTabletFixture fixture;
+        auto client = fixture.GetClient();
+
+        auto workingDir = fixture.GetWorkingDir();
+        const TString tablePath = workingDir + "/test-InsertRowsEarlyError";
+        CreateTestTable(client, tablePath);
+
+        client->MountTable(tablePath);
+        WaitForTabletsState(client, tablePath, TS_MOUNTED, WaitTabletsOptions);
+
+        auto rows = TVector(1024 * 1024, TNode()("bad_row", 100500));
+
+        try {
+            client->InsertRows(tablePath, rows);
+            UNIT_FAIL("Expected exception to be thrown");
+        } catch (const TErrorResponse& e) {
+            UNIT_ASSERT(e.GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTableClient::SchemaViolation));
+        }
 
         client->UnmountTable(tablePath);
         WaitForTabletsState(client, tablePath, TS_UNMOUNTED, WaitTabletsOptions);

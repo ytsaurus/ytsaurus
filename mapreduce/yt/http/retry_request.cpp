@@ -20,8 +20,8 @@ static TResponseInfo Request(
     THttpHeader &header,
     TMaybe<TStringBuf> body,
     THttpRequest& request,
-    const TRequestConfig &config) {
-
+    const TRequestConfig &config)
+{
     TString hostName;
     if (config.IsHeavy) {
         hostName = GetProxyForHeavyRequest(auth);
@@ -30,6 +30,7 @@ static TResponseInfo Request(
     }
 
     request.Connect(hostName, config.SocketTimeout);
+
     request.SmallRequest(header, body);
 
     TResponseInfo result;

@@ -1,6 +1,7 @@
 #include "http.h"
 
 #include "abortable_http_response.h"
+#include "mapreduce/yt/interface/errors.h"
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
@@ -9,6 +10,7 @@
 
 #include <library/json/json_writer.h>
 #include <library/string_utils/base64/base64.h>
+#include <library/string_utils/quote/quote.h>
 
 #include <util/generic/singleton.h>
 
@@ -17,8 +19,9 @@
 #include <util/string/cast.h>
 #include <util/string/escape.h>
 #include <util/string/printf.h>
-#include <library/string_utils/quote/quote.h>
 #include <util/system/getpid.h>
+
+#include <exception>
 
 namespace NYT {
 
@@ -39,7 +42,7 @@ static TString TruncateForLogs(const TString& text, size_t maxSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THttpRequest::TDebugRequestTracer
+class TDebugRequestTracer
     : public IOutputStream
 {
 public:
@@ -76,6 +79,118 @@ private:
     static constexpr size_t MaxSize = 1024 * 1024;
     IOutputStream* const UnderlyingStream;
     TString Trace;
+};
+
+
+class THttpRequest::TRequestStream
+    : public IOutputStream
+{
+public:
+    TRequestStream(THttpRequest* httpRequest, const TSocket& s)
+        : HttpRequest_(httpRequest)
+        , SocketOutput_(s)
+        , DebugTracer_(IsTracingRequired() ? MakeHolder<TDebugRequestTracer>(&SocketOutput_) : nullptr)
+        , HttpOutput_(
+                DebugTracer_
+                ? static_cast<IOutputStream*>(DebugTracer_.Get())
+                : static_cast<IOutputStream*>(&SocketOutput_))
+    {
+        HttpOutput_.EnableKeepAlive(true);
+    }
+
+    bool IsTracingEnabled() const
+    {
+        return DebugTracer_.Get();
+    }
+
+    TStringBuf GetTrace() const
+    {
+        if (DebugTracer_) {
+            return DebugTracer_->GetTrace();
+        }
+        return {};
+    }
+
+private:
+    void DoWrite(const void* buf, size_t len) override
+    {
+        WrapWriteFunc([&] {
+            HttpOutput_.Write(buf, len);
+        });
+    }
+
+    void DoWriteV(const TPart* parts, size_t count) override
+    {
+        WrapWriteFunc([&] {
+            HttpOutput_.Write(parts, count);
+        });
+    }
+
+    void DoWriteC(char ch) override
+    {
+        WrapWriteFunc([&] {
+            HttpOutput_.Write(ch);
+        });
+    }
+
+    void DoFlush() override
+    {
+        WrapWriteFunc([&] {
+            HttpOutput_.Flush();
+        });
+    }
+
+    void DoFinish() override
+    {
+        WrapWriteFunc([&] {
+            HttpOutput_.Finish();
+        });
+    }
+
+    void WrapWriteFunc(std::function<void()> func)
+    {
+        CheckErrorState();
+        try {
+            func();
+        } catch (const yexception&) {
+            HandleWriteException();
+        }
+    }
+
+    // In many cases http proxy stops reading request and resets connection
+    // if error has happend. This function tries to read error response
+    // in such cases.
+    void HandleWriteException() {
+        Y_VERIFY(WriteError_ == nullptr);
+        WriteError_ = std::current_exception();
+        Y_VERIFY(WriteError_ != nullptr);
+        try {
+            HttpRequest_->GetResponseStream();
+        } catch (const TErrorResponse &) {
+            throw;
+        } catch (...) {
+        }
+        std::rethrow_exception(WriteError_);
+    }
+
+    void CheckErrorState()
+    {
+        if (WriteError_) {
+            std::rethrow_exception(WriteError_);
+        }
+    }
+
+    static bool IsTracingRequired()
+    {
+        return TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Never;
+    }
+
+private:
+    THttpRequest* const HttpRequest_;
+    TSocketOutput SocketOutput_;
+    THolder<TDebugRequestTracer> DebugTracer_;
+    THttpOutput HttpOutput_;
+    std::exception_ptr WriteError_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -684,7 +799,7 @@ static TString GetParametersDebugString(const THttpHeader& header)
     }
 }
 
-THttpOutput* THttpRequest::StartRequestImpl(const THttpHeader& header, bool includeParameters)
+IOutputStream* THttpRequest::StartRequestImpl(const THttpHeader& header, bool includeParameters)
 {
     auto strHeader = header.GetHeader(HostName, RequestId, includeParameters);
     Url_ = header.GetUrl();
@@ -708,28 +823,21 @@ THttpOutput* THttpRequest::StartRequestImpl(const THttpHeader& header, bool incl
         LogResponse = true;
     }
 
-    SocketOutput.Reset(new TSocketOutput(*Connection->Socket.Get()));
-    if (TConfig::Get()->TraceHttpRequestsMode != ETraceHttpRequestsMode::Never) {
-        DebugRequestTracer = MakeHolder<TDebugRequestTracer>(SocketOutput.Get());
-        Output = MakeHolder<THttpOutput>(DebugRequestTracer.Get());
-    } else {
-        Output = MakeHolder<THttpOutput>(SocketOutput.Get());
-    }
-    Output->EnableKeepAlive(true);
+    RequestStream_ = MakeHolder<TRequestStream>(this, *Connection->Socket.Get());
 
-    Output->Write(strHeader.data(), strHeader.size());
-    return Output.Get();
+    RequestStream_->Write(strHeader.data(), strHeader.size());
+    return RequestStream_.Get();
 }
 
-THttpOutput* THttpRequest::StartRequest(const THttpHeader& header)
+IOutputStream* THttpRequest::StartRequest(const THttpHeader& header)
 {
     return StartRequestImpl(header, true);
 }
 
 void THttpRequest::FinishRequest()
 {
-    Output->Flush();
-    Output->Finish();
+    RequestStream_->Flush();
+    RequestStream_->Finish();
     if (TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Always) {
         TraceRequest(*this);
     }
@@ -801,11 +909,11 @@ void THttpRequest::InvalidateConnection()
 
 TString THttpRequest::GetTracedHttpRequest() const
 {
-    if (!DebugRequestTracer) {
-        return TString();
+    if (!RequestStream_->IsTracingEnabled()) {
+        return {};
     }
     TStringStream result;
-    TMemoryInput savedRequest(DebugRequestTracer->GetTrace());
+    TMemoryInput savedRequest(RequestStream_->GetTrace());
     TString line;
     while (savedRequest.ReadLine(line)) {
         auto authPattern = AsStringBuf("Authorization: OAuth");
