@@ -11,7 +11,7 @@ import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
-public class GetInSyncReplicas {
+public class GetInSyncReplicas extends RequestBase<GetInSyncReplicas> {
     private final String path;
     private final TableSchema schema;
 

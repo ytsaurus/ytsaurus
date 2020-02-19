@@ -7,9 +7,10 @@ import java.util.Objects;
 import java.util.Optional;
 
 import ru.yandex.yt.rpcproxy.ERowModificationType;
+import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
-public abstract class AbstractModifyRowsRequest {
+public abstract class AbstractModifyRowsRequest extends RequestBase<AbstractModifyRowsRequest> {
     protected final String path;
     protected final TableSchema schema;
     protected Boolean requireSyncReplica = null;
