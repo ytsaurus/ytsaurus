@@ -128,7 +128,6 @@ class Transaction(object):
             self._ping_thread = PingTransaction(
                 self.transaction_id,
                 delay,
-                sticky=self.sticky,
                 interrupt_on_failed=interrupt_on_failed,
                 client=pinger_client)
             self._ping_thread.start()
@@ -147,7 +146,7 @@ class Transaction(object):
         if self._finished or self.transaction_id == null_transaction_id:
             return
         self._stop_pinger()
-        abort_transaction(self.transaction_id, sticky=self.sticky, client=self._client)
+        abort_transaction(self.transaction_id, client=self._client)
         self._finished = True
 
     def commit(self):
@@ -166,7 +165,7 @@ class Transaction(object):
         if self._finished:
             raise YtError("Transaction is already finished, cannot commit")
         self._stop_pinger()
-        commit_transaction(self.transaction_id, sticky=self.sticky, client=self._client)
+        commit_transaction(self.transaction_id, client=self._client)
         self._finished = True
 
     def is_pinger_alive(self):
@@ -243,14 +242,13 @@ class PingTransaction(Thread):
 
     Pings transaction in background thread.
     """
-    def __init__(self, transaction, delay, sticky=False, interrupt_on_failed=True, client=None):
+    def __init__(self, transaction, delay, interrupt_on_failed=True, client=None):
         """
         :param int delay: delay in seconds.
         """
         super(PingTransaction, self).__init__()
         self.transaction = transaction
         self.delay = delay
-        self.sticky = sticky
         self.interrupt_on_failed = interrupt_on_failed
         self.failed = False
         self.is_running = True
@@ -283,7 +281,7 @@ class PingTransaction(Thread):
     def run(self):
         while self.is_running:
             try:
-                ping_transaction(self.transaction, sticky=self.sticky, client=self._client)
+                ping_transaction(self.transaction, client=self._client)
             except:
                 self.failed = True
                 if self.interrupt_on_failed:

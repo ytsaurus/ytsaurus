@@ -1,7 +1,7 @@
 #!/bin/bash -eux
 
 PIDS=""
-YT="$PYTHON_BINARY $YT_SCRIPT_PATH"
+YT="$PYTHON_BINARY $YT_CLI_PATH"
 
 add_pid_to_kill() {
     PIDS="$PIDS $1"
@@ -54,12 +54,6 @@ run_test() {
 # Directory creation, list, get and set commands
 test_cypress_commands()
 {
-    fix_yson_repr() {
-        # COMPAT: yson representation slightly differ in prestable/0.17.3 and master.
-        local yson_str="$1"
-        echo $(python2 -c "import sys; sys.stdout.write('$yson_str'.replace(';}', '}').replace(';>', '>'))")
-    }
-
     check "" "$($YT list //home/wrapper_test)"
     check "" "$($YT find //home/wrapper_test --name "xxx")"
 
@@ -68,14 +62,14 @@ test_cypress_commands()
     check "folder" "$($YT list //home/wrapper_test)"
     check "folder" "$($YT list //home/wrapper_test --read-from cache)"
     check '["folder"]' "$($YT list //home/wrapper_test --format json)"
-    check "{\"folder\"={}}" "$(fix_yson_repr $($YT get //home/wrapper_test --format "<format=text>yson"))"
+    check "{\"folder\"={};}" "$($YT get //home/wrapper_test --format "<format=text>yson")"
     check "" "$($YT find //home/wrapper_test --name "xxx")"
     check "//home/wrapper_test/folder" "$($YT find //home/wrapper_test --name "folder")"
     check "//home/wrapper_test/folder" "$($YT find //home/wrapper_test --name "folder" --read-from cache)"
     check "//home/wrapper_test/folder" "$(YT_PREFIX="//home/" $YT find wrapper_test --name "folder")"
 
     $YT set //home/wrapper_test/folder/@attr '<a=b>c'
-    check  '<"a"="b">"c"' "$(fix_yson_repr $($YT get //home/wrapper_test/folder/@attr --format '<format=text>yson'))"
+    check  '<"a"="b";>"c"' "$($YT get //home/wrapper_test/folder/@attr --format '<format=text>yson')"
 
     $YT set //home/wrapper_test/folder/@attr '{"attr": 10}' --format json
     check '{"attr":10}' $($YT get //home/wrapper_test/folder/@attr --format json)
@@ -167,6 +161,9 @@ test_copy_move_link()
     $YT remove //home/wrapper_test/other_table
 
     $YT create account --attributes '{name=test}'
+    $YT set //sys/accounts/test/@resource_limits/node_count 1000
+    $YT set //sys/accounts/test/@resource_limits/chunk_count 100000
+    $YT set //sys/accounts/test/@resource_limits/disk_space_per_medium/default 1000000000
     $YT create table //home/wrapper_test/table --attributes '{account=test}'
 
     $YT copy //home/wrapper_test/table //home/wrapper_test/other_table
@@ -224,19 +221,13 @@ test_map_reduce()
 
 test_users()
 {
-    fix_yson_repr() {
-        # COMPAT: yson representation slightly differ in prestable/0.17.3 and master.
-        local yson_str="$1"
-        echo $(python2 -c "import sys; sys.stdout.write('$yson_str'.replace(';]', ']'))")
-    }
-
     $YT create user --attribute '{name=test_user}'
     $YT create group --attribute '{name=test_group}'
 
     check "[]" "$($YT get //sys/groups/test_group/@members --format '<format=text>yson')"
 
     $YT add-member test_user test_group
-    check  '["test_user"]' "$(fix_yson_repr $($YT get //sys/groups/test_group/@members --format '<format=text>yson'))"
+    check  '["test_user";]' "$($YT get //sys/groups/test_group/@members --format '<format=text>yson')"
 
     $YT set "//home/wrapper_test/@acl/end" "{action=allow;subjects=[test_group];permissions=[write]}"
     $YT check-permission test_user write "//home/wrapper_test" | grep allow

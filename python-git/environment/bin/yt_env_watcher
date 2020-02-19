@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
 from yt.common import which
-from yt.logger_config import LOG_LEVEL, LOG_PATTERN
+from yt.logger import set_log_level_from_config
+from yt.logger_config import LOG_PATTERN
 
 import argparse
 import fcntl
@@ -13,7 +14,7 @@ from logging.handlers import WatchedFileHandler
 logger = logging.getLogger("Yt.local.watcher")
 
 def configure_logging(log_path):
-    logger.setLevel(logging.__dict__[LOG_LEVEL.upper()])
+    set_log_level_from_config(logger)
 
     handler = WatchedFileHandler(filename=log_path, mode="a")
     handler.setFormatter(logging.Formatter(LOG_PATTERN))

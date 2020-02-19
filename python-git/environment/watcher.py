@@ -74,6 +74,7 @@ class ProcessWatcher(object):
                 "\t/usr/bin/test -d /proc/{0} && kill -HUP {0} >/dev/null 2>&1 || true".format(pid)
             )
 
+        compress_options = ["nodelaycompress", "compress"] if self._config.get("logs_rotate_compress") else []
         logrotate_options = [
             "rotate {0}".format(self._config["logs_rotate_max_part_count"]),
             "size {0}".format(self._config["logs_rotate_size"]),
@@ -82,6 +83,7 @@ class ProcessWatcher(object):
             "nomail",
             "noolddir",
             "create",
+        ] + compress_options + [
             "postrotate",
             "\n".join(postrotate_commands),
             "endscript"

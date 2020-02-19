@@ -15,6 +15,8 @@ DEFAULT_CERTIFICATE_BUNDLE_PATH = "/etc/ssl/certs/ca-certificates.crt"
 
 
 def make_acl_client(client=None):
+    """Creates AclClient from YtClient.
+    """
     cluster = get_config(client)["proxy"]["url"].split(".")[0]
     token = get_token(client=client)
     return YtAclClient(cluster, token)

@@ -244,10 +244,11 @@ _START_DEFAULTS = {
 def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_count=0, rpc_proxy_config=None,
           master_config=None, node_config=None, scheduler_config=None, proxy_config=None, controller_agent_config=None,
           proxy_port=None, http_proxy_ports=None, http_proxy_count=None, id=None, local_cypress_dir=None,
-          enable_debug_logging=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
+          enable_debug_logging=False, enable_logging_compression=False, tmpfs_path=None, port_range_start=None, fqdn=None, path=None,
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None, jobs_resource_limits=None,
           node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
-          meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0):
+          meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0,
+          ytserver_all_path=None):
 
     # TODO(max42): proxy_port are legacy options. Get rid of them in Arcadia.
     if proxy_port is not None:
@@ -285,6 +286,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
     environment = YTInstance(sandbox_path,
                              http_proxy_ports=http_proxy_ports,
                              enable_debug_logging=enable_debug_logging,
+                             enable_logging_compression=enable_logging_compression,
                              port_range_start=port_range_start,
                              fqdn=fqdn,
                              # XXX(asaitgalin): For parallel testing purposes.
@@ -300,6 +302,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
                              jobs_memory_limit=jobs_memory_limit,
                              jobs_cpu_limit=jobs_cpu_limit,
                              jobs_user_slot_count=jobs_user_slot_count,
+                             ytserver_all_path=ytserver_all_path,
                              **options)
 
     environment.id = sandbox_id

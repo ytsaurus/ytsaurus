@@ -2,8 +2,8 @@ from .operation_commands import TimeWatcher, process_operation_unsuccesful_finis
 from .common import YtError, require, update
 from .spec_builders import VanillaSpecBuilder
 from .run_operation_commands import run_operation
-from .dynamic_table_commands import mount_table
-from .cypress_commands import get, exists, copy, create
+from .dynamic_table_commands import mount_table, unmount_table, reshard_table
+from .cypress_commands import get, exists, copy, create, set
 from .transaction_commands import _make_transactional_request
 from .operation_commands import get_operation_url, abort_operation
 from .http_helpers import get_proxy_url
@@ -14,15 +14,15 @@ from .yson import dumps, to_yson_type
 
 import yt.logger as logger
 
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, PY3
 from yt.yson import YsonUint64
 
 from tempfile import NamedTemporaryFile
-from inspect import getargspec
 
 import os.path
 import json
 import random
+import inspect
 
 CYPRESS_DEFAULTS_PATH = "//sys/clickhouse/defaults"
 BUNDLED_DEFAULTS = {
@@ -41,7 +41,10 @@ BUNDLED_DEFAULTS = {
 
 
 def _get_kwargs_names(fn):
-    argspec = getargspec(fn)
+    if PY3:
+        argspec = inspect.getfullargspec(fn)
+    else:
+        argspec = inspect.getargspec(fn)
     kwargs_len = len(argspec.defaults)
     kwargs_names = argspec.args[-kwargs_len:]
     return kwargs_names
@@ -138,7 +141,7 @@ def _build_description(cypress_ytserver_clickhouse_path=None,
     if cluster is not None and operation_alias is not None and enable_monitoring:
         description["monitoring_url"] = _format_url(
             "https://solomon.yandex-team.ru/?project=yt&cluster={}&service=yt_clickhouse&operation_alias={}"
-                .format(cluster, operation_alias))
+                .format(cluster, operation_alias[1:]))
 
     return description
 
@@ -312,7 +315,7 @@ def prepare_cypress_configs(instance_count,
             "memory_limit": memory_limit + uncompressed_block_cache_size + memory_footprint,
         },
         "profile_manager": {
-            "global_tags": {"operation_alias": operation_alias} if operation_alias is not None else {},
+            "global_tags": {"operation_alias": operation_alias[1:]} if operation_alias is not None else {},
         },
         "discovery": {
             "directory": "//sys/clickhouse/cliques",
@@ -346,13 +349,49 @@ def prepare_cypress_configs(instance_count,
     return result
 
 
-def prepare_log_tailer_table(log_file,
-                             artifact_path,
-                             instance_count=None,
-                             client=None):
-    job_id_shard_count = instance_count * 5
+# Here and below table_kind is in ("ordered_normally", "ordered_by_trace_id")
+
+def set_log_tailer_table_attributes(table_kind, table_path, ttl, client=None):
+    attributes = {
+        "min_data_versions": 0,
+        "max_data_versions": 1,
+        "max_dynamic_store_pool_size": 268435456,
+        "min_data_ttl": ttl,
+        "max_data_ttl": ttl,
+        "primary_medium": "ssd_blobs",
+        "optimize_for": "scan",
+        "backing_store_retention_time": 0,
+        "auto_compaction_period": 86400000,
+        "dynamic_store_overflow_threshold": 0.5,
+        "enable_lsm_verbose_logging": True,
+    }
+
+    for attribute, value in attributes.iteritems():
+        attribute_path = table_path + "/@" + attribute
+        logger.debug("Setting %s to %s", attribute_path, value)
+        set(attribute_path, value, client=client)
+
+
+def set_log_tailer_table_dynamic_attributes(table_kind, table_path, client=None):
+    if table_kind == "ordered_normally":
+        logger.debug("Resharding %s", table_path)
+        pivot_keys = [[]] + [[YsonUint64(i), None, None, None] for i in xrange(1, 100)]
+        reshard_table(table_path, pivot_keys=pivot_keys, sync=True, client=client)
+
+    attributes = {
+        "tablet_balancer_config/min_tablet_size": 0,
+        "tablet_balancer_config/desired_tablet_size": 10 * 1024**3,
+        "tablet_balancer_config/max_tablet_size": 20 * 1024**3,
+    }
+    for attribute, value in attributes.iteritems():
+        attribute_path = table_path + "/@" + attribute
+        logger.debug("Setting %s to %s", attribute_path, value)
+        set(attribute_path, value, client=client)
+
+
+def create_log_tailer_table(table_kind, table_path, client=None):
     ORDERED_NORMALLY_SCHEMA = [
-        {"name": "job_id_shard", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(job_id) % " + str(job_id_shard_count)},
+        {"name": "job_id_shard", "type": "uint64", "sort_order": "ascending", "expression": "farm_hash(job_id) % 100"},
         {"name": "timestamp", "type": "string", "sort_order": "ascending"},
         {"name": "job_id", "type": "string", "sort_order": "ascending"},
         {"name": "increment", "type": "uint64", "sort_order": "ascending"},
@@ -378,6 +417,22 @@ def prepare_log_tailer_table(log_file,
         {"name": "operation_id", "type": "string"}
     ]
 
+    table_kind_to_schema = {"ordered_normally": ORDERED_NORMALLY_SCHEMA, "ordered_by_trace_id": ORDERED_BY_TRACE_ID_SCHEMA}
+    schema = table_kind_to_schema[table_kind]
+    attributes = {
+        "dynamic": True,
+        "schema": schema,
+    }
+    logger.info("Creating log tailer table %s of kind %s", table_path, table_kind)
+    create("table", table_path, attributes=attributes, client=client, force=True)
+
+
+
+def prepare_log_tailer_tables(log_file,
+                              artifact_path,
+                              instance_count=None,
+                              client=None):
+
     assert len(log_file.get("tables", [])) == 0
 
     base_path = os.path.basename(log_file["path"])
@@ -390,26 +445,16 @@ def prepare_log_tailer_table(log_file,
         {"path": ordered_by_trace_id_path, "require_trace_id": True},
     ]
 
-    def prepare_table(path, schema, ttl, extra_attributes={}):
-        if not exists(path, client=client):
-            logger.info("Table %s does not exist, creating it", path)
-            attributes = {
-                "dynamic": True,
-                "schema": schema,
-                "min_data_versions": 0,
-                "max_data_versions": 1,
-                "min_data_ttl": ttl,
-                "max_data_ttl": ttl,
-            }
-            attributes = update(attributes, extra_attributes)
-            create("table", path, attributes=attributes, client=client)
-        mount_table(path)
+    ttl = log_file["ttl"]
 
-    prepare_table(ordered_normally_path, ORDERED_NORMALLY_SCHEMA, log_file["ttl"], extra_attributes={
-        "tablet_balancer_config": {"enable_auto_reshard": False},
-        "pivot_keys": [[]] + [[YsonUint64(i), None, None, None] for i in range(1, job_id_shard_count)],
-    })
-    prepare_table(ordered_by_trace_id_path, ORDERED_BY_TRACE_ID_SCHEMA, log_file["ttl"])
+    for kind, path in [("ordered_normally", ordered_normally_path), ("ordered_by_trace_id", ordered_by_trace_id_path)]:
+        if not exists(path, client=client):
+            create_log_tailer_table(kind, path, client=client)
+        else:
+            unmount_table(path, sync=True)
+        set_log_tailer_table_attributes(kind, path, ttl, client=client)
+        set_log_tailer_table_dynamic_attributes(kind, path, client=client)
+        mount_table(path, sync=True)
 
 
 @_patch_defaults
@@ -462,7 +507,7 @@ def prepare_artifacts(artifact_path,
 
     if enable_log_tailer:
         for log_file in log_tailer_config["log_tailer"]["log_files"]:
-            prepare_log_tailer_table(log_file, artifact_path, instance_count=instance_count, client=client)
+            prepare_log_tailer_tables(log_file, artifact_path, instance_count=instance_count, client=client)
 
 
 

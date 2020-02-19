@@ -46,7 +46,11 @@ from yt.packages.six import integer_types, text_type, binary_type, iteritems, it
 
 import math
 import re
-from collections import Iterable, Mapping
+# Python3 compatibility
+try:
+    from collections.abc import Iterable, Mapping
+except ImportError:
+    from collections import Iterable, Mapping
 
 __all__ = ["dump", "dumps"]
 

@@ -1,8 +1,9 @@
 from __future__ import print_function
 
-from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path, wait,
+from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path, wait, get_default_resource_limits,
                       get_environment_for_binary_test, check, set_config_options, set_config_option)
 
+from yt.subprocess_wrapper import Popen, PIPE
 from yt.wrapper.errors import YtRetriableError
 from yt.wrapper.exceptions_catcher import KeyboardInterruptsCatcher
 from yt.wrapper.mappings import VerifiedDict, FrozenDict
@@ -12,11 +13,13 @@ from yt.wrapper.retries import run_with_retries, Retrier
 from yt.wrapper.ypath import ypath_join, ypath_dirname, ypath_split
 from yt.wrapper.stream import _ChunkStream
 from yt.wrapper.default_config import retries_config as get_default_retries_config
+
+import yt.environment.arcadia_interop as arcadia_interop
+
 from yt.common import makedirp
 from yt.yson import to_yson_type
 import yt.yson as yson
 import yt.json_wrapper as json
-import yt.subprocess_wrapper as subprocess
 
 from yt.packages.six import iterkeys, itervalues, iteritems, PY3, Iterator, b
 from yt.packages.six.moves import xrange, filter as ifilter
@@ -127,9 +130,37 @@ class TestYtBinary(object):
         makedirp(sandbox_dir)
 
         test_binary = get_test_file_path("test_yt.sh", use_files=False)
-        proc = subprocess.Popen([test_binary], env=env, stderr=sys.stderr, cwd=sandbox_dir)
+
+        output_file = os.path.join(sandbox_dir, "stderr")
+        output = open(output_file, "w")
+        proc = Popen([test_binary], env=env, stdout=output, stderr=output, cwd=sandbox_dir)
         proc.communicate()
+
+        if arcadia_interop is not None:
+            sys.stderr.write(open(output_file).read())
+
         assert proc.returncode == 0
+
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestDriverLogging(object):
+    def test_driver_logging(self, yt_env_with_rpc):
+        def get_stderr_from_cli(log_level=None):
+            env = get_environment_for_binary_test(yt_env_with_rpc, enable_request_logging=False)
+            if log_level:
+                env["YT_LOG_LEVEL"] = log_level
+            proc = Popen([env["PYTHON_BINARY"], env["YT_CLI_PATH"], "get", TEST_DIR], stderr=PIPE, stdout=PIPE, env=env)
+            _, p_stderr = proc.communicate()
+            return p_stderr
+
+        if yt.config["backend"] != "rpc":
+            pytest.skip()
+
+        driver_log_default = get_stderr_from_cli()
+        driver_log_info = get_stderr_from_cli(log_level="INFO")
+        driver_log_warning = get_stderr_from_cli(log_level="WARNING")
+
+        assert len(driver_log_default) < len(driver_log_info)
+        assert len(driver_log_warning) == 0
 
 @pytest.mark.usefixtures("yt_env")
 class TestMutations(object):
@@ -510,16 +541,22 @@ class TestRetries(object):
 
     def test_concatenate(self):
         yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
+        override_options = {
+            "write_retries/enable": True,
+            "write_retries/count": 10,
+            "concatenate_retries/count": 10,
+        }
         try:
-            tableA = TEST_DIR + "/tableA"
-            tableB = TEST_DIR + "/tableB"
-            output_table = TEST_DIR + "/outputTable"
+            with set_config_options(override_options):
+                tableA = TEST_DIR + "/tableA"
+                tableB = TEST_DIR + "/tableB"
+                output_table = TEST_DIR + "/outputTable"
 
-            yt.write_table(tableA, [{"x": 1, "y": 2}])
-            yt.write_table(tableB, [{"x": 10, "y": 20}])
-            yt.concatenate([tableA, tableB], output_table)
+                yt.write_table(tableA, [{"x": 1, "y": 2}])
+                yt.write_table(tableB, [{"x": 10, "y": 20}])
+                yt.concatenate([tableA, tableB], output_table)
 
-            assert [{"x": 1, "y": 2}, {"x": 10, "y": 20}] == list(yt.read_table(output_table))
+                assert [{"x": 1, "y": 2}, {"x": 10, "y": 20}] == list(yt.read_table(output_table))
         finally:
             yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
 
@@ -787,8 +824,8 @@ class TestCellId(object):
 @pytest.mark.usefixtures("yt_env_multicell")
 class TestExternalize(object):
     def test_externalize(self):
-        yt.create("account", attributes={"name": "a"})
-        yt.create("account", attributes={"name": "b"})
+        yt.create("account", attributes={"name": "a", "resource_limits" : get_default_resource_limits(yt)})
+        yt.create("account", attributes={"name": "b", "resource_limits" : get_default_resource_limits(yt)})
         yt.create("user", attributes={"name": "u"})
         wait(lambda: yt.get("//sys/users/u/@life_stage") == "creation_committed")
         wait(lambda: yt.get("//sys/accounts/a/@life_stage") == "creation_committed")

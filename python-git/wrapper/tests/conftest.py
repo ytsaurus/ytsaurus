@@ -28,6 +28,11 @@ import shutil
 import logging
 import socket
 import signal
+import warnings
+
+# Disables """cryptography/hazmat/primitives/constant_time.py:26: CryptographyDeprecationWarning: Support for your Python version is deprecated.
+# The next version of cryptography will remove support. Please upgrade to a 2.7.x release that supports hmac.compare_digest as soon as possible."""
+warnings.filterwarnings(action="ignore", module="cryptography.hazmat.primitives.*")
 
 def pytest_ignore_collect(path, config):
     path = str(path)
@@ -157,6 +162,7 @@ class YtTestEnvironment(object):
             self.env.start(start_secondary_master_cells=True)
         except:
             self.save_sandbox()
+            raise
 
         self.version = "{0}.{1}".format(*self.env.abi_version)
 
@@ -331,6 +337,27 @@ def test_environment_job_archive(request):
     request.addfinalizer(lambda: environment.cleanup())
 
     return environment
+
+@pytest.fixture(scope="session", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
+def test_environment_with_porto(request):
+    environment = init_environment_for_test_session(
+        request.param,
+        env_options={"use_porto_for_servers": True},
+        delta_node_config={
+            "exec_agent": {
+                "slot_manager": {
+                    "enforce_job_control": True,
+                    "job_environment": {
+                        "type": "porto",
+                    },
+                }
+            }
+        }
+    )
+
+    request.addfinalizer(lambda: environment.cleanup())
+    return environment
+
 
 # TODO(ignat): fix this copypaste from yt_env_setup
 def _remove_operations():
@@ -519,6 +546,16 @@ def yt_env_job_archive(request, test_environment_job_archive):
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment_job_archive
+
+@pytest.fixture(scope="function")
+def yt_env_with_porto(request, test_environment_with_porto):
+    """ YT cluster fixture for tests that require "porto" instead of "cgroups"
+    """
+    test_environment_with_porto.check_liveness()
+    test_environment_with_porto.reload_global_configuration()
+    yt.mkdir(TEST_DIR, recursive=True)
+    request.addfinalizer(test_method_teardown)
+    return test_environment_with_porto
 
 @pytest.fixture(scope="function")
 def job_events(request):

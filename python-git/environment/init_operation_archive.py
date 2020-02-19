@@ -4,6 +4,8 @@ import yt.yson as yson
 from yt.wrapper import YtClient, TablePath, config, ypath_join
 from yt.tools.dynamic_tables import make_dynamic_table_attributes, unmount_table_new, mount_table_new
 
+from .init_cluster import get_default_resource_limits
+
 from yt.packages.six.moves import xrange
 
 import argparse
@@ -177,7 +179,10 @@ def set_table_ttl(client, table, ttl=None, auto_compaction_period=None, forbid_o
 def create_operations_archive_account(client):
     if not client.exists("//sys/accounts/{0}".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME)):
         logging.info("Creating account: %s", OPERATIONS_ARCHIVE_ACCOUNT_NAME)
-        client.create("account", attributes={"name": OPERATIONS_ARCHIVE_ACCOUNT_NAME})
+        client.create("account", attributes={
+            "name": OPERATIONS_ARCHIVE_ACCOUNT_NAME,
+            "resource_limits" : get_default_resource_limits(client)
+        })
         while client.get("//sys/accounts/{0}/@life_stage".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME)) != "creation_committed":
             time.sleep(0.1)
 
@@ -534,6 +539,39 @@ TRANSFORMS[32] = [
                 ("update_time", "int64"),
                 ("core_infos", "any"),
                 ("job_competition_id", "string")
+            ],
+            attributes={"atomicity": "none"})),
+]
+
+TRANSFORMS[33] = [
+    Conversion(
+        "jobs",
+        table_info=TableInfo([
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64"),
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("has_spec", "boolean"),
+                ("has_fail_context", "boolean"),
+                ("fail_context_size", "uint64"),
+                ("events", "any"),
+                ("transient_state", "string"),
+                ("update_time", "int64"),
+                ("core_infos", "any"),
+                ("job_competition_id", "string"),
+                ("has_competitors", "boolean")
             ],
             attributes={"atomicity": "none"})),
 ]

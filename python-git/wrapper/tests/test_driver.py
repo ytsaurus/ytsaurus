@@ -57,9 +57,10 @@ def test_sanitize_structure():
     yt.create("table", table, attributes={"schema": schema})
     assert yt.get(table + "/@schema/@unique_keys")
 
+@pytest.mark.skipif("yatest_common is not None")
 @pytest.mark.usefixtures("yt_env")
 def test_catching_sigint(yt_env):
-    if yt.config["backend"] != "native" or yatest_common is not None:
+    if yt.config["backend"] != "native":
         pytest.skip()
 
     driver_config_path = yt_env.env.config_paths["console_driver"][0]

@@ -3,7 +3,6 @@
 .. note:: In `Format <.Format>` descendants constructors default parameters are overridden by `attributes` \
 parameters, and then by kwargs options.
 """
-
 from .config import get_config
 from .common import get_value, require, filter_dict, merge_dicts, YtError, parse_bool, declare_deprecated, flatten
 from .mappings import FrozenDict
@@ -40,6 +39,8 @@ except ImportError:
     sb_misc = None
 
 _ENCODING_SENTINEL = object()
+
+JSON_ENCODING_LEGACY_MODE = False
 
 class _AttributeDict(dict):
     def __init__(self, *args, **kwargs):
@@ -233,9 +234,6 @@ class Format(object):
     def _get_encoding(encoding):
         if encoding is _ENCODING_SENTINEL:
             return "utf-8" if PY3 else None
-
-        if not PY3 and encoding is not _ENCODING_SENTINEL and encoding is not None:
-            raise YtError('Parameter "encoding" is not supported for Python 2')
 
         return encoding
 
@@ -925,8 +923,6 @@ class JsonFormat(Format):
 
     .. seealso:: `JSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#json>`_
     """
-    _ENCODING = "utf-8" if PY3 else None
-
     @staticmethod
     def _wrap_json_module(json_module):
         return _AttributeDict({
@@ -948,8 +944,10 @@ class JsonFormat(Format):
 
         return JsonFormat._wrap_json_module(module)
 
+    # TODO(ignat): deprecate encode_utf8=None mode.
     def __init__(self, control_attributes_mode=None,
-                 table_index_column="@table_index", attributes=None, raw=None, enable_ujson=False):
+                 table_index_column="@table_index", attributes=None, raw=None, enable_ujson=False,
+                 encoding=_ENCODING_SENTINEL, encode_utf8=None):
         """
         :param str control_attributes_mode: mode of processing rows with control attributes, must be one of \
         ["row_fields", "iterator", "generator", "none"]. In "row_fields" mode attributes are put in the regular \
@@ -958,9 +956,20 @@ class JsonFormat(Format):
         In "iterator" mode attributes rows object is iterator and control attributes are available \
         as fields of the iterator. \
         In "none" (or deprecated "generator") mode rows are unmodified.
+        :param str encoding: used to decode string from bytes to native python strings in load method. It has no effect for dump, since simplejson decodes byte as unicode number.
+        :param str encode_utf8: enables encoding bytes as unicode numbers.
+        In case of True we request encoding and decode it back on client side [by default].
+        In case of False we do nothing.
+        If JSON_ENCODING_LEGACY_MODE enabled and encoding is not specified 
+        we return result from server as it is.
         """
+        self._is_encoding_specified = encoding is not _ENCODING_SENTINEL 
+
+        defaults = {}
+        options = {}
         attributes = get_value(attributes, {})
-        super(JsonFormat, self).__init__("json", attributes, raw, self._ENCODING)
+        all_attributes = Format._make_attributes(attributes, defaults, options)
+        super(JsonFormat, self).__init__("json", all_attributes, raw, encoding)
 
         if control_attributes_mode is None:
             control_attributes_mode = "iterator"
@@ -974,24 +983,105 @@ class JsonFormat(Format):
         self.enable_ujson = enable_ujson and not PY3
         self.json_module = JsonFormat._get_json_module(enable_ujson=enable_ujson)
 
+        # TODO(ignat): use Format._create_property
+        if encode_utf8 is not None:
+            all_attributes["encode_utf8"] = encode_utf8
+        self.encode_utf8 = all_attributes.get("encode_utf8")
+
+    def _load_python_string(self, string):
+        def _decode_byte_string(string):
+            assert isinstance(string, binary_type)
+            if self._encoding is not None:
+                return string.decode(self._encoding)
+            else:
+                return string
+
+        is_encode_utf8_false = self.encode_utf8 is not None and not self.encode_utf8
+        if is_encode_utf8_false and self._encoding == "utf-8":
+            return string
+        if not is_encode_utf8_false:
+            byte_string = string.encode("latin1")
+        else:
+            byte_string = string.encode("utf-8")
+        return _decode_byte_string(byte_string)
+
+    def _decode(self, obj):
+        # NB: this check is necessary for backward compatibility.
+        if JSON_ENCODING_LEGACY_MODE and not self._is_encoding_specified:
+            return obj
+
+        if isinstance(obj, dict):
+            return dict([(self._load_python_string(key), self._decode(value)) for key, value in iteritems(obj)])
+        elif isinstance(obj, list):
+            return list(imap(self._decode, obj))
+        elif isinstance(obj, binary_type) or isinstance(obj, text_type):
+            return self._load_python_string(obj)
+        else:
+            return obj
+    
+    def _dump_python_string(self, string):
+        is_encode_utf8_false = self.encode_utf8 is not None and not self.encode_utf8
+        if isinstance(string, text_type):
+            if self._encoding == "utf-8" and is_encode_utf8_false:
+                # In this case we can do nothing, unicode string would be correctly written without any additional encoding.
+                return string
+            else:
+                if is_encode_utf8_false:
+                    raise YtFormatError("Cannot interpret unicode string by non-utf-8 encoding when 'encode_utf8' disabled")
+                if self._encoding is None:
+                    # Just check that string consists only of ascii symbols.
+                    string.encode("ascii")
+                    return string
+                else:
+                    return string.encode(self._encoding).decode("latin1")
+        elif isinstance(string, binary_type):
+            if is_encode_utf8_false:
+                try:
+                    return string.decode("ascii")
+                except:
+                    raise YtFormatError("Cannot interpret binary non-ascii string as bytes when 'encode_utf8' disabled")
+            else:
+                return string.decode("latin1")
+        else:
+            raise YtError("Object {0} is not string object".format(repr(string)))
+
+    def _encode(self, obj):
+        if JSON_ENCODING_LEGACY_MODE and not self._is_encoding_specified:
+            return obj
+
+        if isinstance(obj, dict):
+            return dict([(self._dump_python_string(key), self._encode(value)) for key, value in iteritems(obj)])
+        elif isinstance(obj, list):
+            return list(imap(self._encode, obj))
+        elif isinstance(obj, binary_type) or isinstance(obj, text_type):
+            return self._dump_python_string(obj)
+        else:
+            return obj
+
     def _loads(self, string, raw):
         if raw:
             return string
         string = string.rstrip(b"\n")
         if PY3:
-            string = string.decode(self._encoding)
-        return self.json_module.loads(string)
+            # NB: in python3 json expects unicode string as input,
+            # default encoding for standard json libraries is utf-8.
+            string = string.decode("utf-8")
+        return self._decode(self.json_module.loads(string))
 
     def _dump(self, obj, stream):
         writer = lambda stream: stream
         if PY3:
-            writer = getwriter(self._encoding)
-        return self.json_module.dump(obj, writer(stream))
+            # NB: in python3 json writes unicode string as output,
+            # default encoding for standard json libraries is utf-8.
+            writer = getwriter("utf-8")
+        return self.json_module.dump(self._encode(obj), writer(stream))
 
     def _dumps(self, obj):
-        value = self.json_module.dumps(obj)
+        value = self.json_module.dumps(self._encode(obj))
         if PY3:
-            value = value.encode(self._encoding)
+            # NB: in python3 json writes unicode string as output,
+            # default encoding for standard json libraries is utf-8.
+            value = value.encode("utf-8")
         return value
 
     def load_row(self, stream, raw=None):

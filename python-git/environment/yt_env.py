@@ -4,11 +4,15 @@ from .configs_provider import init_logging, get_default_provision, create_config
 from .default_configs import get_dynamic_master_config
 from .helpers import (
     read_config, write_config, is_dead_or_zombie, OpenPortIterator,
-    wait_for_removing_file_lock, add_binary_path, get_value_from_config, WaitFailed)
+    wait_for_removing_file_lock, get_value_from_config, WaitFailed)
 from .porto_helpers import PortoSubprocess, porto_avaliable
 from .watcher import ProcessWatcher
+try:
+    from .arcadia_interop import get_gdb_path
+except:
+    get_gdb_path = None
 
-from yt.common import YtError, remove_file, makedirp, set_pdeathsig, which
+from yt.common import YtError, remove_file, makedirp, set_pdeathsig
 from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
@@ -42,21 +46,39 @@ CGROUP_TYPES = frozenset(["cpuacct", "cpu", "blkio", "freezer"])
 BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 
 # Used to configure driver logging exactly once per environment (as a set of YT instances).
-_environment_driver_logging_config = None
+_environment_driver_logging_config_per_type = {}
 
-def get_environment_driver_logging_config(default_config):
-    if _environment_driver_logging_config is None:
+def get_environment_driver_logging_config(default_config, driver_type):
+    if driver_type not in _environment_driver_logging_config_per_type:
         return default_config
-    return _environment_driver_logging_config
+    # COMPAT
+    if None in _environment_driver_logging_config_per_type:
+        return _environment_driver_logging_config_per_type[None]
+    return _environment_driver_logging_config_per_type[driver_type]
 
-def set_environment_driver_logging_config(config):
+# COMPAT: default None value is for compatibility only.
+def set_environment_driver_logging_config(config, driver_type=None):
     if config is None:
         raise YtError("Could not set environment driver logging config to None")
-    global _environment_driver_logging_config
-    _environment_driver_logging_config = config
+    global _environment_driver_logging_config_per_type
+    _environment_driver_logging_config_per_type[driver_type] = config
 
 class YtEnvRetriableError(YtError):
     pass
+
+# TODO(ignat): replace with 'which' from yt.common after next major release.
+def _which(name, flags=os.X_OK, custom_paths=None):
+    """Return list of files in system paths with given name."""
+    # TODO: check behavior when dealing with symlinks
+    result = []
+    paths = os.environ.get("PATH", "").split(os.pathsep)
+    if custom_paths is not None:
+        paths = custom_paths + paths
+    for dir in paths:
+        path = os.path.join(dir, name)
+        if os.access(path, flags):
+            result.append(path)
+    return result
 
 def _parse_version(s):
     if "version:" in s:
@@ -70,26 +92,19 @@ def _parse_version(s):
     abi = tuple(parts[:2])
     return BinaryVersion(abi, literal)
 
-def _add_binaries_to_path():
-    return
-    for binary, server_dir in [("master", "cell_master_program"),
-                               ("clock", "cell_clock_program"),
-                               ("scheduler", "programs/scheduler"),
-                               ("node", "cell_node_program"),
-                               ("proxy", "cell_proxy_program"),
-                               ("job-proxy", "job_proxy_program"),
-                               ("exec", "exec_program"),
-                               ("tools", "tools_program"),
-                               ("controller-agent", "programs/controller_agent")]:
-        relative_path = "yt/19_4/yt/server/{0}/ytserver-{1}".format(server_dir, binary)
-        add_binary_path(relative_path)
+def _get_yt_binary_path(binary, custom_paths):
+    paths = _which(binary, custom_paths=custom_paths)
+    if paths:
+        return paths[0]
+    return None
 
-def _which_yt_binaries():
+def _get_yt_versions(custom_paths):
     result = {}
     binaries = ["ytserver-master", "ytserver-node", "ytserver-scheduler"]
     for binary in binaries:
-        if which(binary):
-            version_string = subprocess.check_output([binary, "--version"], stderr=subprocess.STDOUT)
+        binary_path = _get_yt_binary_path(binary, custom_paths=custom_paths)
+        if binary_path is not None:
+            version_string = subprocess.check_output([binary_path, "--version"], stderr=subprocess.STDOUT)
             result[binary] = _parse_version(version_string)
     return result
 
@@ -135,20 +150,20 @@ class YTInstance(object):
                  node_count=1, defer_node_start=False,
                  scheduler_count=1, defer_scheduler_start=False,
                  controller_agent_count=None, defer_controller_agent_start=False,
-                 http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, cell_tag=0, skynet_manager_count=0,
-                 enable_debug_logging=True, preserve_working_dir=False, tmpfs_path=None,
+                 http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, cell_tag=0,
+                 enable_debug_logging=True, enable_logging_compression=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, local_port_range=None, port_range_start=None, node_port_set_size=None,
                  fqdn=None, jobs_resource_limits=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
                  add_binaries_to_path=True, enable_master_cache=None, driver_backend="native",
-                 enable_structured_master_logging=False, use_native_client=False, run_watcher=True, capture_stderr_to_file=None):
+                 enable_structured_master_logging=False, enable_structured_scheduler_logging=False,
+                 use_native_client=False, run_watcher=True, capture_stderr_to_file=None,
+                 ytserver_all_path=None):
         # TODO(renadeen): remove extended_master_config when stable will get test_structured_security_logs
 
         _configure_logger()
-        if add_binaries_to_path:
-            _add_binaries_to_path()
 
         if use_porto_for_servers and not porto_avaliable():
             raise YtError("Option use_porto_for_servers is specified but porto is not available")
@@ -158,7 +173,38 @@ class YTInstance(object):
 
         self._subprocess_module = PortoSubprocess if use_porto_for_servers else subprocess
 
-        self._binaries = _which_yt_binaries()
+        self.path = os.path.realpath(os.path.abspath(path))
+        self.bin_path = os.path.abspath(os.path.join(self.path, "bin"))
+        self.logs_path = os.path.abspath(os.path.join(self.path, "logs"))
+        self.configs_path = os.path.abspath(os.path.join(self.path, "configs"))
+        self.runtime_data_path = os.path.abspath(os.path.join(self.path, "runtime_data"))
+        self.pids_filename = os.path.join(self.path, "pids.txt")
+
+        self._load_existing_environment = False
+        if os.path.exists(self.path):
+            if not preserve_working_dir:
+                shutil.rmtree(self.path, ignore_errors=True)
+            else:
+                self._load_existing_environment = True
+
+        if not self._load_existing_environment:
+            if ytserver_all_path is None:
+                ytserver_all_path = os.environ.get("YTSERVER_ALL_PATH")
+            if ytserver_all_path is not None:
+                if not os.path.exists(ytserver_all_path):
+                    raise YtError("ytserver-all binary is missing at path " + ytserver_all_path)
+                makedirp(self.bin_path)
+                programs = ["master", "clock", "node", "job-proxy", "exec",
+                            "proxy", "http-proxy", "tools", "scheduler", "controller-agent"]
+                for program in programs:
+                    os.symlink(os.path.abspath(ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
+
+        if os.path.exists(self.bin_path):
+            self.custom_paths = [self.bin_path]
+        else:
+            self.custom_paths = None
+
+        self._binaries = _get_yt_versions(custom_paths=self.custom_paths)
         if ("ytserver-master" in self._binaries and
             "ytserver-node" in self._binaries and
             "ytserver-scheduler" in self._binaries):
@@ -193,21 +239,8 @@ class YTInstance(object):
         self._uuid = generate_uuid(self._random_generator)
         self._lock = RLock()
 
-        self.path = os.path.realpath(os.path.abspath(path))
-        self.logs_path = os.path.abspath(os.path.join(self.path, "logs"))
-        self.configs_path = os.path.abspath(os.path.join(self.path, "configs"))
-        self.runtime_data_path = os.path.abspath(os.path.join(self.path, "runtime_data"))
-        self.pids_filename = os.path.join(self.path, "pids.txt")
-
         self.configs = defaultdict(list)
         self.config_paths = defaultdict(list)
-
-        self._load_existing_environment = False
-        if os.path.exists(self.path):
-            if not preserve_working_dir:
-                shutil.rmtree(self.path, ignore_errors=True)
-            else:
-                self._load_existing_environment = True
 
         makedirp(self.path)
         makedirp(self.logs_path)
@@ -215,7 +248,9 @@ class YTInstance(object):
         makedirp(self.runtime_data_path)
 
         self.stderrs_path = os.path.join(self.path, "stderrs")
+        self.backtraces_path = os.path.join(self.path, "backtraces")
         makedirp(self.stderrs_path)
+        makedirp(self.backtraces_path)
         self._stderr_paths = defaultdict(list)
 
         self._tmpfs_path = tmpfs_path
@@ -264,8 +299,8 @@ class YTInstance(object):
         self.http_proxy_ports = http_proxy_ports
         self.has_rpc_proxy = rpc_proxy_count > 0
         self.rpc_proxy_count = rpc_proxy_count
-        self.skynet_manager_count = skynet_manager_count
         self._enable_debug_logging = enable_debug_logging
+        self._enable_logging_compression = enable_logging_compression
         self._cell_tag = cell_tag
         self._kill_child_processes = kill_child_processes
         self._started = False
@@ -274,10 +309,18 @@ class YTInstance(object):
 
         self._run_watcher = run_watcher
         self.watcher_config = watcher_config
+        if self.watcher_config is None:
+            self.watcher_config = {}
+
+        # Enable logrotate compression if logs are not compressed by default.
+        if not self._enable_logging_compression:
+            self.watcher_config["logs_rotate_compress"] = True
+        else:
+            self.watcher_config["disable_logrotate"] = True
 
         self._prepare_environment(jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                                   node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, node_port_set_size,
-                                  enable_master_cache, modify_configs_func, enable_structured_master_logging)
+                                  enable_master_cache, modify_configs_func, enable_structured_master_logging, enable_structured_scheduler_logging)
 
     def _get_ports_generator(self, port_range_start):
         if port_range_start and isinstance(port_range_start, int):
@@ -351,10 +394,6 @@ class YTInstance(object):
         for dir_ in rpc_proxy_dirs:
             makedirp(dir_)
 
-        skynet_manager_dirs = [os.path.join(self.runtime_data_path, "skynet_manager", str(i)) for i in xrange(self.skynet_manager_count)]
-        for dir_ in skynet_manager_dirs:
-            makedirp(dir_)
-
         return {"master": master_dirs,
                 "master_tmpfs": master_tmpfs_dirs,
                 "clock": clock_dirs,
@@ -364,12 +403,11 @@ class YTInstance(object):
                 "node": node_dirs,
                 "node_tmpfs": node_tmpfs_dirs,
                 "http_proxy": http_proxy_dirs,
-                "rpc_proxy": rpc_proxy_dirs,
-                "skynet_manager": skynet_manager_dirs}
+                "rpc_proxy": rpc_proxy_dirs}
 
     def _prepare_environment(self, jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                              node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, node_port_set_size,
-                             enable_master_cache, modify_configs_func, enable_structured_master_logging):
+                             enable_master_cache, modify_configs_func, enable_structured_master_logging, enable_structured_scheduler_logging):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  uuid               %s", self._uuid)
         logger.info("  clocks             %d", self.clock_count)
@@ -383,7 +421,6 @@ class YTInstance(object):
 
         logger.info("  HTTP proxies       %d", self.http_proxy_count)
         logger.info("  RPC proxies        %d", self.rpc_proxy_count)
-        logger.info("  skynet managers    %d", self.skynet_manager_count)
         logger.info("  working dir        %s", self.path)
 
         if self.master_count == 0:
@@ -417,12 +454,13 @@ class YTInstance(object):
         provision["http_proxy"]["http_ports"] = self.http_proxy_ports
         provision["rpc_proxy"]["count"] = self.rpc_proxy_count
         provision["driver"]["backend"] = self.driver_backend
-        provision["skynet_manager"]["count"] = self.skynet_manager_count
         provision["fqdn"] = self._hostname
         provision["enable_debug_logging"] = self._enable_debug_logging
+        provision["enable_logging_compression"] = self._enable_logging_compression
         if enable_master_cache is not None:
             provision["enable_master_cache"] = enable_master_cache
         provision["enable_structured_master_logging"] = enable_structured_master_logging
+        provision["enable_structured_scheduler_logging"] = enable_structured_scheduler_logging
 
         dirs = self._prepare_directories()
 
@@ -448,8 +486,6 @@ class YTInstance(object):
             self._prepare_http_proxies(cluster_configuration["http_proxy"])
         if self.has_rpc_proxy:
             self._prepare_rpc_proxies(cluster_configuration["rpc_proxy"], cluster_configuration["rpc_client"])
-        if self.skynet_manager_count > 0:
-            self._prepare_skynet_managers(cluster_configuration["skynet_manager"])
 
         http_proxy_url = None
         if self.has_http_proxy:
@@ -522,8 +558,6 @@ class YTInstance(object):
                 self.start_schedulers(sync=False)
             if self.controller_agent_count > 0 and not self.defer_controller_agent_start:
                 self.start_controller_agents(sync=False)
-            if self.skynet_manager_count > 0:
-                self.start_skynet_managers(sync=False)
 
             self.synchronize()
 
@@ -553,7 +587,7 @@ class YTInstance(object):
             self.kill_service("watcher")
             killed_services.add("watcher")
 
-        for name in ["http_proxy", "node", "scheduler", "controller_agent", "master", "rpc_proxy", "skynet_manager"]:
+        for name in ["http_proxy", "node", "scheduler", "controller_agent", "master", "rpc_proxy"]:
             if name in self.configs:
                 self.kill_service(name)
                 killed_services.add(name)
@@ -590,6 +624,13 @@ class YTInstance(object):
 
     def rewrite_http_proxy_configs(self):
         self._prepare_http_proxies(self._cluster_configuration["http_proxy"], force_overwrite=True)
+
+    def get_node_address(self, index, with_port=True):
+        node_config = self.configs["node"][index]
+        node_address = node_config["address_resolver"]["localhost_fqdn"]
+        if with_port:
+            node_address = "{}:{}".format(node_address, node_config["rpc_port"])
+        return node_address
 
     # TODO(max42): remove this method and rename all its usages to get_http_proxy_address.
     def get_proxy_address(self):
@@ -668,25 +709,48 @@ class YTInstance(object):
 
         self._process_cgroup_paths = []
 
-    def kill_schedulers(self):
-        self.kill_service("scheduler")
+    def kill_schedulers(self, indexes=None):
+        self.kill_service("scheduler", indexes=indexes)
 
-    def kill_controller_agents(self):
-        self.kill_service("controller_agent")
+    def kill_controller_agents(self, indexes=None):
+        self.kill_service("controller_agent", indexes=indexes)
 
-    def kill_nodes(self):
-        self.kill_service("node")
+    def kill_nodes(self, indexes=None, wait_offline=True):
+        self.kill_service("node", indexes=indexes)
 
-    def kill_proxy(self):
-        self.kill_service("proxy")
+        addresses = None
+        if indexes is None:
+            indexes = list(xrange(self.node_count))
+        addresses = [self.get_node_address(index) for index in indexes]
 
-    def kill_master_cell(self, cell_index=0):
-        name = self._get_master_name("master", cell_index)
-        self.kill_service(name)
+        client = self._create_cluster_client()
+        for node in client.list("//sys/cluster_nodes", attributes=["lease_transaction_id"]):
+            if str(node) not in addresses:
+                continue
+            if "lease_transaction_id" in node.attributes:
+                client.abort_transaction(node.attributes["lease_transaction_id"])
+
+        if wait_offline:
+            wait(lambda:
+                all([
+                    node.attributes["state"] == "offline"
+                    for node in client.list("//sys/cluster_nodes", attributes=["state"])
+                    if str(node) in addresses
+                ])
+            )
+
+    def kill_http_proxies(self, indexes=None):
+        self.kill_service("proxy", indexes=indexes)
+
+    def kill_masters_at_cells(self, indexes=None, cell_indexes=None):
+        if cell_indexes is None:
+            cell_indexes = [0]
+        for cell_index in cell_indexes:
+            name = self._get_master_name("master", cell_index)
+            self.kill_service(name, indexes=indexes)
 
     def kill_all_masters(self):
-        for cell_index in xrange(self.secondary_master_cell_count + 1):
-            self.kill_master_cell(cell_index)
+        self.kill_masters_at_cells(indexes=None, cell_indexes=xrange(self.secondary_master_cell_count + 1))
 
     def kill_service(self, name, indexes=None):
         with self._lock:
@@ -701,20 +765,29 @@ class YTInstance(object):
                 del self._pid_to_process[process.pid]
                 processes[index] = None
 
+    def set_nodes_cpu_limit(self, cpu_limit):
+        with self._lock:
+            logger.info("Setting cpu limit {0} for nodes".format(cpu_limit))
+            processes = self._service_processes["node"]
+            for process in processes:
+                if not isinstance(process, PortoSubprocess):
+                    raise  YtError("Cpu limits are not supported for non-porto environment")
+                process.set_cpu_limit(cpu_limit)
+
     def check_liveness(self, callback_func):
         with self._lock:
             for info in itervalues(self._pid_to_process):
                 proc, args = info
                 proc.poll()
                 if proc.returncode is not None:
-                    callback_func(self, args)
+                    callback_func(self, proc, args)
                     break
 
     def _configure_driver_logging(self):
         try:
             import yt_driver_bindings
             yt_driver_bindings.configure_logging(
-                get_environment_driver_logging_config(self.driver_logging_config)
+                get_environment_driver_logging_config(self.driver_logging_config, "native")
             )
         except ImportError:
             pass
@@ -722,7 +795,7 @@ class YTInstance(object):
         try:
             import yt_driver_rpc_bindings
             yt_driver_rpc_bindings.configure_logging(
-                get_environment_driver_logging_config(self.rpc_driver_logging_config)
+                get_environment_driver_logging_config(self.rpc_driver_logging_config, "rpc")
             )
         except ImportError:
             pass
@@ -853,7 +926,7 @@ class YTInstance(object):
             args = None
             cgroup_paths = None
             if self.abi_version[0] == 19:
-                args = ["ytserver-" + component]
+                args = [_get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)]
                 if self._kill_child_processes:
                     args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
             else:
@@ -1026,7 +1099,7 @@ class YTInstance(object):
         def nodes_ready():
             self._validate_processes_are_running("node")
 
-            nodes = client.list("//sys/nodes", attributes=["state"])
+            nodes = client.list("//sys/cluster_nodes", attributes=["state"])
             return len(nodes) == self.node_count and all(node.attributes["state"] == "online" for node in nodes)
 
         wait_function = lambda: self._wait_for(nodes_ready, "node", max_wait_time=max(self.node_count * 6.0, 20))
@@ -1273,13 +1346,13 @@ class YTInstance(object):
             self.configs[name] = config
             self.config_paths[name] = config_path
 
-        self.driver_logging_config = init_logging(None, self.logs_path, "driver", self._enable_debug_logging)
-        self.rpc_driver_logging_config = init_logging(None, self.logs_path, "rpc_driver", self._enable_debug_logging)
+        self.driver_logging_config = init_logging(None, self.logs_path, "driver", self._enable_debug_logging, self._enable_logging_compression)
+        self.rpc_driver_logging_config = init_logging(None, self.logs_path, "rpc_driver", self._enable_debug_logging, self._enable_logging_compression)
 
     def _prepare_console_driver(self):
         config = {}
         config["driver"] = self.configs["driver"]
-        config["logging"] = init_logging(None, self.path, "console_driver", self._enable_debug_logging)
+        config["logging"] = init_logging(None, self.path, "console_driver", self._enable_debug_logging, self._enable_logging_compression)
 
         config_path = os.path.join(self.path, "console_driver_config.yson")
 
@@ -1331,17 +1404,6 @@ class YTInstance(object):
             else:
                 write_config(rpc_client_config, rpc_client_config_path)
 
-    def _prepare_skynet_managers(self, skynet_manager_configs):
-        self.configs["skynet_manager"] = []
-        self.config_paths["skynet_manager"] = []
-
-        for i in xrange(self.skynet_manager_count):
-            config_path = os.path.join(self.configs_path, "skynet-manager-{}.yson".format(i))
-            write_config(skynet_manager_configs[i], config_path)
-            self.configs["skynet_manager"].append(skynet_manager_configs[i])
-            self.config_paths["skynet_manager"].append(config_path)
-            self._service_processes["skynet_manager"].append(None)
-
     def start_http_proxy(self, sync=True):
         self._run_yt_component("http-proxy", name="http_proxy")
 
@@ -1372,22 +1434,6 @@ class YTInstance(object):
             return len(proxies) == self.rpc_proxy_count and all("alive" in proxy for proxy in proxies.values())
 
         self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy", max_wait_time=20), sync)
-
-    def start_skynet_managers(self, sync=True):
-        self._run_yt_component("skynet-manager", name="skynet_manager")
-
-        def skynet_manager_ready():
-            self._validate_processes_are_running("skynet_manager")
-
-            http_port = self.configs["skynet_manager"][0]["port"]
-            try:
-                requests.get("http://localhost:{}/debug/healthcheck".format(http_port))
-            except (requests.exceptions.RequestException, socket.error):
-                return False
-
-            return True
-
-        self._wait_or_skip(lambda: self._wait_for(skynet_manager_ready, "skynet_manager", max_wait_time=20), sync)
 
     def _validate_process_is_running(self, process, name, number=None):
         if number is not None:
@@ -1425,6 +1471,18 @@ class YTInstance(object):
             current_wait_time += sleep_quantum
 
         self._process_stderrs(name)
+
+        for index, process in enumerate(self._service_processes[name]):
+            if process is None:
+                continue
+            if get_gdb_path is not None and process.poll() is None:
+                subprocess.check_call(
+                    "{} -p {} -ex 'set confirm off' -ex 'set pagination off' -ex 'thread apply all bt' -ex 'quit'".format(get_gdb_path(), process.pid),
+                    stdout=open(os.path.join(self.backtraces_path, "gdb.{}-{}".format(name, index)), "w"),
+                    stderr=sys.stderr,
+                    shell=True
+                )
+
 
         error = YtError("{0} still not ready after {1} seconds. See logs in working dir for details."
                         .format(name.capitalize(), max_wait_time))

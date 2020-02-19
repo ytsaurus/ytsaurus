@@ -39,7 +39,7 @@ PEERDIR(
     ${YT_PYTHON_ROOT}/python/yt/wrapper
     ${YT_PYTHON_ROOT}/python/yt/yson
     ${YT_PYTHON_ROOT}/python/yt/local
-    ${YT_PYTHON_ROOT}/python/yt/environment/arcadia_interop
+    ${YT_PYTHON_ROOT}/python/yt/environment
     ${YT_ROOT}/yt/python/yt_driver_bindings
     ${YT_ROOT}/yt/python/yt_driver_rpc_bindings
     ${YT_ROOT}/yt/python/yt_yson_bindings
@@ -60,6 +60,7 @@ RESOURCE_FILES(
     PREFIX yt_python_test/
     ../files/accumulate_c.py
     ../files/bin.cpp
+    ../files/bin_core_crash.cpp
     ../files/capitalize_b.py
     ../files/collect.py
     ../files/driver_catch_sigint.py
@@ -110,6 +111,7 @@ REQUIREMENTS(
 TAG(
     ya:fat
     ya:force_distbuild
+    ya:huge_logs
 )
 
 NO_LINT()
