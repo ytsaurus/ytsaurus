@@ -17,6 +17,7 @@ import yt.logger as logger
 from yt.packages.six import iteritems, PY3
 from yt.yson import YsonUint64
 
+from copy import deepcopy
 from tempfile import NamedTemporaryFile
 
 import os.path
@@ -332,10 +333,16 @@ def prepare_cypress_configs(instance_count,
     clickhouse_config_cypress_base = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else None
     resulting_clickhouse_config = update(clickhouse_config_cypress_base, update(clickhouse_config_base, clickhouse_config))
 
+    def create_client_with_clickhouse_tmp_directory(client):
+        from .client import YtClient
+        patched_config = deepcopy(get_config(client))
+        patched_config["remote_temp_files_directory"] = "//sys/clickhouse/kolkhoz/tmp"
+        return YtClient(config=patched_config)
+
     with NamedTemporaryFile() as temp:
         temp.write(dumps(resulting_clickhouse_config, yson_format="pretty"))
         temp.flush()
-        resulting_clickhouse_config_path = smart_upload_file(temp.name, client=client)
+        resulting_clickhouse_config_path = smart_upload_file(temp.name, client=create_client_with_clickhouse_tmp_directory(client))
 
     result = {"clickhouse_server": (resulting_clickhouse_config_path, "config.yson")}
 
@@ -343,7 +350,7 @@ def prepare_cypress_configs(instance_count,
         with NamedTemporaryFile() as temp:
             temp.write(dumps(log_tailer_config, yson_format="pretty"))
             temp.flush()
-            resulting_log_tailer_config_path = smart_upload_file(temp.name, client=client)
+            resulting_log_tailer_config_path = smart_upload_file(temp.name, client=create_client_with_clickhouse_tmp_directory(client))
         result["log_tailer"] = (resulting_log_tailer_config_path, "log_tailer_config.yson")
 
     return result
