@@ -296,14 +296,18 @@ void ValidateSimpleType(
             message);
     };
 
-    auto validateLogicalType = [&] (ESimpleLogicalValueType expected) {
-        if (logicalType != expected) {
-            throwMismatchError(Format("expected logical type %Qlv", expected));
+    auto validateLogicalType = [&] (auto... expectedTypes) {
+        if ((... && (logicalType != expectedTypes))) {
+            auto typeNameList = std::vector<TString>{FormatEnum(expectedTypes)...};
+            throwMismatchError(Format("expected logical type to be one of %v", typeNameList));
         }
     };
 
     switch (protobufType) {
         case EProtobufType::String:
+            validateLogicalType(ESimpleLogicalValueType::String, ESimpleLogicalValueType::Utf8);
+            return;
+
         case EProtobufType::Bytes:
         case EProtobufType::Message:
             validateLogicalType(ESimpleLogicalValueType::String);
