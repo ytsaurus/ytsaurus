@@ -74,14 +74,13 @@ TLogRecord ParseLogRecord(const TString& rawLogRecord)
 
 TUnversionedRow LogRecordToUnversionedRow(
     const TLogRecord& record,
-    ui64 increment,
     const TRowBufferPtr& rowBuffer,
     const TNameTablePtr& nameTable,
     const std::vector<std::pair<TString, TString>>& extraLogTableColumns = {})
 {
     TUnversionedRowBuilder builder;
     builder.AddValue(ToUnversionedValue(record.Timestamp, rowBuffer, nameTable->GetId("timestamp")));
-    builder.AddValue(ToUnversionedValue(increment, rowBuffer, nameTable->GetId("increment")));
+    builder.AddValue(ToUnversionedValue(record.Increment, rowBuffer, nameTable->GetId("increment")));
     builder.AddValue(ToUnversionedValue(record.Category, rowBuffer, nameTable->GetId("category")));
     builder.AddValue(ToUnversionedValue(record.LogLevel, rowBuffer, nameTable->GetId("log_level")));
     builder.AddValue(ToUnversionedValue(record.Message, rowBuffer, nameTable->GetId("message")));
@@ -233,6 +232,7 @@ void TLogFileReader::DoReadBuffer()
                         Buffer_.clear();
                         continue;
                     }
+                    record.Increment = NextIncrement_++;
                     RecordsBuffer_.push_back(record);
                     Buffer_.clear();
                 }
@@ -252,8 +252,9 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
 
     auto boundaryTimestamps = GetBoundaryTimestampString(*recordRange.begin(), *(recordRange.end() - 1));
 
-    YT_LOG_INFO("Processing rows (Increment: %v, RecordCount: %v, BoundaryTimestamps: %v)",
-        Increment_,
+    YT_LOG_INFO("Processing rows (FirstRecordIncrement: %v, LastRecordIncrement: %v, RecordCount: %v, BoundaryTimestamps: %v)",
+        recordRange.begin()->Increment,
+        (recordRange.end() - 1)->Increment,
         recordRange.size(),
         boundaryTimestamps);
 
@@ -279,7 +280,6 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
             }
             rowsPerTable[tableIndex].emplace_back(LogRecordToUnversionedRow(
                 RecordsBuffer_[index],
-                Increment_++,
                 RowBuffer_,
                 LogTableNameTable_,
                 ExtraLogTableColumns_));
