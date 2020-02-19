@@ -146,6 +146,7 @@ def _get_cgroup_path(cgroup_type, *args):
 
 
 class YTInstance(object):
+    # TODO(renadeen): remove extended_master_config when stable will get test_structured_security_logs
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0, clock_count=0,
                  node_count=1, defer_node_start=False,
                  scheduler_count=1, defer_scheduler_start=False,
@@ -161,8 +162,6 @@ class YTInstance(object):
                  enable_structured_master_logging=False, enable_structured_scheduler_logging=False,
                  use_native_client=False, run_watcher=True, capture_stderr_to_file=None,
                  ytserver_all_path=None):
-        # TODO(renadeen): remove extended_master_config when stable will get test_structured_security_logs
-
         _configure_logger()
 
         if use_porto_for_servers and not porto_avaliable():
