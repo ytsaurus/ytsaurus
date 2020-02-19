@@ -106,13 +106,10 @@ public:
     {
         TTransactionalNodeFactoryBase::Commit();
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-
         if (Transaction_) {
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             for (auto* node : CreatedNodes_) {
                 transactionManager->StageNode(Transaction_, node);
-                securityManager->UpdateMasterMemoryUsage(node);
             }
         }
 

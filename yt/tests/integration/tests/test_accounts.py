@@ -1189,11 +1189,12 @@ class TestAccounts(AccountsTestSuiteBase):
         return master_memory_usage
 
     @authors("aleksandra-zh")
-    @flaky(max_runs=3)
     def test_master_memory_usage(self):
         create_account("a")
 
         create("table", "//tmp/t", attributes={"account": "a"})
+        master_memory_usage_sleep()
+
         wait(lambda: self._get_master_memory_usage("a") > 0)
         prev_usage = self._get_master_memory_usage("a")
 
@@ -1209,13 +1210,14 @@ class TestAccounts(AccountsTestSuiteBase):
 
     @authors("aleksandra-zh")
     def test_master_memory_usage_copy(self):
-        prev_usage = self._get_master_memory_usage("tmp")
+        create_account("a")
 
-        create("table", "//tmp/t")
+        create("table", "//tmp/t", attributes={"account": "a"})
         set("//tmp/t/@a", "a")
         write_table("//tmp/t", {"a" : "b"})
 
-        wait(lambda: self._get_master_memory_usage("tmp") > prev_usage)
+        master_memory_usage_sleep()
+        wait(lambda: self._get_master_memory_usage("tmp") > 0)
         prev_usage = self._get_master_memory_usage("tmp")
 
         copy("//tmp/t", "//tmp/t2")
@@ -1273,6 +1275,7 @@ class TestAccounts(AccountsTestSuiteBase):
         create_account("a", attributes={"resource_limits": resource_limits})
 
         self._prepare_dynamic_table("//tmp/t1", "a")
+        master_memory_usage_sleep()
 
         wait(lambda: self._get_master_memory_usage("a") > 0)
         prev_usage = self._get_master_memory_usage("a")
@@ -1291,6 +1294,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
         self._prepare_dynamic_table("//tmp/t", "a", sorted=False)
 
+        master_memory_usage_sleep()
         wait(lambda: self._get_master_memory_usage("a") > 0)
         prev_usage = self._get_master_memory_usage("a")
 
@@ -1307,13 +1311,16 @@ class TestAccounts(AccountsTestSuiteBase):
         self._prepare_dynamic_table("//tmp/t", "a")
         sync_mount_table("//tmp/t")
 
+        master_memory_usage_sleep()
         wait(lambda: self._get_master_memory_usage("a") > 0)
         prev_usage = self._get_master_memory_usage("a")
 
+        master_memory_usage_sleep()
         sync_unmount_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[]] + [[i] for i in xrange(11)])
         sync_mount_table("//tmp/t")
 
+        master_memory_usage_sleep()
         wait(lambda: self._get_master_memory_usage("a") > prev_usage)
         prev_usage = self._get_master_memory_usage("a")
 
@@ -1337,6 +1344,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
         sync_mount_table("//tmp/t")
 
+        master_memory_usage_sleep()
         wait(lambda: self._get_master_memory_usage("a") > 0)
         prev_usage = self._get_master_memory_usage("a")
 
@@ -1345,7 +1353,6 @@ class TestAccounts(AccountsTestSuiteBase):
         sync_reshard_table("//tmp/t", [[]] + [['a' * key_length]])
         sync_mount_table("//tmp/t")
 
-        wait(lambda: self._get_master_memory_usage("a") > prev_usage)
         wait(lambda: self._get_master_memory_usage("a") - prev_usage >= key_length - 100)
 
     @authors("aleksandra-zh")
@@ -2213,7 +2220,6 @@ class TestAccountTree(AccountsTestSuiteBase):
 
 
     @authors("kiselyovp")
-    @flaky(max_runs=3)
     def test_nested_usage2(self):
         create_account("yt", attributes={
             "resource_limits": self._build_resource_limits(node_count=100, master_memory_usage=100000, disk_space=10000, chunk_count=1000)
@@ -2253,12 +2259,14 @@ class TestAccountTree(AccountsTestSuiteBase):
                     descendant_usage = get("//sys/accounts/{0}/@{1}".format(descendant, attribute))
                     usage = self._add_recursive(usage, descendant_usage)
                 expected_usage = get("//sys/accounts/{0}/@recursive_{1}".format(account, attribute))
-                assert expected_usage == usage
+                if expected_usage != usage:
+                    return False
+            return True
 
-        check_recursive_usage("yt", ["yt", "yt-dev", "yt-prod", "yt-morda"])
-        check_recursive_usage("yt-dev", ["yt-dev", "yt-morda"])
-        check_recursive_usage("yt-prod", ["yt-prod"])
-        check_recursive_usage("yt-morda", ["yt-morda"])
+        wait(lambda: check_recursive_usage("yt", ["yt", "yt-dev", "yt-prod", "yt-morda"]))
+        wait(lambda: check_recursive_usage("yt-dev", ["yt-dev", "yt-morda"]))
+        wait(lambda: check_recursive_usage("yt-prod", ["yt-prod"]))
+        wait(lambda: check_recursive_usage("yt-morda", ["yt-morda"]))
 
     @authors("shakurov")
     def test_nested_usage_account_removal(self):
