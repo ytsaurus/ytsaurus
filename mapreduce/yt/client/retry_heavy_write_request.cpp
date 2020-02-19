@@ -40,15 +40,11 @@ void RetryHeavyWriteRequest(
             header.SetRequestCompression(ToString(TConfig::Get()->ContentEncoding));
 
             request.Connect(proxyName);
-            try {
-                IOutputStream* output = request.StartRequest(header);
-                TransferData(input.Get(), output);
-                request.FinishRequest();
-            } catch (yexception&) {
-                // try to read error in response
-            }
-            request.GetResponse();
 
+            IOutputStream* output = request.StartRequest(header);
+            TransferData(input.Get(), output);
+            request.FinishRequest();
+            request.GetResponse();
         } catch (TErrorResponse& e) {
             LOG_ERROR("RSP %s - attempt %d failed",
                 requestId.data(),

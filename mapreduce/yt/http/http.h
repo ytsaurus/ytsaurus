@@ -170,7 +170,7 @@ public:
 
     void Connect(TString hostName, TDuration socketTimeout = TDuration::Zero());
 
-    THttpOutput* StartRequest(const THttpHeader& header);
+    IOutputStream* StartRequest(const THttpHeader& header);
     void FinishRequest();
 
     void SmallRequest(const THttpHeader& request, TMaybe<TStringBuf> data);
@@ -186,10 +186,10 @@ public:
     int GetHttpCode();
 
 private:
-    THttpOutput* StartRequestImpl(const THttpHeader& header, bool includeParameters);
+    IOutputStream* StartRequestImpl(const THttpHeader& header, bool includeParameters);
 
 private:
-    class TDebugRequestTracer;
+    class TRequestStream;
 
 private:
     TString HostName;
@@ -200,9 +200,7 @@ private:
 
     TConnectionPtr Connection;
 
-    THolder<TSocketOutput> SocketOutput;
-    THolder<THttpOutput> Output;
-    THolder<TDebugRequestTracer> DebugRequestTracer;
+    THolder<TRequestStream> RequestStream_;
 
     THolder<TSocketInput> SocketInput;
     THolder<THttpResponse> Input;
