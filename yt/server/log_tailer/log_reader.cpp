@@ -8,6 +8,9 @@
 #include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 
+#include <yt/core/misc/fs.h>
+
+#include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 
 #include <util/generic/buffer.h>
@@ -68,6 +71,7 @@ TLogRecord ParseLogRecord(const TString& rawLogRecord)
     record.ThreadId = tokens[4];
     record.FiberId = tokens[5];
     record.TraceId = tokens[6];
+    record.Size = rawLogRecord.size();
 
     return record;
 }
@@ -107,6 +111,7 @@ TLogFileReader::TLogFileReader(
     , LogTableNameTable_(New<TNameTable>())
     , Logger("LogReader")
     , ExtraLogTableColumns_(std::move(extraLogTableColumns))
+    , Profiler_("/log_reader", {TProfileManager::Get()->RegisterTag("filename", Config_->Path)})
 {
     Logger.AddTag("LogFile: %v", Config_->Path);
 
@@ -170,6 +175,33 @@ void TLogFileReader::OnTermination()
     DoReadLog();
 }
 
+void TLogFileReader::OnProfiling()
+{
+    Profiler_.Enqueue("/rows_written", TotalRowsWritten_, EMetricType::Counter);
+    Profiler_.Enqueue("/bytes_written", TotalBytesWritten_, EMetricType::Counter);
+    Profiler_.Enqueue("/unparsed_rows", TotalUnparsedRows_, EMetricType::Counter);
+    Profiler_.Enqueue("/write_errors", TotalWriteErrors_, EMetricType::Counter);
+    Profiler_.Enqueue("/trimmed_rows", TotalTrimmedRows_, EMetricType::Counter);
+    Profiler_.Enqueue("/trimmed_bytes", TotalTrimmedBytes_, EMetricType::Counter);
+    Profiler_.Enqueue("/buffer_size", RecordsBuffer_.size(), EMetricType::Gauge);
+    {
+        std::optional<TInstant> earliestRecordTimestamp;
+        for (int index = 0; index < RecordsBuffer_.size(); ++index) {
+            TInstant timestamp;
+            if (TryParseInstantFromLogInstant(RecordsBuffer_[index].Timestamp, timestamp)) {
+                earliestRecordTimestamp = timestamp;
+                break;
+            }
+        }
+
+        ui64 writingLag = 0;
+        if (earliestRecordTimestamp) {
+            writingLag = (TInstant::Now() - *earliestRecordTimestamp).MilliSeconds();
+        }
+        Profiler_.Enqueue("/write_lag", writingLag, EMetricType::Gauge);
+    }
+}
+
 i64 TLogFileReader::GetTotalBytesRead() const
 {
     return TotalBytesRead_;
@@ -191,6 +223,8 @@ void TLogFileReader::DoReadLog()
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Unexpected error");
     }
+    OnProfiling();
+
     YT_LOG_INFO("Reading finished");
 }
 
@@ -229,6 +263,7 @@ void TLogFileReader::DoReadBuffer()
                         YT_LOG_DEBUG(ex, "Cannot parse log record (Offset: %v, RecordPrefix: %Qv)",
                             FileOffset_ + index - Buffer_.size(),
                             Buffer_.substr(20));
+                        ++TotalUnparsedRows_;
                         Buffer_.clear();
                         continue;
                     }
@@ -272,8 +307,10 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
 
     rowsPerTable.resize(Config_->Tables.size());
 
+    ui64 bytesToWrite = 0;
     for (size_t index = 0; index < rowsToWrite; ++index) {
         const auto& record = RecordsBuffer_[index];
+        bytesToWrite += record.Size;
         for (size_t tableIndex = 0; tableIndex < Config_->Tables.size(); ++tableIndex) {
             if (Config_->Tables[tableIndex]->RequireTraceId && record.TraceId.empty()) {
                 continue;
@@ -310,6 +347,8 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
             transaction->GetId(),
             timer.GetElapsedTime(),
             boundaryTimestamps);
+        TotalRowsWritten_ += rowsToWrite;
+        TotalBytesWritten_ += bytesToWrite;
         return true;
     } else {
         YT_LOG_WARNING(commitResultOrError, "Error committing rows (RecordCount: %v, TransactionId: %v, ElapsedTime: %v, BoundaryTimestamps: %v)",
@@ -317,6 +356,7 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
             transaction->GetId(),
             timer.GetElapsedTime(),
             boundaryTimestamps);
+        ++TotalWriteErrors_;
         return false;
     }
 }
@@ -346,7 +386,12 @@ void TLogFileReader::DoWriteRows()
             maxRecordsInBuffer,
             GetBoundaryTimestampString(*(RecordsBuffer_.end() - recordsLeftInBuffer), *(RecordsBuffer_.end() - maxRecordsInBuffer - 1)));
 
+        TotalTrimmedRows_ += recordsLeftInBuffer - maxRecordsInBuffer;
         recordsLeftInBuffer = maxRecordsInBuffer;
+    }
+
+    for (int index = 0; index < RecordsBuffer_.size() - recordsLeftInBuffer; ++index) {
+        TotalTrimmedBytes_ += RecordsBuffer_[index].Size;
     }
 
     RecordsBuffer_.erase(RecordsBuffer_.begin(), RecordsBuffer_.end() - recordsLeftInBuffer);

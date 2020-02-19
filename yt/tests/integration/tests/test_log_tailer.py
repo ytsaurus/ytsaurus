@@ -4,7 +4,11 @@ import subprocess
 import sys
 import os.path
 
+import yt.packages.requests as requests
+
 from yt_env_setup import YTEnvSetup
+
+from yt.environment.helpers import OpenPortIterator
 
 from distutils.spawn import find_executable
 
@@ -119,8 +123,19 @@ class TestLogTailer(YTEnvSetup):
         create_user("yt-log-tailer")
         add_member("yt-log-tailer", "superusers")
 
-        dummy_logger = subprocess.Popen([YT_DUMMY_LOGGER_BINARY, log_path, "5", "1000"])
-        log_tailer = subprocess.Popen([YT_LOG_TAILER_BINARY, str(dummy_logger.pid), "--config", log_tailer_config_file])
+        port_iterator = OpenPortIterator(
+            port_locks_path=self.Env.port_locks_path,
+            local_port_range=self.Env.local_port_range)
+        log_tailer_monitoring_port = next(port_iterator)
+
+        dummy_logger = subprocess.Popen([YT_DUMMY_LOGGER_BINARY, log_path, "5", "1000", "2000"])
+        log_tailer = subprocess.Popen([
+            YT_LOG_TAILER_BINARY,
+            str(dummy_logger.pid),
+            "--config",
+            log_tailer_config_file,
+            "--monitoring-port",
+            str(log_tailer_monitoring_port)])
 
         def cleanup():
             # NB(gritukan): some of the processes are already terminated.
@@ -139,6 +154,19 @@ class TestLogTailer(YTEnvSetup):
                 remove(log_table)
 
         try:
+            def check_rows_written_profiling():
+                try:
+                    r = requests.get(url="http://localhost:{}/orchid/profiling/log_reader/rows_written".format(log_tailer_monitoring_port))
+                    rsp = r.json()
+                    if len(rsp) == 0:
+                        return False
+                    if "value" not in rsp[-1]:
+                        return False
+                    return rsp[-1]["value"] == 1000
+                except:
+                    return False
+            wait(check_rows_written_profiling)
+
             os.wait()
 
             wait(lambda: dummy_logger.poll() is not None)
@@ -153,3 +181,4 @@ class TestLogTailer(YTEnvSetup):
             cleanup()
         except:
             cleanup()
+            raise

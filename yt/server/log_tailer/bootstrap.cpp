@@ -3,9 +3,14 @@
 #include "log_reader.h"
 #include "log_tailer.h"
 
-#include <yt/core/misc/signal_registry.h>
-
 #include <yt/ytlib/api/native/connection.h>
+
+#include <yt/ytlib/monitoring/http_integration.h>
+#include <yt/ytlib/monitoring/monitoring_manager.h>
+
+#include <yt/core/http/server.h>
+
+#include <yt/core/misc/signal_registry.h>
 
 namespace NYT::NLogTailer {
 
@@ -18,15 +23,25 @@ static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(NYT::NLogTailer::TLogTailerBootstrapConfigPtr config)
+TBootstrap::TBootstrap(
+    NYT::NLogTailer::TLogTailerBootstrapConfigPtr config,
+    ui16 monitoringPort)
     : Config_(std::move(config))
     , LogTailerQueue_(New<TActionQueue>())
     , LogTailer_(New<TLogTailer>(this, Config_->LogTailer))
+    , MonitoringPort_(monitoringPort)
 { }
 
 void TBootstrap::Run()
 {
     YT_LOG_INFO("Starting log tailer");
+
+    Config_->MonitoringServer->Port = MonitoringPort_;
+    HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
+
+    NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_);
+
+    HttpServer_->Start();
 
     Connection_ = CreateConnection(Config_->ClusterConnection);
 
@@ -47,7 +62,7 @@ void TBootstrap::SigintHandler()
     ++SigintCounter_;
     YT_LOG_INFO("Received SIGINT (SigintCount: %v)", static_cast<int>(SigintCounter_));
     if (SigintCounter_ > 1) {
-        _exit(InterruptionExitCode);
+        Terminate(InterruptionExitCode);
     }
     YT_LOG_INFO("Ignoring first SIGINT");
 }
@@ -72,9 +87,11 @@ const TLogTailerPtr& TBootstrap::GetLogTailer() const
     return LogTailer_;
 }
 
-void TBootstrap::Terminate()
+void TBootstrap::Terminate(int exitCode)
 {
-    _exit(0);
+    MonitoringManager_->Stop();
+    HttpServer_->Stop();
+    _exit(exitCode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
