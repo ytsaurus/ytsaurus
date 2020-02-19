@@ -1224,6 +1224,13 @@ public:
         return EventLogWriterConsumer_.get();
     }
 
+    virtual const NLogging::TLogger* GetEventLogger() override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return &SchedulerEventLogger;
+    }
+
     // INodeShardHost implementation
     virtual int GetNodeShardId(TNodeId nodeId) const override
     {

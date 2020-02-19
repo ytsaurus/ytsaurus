@@ -592,6 +592,7 @@ class YTEnvSetup(object):
             cell_tag=index * 10,
             driver_backend=cls.get_param("DRIVER_BACKEND", index),
             enable_structured_master_logging=True,
+            enable_structured_scheduler_logging=True,
             capture_stderr_to_file=capture_stderr_to_file)
 
         instance._cluster_name = cls.get_cluster_name(index)

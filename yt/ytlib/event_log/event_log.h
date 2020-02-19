@@ -14,30 +14,33 @@ namespace NYT::NEventLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFluentLogEventConsumer
+    : public NYson::TForwardingYsonConsumer
+{
+public:
+    TFluentLogEventConsumer(IYsonConsumer* tableConsumer, const NLogging::TLogger* logger);
+
+protected:
+    void OnMyBeginMap();
+
+    void OnMyEndMap();
+
+private:
+    using TState = NYTree::TFluentYsonWriterState;
+    using TStatePtr = TIntrusivePtr<NYTree::TFluentYsonWriterState>;
+
+    TStatePtr State_;
+    const NLogging::TLogger* Logger_;
+
+    IYsonConsumer* const TableConsumer_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TParent>
 class TFluentLogEventImpl;
 
 typedef TFluentLogEventImpl<NYTree::TFluentYsonVoid> TFluentLogEvent;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TFluentEventLogger
-{
-public:
-    ~TFluentEventLogger();
-
-    TFluentLogEvent LogEventFluently(NYson::IYsonConsumer* consumer);
-
-private:
-    template <class TParent>
-    friend class TFluentLogEventImpl;
-
-    NYson::IYsonConsumer* Consumer_ = nullptr;
-    std::atomic<int> Counter_ = {0};
-
-    void Acquire();
-    void Release();
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,24 +52,18 @@ public:
     typedef TFluentLogEventImpl TThis;
     typedef NYTree::TFluentYsonBuilder::TFluentFragmentBase<NEventLog::TFluentLogEventImpl, TParent, NYTree::TFluentMap> TBase;
 
-    explicit TFluentLogEventImpl(TFluentEventLogger* logger);
-    explicit TFluentLogEventImpl(NYson::IYsonConsumer* consumer);
+    TFluentLogEventImpl(std::unique_ptr<NYson::IYsonConsumer> consumer);
 
-    TFluentLogEventImpl(TFluentLogEventImpl&& other);
-    TFluentLogEventImpl(const TFluentLogEventImpl& other);
+    TFluentLogEventImpl(TFluentLogEventImpl&& other) = default;
 
     ~TFluentLogEventImpl();
 
-    TFluentLogEventImpl& operator = (TFluentLogEventImpl&& other) = delete;
-    TFluentLogEventImpl& operator = (const TFluentLogEventImpl& other) = delete;
+    TFluentLogEventImpl& operator = (TFluentLogEventImpl&& other) = default;
 
     NYTree::TFluentYsonBuilder::TAny<TThis&&> Item(TStringBuf key);
 
 private:
-    TFluentEventLogger* Logger_;
-
-    void Acquire();
-    void Release();
+    std::unique_ptr<NYson::IYsonConsumer> Consumer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

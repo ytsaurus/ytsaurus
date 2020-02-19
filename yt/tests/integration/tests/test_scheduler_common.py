@@ -16,6 +16,8 @@ from datetime import datetime
 
 import __builtin__
 
+import json
+
 ##################################################################
 
 SCHEDULER_COMMON_NODE_CONFIG_PATCH = {
@@ -1864,5 +1866,56 @@ class TestEventLog(YTEnvSetup):
             return True
         wait(check)
 
+    @authors("mrkastep")
+    def test_structured_event_log(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat")
+
+        # Let's wait until scheduler dumps the information on our map operation
+        def check_event_log():
+            event_log = read_table("//sys/scheduler/event_log")
+            for event in event_log:
+                if event["event_type"] == "operation_completed" and event["operation_id"] == op.id:
+                    return True
+            return False
+
+        wait(check_event_log)
+
+        event_log = read_table("//sys/scheduler/event_log")
+
+        def check_structured():
+            def extract_event_log(filename):
+                with open(filename) as f:
+                    items = [json.loads(line) for line in f]
+                    events = list(filter(lambda e: "event_type" in e, items))
+                    return events
+
+            scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
+            controller_agent_log_file = self.path_to_run + "/logs/controller-agent-0.json.log"
+
+            structured_log = extract_event_log(scheduler_log_file) + extract_event_log(controller_agent_log_file)
+
+            for normal_event in event_log:
+                flag = False
+                for structured_event in structured_log:
+                    def key(event):
+                        return (event["timestamp"],
+                                event["event_type"],
+                                event["operation_id"] if "operation_id" in event else "")
+
+                    if key(normal_event) == key(structured_event):
+                        flag = True
+                        break
+                if not flag:
+                    return False
+            return True
+
+        wait(check_structured)
 
 

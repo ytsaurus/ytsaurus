@@ -127,6 +127,11 @@ struct TSchedulerStrategyHostMock
         return NYson::GetNullYsonConsumer();
     }
 
+    virtual const NLogging::TLogger* GetEventLogger() override
+    {
+        return nullptr;
+    }
+
     TJobResourcesWithQuotaList NodeResourceLimitsList;
 };
 

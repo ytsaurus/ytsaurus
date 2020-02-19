@@ -1149,6 +1149,7 @@ private:
         const TJobSummary& jobSummary);
 
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
+    virtual const NLogging::TLogger* GetEventLogger() override;
 
     void SleepInCommitStage(NScheduler::EDelayInsideOperationCommitStage desiredStage);
     void SleepInRevive();
