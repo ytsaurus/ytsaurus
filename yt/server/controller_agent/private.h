@@ -66,6 +66,7 @@ struct TJobNodeDescriptor;
 
 extern const NLogging::TLogger ControllerLogger;
 extern const NLogging::TLogger ControllerAgentLogger;
+extern const NLogging::TLogger ControllerEventLogger;
 
 extern const NProfiling::TProfiler ControllerAgentProfiler;
 

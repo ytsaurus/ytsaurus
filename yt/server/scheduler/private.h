@@ -55,6 +55,8 @@ DEFINE_ENUM(EJobRevivalPhase,
 );
 
 extern const NLogging::TLogger SchedulerLogger;
+extern const NLogging::TLogger SchedulerEventLogger;
+
 extern const NProfiling::TProfiler SchedulerProfiler;
 
 static constexpr int MaxNodesWithoutPoolTreeToAlert = 10;

@@ -2772,6 +2772,14 @@ IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
     return EventLogConsumer_.get();
 }
 
+const TLogger* TOperationControllerBase::GetEventLogger()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return &ControllerEventLogger;
+}
+
+
 void TOperationControllerBase::OnChunkFailed(TChunkId chunkId)
 {
     if (chunkId == NullChunkId) {
