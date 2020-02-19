@@ -1189,6 +1189,7 @@ class TestAccounts(AccountsTestSuiteBase):
         return master_memory_usage
 
     @authors("aleksandra-zh")
+    @flaky(max_runs=3)
     def test_master_memory_usage(self):
         create_account("a")
 
@@ -1304,6 +1305,7 @@ class TestAccounts(AccountsTestSuiteBase):
         create_account("a", attributes={"resource_limits": resource_limits})
 
         self._prepare_dynamic_table("//tmp/t", "a")
+        sync_mount_table("//tmp/t")
 
         wait(lambda: self._get_master_memory_usage("a") > 0)
         prev_usage = self._get_master_memory_usage("a")
@@ -1333,16 +1335,18 @@ class TestAccounts(AccountsTestSuiteBase):
                 {"name": "value", "type": "string"}],
             account="a")
 
+        sync_mount_table("//tmp/t")
+
         wait(lambda: self._get_master_memory_usage("a") > 0)
         prev_usage = self._get_master_memory_usage("a")
 
-        key_length = 10000
         sync_unmount_table("//tmp/t")
+        key_length = 10000
         sync_reshard_table("//tmp/t", [[]] + [['a' * key_length]])
         sync_mount_table("//tmp/t")
 
         wait(lambda: self._get_master_memory_usage("a") > prev_usage)
-        assert self._get_master_memory_usage("a") - prev_usage >= key_length
+        wait(lambda: self._get_master_memory_usage("a") - prev_usage >= key_length - 100)
 
     @authors("aleksandra-zh")
     def test_master_memory_usage_violate_limits(self):
@@ -2212,18 +2216,18 @@ class TestAccountTree(AccountsTestSuiteBase):
     @flaky(max_runs=3)
     def test_nested_usage2(self):
         create_account("yt", attributes={
-            "resource_limits": self._build_resource_limits(node_count=100, master_memory_usage=10000, disk_space=10000, chunk_count=1000)
+            "resource_limits": self._build_resource_limits(node_count=100, master_memory_usage=100000, disk_space=10000, chunk_count=1000)
         })
         self._multiply_account_limits("yt", 4)
         create_account("yt-dev", "yt", attributes={
-            "resource_limits": self._build_resource_limits(node_count=10, master_memory_usage=2000, disk_space=1000, chunk_count=100)
+            "resource_limits": self._build_resource_limits(node_count=10, master_memory_usage=20000, disk_space=1000, chunk_count=100)
         })
         self._multiply_account_limits("yt-dev", 2)
         create_account("yt-prod", "yt", attributes={
-            "resource_limits": self._build_resource_limits(node_count=10, master_memory_usage=1000, disk_space=1000, chunk_count=100)
+            "resource_limits": self._build_resource_limits(node_count=10, master_memory_usage=10000, disk_space=1000, chunk_count=100)
         })
         create_account("yt-morda", "yt-dev", attributes={
-            "resource_limits": self._build_resource_limits(node_count=5, master_memory_usage=1000, disk_space=100, chunk_count=10)
+            "resource_limits": self._build_resource_limits(node_count=5, master_memory_usage=10000, disk_space=100, chunk_count=10)
         })
 
         create("map_node", "//tmp/yt", attributes={"account": "yt"})
