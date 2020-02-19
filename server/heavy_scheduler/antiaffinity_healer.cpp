@@ -1,6 +1,5 @@
 #include "antiaffinity_healer.h"
 
-#include "bootstrap.h"
 #include "config.h"
 #include "disruption_throttler.h"
 #include "heavy_scheduler.h"

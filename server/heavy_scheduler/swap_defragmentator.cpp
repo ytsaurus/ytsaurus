@@ -1,6 +1,5 @@
 #include "swap_defragmentator.h"
 
-#include "bootstrap.h"
 #include "config.h"
 #include "heavy_scheduler.h"
 #include "helpers.h"

@@ -1,6 +1,5 @@
 #include "eviction_garbage_collector.h"
 
-#include "bootstrap.h"
 #include "config.h"
 #include "heavy_scheduler.h"
 #include "private.h"
