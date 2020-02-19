@@ -23,6 +23,7 @@ struct TLogRecord
     TString ThreadId;
     TString FiberId;
     TString TraceId;
+    ui64 Increment;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +67,7 @@ private:
 
     std::vector<std::pair<TString, TString>> ExtraLogTableColumns_;
 
-    ui64 Increment_ = 0;
+    ui64 NextIncrement_ = 0;
 
     TInstant LastLogReadTime_;
 
