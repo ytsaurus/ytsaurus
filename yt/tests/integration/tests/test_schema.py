@@ -35,7 +35,7 @@ class TypeTester(object):
             return make_schema([make_column("column", type_v2)])
 
         def write(self, path, value):
-            write_table(path, [{"column": value}], input_format=POSITIONAL_YSON)
+            tx_write_table(path, [{"column": value}], input_format=POSITIONAL_YSON)
 
     def __init__(self, type_list, dynamic=False):
         self.types = {}
@@ -85,7 +85,7 @@ class SingleColumnTable(object):
         })
 
     def check_good_value(self, value):
-        write_table(self.path, [{"column": value}], input_format=POSITIONAL_YSON)
+        tx_write_table(self.path, [{"column": value}], input_format=POSITIONAL_YSON)
 
     def check_bad_value(self, value):
         with raises_yt_error(SchemaViolation):
@@ -242,9 +242,9 @@ class TestComplexTypes(YTEnvSetup):
         check_schema()
 
         # no exception
-        write_table("//tmp/table", [{}, {"column": None}])
+        tx_write_table("//tmp/table", [{}, {"column": None}])
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/table", [{"column": 0}])
+            tx_write_table("//tmp/table", [{"column": 0}])
 
 
         with raises_yt_error("Null type cannot be required"):
@@ -262,10 +262,10 @@ class TestComplexTypes(YTEnvSetup):
                 "type_v2": list_type(null_type),
             }])
         })
-        write_table("//tmp/table", [{"column": []}, {"column": [None]}])
-        write_table("//tmp/table", [{"column": []}, {"column": [None, None]}])
+        tx_write_table("//tmp/table", [{"column": []}, {"column": [None]}])
+        tx_write_table("//tmp/table", [{"column": []}, {"column": [None, None]}])
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/table", [{"column": [0]}])
+            tx_write_table("//tmp/table", [{"column": [0]}])
 
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
@@ -273,13 +273,13 @@ class TestComplexTypes(YTEnvSetup):
                 "type_v2": optional_type(null_type)
             }])
         })
-        write_table("//tmp/table", [{"column": None}, {"column": [None]}])
+        tx_write_table("//tmp/table", [{"column": None}, {"column": [None]}])
 
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/table", [{"column": []}])
+            tx_write_table("//tmp/table", [{"column": []}])
 
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/table", [{"column": []}])
+            tx_write_table("//tmp/table", [{"column": []}])
 
     @authors("ermolovd")
     def test_dict(self, optimize_for):
@@ -293,7 +293,7 @@ class TestComplexTypes(YTEnvSetup):
         assert get("//tmp/table/@schema/0/type") == "any"
         assert get("//tmp/table/@schema/0/required") == True
 
-        write_table("//tmp/table", [
+        tx_write_table("//tmp/table", [
             {"column": []},
             {"column": [["one", 1]]},
             {"column": [["one", 1], ["two", 2]]},
@@ -302,7 +302,7 @@ class TestComplexTypes(YTEnvSetup):
 
         def check_bad(value):
             with raises_yt_error(SchemaViolation):
-                write_table("//tmp/table", [
+                tx_write_table("//tmp/table", [
                     {"column": value},
                 ])
         check_bad(None)
@@ -519,7 +519,7 @@ class TestComplexTypesMisc(YTEnvSetup):
                 make_column("column", list_type("int64")),
             ])
         })
-        write_table("//table", [{"column": []}])
+        tx_write_table("//table", [{"column": []}])
         with raises_yt_error("Type mismatch for column"):
             alter_table("//table", schema=make_schema([
                 make_column("column", optional_type(list_type("int64")))
@@ -547,8 +547,8 @@ class TestComplexTypesMisc(YTEnvSetup):
             {"name": "value", "type_v2": "string"},
         ], unique_keys=False, strict=True)})
 
-        write_table("//tmp/input1", [{"value": "foo"}])
-        write_table("//tmp/input2", [{"value": "bar"}])
+        tx_write_table("//tmp/input1", [{"value": "foo"}])
+        tx_write_table("//tmp/input2", [{"value": "bar"}])
 
         create("table", "//tmp/output")
 
@@ -571,8 +571,8 @@ class TestComplexTypesMisc(YTEnvSetup):
             {"name": "value", "type_v2": "null"},
         ], unique_keys=False, strict=True)})
 
-        write_table("//tmp/input1", [{"value": None}])
-        write_table("//tmp/input2", [{"value": None}])
+        tx_write_table("//tmp/input1", [{"value": None}])
+        tx_write_table("//tmp/input2", [{"value": None}])
 
         create("table", "//tmp/output")
 
@@ -708,7 +708,7 @@ class TestLogicalType(YTEnvSetup):
             remove("//test-alter-table", force=True)
             create("table", "//test-alter-table", attributes={"schema": schema_before})
             # Make table nonempty, since empty table allows any alter
-            write_table("//test-alter-table", [{}])
+            tx_write_table("//test-alter-table", [{}])
             with raises_yt_error("Cannot alter type" ):
                 alter_table("//test-alter-table", schema=schema_after)
 
@@ -752,13 +752,13 @@ class TestRequiredOption(YTEnvSetup):
                    ],
                })
 
-        write_table("//tmp/required_table", [{"value": "foo"}])
+        tx_write_table("//tmp/required_table", [{"value": "foo"}])
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/required_table", [{"value": 100500}])
+            tx_write_table("//tmp/required_table", [{"value": 100500}])
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/required_table", [{"value": None}])
+            tx_write_table("//tmp/required_table", [{"value": None}])
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/required_table", [{}])
+            tx_write_table("//tmp/required_table", [{}])
 
     @authors("ermolovd")
     def test_required_any_is_disallowed(self):
@@ -803,7 +803,7 @@ class TestRequiredOption(YTEnvSetup):
                        }
                    ],
                })
-        write_table(table, [{"column": None}])
+        tx_write_table(table, [{"column": None}])
         with raises_yt_error("Cannot alter type"):
             alter_table(
                 table,
@@ -815,7 +815,7 @@ class TestRequiredOption(YTEnvSetup):
                     }
                 ]
             )
-        write_table(table, [{"column": None}])
+        tx_write_table(table, [{"column": None}])
 
         create("table", table,
                force=True,
@@ -828,7 +828,7 @@ class TestRequiredOption(YTEnvSetup):
                        }
                    ],
                })
-        write_table(table, [{"column": "foo"}])
+        tx_write_table(table, [{"column": "foo"}])
 
         # No exception.
         alter_table(
@@ -851,7 +851,7 @@ class TestRequiredOption(YTEnvSetup):
                        }
                    ],
                })
-        write_table(table, [{"column1": "foo"}])
+        tx_write_table(table, [{"column1": "foo"}])
 
         with raises_yt_error("Cannot insert a new required column "):
             alter_table(
@@ -886,8 +886,8 @@ class TestRequiredOption(YTEnvSetup):
         create("table", table, attributes={"schema": schema})
         table = "//tmp/input2"
         create("table", table, attributes={"schema": schema})
-        write_table("//tmp/input1", [{"key": "foo", "value": "bar"}])
-        write_table("//tmp/input2", [{"key": "foo", "value": "baz"}])
+        tx_write_table("//tmp/input1", [{"key": "foo", "value": "bar"}])
+        tx_write_table("//tmp/input2", [{"key": "foo", "value": "baz"}])
 
         create("table", "//tmp/output")
 
@@ -907,8 +907,8 @@ class TestRequiredOption(YTEnvSetup):
             make_column("value", optional_type("string"))
         ], unique_keys=False, strict=True)})
 
-        write_table("//tmp/input1", [{"value": "foo"}])
-        write_table("//tmp/input2", [{"value": "bar"}])
+        tx_write_table("//tmp/input1", [{"value": "foo"}])
+        tx_write_table("//tmp/input2", [{"value": "bar"}])
 
         create("table", "//tmp/output")
 
@@ -993,11 +993,11 @@ class TestSchemaValidation(YTEnvSetup):
 
         create("table", "//tmp/bad-schema-2")
         with raises_yt_error("Too many columns in row"):
-            write_table("//tmp/bad-schema-2", [make_row(bad_size)])
+            tx_write_table("//tmp/bad-schema-2", [make_row(bad_size)])
 
         ok_size = bad_size - 1
         create("table", "//tmp/ok-schema", attributes={"schema": make_schema(ok_size)})
-        write_table("//tmp/ok-schema", [make_row(ok_size)])
+        tx_write_table("//tmp/ok-schema", [make_row(ok_size)])
 
 
 @authors("ermolovd")
@@ -1026,4 +1026,4 @@ class TestErrorCodes(YTEnvSetup):
         create("table", "//tmp/t", attributes={"schema": schema})
 
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/t", [{"foo": -1}])
+            tx_write_table("//tmp/t", [{"foo": -1}])
