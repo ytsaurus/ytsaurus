@@ -5,8 +5,9 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
+import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 
-public class SelectRowsRequest {
+public class SelectRowsRequest extends RequestBase<SelectRowsRequest> {
     private final String query;
     private YtTimestamp timestamp;
     private Long inputRowsLimit;

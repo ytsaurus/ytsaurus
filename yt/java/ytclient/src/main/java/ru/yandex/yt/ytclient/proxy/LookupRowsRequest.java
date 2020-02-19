@@ -9,12 +9,13 @@ import java.util.Optional;
 
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
+import ru.yandex.yt.ytclient.proxy.request.RequestBase;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
-public class LookupRowsRequest {
+public class LookupRowsRequest extends RequestBase<LookupRowsRequest> {
     private final String path;
     private final TableSchema schema;
     private final List<String> lookupColumns = new ArrayList<>();

@@ -9,7 +9,7 @@ import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
-public class StartOperation {
+public class StartOperation extends RequestBase<StartOperation> {
     private final EOperationType type;
     private final YTreeNode spec;
 
