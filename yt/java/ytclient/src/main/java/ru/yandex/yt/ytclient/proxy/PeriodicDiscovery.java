@@ -98,7 +98,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
             this.initialAddresses = initialAddresses.stream().map(HostPort::parse).collect(Collectors.toList());
             setProxies(this.initialAddresses);
         } catch (Throwable e) {
-            logger.error("Error on construction periodic discovery", e);
+            logger.error("[{}] Error on construction periodic discovery", datacenterName, e);
             IoUtils.closeQuietly(this);
             throw e;
         }
@@ -113,7 +113,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
     }
 
     private void setProxies(Collection<HostPort> list) {
-        logger.info("New proxy list added");
+        logger.info("[{}] New proxy list added", datacenterName);
         proxies.clear();
         proxies.addAll(list);
         for (PeriodicDiscoveryListener listener : listenerOpt) {
@@ -121,7 +121,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
                 listener.onProxiesSet(proxies);
             } catch (Throwable e) {
                 listener.onError(e);
-                logger.error("Error on proxy set {}: {}", list, e, e);
+                logger.error("[{}] Error on proxy set {}", datacenterName, list, e);
             }
         }
     }
@@ -193,7 +193,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
                     listener.onError(e);
                 }
 
-                logger.error("Error on process proxies {}", e, e);
+                logger.error("[{}] Error on process proxies", datacenterName, e);
             } finally {
                 if (running.get()) {
                     scheduleUpdate();
@@ -212,12 +212,12 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
             }
             try {
                 if (error != null) {
-                    logger.error("Error on update proxies", error);
+                    logger.error("[{}] Error on update proxies", datacenterName, error);
                 } else {
                     processProxies(new HashSet<>(result.stream().map(HostPort::parse).collect(Collectors.toList())));
                 }
             } catch (Throwable e) {
-                logger.error("Error on process proxies", e);
+                logger.error("[{}] Error on process proxies", datacenterName, e);
             }
 
             if (running.get()) {
@@ -231,9 +231,11 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
 
         if (proxies.isEmpty()) {
             if (clusterUrl.isPresent()) {
-                logger.warn("Empty proxies list. Bootstrapping from the initial list: {}", clusterUrl);
+                logger.warn("[{}] Empty proxies list. Bootstrapping from the initial list: {}",
+                        datacenterName, clusterUrl);
             } else {
-                logger.warn("Empty proxies list. Bootstrapping from the initial list: {}", initialAddresses);
+                logger.warn("[{}] Empty proxies list. Bootstrapping from the initial list: {}",
+                        datacenterName, initialAddresses);
                 setProxies(initialAddresses);
             }
         }
@@ -245,7 +247,7 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
 
     @Override
     public void close() {
-        logger.debug("Stopping periodic discovery");
+        logger.debug("[{}] Stopping periodic discovery", datacenterName);
         running.set(false);
         IoUtils.closeQuietly(httpClient);
     }
