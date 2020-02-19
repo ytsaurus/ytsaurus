@@ -48,13 +48,13 @@ else:
     SANDBOX_ROOTDIR = None
     SANDBOX_STORAGE_ROOTDIR = None
 
-yt.logger.LOGGER.setLevel(logging.DEBUG)
-
 ##################################################################
 
 def prepare_yatest_environment(need_suid):
     if arcadia_interop.yatest_common is None:
         return
+
+    yt.logger.LOGGER.setLevel(logging.DEBUG)
 
     global SANDBOX_ROOTDIR
     global SANDBOX_STORAGE_ROOTDIR
