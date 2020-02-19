@@ -141,6 +141,7 @@ public:
     Y_FORCE_INLINE double ParseDouble();
     Y_FORCE_INLINE void ParseBeginList();
     Y_FORCE_INLINE void ParseEndList();
+    Y_FORCE_INLINE void ParseEntity();
 
     // |ParseOptional*| allow the next item to be entity
     // and return |std::nullopt| in this case.
@@ -173,6 +174,10 @@ public:
     // NOTE: it does NOT move the cursor.
     Y_FORCE_INLINE bool IsEndList();
 
+    // Returns |true| iff the next item is '#'.
+    // NOTE: it does NOT move the cursor.
+    Y_FORCE_INLINE bool IsEntity();
+
 private:
     template <typename TVisitor>
     Y_FORCE_INLINE typename TVisitor::TResult NextImpl(TVisitor visitor);
@@ -195,6 +200,8 @@ private:
 
     template <typename TValue, EYsonItemType ItemType>
     Y_FORCE_INLINE int ParseVarintToArray(char* out);
+
+    Y_FORCE_INLINE bool IsMarker(char marker);
 
 private:
     using TLexer = NDetail::TLexerBase<NDetail::TReaderWithContext<NDetail::TZeroCopyInputStreamReader, 64>, false>;
