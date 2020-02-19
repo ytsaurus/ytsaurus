@@ -267,7 +267,7 @@ public:
     //! For example: |child->FairShareRatio = fraction(parent->FairShareRatio)|.
     virtual void UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
 
-    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const = 0;
+    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit, bool logDetailedInfo = false) const = 0;
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList);
 
@@ -450,7 +450,7 @@ public:
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
 
-    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
+    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit, bool logDetailedInfo = false) const override;
 
     virtual double GetFairShareStarvationToleranceLimit() const;
     virtual TDuration GetMinSharePreemptionTimeoutLimit() const;
@@ -829,7 +829,7 @@ public:
 
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
 
-    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
+    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit, bool logDetailedInfo = false) const override;
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
 

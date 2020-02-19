@@ -666,7 +666,7 @@ TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
 void TSchedulerElement::LogDetailedInfo() const
 {
     auto maxPossibleResourceUsage = Min(TotalResourceLimits_, MaxPossibleResourceUsage_);
-    auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
+    auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage, /* logDetailedInfo */ true);
 
     YT_LOG_DEBUG("XXX Detailed information (TotalResourceLimits: %v, Demand: %v, Usage: %v, MaxPossibleResourceUsage: %v, RecursiveMaxPossibleResourceUsage: %v)",
         FormatResources(TotalResourceLimits_),
@@ -850,14 +850,17 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList* dynamicAt
     }
 }
 
-TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit) const
+TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit, bool logDetailedInfo) const
 {
     TJobResources additionalUsage;
 
     for (const auto& child : EnabledChildren_) {
-        auto childUsage = child->ComputePossibleResourceUsage(limit);
+        auto childUsage = child->ComputePossibleResourceUsage(limit, logDetailedInfo);
         limit -= childUsage;
         additionalUsage += childUsage;
+        if (logDetailedInfo) {
+            YT_LOG_DEBUG("XXX Current state after processing %v (Limit: %v, AdditionalUsage: %v)", child->GetId(), FormatResources(limit), FormatResources(additionalUsage));
+        }
     }
 
     return additionalUsage;
@@ -2444,19 +2447,28 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesL
     UpdatePreemptableJobsList();
 }
 
-TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit) const
+TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit, bool logDetailedInfo) const
 {
     auto usage = GetLocalResourceUsage();
     if (!Dominates(limit, usage)) {
+        if (logDetailedInfo) {
+            YT_LOG_DEBUG("XXX Scale usage (Limit: %v, Usage: %v, Scale: %v)", FormatResources(limit), FormatResources(usage), GetMinResourceRatio(limit, usage));
+        }
         return usage * GetMinResourceRatio(limit, usage);
     } else {
         auto remainingDemand = ResourceDemand() - usage;
         if (remainingDemand == TJobResources()) {
+            if (logDetailedInfo) {
+                YT_LOG_DEBUG("XXX Zero additional demand");
+            }
             return usage;
         }
 
         auto remainingLimit = Max({}, limit - usage);
         // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
+        if (logDetailedInfo) {
+            YT_LOG_DEBUG("XXX Scale demand (Limit: %v, RemainingDemand: %v)", FormatResources(limit), FormatResources(remainingDemand));
+        }
         return Min(ResourceDemand(), usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand));
     }
 }
