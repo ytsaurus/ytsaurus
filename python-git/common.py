@@ -6,7 +6,11 @@ import yt.json_wrapper as json
 # See http://bugs.python.org/issue7980 for more details.
 import _strptime
 
-from collections import Mapping
+# Python3 compatibility
+try:
+    from collections.abc import Mapping
+except ImportError:
+    from collections import Mapping
 from datetime import datetime
 from itertools import chain
 from functools import wraps
@@ -207,13 +211,14 @@ class YtResponseError(YtError):
         """Transaction lock conflict."""
         return self.contains_code(1700)
 
+    @deprecated(alternative='use is_request_queue_size_limit_exceeded')
     def is_request_rate_limit_exceeded(self):
         """Request rate limit exceeded."""
         return self.contains_code(904)
 
     def is_request_queue_size_limit_exceeded(self):
         """Request rate limit exceeded."""
-        return self.contains_code(108)
+        return self.contains_code(108) or self.contains_code(904)
 
     def is_rpc_unavailable(self):
         """Rpc unavailable."""
@@ -406,21 +411,26 @@ def _pretty_format_full_errors(error, attribute_length_limit):
 
 
 def _pretty_format(error, attribute_length_limit=None):
-
     return "{}\n\n***** Details:\n{}\n".format(
         _pretty_format_messages(error),
         _pretty_format_full_errors(error, attribute_length_limit=attribute_length_limit))
+
+def _pretty_format_for_logging(error, attribute_length_limit=None):
+    return _pretty_format_full_errors(error, attribute_length_limit=attribute_length_limit).replace("\n", "\\n")
 
 
 def format_error(error, attribute_length_limit=300):
     return _pretty_format(error, attribute_length_limit)
 
 
-def which(name, flags=os.X_OK):
+def which(name, flags=os.X_OK, custom_paths=None):
     """Return list of files in system paths with given name."""
     # TODO: check behavior when dealing with symlinks
     result = []
-    for dir in os.environ.get("PATH", "").split(os.pathsep):
+    paths = os.environ.get("PATH", "").split(os.pathsep)
+    if custom_paths is not None:
+        paths = custom_paths + paths
+    for dir in paths:
         path = os.path.join(dir, name)
         if os.access(path, flags):
             result.append(path)

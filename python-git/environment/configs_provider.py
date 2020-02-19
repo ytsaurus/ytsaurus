@@ -115,13 +115,12 @@ _default_provision = {
     "driver": {
         "backend": "native",
     },
-    "skynet_manager": {
-        "count": 0,
-    },
     "enable_debug_logging": True,
     "enable_structured_master_logging": False,
+    "enable_structured_scheduler_logging": False,
     "fqdn": socket.getfqdn(),
     "enable_master_cache": False,
+    "enable_logging_compression": True,
 }
 
 def get_default_provision():
@@ -184,13 +183,6 @@ class ConfigsProvider(object):
         if provision["driver"]["backend"] == "rpc":
             driver_configs = rpc_driver_configs
 
-        skynet_manager_configs = None
-        if provision["skynet_manager"]["count"] > 0:
-            if not http_proxy_configs:
-                raise YtError("Skynet manager requires at least one HTTP proxy")
-            http_proxy_address = "{0}:{1}".format(provision["fqdn"], http_proxy_configs[0]["port"])
-            skynet_manager_configs = self._build_skynet_manager_configs(provision, logs_dir, http_proxy_address, rpc_proxy_addresses, ports_generator)
-
         cluster_configuration = {
             "master": master_configs,
             "clock": clock_configs,
@@ -202,7 +194,6 @@ class ConfigsProvider(object):
             "http_proxy": http_proxy_configs,
             "rpc_proxy": rpc_proxy_configs,
             "rpc_client": rpc_client_config,
-            "skynet_manager": skynet_manager_configs,
         }
 
         return cluster_configuration
@@ -241,13 +232,9 @@ class ConfigsProvider(object):
     def _build_rpc_proxy_configs(self, provision, master_connection_configs, ports_generator):
         pass
 
-    @abc.abstractmethod
-    def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_addresses, ports_generator):
-        pass
-
-def init_logging(node, path, name, enable_debug_logging, enable_structured_logging=False):
+def init_logging(node, path, name, enable_debug_logging, enable_compression, enable_structured_logging=False):
     if not node:
-        node = default_configs.get_logging_config(enable_debug_logging, enable_structured_logging)
+        node = default_configs.get_logging_config(enable_debug_logging, enable_compression, enable_structured_logging)
 
     def process(node, key, value):
         if isinstance(value, str):
@@ -408,8 +395,9 @@ class ConfigsProvider_19(ConfigsProvider):
 
                 config["logging"] = init_logging(config.get("logging"), master_logs_dir,
                                                  "master-{0}-{1}".format(cell_index, master_index),
-                                                 provision["enable_debug_logging"],
-                                                 provision["enable_structured_master_logging"])
+                                                 enable_debug_logging=provision["enable_debug_logging"],
+                                                 enable_compression=provision["enable_logging_compression"],
+                                                 enable_structured_logging=provision["enable_structured_master_logging"])
 
                 _set_bind_retry_options(config, key="bus_server")
 
@@ -472,7 +460,8 @@ class ConfigsProvider_19(ConfigsProvider):
 
             config["logging"] = init_logging(config.get("logging"), clock_logs_dir,
                                              "clock-{0}".format(clock_index),
-                                             provision["enable_debug_logging"])
+                                             enable_debug_logging=provision["enable_debug_logging"],
+                                             enable_compression=provision["enable_logging_compression"])
 
             _set_bind_retry_options(config, key="bus_server")
 
@@ -503,10 +492,14 @@ class ConfigsProvider_19(ConfigsProvider):
                 "hard_backoff_time": 100
             },
             "cell_directory_synchronizer": {
-                "sync_period": 500
+                "sync_period": 500,
+                "success_expiration_time": 500,
+                "failure_expiration_time": 500
             },
             "cluster_directory_synchronizer": {
-                "sync_period": 500
+                "sync_period": 500,
+                "success_expiration_time": 500,
+                "failure_expiration_time": 500
             },
             "table_mount_cache": {
                 "expire_after_successful_update_time": 0,
@@ -518,6 +511,12 @@ class ConfigsProvider_19(ConfigsProvider):
                 "sync_period": 500,
                 "success_expiration_time": 500,
                 "failure_expiration_time": 500
+            },
+            "job_node_descriptor_cache": {
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "expire_after_access_time": 0,
+                "refresh_time": 0
             }
         }
 
@@ -565,7 +564,10 @@ class ConfigsProvider_19(ConfigsProvider):
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
-                                             "scheduler-" + str(index), provision["enable_debug_logging"])
+                                             "scheduler-" + str(index),
+                                             enable_debug_logging=provision["enable_debug_logging"],
+                                             enable_compression=provision["enable_logging_compression"],
+                                             enable_structured_logging=provision["enable_structured_scheduler_logging"])
 
             _set_bind_retry_options(config, key="bus_server")
 
@@ -600,7 +602,8 @@ class ConfigsProvider_19(ConfigsProvider):
                 proxy_config.get("logging"),
                 proxy_logs_dir,
                 "http-proxy-{}".format(index),
-                provision["enable_debug_logging"],
+                enable_debug_logging=provision["enable_debug_logging"],
+                enable_compression=provision["enable_logging_compression"],
                 enable_structured_logging=True)
 
             _set_bind_retry_options(proxy_config)
@@ -620,7 +623,7 @@ class ConfigsProvider_19(ConfigsProvider):
         current_user = 10000
 
         for index in xrange(provision["node"]["count"]):
-            config = default_configs.get_node_config(provision["enable_debug_logging"])
+            config = default_configs.get_node_config()
 
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
 
@@ -682,14 +685,18 @@ class ConfigsProvider_19(ConfigsProvider):
             set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])
 
             config["logging"] = init_logging(config.get("logging"), node_logs_dir, "node-{0}".format(index),
-                                             provision["enable_debug_logging"])
+                                             enable_debug_logging=provision["enable_debug_logging"],
+                                             enable_compression=provision["enable_logging_compression"])
 
             job_proxy_logging = get_at(config, "exec_agent/job_proxy_logging")
             log_name = "job_proxy-{0}".format(index)
             set_at(
                 config,
                 "exec_agent/job_proxy_logging",
-                init_logging(job_proxy_logging, node_logs_dir, log_name, provision["enable_debug_logging"]))
+                init_logging(job_proxy_logging, node_logs_dir, log_name,
+                             enable_debug_logging=provision["enable_debug_logging"],
+                             enable_compression=provision["enable_logging_compression"])
+            )
 
             set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)
             set_at(config, "tablet_node/hydra_manager/restart_backoff_time", 100)
@@ -772,54 +779,38 @@ class ConfigsProvider_19(ConfigsProvider):
 
             config = {
                 "cluster_connection": master_connection_configs,
+                "discovery_service": {
+                    "liveness_update_period": 500,
+                    "proxy_update_period": 500
+                },
                 "rpc_port": next(ports_generator),
                 "grpc_server": grpc_server_config,
                 "monitoring_port": next(ports_generator),
                 "enable_authentication": False,
                 "address_resolver": {"localhost_fqdn": provision["fqdn"]},
+                "api_service": {
+                    "security_manager": {
+                        "user_cache": {
+                            "expire_after_successful_update_time": 0,
+                            "refresh_time": 0,
+                            "expire_after_failed_update_time": 0,
+                            "expire_after_access_time": 0,
+                        }
+                    }
+                }
             }
             config["cluster_connection"] = self._build_cluster_connection_config(master_connection_configs)
-            config["logging"] = init_logging(config.get("logging"), proxy_logs_dir,
-                "rpc-proxy-{}".format(rpc_proxy_index), provision["enable_debug_logging"])
+            config["logging"] = init_logging(
+                config.get("logging"),
+                proxy_logs_dir,
+                "rpc-proxy-{}".format(rpc_proxy_index),
+                enable_debug_logging=provision["enable_debug_logging"],
+                enable_compression=provision["enable_logging_compression"])
 
             configs.append(config)
 
         return configs
 
-    def _build_skynet_manager_configs(self, provision, logs_dir, proxy_address, rpc_proxy_addresses, ports_generator):
-        configs = []
-        for manager_index in xrange(provision["skynet_manager"]["count"]):
-            config = {
-                "port": next(ports_generator),
-                "monitoring_port": next(ports_generator),
-                "peer_id_file": "peer_id_" + str(manager_index),
-                "announcer": {
-                    "trackers": ["sas1-skybonecoord1.search.yandex.net:2399"],
-                    "peer_udp_port": 7001 + 2 * manager_index,
-                    "out_of_order_update_ttl": 5000,
-                },
-                "skynet_port": 7000 + 2 * manager_index,
-                "sync_iteration_interval": 1000,
-                "removed_tables_scan_interval": 1000,
-            }
-            config["clusters"] = [
-                {
-                    "cluster_name": "local",
-                    "root": "//sys/skynet_manager",
-                    "user": "root",
-                    "oauth_token_env": "",
-                    "connection": {
-                        "connection_type": "rpc",
-                        "cluster_url": "http://" + proxy_address,
-                    },
-                }
-            ]
-            config["logging"] = init_logging(config.get("logging"), logs_dir,
-                "skynet-manager-{}".format(manager_index), provision["enable_debug_logging"])
-
-            configs.append(config)
-
-        return configs
 
 class ConfigsProvider_19_4(ConfigsProvider_19):
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
@@ -880,7 +871,10 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
             config["logging"] = init_logging(config.get("logging"), controller_agent_logs_dir,
-                                             "controller-agent-" + str(index), provision["enable_debug_logging"])
+                                             "controller-agent-" + str(index),
+                                             enable_debug_logging=provision["enable_debug_logging"],
+                                             enable_compression=provision["enable_logging_compression"],
+                                             enable_structured_logging=provision["enable_structured_scheduler_logging"])
 
             _set_bind_retry_options(config, key="bus_server")
 

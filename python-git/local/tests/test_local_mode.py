@@ -2,8 +2,8 @@ from __future__ import print_function
 
 from yt.local import start, stop, delete
 import yt.local as yt_local
+from yt.common import remove_file, is_process_alive, which
 from yt.wrapper import YtClient
-from yt.common import remove_file, is_process_alive
 from yt.wrapper.common import generate_uuid
 from yt.environment.helpers import is_dead_or_zombie
 from yt.test_helpers import get_tests_sandbox
@@ -25,6 +25,7 @@ except ImportError:
 
 import os
 import sys
+import logging
 import pytest
 import tempfile
 import signal
@@ -33,6 +34,7 @@ import time
 import string
 import random
 
+logger = logging.getLogger("Yt.local")
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 PYTHONPATH = os.path.abspath(os.path.join(TESTS_LOCATION, "../../../"))
@@ -105,6 +107,9 @@ def local_yt(*args, **kwargs):
     try:
         environment = start(*args, enable_debug_logging=True, **kwargs)
         yield environment
+    except:
+        logger.exception("Failed to start local yt")
+        raise
     finally:
         if environment is not None:
             stop(environment.id)
@@ -565,3 +570,10 @@ class TestLocalMode(object):
                     assert False, "Not all processes were killed after {0} seconds".format(WAIT_TIMEOUT)
 
                 time.sleep(1.0)
+
+    def test_ytserver_all(self):
+        ytserver_all_paths = which("ytserver-all")
+        assert ytserver_all_paths
+        with local_yt(id=_get_id("ytserver_all"), ytserver_all_path=ytserver_all_paths[0]) as environment:
+            client = environment.create_client()
+            client.get("/")

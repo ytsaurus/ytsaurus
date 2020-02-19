@@ -280,18 +280,6 @@ def canonize_uuid(uuid):
         return part
     return "-".join(map(canonize_part, uuid.split("-")))
 
-def add_binary_path(relative_path):
-    if yatest_common is None and "ARCADIA_PATH" not in os.environ:
-        return
-
-    if yatest_common is not None:
-        binary_path = yatest_common.binary_path(relative_path)
-    else:
-        binary_path = os.path.join(os.environ["ARCADIA_PATH"], relative_path)
-
-    if not which(os.path.basename(binary_path)):
-        os.environ["PATH"] = os.path.dirname(binary_path) + ":" + os.environ["PATH"]
-
 def get_value_from_config(config, key, name):
     d = config
     parts = key.split("/")
@@ -313,3 +301,49 @@ def emergency_exit_within_tests(test_environment, process, call_arguments):
     print >>sys.stderr, "Killing pytest process"
     # Avoid dumping useless stacktrace to stderr.
     os.kill(os.getpid(), signal.SIGKILL)
+
+
+SCHEDULERS_SERVICE = "schedulers"
+CONTROLLER_AGENTS_SERVICE = "controller_agents"
+NODES_SERVICE = "nodes"
+# TODO(ignat): migrate to new naming.
+MASTER_CELL_SERVICE = "masters"
+MASTERS_SERVICE = "masters"
+
+class Restarter(object):
+    def __init__(self, yt_instance, components, *args, **kwargs):
+        self.yt_instance = yt_instance
+        self.components = components
+        if type(self.components) == str:
+            self.components = [self.components]
+        self.kill_args = args
+        self.kill_kwargs = kwargs
+
+        self.start_dict = {
+            SCHEDULERS_SERVICE: self.yt_instance.start_schedulers,
+            CONTROLLER_AGENTS_SERVICE: self.yt_instance.start_controller_agents,
+            NODES_SERVICE: self.yt_instance.start_nodes,
+            MASTERS_SERVICE: lambda: self.yt_instance.start_all_masters(True)
+        }
+        self.kill_dict = {
+            SCHEDULERS_SERVICE: lambda: self.yt_instance.kill_schedulers(*self.kill_args, **self.kill_kwargs),
+            CONTROLLER_AGENTS_SERVICE: lambda: self.yt_instance.kill_controller_agents(*self.kill_args, **self.kill_kwargs),
+            NODES_SERVICE: lambda: self.yt_instance.kill_nodes(*self.kill_args, **self.kill_kwargs),
+            MASTERS_SERVICE: lambda: self.yt_instance.kill_all_masters(*self.kill_args, **self.kill_kwargs)
+        }
+
+    def __enter__(self):
+        for comp_name in self.components:
+            try:
+                self.kill_dict[comp_name]()
+            except KeyError:
+                logger.error("Failed to kill {}. No such component.".format(comp_name))
+                raise
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        for comp_name in self.components:
+            try:
+                self.start_dict[comp_name]()
+            except KeyError:
+                logger.error("Failed to start {}. No such component.".format(comp_name))
+                raise

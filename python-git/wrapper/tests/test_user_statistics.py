@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from .helpers import TEST_DIR, check, yatest_common
 
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -9,6 +7,7 @@ import yt.wrapper as yt
 import pytest
 
 
+@pytest.mark.skipif(yatest_common is not None, reason="It is not supported inside arcadia")
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestUserStatistics(object):
     @add_failed_operation_stderrs_to_error_message
@@ -18,9 +17,6 @@ class TestUserStatistics(object):
             assert yt.get_blkio_cgroup_statistics()
             assert not yt.get_memory_cgroup_statistics()
             yield row
-
-        if yatest_common is not None:
-            pytest.skip()
 
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}, {"y": 2}])

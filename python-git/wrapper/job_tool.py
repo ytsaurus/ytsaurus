@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from yt.common import makedirp, YtError
+from yt.common import makedirp, YtError, YtResponseError
 from yt.wrapper.cli_helpers import ParseStructuredArgument
 from yt.wrapper.common import DoNotReplaceAction, chunk_iter_stream, MB
 from yt.wrapper.file_commands import _get_remote_temp_files_directory
@@ -64,11 +64,27 @@ def get_output_descriptor_list(output_table_count, use_yamr_descriptors):
         # descriptor #5 is for job statistics
         return [2, 5] + [3 * i + 1 for i in xrange(output_table_count)]
 
+def parse_bash_command_line(command_line):
+    """Splits command_line into 3 strings: environment_variables, command, arguments.
+    """
+    environment_variables = ""
+    command_with_args = command_line.split(None, 1)
+
+    while len(command_with_args) == 2:
+        if "=" in command_with_args[0]:
+            environment_variables += command_with_args[0] + " "
+            command_with_args = command_with_args[1].split(None, 1)
+        else:
+            return environment_variables.strip(), command_with_args[0], command_with_args[1]
+
+    return "", command_line, ""
+
 def make_run_sh(job_path, operation_id, job_id, sandbox_path, command, environment,
                 input_path, output_path, output_table_count, use_yamr_descriptors):
     output_descriptor_list = get_output_descriptor_list(output_table_count, use_yamr_descriptors)
 
-    run_sh_path = os.path.join(job_path, "run.sh")
+    command_run_sh_path = os.path.join(job_path, "run.sh")
+    gdb_run_sh_path = os.path.join(job_path, "run_gdb.sh")
 
     # Stderr is treated separately.
     output_descriptor_list.remove(2)
@@ -90,7 +106,7 @@ def make_run_sh(job_path, operation_id, job_id, sandbox_path, command, environme
     else:
         run_bash_env_command = ""
 
-    script = """\
+    environment_script = """\
 #!/usr/bin/env bash
 
 SANDBOX_DIR="$(dirname $0)/{sandbox_suffix}"
@@ -105,39 +121,54 @@ export YT_JOB_ID={job_id}
 export YT_STARTED_BY_JOB_TOOL=1
 {environment}
 
-INPUT_DATA="{input_rel_path}"
-
 {run_bash_env_command}
-
-({command}) < $INPUT_DATA {output_descriptors_spec}
 """.format(
         sandbox_suffix=sandbox_suffix,
         operation_id=operation_id,
         job_id=job_id,
-        command=command,
         run_bash_env_command=run_bash_env_command,
         environment=make_environment_string(environment),
         input_rel_path=input_rel_path,
-        output_rel_path=output_rel_path,
+        output_rel_path=output_rel_path)
+
+    command_script = """\
+({command}) < {input_rel_path} {output_descriptors_spec}
+""".format(
+        command=command,
+        input_rel_path=input_rel_path,
         output_descriptors_spec=output_descriptors_spec)
 
-    with open(run_sh_path, "w") as out:
-        out.write(script)
-    os.chmod(run_sh_path, 0o744)
+    gdb_environment_variables, gdb_command, gdb_arguments = parse_bash_command_line(command)
+
+    gdb_script = """\
+gdb {gdb_command} -ex 'set args {gdb_args} < {input_rel_path} {output_descriptors_spec}' -ex 'set environment {gdb_env}'
+""".format(
+        gdb_command=gdb_command,
+        gdb_args=gdb_arguments,
+        gdb_env=gdb_environment_variables,
+        input_rel_path=input_rel_path,
+        output_descriptors_spec=output_descriptors_spec)
+
+    for run_sh_path, script in [(command_run_sh_path, command_script),
+                                (gdb_run_sh_path, gdb_script),
+                                ]:
+        with open(run_sh_path, "w") as out:
+            out.write(environment_script + script)
+        os.chmod(run_sh_path, 0o744)
 
 def add_hybrid_argument(parser, name, group_required=True, **kwargs):
     group = parser.add_mutually_exclusive_group(required=group_required)
     group.add_argument(name, nargs="?", action=DoNotReplaceAction, **kwargs)
     group.add_argument("--" + name.replace("_", "-"), **kwargs)
 
-def download_file(path, destination_path):
+def download_file(path, destination_path, client):
     with open(destination_path, "wb") as f:
-        for chunk in chunk_iter_stream(yt.read_file(path), 16 * MB):
+        for chunk in chunk_iter_stream(client.read_file(path), 16 * MB):
             f.write(chunk)
 
-def download_table(path, destination_path):
+def download_table(path, destination_path, client):
     with open(destination_path, "wb") as f:
-        for r in yt.read_table(path, format=path.attributes["format"], raw=True):
+        for r in client.read_table(path, format=path.attributes["format"], raw=True):
             f.write(r)
 
 def run_job(job_path, env=None):
@@ -148,15 +179,15 @@ def run_job(job_path, env=None):
     p = subprocess.Popen([run_script], env=env, close_fds=False)
     sys.exit(p.wait())
 
-def download_job_input(operation_id, job_id, job_input_path, get_context_action):
+def download_job_input(operation_id, job_id, job_input_path, get_context_action, client):
     if get_context_action == "dump_job_context":
         logger.info("Job is running, using its input context as local input")
-        output_path = yt.find_free_subpath(_get_remote_temp_files_directory(client=None))
-        yt.dump_job_context(job_id, output_path)
+        output_path = client.find_free_subpath(_get_remote_temp_files_directory(client=None))
+        client.dump_job_context(job_id, output_path)
         try:
-            download_file(output_path, job_input_path)
+            download_file(output_path, job_input_path, client)
         finally:
-            yt.remove(output_path, force=True)
+            client.remove(output_path, force=True)
     elif get_context_action in ["get_job_fail_context", "get_job_input"]:
         if get_context_action == "get_job_fail_context":
             logger.info("Job is failed, using its fail context as local input")
@@ -167,7 +198,7 @@ def download_job_input(operation_id, job_id, job_input_path, get_context_action)
                 job_input_stream = get_job_input(job_id)
             except YtError as err:
                 raise YtError("Failed to download job input. To get job fail context, use option --context",
-                                    inner_errors=[err])
+                              inner_errors=[err])
         with open(job_input_path, "wb") as out:
             for chunk in chunk_iter_stream(job_input_stream, 16 * MB):
                 out.write(chunk)
@@ -176,13 +207,13 @@ def download_job_input(operation_id, job_id, job_input_path, get_context_action)
 
     logger.info("Job input is downloaded to %s", job_input_path)
 
-def get_job_info(operation_id, job_id):
-    job_info = yt.get_job(operation_id, job_id)
+def get_job_info(operation_id, job_id, client):
+    job_info = client.get_job(operation_id, job_id)
     job_is_running = job_info["state"] == "running"
     return JobInfo(job_info["type"], is_running=job_is_running)
 
-def ensure_backend_is_supported():
-    backend = yt.config.get_backend_type(yt)
+def ensure_backend_is_supported(client):
+    backend = yt.config.get_backend_type(client=client)
     if backend != "http":
         print(
             "ERROR: yt-job-tool can only work with `http` backend, "
@@ -191,19 +222,49 @@ def ensure_backend_is_supported():
         exit(1)
 
 def prepare_job_environment(operation_id, job_id, job_path, run=False, get_context_mode=INPUT_CONTEXT_MODE):
+    def _download_files(op_spec, sandbox_path, client):
+        for index, file_ in enumerate(op_spec[job_spec_section]["file_paths"]):
+            file_original_attrs = client.get(file_ + "&/@", attributes=["key", "file_name"])
+            file_attrs = client.get(file_ + "/@", attributes=["type"])
+
+            file_name = file_.attributes.get("file_name")
+            if file_name is None:
+                file_name = file_original_attrs.get("file_name")
+            if file_name is None:
+                file_name = file_original_attrs.get("key")
+
+            file_name_parts = file_name.split("/")
+            makedirp(os.path.join(sandbox_path, *file_name_parts[:-1]))
+            logger.info("Downloading job file \"%s\" (%d of %d)", file_name, index + 1, file_count)
+            destination_path = os.path.join(sandbox_path, *file_name_parts)
+            node_type = file_attrs["type"]
+            if node_type == "file":
+                download_file(file_, destination_path, client)
+            elif node_type == "table":
+                download_table(file_, destination_path, client)
+            else:
+                raise yt.YtError("Unknown format of job file node: {0}".format(node_type))
+
+            if file_.attributes.get("executable", False):
+                os.chmod(destination_path, os.stat(destination_path).st_mode | stat.S_IXUSR)
+
+            logger.info("Done")
+
+    client = yt.YtClient(config=yt.config.config)
+
     if get_context_mode not in (INPUT_CONTEXT_MODE, FULL_INPUT_MODE):
         raise YtError("Incorrect get_context_mode {}, expected one of ({}, {})",
             repr(get_context_mode), repr(INPUT_CONTEXT_MODE), repr(FULL_INPUT_MODE))
 
     # NB: we should explicitly reset this option to default value since CLI usually set True to it.
-    yt.config["default_value_of_raw_option"] = None
+    client.config["default_value_of_raw_option"] = None
 
-    ensure_backend_is_supported()
+    ensure_backend_is_supported(client)
 
     if job_path is None:
         job_path = os.path.join(os.getcwd(), "job_" + job_id)
 
-    operation_info = yt.get_operation(operation_id, attributes=["operation_type", "spec"])
+    operation_info = client.get_operation(operation_id, attributes=["operation_type", "spec"])
     op_type = operation_info["operation_type"]
     op_spec = operation_info["spec"]
     if op_type in ["remote_copy", "sort", "merge"]:
@@ -212,7 +273,7 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
 
     logger.info("Preparing job environment for job %s, operation %s", job_id, operation_id)
 
-    job_info = get_job_info(operation_id, job_id)
+    job_info = get_job_info(operation_id, job_id, client)
     if get_context_mode == FULL_INPUT_MODE:
         get_context_action = "get_job_input"
     elif job_info.is_running:
@@ -223,44 +284,29 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
     if job_info.job_type not in JOB_TYPE_TO_SPEC_TYPE:
         raise yt.YtError("Unknown job type \"{0}\"".format(repr(job_info.job_type)))
 
+    full_info = client.get_operation(operation_id)
+
     job_spec_section = JOB_TYPE_TO_SPEC_TYPE[job_info.job_type]
 
     makedirp(job_path)
     job_input_path = os.path.join(job_path, "input")
 
-    download_job_input(operation_id, job_id, job_input_path, get_context_action)
+    download_job_input(operation_id, job_id, job_input_path, get_context_action, client)
 
     # Sandbox files
     sandbox_path = os.path.join(job_path, "sandbox")
     makedirp(sandbox_path)
 
     file_count = len(op_spec[job_spec_section]["file_paths"])
-    for index, file_ in enumerate(op_spec[job_spec_section]["file_paths"]):
-        file_original_attrs = yt.get(file_ + "&/@", attributes=["key", "file_name"])
-        file_attrs = yt.get(file_ + "/@", attributes=["type"])
-
-        file_name = file_.attributes.get("file_name")
-        if file_name is None:
-            file_name = file_original_attrs.get("file_name")
-        if file_name is None:
-            file_name = file_original_attrs.get("key")
-
-        file_name_parts = file_name.split("/")
-        makedirp(os.path.join(sandbox_path, *file_name_parts[:-1]))
-        logger.info("Downloading job file \"%s\" (%d of %d)", file_name, index + 1, file_count)
-        destination_path = os.path.join(sandbox_path, *file_name_parts)
-        node_type = file_attrs["type"]
-        if node_type == "file":
-            download_file(file_, destination_path)
-        elif node_type == "table":
-            download_table(file_, destination_path)
+    try:
+        with client.Transaction(transaction_id=full_info["user_transaction_id"]):
+            _download_files(op_spec, sandbox_path, client)
+    except YtResponseError as err:
+        if err.is_no_such_transaction():
+            _download_files(op_spec, sandbox_path, client)
         else:
-            raise yt.YtError("Unknown format of job file node: {0}".format(node_type))
+            raise
 
-        if file_.attributes.get("executable", False):
-            os.chmod(destination_path, os.stat(destination_path).st_mode | stat.S_IXUSR)
-
-        logger.info("Done")
 
     if file_count > 0:
         logger.info("Job files were downloaded to %s", sandbox_path)

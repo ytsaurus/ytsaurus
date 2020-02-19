@@ -6,6 +6,8 @@ from .helpers import (TEST_DIR, set_config_option, get_tests_sandbox, check, get
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.spec_builders import VanillaSpecBuilder, MapSpecBuilder
 import yt.subprocess_wrapper as subprocess
+
+from yt.packages.six import PY3
 from yt.packages.six.moves import xrange
 
 # Necessary for tests.
@@ -386,10 +388,8 @@ class Mapper(object):
                                cwd=get_test_files_dir_path(), env=self.env)
         check(yt.read_table("//tmp/output_table"), [{"value": 0, "constant": 10}])
 
+    @pytest.mark.skipif("PY3")
     def test_run_standalone_binary(self):
-        if sys.version_info[0] >= 3:
-            pytest.skip()
-
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])

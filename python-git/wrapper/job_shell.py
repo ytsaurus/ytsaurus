@@ -5,7 +5,7 @@ from .common import generate_uuid, get_version, YtError, get_binary_std_stream
 from .errors import YtResponseError
 from .config import get_backend_type
 from .driver import get_api_version
-from .http_helpers import get_proxy_url, get_token
+from .http_helpers import get_proxy_url, get_token, make_request_with_retries
 
 from yt.packages.six import b
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
@@ -17,12 +17,12 @@ with PackagesImporter():
     # It is necessary to prevent local imports during runtime.
     import tornado.simple_httpclient # noqa
 
-from copy import deepcopy
 from binascii import hexlify
 from io import FileIO
 import sys
 import os
 import json
+import random
 import struct
 import signal
 import time
@@ -62,21 +62,15 @@ class JobShell(object):
         self.terminal_mode = True
         self.output = FileIO(sys.stdout.fileno(), mode='w', closefd=False)
 
-        proxy_url = get_proxy_url(client=client)
-        proxy = "http://{0}/api/{1}"\
-            .format(proxy_url, get_api_version(client=client))
-        self.environment = [b"YT_PROXY=" + b(proxy_url)]
-        token = get_token(client=client)
-        if token is not None:
-            self.environment.append(b"YT_TOKEN=" + b(token))
+        self.proxy_url = get_proxy_url(client=client)
+        self.api_version = get_api_version(client=client)
 
-        headers = HTTPHeaders()
-        if token:
-            headers["Authorization"] = "OAuth " + token
-        headers["User-Agent"] = "Python wrapper " + get_version()
-        headers["X-YT-Header-Format"] = "<format=text>yson"
-        headers["X-YT-Output-Format"] = "yson"
-        self.req = HTTPRequest(proxy + "/poll_job_shell", method="POST", headers=headers, body="", request_timeout=60)
+        self.environment = [b"YT_PROXY=" + b(self.proxy_url)]
+        self.token = get_token(client=client)
+        if self.token is not None:
+            self.environment.append(b"YT_TOKEN=" + b(self.token))
+
+        self.current_proxy = None
 
     def _save_termios(self):
         if self.interactive:
@@ -88,7 +82,30 @@ class JobShell(object):
 
     def _prepare_request(self, operation, keys=None, input_offset=None, term=None,
                          height=None, width=None, command=None):
-        req = deepcopy(self.req)
+        if self.current_proxy is None:
+            control_proxies = make_request_with_retries(
+                "get",
+                "http://{0}/hosts?role=control".format(self.proxy_url),
+                client=self.yt_client).json()
+            if control_proxies:
+                self.current_proxy = random.choice(control_proxies)
+            else:
+                self.current_proxy = self.proxy_url
+
+        headers = HTTPHeaders()
+        if self.token:
+            headers["Authorization"] = "OAuth " + self.token
+        headers["User-Agent"] = "Python wrapper " + get_version()
+        headers["X-YT-Header-Format"] = "<format=text>yson"
+        headers["X-YT-Output-Format"] = "yson"
+
+        req = HTTPRequest(
+            "http://{0}/api/{1}/poll_job_shell".format(self.current_proxy, self.api_version),
+            method="POST",
+            headers=headers,
+            body="",
+            request_timeout=60)
+
         if self.interactive and (not height or not width):
             width, height = self._terminal_size()
         parameters = {
@@ -149,6 +166,7 @@ class JobShell(object):
 
     def _on_http_error(self, err):
         self._restore_termios()
+        self.current_proxy = None
         if type(err) is HTTPError and hasattr(err, "response") and err.response:
             if "X-Yt-Error" in err.response.headers:
                 error = json.loads(err.response.headers["X-Yt-Error"], encoding=None)

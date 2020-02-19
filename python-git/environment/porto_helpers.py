@@ -16,6 +16,7 @@ from pipes import quote
 logger = logging.getLogger("Yt.local")
 
 def porto_avaliable():
+    global disable_porto
     if disable_porto:
         return False
 
@@ -23,7 +24,8 @@ def porto_avaliable():
     try:
         conn.connect()
         return True
-    except socket.error as err:
+    except Exception as err:
+        disable_porto = True
         logger.exception("Failed to connect to porto, '%s'", err)
         return False
 
@@ -46,7 +48,7 @@ class PortoSubprocess(object):
         name = generate_uuid()
         command = " ".join(["'" + quote(a) + "'" for a in args])
         p = PortoSubprocess()
-        p._container = conn.Create(str(name))
+        p._container = conn.Create(str(name), weak=True)
         p._portoName = name
         p._connection = conn
         p._container.SetProperty("command", command)
@@ -79,6 +81,9 @@ class PortoSubprocess(object):
 
     def destroy(self):
         self._container.Destroy()
+
+    def set_cpu_limit(self, cpu_limit):
+        self._container.SetProperty("cpu_limit", "{}c".format(cpu_limit))
 
     @property
     def returncode(self):

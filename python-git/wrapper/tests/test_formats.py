@@ -78,13 +78,12 @@ def check_table_index(format, raw_row, raw_table_switcher, rows, process_output=
 def test_yson_format():
     format = yt.YsonFormat(format="text")
     row = {"a": 1, "b": 2}
-    serialized_row = b'{"a"=1;"b"=2}'
+    serialized_row = b'{"a"=1;"b"=2;}'
     yson_rows = list(format.load_rows(BytesIO(serialized_row)))
     assert yson_rows == [row]
     stream = BytesIO()
     format.dump_row(row, stream)
-    # COMPAT: '.replace(";}", "}")' is for compatibility with different yson representations in different branches.
-    assert stream.getvalue().rstrip(b";\n").replace(b";}", b"}") in [serialized_row, b'{"b"=2;"a"=1}']
+    assert stream.getvalue().rstrip(b";\n") in [serialized_row, b'{"b"=2;"a"=1;}']
 
     format = yt.YsonFormat(format="binary")
     assert format.dumps_row({"a": 1}).rstrip(b";\n") == yson.dumps({"a": 1}, yson_format="binary")
@@ -103,8 +102,7 @@ def test_yson_table_switch():
     stream = BytesIO()
     format.dump_rows(output_rows, stream)
     dumped_output = stream.getvalue()
-    # COMPAT: '.replace(";}", "}")' and '.replace(";>", ">")' is for compatibility with different yson representations in different branches.
-    assert dumped_output.replace(b";}", b"}").replace(b";>", b">") == b'{"a"=1};\n<"table_index"=1>#;\n{"a"=1};\n{"b"=2};\n'
+    assert dumped_output == b'{"a"=1;};\n<"table_index"=1;>#;\n{"a"=1;};\n{"b"=2;};\n'
 
 def test_yson_iterator_mode():
     format = yt.YsonFormat(control_attributes_mode="iterator")
@@ -344,8 +342,13 @@ if PY3:
             format.dump_rows([bytes_row], stream)
             assert stream.getvalue() == expected_bytes
 
-            with pytest.raises(fail_exc):
+            if fail_exc is not None:
+                with pytest.raises(fail_exc):
+                    format.dump_rows([text_row], stream)
+            else:
+                stream = BytesIO()
                 format.dump_rows([text_row], stream)
+                assert stream.getvalue() == expected_bytes
 
         check(yt.YamrFormat(encoding=None), yt.Record(b"1", b"2"), yt.Record("1", "2"), b"1\t2\n")
         check(yt.DsvFormat(encoding=None), {b"x": b"y"}, {"x": "y"}, b"x=y\n")
@@ -354,3 +357,5 @@ if PY3:
               fail_exc=yson.YsonError)
         check(yt.SchemafulDsvFormat(encoding=None, columns=["x"]), {b"x": b"y"}, {"x": "y"}, b"y\n",
               fail_exc=KeyError)
+        check(yt.JsonFormat(encoding=None), {b"x": b"y"}, {"x": "y"}, b'{"x": "y"}\n',
+              fail_exc=None)

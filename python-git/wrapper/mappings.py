@@ -3,9 +3,13 @@ from .common import get_value
 from yt.packages.six import iteritems
 from yt.packages.six.moves import map as imap
 
-import collections
+# Python3 compatibility
+try:
+    from collections.abc import Mapping, MutableMapping
+except ImportError:
+    from collections import Mapping, MutableMapping
 
-class VerifiedDict(collections.MutableMapping):
+class VerifiedDict(MutableMapping):
     def __init__(self, template_dict, keys_to_ignore=None, transform_func=None):
         self._enable_check = False
         self._make_subdicts_verified = True
@@ -49,7 +53,7 @@ class VerifiedDict(collections.MutableMapping):
         self._enable_check = True
         return self
 
-class FrozenDict(collections.Mapping):
+class FrozenDict(Mapping):
     def __init__(self, *args, **kwargs):
         self._store = dict(*args, **kwargs)
         self._hash = None

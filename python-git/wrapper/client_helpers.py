@@ -52,7 +52,10 @@ def create_class_method(func):
         func = func.__dict__["__init__"]
         is_class = True
 
-    arg_spec = inspect.getargspec(func)
+    if PY3:
+        arg_spec = inspect.getfullargspec(func)
+    else:
+        arg_spec = inspect.getargspec(func)
     arg_names = arg_spec.args
 
     if "client" in arg_names:
@@ -69,8 +72,13 @@ def create_class_method(func):
 
     if arg_spec.varargs is not None:
         arg_names.append("*" + arg_spec.varargs)
-    if arg_spec.keywords is not None:
-        arg_names.append("**" + arg_spec.keywords)
+
+    if PY3:
+        keywords = arg_spec.varkw
+    else:
+        keywords = arg_spec.keywords
+    if keywords is not None:
+        arg_names.append("**" + keywords)
 
     return FunctionMaker.create(
         func,

@@ -6,6 +6,7 @@ from .response_stream import ResponseStream
 from .http_helpers import get_proxy_url, get_token
 
 import yt.logger as logger
+import yt.logger_config as logger_config
 import yt.yson as yson
 
 from yt.packages.six import binary_type, PY3
@@ -61,13 +62,20 @@ def configure_logging(logging_config_from_file, client):
         return
 
     config = get_config(client)
-    if config["driver_logging_config"] is not None:
+    if config["driver_logging_config"]:
         driver_bindings.configure_logging(config["driver_logging_config"])
-    elif config["enable_driver_logging_to_stderr"]:
+    elif logging_config_from_file:
+        driver_bindings.configure_logging(logging_config_from_file)
+    else:
+        if logger_config.LOG_LEVEL is None:
+            min_level = "warning"
+        else:
+            min_level = logger_config.LOG_LEVEL.lower()
+
         logging_config = {
             "rules": [
                 {
-                    "min_level": "debug",
+                    "min_level": min_level,
                     "writers": [
                         "stderr",
                     ],
@@ -80,10 +88,6 @@ def configure_logging(logging_config_from_file, client):
             },
         }
         driver_bindings.configure_logging(logging_config)
-    elif logging_config_from_file is not None:
-        driver_bindings.configure_logging(logging_config_from_file)
-    else:
-        driver_bindings.configure_logging({"rules": [], "writers": {}})
 
     logging_configured = True
 
