@@ -612,6 +612,7 @@ class TestTabletBalancer(TabletActionsBase):
 
         sync_mount_table("//tmp/t1", cell_id=cells_on_broken[0])
         self._decommission_all_peers(cells_on_broken[0])
+        wait(lambda: get("#{}/@health".format(cells_on_broken[0])) == "failed")
 
         action = create("tablet_action", "", attributes={
             "kind": "move",
