@@ -274,17 +274,18 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
 
 @_patch_defaults
-def prepare_cypress_configs(instance_count,
-                            cypress_base_config_path=None,
-                            clickhouse_config=None,
-                            log_tailer_config=None,
-                            cpu_limit=None,
-                            memory_limit=None,
-                            memory_footprint=None,
-                            use_exact_thread_count=None,
-                            operation_alias=None,
-                            uncompressed_block_cache_size=None,
-                            client=None):
+def prepare_configs(instance_count,
+                    cypress_base_config_path=None,
+                    cypress_log_tailer_config_path=None,
+                    clickhouse_config=None,
+                    cpu_limit=None,
+                    memory_limit=None,
+                    memory_footprint=None,
+                    enable_log_tailer=None,
+                    use_exact_thread_count=None,
+                    operation_alias=None,
+                    uncompressed_block_cache_size=None,
+                    client=None):
     """Merges a document pointed by `config_template_cypress_path`,  and `config` and uploads the
     result as a config.yson file suitable for specifying as a config file for clickhouse clique.
 
@@ -302,6 +303,8 @@ def prepare_cypress_configs(instance_count,
     require(memory_limit is not None, lambda: YtError("Memory limit should be set to prepare the ClickHouse config"))
 
     thread_count = cpu_limit if use_exact_thread_count else 2 * max(cpu_limit, instance_count) + 1
+
+    configs = {}
 
     clickhouse_config_base = {
         "engine": {
@@ -333,27 +336,23 @@ def prepare_cypress_configs(instance_count,
     clickhouse_config_cypress_base = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else None
     resulting_clickhouse_config = update(clickhouse_config_cypress_base, update(clickhouse_config_base, clickhouse_config))
 
-    def create_client_with_clickhouse_tmp_directory(client):
-        from .client import YtClient
-        patched_config = deepcopy(get_config(client))
-        patched_config["remote_temp_files_directory"] = "//sys/clickhouse/kolkhoz/tmp"
-        return YtClient(config=patched_config)
+    configs["clickhouse"] = resulting_clickhouse_config
 
-    with NamedTemporaryFile() as temp:
-        temp.write(dumps(resulting_clickhouse_config, yson_format="pretty"))
-        temp.flush()
-        resulting_clickhouse_config_path = smart_upload_file(temp.name, client=create_client_with_clickhouse_tmp_directory(client))
+    if enable_log_tailer:
+        log_tailer_config_base = {
+            "profile_manager": {
+                "global_tags": {"operation_alias": operation_alias[1:]} if operation_alias is not None else {},
+            }
+        }
 
-    result = {"clickhouse_server": (resulting_clickhouse_config_path, "config.yson")}
+        log_tailer_config_cypress_base = get(cypress_log_tailer_config_path, client=client) if cypress_log_tailer_config_path != "" else None
+        resulting_log_tailer_config = update(log_tailer_config_cypress_base, log_tailer_config_base)
 
-    if log_tailer_config:
-        with NamedTemporaryFile() as temp:
-            temp.write(dumps(log_tailer_config, yson_format="pretty"))
-            temp.flush()
-            resulting_log_tailer_config_path = smart_upload_file(temp.name, client=create_client_with_clickhouse_tmp_directory(client))
-        result["log_tailer"] = (resulting_log_tailer_config_path, "log_tailer_config.yson")
+        configs["log_tailer"] = resulting_log_tailer_config
+    else:
+        configs["log_tailer"] = None
 
-    return result
+    return configs
 
 
 # Here and below table_kind is in ("ordered_normally", "ordered_by_trace_id")
@@ -517,6 +516,30 @@ def prepare_artifacts(artifact_path,
             prepare_log_tailer_tables(log_file, artifact_path, instance_count=instance_count, client=client)
 
 
+def upload_configs(configs, client=None):
+    def create_client_with_clickhouse_tmp_directory(client):
+        from .client import YtClient
+        patched_config = deepcopy(get_config(client))
+        patched_config["remote_temp_files_directory"] = "//sys/clickhouse/kolkhoz/tmp"
+        return YtClient(config=patched_config)
+
+    config_paths = {}
+
+    with NamedTemporaryFile() as temp:
+        temp.write(dumps(configs["clickhouse"], yson_format="pretty"))
+        temp.flush()
+        resulting_clickhouse_config_path = smart_upload_file(temp.name, client=create_client_with_clickhouse_tmp_directory(client))
+        config_paths["clickhouse"] = (resulting_clickhouse_config_path, "config.yson")
+
+    if configs["log_tailer"] is not None:
+        with NamedTemporaryFile() as temp:
+            temp.write(dumps(configs["log_tailer"], yson_format="pretty"))
+            temp.flush()
+            resulting_log_tailer_config_path = smart_upload_file(temp.name, client=create_client_with_clickhouse_tmp_directory(client))
+            config_paths["log_tailer"] = (resulting_log_tailer_config_path, "log_tailer_config.yson")
+
+    return config_paths
+
 
 def start_clickhouse_clique(instance_count,
                             operation_alias,
@@ -622,12 +645,6 @@ def start_clickhouse_clique(instance_count,
         else:
             logger.info("There is no running operation with alias %s; not aborting anything", operation_alias)
 
-    log_tailer_config = None
-    if enable_log_tailer:
-        log_tailer_config = get(cypress_log_tailer_config_path or defaults["cypress_log_tailer_config_path"], client=client)
-        if cypress_ytserver_log_tailer_path is None and host_ytserver_log_tailer_path is None:
-            cypress_ytserver_log_tailer_path = "//sys/clickhouse/bin/ytserver-log-tailer"
-
     prev_operation_id = prev_operation["id"] if prev_operation is not None else None
 
     def resolve_path(cypress_bin_path, host_bin_path, cypress_default_bin_path, bin_name, optional=False):
@@ -650,6 +667,17 @@ def start_clickhouse_clique(instance_count,
         resolve_path(cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path,
                      "//sys/clickhouse/bin/ytserver-log-tailer", "ytserver-log-tailer", optional=True)
 
+    configs = prepare_configs(instance_count,
+                              cypress_base_config_path=cypress_base_config_path,
+                              cypress_log_tailer_config_path=cypress_log_tailer_config_path,
+                              clickhouse_config=clickhouse_config,
+                              cpu_limit=cpu_limit,
+                              memory_limit=memory_limit,
+                              defaults=defaults,
+                              operation_alias=operation_alias,
+                              uncompressed_block_cache_size=uncompressed_block_cache_size,
+                              client=client)
+
     prepare_artifacts(artifact_path,
                       prev_operation,
                       enable_log_tailer=enable_log_tailer,
@@ -657,19 +685,10 @@ def start_clickhouse_clique(instance_count,
                       dump_tables=dump_tables,
                       defaults=defaults,
                       instance_count=instance_count,
-                      log_tailer_config=log_tailer_config,
+                      log_tailer_config=configs["log_tailer"],
                       client=client)
 
-    cypress_config_paths = prepare_cypress_configs(instance_count,
-                                                   cypress_base_config_path=cypress_base_config_path,
-                                                   clickhouse_config=clickhouse_config,
-                                                   cpu_limit=cpu_limit,
-                                                   memory_limit=memory_limit,
-                                                   defaults=defaults,
-                                                   operation_alias=operation_alias,
-                                                   uncompressed_block_cache_size=uncompressed_block_cache_size,
-                                                   log_tailer_config=log_tailer_config,
-                                                   client=client)
+    cypress_config_paths = upload_configs(configs, client=client)
 
     description = update(description, _build_description(cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
                                                          cypress_ytserver_log_tailer_path=cypress_ytserver_log_tailer_path,
