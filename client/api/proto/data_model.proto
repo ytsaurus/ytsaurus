@@ -1772,6 +1772,7 @@ message TEndpointSetStatus
 
     message TController
     {
+        // Errors' codes are unused, they set only because it is required proto field.
         optional NYT.NProto.TError error = 1;
     }
 
