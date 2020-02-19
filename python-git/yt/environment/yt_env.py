@@ -1345,13 +1345,25 @@ class YTInstance(object):
             self.configs[name] = config
             self.config_paths[name] = config_path
 
-        self.driver_logging_config = init_logging(None, self.logs_path, "driver", self._enable_debug_logging, self._enable_logging_compression)
-        self.rpc_driver_logging_config = init_logging(None, self.logs_path, "rpc_driver", self._enable_debug_logging, self._enable_logging_compression)
+        self.driver_logging_config = init_logging(
+            None, self.logs_path, "driver",
+            log_errors_to_stderr=False,
+            enable_debug_logging=self._enable_debug_logging,
+            enable_compression=self._enable_logging_compression)
+        self.rpc_driver_logging_config = init_logging(
+            None, self.logs_path, "rpc_driver",
+            log_errors_to_stderr=False,
+            enable_debug_logging=self._enable_debug_logging,
+            enable_compression=self._enable_logging_compression)
 
     def _prepare_console_driver(self):
         config = {}
         config["driver"] = self.configs["driver"]
-        config["logging"] = init_logging(None, self.path, "console_driver", self._enable_debug_logging, self._enable_logging_compression)
+        config["logging"] = init_logging(
+            None, self.path, "console_driver",
+            log_errors_to_stderr=False,
+            enable_debug_logging=self._enable_debug_logging,
+            enable_compression=self._enable_logging_compression)
 
         config_path = os.path.join(self.path, "console_driver_config.yson")
 

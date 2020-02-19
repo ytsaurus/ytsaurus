@@ -6,18 +6,14 @@ except ImportError:
 
 """This module provides default ytserver configs"""
 
-def get_logging_config(enable_debug_logging, enable_compression, enable_structured_logging):
+def get_logging_config(log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging):
     suffix = ".gz" if enable_compression else ""
     config = {
         "abort_on_alert": True,
         "rules": [
             {"min_level": "info", "writers": ["info"]},
-            {"min_level": "error", "writers": ["stderr"]},
         ],
         "writers": {
-            "stderr": {
-                "type": "stderr",
-            },
             "info": {
                 "type": "file",
                 "file_name": "{path}/{name}.log" + suffix,
@@ -25,6 +21,14 @@ def get_logging_config(enable_debug_logging, enable_compression, enable_structur
             }
         }
     }
+    if log_errors_to_stderr:
+        config["rules"].append(
+            {"min_level": "error", "writers": ["stderr"]}
+        )
+        config["writers"]["stderr"] = {
+            "type": "stderr",
+        }
+
     if enable_debug_logging:
         config["rules"].append({
             "min_level": "debug",
