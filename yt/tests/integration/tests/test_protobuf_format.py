@@ -318,6 +318,10 @@ SCHEMA = [
             ("extra_field", optional_type("string")),
         ]),
     },
+    {
+        "name": "utf8",
+        "type_v2": "utf8",
+    },
 ]
 
 SCHEMAFUL_TABLE_PROTOBUF_CONFIG = {
@@ -386,9 +390,17 @@ SCHEMAFUL_TABLE_PROTOBUF_CONFIG = {
                     "proto_type": "enum_string",
                 },
             ]
-        }
+        },
+        {
+            "name": "utf8",
+            "field_number": 6,
+            "proto_type": "string",
+        },
     ],
 }
+
+HELLO_WORLD = b"\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82, \xd0\xbc\xd0\xb8\xd1\x80!"
+GOODBYE_WORLD = b"\xd0\x9f\xd0\xbe\xd0\xba\xd0\xb0, \xd0\xbc\xd0\xb8\xd1\x80!"
 
 SCHEMAFUL_TABLE_ROWS = [
     {
@@ -403,6 +415,7 @@ SCHEMAFUL_TABLE_ROWS = [
             "enum_string": "Green",
             "extra_field": "baz",
         },
+        "utf8": HELLO_WORLD,
     },
     {
         "int16": -32768,
@@ -415,6 +428,7 @@ SCHEMAFUL_TABLE_ROWS = [
             "enum_int": 12,
             "enum_string": "Red",
         },
+        "utf8": GOODBYE_WORLD,
     },
 ]
 
@@ -430,6 +444,7 @@ PROTOBUF_SCHEMAFUL_TABLE_ROWS = [
             "enum_int": -42,
             "enum_string": "Green",
         },
+        "utf8": HELLO_WORLD,
     },
     {
         "int16": -32768,
@@ -440,6 +455,7 @@ PROTOBUF_SCHEMAFUL_TABLE_ROWS = [
             "enum_int": 12,
             "enum_string": "Red",
         },
+        "utf8": GOODBYE_WORLD,
     },
 ]
 
@@ -456,6 +472,7 @@ SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD = [
             "enum_string": "Green",
             "extra_field": yson.YsonEntity(),
         },
+        "utf8": HELLO_WORLD,
     },
     {
         "int16": -32768,
@@ -469,6 +486,7 @@ SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD = [
             "enum_string": "Red",
             "extra_field": yson.YsonEntity(),
         },
+        "utf8": GOODBYE_WORLD,
     },
 ]
 
