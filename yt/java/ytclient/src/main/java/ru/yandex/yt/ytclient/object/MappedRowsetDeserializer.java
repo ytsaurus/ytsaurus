@@ -30,6 +30,11 @@ import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, WireValueDeserializer<Void>,
         WireVersionedRowsetDeserializer<T>, WireSchemafulRowsetDeserializer<T> {
 
+    public static <T> MappedRowsetDeserializer<T> forClass(YTreeObjectSerializer<T> serializer) {
+        final TableSchema schema = MappedRowSerializer.asTableSchema(serializer.getFieldMap());
+        return MappedRowsetDeserializer.forClass(schema, serializer, (unused) -> { });
+    }
+
     public static <T> MappedRowsetDeserializer<T> forClass(TableSchema schema,
                                                            YTreeObjectSerializer<T> objectSerializer,
                                                            ConsumerSource<T> consumer) {
