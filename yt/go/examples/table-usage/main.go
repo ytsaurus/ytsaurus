@@ -106,6 +106,10 @@ func Example() error {
 		readContacts = append(readContacts, c)
 	}
 
+	if reader.Err() != nil {
+		return reader.Err()
+	}
+
 	fmt.Printf("Read %v rows:\n", len(readContacts))
 	spew.Fdump(os.Stdout, readContacts)
 	return nil
