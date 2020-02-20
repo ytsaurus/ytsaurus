@@ -283,25 +283,25 @@ def init_environment_for_test_session(mode, **kwargs):
 
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "v4", "native_v3", "native_v4"])
+@pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4"])
 def test_environment(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
+@pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def test_environment_for_yamr(request):
     environment = init_environment_for_test_session("yamr")
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def test_environment_multicell(request):
     environment = init_environment_for_test_session(
         "native_multicell",
@@ -309,7 +309,7 @@ def test_environment_multicell(request):
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def test_environment_job_archive(request):
     environment = init_environment_for_test_session(
         "job_archive",
@@ -338,7 +338,7 @@ def test_environment_job_archive(request):
 
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
+@pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
 def test_environment_with_porto(request):
     environment = init_environment_for_test_session(
         request.param,
@@ -358,7 +358,7 @@ def test_environment_with_porto(request):
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session", params=["v4", "rpc"])
+@pytest.fixture(scope="class", params=["v4", "rpc"])
 def test_environment_with_increased_memory(request):
     environment = init_environment_for_test_session(
         request.param,
