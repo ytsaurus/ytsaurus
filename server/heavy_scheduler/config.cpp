@@ -72,9 +72,9 @@ TSwapDefragmentatorConfig::TSwapDefragmentatorConfig()
 
 TAntiaffinityHealerConfig::TAntiaffinityHealerConfig()
 {
-    RegisterParameter("pod_sets_per_iteration_limit", PodSetsPerIterationLimit)
+    RegisterParameter("pods_per_iteration_soft_limit", PodsPerIterationSoftLimit)
         .GreaterThanOrEqual(1)
-        .Default(500);
+        .Default(5000);
 
     RegisterParameter("safe_suitable_node_count", SafeSuitableNodeCount)
         .GreaterThanOrEqual(0)

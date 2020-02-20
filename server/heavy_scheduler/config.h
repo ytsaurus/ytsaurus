@@ -95,7 +95,7 @@ class TAntiaffinityHealerConfig
     : public NYT::NYTree::TYsonSerializable
 {
 public:
-    int PodSetsPerIterationLimit;
+    int PodsPerIterationSoftLimit;
     int SafeSuitableNodeCount;
 
     TAntiaffinityHealerConfig();

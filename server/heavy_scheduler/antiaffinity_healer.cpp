@@ -124,12 +124,14 @@ private:
     {
         auto podSets = cluster->GetPodSets();
         Shuffle(podSets.begin(), podSets.end());
-        auto podSetEnd = static_cast<int>(podSets.size()) < Config_->PodSetsPerIterationLimit
-            ? podSets.end()
-            : podSets.begin() + Config_->PodSetsPerIterationLimit;
+        int podsLeft = Config_->PodsPerIterationSoftLimit;
 
-        for (auto podSetIt = podSets.begin(); podSetIt < podSetEnd; ++podSetIt) {
-            CreatePodSetTasks(*podSetIt);
+        for (const auto& podSet : podSets) {
+            if (podsLeft <= 0) {
+                break;
+            }
+            podsLeft -= static_cast<int>(podSet->SchedulablePods().size());
+            CreatePodSetTasks(podSet);
         }
     }
 
