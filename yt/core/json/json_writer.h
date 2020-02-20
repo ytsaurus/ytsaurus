@@ -9,29 +9,55 @@ namespace NYT::NJson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO: rewrite this documentation
+// YSON-to-JSON Mapping Conventions.
+// * Attributes are not supported.
+// * Mapping:
+//      YSON --> JSON
+//    * List --> Array
+//    * Map  --> Object
+//    * Int64  --> Number
+//    * Uint64 --> Number
+//    * Double (NaNs are not supported) --> Number
+//    * String (MUST be UTF-8) --> String
+//    * Entity --> null
+struct IJsonWriter
+    : public NYson::IFlushableYsonConsumer
+{
+    // Finish writing top-level value and start the next one.
+    virtual void StartNextValue() = 0;
+};
+
+std::unique_ptr<IJsonWriter> CreateJsonWriter(
+    IOutputStream* output,
+    bool pretty = false);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// THIS INTERFACE IS YT JSON FORMAT SPECIFIC, IT SHOULD NOT BE USED ELSEWHERE.
+//
 // YSON-to-JSON Mapping Conventions
 //
+// * List fragment corresponds to new-line-delimited JSON.
 // * Map fragment (which exists in YSON) is not supported.
-// * Boolean type (which exists in JSON) is not supported.
-// * List fragments are enclosed in Array.
 // * Other types (without attributes) are mapped almost as is:
-//      YSON <----> JSON
-//    * List <---> Array
-//    * Map  <---> Object
-//    * Int  <---> Int
-//    * Double <---> Double
-//    * String (s) <---> String (t):
-//      * If s[0] != '&' and s is a valid UTF8 string: t := s
-//      * else: t := '&' + Base64(s)
-//    * Entity <---> null
+//      YSON --> JSON
+//    * List --> Array
+//    * Map  --> Object
+//    * Int64 --> Number
+//    * Uint64 --> Number
+//    * Double --> Number
+//    * String (s) --> String (t):
+//      * If s is ASCII: t := s
+//      * else: t := UTF-8 string with code points corresponding to bytes in s.
+//    * Entity --> null
 // * Nodes with attributes are mapped to the following JSON map:
 //    {
 //        '$attributes': (attributes map),
-//        '$value': (value, as explained above)
+//        '$value': (value, as explained above),
+//        '$type': (type name, if type annotation is enabled)
 //    }
 
-//! Translates YSON events into a series of calls to TJsonWriter
+//! Translates YSON events into a series of calls to underlying |IYsonConsumer|
 //! thus enabling to transform YSON into JSON.
 /*!
  *  \note
@@ -53,6 +79,11 @@ struct IJsonConsumer
 
 std::unique_ptr<IJsonConsumer> CreateJsonConsumer(
     IOutputStream* output,
+    NYson::EYsonType type = NYson::EYsonType::Node,
+    TJsonFormatConfigPtr config = New<TJsonFormatConfig>());
+
+std::unique_ptr<IJsonConsumer> CreateJsonConsumer(
+    IJsonWriter* underlying,
     NYson::EYsonType type = NYson::EYsonType::Node,
     TJsonFormatConfigPtr config = New<TJsonFormatConfig>());
 
