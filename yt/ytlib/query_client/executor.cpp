@@ -517,19 +517,6 @@ private:
         // Should be already sorted.
         YT_LOG_DEBUG("Sorting splits (SplitCount: %v)", allSplits.size());
 
-        YT_QL_CHECK(std::is_sorted(
-            allSplits.begin(),
-            allSplits.end(),
-            [] (const std::pair<TDataRanges, TString>& lhs, const std::pair<TDataRanges, TString>& rhs) {
-                const auto& lhsData = lhs.first;
-                const auto& rhsData = rhs.first;
-
-                const auto& lhsValue = lhsData.Ranges ? lhsData.Ranges.Begin()->first : *lhsData.Keys.Begin();
-                const auto& rhsValue = rhsData.Ranges ? rhsData.Ranges.Begin()->first : *rhsData.Keys.Begin();
-
-                return lhsValue < rhsValue;
-            }));
-
         for (auto it = allSplits.begin(), itEnd = allSplits.end(); it + 1 < itEnd; ++it) {
             const TDataRanges& lhs = it->first;
             const TDataRanges& rhs = (it + 1)->first;
