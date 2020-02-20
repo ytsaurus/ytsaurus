@@ -10,13 +10,8 @@ import argparse
 
 def main_impl(yp_client, arguments):
     attributes = {
-        "meta": {
-            "id": arguments.id,
-            "inherit_acl": arguments.inherit_acl,
-        },
-        "spec": {
-            "node_filter": "[/labels/segment]=\"{}\"".format(arguments.id),
-        }
+        "meta": {"id": arguments.id, "inherit_acl": arguments.inherit_acl},
+        "spec": {"node_filter": '[/labels/segment]="{}"'.format(arguments.id)},
     }
 
     yp_client.create_object("node_segment", attributes=attributes)
@@ -32,9 +27,13 @@ def main(arguments):
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Create node segment")
     parser.add_argument("--address", required=True, help="Address of yp backend")
-    parser.add_argument("--config", required=False, help="YP client config", action=ParseStructuredArgument)
+    parser.add_argument(
+        "--config", required=False, help="YP client config", action=ParseStructuredArgument,
+    )
     parser.add_argument("--id", required=True, help="Id of node segment")
-    parser.add_argument("--inherit-acl", required=False, default=False, action="store_true", help="Inherit acl")
+    parser.add_argument(
+        "--inherit-acl", required=False, default=False, action="store_true", help="Inherit acl",
+    )
 
     return parser.parse_args()
 

@@ -16,10 +16,7 @@ import time
 
 
 def configure_logging():
-    logging.basicConfig(
-        format="%(asctime)-15s %(levelname)s %(message)s",
-        level=logging.DEBUG
-    )
+    logging.basicConfig(format="%(asctime)-15s %(levelname)s %(message)s", level=logging.DEBUG)
 
 
 def main_impl(yp_client, arguments):
@@ -41,16 +38,12 @@ def main_impl(yp_client, arguments):
                     meta=dict(
                         id=object_id,
                         acl=[
-                            dict(
-                                action="allow",
-                                subjects=[TESTING_USER_ID],
-                                permissions=["read"]
-                            ),
+                            dict(action="allow", subjects=[TESTING_USER_ID], permissions=["read"],),
                         ],
                         inherit_acl=False,
                     ),
                     spec=dict(project_id=object_index),
-                )
+                ),
             )
             object_ids.append(object_id)
         batch_yp_client.flush()
@@ -62,11 +55,9 @@ def main_impl(yp_client, arguments):
         logging.info("Request #%d", request_index + 1)
 
         request_start_time = time.time()
-        response = yp_client.get_user_access_allowed_to([dict(
-            user_id=TESTING_USER_ID,
-            object_type="network_project",
-            permission="read",
-        )])
+        response = yp_client.get_user_access_allowed_to(
+            [dict(user_id=TESTING_USER_ID, object_type="network_project", permission="read",)]
+        )
         request_elapsed_time = time.time() - request_start_time
         logging.info("Request took %f seconds", request_elapsed_time)
 
@@ -91,22 +82,13 @@ def parse_arguments():
         description="Stress test YP get-user-access-allowed-to Api method"
     )
     parser.add_argument(
-        "--cluster",
-        type=str,
-        required=True,
-        help="YP cluster address",
+        "--cluster", type=str, required=True, help="YP cluster address",
     )
     parser.add_argument(
-        "--object-count",
-        type=int,
-        default=20 * 1000,
-        help="Object count in the response",
+        "--object-count", type=int, default=20 * 1000, help="Object count in the response",
     )
     parser.add_argument(
-        "--request-count",
-        type=int,
-        default=10,
-        help="Request count",
+        "--request-count", type=int, default=10, help="Request count",
     )
     return parser.parse_args()
 

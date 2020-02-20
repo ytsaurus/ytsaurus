@@ -8,11 +8,16 @@ def combine_pods(pod_set_id, pods, combine_labels_callback=None):
         meta = dict(type="pod", pod_set_id=pod_set_id)
         spec = dict(resource_requests=dict(), ip6_address_requests=[], disk_volume_requests=[])
 
-        primary_resource_fields = ("vcpu_guarantee", "vcpu_limit", "memory_guarantee", "memory_limit")
+        primary_resource_fields = (
+            "vcpu_guarantee",
+            "vcpu_limit",
+            "memory_guarantee",
+            "memory_limit",
+        )
         for field in primary_resource_fields:
-            spec["resource_requests"][field] = \
-                p1["spec"]["resource_requests"][field] + \
-                p2["spec"]["resource_requests"][field]
+            spec["resource_requests"][field] = (
+                p1["spec"]["resource_requests"][field] + p2["spec"]["resource_requests"][field]
+            )
 
         disk_storage_classes = ("hdd", "ssd")
         for disk_storage_class in disk_storage_classes:
@@ -42,28 +47,26 @@ def generate_pod_set(id_, max_pod_per_node=None):
     pod_set = dict(meta=dict(type="pod_set", id=id_))
     if max_pod_per_node is not None:
         pod_set["spec"] = dict()
-        pod_set["spec"]["antiaffinity_constraints"] = [
-            dict(key="node", max_pods=max_pod_per_node)
-        ]
+        pod_set["spec"]["antiaffinity_constraints"] = [dict(key="node", max_pods=max_pod_per_node)]
     return pod_set
 
 
 def _generate_disk_volume_request(storage_class, capacity):
     return dict(
-        id=storage_class,
-        storage_class=storage_class,
-        quota_policy=dict(capacity=capacity),
+        id=storage_class, storage_class=storage_class, quota_policy=dict(capacity=capacity),
     )
 
 
-def generate_pod(pod_set_id,
-                 cpu_guarantee,
-                 cpu_limit,
-                 memory_guarantee,
-                 memory_limit,
-                 hdd_capacity=0,
-                 ssd_capacity=0,
-                 labels=None):
+def generate_pod(
+    pod_set_id,
+    cpu_guarantee,
+    cpu_limit,
+    memory_guarantee,
+    memory_limit,
+    hdd_capacity=0,
+    ssd_capacity=0,
+    labels=None,
+):
     disk_volume_requests = []
     if hdd_capacity > 0:
         disk_volume_requests.append(_generate_disk_volume_request("hdd", hdd_capacity))
@@ -77,8 +80,7 @@ def generate_pod(pod_set_id,
             memory_guarantee=memory_guarantee,
             memory_limit=memory_limit,
         ),
-        ip6_address_requests=[
-        ],
+        ip6_address_requests=[],
         disk_volume_requests=disk_volume_requests,
     )
     pod = dict(meta=meta, spec=spec)

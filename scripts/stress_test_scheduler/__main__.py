@@ -16,10 +16,7 @@ import time
 
 
 def configure_logging():
-    logging.basicConfig(
-        format="%(asctime)-15s %(levelname)s %(message)s",
-        level=logging.DEBUG
-    )
+    logging.basicConfig(format="%(asctime)-15s %(levelname)s %(message)s", level=logging.DEBUG)
 
 
 def run_with_common_errors_retries(action):
@@ -38,7 +35,9 @@ def run_with_common_errors_retries(action):
 def main_impl(yp_client, arguments):
     configure_logging()
 
-    scheduler_objects = SchedulerObjectsHistory.load_from_path(arguments.scheduler_objects_file_path)
+    scheduler_objects = SchedulerObjectsHistory.load_from_path(
+        arguments.scheduler_objects_file_path
+    )
 
     scheduler_objects.set_pod_sets_node_segment(arguments.node_segment_id)
     scheduler_objects.set_pod_sets_account_id(arguments.account_id)
@@ -59,7 +58,9 @@ def main_impl(yp_client, arguments):
         with create_batch_yp_client(yp_client, batch_size=100) as batch_yp_client:
             logging.info("Creating pod sets")
             for pod_set in scheduler_objects.pod_sets:
-                run_with_common_errors_retries(lambda: batch_yp_client.create_object("pod_set", pod_set))
+                run_with_common_errors_retries(
+                    lambda: batch_yp_client.create_object("pod_set", pod_set)
+                )
 
             logging.info("Creating pods")
             for pod in scheduler_objects.pods:
@@ -84,10 +85,7 @@ def main(arguments):
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Stress test YP scheduler")
     parser.add_argument(
-        "--cluster",
-        type=str,
-        required=True,
-        help="YP cluster address",
+        "--cluster", type=str, required=True, help="YP cluster address",
     )
     parser.add_argument(
         "--scheduler-objects-file-path",
@@ -108,10 +106,7 @@ def parse_arguments():
         help="Set account id restriction for all pod sets in scheduler objects file",
     )
     parser.add_argument(
-        "--round-count",
-        type=int,
-        required=True,
-        help="Count of test rounds",
+        "--round-count", type=int, required=True, help="Count of test rounds",
     )
     parser.add_argument(
         "--schedule-time",

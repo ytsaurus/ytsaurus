@@ -33,11 +33,11 @@ def is_empty(value):
 
 
 def evict_pod(yp_client, pod_id, message):
-    enable_scheduling, old_node_id, pod_set_id = yp_client.get_object("pod", pod_id, selectors=[
-        "/spec/enable_scheduling",
-        "/status/scheduling/node_id",
-        "/meta/pod_set_id",
-    ])
+    enable_scheduling, old_node_id, pod_set_id = yp_client.get_object(
+        "pod",
+        pod_id,
+        selectors=["/spec/enable_scheduling", "/status/scheduling/node_id", "/meta/pod_set_id"],
+    )
     if not enable_scheduling:
         logging.error("Pod '{}' has /spec/enable_scheduling = %false")
         sys.exit(1)
@@ -45,8 +45,12 @@ def evict_pod(yp_client, pod_id, message):
         logging.error("Pod '{}' is not assigned to any node".format(pod_id))
         sys.exit(1)
 
-    old_pod_ids = set(x[0] for x in yp_client.select_objects(
-        "pod", selectors=["/meta/id"], filter='[/meta/pod_set_id] = "{}"'.format(pod_set_id)))
+    old_pod_ids = set(
+        x[0]
+        for x in yp_client.select_objects(
+            "pod", selectors=["/meta/id"], filter='[/meta/pod_set_id] = "{}"'.format(pod_set_id),
+        )
+    )
 
     logging.info("Evicting pod '{}' from node '{}'".format(pod_id, old_node_id))
     yp_client.request_pod_eviction(pod_id, message)
@@ -54,23 +58,24 @@ def evict_pod(yp_client, pod_id, message):
     while True:
         time.sleep(BUSY_WAIT_DELAY)
         try:
-            eviction_state, scheduling_status = yp_client.get_object("pod", pod_id, selectors=[
-                "/status/eviction/state",
-                "/status/scheduling",
-            ])
+            eviction_state, scheduling_status = yp_client.get_object(
+                "pod", pod_id, selectors=["/status/eviction/state", "/status/scheduling"],
+            )
         except YpNoSuchObjectError:
             cur_pods = {
                 x[0]: x[1]
                 for x in yp_client.select_objects(
                     "pod",
                     filter='[/meta/pod_set_id] = "{}"'.format(pod_set_id),
-                    selectors=["/meta/id", "/status/scheduling"]
+                    selectors=["/meta/id", "/status/scheduling"],
                 )
             }
             new_pod_ids = set(cur_pods.keys()) - old_pod_ids
             if not new_pod_ids:
-                logging.info("Pod is gone, waiting for pod set to be populated "
-                             "(pod_id: '{}', pod_set_id: '{}')".format(pod_id, pod_set_id))
+                logging.info(
+                    "Pod is gone, waiting for pod set to be populated "
+                    "(pod_id: '{}', pod_set_id: '{}')".format(pod_id, pod_set_id)
+                )
                 continue
 
             unscheduled_pod_ids = []
@@ -79,38 +84,58 @@ def evict_pod(yp_client, pod_id, message):
                     unscheduled_pod_ids.append(new_pod_id)
 
             if unscheduled_pod_ids:
-                logging.info("Waiting for pod(s) to be assigned: '{}'"
-                             "(original pod_id: '{}', pod_set_id: '{}'"
-                             .format("', '".join(unscheduled_pod_ids), pod_id, pod_set_id))
+                logging.info(
+                    "Waiting for pod(s) to be assigned: '{}'"
+                    "(original pod_id: '{}', pod_set_id: '{}'".format(
+                        "', '".join(unscheduled_pod_ids), pod_id, pod_set_id
+                    )
+                )
                 continue
             else:
-                logging.info("Pod set '{}' has all new pods assigned (original pod_id: '{}', new pods: {})"
-                             .format(pod_set_id, pod_id, new_pod_ids))
+                logging.info(
+                    "Pod set '{}' has all new pods assigned (original pod_id: '{}', new pods: {})".format(
+                        pod_set_id, pod_id, new_pod_ids
+                    )
+                )
                 for new_pod_id in new_pod_ids:
                     node_id = cur_pods[new_pod_id]["node_id"]
                     if node_id == old_node_id:
-                        logging.warning("Pod '{}' was assigned to the same node '{}'"
-                                        .format(new_pod_id, old_node_id))
+                        logging.warning(
+                            "Pod '{}' was assigned to the same node '{}'".format(
+                                new_pod_id, old_node_id
+                            )
+                        )
                     else:
-                        logging.info("Pod '{}' is assigned to node '{}'"
-                                     .format(new_pod_id, node_id))
+                        logging.info(
+                            "Pod '{}' is assigned to node '{}'".format(new_pod_id, node_id)
+                        )
                 break
         else:
             if eviction_state != "none":
-                logging.info("Waiting for pod eviction (state: '{}', pod_id: '{}')"
-                             .format(eviction_state, pod_id))
+                logging.info(
+                    "Waiting for pod eviction (state: '{}', pod_id: '{}')".format(
+                        eviction_state, pod_id
+                    )
+                )
                 continue
             node_id = scheduling_status.get("node_id")
             if is_empty(node_id):
-                logging.info("Waiting for pod to be assigned (message: '{}', error: {})"
-                             .format(scheduling_status.get("message"), scheduling_status.get("error")))
+                logging.info(
+                    "Waiting for pod to be assigned (message: '{}', error: {})".format(
+                        scheduling_status.get("message"), scheduling_status.get("error")
+                    )
+                )
                 continue
             if node_id == old_node_id:
-                logging.warning("Pod is assigned to the same node (pod_id: '{}', node_id: '{}')"
-                                .format(pod_id, node_id))
+                logging.warning(
+                    "Pod is assigned to the same node (pod_id: '{}', node_id: '{}')".format(
+                        pod_id, node_id
+                    )
+                )
             else:
-                logging.info("Pod '{}' is successfully rescheduled to node '{}'"
-                             .format(pod_id, node_id))
+                logging.info(
+                    "Pod '{}' is successfully rescheduled to node '{}'".format(pod_id, node_id)
+                )
             break
 
 

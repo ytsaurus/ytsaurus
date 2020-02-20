@@ -41,19 +41,14 @@ def pick_pivots_and_reshard(client, table_path, tablet_count, dry_run):
     tmp_table_path = client.create_temp_table()
     print("Sampling keys from {} to {}".format(table_path, tmp_table_path))
     client.run_merge(
-        yt.TablePath(table_path, columns=key_columns),
-        tmp_table_path,
-        mode="ordered",
+        yt.TablePath(table_path, columns=key_columns), tmp_table_path, mode="ordered",
     )
 
     row_count = client.get(get_attribute_path(tmp_table_path, "row_count"))
     sampling_rate = min(tablet_count * 100.0 / row_count, 1.0)
 
     rows = [[]] + list(
-        client.read_table(
-            tmp_table_path,
-            table_reader=dict(sampling_rate=sampling_rate),
-        ),
+        client.read_table(tmp_table_path, table_reader=dict(sampling_rate=sampling_rate),),
     )
 
     if tablet_count > len(rows):
@@ -109,9 +104,7 @@ def setup_auto_reshard_attributes(client, table_path, dry_run):
 def list_tablet_cell_bundles(client, table_paths):
     tablet_cell_bundles = set()
     for table_path in table_paths:
-        tablet_cell_bundles.add(
-            client.get(get_attribute_path(table_path, "tablet_cell_bundle")),
-        )
+        tablet_cell_bundles.add(client.get(get_attribute_path(table_path, "tablet_cell_bundle")),)
     return tablet_cell_bundles
 
 
@@ -127,28 +120,19 @@ def get_db_table_paths(yp_path, db_tables):
     return map(lambda db_table: get_db_table_path(yp_path, db_table), db_tables)
 
 
-def main(cluster,
-         yp_path,
-         reshard_small_tables,
-         reshard_big_tables,
-         configure_bundles,
-         dry_run):
+def main(
+    cluster, yp_path, reshard_small_tables, reshard_big_tables, configure_bundles, dry_run,
+):
     client = yt.YtClient(cluster)
 
     db_tables = set(client.list(get_db_path(yp_path)))
 
     sorted_db_tables = filter(
-        lambda db_table: is_sorted_dynamic_table(
-            client,
-            get_db_table_path(yp_path, db_table),
-        ),
+        lambda db_table: is_sorted_dynamic_table(client, get_db_table_path(yp_path, db_table),),
         db_tables,
     )
     ordered_db_tables = filter(
-        lambda db_table: is_ordered_dynamic_table(
-            client,
-            get_db_table_path(yp_path, db_table),
-        ),
+        lambda db_table: is_ordered_dynamic_table(client, get_db_table_path(yp_path, db_table),),
         db_tables,
     )
 
@@ -156,14 +140,7 @@ def main(cluster,
 
     db_tables = sorted_db_tables
 
-    big_db_tables = set([
-        "dns_record_sets",
-        "endpoints",
-        "nodes",
-        "parents",
-        "pods",
-        "resources",
-    ])
+    big_db_tables = set(["dns_record_sets", "endpoints", "nodes", "parents", "pods", "resources"])
     assert all(map(lambda db_table: db_table in db_tables, big_db_tables))
     print("Big DB tables:\n  {}\n".format("\n  ".join(big_db_tables)))
 
@@ -176,9 +153,7 @@ def main(cluster,
         for db_table in small_db_tables:
             db_table_path = get_db_table_path(yp_path, db_table)
             setup_auto_reshard_attributes(
-                client,
-                db_table_path,
-                dry_run,
+                client, db_table_path, dry_run,
             )
             set_auto_reshard(client, db_table_path, True, dry_run)
 
@@ -187,20 +162,14 @@ def main(cluster,
 
         for db_table in big_db_tables:
             db_table_path = get_db_table_path(yp_path, db_table)
-            pick_pivots_and_reshard(
-                client,
-                db_table_path,
-                tablet_count=20,
-                dry_run=dry_run
-            )
+            pick_pivots_and_reshard(client, db_table_path, tablet_count=20, dry_run=dry_run)
             set_auto_reshard(client, db_table_path, False, dry_run)
 
     if configure_bundles:
         print("Configuring bundles")
 
         tablet_cell_bundles = list_tablet_cell_bundles(
-            client,
-            get_db_table_paths(yp_path, db_tables),
+            client, get_db_table_paths(yp_path, db_tables),
         )
 
         print("Disabling in memory cell balancer")
@@ -235,7 +204,7 @@ def main(cluster,
                 "tablet_balancer_config/tablet_balancer_schedule",
             )
             schedule = tablet_balancer_schedule_per_cluster[cluster]
-            print("yt set {} \"{}\"".format(attribute_path, schedule))
+            print('yt set {} "{}"'.format(attribute_path, schedule))
             if not dry_run:
                 client.set(attribute_path, schedule)
 
@@ -243,32 +212,22 @@ def main(cluster,
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Reshards tables for YPADMIN-197")
     parser.add_argument(
-        "--cluster",
-        type=str,
-        required=True,
-        help="YT cluster address",
+        "--cluster", type=str, required=True, help="YT cluster address",
     )
     parser.add_argument(
-        "--yp-path",
-        type=str,
-        required=True,
-        help="Path to yp Cypress node",
+        "--yp-path", type=str, required=True, help="Path to yp Cypress node",
     )
     parser.add_argument(
-        "--reshard-small-tables",
-        action="store_true",
+        "--reshard-small-tables", action="store_true",
     )
     parser.add_argument(
-        "--reshard-big-tables",
-        action="store_true",
+        "--reshard-big-tables", action="store_true",
     )
     parser.add_argument(
-        "--configure-bundles",
-        action="store_true",
+        "--configure-bundles", action="store_true",
     )
     parser.add_argument(
-        "--dry-run",
-        action="store_true",
+        "--dry-run", action="store_true",
     )
     arguments = parser.parse_args()
     return arguments

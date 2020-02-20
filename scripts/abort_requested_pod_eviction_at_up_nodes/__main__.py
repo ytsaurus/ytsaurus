@@ -17,14 +17,7 @@ import collections
 import time
 
 
-PodDescription = collections.namedtuple(
-    "PodDescription",
-    [
-        "id",
-        "eviction_state",
-        "node_id",
-    ],
-)
+PodDescription = collections.namedtuple("PodDescription", ["id", "eviction_state", "node_id"],)
 
 
 def format_pod_description(pod_description, node_id_to_hfsm_state):
@@ -61,9 +54,7 @@ def main(arguments):
 
         assert pod_id not in pods_with_requested_eviction
         pods_with_requested_eviction[pod_id] = PodDescription(
-            id=pod_id,
-            eviction_state=eviction_state,
-            node_id=node_id,
+            id=pod_id, eviction_state=eviction_state, node_id=node_id,
         )
 
     used_node_ids = set()
@@ -83,8 +74,9 @@ def main(arguments):
     pod_ids_to_abort_eviction = set()
     yt.logger.info("Listing pods")
     for pod_id, pod_description in iteritems(pods_with_requested_eviction):
-        should_abort = (pod_description.node_id is not None) and \
-            (node_id_to_hfsm_state.get(pod_description.node_id, None) == "up")
+        should_abort = (pod_description.node_id is not None) and (
+            node_id_to_hfsm_state.get(pod_description.node_id, None) == "up"
+        )
         yt.logger.info(
             "Pod (%s, should_abort: %s)",
             format_pod_description(pod_description, node_id_to_hfsm_state),
@@ -99,9 +91,7 @@ def main(arguments):
             node_id = pods_with_requested_eviction[pod_id].node_id
             row["status.etc"]["eviction"] = dict(
                 last_updated=YsonUint64(int(time.time() * (10 ** 6))),
-                message="Eviction aborted due to node \"{}\" being in \"up\" state".format(
-                    node_id,
-                ),
+                message='Eviction aborted due to node "{}" being in "up" state'.format(node_id,),
                 reason="none",
                 state="none",
             )
@@ -116,19 +106,13 @@ def main(arguments):
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Abort requested pod eviction at up nodes")
     parser.add_argument(
-        "--yt-proxy",
-        type=str,
-        required=True,
+        "--yt-proxy", type=str, required=True,
     )
     parser.add_argument(
-        "--yp-path",
-        type=str,
-        required=True,
+        "--yp-path", type=str, required=True,
     )
     parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=False,
+        "--dry-run", action="store_true", default=False,
     )
     return parser.parse_args()
 

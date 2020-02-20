@@ -23,8 +23,10 @@ UNISTAT_VALUE = "enabled"
 def find_pods_impl(arguments, yp_client):
     def filter_by_vlan_id(objects, vlan_id):
         return filter(lambda obj: obj["vlan_id"] == vlan_id, objects)
+
     def has_label(obj):
         return obj.get("labels", {}).get(UNISTAT_KEY, None) == UNISTAT_VALUE
+
     timestamp = yp_client.generate_timestamp()
     offset = 0
     while True:
@@ -36,7 +38,7 @@ def find_pods_impl(arguments, yp_client):
                 "/spec/ip6_address_requests",
                 "/status/ip6_address_allocations",
             ],
-            filter="[/labels/deploy_engine] = \"YP_LITE\"",
+            filter='[/labels/deploy_engine] = "YP_LITE"',
             offset=offset,
             timestamp=timestamp,
             limit=arguments.batch_size,
@@ -86,7 +88,9 @@ def add_label_to_objects(objects):
             labels[UNISTAT_KEY] = UNISTAT_VALUE
 
 
-def add_one_label_impl(yt_client, pods_table_path, pod_id, pod_set_id, dry_run, spec_field_name, status_field_name):
+def add_one_label_impl(
+    yt_client, pods_table_path, pod_id, pod_set_id, dry_run, spec_field_name, status_field_name,
+):
     logger.info("Adding to pod: (pod id: %s, pod set id: %s)", pod_id, pod_set_id)
 
     key = {"meta.id": pod_id, "meta.pod_set_id": pod_set_id}
@@ -145,11 +149,13 @@ def add_label(arguments):
             pod_id, pod_set_id = line.strip().split(" ")
             result.append((pod_id, pod_set_id))
         return result
+
     def do_sleep(sleep_time):
         if arguments.no_delay:
             return
         logger.info("Sleeping for %f seconds", sleep_time)
         time.sleep(sleep_time)
+
     yt_client = yt.YtClient(arguments.cluster, config=dict(backend="rpc"))
     pods = read_pods()
     pods_table_path = yt.ypath_join(arguments.yp_path, "db", "pods")
@@ -158,9 +164,11 @@ def add_label(arguments):
         logger.info("Processing pod set %s", pod_set_id)
         pod_ids = combined_pods[pod_set_id]
         for pod_id in pod_ids:
+
             def invoke_with_transaction(function, yt_client, *args, **kwargs):
                 with yt_client.Transaction(type="tablet"):
                     function(yt_client, *args, **kwargs)
+
             run_with_retries(
                 lambda: invoke_with_transaction(
                     add_one_label_impl,
@@ -184,47 +192,28 @@ def main():
 
     find_pods_subparser = subparsers.add_parser("find-pods")
     find_pods_subparser.add_argument(
-        "--cluster",
-        type=str,
-        required=True,
-        help="YP cluster address",
+        "--cluster", type=str, required=True, help="YP cluster address",
     )
     find_pods_subparser.add_argument(
-        "--batch-size",
-        type=int,
-        default=1000,
+        "--batch-size", type=int, default=1000,
     )
     find_pods_subparser.set_defaults(func=find_pods)
 
     add_label_subparser = subparsers.add_parser("add-label")
     add_label_subparser.add_argument(
-        "--cluster",
-        type=str,
-        required=True,
-        help="YT cluster address",
+        "--cluster", type=str, required=True, help="YT cluster address",
     )
     add_label_subparser.add_argument(
-        "--yp-path",
-        type=str,
-        required=True,
-        help="Path to yp Cypress node",
+        "--yp-path", type=str, required=True, help="Path to yp Cypress node",
     )
     add_label_subparser.add_argument(
-        "--spec-field-name",
-        type=str,
-        choices=["spec.etc", "spec.other"],
-        required=True,
+        "--spec-field-name", type=str, choices=["spec.etc", "spec.other"], required=True,
     )
     add_label_subparser.add_argument(
-        "--status-field-name",
-        type=str,
-        choices=["status.etc", "status.other"],
-        required=True,
+        "--status-field-name", type=str, choices=["status.etc", "status.other"], required=True,
     )
     add_label_subparser.add_argument(
-        "--no-delay",
-        action="store_true",
-        default=False,
+        "--no-delay", action="store_true", default=False,
     )
     add_label_subparser.add_argument("--dry-run", action="store_true", default=False)
     add_label_subparser.set_defaults(func=add_label)

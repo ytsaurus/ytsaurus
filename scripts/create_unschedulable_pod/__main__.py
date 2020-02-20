@@ -28,9 +28,7 @@ def main(arguments):
     configure_logger()
     with YpClient(address=arguments.cluster, config=dict(token=find_token())) as yp_client:
         snapshot = load_scheduler_cluster_snapshot(
-            yp_client,
-            node_segment_id=arguments.node_segment_id,
-            object_types=["node", "resource"],
+            yp_client, node_segment_id=arguments.node_segment_id, object_types=["node", "resource"],
         )
 
         pod_cpu = None
@@ -46,7 +44,9 @@ def main(arguments):
 
             node_id = resource["meta"]["node_id"]
 
-            node_hfsm_state = yp_client.get_object("node", node_id, selectors=["/status/hfsm/state"])[0]
+            node_hfsm_state = yp_client.get_object(
+                "node", node_id, selectors=["/status/hfsm/state"]
+            )[0]
             if node_hfsm_state != "up":
                 continue
 
@@ -58,10 +58,12 @@ def main(arguments):
 
         pod_set_id = yp_client.create_object(
             "pod_set",
-            attributes=dict(spec=dict(
-                node_segment_id=arguments.node_segment_id,
-                node_filter="[/labels/topology/node] = \"{}\"".format(pod_node_id),
-            )),
+            attributes=dict(
+                spec=dict(
+                    node_segment_id=arguments.node_segment_id,
+                    node_filter='[/labels/topology/node] = "{}"'.format(pod_node_id),
+                )
+            ),
         )
         logging.info("Created pod set {} with node {}".format(pod_set_id, pod_node_id))
 
@@ -69,8 +71,8 @@ def main(arguments):
             "pod",
             attributes=dict(
                 meta=dict(pod_set_id=pod_set_id),
-                spec=dict(enable_scheduling=True, resource_requests=dict(vcpu_guarantee=pod_cpu)),
-            )
+                spec=dict(enable_scheduling=True, resource_requests=dict(vcpu_guarantee=pod_cpu),),
+            ),
         )
         logging.info("Created pod {}".format(pod_id))
 

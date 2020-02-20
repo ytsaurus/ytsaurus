@@ -53,7 +53,10 @@ def get_types(module):
         types.append(type)
         for nested_type in type.nested_types:
             traverse(nested_type)
-    descriptor = protobuf_descriptor_pb2.FileDescriptorProto.FromString(module.DESCRIPTOR.serialized_pb)
+
+    descriptor = protobuf_descriptor_pb2.FileDescriptorProto.FromString(
+        module.DESCRIPTOR.serialized_pb
+    )
     for type in descriptor.message_type:
         message_descriptor = module.__dict__[type.name].DESCRIPTOR
         traverse(message_descriptor)
@@ -106,7 +109,7 @@ def patch_prefix(type_name):
     PYTHON_PREFIX = "NYtPython."
     YT_PREFIX = "NYT."
     if type_name.startswith(PYTHON_PREFIX):
-        return YT_PREFIX + type_name[len(PYTHON_PREFIX):]
+        return YT_PREFIX + type_name[len(PYTHON_PREFIX) :]
     else:
         return type_name
 
@@ -114,7 +117,7 @@ def patch_prefix(type_name):
 def print_imports():
     for module in get_modules():
         name = module.DESCRIPTOR.name
-        print "import \"{}\";".format(name)
+        print 'import "{}";'.format(name)
     print """\
 import "yt/core/misc/proto/error.proto";
 import "yt/core/ytree/proto/attributes.proto";
@@ -134,7 +137,9 @@ def generate_client():
     control_set = set()
     for module in get_modules():
         options += module.DESCRIPTOR.GetOptions().Extensions[data_model_pb2.object_type]
-        descriptor = protobuf_descriptor_pb2.FileDescriptorProto.FromString(module.DESCRIPTOR.serialized_pb)
+        descriptor = protobuf_descriptor_pb2.FileDescriptorProto.FromString(
+            module.DESCRIPTOR.serialized_pb
+        )
         for message_type in descriptor.message_type:
             message_descriptor = module.__dict__[message_type.name].DESCRIPTOR
             T = "T"
@@ -142,9 +147,9 @@ def generate_client():
             CONTROL = "Control"
             name = message_descriptor.name
             if name.startswith(T) and name.endswith(META_BASE):
-                meta_base_dict[name[len(T):-len(META_BASE)]] = message_descriptor
+                meta_base_dict[name[len(T) : -len(META_BASE)]] = message_descriptor
             if name.startswith(T) and name.endswith(CONTROL):
-                control_set.add(name[len(T):-len(CONTROL)])
+                control_set.add(name[len(T) : -len(CONTROL)])
 
     print """\
 // AUTOMATICALLY GENERATED, DO NOT EDIT!
@@ -169,12 +174,12 @@ option go_package = "a.yandex-team.ru/yp/go/proto/ypapi";
     print "{"
     for option in options:
         print "    OT_{} = {}".format(option.snake_case_name.upper(), option.type_value)
-        print "    [(NYT.NYson.NProto.enum_value_name) = \"{}\"];".format(option.snake_case_name)
+        print '    [(NYT.NYson.NProto.enum_value_name) = "{}"];'.format(option.snake_case_name)
         print ""
     print "    OT_NULL = -1"
-    print "    [(NYT.NYson.NProto.enum_value_name) = \"null\"];"
+    print '    [(NYT.NYson.NProto.enum_value_name) = "null"];'
     print "    OT_NODE2 = 18"
-    print "    [(NYT.NYson.NProto.enum_value_name) = \"node2\"];"
+    print '    [(NYT.NYson.NProto.enum_value_name) = "node2"];'
     print "}"
     print ""
     print_separator()
@@ -228,7 +233,13 @@ package NYP.NServer.NObjects.NProto;
             etc_type_name = message_type.GetOptions().Extensions[data_model_pb2.etc_type_name]
             if len(etc_type_name) == 0:
                 etc_type_name = message_type.name + "Etc"
-            etc_fields = list([field for field in message_type.fields if field.GetOptions().Extensions[data_model_pb2.etc] == [True]])
+            etc_fields = list(
+                [
+                    field
+                    for field in message_type.fields
+                    if field.GetOptions().Extensions[data_model_pb2.etc] == [True]
+                ]
+            )
             if len(etc_fields) == 0:
                 continue
 
@@ -252,18 +263,14 @@ def main(arguments):
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Generates auxiliary .proto-files for both YP server and client sides")
-    parser.add_argument(
-        "--client",
-        action="store_true",
-        default=False,
-        help="Generate client-side types",
+    parser = argparse.ArgumentParser(
+        description="Generates auxiliary .proto-files for both YP server and client sides"
     )
     parser.add_argument(
-        "--server",
-        action="store_true",
-        default=False,
-        help="Generate server-side types",
+        "--client", action="store_true", default=False, help="Generate client-side types",
+    )
+    parser.add_argument(
+        "--server", action="store_true", default=False, help="Generate server-side types",
     )
     return parser.parse_args()
 

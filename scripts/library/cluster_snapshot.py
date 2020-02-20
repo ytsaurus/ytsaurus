@@ -15,16 +15,19 @@ logger = logging.getLogger(__name__)
 FILTER_BATCH_SIZE = 30  # batch_size > 30 exceeds maximum expression depth.
 SELECT_BATCH_SIZE = 1000
 
-SchedulerClusterBase = namedtuple("SchedulerClusterBase", [
-    "pods",
-    "resources",
-    "nodes",
-    "pod_sets",
-    "pod_disruption_budgets",
-    "internet_addresses",
-    "network_projects",
-    "virtual_services",
-])
+SchedulerClusterBase = namedtuple(
+    "SchedulerClusterBase",
+    [
+        "pods",
+        "resources",
+        "nodes",
+        "pod_sets",
+        "pod_disruption_budgets",
+        "internet_addresses",
+        "network_projects",
+        "virtual_services",
+    ],
+)
 
 
 class SchedulerCluster(SchedulerClusterBase):
@@ -46,8 +49,9 @@ class SchedulerCluster(SchedulerClusterBase):
 
     @classmethod
     def get_object_types(cls):
-        return [type_[:-1] if type_ != "internet_addresses" else type_[:-2]
-                for type_ in cls._fields]
+        return [
+            type_[:-1] if type_ != "internet_addresses" else type_[:-2] for type_ in cls._fields
+        ]
 
     def iter_pods_with_pod_set(self):
         id_to_pod_set = {pod_set["meta"]["id"]: pod_set for pod_set in self.pod_sets}
@@ -89,19 +93,14 @@ class SchedulerCluster(SchedulerClusterBase):
 
         for type_ in snapshot.get_object_types():
             logging.info(
-                "Read %d YP objects of type '%s'",
-                len(snapshot.get_by_type(type_)),
-                type_,
+                "Read %d YP objects of type '%s'", len(snapshot.get_by_type(type_)), type_,
             )
 
         return snapshot
 
+
 TYPE_SELECTORS = {
-    "pod_set": [
-        "/meta",
-        "/spec",
-        "/labels",
-    ],
+    "pod_set": ["/meta", "/spec", "/labels"],
     "pod": [
         "/meta",
         "/spec/node_id",
@@ -121,69 +120,23 @@ TYPE_SELECTORS = {
         "/status/scheduling",
         "/labels",
     ],
-    "node": [
-        "/meta",
-        "/spec",
-        "/labels",
-    ],
-    "resource": [
-        "/meta",
-        "/spec",
-        "/status",
-        "/labels",
-    ],
-    "internet_address": [
-        "/meta",
-        "/spec",
-        "/status",
-        "/labels",
-    ],
-    "network_project": [
-        "/meta",
-        "/spec",
-        "/labels",
-    ],
-    "virtual_service": [
-        "/meta",
-        "/spec",
-        "/labels",
-    ],
-    "pod_disruption_budget": [
-        "/meta",
-        "/spec",
-        "/status",
-        "/labels",
-    ]
+    "node": ["/meta", "/spec", "/labels"],
+    "resource": ["/meta", "/spec", "/status", "/labels"],
+    "internet_address": ["/meta", "/spec", "/status", "/labels"],
+    "network_project": ["/meta", "/spec", "/labels"],
+    "virtual_service": ["/meta", "/spec", "/labels"],
+    "pod_disruption_budget": ["/meta", "/spec", "/status", "/labels"],
 }
 
 KEY_COLUMNS_PER_OBJECT_TYPE = {
-    "pod_set": [
-        "/meta/id",
-    ],
-    "pod": [
-        "/meta/pod_set_id",
-        "/meta/id",
-    ],
-    "resource": [
-        "/meta/node_id",
-        "/meta/id",
-    ],
-    "node": [
-        "/meta/id",
-    ],
-    "internet_address": [
-        "/meta/ip4_address_pool_id",
-        "/meta/id",
-    ],
-    "network_project": [
-        "/meta/id",
-    ],
-    "virtual_service": [
-        "/meta/id",
-    ],
-    "pod_disruption_budget": [
-        "/meta/id",
-    ],
+    "pod_set": ["/meta/id"],
+    "pod": ["/meta/pod_set_id", "/meta/id"],
+    "resource": ["/meta/node_id", "/meta/id"],
+    "node": ["/meta/id"],
+    "internet_address": ["/meta/ip4_address_pool_id", "/meta/id"],
+    "network_project": ["/meta/id"],
+    "virtual_service": ["/meta/id"],
+    "pod_disruption_budget": ["/meta/id"],
 }
 
 
@@ -226,10 +179,10 @@ def batch_select(yp_client, object_type, filter, selectors, timestamp=None):
         )
         logging.debug("Selected batch of %ss (size: %d)", object_type, len(result))
         try:
-            continuation_key = max(values[:len(key_columns)] for values in result)
+            continuation_key = max(values[: len(key_columns)] for values in result)
         except ValueError:
             continuation_key = None
-        result = [values[len(key_columns):] for values in result]
+        result = [values[len(key_columns) :] for values in result]
         return result, continuation_key
 
     batch_size = SELECT_BATCH_SIZE
@@ -268,17 +221,14 @@ def all_filter(filters):
 
 
 def lower_bound_filter(columns, values):
-    return '([{}]) > ("{}")'.format(
-        '], ['.join(columns),
-        '", "'.join(values),
-    )
+    return '([{}]) > ("{}")'.format("], [".join(columns), '", "'.join(values),)
 
 
 def select_with_multiple_filters(yp_client, object_type, filters, selectors, timestamp=None):
     result = []
     for start_index in range(0, len(filters), FILTER_BATCH_SIZE):
         logging.info("Selecting with filters batch")
-        filters_batch = filters[start_index: start_index + FILTER_BATCH_SIZE]
+        filters_batch = filters[start_index : start_index + FILTER_BATCH_SIZE]
         result.extend(
             batch_select(
                 yp_client,
@@ -291,12 +241,13 @@ def select_with_multiple_filters(yp_client, object_type, filters, selectors, tim
     return result
 
 
-def select_pod_sets_and_pods(yp_client, timestamp, node_segment_id, pod_set_selectors,
-                             pod_selectors):
+def select_pod_sets_and_pods(
+    yp_client, timestamp, node_segment_id, pod_set_selectors, pod_selectors
+):
     assert pod_set_selectors or pod_selectors
 
     if node_segment_id:
-        pod_sets_filter = "[/spec/node_segment_id] = \"{}\"".format(node_segment_id)
+        pod_sets_filter = '[/spec/node_segment_id] = "{}"'.format(node_segment_id)
     else:
         pod_sets_filter = "%true"
 
@@ -318,7 +269,7 @@ def select_pod_sets_and_pods(yp_client, timestamp, node_segment_id, pod_set_sele
     pod_set_ids = [ps["meta"]["id"] for ps in pod_sets]
 
     def filter_pod_by_pod_set_id(pod_set_id):
-        return "[/meta/pod_set_id] = \"{}\"".format(pod_set_id)
+        return '[/meta/pod_set_id] = "{}"'.format(pod_set_id)
 
     logging.info("Selecting pods")
     pods_fields = select_with_multiple_filters(
@@ -337,13 +288,14 @@ def select_pod_sets_and_pods(yp_client, timestamp, node_segment_id, pod_set_sele
         return None, pods
 
 
-def select_nodes_and_resources(yp_client, timestamp, node_segment_id, node_selectors,
-                               resource_selectors):
+def select_nodes_and_resources(
+    yp_client, timestamp, node_segment_id, node_selectors, resource_selectors
+):
     logging.info("Selecting nodes")
     node_selectors_with_id = ["/meta/id"] + node_selectors
 
     if node_segment_id:
-        nodes_filter = "[/labels/segment] = \"{}\"".format(node_segment_id)
+        nodes_filter = '[/labels/segment] = "{}"'.format(node_segment_id)
     else:
         nodes_filter = "%true"
 
@@ -363,7 +315,7 @@ def select_nodes_and_resources(yp_client, timestamp, node_segment_id, node_selec
     node_ids = [n["meta"]["id"] for n in nodes]
 
     def filter_resource_by_node_id(node_id):
-        return "[/meta/node_id] = \"{}\"".format(node_id)
+        return '[/meta/node_id] = "{}"'.format(node_id)
 
     logging.info("Selecting resources")
     resources_fields = select_with_multiple_filters(
@@ -373,7 +325,9 @@ def select_nodes_and_resources(yp_client, timestamp, node_segment_id, node_selec
         filters=[filter_resource_by_node_id(node_id) for node_id in node_ids],
         selectors=TYPE_SELECTORS["resource"],
     )
-    resources = [reconstruct_object(fields, TYPE_SELECTORS["resource"]) for fields in resources_fields]
+    resources = [
+        reconstruct_object(fields, TYPE_SELECTORS["resource"]) for fields in resources_fields
+    ]
     logging.info("Got %s resources", len(resources))
 
     if node_selectors:
@@ -382,7 +336,9 @@ def select_nodes_and_resources(yp_client, timestamp, node_segment_id, node_selec
         return None, resources
 
 
-def load_scheduler_cluster_snapshot(yp_client, node_segment_id=None, object_types=None, timestamp=None):
+def load_scheduler_cluster_snapshot(
+    yp_client, node_segment_id=None, object_types=None, timestamp=None
+):
     if object_types is None:
         object_types = SchedulerCluster.get_object_types()
 
@@ -406,8 +362,9 @@ def load_scheduler_cluster_snapshot(yp_client, node_segment_id=None, object_type
         else:
             pod_selectors = []
 
-        pod_sets, pods = select_pod_sets_and_pods(yp_client, timestamp, node_segment_id,
-                                                  pod_set_selectors, pod_selectors)
+        pod_sets, pods = select_pod_sets_and_pods(
+            yp_client, timestamp, node_segment_id, pod_set_selectors, pod_selectors
+        )
 
         try_extend_all_objects(pod_sets, pods)
 
@@ -421,12 +378,15 @@ def load_scheduler_cluster_snapshot(yp_client, node_segment_id=None, object_type
         else:
             resource_selectors = []
 
-        nodes, resources = select_nodes_and_resources(yp_client, timestamp, node_segment_id,
-                                                      node_selectors, resource_selectors)
+        nodes, resources = select_nodes_and_resources(
+            yp_client, timestamp, node_segment_id, node_selectors, resource_selectors
+        )
 
         try_extend_all_objects(nodes, resources)
 
-    other_types = sorted(set(SchedulerCluster.get_object_types()) - {"pod_set", "pod", "resource", "node"})
+    other_types = sorted(
+        set(SchedulerCluster.get_object_types()) - {"pod_set", "pod", "resource", "node"}
+    )
     for object_type in other_types:
         if object_type in object_types:
             logging.info("Selecting objects of type '%s'", object_type)
@@ -437,8 +397,9 @@ def load_scheduler_cluster_snapshot(yp_client, node_segment_id=None, object_type
                 selectors=TYPE_SELECTORS[object_type],
                 timestamp=timestamp,
             )
-            objects = [reconstruct_object(fields, TYPE_SELECTORS[object_type])
-                       for fields in objects_fields]
+            objects = [
+                reconstruct_object(fields, TYPE_SELECTORS[object_type]) for fields in objects_fields
+            ]
 
             try_extend_all_objects(objects)
 

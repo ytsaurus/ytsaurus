@@ -11,8 +11,7 @@ import logging
 
 def configure_logging():
     logging.basicConfig(
-        format="%(asctime)s\t%(name)s\t%(levelname)s\t%(message)s",
-        level=logging.DEBUG,
+        format="%(asctime)s\t%(name)s\t%(levelname)s\t%(message)s", level=logging.DEBUG,
     )
 
 
@@ -23,9 +22,11 @@ def main_impl(yp_client, arguments):
             filter = arguments.filter
         else:
             assert len(optional_node_ids) > 0
-            filter = ("({}) and ("
-                      + " or ".join(["[/spec/node_id] = \"{}\""] * len(optional_node_ids))
-                      + ")").format(arguments.filter, *optional_node_ids)
+            filter = (
+                "({}) and ("
+                + " or ".join(['[/spec/node_id] = "{}"'] * len(optional_node_ids))
+                + ")"
+            ).format(arguments.filter, *optional_node_ids)
         return filter
 
     def process_batch(optional_node_ids):
@@ -38,7 +39,7 @@ def main_impl(yp_client, arguments):
         if arguments.node:
             optional_node_ids = [arguments.node]
         elif arguments.node_list:
-            optional_node_ids = [line.rstrip('\n') for line in open(arguments.node_list)]
+            optional_node_ids = [line.rstrip("\n") for line in open(arguments.node_list)]
         return optional_node_ids
 
     def get_optional_node_batch(optional_node_ids, batch_index):
@@ -85,22 +86,13 @@ def main(arguments):
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Touch pods by given filter")
     parser.add_argument(
-        "--cluster",
-        type=str,
-        required=True,
-        help="YP cluster address",
+        "--cluster", type=str, required=True, help="YP cluster address",
     )
     parser.add_argument(
-        "--filter",
-        type=str,
-        default="True",
-        help="Touch pods with given pod id filter",
+        "--filter", type=str, default="True", help="Touch pods with given pod id filter",
     )
     parser.add_argument(
-        "--node",
-        type=str,
-        default=None,
-        help="Restrict filtering to the given node",
+        "--node", type=str, default=None, help="Restrict filtering to the given node",
     )
     parser.add_argument(
         "--node-list",
@@ -109,10 +101,7 @@ def parse_arguments():
         help="Restrict filtering to the list of nodes in given file, one node id at each line",
     )
     parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=50,
-        help="Group nodes in batches with given size",
+        "--batch-size", type=int, default=50, help="Group nodes in batches with given size",
     )
     parser.add_argument(
         "--dry-run",
@@ -121,9 +110,7 @@ def parse_arguments():
         help="Do not actually touch pods, just show filtered pod ids",
     )
     parser.add_argument(
-        "--config",
-        help="Configuration of client in YSON format",
-        action=ParseStructuredArgument
+        "--config", help="Configuration of client in YSON format", action=ParseStructuredArgument,
     )
     return parser.parse_args()
 

@@ -64,9 +64,7 @@ def configure_logger():
     global logger
 
     logging.basicConfig(
-        format="%(asctime)-15s %(levelname)s %(message)s",
-        level=logging.INFO,
-        stream=sys.stdout,
+        format="%(asctime)-15s %(levelname)s %(message)s", level=logging.INFO, stream=sys.stdout,
     )
     logger = logging
 
@@ -210,9 +208,7 @@ def set_account(client, account_name, segment_name, cpu, memory, hdd, ssd, ipv4)
     if get_capacity(["cpu"]) != long(cpu):
         updates_set.append(
             dict(
-                path="/spec/resource_limits/per_segment/{}/cpu/capacity".format(
-                    segment_name
-                ),
+                path="/spec/resource_limits/per_segment/{}/cpu/capacity".format(segment_name),
                 value=long(cpu),
                 recursive=True,
             )
@@ -221,9 +217,7 @@ def set_account(client, account_name, segment_name, cpu, memory, hdd, ssd, ipv4)
     if get_capacity(["memory"]) != long(memory):
         updates_set.append(
             dict(
-                path="/spec/resource_limits/per_segment/{}/memory/capacity".format(
-                    segment_name
-                ),
+                path="/spec/resource_limits/per_segment/{}/memory/capacity".format(segment_name),
                 value=long(memory),
                 recursive=True,
             )
@@ -280,10 +274,7 @@ def create_account(client, account_name, allow_use_for_all):
 
 
 def resolve_all_segments(client):
-    return [
-        segment[0]
-        for segment in client.select_objects("node_segment", selectors=["/meta/id"])
-    ]
+    return [segment[0] for segment in client.select_objects("node_segment", selectors=["/meta/id"])]
 
 
 def create_accounts(client, cluster, accounts):
@@ -291,10 +282,7 @@ def create_accounts(client, cluster, accounts):
         create_account(client, account.name, account.allow_use_for_all)
         segments = None
 
-        if (
-            len(account.quotas_per_segment) == 1
-            and account.quotas_per_segment.keys()[0] == "*"
-        ):
+        if len(account.quotas_per_segment) == 1 and account.quotas_per_segment.keys()[0] == "*":
             segments = resolve_all_segments(client)
 
             limits = account.quotas_per_segment["*"]
@@ -329,9 +317,7 @@ def create_accounts(client, cluster, accounts):
 def setup_tentacles_podset(client, cluster):
     tentacles_podset_name = "yp-rtc-sla-tentacles-production-{}".format(cluster)
     try:
-        account_id = client.get_object(
-            "pod_set", tentacles_podset_name, ["/spec/account_id"]
-        )[0]
+        account_id = client.get_object("pod_set", tentacles_podset_name, ["/spec/account_id"])[0]
     except YpNoSuchObjectError:
         return
 
@@ -364,11 +350,7 @@ def allow_account_usage(client, account, subject):
         updates_set.append(
             {
                 "path": "/meta/acl/end",
-                "value": {
-                    "action": "allow",
-                    "permissions": ["use"],
-                    "subjects": [subject.id],
-                },
+                "value": {"action": "allow", "permissions": ["use"], "subjects": [subject.id]},
             }
         )
 
@@ -395,15 +377,7 @@ TB = 1024 * GB
 ACCOUNTS = [
     Account(
         "replication-common-account",
-        {
-            "*": {
-                "cpu": 1000000,
-                "memory": 10 * TB,
-                "hdd": 100 * TB,
-                "ssd": 100 * TB,
-                "ipv4": 10,
-            }
-        },
+        {"*": {"cpu": 1000000, "memory": 10 * TB, "hdd": 100 * TB, "ssd": 100 * TB, "ipv4": 10}},
     ),
     Account(
         "tmp",
@@ -658,31 +632,23 @@ def initialize_users(cluster, dry_run):
         add_schema_permissions(client, "node", User("robot-yp-inet-mngr"), right_rw)
         add_schema_permissions(client, "node", User("robot-yp-eviction-st"), right_rw)
 
-        add_schema_permissions(
-            client, "node_segment", User("robot-yp-export"), right_crw
-        )
+        add_schema_permissions(client, "node_segment", User("robot-yp-export"), right_crw)
         add_schema_permissions(client, "resource", User("robot-yp-export"), right_crw)
         add_schema_permissions(client, "user", User("robot-yp-export"), right_crw)
         add_schema_permissions(client, "group", User("robot-yp-export"), right_crw)
         add_schema_permissions(client, "group", User("robot-yp-idm"), right_rw)
-        add_schema_permissions(
-            client, "virtual_service", User("robot-yp-export"), right_crw
-        )
+        add_schema_permissions(client, "virtual_service", User("robot-yp-export"), right_crw)
 
         add_schema_permissions(client, "pod", User("robot-yp-hfsm"), right_rw)
         add_schema_permissions(client, "pod", User("robot-yp-pdns"), right_ro)
         add_schema_permissions(client, "pod", User("robot-yp-cauth"), right_ro)
 
         add_schema_permissions(client, "network_project", User("nanny-robot"), right_u)
-        add_schema_permissions(
-            client, "network_project", User("robot-yp-export"), right_crw
-        )
+        add_schema_permissions(client, "network_project", User("robot-yp-export"), right_crw)
         add_schema_permissions(client, "network_project", User("odin"), right_u)
         add_schema_permissions(client, "network_project", User("robot-rsc"), right_u)
         add_schema_permissions(client, "network_project", User("robot-mcrsc"), right_u)
-        add_schema_permissions(
-            client, "network_project", User("robot-vmagent-rtc"), right_u
-        )
+        add_schema_permissions(client, "network_project", User("robot-vmagent-rtc"), right_u)
 
         add_schema_permissions(client, "account", User("robot-yp-export"), right_crw)
         add_schema_permissions(client, "account", User("nanny-robot"), right_u)
@@ -691,98 +657,61 @@ def initialize_users(cluster, dry_run):
         add_schema_permissions(client, "account", User("robot-rsc"), right_u)
         add_schema_permissions(client, "account", User("robot-vmagent-rtc"), right_u)
 
-        add_schema_permissions(
-            client, "internet_address", User("robot-yp-inet-mngr"), right_crwu
-        )
-        add_schema_permissions(
-            client, "ip4_address_pool", User("robot-yp-inet-mngr"), right_crwu
-        )
+        add_schema_permissions(client, "internet_address", User("robot-yp-inet-mngr"), right_crwu)
+        add_schema_permissions(client, "ip4_address_pool", User("robot-yp-inet-mngr"), right_crwu)
 
         add_schema_permissions(client, "endpoint_set", User("robot-srv-ctl"), right_rw)
 
         add_schema_permissions(client, "replica_set", User("robot-rsc"), right_rw)
-        add_schema_permissions(
-            client, "replica_set", User("robot-drug-deploy"), right_crwu
-        )
+        add_schema_permissions(client, "replica_set", User("robot-drug-deploy"), right_crwu)
 
-        add_schema_permissions(
-            client, "multi_cluster_replica_set", User("robot-mcrsc"), right_rw
-        )
+        add_schema_permissions(client, "multi_cluster_replica_set", User("robot-mcrsc"), right_rw)
         add_schema_permissions(
             client, "multi_cluster_replica_set", User("robot-drug-deploy"), right_crw
         )
 
         add_schema_permissions(client, "stage", User("robot-drug-deploy"), right_rw)
 
-        add_schema_permissions(
-            client, "dynamic_resource", User("robot-yp-dynresource"), right_crwu
-        )
+        add_schema_permissions(client, "dynamic_resource", User("robot-yp-dynresource"), right_crwu)
 
-        add_schema_permissions(
-            client, "pod_disruption_budget", User("robot-yt-odin"), right_c
-        )
+        add_schema_permissions(client, "pod_disruption_budget", User("robot-yt-odin"), right_c)
 
         # DEPLOY-1117
-        add_schema_permissions(
-            client, "dynamic_resource", Group("everyone"), right_crwu
-        )
+        add_schema_permissions(client, "dynamic_resource", Group("everyone"), right_crwu)
 
         if cluster == "xdc":
-            add_schema_permissions(
-                client, "dns_record_set", User("robot-gencfg"), right_crw
-            )
+            add_schema_permissions(client, "dns_record_set", User("robot-gencfg"), right_crw)
 
         # YPADMIN-233
         if cluster in ("sas-test", "man-pre"):
             add_schema_permissions(client, "stage", User("robot-deploy-test"), right_rw)
-            add_schema_permissions(
-                client, "account", User("robot-deploy-test"), right_u
-            )
+            add_schema_permissions(client, "account", User("robot-deploy-test"), right_u)
 
-        add_schema_permissions(
-            client, "dns_record_set", User("robot-ydnxdns-export"), right_crwu
-        )
+        add_schema_permissions(client, "dns_record_set", User("robot-ydnxdns-export"), right_crwu)
 
         # YPADMIN-257
-        add_schema_permissions(
-            client, "pod_disruption_budget", User("nanny-robot"), right_crw
-        )
+        add_schema_permissions(client, "pod_disruption_budget", User("nanny-robot"), right_crw)
         if cluster in ("man-pre", "sas-test"):
             add_schema_permissions(
-                client,
-                "pod_disruption_budget",
-                Group("abc:service-scope:730:5"),
-                right_crw,
+                client, "pod_disruption_budget", Group("abc:service-scope:730:5"), right_crw,
             )
 
         # YPADMIN-266
         if cluster in ("sas-test", "man-pre"):
-            add_schema_permissions(
-                client, "network_project", User("robot-deploy-test"), right_u
-            )
-        add_schema_permissions(
-            client, "network_project", User("robot-drug-deploy"), right_u
-        )
+            add_schema_permissions(client, "network_project", User("robot-deploy-test"), right_u)
+        add_schema_permissions(client, "network_project", User("robot-drug-deploy"), right_u)
 
         # YPADMIN-282
         if cluster == "sas-test":
-            add_schema_permissions(
-                client, "group", User("robot-deploy-auth-t"), right_c
-            )
+            add_schema_permissions(client, "group", User("robot-deploy-auth-t"), right_c)
 
         # YPSUPPORT-49
         if cluster in ("sas-test", "man-pre"):
-            add_schema_permissions(
-                client, "stage", User("robot-deploy-auth-t"), right_rw
-            )
-            add_schema_permissions(
-                client, "account", User("robot-deploy-auth-t"), right_u
-            )
+            add_schema_permissions(client, "stage", User("robot-deploy-auth-t"), right_rw)
+            add_schema_permissions(client, "account", User("robot-deploy-auth-t"), right_u)
         if cluster == "xdc":
             add_schema_permissions(client, "stage", User("robot-deploy-auth"), right_rw)
-            add_schema_permissions(
-                client, "account", User("robot-deploy-auth"), right_u
-            )
+            add_schema_permissions(client, "account", User("robot-deploy-auth"), right_u)
 
         # YPSUPPORT-48
         if cluster in ("sas-test", "man-pre"):

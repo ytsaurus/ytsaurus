@@ -64,16 +64,25 @@ class BatchYpClient(object):
         if len(self._batch_remove) >= self._batch_size:
             self._try_flush(self._commit_remove_requests)
 
-    def update_object(self, object_type, object_id, set_updates=None, remove_updates=None, attribute_timestamp_prerequisites=None):
+    def update_object(
+        self,
+        object_type,
+        object_id,
+        set_updates=None,
+        remove_updates=None,
+        attribute_timestamp_prerequisites=None,
+    ):
         self._try_flush(self._commit_create_requests)
         self._try_flush(self._commit_remove_requests)
-        self._batch_update.append(dict(
-            object_type=object_type,
-            object_id=object_id,
-            set_updates=set_updates,
-            remove_updates=remove_updates,
-            attribute_timestamp_prerequisites=attribute_timestamp_prerequisites
-        ))
+        self._batch_update.append(
+            dict(
+                object_type=object_type,
+                object_id=object_id,
+                set_updates=set_updates,
+                remove_updates=remove_updates,
+                attribute_timestamp_prerequisites=attribute_timestamp_prerequisites,
+            )
+        )
         if len(self._batch_update) >= self._batch_size:
             self._try_flush(self._commit_update_requests)
 

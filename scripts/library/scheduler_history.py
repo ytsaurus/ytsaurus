@@ -26,10 +26,7 @@ class SchedulerObjectsHistory(SchedulerCluster):
     def make_nodes_schedulable(self):
         logging.info("Making nodes schedulable")
         for attributes in self.nodes:
-            attributes["control"] = dict(update_hfsm_state=dict(
-                state="up",
-                message=""
-            ))
+            attributes["control"] = dict(update_hfsm_state=dict(state="up", message=""))
 
     def set_pod_sets_node_segment(self, node_segment_id):
         logging.info("Setting node segment for pod sets")
@@ -98,9 +95,12 @@ class SchedulerObjectsHistory(SchedulerCluster):
         def check_requests(requests):
             return all(req["network_id"] in project_ids for req in requests)
 
-        pods = [pod for pod in self.pods
-                if check_requests(pod["spec"].get("ip6_address_requests", []))
-                and check_requests(pod["spec"].get("ip6_subnet_requests", []))]
+        pods = [
+            pod
+            for pod in self.pods
+            if check_requests(pod["spec"].get("ip6_address_requests", []))
+            and check_requests(pod["spec"].get("ip6_subnet_requests", []))
+        ]
         lost = len(self.pods) - len(pods)
         if lost > limit:
             raise RuntimeError("Dropped pods limit exceeded: {}".format(lost))
@@ -112,8 +112,11 @@ class SchedulerObjectsHistory(SchedulerCluster):
     def drop_internet_address_requests(self):
         logging.info("Dropping pods internet address requests")
         for pod in self.pods:
-            requests = [req for req in pod["spec"].get("ip6_address_requests", [])
-                        if not req.get("enable_internet")]
+            requests = [
+                req
+                for req in pod["spec"].get("ip6_address_requests", [])
+                if not req.get("enable_internet")
+            ]
             pod["spec"]["ip6_address_requests"] = requests
 
     def drop_pods_on_nonexistent_nodes(self, limit):
@@ -125,8 +128,9 @@ class SchedulerObjectsHistory(SchedulerCluster):
             if not node_id or node_id in node_ids:
                 pods.append(pod)
             else:
-                logging.warning("Dropping pod '%s': non-existent node '%s'",
-                                pod["meta"]["id"], node_id)
+                logging.warning(
+                    "Dropping pod '%s': non-existent node '%s'", pod["meta"]["id"], node_id,
+                )
 
         lost = len(self.pods) - len(pods)
         if lost > limit:

@@ -9,8 +9,7 @@ import logging
 
 def configure_logging():
     logging.basicConfig(
-        format="%(asctime)s\t%(name)s\t%(levelname)s\t%(message)s",
-        level=logging.DEBUG,
+        format="%(asctime)s\t%(name)s\t%(levelname)s\t%(message)s", level=logging.DEBUG,
     )
 
 
@@ -33,8 +32,7 @@ def main_impl(yp_client, arguments):
     all_pod_set_ids = map(lambda response: response[0], responses)
     logging.info("Selected %d pod sets", len(all_pod_set_ids))
     filtered_pod_set_ids = filter(
-        lambda pod_set_id: pod_set_id.startswith(arguments.pod_set_id_prefix),
-        all_pod_set_ids,
+        lambda pod_set_id: pod_set_id.startswith(arguments.pod_set_id_prefix), all_pod_set_ids,
     )
     logging.info("Remained %d pod sets after filtration", len(filtered_pod_set_ids))
     for pod_set_id in filtered_pod_set_ids:
@@ -52,10 +50,7 @@ def main(arguments):
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Remove pod sets by given filters")
     parser.add_argument(
-        "--cluster",
-        type=str,
-        required=True,
-        help="YP cluster address",
+        "--cluster", type=str, required=True, help="YP cluster address",
     )
     parser.add_argument(
         "--pod-set-id-prefix",
@@ -64,9 +59,7 @@ def parse_arguments():
         help="Remove pod sets with given pod set id prefix",
     )
     parser.add_argument(
-        "--force",
-        action="store_true",
-        default=False,
+        "--force", action="store_true", default=False,
     )
     parser.add_argument(
         "--dry-run",
