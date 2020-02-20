@@ -177,8 +177,9 @@ public:
 
     virtual TFuture<void> Close() override
     {
-        Owner_->TryRemove(this);
-        return UnderlyingChangelog_->Close().ToUncancelable();
+        return UnderlyingChangelog_->Close().Apply(BIND([=, this_ = MakeStrong(this)] (const TError&) {
+            Owner_->TryRemove(this, /* noResurrection */ true);
+        })).ToUncancelable();
     }
 
     virtual TFuture<void> Preallocate(size_t size) override
@@ -228,11 +229,12 @@ IChangelogPtr TJournalDispatcher::TImpl::OnChangelogOpenedOrCreated(
         THROW_ERROR changelogOrError;
     }
 
+    const auto& changelog = changelogOrError.Value();
     auto cachedChangelog = New<TCachedChangelog>(
         this,
         location,
         chunkId,
-        changelogOrError.Value(),
+        changelog,
         enableMultiplexing);
     cookie.EndInsert(cachedChangelog);
     return cachedChangelog;

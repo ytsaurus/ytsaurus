@@ -29,6 +29,9 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidSnapshotVersion)      (610))
     ((ReadOnlySnapshotBuilt)       (611))
     ((ReadOnlySnapshotBuildFailed) (612))
+    ((BrokenChangelog)             (613))
+    ((ChangelogIOError)            (614))
+    ((InvalidChangelogState)       (615))
 );
 
 DEFINE_ENUM(EPeerKind,

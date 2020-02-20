@@ -113,7 +113,9 @@ public:
             NFS::ExpectIOErrors([&] {
                 dataFile->Seek(0, sSet);
                 if (dataFile->Load(&header, FileHeaderSize_) != FileHeaderSize_) {
-                    THROW_ERROR_EXCEPTION("Changelog header cannot be read");
+                    THROW_ERROR_EXCEPTION(
+                        NHydra::EErrorCode::ChangelogIOError,
+                        "Changelog header cannot be read");
                 }
             });
 
@@ -441,7 +443,9 @@ private:
     void ValidateOpen()
     {
         if (!Open_) {
-            THROW_ERROR_EXCEPTION("Changelog is not open");
+            THROW_ERROR_EXCEPTION(
+                NHydra::EErrorCode::InvalidChangelogState,
+                "Changelog is not open");
         }
     }
 
@@ -449,7 +453,9 @@ private:
     void ValidateNotOpen()
     {
         if (Open_) {
-            THROW_ERROR_EXCEPTION("Changelog is already open");
+            THROW_ERROR_EXCEPTION(
+                NHydra::EErrorCode::InvalidChangelogState,
+                "Changelog is already open");
         }
     }
 
@@ -462,15 +468,18 @@ private:
             if (DataFile_->Flock(LOCK_EX | LOCK_NB) == 0) {
                 YT_LOG_DEBUG("Data file locked successfullly");
                 break;
-            } else {
-                if (++index >= MaxLockRetries) {
-                    THROW_ERROR_EXCEPTION(
-                        "Cannot flock %Qv",
-                        FileName_) << TError::FromSystem();
-                }
-                YT_LOG_WARNING("Error locking data file; backing off and retrying");
-                TDelayedExecutor::WaitForDuration(LockBackoffTime);
             }
+
+            if (++index >= MaxLockRetries) {
+                THROW_ERROR_EXCEPTION(
+                    NHydra::EErrorCode::ChangelogIOError,
+                    "Cannot flock %Qv",
+                    FileName_)
+                    << TError::FromSystem();
+            }
+
+            YT_LOG_WARNING("Error locking data file; backing off and retrying");
+            TDelayedExecutor::WaitForDuration(LockBackoffTime);
         }
     }
 
@@ -634,7 +643,9 @@ private:
             auto recordInfoOrError = TryReadRecord(dataReader);
             if (!recordInfoOrError.IsOK()) {
                 if (TruncatedRecordCount_ && RecordCount_ < *TruncatedRecordCount_) {
-                    THROW_ERROR_EXCEPTION("Broken record found in truncated changelog %v",
+                    THROW_ERROR_EXCEPTION(
+                        NHydra::EErrorCode::BrokenChangelog,
+                        "Broken record found in truncated changelog %v",
                         FileName_)
                         << TErrorAttribute("record_id", RecordCount_)
                         << TErrorAttribute("offset", CurrentFilePosition_)
@@ -690,7 +701,9 @@ private:
             TFileWrapper file(FileName_, RdWr);
             file.Seek(offset, sSet);
             if (file.Load(&header, sizeof(header)) != sizeof(header)) {
-                THROW_ERROR_EXCEPTION("Record header cannot be read");
+                THROW_ERROR_EXCEPTION(
+                    NHydra::EErrorCode::ChangelogIOError,
+                    "Record header cannot be read");
             }
 
             header.PaddingSize = validSize - CurrentFilePosition_;
@@ -955,7 +968,9 @@ private:
                 ReadPodPadded(inputStream, header);
 
                 if (header.RecordId != recordId) {
-                    THROW_ERROR_EXCEPTION("Record data id mismatch in %v", FileName_)
+                    THROW_ERROR_EXCEPTION(
+                        NHydra::EErrorCode::BrokenChangelog,
+                        "Record data id mismatch in %v", FileName_)
                         << TErrorAttribute("expected", header.RecordId)
                         << TErrorAttribute("actual", recordId);
                 }
@@ -970,7 +985,9 @@ private:
 
                 auto checksum = GetChecksum(data);
                 if (header.Checksum != checksum) {
-                    THROW_ERROR_EXCEPTION("Record data checksum mismatch in %v", FileName_)
+                    THROW_ERROR_EXCEPTION(
+                        NHydra::EErrorCode::BrokenChangelog,
+                        "Record data checksum mismatch in %v", FileName_)
                         << TErrorAttribute("record_id", header.RecordId);
                 }
 
