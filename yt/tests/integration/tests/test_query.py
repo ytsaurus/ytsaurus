@@ -321,6 +321,70 @@ class TestQuery(YTEnvSetup):
         actual = select_rows("k, v from [//tmp/t] where u > 500 order by v offset 20 limit 10")
         assert expected == actual
 
+
+    @authors("lukyan")
+    def test_keys_coordination(self):
+        sync_create_cells(1)
+
+        # Test coordination of keys via join.
+        # 1. Full keys
+        # 2. Prefix
+
+        # Pivot is prefix
+        # Pivot is full key
+
+        tt = "//tmp/t"
+        tj = "//tmp/j"
+
+        create("table", tt, attributes={
+               "dynamic": True,
+               "optimize_for" : "scan",
+               "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "dummy", "type": "int64"}
+                ]
+           })
+
+        reshard_table(tt, [[], [3], [6]])
+        sync_mount_table(tt)
+
+        insert_rows(tt, [{"a": i} for i in xrange(10)])
+
+        create("table", tj, attributes={
+               "dynamic": True,
+               "optimize_for" : "scan",
+               "schema": [
+                    {"name": "b", "type": "int64", "sort_order": "ascending"},
+                    {"name": "c", "type": "int64", "sort_order": "ascending"},
+                    {"name": "v", "type": "int64"}
+                ]
+           })
+
+        reshard_table(tj, [[], [3, 6], [6, 6]])
+        sync_mount_table(tj)
+
+        data = [{"b": i / 10, "c": i % 10, "v": i} for i in xrange(100)]
+        insert_rows(tj, data)
+
+        expected = [dict(row.items() + [('a', row['b'])]) for row in data]
+
+        actual = select_rows("a, b, c, v from [//tmp/t] join [//tmp/j] on a = b")
+        assert_items_equal(actual, expected)
+
+        actual = select_rows("a, b, c, v from [//tmp/t] join [//tmp/j] on (a + 0) = b")
+        assert_items_equal(actual, expected)
+
+
+        insert_rows(tt, [{"a": i} for i in xrange(100)])
+
+        expected = [dict(row.items() + [('a', row['b'] * 10 + row['c'])]) for row in data]
+
+        actual = select_rows("a, b, c, v from [//tmp/t] join [//tmp/j] on (a / 10, a % 10) = (b, c)")
+        assert_items_equal(actual, expected)
+
+        actual = select_rows("a, b, c, v from [//tmp/t] join [//tmp/j] on (a / 10, a % 10) = (b, c) where a = 36")
+        assert_items_equal(actual, [expected[36]])
+
     @authors("lukyan")
     def test_inefficient_join(self):
         sync_create_cells(1)
