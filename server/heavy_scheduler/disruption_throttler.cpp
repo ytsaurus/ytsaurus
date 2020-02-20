@@ -36,6 +36,7 @@ public:
             "Reading evictions from cluster snapshot");
         EvictingPodIds_.clear();
         PodSetEvictionCount_.clear();
+        PodSetAddedEvictionCount_.clear();
         for (auto* pod : cluster->GetSchedulablePods()) {
             if (pod->Eviction().state() != NProto::EEvictionState::ES_NONE) {
                 YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
@@ -56,6 +57,7 @@ public:
             pod->PodSetId());
         YT_VERIFY(EvictingPodIds_.insert(pod->GetId()).second);
         PodSetEvictionCount_[pod->PodSetId()] += 1;
+        PodSetAddedEvictionCount_[pod->PodSetId()] += 1;
     }
 
     bool ThrottleEviction(TPod* pod) const
@@ -83,20 +85,22 @@ public:
             ? 0
             : evictionCountIt->second;
 
-        if (Config_->LimitEvictionsByPodSet) {
-            if (evictionCount > 0) {
-                YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
-                    "Eviction throttled because another pod in the same pod set is being evicted (PodId: %v, PodSetId: %v)",
-                    pod->GetId(),
-                    pod->PodSetId());
-                return true;
-            }
+        if (Config_->LimitEvictionsByPodSet && evictionCount > 0) {
+            YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
+                "Eviction throttled because another pod in the same pod set is being evicted (PodId: %v, PodSetId: %v)",
+                pod->GetId(),
+                pod->PodSetId());
+            return true;
         }
 
         if (Config_->ValidatePodDisruptionBudget) {
             if (const auto* podDisruptionBudget = pod->GetPodSet()->GetPodDisruptionBudget()) {
+                auto addedEvictionCountIt = PodSetAddedEvictionCount_.find(pod->PodSetId());
+                int addedEvictionCount = addedEvictionCountIt == PodSetAddedEvictionCount_.end()
+                    ? 0
+                    : addedEvictionCountIt->second;
                 int allowedPodDisruptions = podDisruptionBudget->Status().allowed_pod_disruptions();
-                if (evictionCount >= allowedPodDisruptions) {
+                if (addedEvictionCount >= allowedPodDisruptions) {
                     YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
                         "Eviction throttled because of pod disruption budget (PodId: %v, DisruptionCount: %v, AllowedDisruptionCount: %v)",
                         pod->GetId(),
@@ -150,6 +154,7 @@ private:
 
     THashSet<TObjectId> EvictingPodIds_;
     THashMap<TObjectId, int> PodSetEvictionCount_;
+    THashMap<TObjectId, int> PodSetAddedEvictionCount_;
 
     TErrorOr<int> GetSuitableNodeCount(TPod* pod, int limit) const
     {
