@@ -151,8 +151,8 @@ private:
         EvictionGarbageCollector_->Run(Cluster_);
 
         if (CheckClusterHealth()) {
-            SwapDefragmentator_->CreateTasks(Cluster_);
-            AntiaffinityHealer_->CreateTasks(Cluster_);
+            SwapDefragmentator_->Run(Cluster_);
+            AntiaffinityHealer_->Run(Cluster_);
         } else {
             // NB: CheckClusterHealth() writes to the log, no need to do it here.
             Profiler.Update(Profiling_.UnhealthyClusterCounter, 1);

@@ -107,7 +107,20 @@ public:
         , Config_(std::move(config))
     { }
 
-    void CreateTasks(const TClusterPtr& cluster)
+    void Run(const TClusterPtr& cluster)
+    {
+        try {
+            GuardedRun(cluster);
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error running antiaffinity healer");
+        }
+    }
+
+private:
+    THeavyScheduler* const HeavyScheduler_;
+    const TAntiaffinityHealerConfigPtr Config_;
+
+    void GuardedRun(const TClusterPtr& cluster)
     {
         auto podSets = cluster->GetPodSets();
         Shuffle(podSets.begin(), podSets.end());
@@ -119,10 +132,6 @@ public:
             CreatePodSetTasks(*podSetIt);
         }
     }
-
-private:
-    THeavyScheduler* const HeavyScheduler_;
-    const TAntiaffinityHealerConfigPtr Config_;
 
     void CreatePodSetTasks(TPodSet* podSet)
     {
@@ -215,9 +224,9 @@ TAntiaffinityHealer::TAntiaffinityHealer(
     : Impl_(New<TImpl>(heavyScheduler, std::move(config)))
 { }
 
-void TAntiaffinityHealer::CreateTasks(const TClusterPtr& cluster)
+void TAntiaffinityHealer::Run(const TClusterPtr& cluster)
 {
-    Impl_->CreateTasks(cluster);
+    Impl_->Run(cluster);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -170,7 +170,29 @@ public:
         , Config_(std::move(config))
     { }
 
-    void CreateTasks(const TClusterPtr& cluster)
+    void Run(const TClusterPtr& cluster)
+    {
+        try {
+            GuardedRun(cluster);
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Error running swap defragmentator");
+        }
+    }
+
+private:
+    THeavyScheduler* const HeavyScheduler_;
+    const TSwapDefragmentatorConfigPtr Config_;
+
+    int VictimSearchFailureCounter_;
+
+    struct TProfiling
+    {
+        NProfiling::TSimpleGauge VictimSearchFailureCounter{"/victim_search_failure"};
+    };
+
+    TProfiling Profiling_;
+
+    void GuardedRun(const TClusterPtr& cluster)
     {
         auto starvingPods = FindStarvingPods(cluster);
         if (starvingPods.empty()) {
@@ -195,19 +217,6 @@ public:
             }
         }
     }
-
-private:
-    THeavyScheduler* const HeavyScheduler_;
-    const TSwapDefragmentatorConfigPtr Config_;
-
-    int VictimSearchFailureCounter_;
-
-    struct TProfiling
-    {
-        NProfiling::TSimpleGauge VictimSearchFailureCounter{"/victim_search_failure"};
-    };
-
-    TProfiling Profiling_;
 
     void TryCreateSwapTask(
         const TClusterPtr& cluster,
@@ -365,9 +374,9 @@ TSwapDefragmentator::TSwapDefragmentator(
     : Impl_(New<TImpl>(heavyScheduler, std::move(config)))
 { }
 
-void TSwapDefragmentator::CreateTasks(const TClusterPtr& cluster)
+void TSwapDefragmentator::Run(const TClusterPtr& cluster)
 {
-    Impl_->CreateTasks(cluster);
+    Impl_->Run(cluster);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

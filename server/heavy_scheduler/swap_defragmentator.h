@@ -17,7 +17,7 @@ public:
         THeavyScheduler* heavyScheduler,
         TSwapDefragmentatorConfigPtr config);
 
-    void CreateTasks(const NCluster::TClusterPtr& cluster);
+    void Run(const NCluster::TClusterPtr& cluster);
 
 private:
     class TImpl;
