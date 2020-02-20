@@ -84,6 +84,7 @@ private:
     i64 TotalUnparsedRows_ = 0;
     i64 TotalTrimmedRows_ = 0;
     i64 TotalTrimmedBytes_ = 0;
+    std::optional<TInstant> EarliestRecordTimestamp_;
 
     void DoReadLog();
     void DoOpenLogFile();
