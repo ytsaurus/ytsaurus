@@ -281,7 +281,6 @@ def prepare_configs(instance_count,
                     cpu_limit=None,
                     memory_limit=None,
                     memory_footprint=None,
-                    enable_log_tailer=None,
                     use_exact_thread_count=None,
                     operation_alias=None,
                     uncompressed_block_cache_size=None,
@@ -303,8 +302,6 @@ def prepare_configs(instance_count,
     require(memory_limit is not None, lambda: YtError("Memory limit should be set to prepare the ClickHouse config"))
 
     thread_count = cpu_limit if use_exact_thread_count else 2 * max(cpu_limit, instance_count) + 1
-
-    configs = {}
 
     clickhouse_config_base = {
         "engine": {
@@ -336,23 +333,19 @@ def prepare_configs(instance_count,
     clickhouse_config_cypress_base = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else None
     resulting_clickhouse_config = update(clickhouse_config_cypress_base, update(clickhouse_config_base, clickhouse_config))
 
-    configs["clickhouse"] = resulting_clickhouse_config
-
-    if enable_log_tailer:
-        log_tailer_config_base = {
-            "profile_manager": {
-                "global_tags": {"operation_alias": operation_alias[1:]} if operation_alias is not None else {},
-            }
+    log_tailer_config_base = {
+        "profile_manager": {
+            "global_tags": {"operation_alias": operation_alias[1:]} if operation_alias is not None else {},
         }
+    }
 
-        log_tailer_config_cypress_base = get(cypress_log_tailer_config_path, client=client) if cypress_log_tailer_config_path != "" else None
-        resulting_log_tailer_config = update(log_tailer_config_cypress_base, log_tailer_config_base)
+    log_tailer_config_cypress_base = get(cypress_log_tailer_config_path, client=client) if cypress_log_tailer_config_path != "" else None
+    resulting_log_tailer_config = update(log_tailer_config_cypress_base, log_tailer_config_base)
 
-        configs["log_tailer"] = resulting_log_tailer_config
-    else:
-        configs["log_tailer"] = None
-
-    return configs
+    return {
+        "clickhouse": resulting_clickhouse_config,
+        "log_tailer": resulting_log_tailer_config,
+    }
 
 
 # Here and below table_kind is in ("ordered_normally", "ordered_by_trace_id")
@@ -454,6 +447,7 @@ def prepare_log_tailer_tables(log_file,
     ttl = log_file["ttl"]
 
     for kind, path in [("ordered_normally", ordered_normally_path), ("ordered_by_trace_id", ordered_by_trace_id_path)]:
+        logger.info("Preparing log table %s", path)
         if not exists(path, client=client):
             create_log_tailer_table(kind, path, client=client)
         else:
@@ -466,15 +460,11 @@ def prepare_log_tailer_tables(log_file,
 @_patch_defaults
 def prepare_artifacts(artifact_path,
                       prev_operation,
-                      enable_log_tailer=None,
                       enable_job_tables=None,
                       dump_tables=None,
                       instance_count=None,
                       log_tailer_config=None,
                       client=None):
-    if not enable_log_tailer and not enable_job_tables:
-        return
-
     if not exists(artifact_path, client=client):
         logger.info("Creating artifact directory %s", artifact_path)
         create("map_node", artifact_path, client=client)
@@ -511,9 +501,8 @@ def prepare_artifacts(artifact_path,
                 logger.info("Dumping %s into %s", table_path, new_path)
                 copy(table_path, new_path, client=client)
 
-    if enable_log_tailer:
-        for log_file in log_tailer_config["log_tailer"]["log_files"]:
-            prepare_log_tailer_tables(log_file, artifact_path, instance_count=instance_count, client=client)
+    for log_file in log_tailer_config["log_tailer"]["log_files"]:
+        prepare_log_tailer_tables(log_file, artifact_path, instance_count=instance_count, client=client)
 
 
 def upload_configs(configs, client=None):
@@ -525,18 +514,21 @@ def upload_configs(configs, client=None):
 
     config_paths = {}
 
+    logger.info("Uploading configs")
+
     with NamedTemporaryFile() as temp:
         temp.write(dumps(configs["clickhouse"], yson_format="pretty"))
         temp.flush()
         resulting_clickhouse_config_path = smart_upload_file(temp.name, client=create_client_with_clickhouse_tmp_directory(client))
         config_paths["clickhouse"] = (resulting_clickhouse_config_path, "config.yson")
 
-    if configs["log_tailer"] is not None:
-        with NamedTemporaryFile() as temp:
-            temp.write(dumps(configs["log_tailer"], yson_format="pretty"))
-            temp.flush()
-            resulting_log_tailer_config_path = smart_upload_file(temp.name, client=create_client_with_clickhouse_tmp_directory(client))
-            config_paths["log_tailer"] = (resulting_log_tailer_config_path, "log_tailer_config.yson")
+    with NamedTemporaryFile() as temp:
+        temp.write(dumps(configs["log_tailer"], yson_format="pretty"))
+        temp.flush()
+        resulting_log_tailer_config_path = smart_upload_file(temp.name, client=create_client_with_clickhouse_tmp_directory(client))
+        config_paths["log_tailer"] = (resulting_log_tailer_config_path, "log_tailer_config.yson")
+
+    logger.info("Configs uploaded to %s", config_paths)
 
     return config_paths
 
@@ -562,7 +554,6 @@ def start_clickhouse_clique(instance_count,
                             spec=None,
                             uncompressed_block_cache_size=None,
                             cypress_log_tailer_config_path=None,
-                            enable_log_tailer=None,
                             enable_job_tables=None,
                             artifact_path=None,
                             client=None,
@@ -611,8 +602,6 @@ def start_clickhouse_clique(instance_count,
     :type abort_existing: bool or None
     :param cypress_log_tailer_config_path: path for the log tailer config in Cypress
     :type cypress_log_tailer_config_path: str or None
-    :param enable_log_tailer: write logs to dynamic tables
-    :type enable_log_tailer: bool or None
     :param enable_job_tables: enable core and stderr tables
     :type enable_job_tables: bool or None
     :param artifact_path: path for artifact directory; by default equals to //sys/clickhouse/kolkhoz/<operation_alias>
@@ -647,8 +636,8 @@ def start_clickhouse_clique(instance_count,
 
     prev_operation_id = prev_operation["id"] if prev_operation is not None else None
 
-    def resolve_path(cypress_bin_path, host_bin_path, cypress_default_bin_path, bin_name, optional=False):
-        if cypress_bin_path is None and host_bin_path is None and not optional:
+    def resolve_path(cypress_bin_path, host_bin_path, cypress_default_bin_path, bin_name):
+        if cypress_bin_path is None and host_bin_path is None:
             cypress_bin_path = cypress_default_bin_path
         require(cypress_bin_path is None or host_bin_path is None,
                 lambda: YtError("Cypress {0} binary path and host {0} path "
@@ -665,7 +654,7 @@ def start_clickhouse_clique(instance_count,
 
     cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path = \
         resolve_path(cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path,
-                     "//sys/clickhouse/bin/ytserver-log-tailer", "ytserver-log-tailer", optional=True)
+                     "//sys/clickhouse/bin/ytserver-log-tailer", "ytserver-log-tailer")
 
     configs = prepare_configs(instance_count,
                               cypress_base_config_path=cypress_base_config_path,
@@ -680,7 +669,6 @@ def start_clickhouse_clique(instance_count,
 
     prepare_artifacts(artifact_path,
                       prev_operation,
-                      enable_log_tailer=enable_log_tailer,
                       enable_job_tables=enable_job_tables,
                       dump_tables=dump_tables,
                       defaults=defaults,
@@ -697,6 +685,8 @@ def start_clickhouse_clique(instance_count,
                                                          prev_operation_id=prev_operation_id,
                                                          enable_monitoring=enable_monitoring,
                                                          client=client))
+
+    print kwargs
 
     op = run_operation(get_clickhouse_clique_spec_builder(instance_count,
                                                           artifact_path=artifact_path,
@@ -717,7 +707,7 @@ def start_clickhouse_clique(instance_count,
                                                           uncompressed_block_cache_size=uncompressed_block_cache_size,
                                                           spec=spec,
                                                           enable_job_tables=enable_job_tables,
-                                                          enable_log_tailer=enable_log_tailer,
+                                                          enable_log_tailer=True,
                                                           defaults=defaults,
                                                           **kwargs),
                        client=client,
