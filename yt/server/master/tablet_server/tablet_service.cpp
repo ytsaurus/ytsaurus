@@ -298,6 +298,12 @@ private:
             table->SetCurrentMountTransactionId(transaction->GetId());
         }
 
+        if (force) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto* cellBundle = table->GetTabletCellBundle();
+            securityManager->ValidatePermission(cellBundle, EPermission::Administer);
+        }
+
         cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();

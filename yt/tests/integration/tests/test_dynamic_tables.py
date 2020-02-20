@@ -732,6 +732,19 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         remount_table("//tmp/t", authenticated_user="u")
         sync_reshard_table("//tmp/t", [[]], authenticated_user="u")
 
+    @authors("lexolordan")
+    def test_force_unmount_allowed_and_denied(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+        create_user('u')
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "use"))
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b", authenticated_user="u")
+        set("//tmp/t/@acl/end", make_ace("allow", "u", "mount"))
+        sync_mount_table("//tmp/t", authenticated_user="u")
+        with pytest.raises(YtError): sync_unmount_table("//tmp/t", force=True, authenticated_user="u")
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "administer"))
+        sync_unmount_table("//tmp/t", force=True, authenticated_user="u")
+
     @authors("savrus")
     def test_mount_permission_allowed_by_ancestor(self):
         sync_create_cells(1)
