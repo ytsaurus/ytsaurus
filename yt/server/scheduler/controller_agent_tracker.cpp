@@ -970,10 +970,18 @@ public:
         for (const auto& protoOperation : request->operations()) {
             auto operationId = FromProto<TOperationId>(protoOperation.operation_id());
             auto operation = scheduler->FindOperation(operationId);
+            auto operationJobMetrics = FromProto<TOperationJobMetrics>(protoOperation.job_metrics());
             if (!operation) {
-                YT_LOG_DEBUG("Unknown operation is running at agent; unregister requested (AgentId: %v, OperationId: %v)",
+                // TODO(eshcherbin): This is used for flap diagnostics. Remove when TestPoolMetricsPorto is fixed (YT-12207).
+                THashMap<TString, i64> treeIdToOperationTotalTimeDelta;
+                for (const auto& [treeId, metrics] : operationJobMetrics) {
+                    treeIdToOperationTotalTimeDelta.emplace(treeId, metrics.Values()[EJobMetricName::TotalTime]);
+                }
+
+                YT_LOG_DEBUG("Unknown operation is running at agent; unregister requested (AgentId: %v, OperationId: %v, TreeIdToOperationTotalTimeDelta: %v)",
                     agent->GetId(),
-                    operationId);
+                    operationId,
+                    treeIdToOperationTotalTimeDelta);
                 ToProto(response->add_operation_ids_to_unregister(), operationId);
                 continue;
             }
@@ -990,7 +998,6 @@ public:
                 }
             }
 
-            auto operationJobMetrics = FromProto<TOperationJobMetrics>(protoOperation.job_metrics());
             YT_VERIFY(operationIdToOperationJobMetrics.emplace(operationId, operationJobMetrics).second);
 
             if (protoOperation.has_suspicious_jobs()) {
