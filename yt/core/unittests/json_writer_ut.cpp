@@ -5,10 +5,15 @@
 
 #include <yt/core/yson/consumer.h>
 
+#include <yt/core/ytree/fluent.h>
+
+#include <util/string/strip.h>
+
 namespace NYT::NJson {
 namespace {
 
 using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,8 +23,91 @@ inline TString SurroundWithQuotes(const TString& s)
     return quote + s + quote;
 }
 
+TEST(TJsonWriterTest, Basic)
+{
+    auto getWrittenJson = [] (bool pretty) {
+        TStringStream outputStream;
+        auto writer = CreateJsonWriter(&outputStream, pretty);
+
+        BuildYsonFluently(writer.get())
+            .BeginList()
+                .Item().Value(123)
+                .Item().Value(-56)
+                .Item()
+                .BeginMap()
+                    .Item("key").Value(true)
+                    .Item("entity").Entity()
+                    .Item("value").Value(4.25)
+                .EndMap()
+                .Item().Value(std::numeric_limits<double>::infinity())
+            .EndList();
+        writer->Flush();
+        return outputStream.Str();
+    };
+
+    EXPECT_EQ(getWrittenJson(false), R"([123,-56,{"key":true,"entity":null,"value":4.25},inf])");
+    EXPECT_EQ(Strip(getWrittenJson(true)),
+        "[\n"
+        "    123,\n"
+        "    -56,\n"
+        "    {\n"
+        "        \"key\": true,\n"
+        "        \"entity\": null,\n"
+        "        \"value\": 4.25\n"
+        "    },\n"
+        "    inf\n"
+        "]");
+}
+
+TEST(TJsonWriterTest, StartNextValue)
+{
+    TStringStream outputStream;
+    {
+        auto writer = CreateJsonWriter(&outputStream);
+
+        BuildYsonFluently(writer.get())
+            .BeginList()
+                .Item().Value(123)
+                .Item().Value("hello")
+            .EndList();
+
+        writer->StartNextValue();
+
+        BuildYsonFluently(writer.get())
+            .BeginMap()
+                .Item("abc").Value(true)
+                .Item("def").Value(-1.5)
+            .EndMap();
+
+        writer->Flush();
+    }
+
+    EXPECT_EQ(outputStream.Str(), "[123,\"hello\"]\n{\"abc\":true,\"def\":-1.5}");
+}
+
+TEST(TJsonWriterTest, Errors)
+{
+    TStringStream outputStream;
+
+    {
+        auto writer = CreateJsonWriter(&outputStream);
+        // Non-UTF-8.
+        EXPECT_THROW(writer->OnStringScalar("\xFF\xFE\xFC"), TErrorException);
+    }
+    {
+        auto writer = CreateJsonWriter(&outputStream);
+        EXPECT_THROW(writer->OnBeginAttributes(), TErrorException);
+    }
+    {
+        auto writer = CreateJsonWriter(&outputStream);
+        EXPECT_THROW(writer->OnRaw("{x=3}", EYsonType::Node), TErrorException);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Basic types.
-TEST(TJsonWriterTest, List)
+TEST(TJsonConsumerTest, List)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -38,7 +126,7 @@ TEST(TJsonWriterTest, List)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, Map)
+TEST(TJsonConsumerTest, Map)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -55,7 +143,7 @@ TEST(TJsonWriterTest, Map)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, DoubleMap)
+TEST(TJsonConsumerTest, DoubleMap)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream, NYson::EYsonType::ListFragment);
@@ -76,7 +164,7 @@ TEST(TJsonWriterTest, DoubleMap)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, ListFragmentWithEntity)
+TEST(TJsonConsumerTest, ListFragmentWithEntity)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream, NYson::EYsonType::ListFragment);
@@ -103,7 +191,7 @@ TEST(TJsonWriterTest, ListFragmentWithEntity)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, Entity)
+TEST(TJsonConsumerTest, Entity)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -115,7 +203,7 @@ TEST(TJsonWriterTest, Entity)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, SupportInfinity)
+TEST(TJsonConsumerTest, SupportInfinity)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -135,7 +223,7 @@ TEST(TJsonWriterTest, SupportInfinity)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, StringifyNanAndInfinity)
+TEST(TJsonConsumerTest, StringifyNanAndInfinity)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -157,7 +245,7 @@ TEST(TJsonWriterTest, StringifyNanAndInfinity)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, EmptyString)
+TEST(TJsonConsumerTest, EmptyString)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -169,7 +257,7 @@ TEST(TJsonWriterTest, EmptyString)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, AsciiString)
+TEST(TJsonConsumerTest, AsciiString)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -183,7 +271,7 @@ TEST(TJsonWriterTest, AsciiString)
 }
 
 
-TEST(TJsonWriterTest, NonAsciiString)
+TEST(TJsonConsumerTest, NonAsciiString)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -196,7 +284,7 @@ TEST(TJsonWriterTest, NonAsciiString)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, NonAsciiStringWithoutEscaping)
+TEST(TJsonConsumerTest, NonAsciiStringWithoutEscaping)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -211,7 +299,7 @@ TEST(TJsonWriterTest, NonAsciiStringWithoutEscaping)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, IncorrectUtfWithoutEscaping)
+TEST(TJsonConsumerTest, IncorrectUtfWithoutEscaping)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -224,7 +312,7 @@ TEST(TJsonWriterTest, IncorrectUtfWithoutEscaping)
     );
 }
 
-TEST(TJsonWriterTest, StringStartingWithSpecailSymbol)
+TEST(TJsonConsumerTest, StringStartingWithSpecailSymbol)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -240,7 +328,7 @@ TEST(TJsonWriterTest, StringStartingWithSpecailSymbol)
 ////////////////////////////////////////////////////////////////////////////////
 
 // Values with attributes.
-TEST(TJsonWriterTest, ListWithAttributes)
+TEST(TJsonConsumerTest, ListWithAttributes)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -265,7 +353,7 @@ TEST(TJsonWriterTest, ListWithAttributes)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, MapWithAttributes)
+TEST(TJsonConsumerTest, MapWithAttributes)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -290,7 +378,7 @@ TEST(TJsonWriterTest, MapWithAttributes)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, Int64WithAttributes)
+TEST(TJsonConsumerTest, Int64WithAttributes)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -312,7 +400,7 @@ TEST(TJsonWriterTest, Int64WithAttributes)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, Uint64)
+TEST(TJsonConsumerTest, Uint64)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -324,7 +412,7 @@ TEST(TJsonWriterTest, Uint64)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, EntityWithAttributes)
+TEST(TJsonConsumerTest, EntityWithAttributes)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -346,7 +434,7 @@ TEST(TJsonWriterTest, EntityWithAttributes)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, StringWithAttributes)
+TEST(TJsonConsumerTest, StringWithAttributes)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -368,7 +456,7 @@ TEST(TJsonWriterTest, StringWithAttributes)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, DoubleAttributes)
+TEST(TJsonConsumerTest, DoubleAttributes)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -401,7 +489,7 @@ TEST(TJsonWriterTest, DoubleAttributes)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TJsonWriterTest, NeverAttributes)
+TEST(TJsonConsumerTest, NeverAttributes)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -434,7 +522,7 @@ TEST(TJsonWriterTest, NeverAttributes)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, AlwaysAttributes)
+TEST(TJsonConsumerTest, AlwaysAttributes)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -475,7 +563,7 @@ TEST(TJsonWriterTest, AlwaysAttributes)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, SpecialKeys)
+TEST(TJsonConsumerTest, SpecialKeys)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -494,7 +582,7 @@ TEST(TJsonWriterTest, SpecialKeys)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, TestStringLengthLimit)
+TEST(TJsonConsumerTest, TestStringLengthLimit)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -511,7 +599,7 @@ TEST(TJsonWriterTest, TestStringLengthLimit)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, TestAnnotateWithTypes)
+TEST(TJsonConsumerTest, TestAnnotateWithTypes)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -528,7 +616,7 @@ TEST(TJsonWriterTest, TestAnnotateWithTypes)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, TestAnnotateWithTypesStringify)
+TEST(TJsonConsumerTest, TestAnnotateWithTypesStringify)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -549,7 +637,7 @@ TEST(TJsonWriterTest, TestAnnotateWithTypesStringify)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, SeveralOptions)
+TEST(TJsonConsumerTest, SeveralOptions)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -567,7 +655,7 @@ TEST(TJsonWriterTest, SeveralOptions)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, SeveralOptions2)
+TEST(TJsonConsumerTest, SeveralOptions2)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -590,7 +678,7 @@ TEST(TJsonWriterTest, SeveralOptions2)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, SeveralOptionsFlushBuffer)
+TEST(TJsonConsumerTest, SeveralOptionsFlushBuffer)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -606,7 +694,7 @@ TEST(TJsonWriterTest, SeveralOptionsFlushBuffer)
     EXPECT_EQ(output, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, DISABLED_TestPrettyFormat)
+TEST(TJsonConsumerTest, TestPrettyFormat)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -622,10 +710,10 @@ TEST(TJsonWriterTest, DISABLED_TestPrettyFormat)
     TString output = "{\n"
                     "    \"hello\": 1\n"
                     "}";
-    EXPECT_EQ(output, outputStream.Str());
+    EXPECT_EQ(output, Strip(outputStream.Str()));
 }
 
-TEST(TJsonWriterTest, TestNodeWeightLimitAccepted)
+TEST(TJsonConsumerTest, TestNodeWeightLimitAccepted)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -645,7 +733,7 @@ TEST(TJsonWriterTest, TestNodeWeightLimitAccepted)
     EXPECT_EQ(expectedOutput, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, TestNodeWeightLimitRejected)
+TEST(TJsonConsumerTest, TestNodeWeightLimitRejected)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -664,7 +752,7 @@ TEST(TJsonWriterTest, TestNodeWeightLimitRejected)
     EXPECT_EQ(expectedOutput, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, TestStringScalarWeightLimitAccepted)
+TEST(TJsonConsumerTest, TestStringScalarWeightLimitAccepted)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -683,7 +771,7 @@ TEST(TJsonWriterTest, TestStringScalarWeightLimitAccepted)
     EXPECT_EQ(expectedOutput, outputStream.Str());
 }
 
-TEST(TJsonWriterTest, TestStringScalarWeightLimitRejected)
+TEST(TJsonConsumerTest, TestStringScalarWeightLimitRejected)
 {
     TStringStream outputStream;
     auto consumer = CreateJsonConsumer(&outputStream);
@@ -695,7 +783,7 @@ TEST(TJsonWriterTest, TestStringScalarWeightLimitRejected)
     EXPECT_EQ(SurroundWithQuotes(value), outputStream.Str());
 }
 
-TEST(TJsonWriterTest, TestSetAnnotateWithTypesParameter)
+TEST(TJsonConsumerTest, TestSetAnnotateWithTypesParameter)
 {
     TStringStream outputStream;
     auto config = New<TJsonFormatConfig>();
@@ -725,6 +813,29 @@ TEST(TJsonWriterTest, TestSetAnnotateWithTypesParameter)
         "]";
 
     EXPECT_EQ(expectedOutput, outputStream.Str());
+}
+
+TEST(TJsonConsumerTest, ThroughJsonWriter)
+{
+    TStringStream outputStream;
+    auto config = New<TJsonFormatConfig>();
+    config->AnnotateWithTypes = true;
+    config->Stringify = true;
+
+    auto writer = CreateJsonWriter(&outputStream);
+    auto consumer = CreateJsonConsumer(writer.get(), EYsonType::Node, config);
+
+    consumer->OnBeginMap();
+        consumer->OnKeyedItem("hello");
+        consumer->OnUint64Scalar(-1);
+        consumer->OnKeyedItem("world");
+        consumer->OnDoubleScalar(1.7976931348623157e+308);
+    consumer->OnEndMap();
+    consumer->Flush();
+
+    TString output = "{\"hello\":{\"$type\":\"uint64\",\"$value\":\"18446744073709551615\"},"
+        "\"world\":{\"$type\":\"double\",\"$value\":\"1.7976931348623157e+308\"}}";
+    EXPECT_EQ(output, outputStream.Str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

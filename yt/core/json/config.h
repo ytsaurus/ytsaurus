@@ -19,7 +19,6 @@ DEFINE_ENUM(EJsonAttributesMode,
 
 class TJsonFormatConfig
     : public NYTree::TYsonSerializable
-//    : public NTableClient::TTypeConversionConfig
 {
 public:
     EJsonFormat Format;
