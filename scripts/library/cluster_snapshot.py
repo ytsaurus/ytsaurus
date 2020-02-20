@@ -382,11 +382,12 @@ def select_nodes_and_resources(yp_client, timestamp, node_segment_id, node_selec
         return None, resources
 
 
-def load_scheduler_cluster_snapshot(yp_client, node_segment_id=None, object_types=None):
+def load_scheduler_cluster_snapshot(yp_client, node_segment_id=None, object_types=None, timestamp=None):
     if object_types is None:
         object_types = SchedulerCluster.get_object_types()
 
-    timestamp = yp_client.generate_timestamp()
+    if timestamp is None:
+        timestamp = yp_client.generate_timestamp()
 
     all_objects = []
 
