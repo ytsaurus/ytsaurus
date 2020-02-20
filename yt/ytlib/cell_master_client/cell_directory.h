@@ -17,6 +17,15 @@ namespace NYT::NCellMasterClient {
 
 ///////////////////////////////////////////////////////////////////////////////
 
+NRpc::IChannelPtr CreateMasterCacheChannel(
+    const NApi::NNative::TMasterConnectionConfigPtr& config,
+    const NApi::NNative::TMasterConnectionConfigPtr& masterCacheConfig,
+    const NRpc::ICachingChannelFactoryPtr channelFactory,
+    const NApi::NNative::TConnectionOptions& options,
+    const std::vector<TString>& discoveredAddresses);
+
+///////////////////////////////////////////////////////////////////////////////
+
 class TCellDirectory
     : public TRefCounted
 {
@@ -25,7 +34,6 @@ public:
         TCellDirectoryConfigPtr config,
         const NApi::NNative::TConnectionOptions& options,
         NRpc::IChannelFactoryPtr channelFactory,
-        NNodeTrackerClient::TMasterCacheSynchronizerPtr masterCacheSynchronizer,
         NLogging::TLogger logger);
 
     void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory);

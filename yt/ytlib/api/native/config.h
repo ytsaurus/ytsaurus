@@ -62,7 +62,7 @@ class TConnectionConfig
 public:
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
 
-    NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
+    NTransactionClient::TRemoteTimestampProviderWithDiscoveryConfigPtr TimestampProvider;
     NHiveClient::TCellDirectoryConfigPtr CellDirectory;
     NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
 
@@ -132,6 +132,10 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTransactionClient::TRemoteTimestampProviderWithDiscoveryConfigPtr CreateTimestampProviderConfig(TMasterConnectionConfigPtr connectionConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

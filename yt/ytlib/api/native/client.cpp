@@ -3976,6 +3976,7 @@ TClusterMeta TClient::DoGetClusterMeta(
     req->set_populate_cluster_directory(options.PopulateClusterDirectory);
     req->set_populate_medium_directory(options.PopulateMediumDirectory);
     req->set_populate_master_cache_node_addresses(options.PopulateMasterCacheNodeAddresses);
+    req->set_populate_timestamp_provider_node_addresses(options.PopulateTimestampProviderAddresses);
     SetCachingHeader(req, options);
     batchReq->AddRequest(req);
 
@@ -3999,6 +4000,9 @@ TClusterMeta TClient::DoGetClusterMeta(
     }
     if (options.PopulateMasterCacheNodeAddresses) {
         meta.MasterCacheNodeAddresses = FromProto<std::vector<TString>>(rsp->master_cache_node_addresses());
+    }
+    if (options.PopulateTimestampProviderAddresses) {
+        meta.TimestampProviderAddresses = FromProto<std::vector<TString>>(rsp->timestamp_provider_node_addresses());
     }
     return meta;
 }

@@ -100,7 +100,9 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/client/transaction_client/config.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/remote_timestamp_provider.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -585,8 +587,11 @@ void TBootstrap::DoInitialize()
 
     RpcServer_->RegisterService(CreateQueryService(Config_->QueryAgent, this));
 
-    RpcServer_->RegisterService(CreateTimestampProxyService(
-        MasterConnection_->GetTimestampProvider()));
+    auto timestampProviderConfig = CreateTimestampProviderConfig(Config_->ClusterConnection->PrimaryMaster);
+    auto timestampProvider = CreateRemoteTimestampProvider(
+        timestampProviderConfig,
+        CreateTimestampProviderChannel(timestampProviderConfig, MasterConnection_->GetChannelFactory()));
+    RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider));
 
     auto cache = New<TObjectServiceCache>(
         Config_->MasterCacheService,

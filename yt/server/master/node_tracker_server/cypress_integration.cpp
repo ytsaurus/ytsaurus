@@ -13,6 +13,8 @@
 #include <yt/server/master/cypress_server/node_proxy_detail.h>
 #include <yt/server/master/cypress_server/virtual.h>
 
+#include <yt/server/master/node_tracker_server/node_discovery_manager.h>
+
 #include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/master/object_server/object.h>
@@ -180,6 +182,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::FullNodeCount);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MasterCacheNodes)
             .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TimestampProviderNodes)
+            .SetOpaque(true));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -300,7 +304,12 @@ private:
 
             case EInternedAttributeKey::MasterCacheNodes:
                 BuildYsonFluently(consumer)
-                    .Value(Bootstrap_->GetNodeTracker()->GetMasterCacheNodeAddresses());
+                    .Value(Bootstrap_->GetNodeTracker()->GetNodeAddressesForRole(NNodeTrackerClient::ENodeRole::MasterCache));
+                return true;
+
+            case EInternedAttributeKey::TimestampProviderNodes:
+                BuildYsonFluently(consumer)
+                    .Value(Bootstrap_->GetNodeTracker()->GetNodeAddressesForRole(NNodeTrackerClient::ENodeRole::TimestampProvider));
                 return true;
 
             default:
