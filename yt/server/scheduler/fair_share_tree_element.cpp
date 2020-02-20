@@ -3175,7 +3175,7 @@ void TOperationElement::DetachParent()
     Parent_ = nullptr;
     TreeHost_->GetResourceTree()->DetachParent(ResourceTreeElement_);
 
-    YT_LOG_DEBUG("Operation attached to pool (Pool: %v)", parentId);
+    YT_LOG_DEBUG("Operation detached from pool (Pool: %v)", parentId);
 }
 
 void TOperationElement::MarkOperationRunningInPool()
