@@ -340,3 +340,26 @@ class TestInternetAddresses(object):
         })
 
         self._wait_scheduled_state(yp_client, [pod_id], "assigned")
+
+    def test_empty_network_module_id(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        with pytest.raises(YtResponseError):
+            self._create_inet_addr(yp_client, "", "1.2.3.4")
+
+        id = self._create_inet_addr(yp_client, "netmodule", "1.2.3.4")
+        def update(network_module_id):
+            yp_client.update_object(
+                "internet_address",
+                id,
+                set_updates=[
+                    dict(
+                        path="/spec/network_module_id",
+                        value=network_module_id,
+                    )
+                ],
+            )
+
+        with pytest.raises(YtResponseError):
+            update("")
+        update("netmodule2")

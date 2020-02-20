@@ -7,6 +7,9 @@
 
 namespace NYP::NServer::NObjects {
 
+using std::placeholders::_1;
+using std::placeholders::_2;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInternetAddressTypeHandler
@@ -29,7 +32,8 @@ public:
             });
 
         SpecAttributeSchema_
-            ->SetAttribute(TInternetAddress::SpecSchema);
+            ->SetAttribute(TInternetAddress::SpecSchema)
+            ->SetValidator<TInternetAddress>(std::bind(&TInternetAddressTypeHandler::ValidateSpec, this, _1, _2));
 
         StatusAttributeSchema_
             ->SetAttribute(TInternetAddress::StatusSchema);
@@ -76,6 +80,18 @@ public:
         ISession* session) override
     {
         return std::unique_ptr<TObject>(new TInternetAddress(id, parentId, this, session));
+    }
+
+private:
+    void ValidateSpec(TTransaction* /*transaction*/, const TInternetAddress* internetAddress)
+    {
+        const auto& oldNetworkModuleId = internetAddress->Spec().LoadOld().network_module_id();
+        const auto& networkModuleId = internetAddress->Spec().Load().network_module_id();
+        if (!internetAddress->DidExist() || oldNetworkModuleId != networkModuleId) {
+            if (!networkModuleId) {
+                THROW_ERROR_EXCEPTION("Network module id cannot be empty");
+            }
+        }
     }
 };
 
