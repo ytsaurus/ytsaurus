@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -210,7 +211,6 @@ public final class DataCenter implements Closeable {
     @Override
     public void close() {
         ArrayList<RpcClient> aliveClients = new ArrayList<>();
-        Exception error = new Exception("DataCenter is terminated");
         lock.lock();
         try {
             if (terminated) {
@@ -218,12 +218,8 @@ public final class DataCenter implements Closeable {
             }
             terminated = true;
             for (RpcClientSlot slot : slots) {
-                slot.getClientFuture().completeExceptionally(error);
-                if (slot.getClientFuture().isDone()) {
-                    if (!slot.getClientFuture().isCompletedExceptionally()) {
-                        aliveClients.add(slot.getClient());
-                    }
-                }
+                Optional<RpcClient> maybeClient = slot.getOrCompleteClient();
+                maybeClient.ifPresent(aliveClients::add);
             }
             slots.clear();
         } finally {
@@ -242,14 +238,14 @@ public final class DataCenter implements Closeable {
     public <T> List<T> getAliveDestinations(Function<RpcClientSlot, T> func) {
         lock.lock();
         try {
-            return slots.stream().filter(RpcClientSlot::isClientReady).map(func).collect(Collectors.toList());
+            return slots.stream().filter(RpcClientSlot::isClientDone).map(func).collect(Collectors.toList());
         } finally {
             lock.unlock();
         }
     }
 
     public List<RpcClient> selectDestinations(final int maxSelect, Random rnd) {
-        return selectDestinations(maxSelect, rnd, RpcClientSlot::getClient);
+        return selectDestinations(maxSelect, rnd, slot -> slot.getClient(options.getRpcClientSelectionTimeout()));
     }
 
     private boolean canSkipSlots(int index, int requiredResultSize) {
@@ -257,10 +253,13 @@ public final class DataCenter implements Closeable {
     }
 
     private boolean shouldSkipSlot(int index) {
-        return slots.get(index).seemsBroken() || !slots.get(index).isClientReady();
+        return slots.get(index).seemsBroken() || !slots.get(index).isClientDone();
     }
 
-    public <T> List<T> selectDestinations(final int maxSelect, Random rnd, Function<RpcClientSlot, T> func) {
+    public <T> List<T> selectDestinations(final int maxSelect, Random rnd, Function<RpcClientSlot, Optional<T>> func) {
+        int resultSize = Math.min(maxSelect, slots.size());
+        final ArrayList<RpcClientSlot> resultSlots = new ArrayList<>(resultSize);
+        final ArrayList<T> result = new ArrayList<>(resultSize);
         lock.lock();
         try {
             if (terminated) {
@@ -271,9 +270,6 @@ public final class DataCenter implements Closeable {
                 throw new IllegalStateException("DataCenter channel pool is empty");
             }
 
-            int resultSize = Math.min(maxSelect, slots.size());
-            final ArrayList<T> result = new ArrayList<>(resultSize);
-
             Collections.shuffle(slots, rnd);
 
             int count = resultSize;
@@ -283,16 +279,19 @@ public final class DataCenter implements Closeable {
                     ++index;
                     continue;
                 }
-                result.add(func.apply(slots.get(index)));
+                resultSlots.add(slots.get(index));
                 ++index;
                 --count;
             }
-
-            logger.debug("Selected rpc proxies: `{}`", result);
-
-            return result;
         } finally {
             lock.unlock();
         }
+
+        for (RpcClientSlot slot : resultSlots) {
+            func.apply(slot).ifPresent(result::add);
+        }
+        logger.debug("Selected rpc proxies: `{}`", result);
+
+        return result;
     }
 }

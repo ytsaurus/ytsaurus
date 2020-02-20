@@ -25,6 +25,7 @@ public class RpcOptions {
     private Duration proxyUpdateTimeout = Duration.ofMillis(60000);
     private Duration pingTimeout = Duration.ofMillis(5000); // marks proxy as dead/live after this timeout
     private Duration channelPoolRebalanceInterval = Duration.ofMinutes(10);
+    private Duration rpcClientSelectionTimeout = Duration.ofSeconds(30);
     private int channelPoolSize = 3;
 
     // steaming options
@@ -249,5 +250,13 @@ public class RpcOptions {
     public RpcOptions setChannelPoolSize(int channelPoolSize) {
         this.channelPoolSize = channelPoolSize;
         return this;
+    }
+
+    public Duration getRpcClientSelectionTimeout() {
+        return rpcClientSelectionTimeout;
+    }
+
+    public void setRpcClientSelectionTimeout(Duration rpcClientSelectionTimeout) {
+        this.rpcClientSelectionTimeout = rpcClientSelectionTimeout;
     }
 }
