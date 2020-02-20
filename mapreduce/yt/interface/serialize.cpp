@@ -289,6 +289,9 @@ void Serialize(const TRichYPath& path, IYsonConsumer* consumer)
         .DoIf(path.Append_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("append").Value(*path.Append_);
         })
+        .DoIf(path.PartiallySorted_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("partially_sorted").Value(*path.PartiallySorted_);
+        })
         .DoIf(!path.SortedBy_.Parts_.empty(), [&] (TFluentAttributes fluent) {
             fluent.Item("sorted_by").Value(path.SortedBy_);
         })
@@ -350,6 +353,7 @@ void Deserialize(TRichYPath& path, const TNode& node)
     DESERIALIZE_ATTR("ranges", path.Ranges_);
     DESERIALIZE_ATTR("columns", path.Columns_);
     DESERIALIZE_ATTR("append", path.Append_);
+    DESERIALIZE_ATTR("partially_sorted", path.PartiallySorted_);
     DESERIALIZE_ATTR("sorted_by", path.SortedBy_);
     DESERIALIZE_ATTR("teleport", path.Teleport_);
     DESERIALIZE_ATTR("primary", path.Primary_);

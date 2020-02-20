@@ -287,6 +287,7 @@ struct TRichYPath
     FLUENT_FIELD(TYPath, Path);
 
     FLUENT_FIELD_OPTION(bool, Append);
+    FLUENT_FIELD_OPTION(bool, PartiallySorted);
     FLUENT_FIELD(TKeyColumns, SortedBy);
 
     FLUENT_VECTOR_FIELD(TReadRange, Range);
