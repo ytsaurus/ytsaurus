@@ -785,7 +785,9 @@ TRangeInferrer CreateHeavyRangeInferrer(
             &rangeExpansionLeft);
     }
     std::sort(enrichedRanges.begin(), enrichedRanges.end());
-    enrichedRanges = MergeOverlappingRanges(std::move(enrichedRanges));
+    enrichedRanges.erase(
+        MergeOverlappingRanges(enrichedRanges.begin(), enrichedRanges.end()),
+        enrichedRanges.end());
 
     return [
         MOVE(enrichedRanges),

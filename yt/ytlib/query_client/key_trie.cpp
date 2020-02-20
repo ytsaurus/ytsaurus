@@ -696,7 +696,8 @@ TMutableRowRanges GetRangesFromTrieWithinRange(
     }
 
     std::sort(result.begin(), result.end());
-    return MergeOverlappingRanges(std::move(result));
+    result.erase(MergeOverlappingRanges(result.begin(), result.end()), result.end());
+    return result;
 }
 
 TString ToString(TKeyTriePtr node) {
