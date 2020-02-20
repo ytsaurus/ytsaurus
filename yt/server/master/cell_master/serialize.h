@@ -87,6 +87,7 @@ DEFINE_ENUM(EMasterReign,
     ((FasterTError)                                                 (1301))  // babenko
     ((FixRootAccountLimits)                                         (1302))  // aleksandra-zh
     ((SwitchToAlterTableReplica)                                    (1303))  // babenko
+    ((DynamicTimestampProviderDiscovery)                            (1304))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

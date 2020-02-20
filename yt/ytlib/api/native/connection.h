@@ -65,7 +65,6 @@ struct IConnection
     virtual const NJobProberClient::TJobNodeDescriptorCachePtr& GetJobNodeDescriptorCache() = 0;
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options = TClientOptions()) = 0;
-
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 
     virtual void Terminate() = 0;
