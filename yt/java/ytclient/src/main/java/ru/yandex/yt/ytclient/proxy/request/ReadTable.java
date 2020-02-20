@@ -11,11 +11,9 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
 import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 import ru.yandex.yt.ytclient.object.YTreeDeserializer;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class ReadTable<T> extends RequestBase<ReadTable<T>> {
     private final String path;
@@ -34,17 +32,13 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
 
     public ReadTable(String path, YTreeObjectSerializer<T> serializer) {
         this.path = path;
-
-        TableSchema schema = MappedRowSerializer.asTableSchema(serializer.getFieldMap());
-
-        this.deserializer = MappedRowsetDeserializer.forClass(schema, serializer, (unused) -> {});
+        this.deserializer = MappedRowsetDeserializer.forClass(serializer);
     }
 
     public ReadTable(String path, YTreeSerializer<T> serializer) {
         this.path = path;
         if (serializer instanceof YTreeObjectSerializer) {
-            TableSchema schema = MappedRowSerializer.asTableSchema(((YTreeObjectSerializer<T>)serializer).getFieldMap());
-            this.deserializer = MappedRowsetDeserializer.forClass(schema, (YTreeObjectSerializer<T>)serializer, (unused) -> {});
+            this.deserializer = MappedRowsetDeserializer.forClass((YTreeObjectSerializer<T>) serializer);
         } else {
             this.deserializer = new YTreeDeserializer<>(serializer);
         }

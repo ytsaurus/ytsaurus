@@ -157,6 +157,8 @@ import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
 import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl;
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl;
+import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
+import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReaderImpl;
 import ru.yandex.yt.ytclient.proxy.internal.TableReaderImpl;
 import ru.yandex.yt.ytclient.proxy.internal.TableWriterImpl;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
@@ -180,6 +182,7 @@ import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
+import ru.yandex.yt.ytclient.proxy.request.ReadTableDirect;
 import ru.yandex.yt.ytclient.proxy.request.RemountTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.ReshardTable;
@@ -1620,8 +1623,20 @@ public class ApiServiceClient implements TransactionalClient {
         }
         req.writeTo(builder.body());
 
-        TableReaderImpl<T> impl = new TableReaderImpl<>(startStream(builder), req.getDeserializer());
-        return impl.waitMetadata();
+        return new TableReaderImpl<>(startStream(builder),
+                new TableAttachmentReaderImpl<>(req.getDeserializer())).waitMetadata();
+    }
+
+    public CompletableFuture<TableReader<byte[]>> readTableDirect(ReadTableDirect req) {
+        RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
+                builder = service.readTable();
+
+        if (req.getTimeout().isPresent()) {
+            builder.setTimeout(req.getTimeout().get());
+        }
+        req.writeTo(builder.body());
+
+        return new TableReaderImpl<>(startStream(builder), TableAttachmentReader.BYPASS).waitMetadata();
     }
 
     @Override
