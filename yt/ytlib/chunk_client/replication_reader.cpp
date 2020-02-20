@@ -674,17 +674,20 @@ protected:
     }
 
     template <class TResponsePtr>
-    void ProcessError(TErrorOr<TResponsePtr> rspOrError, const TString& peerAddress, TError wrappingError)
+    void ProcessError(const TErrorOr<TResponsePtr>& rspOrError, const TString& peerAddress, const TError& wrappingError)
     {
         auto error = wrappingError << rspOrError;
-        if (rspOrError.GetCode() != NRpc::EErrorCode::Unavailable &&
-            rspOrError.GetCode() != NRpc::EErrorCode::RequestQueueSizeLimitExceeded)
+        auto code = rspOrError.GetCode();
+        if (code == NRpc::EErrorCode::Unavailable ||
+            code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded ||
+            code == NHydra::EErrorCode::InvalidChangelogState)
         {
-            BanPeer(peerAddress, rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk);
-            RegisterError(error);
-        } else {
             YT_LOG_DEBUG(error);
+            return;
         }
+
+        BanPeer(peerAddress, rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk);
+        RegisterError(error);
     }
 
     std::vector<TPeer> PickPeerCandidates(

@@ -202,6 +202,9 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
                 "Error reading journal chunk %v",
                 Id_)
                 << blocksOrError;
+            if (blocksOrError.FindMatching(NHydra::EErrorCode::InvalidChangelogState)) {
+                THROW_ERROR error;
+            }
             Location_->Disable(error);
             YT_ABORT(); // Disable() exits the process.
         }
