@@ -386,12 +386,12 @@ void TLogFileReader::DoWriteRows()
             maxRecordsInBuffer,
             GetBoundaryTimestampString(*(RecordsBuffer_.end() - recordsLeftInBuffer), *(RecordsBuffer_.end() - maxRecordsInBuffer - 1)));
 
-        TotalTrimmedRows_ += recordsLeftInBuffer - maxRecordsInBuffer;
+        int rowsToTrim = recordsLeftInBuffer - maxRecordsInBuffer;
+        TotalTrimmedRows_ += rowsToTrim;
+        for (int index = recordsBufferPtr; index < recordsBufferPtr + rowsToTrim; ++index) {
+            TotalTrimmedBytes_ += RecordsBuffer_[index].Size;
+        }
         recordsLeftInBuffer = maxRecordsInBuffer;
-    }
-
-    for (int index = 0; index < RecordsBuffer_.size() - recordsLeftInBuffer; ++index) {
-        TotalTrimmedBytes_ += RecordsBuffer_[index].Size;
     }
 
     RecordsBuffer_.erase(RecordsBuffer_.begin(), RecordsBuffer_.end() - recordsLeftInBuffer);
