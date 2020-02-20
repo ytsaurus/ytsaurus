@@ -154,7 +154,7 @@ class TestRuntimeParameters(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
-    def test_change_pool_of_pending_operation_bug(self):
+    def test_change_pool_of_pending_operation_crash(self):
         # YT-12147:
         # 1. There are two pools: parent and child.
         # 2. Parent reached running_operation_count limit.
@@ -175,6 +175,25 @@ class TestRuntimeParameters(YTEnvSetup):
         with pytest.raises(YtError):
             # core was in TFairShareTree::ChangeOperationPool.
             update_op_parameters(op.id, parameters={"pool": "parent"})
+
+    @authors("renadeen")
+    def test_change_pool_of_pending_operation_hang(self):
+        # YT-11479:
+        # 1. Operation is pending due to running operation count limit in pool.
+        # 2. Change operation pool to pool with available running operation count.
+        # 3. Operation is removed from violating pool and from queue of waiting operations.
+        # 4. Operation attached to new pool but nobody bothers to activate operation (call OnOperationReadyInTree).
+        # 5. Operation is hung forever.
+
+        create_pool("free")
+        create_pool("busy", attributes={"max_running_operation_count": 0})
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/busy"))
+
+        op = run_test_vanilla(":", spec={"pool": "busy"})
+        op.wait_for_state("pending")
+
+        update_op_parameters(op.id, parameters={"pool": "free"})
+        op.track()
 
     @authors("renadeen")
     def test_no_pool_validation_on_change_weight(self):

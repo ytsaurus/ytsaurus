@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "fair_share_tree_element.h"
+#include "scheduler_tree.h"
 
 #include <yt/server/lib/scheduler/job_metrics.h>
 
@@ -94,8 +95,9 @@ public:
     TFairShareTree(
         TFairShareStrategyTreeConfigPtr config,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
-        ISchedulerStrategyHost* host,
-        const std::vector<IInvokerPtr>& feasibleInvokers,
+        ISchedulerStrategyHost* strategyHost,
+        ISchedulerTreeHost* treeHost,
+        std::vector<IInvokerPtr> feasibleInvokers,
         const TString& treeId);
 
     TFairShareStrategyTreeConfigPtr GetConfig() const;
@@ -105,7 +107,7 @@ public:
     void ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName);
 
     void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName);
-    bool RegisterOperation(
+    void RegisterOperation(
         const TFairShareStrategyOperationStatePtr& state,
         const TStrategyOperationSpecPtr& spec,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters);
@@ -193,11 +195,11 @@ public:
 
     virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) override;
 
-    void RunWaitingOperations(TCompositeSchedulerElement* pool);
+    void CheckOperationsWaitingForPool(TCompositeSchedulerElement* pool);
 
-    std::vector<TOperationId> TryRunAllWaitingOperations();
+    void TryRunAllWaitingOperations();
 
-    std::vector<TOperationId> ExtractActivatableOperations();
+    void ProcessActivatableOperations();
 
     void OnTreeRemoveStarted();
 
@@ -209,7 +211,9 @@ private:
 
     TResourceTreePtr ResourceTree_;
 
-    ISchedulerStrategyHost* const Host_;
+    ISchedulerStrategyHost* const StrategyHost_;
+
+    ISchedulerTreeHost* TreeHost_;
 
     std::vector<IInvokerPtr> FeasibleInvokers_;
 
@@ -234,7 +238,7 @@ private:
 
     THashMap<TOperationId, TInstant> OperationIdToActivationTime_;
 
-    std::vector<TOperationId> ActivatableOperationQueue_;
+    std::vector<TOperationId> ActivatableOperationIds_;
 
     NConcurrency::TReaderWriterSpinLock NodeIdToLastPreemptiveSchedulingTimeLock_;
     THashMap<NNodeTrackerClient::TNodeId, NProfiling::TCpuInstant> NodeIdToLastPreemptiveSchedulingTime_;

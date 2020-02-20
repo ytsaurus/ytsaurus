@@ -3,6 +3,7 @@
 #include "fair_share_tree_element.h"
 #include "public.h"
 #include "scheduler_strategy.h"
+#include "scheduler_tree.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
 
@@ -39,6 +40,7 @@ using namespace NSecurityClient;
 
 class TFairShareStrategy
     : public ISchedulerStrategy
+    , public ISchedulerTreeHost
 {
 public:
     TFairShareStrategy(
@@ -170,12 +172,8 @@ public:
         auto runtimeParameters = operation->GetRuntimeParameters();
 
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
-            auto tree = GetTree(treeId);
             const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
-
-            if (tree->RegisterOperation(state, spec, treeParams)) {
-                OnOperationReadyInTree(operation->GetId(), tree);
-            }
+            GetTree(treeId)->RegisterOperation(state, spec, treeParams);
         }
     }
 
@@ -214,9 +212,7 @@ public:
     {
         auto tree = GetTree(treeId);
         tree->UnregisterOperation(operationState);
-        for (auto operationId : tree->ExtractActivatableOperations()) {
-            OnOperationReadyInTree(operationId, tree);
-        }
+        tree->ProcessActivatableOperations();
     }
 
     virtual void DisableOperation(IOperationStrategyHost* operation) override
@@ -930,9 +926,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         for (const auto& [_, tree] : IdToTree_) {
-            for (const auto& operationId : tree->TryRunAllWaitingOperations()) {
-                OnOperationReadyInTree(operationId, tree);
-            }
+            tree->TryRunAllWaitingOperations();
         }
     }
 
@@ -1184,7 +1178,7 @@ private:
                 });
     }
 
-    void OnOperationReadyInTree(TOperationId operationId, const TFairShareTreePtr& tree) const
+    virtual void OnOperationReadyInTree(TOperationId operationId, TFairShareTree* tree) const override
     {
         YT_VERIFY(tree->HasRunningOperation(operationId));
 
@@ -1234,7 +1228,7 @@ private:
         const IMapNodePtr& poolsMap,
         const THashSet<TString>& treesToAdd,
         const THashSet<TString>& treesToRemove,
-        std::vector<TError>* errors) const
+        std::vector<TError>* errors)
     {
         TFairShareTreeMap trees;
 
@@ -1251,7 +1245,13 @@ private:
                 continue;
             }
 
-            auto tree = New<TFairShareTree>(treeConfig, Config, Host, FeasibleInvokers, treeId);
+            auto tree = New<TFairShareTree>(
+                treeConfig,
+                Config,
+                Host,
+                this,
+                FeasibleInvokers,
+                treeId);
             trees.emplace(treeId, tree);
         }
 
