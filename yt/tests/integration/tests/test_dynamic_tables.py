@@ -1605,7 +1605,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         self._create_ordered_table("//tmp/t2", account="test_account")
 
         # Wait for resource usage since tabels can be placed to different cells.
-        self._multicell_wait(lambda x: lambda: get("//sys/accounts/test_account/@resource_usage/tablet_count", driver=x) == 2)
+        self._multicell_wait(lambda driver: lambda: get("//sys/accounts/test_account/@resource_usage/tablet_count", driver=driver) == 2)
 
         with pytest.raises(YtError):
             reshard_table("//tmp/t1", [[], [1]])
@@ -1811,7 +1811,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         create("table", "//tmp/junk", attributes={"account": "test_account"})
         write_table("//tmp/junk", [{"key": "value"}])
         set("//sys/accounts/test_account/@resource_limits/disk_space_per_medium/default", 0)
-        self._multicell_wait(lambda: get("//sys/accounts/test_account/@resource_limits/disk_space") == 0)
+        self._multicell_wait(lambda driver: lambda: get("//sys/accounts/test_account/@resource_limits/disk_space", driver=driver) == 0)
 
         sync_mount_table("//tmp/t")
 
