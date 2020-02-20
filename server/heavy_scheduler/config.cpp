@@ -49,6 +49,9 @@ TDisruptionThrottlerConfig::TDisruptionThrottlerConfig()
         .Default(true);
     RegisterParameter("limit_evictions_by_pod_set", LimitEvictionsByPodSet)
         .Default(true);
+    RegisterParameter("safe_suitable_node_count", SafeSuitableNodeCount)
+        .GreaterThanOrEqual(0)
+        .Default(3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,10 +65,6 @@ TSwapDefragmentatorConfig::TSwapDefragmentatorConfig()
     RegisterParameter("victim_candidate_pod_count", VictimCandidatePodCount)
         .GreaterThan(0)
         .Default(10000);
-
-    RegisterParameter("safe_suitable_node_count", SafeSuitableNodeCount)
-        .GreaterThanOrEqual(0)
-        .Default(3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,10 +74,6 @@ TAntiaffinityHealerConfig::TAntiaffinityHealerConfig()
     RegisterParameter("pods_per_iteration_soft_limit", PodsPerIterationSoftLimit)
         .GreaterThanOrEqual(1)
         .Default(5000);
-
-    RegisterParameter("safe_suitable_node_count", SafeSuitableNodeCount)
-        .GreaterThanOrEqual(0)
-        .Default(3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

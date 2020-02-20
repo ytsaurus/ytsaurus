@@ -1,7 +1,10 @@
 #include "disruption_throttler.h"
 
-#include "private.h"
 #include "config.h"
+#include "heavy_scheduler.h"
+#include "helpers.h"
+#include "private.h"
+#include "task_manager.h"
 
 #include <yp/server/lib/cluster/cluster.h>
 #include <yp/server/lib/cluster/pod.h>
@@ -21,21 +24,21 @@ class TDisruptionThrottler::TImpl
 {
 public:
     TImpl(
-        TDisruptionThrottlerConfigPtr config,
-        bool verbose)
-        : Config_(std::move(config))
-        , Verbose_(verbose)
+        THeavyScheduler* heavyScheduler,
+        TDisruptionThrottlerConfigPtr config)
+        : HeavyScheduler_(heavyScheduler)
+        , Config_(std::move(config))
     { }
 
     void ReconcileState(const TClusterPtr& cluster)
     {
-        YT_LOG_DEBUG_IF(Verbose_,
+        YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
             "Reading evictions from cluster snapshot");
         EvictingPodIds_.clear();
         PodSetEvictionCount_.clear();
         for (auto* pod : cluster->GetSchedulablePods()) {
             if (pod->Eviction().state() != NProto::EEvictionState::ES_NONE) {
-                YT_LOG_DEBUG_IF(Verbose_,
+                YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
                     "Read pod eviction (PodId: %v, PodSetId: %v)",
                     pod->GetId(),
                     pod->PodSetId());
@@ -47,7 +50,7 @@ public:
 
     void RegisterPodEviction(TPod* pod)
     {
-        YT_LOG_DEBUG_IF(Verbose_,
+        YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
             "Registering pod eviction (PodId: %v, PodSetId: %v)",
             pod->GetId(),
             pod->PodSetId());
@@ -61,14 +64,14 @@ public:
         YT_VERIFY(pod->GetEnableScheduling());
 
         if (IsBeingEvicted(pod->GetId())) {
-            YT_LOG_DEBUG_IF(Verbose_,
+            YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
                 "Eviction throttled because pod is already scheduled for eviction (PodId: %v)",
                 pod->GetId());
             return true;
         }
 
         if (auto error = pod->GetSchedulingAttributesValidationError(); !error.IsOK()) {
-            YT_LOG_DEBUG_IF(Verbose_,
+            YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
                 "Cannot safely evict pod due to scheduling attributes validation error (PodId: %v, Error: %v)",
                 pod->GetId(),
                 error);
@@ -82,7 +85,7 @@ public:
 
         if (Config_->LimitEvictionsByPodSet) {
             if (evictionCount > 0) {
-                YT_LOG_DEBUG_IF(Verbose_,
+                YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
                     "Eviction throttled because another pod in the same pod set is being evicted (PodId: %v, PodSetId: %v)",
                     pod->GetId(),
                     pod->PodSetId());
@@ -94,7 +97,7 @@ public:
             if (const auto* podDisruptionBudget = pod->GetPodSet()->GetPodDisruptionBudget()) {
                 int allowedPodDisruptions = podDisruptionBudget->Status().allowed_pod_disruptions();
                 if (evictionCount >= allowedPodDisruptions) {
-                    YT_LOG_DEBUG_IF(Verbose_,
+                    YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
                         "Eviction throttled because of pod disruption budget (PodId: %v, DisruptionCount: %v, AllowedDisruptionCount: %v)",
                         pod->GetId(),
                         evictionCount,
@@ -102,11 +105,30 @@ public:
                     return true;
                 }
             } else {
-                YT_LOG_DEBUG_IF(Verbose_,
+                YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
                     "Eviction throttled because pod is not attached to a disruption budget (PodId: %v)",
                     pod->GetId());
                 return true;
             }
+        }
+
+        int minSuitableNodeCount = Config_->SafeSuitableNodeCount
+            + HeavyScheduler_->GetTaskManager()->TaskCount();
+        auto suitableNodeCountOrError = GetSuitableNodeCount(pod, minSuitableNodeCount);
+        if (!suitableNodeCountOrError.IsOK()) {
+            YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
+                suitableNodeCountOrError,
+                "Error finding suitable nodes (PodId: %v)",
+                pod->GetId());
+        }
+
+        int suitableNodeCount = suitableNodeCountOrError.Value();
+        if (suitableNodeCount < minSuitableNodeCount) {
+            YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
+                "Eviction throttled because pod does not have enough suitable nodes "
+                "(PodId: %v, SuitableNodeCount: %v, MinSuitableNodeCount: %v)",
+                pod->GetId(), suitableNodeCount, minSuitableNodeCount);
+            return true;
         }
 
         return false;
@@ -123,19 +145,35 @@ public:
     }
 
 private:
+    THeavyScheduler* const HeavyScheduler_;
     const TDisruptionThrottlerConfigPtr Config_;
-    const bool Verbose_;
 
     THashSet<TObjectId> EvictingPodIds_;
     THashMap<TObjectId, int> PodSetEvictionCount_;
+
+    TErrorOr<int> GetSuitableNodeCount(TPod* pod, int limit) const
+    {
+        auto suitableNodesOrError = FindSuitableNodes(pod, limit);
+        if (!suitableNodesOrError.IsOK()) {
+            return static_cast<TError>(suitableNodesOrError);
+        }
+        const auto& suitableNodes = suitableNodesOrError.Value();
+
+        YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
+            "Found suitable nodes (PodId: %v, SuitableNodeCount: %v)",
+            pod->GetId(),
+            suitableNodes.size());
+
+        return suitableNodes.size();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TDisruptionThrottler::TDisruptionThrottler(
-    TDisruptionThrottlerConfigPtr config,
-    bool verbose)
-    : Impl_(New<TImpl>(std::move(config), verbose))
+    THeavyScheduler* heavyScheduler,
+    TDisruptionThrottlerConfigPtr config)
+    : Impl_(New<TImpl>(heavyScheduler, std::move(config)))
 { }
 
 void TDisruptionThrottler::ReconcileState(const TClusterPtr& cluster)

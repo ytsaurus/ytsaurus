@@ -47,11 +47,9 @@ class TestHeavyScheduler(object):
         heavy_scheduler = dict(
             verbose = True,
             node_segment = "test-segment",
-            swap_defragmentator = dict(
-                safe_suitable_node_count = 1,
-            ),
             disruption_throttler = dict(
                 validate_pod_disruption_budget = False,
+                safe_suitable_node_count = 1,
             ),
         ),
     )
@@ -296,9 +294,6 @@ class TestConcurrentHeavyScheduler(TestConcurrentHeavySchedulerBase):
             verbose = True,
             node_segment = "default",
             safe_cluster_pod_eviction_count = 9,
-            swap_defragmentator = dict(
-                safe_suitable_node_count = 1,
-            ),
             task_manager = dict(
                 task_slots_per_source = dict(
                     swap_defragmentator = 2,
@@ -306,6 +301,7 @@ class TestConcurrentHeavyScheduler(TestConcurrentHeavySchedulerBase):
             ),
             disruption_throttler = dict(
                 validate_pod_disruption_budget = False,
+                safe_suitable_node_count = 1,
             ),
         ),
     )
@@ -329,9 +325,6 @@ class TestConcurrentHeavySchedulerLimitEvictions(TestConcurrentHeavySchedulerBas
         heavy_scheduler = dict(
             node_segment = "default",
             safe_cluster_pod_eviction_count = 9,
-            swap_defragmentator = dict(
-                safe_suitable_node_count = 1,
-            ),
             task_manager = dict(
                 task_slots_per_source = dict(
                     swap_defragmentator = 2,
@@ -340,6 +333,7 @@ class TestConcurrentHeavySchedulerLimitEvictions(TestConcurrentHeavySchedulerBas
             disruption_throttler = dict(
                 limit_evictions_by_pod_set = False,
                 validate_pod_disruption_budget = False,
+                safe_suitable_node_count = 1,
             ),
         ),
     )
@@ -358,9 +352,6 @@ class TestConcurrentHeavySchedulerSubsequentEvictions(TestConcurrentHeavySchedul
             verbose = True,
             node_segment = "default",
             safe_cluster_pod_eviction_count = 9,
-            swap_defragmentator = dict(
-                safe_suitable_node_count = 1,
-            ),
             task_manager = dict(
                 task_slots_per_source = dict(
                     swap_defragmentator = 9,
@@ -369,6 +360,7 @@ class TestConcurrentHeavySchedulerSubsequentEvictions(TestConcurrentHeavySchedul
             disruption_throttler = dict(
                 limit_evictions_by_pod_set = True,
                 validate_pod_disruption_budget = False,
+                safe_suitable_node_count = 1,
             ),
         ),
     )
@@ -391,10 +383,8 @@ class TestAntiaffinityHealer(object):
             safe_cluster_pod_eviction_count = 9,
             disruption_throttler = dict(
                 validate_pod_disruption_budget = False,
-            ),
-            antiaffinity_healer = dict(
                 safe_suitable_node_count = 1,
-            )
+            ),
         ),
     )
 

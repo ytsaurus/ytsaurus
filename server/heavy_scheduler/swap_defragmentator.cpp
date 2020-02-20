@@ -244,12 +244,10 @@ private:
 
         const auto& taskManager = HeavyScheduler_->GetTaskManager();
 
-        int minSuitableNodeCount = Config_->SafeSuitableNodeCount + taskManager->TaskCount();
         auto* victimPod = FindVictimPod(
             cluster,
             starvingPod,
-            starvingPodFilteredNodes,
-            minSuitableNodeCount);
+            starvingPodFilteredNodes);
         if (!victimPod) {
             YT_LOG_DEBUG("Could not find victim pod (StarvingPodId: %v)",
                 starvingPod->GetId());
@@ -295,8 +293,7 @@ private:
     TPod* FindVictimPod(
         const TClusterPtr& cluster,
         TPod* starvingPod,
-        const std::vector<TNode*>& starvingPodFilteredNodes,
-        int minSuitableNodeCount) const
+        const std::vector<TNode*>& starvingPodFilteredNodes) const
     {
         THashSet<TNode*> starvingPodFilteredNodeSet;
         for (auto* node : starvingPodFilteredNodes) {
@@ -353,8 +350,7 @@ private:
             YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
                 "Checking eviction safety (PodId: %v)",
                 victimPod->GetId());
-            if (HeavyScheduler_->GetDisruptionThrottler()->ThrottleEviction(victimPod)
-                || !HasEnoughSuitableNodes(victimPod, minSuitableNodeCount, HeavyScheduler_->GetVerbose()))
+            if (HeavyScheduler_->GetDisruptionThrottler()->ThrottleEviction(victimPod))
             {
                 continue;
             }

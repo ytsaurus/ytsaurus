@@ -13,8 +13,8 @@ class TDisruptionThrottler
 {
 public:
     TDisruptionThrottler(
-        TDisruptionThrottlerConfigPtr,
-        bool verbose);
+        THeavyScheduler* heavyScheduler,
+        TDisruptionThrottlerConfigPtr config);
 
     void ReconcileState(const NCluster::TClusterPtr& cluster);
 

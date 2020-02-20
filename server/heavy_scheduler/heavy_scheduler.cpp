@@ -53,8 +53,8 @@ public:
             CreateLabelFilterEvaluator()))
         , TaskManager_(New<TTaskManager>(Config_->TaskManager))
         , DisruptionThrottler_(New<TDisruptionThrottler>(
-            Config_->DisruptionThrottler,
-            Config_->Verbose))
+            heavyScheduler,
+            Config_->DisruptionThrottler))
         , SwapDefragmentator_(New<TSwapDefragmentator>(
             heavyScheduler,
             Config_->SwapDefragmentator))

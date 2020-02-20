@@ -34,10 +34,9 @@ std::vector<NCluster::TNode*> FindSuitableNodes(
     const std::vector<NCluster::TNode*>& nodes,
     std::optional<int> limit);
 
-bool HasEnoughSuitableNodes(
+TErrorOr<std::vector<NCluster::TNode*>> FindSuitableNodes(
     NCluster::TPod* pod,
-    int minNodeCount,
-    bool verbose);
+    std::optional<int> limit);
 
 const TErrorOr<std::vector<NCluster::TNode*>>& GetFilteredNodes(NCluster::TPod* pod);
 

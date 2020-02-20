@@ -183,9 +183,7 @@ private:
                         pod->GetId(),
                         podSet->GetId(),
                         *zone);
-                    int minSuitableNodeCount = Config_->SafeSuitableNodeCount + taskManager->TaskCount();
-                    if (!disruptionThrottler->ThrottleEviction(pod)
-                        && HasEnoughSuitableNodes(pod, minSuitableNodeCount, HeavyScheduler_->GetVerbose()))
+                    if (!disruptionThrottler->ThrottleEviction(pod))
                     {
                         if (taskManager->GetTaskSlotCount(ETaskSource::AntiaffinityHealer) > 0) {
                             taskManager->Add(CreateEvictionTask(HeavyScheduler_->GetClient(), pod),

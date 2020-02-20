@@ -68,6 +68,7 @@ class TDisruptionThrottlerConfig
 public:
     bool LimitEvictionsByPodSet;
     bool ValidatePodDisruptionBudget;
+    int SafeSuitableNodeCount;
 
     TDisruptionThrottlerConfig();
 };
@@ -82,7 +83,6 @@ class TSwapDefragmentatorConfig
 public:
     int StarvingPodsPerIterationLimit;
     int VictimCandidatePodCount;
-    int SafeSuitableNodeCount;
 
     TSwapDefragmentatorConfig();
 };
@@ -96,7 +96,6 @@ class TAntiaffinityHealerConfig
 {
 public:
     int PodsPerIterationSoftLimit;
-    int SafeSuitableNodeCount;
 
     TAntiaffinityHealerConfig();
 };

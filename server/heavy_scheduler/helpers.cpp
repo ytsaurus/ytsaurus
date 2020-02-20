@@ -94,39 +94,6 @@ TErrorOr<std::vector<TNode*>> FindSuitableNodes(
     return FindSuitableNodes(pod, nodesOrError.Value(), limit);
 }
 
-bool HasEnoughSuitableNodes(
-    TPod* pod,
-    int minNodeCount,
-    bool verbose)
-{
-    auto suitableNodesOrError = FindSuitableNodes(pod, minNodeCount);
-    if (!suitableNodesOrError.IsOK()) {
-        YT_LOG_DEBUG_IF(verbose,
-            suitableNodesOrError,
-            "Error finding suitable nodes (PodId: %v)",
-            pod->GetId());
-        return false;
-    }
-    const auto& suitableNodes = suitableNodesOrError.Value();
-
-    YT_LOG_DEBUG_IF(verbose,
-        "Found suitable nodes (PodId: %v, SuitableNodeCount: %v)",
-        pod->GetId(),
-        suitableNodes.size());
-
-    if (static_cast<int>(suitableNodes.size()) < minNodeCount) {
-        YT_LOG_DEBUG_IF(verbose,
-            "Pod does not have enough suitable nodes "
-            "(PodId: %v, SuitableNodeCount: %v, MinSuitableNodeCount: %v)",
-            pod->GetId(),
-            suitableNodes.size(),
-            minNodeCount);
-        return false;
-    }
-
-    return true;
-}
-
 const TErrorOr<std::vector<TNode*>>& GetFilteredNodes(TPod* pod)
 {
     auto* nodeSegmentCache = pod->GetPodSet()->GetNodeSegment()->GetSchedulableNodeFilterCache();
