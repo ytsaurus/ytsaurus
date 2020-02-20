@@ -185,20 +185,11 @@ void TLogFileReader::OnProfiling()
     Profiler_.Enqueue("/trimmed_bytes", TotalTrimmedBytes_, EMetricType::Counter);
     Profiler_.Enqueue("/buffer_size", RecordsBuffer_.size(), EMetricType::Gauge);
     {
-        std::optional<TInstant> earliestRecordTimestamp;
-        for (int index = 0; index < RecordsBuffer_.size(); ++index) {
-            TInstant timestamp;
-            if (TryParseInstantFromLogInstant(RecordsBuffer_[index].Timestamp, timestamp)) {
-                earliestRecordTimestamp = timestamp;
-                break;
-            }
+        ui64 writeLag = 0;
+        if (EarliestRecordTimestamp_) {
+            writeLag = (TInstant::Now() - *EarliestRecordTimestamp_).MilliSeconds();
         }
-
-        ui64 writingLag = 0;
-        if (earliestRecordTimestamp) {
-            writingLag = (TInstant::Now() - *earliestRecordTimestamp).MilliSeconds();
-        }
-        Profiler_.Enqueue("/write_lag", writingLag, EMetricType::Gauge);
+        Profiler_.Enqueue("/write_lag", writeLag, EMetricType::Gauge);
     }
 }
 
@@ -277,6 +268,15 @@ void TLogFileReader::DoReadBuffer()
         }
         FileOffset_ += bytesRead;
         TotalBytesRead_ += bytesRead;
+    }
+
+    EarliestRecordTimestamp_ = std::nullopt;
+    for (const auto& logRecord : RecordsBuffer_) {
+        TInstant timestamp;
+        if (TryParseInstantFromLogInstant(logRecord.Timestamp, timestamp)) {
+            EarliestRecordTimestamp_ = timestamp;
+            break;
+        }
     }
 }
 
