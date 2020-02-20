@@ -52,6 +52,7 @@
 #include <yt/ytlib/query_client/query_helpers.h>
 #include <yt/ytlib/query_client/private.h>
 #include <yt/ytlib/query_client/executor.h>
+#include <yt/ytlib/query_client/coordination_helpers.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/config.h>
@@ -72,6 +73,32 @@
 #include <yt/core/misc/tls_cache.h>
 #include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/async_expiring_cache.h>
+
+namespace NYT::NQueryClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+TRow GetPivotKey(const NTabletNode::TPartitionSnapshotPtr& shard)
+{
+    return shard->PivotKey;
+}
+
+template <>
+TRow GetNextPivotKey(const NTabletNode::TPartitionSnapshotPtr& shard)
+{
+    return shard->NextPivotKey;
+}
+
+template <>
+TRange<TRow> GetSampleKeys(const NTabletNode::TPartitionSnapshotPtr& shard)
+{
+    return shard->SampleKeys->Keys;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NQueryClient
 
 namespace NYT::NQueryAgent {
 
@@ -111,16 +138,6 @@ TColumnFilter GetColumnFilter(const TTableSchema& desiredSchema, const TTableSch
 
     return TColumnFilter(std::move(columnFilterIndexes));
 }
-
-struct TRangeFormatter
-{
-    void operator()(TStringBuilderBase* builder, const TRowRange& source) const
-    {
-        builder->AppendFormat("[%v .. %v]",
-            source.first,
-            source.second);
-    }
-};
 
 struct TSelectCpuCounters
 {
@@ -460,12 +477,12 @@ private:
                                     GetSignificantWidth(range.second),
                                     joinClause->CommonKeyPrefix);
 
-                                auto upperBound = rowBuffer->AllocateUnversioned(upperBoundWidth + 1);
-                                for (int column = 0; column < upperBoundWidth; ++column) {
-                                    upperBound[column] = rowBuffer->Capture(range.second[column]);
-                                }
+                                auto upperBound = WidenKeySuccessor(
+                                    range.second,
+                                    upperBoundWidth,
+                                    rowBuffer,
+                                    true);
 
-                                upperBound[upperBoundWidth] = MakeUnversionedSentinelValue(EValueType::Max);
                                 prefixRanges.emplace_back(lowerBound, upperBound);
 
                                 YT_LOG_DEBUG_IF(verboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
@@ -750,16 +767,8 @@ private:
                     pushRanges();
                     keys.push_back(key);
                 } else {
-                    auto lowerBound = key;
-
-                    auto upperBound = rowBuffer->AllocateUnversioned(rowSize + 1);
-                    for (int column = 0; column < rowSize; ++column) {
-                        upperBound[column] = lowerBound[column];
-                    }
-
-                    upperBound[rowSize] = MakeUnversionedSentinelValue(EValueType::Max);
                     pushKeys();
-                    rowRanges.emplace_back(lowerBound, upperBound);
+                    rowRanges.emplace_back(key, WidenKeySuccessor(key, rowSize, rowBuffer, false));
                 }
             }
             pushRanges();
@@ -898,227 +907,11 @@ private:
             std::move(readRanges));
     }
 
-    std::vector<TSharedRange<TRowRange>> SplitTablet(
-        const std::vector<TPartitionSnapshotPtr>& partitions,
-        TSharedRange<TRowRange> ranges,
-        TRowBufferPtr rowBuffer)
-    {
-        auto verboseLogging = Options_.VerboseLogging;
-
-        auto holder = MakeIntrinsicHolder(ranges.GetHolder(), rowBuffer);
-
-        TRow lowerCapBound = rowBuffer->Capture(partitions.front()->PivotKey);
-        TRow upperCapBound = rowBuffer->Capture(partitions.back()->NextPivotKey);
-
-        struct TGroup
-        {
-            std::vector<TPartitionSnapshotPtr>::const_iterator PartitionIt;
-            TSharedRange<TRowRange>::iterator BeginIt;
-            TSharedRange<TRowRange>::iterator EndIt;
-        };
-
-        std::vector<TGroup> groupedByPartitions;
-
-        auto appendGroup = [&] (const TGroup& group) {
-            if (!groupedByPartitions.empty() && groupedByPartitions.back().PartitionIt == group.PartitionIt) {
-                YT_ASSERT(groupedByPartitions.back().EndIt < group.EndIt);
-                groupedByPartitions.back().EndIt = group.EndIt;
-            } else {
-                groupedByPartitions.push_back(group);
-            }
-        };
-
-        for (auto rangesIt = begin(ranges); rangesIt != end(ranges);) {
-            auto lowerBound = std::max(rangesIt->first, lowerCapBound);
-            auto upperBound = std::min(rangesIt->second, upperCapBound);
-
-            if (lowerBound >= upperBound) {
-                ++rangesIt;
-                continue;
-            }
-
-            // Run binary search to find the relevant partitions.
-            auto startIt = std::upper_bound(
-                partitions.begin(),
-                partitions.end(),
-                lowerBound,
-                [] (TKey lhs, const TPartitionSnapshotPtr& rhs) {
-                    return lhs < rhs->NextPivotKey;
-                });
-            YT_VERIFY(startIt != partitions.end());
-
-            auto nextPivotKey = (*startIt)->NextPivotKey.Get();
-
-            if (upperBound < nextPivotKey) {
-                auto rangesItEnd = std::upper_bound(
-                    rangesIt,
-                    end(ranges),
-                    nextPivotKey,
-                    [] (TKey key, const TRowRange& rowRange) {
-                        return key < rowRange.second;
-                    });
-
-                appendGroup(TGroup{
-                    startIt,
-                    rangesIt,
-                    rangesItEnd});
-                rangesIt = rangesItEnd;
-            } else {
-                auto nextRangeIt = rangesIt;
-                ++nextRangeIt;
-
-                for (auto it = startIt; it != partitions.end() && (*it)->PivotKey < upperBound; ++it) {
-                    appendGroup(TGroup{
-                        it,
-                        rangesIt,
-                        nextRangeIt});
-                }
-                rangesIt = nextRangeIt;
-            }
-        }
-
-        auto iterate = [&] (auto onRanges, auto onSamples) {
-            for (const auto& group : groupedByPartitions) {
-                // calculate touched sample count
-
-                auto partitionIt = group.PartitionIt;
-                const auto& sampleKeys = (*partitionIt)->SampleKeys->Keys;
-
-                TRow pivot = rowBuffer->Capture((*partitionIt)->PivotKey);
-                TRow nextPivot = rowBuffer->Capture((*partitionIt)->NextPivotKey);
-
-                YT_LOG_DEBUG_IF(verboseLogging, "Iterating over partition (%v .. %v): [%v .. %v]",
-                    pivot,
-                    nextPivot,
-                    group.BeginIt - begin(ranges),
-                    group.EndIt - begin(ranges));
-
-                for (auto rangesIt = group.BeginIt; rangesIt != group.EndIt;) {
-                    auto lowerBound = rangesIt == group.BeginIt
-                        ? std::max(rangesIt->first, pivot)
-                        : rangesIt->first;
-                    auto upperBound = rangesIt + 1 == group.EndIt
-                        ? std::min(rangesIt->second, nextPivot)
-                        : rangesIt->second;
-
-                    auto startSampleIt = std::upper_bound(sampleKeys.begin(), sampleKeys.end(), lowerBound);
-
-                    auto nextPivotKey = startSampleIt == sampleKeys.end()
-                        ? (*partitionIt)->NextPivotKey.Get()
-                        : *startSampleIt;
-
-                    if (upperBound < nextPivotKey) {
-                        auto rangesItEnd = std::upper_bound(
-                            rangesIt,
-                            group.EndIt,
-                            nextPivotKey,
-                            [] (TKey key, const TRowRange& rowRange) {
-                                return key < rowRange.second;
-                            });
-                        onRanges(rangesIt, rangesItEnd, pivot, nextPivot);
-                        rangesIt = rangesItEnd;
-                    } else {
-                        auto endSampleIt = std::lower_bound(startSampleIt, sampleKeys.end(), upperBound);
-                        onSamples(rangesIt, startSampleIt, endSampleIt, pivot, nextPivot);
-                        ++rangesIt;
-                    }
-                }
-            }
-        };
-
-        size_t totalSampleCount = 0;
-        size_t totalBatchCount = 0;
-        iterate(
-            [&] (auto rangesIt, auto rangesItEnd, auto pivot, auto nextPivot) {
-                ++totalBatchCount;
-            },
-            [&] (auto rangesIt, auto startSampleIt, auto endSampleIt, auto pivot, auto nextPivot) {
-                ++totalBatchCount;
-                totalSampleCount += std::distance(startSampleIt, endSampleIt);
-            });
-
-        size_t freeSlotCount = Config_->MaxSubsplitsPerTablet > totalBatchCount
-            ? Config_->MaxSubsplitsPerTablet - totalBatchCount
-            : 0;
-        size_t cappedSampleCount = std::min(freeSlotCount, totalSampleCount);
-
-        YT_LOG_DEBUG_IF(verboseLogging, "Total sample count: %v", totalSampleCount);
-        YT_LOG_DEBUG_IF(verboseLogging, "Capped sample count: %v", cappedSampleCount);
-
-        size_t sampleIndex = 0;
-        size_t nextSampleCount;
-        auto incrementSampleIndex = [&] {
-            ++sampleIndex;
-            nextSampleCount = cappedSampleCount != 0
-                ? sampleIndex * totalSampleCount / cappedSampleCount
-                : totalSampleCount;
-        };
-
-        incrementSampleIndex();
-
-        size_t currentSampleCount = 0;
-
-        std::vector<TSharedRange<TRowRange>> groupedSplits;
-        std::vector<TRowRange> group;
-
-        auto addGroup = [&] () {
-            YT_VERIFY(!group.empty());
-            YT_LOG_DEBUG_IF(verboseLogging, "(%v, %v) make batch [%v .. %v] from %v ranges",
-                currentSampleCount,
-                nextSampleCount,
-                group.front().first,
-                group.back().second,
-                group.size());
-            groupedSplits.push_back(MakeSharedRange(std::move(group), holder));
-        };
-
-        iterate(
-            [&] (auto rangesIt, auto rangesItEnd, auto pivot, auto nextPivot) {
-                for (auto it = rangesIt; it != rangesItEnd; ++it) {
-                    auto lowerBound = it == rangesIt ? std::max(it->first, pivot) : it->first;
-                    auto upperBound = it + 1 == rangesItEnd ? std::min(it->second, nextPivot) : it->second;
-
-                    group.emplace_back(lowerBound, upperBound);
-                }
-                addGroup();
-            },
-            [&] (auto rangesIt, auto startSampleIt, auto endSampleIt, auto pivot, auto nextPivot) {
-                TRow lowerBound = std::max(rangesIt->first, pivot);
-                TRow upperBound = std::min(rangesIt->second, nextPivot);
-
-                auto currentBound = lowerBound;
-
-                size_t sampleCount = std::distance(startSampleIt, endSampleIt);
-                size_t nextGroupSampleCount = currentSampleCount + sampleCount;
-
-                YT_VERIFY(nextSampleCount >= currentSampleCount);
-
-                auto it = startSampleIt;
-                while (nextSampleCount < nextGroupSampleCount) {
-                    size_t step = nextSampleCount - currentSampleCount;
-                    it += step;
-
-                    auto nextBound = rowBuffer->Capture(*it);
-                    group.emplace_back(currentBound, nextBound);
-                    currentBound = nextBound;
-
-                    addGroup();
-                    currentSampleCount += step;
-                    incrementSampleIndex();
-                }
-
-                group.emplace_back(currentBound, upperBound);
-
-                addGroup();
-                currentSampleCount = nextGroupSampleCount;
-            });
-
-        return groupedSplits;
-    }
-
     std::vector<TDataRanges> Split(std::vector<TDataRanges> rangesByTablet, TRowBufferPtr rowBuffer)
     {
         std::vector<TDataRanges> groupedSplits;
+
+        bool isSortedTable = false;
 
         for (auto& tablePartIdRange : rangesByTablet) {
             auto tablePartId = tablePartIdRange.Id;
@@ -1133,17 +926,29 @@ private:
                 continue;
             }
 
-            YT_VERIFY(std::is_sorted(
+            isSortedTable = true;
+
+            YT_QL_CHECK(std::is_sorted(
                 ranges.Begin(),
                 ranges.End(),
                 [] (const TRowRange& lhs, const TRowRange& rhs) {
                     return lhs.first < rhs.first;
                 }));
 
+            for (auto it = ranges.begin(), itEnd = ranges.end(); it + 1 < itEnd; ++it) {
+                YT_QL_CHECK(it->second <= (it + 1)->first);
+            }
+
             const auto& partitions = tabletSnapshot->PartitionList;
             YT_VERIFY(!partitions.empty());
 
-            auto splits = SplitTablet(partitions, ranges, rowBuffer);
+            auto splits = SplitTablet(
+                MakeRange(partitions),
+                ranges,
+                rowBuffer,
+                Config_->MaxSubsplitsPerTablet,
+                Options_.VerboseLogging,
+                Logger);
 
             for (const auto& split : splits) {
                 TDataRanges dataRanges;
@@ -1157,24 +962,31 @@ private:
             }
         }
 
-        for (const auto& split : groupedSplits) {
-            YT_VERIFY(std::is_sorted(
-                split.Ranges.Begin(),
-                split.Ranges.End(),
-                [] (const TRowRange& lhs, const TRowRange& rhs) {
-                    return lhs.second <= rhs.first;
-                }));
-        }
+        if (isSortedTable) {
+            for (const auto& split : groupedSplits) {
+                YT_QL_CHECK(std::is_sorted(
+                    split.Ranges.Begin(),
+                    split.Ranges.End(),
+                    [] (const TRowRange& lhs, const TRowRange& rhs) {
+                        return lhs.second <= rhs.first;
+                    }));
 
-        YT_VERIFY(std::is_sorted(
-            groupedSplits.begin(),
-            groupedSplits.end(),
-            [] (const TDataRanges& lhs, const TDataRanges& rhs) {
+                for (auto it = split.Ranges.begin(), itEnd = split.Ranges.end(); it + 1 < itEnd; ++it) {
+                    YT_QL_CHECK(it->second <= (it + 1)->first);
+                }
+            }
+
+            for (auto it = groupedSplits.begin(), itEnd = groupedSplits.end(); it + 1 < itEnd; ++it) {
+                const TDataRanges& lhs = *it;
+                const TDataRanges& rhs = *(it + 1);
+
                 const auto& lhsValue = lhs.Ranges ? lhs.Ranges.Back().second : lhs.Keys.Back();
                 const auto& rhsValue = rhs.Ranges ? rhs.Ranges.Front().first : rhs.Keys.Front();
 
-                return lhsValue <= rhsValue;
-            }));
+                YT_QL_CHECK(lhsValue <= rhsValue);
+            }
+        }
+
         return groupedSplits;
     }
 
@@ -1417,4 +1229,3 @@ IQuerySubexecutorPtr CreateQuerySubexecutor(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryAgent
-
