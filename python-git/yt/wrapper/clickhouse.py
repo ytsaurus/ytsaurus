@@ -686,8 +686,6 @@ def start_clickhouse_clique(instance_count,
                                                          enable_monitoring=enable_monitoring,
                                                          client=client))
 
-    print kwargs
-
     op = run_operation(get_clickhouse_clique_spec_builder(instance_count,
                                                           artifact_path=artifact_path,
                                                           cypress_config_paths=cypress_config_paths,
