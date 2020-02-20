@@ -43,7 +43,7 @@ void TBootstrap::Run()
 
     NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_);
 
-    SetBuildAttributes(OrchidRoot_, "log_tailer");
+    SetBuildAttributes(OrchidRoot_, "clickhouse_log_tailer");
 
     HttpServer_->Start();
 
