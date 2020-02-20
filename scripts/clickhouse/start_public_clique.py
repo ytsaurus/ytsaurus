@@ -36,7 +36,6 @@ def main():
         cpu_limit=8,
         enable_monitoring=True,
         enable_job_tables=True,
-        enable_log_tailer=True,
         cypress_geodata_path="//sys/clickhouse/geodata/geodata.tgz",
         cypress_ytserver_clickhouse_path=args.bin,
         spec={
