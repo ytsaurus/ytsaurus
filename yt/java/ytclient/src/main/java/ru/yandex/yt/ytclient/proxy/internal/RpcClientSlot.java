@@ -1,7 +1,11 @@
 package ru.yandex.yt.ytclient.proxy.internal;
 
+import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.slf4j.Logger;
@@ -22,22 +26,36 @@ public class RpcClientSlot implements AutoCloseable {
         this.client = new CompletableFuture<>();
     }
 
+    public Optional<RpcClient> getClient(Duration timeout) {
+        try {
+            return Optional.of(client.get(timeout.toMillis(), TimeUnit.MILLISECONDS));
+        } catch (InterruptedException | ExecutionException e) {
+            throw new RuntimeException("Failed to get client from slot ", e);
+        } catch (TimeoutException e) {
+            return Optional.empty();
+        }
+    }
+
     public RpcClient getClient() {
         try {
             return client.get();
         } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException("");
+            throw new RuntimeException("Failed to get client from slot ", e);
         }
+    }
+
+    public Optional<RpcClient> getOrCompleteClient() {
+        client.completeExceptionally(new Exception("RpcClientSlot is closed"));
+        if (client.isDone() && !client.isCompletedExceptionally()) {
+            return Optional.of(getClient());
+        }
+        return Optional.empty();
     }
 
     @Override
     public void close() {
-        client.completeExceptionally(new Exception("RpcClientSlot is closed"));
-        if (client.isDone()) {
-            if (!client.isCompletedExceptionally()) {
-                closeClient(getClient());
-            }
-        }
+        Optional<RpcClient> maybeClient = getOrCompleteClient();
+        maybeClient.ifPresent(this::closeClient);
     }
 
     CompletableFuture<RpcClient> getClientFuture() {
@@ -67,7 +85,7 @@ public class RpcClientSlot implements AutoCloseable {
         return address;
     }
 
-    boolean isClientReady() {
+    boolean isClientDone() {
         return client.isDone();
     }
 

@@ -125,4 +125,29 @@ public class DataCenterTest {
         res = dc.selectDestinations(2, rnd);
         assertThat(res.toString(), is("[test/3, test/1]")); // Request failed, but not unrecoverable, proxy is still good
     }
+
+    @Test
+    public void testUseBeforeSetProxies() {
+        RpcOptions options = new RpcOptions().setChannelPoolSize(2);
+        DataCenter dc = new DataCenter("test", -1.0, options);
+        RpcClientFactory factory = new RpcClientFactoryStub();
+        Random rnd = new Random(0);
+        List<RpcClient> res;
+
+        Thread discovery = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                dc.setProxies(Cf.set(hp(1), hp(2)), factory, rnd);
+            }
+        });
+        discovery.start();
+
+        res = dc.selectDestinations(10, rnd); // get all available slots
+        assertThat(res.toString(), is("[test/2, test/1]"));
+    }
 }
