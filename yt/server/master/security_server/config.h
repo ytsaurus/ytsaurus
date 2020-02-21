@@ -37,7 +37,7 @@ public:
         RegisterParameter("enable_access_log", EnableAccessLog)
             .Default(true);
         RegisterParameter("enable_master_memory_usage_validation", EnableMasterMemoryUsageValidation)
-            .Default(true);
+            .Default(false);
     }
 };
 

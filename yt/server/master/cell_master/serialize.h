@@ -128,6 +128,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixDoBranch)                                                  (1205))  // aleksandra-zh
     ((MasterMemoryUsageAccounting)                                  (1206))  // aleksandra-zh
     ((YT_11279_UnmountForceOnlySuperuser)                           (1207))  // lexolordan
+    ((InitializeAccountMasterMemoryUsage)                           (1208))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
