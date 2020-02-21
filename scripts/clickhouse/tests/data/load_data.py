@@ -150,7 +150,7 @@ def clickhouse_to_yt_datetime(clickhouse_datetime):
     if clickhouse_datetime == "0000-00-00 00:00:00":
         return yson.YsonUint64(0)
     else:
-        result = (datetime.datetime.strptime(clickhouse_datetime, '%Y-%m-%d %H:%M:%S') - datetime.datetime(1970,1,1, hour=4)).total_seconds()
+        result = yson.YsonUint64((datetime.datetime.strptime(clickhouse_datetime, '%Y-%m-%d %H:%M:%S') - datetime.datetime(1970,1,1, hour=4)).total_seconds())
         if result < 0:
             print "negative date after timezone shift:", result
             return yson.YsonUint64(0)
@@ -230,6 +230,7 @@ if __name__ == "__main__":
 
     creation_attributes = yson.loads(args.creation_attributes)
     creation_attributes['schema'] = yt_schema
+    creation_attributes['optimize_for'] = 'scan'
     yt_wrapper.create('table', args.output, attributes=creation_attributes)
 
     yt_wrapper.write_table(args.output, table_data_generator(args.input, [name_path for name_path, clickhuose_type in clickhouse_schema], yt_schema))
