@@ -1819,6 +1819,9 @@ private:
     // COMPAT(kiselyovp)
     bool MustInitializeAccountHierarchy_ = false;
 
+    // COMPAT(aleksandra-zh)
+    bool MustInitializeMasterMemoryLimits_ = false;
+
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
         auto isErasure = erasureCodec != NErasure::ECodec::None;
@@ -2127,6 +2130,9 @@ private:
 
         // COMPAT(kiselyovp)
         MustInitializeAccountHierarchy_ = context.GetVersion() < EMasterReign::HierarchicalAccounts;
+
+        // COMPAT(aleksandra-zh)
+        MustInitializeMasterMemoryLimits_ = context.GetVersion() < EMasterReign::MasterMemoryUsageAccounting;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2216,7 +2222,6 @@ private:
             {
                 auto newResourceLimits = ChunkWiseAccountingMigrationAccount_->ClusterResourceLimits();
                 newResourceLimits.SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, std::numeric_limits<i64>::max() / 4);
-                newResourceLimits.MasterMemoryUsage = 100_GB;
                 TrySetResourceLimits(ChunkWiseAccountingMigrationAccount_, newResourceLimits);
             }
 
@@ -2235,6 +2240,19 @@ private:
             }
         }
 
+        // Leads to overcommit in hierarchical accounts!
+        if (MustInitializeMasterMemoryLimits_) {
+            for (auto [accountId, account] : AccountMap_) {
+                if (!IsObjectAlive(account)) {
+                    continue;
+                }
+
+                auto resourceLimits = account->ClusterResourceLimits();
+                resourceLimits.MasterMemoryUsage = 100_GB;
+
+                TrySetResourceLimits(account, resourceLimits);
+            }
+        }
         // COMPAT(shakurov)
         RecomputeAccountResourceUsage();
 
