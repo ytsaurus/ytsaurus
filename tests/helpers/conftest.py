@@ -35,6 +35,7 @@ import pytest
 import copy
 import logging
 import os
+import shutil
 import sys
 import time
 import uuid
@@ -477,12 +478,25 @@ class SandboxBase(object):
 
 def prepare_yp_sandbox(sandbox_base):
     if yatest_common is not None:
-        destination = os.path.join(yatest_common.work_path(), "yt_build_" + generate_uuid())
+        ram_drive_path = arcadia_interop.yatest_common.get_param("ram_drive_path")
+
+        yt_build_dir = "yt_build_" + generate_uuid()
+        if ram_drive_path is None:
+            destination = os.path.join(arcadia_interop.yatest_common.work_path(), yt_build_dir)
+        else:
+            destination = os.path.join(ram_drive_path, yt_build_dir)
         os.makedirs(destination)
+
         path = arcadia_interop.prepare_yt_environment(destination, use_ytserver_all=True)
+
         ypserver_master_binary = yatest_common.binary_path("yp/server/master/bin/ypserver-master")
-        os.symlink(ypserver_master_binary, os.path.join(path, "ypserver-master"))
+        if ram_drive_path is None:
+            os.symlink(ypserver_master_binary, os.path.join(path, "ypserver-master"))
+        else:
+            shutil.copy(ypserver_master_binary, os.path.join(path, "ypserver-master"))
+
         _insert_environ_path(path)
+
     return sandbox_base.make_sandbox("yp")
 
 
