@@ -101,7 +101,7 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
     def teardown(self):
         self.replica_driver = None
         self.primary_driver = None
-        
+
     def _get_table_attributes(self, schema):
         return {
             "dynamic": True,
@@ -168,9 +168,11 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_replicated_tablet_node_profiling(self, schema):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", schema, enable_profiling=True)
 
-        tablet_profiling = self._get_table_profiling("//tmp/t")
+        replicated_table_path = "//tmp/{}".format(generate_uuid())
+        self._create_replicated_table(replicated_table_path, schema, enable_profiling=True)
+
+        tablet_profiling = self._get_table_profiling(replicated_table_path)
         def get_all_counters():
             return (
                 tablet_profiling.get_counter("write/row_count"),
@@ -180,7 +182,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         assert get_all_counters() == (0, 0, 0, 0)
 
-        insert_rows("//tmp/t", [{"key": 1, "value1": "test"}], require_sync_replica=False)
+        insert_rows(replicated_table_path, [{"key": 1, "value1": "test"}], require_sync_replica=False)
         wait(lambda: get_all_counters() == (1, 1, 13, 13))
 
     @authors("gridem")
@@ -188,11 +190,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_replica_tablet_node_profiling(self, schema):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", schema, enable_profiling=True)
-        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
-        self._create_replica_table("//tmp/r", replica_id, schema)
 
-        tablet_profiling = self._get_table_profiling("//tmp/t")
+        replicated_table_path = "//tmp/{}".format(generate_uuid())
+        self._create_replicated_table(replicated_table_path, schema, enable_profiling=True)
+
+        replica_table_path = "//tmp/{}".format(generate_uuid())
+        replica_id = create_table_replica(replicated_table_path, self.REPLICA_CLUSTER_NAME, replica_table_path)
+        self._create_replica_table(replica_table_path, replica_id, schema)
+
+        tablet_profiling = self._get_table_profiling(replicated_table_path)
 
         def get_lag_row_count():
             return tablet_profiling.get_counter("replica/lag_row_count")
@@ -206,27 +212,27 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert get_lag_row_count() == 0
         assert get_lag_time() == 0
 
-        insert_rows("//tmp/t", [{"key": 0, "value1": "test", "value2": 123}], require_sync_replica=False)
+        insert_rows(replicated_table_path, [{"key": 0, "value1": "test", "value2": 123}], require_sync_replica=False)
         sleep(2)
 
         assert get_lag_row_count() == 0
         assert get_lag_time() == 0
 
-        sync_unmount_table("//tmp/r", driver=self.replica_driver)
+        sync_unmount_table(replica_table_path, driver=self.replica_driver)
 
-        insert_rows("//tmp/t", [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
+        insert_rows(replicated_table_path, [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
         sleep(2)
 
         assert get_lag_row_count() == 1
         assert 2 <= get_lag_time() <= 8
 
-        insert_rows("//tmp/t", [{"key": 2, "value1": "test", "value2": 123}], require_sync_replica=False)
+        insert_rows(replicated_table_path, [{"key": 2, "value1": "test", "value2": 123}], require_sync_replica=False)
         sleep(2)
 
         assert get_lag_row_count() == 2
         assert 4 <= get_lag_time() <= 10
 
-        sync_mount_table("//tmp/r", driver=self.replica_driver)
+        sync_mount_table(replica_table_path, driver=self.replica_driver)
         sleep(2)
 
         assert get_lag_row_count() == 0
@@ -314,14 +320,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         sync_mount_table("//tmp/t")
         sync_enable_table_replica(replica_id)
-        
+
         attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
         assert attributes["state"] == "enabled"
         assert len(attributes["tablets"]) == 1
         assert attributes["tablets"][0]["state"] == "enabled"
 
         sync_unmount_table("//tmp/t")
-        
+
         attributes = get("#{0}/@".format(replica_id), attributes=["state", "tablets"])
         assert attributes["state"] == "enabled"
         assert len(attributes["tablets"]) == 1
@@ -812,7 +818,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             if get("#{0}/@mode".format(replica_id)) == "sync":
                 result = result + 1
         return result
-        
+
     @authors("aozeritsky")
     def test_sync_replication_switch_with_min_max_sync_replica(self):
         self._create_cells()
@@ -957,7 +963,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert select_rows("* from [//tmp/r2]", driver=self.replica_driver)[-1] == {"key": 1, "value1": "test2", "value2": 456}
         wait(lambda: select_rows("* from [//tmp/r1]", driver=self.replica_driver)[-1] == {"key": 1, "value1": "test2", "value2": 456})
 
-    # XXX(babenko): ordered tables may currently return stale data  
+    # XXX(babenko): ordered tables may currently return stale data
     @authors("babenko")
     def test_wait_for_sync_ordered(self):
         self._create_cells()
