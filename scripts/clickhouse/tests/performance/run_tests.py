@@ -126,6 +126,8 @@ if __name__ == '__main__':
 
     args=parser.parse_args()
 
+    print 'start perf tests on operation:', yt.wrapper.clickhouse._resolve_alias(args.clique_id)['id']
+
     tests = load_tests(args.tests)
     execution_times, trace_ids = execute_tests(tests, QueryExecutor(args.hits, args.cluster, args.clique_id))
 
