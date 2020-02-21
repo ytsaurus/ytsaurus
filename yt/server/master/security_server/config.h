@@ -19,6 +19,7 @@ public:
     bool EnableDelayedMembershipClosureRecomputation;
     bool EnableAccessLog;
     TDuration MembershipClosureRecomputePeriod;
+    bool EnableMasterMemoryUsageValidation;
 
     TDynamicSecurityManagerConfig()
     {
@@ -34,6 +35,8 @@ public:
         RegisterParameter("membership_closure_recomputation_period", MembershipClosureRecomputePeriod)
             .Default(TDuration::Seconds(3));
         RegisterParameter("enable_access_log", EnableAccessLog)
+            .Default(true);
+        RegisterParameter("enable_master_memory_usage_validation", EnableMasterMemoryUsageValidation)
             .Default(true);
     }
 };
