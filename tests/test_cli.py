@@ -6,6 +6,7 @@ from .conftest import (
     get_pod_scheduling_status,
     is_assigned_pod_scheduling_status,
     is_pod_assigned,
+    wait_pod_is_assigned,
 )
 
 from yp.common import wait
@@ -20,6 +21,14 @@ except ImportError:
     import yt.json as json
 
 import pytest
+
+
+def prepare_objects(yp_client):
+    node_id = create_nodes(yp_client, 1)[0]
+    pod_set_id = yp_client.create_object("pod_set")
+    pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, dict(enable_scheduling=True))
+    wait_pod_is_assigned(yp_client, pod_id)
+    return node_id, pod_set_id, pod_id
 
 
 class YpCli(Cli):
@@ -213,49 +222,6 @@ class TestCli(object):
         ])
 
         assert result[0] == "up"
-
-    def test_pod_eviction(self, yp_env):
-        cli = create_cli(yp_env)
-        yp_client = yp_env.yp_client
-
-        create_nodes(yp_client, 1)
-        pod_set_id = yp_client.create_object("pod_set")
-        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, dict(enable_scheduling=True))
-        wait(lambda: is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
-
-        get_eviction_state = lambda: cli.check_yson_output([
-            "get",
-            "pod", pod_id,
-            "--selector", "/status/eviction/state"
-        ])[0]
-        get_eviction_message = lambda: cli.check_yson_output([
-            "get",
-            "pod", pod_id,
-            "--selector", "/status/eviction/message"
-        ])[0]
-
-        assert get_eviction_state() == "none"
-
-        message = "hello, eviction!"
-        cli.check_output(["request-eviction", pod_id, message])
-        assert get_eviction_state() == "requested"
-        assert get_eviction_message() == message
-
-        cli.check_output(["abort-eviction", pod_id, "test"])
-        assert get_eviction_state() == "none"
-
-        cli.check_output(["request-eviction", pod_id, "test"])
-        assert get_eviction_state() == "requested"
-
-        tx_id = yp_client.start_transaction()
-        cli.check_output([
-            "acknowledge-eviction",
-            pod_id, "test",
-            "--transaction_id", tx_id
-        ])
-        assert get_eviction_state() == "requested"
-        yp_client.commit_transaction(tx_id)
-        assert get_eviction_state() in ("acknowledged", "none")
 
     def test_touch_pod_master_spec_timestamps(self, yp_env):
         cli = create_cli(yp_env)
@@ -500,3 +466,150 @@ class TestCli(object):
 
         wait(lambda: is_pod_assigned(yp_client, pod_id_hint))
         assert get_pod_scheduling_status(yp_client, pod_id_simple)["node_id"] == big_node_id
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestCliEviction(object):
+    # Choosing a pretty small period to optimize tests duration.
+    SCHEDULER_LOOP_PERIOD_MILLISECONDS = 1 * 1000
+
+    YP_MASTER_CONFIG = dict(
+        scheduler=dict(
+            loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,
+        )
+    )
+
+    def test_pod_eviction(self, yp_env_configurable):
+        cli = create_cli(yp_env_configurable)
+        yp_client = yp_env_configurable.yp_client
+
+        create_nodes(yp_client, 1)
+        pod_set_id = yp_client.create_object("pod_set")
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, dict(enable_scheduling=True))
+        wait(lambda: is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
+
+        get_eviction_state = lambda: cli.check_yson_output([
+            "get",
+            "pod", pod_id,
+            "--selector", "/status/eviction/state"
+        ])[0]
+        get_eviction_message = lambda: cli.check_yson_output([
+            "get",
+            "pod", pod_id,
+            "--selector", "/status/eviction/message"
+        ])[0]
+
+        assert get_eviction_state() == "none"
+
+        message = "hello, eviction!"
+        cli.check_output(["request-eviction", pod_id, message])
+        assert get_eviction_state() == "requested"
+        assert get_eviction_message() == message
+
+        cli.check_output(["abort-eviction", pod_id, "test"])
+        assert get_eviction_state() == "none"
+
+        cli.check_output(["request-eviction", pod_id, "test"])
+        assert get_eviction_state() == "requested"
+
+        tx_id = yp_client.start_transaction()
+        cli.check_output([
+            "acknowledge-eviction",
+            pod_id, "test",
+            "--transaction_id", tx_id
+        ])
+        assert get_eviction_state() == "requested"
+        yp_client.commit_transaction(tx_id)
+        assert get_eviction_state() in ("acknowledged", "none")
+
+    def test_evict(self, yp_env_configurable):
+        cli = create_cli(yp_env_configurable)
+        yp_client = yp_env_configurable.yp_client
+
+        node_id, _, pod_id = prepare_objects(yp_client)
+
+        def get_eviction_state():
+            return yp_client.get_object("pod", pod_id, selectors=["/status/eviction/state"])[0]
+
+        def get_node_id():
+            return yp_client.get_object("pod", pod_id, selectors=["/spec/node_id"])[0]
+
+        assert node_id == get_node_id()
+        assert "none" == get_eviction_state()
+
+        # Disable scheduling.
+        cli.check_output(["update-hfsm-state", node_id, "suspected", "Test"])
+
+        cli.check_output(["evict", pod_id])
+        wait(lambda: "none" == get_eviction_state())
+        assert "" == get_node_id()
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestCliMaintenance(object):
+    # Choosing a pretty small period to optimize tests duration.
+    SCHEDULER_LOOP_PERIOD_MILLISECONDS = 1 * 1000
+
+    YP_MASTER_CONFIG = dict(
+        scheduler=dict(
+            loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,
+        )
+    )
+
+    def test_add_and_remove_node_alerts(self, yp_env_configurable):
+        cli = create_cli(yp_env_configurable)
+
+        yp_client = yp_env_configurable.yp_client
+
+        node_id = create_nodes(yp_client, 1)[0]
+
+        def _get_alerts():
+            result = yp_client.get_object("node", node_id, selectors=["/status/alerts"])[0]
+            return [] if result == None else result
+
+        assert [] == _get_alerts()
+
+        # Test some fields.
+        cli.check_output(["add-node-alert", node_id, "omg"])
+        alerts = _get_alerts()
+        assert 1 == len(alerts)
+        assert "omg" == alerts[0]["type"]
+        assert len(alerts[0]["uuid"]) > 0
+
+        # Test alert removing.
+        cli.check_output(["remove-node-alert", node_id, alerts[0]["uuid"]])
+        assert [] == _get_alerts()
+
+    def test_acknowledge_and_renounce_pod_maintenance(self, yp_env_configurable):
+        cli = create_cli(yp_env_configurable)
+        yp_client = yp_env_configurable.yp_client
+
+        node_id, pod_set_id, pod_id = prepare_objects(yp_client)
+
+        def _get_maintenance():
+            return yp_client.get_object("pod", pod_id, selectors=["/status/maintenance"])[0]
+
+        yp_client.update_hfsm_state(
+            node_id,
+            "prepare_maintenance",
+            "Test",
+            maintenance_info=dict(id="aba"),
+        )
+
+        wait(lambda: _get_maintenance().get("state") == "requested")
+
+        maintenance = _get_maintenance()
+        assert maintenance["info"]["id"] == "aba"
+        assert len(maintenance["info"]["uuid"]) > 0
+
+        # Acknowledgement of requested maintenance.
+        cli.check_output(["acknowledge-pod-maintenance", pod_id])
+        new_maintenance = _get_maintenance()
+        assert new_maintenance["state"] == "acknowledged"
+        assert maintenance["info"] == new_maintenance["info"]
+
+        # Renouncement of acknowledged maintenance.
+        cli.check_output(["renounce-pod-maintenance", pod_id])
+        new_maintenance = _get_maintenance()
+        assert maintenance["state"] == new_maintenance["state"]
+        assert maintenance["info"] == new_maintenance["info"]
