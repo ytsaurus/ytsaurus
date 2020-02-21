@@ -6,6 +6,7 @@ from .conftest import (
 
 from yp.local import ACTUAL_DB_VERSION
 from yp.db_manager import DbManager
+from yp.db_operations import estimate_db_available_timestamps
 
 from yp.common import (
     YpTimestampOutOfRangeError,
@@ -115,3 +116,8 @@ class TestMigrations(object):
 
         assert yt_client.get("//yp/db/pods/@pivot_keys") == pivot_keys
         assert yt_client.get("//yp/db/pod_sets/@desired_tablet_count") == desired_tablet_count
+
+    def test_estimate_db_available_timestamps(self, yp_env):
+        yt_client = yp_env.yt_client
+        min_timestamp, max_timestamp = estimate_db_available_timestamps(yt_client, "//yp")
+        assert min_timestamp + 100 < max_timestamp
