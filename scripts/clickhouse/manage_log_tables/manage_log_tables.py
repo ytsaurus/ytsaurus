@@ -3,6 +3,8 @@
 import argparse
 import logging
 import sys
+import fnmatch
+import os.path
 import yt.wrapper as yt
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,7 @@ def remerge_tables(input_table_paths):
                 .input_table_paths(input_table_path) \
                 .output_table_path(output_table_path) \
                 .mode("ordered") \
+                .pool(args.operation_pool) \
                 .begin_job_io() \
                     .table_writer({"block_size": 256 * 1024, "desired_chunk_size": 100 * 1024**2}) \
                 ._end_job_io()
@@ -62,14 +65,18 @@ def remerge_tables(input_table_paths):
     logger.info("Remerged %d tables", len(input_table_paths))
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--from-stdin", action="store_true", help="Read table list from stdin")
+    parser.add_argument("--operation-pool", type=str, default="babenko", help="Pool to run operations in")
     parser.add_argument("--pool-size", type=int, default=10, help="Maximum number of concurrently running merge operations")
     parser.add_argument("--pool-poll-period", type=int, default=1000, help="Poll period in ms")
     parser.add_argument("--dry-run", action="store_true", help="Only log what is going to happen")
     parser.add_argument("-v", "--verbose", action="store_true", help="Print lots of debugging information")
     parser.add_argument("--backup-suffix", default=".bak", help="Suffix for backing up input tables")
     parser.add_argument("--remerge-tables", action="store_true", help="Remerge tables")
+
+    global args
     args = parser.parse_args()
 
     if args.verbose:
@@ -80,7 +87,11 @@ if __name__ == "__main__":
         handler.setFormatter(formatter)
         logger.handlers.append(handler)
 
-    input_table_paths = list(map(str.strip, sys.stdin.readlines()))
+    if args.from_stdin:
+        input_table_paths = map(str.strip, sys.stdin.readlines())
+    else:
+        input_table_paths = yt.search("//sys/clickhouse/kolkhoz", path_filter=lambda path: fnmatch.fnmatch(os.path.basename(path), "clickhouse*log"))
+    input_table_paths = list(input_table_paths)
 
     for input_table_path in input_table_paths:
         logger.debug("Unmounting table %s", input_table_path)
@@ -91,13 +102,21 @@ if __name__ == "__main__":
         remerge_tables(input_table_paths)
     else:
         for input_table_path in input_table_paths:
-            logger.debug("Setting up parameters on %s", input_table_path)
+            log_tailer_version_path = input_table_path + "/@log_tailer_version"
+            log_tailer_version = None
+            if yt.exists(log_tailer_version_path):
+                log_tailer_version = yt.get(log_tailer_version_path)
+            logger.debug("Setting up parameters on %s, log tailer version = %s", input_table_path, log_tailer_version)
+
             if not args.dry_run:
                 table_kind = get_table_kind(input_table_path)
-                yt.clickhouse.set_log_tailer_table_attributes(table_kind, input_table_path, 7 * 24 * 60 * 60 * 1000)
+                yt.clickhouse.set_log_tailer_table_attributes(table_kind, input_table_path, 7 * 24 * 60 * 60 * 1000, log_tailer_version=log_tailer_version)
                 yt.clickhouse.set_log_tailer_table_dynamic_attributes(table_kind, input_table_path)
 
     for input_table_path in input_table_paths:
         logger.debug("Mounting table %s", input_table_path)
         if not args.dry_run:
             yt.mount_table(input_table_path, sync=True)
+
+if __name__ == "__main__":
+    main()
