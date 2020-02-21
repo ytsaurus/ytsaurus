@@ -104,7 +104,7 @@ public:
                     YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
                         "Eviction throttled because of pod disruption budget (PodId: %v, DisruptionCount: %v, AllowedDisruptionCount: %v)",
                         pod->GetId(),
-                        evictionCount,
+                        addedEvictionCount,
                         allowedPodDisruptions);
                     return true;
                 }
@@ -124,6 +124,7 @@ public:
                 suitableNodeCountOrError,
                 "Error finding suitable nodes (PodId: %v)",
                 pod->GetId());
+            return true;
         }
 
         int suitableNodeCount = suitableNodeCountOrError.Value();
