@@ -325,9 +325,10 @@ bool TJournalChunk::IsSealed() const
 TFuture<void> TJournalChunk::Seal()
 {
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
-    return dispatcher->SealChangelog(this).Apply(BIND([this, this_ = MakeStrong(this)] () {
-        Sealed_ = true;
-    }));
+    return dispatcher->SealChangelog(this).Apply(
+        BIND([this, this_ = MakeStrong(this)] () {
+            Sealed_ = true;
+        }).AsyncVia(Bootstrap_->GetControlInvoker()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
