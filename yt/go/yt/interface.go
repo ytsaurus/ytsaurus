@@ -36,15 +36,14 @@ import (
 	"context"
 	"io"
 
-	"a.yandex-team.ru/yt/go/schema"
-
-	"a.yandex-team.ru/yt/go/yterrors"
-
 	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/yson"
-
+	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yson"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
+
+//go:generate yt-gen-client -interface interface.go -output internal/params.go
 
 // TransactionOptions control transactional context of cypress command.
 //
@@ -840,6 +839,8 @@ type SelectRowsOptions struct {
 	FailOnIncompleteResult *bool `http:"fail_on_incomplete_result,omitnil"`
 	InputRowLimit          *int  `http:"input_row_limit,omitnil"`
 	OutputRowLimit         *int  `http:"output_row_limit,omitnil"`
+
+	*TransactionOptions
 }
 
 type StartTabletTxOptions struct {

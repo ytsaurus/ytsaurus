@@ -736,6 +736,7 @@ func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 		w.MapKeyString("output_row_limit")
 		w.Any(o.OutputRowLimit)
 	}
+	writeTransactionOptions(w, o.TransactionOptions)
 }
 
 func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
@@ -2320,6 +2321,10 @@ func (p *SelectRowsParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("query")
 	w.Any(p.query)
 	writeSelectRowsOptions(w, p.options)
+}
+
+func (p *SelectRowsParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
 }
 
 type LookupRowsParams struct {
