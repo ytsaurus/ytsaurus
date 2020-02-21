@@ -20,7 +20,7 @@ class HttpProxyTestBase(YTEnvSetup):
     NUM_RPC_PROXIES = 2
 
     DELTA_PROXY_CONFIG = {
-        "coordination": {
+        "coordinator": {
             "heartbeat_interval": 100,
         },
         "api": {
