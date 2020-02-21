@@ -19,6 +19,7 @@
 
 namespace NYT::NLogTailer {
 
+using namespace NApi;
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NYTree;
@@ -293,7 +294,13 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
         recordRange.size(),
         boundaryTimestamps);
 
-    auto transactionOrError = WaitFor(Bootstrap_->GetMasterClient()->StartTransaction(NTransactionClient::ETransactionType::Tablet));
+    TTransactionStartOptions transactionStartOptions;
+    transactionStartOptions.Atomicity = NTransactionClient::EAtomicity::None;
+    auto transactionOrError = WaitFor(
+        Bootstrap_->GetMasterClient()->StartTransaction(
+            NTransactionClient::ETransactionType::Tablet,
+            transactionStartOptions));
+
     if (!transactionOrError.IsOK()) {
         YT_LOG_WARNING(transactionOrError, "Error starting transaction");
         return false;
