@@ -41,6 +41,12 @@ BUNDLED_DEFAULTS = {
 }
 
 
+def _is_fresher_than(version, min_version):
+    if version is None:
+        return False
+    return version >= min_version
+
+
 def _get_kwargs_names(fn):
     if PY3:
         argspec = inspect.getfullargspec(fn)
@@ -96,6 +102,13 @@ def _format_url(url):
     return to_yson_type(url, attributes={"_type_tag": "url"})
 
 
+# Inherit all custom attributes from the ytserver-clickhouse.
+# TODO(max42): YT-11099.
+def _get_user_attributes(path, client=None):
+    attr_keys = get(path + "/@user_attribute_keys", client=client)
+    return get(path + "/@", attributes=attr_keys, client=client)
+
+
 def _build_description(cypress_ytserver_clickhouse_path=None,
                        cypress_ytserver_log_tailer_path=None,
                        cypress_clickhouse_trampoline_path=None,
@@ -104,22 +117,16 @@ def _build_description(cypress_ytserver_clickhouse_path=None,
                        prev_operation_id=None,
                        enable_monitoring=None,
                        client=None):
-    # Inherit all custom attributes from the ytserver-clickhouse.
-    # TODO(max42): YT-11099.
-
-    def get_user_attributes(path):
-        attr_keys = get(path + "/@user_attribute_keys", client=client)
-        return get(path + "/@", attributes=attr_keys, client=client)
 
     description = {}
     if cypress_ytserver_clickhouse_path is not None:
-        description = update(description, {"ytserver-clickhouse": get_user_attributes(cypress_ytserver_clickhouse_path)})
+        description = update(description, {"ytserver-clickhouse": _get_user_attributes(cypress_ytserver_clickhouse_path, client=client)})
 
     if cypress_ytserver_log_tailer_path is not None:
-        description = update(description, {"ytserver-log-tailer": get_user_attributes(cypress_ytserver_log_tailer_path)})
+        description = update(description, {"ytserver-log-tailer": _get_user_attributes(cypress_ytserver_log_tailer_path, client=client)})
 
     if cypress_clickhouse_trampoline_path is not None:
-        description = update(description, {"clickhouse-trampoline": get_user_attributes(cypress_clickhouse_trampoline_path)})
+        description = update(description, {"clickhouse-trampoline": _get_user_attributes(cypress_clickhouse_trampoline_path, client=client)})
 
     if artifact_path is not None:
         description = update(description, {"artifact_path": _format_url()})
@@ -350,7 +357,10 @@ def prepare_configs(instance_count,
 
 # Here and below table_kind is in ("ordered_normally", "ordered_by_trace_id")
 
-def set_log_tailer_table_attributes(table_kind, table_path, ttl, client=None):
+def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_version=None, client=None):
+    # COMPAT(max42)
+    atomicity = "none" if _is_fresher_than(log_tailer_version, "20.2.34072") else "full"
+
     attributes = {
         "min_data_versions": 0,
         "max_data_versions": 1,
@@ -363,8 +373,11 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, client=None):
         "auto_compaction_period": 86400000,
         "dynamic_store_overflow_threshold": 0.5,
         "enable_lsm_verbose_logging": True,
-        "atomicity": None,
+        "atomicity": atomicity,
     }
+
+    if log_tailer_version is not None:
+        attributes["log_tailer_version"] = log_tailer_version
 
     for attribute, value in attributes.iteritems():
         attribute_path = table_path + "/@" + attribute
@@ -430,6 +443,7 @@ def create_log_tailer_table(table_kind, table_path, client=None):
 
 def prepare_log_tailer_tables(log_file,
                               artifact_path,
+                              log_tailer_version=None,
                               instance_count=None,
                               client=None):
 
@@ -453,7 +467,7 @@ def prepare_log_tailer_tables(log_file,
             create_log_tailer_table(kind, path, client=client)
         else:
             unmount_table(path, sync=True)
-        set_log_tailer_table_attributes(kind, path, ttl, client=client)
+        set_log_tailer_table_attributes(kind, path, ttl, log_tailer_version=log_tailer_version, client=client)
         set_log_tailer_table_dynamic_attributes(kind, path, client=client)
         mount_table(path, sync=True)
 
@@ -464,6 +478,7 @@ def prepare_artifacts(artifact_path,
                       enable_job_tables=None,
                       dump_tables=None,
                       instance_count=None,
+                      cypress_ytserver_log_tailer_path=None,
                       log_tailer_config=None,
                       client=None):
     if not exists(artifact_path, client=client):
@@ -502,8 +517,10 @@ def prepare_artifacts(artifact_path,
                 logger.info("Dumping %s into %s", table_path, new_path)
                 copy(table_path, new_path, client=client)
 
+    log_tailer_version = get(cypress_ytserver_log_tailer_path + "/@yt_version")
+
     for log_file in log_tailer_config["log_tailer"]["log_files"]:
-        prepare_log_tailer_tables(log_file, artifact_path, instance_count=instance_count, client=client)
+        prepare_log_tailer_tables(log_file, artifact_path, log_tailer_version=log_tailer_version, instance_count=instance_count, client=client)
 
 
 def upload_configs(configs, client=None):
@@ -673,6 +690,7 @@ def start_clickhouse_clique(instance_count,
                       enable_job_tables=enable_job_tables,
                       dump_tables=dump_tables,
                       defaults=defaults,
+                      cypress_ytserver_log_tailer_path=cypress_ytserver_log_tailer_path,
                       instance_count=instance_count,
                       log_tailer_config=configs["log_tailer"],
                       client=client)
