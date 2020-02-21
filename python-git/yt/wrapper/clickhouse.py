@@ -363,6 +363,7 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, client=None):
         "auto_compaction_period": 86400000,
         "dynamic_store_overflow_threshold": 0.5,
         "enable_lsm_verbose_logging": True,
+        "atomicity": None,
     }
 
     for attribute, value in attributes.iteritems():
