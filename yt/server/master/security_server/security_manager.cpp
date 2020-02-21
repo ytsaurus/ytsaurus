@@ -1538,6 +1538,8 @@ public:
                 << TErrorAttribute("limit", limit);
         };
 
+        const auto& dynamicConfig = GetDynamicConfig();
+
         for (; account; account = account->GetParent()) {
             const auto& usage = account->ClusterStatistics().ResourceUsage;
             const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;
@@ -1571,7 +1573,9 @@ public:
             if (delta.TabletStaticMemory > 0 && usage.TabletStaticMemory + delta.TabletStaticMemory > limits.TabletStaticMemory) {
                 throwOverdraftError("tablet static memory", account, usage.TabletStaticMemory, limits.TabletStaticMemory);
             }
-            if (delta.MasterMemoryUsage > 0 && usage.MasterMemoryUsage + delta.MasterMemoryUsage > limits.MasterMemoryUsage) {
+            if (dynamicConfig->EnableMasterMemoryUsageValidation && delta.MasterMemoryUsage > 0 &&
+                usage.MasterMemoryUsage + delta.MasterMemoryUsage > limits.MasterMemoryUsage)
+            {
                 throwOverdraftError("master memory usage", account, usage.MasterMemoryUsage, limits.MasterMemoryUsage);
             }
         }
