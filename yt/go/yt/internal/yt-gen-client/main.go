@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"go/format"
 	"go/parser"
 	"io/ioutil"
 	"os"
@@ -46,7 +47,12 @@ func main() {
 		fatalf("%v", err)
 	}
 
-	if err = ioutil.WriteFile(*flagOutput, buf.Bytes(), 0644); err != nil {
+	fmtbuf, err := format.Source(buf.Bytes())
+	if err != nil {
+		fatalf("%v", err)
+	}
+
+	if err = ioutil.WriteFile(*flagOutput, fmtbuf, 0644); err != nil {
 		fatalf("%v", err)
 	}
 }
