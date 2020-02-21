@@ -120,7 +120,7 @@ TYPE_SELECTORS = {
         "/status/scheduling",
         "/labels",
     ],
-    "node": ["/meta", "/spec", "/labels"],
+    "node": ["/meta", "/spec", "/labels", "/status/hfsm", "/status/maintenance"],
     "resource": ["/meta", "/spec", "/status", "/labels"],
     "internet_address": ["/meta", "/spec", "/status", "/labels"],
     "network_project": ["/meta", "/spec", "/labels"],
