@@ -2539,7 +2539,8 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
                     {"name": "job_id", "type": "string"},
                     {"name": "operation_id", "type": "string"},
                 ],
-                "tablet_cell_bundle": "sys"
+                "tablet_cell_bundle": "sys",
+                "atomicity": "none",
             })
 
         sync_mount_table(log_table)

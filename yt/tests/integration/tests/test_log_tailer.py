@@ -96,7 +96,8 @@ class TestLogTailer(YTEnvSetup):
                     {"name": "trace_id", "type": "string"},
                     {"name": "operation_id", "type": "string"},
                 ],
-                "tablet_cell_bundle": "sys"
+                "tablet_cell_bundle": "sys",
+                "atomicity": "none",
             })
 
         create("table", "//sys/clickhouse/logs/log2", attributes={
@@ -114,7 +115,8 @@ class TestLogTailer(YTEnvSetup):
                     {"name": "fiber_id", "type": "string"},
                     {"name": "operation_id", "type": "string"},
                 ],
-                "tablet_cell_bundle": "sys"
+                "tablet_cell_bundle": "sys",
+                "atomicity": "none",
             })
 
         for log_table in log_tables:
