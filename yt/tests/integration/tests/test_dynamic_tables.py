@@ -113,45 +113,26 @@ class DynamicTablesBase(YTEnvSetup):
             set_node_decommissioned(addr, True)
         return addresses
 
-    def _get_profiling(self, table, filter=None, filter_table=False):
+    def _get_table_profiling(self, table):
         tablets = get(table + "/@tablets")
         assert len(tablets) == 1
         tablet = tablets[0]
         address = get("#%s/@peers/0/address" % tablet["cell_id"])
-        filter_value = (filter, table if filter_table else tablet[filter]) if filter else None
 
         class Profiling:
-            def __init__(self):
-                self._shifts = {}
-
-            def _get_counter_impl(self, counter_name):
+            def get_counter(self, counter_name):
                 try:
                     counters = get("//sys/cluster_nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))
-                    if filter_value:
-                        filter, value = filter_value
-                        for counter in counters[::-1]:
-                            tags = counter["tags"]
-                            if filter in tags and tags[filter] == value:
-                                return counter["value"]
-                    else:
-                        return counters[-1]["value"]
+                    for counter in counters[::-1]:
+                        tags = counter["tags"]
+                        if tags.get("table_path", None) == table:
+                            return counter["value"]
                 except YtResponseError as error:
                     if not error.is_resolve_error():
                         raise
                 return 0
 
-            def get_counter(self, counter_name):
-                # Get difference since last query since typically we are interested in couter rate.
-                # (Same table name is shared between tests and there is no way to reset couters.)
-                result = self._get_counter_impl(counter_name)
-                if counter_name not in self._shifts:
-                    self._shifts[counter_name] = result
-                return result - self._shifts[counter_name]
-
         return Profiling()
-
-    def _get_table_profiling(self, table):
-        return self._get_profiling(table, "table_path", filter_table=True)
 
 
 ##################################################################

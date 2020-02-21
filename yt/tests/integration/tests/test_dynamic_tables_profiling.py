@@ -29,11 +29,12 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
     @authors("gridem")
     def test_sorted_tablet_node_profiling(self):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        sync_mount_table("//tmp/t")
 
-        tablet_profiling = self._get_table_profiling("//tmp/t")
-        select_profiling = self._get_profiling("//tmp/t")
+        table_path = "//tmp/{}".format(generate_uuid())
+        self._create_simple_table(table_path)
+        sync_mount_table(table_path)
+
+        tablet_profiling = self._get_table_profiling(table_path)
 
         def get_all_counters(count_name):
             return (
@@ -47,40 +48,42 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
         assert get_all_counters("row_count") == (0, 0, 0, 0, 0, 0)
         assert get_all_counters("data_weight") == (0, 0, 0, 0, 0, 0)
         assert tablet_profiling.get_counter("lookup/cpu_time") == 0
-        assert select_profiling.get_counter("select/cpu_time") == 0
+        assert tablet_profiling.get_counter("select/cpu_time") == 0
 
         rows = [{"key": 1, "value": "2"}]
         keys = [{"key": 1}]
-        insert_rows("//tmp/t", rows)
+        insert_rows(table_path, rows)
 
         wait(lambda: get_all_counters("row_count") == (0, 0, 0, 0, 1, 1) and \
                      get_all_counters("data_weight") == (0, 0, 0, 0, 10, 10) and \
                      tablet_profiling.get_counter("lookup/cpu_time") == 0 and \
-                     select_profiling.get_counter("select/cpu_time") == 0)
+                     tablet_profiling.get_counter("select/cpu_time") == 0)
 
-        actual = lookup_rows("//tmp/t", keys)
+        actual = lookup_rows(table_path, keys)
         assert_items_equal(actual, rows)
 
         wait(lambda: get_all_counters("row_count") == (1, 1, 0, 0, 1, 1) and \
                      get_all_counters("data_weight") == (10, 25, 0, 0, 10, 10) and \
                      tablet_profiling.get_counter("lookup/cpu_time") > 0 and \
-                     select_profiling.get_counter("select/cpu_time") == 0)
+                     tablet_profiling.get_counter("select/cpu_time") == 0)
 
-        actual = select_rows("* from [//tmp/t]")
+        actual = select_rows("* from [{}]".format(table_path))
         assert_items_equal(actual, rows)
 
         wait(lambda: get_all_counters("row_count") == (1, 1, 1, 1, 1, 1) and \
                      get_all_counters("data_weight") == (10, 25, 10, 25, 10, 10) and \
                      tablet_profiling.get_counter("lookup/cpu_time") > 0 and \
-                     select_profiling.get_counter("select/cpu_time") > 0)
+                     tablet_profiling.get_counter("select/cpu_time") > 0)
 
     @authors("gridem")
     def test_sorted_default_enabled_tablet_node_profiling(self):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t_unique_name")
-        sync_mount_table("//tmp/t_unique_name")
 
-        table_profiling = self._get_table_profiling("//tmp/t_unique_name")
+        table_path = "//tmp/{}".format(generate_uuid())
+        self._create_simple_table(table_path)
+        sync_mount_table(table_path)
+
+        table_profiling = self._get_table_profiling(table_path)
 
         def get_all_counters(count_name):
             return (
@@ -94,13 +97,13 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 
         rows = [{"key": 1, "value": "2"}]
         keys = [{"key": 1}]
-        insert_rows("//tmp/t_unique_name", rows)
+        insert_rows(table_path, rows)
 
         wait(lambda: get_all_counters("row_count") == (0, 1, 1) and \
                      get_all_counters("data_weight") == (0, 10, 10) and \
                      table_profiling.get_counter("lookup/cpu_time") == 0)
 
-        actual = lookup_rows("//tmp/t_unique_name", keys)
+        actual = lookup_rows(table_path, keys)
         assert_items_equal(actual, rows)
 
         wait(lambda: get_all_counters("row_count") == (1, 1, 1) and \
