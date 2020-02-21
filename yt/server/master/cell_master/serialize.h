@@ -118,7 +118,7 @@ DEFINE_ENUM(EMasterReign,
     ((DestroyedChunkRemovalFix)                                     (1110))  // aleksandra-zh
     ((YT_12145_FixReplicatedTablesCopy_19_8)                        (1111))  // babenko
     ((YT_12139_FixDoublePrepare)                                    (1112))  // babenko
-    ((FixDoBranch)                                                  (1113))  // aleksandra-zh
+    ((FixDoBranch_19_8)                                             (1113))  // aleksandra-zh
     ((YT_11951_FixMountLock)                                        (1114))  // savrus
     ((TruncateJournals)                                             (1200))  // aleksandra-zh
     ((PrevRandomSeed)                                               (1201))  // aleksandra-zh
