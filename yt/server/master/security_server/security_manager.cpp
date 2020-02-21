@@ -2136,7 +2136,7 @@ private:
         MustInitializeAccountHierarchy_ = context.GetVersion() < EMasterReign::HierarchicalAccounts;
 
         // COMPAT(aleksandra-zh)
-        MustInitializeMasterMemoryLimits_ = context.GetVersion() < EMasterReign::MasterMemoryUsageAccounting;
+        MustInitializeMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountMasterMemoryUsage;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
