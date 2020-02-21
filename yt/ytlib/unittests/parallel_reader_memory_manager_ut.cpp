@@ -13,12 +13,26 @@ namespace {
 
 constexpr auto WaitIterationCount = 50;
 constexpr auto WaitIterationDuration = TDuration::MilliSeconds(5);
+constexpr auto AssertIterationCount = 75;
+constexpr auto AssertIterationDuration = TDuration::MilliSeconds(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void WaitTestPredicate(std::function<bool()> predicate)
 {
     WaitForPredicate(predicate, WaitIterationCount, WaitIterationDuration);
+}
+
+void AssertOverTime(std::function<bool()> predicate)
+{
+    for (int iteration = 0; iteration < AssertIterationCount; ++iteration) {
+        if (!predicate()) {
+            THROW_ERROR_EXCEPTION("Assert over time failed");
+        }
+        if (iteration + 1 < AssertIterationCount) {
+            Sleep(AssertIterationDuration);
+        }
+    }
 }
 
 TEST(TestParallelReaderMemoryManager, TestMemoryManagerAllocatesDesiredMemorySizeIfPossible)
@@ -61,8 +75,7 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerGetsMemory)
 
     EXPECT_EQ(reader1->GetAvailableSize(), 200);
     auto acquire2 = reader1->AsyncAquire(201);
-    Sleep(TDuration::MilliSeconds(100));
-    ASSERT_FALSE(acquire2.IsSet());
+    AssertOverTime([&] () { return !acquire2.IsSet(); });
 }
 
 TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerRevokesMemory)
@@ -92,8 +105,7 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerRevokesMemory)
     EXPECT_EQ(reader2->GetAvailableSize(), 50);
 
     auto acquire2 = reader2->AsyncAquire(51);
-    Sleep(TDuration::MilliSeconds(50));
-    ASSERT_FALSE(acquire2.IsSet());
+    AssertOverTime([&] () { return !acquire2.IsSet(); });
 }
 
 TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerUnregister)
@@ -110,16 +122,15 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerUnregister)
 
     auto reader2 = memoryManager->CreateChunkReaderMemoryManager();
     reader2->SetPrefetchMemorySize(100);
-    Sleep(TDuration::MilliSeconds(50));
-    EXPECT_EQ(reader2->GetReservedMemorySize(), 0);
+    AssertOverTime([&] () { return reader2->GetReservedMemorySize() == 0; });
 
     {
         auto allocation = reader1->AsyncAquire(100);
         NConcurrency::WaitFor(allocation).ValueOrThrow();
         reader1->Finalize();
-        Sleep(TDuration::MilliSeconds(50));
-        EXPECT_EQ(reader1->GetReservedMemorySize(), 100);
-        EXPECT_EQ(reader2->GetReservedMemorySize(), 0);
+        AssertOverTime([&] () {
+            return reader1->GetReservedMemorySize() == 100 && reader2->GetReservedMemorySize() == 0;
+        });
     }
 
     WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 100; });
@@ -159,8 +170,9 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerFreesMemoryAfterUnregiste
     auto reader2 = memoryManager->CreateChunkReaderMemoryManager();
     reader2->SetRequiredMemorySize(80);
     reader2->SetPrefetchMemorySize(80);
-    EXPECT_EQ(reader1->GetReservedMemorySize(), 100);
-    EXPECT_EQ(reader2->GetReservedMemorySize(), 0);
+    AssertOverTime([&] () {
+        return reader1->GetReservedMemorySize() == 100 && reader2->GetReservedMemorySize() == 0;
+    });
 
     reader1->Finalize();
     WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 100; });
@@ -211,7 +223,7 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerBalancing2)
     auto reader3 = memoryManager->CreateChunkReaderMemoryManager();
     reader3->SetRequiredMemorySize(50);
     reader3->SetPrefetchMemorySize(100'000);
-    EXPECT_EQ(reader3->GetReservedMemorySize(), 0);
+    AssertOverTime([&] () { return reader3->GetReservedMemorySize() == 0; });
 
     reader2->Finalize();
     WaitTestPredicate([&] () { return reader3->GetReservedMemorySize() == 20; });
@@ -219,7 +231,7 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerBalancing2)
     auto reader4 = memoryManager->CreateChunkReaderMemoryManager();
     reader4->SetRequiredMemorySize(50);
     reader4->SetPrefetchMemorySize(100'000);
-    EXPECT_EQ(reader4->GetReservedMemorySize(), 0);
+    AssertOverTime([&] () { return reader4->GetReservedMemorySize() == 0; });
 
     reader1->Finalize();
     WaitTestPredicate([&] () { return reader3->GetReservedMemorySize() == 50; });
@@ -243,8 +255,8 @@ TEST(TestParallelReaderMemoryManager, TestInitialMemorySize)
 
     auto reader3 = memoryManager->CreateChunkReaderMemoryManager(50);
     WaitTestPredicate([&] () { return reader3->GetReservedMemorySize() == 39; });
-    EXPECT_EQ(reader1->GetReservedMemorySize(), 1);
-    EXPECT_EQ(reader2->GetReservedMemorySize(), 60);
+    WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 1; });
+    WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 60; });
 }
 
 TEST(TestParallelReaderMemoryManager, TestTotalSize)
@@ -264,7 +276,7 @@ TEST(TestParallelReaderMemoryManager, TestTotalSize)
     reader1->SetTotalSize(70);
 
     WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 70; });
-    EXPECT_EQ(reader2->GetReservedMemorySize(), 30);
+    WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 30; });
 }
 
 TEST(TestParallelReaderMemoryManager, TestRequiredMemorySizeNeverDecreases)
@@ -283,9 +295,9 @@ TEST(TestParallelReaderMemoryManager, TestRequiredMemorySizeNeverDecreases)
     auto reader2 = memoryManager->CreateChunkReaderMemoryManager();
     reader2->SetRequiredMemorySize(50);
 
-    Sleep(TDuration::MilliSeconds(50));
-    ASSERT_EQ(reader1->GetReservedMemorySize(), 100);
-    ASSERT_EQ(reader2->GetReservedMemorySize(), 0);
+    AssertOverTime([&] () {
+        return reader1->GetReservedMemorySize() == 100 && reader2->GetReservedMemorySize() == 0;
+    });
 }
 
 TEST(TestParallelReaderMemoryManager, PerformanceAndStressTest)
