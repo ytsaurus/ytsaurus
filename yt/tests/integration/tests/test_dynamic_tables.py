@@ -1571,7 +1571,15 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         set("//tmp/t/@account", "test_account")
         sync_mount_table("//tmp/t")
 
-        self._multicell_set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
+        set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
+        def _wait_func(driver):
+            limits = get("//sys/accounts/test_account/@resource_limits", driver=driver)
+            if resource == "chunk_count":
+                return limits["chunk_count"] == 0
+            else:
+                return limits["disk_space"] == 0
+        self._multicell_wait(lambda driver: lambda: _wait_func(driver))
+
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
         sync_flush_table("//tmp/t")
 
