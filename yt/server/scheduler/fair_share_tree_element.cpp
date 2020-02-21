@@ -2456,7 +2456,8 @@ TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limi
         }
         return usage * GetMinResourceRatio(limit, usage);
     } else {
-        auto remainingDemand = ResourceDemand() - usage;
+        // Hotfix while YT-12329 is not done.
+        auto remainingDemand = Max(TJobResources(), ResourceDemand() - usage);
         if (remainingDemand == TJobResources()) {
             if (logDetailedInfo) {
                 YT_LOG_DEBUG("XXX Zero additional demand");
