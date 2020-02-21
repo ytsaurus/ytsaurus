@@ -1313,6 +1313,9 @@ private:
         if (NetworkProjectId_) {
             if (!Config_->TestNetwork) {
                 const auto& nodeAddresses = Bootstrap_->GetResolvedNodeAddresses();
+                if (nodeAddresses.empty()) {
+                    THROW_ERROR_EXCEPTION("No resolved IPv6 node addresses found");
+                }
                 proxyConfig->NetworkAddresses.reserve(nodeAddresses.size());
                 for (const auto& address : nodeAddresses) {
                     proxyConfig->NetworkAddresses.emplace_back(TMtnAddress{address}
