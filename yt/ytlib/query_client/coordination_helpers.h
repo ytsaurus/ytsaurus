@@ -456,7 +456,8 @@ std::vector<TSharedRange<TRowRange>> SplitTablet(
     });
 
     auto iterate = [&] (auto onRanges, auto onSamples) {
-        for (auto [partitionIt, beginIt, endIt] : groupedByPartitions) {
+        for (const auto& partitionInfo : groupedByPartitions) {
+            auto [partitionIt, beginIt, endIt] = partitionInfo;
             const auto& partition = *partitionIt;
 
             TRowRange partitionBounds(GetPivotKey(partition), GetNextPivotKey(partition));
