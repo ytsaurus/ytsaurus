@@ -287,7 +287,7 @@ class YTInstance(object):
         self.scheduler_count = scheduler_count
         self.defer_scheduler_start = defer_scheduler_start
         if controller_agent_count is None:
-            if self.abi_version >= (19, 3) and scheduler_count > 0:
+            if scheduler_count > 0:
                 controller_agent_count = 1
             else:
                 controller_agent_count = 0
@@ -924,7 +924,7 @@ class YTInstance(object):
         for i in xrange(len(self.configs[name])):
             args = None
             cgroup_paths = None
-            if self.abi_version[0] == 19:
+            if self.abi_version[0] >= 19:
                 args = [_get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)]
                 if self._kill_child_processes:
                     args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
