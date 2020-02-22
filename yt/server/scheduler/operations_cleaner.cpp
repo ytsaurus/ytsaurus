@@ -882,7 +882,8 @@ private:
                     TryArchiveOperations(batch);
                 } catch (const std::exception& ex) {
                     int pendingCount = ArchivePendingCounter_.GetCurrent();
-                    error = TError("Failed to archive operations (PendingCount: %v)", pendingCount)
+                    error = TError("Failed to archive operations")
+                        << TErrorAttribute("pending_count", pendingCount)
                         << ex;
                     YT_LOG_WARNING(error);
                     Profiler.Increment(ArchiveErrorCounter_, 1);
