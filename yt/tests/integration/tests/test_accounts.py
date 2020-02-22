@@ -1357,6 +1357,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
     @authors("aleksandra-zh")
     def test_master_memory_usage_violate_limits(self):
+        set("//sys/@config/security_manager/enable_master_memory_usage_validation", True)
         create_account("a")
         create("table", "//tmp/t", attributes={"account": "a"})
         set("//sys/accounts/a/@resource_limits/master_memory_usage", 0)
