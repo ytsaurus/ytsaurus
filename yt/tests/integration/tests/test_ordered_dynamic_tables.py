@@ -98,7 +98,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         with pytest.raises(YtError): insert_rows("//tmp/t", rows)
 
     @authors("gridem")
-    def test_ordered_tablet_node_profiling(self):
+    def DISABLED_test_ordered_tablet_node_profiling(self):
         sync_create_cells(1)
 
         table_path = "//tmp/{}".format(generate_uuid())
