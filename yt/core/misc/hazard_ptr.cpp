@@ -2,6 +2,8 @@
 
 #include <yt/core/misc/lock_free_stack.h>
 #include <yt/core/misc/small_vector.h>
+#include <yt/core/misc/intrusive_linked_list.h>
+#include <yt/core/misc/ring_queue.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/fiber_api.h>
