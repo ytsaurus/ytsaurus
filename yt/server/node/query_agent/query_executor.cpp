@@ -207,13 +207,13 @@ public:
     ~TProfilingReaderWrapper()
     {
         auto statistics = GetDataStatistics();
-        auto decompressionCputTime = GetDecompressionStatistics().GetTotalDuration();
+        auto decompressionCpuTime = GetDecompressionStatistics().GetTotalDuration();
         auto& counters = GetLocallyGloballyCachedValue<TSelectReadProfilerTrait>(Tags_);
         TabletNodeProfiler.Increment(counters.RowCount, statistics.row_count());
         TabletNodeProfiler.Increment(counters.DataWeight, statistics.data_weight());
         TabletNodeProfiler.Increment(counters.UnmergedRowCount, statistics.unmerged_row_count());
         TabletNodeProfiler.Increment(counters.UnmergedDataWeight, statistics.unmerged_data_weight());
-        TabletNodeProfiler.Increment(counters.DecompressionCpuTime, DurationToValue(decompressionCputTime));
+        TabletNodeProfiler.Increment(counters.DecompressionCpuTime, DurationToValue(decompressionCpuTime));
     }
 };
 
