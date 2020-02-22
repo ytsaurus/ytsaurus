@@ -179,7 +179,7 @@ private:
     NProfiling::TTagIdList Tags_;
 
 public:
-    TProfilingReaderWrapper(ISchemafulReaderPtr underlying, NProfiling::TTagIdList tags)
+    TProfilingReaderWrapper(ISchemafulReaderPtr underlying, const NProfiling::TTagIdList& tags)
         : Underlying_(std::move(underlying))
         , Tags_(tags)
     { }
