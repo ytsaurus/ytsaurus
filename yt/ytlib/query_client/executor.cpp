@@ -514,18 +514,8 @@ private:
             rowBuffer,
             Logger);
 
-        // Should be already sorted.
-        YT_LOG_DEBUG("Sorting splits (SplitCount: %v)", allSplits.size());
-
-        for (auto it = allSplits.begin(), itEnd = allSplits.end(); it + 1 < itEnd; ++it) {
-            const TDataRanges& lhs = it->first;
-            const TDataRanges& rhs = (it + 1)->first;
-
-            const auto& lhsValue = lhs.Ranges ? lhs.Ranges.Back().second : lhs.Keys.Back();
-            const auto& rhsValue = rhs.Ranges ? rhs.Ranges.Front().first : rhs.Keys.Front();
-
-            YT_QL_CHECK(lhsValue <= rhsValue);
-        }
+        // Splits are ordered by tablet bounds.
+        YT_LOG_DEBUG("Got splits (SplitCount: %v)", allSplits.size());
 
         return DoCoordinateAndExecute(
             query,
