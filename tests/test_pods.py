@@ -2,6 +2,7 @@ from . import templates
 
 from .conftest import (
     ZERO_RESOURCE_REQUESTS,
+    are_pods_assigned,
     create_nodes,
     create_pod_set,
     create_pod_set_with_quota,
@@ -23,6 +24,9 @@ import yt.common
 from yt.packages.six.moves import xrange
 
 import pytest
+
+import ipaddress
+import codecs
 
 
 @pytest.mark.usefixtures("yp_env_configurable")
@@ -1377,3 +1381,68 @@ class TestPods(object):
         yp_env.sync_access_control()
 
         templates.network_project_permissions_test_template(yp_env, "pod", project_id, spec, meta, user_id)
+
+    def test_nonces_dont_overcommit(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        pod_count = 10
+        address_count = 100
+
+        vlan_id = "backbone"
+        network_project_id = yp_client.create_object("network_project", {
+            "meta": {"id": "somenet"},
+            "spec": {"project_id": 42},
+        })
+
+        address_requests = [
+            {"vlan_id": vlan_id, "network_id": network_project_id}
+            for _ in xrange(100)
+        ]
+
+        def _create_pods():
+            return [
+                create_pod_with_boilerplate(
+                    yp_client,
+                    pod_set_id,
+                    spec={
+                        "ip6_address_requests": address_requests,
+                        "enable_scheduling": True,
+                    },
+                    transaction_id=transaction_id
+                ) for _ in xrange(pod_count)]
+
+        MULTIPLIER = 2 ** 16
+
+        def _get_nonce_from_address(address):
+            # ipaddress.ip_address(...) takes the object of type 'unicode' in Python2 and the object of type 'str' in Python3.
+            # This transforms address as required.
+            address_unicode = address.encode("utf-8").decode("utf-8")
+
+            nonce_coded = ipaddress.ip_address(address_unicode).packed[12:16]
+            nonce_multiplied = int(codecs.encode(nonce_coded, 'hex'), 16)
+
+            # Nonce is ip6_address is always multiplied by 2 ** 16.
+            assert nonce_multiplied % MULTIPLIER == 0
+
+            return nonce_multiplied // MULTIPLIER
+
+        create_nodes(yp_client, 1)
+        pod_set_id = create_pod_set(yp_client)
+
+        transaction_id = yp_client.start_transaction()
+        pod_ids = _create_pods()
+        yp_client.commit_transaction(transaction_id)
+
+        wait(lambda: are_pods_assigned(yp_client, pod_ids))
+
+        nonces = set()
+
+        address_allocations_responce = yp_client.get_objects("pod", pod_ids, selectors=["/status/ip6_address_allocations"])
+
+        for address_allocations in address_allocations_responce:
+            pod_address_allocations = address_allocations[0]
+            assert len(pod_address_allocations) == address_count
+            for address_allocation in pod_address_allocations:
+                nonce = _get_nonce_from_address(address_allocation["address"])
+                assert nonce not in nonces
+                nonces.add(nonce)

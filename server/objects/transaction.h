@@ -2,6 +2,8 @@
 
 #include "persistence.h"
 
+#include <yp/server/net/public.h>
+
 #include <yp/client/api/proto/object_service.pb.h>
 
 #include <yt/client/api/public.h>
@@ -332,6 +334,9 @@ public:
     TPodDisruptionBudget* GetPodDisruptionBudget(const TObjectId& id);
 
     TIP4AddressPool* GetIP4AddressPool(const TObjectId& id);
+
+    void AllocateNonce(NNet::TNonce nonce);
+    bool HasAllocatedNonce(NNet::TNonce nonce);
 
     TFuture<TTransactionCommitResult> Commit();
     void Abort();

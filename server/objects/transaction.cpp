@@ -1248,6 +1248,16 @@ public:
         }
     }
 
+    void AllocateNonce(NNet::TNonce nonce)
+    {
+        YT_VERIFY(AllocatedNonces_.insert(nonce).second);
+    }
+
+    bool HasAllocatedNonce(NNet::TNonce nonce)
+    {
+        return AllocatedNonces_.contains(nonce);
+    }
+
 
     TAsyncSemaphoreGuard AcquireLock()
     {
@@ -2559,6 +2569,7 @@ private:
     THashSet<TNode*> NodesAwaitingResourceValidation_;
     THashSet<TPod*> PodsAwaitingSpecUpdate_;
     THashSet<TPod*> PodsAwaitingAccountingValidation_;
+    THashSet<NNet::TNonce> AllocatedNonces_;
 
 
     static TEnumIndexedVector<EObjectType, TObjectId> BuildTypeToSchemaIdMap()
@@ -3635,6 +3646,16 @@ TPodDisruptionBudget* TTransaction::GetPodDisruptionBudget(const TObjectId& id)
 TIP4AddressPool* TTransaction::GetIP4AddressPool(const TObjectId& id)
 {
     return Impl_->GetIP4AddressPool(id);
+}
+
+void TTransaction::AllocateNonce(NNet::TNonce nonce)
+{
+    Impl_->AllocateNonce(nonce);
+}
+
+bool TTransaction::HasAllocatedNonce(NNet::TNonce nonce)
+{
+    return Impl_->HasAllocatedNonce(nonce);
 }
 
 TFuture<TTransactionCommitResult> TTransaction::Commit()

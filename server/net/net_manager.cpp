@@ -652,6 +652,10 @@ private:
             session->ScheduleLoad(
                 [&] (ILoadContext* context) mutable {
                     for (auto candidate : candidates) {
+                        // NB: Optimisation check for neсessity to lookup the table. We want to prevent nonce overcommit.
+                        if (transaction->HasAllocatedNonce(candidate)) {
+                            continue;
+                        }
                         context->ScheduleLookup(
                             &IP6NoncesTable,
                             ToUnversionedValues(
@@ -660,8 +664,11 @@ private:
                                 candidate),
                             MakeArray<const TDBField*>(),
                             [&, candidate = candidate] (const std::optional<TRange<TVersionedValue>>& optionalValues) {
-                                if (!optionalValues) {
-                                    nonceSet.insert(candidate);
+                                // NB: Extra lookup nonces allocated in this transaction for thread safety.
+                                if (!transaction->HasAllocatedNonce(candidate) && !optionalValues) {
+                                    if (nonceSet.insert(candidate).second) {
+                                        transaction->AllocateNonce(candidate);
+                                    }
                                 }
                             });
                     }
