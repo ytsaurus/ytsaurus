@@ -32,7 +32,8 @@ std::reverse_iterator<TIter> BinarySearchReverse(
     return result1;
 }
 
-TEST(AlgorithmHelpers, BinarySearch) {
+TEST(TAlgorithmHelpersTest, BinarySearch)
+{
     {
         std::vector<TString> v;
         auto it = LowerBound(v.begin(), v.end(), "test");
@@ -71,7 +72,8 @@ TEST(AlgorithmHelpers, BinarySearch) {
     }
 }
 
-TEST(AlgorithmHelpers, BinarySearchReverse) {
+TEST(TAlgorithmHelpersTest, BinarySearchReverse)
+{
     {
         int data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
@@ -88,7 +90,8 @@ TEST(AlgorithmHelpers, BinarySearchReverse) {
     }
 }
 
-TEST(AlgorithmHelpers, ExponentialSearch) {
+TEST(TAlgorithmHelpersTest, ExponentialSearch)
+{
     {
         int data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
