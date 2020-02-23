@@ -8,7 +8,8 @@ TArenaPool::TArenaPool(
     size_t rank,
     size_t batchSize,
     IMemoryUsageTrackerPtr memoryTracker)
-    : ChunkSize_(NYTAlloc::SmallRankToSize[rank])
+    : TDeleterBase(&Deallocate)
+    , ChunkSize_(NYTAlloc::SmallRankToSize[rank])
     , BatchSize_(batchSize)
     , MemoryTracker_(std::move(memoryTracker))
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
@@ -100,31 +101,24 @@ TSlabAllocator::TSlabAllocator(IMemoryUsageTrackerPtr memoryTracker)
 
 void* TSlabAllocator::Allocate(size_t size)
 {
-    size += sizeof(TArenaPool*);
-
-    TArenaPool* arena = nullptr;
     void* ptr = nullptr;
     if (size < NYTAlloc::LargeSizeThreshold) {
         auto rank = NYTAlloc::SizeToSmallRank(size);
-        arena = SmallArenas_[rank].get();
-        ptr = arena->Allocate();
+        ptr = SmallArenas_[rank]->Allocate();
     } else {
         ptr = NYTAlloc::Allocate(size);
     }
 
-    auto* header = static_cast<TArenaPool**>(ptr);
-    *header = arena;
-    return header + 1;
+    return ptr;
 }
 
-void TSlabAllocator::Free(void* ptr)
+TDeleterBase* TSlabAllocator::GetDeleter(size_t size)
 {
-    auto* header = static_cast<TArenaPool**>(ptr) - 1;
-    auto* arena = *header;
-    if (arena) {
-        arena->Free(header);
+    if (size < NYTAlloc::LargeSizeThreshold) {
+        auto rank = NYTAlloc::SizeToSmallRank(size);
+        return SmallArenas_[rank].get();
     } else {
-        NYTAlloc::Free(header);
+        return &DefaultDeleter;
     }
 }
 

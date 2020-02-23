@@ -10,35 +10,35 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class TAlloc>
-TLockFreeHashTable<T, TAlloc>::TLockFreeHashTable(size_t maxElementCount)
+template <class T>
+TLockFreeHashTable<T>::TLockFreeHashTable(size_t maxElementCount)
     : Size_(maxElementCount * HashTableExpansionFactor)
     , HashTable_(new std::atomic<TEntry>[Size_]())
 { }
 
-template <class T, class TAlloc>
-TLockFreeHashTable<T, TAlloc>::~TLockFreeHashTable()
+template <class T>
+TLockFreeHashTable<T>::~TLockFreeHashTable()
 {
     for (size_t index = 0; index < Size_; ++index) {
         auto tableEntry = HashTable_[index].load(std::memory_order_relaxed);
         auto stamp = StampFromEntry(tableEntry);
         if (stamp != 0) {
             ScheduleObjectDeletion(ValueFromEntry(tableEntry), [] (void* ptr) {
-                ReleaseRef<TAlloc>(static_cast<T*>(ptr));
+                ReleaseRef(static_cast<T*>(ptr));
             });
         }
     }
 }
 
-template <class T, class TAlloc>
-size_t TLockFreeHashTable<T, TAlloc>::GetByteSize() const
+template <class T>
+size_t TLockFreeHashTable<T>::GetByteSize() const
 {
     return sizeof(std::atomic<TEntry>) * Size_;
 }
 
-template <class T, class TAlloc>
+template <class T>
 template <class TCallback>
-void TLockFreeHashTable<T, TAlloc>::ForEach(TCallback callback)
+void TLockFreeHashTable<T>::ForEach(TCallback callback)
 {
     for (size_t index = 0; index < Size_; ++index) {
         auto tableEntry = HashTable_[index].load(std::memory_order_relaxed);
@@ -49,8 +49,8 @@ void TLockFreeHashTable<T, TAlloc>::ForEach(TCallback callback)
     }
 }
 
-template <class T, class TAlloc>
-size_t TLockFreeHashTable<T, TAlloc>::GetLoadFactor()
+template <class T>
+size_t TLockFreeHashTable<T>::GetLoadFactor()
 {
     size_t result = 0;
     for (size_t index = 0; index < Size_; ++index) {
@@ -62,8 +62,8 @@ size_t TLockFreeHashTable<T, TAlloc>::GetLoadFactor()
     return result;
 }
 
-template <class T, class TAlloc>
-bool TLockFreeHashTable<T, TAlloc>::Update(TFingerprint fingerprint, TValuePtr value)
+template <class T>
+bool TLockFreeHashTable<T>::Update(TFingerprint fingerprint, TValuePtr value)
 {
     auto index = IndexFromFingerprint(fingerprint) % Size_;
     auto stamp = StampFromFingerprint(fingerprint);
@@ -91,7 +91,7 @@ bool TLockFreeHashTable<T, TAlloc>::Update(TFingerprint fingerprint, TValuePtr v
                 item.Reset();
 
                 ScheduleObjectDeletion(ValueFromEntry(oldElement), [] (void* ptr) {
-                    ReleaseRef<TAlloc>(static_cast<T*>(ptr));
+                    ReleaseRef(static_cast<T*>(ptr));
                 });
 
                 return true;
@@ -108,8 +108,8 @@ bool TLockFreeHashTable<T, TAlloc>::Update(TFingerprint fingerprint, TValuePtr v
     return false;
 }
 
-template <class T, class TAlloc>
-bool TLockFreeHashTable<T, TAlloc>::Insert(TFingerprint fingerprint, TValuePtr value)
+template <class T>
+bool TLockFreeHashTable<T>::Insert(TFingerprint fingerprint, TValuePtr value)
 {
     auto index = IndexFromFingerprint(fingerprint) % Size_;
     auto stamp = StampFromFingerprint(fingerprint);
@@ -151,9 +151,9 @@ bool TLockFreeHashTable<T, TAlloc>::Insert(TFingerprint fingerprint, TValuePtr v
     return false;
 }
 
-template <class T, class TAlloc>
+template <class T>
 template <class TKey>
-TRefCountedPtr<T, TAlloc> TLockFreeHashTable<T, TAlloc>::Find(TFingerprint fingerprint, const TKey& key)
+TRefCountedPtr<T> TLockFreeHashTable<T>::Find(TFingerprint fingerprint, const TKey& key)
 {
     auto index = IndexFromFingerprint(fingerprint) % Size_;
     auto stamp = StampFromFingerprint(fingerprint);
@@ -189,38 +189,38 @@ TRefCountedPtr<T, TAlloc> TLockFreeHashTable<T, TAlloc>::Find(TFingerprint finge
     return nullptr;
 }
 
-template <class T, class TAlloc>
-typename TLockFreeHashTable<T, TAlloc>::TStamp
-    TLockFreeHashTable<T, TAlloc>::StampFromEntry(TEntry entry)
+template <class T>
+typename TLockFreeHashTable<T>::TStamp
+    TLockFreeHashTable<T>::StampFromEntry(TEntry entry)
 {
     return entry >> ValueLog;
 }
 
-template <class T, class TAlloc>
-T* TLockFreeHashTable<T, TAlloc>::ValueFromEntry(TEntry entry)
+template <class T>
+T* TLockFreeHashTable<T>::ValueFromEntry(TEntry entry)
 {
     return reinterpret_cast<T*>(entry & ((1ULL << ValueLog) - 1));
 }
 
-template <class T, class TAlloc>
-typename TLockFreeHashTable<T, TAlloc>::TEntry
-    TLockFreeHashTable<T, TAlloc>::MakeEntry(TStamp stamp, T* value)
+template <class T>
+typename TLockFreeHashTable<T>::TEntry
+    TLockFreeHashTable<T>::MakeEntry(TStamp stamp, T* value)
 {
     YT_ASSERT(stamp != 0);
     YT_ASSERT(StampFromEntry(reinterpret_cast<TEntry>(value)) == 0);
     return (static_cast<TEntry>(stamp) << ValueLog) | reinterpret_cast<TEntry>(value);
 }
 
-template <class T, class TAlloc>
-size_t TLockFreeHashTable<T, TAlloc>::IndexFromFingerprint(TFingerprint fingerprint)
+template <class T>
+size_t TLockFreeHashTable<T>::IndexFromFingerprint(TFingerprint fingerprint)
 {
     // TODO(lukyan): Use higher bits of fingerprint. Lower are used by stamp.
     return fingerprint;
 }
 
-template <class T, class TAlloc>
-typename TLockFreeHashTable<T, TAlloc>::TStamp
-    TLockFreeHashTable<T, TAlloc>::StampFromFingerprint(TFingerprint fingerprint)
+template <class T>
+typename TLockFreeHashTable<T>::TStamp
+    TLockFreeHashTable<T>::StampFromFingerprint(TFingerprint fingerprint)
 {
     return (fingerprint << 1) | 1ULL;
 }

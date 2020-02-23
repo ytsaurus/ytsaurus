@@ -8,18 +8,18 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class TAlloc>
+template <class T>
 class TConcurrentCache
 {
 private:
-    using THashTable = TLockFreeHashTable<T, TAlloc>;
+    using THashTable = TLockFreeHashTable<T>;
 
     struct TLookupTable;
 
     void IncrementElementCount(const TRefCountedPtr<TLookupTable>& head);
 
 public:
-    using TValuePtr = TRefCountedPtr<T, TAlloc>;
+    using TValuePtr = TRefCountedPtr<T>;
 
     explicit TConcurrentCache(size_t maxElementCount);
 
@@ -59,7 +59,7 @@ public:
         TLookupAccessor(TLookupAccessor&& other);
 
         template <class TKey>
-        TRefCountedPtr<T, TAlloc> Lookup(const TKey& key, bool touch = false);
+        TRefCountedPtr<T> Lookup(const TKey& key, bool touch = false);
 
         bool Update(TFingerprint fingerprint, TValuePtr item);
 

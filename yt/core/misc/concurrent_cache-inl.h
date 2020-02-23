@@ -10,8 +10,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class TAlloc>
-struct TConcurrentCache<T, TAlloc>::TLookupTable
+template <class T>
+struct TConcurrentCache<T>::TLookupTable
     : public THashTable
 {
     std::atomic<size_t> Size = {0};
@@ -22,8 +22,8 @@ struct TConcurrentCache<T, TAlloc>::TLookupTable
     { }
 };
 
-template <class T, class TAlloc>
-void TConcurrentCache<T, TAlloc>::IncrementElementCount(const TRefCountedPtr<TLookupTable>& head)
+template <class T>
+void TConcurrentCache<T>::IncrementElementCount(const TRefCountedPtr<TLookupTable>& head)
 {
     auto elementCount = ++head->Size;
 
@@ -46,14 +46,14 @@ void TConcurrentCache<T, TAlloc>::IncrementElementCount(const TRefCountedPtr<TLo
     }
 }
 
-template <class T, class TAlloc>
-TConcurrentCache<T, TAlloc>::TConcurrentCache(size_t capacity)
+template <class T>
+TConcurrentCache<T>::TConcurrentCache(size_t capacity)
     : Capacity_(capacity)
     , Head_(CreateObject<TLookupTable>(Capacity_))
 { }
 
-template <class T, class TAlloc>
-TConcurrentCache<T, TAlloc>::~TConcurrentCache()
+template <class T>
+TConcurrentCache<T>::~TConcurrentCache()
 {
     auto head = Head_.Acquire();
 
@@ -63,8 +63,8 @@ TConcurrentCache<T, TAlloc>::~TConcurrentCache()
         head->GetLoadFactor());
 }
 
-template <class T, class TAlloc>
-TConcurrentCache<T, TAlloc>::TInsertAccessor::TInsertAccessor(
+template <class T>
+TConcurrentCache<T>::TInsertAccessor::TInsertAccessor(
     TConcurrentCache* parent,
     TRefCountedPtr<TLookupTable> primary)
     : Parent_(parent)
@@ -74,14 +74,14 @@ TConcurrentCache<T, TAlloc>::TInsertAccessor::TInsertAccessor(
     YT_VERIFY(Primary_);
 }
 
-template <class T, class TAlloc>
-TConcurrentCache<T, TAlloc>::TInsertAccessor::TInsertAccessor(TInsertAccessor&& other)
+template <class T>
+TConcurrentCache<T>::TInsertAccessor::TInsertAccessor(TInsertAccessor&& other)
     : Parent_(other.Parent_)
     , Primary_(std::move(other.Primary_))
 { }
 
-template <class T, class TAlloc>
-bool TConcurrentCache<T, TAlloc>::TInsertAccessor::Insert(TFingerprint fingerprint, TValuePtr item)
+template <class T>
+bool TConcurrentCache<T>::TInsertAccessor::Insert(TFingerprint fingerprint, TValuePtr item)
 {
     if (!Primary_->Insert(fingerprint, std::move(item))) {
         return false;
@@ -91,22 +91,22 @@ bool TConcurrentCache<T, TAlloc>::TInsertAccessor::Insert(TFingerprint fingerpri
     return true;
 }
 
-template <class T, class TAlloc>
-bool TConcurrentCache<T, TAlloc>::TInsertAccessor::Insert(TValuePtr value)
+template <class T>
+bool TConcurrentCache<T>::TInsertAccessor::Insert(TValuePtr value)
 {
     auto fingerprint = THash<T>()(value.Get());
     return Insert(fingerprint, std::move(value));
 }
 
-template <class T, class TAlloc>
-typename TConcurrentCache<T, TAlloc>::TInsertAccessor TConcurrentCache<T, TAlloc>::GetInsertAccessor()
+template <class T>
+typename TConcurrentCache<T>::TInsertAccessor TConcurrentCache<T>::GetInsertAccessor()
 {
     auto primary = Head_.Acquire();
     return TInsertAccessor(this, std::move(primary));
 }
 
-template <class T, class TAlloc>
-TConcurrentCache<T, TAlloc>::TLookupAccessor::TLookupAccessor(
+template <class T>
+TConcurrentCache<T>::TLookupAccessor::TLookupAccessor(
     TConcurrentCache* parent,
     TRefCountedPtr<TLookupTable> primary,
     TRefCountedPtr<TLookupTable> secondary)
@@ -114,15 +114,15 @@ TConcurrentCache<T, TAlloc>::TLookupAccessor::TLookupAccessor(
     , Secondary_(std::move(secondary))
 { }
 
-template <class T, class TAlloc>
-TConcurrentCache<T, TAlloc>::TLookupAccessor::TLookupAccessor(TLookupAccessor&& other)
+template <class T>
+TConcurrentCache<T>::TLookupAccessor::TLookupAccessor(TLookupAccessor&& other)
     : TInsertAccessor(std::move(other))
     , Secondary_(std::move(other.Secondary_))
 { }
 
-template <class T, class TAlloc>
+template <class T>
 template <class TKey>
-TRefCountedPtr<T, TAlloc> TConcurrentCache<T, TAlloc>::TLookupAccessor::Lookup(const TKey& key, bool touch)
+TRefCountedPtr<T> TConcurrentCache<T>::TLookupAccessor::Lookup(const TKey& key, bool touch)
 {
     auto fingerprint = THash<T>()(key);
 
@@ -150,8 +150,8 @@ TRefCountedPtr<T, TAlloc> TConcurrentCache<T, TAlloc>::TLookupAccessor::Lookup(c
     return nullptr;
 }
 
-template <class T, class TAlloc>
-bool TConcurrentCache<T, TAlloc>::TLookupAccessor::Update(TFingerprint fingerprint, TValuePtr item)
+template <class T>
+bool TConcurrentCache<T>::TLookupAccessor::Update(TFingerprint fingerprint, TValuePtr item)
 {
     auto updated = Primary_->Update(fingerprint, item);
 
@@ -166,15 +166,15 @@ bool TConcurrentCache<T, TAlloc>::TLookupAccessor::Update(TFingerprint fingerpri
     return updated;
 }
 
-template <class T, class TAlloc>
-bool TConcurrentCache<T, TAlloc>::TLookupAccessor::Update(TValuePtr value)
+template <class T>
+bool TConcurrentCache<T>::TLookupAccessor::Update(TValuePtr value)
 {
     auto fingerprint = THash<T>()(value.Get());
     return Update(fingerprint, std::move(value));
 }
 
-template <class T, class TAlloc>
-typename TConcurrentCache<T, TAlloc>::TLookupAccessor TConcurrentCache<T, TAlloc>::GetLookupAccessor()
+template <class T>
+typename TConcurrentCache<T>::TLookupAccessor TConcurrentCache<T>::GetLookupAccessor()
 {
     auto primary = Head_.Acquire();
     auto secondary = primary ? primary->Next.Acquire() : nullptr;
