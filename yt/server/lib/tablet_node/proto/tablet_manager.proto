@@ -184,6 +184,7 @@ message TReqRemoveTableReplica
     required NYT.NProto.TGuid replica_id = 2;
 }
 
+// COMPAT(babenko): replace in favor of TReqAlterTableReplica
 message TReqSetTableReplicaEnabled
 {
     required NYT.NProto.TGuid tablet_id = 1;

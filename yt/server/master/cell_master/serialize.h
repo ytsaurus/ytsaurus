@@ -86,6 +86,7 @@ DEFINE_ENUM(EMasterReign,
     ((DisableMasterMemoryUsageAccountOvercommitValidation)          (1300))  // aleksandra-zh
     ((FasterTError)                                                 (1301))  // babenko
     ((FixRootAccountLimits)                                         (1302))  // aleksandra-zh
+    ((SwitchToAlterTableReplica)                                    (1303))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
