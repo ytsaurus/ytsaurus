@@ -373,8 +373,7 @@ TTablet::TTablet(
     EAtomicity atomicity,
     ECommitOrdering commitOrdering,
     TTableReplicaId upstreamReplicaId,
-    TTimestamp retainedTimestamp,
-    bool useBuggyReplicatedSchema)
+    TTimestamp retainedTimestamp)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
@@ -404,7 +403,7 @@ TTablet::TTablet(
     , Logger(NLogging::TLogger(TabletNodeLogger)
         .AddTag("TabletId: %v", Id_))
 {
-    Initialize(useBuggyReplicatedSchema);
+    Initialize();
 }
 
 ETabletState TTablet::GetPersistentState() const
@@ -550,7 +549,7 @@ void TTablet::Load(TLoadContext& context)
 
     // NB: Stores that we're about to create may request some tablet properties (e.g. column lock count)
     // during construction. Initialize() will take care of this.
-    Initialize(context.GetVersion() < ETabletReign::SafeReplicatedLogSchema);
+    Initialize();
 
     int storeCount = TSizeSerializer::LoadSuspended(context);
     SERIALIZATION_DUMP_WRITE(context, "stores[%v]", storeCount);
@@ -1195,16 +1194,9 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     return snapshot;
 }
 
-void TTablet::Initialize(bool useBuggyReplicatedSchema)
+void TTablet::Initialize()
 {
-    YT_LOG_DEBUG_IF(IsReplicated(),
-        "Initializing replicated table tablet (BuggyReplicionLogSchema: %v)",
-        useBuggyReplicatedSchema);
-
-    // COMPAT(savrus)
-    PhysicalSchema_ = IsReplicated()
-        ? (useBuggyReplicatedSchema ? TableSchema_.ToBuggyReplicationLog() : TableSchema_.ToReplicationLog())
-        : TableSchema_;
+    PhysicalSchema_ = IsReplicated() ? TableSchema_.ToReplicationLog() : TableSchema_;
 
     PhysicalSchemaData_ = TWireProtocolReader::GetSchemaData(PhysicalSchema_);
     KeysSchemaData_ = TWireProtocolReader::GetSchemaData(PhysicalSchema_.ToKeys());

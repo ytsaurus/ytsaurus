@@ -489,17 +489,11 @@ void TSortedChunkStore::Load(TLoadContext& context)
 {
     TStoreBase::Load(context);
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::SerializeChunkReadRange) {
-        using NYT::Load;
-        Load(context, ChunkId_);
-        auto lowerBound = Load<TOwningKey>(context);
-        auto upperBound = Load<TOwningKey>(context);
-        ReadRange_ = MakeSingletonRowRange(lowerBound, upperBound);
-    } else {
-        ChunkId_ = StoreId_;
-        ReadRange_ = MakeSingletonRowRange(TKey{}, TKey{});
-    }
+    using NYT::Load;
+    Load(context, ChunkId_);
+    auto lowerBound = Load<TOwningKey>(context);
+    auto upperBound = Load<TOwningKey>(context);
+    ReadRange_ = MakeSingletonRowRange(lowerBound, upperBound);
 }
 
 TChunkStatePtr TSortedChunkStore::PrepareChunkState(

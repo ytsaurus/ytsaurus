@@ -683,11 +683,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // COMPAT(savrus)
-        if (context.GetVersion() < ETabletReign::SafeReplicatedLogSchema) {
-            Automaton_->RememberReign(static_cast<int>(context.GetVersion()));
-        }
-
         TabletMap_.LoadKeys(context);
     }
 
@@ -697,12 +692,7 @@ private:
 
         TabletMap_.LoadValues(context);
 
-        // COMPAT(savrus)
-        if (context.GetVersion() >= ETabletReign::AddTabletCellLifeState) {
-            Load(context, CellLifeStage_);
-        } else {
-            CellLifeStage_ = ETabletCellLifeStage::Running;
-        }
+        Load(context, CellLifeStage_);
     }
 
     void LoadAsync(TLoadContext& context)
@@ -919,8 +909,7 @@ private:
             atomicity,
             commitOrdering,
             upstreamReplicaId,
-            retainedTimestamp,
-            GetCurrentMutationContext()->Request().Reign < static_cast<TReign>(ETabletReign::SafeReplicatedLogSchema));
+            retainedTimestamp);
 
         tabletHolder->FillProfilerTags(Slot_->GetCellId());
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
