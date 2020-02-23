@@ -1,6 +1,7 @@
 #pragma once
 
 #include <yt/core/misc/public.h>
+#include <yt/core/misc/enum.h>
 
 namespace NYT::NContainers {
 
@@ -8,6 +9,27 @@ namespace NYT::NContainers {
 
 DEFINE_ENUM(EErrorCode,
     ((FailedToStartContainer)  (13000))
+);
+
+DEFINE_ENUM(EStatField,
+    (CpuUsageUser)
+    (CpuUsageSystem)
+    (CpuWaitTime)
+    (CpuThrottled)
+    (Rss)
+    (MappedFiles)
+    (MajorFaults)
+    (MinorFaults)
+    (MaxMemoryUsage)
+    (IOReadByte)
+    (IOWriteByte)
+    (IOOperations)
+);
+
+DEFINE_ENUM(EEnablePorto,
+    (None)
+    (Isolate)
+    (Full)
 );
 
 struct TBind

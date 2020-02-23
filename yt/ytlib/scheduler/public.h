@@ -38,13 +38,20 @@ DEFINE_ENUM(EJobFinalState,
     (Aborted)
     (Completed)
 );
+
 DEFINE_ENUM(ESchedulingDelayType,
     (Sync)
     (Async)
 );
+
 DEFINE_ENUM(EPreemptionMode,
     (Normal)
     (Graceful)
+);
+
+DEFINE_ENUM(EEnablePorto,
+    ((Isolate) (0))
+    ((None)    (1))
 );
 
 DECLARE_REFCOUNTED_CLASS(TJobIOConfig)

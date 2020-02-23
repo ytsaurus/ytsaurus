@@ -8,26 +8,9 @@
 
 #include <yt/core/actions/future.h>
 
-#include <yt/core/misc/fs.h>
-
 namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EStatField,
-    (CpuUsageUser)
-    (CpuUsageSystem)
-    (CpuWaitTime)
-    (CpuThrottled)
-    (Rss)
-    (MappedFiles)
-    (MajorFaults)
-    (MinorFaults)
-    (MaxMemoryUsage)
-    (IOReadByte)
-    (IOWriteByte)
-    (IOOperations)
-);
 
 using TUsage = TEnumIndexedVector<EStatField, TErrorOr<ui64>>;
 
@@ -67,7 +50,7 @@ struct IInstance
     virtual TString GetName() const = 0;
     virtual TString GetAbsoluteName() const = 0;
     virtual TString GetStderr() const = 0;
-    virtual void SetIsolate() = 0;
+    virtual void SetEnablePorto(EEnablePorto enablePorto) = 0;
     virtual void EnableMemoryTracking() = 0;
     virtual void SetUser(const TString& user) = 0;
     virtual void SetNet(const TString& net) = 0;

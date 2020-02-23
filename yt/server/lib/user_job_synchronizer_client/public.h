@@ -9,6 +9,8 @@ namespace NYT::NUserJobSynchronizerClient {
 DECLARE_REFCOUNTED_STRUCT(IUserJobSynchronizer)
 DECLARE_REFCOUNTED_STRUCT(IUserJobSynchronizerClient)
 
+DECLARE_REFCOUNTED_CLASS(TUserJobSynchronizer)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NUserJobSynchronizerClient
