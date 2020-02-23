@@ -9,12 +9,18 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void WaitFor(
+    TAwaitable awaitable,
+    IInvokerPtr invoker = GetCurrentInvoker());
+
 template <class T>
-[[nodiscard]] TErrorOr<T> WaitFor(TFuture<T> future, IInvokerPtr invoker = GetCurrentInvoker());
+[[nodiscard]] TErrorOr<T> WaitFor(
+    TFuture<T> future,
+    IInvokerPtr invoker = GetCurrentInvoker());
 
-inline void Yield();
+void Yield();
 
-inline void SwitchTo(IInvokerPtr invoker);
+void SwitchTo(IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

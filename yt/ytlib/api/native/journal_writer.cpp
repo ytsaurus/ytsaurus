@@ -657,7 +657,11 @@ private:
                     asyncResults.push_back(asyncRsp);
                 }
 
-                auto result = WaitFor(CombineQuorum(asyncResults, minReplicaCount));
+                auto result = WaitFor(AnyNOf(
+                    asyncResults,
+                    minReplicaCount,
+                    TSkipErrorPolicy{},
+                    TFutureCombinerOptions{.CancelInputOnShortcut = false}));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(TError(ex));

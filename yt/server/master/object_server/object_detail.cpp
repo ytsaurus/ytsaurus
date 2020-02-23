@@ -792,7 +792,7 @@ void TObjectProxyBase::ValidateAnnotation(const TString& annotation)
         return IsAsciiAlnum(c) || IsAsciiSpace(c) || IsAsciiPunct(c);
     };
 
-    if (!AllOf(annotation.begin(), annotation.end(), isAsciiText)) {
+    if (!::AllOf(annotation.begin(), annotation.end(), isAsciiText)) {
         THROW_ERROR_EXCEPTION("Only ASCII alphanumeric, white-space and punctuation characters are allowed in annotations");
     }
 }
