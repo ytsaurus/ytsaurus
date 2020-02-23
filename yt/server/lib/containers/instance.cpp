@@ -11,6 +11,7 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/collection_helpers.h>
+#include <yt/core/misc/fs.h>
 
 #include <infra/porto/api/libporto.hpp>
 
@@ -421,9 +422,9 @@ public:
         SetProperty("cpu_limit", ToString(cores) + "c");
     }
 
-    virtual void SetIsolate() override
+    virtual void SetEnablePorto(EEnablePorto enablePorto) override
     {
-        Isolate_ = true;
+        EnablePorto_ = enablePorto;
     }
 
     virtual void EnableMemoryTracking() override
@@ -505,8 +506,8 @@ public:
         }
         SetProperty("controllers", JoinToString(controllers, AsStringBuf(";")));
 
-        SetProperty("enable_porto", Isolate_ ? "isolate" : "full");
-        SetProperty("isolate", Isolate_ ? "true" : "false");
+        SetProperty("enable_porto", FormatEnablePorto(EnablePorto_));
+        SetProperty("isolate", EnablePorto_ != EEnablePorto::Full ? "true" : "false");
 
         TStringBuilder envBuilder;
         for (const auto* arg : env) {
@@ -543,7 +544,7 @@ private:
     std::vector<TFuture<void>> Actions_;
     bool Destroyed_ = false;
     bool HasRoot_ = false;
-    bool Isolate_ = false;
+    EEnablePorto EnablePorto_ = EEnablePorto::Full;
     bool RequireMemoryController_ = false;
     std::optional<TString> User_;
 
@@ -568,6 +569,16 @@ private:
         auto error = WaitFor(Combine(Actions_));
         Actions_.clear();
         return error;
+    }
+
+    static TString FormatEnablePorto(EEnablePorto value)
+    {
+        switch (value) {
+            case EEnablePorto::None:    return "none";
+            case EEnablePorto::Isolate: return "isolate";
+            case EEnablePorto::Full:    return "full";
+            default:                    YT_ABORT();
+        }
     }
 
     DECLARE_NEW_FRIEND();

@@ -741,6 +741,8 @@ public:
     //! Name of the network project to use in job.
     std::optional<TString> NetworkProject;
 
+    EEnablePorto EnablePorto;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);

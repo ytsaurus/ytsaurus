@@ -202,9 +202,11 @@ public:
         }
     }
 
-    virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const std::optional<TString>& coreHandlerSocketPath) override
+    virtual TProcessBasePtr CreateUserJobProcess(
+        const TString& path,
+        int uid,
+        const TUserJobProcessOptions& /*options*/) override
     {
-        Y_UNUSED(coreHandlerSocketPath);
         YT_VERIFY(!Process_);
 
         UserId_ = uid;
@@ -497,9 +499,12 @@ public:
         return MaxMemoryUsage_;
     }
 
-    virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const std::optional<TString>& coreHandlerSocketPath) override
+    virtual TProcessBasePtr CreateUserJobProcess(
+        const TString& path,
+        int uid,
+        const TUserJobProcessOptions& options) override
     {
-        if (coreHandlerSocketPath) {
+        if (options.CoreHandlerSocketPath) {
             // We do not want to rely on passing PATH environment to core handler container.
             auto binaryPathOrError = Instance_->HasRoot()
                 ? TErrorOr<TString>(RootFSBinaryDirectory + CoreForwarderProgramName)
@@ -507,7 +512,7 @@ public:
 
             if (binaryPathOrError.IsOK()) {
                 auto coreHandler = binaryPathOrError.Value() + " \"${CORE_PID}\" 0 \"${CORE_TASK_NAME}\""
-                    " 1 /dev/null /dev/null " + *coreHandlerSocketPath;
+                    " 1 /dev/null /dev/null " + *options.CoreHandlerSocketPath;
 
                 YT_LOG_DEBUG("Enable core forwarding for Porto container (CoreHandler: %v)",
                     coreHandler);
@@ -519,7 +524,7 @@ public:
             }
         }
 
-        Instance_->SetIsolate();
+        Instance_->SetEnablePorto(options.EnablePorto);
 
         if (UsePortoMemoryTracking_) {
             // NB(psushin): typically we don't use memory cgroups for memory usage tracking, since memory cgroups are expensive and

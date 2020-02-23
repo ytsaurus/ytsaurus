@@ -174,9 +174,10 @@ public:
             UserJobSpec_.enable_secure_vault_variables_in_job_shell())
         , MaximumTmpfsSizes_(Config_->TmpfsPaths.size())
     {
-        Synchronizer_ = New<TUserJobSynchronizer>();
         Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, Synchronizer_, AuxQueue_->GetInvoker()));
+
         JobProberClient_ = NJobProberClient::CreateJobProbe(JobSatelliteConnection_.GetRpcClientConfig(), jobId);
+
         auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
         MemoryWatchdogPeriod_ = jobEnvironmentConfig->MemoryWatchdogPeriod;
 
@@ -209,10 +210,17 @@ public:
         if (UserJobEnvironment_) {
             YT_VERIFY(host->GetConfig()->BusServer->UnixDomainSocketPath);
             YT_VERIFY(UserId_);
+
+            IUserJobEnvironment::TUserJobProcessOptions options;
+            if (UserJobSpec_.has_core_table_spec()) {
+                options.CoreHandlerSocketPath = *host->GetConfig()->BusServer->UnixDomainSocketPath;
+            }
+            options.EnablePorto = TranslateEnablePorto(CheckedEnumCast<NScheduler::EEnablePorto>(UserJobSpec_.enable_porto()));
+
             Process_ = UserJobEnvironment_->CreateUserJobProcess(
                 ExecProgramName,
                 *UserId_,
-                UserJobSpec_.has_core_table_spec() ? std::make_optional(*host->GetConfig()->BusServer->UnixDomainSocketPath) : std::nullopt);
+                options);
 
             BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
                 AuxQueue_->GetInvoker(),
@@ -410,9 +418,9 @@ private:
 
     std::vector<int> Ports_;
 
-    mutable TPromise<void> JobErrorPromise_;
+    TPromise<void> JobErrorPromise_;
 
-    EJobEnvironmentType JobEnvironmentType_;
+    const EJobEnvironmentType JobEnvironmentType_;
 
     const TThreadPoolPtr PipeIOPool_;
     const TActionQueuePtr AuxQueue_;
@@ -425,12 +433,12 @@ private:
 
     std::optional<int> UserId_;
 
-    std::atomic<bool> Prepared_ = { false };
-    std::atomic<bool> Woodpecker_ = { false };
-    std::atomic<bool> JobStarted_ = { false };
-    std::atomic<bool> InterruptionSignalSent_ = { false };
+    std::atomic<bool> Prepared_ = false;
+    std::atomic<bool> Woodpecker_ = false;
+    std::atomic<bool> JobStarted_ = false;
+    std::atomic<bool> InterruptionSignalSent_ = false;
 
-    i64 CumulativeMemoryUsageMbSec_ = 0;
+    i64 CumulativeMemoryUsageMBSec_ = 0;
 
     std::vector<std::atomic<i64>> MaximumTmpfsSizes_;
 
@@ -481,7 +489,7 @@ private:
     TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
     TPeriodicExecutorPtr InputPipeBlinker_;
 
-    TIntrusivePtr<TUserJobSynchronizer> Synchronizer_;
+    const TUserJobSynchronizerPtr Synchronizer_ = New<TUserJobSynchronizer>();
 
     TSpinLock StatisticsLock_;
     TStatistics CustomStatistics_;
@@ -491,7 +499,7 @@ private:
     std::optional<TString> FailContext_;
     std::optional<TString> Profile_;
 
-    std::atomic<bool> NotFullyConsumed_ = { false };
+    std::atomic<bool> NotFullyConsumed_ = false;
 
     void Prepare()
     {
@@ -1071,7 +1079,7 @@ private:
                 YT_LOG_WARNING(ex, "Unable to get max memory usage for user job");
             }
 
-            statistics.AddSample("/user_job/cumulative_memory_mb_sec", CumulativeMemoryUsageMbSec_);
+            statistics.AddSample("/user_job/cumulative_memory_mb_sec", CumulativeMemoryUsageMBSec_);
             statistics.AddSample("/user_job/woodpecker", Woodpecker_ ? 1 : 0);
         }
 
@@ -1371,7 +1379,7 @@ private:
         i64 memoryLimit = UserJobSpec_.memory_limit();
         i64 currentMemoryUsage = rss + std::accumulate(tmpfsSizes->begin(), tmpfsSizes->end(), 0ll);
 
-        CumulativeMemoryUsageMbSec_ += (currentMemoryUsage / 1_MB) * MemoryWatchdogPeriod_.Seconds();
+        CumulativeMemoryUsageMBSec_ += (currentMemoryUsage / 1_MB) * MemoryWatchdogPeriod_.Seconds();
 
         YT_LOG_DEBUG("Checking memory usage (Tmpfs: %v, Rss: %v, MemoryLimit: %v)",
             tmpfsSizes,
@@ -1438,7 +1446,7 @@ private:
         CleanupUserProcesses();
     }
 
-    // NB(psushin): Read st before asking questions: st/YT-5629.
+    // NB(psushin): YT-5629.
     void BlinkInputPipe() const
     {
         // This method is called after preparation and before finalization.
@@ -1449,6 +1457,15 @@ private:
             ::close(fd);
         } else {
             YT_LOG_WARNING(TError::FromSystem(), "Failed to blink input pipe (Path: %v)", InputPipePath_);
+        }
+    }
+
+    static NContainers::EEnablePorto TranslateEnablePorto(NScheduler::EEnablePorto value)
+    {
+        switch (value) {
+            case NScheduler::EEnablePorto::None:    return NContainers::EEnablePorto::None;
+            case NScheduler::EEnablePorto::Isolate: return NContainers::EEnablePorto::Isolate;
+            default:                                YT_ABORT();
         }
     }
 };

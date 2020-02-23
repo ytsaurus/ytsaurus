@@ -7731,7 +7731,7 @@ i64 TOperationControllerBase::GetDataSliceCount() const
 
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NScheduler::NProto::TUserJobSpec* jobSpec,
-    TUserJobSpecPtr config,
+    const TUserJobSpecPtr& config,
     const std::vector<TUserFile>& files,
     const TString& fileAccount)
 {
@@ -7828,6 +7828,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     jobSpec->set_write_sparse_core_dumps(GetWriteSparseCoreDumps());
+    jobSpec->set_enable_porto(static_cast<int>(config->EnablePorto));
 
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {

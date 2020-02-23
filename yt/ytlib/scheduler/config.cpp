@@ -596,6 +596,8 @@ TUserJobSpec::TUserJobSpec()
         .GreaterThan(TDuration::Zero());
     RegisterParameter("network_project", NetworkProject)
         .Default();
+    RegisterParameter("enable_porto", EnablePorto)
+        .Default(EEnablePorto::Isolate);
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {
