@@ -191,13 +191,6 @@ message TReqSetTableReplicaEnabled
     required bool enabled = 3;
 }
 
-message TReqSetTableReplicaMode
-{
-    required NYT.NProto.TGuid tablet_id = 1;
-    required NYT.NProto.TGuid replica_id = 2;
-    required int32 mode = 3; // ETableReplicaMode
-}
-
 message TReqAlterTableReplica
 {
     required NYT.NProto.TGuid tablet_id = 1;

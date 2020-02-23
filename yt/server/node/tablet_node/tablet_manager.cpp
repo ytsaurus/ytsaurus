@@ -210,7 +210,6 @@ public:
         RegisterMethod(BIND(&TImpl::HydraAddTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTableReplicaEnabled, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetTableReplicaMode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraAlterTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraDecommissionTabletCell, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabetCellDecommissioned, Unretained(this)));
@@ -1957,31 +1956,6 @@ private:
         } else {
             DisableTableReplica(tablet, replicaInfo);
         }
-    }
-
-    // COMPAT(aozeritsky)
-    void HydraSetTableReplicaMode(TReqSetTableReplicaMode* request)
-    {
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet) {
-            return;
-        }
-
-        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
-        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
-        if (!replicaInfo) {
-            return;
-        }
-
-        auto mode = ETableReplicaMode(request->mode());
-
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica mode updated (%v, ReplicaId: %v, Mode: %v)",
-            tablet->GetLoggingId(),
-            replicaInfo->GetId(),
-            mode);
-
-        replicaInfo->SetMode(mode);
     }
 
     void HydraAlterTableReplica(TReqAlterTableReplica* request)
