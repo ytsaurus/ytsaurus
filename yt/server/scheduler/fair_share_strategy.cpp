@@ -671,24 +671,25 @@ public:
 
         YT_LOG_INFO("Starting fair share update");
 
-        THashMap<TString, TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>>> asyncUpdates;
+        std::vector<TFuture<std::tuple<TString, TError, IFairShareTreeSnapshotPtr>>> futures;
         for (const auto& [treeId, tree] : IdToTree_) {
-            asyncUpdates.emplace(treeId, tree->OnFairShareUpdateAt(now));
+            futures.push_back(tree->OnFairShareUpdateAt(now).Apply(BIND([treeId = treeId] (const std::pair<IFairShareTreeSnapshotPtr, TError>& pair) {
+                const auto& [snapshot, error] = pair;
+                return std::make_tuple(treeId, error, snapshot);
+            })));
         }
 
-        auto result = WaitFor(Combine(asyncUpdates));
-        if (!result.IsOK()) {
-            Host->Disconnect(result);
+        auto resultsOrError = WaitFor(Combine(futures));
+        if (!resultsOrError.IsOK()) {
+            Host->Disconnect(resultsOrError);
             return;
         }
-
-        const auto& updateResults = result.Value();
 
         THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
         std::vector<TError> errors;
 
-        for (const auto& [treeId, updateResult] : updateResults) {
-            const auto& [snapshot, error] = updateResult;
+        const auto& results = resultsOrError.Value();
+        for (const auto& [treeId, error, snapshot] : results) {
             snapshots.emplace(treeId, snapshot);
             if (!error.IsOK()) {
                 errors.push_back(error);

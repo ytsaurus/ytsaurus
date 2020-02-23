@@ -526,8 +526,11 @@ void SetCurrentScheduler(IScheduler* scheduler)
     CurrentScheduler = scheduler;
 }
 
-void WaitForImpl(TAwaitable awaitable, IInvokerPtr invoker)
+void WaitFor(TAwaitable awaitable, IInvokerPtr invoker)
 {
+    YT_ASSERT(awaitable);
+    YT_ASSERT(invoker);
+
     if (CurrentScheduler) {
         CurrentScheduler->WaitFor(std::move(awaitable), std::move(invoker));
         return;
