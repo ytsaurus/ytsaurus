@@ -390,10 +390,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        // This shortcut prevents waiting for the (no-op) batcher at primary cell.
+        // This shortcut prevents waiting for the (no-op) batcher at primary cell leader.
         // XXX(babenko): tx cells
         if (IsPrimaryMaster()) {
-            return VoidFuture;
+            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+            return hydraManager->SyncWithLeader();
         }
 
         return UpstreamSyncBatcher_->Run();
@@ -854,21 +855,19 @@ private:
     TFuture<void> DoSyncWithUpstreamCore()
     {
         VERIFY_THREAD_AFFINITY_ANY();
+        YT_VERIFY(IsSecondaryMaster());
 
         YT_LOG_DEBUG("Synchronizing with upstream");
 
         NProfiling::TWallTimer timer;
 
-        std::vector<TFuture<void>> asyncResults;
-
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-        asyncResults.push_back(hydraManager->SyncWithLeader());
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
 
-        // XXX(babenko): tx cells
-        if (IsSecondaryMaster()) {
-            const auto& hiveManager = Bootstrap_->GetHiveManager();
-            asyncResults.push_back(hiveManager->SyncWith(GetPrimaryCellId(), false));
-        }
+        std::vector<TFuture<void>> asyncResults{
+            hydraManager->SyncWithLeader(),
+            hiveManager->SyncWith(GetPrimaryCellId(), false)
+        };
 
         // NB: Many subscribers are typically waiting for the upstream sync to complete.
         // Make sure the promise is set in a large thread pool.
