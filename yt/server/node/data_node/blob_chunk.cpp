@@ -464,11 +464,10 @@ void TBlobChunkBase::OnBlocksRead(
 bool TBlobChunkBase::ShouldSyncOnClose() const
 {
     auto blocksExt = WeakBlocksExt_.Lock();
-    if (blocksExt) {
-        return blocksExt->sync_on_close();
+    if (!blocksExt) {
+        return true;
     }
-
-    return true;
+    return blocksExt->sync_on_close();
 }
 
 TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
