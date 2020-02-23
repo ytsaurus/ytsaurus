@@ -262,13 +262,10 @@ message TRspGetChunkMeta
 
 message TReqUpdatePeer
 {
+    reserved 2;
     repeated TBlockId block_ids = 1;
-
-    // COMPAT(psushin). Deprecated. Remove once all clusters are updated.
-    optional NYT.NNodeTrackerClient.NProto.TNodeDescriptor peer_descriptor = 2;
-
     required uint64 peer_expiration_time = 3;
-    optional int32 peer_node_id = 4;
+    required int32 peer_node_id = 4;
 }
 
 message TRspUpdatePeer
