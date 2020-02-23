@@ -391,7 +391,7 @@ void TBlobChunkBase::OnBlocksRead(
             Id_)
             << TError(blocksOrError);
         if (error.FindMatching(NChunkClient::EErrorCode::IncorrectChunkFileChecksum)) {
-            if (SyncOnClose()) {
+            if (ShouldSyncOnClose()) {
                 Location_->Disable(error);
                 YT_ABORT();
             } else {
@@ -461,14 +461,10 @@ void TBlobChunkBase::OnBlocksRead(
     DoReadBlockSet(session, endEntryIndex, std::move(pendingIOGuard));
 }
 
-bool TBlobChunkBase::SyncOnClose() const
+bool TBlobChunkBase::ShouldSyncOnClose() const
 {
     auto blocksExt = WeakBlocksExt_.Lock();
     if (blocksExt) {
-        // COMPAT(gritukan)
-        if (!blocksExt->has_sync_on_close()) {
-            return true;
-        }
         return blocksExt->sync_on_close();
     }
 
