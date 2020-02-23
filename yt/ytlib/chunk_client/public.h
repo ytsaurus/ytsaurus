@@ -34,7 +34,6 @@ class TDataSource;
 class TDataSourceDirectoryExt;
 
 class TReqGetChunkMeta;
-class TRspGetChunkMeta;
 
 } // namespace NProto
 

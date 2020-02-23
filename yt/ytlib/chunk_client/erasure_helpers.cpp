@@ -634,7 +634,14 @@ TFuture<TSharedRef> TErasureChunkReaderBase::LookupRows(
     const NTableClient::TTableSchema& /*tableSchema*/,
     std::optional<i64> /*estimatedSize*/,
     std::atomic<i64>* /*uncompressedDataSize*/,
+    const NTableClient::TColumnFilter& /*columnFilter*/,
+    NTableClient::TTimestamp /*timestamp*/,
     bool /*produceAllVersions*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
+bool TErasureChunkReaderBase::IsLookupSupported() const
 {
     YT_UNIMPLEMENTED();
 }

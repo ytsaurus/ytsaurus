@@ -58,7 +58,11 @@ struct IChunkReader
         const NTableClient::TTableSchema& tableSchema,
         std::optional<i64> estimatedSize,
         std::atomic<i64>* uncompressedDataSize,
+        const NTableClient::TColumnFilter& columnFilter,
+        NTableClient::TTimestamp timestamp,
         bool produceAllVersions) = 0;
+
+    virtual bool IsLookupSupported() const = 0;
 
     virtual TChunkId GetChunkId() const = 0;
 

@@ -15,6 +15,8 @@ IVersionedReaderPtr CreateRowLookupReader(
     NChunkClient::TClientBlockReadOptions blockReadOptions,
     TSharedRange<TKey> lookupKeys,
     TTabletSnapshotPtr tabletSnapshot,
+    TColumnFilter columnFilter,
+    TTimestamp timestamp,
     bool produceAllVersions);
 
 ////////////////////////////////////////////////////////////////////////////////

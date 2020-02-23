@@ -316,6 +316,9 @@ namespace NProto {
 void ToProto(NProto::TKeyColumnsExt* protoKeyColumns, const TKeyColumns& keyColumns);
 void FromProto(TKeyColumns* keyColumns, const NProto::TKeyColumnsExt& protoKeyColumns);
 
+void ToProto(TColumnFilter* protoColumnFilter, const NTableClient::TColumnFilter& columnFilter);
+void FromProto(NTableClient::TColumnFilter* columnFilter, const TColumnFilter& protoColumnFilter);
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

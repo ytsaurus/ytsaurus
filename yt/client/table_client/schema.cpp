@@ -7,6 +7,7 @@
 #include <yt/core/ytree/yson_serializable.h>
 
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/client/table_client/proto/wire_protocol.pb.h>
 
 #include <yt/client/tablet_client/public.h>
 
@@ -1360,6 +1361,22 @@ void ToProto(TKeyColumnsExt* protoKeyColumns, const TKeyColumns& keyColumns)
 void FromProto(TKeyColumns* keyColumns, const TKeyColumnsExt& protoKeyColumns)
 {
     *keyColumns = FromProto<TKeyColumns>(protoKeyColumns.names());
+}
+
+void ToProto(TColumnFilter* protoColumnFilter, const NTableClient::TColumnFilter& columnFilter)
+{
+    if (!columnFilter.IsUniversal()) {
+        for (auto index : columnFilter.GetIndexes()) {
+            protoColumnFilter->add_indexes(index);
+        }
+    }
+}
+
+void FromProto(NTableClient::TColumnFilter* columnFilter, const TColumnFilter& protoColumnFilter)
+{
+    *columnFilter = protoColumnFilter.indexes().empty()
+        ? NTableClient::TColumnFilter()
+        : NTableClient::TColumnFilter(FromProto<NTableClient::TColumnFilter::TIndexes>(protoColumnFilter.indexes()));
 }
 
 } // namespace NProto
