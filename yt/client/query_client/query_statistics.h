@@ -11,7 +11,7 @@ namespace NYT::NQueryClient {
 struct TQueryStatistics
 {
     i64 RowsRead = 0;
-    i64 BytesRead = 0;
+    i64 DataWeightRead = 0;
     i64 RowsWritten = 0;
     TDuration SyncTime;
     TDuration AsyncTime;

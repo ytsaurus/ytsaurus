@@ -7,7 +7,7 @@ option python_package = "yt_proto.yt.client.query_client.proto";
 message TQueryStatistics
 {
     required int64 rows_read = 1;
-    optional int64 bytes_read = 11 [ default = 0 ];
+    optional int64 data_weight_read = 11;
     required int64 rows_written = 2;
     required uint64 sync_time = 3;
     required uint64 async_time = 4;
