@@ -404,8 +404,6 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
                 })
         assert not exists("//tmp/t")
 
-################################################################################
-
 class TestSortedDynamicTablesMountUnmountFreezeMulticell(TestSortedDynamicTablesMountUnmountFreeze):
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -725,8 +723,6 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
             {"name": "value", "type": "string"}])
         with pytest.raises(YtError): alter_table("//tmp/t2", dynamic=True)
 
-################################################################################
-
 class TestSortedDynamicTablesCopyReshardMulticell(TestSortedDynamicTablesCopyReshard):
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -808,8 +804,6 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
     def test_delete_denied(self):
         self._prepare_denied("write")
         with pytest.raises(YtError): delete_rows("//tmp/t", [{"key": 1}], authenticated_user="u")
-
-################################################################################
 
 class TestSortedDynamicTablesAclMulticell(TestSortedDynamicTablesAcl):
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1047,8 +1041,6 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
 
         with pytest.raises(YtError): write_table("//tmp/t", [{"key": 1, "value": 2}])
 
-################################################################################
-
 class TestSortedDynamicTablesReadTableMulticell(TestSortedDynamicTablesReadTable):
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -1214,8 +1206,6 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
         expected = [{"key1": 1, "key2": 1, "value1": "4", "value2": "3"}]
         actual = lookup_rows("//tmp/t", [{"key2" : 1}])
         assert_items_equal(actual, expected)
-
-################################################################################
 
 class TestSortedDynamicTablesSpecialColumnsMulticell(TestSortedDynamicTablesSpecialColumns):
     NUM_SECONDARY_MASTER_CELLS = 2

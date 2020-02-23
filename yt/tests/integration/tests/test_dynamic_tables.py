@@ -39,10 +39,6 @@ class DynamicTablesBase(YTEnvSetup):
     NUM_SCHEDULERS = 0
     USE_DYNAMIC_TABLES = True
 
-    DELTA_DRIVER_CONFIG = {
-        "max_rows_per_write_request": 2
-    }
-
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
             "leader_reassignment_timeout" : 2000,
@@ -133,7 +129,6 @@ class DynamicTablesBase(YTEnvSetup):
                 return 0
 
         return Profiling()
-
 
 ##################################################################
 
@@ -441,7 +436,6 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         assert len(select_rows("* from [//tmp/t]")) == 1
 
 ##################################################################
-
 
 class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("babenko")

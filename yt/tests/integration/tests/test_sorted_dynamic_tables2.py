@@ -165,6 +165,7 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
 
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_reshard_table("//tmp/t", [[]])
+
 ################################################################################
 
 class TestSortedDynamicTables(TestSortedDynamicTablesBase):
@@ -1147,6 +1148,16 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert data_weight_metric.update().get() > 0
         assert data_bytes_metric.update().get() > 0
 
+class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
+    ENABLE_TMP_PORTAL = True
+
+class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
 ##################################################################
 
 class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
@@ -1301,22 +1312,23 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t", keys, enable_partial_result=True)
         assert_items_equal(actual, expected)
 
-##################################################################
-
-class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
-    NUM_SECONDARY_MASTER_CELLS = 2
-
-##################################################################
-
-class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
-    ENABLE_TMP_PORTAL = True
-
-##################################################################
-
-class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-
 class TestSortedDynamicTablesMemoryLimitRpcProxy(TestSortedDynamicTablesMemoryLimit):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+################################################################################
+
+class TestSortedDynamicTablesMultipleWriteBatches(TestSortedDynamicTablesBase):
+    DELTA_DRIVER_CONFIG = {
+        "max_rows_per_write_request": 10
+    }
+
+    @authors("babenko")
+    def test_multiple_write_batches(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "a"} for i in xrange(100)]
+        insert_rows("//tmp/t", rows)
+        assert select_rows("* from [//tmp/t]") == rows

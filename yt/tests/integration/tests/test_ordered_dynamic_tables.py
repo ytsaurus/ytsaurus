@@ -13,7 +13,7 @@ from time import sleep
 
 ##################################################################
 
-class TestOrderedDynamicTables(DynamicTablesBase):
+class TestOrderedDynamicTablesBase(DynamicTablesBase):
     def _create_simple_table(self, path, **attributes):
         if "schema" not in attributes:
             attributes.update({"schema": [
@@ -56,6 +56,9 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         for tablet_chunk_list in tablet_chunk_lists:
             self._verify_cumulative_statistics_match_statistics(tablet_chunk_list)
 
+##################################################################
+
+class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
     @authors("babenko")
     def test_mount(self):
         sync_create_cells(1)
@@ -968,19 +971,29 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [dict(key=1)])
 
-
-##################################################################
-
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
-
-##################################################################
 
 class TestOrderedDynamicTablesPortal(TestOrderedDynamicTablesMulticell):
     ENABLE_TMP_PORTAL = True
 
-##################################################################
-
 class TestOrderedDynamicTablesRpcProxy(TestOrderedDynamicTables):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+##################################################################
+
+class TestOrderedDynamicTablesMultipleWriteBatches(TestOrderedDynamicTablesBase):
+    DELTA_DRIVER_CONFIG = {
+        "max_rows_per_write_request": 10
+    }
+
+    @authors("babenko")
+    def test_multiple_write_batches(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"a": i, "c": "text"} for i in xrange(100)]
+        insert_rows("//tmp/t", rows)
+        assert select_rows("a, c from [//tmp/t]") == rows
