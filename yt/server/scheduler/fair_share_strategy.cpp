@@ -19,6 +19,7 @@
 
 #include <yt/core/misc/algorithm_helpers.h>
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/atomic_object.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
@@ -94,13 +95,8 @@ public:
 
         OperationIdToOperationState_.clear();
         IdToTree_.clear();
-
         DefaultTreeId_.reset();
-
-        {
-            TWriterGuard guard(TreeIdToSnapshotLock_);
-            TreeIdToSnapshot_.clear();
-        }
+        TreeIdToSnapshot_.Store(THashMap<TString, IFairShareTreeSnapshotPtr>());
     }
 
     void OnFairShareProfiling()
@@ -583,11 +579,7 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
-        {
-            TReaderGuard guard(TreeIdToSnapshotLock_);
-            snapshots = TreeIdToSnapshot_;
-        }
+        auto snapshots = TreeIdToSnapshot_.Load();
 
         for (const auto& [operationId, metricsPerTree] : operationIdToOperationJobMetrics) {
             for (const auto& metrics : metricsPerTree) {
@@ -653,12 +645,7 @@ public:
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
-        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
-        {
-            TReaderGuard guard(TreeIdToSnapshotLock_);
-            snapshots = TreeIdToSnapshot_;
-        }
-
+        auto snapshots = TreeIdToSnapshot_.Load();
         for (const auto& [treeId, treeSnapshot] : snapshots) {
             treeSnapshot->ProfileFairShare();
         }
@@ -696,10 +683,7 @@ public:
             }
         }
 
-        {
-            TWriterGuard guard(TreeIdToSnapshotLock_);
-            std::swap(TreeIdToSnapshot_, snapshots);
-        }
+        TreeIdToSnapshot_.Exchange(std::move(snapshots));
 
         if (!errors.empty()) {
             auto error = TError("Found pool configuration issues during fair share update")
@@ -742,11 +726,7 @@ public:
         YT_LOG_DEBUG("Processing job updates in strategy (UpdateCount: %v)",
             jobUpdates.size());
 
-        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
-        {
-            TReaderGuard guard(TreeIdToSnapshotLock_);
-            snapshots = TreeIdToSnapshot_;
-        }
+        auto snapshots = TreeIdToSnapshot_.Load();
 
         THashSet<TJobId> jobsToPostpone;
 
@@ -857,11 +837,7 @@ public:
 
     virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) override
     {
-        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
-        {
-            TReaderGuard guard(TreeIdToSnapshotLock_);
-            snapshots = TreeIdToSnapshot_;
-        }
+        auto snapshots = TreeIdToSnapshot_.Load();
 
         // NB(eshcherbin):
         // 1) currentDemand and minShareResources are the current resource demand and guarantee in the given pool.
@@ -940,12 +916,7 @@ public:
 
     virtual bool IsOperationTreeSetConsistentWithSnapshots(TOperationId operationId) override
     {
-        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
-        {
-            TReaderGuard guard(TreeIdToSnapshotLock_);
-            snapshots = TreeIdToSnapshot_;
-        }
-
+        auto snapshots = TreeIdToSnapshot_.Load();
         for (const auto& [treeId, _] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
             if (!snapshots.contains(treeId)) {
                 return false;
@@ -978,8 +949,7 @@ private:
     // NB(eshcherbin): Note that these fair share tree snapshots are only *snapshots*.
     // We should not expect that the set of trees or their structure in the snapshot are the same as
     // in the current |IdToTree_| map. Snapshots could be a little bit behind.
-    TReaderWriterSpinLock TreeIdToSnapshotLock_;
-    THashMap<TString, IFairShareTreeSnapshotPtr> TreeIdToSnapshot_;
+    TAtomicObject<THashMap<TString, IFairShareTreeSnapshotPtr>> TreeIdToSnapshot_;
 
     struct TPoolTreeDescription
     {
@@ -1078,12 +1048,7 @@ private:
     {
         IFairShareTreeSnapshotPtr matchingSnapshot;
 
-        THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
-        {
-            TReaderGuard guard(TreeIdToSnapshotLock_);
-            snapshots = TreeIdToSnapshot_;
-        }
-
+        auto snapshots = TreeIdToSnapshot_.Load();
         for (const auto& [treeId, snapshot] : snapshots) {
             if (snapshot->GetNodesFilter().CanSchedule(descriptor.Tags)) {
                 // NB: ValidateNodeTags does not guarantee that this check will not success,
