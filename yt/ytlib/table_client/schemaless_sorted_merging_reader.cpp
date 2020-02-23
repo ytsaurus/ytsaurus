@@ -384,9 +384,9 @@ TInterruptDescriptor TSchemalessSortedMergingReader::GetInterruptDescriptor(
                 return CompareRows(row, key, ReduceKeyColumnCount_) < 0;
             });
         auto interruptDescriptor = session.Reader->GetInterruptDescriptor(
-            NYT::TRange<TUnversionedRow>(
+            MakeRange(
                 session.Rows.data() + std::distance(session.Rows.begin(), it),
-		session.Rows.data() + session.Rows.size()));
+                session.Rows.data() + session.Rows.size()));
 
         result.MergeFrom(std::move(interruptDescriptor));
     }
