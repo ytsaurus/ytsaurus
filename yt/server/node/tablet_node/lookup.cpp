@@ -376,7 +376,7 @@ private:
             }
         };
 
-        std::optional<TConcurrentCache<TCachedRow, TSlabAllocator>::TInsertAccessor> accessor;
+        std::optional<TConcurrentCache<TCachedRow>::TInsertAccessor> accessor;
 
         bool populateCache = static_cast<bool>(TabletSnapshot_->RowCache);
 

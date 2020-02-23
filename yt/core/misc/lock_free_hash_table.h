@@ -7,14 +7,14 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class TAlloc>
+template <class T>
 class TLockFreeHashTable
 {
 public:
     //! 64-bit hash table entry contains 16-bit stamp and 48-bit value.
     using TStamp = ui16;
     using TEntry = ui64;
-    using TValuePtr = TRefCountedPtr<T, TAlloc>;
+    using TValuePtr = TRefCountedPtr<T>;
 
     explicit TLockFreeHashTable(size_t maxElementCount);
 
@@ -36,7 +36,7 @@ public:
     bool Insert(TFingerprint fingerprint, TValuePtr value);
 
     template <class TKey>
-    TRefCountedPtr<T, TAlloc> Find(TFingerprint fingerprint, const TKey& key);
+    TRefCountedPtr<T> Find(TFingerprint fingerprint, const TKey& key);
 
 private:
     const size_t Size_;

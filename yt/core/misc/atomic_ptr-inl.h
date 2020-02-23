@@ -57,7 +57,7 @@ T* AcquireRef(const THazardPtr<T>& ptr)
     return nullptr;
 }
 
-template <class TTraits, class T>
+template <class T>
 void ReleaseRef(T* ptr)
 {
     auto* refCounter = GetAtomicRefCounter(ptr);
@@ -72,63 +72,64 @@ void ReleaseRef(T* ptr)
 
         // Free memory.
         ScheduleObjectDeletion(ptr, [] (void* ptr) {
-            TTraits::Free(GetAtomicRefCounter(ptr));
+            auto* refCounter = GetAtomicRefCounter(ptr);
+            (*refCounter->Deleter)(refCounter);
         });
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits>::TRefCountedPtr(std::nullptr_t)
+template <class T>
+TRefCountedPtr<T>::TRefCountedPtr(std::nullptr_t)
 { }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits>::TRefCountedPtr(T* obj, bool addReference)
+template <class T>
+TRefCountedPtr<T>::TRefCountedPtr(T* obj, bool addReference)
     : Ptr_(addReference ? AcquireRef(obj) : obj)
 { }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits>::TRefCountedPtr(const THazardPtr<T>& ptr)
+template <class T>
+TRefCountedPtr<T>::TRefCountedPtr(const THazardPtr<T>& ptr)
     : Ptr_(AcquireRef(ptr))
 { }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits>::TRefCountedPtr(const TRefCountedPtr<T, TTraits>& other)
+template <class T>
+TRefCountedPtr<T>::TRefCountedPtr(const TRefCountedPtr<T>& other)
     : TRefCountedPtr(other.Ptr_)
 { }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits>::TRefCountedPtr(TRefCountedPtr&& other)
+template <class T>
+TRefCountedPtr<T>::TRefCountedPtr(TRefCountedPtr&& other)
     : Ptr_(other.Ptr_)
 {
     other.Ptr_ = nullptr;
 }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits>::~TRefCountedPtr()
+template <class T>
+TRefCountedPtr<T>::~TRefCountedPtr()
 {
     if (Ptr_) {
-        ReleaseRef<TTraits>(Ptr_);
+        ReleaseRef(Ptr_);
     }
 }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits>& TRefCountedPtr<T, TTraits>::operator=(TRefCountedPtr other)
+template <class T>
+TRefCountedPtr<T>& TRefCountedPtr<T>::operator=(TRefCountedPtr other)
 {
     Exchange(std::move(other));
     return *this;
 }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits>& TRefCountedPtr<T, TTraits>::operator=(std::nullptr_t)
+template <class T>
+TRefCountedPtr<T>& TRefCountedPtr<T>::operator=(std::nullptr_t)
 {
     Exchange(TRefCountedPtr());
     return *this;
 }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits> TRefCountedPtr<T, TTraits>::Exchange(TRefCountedPtr&& other)
+template <class T>
+TRefCountedPtr<T> TRefCountedPtr<T>::Exchange(TRefCountedPtr&& other)
 {
     auto oldPtr = Ptr_;
     Ptr_ = other.Ptr_;
@@ -136,36 +137,36 @@ TRefCountedPtr<T, TTraits> TRefCountedPtr<T, TTraits>::Exchange(TRefCountedPtr&&
     return TRefCountedPtr(oldPtr, false);
 }
 
-template <class T, class TTraits>
-T* TRefCountedPtr<T, TTraits>::Release()
+template <class T>
+T* TRefCountedPtr<T>::Release()
 {
     auto ptr = Ptr_;
     Ptr_ = nullptr;
     return ptr;
 }
 
-template <class T, class TTraits>
-T* TRefCountedPtr<T, TTraits>::Get() const
+template <class T>
+T* TRefCountedPtr<T>::Get() const
 {
     return Ptr_;
 }
 
-template <class T, class TTraits>
-T& TRefCountedPtr<T, TTraits>::operator*() const
+template <class T>
+T& TRefCountedPtr<T>::operator*() const
 {
     YT_ASSERT(Ptr_);
     return *Ptr_;
 }
 
-template <class T, class TTraits>
-T* TRefCountedPtr<T, TTraits>::operator->() const
+template <class T>
+T* TRefCountedPtr<T>::operator->() const
 {
     YT_ASSERT(Ptr_);
     return Ptr_;
 }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits>::operator bool() const
+template <class T>
+TRefCountedPtr<T>::operator bool() const
 {
     return Ptr_ != nullptr;
 }
@@ -174,44 +175,48 @@ TRefCountedPtr<T, TTraits>::operator bool() const
 
 namespace {
 
-template <class T, class TTraits, class... As>
-TRefCountedPtr<T, TTraits> ConstructObject(void* ptr, As&&... args)
+template <class T, class... As>
+TRefCountedPtr<T> ConstructObject(void* ptr, TDeleterBase* deleter, As&&... args)
 {
     auto* refCounter = static_cast<TAtomicRefCounter*>(ptr);
     auto* object = reinterpret_cast<T*>(refCounter + 1);
 
+    // Move TAtomicRefCounter out?
+    new (refCounter) TAtomicRefCounter(deleter);
+
     try {
-        new (refCounter) TAtomicRefCounter();
         new (object) T(std::forward<As>(args)...);
     } catch (const std::exception& ex) {
         // Do not forget to free the memory.
-        TTraits::Free(ptr);
+        (*deleter)(ptr);
         throw;
     }
 
-    return TRefCountedPtr<T, TTraits>(object, false);
+    return TRefCountedPtr<T>(object, false);
 }
 
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class TTraits, class... As>
-TRefCountedPtr<T, TTraits> CreateObjectWithExtraSpace(
-    TTraits* traits,
+template <class T, class TAllocator, class... As>
+TRefCountedPtr<T> CreateObjectWithExtraSpace(
+    TAllocator* allocator,
     size_t extraSpaceSize,
     As&&... args)
 {
     auto totalSize = sizeof(TAtomicRefCounter) + sizeof(T) + extraSpaceSize;
-    void* ptr = traits->Allocate(totalSize);
-    return ConstructObject<T, TTraits>(ptr, std::forward<As>(args)...);
+    void* ptr = allocator->Allocate(totalSize);
+    // Where to get deleter? Supply it with args or return from allocator?
+    auto* deleter = allocator->GetDeleter(totalSize);
+    return ConstructObject<T>(ptr, deleter, std::forward<As>(args)...);
 }
 
 template <class T, class... As>
 TRefCountedPtr<T> CreateObject(As&&... args)
 {
     auto* ptr = NYTAlloc::AllocateConstSize<sizeof(TAtomicRefCounter) + sizeof(T)>();
-    return ConstructObject<T, TDefaultAllocator>(ptr, std::forward<As>(args)...);
+    return ConstructObject<T>(ptr, &DefaultDeleter, std::forward<As>(args)...);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,67 +235,67 @@ bool operator!=(const THazardPtr<U>& lhs, const U* rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class TTraits>
-bool operator==(const TRefCountedPtr<T, TTraits>& lhs, const TRefCountedPtr<T, TTraits>& rhs)
+template <class T>
+bool operator==(const TRefCountedPtr<T>& lhs, const TRefCountedPtr<T>& rhs)
 {
     return lhs.Get() == rhs.Get();
 }
 
-template <class T, class TTraits>
-bool operator!=(const TRefCountedPtr<T, TTraits>& lhs, const TRefCountedPtr<T, TTraits>& rhs)
+template <class T>
+bool operator!=(const TRefCountedPtr<T>& lhs, const TRefCountedPtr<T>& rhs)
 {
     return lhs.Get() != rhs.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class TTraits>
-TAtomicPtr<T, TTraits>::TAtomicPtr(std::nullptr_t)
+template <class T>
+TAtomicPtr<T>::TAtomicPtr(std::nullptr_t)
 { }
 
-template <class T, class TTraits>
-TAtomicPtr<T, TTraits>::TAtomicPtr(TRefCountedPtr<T, TTraits> other)
+template <class T>
+TAtomicPtr<T>::TAtomicPtr(TRefCountedPtr<T> other)
     : Ptr_(other.Release())
 { }
 
-template <class T, class TTraits>
-TAtomicPtr<T, TTraits>::TAtomicPtr(TAtomicPtr&& other)
+template <class T>
+TAtomicPtr<T>::TAtomicPtr(TAtomicPtr&& other)
     : Ptr_(other.Ptr_)
 {
     other.Ptr_ = nullptr;
 }
 
-template <class T, class TTraits>
-TAtomicPtr<T, TTraits>::~TAtomicPtr()
+template <class T>
+TAtomicPtr<T>::~TAtomicPtr()
 {
     auto ptr = Ptr_.load();
     if (ptr) {
-        ReleaseRef<TTraits>(ptr);
+        ReleaseRef(ptr);
     }
 }
 
-template <class T, class TTraits>
-TAtomicPtr<T, TTraits>& TAtomicPtr<T, TTraits>::operator=(TRefCountedPtr<T, TTraits> other)
+template <class T>
+TAtomicPtr<T>& TAtomicPtr<T>::operator=(TRefCountedPtr<T> other)
 {
     Exchange(std::move(other));
     return *this;
 }
 
-template <class T, class TTraits>
-TAtomicPtr<T, TTraits>& TAtomicPtr<T, TTraits>::operator=(std::nullptr_t)
+template <class T>
+TAtomicPtr<T>& TAtomicPtr<T>::operator=(std::nullptr_t)
 {
-    Exchange(TRefCountedPtr<T, TTraits>());
+    Exchange(TRefCountedPtr<T>());
     return *this;
 }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::Release()
+template <class T>
+TRefCountedPtr<T> TAtomicPtr<T>::Release()
 {
-    return Exchange(TRefCountedPtr<T, TTraits>());
+    return Exchange(TRefCountedPtr<T>());
 }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::AcquireWeak() const
+template <class T>
+TRefCountedPtr<T> TAtomicPtr<T>::AcquireWeak() const
 {
     auto hazardPtr = THazardPtr<T>::Acquire([&] {
         return Ptr_.load(std::memory_order_relaxed);
@@ -298,8 +303,8 @@ TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::AcquireWeak() const
     return TRefCountedPtr(hazardPtr);
 }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::Acquire() const
+template <class T>
+TRefCountedPtr<T> TAtomicPtr<T>::Acquire() const
 {
     while (auto hazardPtr = THazardPtr<T>::Acquire([&] {
         return Ptr_.load(std::memory_order_relaxed);
@@ -312,22 +317,22 @@ TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::Acquire() const
     return nullptr;
 }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::Exchange(TRefCountedPtr<T, TTraits>&& other)
+template <class T>
+TRefCountedPtr<T> TAtomicPtr<T>::Exchange(TRefCountedPtr<T>&& other)
 {
     auto oldPtr = Ptr_.exchange(other.Release());
-    return TRefCountedPtr<T, TTraits>(oldPtr, false);
+    return TRefCountedPtr<T>(oldPtr, false);
 }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::SwapIfCompare(THazardPtr<T>& compare, TRefCountedPtr<T, TTraits> target)
+template <class T>
+TRefCountedPtr<T> TAtomicPtr<T>::SwapIfCompare(THazardPtr<T>& compare, TRefCountedPtr<T> target)
 {
     auto comparePtr = compare.Get();
     auto targetPtr = target.Get();
 
     if (Ptr_.compare_exchange_strong(comparePtr, targetPtr)) {
         target.Release();
-        return TRefCountedPtr<T, TTraits>(comparePtr, false);
+        return TRefCountedPtr<T>(comparePtr, false);
     } else {
         compare.Reset();
         compare = THazardPtr<T>::Acquire([&] {
@@ -335,11 +340,11 @@ TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::SwapIfCompare(THazardPtr<T>& 
         }, comparePtr);
     }
 
-    return TRefCountedPtr<T, TTraits>();
+    return TRefCountedPtr<T>();
 }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::SwapIfCompare(T* comparePtr, TRefCountedPtr<T, TTraits> target)
+template <class T>
+TRefCountedPtr<T> TAtomicPtr<T>::SwapIfCompare(T* comparePtr, TRefCountedPtr<T> target)
 {
     auto targetPtr = target.Get();
 
@@ -351,7 +356,7 @@ TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::SwapIfCompare(T* comparePtr, 
             comparePtr,
             targetPtr);
         target.Release();
-        return TRefCountedPtr<T, TTraits>(comparePtr, false);
+        return TRefCountedPtr<T>(comparePtr, false);
     } else {
         YT_LOG_TRACE("CAS failed (Current: %v, Compare: %v, Target: %v)",
             comparePtr,
@@ -360,17 +365,17 @@ TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::SwapIfCompare(T* comparePtr, 
     }
 
     // TODO(lukyan): Use ptr if compare_exchange_strong fails?
-    return TRefCountedPtr<T, TTraits>();
+    return TRefCountedPtr<T>();
 }
 
-template <class T, class TTraits>
-TRefCountedPtr<T, TTraits> TAtomicPtr<T, TTraits>::SwapIfCompare(const TRefCountedPtr<T, TTraits>& compare, TRefCountedPtr<T, TTraits> target)
+template <class T>
+TRefCountedPtr<T> TAtomicPtr<T>::SwapIfCompare(const TRefCountedPtr<T>& compare, TRefCountedPtr<T> target)
 {
     return SwapIfCompare(compare.Get(), std::move(target));
 }
 
-template <class T, class TTraits>
-bool TAtomicPtr<T, TTraits>::SwapIfCompare(const TRefCountedPtr<T>& compare, TRefCountedPtr<T, TTraits>* target)
+template <class T>
+bool TAtomicPtr<T>::SwapIfCompare(const TRefCountedPtr<T>& compare, TRefCountedPtr<T>* target)
 {
      auto ptr = compare.Get();
     if (Ptr_.compare_exchange_strong(ptr, target->Ptr_)) {
@@ -380,34 +385,34 @@ bool TAtomicPtr<T, TTraits>::SwapIfCompare(const TRefCountedPtr<T>& compare, TRe
     return false;
 }
 
-template <class T, class TTraits>
-TAtomicPtr<T, TTraits>::operator bool() const
+template <class T>
+TAtomicPtr<T>::operator bool() const
 {
     return Ptr_ != nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T, class TTraits>
-bool operator==(const TAtomicPtr<T, TTraits>& lhs, const TRefCountedPtr<T, TTraits>& rhs)
+template <class T>
+bool operator==(const TAtomicPtr<T>& lhs, const TRefCountedPtr<T>& rhs)
 {
     return lhs.Ptr_.load() == rhs.Get();
 }
 
-template <class T, class TTraits>
-bool operator==(const TRefCountedPtr<T, TTraits>& lhs, const TAtomicPtr<T, TTraits>& rhs)
+template <class T>
+bool operator==(const TRefCountedPtr<T>& lhs, const TAtomicPtr<T>& rhs)
 {
     return lhs.Get() == rhs.Ptr_.load();
 }
 
-template <class T, class TTraits>
-bool operator!=(const TAtomicPtr<T, TTraits>& lhs, const TRefCountedPtr<T, TTraits>& rhs)
+template <class T>
+bool operator!=(const TAtomicPtr<T>& lhs, const TRefCountedPtr<T>& rhs)
 {
     return lhs.Ptr_.load() != rhs.Get();
 }
 
-template <class T, class TTraits>
-bool operator!=(const TRefCountedPtr<T, TTraits>& lhs, const TAtomicPtr<T, TTraits>& rhs)
+template <class T>
+bool operator!=(const TRefCountedPtr<T>& lhs, const TAtomicPtr<T>& rhs)
 {
     return lhs.Get() != rhs.Ptr_.load();
 }

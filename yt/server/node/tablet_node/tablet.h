@@ -43,7 +43,7 @@ struct TRowCache
     , public TDeleteListFlusher
 {
     TSlabAllocator Allocator;
-    TConcurrentCache<TCachedRow, TSlabAllocator> Cache;
+    TConcurrentCache<TCachedRow> Cache;
 
     TRowCache(size_t elementCount, IMemoryUsageTrackerPtr memoryTracker);
 };
