@@ -98,7 +98,7 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         with pytest.raises(YtError): insert_rows("//tmp/t", rows)
 
     @authors("gridem")
-    def DISABLED_test_ordered_tablet_node_profiling(self):
+    def test_ordered_tablet_node_profiling(self):
         sync_create_cells(1)
 
         table_path = "//tmp/{}".format(generate_uuid())
@@ -117,27 +117,18 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         assert get_all_counters("data_weight") == (0, 0, 0)
         assert tablet_profiling.get_counter("select/cpu_time") == 0
 
-        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(9)]
+        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(10)]
         insert_rows(table_path, rows)
 
-        sleep(2)  # sleep is needed to ensure that the profiling counters are updated properly
-
-        rows = [{"a": 100, "b": 0.5, "c": "data"}]
-        insert_rows(table_path, rows)
-
-        sleep(2)
-
-        assert get_all_counters("row_count") == (0, 10, 10)
-        assert get_all_counters("data_weight") == (0, 246, 246)
+        wait(lambda: get_all_counters("row_count") == (0, 10, 10))
+        wait(lambda: get_all_counters("data_weight") == (0, 250, 250))
         assert tablet_profiling.get_counter("select/cpu_time") == 0
 
         select_rows("* from [{}]".format(table_path))
 
-        sleep(2)
-
-        assert get_all_counters("row_count") == (10, 10, 10)
-        assert get_all_counters("data_weight") == (406, 246, 246)
-        assert tablet_profiling.get_counter("select/cpu_time") > 0
+        wait(lambda: get_all_counters("row_count") == (10, 10, 10))
+        wait(lambda: get_all_counters("data_weight") == (410, 250, 250))
+        wait(lambda: tablet_profiling.get_counter("select/cpu_time") > 0)
 
     @authors("babenko", "levysotsky")
     def test_insert(self):
