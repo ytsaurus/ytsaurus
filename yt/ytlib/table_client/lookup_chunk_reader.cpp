@@ -17,7 +17,7 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(akozhikhov): Consider keeping dynamic statistics for this parameter instead.
+// TODO(akozhikhov): Consider keeping dynamic statistic for this parameter instead.
 static constexpr i64 ExpectedStringSize = 256;
 
 struct TDataBufferTag { };
@@ -33,11 +33,15 @@ public:
         TClientBlockReadOptions blockReadOptions,
         TSharedRange<TKey> lookupKeys,
         TTabletSnapshotPtr tabletSnapshot,
+        TColumnFilter columnFilter,
+        TTimestamp timestamp,
         bool produceAllVersions)
         : UnderlyingReader_(std::move(underlyingChunkReader))
         , RowsReadOptions_(std::move(blockReadOptions))
         , LookupKeys_(std::move(lookupKeys))
         , TabletSnapshot_(std::move(tabletSnapshot))
+        , ColumnFilter_(std::move(columnFilter))
+        , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
     {
         ReadyEvent_ = DoOpen();
@@ -119,6 +123,8 @@ private:
     const TClientBlockReadOptions RowsReadOptions_;
     const TSharedRange<TKey> LookupKeys_;
     const TTabletSnapshotPtr TabletSnapshot_;
+    const TColumnFilter ColumnFilter_;
+    const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TDataBufferTag());
@@ -145,6 +151,8 @@ private:
             TabletSnapshot_->TableSchema,
             ComputeEstimatedSize(),
             &UncompressedDataSize_,
+            ColumnFilter_,
+            Timestamp_,
             ProduceAllVersions_).Apply(BIND([=, this_ = MakeStrong(this)] (const TSharedRef& fetchedRowset) {
                 ProcessFetchedRowset(fetchedRowset);
                 return fetchedRowset;
@@ -203,6 +211,8 @@ IVersionedReaderPtr CreateRowLookupReader(
     TClientBlockReadOptions blockReadOptions,
     TSharedRange<TKey> lookupKeys,
     TTabletSnapshotPtr tabletSnapshot,
+    TColumnFilter columnFilter,
+    TTimestamp timestamp,
     bool produceAllVersions)
 {
     return New<TRowLookupReader>(
@@ -210,6 +220,8 @@ IVersionedReaderPtr CreateRowLookupReader(
         std::move(blockReadOptions),
         std::move(lookupKeys),
         std::move(tabletSnapshot),
+        std::move(columnFilter),
+        timestamp,
         produceAllVersions);
 }
 

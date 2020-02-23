@@ -80,7 +80,14 @@ public:
         const NTableClient::TTableSchema& /*tableSchema*/,
         std::optional<i64> /*estimatedSize*/,
         std::atomic<i64>* /*uncompressedDataSize*/,
+        const NTableClient::TColumnFilter& /*columnFilter*/,
+        NTableClient::TTimestamp /*timestamp*/,
         bool /*produceAllVersions*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    virtual bool IsLookupSupported() const
     {
         YT_UNIMPLEMENTED();
     }

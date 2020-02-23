@@ -470,6 +470,11 @@ class TestLookup(TestSortedDynamicTablesBase):
 
 
 class TestLookupFromDataNode(TestSortedDynamicTablesBase):
+    schema = [
+        {"name": "key", "type": "int64", "sort_order": "ascending"},
+        {"name": "value", "type": "string"},
+    ]
+
     def _set_nodes_state(self):
         nodes = ls("//sys/cluster_nodes")
 
@@ -504,7 +509,7 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
-    def test_lookup_from_data_node_multiple_chunks(self, replication_factor):
+    def test_lookup_from_data_node_with_alter(self, replication_factor):
         self._set_nodes_state()
         sync_create_cells(1)
 
@@ -529,13 +534,26 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
         rows = [{"key": i, "value": str(i)} for i in [0, 3, 6]]
         assert lookup_rows("//tmp/t", keys) == rows
 
+        schema = self.schema[:1] + [{"name": "key2", "type": "int64", "sort_order": "ascending"}] + self.schema[1:]
+        sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        keys = [{"key": i} for i in [0, 3, 6]]
+        rows = [{"key": i, "key2": YsonEntity(), "value": str(i)} for i in [0, 3, 6]]
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        keys = [{"key": i, "key2": YsonEntity()} for i in [0, 3, 6]]
+        rows = [{"key": i, "key2": YsonEntity(), "value": str(i)} for i in [0, 3, 6]]
+        assert lookup_rows("//tmp/t", keys) == rows
+
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
     def test_lookup_from_data_node_chunks_with_overlap(self, replication_factor):
         self._set_nodes_state()
         sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t", replication_factor=replication_factor)
+        self._create_simple_table("//tmp/t", replication_factor=replication_factor, schema=self.schema)
         set("//tmp/t/@enable_data_node_lookup", True)
         set("//tmp/t/@enable_compaction_and_partitioning", False)
 
@@ -553,6 +571,60 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
         rows = [{"key": i, "value": str(values[i])} for i in range(7)]
 
         assert lookup_rows("//tmp/t", keys) == rows
+
+        schema = self.schema[:1] +\
+                 [{"name": "key2", "type": "int64", "sort_order": "ascending"}] +\
+                 self.schema[1:] +\
+                 [{"name": "value2", "type": "boolean"}]
+        sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "key2": YsonEntity(), "value": str(values[i]), "value2": YsonEntity()} for i in range(7)]
+        assert lookup_rows("//tmp/t", keys) == rows
+
+        rows = [{"key2": YsonEntity(), "value": str(values[i])} for i in range(7)]
+        assert lookup_rows("//tmp/t", keys, column_names=["key2", "value"]) == rows
+
+        rows = [{"key": i, "value2": YsonEntity()} for i in range(7)]
+        assert lookup_rows("//tmp/t", keys, column_names=["key", "value2"]) == rows
+
+        rows = [{"key": i, "value": str(values[i])} for i in range(7)]
+        assert lookup_rows("//tmp/t", keys + [{"key": 10}], column_names=["key", "value"], keep_missing_rows=True) ==\
+               rows + [None]
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("replication_factor", [1, 3])
+    def test_lookup_from_data_node_with_timestamp(self, replication_factor):
+        self._set_nodes_state()
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", replication_factor=replication_factor, schema=self.schema)
+        set("//tmp/t/@enable_data_node_lookup", True)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "one"}])
+        write_ts_1 = lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["write_timestamps"][0]
+
+        insert_rows("//tmp/t", [{"key": 2, "value": "two"}])
+        write_ts_2 = lookup_rows("//tmp/t", [{"key": 2}], versioned=True)[0].attributes["write_timestamps"][0]
+
+        assert(write_ts_2 > write_ts_1)
+
+        sync_flush_table("//tmp/t")
+
+        assert write_ts_1 == lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["write_timestamps"][0]
+        assert write_ts_2 == lookup_rows("//tmp/t", [{"key": 2}], versioned=True)[0].attributes["write_timestamps"][0]
+        assert lookup_rows("//tmp/t", [{"key": 1}], timestamp=write_ts_1) == [{"key": 1, "value": "one"}]
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "oneone"}])
+        sync_flush_table("//tmp/t")
+        assert write_ts_1 < lookup_rows("//tmp/t", [{"key": 1}], versioned=True)[0].attributes["write_timestamps"][0]
+
+        assert lookup_rows("//tmp/t", [{"key": 1}], timestamp=write_ts_1) == [{"key": 1, "value": "one"}]
+
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
@@ -591,6 +663,21 @@ class TestLookupFromDataNode(TestSortedDynamicTablesBase):
             expected_values.append({"key": key, "value": value})
 
         assert lookup_rows("//tmp/t", expected_keys) == expected_values
+
+    @authors("akozhikhov")
+    def test_lookup_from_data_node_local_reader(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", replication_factor=self.NUM_NODES)
+        set("//tmp/t/@enable_data_node_lookup", True)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+
+        sync_mount_table("//tmp/t")
+
+        row = [{"key": 1, "value": "one"}]
+        insert_rows("//tmp/t", row)
+        sync_flush_table("//tmp/t")
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
 
 ################################################################################

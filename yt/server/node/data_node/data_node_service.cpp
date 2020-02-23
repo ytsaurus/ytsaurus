@@ -686,6 +686,8 @@ private:
         }
         YT_VERIFY(!schemaRequested);
 
+        auto timestamp = request->timestamp();
+        auto columnFilter = FromProto<NTableClient::TColumnFilter>(request->column_filter());
         auto produceAllVersions = FromProto<bool>(request->produce_all_versions());
 
         TLookupSession lookupSession(
@@ -693,6 +695,8 @@ private:
             chunkId,
             readSessionId,
             workloadDescriptor,
+            std::move(columnFilter),
+            timestamp,
             produceAllVersions,
             tableSchema,
             request->lookup_keys());

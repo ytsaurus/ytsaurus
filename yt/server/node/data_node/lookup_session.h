@@ -36,6 +36,8 @@ public:
         TChunkId chunkId,
         TReadSessionId readSessionId,
         TWorkloadDescriptor workloadDescriptor,
+        TColumnFilter columnFilter,
+        TTimestamp timestamp,
         bool produceAllVersions,
         TCachedTableSchemaPtr tableSchema,
         const TString& requestedKeysString);
@@ -59,6 +61,8 @@ private:
     const TChunkId ChunkId_;
     const TReadSessionId ReadSessionId_;
     const TWorkloadDescriptor WorkloadDescriptor_;
+    const TColumnFilter ColumnFilter_;
+    const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
     const TCachedTableSchemaPtr TableSchema_;
 

@@ -69,7 +69,11 @@ public:
         const NTableClient::TTableSchema& tableSchema,
         std::optional<i64> estimatedSize,
         std::atomic<i64>* uncompressedDataSize,
+        const NTableClient::TColumnFilter& columnFilter,
+        NTableClient::TTimestamp timestamp,
         bool produceAllVersions) override;
+
+    virtual bool IsLookupSupported() const override;
 
     virtual TChunkId GetChunkId() const override;
 
