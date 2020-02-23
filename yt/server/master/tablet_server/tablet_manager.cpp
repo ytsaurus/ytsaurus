@@ -3127,7 +3127,7 @@ private:
                 switch (replica->GetState()) {
                     case ETableReplicaState::Enabled:
                     case ETableReplicaState::Enabling: {
-                        TReqSetTableReplicaEnabled req;
+                        TReqAlterTableReplica req;
                         ToProto(req.mutable_tablet_id(), tablet->GetId());
                         ToProto(req.mutable_replica_id(), replica->GetId());
                         req.set_enabled(true);
