@@ -47,28 +47,10 @@ void TUser::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Banned_);
 
-    int readRequestRateLimit = 100;
-    int writeRequestRateLimit = 100;
-    int requestQueueSizeLimit = 100;
-
-    // COMPAT(aozeritsky)
-    if (context.GetVersion() < NCellMaster::EMasterReign::AddReadRequestRateLimitAndWriteRequestRateLimit) {
-        auto requestRateLimit = Load<int>(context);
-        readRequestRateLimit = requestRateLimit;
-        writeRequestRateLimit = requestRateLimit;
-    } else if (context.GetVersion() < NCellMaster::EMasterReign::RequestLimits) {
-        Load(context, readRequestRateLimit);
-        Load(context, writeRequestRateLimit);
-    }
-
     if (context.GetVersion() < NCellMaster::EMasterReign::RequestLimits) {
-        Load(context, requestQueueSizeLimit);
-    }
-
-    if (context.GetVersion() < NCellMaster::EMasterReign::RequestLimits) {
-        RequestLimits_->ReadRequestRateLimits->Default = readRequestRateLimit;
-        RequestLimits_->WriteRequestRateLimits->Default = writeRequestRateLimit;
-        RequestLimits_->RequestQueueSizeLimits->Default = requestQueueSizeLimit;
+        RequestLimits_->ReadRequestRateLimits->Default = Load<int>(context);
+        RequestLimits_->WriteRequestRateLimits->Default = Load<int>(context);
+        RequestLimits_->RequestQueueSizeLimits->Default = Load<int>(context);
     } else {
         Load(context, *RequestLimits_);
     }

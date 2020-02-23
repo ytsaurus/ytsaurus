@@ -27,10 +27,6 @@ using namespace NCrypto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto const& Logger = TableServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 DEFINE_ENUM(ESchemaSerializationMethod,
     (Schema)
     (TableIdWithSameSchema)
@@ -82,65 +78,26 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     Load(context, Atomicity);
     Load(context, CommitOrdering);
     Load(context, UpstreamReplicaId);
-    // COMPAT(savrus)
-    if (context.GetVersion() < EMasterReign::RemoveDynamicTableAttrsFromStaticTables) {
-        Load(context, TabletCellBundle);
-    }
     Load(context, LastCommitTimestamp);
     Load(context, TabletCountByState);
     Load(context, Tablets);
-    // COMPAT(savrus)
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::PerTableTabletBalancerConfig) {
-        std::optional<bool> enableTabletBalancer;
-        Load(context, enableTabletBalancer);
-        TabletBalancerConfig->EnableAutoReshard = enableTabletBalancer.value_or(true);
-        Load(context, TabletBalancerConfig->MinTabletSize);
-        Load(context, TabletBalancerConfig->MaxTabletSize);
-        Load(context, TabletBalancerConfig->DesiredTabletSize);
-    }
     Load(context, InMemoryMode);
-    // COMPAT(savrus)
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::PerTableTabletBalancerConfig) {
-        Load(context, TabletBalancerConfig->DesiredTabletCount);
-    }
     Load(context, TabletErrorCount);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
-        Load(context, ForcedCompactionRevision);
-        Load(context, Dynamic);
-        Load(context, MountPath);
-        Load(context, ExternalTabletResourceUsage);
-        Load(context, ExpectedTabletState);
-        Load(context, LastMountTransactionId);
-        Load(context, TabletCountByExpectedState);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::MakeTabletStateBackwardCompatible) {
-        Load(context, ActualTabletState);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::AddPrimaryLastMountTransactionId) {
-        Load(context, PrimaryLastMountTransactionId);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::UseCurrentMountTransactionIdToLockTableNodeDuringMount) {
-        Load(context, CurrentMountTransactionId);
-    }
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::PerTableTabletBalancerConfig) {
-        Load(context, *TabletBalancerConfig);
-    }
+    Load(context, ForcedCompactionRevision);
+    Load(context, Dynamic);
+    Load(context, MountPath);
+    Load(context, ExternalTabletResourceUsage);
+    Load(context, ExpectedTabletState);
+    Load(context, LastMountTransactionId);
+    Load(context, TabletCountByExpectedState);
+    Load(context, ActualTabletState);
+    Load(context, PrimaryLastMountTransactionId);
+    Load(context, CurrentMountTransactionId);
+    Load(context, *TabletBalancerConfig);
     // COMPAT(savrus)
     if (context.GetVersion() >= EMasterReign::BulkInsert) {
         Load(context, DynamicTableLocks);
         Load(context, UnconfirmedDynamicTableLockCount);
-    }
-
-    // COMPAT(savrus)
-    if (context.GetVersion() < EMasterReign::MulticellForDynamicTables) {
-        Dynamic = !Tablets.empty();
     }
 }
 
@@ -292,14 +249,8 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, OptimizeFor_);
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::RemoveDynamicTableAttrsFromStaticTables) {
-        Load(context, TabletCellBundle_);
-    }
+    Load(context, TabletCellBundle_);
     TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
-
-    // NB: All COMPAT's after version 609 should be in this function.
-    LoadCompatAfter609(context);
 }
 
 void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)
@@ -339,91 +290,6 @@ void TTableNode::SaveTableSchema(NCellMaster::TSaveContext& context) const
         const auto& previousId = pair.first->second;
         Save(context, ESchemaSerializationMethod::TableIdWithSameSchema);
         Save(context, previousId);
-    }
-}
-
-void TTableNode::LoadCompatAfter609(NCellMaster::TLoadContext& context)
-{
-    //COMPAT(savrus)
-    if (context.GetVersion() < EMasterReign::MulticellForDynamicTables) {
-        if (Attributes_) {
-            auto& attributes = Attributes_->Attributes();
-
-            auto processAttribute = [&] (
-                const TString& attributeName,
-                std::function<void(const TYsonString&)> functor)
-            {
-                auto it = attributes.find(attributeName);
-                if (it != attributes.end()) {
-                    YT_LOG_DEBUG("Change attribute from custom to builtin (AttributeName: %Qv, AttributeValue: %v, TableId: %v)",
-                        attributeName,
-                        ConvertToYsonString(it->second, EYsonFormat::Text),
-                        Id_);
-                    try {
-                        functor(it->second);
-                    } catch (...) {
-                    }
-                    Attributes_->Remove(attributeName);
-                }
-            };
-            processAttribute(EInternedAttributeKey::DisableTabletBalancer.Unintern(), [&] (const TYsonString& val) {
-                SetEnableTabletBalancer(!ConvertTo<bool>(val));
-            });
-            processAttribute(EInternedAttributeKey::EnableTabletBalancer.Unintern(), [&] (const TYsonString& val) {
-                SetEnableTabletBalancer(ConvertTo<bool>(val));
-            });
-            processAttribute(EInternedAttributeKey::MinTabletSize.Unintern(), [&] (const TYsonString& val) {
-                SetMinTabletSize(ConvertTo<i64>(val));
-            });
-            processAttribute(EInternedAttributeKey::MaxTabletSize.Unintern(), [&] (const TYsonString& val) {
-                SetMaxTabletSize(ConvertTo<i64>(val));
-            });
-            processAttribute(EInternedAttributeKey::DesiredTabletSize.Unintern(), [&] (const TYsonString& val) {
-                SetDesiredTabletSize(ConvertTo<i64>(val));
-            });
-            processAttribute(EInternedAttributeKey::DesiredTabletCount.Unintern(), [&] (const TYsonString& val) {
-                SetDesiredTabletCount(ConvertTo<int>(val));
-            });
-            processAttribute(EInternedAttributeKey::InMemoryMode.Unintern(), [&] (const TYsonString& val) {
-                SetInMemoryMode(ConvertTo<EInMemoryMode>(val));
-            });
-            processAttribute(EInternedAttributeKey::ForcedCompactionRevision.Unintern(), [&] (const TYsonString& val) {
-                SetForcedCompactionRevision(ConvertTo<NHydra::TRevision>(val));
-            });
-
-            if (attributes.empty()) {
-                Attributes_.reset();
-            }
-        }
-    }
-
-    //COMPAT(savrus)
-    if (context.GetVersion() < EMasterReign::RemoveDynamicTableAttrsFromStaticTables) {
-        if (HasCustomDynamicTableAttributes()) {
-            TabletCellBundle_ = DynamicTableAttributes_->TabletCellBundle;
-
-            if (GetAtomicity() == DefaultDynamicTableAttributes_.Atomicity &&
-                GetCommitOrdering() == DefaultDynamicTableAttributes_.CommitOrdering &&
-                GetInMemoryMode() == DefaultDynamicTableAttributes_.InMemoryMode &&
-                GetUpstreamReplicaId() == DefaultDynamicTableAttributes_.UpstreamReplicaId &&
-                GetLastCommitTimestamp() == DefaultDynamicTableAttributes_.LastCommitTimestamp &&
-                GetTabletErrorCount() == DefaultDynamicTableAttributes_.TabletErrorCount &&
-                GetForcedCompactionRevision() == DefaultDynamicTableAttributes_.ForcedCompactionRevision &&
-                GetDynamic() == DefaultDynamicTableAttributes_.Dynamic &&
-                GetMountPath() == DefaultDynamicTableAttributes_.MountPath &&
-                GetExternalTabletResourceUsage() == DefaultDynamicTableAttributes_.ExternalTabletResourceUsage &&
-                GetActualTabletState() == DefaultDynamicTableAttributes_.ActualTabletState &&
-                GetExpectedTabletState() == DefaultDynamicTableAttributes_.ExpectedTabletState &&
-                GetLastMountTransactionId() == DefaultDynamicTableAttributes_.LastMountTransactionId &&
-                GetPrimaryLastMountTransactionId() == DefaultDynamicTableAttributes_.PrimaryLastMountTransactionId &&
-                GetCurrentMountTransactionId() == DefaultDynamicTableAttributes_.CurrentMountTransactionId &&
-                Tablets().empty() &&
-                AreNodesEqual(ConvertTo<INodePtr>(TabletBalancerConfig()),
-                    ConvertTo<INodePtr>(DefaultDynamicTableAttributes_.TabletBalancerConfig)))
-            {
-                DynamicTableAttributes_.reset();
-            }
-        }
     }
 }
 

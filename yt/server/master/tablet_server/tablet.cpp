@@ -42,33 +42,21 @@ void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& contex
     Persist(context, UncompressedDataSize);
     Persist(context, CompressedDataSize);
     Persist(context, MemorySize);
-    // COMPAT(aozeritsky)
-    if (context.GetVersion() < EMasterReign::TClusterResourcesDiskSpaceSerialization) {
-        const auto oldMaxMediumCount = 7;
-        i64 DiskSpacePerMediumTmp[oldMaxMediumCount] = {};
-        YT_VERIFY(context.IsLoad());
-        Persist(context, DiskSpacePerMediumTmp);
-        for (auto i = 0; i < oldMaxMediumCount; ++i) {
-            if (DiskSpacePerMediumTmp[i] > 0) {
-                DiskSpacePerMedium[i] = DiskSpacePerMediumTmp[i];
-            }
+    // COMPAT(babenko): rewrite this
+    if (context.IsSave()) {
+        auto& ctx = context.SaveContext();
+        Save<i32>(ctx, DiskSpacePerMedium.size());
+        for (const auto& [mediumIndex, diskSpace] : DiskSpacePerMedium) {
+            Save(ctx, mediumIndex);
+            Save(ctx, diskSpace);
         }
     } else {
-        if (context.IsSave()) {
-            auto& ctx = context.SaveContext();
-            Save<i32>(ctx, DiskSpacePerMedium.size());
-            for (const auto& [mediumIndex, diskSpace] : DiskSpacePerMedium) {
-                Save(ctx, mediumIndex);
-                Save(ctx, diskSpace);
-            }
-        } else {
-            auto& ctx = context.LoadContext();
-            auto size = Load<i32>(ctx);
-            for (auto i = 0; i < size; ++i) {
-                auto mediumIndex = Load<int>(ctx);
-                auto diskSpace = Load<i64>(ctx);
-                DiskSpacePerMedium[mediumIndex] = diskSpace;
-            }
+        auto& ctx = context.LoadContext();
+        auto size = Load<i32>(ctx);
+        for (auto i = 0; i < size; ++i) {
+            auto mediumIndex = Load<int>(ctx);
+            auto diskSpace = Load<i64>(ctx);
+            DiskSpacePerMedium[mediumIndex] = diskSpace;
         }
     }
     Persist(context, ChunkCount);
@@ -77,10 +65,7 @@ void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& contex
     Persist(context, PreloadPendingStoreCount);
     Persist(context, PreloadCompletedStoreCount);
     Persist(context, PreloadFailedStoreCount);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
-        Persist(context, TabletCount);
-    }
+    Persist(context, TabletCount);
     Persist(context, TabletCountPerMemoryMode);
     Persist(context, DynamicMemoryPoolSize);
 }
@@ -89,14 +74,8 @@ void TUncountableTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceCont
 {
     using NYT::Persist;
 
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
-        Persist(context, Decommissioned);
-    }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::AddTabletCellHealthToTabletCellStatistics) {
-        Persist(context, Health);
-    }
+    Persist(context, Decommissioned);
+    Persist(context, Health);
 }
 
 void TTabletCellStatistics::Persist(NCellMaster::TPersistenceContext& context)
@@ -511,13 +490,7 @@ void TTablet::Load(TLoadContext& context)
     if (context.GetVersion() >= EMasterReign::NoTabletErrorsOnMaster) {
         Load(context, ReplicationErrorCount_);
     }
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
-        Load(context, ExpectedState_);
-    } else {
-        // This will be fixed in TTabletManager::TImpl::OnAfterSnapshotLoaded.
-        ExpectedState_ = ETabletState::Unmounted;
-    }
+    Load(context, ExpectedState_);
     // COMPAT(savrus)
     if (context.GetVersion() >= EMasterReign::BulkInsert) {
         Load(context, UnconfirmedDynamicTableLocks_);

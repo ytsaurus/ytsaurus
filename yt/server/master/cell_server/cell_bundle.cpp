@@ -66,11 +66,8 @@ void TCellBundle::Load(TLoadContext& context)
     Load(context, Name_);
     Load(context, Acd_);
     Load(context, *Options_);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::AddDynamicTabletCellOptions) {
-        Load(context, *DynamicOptions_);
-        Load(context, DynamicConfigVersion_);
-    }
+    Load(context, *DynamicOptions_);
+    Load(context, DynamicConfigVersion_);
     Load(context, NodeTagFilter_);
     // COMPAT(savrus)
     if (context.GetVersion() < EMasterReign::CellServer) {
@@ -85,10 +82,7 @@ void TCellBundle::Load(TLoadContext& context)
     } else {
         Load(context, *CellBalancerConfig_);
     }
-    // COMPAT(aozeritsky)
-    if (context.GetVersion() >= EMasterReign::TTabletCellBundleHealthAdded) {
-        Load(context, Health_);
-    }
+    Load(context, Health_);
     // COMPAT(savrus)
     if (context.GetVersion() < EMasterReign::CellServer) {
         Load<THashSet<NTabletServer::TTabletAction*>>(context);

@@ -130,14 +130,7 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, TrunkOwningNodes_);
     Load(context, BranchedOwningNodes_);
     Load(context, Statistics_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() < EMasterReign::TCumulativeStatisticsInChunkLists) {
-        LoadCumulativeStatisticsCompat(context);
-    } else {
-        Load(context, CumulativeStatistics_);
-    }
-
+    Load(context, CumulativeStatistics_);
     Load(context, Kind_);
     Load(context, TrimmedChildCount_);
     Load(context, PivotKey_);

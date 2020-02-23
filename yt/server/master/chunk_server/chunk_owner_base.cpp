@@ -65,11 +65,8 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, DeltaStatistics_);
     Load(context, CompressionCodec_);
     Load(context, ErasureCodec_);
-    // COMPAT(babenko)
-    if (context.GetVersion() >= EMasterReign::SecurityTags) {
-        Load(context, SnapshotSecurityTags_);
-        Load(context, DeltaSecurityTags_);
-    }
+    Load(context, SnapshotSecurityTags_);
+    Load(context, DeltaSecurityTags_);
 }
 
 const TChunkList* TChunkOwnerBase::GetSnapshotChunkList() const

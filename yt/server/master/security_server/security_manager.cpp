@@ -1793,9 +1793,6 @@ private:
     bool RecomputeAccountResourceUsage_ = false;
     bool ValidateAccountResourceUsage_ = false;
 
-    // COMPAT(shakurov)
-    bool NeedAdjustUserReadRateLimits_ = false;
-
     bool MustRecomputeMembershipClosure_ = false;
 
     // COMPAT(kiselyovp)
@@ -2097,20 +2094,11 @@ private:
             NetworkProjectMap_.LoadValues(context);
         }
 
+        MustRecomputeMembershipClosure_ = Load<bool>(context);
+
         // COMPAT(savrus) COMPAT(shakurov)
         ValidateAccountResourceUsage_ = true;
         RecomputeAccountResourceUsage_ = false;
-
-        // COMPAT(shakurov)
-        NeedAdjustUserReadRateLimits_ = context.GetVersion() < EMasterReign::MultiplyTUserReadRequestRateLimitByTheNumberOfFollowers;
-
-        // COMPAT(babenko)
-        if (context.GetVersion() >= EMasterReign::YT_10952_DelayedMembershipClosureRecomputation) {
-            MustRecomputeMembershipClosure_ = Load<bool>(context);
-        }
-
-        // COMPAT(ifsmirnov)
-        RecomputeAccountResourceUsage_ = context.GetVersion() < EMasterReign::ChunkViewToParentsArray;
 
         // COMPAT(kiselyovp)
         MustInitializeAccountHierarchy_ = context.GetVersion() < EMasterReign::HierarchicalAccounts;
@@ -2120,13 +2108,6 @@ private:
 
         // COMPAT(aleksandra-zh)
         NeedAdjustRootAccountLimits_ = context.GetVersion() < EMasterReign::FixRootAccountLimits;
-    }
-
-    virtual void OnBeforeSnapshotLoaded() override
-    {
-        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
-
-        NeedAdjustUserReadRateLimits_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -2163,22 +2144,6 @@ private:
 
             // Reconstruct user name map.
             YT_VERIFY(UserNameMap_.emplace(user->GetName(), user).second);
-        }
-
-        // COMPAT(shakurov)
-        // Multiply user read rate limits by the number of peers to compensate
-        // for the subsequent division by the same number.
-        if (NeedAdjustUserReadRateLimits_) {
-            // The number of primary cell peers from which reading occurs.
-            // Those peers are usually the followers, except when there's only one peer.
-            const auto primaryCellReadPeerCount =
-                std::max(1, static_cast<int>(Bootstrap_->GetConfig()->PrimaryMaster->Peers.size()) - 1);
-
-            for (auto [userId, user] : UserMap_) {
-                auto limit = user->GetRequestRateLimit(EUserWorkloadType::Read);
-                limit *= primaryCellReadPeerCount;
-                user->SetRequestRateLimit(limit, EUserWorkloadType::Read);
-            }
         }
 
         GroupNameMap_.clear();
@@ -2245,12 +2210,10 @@ private:
             RootAccount_->ClusterResourceLimits() = TClusterResources::Infinite();
         }
 
-        // COMPAT(shakurov)
-        RecomputeAccountResourceUsage();
-
         RecomputeAccountMasterMemoryUsage();
     }
 
+    // COMPAT(shakurov): currently unused but may become useful
     void RecomputeAccountResourceUsage()
     {
         if (!ValidateAccountResourceUsage_ && !RecomputeAccountResourceUsage_) {
