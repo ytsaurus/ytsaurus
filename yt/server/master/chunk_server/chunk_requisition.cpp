@@ -108,21 +108,7 @@ void TChunkReplication::Save(NCellMaster::TSaveContext& context) const
 void TChunkReplication::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
-
-    // COMPAT(shakurov)
-    if (context.GetVersion() < NCellMaster::EMasterReign::InTChunkReplicationReplaceArrayWithSmallVector) {
-        constexpr auto oldMaxMediumCount = 7;
-        std::array<TReplicationPolicy, oldMaxMediumCount> oldReplicationPolicies{};
-        Load(context, oldReplicationPolicies);
-        for (auto mediumIndex = 0; mediumIndex < oldMaxMediumCount; ++mediumIndex) {
-            if (auto& policy = oldReplicationPolicies[mediumIndex]) {
-                Insert(mediumIndex, policy);
-            }
-        }
-    } else {
-        Load(context, Entries_);
-    }
-
+    Load(context, Entries_);
     Load(context, Vital_);
 }
 

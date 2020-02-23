@@ -135,8 +135,6 @@ public:
 
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
-    void LoadPre609(NCellMaster::TLoadContext& context);
-    void LoadCompatAfter609(NCellMaster::TLoadContext& context);
 
     void SaveTableSchema(NCellMaster::TSaveContext& context) const;
     void LoadTableSchema(NCellMaster::TLoadContext& context);

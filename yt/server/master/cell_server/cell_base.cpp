@@ -107,32 +107,15 @@ void TCellBase::Load(TLoadContext& context)
     if (context.GetVersion() < EMasterReign::CellServer) {
         Load(context, CompatTablets_);
         Load<TTabletCellStatistics>(context);
-        // COMPAT(savrus)
-        if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
-            Load<THashMap<NObjectClient::TCellTag, NTabletServer::TTabletCellStatistics>>(context);
-        }
+        Load<THashMap<NObjectClient::TCellTag, NTabletServer::TTabletCellStatistics>>(context);
     }
     Load(context, PrerequisiteTransaction_);
     Load(context, CellBundle_);
-    // COMPAT(savrus)
-    if (context.GetVersion() >= EMasterReign::AddTabletCellDecommission) {
-        if (context.GetVersion() >= EMasterReign::FixSnapshot) {
-            Load(context, CellLifeStage_);
-        } else if (context.GetVersion() >= EMasterReign::AddTabletCellLifeStage) {
-            // Saved wrong value by accident
-            Load<NObjectServer::EObjectLifeStage>(context);
-            CellLifeStage_ = ECellLifeStage::Running;
-        } else {
-            CellLifeStage_ = Load<bool> (context)
-                 ? ECellLifeStage::Decommissioned
-                 : ECellLifeStage::Running;
-        }
-    }
+    Load(context, CellLifeStage_);
     // COMPAT(savrus)
     if (context.GetVersion() >= EMasterReign::CellServer) {
         Load(context, GossipStatus_);
     }
-
     // COMPAT(gritukan)
     if (context.GetVersion() >= EMasterReign::DynamicPeerCount) {
         Load(context, PeerCount_);

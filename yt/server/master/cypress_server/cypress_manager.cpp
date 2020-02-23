@@ -48,10 +48,6 @@
 
 #include <yt/core/ypath/token.h>
 
-// COMPAT(shakurov)
-#include <yt/server/master/table_server/table_node.h>
-#include <yt/server/master/chunk_server/chunk_list.h>
-
 namespace NYT::NCypressServer {
 
 using namespace NBus;
@@ -1784,8 +1780,6 @@ private:
     TCypressShardId RootShardId_;
     TCypressShard* RootShard_ = nullptr;
 
-    // COMPAT(shakurov). See YT-10852.
-    bool NeedCleanupHalfCommittedTransaction_ = false;
     // COMPAT(babenko)
     bool NeedBindNodesToRootShard_ = false;
     // COMPAT(babenko)
@@ -1834,8 +1828,6 @@ private:
             ShardMap_.LoadValues(context);
         }
 
-        // COMPAT(shakurov) see YT-10852
-        NeedCleanupHalfCommittedTransaction_ = context.GetVersion() < EMasterReign::YT_10852;
         // COMPAT(babenko)
         NeedBindNodesToRootShard_ = context.GetVersion() < EMasterReign::CypressShards;
         // COMPAT(babenko)
@@ -1874,7 +1866,6 @@ private:
     {
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
-        NeedCleanupHalfCommittedTransaction_ = false;
         NeedBindNodesToRootShard_ = false;
         NeedBindNodesToAncestorShard_ = false;
         NeedSuggestShardNames_ = false;
@@ -1971,49 +1962,6 @@ private:
         YT_LOG_INFO("Finished initializing nodes");
 
         InitBuiltins();
-
-        // COMPAT(shakurov)
-        if (NeedCleanupHalfCommittedTransaction_) {
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-
-            const auto nodeId = TGuid::FromString("14b9a-4f2edb-3fe0191-6f4fd698");
-            const auto transactionId = TGuid::FromString("14b9d-127f8e-3fe0001-1c229f47");
-            const auto branchedNodeId = TVersionedNodeId(nodeId, transactionId);
-
-            auto* trunkNode = FindNode(TVersionedNodeId(nodeId));
-            auto* branchedNode = FindNode(branchedNodeId);
-            auto* transaction = transactionManager->FindTransaction(transactionId);
-
-            YT_VERIFY(!!trunkNode == !!branchedNode);
-            YT_VERIFY(!!trunkNode == !!transaction);
-
-            if (trunkNode) {
-                YT_LOG_ERROR("Found the unfortunate half-committed transaction 14b9d-127f8e-3fe0001-1c229f47. Scrubbing it and its immediate vicinity out. See YT-10852.");
-
-                YT_VERIFY(trunkNode->GetType() == EObjectType::Table);
-                auto* tableTrunkNode = trunkNode->As<NTableServer::TTableNode>();
-                auto* chunkList = tableTrunkNode->GetChunkList();
-                YT_VERIFY(chunkList);
-                YT_VERIFY(chunkList->GetId() == TGuid::FromString("14b2-bf8cb-1f560065-bd3efb"));
-                YT_VERIFY(chunkList->TrunkOwningNodes().Size() == 1);
-                YT_VERIFY(chunkList->BranchedOwningNodes().Empty());
-                YT_VERIFY(*chunkList->TrunkOwningNodes().Begin() == tableTrunkNode);
-
-                objectManager->UnrefObject(trunkNode);
-                NodeMap_.Remove(branchedNodeId);
-                transaction->BranchedNodes().clear();
-                ReleaseLocks(transaction, false);
-                for (auto* object : transaction->ImportedObjects()) {
-                    objectManager->UnrefObject(object);
-                }
-                transaction->ExportedObjects().clear();
-                transaction->ImportedObjects().clear();
-                transactionManager->FinishTransaction(transaction);
-
-                YT_LOG_ERROR("The half-committed transaction 14b9d-127f8e-3fe0001-1c229f47 has been successfully scrubbed out.");
-            }
-        }
 
         // COMPAT(babenko)
         if (NeedBindNodesToRootShard_) {

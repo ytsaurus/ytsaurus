@@ -140,17 +140,7 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
     // COMPAT(aozeritsky)
-    if (context.GetVersion() < NCellMaster::EMasterReign::TClusterResourcesDiskSpaceSerialization) {
-        const auto oldMaxMediumCount = 7;
-        std::array<i64, oldMaxMediumCount> oldDiskSpaceArray = {};
-        Load(context, oldDiskSpaceArray);
-
-        for (int mediumIndex = 0 ; mediumIndex < 7; ++mediumIndex) {
-            if (oldDiskSpaceArray[mediumIndex] > 0) {
-                DiskSpace_[mediumIndex] = oldDiskSpaceArray[mediumIndex];
-            }
-        }
-    } else if (context.GetVersion() < NCellMaster::EMasterReign::FixDenseMapSerialization) {
+    if (context.GetVersion() < NCellMaster::EMasterReign::FixDenseMapSerialization) {
         auto mediumCount = Load<int>(context);
         for (auto i = 0; i < mediumCount; ++i) {
             auto space = Load<i64>(context);
@@ -163,14 +153,8 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
         Load(context, DiskSpace_);
     }
 
-    // COMPAT(shakurov)
-    if (context.GetVersion() < NCellMaster::EMasterReign::IntToI64ForNSecurityServerTClusterResourcesNodeAndChunkCount) {
-        NodeCount = Load<int>(context);
-        ChunkCount = Load<int>(context);
-    } else {
-        Load(context, NodeCount);
-        Load(context, ChunkCount);
-    }
+    Load(context, NodeCount);
+    Load(context, ChunkCount);
     Load(context, TabletCount);
     Load(context, TabletStaticMemory);
     // COMPAT(aleksandra-zh)

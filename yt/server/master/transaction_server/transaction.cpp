@@ -109,16 +109,9 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     Load(context, StagedNodes_);
     Load(context, AccountResourceUsage_);
     Load(context, Acd_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::RemoveTTransactionSystem) {
-        Load<bool>(context); // drop System_
-    }
     Load(context, PrerequisiteTransactions_);
     Load(context, DependentTransactions_);
-    // COMPAT(ignat)
-    if (context.GetVersion() >= EMasterReign::PersistTransactionDeadline) {
-        Load(context, Deadline_);
-    }
+    Load(context, Deadline_);
     // COMPAT(savrus)
     if (context.GetVersion() >= EMasterReign::BulkInsert) {
         Load(context, LockedDynamicTables_);
