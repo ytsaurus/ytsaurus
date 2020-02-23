@@ -1285,8 +1285,7 @@ private:
             }
 
             auto optionalColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
-            // COMPAT(max42): remove second option when YT-8954 is at least several months old.
-            if (!optionalColumnarStatisticsExt || optionalColumnarStatisticsExt->data_weights_size() == 0) {
+            if (!optionalColumnarStatisticsExt) {
                 ToProto(
                     subresponse->mutable_error(),
                     TError(NChunkClient::EErrorCode::MissingExtension, "Columnar statistics chunk meta extension missing"));
@@ -1324,10 +1323,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
-        if (!request->has_peer_node_id()) {
-            THROW_ERROR_EXCEPTION("Peer-to-peer with older versions is not supported, update node to a more recent version");
-        }
-
         auto expirationTime = FromProto<TInstant>(request->peer_expiration_time());
 
         const auto& nodeDirectory = Bootstrap_->GetNodeDirectory();

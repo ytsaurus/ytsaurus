@@ -89,8 +89,6 @@ void TPeerBlockUpdater::Update()
         const auto& request = it->second;
         request->SetMultiplexingBand(NRpc::EMultiplexingBand::Heavy);
         request->set_peer_node_id(Bootstrap_->GetMasterConnector()->GetNodeId());
-        // COMPAT(psushin).
-        ToProto(request->mutable_peer_descriptor(), localDescriptor);
         request->set_peer_expiration_time(expirationTime.GetValue());
         auto* protoBlockId = request->add_block_ids();
         const auto& blockId = block->GetKey();
