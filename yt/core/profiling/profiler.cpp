@@ -69,13 +69,13 @@ TCounterBase& TCounterBase::operator=(const TCounterBase& other)
     TagIds_ = other.TagIds_;
     Interval_ = other.Interval_;
     Deadline_ = 0;
-    Current_ = other.Current_.load(std::memory_order_relaxed);
+    Current_ = other.GetCurrent();
     return *this;
 }
 
 TValue TCounterBase::GetCurrent() const
 {
-    return Current_.load(std::memory_order_relaxed);
+    return Current_.load();
 }
 
 TCpuInstant TCounterBase::GetUpdateDeadline() const
@@ -343,7 +343,7 @@ void TProfiler::Update(TSimpleGauge& counter, TValue value) const
 
 TValue TProfiler::Increment(TSimpleGauge& counter, TValue delta) const
 {
-    auto result = counter.Current_.fetch_add(delta, std::memory_order_relaxed) + delta;
+    auto result = (counter.Current_ += delta);
     OnUpdated(counter, EMetricType::Gauge);
     return result;
 }
@@ -356,7 +356,7 @@ void TProfiler::Reset(TMonotonicCounter& counter) const
 
 TValue TProfiler::Increment(TMonotonicCounter& counter, TValue delta) const
 {
-    auto result = counter.Current_.fetch_add(delta, std::memory_order_relaxed) + delta;
+    auto result = (counter.Current_ += delta);
     OnUpdated(counter, EMetricType::Counter);
     return result;
 }
@@ -380,27 +380,21 @@ void TProfiler::OnUpdated(TAggregateGauge& counter, TValue value) const
     }
 
     if (mode == EAggregateMode::All || mode == EAggregateMode::Min) {
-        while (true) {
-            auto min = counter.Min_.load(std::memory_order_relaxed);
+        auto min = counter.Min_.load(std::memory_order_relaxed);
+        do {
             if (min <= value) {
                 break;
             }
-            if (counter.Min_.compare_exchange_weak(min, value)) {
-                break;
-            }
-        }
+        } while (!counter.Min_.compare_exchange_weak(min, value));
     }
 
     if (mode == EAggregateMode::All || mode == EAggregateMode::Max) {
-        while (true) {
-            auto max = counter.Max_.load(std::memory_order_relaxed);
+        auto max = counter.Max_.load(std::memory_order_relaxed);
+        do {
             if (max >= value) {
                 break;
             }
-            if (counter.Max_.compare_exchange_weak(max, value)) {
-                break;
-            }
-        }
+        } while (!counter.Max_.compare_exchange_weak(max, value));
     }
 
     auto now = GetCpuInstant();
@@ -469,7 +463,7 @@ void TProfiler::OnUpdated(TCounterBase& counter, EMetricType metricType) const
 
     Enqueue(
         counter.Path_,
-        counter.Current_.load(std::memory_order_relaxed),
+        counter.Current_.load(),
         metricType,
         counter.TagIds_);
 }
