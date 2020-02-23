@@ -390,6 +390,12 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        // This shortcut prevents waiting for the (no-op) batcher at primary cell.
+        // XXX(babenko): tx cells
+        if (IsPrimaryMaster()) {
+            return VoidFuture;
+        }
+
         return UpstreamSyncBatcher_->Run();
     }
 
