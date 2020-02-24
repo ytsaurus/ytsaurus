@@ -63,6 +63,8 @@
 
 #include <yt/core/misc/collection_helpers.h>
 
+#include <library/protobuf/interop/cast.h>
+
 #include <array>
 
 namespace NYP::NServer::NObjects {
@@ -133,16 +135,11 @@ void FromProto(
     TTimeInterval* timeInterval,
     const NClient::NApi::NProto::TTimeInterval& protoTimeInterval)
 {
-    // TODO(gritukan): Remove it after YP-1254.
-    auto protoTimestampToInstant = [] (const google::protobuf::Timestamp& timestamp) {
-        return TInstant::Seconds(timestamp.seconds()) + TDuration::MicroSeconds(timestamp.nanos() / 1000);
-    };
-
     if (protoTimeInterval.has_begin()) {
-        timeInterval->Begin = protoTimestampToInstant(protoTimeInterval.begin());
+        timeInterval->Begin = NProtoInterop::CastFromProto(protoTimeInterval.begin());
     }
     if (protoTimeInterval.has_end()) {
-        timeInterval->End = protoTimestampToInstant(protoTimeInterval.end());
+        timeInterval->End = NProtoInterop::CastFromProto(protoTimeInterval.end());
     }
 }
 

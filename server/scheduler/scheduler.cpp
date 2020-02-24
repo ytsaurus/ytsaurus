@@ -147,7 +147,7 @@ private:
         void Run()
         {
             auto shouldRunStage = [this] (ESchedulerLoopStage stage) {
-                if (Context_.Config->DisableStage[stage]) {
+                if (Context_.Config->IsStageDisabled(stage)) {
                     YT_LOG_INFO("Skipping disabled stage %v",
                         stage);
                     return false;
@@ -174,7 +174,8 @@ private:
                     Context_.PodDisruptionBudgetController->Run(Context_.Cluster);
                 }
             }
-            {
+            // COMPAT(bidzilya): Remove legacy stage name and flag.
+            if (shouldRunStage(ESchedulerLoopStage::RunPodEvictionByHfsmController)) {
                 auto controller = New<TPodMaintenanceController>(Bootstrap_);
 
                 // COMPAT(bidzilya): Do not request eviction explicitly, let controllers decide.

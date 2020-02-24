@@ -58,6 +58,7 @@ DEFINE_ENUM(ESchedulerLoopStage,
     (UpdateNodeSegmentsStatus)
     (UpdateAccountsStatus)
     (RunPodDisruptionBudgetController)
+    (RunPodEvictionByHfsmController)
     (RunPodMaintenanceAbortEviction)
     (RunPodMaintenanceRequestEviction)
     (RunPodMaintenanceResetMaintenance)

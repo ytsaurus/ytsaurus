@@ -201,7 +201,6 @@ class TSchedulerConfig
 {
 public:
     bool Disabled;
-    TEnumIndexedVector<ESchedulerLoopStage, bool> DisableStage;
     TDuration LoopPeriod;
     TPodExponentialBackoffPolicyConfigPtr FailedAllocationBackoff;
     int AllocationCommitConcurrency;
@@ -210,11 +209,17 @@ public:
     NCluster::TClusterConfigPtr Cluster;
     TSchedulePodsStageConfigPtr SchedulePodsStage;
 
+    bool IsStageDisabled(ESchedulerLoopStage stage) const
+    {
+        auto it = DisableStage_.find(CamelCaseToUnderscoreCase(ToString(stage)));
+        return it != DisableStage_.end() && it->second;
+    }
+
     TSchedulerConfig()
     {
         RegisterParameter("disabled", Disabled)
             .Default(false);
-        RegisterParameter("disable_stage", DisableStage)
+        RegisterParameter("disable_stage", DisableStage_)
             .Default();
         RegisterParameter("loop_period", LoopPeriod)
             .Default(TDuration::Seconds(1));
@@ -232,6 +237,10 @@ public:
         RegisterParameter("schedule_pods_stage", SchedulePodsStage)
             .DefaultNew();
     }
+
+private:
+    // Use string instead of enum for compatibility.
+    THashMap<TString, bool> DisableStage_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)

@@ -92,7 +92,6 @@ class TestConfig(object):
             assert config["config_update_period"] == self.CONFIG_UPDATE_PERIOD
             assert "scheduler" in config
             assert "disable_stage" in config["scheduler"]
-            assert config["scheduler"]["disable_stage"]["remove_orphaned_allocations"] == False
             assert "access_control_manager" in config
             assert "global_resource_allocator" in config["scheduler"]
 
@@ -279,6 +278,7 @@ class TestConfig(object):
 
         # Disable the scheduler differently.
         self._set_and_validate_config_patch(yp_env_configurable, dict(scheduler=dict(disable_stage=dict(
+            abracadabra=True, # Update must be successful even for unknown field.
             revoke_pods_with_acknowledged_eviction=True,
             remove_orphaned_allocations=True,
             schedule_pods=True,

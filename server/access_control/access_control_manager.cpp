@@ -867,7 +867,7 @@ public:
         TAccessControlManagerConfigPtr config)
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
-        , ClusterStateUpdateQueue_(New<TActionQueue>("AccessControlClusterStateUpdate"))
+        , ClusterStateUpdateQueue_(New<TActionQueue>("AclStateUpdate"))
         , ClusterStateUpdateExecutor_(New<TPeriodicExecutor>(
             ClusterStateUpdateQueue_->GetInvoker(),
             BIND(&TImpl::OnUpdateClusterState, MakeWeak(this)),
