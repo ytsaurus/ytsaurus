@@ -293,6 +293,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         cluster_connection = clusters[self.REMOTE_CLUSTER_NAME]
         try:
             set("//sys/clusters", {})
+            # TODO(babenko): wait for cluster sync
             time.sleep(2)
             op = remote_copy(track=False, in_="//tmp/t1", out="//tmp/t2",
                     spec={"cluster_connection": cluster_connection, "job_count": 100})
@@ -310,6 +311,8 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
             assert input_tx != get(op.get_path() + "/@input_transaction_id")
         finally:
             set("//sys/clusters", clusters)
+            # TODO(babenko): wait for cluster sync
+            time.sleep(2)
 
         assert read_table("//tmp/t2") ==  [{"a" : i} for i in xrange(100)]
 

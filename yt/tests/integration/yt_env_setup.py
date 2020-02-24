@@ -712,7 +712,7 @@ class YTEnvSetup(object):
                     continue
                 yt_commands.set("//sys/clusters", clusters, driver=driver)
 
-        # TODO(babenko): get rid of this sleep
+        # TODO(babenko): wait for cluster sync
         if cls.remote_envs:
             sleep(1.0)
 
