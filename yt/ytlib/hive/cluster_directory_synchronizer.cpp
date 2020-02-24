@@ -107,8 +107,9 @@ private:
                 THROW_ERROR_EXCEPTION("Directory connection is not available");
             }
 
+            YT_LOG_DEBUG("Started synchronizing cluster directory");
+
             auto client = connection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
-            YT_LOG_DEBUG("Started updating cluster directory");
 
             TGetClusterMetaOptions options;
             options.PopulateClusterDirectory = true;
@@ -126,9 +127,9 @@ private:
 
             clusterDirectory->UpdateDirectory(*meta.ClusterDirectory);
 
-            YT_LOG_DEBUG("Finished updating cluster directory");
+            YT_LOG_DEBUG("Finished synchronizing cluster directory");
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error updating cluster directory")
+            THROW_ERROR_EXCEPTION("Error synchronizing cluster directory")
                 << ex;
         }
     }
