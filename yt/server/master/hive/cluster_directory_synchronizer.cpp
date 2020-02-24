@@ -119,6 +119,8 @@ private:
     void DoSync()
     {
         try {
+            YT_LOG_DEBUG("Started synchronizing cluster directory");
+
             auto req = NObjectClient::TMasterYPathProxy::GetClusterMeta();
             req->set_populate_cluster_directory(true);
 
@@ -137,22 +139,21 @@ private:
                 auto channel = MulticellManager_->FindMasterChannel(CellTag_, NHydra::EPeerKind::Follower);
                 NObjectClient::TObjectServiceProxy proxy(channel);
                 auto batchReq = proxy.ExecuteBatch();
-                batchReq->AddRequest(req, "get_cluster_meta");
-                auto batchRes = WaitFor(batchReq->Invoke())
+                batchReq->AddRequest(req);
+                auto batchRsp = WaitFor(batchReq->Invoke())
                     .ValueOrThrow();
-
-                auto res = batchRes->GetResponse<NObjectClient::TMasterYPathProxy::TRspGetClusterMeta>(0)
+                auto rsp = batchRsp->GetResponse<NObjectClient::TMasterYPathProxy::TRspGetClusterMeta>(0)
                     .ValueOrThrow();
-
-                ClusterDirectory_->UpdateDirectory(res->cluster_directory());
+                ClusterDirectory_->UpdateDirectory(rsp->cluster_directory());
             } else {
-                auto res = WaitFor(ExecuteVerb(ObjectManager_->GetMasterProxy(), req))
+                auto rsp = WaitFor(ExecuteVerb(ObjectManager_->GetMasterProxy(), req))
                     .ValueOrThrow();
-
-                ClusterDirectory_->UpdateDirectory(res->cluster_directory());
+                ClusterDirectory_->UpdateDirectory(rsp->cluster_directory());
             }
+
+            YT_LOG_DEBUG("Finished synchronizing cluster directory");
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error updating cluster directory")
+            THROW_ERROR_EXCEPTION("Error synchronizing cluster directory")
                 << ex;
         }
     }
