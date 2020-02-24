@@ -7,11 +7,14 @@ import logging
 import sys
 import datetime
 import dateutil.parser
+import pytz
 
 logger = logging.getLogger(__name__)
 
 LOG_LEVEL_LONG_NAMES = ["TRACE", "DEBUG", "INFO", "WARNING", "ERROR", "FATAL"]
 LOG_LEVEL_SHORT_NAMES = [level[:1] for level in LOG_LEVEL_LONG_NAMES]
+
+MST = pytz.timezone("Europe/Moscow")
 
 def setup_logging(verbose):
     logger.setLevel(logging.DEBUG)
@@ -76,18 +79,18 @@ def parse_ts(ts, default=None):
         ts = ts[:-1]
         add = datetime.timedelta(hours=3)
     try:
-        return dateutil.parser.parse(ts) + add
+        return MST.localize(dateutil.parser.parse(ts) + add)
     except ValueError:
         return None
 
 
 def format_ts(ts):
-    return ts.isoformat().replace("T", " ").replace(".", ",")
+    return ts.astimezone(MST).isoformat(" ").replace(".", ",")
 
 LIMIT = 1000000
 
 def format_query(input_table_path, conditions):
-    return "* FROM [{}] WHERE {} ORDER BY (timestamp, timestamp) LIMIT {}".format(input_table_path, " AND ".join(conditions), LIMIT)
+    return "* FROM [{}] WHERE {} ORDER BY (timestamp, increment) LIMIT {}".format(input_table_path, " AND ".join("({})".format(condition) for condition in conditions), LIMIT)
 
 
 def get_current_time():
@@ -140,6 +143,18 @@ def select_rows_batched(input_table_path, conditions, from_ts, to_ts, window_siz
             else:
                 batch_index += 1
                 cur_ts += window_size
+
+def print_row(row, omit_job_id=False, raw=False, file=sys.stdout):
+    job_id_prefix = "[{}]\t".format(row["job_id"]) if not omit_job_id else ""
+    line = None
+    if raw:
+        line = "{}{}".format(job_id_prefix, row)
+    else:
+        line = "{}{}\t{}\t{}\t{}\t{}\t{}\t{}".format(job_id_prefix, row["timestamp"], row["log_level"],
+                                                     row["category"], row["message"], row["thread_id"], row["fiber_id"],
+                                                     row["trace_id"])
+    print >>file, line
+    
 
 def main():
     description = """
@@ -251,13 +266,7 @@ def main():
     for index, row in enumerate(rows):
         if index >= args.limit:
             break
-        job_id_prefix = "[{}]\t".format(row["job_id"]) if not omit_job_id else ""
-        if args.raw:
-            print "{}{}".format(job_id_prefix, row)
-        else:
-            print "{}{}\t{}\t{}\t{}\t{}\t{}\t{}".format(job_id_prefix, row["timestamp"], row["log_level"],
-                                                        row["category"], row["message"], row["thread_id"], row["fiber_id"],
-                                                        row["trace_id"])
+        print_row(row, omit_job_id=omit_job_id, raw=args.raw, file=sys.stdout)
 
 
 if __name__ == "__main__":
