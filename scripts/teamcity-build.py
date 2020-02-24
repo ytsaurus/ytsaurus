@@ -48,6 +48,7 @@ import contextlib
 import fnmatch
 import functools
 import glob
+import imp
 import json
 import os.path
 import pprint
@@ -88,6 +89,8 @@ YA_CACHE_YT_MAX_STORE_SIZE = 2 * TB
 YA_CACHE_YT_STORE_TTL = 24  # hours
 YA_CACHE_YT_STORE_CODEC = "zstd08_1"
 
+YT_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+
 try:
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src"))
     from releaselib.sandbox import client as sandbox_client
@@ -95,10 +98,26 @@ except:
     sandbox_client = None
 
 def get_relative_yt_root(options):
-    return ""
+    if not options.arc:
+        return ""
+
+    current_path = YT_ROOT
+    parts = []
+    while not os.path.exists(os.path.join(current_path, ".arc")):
+        teamcity_message("Checking " + os.path.join(current_path, ".arc"))
+        head, tail = os.path.split(current_path)
+        if not tail:
+            raise Exception("Failed to find arc root")
+        current_path = head
+        parts.append(tail)
+
+    parts.reverse()
+    return os.path.join(*parts)
 
 def get_relative_python_root(options):
-    return ""
+    if not options.arc:
+        return ""
+    return "yt/"
 
 def yt_processes_cleanup():
     kill_by_name("^ytserver")
@@ -411,19 +430,33 @@ def set_suid_bit(options, build_context):
 
 @build_step
 def import_yt_wrapper(options, build_context):
-    python_directory = os.path.join(options.checkout_directory, "python")
+    python_source = os.path.join(options.checkout_directory, get_relative_python_root(options), "python")
+    python_destination = os.path.join(options.working_directory, "python")
 
-    # ya build doesn't install bindings automatically so we install it here
-    # for cmake build this should do no harm
-    prepare_python_bindings(python_directory, options.working_directory, "2.7")
-    sys.path.insert(0, python_directory)
+    if os.path.exists(python_destination):
+        shutil.rmtree(python_destination)
+    # symlinks specification is temporary
+    shutil.copytree(python_source, python_destination, symlinks=False)
 
-    try:
-        import yt.wrapper
-    except ImportError as err:
-        raise RuntimeError("Failed to import yt wrapper: {0}".format(err))
-    yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
-    build_context["yt.wrapper"] = yt.wrapper
+    prepare_source_tree = imp.load_source(
+        "prepare_source_tree",
+        os.path.join(python_destination, "prepare_source_tree/prepare_source_tree.py"))
+    prepare_source_tree.prepare_python_source_tree(
+        python_root=python_destination,
+        yt_root=options.checkout_directory,
+        prepare_binary_symlinks=False,
+        prepare_bindings=False)
+
+    sys.path.insert(0, python_destination)
+    pythonpaths = []
+    for bindings_type in ["yson", "driver", "driver_rpc"]:
+        lib_path = os.path.join(
+            options.working_directory,
+            "lib",
+            "pyshared-2-7")
+        pythonpaths.append(lib_path)
+    for pythonpath in pythonpaths:
+        sys.path.insert(0, pythonpath)
 
 def sky_get(resource):
     run(
@@ -444,83 +477,6 @@ def sky_share(resource, cwd):
     if urlparse.urlparse(rbtorrent).scheme != "rbtorrent":
         raise RuntimeError("Failed to parse rbtorrent url: {0}".format(rbtorrent))
     return rbtorrent
-
-def share_yt_deb_packages(options, build_context):
-    # Share all important packages via skynet and store in sandbox.
-    upload_packages = [
-        "yandex-yt-src",
-        "yandex-yt-http-proxy",
-        "yandex-yt-proxy",
-        "yandex-yt-master",
-        "yandex-yt-clock",
-        "yandex-yt-scheduler",
-        "yandex-yt-controller-agent",
-        "yandex-yt-clickhouse",
-        "yandex-yt-node",
-        "yandex-yt-http-proxy-dbg",
-        "yandex-yt-proxy-dbg",
-        "yandex-yt-master-dbg",
-        "yandex-yt-clock-dbg",
-        "yandex-yt-scheduler-dbg",
-        "yandex-yt-controller-agent-dbg",
-        "yandex-yt-clickhouse-dbg",
-        "yandex-yt-node-dbg",
-
-        "yandex-yt-python-skynet-driver",
-        "yandex-yt-python-driver",
-    ]
-
-    try:
-        version = build_context["yt_version"]
-        build_time = build_context["build_time"]
-        cli = sandbox_client.SandboxClient(oauth_token=os.environ["TEAMCITY_SANDBOX_TOKEN"])
-
-        dir = os.path.join(options.working_directory, "./ARTIFACTS")
-        rows = []
-        for pkg in upload_packages:
-            path = "{0}/{1}_{2}_amd64.deb".format(dir, pkg, version)
-            if not os.path.exists(path):
-                raise StepFailedWithNonCriticalError("Failed to find package {0} ({1})".format(pkg, path))
-            else:
-                torrent_id = sky_share(os.path.basename(path), os.path.dirname(path))
-                sandbox_ctx = {
-                    "created_resource_name": os.path.basename(path),
-                    "resource_type": "YT_PACKAGE",
-                    "remote_file_name": torrent_id,
-                    "store_forever": True,
-                    "remote_file_protocol": "skynet"}
-
-                task_description = """
-                    Build id: {0}
-                    Build type: {1}
-                    Source host: {2}
-                    Teamcity build type id: {3}
-                    Package: {4}
-                    """.format(
-                    version,
-                    options.type,
-                    socket.getfqdn(),
-                    options.btid,
-                    pkg)
-
-                task_id = cli.create_task("YT_REMOTE_COPY_RESOURCE", "YT_ROBOT", task_description, sandbox_ctx)
-                teamcity_message("Created sandbox upload task: package: {0}, task_id: {1}, torrent_id: {2}".format(pkg, task_id, torrent_id))
-                rows.append({
-                    "package": pkg,
-                    "version": version,
-                    "ubuntu_codename": options.codename,
-                    "torrent_id": torrent_id,
-                    "task_id": task_id,
-                    "build_time": build_time})
-
-        # Add to locke.
-        yt_wrapper = build_context["yt.wrapper"]
-        yt_wrapper.config["proxy"]["url"] = "locke"
-        yt_wrapper.insert_rows("//sys/admin/skynet/packages", rows)
-
-    except Exception as err:
-        raise StepFailedWithNonCriticalError("Failed to share yt deb packages via locke and sandbox - {0}".format(err))
-
 
 @build_step
 def package_python_proto(options, build_context):
@@ -803,12 +759,8 @@ def package_driver_bindings(options, build_context):
 
 @build_step
 def run_sandbox_upload(options, build_context):
-    if not options.package or sys.version_info < (2, 7):
+    if not options.package:
         return
-
-    # Share individual deb packages first (it is used in chef deployment).
-    if options.target_build_project == "yt":
-        share_yt_deb_packages(options, build_context)
 
     build_context["sandbox_upload_root"] = os.path.join(options.working_directory, "sandbox_upload")
     binary_distribution_folder = os.path.join(build_context["sandbox_upload_root"], "bin")
@@ -983,12 +935,15 @@ def run_ya_tests(options, suite_name, test_paths, dist=True):
         "make",
         "--output", sandbox_storage,
         "--junit", junit_output,
-        "--test-param", "inside_arcadia=0",
         "-ttt",
         "--dont-merge-split-tests",
         "--stat",
         "--build-results-report", os.path.join(sandbox_storage, "ya_make_results_report.txt"),
     ]
+    if not options.arc:
+        args += [
+            "--test-param", "inside_arcadia=0",
+        ]
     if dist:
         args += ["--dist", "-E"]
     else:
@@ -1188,13 +1143,13 @@ def run_python_libraries_tests(options, build_context):
     if options.enable_parallel_testing:
         pytest_args.extend(["--process-count", str(PYTHON_TESTS_PARALLELISM)])
 
-    test_paths_filename = os.path.join(options.checkout_directory, "python/yt/wrapper/system_python_tests/test_paths.txt")
+    test_paths_filename = os.path.join(options.checkout_directory, get_relative_python_root(options), "python/yt/wrapper/system_python_tests/test_paths.txt")
     test_names = open(test_paths_filename).read().split()
-    pytest_args += [os.path.join(options.checkout_directory, "python/yt/wrapper/tests", name)
+    pytest_args += [os.path.join(options.checkout_directory, get_relative_python_root(options), "python/yt/wrapper/tests", name)
                     for name in test_names]
     run_pytest(options,
                "python_libraries",
-               "{0}/python".format(options.checkout_directory),
+               "{0}/{1}/python".format(options.checkout_directory, get_relative_python_root(options)),
                pytest_args=pytest_args,
                env={
                    "TESTS_JOB_CONTROL": "1",
@@ -1312,6 +1267,8 @@ def clean_binaries(options, build_context):
 @cleanup_step
 def clean_ya_cache(options, build_context):
     ya_cache_dir = get_ya_cache_dir(options)
+    if not os.path.exists(ya_cache_dir):
+        return
     for name in os.listdir(ya_cache_dir):
         if name == "logs":
             continue
@@ -1389,6 +1346,8 @@ def main():
     parser.add_argument(
         "--build_project",
         type=comma_separated_set, action="store", default={"yt", "yp"})
+
+    parser.add_argument("--arc", action="store_true", default=False)
 
     options = parser.parse_args()
     options.failed_tests_path = os.path.expanduser("~/failed_tests")
