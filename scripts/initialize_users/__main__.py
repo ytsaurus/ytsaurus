@@ -13,22 +13,6 @@ import sys
 
 logger = None
 
-# Group public-object-creators is allowed to create objects of these types.
-PUBLIC_OBJECT_TYPES = [
-    "deploy_ticket",
-    "endpoint",
-    "endpoint_set",
-    "horizontal_pod_autoscaler",
-    "multi_cluster_replica_set",
-    "pod",
-    "pod_set",
-    "project",
-    "release",
-    "release_rule",
-    "replica_set",
-    "stage",
-]
-
 
 class Subject(object):
     def __init__(self, id, type):
@@ -528,34 +512,42 @@ def configure_pod_eviction_requesters_group(client):
         )
 
 
-# YP-1515
-def configure_public_object_creators(client):
-    public_object_creators = Group("public-object-creators")
+# Public objects common to all deploy systems (see YP-1769).
+def configure_common_public_object_creators(client):
+    common_public_object_types = (
+        "endpoint",
+        "endpoint_set",
+    )
+    common_public_object_creators = Group("common-public-object-creators")
     members = (Group("staff:department:1"),)
-    add_group_members(client, public_object_creators, members)
-    for public_object_type in PUBLIC_OBJECT_TYPES:
+    add_group_members(client, common_public_object_creators, members)
+    for object_type in common_public_object_types:
         add_permission(
             client,
             object_type="schema",
-            object_id=public_object_type,
-            subject=public_object_creators,
+            object_id=object_type,
+            subject=common_public_object_creators,
             permission="create",
             attribute="",
         )
 
 
-# YP-1515
-def configure_stage_creators(client):
-    stage_creators = Group("stage-creators")
-    create(client, stage_creators)
-    add_permission(
-        client,
-        object_type="schema",
-        object_id="stage",
-        subject=stage_creators,
-        permission="create",
-        attribute="",
+# Public objects of Y.Deploy (see YP-1769).
+def configure_deploy_public_object_creators(client):
+    deploy_public_object_types = (
+        "stage",
     )
+    deploy_public_object_creators = Group("deploy-public-object-creators")
+    create(client, deploy_public_object_creators)
+    for object_type in deploy_public_object_types:
+        add_permission(
+            client,
+            object_type="schema",
+            object_id=object_type,
+            subject=deploy_public_object_creators,
+            permission="create",
+            attribute="",
+        )
 
 
 # YPADMIN-286
@@ -571,8 +563,8 @@ def configure_admins_group(client):
     )
     add_group_members(client, admins, members)
     for group_name in [
-        "public-object-creators",
-        "stage-creators",
+        "common-public-object-creators",
+        "deploy-public-object-creators",
         "pod-eviction-requesters",
     ]:
         add_permission(
@@ -602,8 +594,8 @@ def initialize_users(cluster, dry_run):
 
         configurators = (
             configure_pod_eviction_requesters_group,
-            configure_public_object_creators,
-            configure_stage_creators,
+            configure_common_public_object_creators,
+            configure_deploy_public_object_creators,
             configure_admins_group,
         )
 
