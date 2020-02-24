@@ -15,22 +15,6 @@ const TManyToOneAttributeSchema<TStage, TAccount> TStage::TSpec::AccountSchema{
     [] (TAccount* account) { return &account->Stages(); }
 };
 
-const TOneToManyAttributeSchema<TStage, TReleaseRule> TStage::ReleaseRulesSchema{
-    &StageToReleaseRulesTable,
-    &StageToReleaseRulesTable.Fields.StageId,
-    &StageToReleaseRulesTable.Fields.ReleaseRuleId,
-    [] (TStage* stage) { return &stage->ReleaseRules(); },
-    [] (TReleaseRule* releaseRule) { return &releaseRule->Spec().Stage(); },
-};
-
-const TOneToManyAttributeSchema<TStage, TDeployTicket> TStage::DeployTicketsSchema{
-    &StageToDeployTicketsTable,
-    &StageToDeployTicketsTable.Fields.StageId,
-    &StageToDeployTicketsTable.Fields.DeployTicketId,
-    [] (TStage* stage) { return &stage->DeployTickets(); },
-    [] (TDeployTicket* deployTicket) { return &deployTicket->Spec().Stage(); },
-};
-
 const TScalarAttributeSchema<TStage, TStage::TSpec::TEtc> TStage::TSpec::EtcSchema{
     &StagesTable.Fields.Spec_Etc,
     [] (TStage* Stage) { return &Stage->Spec().Etc(); }
@@ -59,8 +43,8 @@ TStage::TStage(
     ISession* session)
     : TObject(id, TObjectId(), typeHandler, session)
     , ProjectId_(this, &ProjectIdSchema)
-    , ReleaseRules_(this, &ReleaseRulesSchema)
-    , DeployTickets_(this, &DeployTicketsSchema)
+    , DeployTickets_(this)
+    , ReleaseRules_(this)
     , Spec_(this)
     , Status_(this, &StatusSchema)
 { }

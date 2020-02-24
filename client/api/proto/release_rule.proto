@@ -21,6 +21,13 @@ option (NYP.NClient.NApi.NProto.object_type) = {
     type_value: 23
 };
 
+// for field descriptions see NYP.NClient.NApi.NProto.TReleaseRuleMeta
+message TReleaseRuleMetaBase
+{
+    // Id of parent stage.
+    string stage_id = 4;
+}
+
 message TSandboxSelector
 {
     // Task type of Sandbox release to be matched with release rule.
@@ -63,6 +70,9 @@ message TAutoCommitPolicy
 
 message TReleaseRuleSpec
 {
+    reserved 1;
+    reserved "stage_id";
+
     enum ESelectorSource
     {
         NONE = 0
@@ -75,7 +85,6 @@ message TReleaseRuleSpec
         [(NYT.NYson.NProto.enum_value_name) = "custom"];
     }
 
-    string stage_id = 1;
     // Selector describes how release rule will be matched with release.
     oneof selector
     {

@@ -891,35 +891,17 @@ extern const struct TReleaseRulesTable
     TReleaseRulesTable()
         : TDBTable("release_rules")
     {
-        Key = {&TObjectTableBase::Fields.Meta_Id};
+        Key = {&Fields.Meta_StageId, &TObjectTableBase::Fields.Meta_Id};
     }
 
     struct TFields
         : public TObjectTableBase::TFields
     {
-        TDBField Spec_StageId{"spec.stage_id", NTableClient::EValueType::String};
+        TDBField Meta_StageId{"meta.stage_id", NTableClient::EValueType::String};
         TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
 } ReleaseRulesTable;
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern const struct TStageToReleaseRulesTable
-    : public TDBTable
-{
-    TStageToReleaseRulesTable()
-        : TDBTable("stage_to_release_rules")
-    {
-        Key = {&Fields.StageId, &Fields.ReleaseRuleId};
-    }
-
-    struct TFields
-    {
-        TDBField StageId{"stage_id", NTableClient::EValueType::String};
-        TDBField ReleaseRuleId{"release_rule_id", NTableClient::EValueType::String};
-    } Fields;
-} StageToReleaseRulesTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -950,37 +932,19 @@ extern const struct TDeployTicketsTable
     TDeployTicketsTable()
         : TDBTable("deploy_tickets")
     {
-        Key = {&TObjectTableBase::Fields.Meta_Id};
+        Key = {&Fields.Meta_StageId, &TObjectTableBase::Fields.Meta_Id};
     }
 
     struct TFields
         : public TObjectTableBase::TFields
     {
-        TDBField Spec_StageId{"spec.stage_id", NTableClient::EValueType::String};
+        TDBField Meta_StageId{"meta.stage_id", NTableClient::EValueType::String};
         TDBField Spec_ReleaseId{"spec.release_id", NTableClient::EValueType::String};
         TDBField Spec_ReleaseRuleId{"spec.release_rule_id", NTableClient::EValueType::String};
         TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;
 } DeployTicketsTable;
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern const struct TStageToDeployTicketsTable
-    : public TDBTable
-{
-    TStageToDeployTicketsTable()
-        : TDBTable("stage_to_deploy_tickets")
-    {
-        Key = {&Fields.StageId, &Fields.DeployTicketId};
-    }
-
-    struct TFields
-    {
-        TDBField StageId{"stage_id", NTableClient::EValueType::String};
-        TDBField DeployTicketId{"deploy_ticket_id", NTableClient::EValueType::String};
-    } Fields;
-} StageToDeployTicketsTable;
 
 ////////////////////////////////////////////////////////////////////////////////
 

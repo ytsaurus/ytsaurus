@@ -23,10 +23,14 @@ public:
 
     TReleaseRule(
         const TObjectId& id,
+        const TObjectId& stageId,
         IObjectTypeHandler* typeHandler,
         ISession* session);
 
     virtual EObjectType GetType() const override;
+
+    using TStageAttribute = TParentAttribute<TStage>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TStageAttribute, Stage);
 
     static const TOneToManyAttributeSchema<TReleaseRule, TDeployTicket> DeployTicketsSchema;
     using TDeployTickets = TOneToManyAttribute<TReleaseRule, TDeployTicket>;
@@ -36,10 +40,6 @@ public:
     {
     public:
         explicit TSpec(TReleaseRule* releaseRule);
-
-        static const TManyToOneAttributeSchema<TReleaseRule, TStage> StageSchema;
-        using TStageAttribute = TManyToOneAttribute<TReleaseRule, TStage>;
-        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TStageAttribute, Stage);
 
         using TEtc = NProto::TReleaseRuleSpecEtc;
         static const TScalarAttributeSchema<TReleaseRule, TEtc> EtcSchema;

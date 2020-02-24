@@ -37,15 +37,15 @@ public:
     {
         TObjectTypeHandlerBase::Initialize();
 
+        MetaAttributeSchema_
+            ->AddChildren({
+                ParentIdAttributeSchema_ = MakeAttributeSchema("stage_id")
+                    ->SetParentIdAttribute()
+                    ->SetMandatory()
+            });
+
         SpecAttributeSchema_
             ->AddChildren({
-                MakeAttributeSchema("stage_id")
-                    ->SetAttribute(TDeployTicket::TSpec::StageSchema
-                        .SetNullable(false))
-                    ->SetUpdatable()
-                    ->SetMandatory()
-                    ->SetValidator<TDeployTicket>(std::bind(&TDeployTicketTypeHandler::ValidateStage, this, _1, _2)),
-
                 MakeAttributeSchema("release_id")
                     ->SetAttribute(TDeployTicket::TSpec::ReleaseSchema
                         .SetNullable(false))
@@ -55,7 +55,6 @@ public:
                 MakeAttributeSchema("release_rule_id")
                     ->SetAttribute(TDeployTicket::TSpec::ReleaseRuleSchema
                         .SetNullable(false))
-                    ->SetUpdatable()
                     ->SetMandatory(),
 
                 MakeEtcAttributeSchema()
@@ -87,9 +86,24 @@ public:
         return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TDeployTicket>();
     }
 
+    virtual EObjectType GetParentType() override
+    {
+        return EObjectType::Stage;
+    }
+
+    virtual TObject* GetParent(TObject* object) override
+    {
+        return object->As<TDeployTicket>()->Stage().Load();
+    }
+
     virtual const TDBField* GetIdField() override
     {
         return &DeployTicketsTable.Fields.Meta_Id;
+    }
+
+    virtual const TDBField* GetParentIdField() override
+    {
+        return &DeployTicketsTable.Fields.Meta_StageId;
     }
 
     virtual const TDBTable* GetTable() override
@@ -97,12 +111,17 @@ public:
         return &DeployTicketsTable;
     }
 
+    virtual TChildrenAttributeBase* GetParentChildrenAttribute(TObject* parent) override
+    {
+        return &parent->As<TStage>()->DeployTickets();
+    }
+
     virtual std::unique_ptr<TObject> InstantiateObject(
         const TObjectId& id,
-        const TObjectId& /*parentId*/,
+        const TObjectId& parentId,
         ISession* session) override
     {
-        return std::make_unique<TDeployTicket>(id, this, session);
+        return std::make_unique<TDeployTicket>(id, parentId, this, session);
     }
 
 private:
@@ -123,16 +142,10 @@ private:
                 idLengthLimit);
         }
     }
+
     static void ValidateId(TTransaction* /*transaction*/, const TDeployTicket* deployTicket)
     {
         ValidateDeployTicketAndDeployPatchId(deployTicket->GetId(), "Deploy ticket id");
-    }
-
-    void ValidateStage(TTransaction* /*transaction*/, const TDeployTicket* deployTicket)
-    {
-        auto* stage = deployTicket->Spec().Stage().Load();
-        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-        accessControlManager->ValidatePermission(stage, EAccessControlPermission::Write);
     }
 
     static void ValidatePatches(TTransaction* /*transaction*/, const TDeployTicket* deployTicket)
@@ -489,7 +502,7 @@ private:
         ValidatePatchStates(deployTicket, patchIds);
 
         const auto* release = deployTicket->Spec().Release().Load();
-        auto* stage = deployTicket->Spec().Stage().Load();
+        auto* stage = deployTicket->Stage().Load();
 
         if (release->Spec().Etc().Load().has_sandbox()) {
             const auto& sandboxRelease = release->Spec().Etc().Load().sandbox();

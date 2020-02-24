@@ -64,9 +64,9 @@ default_docker_resource = {
 
 def create_deploy_ticket_object(yp_client, stage_id, release_id, release_rule_id, patches):
     return yp_client.create_object("deploy_ticket", attributes={
+        "meta": {"id": "deploy-ticket", "stage_id": stage_id},
         "spec": {
             "release_id": release_id,
-            "stage_id": stage_id,
             "release_rule_id": release_rule_id,
             "patches": patches
         },
@@ -135,6 +135,7 @@ def prepare_sandbox_resources_objects(yp_client):
         }
 
     stage_id = yp_client.create_object("stage", attributes={
+        "meta": {"id": "stage-id"},
         "spec": {
             "revision": 1,
             "deploy_units": {
@@ -183,8 +184,8 @@ def prepare_sandbox_resources_objects(yp_client):
     }
 
     release_rule_id = yp_client.create_object("release_rule", attributes={
+        "meta": {"id": "release-rule", "stage_id": stage_id},
         "spec": {
-            "stage_id": stage_id,
             "sandbox": {
                 "task_type": sandbox_task_type
             },
@@ -210,6 +211,7 @@ def prepare_docker_resources_objects(yp_client):
     })
 
     stage_id = yp_client.create_object("stage", attributes={
+        "meta": {"id": "stage-id"},
         "spec": {
             "revision": 1,
             "deploy_units": {
@@ -244,8 +246,8 @@ def prepare_docker_resources_objects(yp_client):
     }
 
     release_rule_id = yp_client.create_object("release_rule", attributes={
+        "meta": {"id": "release-rule", "stage_id": stage_id},
         "spec": {
-            "stage_id": stage_id,
             "docker": {
                 "image_name": image_name
             },
@@ -387,6 +389,37 @@ class TestCommitDeployTicket(object):
         stage_id, ticket_id = prepare_sandbox_resources_objects(yp_client)
 
         yp_client.commit_deploy_ticket(ticket_id=ticket_id, type="full", message="new commit", reason="COMMITTED")
+
+        check_all_states_after_sandbox_release(
+            yp_client,
+            ticket_id,
+            stage_id,
+            ticket_action_state=construct_commit_action_state(message="new commit"),
+            static_resource_state1=construct_static_resource_state(new_skynet_id, "MD5:" + new_md5, new_resource_meta1),
+            static_resource_state2=construct_static_resource_state(new_skynet_id, "EMPTY:", new_resource_meta2),
+            layer_state1=construct_layer_state(new_skynet_id, "MD5:" + new_md5, new_resource_meta3),
+            patch_action_state1=construct_commit_action_state(message="Parent COMMITTED: new commit"),
+            patch_action_state2=construct_commit_action_state(message="Parent COMMITTED: new commit"),
+            patch_action_state3=construct_commit_action_state(message="Parent COMMITTED: new commit"),
+            stage_revision=2)
+
+    def test_full_commit_with_inherit_acl(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+        stage_id, ticket_id = prepare_sandbox_resources_objects(yp_client)
+        user = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+
+        with yp_env_configurable.yp_instance.create_client(config={"user": user}) as client:
+            with pytest.raises(YtResponseError):
+                client.commit_deploy_ticket(ticket_id=ticket_id, type="full", message="new commit", reason="COMMITTED")
+
+        yp_client.update_object("stage", stage_id, set_updates=[{
+            "path": "/meta/acl/end",
+            "value": {"action": "allow", "permissions": ["write"], "subjects": [user]}
+        }])
+        yp_env_configurable.sync_access_control()
+
+        with yp_env_configurable.yp_instance.create_client(config={"user": user}) as client:
+            client.commit_deploy_ticket(ticket_id=ticket_id, type="full", message="new commit", reason="COMMITTED")
 
         check_all_states_after_sandbox_release(
             yp_client,

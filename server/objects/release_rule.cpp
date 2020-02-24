@@ -8,12 +8,6 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TManyToOneAttributeSchema<TReleaseRule, TStage> TReleaseRule::TSpec::StageSchema{
-    &ReleaseRulesTable.Fields.Spec_StageId,
-    [] (TReleaseRule* releaseRule) { return &releaseRule->Spec().Stage(); },
-    [] (TStage* stage) { return &stage->ReleaseRules(); }
-};
-
 const TOneToManyAttributeSchema<TReleaseRule, TDeployTicket> TReleaseRule::DeployTicketsSchema{
     &ReleaseRuleToDeployTicketsTable,
     &ReleaseRuleToDeployTicketsTable.Fields.ReleaseRuleId,
@@ -28,8 +22,7 @@ const TScalarAttributeSchema<TReleaseRule, TReleaseRule::TSpec::TEtc> TReleaseRu
 };
 
 TReleaseRule::TSpec::TSpec(TReleaseRule* releaseRule)
-    : Stage_(releaseRule, &StageSchema)
-    , Etc_(releaseRule, &EtcSchema)
+    : Etc_(releaseRule, &EtcSchema)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,9 +34,11 @@ const TScalarAttributeSchema<TReleaseRule, TReleaseRule::TStatus> TReleaseRule::
 
 TReleaseRule::TReleaseRule(
     const TObjectId& id,
+    const TObjectId& stageId,
     IObjectTypeHandler* typeHandler,
     ISession* session)
-    : TObject(id, TObjectId(), typeHandler, session)
+    : TObject(id, stageId, typeHandler, session)
+    , Stage_(this)
     , DeployTickets_(this, &DeployTicketsSchema)
     , Spec_(this)
     , Status_(this, &StatusSchema)

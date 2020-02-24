@@ -24,9 +24,18 @@ option (NYP.NClient.NApi.NProto.object_type) = {
     type_value: 25
 };
 
+// for field descriptions see NYP.NClient.NApi.NProto.TDeployTicketMeta
+message TDeployTicketMetaBase
+{
+    // Id of parent stage.
+    string stage_id = 4;
+}
+
 message TDeployTicketSpec
 {
-    string stage_id = 1;
+    reserved 1;
+    reserved "stage_id";
+
     // Patches describe how to patch stage spec or dynamic resource spec
     // with release data. Copied from release rule.
     // <patch id> -> <patch spec>.

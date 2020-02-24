@@ -74,10 +74,11 @@ def update_spec_pod_disks_validation_test_template(yp_client, object_type, objec
     update_spec_pod_template_spec(attributes)
 
 
-def update_spec_test_template(yp_client, object_type, initial_spec, update_path, update_value):
+def update_spec_test_template(yp_client, object_type, initial_spec, update_path, update_value, initial_meta={}):
     object_id = yp_client.create_object(
         object_type=object_type,
         attributes={
+            "meta": initial_meta,
             "spec": initial_spec
         })
 

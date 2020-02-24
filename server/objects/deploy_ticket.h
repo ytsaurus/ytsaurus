@@ -23,19 +23,19 @@ public:
 
     TDeployTicket(
         const TObjectId& id,
+        const TObjectId& stageId,
         IObjectTypeHandler* typeHandler,
         ISession* session);
 
     virtual EObjectType GetType() const override;
 
+    using TStageAttribute = TParentAttribute<TStage>;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TStageAttribute, Stage);
+
     class TSpec
     {
     public:
         explicit TSpec(TDeployTicket* deployTicket);
-
-        static const TManyToOneAttributeSchema<TDeployTicket, TStage> StageSchema;
-        using TStageAttribute = TManyToOneAttribute<TDeployTicket, TStage>;
-        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TStageAttribute, Stage);
 
         static const TManyToOneAttributeSchema<TDeployTicket, TRelease> ReleaseSchema;
         using TReleaseAttribute = TManyToOneAttribute<TDeployTicket, TRelease>;

@@ -33,15 +33,15 @@ public:
     {
         TObjectTypeHandlerBase::Initialize();
 
+        MetaAttributeSchema_
+            ->AddChildren({
+                ParentIdAttributeSchema_ = MakeAttributeSchema("stage_id")
+                    ->SetParentIdAttribute()
+                    ->SetMandatory()
+            });
+
         SpecAttributeSchema_
             ->AddChildren({
-                MakeAttributeSchema("stage_id")
-                    ->SetAttribute(TReleaseRule::TSpec::StageSchema
-                        .SetNullable(false))
-                    ->SetUpdatable()
-                    ->SetMandatory()
-                    ->SetValidator<TReleaseRule>(std::bind(&TReleaseRuleTypeHandler::ValidateStage, this, _1, _2)),
-
                 MakeEtcAttributeSchema()
                     ->SetAttribute(TReleaseRule::TSpec::EtcSchema)
                     ->SetUpdatable()
@@ -62,9 +62,24 @@ public:
         return NYson::ReflectProtobufMessageType<NClient::NApi::NProto::TReleaseRule>();
     }
 
+    virtual EObjectType GetParentType() override
+    {
+        return EObjectType::Stage;
+    }
+
+    virtual TObject* GetParent(TObject* object) override
+    {
+        return object->As<TReleaseRule>()->Stage().Load();
+    }
+
     virtual const TDBField* GetIdField() override
     {
         return &ReleaseRulesTable.Fields.Meta_Id;
+    }
+
+    virtual const TDBField* GetParentIdField() override
+    {
+        return &ReleaseRulesTable.Fields.Meta_StageId;
     }
 
     virtual const TDBTable* GetTable() override
@@ -72,12 +87,17 @@ public:
         return &ReleaseRulesTable;
     }
 
+    virtual TChildrenAttributeBase* GetParentChildrenAttribute(TObject* parent) override
+    {
+        return &parent->As<TStage>()->ReleaseRules();
+    }
+
     virtual std::unique_ptr<TObject> InstantiateObject(
         const TObjectId& id,
-        const TObjectId& /*parentId*/,
+        const TObjectId& parentId,
         ISession* session) override
     {
-        return std::make_unique<TReleaseRule>(id, this, session);
+        return std::make_unique<TReleaseRule>(id, parentId, this, session);
     }
 
 private:
@@ -102,13 +122,6 @@ private:
     static void ValidateId(TTransaction* /*transaction*/, TReleaseRule* releaseRule)
     {
         ValidateReleaseRuleAndDeployPatchId(releaseRule->GetId(), "Release rule id");
-    }
-
-    void ValidateStage(TTransaction* /*transaction*/, TReleaseRule* releaseRule)
-    {
-        auto* stage = releaseRule->Spec().Stage().Load();
-        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-        accessControlManager->ValidatePermission(stage, EAccessControlPermission::Write);
     }
 
     static void ValidateSandboxSelector(const NYP::NClient::NApi::NProto::TSandboxSelector& selector, const NYP::NClient::NApi::NProto::TReleaseRuleSpec::ESelectorSource& selectorSource)
