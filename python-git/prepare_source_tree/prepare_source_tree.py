@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
+import sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from prepare_source_tree_helpers import (
     apply_multiple,
     cp_r,
@@ -12,7 +16,6 @@ from prepare_source_tree_helpers import (
 
 import argparse
 import glob
-import os
 
 
 YT_PYTHON_PACKAGE_LIST = [
@@ -117,11 +120,11 @@ def prepare_python_source_tree(python_root, yt_root, prepare_binary_symlinks=Tru
 
 
 def get_default_python_root():
-    return os.path.dirname(os.path.abspath(__file__))
+    return apply_multiple(times=2, func=os.path.dirname, argument=os.path.abspath(__file__))
 
 
 def get_default_yt_root():
-    return apply_multiple(times=2, func=os.path.dirname, argument=os.path.abspath(__file__))
+    return apply_multiple(times=3, func=os.path.dirname, argument=os.path.abspath(__file__))
 
 
 def main():
