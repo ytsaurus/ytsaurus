@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name="yandex-spyt",
-    version="0.0.3b1",
+    version="0.0.3",
     author="Alexandra Belousova",
     author_email="sashbel@yandex-team.ru",
     description="Spark over YT high-level client",
