@@ -1603,12 +1603,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             assert lookup_rows("//tmp/t", [{"key": i}, {"key": i + 1}], column_names=["key", "value1"]) == \
                    [{"key": i, "value1": "test" + str(i)}, {"key": i + 1, "value1": "test" + str(i + 1)}]
 
+        tablet_info = {}
+        def _check():
+            tablet_infos = get_tablet_infos("//tmp/t", [0])
+            assert tablet_infos.keys() == ["tablets"] and len(tablet_infos["tablets"]) == 1
+            tablet_info.update(tablet_infos["tablets"][0])
 
-        tablet_infos = get_tablet_infos("//tmp/t", [0])
-        assert tablet_infos.keys() == ["tablets"] and len(tablet_infos["tablets"]) == 1
-        tablet_info = tablet_infos["tablets"][0]
+            return tablet_info["total_row_count"] == 3
+        wait(lambda: _check())
 
-        assert tablet_info["total_row_count"] == 3
         assert tablet_info["trimmed_row_count"] == 0
         barrier_timestamp = tablet_info["barrier_timestamp"]
         assert barrier_timestamp >= tablet_info["last_write_timestamp"]
