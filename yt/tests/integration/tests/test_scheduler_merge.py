@@ -1071,17 +1071,17 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @authors("ermolovd")
     @pytest.mark.parametrize("mode", ["unordered", "ordered", "sorted"])
     def test_schema_validation_complex_types(self, mode):
-        first_column = {"name": "index", "type_v2": "int64"}
+        first_column = {"name": "index", "type_v3": "int64"}
         if mode == "sorted":
             first_column["sort_order"] = "ascending"
 
         input_schema = make_schema([
             first_column,
-            {"name": "value", "type_v2": optional_type(optional_type("string"))},
+            {"name": "value", "type_v3": optional_type(optional_type("string"))},
         ], unique_keys=False, strict=True)
         output_schema = make_schema([
             first_column,
-            {"name": "value", "type_v2": list_type(optional_type("string"))},
+            {"name": "value", "type_v3": list_type(optional_type("string"))},
         ], unique_keys=False, strict=True)
 
         create("table", "//tmp/input", attributes={"schema": input_schema})
@@ -1113,7 +1113,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             spec={"schema_inference_mode": "from_output"},
             **merge_by_args
         )
-        assert normalize_schema_v2(output_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
+        assert normalize_schema_v3(output_schema) == normalize_schema_v3(get("//tmp/output/@schema"))
         merge(
             mode=mode,
             in_="//tmp/input",
@@ -1121,7 +1121,7 @@ class TestSchedulerMergeCommands(YTEnvSetup):
             spec={"schema_inference_mode": "from_input"},
             **merge_by_args
         )
-        assert normalize_schema_v2(input_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
+        assert normalize_schema_v3(input_schema) == normalize_schema_v3(get("//tmp/output/@schema"))
 
 
     @authors("savrus")

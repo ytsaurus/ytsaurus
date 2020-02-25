@@ -96,12 +96,12 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     @authors("ermolovd")
     def test_schema_validation_complex_types(self):
         input_schema = make_schema([
-            {"name": "index", "type_v2": "int64"},
-            {"name": "value", "type_v2": optional_type(optional_type("string"))},
+            {"name": "index", "type_v3": "int64"},
+            {"name": "value", "type_v3": optional_type(optional_type("string"))},
         ], unique_keys=False, strict=True)
         output_schema = make_schema([
-            {"name": "index", "type_v2": "int64"},
-            {"name": "value", "type_v2": list_type(optional_type("string"))},
+            {"name": "index", "type_v3": "int64"},
+            {"name": "value", "type_v3": list_type(optional_type("string"))},
         ], unique_keys=False, strict=True)
 
         create("table", "//tmp/input", attributes={"schema": input_schema}, driver=self.remote_driver)
@@ -125,7 +125,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
             out="//tmp/output",
             spec={"cluster_name": self.REMOTE_CLUSTER_NAME, "schema_inference_mode": "from_input"},
         )
-        assert normalize_schema_v2(input_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
+        assert normalize_schema_v3(input_schema) == normalize_schema_v3(get("//tmp/output/@schema"))
 
     @authors("ignat")
     def test_cluster_connection_config(self):

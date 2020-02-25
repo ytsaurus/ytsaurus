@@ -289,23 +289,23 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
 SCHEMA = [
     {
         "name": "int16",
-        "type_v2": "int16",
+        "type_v3": "int16",
     },
     {
         "name": "list_of_strings",
-        "type_v2": list_type("string"),
+        "type_v3": list_type("string"),
     },
     {
         "name": "optional_boolean",
-        "type_v2": optional_type("boolean"),
+        "type_v3": optional_type("bool"),
     },
     {
         "name": "list_of_optional_any",
-        "type_v2": list_type(optional_type("any")),
+        "type_v3": list_type(optional_type("yson")),
     },
     {
         "name": "struct",
-        "type_v2": struct_type([
+        "type_v3": struct_type([
             ("key", "string"),
             ("points", list_type(
                 struct_type([
@@ -320,7 +320,7 @@ SCHEMA = [
     },
     {
         "name": "utf8",
-        "type_v2": "utf8",
+        "type_v3": "utf8",
     },
 ]
 

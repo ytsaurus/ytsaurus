@@ -6,7 +6,7 @@ def _test_yson_row(type, canonical_value, format, format_value):
     schema = make_schema([
         {
             "name": "column",
-            "type_v2": type,
+            "type_v3": type,
         }
     ])
     path = "//tmp/table"
