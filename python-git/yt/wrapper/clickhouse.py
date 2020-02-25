@@ -372,7 +372,7 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_vers
         "backing_store_retention_time": 0,
         "auto_compaction_period": 86400000,
         "dynamic_store_overflow_threshold": 0.5,
-        "enable_lsm_verbose_logging": True,
+        "merge_rows_on_flush": True,
         "atomicity": atomicity,
     }
 
