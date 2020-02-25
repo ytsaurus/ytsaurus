@@ -127,8 +127,8 @@ DEFINE_ENUM(EMasterReign,
     ((HierarchicalAccounts)                                         (1204))  // kiselyovp
     ((FixDoBranch)                                                  (1205))  // aleksandra-zh
     ((MasterMemoryUsageAccounting)                                  (1206))  // aleksandra-zh
-    ((YT_11279_UnmountForceOnlySuperuser)                           (1207))  // lexolordan
-    ((InitializeAccountMasterMemoryUsage)                           (1208))  // aleksandra-zh
+    ((InitializeAccountMasterMemoryUsage)                           (1207))  // aleksandra-zh
+    ((YT_11279_UnmountForceOnlySuperuser)                           (1208))  // lexolordan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
