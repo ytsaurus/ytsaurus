@@ -100,7 +100,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
             userObject.ContentRevision = fetchedRevision;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error fetching revision for layer %v", path)
-                    << ex;
+                << ex;
         }
     }
 
