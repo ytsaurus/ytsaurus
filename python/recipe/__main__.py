@@ -14,8 +14,7 @@ import json
 import os
 
 
-DEFAULT_YP_MASTER_OPTIONS = {
-}
+DEFAULT_YP_MASTER_OPTIONS = {}
 
 DEFAULT_LOCAL_YT_OPTIONS = {
     "http_proxy_count": 1,
@@ -48,9 +47,7 @@ def stop_yp(master_id):
 def parse_args(argv):
     parser = argparse.ArgumentParser(description="Local YP-Master server")
     parser.add_argument(
-        "--outside-arcadia",
-        action="store_true",
-        help="Whether recipe is executed outside Arcadia",
+        "--outside-arcadia", action="store_true", help="Whether recipe is executed outside Arcadia",
     )
     parser.add_argument("--master-config", help="YP-Master config file")
     parser.add_argument("--yt-config", help="YT config file")

@@ -16,7 +16,7 @@ def setup_package(name, python_dependent_requires):
         "yandex-yt >= 0.9.26",
         "yandex-yt-proto",
         "protobuf >= 3.2.1",
-        "grpcio == 1.16.0rc1"
+        "grpcio == 1.16.0rc1",
     ] + python_dependent_requires
 
     version = get_version()
@@ -29,25 +29,20 @@ def setup_package(name, python_dependent_requires):
     find_packages("yp/data_model")
     find_packages("yp_proto")
     setup(
-        name = name,
-        version = version,
-        packages = ["yp"] + recursive("yp/packages") + recursive("yp/data_model") + recursive("yp_proto"),
-        package_data = {
-            "yp": ["YandexInternalRootCA.crt", "enums.bc"],
-        },
-        scripts = scripts,
-
-        install_requires = requires,
-
-        author = "Ignat Kolesnichenko",
-        author_email = "ignat@yandex-team.ru",
-        description = "Python library for YP.",
-        keywords = "yp python yson",
-
-        long_description = "Python library that implements client for YP system",
-
-        data_files = data_files,
-
+        name=name,
+        version=version,
+        packages=["yp"]
+        + recursive("yp/packages")
+        + recursive("yp/data_model")
+        + recursive("yp_proto"),
+        package_data={"yp": ["YandexInternalRootCA.crt", "enums.bc"],},
+        scripts=scripts,
+        install_requires=requires,
+        author="Ignat Kolesnichenko",
+        author_email="ignat@yandex-team.ru",
+        description="Python library for YP.",
+        keywords="yp python yson",
+        long_description="Python library that implements client for YP system",
+        data_files=data_files,
         include_package_data=True,
     )
-
