@@ -1785,7 +1785,7 @@ private:
             if (this->Options_.CancelInputOnShortcut && this->Futures_.size() > 1 && !this->FuturesCanceled_.test_and_set()) {
                 this->CancelFutures(TError(
                     NYT::EErrorCode::FutureCombinerShortcut,
-                    "Any-of combiner shortcut: some response failed"));
+                    "All-of combiner shortcut: some response failed"));
             }
 
             return;
