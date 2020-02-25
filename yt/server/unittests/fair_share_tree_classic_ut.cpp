@@ -159,7 +159,7 @@ public:
         for (const auto& resources : JobResourcesList) {
             totalResources += resources.ToJobResources();
         }
-        return totalResources;
+        return totalResources + DemandDisruption;
     }
 
     virtual void UpdateMinNeededJobResources() override
@@ -195,8 +195,14 @@ public:
         return PreemptionMode;
     }
 
+    void SetDemandDisruption(TJobResources demandDisruption)
+    {
+        DemandDisruption = demandDisruption;
+    }
+
 private:
     TJobResourcesWithQuotaList JobResourcesList;
+    TJobResourcesWithQuota DemandDisruption;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationControllerStrategyHostMock)
@@ -826,6 +832,86 @@ TEST_F(TClassicFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandR
     for (int i = 1; i < 4; ++i) {
         EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], false));
         EXPECT_TRUE(operationElement->IsJobPreemptable(jobIds[i], true));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TClassicFairShareTreeTest, MaxPossibleResourceUsage)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(10);
+    nodeResources.SetCpu(10);
+    nodeResources.SetMemory(100);
+
+    TJobResourcesWithQuota jobResources;
+    jobResources.SetUserSlots(1);
+    jobResources.SetCpu(1);
+    jobResources.SetMemory(10);
+
+    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList({nodeResources}));
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
+
+    auto operationY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
+    auto operationElementY = CreateTestOperationElement(host.Get(), operationOptions, operationY.Get());
+
+    operationElementX->AttachParent(rootElement.Get(), true);
+    operationElementX->Enable();
+
+    operationElementY->AttachParent(rootElement.Get(), true);
+    operationElementY->Enable();
+
+    for (int i = 0; i < 2; ++i) {
+        operationElementX->OnJobStarted(
+            TGuid::Create(),
+            jobResources.ToJobResources(),
+            /* precommitedResources */ {});
+    }
+
+    for (int i = 0; i < 9; ++i) {
+        operationElementY->OnJobStarted(
+            TGuid::Create(),
+            jobResources.ToJobResources(),
+            /* precommitedResources */ {});
+    }
+
+    auto dynamicAttributes = TDynamicAttributesList(3);
+
+    {
+        TUpdateFairShareContext updateContext;
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_NEAR(0.3, operationElementX->Attributes().DemandRatio, 1e-7);
+        EXPECT_NEAR(1.0, operationElementX->Attributes().BestAllocationRatio, 1e-7);
+        EXPECT_NEAR(0.3, operationElementX->Attributes().MaxPossibleUsageRatio, 1e-7);
+        EXPECT_NEAR(0.3, operationElementX->Attributes().FairShareRatio, 1e-7);
+
+        EXPECT_NEAR(1.0, operationElementY->Attributes().DemandRatio, 1e-7);
+        EXPECT_NEAR(1.0, operationElementY->Attributes().BestAllocationRatio, 1e-7);
+        EXPECT_NEAR(1.0, operationElementY->Attributes().MaxPossibleUsageRatio, 1e-7);
+        EXPECT_NEAR(0.7, operationElementY->Attributes().FairShareRatio, 1e-7);
+
+        EXPECT_NEAR(1.0, rootElement->Attributes().MaxPossibleUsageRatio, 1e-7);
+    }
+
+    {
+        TJobResourcesWithQuota demandDisruption;
+        demandDisruption.SetUserSlots(-1);
+        demandDisruption.SetCpu(-1.1);
+        demandDisruption.SetMemory(-11);
+        operationX->GetOperationControllerStrategyHost().SetDemandDisruption(demandDisruption);
+        operationY->GetOperationControllerStrategyHost().SetDemandDisruption(demandDisruption);
+
+        TUpdateFairShareContext updateContext;
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_NEAR(1.0, rootElement->Attributes().MaxPossibleUsageRatio, 1e-7);
     }
 }
 
