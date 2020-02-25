@@ -75,7 +75,7 @@ TString GenerateRandomLenvalString(TFastRng64& rng, ui32 size)
 
 INodePtr ParseYson(TStringBuf data)
 {
-    return ConvertToNode(NYson::TYsonString(data.ToString()));
+    return ConvertToNode(NYson::TYsonString(TString{data}));
 }
 
 TProtobufFormatConfigPtr ParseFormatConfigFromNode(const INodePtr& configNode)

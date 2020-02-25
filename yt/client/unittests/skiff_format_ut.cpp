@@ -587,7 +587,7 @@ TEST(TSkiffWriter, TestYsonWireType)
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     auto parseYson = [] (TCheckedSkiffParser* parser) {
-        auto yson = parser->ParseYson32().ToString();
+        auto yson = TString{parser->ParseYson32()};
         return ConvertToNode(TYsonString(yson));
     };
 
@@ -1014,7 +1014,7 @@ TEST(TSkiffWriter, TestOtherColumns)
     TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
 
     auto parseYson = [] (TCheckedSkiffParser* parser) {
-        auto yson = parser->ParseYson32().ToString();
+        auto yson = TString{parser->ParseYson32()};
         return ConvertToYsonTextStringStable(ConvertToNode(TYsonString(yson)));
     };
 

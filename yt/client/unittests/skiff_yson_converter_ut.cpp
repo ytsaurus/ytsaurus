@@ -40,7 +40,7 @@ TString ConvertYsonHex(
         config);
 
     // Yson parsers have a bug when they can't parse some values that end unexpectedly.
-    TString spacedYsonInput = ysonString.ToString() + " ";
+    TString spacedYsonInput = TString{ysonString} + " ";
 
     TStringStream out;
     {
