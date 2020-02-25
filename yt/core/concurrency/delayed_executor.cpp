@@ -97,6 +97,11 @@ public:
             }),
             delay);
 
+        promise.OnCanceled(BIND([=](const TError& error) {
+            TDelayedExecutor::Cancel(cookie);
+            promise.TrySet(error);
+        }));
+
         return promise;
     }
 
@@ -476,9 +481,14 @@ TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure closure, TInstant deadl
     return GetImpl()->Submit(std::move(closure), deadline);
 }
 
-void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& cookie)
+void TDelayedExecutor::Cancel(const TDelayedExecutorCookie& cookie)
 {
     GetImpl()->Cancel(cookie);
+}
+
+void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& cookie)
+{
+    Cancel(cookie);
     cookie.Reset();
 }
 

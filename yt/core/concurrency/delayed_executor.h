@@ -70,7 +70,7 @@ public:
      */
     static TDelayedExecutorCookie Submit(TClosure closure, TInstant deadline);
 
-    //! Cancels an earlier scheduled execution and clears the cookie.
+    //! Cancels an earlier scheduled execution.
     /*!
      *  This call is "safe", i.e. cannot lead to immediate execution of any callbacks even
      *  during shutdown.
@@ -78,6 +78,9 @@ public:
      *  Cancelation should always be regarded as a hint. It is inherently racy and
      *  is not guaranteed to be handled during and after shutdown.
      */
+    static void Cancel(const TDelayedExecutorCookie& cookie);
+
+    //! The same as Cancel, but in addition also clears the cookie.
     static void CancelAndClear(TDelayedExecutorCookie& cookie);
 
     //! Shuts the subsystem down.
