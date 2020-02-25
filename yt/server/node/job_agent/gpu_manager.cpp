@@ -200,7 +200,7 @@ void TGpuManager::DoFetchDriverLayerInfo()
         EMasterChannelKind::Cache,
         Logger);
 
-    if (!DriverLayerRevision_ || fetchedArtifactKey.ContentRevision != *DriverLayerRevision_) {
+    if (fetchedArtifactKey.ContentRevision != DriverLayerRevision_) {
         YT_VERIFY(fetchedArtifactKey.ArtifactKey);
         auto guard = Guard(SpinLock_);
         DriverLayerRevision_ = fetchedArtifactKey.ContentRevision;

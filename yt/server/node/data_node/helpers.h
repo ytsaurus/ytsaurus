@@ -25,7 +25,7 @@ struct TFetchedArtifactKey
 
 TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     const NYPath::TYPath& path,
-    std::optional<NHydra::TRevision> contentRevision,
+    NHydra::TRevision contentRevision,
     NCellNode::TBootstrap const* bootstrap,
     NApi::EMasterChannelKind masterChannelKind,
     const NLogging::TLogger& logger);

@@ -1289,8 +1289,8 @@ private:
                 const auto& path = pair.first;
                 const auto& fetchedKey = pair.second;
                 auto revision = fetchedKey.ArtifactKey
-                    ? std::make_optional(fetchedKey.ContentRevision)
-                    : std::nullopt;
+                    ? fetchedKey.ContentRevision
+                    : NHydra::NullRevision;
                 return FetchLayerArtifactKeyIfRevisionChanged(path, revision, Bootstrap_, EMasterChannelKind::Cache, Logger);
             })
             .AsyncVia(GetCurrentInvoker())
