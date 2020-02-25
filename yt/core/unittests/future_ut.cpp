@@ -584,21 +584,6 @@ TEST_F(TFutureTest, ApplyIntToFutureInt)
     EXPECT_EQ(42, target.Get().Value());
 }
 
-static TFuture<int> AsyncDivide(int a, int b, TDuration delay)
-{
-    auto promise = NewPromise<int>();
-    TDelayedExecutor::Submit(
-        BIND([=] () mutable {
-            if (b == 0) {
-                promise.Set(TError("Division by zero"));
-            } else {
-                promise.Set(a / b);
-            }
-        }),
-        delay);
-    return promise;
-}
-
 TEST_F(TFutureTest, TestCancelDelayed)
 {
     auto future = NConcurrency::TDelayedExecutor::MakeDelayed(TDuration::Seconds(10));
@@ -609,11 +594,17 @@ TEST_F(TFutureTest, TestCancelDelayed)
 
 TEST_F(TFutureTest, AnyOf)
 {
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
     std::vector<TFuture<int>> futures{
-        AsyncDivide(5, 2, TDuration::Seconds(0.1)),
-        AsyncDivide(30, 3, TDuration::Seconds(0.2))
+        p1.ToFuture(),
+        p2.ToFuture()
     };
-    auto resultOrError = AnyOf(futures).Get();
+    auto f = AnyOf(futures);
+    EXPECT_FALSE(f.IsSet());
+    p2.Set(2);
+    EXPECT_TRUE(f.IsSet());
+    auto resultOrError = f.Get();
     EXPECT_TRUE(resultOrError.IsOK());
     auto result = resultOrError.Value();
     EXPECT_EQ(2, result);
@@ -740,11 +731,19 @@ TEST_F(TFutureTest, AllOfEmpty)
 
 TEST_F(TFutureTest, AllOf)
 {
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
     std::vector<TFuture<int>> futures{
-        AsyncDivide(5, 2, TDuration::Seconds(0.1)),
-        AsyncDivide(30, 3, TDuration::Seconds(0.2))
+        p1.ToFuture(),
+        p2.ToFuture()
     };
-    auto resultOrError = AllOf(futures).Get();
+    auto f = AllOf(futures);
+    EXPECT_FALSE(f.IsSet());
+    p1.Set(2);
+    EXPECT_FALSE(f.IsSet());
+    p2.Set(10);
+    EXPECT_TRUE(f.IsSet());
+    auto resultOrError = f.Get();
     EXPECT_TRUE(resultOrError.IsOK());
     const auto& result = resultOrError.Value();
     EXPECT_EQ(2, result.size());
@@ -754,11 +753,19 @@ TEST_F(TFutureTest, AllOf)
 
 TEST_F(TFutureTest, AllOfError)
 {
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
     std::vector<TFuture<int>> futures{
-        AsyncDivide(5, 2, TDuration::Seconds(0.1)),
-        AsyncDivide(30, 0, TDuration::Seconds(0.2))
+        p1.ToFuture(),
+        p2.ToFuture()
     };
-    auto resultOrError = AllOf(futures).Get();
+    auto f = AllOf(futures);
+    EXPECT_FALSE(f.IsSet());
+    p1.Set(2);
+    EXPECT_FALSE(f.IsSet());
+    p2.Set(TError("oops"));
+    EXPECT_TRUE(f.IsSet());
+    auto resultOrError = f.Get();
     EXPECT_FALSE(resultOrError.IsOK());
 }
 
@@ -798,13 +805,17 @@ TEST_F(TFutureTest, AllOfDontCancelOnShortcut)
 
 TEST_F(TFutureTest, AllOfCancel)
 {
-    std::vector<TFuture<void>> futures{
-        TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)),
-        TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)),
-        TDelayedExecutor::MakeDelayed(TDuration::Seconds(5))
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    auto p3 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture(),
+        p3.ToFuture()
     };
     auto f = AllOf(futures);
-    f.Cancel(TError("Error"));
+    EXPECT_FALSE(f.IsSet());
+    f.Cancel(TError("oops"));
     EXPECT_TRUE(f.IsSet());
     const auto& result = f.Get();
     EXPECT_EQ(NYT::EErrorCode::Canceled, result.GetCode());
@@ -828,11 +839,19 @@ TEST_F(TFutureTest, AllOfVoid1)
 
 TEST_F(TFutureTest, AllOfRetainError)
 {
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
     std::vector<TFuture<int>> futures{
-        AsyncDivide(5, 2, TDuration::Seconds(0.1)),
-        AsyncDivide(30, 0, TDuration::Seconds(0.2))
+        p1.ToFuture(),
+        p2.ToFuture(),
     };
-    auto resultOrError = AllOf(futures, TRetainErrorPolicy{}).Get();
+    auto f = AllOf(futures, TRetainErrorPolicy{});
+    EXPECT_FALSE(f.IsSet());
+    p1.Set(2);
+    EXPECT_FALSE(f.IsSet());
+    p2.Set(TError("oops"));
+    EXPECT_TRUE(f.IsSet());
+    auto resultOrError = f.Get();
     EXPECT_TRUE(resultOrError.IsOK());
     const auto& result = resultOrError.Value();
     EXPECT_EQ(2, result.size());
@@ -1060,12 +1079,21 @@ TEST_F(TFutureTest, AnyNOfVoid1)
 
 TEST_F(TFutureTest, AnyNOfRetainError)
 {
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    auto p3 = NewPromise<int>();
     std::vector<TFuture<int>> futures{
-        AsyncDivide(5, 2, TDuration::Seconds(0.1)),
-        AsyncDivide(10, 5, TDuration::Seconds(0.3)),
-        AsyncDivide(30, 0, TDuration::Seconds(0.2))
+        p1.ToFuture(),
+        p2.ToFuture(),
+        p3.ToFuture()
     };
-    auto resultOrError = AnyNOf(futures, 2, TRetainErrorPolicy{}).Get();
+    auto f = AnyNOf(futures, 2, TRetainErrorPolicy{});
+    EXPECT_FALSE(f.IsSet());
+    p1.Set(2);
+    EXPECT_FALSE(f.IsSet());
+    p3.Set(TError("oops"));
+    EXPECT_TRUE(f.IsSet());
+    auto resultOrError = f.Get();
     EXPECT_TRUE(resultOrError.IsOK());
     const auto& result = resultOrError.Value();
     EXPECT_EQ(2, result.size());
@@ -1115,7 +1143,7 @@ TEST_F(TFutureTest, AsyncViaCanceledInvoker)
     auto context = New<TCancelableContext>();
     auto invoker = context->CreateInvoker(GetSyncInvoker());
     auto generator = BIND([] () {}).AsyncVia(invoker);
-    context->Cancel(TError("Error"));
+    context->Cancel(TError("oops"));
     auto future = generator.Run();
     auto error = future.Get();
     ASSERT_EQ(NYT::EErrorCode::Canceled, error.GetCode());
