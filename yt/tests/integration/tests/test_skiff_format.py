@@ -190,19 +190,19 @@ class TestSkiffFormat(YTEnvSetup):
         schema = [
             {
                 "name": "list_of_strings",
-                "type_v2": list_type("string"),
+                "type_v3": list_type("string"),
             },
             {
                 "name": "optional_list_of_strings",
-                "type_v2": optional_type(list_type("string")),
+                "type_v3": optional_type(list_type("string")),
             },
             {
                 "name": "optional_optional_boolean",
-                "type_v2": optional_type(optional_type("boolean")),
+                "type_v3": optional_type(optional_type("bool")),
             },
             {
                 "name": "struct",
-                "type_v2": struct_type([
+                "type_v3": struct_type([
                     ("key", "string"),
                     ("points", list_type(
                         struct_type([
@@ -269,19 +269,19 @@ class TestSkiffFormat(YTEnvSetup):
         schema = [
             {
                 "name": "list_of_strings",
-                "type_v2": list_type("string"),
+                "type_v3": list_type("string"),
             },
             {
                 "name": "optional_list_of_strings",
-                "type_v2": optional_type(list_type("string")),
+                "type_v3": optional_type(list_type("string")),
             },
             {
                 "name": "optional_optional_boolean",
-                "type_v2": optional_type(optional_type("boolean")),
+                "type_v3": optional_type(optional_type("bool")),
             },
             {
                 "name": "struct",
-                "type_v2": struct_type([
+                "type_v3": struct_type([
                     ("key", "string"),
                     ("points", list_type(
                         struct_type([

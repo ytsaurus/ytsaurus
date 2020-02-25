@@ -1497,17 +1497,17 @@ def make_ace(action, subjects, permissions, inheritance_mode="object_and_descend
 
 #########################################
 
-def make_column(name, type_v2, **attributes):
+def make_column(name, type_v3, **attributes):
     result = {
         "name": name,
-        "type_v2": type_v2,
+        "type_v3": type_v3,
     }
     for k in attributes:
         result[k] = attributes[k]
     return result
 
-def make_sorted_column(name, type_v2, **attributes):
-    return make_column(name, type_v2, sort_order="ascending", **attributes)
+def make_sorted_column(name, type_v3, **attributes):
+    return make_column(name, type_v3, sort_order="ascending", **attributes)
 
 def make_schema(columns, **attributes):
     schema = yson.YsonList()
@@ -1522,32 +1522,38 @@ def normalize_schema(schema):
     """Remove 'type_v2' / 'type_v3' field from schema, useful for schema comparison."""
     result = pycopy.deepcopy(schema)
     for column in result:
-        if "type_v2" in column:
-            del column["type_v2"]
-        if "type_v3" in column:
-            del column["type_v3"]
+        column.pop("type_v2", None)
+        column.pop("type_v3", None)
     return result
 
-def normalize_schema_v2(schema):
-    """Remove "type" / "required" / "type_v3" fields from schema, useful for schema comparison."""
+def normalize_schema_v3(schema):
+    """Remove "type" / "required" / "type_v2" fields from schema, useful for schema comparison."""
     result = pycopy.deepcopy(schema)
     for column in result:
-        for f in ["type", "required", "type_v3"]:
+        for f in ["type", "required", "type_v2"]:
             if f in column:
                 del column[f]
     return result
 
 def optional_type(element_type):
     return {
-        "metatype": "optional",
-        "element": element_type,
+        "type_name": "optional",
+        "item": element_type,
     }
 
-def make_struct_field_descriptions(fields):
+def make_struct_members(fields):
     result = []
     for name, type in fields:
         result.append({
             "name": name,
+            "type": type,
+        })
+    return result
+
+def make_tuple_elements(elements):
+    result = []
+    for type in elements:
+        result.append({
             "type": type,
         })
     return result
@@ -1558,48 +1564,48 @@ def struct_type(fields):
     fields is a list of (name, type) pairs.
     """
     result = {
-        "metatype": "struct",
-        "fields": make_struct_field_descriptions(fields),
+        "type_name": "struct",
+        "members": make_struct_members(fields),
     }
     return result
 
 def list_type(element_type):
     return {
-        "metatype": "list",
-        "element": element_type,
+        "type_name": "list",
+        "item": element_type,
     }
 
 def tuple_type(elements):
     return {
-        "metatype": "tuple",
-        "elements": elements,
+        "type_name": "tuple",
+        "elements": make_tuple_elements(elements),
     }
 
 def variant_struct_type(fields):
     result = {
-        "metatype": "variant_struct",
-        "fields": make_struct_field_descriptions(fields),
+        "type_name": "variant",
+        "members": make_struct_members(fields),
     }
     return result
 
 def variant_tuple_type(elements):
     return {
-        "metatype": "variant_tuple",
-        "elements": elements,
+        "type_name": "variant",
+        "elements": make_tuple_elements(elements)
     }
 
 def dict_type(key_type, value_type):
     return {
-        "metatype": "dict",
+        "type_name": "dict",
         "key": key_type,
         "value": value_type,
     }
 
 def tagged_type(tag, element_type):
     return {
-        "metatype": "tagged",
+        "type_name": "tagged",
         "tag": tag,
-        "element": element_type,
+        "item": element_type,
     }
 
 ##################################################################
