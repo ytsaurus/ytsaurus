@@ -33,13 +33,7 @@ ADMIN_CLI_TESTS_LOCAL_YT_OPTIONS = dict(http_proxy_count=1)
 def get_db_version(yp_env, yp_path):
     cli = YpAdminCli()
     output = cli.check_output(
-        [
-            "get-db-version",
-            "--yt-proxy",
-            get_yt_proxy_address(yp_env),
-            "--yp-path",
-            yp_path,
-        ]
+        ["get-db-version", "--yt-proxy", get_yt_proxy_address(yp_env), "--yp-path", yp_path,]
     )
     match = re.match("^Database version: ([0-9]+)$", output)
     assert match is not None
@@ -122,16 +116,7 @@ class TestAdminCli(object):
         yp_client = yp_env_configurable.yp_client
 
         yp_client.create_object("pod_set")
-        assert (
-            len(
-                list(
-                    yt_client.select_rows(
-                        "[object_id] from [//yp/db/pod_sets_watch_log]"
-                    )
-                )
-            )
-            > 0
-        )
+        assert len(list(yt_client.select_rows("[object_id] from [//yp/db/pod_sets_watch_log]"))) > 0
 
         output = cli.check_output(
             [
@@ -146,14 +131,7 @@ class TestAdminCli(object):
         assert output == ""
 
         assert (
-            len(
-                list(
-                    yt_client.select_rows(
-                        "[object_id] from [//yp/db/pod_sets_watch_log]"
-                    )
-                )
-            )
-            == 0
+            len(list(yt_client.select_rows("[object_id] from [//yp/db/pod_sets_watch_log]"))) == 0
         )
 
     def test_update_finalization_timestamp(self, yp_env_configurable):
@@ -374,10 +352,7 @@ class TestAdminCliFreezeUnfreeze(object):
         with pytest.raises(YtTabletNotMounted):
             yp_client.create_object("pod_set")
         if old_id is not None:
-            assert (
-                yp_client.get_object("pod_set", old_id, selectors=["/meta/id"])[0]
-                == old_id
-            )
+            assert yp_client.get_object("pod_set", old_id, selectors=["/meta/id"])[0] == old_id
 
     def test_freeze_unfreeze(self, yp_env_unfreezenable):
         yp_client = yp_env_unfreezenable.yp_client

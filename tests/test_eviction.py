@@ -14,11 +14,7 @@ import time
 
 
 def get_pod_eviction(yp_client, pod_id):
-    return yp_client.get_object(
-        "pod",
-        pod_id,
-        selectors=["/status/eviction"],
-    )[0]
+    return yp_client.get_object("pod", pod_id, selectors=["/status/eviction"],)[0]
 
 
 def get_pod_eviction_state(*args, **kwargs):
@@ -42,11 +38,7 @@ class TestEviction(object):
     # Choosing a pretty small period to optimize tests duration.
     SCHEDULER_LOOP_PERIOD_MILLISECONDS = 1 * 1000
 
-    YP_MASTER_CONFIG = dict(
-        scheduler=dict(
-            loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,
-        )
-    )
+    YP_MASTER_CONFIG = dict(scheduler=dict(loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,))
 
     def _wait_for_scheduler_loop(self, yp_env):
         time.sleep((5 * TestEviction.SCHEDULER_LOOP_PERIOD_MILLISECONDS) / 1000.0)
@@ -99,18 +91,16 @@ class TestEviction(object):
             set_updates=[
                 dict(
                     path="/meta/acl/end",
-                    value=dict(
-                        permissions=["write"],
-                        subjects=["u1"],
-                        action="allow",
-                    ),
+                    value=dict(permissions=["write"], subjects=["u1"], action="allow",),
                 ),
             ],
         )
         yp_env_configurable.sync_access_control()
 
         with yp_env_configurable.yp_instance.create_client(config=dict(user="u1")) as yp_client1:
-            with yp_env_configurable.yp_instance.create_client(config=dict(user="u2")) as yp_client2:
+            with yp_env_configurable.yp_instance.create_client(
+                config=dict(user="u2")
+            ) as yp_client2:
                 with pytest.raises(YpAuthorizationError):
                     yp_client2.request_pod_eviction(pod_id, "Test")
                 yp_client1.request_pod_eviction(pod_id, "Test")
@@ -222,17 +212,11 @@ class TestEviction(object):
         node_id, _, pod_id = prepare_objects(yp_client)
 
         def get_reason():
-            return yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status/eviction/reason"],
-            )[0]
+            return yp_client.get_object("pod", pod_id, selectors=["/status/eviction/reason"],)[0]
 
         # Specified reason.
         yp_client.request_pod_eviction(
-            pod_id,
-            "Test",
-            reason="scheduler",
+            pod_id, "Test", reason="scheduler",
         )
         assert "scheduler" == get_reason()
         yp_client.abort_pod_eviction(pod_id, "Test")
@@ -245,9 +229,7 @@ class TestEviction(object):
         # Unknown reason.
         with pytest.raises(YtResponseError):
             yp_client.request_pod_eviction(
-                pod_id,
-                "Test",
-                reason="abracadabra",
+                pod_id, "Test", reason="abracadabra",
             )
 
     def test_evict(self, yp_env_configurable):
@@ -261,18 +243,10 @@ class TestEviction(object):
         yp_client.abort_pod_eviction(pod_id, "Test")
 
         def get_eviction_state():
-            return yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status/eviction/state"],
-            )[0]
+            return yp_client.get_object("pod", pod_id, selectors=["/status/eviction/state"],)[0]
 
         def get_node_id():
-            return yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/spec/node_id"],
-            )[0]
+            return yp_client.get_object("pod", pod_id, selectors=["/spec/node_id"],)[0]
 
         assert node_id == get_node_id()
         assert "none" == get_eviction_state()
@@ -291,11 +265,7 @@ class TestEvictionAcknowledgement(object):
     # relative positions of the acknowledgement request and the scheduler loop.
     SCHEDULER_LOOP_PERIOD_MILLISECONDS = 10 * 1000
 
-    YP_MASTER_CONFIG = dict(
-        scheduler=dict(
-            loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,
-        )
-    )
+    YP_MASTER_CONFIG = dict(scheduler=dict(loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,))
 
     def test_multiple_uniform_acknowledgements(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -312,19 +282,24 @@ class TestEvictionAcknowledgement(object):
             )
 
         def get_assigned_pod_count():
-            return sum(map(
-                lambda pod_id: is_assigned_pod_scheduling_status(
-                    get_pod_scheduling_status(yp_client, pod_id)
-                ),
-                pod_ids,
-            ))
+            return sum(
+                map(
+                    lambda pod_id: is_assigned_pod_scheduling_status(
+                        get_pod_scheduling_status(yp_client, pod_id)
+                    ),
+                    pod_ids,
+                )
+            )
 
         def custom_wait(callback):
             iter_count = 10
             wait(
                 callback,
                 iter=iter_count,
-                sleep_backoff=2 * TestEvictionAcknowledgement.SCHEDULER_LOOP_PERIOD_MILLISECONDS / 1000.0 / iter_count,
+                sleep_backoff=2
+                * TestEvictionAcknowledgement.SCHEDULER_LOOP_PERIOD_MILLISECONDS
+                / 1000.0
+                / iter_count,
             )
 
         custom_wait(lambda: get_assigned_pod_count() == len(pod_ids))
@@ -332,15 +307,16 @@ class TestEvictionAcknowledgement(object):
         yp_client.update_hfsm_state(node_id, "prepare_maintenance", "Test")
 
         def are_pod_evictions_in_state(state):
-            return all(map(
-                lambda pod_id: get_pod_eviction_state(yp_client, pod_id) == state,
-                pod_ids,
-            ))
+            return all(
+                map(lambda pod_id: get_pod_eviction_state(yp_client, pod_id) == state, pod_ids,)
+            )
 
         custom_wait(lambda: are_pod_evictions_in_state("requested"))
 
         # We hope to send acknowledgements uniformly and intersecting several scheduler loops.
-        sleep_time_milliseconds = (2.0 * TestEvictionAcknowledgement.SCHEDULER_LOOP_PERIOD_MILLISECONDS) / pod_count
+        sleep_time_milliseconds = (
+            2.0 * TestEvictionAcknowledgement.SCHEDULER_LOOP_PERIOD_MILLISECONDS
+        ) / pod_count
         for pod_id in pod_ids:
             yp_client.acknowledge_pod_eviction(pod_id, "Test")
             time.sleep(sleep_time_milliseconds / 1000.0)

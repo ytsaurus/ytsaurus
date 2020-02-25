@@ -35,9 +35,15 @@ def start_yp_local():
         cli_stderr_file_path = os.path.join(sandbox_path, "yp_local_stderr_" + generate_uuid())
         with open(cli_stderr_file_path, "w") as cli_stderr_file:
             cli.check_call(
-                ["start", "--id", sandbox_name, "--port-locks-path", sandbox_base.get_port_locks_path()],
+                [
+                    "start",
+                    "--id",
+                    sandbox_name,
+                    "--port-locks-path",
+                    sandbox_base.get_port_locks_path(),
+                ],
                 stdout=sys.stdout,
-                stderr=cli_stderr_file
+                stderr=cli_stderr_file,
             )
 
         cli_stderr = open(cli_stderr_file_path).read().strip()
@@ -67,13 +73,7 @@ class TestLocalCli(object):
 
             yp_client.create_object("pod_set", attributes=dict(meta=dict(id="podsetid")))
             yp_client.create_object(
-                "pod",
-                attributes=dict(
-                    meta=dict(
-                        id="podid",
-                        pod_set_id="podsetid",
-                    )
-                )
+                "pod", attributes=dict(meta=dict(id="podid", pod_set_id="podsetid",))
             )
 
             responses = yp_client.select_objects("pod", selectors=["/meta/id"])

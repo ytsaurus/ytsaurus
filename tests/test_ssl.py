@@ -2,7 +2,9 @@ import pytest
 
 
 def get_root_certificate(environment):
-    return environment.yp_instance.config["secure_client_grpc_server"]["addresses"][0]["credentials"]["pem_root_certs"]["value"]
+    return environment.yp_instance.config["secure_client_grpc_server"]["addresses"][0][
+        "credentials"
+    ]["pem_root_certs"]["value"]
 
 
 @pytest.mark.usefixtures("yp_env_configurable")
@@ -18,23 +20,19 @@ class TestSsl(object):
         root_certificate_file.write(root_certificate)
 
         yp_client_config = dict(
-            enable_ssl=True,
-            root_certificate=dict(
-                file_name=str(root_certificate_file),
-            ),
+            enable_ssl=True, root_certificate=dict(file_name=str(root_certificate_file),),
         )
-        with yp_env_configurable.yp_instance.create_client(config=yp_client_config, transport=transport) as yp_client:
+        with yp_env_configurable.yp_instance.create_client(
+            config=yp_client_config, transport=transport
+        ) as yp_client:
             assert yp_client.generate_timestamp() > 0
 
     @pytest.mark.parametrize("transport", ["grpc"])
     def test_via_value(self, yp_env_configurable, transport):
         root_certificate = get_root_certificate(yp_env_configurable)
 
-        yp_client_config = dict(
-            enable_ssl=True,
-            root_certificate=dict(
-                value=root_certificate,
-            ),
-        )
-        with yp_env_configurable.yp_instance.create_client(config=yp_client_config, transport=transport) as yp_client:
+        yp_client_config = dict(enable_ssl=True, root_certificate=dict(value=root_certificate,),)
+        with yp_env_configurable.yp_instance.create_client(
+            config=yp_client_config, transport=transport
+        ) as yp_client:
             assert yp_client.generate_timestamp() > 0

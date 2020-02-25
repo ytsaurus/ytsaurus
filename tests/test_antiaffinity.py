@@ -28,18 +28,14 @@ class TestAntiaffinity(object):
             used_node_ids = list(
                 response[0]
                 for response in yp_client.get_objects(
-                    "pod",
-                    pod_ids,
-                    selectors=["/status/scheduling/node_id"],
+                    "pod", pod_ids, selectors=["/status/scheduling/node_id"],
                 )
             )
             used_node_ids = list(filter(lambda node_id: node_id != "", used_node_ids))
             used_rack_ids = list(
                 response[0]
                 for response in yp_client.get_objects(
-                    "node",
-                    used_node_ids,
-                    selectors=["/labels/topology/rack"],
+                    "node", used_node_ids, selectors=["/labels/topology/rack"],
                 )
             )
             self.assigned_pod_count = len(used_node_ids)
@@ -48,57 +44,41 @@ class TestAntiaffinity(object):
             self.node_pod_count = Counter(used_node_ids)
             self.rack_pod_count = Counter(used_rack_ids)
 
-    def _prepare_pod_set(
-            self,
-            yp_client,
-            antiaffinity_constraints):
+    def _prepare_pod_set(self, yp_client, antiaffinity_constraints):
         return create_pod_set(
-            yp_client,
-            spec=dict(antiaffinity_constraints=antiaffinity_constraints),
+            yp_client, spec=dict(antiaffinity_constraints=antiaffinity_constraints),
         )
 
-    def _prepare_pod_groups(
-            self,
-            yp_client,
-            pod_set_id,
-            pod_per_group_count,
-            group_count):
+    def _prepare_pod_groups(self, yp_client, pod_set_id, pod_per_group_count, group_count):
         pod_ids = []
         for group_id in xrange(group_count):
             group_pod_ids = []
             for _ in xrange(pod_per_group_count):
-                group_pod_ids.append(create_pod_with_boilerplate(
-                    yp_client,
-                    pod_set_id,
-                    spec=dict(enable_scheduling=True),
-                    labels=dict(group_id=str(group_id)),
-                ))
+                group_pod_ids.append(
+                    create_pod_with_boilerplate(
+                        yp_client,
+                        pod_set_id,
+                        spec=dict(enable_scheduling=True),
+                        labels=dict(group_id=str(group_id)),
+                    )
+                )
             pod_ids.append(group_pod_ids)
         return pod_ids
 
     def _prepare_objects(
-            self,
-            yp_client,
-            node_per_rack_count=1,
-            rack_count=1,
-            pod_per_group_count=1,
-            group_count=1,
-            antiaffinity_constraints=None):
+        self,
+        yp_client,
+        node_per_rack_count=1,
+        rack_count=1,
+        pod_per_group_count=1,
+        group_count=1,
+        antiaffinity_constraints=None,
+    ):
         create_nodes(
-            yp_client,
-            node_per_rack_count * rack_count,
-            rack_count,
+            yp_client, node_per_rack_count * rack_count, rack_count,
         )
-        pod_set_id = self._prepare_pod_set(
-            yp_client,
-            antiaffinity_constraints,
-        )
-        return self._prepare_pod_groups(
-            yp_client,
-            pod_set_id,
-            pod_per_group_count,
-            group_count,
-        )
+        pod_set_id = self._prepare_pod_set(yp_client, antiaffinity_constraints,)
+        return self._prepare_pod_groups(yp_client, pod_set_id, pod_per_group_count, group_count,)
 
     def test_per_node(self, yp_env):
         yp_client = yp_env.yp_client
@@ -111,9 +91,7 @@ class TestAntiaffinity(object):
             yp_client,
             node_per_rack_count=node_count,
             pod_per_group_count=pod_count,
-            antiaffinity_constraints=[
-                dict(key="node", max_pods=node_pod_limit),
-            ],
+            antiaffinity_constraints=[dict(key="node", max_pods=node_pod_limit),],
         )[0]
 
         wait(lambda: are_pods_touched_by_scheduler(yp_client, pod_ids))
@@ -166,11 +144,7 @@ class TestAntiaffinity(object):
             pod_per_group_count=pod_per_group_count,
             group_count=group_count,
             antiaffinity_constraints=[
-                dict(
-                    key="node",
-                    max_pods=node_pod_limit,
-                    pod_group_id_path="/labels/group_id",
-                ),
+                dict(key="node", max_pods=node_pod_limit, pod_group_id_path="/labels/group_id",),
             ],
         )
 
@@ -179,7 +153,9 @@ class TestAntiaffinity(object):
         wait(lambda: are_pods_touched_by_scheduler(yp_client, all_pod_ids))
 
         counters = self.AssignmentCounters(yp_client, all_pod_ids)
-        assert all(group_count * node_pod_limit == count for count in itervalues(counters.node_pod_count))
+        assert all(
+            group_count * node_pod_limit == count for count in itervalues(counters.node_pod_count)
+        )
 
         for group_id in xrange(group_count):
             group_pod_ids = pod_ids[group_id]
@@ -205,16 +181,8 @@ class TestAntiaffinity(object):
             pod_per_group_count=pod_per_group_count,
             group_count=group_count,
             antiaffinity_constraints=[
-                dict(
-                    key="node",
-                    max_pods=node_pod_limit,
-                    pod_group_id_path="/labels/group_id",
-                ),
-                dict(
-                    key="rack",
-                    max_pods=rack_pod_limit,
-                    pod_group_id_path="/labels/group_id",
-                ),
+                dict(key="node", max_pods=node_pod_limit, pod_group_id_path="/labels/group_id",),
+                dict(key="rack", max_pods=rack_pod_limit, pod_group_id_path="/labels/group_id",),
             ],
         )
 
@@ -240,10 +208,7 @@ class TestAntiaffinity(object):
             pod_per_group_count=pod_per_group_count,
             group_count=group_count,
             antiaffinity_constraints=[
-                dict(
-                    key="node",
-                    max_pods=node_pod_limit,
-                ),
+                dict(key="node", max_pods=node_pod_limit,),
                 dict(
                     key="node",
                     max_pods=node_pod_per_group_limit,
@@ -262,7 +227,10 @@ class TestAntiaffinity(object):
         for group_id in xrange(group_count):
             group_pod_ids = pod_ids[group_id]
             counters = self.AssignmentCounters(yp_client, group_pod_ids)
-            assert all(1 <= count <= node_pod_per_group_limit for count in itervalues(counters.node_pod_count))
+            assert all(
+                1 <= count <= node_pod_per_group_limit
+                for count in itervalues(counters.node_pod_count)
+            )
 
     def test_incorrect_pod_group_path(self, yp_env):
         yp_client = yp_env.yp_client
@@ -272,18 +240,12 @@ class TestAntiaffinity(object):
         pod_set_id = self._prepare_pod_set(
             yp_client,
             antiaffinity_constraints=[
-                dict(
-                    key="node",
-                    max_pods=1,
-                    pod_group_id_path="/lbls/group_id",
-                ),
+                dict(key="node", max_pods=1, pod_group_id_path="/lbls/group_id",),
             ],
         )
 
         pod_id = create_pod_with_boilerplate(
-            yp_client,
-            pod_set_id,
-            spec=dict(enable_scheduling=True),
+            yp_client, pod_set_id, spec=dict(enable_scheduling=True),
         )
 
         wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
@@ -309,11 +271,7 @@ class TestAntiaffinity(object):
         pod_set_id = self._prepare_pod_set(
             yp_client,
             antiaffinity_constraints=[
-                dict(
-                    key="node",
-                    max_pods=100500,
-                    pod_group_id_path="/labels/group_id",
-                ),
+                dict(key="node", max_pods=100500, pod_group_id_path="/labels/group_id",),
             ],
         )
 
@@ -325,17 +283,12 @@ class TestAntiaffinity(object):
                 labels=dict(group_id=pod_group_id),
             )
 
-            wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
+            wait(
+                lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id))
+            )
 
             yp_client.update_object(
-                "pod",
-                pod_id,
-                set_updates=[
-                    dict(
-                        path="/labels",
-                        value=dict(group_id="1"),
-                    ),
-                ],
+                "pod", pod_id, set_updates=[dict(path="/labels", value=dict(group_id="1"),),],
             )
 
             wait(lambda: is_pod_assigned(yp_client, pod_id))
@@ -370,52 +323,28 @@ class TestAntiaffinity(object):
         pod_set_id = self._prepare_pod_set(
             yp_client,
             antiaffinity_constraints=[
-                dict(
-                    key="node",
-                    max_pods=2,
-                    pod_group_id_path="/labels/group_id",
-                ),
+                dict(key="node", max_pods=2, pod_group_id_path="/labels/group_id",),
             ],
         )
 
         pod_id1 = create_pod_with_boilerplate(
-            yp_client,
-            pod_set_id,
-            spec=dict(enable_scheduling=True),
-            labels=dict(group_id="42"),
+            yp_client, pod_set_id, spec=dict(enable_scheduling=True), labels=dict(group_id="42"),
         )
 
         wait(lambda: is_pod_assigned(yp_client, pod_id1))
 
         yp_client.update_object(
-            "pod",
-            pod_id1,
-            set_updates=[
-                dict(
-                    path="/labels",
-                    value=dict(group_id=123123),
-                ),
-            ],
+            "pod", pod_id1, set_updates=[dict(path="/labels", value=dict(group_id=123123),),],
         )
 
         pod_id2 = create_pod_with_boilerplate(
-            yp_client,
-            pod_set_id,
-            spec=dict(enable_scheduling=True),
-            labels=dict(group_id="42"),
+            yp_client, pod_set_id, spec=dict(enable_scheduling=True), labels=dict(group_id="42"),
         )
 
         wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id2)))
 
         yp_client.update_object(
-            "pod",
-            pod_id1,
-            set_updates=[
-                dict(
-                    path="/labels",
-                    value=dict(group_id="42"),
-                ),
-            ],
+            "pod", pod_id1, set_updates=[dict(path="/labels", value=dict(group_id="42"),),],
         )
 
         wait(lambda: is_pod_assigned(yp_client, pod_id2))
@@ -426,20 +355,12 @@ class TestAntiaffinity(object):
         create_nodes(yp_client, 1)
 
         pod_set_id = self._prepare_pod_set(
-            yp_client,
-            antiaffinity_constraints=[
-                dict(
-                    key="node",
-                    max_pods=3,
-                ),
-            ],
+            yp_client, antiaffinity_constraints=[dict(key="node", max_pods=3,),],
         )
 
         def create_pod():
             return create_pod_with_boilerplate(
-                yp_client,
-                pod_set_id,
-                spec=dict(enable_scheduling=True),
+                yp_client, pod_set_id, spec=dict(enable_scheduling=True),
             )
 
         def update_antiaffinity(max_pods):
@@ -447,10 +368,7 @@ class TestAntiaffinity(object):
                 "pod_set",
                 pod_set_id,
                 set_updates=[
-                    dict(
-                        path="/spec/antiaffinity_constraints/0/max_pods",
-                        value=max_pods,
-                    ),
+                    dict(path="/spec/antiaffinity_constraints/0/max_pods", value=max_pods,),
                 ],
             )
 
@@ -467,7 +385,9 @@ class TestAntiaffinity(object):
         update_antiaffinity(max_pods=1)
 
         new_pod_id = create_pod()
-        wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, new_pod_id)))
+        wait(
+            lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, new_pod_id))
+        )
 
         update_antiaffinity(max_pods=3)
 
@@ -501,23 +421,30 @@ class TestAntiaffinityConstraintsUniqueBucketLimit(object):
         def prepare_objects_with_pod_group_id_paths(antiaffinity_constraints_buckets):
             pod_set_id = create_pod_set(
                 yp_client,
-                spec=dict(antiaffinity_constraints=[
-                    dict(zip(antiaffinity_constraints_names, bucket))
-                    for bucket in antiaffinity_constraints_buckets
-                ]),
+                spec=dict(
+                    antiaffinity_constraints=[
+                        dict(zip(antiaffinity_constraints_names, bucket))
+                        for bucket in antiaffinity_constraints_buckets
+                    ]
+                ),
             )
-            return [create_pod_with_boilerplate(
-                yp_client,
-                pod_set_id,
-                spec={"enable_scheduling": True},
-                labels=dict(group_id="test_group_id"),
-            ) for _ in range(pod_count)]
+            return [
+                create_pod_with_boilerplate(
+                    yp_client,
+                    pod_set_id,
+                    spec={"enable_scheduling": True},
+                    labels=dict(group_id="test_group_id"),
+                )
+                for _ in range(pod_count)
+            ]
 
         def is_pending_pod(pod_id):
             scheduling_status = get_pod_scheduling_status(yp_client, pod_id)
-            return "error" not in scheduling_status and \
-                scheduling_status.get("state", None) == "pending" and \
-                scheduling_status.get("node_id", "") == ""
+            return (
+                "error" not in scheduling_status
+                and scheduling_status.get("state", None) == "pending"
+                and scheduling_status.get("node_id", "") == ""
+            )
 
         def are_pending_pods(pod_ids):
             return all(map(is_pending_pod, pod_ids))
@@ -540,24 +467,29 @@ class TestAntiaffinityConstraintsUniqueBucketLimit(object):
                 (topology_zone, node_pod_limit, "/labels/group_id_type_%d" % index)
                 for topology_zone in topology_zones
                 for index in xrange(self.ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT // 3)
-            ] +
-            [
-                (topology_zone, node_pod_limit + 1)
-                for topology_zone in topology_zones
             ]
+            + [(topology_zone, node_pod_limit + 1) for topology_zone in topology_zones]
         )
 
         # Take only antiaffinity_constraints_unique_bucket_limit buckets.
         # So antiaffinity constraints bucket count in under limit.
         antiaffinity_constraints_buckets_under_limit = [
-            buckets_over_limit[:self.ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT]
+            buckets_over_limit[: self.ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT]
             for buckets_over_limit in antiaffinity_constraints_buckets_over_limit
         ]
 
-        assert all(map(lambda buckets: len(buckets) > self.ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT,
-                       antiaffinity_constraints_buckets_over_limit))
-        assert all(map(lambda buckets: len(buckets) <= self.ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT,
-                       antiaffinity_constraints_buckets_under_limit))
+        assert all(
+            map(
+                lambda buckets: len(buckets) > self.ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT,
+                antiaffinity_constraints_buckets_over_limit,
+            )
+        )
+        assert all(
+            map(
+                lambda buckets: len(buckets) <= self.ANTIAFFINITY_CONSTRAINTS_UNIQUE_BUCKET_LIMIT,
+                antiaffinity_constraints_buckets_under_limit,
+            )
+        )
 
         pod_ids_under_limit = flatten(
             prepare_objects_with_pod_group_id_paths(antiaffinity_constraints_buckets)

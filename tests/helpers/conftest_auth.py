@@ -7,12 +7,7 @@ AUTH_YP_MASTER_CONFIG = {
     "authentication_manager": {
         "require_authentication": True,
         "tvm_service": {"host": "localhost", "port": None, "token": None, "src": "yp",},
-        "blackbox_service": {
-            "host": "localhost",
-            "port": None,
-            "secure": False,
-            "use_tvm": True,
-        },
+        "blackbox_service": {"host": "localhost", "port": None, "secure": False, "use_tvm": True,},
         "blackbox_token_authenticator": {"scope": "yp:api",},
     },
 }
@@ -64,21 +59,15 @@ def test_environment_auth(request, set_bb_response):
     yp_master_config = update(
         _make_auth_yp_master_config(), getattr(request.cls, "YP_MASTER_CONFIG", None)
     )
-    yp_client_config = update(
-        AUTH_YP_CLIENT_CONFIG, getattr(request.cls, "YP_CLIENT_CONFIG", None)
-    )
+    yp_client_config = update(AUTH_YP_CLIENT_CONFIG, getattr(request.cls, "YP_CLIENT_CONFIG", None))
     environment = YpTestEnvironment(
         yp_master_config=yp_master_config,
         yp_client_config=yp_client_config,
         enable_ssl=getattr(request.cls, "ENABLE_SSL", False),
         local_yt_options=getattr(request.cls, "LOCAL_YT_OPTIONS", None),
         start=getattr(request.cls, "START", True),
-        start_yp_heavy_scheduler=getattr(
-            request.cls, "START_YP_HEAVY_SCHEDULER", False
-        ),
-        yp_heavy_scheduler_config=getattr(
-            request.cls, "YP_HEAVY_SCHEDULER_CONFIG", None
-        ),
+        start_yp_heavy_scheduler=getattr(request.cls, "START_YP_HEAVY_SCHEDULER", False),
+        yp_heavy_scheduler_config=getattr(request.cls, "YP_HEAVY_SCHEDULER_CONFIG", None),
     )
     request.addfinalizer(lambda: environment.cleanup())
     return environment

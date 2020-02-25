@@ -22,6 +22,7 @@ class TestMigrations(object):
     def _emulate_migration(self, yp_env, table_names):
         def mapper(row):
             yield row
+
         db_manager = DbManager(yp_env.yt_client, "//yp", version=ACTUAL_DB_VERSION)
         for table_name in table_names:
             db_manager.run_map(table_name, mapper)
@@ -43,7 +44,7 @@ class TestMigrations(object):
         def check(timestamp=None):
             return [[pod_id]] == yp_client.select_objects(
                 "pod",
-                filter="[/meta/pod_set_id] = \"{}\"".format(pod_set_id),
+                filter='[/meta/pod_set_id] = "{}"'.format(pod_set_id),
                 selectors=["/meta/id"],
                 timestamp=timestamp,
             )
@@ -89,6 +90,7 @@ class TestMigrations(object):
                     return True
                 except YtResponseError:
                     return False
+
             wait(check)
 
         wait_for_liveness()

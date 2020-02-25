@@ -27,12 +27,9 @@ class BaseTestSchedulerCluster(object):
             yp_client.create_object(
                 object_type="internet_address",
                 attributes=dict(
-                    meta=dict(
-                        ip4_address_pool_id="default_ip4_address_pool",
-                    ),
+                    meta=dict(ip4_address_pool_id="default_ip4_address_pool",),
                     spec=dict(
-                        ip4_address="1.2.3.{}".format(i + 1),
-                        network_module_id="VLA01,VLA02,VLA03",
+                        ip4_address="1.2.3.{}".format(i + 1), network_module_id="VLA01,VLA02,VLA03",
                     ),
                 ),
             )
@@ -42,11 +39,7 @@ class BaseTestSchedulerCluster(object):
         create_nodes(yp_client, node_count=10, cpu_total_capacity=pod_cpu * 5)
 
         yp_client.create_object(
-            "account",
-            attributes=dict(
-                meta=dict(id="test"),
-                spec=dict(parent_id="tmp"),
-            ),
+            "account", attributes=dict(meta=dict(id="test"), spec=dict(parent_id="tmp"),),
         )
 
         pod_disruption_budget_id = yp_client.create_object(
@@ -67,14 +60,13 @@ class BaseTestSchedulerCluster(object):
         pod_count = 10
         pod_ids = []
         for i in xrange(pod_count):
-            pod_ids.append(create_pod_with_boilerplate(
-                yp_client,
-                pod_set_id,
-                dict(
-                    enable_scheduling=True,
-                    resource_requests=dict(vcpu_guarantee=pod_cpu),
-                ),
-            ))
+            pod_ids.append(
+                create_pod_with_boilerplate(
+                    yp_client,
+                    pod_set_id,
+                    dict(enable_scheduling=True, resource_requests=dict(vcpu_guarantee=pod_cpu),),
+                )
+            )
 
         wait(lambda: are_pods_assigned(yp_client, pod_ids))
 
@@ -84,25 +76,19 @@ class TestSchedulerCluster(BaseTestSchedulerCluster):
     def _validate_scheduler_liveness(self, yp_client):
         pod_set_id = create_pod_set(yp_client)
         pod_id = create_pod_with_boilerplate(
-            yp_client,
-            pod_set_id,
-            spec=dict(enable_scheduling=True),
+            yp_client, pod_set_id, spec=dict(enable_scheduling=True),
         )
         wait_pod_is_assigned(yp_client, pod_id)
 
     def _validate_scheduler_lifelessness(self, yp_client):
         pod_set_id = create_pod_set(yp_client)
         pod_id = create_pod_with_boilerplate(
-            yp_client,
-            pod_set_id,
-            spec=dict(enable_scheduling=True),
+            yp_client, pod_set_id, spec=dict(enable_scheduling=True),
         )
+
         def get_state(pod_id):
-            return yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status/scheduling/state"],
-            )[0]
+            return yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"],)[0]
+
         assert_over_time(lambda: "pending" == get_state(pod_id))
 
     def test_cluster_load(self, yp_env):
@@ -116,19 +102,12 @@ class TestSchedulerCluster(BaseTestSchedulerCluster):
         create_nodes(yp_client, 1)
 
         node_segment_id = yp_client.create_object(
-            "node_segment",
-            attributes=dict(spec=dict(node_filter="abracadabra")),
+            "node_segment", attributes=dict(spec=dict(node_filter="abracadabra")),
         )
         self._validate_scheduler_lifelessness(yp_client)
 
         yp_env.set_cypress_config_patch(
-            dict(
-                scheduler=dict(
-                    cluster=dict(
-                        bypass_validation_errors=True,
-                    ),
-                ),
-            ),
+            dict(scheduler=dict(cluster=dict(bypass_validation_errors=True,),),),
         )
         self._validate_scheduler_liveness(yp_client)
 
@@ -140,7 +119,7 @@ class TestSchedulerClusterWithHeavyScheduler(BaseTestSchedulerCluster):
     def _validate_heavy_scheduler_liveness(self, yp_client):
         responses = yp_client.select_objects(
             "resource",
-            filter="[/meta/kind] = \"cpu\"",
+            filter='[/meta/kind] = "cpu"',
             selectors=["/meta/node_id", "/status/free/cpu/capacity", "/spec/cpu/total_capacity"],
         )
         pod_cpu = 0
@@ -158,10 +137,7 @@ class TestSchedulerClusterWithHeavyScheduler(BaseTestSchedulerCluster):
 
         run_eviction_acknowledger(yp_client, iteration_count=60, sleep_time=1)
 
-        responses = yp_client.select_objects(
-            "pod",
-            selectors=["/status/scheduling"],
-        )
+        responses = yp_client.select_objects("pod", selectors=["/status/scheduling"],)
         scheduling_statuses = list(map(lambda response: response[0], responses))
         assert all(map(is_assigned_pod_scheduling_status, scheduling_statuses))
 

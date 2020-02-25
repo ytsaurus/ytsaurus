@@ -47,6 +47,7 @@ class YpCli(Cli):
         result = self.check_output(*args, **kwargs)
         return yson._loads_from_native_str(result)
 
+
 def create_cli(yp_env):
     return YpCli(yp_env.yp_instance.yp_client_grpc_address)
 
@@ -54,16 +55,14 @@ def create_cli(yp_env):
 def create_pod_set_via_cli(cli):
     return cli.check_output(["create", "pod_set"])
 
+
 def create_pod_via_cli(cli, pod_set_id=None):
     if pod_set_id is None:
         pod_set_id = create_pod_set_via_cli(cli)
 
     attributes = {"meta": {"pod_set_id": pod_set_id}}
-    return cli.check_output([
-        "create",
-        "pod",
-        "--attributes", yson.dumps(attributes)
-    ])
+    return cli.check_output(["create", "pod", "--attributes", yson.dumps(attributes)])
+
 
 def create_user_via_cli(cli):
     return cli.check_output(["create", "user"])
@@ -76,20 +75,14 @@ class TestCli(object):
 
         pod_id = create_pod_via_cli(cli)
 
-        result = cli.check_yson_output([
-            "get",
-            "pod", pod_id,
-            "--selector", "/status/agent/state",
-            "--selector", "/meta/id"
-        ])
+        result = cli.check_yson_output(
+            ["get", "pod", pod_id, "--selector", "/status/agent/state", "--selector", "/meta/id"]
+        )
         assert result == ["unknown", pod_id]
 
-        result = cli.check_yson_output([
-            "select",
-            "pod",
-            "--filter", '[/meta/id] = "{}"'.format(pod_id),
-            "--no-tabular"
-        ])
+        result = cli.check_yson_output(
+            ["select", "pod", "--filter", '[/meta/id] = "{}"'.format(pod_id), "--no-tabular"]
+        )
         assert result == [[]]
 
     def test_check_object_permission(self, yp_env):
@@ -97,31 +90,18 @@ class TestCli(object):
 
         pod_id = create_pod_via_cli(cli)
 
-        result = cli.check_yson_output([
-            "check-object-permission",
-            "pod", pod_id,
-            "everyone",
-            "read"
-        ])
+        result = cli.check_yson_output(
+            ["check-object-permission", "pod", pod_id, "everyone", "read"]
+        )
         assert result == dict(action="deny")
 
-        result = cli.check_yson_output([
-            "check-permission",
-            "pod", pod_id,
-            "root",
-            "write"
-        ])
+        result = cli.check_yson_output(["check-permission", "pod", pod_id, "root", "write"])
         assert result == dict(action="allow")
 
         user_id = create_user_via_cli(cli)
         yp_env.sync_access_control()
 
-        result = cli.check_yson_output([
-            "check-permission",
-            "pod", pod_id,
-            user_id,
-            "read"
-        ])
+        result = cli.check_yson_output(["check-permission", "pod", pod_id, user_id, "read"])
         assert result["action"] == "allow"
 
     def test_get_object_access_allowed_for(self, yp_env):
@@ -133,11 +113,7 @@ class TestCli(object):
         for _ in xrange(10):
             all_user_ids.append(create_user_via_cli(cli))
 
-        result = cli.check_yson_output([
-            "get-object-access-allowed-for",
-            "pod", pod_id,
-            "read"
-        ])
+        result = cli.check_yson_output(["get-object-access-allowed-for", "pod", pod_id, "read"])
 
         assert "user_ids" in result
         result["user_ids"].sort()
@@ -149,13 +125,7 @@ class TestCli(object):
 
         yp_env.sync_access_control()
 
-        command = [
-            "get-user-access-allowed-to",
-            "root",
-            "account",
-            "read",
-            "--filter", "true"
-        ]
+        command = ["get-user-access-allowed-to", "root", "account", "read", "--filter", "true"]
         result = cli.check_yson_output(command)
         assert result["object_ids"] == ["tmp"]
 
@@ -180,33 +150,39 @@ class TestCli(object):
         pod_set_ids = yp_env.yp_client.create_objects([_prepare_pod_set(1), _prepare_pod_set(2)])
         yp_env.yp_client.create_objects([_prepare_pod_set(3), _prepare_pod_set(4)])
 
-        assert set(cli.check_yson_output([
-            "get-user-access-allowed-to",
-            "root", "pod_set", "read",
-            "--filter", "[/labels/some_field]<={}".format(2)
-        ])["object_ids"]) == set(pod_set_ids)
+        assert set(
+            cli.check_yson_output(
+                [
+                    "get-user-access-allowed-to",
+                    "root",
+                    "pod_set",
+                    "read",
+                    "--filter",
+                    "[/labels/some_field]<={}".format(2),
+                ]
+            )["object_ids"]
+        ) == set(pod_set_ids)
 
     def test_binary_data(self, yp_env):
         cli = create_cli(yp_env)
 
-        pod_set_id = cli.check_output([
-            "create", "pod_set",
-            "--attributes", yson.dumps({"annotations": {"hello": "\x01\x02"}})
-        ])
+        pod_set_id = cli.check_output(
+            [
+                "create",
+                "pod_set",
+                "--attributes",
+                yson.dumps({"annotations": {"hello": "\x01\x02"}}),
+            ]
+        )
 
-        result = cli.check_yson_output([
-            "get",
-            "pod_set", pod_set_id,
-            "--selector", "/annotations",
-        ])
+        result = cli.check_yson_output(
+            ["get", "pod_set", pod_set_id, "--selector", "/annotations",]
+        )
         assert result == [{"hello": "\x01\x02"}]
 
-        result = cli.check_output([
-            "get",
-            "pod_set", pod_set_id,
-            "--selector", "/annotations",
-            "--format", "json",
-        ])
+        result = cli.check_output(
+            ["get", "pod_set", pod_set_id, "--selector", "/annotations", "--format", "json",]
+        )
         assert json.loads(result) == [{"hello": "\x01\x02"}]
 
     def test_update_hfsm(self, yp_env):
@@ -215,11 +191,7 @@ class TestCli(object):
         node_id = yp_env.yp_client.create_object("node")
         cli.check_output(["update-hfsm-state", node_id, "up", "test"])
 
-        result = cli.check_yson_output([
-            "get",
-            "node", node_id,
-            "--selector", "/status/hfsm/state"
-        ])
+        result = cli.check_yson_output(["get", "node", node_id, "--selector", "/status/hfsm/state"])
 
         assert result[0] == "up"
 
@@ -229,17 +201,27 @@ class TestCli(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_ids = create_nodes(yp_client, 10)
-        pod_ids = [create_pod_with_boilerplate(yp_client, pod_set_id, {"node_id": node_id}) for node_id in node_ids]
+        pod_ids = [
+            create_pod_with_boilerplate(yp_client, pod_set_id, {"node_id": node_id})
+            for node_id in node_ids
+        ]
 
         def get_timestamps():
-            return [t[0] for t in yp_client.get_objects("pod", pod_ids, selectors=["/status/master_spec_timestamp"])]
+            return [
+                t[0]
+                for t in yp_client.get_objects(
+                    "pod", pod_ids, selectors=["/status/master_spec_timestamp"]
+                )
+            ]
 
         timestamps1 = get_timestamps()
 
         def run_script(pod_ids, tx_id=None):
-            cli.check_output(["touch-pod-master-spec-timestamps"]
-                             + pod_ids
-                             + (["--transaction-id", tx_id] if tx_id else []))
+            cli.check_output(
+                ["touch-pod-master-spec-timestamps"]
+                + pod_ids
+                + (["--transaction-id", tx_id] if tx_id else [])
+            )
 
         run_script([])
         timestamps2 = get_timestamps()
@@ -257,7 +239,10 @@ class TestCli(object):
         assert timestamps2 == timestamps1
         yp_client.commit_transaction(tx_id)
         timestamps2 = get_timestamps()
-        assert all(timestamps2[i] > timestamps1[i] for i in range(5)) and timestamps1[5:] == timestamps2[5:]
+        assert (
+            all(timestamps2[i] > timestamps1[i] for i in range(5))
+            and timestamps1[5:] == timestamps2[5:]
+        )
 
     def test_pod_resources_reallocation(self, yp_env):
         cli = create_cli(yp_env)
@@ -269,11 +254,7 @@ class TestCli(object):
             return allocations[0]
 
         def _get_the_only_address_by_fqdn(fqdn):
-            records = yp_client.get_object(
-                "dns_record_set",
-                fqdn,
-                selectors=["/spec/records"],
-            )[0]
+            records = yp_client.get_object("dns_record_set", fqdn, selectors=["/spec/records"],)[0]
             assert len(records) == 1
             return records[0]["data"]
 
@@ -282,30 +263,34 @@ class TestCli(object):
 
         create_nodes(yp_client, node_count, cpu_total_capacity=200, vlan_id=vlan_id)
         pod_set_id = create_pod_set(yp_client)
-        network_project_id = yp_client.create_object("network_project", {
-            "meta": {"id": "somenet"},
-            "spec": {"project_id": 42},
-        })
+        network_project_id = yp_client.create_object(
+            "network_project", {"meta": {"id": "somenet"}, "spec": {"project_id": 42},}
+        )
 
         def _create_pod(enable_scheduling):
-            return yp_client.create_object("pod", {
-                "meta": {"pod_set_id": pod_set_id},
-                "spec": {
-                    "enable_scheduling": enable_scheduling,
-                    "ip6_address_requests": [{
-                        "vlan_id": vlan_id,
-                        "network_id": network_project_id,
-                        "enable_dns": True,
-                        "labels": {"some_key": "some_value"},
-                    }],
-                    "resource_requests": {
-                        "vcpu_guarantee": 100,
-                        "vcpu_limit": 100,
-                        "memory_guarantee": 128 * 1024 * 1024,
-                        "memory_limit": 128 * 1024 * 1024,
+            return yp_client.create_object(
+                "pod",
+                {
+                    "meta": {"pod_set_id": pod_set_id},
+                    "spec": {
+                        "enable_scheduling": enable_scheduling,
+                        "ip6_address_requests": [
+                            {
+                                "vlan_id": vlan_id,
+                                "network_id": network_project_id,
+                                "enable_dns": True,
+                                "labels": {"some_key": "some_value"},
+                            }
+                        ],
+                        "resource_requests": {
+                            "vcpu_guarantee": 100,
+                            "vcpu_limit": 100,
+                            "memory_guarantee": 128 * 1024 * 1024,
+                            "memory_limit": 128 * 1024 * 1024,
+                        },
                     },
-                }
-            })
+                },
+            )
 
         pod_id = _create_pod(True)
         nonschedulable_pod_id = _create_pod(False)
@@ -313,35 +298,55 @@ class TestCli(object):
         wait(lambda: is_pod_assigned(yp_client, pod_id))
 
         initial_pod_dump = yp_client.get_object("pod", pod_id, [""])[0]
-        initial_pod_dump_nonschedulable = yp_client.get_object("pod", nonschedulable_pod_id, [""])[0]
+        initial_pod_dump_nonschedulable = yp_client.get_object("pod", nonschedulable_pod_id, [""])[
+            0
+        ]
 
         initial_allocation = _get_the_only_ip6_address_allocation(initial_pod_dump)
-        assert _get_the_only_address_by_fqdn(initial_allocation["persistent_fqdn"]) == initial_allocation["address"]
+        assert (
+            _get_the_only_address_by_fqdn(initial_allocation["persistent_fqdn"])
+            == initial_allocation["address"]
+        )
 
         node_id = initial_pod_dump["spec"]["node_id"]
-        yp_client.update_object("node", node_id, [{
-            "path": "/spec/ip6_subnets/0/subnet",
-            "value": "4:3:2:1::/64",
-        }])
+        yp_client.update_object(
+            "node", node_id, [{"path": "/spec/ip6_subnets/0/subnet", "value": "4:3:2:1::/64",}]
+        )
 
         cli.check_output(["reallocate-pod-resources", pod_id])
         cli.check_output(["reallocate-pod-resources", nonschedulable_pod_id])
 
         updated_pod_dump = yp_client.get_object("pod", pod_id, [""])[0]
-        updated_pod_dump_nonschedulable = yp_client.get_object("pod", nonschedulable_pod_id, [""])[0]
+        updated_pod_dump_nonschedulable = yp_client.get_object("pod", nonschedulable_pod_id, [""])[
+            0
+        ]
         updated_allocation = _get_the_only_ip6_address_allocation(updated_pod_dump)
 
         assert "ip6_address_allocations" not in updated_pod_dump_nonschedulable
         assert initial_allocation["address"] != updated_allocation["address"]
-        assert _get_the_only_address_by_fqdn(updated_allocation["persistent_fqdn"]) == updated_allocation["address"]
+        assert (
+            _get_the_only_address_by_fqdn(updated_allocation["persistent_fqdn"])
+            == updated_allocation["address"]
+        )
 
         for field_name in ("vlan_id", "labels", "persistent_fqdn", "transient_fqdn"):
             assert initial_allocation[field_name] == updated_allocation[field_name]
 
-        assert initial_pod_dump["status"]["master_spec_timestamp"] < updated_pod_dump["status"]["master_spec_timestamp"]
-        assert initial_pod_dump_nonschedulable["status"]["master_spec_timestamp"] < updated_pod_dump_nonschedulable["status"]["master_spec_timestamp"]
+        assert (
+            initial_pod_dump["status"]["master_spec_timestamp"]
+            < updated_pod_dump["status"]["master_spec_timestamp"]
+        )
+        assert (
+            initial_pod_dump_nonschedulable["status"]["master_spec_timestamp"]
+            < updated_pod_dump_nonschedulable["status"]["master_spec_timestamp"]
+        )
 
-        for pod_dump in [initial_pod_dump, updated_pod_dump, initial_pod_dump_nonschedulable, updated_pod_dump_nonschedulable]:
+        for pod_dump in [
+            initial_pod_dump,
+            updated_pod_dump,
+            initial_pod_dump_nonschedulable,
+            updated_pod_dump_nonschedulable,
+        ]:
             del pod_dump["spec"]["ip6_address_requests"]
             del pod_dump["status"]["master_spec_timestamp"]
             if pod_dump["status"].get("ip6_address_allocations", None):
@@ -355,28 +360,33 @@ class TestCli(object):
 
         pod_set_id = create_pod_set_via_cli(cli)
         pod_ids = []
-        memory_limits = [i * 2**20 for i in range(1, 8)]
+        memory_limits = [i * 2 ** 20 for i in range(1, 8)]
         for memory_limit in memory_limits:
             attributes = {
                 "meta": {"pod_set_id": pod_set_id},
                 "spec": {"resource_requests": {"memory_limit": memory_limit}},
             }
-            pod_ids.append(cli.check_output([
-                "create",
-                "pod",
-                "--attributes", yson.dumps(attributes)
-            ]))
+            pod_ids.append(
+                cli.check_output(["create", "pod", "--attributes", yson.dumps(attributes)])
+            )
 
-        result = cli.check_yson_output([
-            "aggregate",
-            "pod",
-            "--group-by", "is_prefix([/meta/pod_set_id], \"{}\")".format(pod_set_id),
-            "--group-by", "int64([/status/agent_spec_timestamp]) + 5",
-            "--aggregator", "avg(int64([/spec/resource_requests/memory_limit]))",
-            "--aggregator", "max([/meta/creation_time])",
-            "--filter", "[/meta/pod_set_id] = \"{}\"".format(pod_set_id),
-            "--no-tabular",
-        ])
+        result = cli.check_yson_output(
+            [
+                "aggregate",
+                "pod",
+                "--group-by",
+                'is_prefix([/meta/pod_set_id], "{}")'.format(pod_set_id),
+                "--group-by",
+                "int64([/status/agent_spec_timestamp]) + 5",
+                "--aggregator",
+                "avg(int64([/spec/resource_requests/memory_limit]))",
+                "--aggregator",
+                "max([/meta/creation_time])",
+                "--filter",
+                '[/meta/pod_set_id] = "{}"'.format(pod_set_id),
+                "--no-tabular",
+            ]
+        )
 
         assert len(result) == 1
         assert len(result[0]) == 4
@@ -389,7 +399,9 @@ class TestCli(object):
         create_nodes(yp_client, 1)
         pod_set_id = create_pod_set_via_cli(cli)
 
-        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(enable_scheduling=True))
+        pod_id = create_pod_with_boilerplate(
+            yp_client, pod_set_id, spec=dict(enable_scheduling=True)
+        )
 
         wait(lambda: is_pod_assigned(yp_client, pod_id))
         for _ in range(3):
@@ -436,15 +448,22 @@ class TestCli(object):
         small_node_id = create_nodes(yp_client, 1, cpu_total_capacity=100)[0]
         pod_set_id = create_pod_set_via_cli(cli)
 
-        pod_id_simple = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(
-            enable_scheduling=True,
-            resource_requests=dict(vcpu_guarantee=100, vcpu_limit=100)))
+        pod_id_simple = create_pod_with_boilerplate(
+            yp_client,
+            pod_set_id,
+            spec=dict(
+                enable_scheduling=True, resource_requests=dict(vcpu_guarantee=100, vcpu_limit=100)
+            ),
+        )
 
         wait(lambda: is_pod_assigned(yp_client, pod_id_simple))
         assert get_pod_scheduling_status(yp_client, pod_id_simple)["node_id"] == big_node_id
 
-        pod_id_hint = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(
-            resource_requests=dict(vcpu_guarantee=100, vcpu_limit=100)))
+        pod_id_hint = create_pod_with_boilerplate(
+            yp_client,
+            pod_set_id,
+            spec=dict(resource_requests=dict(vcpu_guarantee=100, vcpu_limit=100)),
+        )
 
         cli.check_output(["add-scheduling-hint", pod_id_hint, small_node_id, "--strong"])
         cli.check_output(["add-scheduling-hint", pod_id_hint, big_node_id])
@@ -457,12 +476,16 @@ class TestCli(object):
         assert bool(scheduling_hints[1]["strong"]) is False
 
         cli.check_output(["remove-scheduling-hint", pod_id_hint, scheduling_hints[1]["uuid"]])
-        new_scheduling_hints = yp_client.get_object("pod", pod_id_hint, ["/spec/scheduling/hints"])[0]
+        new_scheduling_hints = yp_client.get_object("pod", pod_id_hint, ["/spec/scheduling/hints"])[
+            0
+        ]
 
         assert len(new_scheduling_hints) == 1
         assert new_scheduling_hints[0] == scheduling_hints[0]
 
-        yp_client.update_object("pod", pod_id_hint, [dict(path="/spec/enable_scheduling", value=True)])
+        yp_client.update_object(
+            "pod", pod_id_hint, [dict(path="/spec/enable_scheduling", value=True)]
+        )
 
         wait(lambda: is_pod_assigned(yp_client, pod_id_hint))
         assert get_pod_scheduling_status(yp_client, pod_id_simple)["node_id"] == big_node_id
@@ -473,11 +496,7 @@ class TestCliEviction(object):
     # Choosing a pretty small period to optimize tests duration.
     SCHEDULER_LOOP_PERIOD_MILLISECONDS = 1 * 1000
 
-    YP_MASTER_CONFIG = dict(
-        scheduler=dict(
-            loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,
-        )
-    )
+    YP_MASTER_CONFIG = dict(scheduler=dict(loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,))
 
     def test_pod_eviction(self, yp_env_configurable):
         cli = create_cli(yp_env_configurable)
@@ -486,18 +505,16 @@ class TestCliEviction(object):
         create_nodes(yp_client, 1)
         pod_set_id = yp_client.create_object("pod_set")
         pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, dict(enable_scheduling=True))
-        wait(lambda: is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
+        wait(
+            lambda: is_assigned_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id))
+        )
 
-        get_eviction_state = lambda: cli.check_yson_output([
-            "get",
-            "pod", pod_id,
-            "--selector", "/status/eviction/state"
-        ])[0]
-        get_eviction_message = lambda: cli.check_yson_output([
-            "get",
-            "pod", pod_id,
-            "--selector", "/status/eviction/message"
-        ])[0]
+        get_eviction_state = lambda: cli.check_yson_output(
+            ["get", "pod", pod_id, "--selector", "/status/eviction/state"]
+        )[0]
+        get_eviction_message = lambda: cli.check_yson_output(
+            ["get", "pod", pod_id, "--selector", "/status/eviction/message"]
+        )[0]
 
         assert get_eviction_state() == "none"
 
@@ -513,11 +530,7 @@ class TestCliEviction(object):
         assert get_eviction_state() == "requested"
 
         tx_id = yp_client.start_transaction()
-        cli.check_output([
-            "acknowledge-eviction",
-            pod_id, "test",
-            "--transaction_id", tx_id
-        ])
+        cli.check_output(["acknowledge-eviction", pod_id, "test", "--transaction_id", tx_id])
         assert get_eviction_state() == "requested"
         yp_client.commit_transaction(tx_id)
         assert get_eviction_state() in ("acknowledged", "none")
@@ -550,11 +563,7 @@ class TestCliMaintenance(object):
     # Choosing a pretty small period to optimize tests duration.
     SCHEDULER_LOOP_PERIOD_MILLISECONDS = 1 * 1000
 
-    YP_MASTER_CONFIG = dict(
-        scheduler=dict(
-            loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,
-        )
-    )
+    YP_MASTER_CONFIG = dict(scheduler=dict(loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,))
 
     def test_add_and_remove_node_alerts(self, yp_env_configurable):
         cli = create_cli(yp_env_configurable)
@@ -590,10 +599,7 @@ class TestCliMaintenance(object):
             return yp_client.get_object("pod", pod_id, selectors=["/status/maintenance"])[0]
 
         yp_client.update_hfsm_state(
-            node_id,
-            "prepare_maintenance",
-            "Test",
-            maintenance_info=dict(id="aba"),
+            node_id, "prepare_maintenance", "Test", maintenance_info=dict(id="aba"),
         )
 
         wait(lambda: _get_maintenance().get("state") == "requested")

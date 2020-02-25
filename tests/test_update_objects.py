@@ -73,6 +73,7 @@ def get_mapped_value_class(value_class, mapper):
 
         def advance(self):
             self._value.advance()
+
     return MappedValue
 
 
@@ -80,13 +81,7 @@ StringValue = get_mapped_value_class(IntegerValue, str)
 PermissionValue = get_mapped_value_class(lambda: CyclicValue(["read", "write"]), lambda x: x)
 
 AttributeBase = collections.namedtuple(
-    "AttributeBase",
-    [
-        "base_path",
-        "initial_value",
-        "variable_subpath",
-        "variable_value",
-    ],
+    "AttributeBase", ["base_path", "initial_value", "variable_subpath", "variable_value",],
 )
 
 
@@ -108,16 +103,11 @@ class YPObject(object):
 
     def initialize(self, yp_client):
         updates = [
-            dict(
-                path=attribute.base_path,
-                value=attribute.initial_value,
-            )
+            dict(path=attribute.base_path, value=attribute.initial_value,)
             for attribute in self._attributes
         ]
         yp_client.update_object(
-            object_type=self._object_type,
-            object_id=self._object_id,
-            set_updates=updates,
+            object_type=self._object_type, object_id=self._object_id, set_updates=updates,
         )
 
     def get_max_update_count(self):
@@ -129,27 +119,18 @@ class YPObject(object):
         updates = []
         for attribute in attributes:
             attribute.variable_value.advance()
-            updates.append(dict(
-                path=attribute.get_variable_path(),
-                value=attribute.variable_value.get(),
-            ))
-        return [
-            dict(
-                object_type=self._object_type,
-                object_id=self._object_id,
-                set_updates=updates,
+            updates.append(
+                dict(path=attribute.get_variable_path(), value=attribute.variable_value.get(),)
             )
+        return [
+            dict(object_type=self._object_type, object_id=self._object_id, set_updates=updates,)
         ]
 
     def validate(self, yp_client):
         selectors = []
         for attribute in self._attributes:
             selectors.append(attribute.base_path)
-        values = yp_client.get_object(
-            self._object_type,
-            self._object_id,
-            selectors=selectors,
-        )
+        values = yp_client.get_object(self._object_type, self._object_id, selectors=selectors,)
         assert len(values) == len(self._attributes)
         for attribute, actual_value in zip(self._attributes, values):
             validate_subequality(actual_value, attribute.get_value())
@@ -177,7 +158,9 @@ def create_pod_yp_object(yp_client, pod_set_id):
     attributes = [
         Attribute(
             base_path="/spec/secrets",
-            initial_value=dict(some_secret=dict(secret_id="id", secret_version="0", delegation_token="token")),
+            initial_value=dict(
+                some_secret=dict(secret_id="id", secret_version="0", delegation_token="token")
+            ),
             variable_subpath="/some_secret/secret_version",
             variable_value=StringValue(),
         ),
@@ -216,10 +199,7 @@ def create_resource_yp_object(yp_client):
     node_id = yp_client.create_object("node")
     resource_id = yp_client.create_object(
         "resource",
-        attributes=dict(
-            meta=dict(node_id=node_id),
-            spec=dict(cpu=dict(total_capacity=0)),
-        ),
+        attributes=dict(meta=dict(node_id=node_id), spec=dict(cpu=dict(total_capacity=0)),),
     )
     attributes = [
         Attribute(
@@ -279,18 +259,35 @@ class TestUpdateObjects(object):
 
             start_acls = yp_client.get_objects("pod_set", pod_set_ids, ["/meta/acl"])
 
-            yp_client.update_objects([dict(
-                object_type="pod_set",
-                object_id=pod_set_ids[0],
-                set_updates=[dict(
-                    path="/meta/acl/end",
-                    value=dict(action="allow", subjects=[username], permissions=[permission]))],
-            ) for permission in ace_types])
+            yp_client.update_objects(
+                [
+                    dict(
+                        object_type="pod_set",
+                        object_id=pod_set_ids[0],
+                        set_updates=[
+                            dict(
+                                path="/meta/acl/end",
+                                value=dict(
+                                    action="allow", subjects=[username], permissions=[permission]
+                                ),
+                            )
+                        ],
+                    )
+                    for permission in ace_types
+                ]
+            )
 
-            yp_client.update_object("pod_set", pod_set_ids[1], [dict(
-                path="/meta/acl/end",
-                value=dict(action="allow", subjects=[username], permissions=[permission])
-            ) for permission in ace_types])
+            yp_client.update_object(
+                "pod_set",
+                pod_set_ids[1],
+                [
+                    dict(
+                        path="/meta/acl/end",
+                        value=dict(action="allow", subjects=[username], permissions=[permission]),
+                    )
+                    for permission in ace_types
+                ],
+            )
 
             end_acls = yp_client.get_objects("pod_set", pod_set_ids, ["/meta/acl"])
 
@@ -301,7 +298,7 @@ class TestUpdateObjects(object):
                 assert len(end_acl[0]) == len(start_acl[0]) + len(ace_types)
                 assert all(map(lambda pair: pair[0] == pair[1], zip(start_acl[0], end_acl[0])))
 
-                for ace_type, ace in zip(ace_types, end_acl[0][len(start_acl):]):
+                for ace_type, ace in zip(ace_types, end_acl[0][len(start_acl) :]):
                     assert ace["action"] == "allow"
                     assert ace["subjects"] == [username]
                     assert ace["permissions"] == [ace_type]

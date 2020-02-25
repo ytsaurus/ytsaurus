@@ -19,10 +19,7 @@ class TestClientConfig(object):
         options = get_options(
             config=dict(
                 request_timeout=1000,
-                grpc_channel_options=dict(
-                    keepalive_time_ms=10,
-                    keepalive_timeout_ms=1,
-                ),
+                grpc_channel_options=dict(keepalive_time_ms=10, keepalive_timeout_ms=1,),
             ),
         )
         validate_keepalive_values(options, 10, 1)
@@ -31,12 +28,7 @@ class TestClientConfig(object):
         validate_keepalive_values(options, 499, 999)
 
         options = get_options(
-            config=dict(
-                request_timeout=1000,
-                grpc_channel_options=dict(
-                    keepalive_time_ms=15,
-                ),
-            ),
+            config=dict(request_timeout=1000, grpc_channel_options=dict(keepalive_time_ms=15,),),
         )
         validate_keepalive_values(options, 15, 1000)
 
@@ -44,9 +36,7 @@ class TestClientConfig(object):
             client = yp_env.yp_instance.create_client(
                 config=dict(
                     request_timeout=1000,
-                    grpc_channel_options=dict(
-                        max_receive_message_length=receive_message_length,
-                    ),
+                    grpc_channel_options=dict(max_receive_message_length=receive_message_length,),
                 ),
             )
             with pytest.raises(GrpcError):

@@ -11,6 +11,7 @@ from six.moves import xrange
 
 from yt.yson import YsonEntity
 
+
 @pytest.mark.usefixtures("yp_env")
 class TestObjects(object):
     def test_uuids(self, yp_env):
@@ -24,7 +25,9 @@ class TestObjects(object):
         yp_client = yp_env.yp_client
         id = yp_client.create_object("pod_set")
         with pytest.raises(YtResponseError):
-            yp_client.update_object("pod_set", id, set_updates=[{"path": "/meta/uuid", "value": "1-2-3-4"}])
+            yp_client.update_object(
+                "pod_set", id, set_updates=[{"path": "/meta/uuid", "value": "1-2-3-4"}]
+            )
 
     def test_names_allowed(self, yp_env):
         yp_client = yp_env.yp_client
@@ -96,21 +99,21 @@ class TestObjects(object):
     def test_select_filter_with_alias(self, yp_env):
         yp_client = yp_env.yp_client
         assert yp_client.select_objects(
-            "account",
-            selectors=["/meta/id"],
-            filter="([/meta/id] as a) = \"tmp\"",
+            "account", selectors=["/meta/id"], filter='([/meta/id] as a) = "tmp"',
         ) == [["tmp"]]
 
     def test_select_filter_with_transform_default_values(self, yp_env):
         yp_client = yp_env.yp_client
         pod_set_id = yp_client.create_object("pod_set", attributes=dict(meta=dict(id="podset")))
-        pod_id = yp_client.create_object("pod", attributes=dict(
-            meta=dict(id="pod", pod_set_id=pod_set_id),
-        ))
+        pod_id = yp_client.create_object(
+            "pod", attributes=dict(meta=dict(id="pod", pod_set_id=pod_set_id),)
+        )
         assert yp_client.select_objects(
             "pod",
             selectors=["/meta/id"],
-            filter="transform([/meta/id], (\"x\"), (\"y\"), ([/meta/pod_set_id])) = \"{}\"".format(pod_set_id)
+            filter='transform([/meta/id], ("x"), ("y"), ([/meta/pod_set_id])) = "{}"'.format(
+                pod_set_id
+            ),
         ) == [["pod"]]
 
     def test_many_to_one_attribute(self, yp_env):
@@ -118,51 +121,59 @@ class TestObjects(object):
 
         yp_client.create_object("account", attributes={"meta": {"id": "myaccount"}})
         yp_client.create_object("pod_set", attributes={"meta": {"id": "mypodset"}})
-        yp_client.create_object("pod", attributes={
-            "meta": {"id": "mypod", "pod_set_id": "mypodset"},
-            "spec": {
-                "resource_requests": ZERO_RESOURCE_REQUESTS
-            }
-        })
+        yp_client.create_object(
+            "pod",
+            attributes={
+                "meta": {"id": "mypod", "pod_set_id": "mypodset"},
+                "spec": {"resource_requests": ZERO_RESOURCE_REQUESTS},
+            },
+        )
 
-        yp_client.update_object("pod", "mypod", set_updates=[
-            {"path": "/spec/account_id", "value": "myaccount"}
-        ])
-        assert yp_client.get_object("pod", "mypod", selectors=["/spec/account_id"])[0] == "myaccount"
+        yp_client.update_object(
+            "pod", "mypod", set_updates=[{"path": "/spec/account_id", "value": "myaccount"}]
+        )
+        assert (
+            yp_client.get_object("pod", "mypod", selectors=["/spec/account_id"])[0] == "myaccount"
+        )
 
         with pytest.raises(YtResponseError):
-            yp_client.update_object("pod", "mypod", set_updates=[
-                {"path": "/spec/account_id", "value": "nonexisting"}
-            ])
-        assert yp_client.get_object("pod", "mypod", selectors=["/spec/account_id"])[0] == "myaccount"
+            yp_client.update_object(
+                "pod", "mypod", set_updates=[{"path": "/spec/account_id", "value": "nonexisting"}]
+            )
+        assert (
+            yp_client.get_object("pod", "mypod", selectors=["/spec/account_id"])[0] == "myaccount"
+        )
 
-        yp_client.update_object("pod", "mypod", remove_updates=[
-            {"path": "/spec/account_id"}
-        ])
+        yp_client.update_object("pod", "mypod", remove_updates=[{"path": "/spec/account_id"}])
         assert yp_client.get_object("pod", "mypod", selectors=["/spec/account_id"])[0] == ""
 
     def test_set_composite_attribute_spec_success(self, yp_env):
         yp_client = yp_env.yp_client
 
         account_id = yp_client.create_object("account")
-        rs_id = yp_client.create_object("replica_set", attributes={"spec": {"account_id": account_id}})
-        yp_client.update_object("replica_set", rs_id, set_updates=[
-            {"path": "/spec", "value": {
-                "account_id": account_id,
-                "replica_count": 10
-            }}
-        ])
+        rs_id = yp_client.create_object(
+            "replica_set", attributes={"spec": {"account_id": account_id}}
+        )
+        yp_client.update_object(
+            "replica_set",
+            rs_id,
+            set_updates=[
+                {"path": "/spec", "value": {"account_id": account_id, "replica_count": 10}}
+            ],
+        )
 
-        assert yp_client.get_object("replica_set", rs_id, selectors=["/spec/account_id", "/spec/replica_count"]) == [account_id, 10]
+        assert yp_client.get_object(
+            "replica_set", rs_id, selectors=["/spec/account_id", "/spec/replica_count"]
+        ) == [account_id, 10]
 
     def test_set_composite_attribute_spec_fail(self, yp_env):
         yp_client = yp_env.yp_client
 
         node_id = yp_client.create_object("node")
         with pytest.raises(YtResponseError):
-            yp_client.update_object("node", node_id, set_updates=[
-                {"path": "/spec", "value": {"zzz": 1}}
-            ])
+            yp_client.update_object(
+                "node", node_id, set_updates=[{"path": "/spec", "value": {"zzz": 1}}]
+            )
 
     def test_select_missing_proto_attribute(self, yp_env):
         yp_client = yp_env.yp_client
@@ -197,13 +208,22 @@ class TestObjects(object):
 
         pod_set_id = yp_client.create_object("pod_set")
 
-        get_rsp1 = yp_client.get_object("pod_set", pod_set_id, enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": False},
-                                        selectors=["/spec/antiaffinity_constraints"])
+        get_rsp1 = yp_client.get_object(
+            "pod_set",
+            pod_set_id,
+            enable_structured_response=True,
+            options={"fetch_timestamps": True, "fetch_values": False},
+            selectors=["/spec/antiaffinity_constraints"],
+        )
         assert "timestamp" in get_rsp1["result"][0]
         assert "value" not in get_rsp1["result"][0]
 
-        get_rsp2 = yp_client.get_object("pod_set", pod_set_id, enable_structured_response=True,
-                                       selectors=["/spec/antiaffinity_constraints"])
+        get_rsp2 = yp_client.get_object(
+            "pod_set",
+            pod_set_id,
+            enable_structured_response=True,
+            selectors=["/spec/antiaffinity_constraints"],
+        )
         assert "timestamp" not in get_rsp2["result"][0]
         assert "value" in get_rsp2["result"][0]
 
@@ -212,13 +232,18 @@ class TestObjects(object):
 
         pod_set_id = yp_client.create_object("pod_set")
 
-        select_rsp1 = yp_client.select_objects("pod_set", enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": False},
-                                               selectors=["/spec/antiaffinity_constraints"])["results"][0]
+        select_rsp1 = yp_client.select_objects(
+            "pod_set",
+            enable_structured_response=True,
+            options={"fetch_timestamps": True, "fetch_values": False},
+            selectors=["/spec/antiaffinity_constraints"],
+        )["results"][0]
         assert "timestamp" in select_rsp1[0]
         assert "value" not in select_rsp1[0]
 
-        select_rsp2 = yp_client.select_objects("pod_set", enable_structured_response=True,
-                                               selectors=["/spec/antiaffinity_constraints"])["results"][0]
+        select_rsp2 = yp_client.select_objects(
+            "pod_set", enable_structured_response=True, selectors=["/spec/antiaffinity_constraints"]
+        )["results"][0]
         assert "timestamp" not in select_rsp2[0]
         assert "value" in select_rsp2[0]
 
@@ -229,18 +254,37 @@ class TestObjects(object):
         pod_set_id = create_rsp["object_id"]
         create_ts = create_rsp["commit_timestamp"]
 
-        get_rsp1 = yp_client.get_object("pod_set", pod_set_id, enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": False},
-                                        selectors=["/spec/antiaffinity_constraints", "/spec/node_segment_id"])
+        get_rsp1 = yp_client.get_object(
+            "pod_set",
+            pod_set_id,
+            enable_structured_response=True,
+            options={"fetch_timestamps": True, "fetch_values": False},
+            selectors=["/spec/antiaffinity_constraints", "/spec/node_segment_id"],
+        )
         assert get_rsp1["timestamp"] > create_ts
         assert get_rsp1["result"][0]["timestamp"] == create_ts
         assert get_rsp1["result"][1]["timestamp"] == create_ts
 
-        update_rsp1 = yp_client.update_object("pod_set", pod_set_id, set_updates=[{"path": "/spec/antiaffinity_constraints", "value": [{"key": "node", "max_pods": 1}]}])
+        update_rsp1 = yp_client.update_object(
+            "pod_set",
+            pod_set_id,
+            set_updates=[
+                {
+                    "path": "/spec/antiaffinity_constraints",
+                    "value": [{"key": "node", "max_pods": 1}],
+                }
+            ],
+        )
         update_ts = update_rsp1["commit_timestamp"]
         assert update_ts > create_ts
 
-        get_rsp2 = yp_client.get_object("pod_set", pod_set_id, enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": False},
-                                        selectors=["/spec/antiaffinity_constraints", "/spec/node_segment_id", "/spec"])
+        get_rsp2 = yp_client.get_object(
+            "pod_set",
+            pod_set_id,
+            enable_structured_response=True,
+            options={"fetch_timestamps": True, "fetch_values": False},
+            selectors=["/spec/antiaffinity_constraints", "/spec/node_segment_id", "/spec"],
+        )
         assert get_rsp2["timestamp"] > update_ts
         assert get_rsp2["result"][0]["timestamp"] == update_ts
         assert get_rsp2["result"][1]["timestamp"] == create_ts
@@ -253,8 +297,13 @@ class TestObjects(object):
         pod_set_id = create_rsp["object_id"]
         create_ts = create_rsp["commit_timestamp"]
 
-        get_rsp = yp_client.get_object("pod_set", pod_set_id, enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": False},
-                                       selectors=["/meta"])
+        get_rsp = yp_client.get_object(
+            "pod_set",
+            pod_set_id,
+            enable_structured_response=True,
+            options={"fetch_timestamps": True, "fetch_values": False},
+            selectors=["/meta"],
+        )
         assert get_rsp["timestamp"] > create_ts
         assert get_rsp["result"][0]["timestamp"] == create_ts
 
@@ -265,18 +314,35 @@ class TestObjects(object):
         pod_set_id = create_rsp["object_id"]
         create_ts = create_rsp["commit_timestamp"]
 
-        get_rsp1 = yp_client.select_objects("pod_set", enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": False},
-                                            selectors=["/spec/antiaffinity_constraints", "/spec/node_segment_id"])
+        get_rsp1 = yp_client.select_objects(
+            "pod_set",
+            enable_structured_response=True,
+            options={"fetch_timestamps": True, "fetch_values": False},
+            selectors=["/spec/antiaffinity_constraints", "/spec/node_segment_id"],
+        )
         assert get_rsp1["timestamp"] > create_ts
         assert get_rsp1["results"][0][0]["timestamp"] == create_ts
         assert get_rsp1["results"][0][1]["timestamp"] == create_ts
 
-        update_rsp1 = yp_client.update_object("pod_set", pod_set_id, set_updates=[{"path": "/spec/antiaffinity_constraints", "value": [{"key": "node", "max_pods": 1}]}])
+        update_rsp1 = yp_client.update_object(
+            "pod_set",
+            pod_set_id,
+            set_updates=[
+                {
+                    "path": "/spec/antiaffinity_constraints",
+                    "value": [{"key": "node", "max_pods": 1}],
+                }
+            ],
+        )
         update_ts = update_rsp1["commit_timestamp"]
         assert update_ts > create_ts
 
-        get_rsp2 = yp_client.select_objects("pod_set", enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": False},
-                                            selectors=["/spec/antiaffinity_constraints", "/spec/node_segment_id", "/spec"])
+        get_rsp2 = yp_client.select_objects(
+            "pod_set",
+            enable_structured_response=True,
+            options={"fetch_timestamps": True, "fetch_values": False},
+            selectors=["/spec/antiaffinity_constraints", "/spec/node_segment_id", "/spec"],
+        )
         assert get_rsp2["timestamp"] > update_ts
         assert get_rsp2["results"][0][0]["timestamp"] == update_ts
         assert get_rsp2["results"][0][1]["timestamp"] == create_ts
@@ -289,18 +355,30 @@ class TestObjects(object):
         pod_set_id = create_rsp["object_id"]
         create_ts = create_rsp["commit_timestamp"]
 
-        get_rsp1 = yp_client.get_object("pod_set", pod_set_id, enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": True},
-                                        selectors=["/annotations/missing"])
+        get_rsp1 = yp_client.get_object(
+            "pod_set",
+            pod_set_id,
+            enable_structured_response=True,
+            options={"fetch_timestamps": True, "fetch_values": True},
+            selectors=["/annotations/missing"],
+        )
         assert get_rsp1["timestamp"] > create_ts
         assert get_rsp1["result"][0]["timestamp"] == 0
         assert get_rsp1["result"][0]["value"] == YsonEntity()
 
-        update_rsp1 = yp_client.update_object("pod_set", pod_set_id, set_updates=[{"path": "/annotations/existing", "value": 123}])
+        update_rsp1 = yp_client.update_object(
+            "pod_set", pod_set_id, set_updates=[{"path": "/annotations/existing", "value": 123}]
+        )
         update_ts = update_rsp1["commit_timestamp"]
         assert update_ts > create_ts
 
-        get_rsp2 = yp_client.get_object("pod_set", pod_set_id, enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": True},
-                                        selectors=["/annotations/existing"])
+        get_rsp2 = yp_client.get_object(
+            "pod_set",
+            pod_set_id,
+            enable_structured_response=True,
+            options={"fetch_timestamps": True, "fetch_values": True},
+            selectors=["/annotations/existing"],
+        )
         assert get_rsp2["timestamp"] > update_ts
         assert get_rsp2["result"][0]["timestamp"] == update_ts
         assert get_rsp2["result"][0]["value"] == 123
@@ -310,18 +388,30 @@ class TestObjects(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         with pytest.raises(YtResponseError):
-            yp_client.get_object("pod_set", pod_set_id, enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": False},
-                                 selectors=["/annotations"])
+            yp_client.get_object(
+                "pod_set",
+                pod_set_id,
+                enable_structured_response=True,
+                options={"fetch_timestamps": True, "fetch_values": False},
+                selectors=["/annotations"],
+            )
 
     def test_spec_timestamp_available_for_all_types(self, yp_env):
         yp_client = yp_env.yp_client
 
         def _check(type, attributes={}):
-            create_rsp = yp_client.create_object(type, attributes=attributes, enable_structured_response=True)
+            create_rsp = yp_client.create_object(
+                type, attributes=attributes, enable_structured_response=True
+            )
             create_ts = create_rsp["commit_timestamp"]
             id = create_rsp["object_id"]
-            get_rsp = yp_client.get_object(type, id, enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": False},
-                                           selectors=["/spec"])
+            get_rsp = yp_client.get_object(
+                type,
+                id,
+                enable_structured_response=True,
+                options={"fetch_timestamps": True, "fetch_values": False},
+                selectors=["/spec"],
+            )
             assert get_rsp["timestamp"] > create_ts
             assert get_rsp["result"][0]["timestamp"] == create_ts
 
@@ -335,10 +425,13 @@ class TestObjects(object):
         _check("user")
         _check("group")
         _check("ip4_address_pool", attributes={"meta": {"acl": []}})
-        _check("internet_address", attributes={
-            "meta": {"ip4_address_pool_id": DEFAULT_IP4_ADDRESS_POOL_ID},
-            "spec": {"ip4_address": "1.2.3.4", "network_module_id": "xyz"}
-        })
+        _check(
+            "internet_address",
+            attributes={
+                "meta": {"ip4_address_pool_id": DEFAULT_IP4_ADDRESS_POOL_ID},
+                "spec": {"ip4_address": "1.2.3.4", "network_module_id": "xyz"},
+            },
+        )
         _check("dns_record_set")
         _check("account")
         _check("multi_cluster_replica_set")
@@ -346,7 +439,10 @@ class TestObjects(object):
         _check("stage")
 
         node_id = yp_client.create_object("node")
-        _check("resource", attributes={"meta": {"node_id": node_id}, "spec": {"memory": {"total_capacity": 1000}}})
+        _check(
+            "resource",
+            attributes={"meta": {"node_id": node_id}, "spec": {"memory": {"total_capacity": 1000}}},
+        )
 
         pod_set_id = yp_client.create_object("pod_set")
         _check("pod", attributes={"meta": {"pod_set_id": pod_set_id}})
@@ -362,13 +458,22 @@ class TestObjects(object):
         pod_set_id = yp_client.create_object("pod_set")
 
         pod_id = yp_client.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id}})
-        get_rsp = yp_client.get_object("pod", pod_id, enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": False},
-                                       selectors=["/spec"])
+        get_rsp = yp_client.get_object(
+            "pod",
+            pod_id,
+            enable_structured_response=True,
+            options={"fetch_timestamps": True, "fetch_values": False},
+            selectors=["/spec"],
+        )
         ts = get_rsp["result"][0]["timestamp"]
 
         FILTER = "[/labels/label] = 123"
-        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/node_filter", "value": FILTER}],
-                                attribute_timestamp_prerequisites=[{"path": "/spec", "timestamp": ts}])
+        yp_client.update_object(
+            "pod",
+            pod_id,
+            set_updates=[{"path": "/spec/node_filter", "value": FILTER}],
+            attribute_timestamp_prerequisites=[{"path": "/spec", "timestamp": ts}],
+        )
         assert yp_client.get_object("pod", pod_id, selectors=["/spec/node_filter"])[0] == FILTER
 
     def test_attr_timestamp_prerequisite_success2(self, yp_env):
@@ -377,15 +482,26 @@ class TestObjects(object):
         pod_set_id = yp_client.create_object("pod_set")
 
         pod_id = yp_client.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id}})
-        get_rsp = yp_client.get_object("pod", pod_id, enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": False},
-                                       selectors=["/spec/node_filter"])
+        get_rsp = yp_client.get_object(
+            "pod",
+            pod_id,
+            enable_structured_response=True,
+            options={"fetch_timestamps": True, "fetch_values": False},
+            selectors=["/spec/node_filter"],
+        )
         ts = get_rsp["result"][0]["timestamp"]
 
-        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/enable_scheduling", "value": False}])
+        yp_client.update_object(
+            "pod", pod_id, set_updates=[{"path": "/spec/enable_scheduling", "value": False}]
+        )
 
         FILTER = "[/labels/label] = 123"
-        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/node_filter", "value": FILTER}],
-                                attribute_timestamp_prerequisites=[{"path": "/spec/node_filter", "timestamp": ts}])
+        yp_client.update_object(
+            "pod",
+            pod_id,
+            set_updates=[{"path": "/spec/node_filter", "value": FILTER}],
+            attribute_timestamp_prerequisites=[{"path": "/spec/node_filter", "timestamp": ts}],
+        )
         assert yp_client.get_object("pod", pod_id, selectors=["/spec/node_filter"])[0] == FILTER
 
     def test_attr_timestamp_prerequisite_failure(self, yp_env):
@@ -394,29 +510,44 @@ class TestObjects(object):
         pod_set_id = yp_client.create_object("pod_set")
 
         pod_id = yp_client.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id}})
-        get_rsp = yp_client.get_object("pod", pod_id, enable_structured_response=True, options={"fetch_timestamps": True, "fetch_values": False},
-                                       selectors=["/spec/enable_scheduling"])
+        get_rsp = yp_client.get_object(
+            "pod",
+            pod_id,
+            enable_structured_response=True,
+            options={"fetch_timestamps": True, "fetch_values": False},
+            selectors=["/spec/enable_scheduling"],
+        )
         ts = get_rsp["result"][0]["timestamp"]
 
         FILTER = "[/labels/label] = 123"
-        yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/node_filter", "value": FILTER}])
+        yp_client.update_object(
+            "pod", pod_id, set_updates=[{"path": "/spec/node_filter", "value": FILTER}]
+        )
 
         with pytest.raises(YtResponseError):
-            yp_client.update_object("pod", pod_id, set_updates=[{"path": "/spec/enable_scheduling", "value": True}],
-                                    attribute_timestamp_prerequisites=[{"path": "/spec", "timestamp": ts}])
+            yp_client.update_object(
+                "pod",
+                pod_id,
+                set_updates=[{"path": "/spec/enable_scheduling", "value": True}],
+                attribute_timestamp_prerequisites=[{"path": "/spec", "timestamp": ts}],
+            )
 
     def test_payload_to_proto_conversion_get_object(self, yp_env):
         yp_client = yp_env.yp_client
 
         yp_client.create_object("pod_set", attributes={"meta": {"id": "somepodset"}})
-        meta = yp_client.get_object("pod_set", "somepodset", selectors=[{"path": "/meta", "proto_class": TPodSetMeta}])[0]
+        meta = yp_client.get_object(
+            "pod_set", "somepodset", selectors=[{"path": "/meta", "proto_class": TPodSetMeta}]
+        )[0]
         assert meta.id == "somepodset"
 
     def test_payload_to_proto_conversion_select_object(self, yp_env):
         yp_client = yp_env.yp_client
 
         yp_client.create_object("pod_set", attributes={"meta": {"id": "somepodset"}})
-        results = yp_client.select_objects("pod_set", selectors=[{"path": "/meta", "proto_class": TPodSetMeta}])
+        results = yp_client.select_objects(
+            "pod_set", selectors=[{"path": "/meta", "proto_class": TPodSetMeta}]
+        )
         assert len(results) == 1
         assert len(results[0]) == 1
         meta = results[0][0]
@@ -439,22 +570,29 @@ class TestObjects(object):
         spec = TPodSetSpec()
         FILTER = "0 = 1"
         spec.node_filter = FILTER
-        yp_client.update_object("pod_set", pod_set_id, set_updates=[{"path": "/spec", "value": spec}])
-        assert yp_client.get_object("pod_set", pod_set_id, selectors=["/spec/node_filter"])[0] == FILTER
+        yp_client.update_object(
+            "pod_set", pod_set_id, set_updates=[{"path": "/spec", "value": spec}]
+        )
+        assert (
+            yp_client.get_object("pod_set", pod_set_id, selectors=["/spec/node_filter"])[0]
+            == FILTER
+        )
+
 
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestDisabledExtensibleAttributes(object):
-    YP_MASTER_CONFIG = {
-        "object_manager": {
-            "enable_extensible_attributes": False
-        }
-    }
+    YP_MASTER_CONFIG = {"object_manager": {"enable_extensible_attributes": False}}
 
     def test_disabled_extensible_attributes(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
 
         account_id = yp_client.create_object("account")
-        rs_id = yp_client.create_object(object_type="replica_set", attributes={"spec": {"account_id": account_id, "replica_count": 1}})
+        rs_id = yp_client.create_object(
+            object_type="replica_set",
+            attributes={"spec": {"account_id": account_id, "replica_count": 1}},
+        )
 
         with pytest.raises(YtResponseError):
-            yp_client.update_object("replica_set", rs_id, set_updates=[{"path": "/spec/hello", "value": "world"}])
+            yp_client.update_object(
+                "replica_set", rs_id, set_updates=[{"path": "/spec/hello", "value": "world"}]
+            )

@@ -14,15 +14,17 @@ class TestDnsRecordsSet(object):
                 "meta": {"id": "u"},
                 "spec": {
                     "records": [
-                       {"ttl": 100, "class": "IN", "type": "PTR", "data": "some_data"},
-                       {"ttl": 200, "class": "IN", "type": "AAAA", "data": "another_data"},
-                       {"ttl": 300, "class": "IN", "type": "SRV", "data": "srv_data"},
+                        {"ttl": 100, "class": "IN", "type": "PTR", "data": "some_data"},
+                        {"ttl": 200, "class": "IN", "type": "AAAA", "data": "another_data"},
+                        {"ttl": 300, "class": "IN", "type": "SRV", "data": "srv_data"},
                     ],
-                }
-            }
+                },
+            },
         )
 
-        result = yp_client.get_object("dns_record_set", dns_record_set_id, selectors=["/meta", "/spec"])
+        result = yp_client.get_object(
+            "dns_record_set", dns_record_set_id, selectors=["/meta", "/spec"]
+        )
         assert result[0]["id"] == dns_record_set_id
         assert result[1]["records"][0]["ttl"] == 100
         assert result[1]["records"][0]["class"] == "IN"

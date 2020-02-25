@@ -37,13 +37,17 @@ class TestAcls(object):
             yp_env.sync_access_control()
 
             id = yp_client1.create_object("pod_set")
-            yp_client1.update_object("pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}])
+            yp_client1.update_object(
+                "pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}]
+            )
 
         with yp_env.yp_instance.create_client(config={"user": "u2"}) as yp_client2:
             yp_env.sync_access_control()
 
             with pytest.raises(YpAuthorizationError):
-                yp_client2.update_object("pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}])
+                yp_client2.update_object(
+                    "pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}]
+                )
 
     def test_groups_immediate(self, yp_env):
         yp_client = yp_env.yp_client
@@ -54,20 +58,27 @@ class TestAcls(object):
         with yp_env.yp_instance.create_client(config={"user": "u1"}) as yp_client1:
             yp_env.sync_access_control()
 
-            id = yp_client.create_object("pod_set", attributes={
-                "meta": {
-                    "acl": [
-                        {"action": "allow", "permissions": ["write"], "subjects": ["g"]}
-                    ]
-                }
-            })
+            id = yp_client.create_object(
+                "pod_set",
+                attributes={
+                    "meta": {
+                        "acl": [{"action": "allow", "permissions": ["write"], "subjects": ["g"]}]
+                    }
+                },
+            )
             with pytest.raises(YpAuthorizationError):
-                yp_client1.update_object("pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}])
+                yp_client1.update_object(
+                    "pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}]
+                )
 
-            yp_client.update_object("group", "g", set_updates=[{"path": "/spec/members", "value": ["u1"]}])
+            yp_client.update_object(
+                "group", "g", set_updates=[{"path": "/spec/members", "value": ["u1"]}]
+            )
             yp_env.sync_access_control()
 
-            yp_client1.update_object("pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}])
+            yp_client1.update_object(
+                "pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}]
+            )
 
     def test_groups_recursive(self, yp_env):
         yp_client = yp_env.yp_client
@@ -78,21 +89,30 @@ class TestAcls(object):
         with yp_env.yp_instance.create_client(config={"user": "u1"}) as yp_client1:
             yp_env.sync_access_control()
 
-            id = yp_client.create_object("pod_set", attributes={
-                "meta": {
-                    "acl": [
-                        {"action": "allow", "permissions": ["write"], "subjects": ["g1"]}
-                    ]
-                }
-            })
+            id = yp_client.create_object(
+                "pod_set",
+                attributes={
+                    "meta": {
+                        "acl": [{"action": "allow", "permissions": ["write"], "subjects": ["g1"]}]
+                    }
+                },
+            )
             with pytest.raises(YpAuthorizationError):
-                yp_client1.update_object("pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}])
+                yp_client1.update_object(
+                    "pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}]
+                )
 
-            yp_client.update_object("group", "g1", set_updates=[{"path": "/spec/members", "value": ["g2"]}])
-            yp_client.update_object("group", "g2", set_updates=[{"path": "/spec/members", "value": ["u1"]}])
+            yp_client.update_object(
+                "group", "g1", set_updates=[{"path": "/spec/members", "value": ["g2"]}]
+            )
+            yp_client.update_object(
+                "group", "g2", set_updates=[{"path": "/spec/members", "value": ["u1"]}]
+            )
             yp_env.sync_access_control()
 
-            yp_client1.update_object("pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}])
+            yp_client1.update_object(
+                "pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}]
+            )
 
     def test_inherit_acl(self, yp_env):
         yp_client = yp_env.yp_client
@@ -102,12 +122,20 @@ class TestAcls(object):
             yp_env.sync_access_control()
 
             pod_set_id = yp_client1.create_object("pod_set")
-            pod_id = yp_client1.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id, "acl": []}})
-            yp_client1.update_object("pod", pod_id, set_updates=[{"path": "/labels/a", "value": "b"}])
+            pod_id = yp_client1.create_object(
+                "pod", attributes={"meta": {"pod_set_id": pod_set_id, "acl": []}}
+            )
+            yp_client1.update_object(
+                "pod", pod_id, set_updates=[{"path": "/labels/a", "value": "b"}]
+            )
 
-            yp_client.update_object("pod", pod_id, set_updates=[{"path": "/meta/inherit_acl", "value": False}])
+            yp_client.update_object(
+                "pod", pod_id, set_updates=[{"path": "/meta/inherit_acl", "value": False}]
+            )
             with pytest.raises(YpAuthorizationError):
-                yp_client1.update_object("pod", pod_id, set_updates=[{"path": "/labels/a", "value": "b"}])
+                yp_client1.update_object(
+                    "pod", pod_id, set_updates=[{"path": "/labels/a", "value": "b"}]
+                )
 
     def test_endpoint_inherits_from_endpoint_set(self, yp_env):
         yp_client = yp_env.yp_client
@@ -117,22 +145,29 @@ class TestAcls(object):
             yp_env.sync_access_control()
 
             endpoint_set_id = yp_client.create_object("endpoint_set")
-            endpoint_id = yp_client.create_object("endpoint", attributes={
-                "meta": {
-                    "endpoint_set_id": endpoint_set_id
-                }
-            })
+            endpoint_id = yp_client.create_object(
+                "endpoint", attributes={"meta": {"endpoint_set_id": endpoint_set_id}}
+            )
 
             with pytest.raises(YpAuthorizationError):
-                yp_client1.update_object("endpoint", endpoint_id, set_updates=[{"path": "/labels/a", "value": "b"}])
-            yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[
-                {
-                    "path": "/meta/acl",
-                    "value": [
-                        {"action": "allow", "permissions": ["write"], "subjects": ["u1"]}
-                    ]
-                }])
-            yp_client1.update_object("endpoint", endpoint_id, set_updates=[{"path": "/labels/a", "value": "b"}])
+                yp_client1.update_object(
+                    "endpoint", endpoint_id, set_updates=[{"path": "/labels/a", "value": "b"}]
+                )
+            yp_client.update_object(
+                "endpoint_set",
+                endpoint_set_id,
+                set_updates=[
+                    {
+                        "path": "/meta/acl",
+                        "value": [
+                            {"action": "allow", "permissions": ["write"], "subjects": ["u1"]}
+                        ],
+                    }
+                ],
+            )
+            yp_client1.update_object(
+                "endpoint", endpoint_id, set_updates=[{"path": "/labels/a", "value": "b"}]
+            )
 
     def test_check_permissions(self, yp_env):
         yp_client = yp_env.yp_client
@@ -140,25 +175,49 @@ class TestAcls(object):
         yp_client.create_object("user", attributes={"meta": {"id": "u"}})
         yp_env.sync_access_control()
 
-        endpoint_set_id = yp_client.create_object("endpoint_set", attributes={
-                "meta": {
-                    "acl": [
-                        {"action": "allow", "subjects": ["u"], "permissions": ["write"]}
-                    ]
-                }
-            })
+        endpoint_set_id = yp_client.create_object(
+            "endpoint_set",
+            attributes={
+                "meta": {"acl": [{"action": "allow", "subjects": ["u"], "permissions": ["write"]}]}
+            },
+        )
 
-        assert \
-            yp_client.check_object_permissions([
-                {"object_type": "endpoint_set", "object_id": endpoint_set_id, "subject_id": "u", "permission": "read"},
-                {"object_type": "endpoint_set", "object_id": endpoint_set_id, "subject_id": "u", "permission": "write"},
-                {"object_type": "endpoint_set", "object_id": endpoint_set_id, "subject_id": "u", "permission": "ssh_access"}
-            ]) == \
+        assert yp_client.check_object_permissions(
             [
-                {"action": "allow", "subject_id": "everyone", "object_type": "schema", "object_id": "endpoint_set"},
-                {"action": "allow", "subject_id": "u", "object_type": "endpoint_set", "object_id": endpoint_set_id},
-                {"action": "deny"}
+                {
+                    "object_type": "endpoint_set",
+                    "object_id": endpoint_set_id,
+                    "subject_id": "u",
+                    "permission": "read",
+                },
+                {
+                    "object_type": "endpoint_set",
+                    "object_id": endpoint_set_id,
+                    "subject_id": "u",
+                    "permission": "write",
+                },
+                {
+                    "object_type": "endpoint_set",
+                    "object_id": endpoint_set_id,
+                    "subject_id": "u",
+                    "permission": "ssh_access",
+                },
             ]
+        ) == [
+            {
+                "action": "allow",
+                "subject_id": "everyone",
+                "object_type": "schema",
+                "object_id": "endpoint_set",
+            },
+            {
+                "action": "allow",
+                "subject_id": "u",
+                "object_type": "endpoint_set",
+                "object_id": endpoint_set_id,
+            },
+            {"action": "deny"},
+        ]
 
     def test_create_at_schema(self, yp_env):
         yp_client = yp_env.yp_client
@@ -167,17 +226,23 @@ class TestAcls(object):
         with yp_env.yp_instance.create_client(config={"user": "u1"}) as yp_client1:
             yp_env.sync_access_control()
 
-            yp_client.update_object("schema", "endpoint_set", set_updates=[{
-                "path": "/meta/acl/end",
-                "value": {"action": "deny", "permissions": ["create"], "subjects": ["u1"]}
-            }])
+            yp_client.update_object(
+                "schema",
+                "endpoint_set",
+                set_updates=[
+                    {
+                        "path": "/meta/acl/end",
+                        "value": {"action": "deny", "permissions": ["create"], "subjects": ["u1"]},
+                    }
+                ],
+            )
 
             with pytest.raises(YpAuthorizationError):
                 yp_client1.create_object("endpoint_set")
 
-            yp_client.update_object("schema", "endpoint_set", remove_updates=[{
-                "path": "/meta/acl/-1"
-            }])
+            yp_client.update_object(
+                "schema", "endpoint_set", remove_updates=[{"path": "/meta/acl/-1"}]
+            )
 
             yp_client1.create_object("endpoint_set")
 
@@ -191,20 +256,38 @@ class TestAcls(object):
 
             endpoint_set_id = yp_client1.create_object("endpoint_set")
 
-            yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{
-                "path": "/meta/acl",
-                "value": [{"action": "deny", "permissions": ["write"], "subjects": ["u1"]}]
-            }])
+            yp_client.update_object(
+                "endpoint_set",
+                endpoint_set_id,
+                set_updates=[
+                    {
+                        "path": "/meta/acl",
+                        "value": [{"action": "deny", "permissions": ["write"], "subjects": ["u1"]}],
+                    }
+                ],
+            )
 
             with pytest.raises(YpAuthorizationError):
-                yp_client1.create_object("endpoint", attributes={"meta": {"endpoint_set_id": endpoint_set_id}})
+                yp_client1.create_object(
+                    "endpoint", attributes={"meta": {"endpoint_set_id": endpoint_set_id}}
+                )
 
-            yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{
-                "path": "/meta/acl",
-                "value": [{"action": "allow", "permissions": ["write"], "subjects": ["u1"]}]
-            }])
+            yp_client.update_object(
+                "endpoint_set",
+                endpoint_set_id,
+                set_updates=[
+                    {
+                        "path": "/meta/acl",
+                        "value": [
+                            {"action": "allow", "permissions": ["write"], "subjects": ["u1"]}
+                        ],
+                    }
+                ],
+            )
 
-            yp_client1.create_object("endpoint", attributes={"meta": {"endpoint_set_id": endpoint_set_id}})
+            yp_client1.create_object(
+                "endpoint", attributes={"meta": {"endpoint_set_id": endpoint_set_id}}
+            )
 
     def test_get_object_access_allowed_for(self, yp_env):
         yp_client = yp_env.yp_client
@@ -213,55 +296,111 @@ class TestAcls(object):
         yp_client.create_object("user", attributes={"meta": {"id": "u2"}})
         yp_client.create_object("user", attributes={"meta": {"id": "u3"}})
 
-        yp_client.create_object("group", attributes={"meta": {"id": "g1"}, "spec": {"members": ["u1", "u2"]}})
-        yp_client.create_object("group", attributes={"meta": {"id": "g2"}, "spec": {"members": ["u2", "u3"]}})
-        yp_client.create_object("group", attributes={"meta": {"id": "g3"}, "spec": {"members": ["g1", "g2"]}})
+        yp_client.create_object(
+            "group", attributes={"meta": {"id": "g1"}, "spec": {"members": ["u1", "u2"]}}
+        )
+        yp_client.create_object(
+            "group", attributes={"meta": {"id": "g2"}, "spec": {"members": ["u2", "u3"]}}
+        )
+        yp_client.create_object(
+            "group", attributes={"meta": {"id": "g3"}, "spec": {"members": ["g1", "g2"]}}
+        )
 
         yp_env.sync_access_control()
 
-        endpoint_set_id = yp_client.create_object("endpoint_set", attributes={"meta": {"inherit_acl": False}})
+        endpoint_set_id = yp_client.create_object(
+            "endpoint_set", attributes={"meta": {"inherit_acl": False}}
+        )
 
         assert_items_equal(
-            yp_client.get_object_access_allowed_for([
-                {"object_id": endpoint_set_id, "object_type": "endpoint_set", "permission": "read"}
-            ])[0]["user_ids"],
-            ["root"])
-
-        yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{
-                "path": "/meta/acl",
-                "value": [{"action": "allow", "permissions": ["read"], "subjects": ["u1", "u2"]}]
-            }])
-
-        assert_items_equal(
-            yp_client.get_object_access_allowed_for([
-                {"object_id": endpoint_set_id, "object_type": "endpoint_set", "permission": "read"}
-            ])[0]["user_ids"],
-            ["root", "u1", "u2"])
-
-        yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{
-                "path": "/meta/acl",
-                "value": [{"action": "deny", "permissions": ["read"], "subjects": ["root"]}]
-            }])
-
-        assert_items_equal(
-            yp_client.get_object_access_allowed_for([
-                {"object_id": endpoint_set_id, "object_type": "endpoint_set", "permission": "read"}
-            ])[0]["user_ids"],
-            ["root"])
-
-        yp_client.update_object("endpoint_set", endpoint_set_id, set_updates=[{
-                "path": "/meta/acl",
-                "value": [
-                    {"action": "allow", "permissions": ["read"], "subjects": ["g3"]},
-                    {"action": "deny", "permissions": ["read"], "subjects": ["g2"]}
+            yp_client.get_object_access_allowed_for(
+                [
+                    {
+                        "object_id": endpoint_set_id,
+                        "object_type": "endpoint_set",
+                        "permission": "read",
+                    }
                 ]
-            }])
+            )[0]["user_ids"],
+            ["root"],
+        )
+
+        yp_client.update_object(
+            "endpoint_set",
+            endpoint_set_id,
+            set_updates=[
+                {
+                    "path": "/meta/acl",
+                    "value": [
+                        {"action": "allow", "permissions": ["read"], "subjects": ["u1", "u2"]}
+                    ],
+                }
+            ],
+        )
 
         assert_items_equal(
-            yp_client.get_object_access_allowed_for([
-                {"object_id": endpoint_set_id, "object_type": "endpoint_set", "permission": "read"}
-            ])[0]["user_ids"],
-            ["root", "u1"])
+            yp_client.get_object_access_allowed_for(
+                [
+                    {
+                        "object_id": endpoint_set_id,
+                        "object_type": "endpoint_set",
+                        "permission": "read",
+                    }
+                ]
+            )[0]["user_ids"],
+            ["root", "u1", "u2"],
+        )
+
+        yp_client.update_object(
+            "endpoint_set",
+            endpoint_set_id,
+            set_updates=[
+                {
+                    "path": "/meta/acl",
+                    "value": [{"action": "deny", "permissions": ["read"], "subjects": ["root"]}],
+                }
+            ],
+        )
+
+        assert_items_equal(
+            yp_client.get_object_access_allowed_for(
+                [
+                    {
+                        "object_id": endpoint_set_id,
+                        "object_type": "endpoint_set",
+                        "permission": "read",
+                    }
+                ]
+            )[0]["user_ids"],
+            ["root"],
+        )
+
+        yp_client.update_object(
+            "endpoint_set",
+            endpoint_set_id,
+            set_updates=[
+                {
+                    "path": "/meta/acl",
+                    "value": [
+                        {"action": "allow", "permissions": ["read"], "subjects": ["g3"]},
+                        {"action": "deny", "permissions": ["read"], "subjects": ["g2"]},
+                    ],
+                }
+            ],
+        )
+
+        assert_items_equal(
+            yp_client.get_object_access_allowed_for(
+                [
+                    {
+                        "object_id": endpoint_set_id,
+                        "object_type": "endpoint_set",
+                        "permission": "read",
+                    }
+                ]
+            )[0]["user_ids"],
+            ["root", "u1"],
+        )
 
     def test_get_user_access_allowed_to(self, yp_env):
         yp_client = yp_env.yp_client
@@ -275,8 +414,7 @@ class TestAcls(object):
             return yp_client.create_object(
                 "network_project",
                 attributes=dict(
-                    meta=dict(acl=acl, inherit_acl=inherit_acl),
-                    spec=dict(project_id=42),
+                    meta=dict(acl=acl, inherit_acl=inherit_acl), spec=dict(project_id=42),
                 ),
             )
 
@@ -287,151 +425,112 @@ class TestAcls(object):
         # Different users / permissions in the one request.
         extract_ids = lambda resp: [r["object_ids"] for r in resp]
         assert_items_equal(
-            extract_ids(yp_client.get_user_access_allowed_to([
-                dict(
-                    user_id="u1",
-                    object_type="network_project",
-                    permission="read",
-                ),
-                dict(
-                    user_id="root",
-                    object_type="network_project",
-                    permission="write",
-                ),
-                dict(
-                    user_id="root",
-                    object_type="network_project",
-                    permission="read",
+            extract_ids(
+                yp_client.get_user_access_allowed_to(
+                    [
+                        dict(user_id="u1", object_type="network_project", permission="read",),
+                        dict(user_id="root", object_type="network_project", permission="write",),
+                        dict(user_id="root", object_type="network_project", permission="read",),
+                    ]
                 )
-            ])),
-            [
-                [],
-                [network_project_id1],
-                [network_project_id1],
-            ],
+            ),
+            [[], [network_project_id1], [network_project_id1],],
         )
 
         network_project_id2 = create_network_project(
-            acl=[
-                dict(action="allow", subjects=["u1"], permissions=["read", "write"]),
-            ],
+            acl=[dict(action="allow", subjects=["u1"], permissions=["read", "write"]),],
             inherit_acl=True,
         )
         yp_env.sync_access_control()
 
         # User is granted the access.
         assert_items_equal(
-            extract_ids(yp_client.get_user_access_allowed_to([
-                dict(
-                    user_id="u1",
-                    object_type="network_project",
-                    permission="read",
+            extract_ids(
+                yp_client.get_user_access_allowed_to(
+                    [dict(user_id="u1", object_type="network_project", permission="read",)]
                 )
-            ])),
-            [
-                [network_project_id2],
-            ],
+            ),
+            [[network_project_id2],],
         )
 
         # Method is not supported for the 'pod' object type.
         try:
-            yp_client.get_user_access_allowed_to([
-                dict(
-                    user_id="u1",
-                    object_type="pod",
-                    permission="read",
-                )
-            ])
+            yp_client.get_user_access_allowed_to(
+                [dict(user_id="u1", object_type="pod", permission="read",)]
+            )
         except YtResponseError as error:
             assert error.contains_code(103)  # No such method.
 
         network_project_id3 = create_network_project(
-            acl=[
-                dict(action="allow", subjects=["u1"], permissions=["read", "write"]),
-            ],
+            acl=[dict(action="allow", subjects=["u1"], permissions=["read", "write"]),],
             inherit_acl=True,
         )
         yp_env.sync_access_control()
 
         # Several objects in the response.
-        response = yp_client.get_user_access_allowed_to([
-            dict(
-                user_id="u1",
-                object_type="network_project",
-                permission="read",
-            ),
-            dict(
-                user_id="u1",
-                object_type="network_project",
-                permission="write",
-            ),
-        ])
+        response = yp_client.get_user_access_allowed_to(
+            [
+                dict(user_id="u1", object_type="network_project", permission="read",),
+                dict(user_id="u1", object_type="network_project", permission="write",),
+            ]
+        )
         assert len(response) == 2
         assert set(response[0]["object_ids"]) == set([network_project_id2, network_project_id3])
         assert set(response[1]["object_ids"]) == set([network_project_id2, network_project_id3])
 
         # Nonexistant user.
         assert_items_equal(
-            extract_ids(yp_client.get_user_access_allowed_to([
-                dict(
-                    user_id="abracadabra",
-                    object_type="network_project",
-                    permission="read",
-                ),
-            ])),
-            [
-                [],
-            ],
+            extract_ids(
+                yp_client.get_user_access_allowed_to(
+                    [
+                        dict(
+                            user_id="abracadabra", object_type="network_project", permission="read",
+                        ),
+                    ]
+                )
+            ),
+            [[],],
         )
 
         # Nonexistant object type.
         with pytest.raises(YpClientError):
-            yp_client.get_user_access_allowed_to([
-                dict(
-                    user_id="u1",
-                    object_type="abracadabra",
-                    permission="read",
-                ),
-            ])
+            yp_client.get_user_access_allowed_to(
+                [dict(user_id="u1", object_type="abracadabra", permission="read",),]
+            )
 
         # Nonexistant permission.
         with pytest.raises(YpClientError):
-            yp_client.get_user_access_allowed_to([
+            yp_client.get_user_access_allowed_to(
+                [dict(user_id="u1", object_type="network_project", permission="abracadabra",),]
+            )
+
+        yp_client.create_object(
+            "group", attributes=dict(meta=dict(id="g1"), spec=dict(members=["u1"]),)
+        )
+
+        yp_client.update_object(
+            "network_project",
+            network_project_id2,
+            set_updates=[
                 dict(
-                    user_id="u1",
-                    object_type="network_project",
-                    permission="abracadabra",
+                    path="/meta/acl",
+                    value=[
+                        dict(action="allow", permissions=["write"], subjects=["u1"]),
+                        dict(action="deny", permissions=["write"], subjects=["g1"]),
+                    ],
                 ),
-            ])
-
-        yp_client.create_object("group", attributes=dict(
-            meta=dict(id="g1"),
-            spec=dict(members=["u1"]),
-        ))
-
-        yp_client.update_object("network_project", network_project_id2, set_updates=[
-            dict(
-                path="/meta/acl",
-                value=[
-                    dict(action="allow", permissions=["write"], subjects=["u1"]),
-                    dict(action="deny", permissions=["write"], subjects=["g1"]),
-                ]
-            ),
-        ])
+            ],
+        )
         yp_env.sync_access_control()
 
         # User is not granted the access because of group ace with action = "deny".
         assert_items_equal(
-            extract_ids(yp_client.get_user_access_allowed_to([
-                dict(
-                    user_id="u1",
-                    object_type="network_project",
-                    permission="write",
-                ),
-            ])),
-            [
-                [network_project_id3],
-            ],
+            extract_ids(
+                yp_client.get_user_access_allowed_to(
+                    [dict(user_id="u1", object_type="network_project", permission="write",),]
+                )
+            ),
+            [[network_project_id3],],
         )
 
         object_count = 100
@@ -440,13 +539,11 @@ class TestAcls(object):
             object_ids.append(
                 yp_client.create_object(
                     "account",
-                    attributes=dict(meta=dict(acl=[
-                        dict(
-                            action="allow",
-                            permissions=["read"],
-                            subjects=["u1"],
+                    attributes=dict(
+                        meta=dict(
+                            acl=[dict(action="allow", permissions=["read"], subjects=["u1"],)]
                         )
-                    ])),
+                    ),
                 )
             )
 
@@ -454,13 +551,9 @@ class TestAcls(object):
 
         assert_items_equal(
             set(
-                yp_client.get_user_access_allowed_to([
-                    dict(
-                        user_id="u1",
-                        object_type="account",
-                        permission="read",
-                    ),
-                ])[0]["object_ids"]
+                yp_client.get_user_access_allowed_to(
+                    [dict(user_id="u1", object_type="account", permission="read",),]
+                )[0]["object_ids"]
             ),
             set(object_ids),
         )
@@ -475,19 +568,18 @@ class TestAcls(object):
             object_ids.append(
                 yp_client.create_object(
                     "account",
-                    attributes=dict(meta=dict(acl=[
-                        dict(
-                            action="allow",
-                            permissions=["read"],
-                            subjects=["u1"],
+                    attributes=dict(
+                        meta=dict(
+                            acl=[dict(action="allow", permissions=["read"], subjects=["u1"],)]
                         )
-                    ])),
+                    ),
                 )
             )
 
         yp_env.sync_access_control()
 
-        get_objects = lambda limit, continuation: yp_client.get_user_access_allowed_to([
+        get_objects = lambda limit, continuation: yp_client.get_user_access_allowed_to(
+            [
                 dict(
                     user_id="u1",
                     object_type="account",
@@ -495,7 +587,8 @@ class TestAcls(object):
                     limit=limit,
                     continuation_token=continuation,
                 ),
-            ])[0]
+            ]
+        )[0]
 
         assert get_objects(0, None)["object_ids"] == []
         assert get_objects(0, "")["object_ids"] == []
@@ -531,35 +624,46 @@ class TestAcls(object):
         yp_client.create_object("user", attributes=dict(meta=dict(id="user_id1")))
 
         object_count = 26
-        label_values = ["label_value_{}".format(chr(ord('a') + index)) for index in xrange(object_count)]
-        object_ids = [yp_client.create_object(
-            "account", attributes=dict(
-                labels=dict(some_label_field=label_values[index]),
-                meta=dict(
-                    acl=[dict(
-                        action="allow",
-                        permissions=["read"],
-                        subjects=["user_id1"],
-                    )],
+        label_values = [
+            "label_value_{}".format(chr(ord("a") + index)) for index in xrange(object_count)
+        ]
+        object_ids = [
+            yp_client.create_object(
+                "account",
+                attributes=dict(
+                    labels=dict(some_label_field=label_values[index]),
+                    meta=dict(
+                        acl=[dict(action="allow", permissions=["read"], subjects=["user_id1"],)],
+                    ),
                 ),
-            ))
+            )
             for index in xrange(object_count)
         ]
 
         yp_env.sync_access_control()
 
         def _get_object_ids(filter_request, limit=None):
-            return yp_client.get_user_access_allowed_to([
-                dict(
-                    user_id="user_id1",
-                    object_type="account",
-                    permission="read",
-                    filter=filter_request,
-                    limit=limit
-                ),
-            ])[0]["object_ids"]
+            return yp_client.get_user_access_allowed_to(
+                [
+                    dict(
+                        user_id="user_id1",
+                        object_type="account",
+                        permission="read",
+                        filter=filter_request,
+                        limit=limit,
+                    ),
+                ]
+            )[0]["object_ids"]
 
-        for field in ["/labels", "meta/id", "/meta", "/spec", "/meta/id", "/meta/acl/action", "/meta/nonexistent_field"]:
+        for field in [
+            "/labels",
+            "meta/id",
+            "/meta",
+            "/spec",
+            "/meta/id",
+            "/meta/acl/action",
+            "/meta/nonexistent_field",
+        ]:
             with pytest.raises(YtResponseError):
                 _get_object_ids("[{}]='dummy'".format(field))
 
@@ -572,19 +676,35 @@ class TestAcls(object):
 
         assert _get_object_ids(LABELS_QUERY_BODY.format("label_value_aaa")) == []
         assert _get_object_ids(LABELS_QUERY_BODY.format(label_values[5])) == [object_ids[5]]
-        assert set(_get_object_ids(query_or(LABELS_QUERY_BODY.format(label_values[index])
-                                            for index in [10, 15, 20]))) == set(object_ids[index] for index in [10, 15, 20])
-        assert set(_get_object_ids(query_or(
-            (LABELS_QUERY_BODY.format(label_values[3]), "[/labels/some_label_field]>'{}'".format(label_values[6]))))) \
-            == set([object_ids[3]] + object_ids[7:])
+        assert set(
+            _get_object_ids(
+                query_or(LABELS_QUERY_BODY.format(label_values[index]) for index in [10, 15, 20])
+            )
+        ) == set(object_ids[index] for index in [10, 15, 20])
+        assert set(
+            _get_object_ids(
+                query_or(
+                    (
+                        LABELS_QUERY_BODY.format(label_values[3]),
+                        "[/labels/some_label_field]>'{}'".format(label_values[6]),
+                    )
+                )
+            )
+        ) == set([object_ids[3]] + object_ids[7:])
 
         response_object_limit = 4
         object_indices = [0, 16, 25, 7, 20]
         assert len(object_indices) >= response_object_limit
 
-        response_object_ids = _get_object_ids(query_or(LABELS_QUERY_BODY.format(label_values[index]) for index in object_indices), response_object_limit)
+        response_object_ids = _get_object_ids(
+            query_or(LABELS_QUERY_BODY.format(label_values[index]) for index in object_indices),
+            response_object_limit,
+        )
         assert len(response_object_ids) == response_object_limit
-        assert len(set(object_ids[index] for index in object_indices) - set(response_object_ids)) == len(object_indices) - response_object_limit
+        assert (
+            len(set(object_ids[index] for index in object_indices) - set(response_object_ids))
+            == len(object_indices) - response_object_limit
+        )
 
     def test_assign_pod_to_node_permission1(self, yp_env):
         yp_client = yp_env.yp_client
@@ -594,23 +714,23 @@ class TestAcls(object):
         yp_env.sync_access_control()
 
         node_id = yp_client.create_object("node")
-        pod_set_id = yp_client.create_object("pod_set", attributes={
-                "meta": {
-                    "acl": [{"action": "allow", "permissions": ["write"], "subjects": ["u"]}]
-                }
-            })
+        pod_set_id = yp_client.create_object(
+            "pod_set",
+            attributes={
+                "meta": {"acl": [{"action": "allow", "permissions": ["write"], "subjects": ["u"]}]}
+            },
+        )
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
+
             def try_create():
-                yp_client1.create_object("pod", attributes={
-                    "meta": {
-                        "pod_set_id": pod_set_id
+                yp_client1.create_object(
+                    "pod",
+                    attributes={
+                        "meta": {"pod_set_id": pod_set_id},
+                        "spec": {"resource_requests": ZERO_RESOURCE_REQUESTS, "node_id": node_id},
                     },
-                    "spec": {
-                        "resource_requests": ZERO_RESOURCE_REQUESTS,
-                        "node_id": node_id
-                    }
-                })
+                )
 
             with pytest.raises(YpAuthorizationError):
                 try_create()
@@ -643,25 +763,26 @@ class TestAcls(object):
         yp_env.sync_access_control()
 
         node_id = yp_client.create_object("node")
-        pod_set_id = yp_client.create_object("pod_set", attributes={
-                "meta": {
-                    "acl": [{"action": "allow", "permissions": ["write"], "subjects": ["u"]}]
-                }
-            })
-        pod_id = yp_client.create_object("pod", attributes={
-                "meta": {
-                    "pod_set_id": pod_set_id
-                },
-                "spec": {
-                    "resource_requests": ZERO_RESOURCE_REQUESTS
-                }
-            })
+        pod_set_id = yp_client.create_object(
+            "pod_set",
+            attributes={
+                "meta": {"acl": [{"action": "allow", "permissions": ["write"], "subjects": ["u"]}]}
+            },
+        )
+        pod_id = yp_client.create_object(
+            "pod",
+            attributes={
+                "meta": {"pod_set_id": pod_set_id},
+                "spec": {"resource_requests": ZERO_RESOURCE_REQUESTS},
+            },
+        )
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
+
             def try_update():
-                yp_client1.update_object("pod", pod_id, set_updates=[
-                    {"path": "/spec/node_id", "value": node_id}
-                ])
+                yp_client1.update_object(
+                    "pod", pod_id, set_updates=[{"path": "/spec/node_id", "value": node_id}]
+                )
 
             with pytest.raises(YpAuthorizationError):
                 try_update()
@@ -694,32 +815,33 @@ class TestAcls(object):
         yp_env.sync_access_control()
 
         yp_client.create_object("node")
-        pod_set_id = yp_client.create_object("pod_set", attributes={
-                "meta": {
-                    "acl": [{"action": "allow", "permissions": ["write"], "subjects": ["u"]}]
-                }
-            })
+        pod_set_id = yp_client.create_object(
+            "pod_set",
+            attributes={
+                "meta": {"acl": [{"action": "allow", "permissions": ["write"], "subjects": ["u"]}]}
+            },
+        )
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
+
             def try_create():
-                yp_client1.create_object("pod", attributes={
-                    "meta": {
-                        "pod_set_id": pod_set_id
+                yp_client1.create_object(
+                    "pod",
+                    attributes={
+                        "meta": {"pod_set_id": pod_set_id},
+                        "spec": {
+                            "resource_requests": ZERO_RESOURCE_REQUESTS,
+                            "ip6_subnet_requests": [{"vlan_id": "somevlan"}],
+                        },
                     },
-                    "spec": {
-                        "resource_requests": ZERO_RESOURCE_REQUESTS,
-                        "ip6_subnet_requests": [
-                            {"vlan_id": "somevlan"}
-                        ]
-                    }
-                })
+                )
 
             with pytest.raises(YpAuthorizationError):
                 try_create()
 
-            yp_client.update_object("group", "superusers", set_updates=[
-                {"path": "/spec/members", "value": ["u"]}
-            ])
+            yp_client.update_object(
+                "group", "superusers", set_updates=[{"path": "/spec/members", "value": ["u"]}]
+            )
 
             yp_env.sync_access_control()
 
@@ -730,9 +852,7 @@ class TestAcls(object):
 
         def get(pod_id):
             return yp_client_root.get_object(
-                "pod",
-                pod_id,
-                selectors=["/spec/resource_requests/thread_limit"],
+                "pod", pod_id, selectors=["/spec/resource_requests/thread_limit"],
             )[0]
 
         yp_client_root.create_object("user", attributes={"meta": {"id": "u"}})
@@ -745,11 +865,7 @@ class TestAcls(object):
             set_updates=[
                 dict(
                     path="/meta/acl/end",
-                    value=dict(
-                        action="allow",
-                        permissions=["write"],
-                        subjects=["u"],
-                    ),
+                    value=dict(action="allow", permissions=["write"], subjects=["u"],),
                 ),
             ],
         )
@@ -757,9 +873,7 @@ class TestAcls(object):
 
         def create(yp_client, thread_limit):
             return create_pod_with_boilerplate(
-                yp_client,
-                pod_set_id,
-                spec=dict(resource_requests=dict(thread_limit=thread_limit)),
+                yp_client, pod_set_id, spec=dict(resource_requests=dict(thread_limit=thread_limit)),
             )
 
         def update(yp_client, pod_id, thread_limit):
@@ -767,10 +881,7 @@ class TestAcls(object):
                 "pod",
                 pod_id,
                 set_updates=[
-                    dict(
-                        path="/spec/resource_requests/thread_limit",
-                        value=thread_limit,
-                    ),
+                    dict(path="/spec/resource_requests/thread_limit", value=thread_limit,),
                 ],
             )
 
@@ -807,11 +918,7 @@ class TestAcls(object):
             assert 10 == get(pod_id)
 
             yp_client_root.update_object(
-                "node_segment",
-                "default",
-                remove_updates=[
-                    dict(path="/meta/acl/-1"),
-                ],
+                "node_segment", "default", remove_updates=[dict(path="/meta/acl/-1"),],
             )
             yp_env.sync_access_control()
 
@@ -825,48 +932,33 @@ class TestAcls(object):
 
         def with_error(callback, subject_id):
             def validate_error(error):
-                return int(error.get("code", 0)) == YP_NO_SUCH_OBJECT_ERROR_CODE and \
-                    error.get("attributes", {}).get("object_id", None) == subject_id
+                return (
+                    int(error.get("code", 0)) == YP_NO_SUCH_OBJECT_ERROR_CODE
+                    and error.get("attributes", {}).get("object_id", None) == subject_id
+                )
+
             with pytest.raises(YpNoSuchObjectError) as exception_info:
                 callback()
             assert validate_error_recursively(exception_info.value.error, validate_error)
 
         subject_name = "subject"
         acl = [
-            dict(
-                action="allow",
-                subjects=["root", subject_name],
-                permissions=["read"]
-            ),
-            dict(
-                action="allow",
-                subjects=["superusers"],
-                permissions=["write"]
-            )
+            dict(action="allow", subjects=["root", subject_name], permissions=["read"]),
+            dict(action="allow", subjects=["superusers"], permissions=["write"]),
         ]
 
         with_error(
-            lambda: yp_client.create_object(
-                "pod_set",
-                attributes=dict(meta=dict(acl=acl)),
-            ),
-            subject_name
+            lambda: yp_client.create_object("pod_set", attributes=dict(meta=dict(acl=acl)),),
+            subject_name,
         )
 
         pod_set_id = yp_client.create_object("pod_set")
 
         with_error(
             lambda: yp_client.update_object(
-                "pod_set",
-                pod_set_id,
-                set_updates=[
-                    dict(
-                        path="/meta/acl",
-                        value=acl,
-                    )
-                ]
+                "pod_set", pod_set_id, set_updates=[dict(path="/meta/acl", value=acl,)]
             ),
-            subject_name
+            subject_name,
         )
 
         # Add ace with existant subject when acl already contains non-existant subject.
@@ -876,14 +968,7 @@ class TestAcls(object):
         yp_env.sync_access_control()
 
         yp_client.update_object(
-            "pod_set",
-            pod_set_id,
-            set_updates=[
-                dict(
-                    path="/meta/acl",
-                    value=acl,
-                )
-            ]
+            "pod_set", pod_set_id, set_updates=[dict(path="/meta/acl", value=acl,)]
         )
 
         yp_client.remove_object("user", subject_name)
@@ -895,13 +980,9 @@ class TestAcls(object):
             set_updates=[
                 dict(
                     path="/meta/acl/end",
-                    value=dict(
-                        action="allow",
-                        permissions=["read"],
-                        subjects=[subject_name2]
-                    )
+                    value=dict(action="allow", permissions=["read"], subjects=[subject_name2]),
                 )
-            ]
+            ],
         )
 
 
@@ -910,34 +991,22 @@ class TestSeveralAccessControlParents(object):
     def _prepare(self, yp_client):
         yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
 
-    def check_object_permission(self, yp_env, pod_set_meta, pod_meta, pod_set_schema_acl, pod_schema_acl):
+    def check_object_permission(
+        self, yp_env, pod_set_meta, pod_meta, pod_set_schema_acl, pod_schema_acl
+    ):
         yp_client = yp_env.yp_client
-        self.pod_set_id = yp_client.create_object(
-            "pod_set",
-            attributes=dict(meta=pod_set_meta),
-        )
+        self.pod_set_id = yp_client.create_object("pod_set", attributes=dict(meta=pod_set_meta),)
         assert "pod_set_id" not in pod_meta
         pod_meta["pod_set_id"] = self.pod_set_id
-        self.pod_id = yp_client.create_object(
-            "pod",
-            attributes=dict(meta=pod_meta),
-        )
+        self.pod_id = yp_client.create_object("pod", attributes=dict(meta=pod_meta),)
         for schema_name, acl in zip(("pod_set", "pod"), (pod_set_schema_acl, pod_schema_acl)):
             yp_client.update_object(
-                "schema",
-                schema_name,
-                set_updates=[dict(
-                    path="/meta/acl",
-                    value=acl,
-                )],
+                "schema", schema_name, set_updates=[dict(path="/meta/acl", value=acl,)],
             )
         yp_env.sync_access_control()
-        self.result = yp_client.check_object_permissions([dict(
-            object_type="pod",
-            object_id=self.pod_id,
-            subject_id="u1",
-            permission="write",
-        )])[0]
+        self.result = yp_client.check_object_permissions(
+            [dict(object_type="pod", object_id=self.pod_id, subject_id="u1", permission="write",)]
+        )[0]
 
     def generate_acl(self, action):
         return [dict(action=action, permissions=["write"], subjects=["u1"])]
@@ -996,11 +1065,7 @@ class TestSeveralAccessControlParents(object):
     def test_one_action(self, yp_env):
         yp_client = yp_env.yp_client
         self._prepare(yp_client)
-        parameters = itertools.product(
-            (False, True),
-            (False, True),
-            ("allow", "deny"),
-        )
+        parameters = itertools.product((False, True), (False, True), ("allow", "deny"),)
         for pod_set_inherit_acl, pod_inherit_acl, action in parameters:
             self.check_object_permission(
                 yp_env,
@@ -1028,10 +1093,7 @@ class TestSeveralAccessControlParents(object):
             )
             if pod_inherit_acl and pod_set_inherit_acl:
                 assert self.result == dict(
-                    action=action,
-                    object_type="schema",
-                    object_id="pod_set",
-                    subject_id="u1",
+                    action=action, object_type="schema", object_id="pod_set", subject_id="u1",
                 )
             else:
                 assert self.result == dict(action="deny")
@@ -1044,10 +1106,7 @@ class TestSeveralAccessControlParents(object):
                 [],
             )
             assert self.result == dict(
-                action=action,
-                object_type="pod",
-                object_id=self.pod_id,
-                subject_id="u1",
+                action=action, object_type="pod", object_id=self.pod_id, subject_id="u1",
             )
 
             self.check_object_permission(
@@ -1059,10 +1118,7 @@ class TestSeveralAccessControlParents(object):
             )
             if pod_inherit_acl:
                 assert self.result == dict(
-                    action=action,
-                    object_type="schema",
-                    object_id="pod",
-                    subject_id="u1",
+                    action=action, object_type="schema", object_id="pod", subject_id="u1",
                 )
             else:
                 assert self.result == dict(action="deny")
@@ -1096,10 +1152,7 @@ class TestSeveralAccessControlParents(object):
                 self.generate_acl("allow"),
             )
             assert self.result == dict(
-                action="deny",
-                object_type="pod",
-                object_id=self.pod_id,
-                subject_id="u1",
+                action="deny", object_type="pod", object_id=self.pod_id, subject_id="u1",
             )
 
             self.check_object_permission(
@@ -1111,10 +1164,7 @@ class TestSeveralAccessControlParents(object):
             )
             if pod_inherit_acl and pod_set_inherit_acl:
                 assert self.result == dict(
-                    action="deny",
-                    object_type="schema",
-                    object_id="pod_set",
-                    subject_id="u1",
+                    action="deny", object_type="schema", object_id="pod_set", subject_id="u1",
                 )
             else:
                 assert self.result["action"] == "allow"
@@ -1128,10 +1178,7 @@ class TestSeveralAccessControlParents(object):
             )
             if pod_inherit_acl:
                 assert self.result == dict(
-                    action="deny",
-                    object_type="schema",
-                    object_id="pod",
-                    subject_id="u1",
+                    action="deny", object_type="schema", object_id="pod", subject_id="u1",
                 )
             else:
                 assert self.result["action"] == "allow"
@@ -1161,7 +1208,9 @@ class TestAttributeAcls(object):
                 spec=DEFAULT_POD_SET_SPEC,
             ),
         )
-        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, spec=dict(enable_scheduling=True))
+        pod_id = create_pod_with_boilerplate(
+            yp_client, pod_set_id, spec=dict(enable_scheduling=True)
+        )
         wait_pod_is_assigned(yp_client, pod_id)
 
         yp_env.sync_access_control()
@@ -1173,32 +1222,16 @@ class TestAttributeAcls(object):
             yp_client1.request_pod_eviction(pod_id, "Test")
 
             yp_client1.update_object(
-                "pod",
-                pod_id,
-                set_updates=[
-                    dict(
-                        path="/spec/enable_scheduling",
-                        value=False,
-                    ),
-                ],
+                "pod", pod_id, set_updates=[dict(path="/spec/enable_scheduling", value=False,),],
             )
 
             yp_client1.update_object(
-                "pod_set",
-                pod_set_id,
-                set_updates=[
-                    dict(
-                        path="/spec/node_filter",
-                        value="%true",
-                    )
-                ],
+                "pod_set", pod_set_id, set_updates=[dict(path="/spec/node_filter", value="%true",)],
             )
 
             with pytest.raises(YpAuthorizationError):
                 yp_client1.update_object(
-                    "pod_set",
-                    pod_set_id,
-                    set_updates=[dict(path="/meta/acl", value=[])],
+                    "pod_set", pod_set_id, set_updates=[dict(path="/meta/acl", value=[])],
                 )
 
     def test_invalid(self, yp_env):
@@ -1239,19 +1272,47 @@ class TestAttributeAcls(object):
 
         endpoint_set_id = yp_client.create_object(
             "endpoint_set",
-            attributes=dict(meta=dict(acl=[
-                dict(action="allow", permissions=["write"], subjects=["u0"], attributes=["/spec"]),
-                dict(action="allow", permissions=["write"], subjects=["u1"], attributes=["/status"]),
-                dict(action="allow", permissions=["write"], subjects=["u2"]),
-                dict(action="allow", permissions=["write"], subjects=["u3"], attributes=[""]),
-                dict(action="allow", permissions=["write"], subjects=["u4"], attributes=["/spec/protocol"]),
-            ])),
+            attributes=dict(
+                meta=dict(
+                    acl=[
+                        dict(
+                            action="allow",
+                            permissions=["write"],
+                            subjects=["u0"],
+                            attributes=["/spec"],
+                        ),
+                        dict(
+                            action="allow",
+                            permissions=["write"],
+                            subjects=["u1"],
+                            attributes=["/status"],
+                        ),
+                        dict(action="allow", permissions=["write"], subjects=["u2"]),
+                        dict(
+                            action="allow", permissions=["write"], subjects=["u3"], attributes=[""]
+                        ),
+                        dict(
+                            action="allow",
+                            permissions=["write"],
+                            subjects=["u4"],
+                            attributes=["/spec/protocol"],
+                        ),
+                    ]
+                )
+            ),
         )
 
         def get(path):
-            response = yp_client.get_object_access_allowed_for([
-                dict(object_id=endpoint_set_id, object_type="endpoint_set", permission="write", attribute_path=path),
-            ])
+            response = yp_client.get_object_access_allowed_for(
+                [
+                    dict(
+                        object_id=endpoint_set_id,
+                        object_type="endpoint_set",
+                        permission="write",
+                        attribute_path=path,
+                    ),
+                ]
+            )
             return set(response[0]["user_ids"])
 
         assert get("") == set(["u2", "u3", "root"])
@@ -1267,15 +1328,24 @@ class TestAttributeAcls(object):
         def create(attributes):
             ids = []
             for _ in xrange(2):
-                ids.append(yp_client.create_object(
-                    "replica_set",
-                    attributes=dict(
-                        meta=dict(acl=[
-                            dict(action="allow", subjects=["u"], permissions=["write"], attributes=attributes),
-                        ]),
-                        spec=dict(account_id="tmp"),
-                    ),
-                ))
+                ids.append(
+                    yp_client.create_object(
+                        "replica_set",
+                        attributes=dict(
+                            meta=dict(
+                                acl=[
+                                    dict(
+                                        action="allow",
+                                        subjects=["u"],
+                                        permissions=["write"],
+                                        attributes=attributes,
+                                    ),
+                                ]
+                            ),
+                            spec=dict(account_id="tmp"),
+                        ),
+                    )
+                )
             return set(ids)
 
         ids0 = create(["/spec/deployment_strategy"])
@@ -1286,14 +1356,16 @@ class TestAttributeAcls(object):
         yp_env.sync_access_control()
 
         def get(path):
-            response = yp_client.get_user_access_allowed_to([
-                dict(
-                    user_id="u",
-                    object_type="replica_set",
-                    permission="write",
-                    attribute_path=path,
-                ),
-            ])
+            response = yp_client.get_user_access_allowed_to(
+                [
+                    dict(
+                        user_id="u",
+                        object_type="replica_set",
+                        permission="write",
+                        attribute_path=path,
+                    ),
+                ]
+            )
             return set(response[0]["object_ids"])
 
         assert get("/spec/deployment_strategy/min_available") == ids0.union(ids2)
@@ -1308,33 +1380,88 @@ class TestAttributeAcls(object):
         yp_client.create_object("user", attributes=dict(meta=dict(id="u")))
         yp_env.sync_access_control()
 
-        endpoint_set_id = yp_client.create_object("endpoint_set", attributes=dict(meta=dict(acl=[
-            dict(action="allow", subjects=["u"], permissions=["write"], attributes=["/spec"]),
-        ])))
+        endpoint_set_id = yp_client.create_object(
+            "endpoint_set",
+            attributes=dict(
+                meta=dict(
+                    acl=[
+                        dict(
+                            action="allow",
+                            subjects=["u"],
+                            permissions=["write"],
+                            attributes=["/spec"],
+                        ),
+                    ]
+                )
+            ),
+        )
 
-        assert \
-            yp_client.check_object_permissions([
-                dict(object_type="endpoint_set", object_id=endpoint_set_id, subject_id="u", permission="write", attribute_path=""),
-                dict(object_type="endpoint_set", object_id=endpoint_set_id, subject_id="u", permission="write", attribute_path="/status"),
-                dict(object_type="endpoint_set", object_id=endpoint_set_id, subject_id="u", permission="write", attribute_path="/spec"),
-                dict(object_type="endpoint_set", object_id=endpoint_set_id, subject_id="u", permission="write", attribute_path="/spec/unknown_attribute"),
-                dict(object_type="endpoint_set", object_id=endpoint_set_id, subject_id="u", permission="write", attribute_path="/spec/some_map/path/path/path"),
-            ]) == \
+        assert yp_client.check_object_permissions(
             [
-                dict(action="deny"),
-                dict(action="deny"),
-                dict(action="allow", subject_id="u", object_type="endpoint_set", object_id=endpoint_set_id),
-                dict(action="allow", subject_id="u", object_type="endpoint_set", object_id=endpoint_set_id),
-                dict(action="allow", subject_id="u", object_type="endpoint_set", object_id=endpoint_set_id),
+                dict(
+                    object_type="endpoint_set",
+                    object_id=endpoint_set_id,
+                    subject_id="u",
+                    permission="write",
+                    attribute_path="",
+                ),
+                dict(
+                    object_type="endpoint_set",
+                    object_id=endpoint_set_id,
+                    subject_id="u",
+                    permission="write",
+                    attribute_path="/status",
+                ),
+                dict(
+                    object_type="endpoint_set",
+                    object_id=endpoint_set_id,
+                    subject_id="u",
+                    permission="write",
+                    attribute_path="/spec",
+                ),
+                dict(
+                    object_type="endpoint_set",
+                    object_id=endpoint_set_id,
+                    subject_id="u",
+                    permission="write",
+                    attribute_path="/spec/unknown_attribute",
+                ),
+                dict(
+                    object_type="endpoint_set",
+                    object_id=endpoint_set_id,
+                    subject_id="u",
+                    permission="write",
+                    attribute_path="/spec/some_map/path/path/path",
+                ),
             ]
+        ) == [
+            dict(action="deny"),
+            dict(action="deny"),
+            dict(
+                action="allow",
+                subject_id="u",
+                object_type="endpoint_set",
+                object_id=endpoint_set_id,
+            ),
+            dict(
+                action="allow",
+                subject_id="u",
+                object_type="endpoint_set",
+                object_id=endpoint_set_id,
+            ),
+            dict(
+                action="allow",
+                subject_id="u",
+                object_type="endpoint_set",
+                object_id=endpoint_set_id,
+            ),
+        ]
 
 
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestApiGetUserAccessAllowedTo(object):
     YP_MASTER_CONFIG = dict(
-        access_control_manager=dict(
-            cluster_state_allowed_object_types=["pod"],
-        )
+        access_control_manager=dict(cluster_state_allowed_object_types=["pod"],)
     )
 
     def test(self, yp_env_configurable):
@@ -1346,62 +1473,45 @@ class TestApiGetUserAccessAllowedTo(object):
 
         # Method is not supported for the 'network_project' object type.
         try:
-            yp_client.get_user_access_allowed_to([
-                dict(
-                    user_id=u1,
-                    object_type="network_project",
-                    permission="create",
-                )
-            ])
+            yp_client.get_user_access_allowed_to(
+                [dict(user_id=u1, object_type="network_project", permission="create",)]
+            )
         except YtResponseError as error:
             assert error.contains_code(103)  # No such method.
 
-        pod_set_id = yp_client.create_object("pod_set", attributes=dict(meta=dict(
-            acl=[
-                dict(
-                    action="allow",
-                    subjects=[u1],
-                    permissions=["write"]
-                )
-            ]
-        )))
+        pod_set_id = yp_client.create_object(
+            "pod_set",
+            attributes=dict(
+                meta=dict(acl=[dict(action="allow", subjects=[u1], permissions=["write"])])
+            ),
+        )
 
         # Pod with allowed 'write' permission due to the parent pod set acl.
-        pod1 = yp_client.create_object("pod", attributes=dict(meta=dict(
-            pod_set_id=pod_set_id,
-            inherit_acl=True,
-            acl=[],
-        )))
+        pod1 = yp_client.create_object(
+            "pod", attributes=dict(meta=dict(pod_set_id=pod_set_id, inherit_acl=True, acl=[],))
+        )
 
         # Pod with denied 'write' permission due to the empty acl list and inherit_acl == False.
-        yp_client.create_object("pod", attributes=dict(meta=dict(
-            pod_set_id=pod_set_id,
-            inherit_acl=False,
-            acl=[],
-        )))
+        yp_client.create_object(
+            "pod", attributes=dict(meta=dict(pod_set_id=pod_set_id, inherit_acl=False, acl=[],))
+        )
 
         # Pod with denied 'write' permission due to the ace with action == 'deny', despite of the
         # inherit_acl == True and allowed 'write' permission due to the parent pod set acl.
-        yp_client.create_object("pod", attributes=dict(meta=dict(
-            pod_set_id=pod_set_id,
-            inherit_acl=True,
-            acl=[
-                dict(
-                    action="deny",
-                    subjects=[u1],
-                    permissions=["write"],
+        yp_client.create_object(
+            "pod",
+            attributes=dict(
+                meta=dict(
+                    pod_set_id=pod_set_id,
+                    inherit_acl=True,
+                    acl=[dict(action="deny", subjects=[u1], permissions=["write"],)],
                 )
-            ]
-        )))
+            ),
+        )
 
         yp_env_configurable.sync_access_control()
 
-        response = yp_client.get_user_access_allowed_to([
-            dict(
-                user_id=u1,
-                object_type="pod",
-                permission="write",
-            ),
-        ])
+        response = yp_client.get_user_access_allowed_to(
+            [dict(user_id=u1, object_type="pod", permission="write",),]
+        )
         assert response[0]["object_ids"] == [pod1]
-

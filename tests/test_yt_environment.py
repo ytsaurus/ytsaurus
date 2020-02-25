@@ -30,26 +30,26 @@ class TestYTEnvironment(object):
                 "action": "allow",
                 "inheritance_mode": "object_and_descendants",
                 "subjects": ["yp"],
-                "permissions": ["read", "write"]
+                "permissions": ["read", "write"],
             },
             {
                 "action": "allow",
                 "inheritance_mode": "object_and_descendants",
                 "subjects": ["yp"],
-                "permissions": ["read", "write", "remove", "mount"]
+                "permissions": ["read", "write", "remove", "mount"],
             },
             {
                 "action": "allow",
                 "inheritance_mode": "object_and_descendants",
                 "subjects": ["admins"],
-                "permissions": ["read", "write", "administer", "remove", "mount"]
+                "permissions": ["read", "write", "administer", "remove", "mount"],
             },
             {
                 "action": "allow",
                 "inheritance_mode": "object_and_descendants",
                 "subjects": ["yp-devs"],
-                "permissions": ["read", "write", "administer", "remove", "mount"]
-            }
+                "permissions": ["read", "write", "administer", "remove", "mount"],
+            },
         ]
 
         assert yt_client.get("//yp/@inherit_acl") == False
@@ -60,21 +60,23 @@ class TestYTEnvironment(object):
                 "action": "allow",
                 "inheritance_mode": "object_and_descendants",
                 "subjects": ["yp"],
-                "permissions": ["read", "write"]
+                "permissions": ["read", "write"],
             },
             {
                 "action": "allow",
                 "inheritance_mode": "object_and_descendants",
                 "subjects": ["admins"],
-                "permissions": ["read", "write", "administer", "remove"]
+                "permissions": ["read", "write", "administer", "remove"],
             },
             {
                 "action": "allow",
                 "inheritance_mode": "object_and_descendants",
                 "subjects": ["yp-devs"],
-                "permissions": ["read", "write", "administer", "remove"]
-            }
+                "permissions": ["read", "write", "administer", "remove"],
+            },
         ]
 
         assert yt_client.get("//yp/tokens/@inherit_acl") == False
-        _check_lists_equal(expected_yp_tokens_effective_acls, yp_env.yt_client.get("//yp/tokens/@effective_acl"))
+        _check_lists_equal(
+            expected_yp_tokens_effective_acls, yp_env.yt_client.get("//yp/tokens/@effective_acl")
+        )

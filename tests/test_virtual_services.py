@@ -16,9 +16,12 @@ class TestVirtualServices(object):
                     "ip4_addresses": ["1.1.1.1", "2.2.2.2"],
                     "ip6_addresses": [":::1", "1:1:1:1:1"],
                 },
-            })
+            },
+        )
 
-        result = yp_client.get_object("virtual_service", virtual_service_id, selectors=["/meta", "/spec"])
+        result = yp_client.get_object(
+            "virtual_service", virtual_service_id, selectors=["/meta", "/spec"]
+        )
         assert result[0]["id"] == virtual_service_id
         assert result[1]["ip4_addresses"][0] == "1.1.1.1"
         assert result[1]["ip4_addresses"][1] == "2.2.2.2"

@@ -28,10 +28,37 @@ class TestSweep(object):
         yp_client.remove_object("node", node_id)
         with pytest.raises(YpNoSuchObjectError):
             print(yp_client.get_object("node", node_id, selectors=["/meta/id"]))
-        assert len(list(yp_client.select_objects("node", selectors=["/meta/id"], filter="[/meta/id] = \"{}\"".format(node_id)))) == 0
-        assert len(list(yt_client.select_rows("* from [//yp/db/nodes] where [meta.id] = \"{}\"".format(node_id)))) == 1
+        assert (
+            len(
+                list(
+                    yp_client.select_objects(
+                        "node", selectors=["/meta/id"], filter='[/meta/id] = "{}"'.format(node_id)
+                    )
+                )
+            )
+            == 0
+        )
+        assert (
+            len(
+                list(
+                    yt_client.select_rows(
+                        '* from [//yp/db/nodes] where [meta.id] = "{}"'.format(node_id)
+                    )
+                )
+            )
+            == 1
+        )
 
-        wait(lambda: len(list(yt_client.select_rows("* from [//yp/db/nodes] where [meta.id] = \"{}\"".format(node_id)))) == 0)
+        wait(
+            lambda: len(
+                list(
+                    yt_client.select_rows(
+                        '* from [//yp/db/nodes] where [meta.id] = "{}"'.format(node_id)
+                    )
+                )
+            )
+            == 0
+        )
 
     @flaky(max_runs=3)
     def test_pods(self, yp_env_configurable):
@@ -39,14 +66,47 @@ class TestSweep(object):
         yt_client = yp_env_configurable.yt_client
 
         pod_set_id = yp_client.create_object(object_type="pod_set")
-        pod_id = yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}})
+        pod_id = yp_client.create_object(
+            object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}}
+        )
         yp_client.remove_object("pod", pod_id)
         with pytest.raises(YpNoSuchObjectError):
             print(yp_client.get_object("pod", pod_id, selectors=["/meta/id"]))
-        assert len(list(yp_client.select_objects("pod", selectors=["/meta/id"], filter="[/meta/id] = \"{}\"".format(pod_id)))) == 0
-        assert len(list(yt_client.select_rows("* from [//yp/db/pods] where [meta.pod_set_id] = \"{}\" and [meta.id] = \"{}\"".format(pod_set_id, pod_id)))) == 1
+        assert (
+            len(
+                list(
+                    yp_client.select_objects(
+                        "pod", selectors=["/meta/id"], filter='[/meta/id] = "{}"'.format(pod_id)
+                    )
+                )
+            )
+            == 0
+        )
+        assert (
+            len(
+                list(
+                    yt_client.select_rows(
+                        '* from [//yp/db/pods] where [meta.pod_set_id] = "{}" and [meta.id] = "{}"'.format(
+                            pod_set_id, pod_id
+                        )
+                    )
+                )
+            )
+            == 1
+        )
 
-        wait(lambda: len(list(yt_client.select_rows("* from [//yp/db/pods] where [meta.pod_set_id] = \"{}\" and [meta.id] = \"{}\"".format(pod_set_id, pod_id)))) == 0)
+        wait(
+            lambda: len(
+                list(
+                    yt_client.select_rows(
+                        '* from [//yp/db/pods] where [meta.pod_set_id] = "{}" and [meta.id] = "{}"'.format(
+                            pod_set_id, pod_id
+                        )
+                    )
+                )
+            )
+            == 0
+        )
 
     @flaky(max_runs=3)
     def test_batch(self, yp_env_configurable):
@@ -57,6 +117,7 @@ class TestSweep(object):
         for node_id in node_ids:
             yp_client.remove_object("node", node_id)
 
-        select_node = lambda node_id: yt_client.select_rows("* from [//yp/db/nodes] where [meta.id] = \"{}\""
-                                                            .format(node_id))
+        select_node = lambda node_id: yt_client.select_rows(
+            '* from [//yp/db/nodes] where [meta.id] = "{}"'.format(node_id)
+        )
         wait(lambda: all(len(list(select_node(node_id))) == 0 for node_id in node_ids))

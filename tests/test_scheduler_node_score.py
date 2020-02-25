@@ -26,14 +26,9 @@ class TestSchedulerNodeScoreFeatures(object):
             create_nodes(yp_client, node_count=1)
             pod_set_id = create_pod_set(yp_client)
             pod_id = create_pod_with_boilerplate(
-                yp_client,
-                pod_set_id,
-                spec=dict(enable_scheduling=True),
+                yp_client, pod_set_id, spec=dict(enable_scheduling=True),
             )
-            wait(
-                lambda: are_pods_assigned(yp_client, [pod_id]),
-                **wait_options
-            )
+            wait(lambda: are_pods_assigned(yp_client, [pod_id]), **wait_options)
 
         def check_scheduler_lifelessness():
             with pytest.raises(WaitFailed):
@@ -44,42 +39,43 @@ class TestSchedulerNodeScoreFeatures(object):
 
         broken_filter_queries = (
             "abcacba",
-            "[/meta/id] = \"node1\"",
-            "[/lables/avx2] = \"pampam\"",
+            '[/meta/id] = "node1"',
+            '[/lables/avx2] = "pampam"',
             "/labels = null",
         )
 
         correct_filter_query = "[/labels/cpu_flags/avx2] = %true"
 
         for broken_filter_query in broken_filter_queries:
-            node_score_config = dict(features=[
-                dict(filter_query=broken_filter_query),
-                dict(filter_query=correct_filter_query),
-            ])
-            yp_env.set_cypress_config_patch(self._create_scheduler_config(
-                node_score=node_score_config,
-            ))
+            node_score_config = dict(
+                features=[
+                    dict(filter_query=broken_filter_query),
+                    dict(filter_query=correct_filter_query),
+                ]
+            )
+            yp_env.set_cypress_config_patch(
+                self._create_scheduler_config(node_score=node_score_config,)
+            )
             yp_env.sync_scheduler()
             check_scheduler_lifelessness()
 
-        yp_env.set_cypress_config_patch(self._create_scheduler_config(
-            node_score=dict(features=[
-                dict(filter_query=correct_filter_query, weight=42),
-            ]),
-        ))
+        yp_env.set_cypress_config_patch(
+            self._create_scheduler_config(
+                node_score=dict(features=[dict(filter_query=correct_filter_query, weight=42),]),
+            )
+        )
         check_scheduler_liveness()
 
-    def _test_scheduling(self,
-                         yp_env,
-                         scheduler_config,
-                         node_limit=None):
+    def _test_scheduling(self, yp_env, scheduler_config, node_limit=None):
         yp_client = yp_env.yp_client
 
         assert "node_score" not in scheduler_config
-        scheduler_config["node_score"] = dict(features=[
-            dict(filter_query="[/labels/cpu_flags/avx2] = %true", weight=2),
-            dict(filter_query="[/labels/stability] = %false", weight=-1),
-        ])
+        scheduler_config["node_score"] = dict(
+            features=[
+                dict(filter_query="[/labels/cpu_flags/avx2] = %true", weight=2),
+                dict(filter_query="[/labels/stability] = %false", weight=-1),
+            ]
+        )
 
         yp_env.set_cypress_config_patch(self._create_scheduler_config(**scheduler_config))
         yp_env.sync_scheduler()
@@ -95,23 +91,26 @@ class TestSchedulerNodeScoreFeatures(object):
 
         node_count = node_per_template * len(node_templates)
         if node_limit is not None:
-            assert node_count <= node_limit, \
-                "General test is not designed to satisfy node limit of {}".format(node_limit)
+            assert (
+                node_count <= node_limit
+            ), "General test is not designed to satisfy node limit of {}".format(node_limit)
 
         node_ids_per_template = []
         pod_cpu_capacity = 100
         pod_memory_capacity = 2 ** 32
         pod_per_node = 2
         for labels in node_templates:
-            node_ids_per_template.append(set(
-                create_nodes(
-                    yp_client,
-                    node_count=node_per_template,
-                    cpu_total_capacity=pod_per_node * pod_cpu_capacity,
-                    memory_total_capacity=pod_per_node * pod_memory_capacity,
-                    labels=labels,
-                ),
-            ))
+            node_ids_per_template.append(
+                set(
+                    create_nodes(
+                        yp_client,
+                        node_count=node_per_template,
+                        cpu_total_capacity=pod_per_node * pod_cpu_capacity,
+                        memory_total_capacity=pod_per_node * pod_memory_capacity,
+                        labels=labels,
+                    ),
+                )
+            )
 
         def get_template_id(node_id):
             result = None
@@ -128,8 +127,7 @@ class TestSchedulerNodeScoreFeatures(object):
                 spec=dict(
                     enable_scheduling=True,
                     resource_requests=dict(
-                        vcpu_guarantee=pod_cpu_capacity,
-                        memory_limit=pod_memory_capacity,
+                        vcpu_guarantee=pod_cpu_capacity, memory_limit=pod_memory_capacity,
                     ),
                 ),
             )
@@ -142,9 +140,7 @@ class TestSchedulerNodeScoreFeatures(object):
             wait(lambda: are_pods_assigned(yp_client, pod_ids))
 
             response = yp_client.get_objects(
-                "pod",
-                pod_ids,
-                selectors=["/status/scheduling/node_id"],
+                "pod", pod_ids, selectors=["/status/scheduling/node_id"],
             )
             for pod_index, pod_response in enumerate(response):
                 node_id = pod_response[0]
@@ -156,10 +152,7 @@ class TestSchedulerNodeScoreFeatures(object):
 
     def test_scheduling(self, yp_env):
         self._test_scheduling(
-            yp_env,
-            scheduler_config=dict(
-                pod_node_score=dict(type="node_random_hash"),
-            ),
+            yp_env, scheduler_config=dict(pod_node_score=dict(type="node_random_hash"),),
         )
 
     def test_scheduling_with_disabled_every_node_selection(self, yp_env):

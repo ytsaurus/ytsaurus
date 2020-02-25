@@ -51,7 +51,9 @@ class TestUsers(object):
         groups = [x[0] for x in yp_client.select_objects("group", selectors=["/meta/id"])]
         assert_items_equal(groups, ["superusers"])
 
-        assert_items_equal(yp_client.get_object("group", "superusers", selectors=["/spec/members"])[0], ["root"])
+        assert_items_equal(
+            yp_client.get_object("group", "superusers", selectors=["/spec/members"])[0], ["root"]
+        )
 
         for group in groups:
             with pytest.raises(YtResponseError):
@@ -75,9 +77,7 @@ class TestUsers(object):
 
         transaction_id = yp_client.start_transaction()
         yp_client.create_object(
-            "user",
-            attributes=dict(meta=dict(id=subject_id)),
-            transaction_id=transaction_id,
+            "user", attributes=dict(meta=dict(id=subject_id)), transaction_id=transaction_id,
         )
         yp_client.remove_object("user", subject_id, transaction_id=transaction_id)
         yp_client.commit_transaction(transaction_id)

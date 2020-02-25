@@ -18,19 +18,30 @@ class TestMultiClusterReplicaSets(object):
             attributes=dict(spec=dict(account_id="tmp", node_segment_id="default")),
         )
         templates.update_spec_pod_disks_validation_test_template(
-            yp_client,
-            "multi_cluster_replica_set",
-            multi_cluster_replica_set_id,
+            yp_client, "multi_cluster_replica_set", multi_cluster_replica_set_id,
         )
 
     def test_network_project_permissions(self, yp_env):
-        templates.replica_set_network_project_permissions_test_template(yp_env, "multi_cluster_replica_set")
+        templates.replica_set_network_project_permissions_test_template(
+            yp_env, "multi_cluster_replica_set"
+        )
 
     def test_node_segment_id_update(self, yp_env):
         yp_client = yp_env.yp_client
 
         account_id = yp_client.create_object("account")
-        segment_id_1 = yp_client.create_object("node_segment", attributes={"spec": {"node_filter": ""}})
-        segment_id_2 = yp_client.create_object("node_segment", attributes={"spec": {"node_filter": ""}})
-        rs_id = yp_client.create_object(object_type="multi_cluster_replica_set", attributes={"spec": {"account_id": account_id, "node_segment_id": segment_id_1}})
-        yp_client.update_object("multi_cluster_replica_set", rs_id, set_updates=[{"path": "/spec/node_segment", "value": segment_id_2}])
+        segment_id_1 = yp_client.create_object(
+            "node_segment", attributes={"spec": {"node_filter": ""}}
+        )
+        segment_id_2 = yp_client.create_object(
+            "node_segment", attributes={"spec": {"node_filter": ""}}
+        )
+        rs_id = yp_client.create_object(
+            object_type="multi_cluster_replica_set",
+            attributes={"spec": {"account_id": account_id, "node_segment_id": segment_id_1}},
+        )
+        yp_client.update_object(
+            "multi_cluster_replica_set",
+            rs_id,
+            set_updates=[{"path": "/spec/node_segment", "value": segment_id_2}],
+        )

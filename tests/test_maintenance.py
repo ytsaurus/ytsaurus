@@ -21,11 +21,7 @@ import pytest
 
 
 def get_pod_eviction(yp_client, pod_id):
-    return yp_client.get_object(
-        "pod",
-        pod_id,
-        selectors=["/status/eviction"],
-    )[0]
+    return yp_client.get_object("pod", pod_id, selectors=["/status/eviction"],)[0]
 
 
 def get_pod_eviction_state(*args, **kwargs):
@@ -43,9 +39,9 @@ def prepare_objects(yp_client):
 def with_lock_conflict_retries(action):
     def wrapper(*args, **kwargs):
         return run_with_retries(
-            lambda: action(*args, **kwargs),
-            exceptions=(YtTabletTransactionLockConflict,),
+            lambda: action(*args, **kwargs), exceptions=(YtTabletTransactionLockConflict,),
         )
+
     return wrapper
 
 
@@ -58,10 +54,7 @@ class TestNodeMaintenanceInterface(object):
 
         def update_once(state, info=None):
             yp_client.update_hfsm_state(
-                node_id,
-                state,
-                "Test",
-                maintenance_info=info,
+                node_id, state, "Test", maintenance_info=info,
             )
 
         update = with_lock_conflict_retries(update_once)
@@ -110,10 +103,7 @@ class TestNodeMaintenanceInterface(object):
 
         def update_once(state, info=None):
             yp_client.update_hfsm_state(
-                node_id,
-                state,
-                "Test",
-                maintenance_info=info,
+                node_id, state, "Test", maintenance_info=info,
             )
 
         update = with_lock_conflict_retries(update_once)
@@ -275,11 +265,7 @@ class TestPodMaintenanceController(object):
     # Choosing a pretty small period to optimize tests duration.
     SCHEDULER_LOOP_PERIOD_MILLISECONDS = 1 * 1000
 
-    YP_MASTER_CONFIG = dict(
-        scheduler=dict(
-            loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,
-        )
-    )
+    YP_MASTER_CONFIG = dict(scheduler=dict(loop_period=SCHEDULER_LOOP_PERIOD_MILLISECONDS,))
 
     def test_abort_requested_eviction_at_up_nodes(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -301,6 +287,7 @@ class TestPodMaintenanceController(object):
                 iter=20,
                 sleep_backoff=1,
             )
+
             def rollback():
                 assert get_pod_eviction_state(yp_client, pod_id) == "requested"
                 transaction_id = yp_client.start_transaction()
@@ -308,6 +295,7 @@ class TestPodMaintenanceController(object):
                 # Conflict with pod maintenance controller (/pod/status/maintenance shares lock with /pod/status/eviction) is possible.
                 yp_client.abort_pod_eviction(pod_id, "Test", transaction_id=transaction_id)
                 yp_client.commit_transaction(transaction_id)
+
             if not result:
                 with_lock_conflict_retries(rollback)()
             return result
@@ -315,9 +303,9 @@ class TestPodMaintenanceController(object):
         # Test that pod maintenance controller works fine.
         assert not is_controller_disabled()
 
-        yp_env_configurable.set_cypress_config_patch(dict(scheduler=dict(disable_stage=dict(
-            run_pod_maintenance_request_eviction=True,
-        ))))
+        yp_env_configurable.set_cypress_config_patch(
+            dict(scheduler=dict(disable_stage=dict(run_pod_maintenance_request_eviction=True,)))
+        )
 
         wait(is_controller_disabled, iter=5, sleep_backoff=10)
 
@@ -330,22 +318,26 @@ class TestPodMaintenanceController(object):
         node_id, pod_set_id, pod_id = prepare_objects(yp_client)
 
         def get_maintenance(pod_id):
-            return yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status/maintenance"],
-            )[0]
+            return yp_client.get_object("pod", pod_id, selectors=["/status/maintenance"],)[0]
 
-        yp_client.update_hfsm_state(node_id, "prepare_maintenance", "Test", maintenance_info=dict(id="first"))
+        yp_client.update_hfsm_state(
+            node_id, "prepare_maintenance", "Test", maintenance_info=dict(id="first")
+        )
+
         def is_requested_first_maintenance():
             maintenance = get_maintenance(pod_id)
             return maintenance["state"] == "requested" and maintenance["info"]["id"] == "first"
+
         wait(is_requested_first_maintenance)
 
-        yp_client.update_hfsm_state(node_id, "prepare_maintenance", "Test", maintenance_info=dict(id="second"))
+        yp_client.update_hfsm_state(
+            node_id, "prepare_maintenance", "Test", maintenance_info=dict(id="second")
+        )
+
         def is_requested_second_maintenance():
             maintenance = get_maintenance(pod_id)
             return maintenance["state"] == "requested" and maintenance["info"]["id"] == "second"
+
         wait(is_requested_second_maintenance)
 
         second_maintenance_info = get_maintenance(pod_id)["info"]
@@ -356,25 +348,39 @@ class TestPodMaintenanceController(object):
         assert second_maintenance_info == acknowledged_maintenance["info"]
         assert "acknowledged" == acknowledged_maintenance["state"]
 
-        wait(lambda: yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0] == "acknowledged")
+        wait(
+            lambda: yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[
+                0
+            ]
+            == "acknowledged"
+        )
         assert_over_time(lambda: acknowledged_maintenance == get_maintenance(pod_id))
 
         yp_client.update_hfsm_state(node_id, "maintenance", "Test")
+
         def is_in_progress_maintenance():
             maintenance = get_maintenance(pod_id)
-            return maintenance["state"] == "in_progress" and maintenance["info"] == second_maintenance_info
+            return (
+                maintenance["state"] == "in_progress"
+                and maintenance["info"] == second_maintenance_info
+            )
+
         wait(is_in_progress_maintenance)
 
         yp_client.update_hfsm_state(node_id, "up", "Test")
+
         def is_none_maintenance():
             maintenance = get_maintenance(pod_id)
             return maintenance["state"] == "none" and maintenance.get("info") is None
+
         wait(is_none_maintenance)
 
         # Pod with disabled scheduling.
         pod_id2 = create_pod_with_boilerplate(yp_client, pod_set_id)
         update_node_id(yp_client, pod_id2, node_id)
-        yp_client.update_hfsm_state(node_id, "prepare_maintenance", "Test", maintenance_info=dict(id="abacaba"))
+        yp_client.update_hfsm_state(
+            node_id, "prepare_maintenance", "Test", maintenance_info=dict(id="abacaba")
+        )
         wait(lambda: "abacaba" == get_maintenance(pod_id2).get("info", {}).get("id"))
 
 
@@ -386,7 +392,9 @@ class TestPodMaintenanceInterface(object):
         node_id, pod_set_id, pod_id = prepare_objects(yp_client)
 
         # Another pod is used for blocking maintenance acknowledgement on node.
-        another_pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, dict(enable_scheduling=True))
+        another_pod_id = create_pod_with_boilerplate(
+            yp_client, pod_set_id, dict(enable_scheduling=True)
+        )
         wait_pod_is_assigned(yp_client, another_pod_id)
 
         def acknowledge(transaction_id=None):
@@ -404,25 +412,16 @@ class TestPodMaintenanceInterface(object):
             renounce()
 
         yp_client.update_hfsm_state(
-            node_id,
-            "prepare_maintenance",
-            "Test",
-            maintenance_info=dict(id="aba"),
+            node_id, "prepare_maintenance", "Test", maintenance_info=dict(id="aba"),
         )
 
         def get_maintenance():
-            return yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status/maintenance"],
-            )[0]
+            return yp_client.get_object("pod", pod_id, selectors=["/status/maintenance"],)[0]
 
         def get_node_maintenance_state():
-            return yp_client.get_object(
-                "node",
-                node_id,
-                selectors=["/status/maintenance/state"],
-            )[0]
+            return yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"],)[
+                0
+            ]
 
         wait(lambda: get_maintenance().get("state") == "requested")
 
@@ -483,10 +482,7 @@ class TestPodMaintenanceInterface(object):
 
         # Pod renouncement locks node maintenance.
         yp_client.update_hfsm_state(
-            node_id,
-            "prepare_maintenance",
-            "Test",
-            maintenance_info=dict(id="caba"),
+            node_id, "prepare_maintenance", "Test", maintenance_info=dict(id="caba"),
         )
         wait(lambda: get_maintenance()["state"] == "requested")
         acknowledge()
@@ -500,9 +496,7 @@ class TestPodMaintenanceInterface(object):
 
         # Drop maintenance.
         yp_client.update_hfsm_state(
-            node_id,
-            "probation",
-            "Test",
+            node_id, "probation", "Test",
         )
         wait(lambda: get_maintenance()["state"] == "none")
 
@@ -515,82 +509,120 @@ class TestPodMaintenanceInterface(object):
         pod_set_id = create_pod_set(yp_client)
         pod_ids = []
         for _ in xrange(5):
-            pod_ids.append(create_pod_with_boilerplate(yp_client, pod_set_id, {
-                "enable_scheduling": True
-            }))
+            pod_ids.append(
+                create_pod_with_boilerplate(yp_client, pod_set_id, {"enable_scheduling": True})
+            )
 
         disabled_scheduling_pod_id = create_pod_with_boilerplate(yp_client, pod_set_id)
         update_node_id(yp_client, disabled_scheduling_pod_id, node_id)
 
         for pod_id in pod_ids:
             wait_pod_is_assigned(yp_client, pod_id)
-        assert all(x[0] == node_id for x in yp_client.select_objects("pod", selectors=["/status/scheduling/node_id"]))
-        assert all(x[0] == "none" for x in yp_client.select_objects("pod", selectors=["/status/eviction/state"]))
+        assert all(
+            x[0] == node_id
+            for x in yp_client.select_objects("pod", selectors=["/status/scheduling/node_id"])
+        )
+        assert all(
+            x[0] == "none"
+            for x in yp_client.select_objects("pod", selectors=["/status/eviction/state"])
+        )
 
         yp_client.update_hfsm_state(node_id, "prepare_maintenance", "Test")
-        assert yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0] == "requested"
+        assert (
+            yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0]
+            == "requested"
+        )
 
-        wait(lambda: all(x[0] == "requested" for x in yp_client.get_objects("pod", pod_ids, selectors=["/status/eviction/state"])))
-        assert_over_time(lambda: "none" == yp_client.get_object("pod", disabled_scheduling_pod_id, selectors=["/status/eviction/state"])[0])
+        wait(
+            lambda: all(
+                x[0] == "requested"
+                for x in yp_client.get_objects("pod", pod_ids, selectors=["/status/eviction/state"])
+            )
+        )
+        assert_over_time(
+            lambda: "none"
+            == yp_client.get_object(
+                "pod", disabled_scheduling_pod_id, selectors=["/status/eviction/state"]
+            )[0]
+        )
 
         for pod_id in pod_ids:
             yp_client.acknowledge_pod_eviction(pod_id, "Test")
 
-        wait(lambda: all(x[0] == "" for x in yp_client.get_objects("pod", pod_ids, selectors=["/spec/node_id"])))
-        assert all(x[0] == "none" for x in yp_client.get_objects("pod", pod_ids, selectors=["/status/eviction/state"]))
+        wait(
+            lambda: all(
+                x[0] == ""
+                for x in yp_client.get_objects("pod", pod_ids, selectors=["/spec/node_id"])
+            )
+        )
+        assert all(
+            x[0] == "none"
+            for x in yp_client.get_objects("pod", pod_ids, selectors=["/status/eviction/state"])
+        )
 
-        assert_over_time(lambda: "requested" == yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0])
+        assert_over_time(
+            lambda: "requested"
+            == yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0]
+        )
 
-        wait(lambda: "requested" == yp_client.get_object("pod", disabled_scheduling_pod_id, selectors=["/status/maintenance/state"])[0])
+        wait(
+            lambda: "requested"
+            == yp_client.get_object(
+                "pod", disabled_scheduling_pod_id, selectors=["/status/maintenance/state"]
+            )[0]
+        )
         yp_client.acknowledge_pod_maintenance(disabled_scheduling_pod_id, "Test")
-        assert "acknowledged" == yp_client.get_object("pod", disabled_scheduling_pod_id, selectors=["/status/maintenance/state"])[0]
+        assert (
+            "acknowledged"
+            == yp_client.get_object(
+                "pod", disabled_scheduling_pod_id, selectors=["/status/maintenance/state"]
+            )[0]
+        )
 
-        wait(lambda: "acknowledged" == yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0])
+        wait(
+            lambda: "acknowledged"
+            == yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0]
+        )
 
         yp_client.update_hfsm_state(node_id, "maintenance", "Test")
-        assert yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0] == "in_progress"
+        assert (
+            yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0]
+            == "in_progress"
+        )
 
         yp_client.update_hfsm_state(node_id, "down", "Test")
-        assert yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0] == "none"
+        assert (
+            yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0]
+            == "none"
+        )
 
     def test_node_acknowledgement_via_pod_acknowledgement_and_eviction(self, yp_env):
         yp_client = yp_env.yp_client
 
         node_id, pod_set_id, pod_id = prepare_objects(yp_client)
 
-        another_pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, dict(enable_scheduling=True))
+        another_pod_id = create_pod_with_boilerplate(
+            yp_client, pod_set_id, dict(enable_scheduling=True)
+        )
         wait_pod_is_assigned(yp_client, another_pod_id)
 
         disabled_scheduling_pod_id = create_pod_with_boilerplate(yp_client, pod_set_id)
         update_node_id(yp_client, disabled_scheduling_pod_id, node_id)
 
         yp_client.update_hfsm_state(
-            node_id,
-            "prepare_maintenance",
-            "Test",
-            maintenance_info=dict(id="aba"),
+            node_id, "prepare_maintenance", "Test", maintenance_info=dict(id="aba"),
         )
 
         def get_maintenance(pod_id):
-            return yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status/maintenance"],
-            )[0]
+            return yp_client.get_object("pod", pod_id, selectors=["/status/maintenance"],)[0]
 
         def get_node_maintenance_state():
-            return yp_client.get_object(
-                "node",
-                node_id,
-                selectors=["/status/maintenance/state"],
-            )[0]
+            return yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"],)[
+                0
+            ]
 
         def get_pod_node(pod_id):
-            return yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status/scheduling/node_id"],
-            )[0]
+            return yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/node_id"],)[0]
 
         # Node maintenance is not acknowledged.
         assert_over_time(lambda: get_node_maintenance_state() == "requested")

@@ -13,6 +13,7 @@ from yt.packages.six.moves import xrange
 
 import pytest
 
+
 @pytest.mark.usefixtures("yp_env_auth")
 class TestObjectService(object):
     def test_select_empty_field(self, yp_env_auth):
@@ -21,11 +22,17 @@ class TestObjectService(object):
         pod_set_id = yp_client.create_object(object_type="pod_set")
         yp_client.create_object(object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}})
 
-        selection_result = yp_client.select_objects("pod", selectors=["/spec/virtual_service_options/ip4_mtu"])
+        selection_result = yp_client.select_objects(
+            "pod", selectors=["/spec/virtual_service_options/ip4_mtu"]
+        )
         assert len(selection_result) == 1 and isinstance(selection_result[0][0], YsonEntity)
-        selection_result = yp_client.select_objects("pod", selectors=["/status/agent/iss/currentStates"])
+        selection_result = yp_client.select_objects(
+            "pod", selectors=["/status/agent/iss/currentStates"]
+        )
         assert len(selection_result) == 1 and isinstance(selection_result[0][0], YsonEntity)
-        selection_result = yp_client.select_objects("pod", selectors=["/status/agent/iss/currentStates/1"])
+        selection_result = yp_client.select_objects(
+            "pod", selectors=["/status/agent/iss/currentStates/1"]
+        )
         assert len(selection_result) == 1 and isinstance(selection_result[0][0], YsonEntity)
 
     def test_select_nonexistent_field(self, yp_env_auth):
@@ -39,16 +46,23 @@ class TestObjectService(object):
         with pytest.raises(YtResponseError):
             yp_client.select_objects("pod", selectors=["/status/agent/iss/nonexistentField"])
         with pytest.raises(YtResponseError):
-            yp_client.select_objects("pod", selectors=["/status/agent/iss/currentStates/1/nonexistentField"])
+            yp_client.select_objects(
+                "pod", selectors=["/status/agent/iss/currentStates/1/nonexistentField"]
+            )
         with pytest.raises(YtResponseError):
-            yp_client.select_objects("pod", selectors=["/spec/ip6_address_requests/network_id/network_id"])
+            yp_client.select_objects(
+                "pod", selectors=["/spec/ip6_address_requests/network_id/network_id"]
+            )
 
     def test_get_nonexistent(self, yp_env_auth):
         yp_client = yp_env_auth.yp_client
 
         existent_id = "existent_id"
         nonexistent_id = "nonexistent_id"
-        assert yp_client.create_object("pod_set", attributes={"meta": {"id": existent_id}}) == existent_id
+        assert (
+            yp_client.create_object("pod_set", attributes={"meta": {"id": existent_id}})
+            == existent_id
+        )
 
         with pytest.raises(YtResponseError):
             yp_client.get_objects("pod_set", [existent_id, nonexistent_id], selectors=["/meta/id"])
@@ -56,12 +70,25 @@ class TestObjectService(object):
         with pytest.raises(YtResponseError):
             yp_client.get_object("pod_set", nonexistent_id, selectors=["/meta/id"])
 
-        objects = yp_client.get_objects("pod_set", [existent_id, nonexistent_id], selectors=["/meta/id"], options={"ignore_nonexistent": True})
+        objects = yp_client.get_objects(
+            "pod_set",
+            [existent_id, nonexistent_id],
+            selectors=["/meta/id"],
+            options={"ignore_nonexistent": True},
+        )
         assert len(objects) == 2
         assert len(objects[0]) == 1 and objects[0][0] == existent_id
         assert objects[1] is None
 
-        assert yp_client.get_object("pod_set", nonexistent_id, selectors=["/meta/id"], options={"ignore_nonexistent": True}) is None
+        assert (
+            yp_client.get_object(
+                "pod_set",
+                nonexistent_id,
+                selectors=["/meta/id"],
+                options={"ignore_nonexistent": True},
+            )
+            is None
+        )
 
     def test_create_object_null_attributes_payload(self, yp_env_auth):
         yp_client = yp_env_auth.yp_client
@@ -135,7 +162,7 @@ class TestObjectService(object):
 
                     response = yp_client.select_objects(
                         object_type,
-                        filter="[/meta/id] < \"{}\"".format(id_upper_bound),
+                        filter='[/meta/id] < "{}"'.format(id_upper_bound),
                         selectors=selectors,
                         options=options,
                         enable_structured_response=True,
@@ -145,7 +172,10 @@ class TestObjectService(object):
                     continuation_token = response["continuation_token"]
 
                     def subresponse_values(subresponse):
-                        return list(map(lambda subresponse_field: subresponse_field["value"], subresponse))
+                        return list(
+                            map(lambda subresponse_field: subresponse_field["value"], subresponse)
+                        )
+
                     batches.append(list(map(subresponse_values, response["results"])))
 
                     if len(batches[-1]) < limit:
@@ -165,10 +195,9 @@ class TestObjectService(object):
         ids = []
         pod_set_id = yp_client.create_object("pod_set")
         for _ in xrange(object_count):
-            ids.append(yp_client.create_object(
-                "pod",
-                attributes=dict(meta=dict(pod_set_id=pod_set_id)),
-            ))
+            ids.append(
+                yp_client.create_object("pod", attributes=dict(meta=dict(pod_set_id=pod_set_id)),)
+            )
         impl("pod", ids, ["/meta/pod_set_id", "/meta/id"])
 
     def test_select_objects_continuation_token_of_empty_response(self, yp_env_auth):
@@ -176,10 +205,7 @@ class TestObjectService(object):
 
         def select(**options):
             return yp_client.select_objects(
-                "pod_set",
-                selectors=["/meta/id"],
-                options=options,
-                enable_structured_response=True,
+                "pod_set", selectors=["/meta/id"], options=options, enable_structured_response=True,
             )
 
         response = select(limit=1)
@@ -196,7 +222,9 @@ class TestObjectService(object):
             ids.append(yp_client.create_object("pod_set"))
 
         response = select(continuation_token=continuation_token)
-        assert set(ids) == set(map(lambda subresponse: subresponse[0]["value"], response["results"]))
+        assert set(ids) == set(
+            map(lambda subresponse: subresponse[0]["value"], response["results"])
+        )
         assert continuation_token != response["continuation_token"]
         continuation_token = response["continuation_token"]
         assert len(continuation_token) > 0
@@ -217,9 +245,7 @@ class TestObjectService(object):
 
         # Works without offset.
         yp_client.select_objects(
-            "pod_set",
-            selectors=["/meta/id"],
-            options=dict(continuation_token=continuation_token),
+            "pod_set", selectors=["/meta/id"], options=dict(continuation_token=continuation_token),
         )
 
         with pytest.raises(YtResponseError):
@@ -234,9 +260,7 @@ class TestObjectService(object):
 
         with pytest.raises(YpInvalidContinuationTokenError):
             yp_client.select_objects(
-                "pod_set",
-                selectors=["/meta/id"],
-                options=dict(continuation_token="abracadabra"),
+                "pod_set", selectors=["/meta/id"], options=dict(continuation_token="abracadabra"),
             )
 
     def test_select_objects_continuation_token_presence(self, yp_env_auth):
@@ -244,10 +268,7 @@ class TestObjectService(object):
 
         def select(options):
             return yp_client.select_objects(
-                "account",
-                selectors=["/meta/id"],
-                options=options,
-                enable_structured_response=True,
+                "account", selectors=["/meta/id"], options=options, enable_structured_response=True,
             )
 
         for options in (dict(), dict(offset=1), dict(offset=1, limit=10)):

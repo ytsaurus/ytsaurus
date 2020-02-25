@@ -20,7 +20,11 @@ class TestYsonProto(object):
         error.attributes.attributes.extend([attribute])
 
         error_dict = loads(dumps_proto(error))
-        assert error_dict == {"code": 1, "message": "Hello World!", "attributes": {"host": "localhost"}}
+        assert error_dict == {
+            "code": 1,
+            "message": "Hello World!",
+            "attributes": {"host": "localhost"},
+        }
 
         error_converted = loads_proto(dumps_proto(error), TError)
         assert error_converted.code == error.code
@@ -33,7 +37,12 @@ class TestYsonProto(object):
         meta.id = "2-3-4-5"
 
         meta_dict = loads(dumps_proto(meta))
-        assert meta_dict == {"id": "1-1-1-1", "type": "pod_set", "creation_time": 123, "id": "2-3-4-5"}
+        assert meta_dict == {
+            "id": "1-1-1-1",
+            "type": "pod_set",
+            "creation_time": 123,
+            "id": "2-3-4-5",
+        }
 
         meta_converted = loads_proto(dumps_proto(meta), TPodSetMeta)
         assert meta_converted.id == meta.id

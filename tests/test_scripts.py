@@ -33,10 +33,18 @@ class TestScripts(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_ids = create_nodes(yp_client, 10)
-        pod_ids = [create_pod_with_boilerplate(yp_client, pod_set_id, {"node_id": node_id}) for node_id in node_ids]
+        pod_ids = [
+            create_pod_with_boilerplate(yp_client, pod_set_id, {"node_id": node_id})
+            for node_id in node_ids
+        ]
 
         def get_timestamps():
-            return [t[0] for t in yp_client.get_objects("pod", pod_ids, selectors=["/status/master_spec_timestamp"])]
+            return [
+                t[0]
+                for t in yp_client.get_objects(
+                    "pod", pod_ids, selectors=["/status/master_spec_timestamp"]
+                )
+            ]
 
         timestamps1 = get_timestamps()
 
@@ -45,33 +53,35 @@ class TestScripts(object):
 
         def run_script(filter=None, node=None, node_list=None, batch_size=None, dry_run=False):
             if node_list:
-                file = tmpdir.join('test_nodes')
-                file.write('\n'.join(node_list))
+                file = tmpdir.join("test_nodes")
+                file.write("\n".join(node_list))
                 node_list = str(file)
 
-            script_wrapper.check_output(["--cluster", grpc_address] +
-                                       (["--dry-run"] if dry_run else []) +
-                                       (["--filter", filter] if filter else []) +
-                                       (["--node", node] if node else []) +
-                                       (["--batch-size", batch_size] if batch_size else []) +
-                                       (["--node-list", node_list] if node_list else []))
+            script_wrapper.check_output(
+                ["--cluster", grpc_address]
+                + (["--dry-run"] if dry_run else [])
+                + (["--filter", filter] if filter else [])
+                + (["--node", node] if node else [])
+                + (["--batch-size", batch_size] if batch_size else [])
+                + (["--node-list", node_list] if node_list else [])
+            )
 
         run_script()
         timestamps2 = get_timestamps()
         assert all(timestamps2[i] > timestamps1[i] for i in range(10))
         timestamps1 = timestamps2
 
-        run_script(batch_size='1')
+        run_script(batch_size="1")
         timestamps2 = get_timestamps()
         assert all(timestamps2[i] > timestamps1[i] for i in range(10))
         timestamps1 = timestamps2
 
-        run_script(batch_size='9')
+        run_script(batch_size="9")
         timestamps2 = get_timestamps()
         assert all(timestamps2[i] > timestamps1[i] for i in range(10))
         timestamps1 = timestamps2
 
-        run_script(batch_size='500')
+        run_script(batch_size="500")
         timestamps2 = get_timestamps()
         assert all(timestamps2[i] > timestamps1[i] for i in range(10))
         timestamps1 = timestamps2
@@ -86,12 +96,15 @@ class TestScripts(object):
         assert timestamps2[0] > timestamps1[0] and timestamps1[1:] == timestamps2[1:]
         timestamps1 = timestamps2
 
-        run_script(filter="[/meta/id]=\"{}\"".format(pod_ids[0]))
+        run_script(filter='[/meta/id]="{}"'.format(pod_ids[0]))
         timestamps2 = get_timestamps()
         assert timestamps2[0] > timestamps1[0] and timestamps1[1:] == timestamps2[1:]
         timestamps1 = timestamps2
 
         run_script(node_list=node_ids[:5])
         timestamps2 = get_timestamps()
-        assert all(timestamps2[i] > timestamps1[i] for i in range(5)) and timestamps1[5:] == timestamps2[5:]
+        assert (
+            all(timestamps2[i] > timestamps1[i] for i in range(5))
+            and timestamps1[5:] == timestamps2[5:]
+        )
         timestamps1 = timestamps2

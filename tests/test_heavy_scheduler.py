@@ -44,12 +44,11 @@ class TestHeavyScheduler(object):
     START_YP_HEAVY_SCHEDULER = True
 
     YP_HEAVY_SCHEDULER_CONFIG = dict(
-        heavy_scheduler = dict(
-            verbose = True,
-            node_segment = "test-segment",
-            disruption_throttler = dict(
-                validate_pod_disruption_budget = False,
-                safe_suitable_node_count = 1,
+        heavy_scheduler=dict(
+            verbose=True,
+            node_segment="test-segment",
+            disruption_throttler=dict(
+                validate_pod_disruption_budget=False, safe_suitable_node_count=1,
             ),
         ),
     )
@@ -57,7 +56,9 @@ class TestHeavyScheduler(object):
     def test_yt_lock(self, yp_env_configurable):
         yt_client = yp_env_configurable.yt_client
 
-        monitoring_client = yp_env_configurable.yp_heavy_scheduler_instance.create_monitoring_client()
+        monitoring_client = (
+            yp_env_configurable.yp_heavy_scheduler_instance.create_monitoring_client()
+        )
 
         def is_leading():
             try:
@@ -72,7 +73,9 @@ class TestHeavyScheduler(object):
 
         iteration_count = 100
         for _ in xrange(iteration_count):
-            transaction_id = yt_client.get("//yp/heavy_scheduler/leader/@locks")[0]["transaction_id"]
+            transaction_id = yt_client.get("//yp/heavy_scheduler/leader/@locks")[0][
+                "transaction_id"
+            ]
             yt_client.abort_transaction(transaction_id)
             try:
                 yt_client.remove("//yp/heavy_scheduler/leader")
@@ -81,7 +84,9 @@ class TestHeavyScheduler(object):
             else:
                 break
         else:
-            assert False, "Cannot take away lock from Heavy Scheduler for {} iterations".format(iteration_count)
+            assert False, "Cannot take away lock from Heavy Scheduler for {} iterations".format(
+                iteration_count
+            )
 
         wait(not_is_leading)
         assert_over_time(not_is_leading)
@@ -90,11 +95,15 @@ class TestHeavyScheduler(object):
         wait(is_leading)
 
     def test_task_manager_profiling(self, yp_env_configurable):
-        monitoring_client = yp_env_configurable.yp_heavy_scheduler_instance.create_monitoring_client()
+        monitoring_client = (
+            yp_env_configurable.yp_heavy_scheduler_instance.create_monitoring_client()
+        )
 
         def are_task_counters_initialized():
             for name in ("active", "succeeded", "failed", "timed_out"):
-                samples = json.loads(monitoring_client.get("/profiling/heavy_scheduler/task_manager/{}".format(name)))
+                samples = json.loads(
+                    monitoring_client.get("/profiling/heavy_scheduler/task_manager/{}".format(name))
+                )
                 if len(samples) > 0 and samples[-1]["value"] == 0:
                     continue
                 else:
@@ -107,24 +116,23 @@ class TestHeavyScheduler(object):
         def create_pods(count, cpu, memory):
             pod_ids = []
             for _ in xrange(count):
-                pod_ids.append(create_pod_with_boilerplate(
-                    yp_client,
-                    pod_set_id,
-                    spec=dict(
-                        enable_scheduling=True,
-                        resource_requests=dict(
-                            vcpu_guarantee=cpu,
-                            memory_limit=memory,
+                pod_ids.append(
+                    create_pod_with_boilerplate(
+                        yp_client,
+                        pod_set_id,
+                        spec=dict(
+                            enable_scheduling=True,
+                            resource_requests=dict(vcpu_guarantee=cpu, memory_limit=memory,),
                         ),
-                    ),
-                ))
+                    )
+                )
             return pod_ids
 
         yp_client.create_object(
             "node_segment",
             attributes=dict(
                 meta=dict(id=node_segment_id),
-                spec=dict(node_filter="[/labels/segment] = \"{}\"".format(node_segment_id)),
+                spec=dict(node_filter='[/labels/segment] = "{}"'.format(node_segment_id)),
             ),
         )
         node_labels = dict(segment=node_segment_id)
@@ -132,8 +140,7 @@ class TestHeavyScheduler(object):
         set_account_infinite_resource_limits(yp_client, "tmp", node_segment_id)
 
         pod_set_id = yp_client.create_object(
-            "pod_set",
-            attributes=dict(spec=dict(node_segment_id=node_segment_id)),
+            "pod_set", attributes=dict(spec=dict(node_segment_id=node_segment_id)),
         )
 
         cpu = 100
@@ -170,7 +177,11 @@ class TestHeavyScheduler(object):
 
         second_pod_ids = create_pods(batch_size, 2 * cpu, 4 * memory)
 
-        wait(lambda: are_error_pod_scheduling_statuses(get_pod_scheduling_statuses(yp_client, second_pod_ids)))
+        wait(
+            lambda: are_error_pod_scheduling_statuses(
+                get_pod_scheduling_statuses(yp_client, second_pod_ids)
+            )
+        )
 
         return first_pod_ids + second_pod_ids
 
@@ -184,16 +195,24 @@ class TestHeavyScheduler(object):
         wait_time = time_per_pod * (len(first_segment_pod_ids) + len(second_segment_pod_ids))
 
         def are_none_eviction_states(pod_ids):
-            return all(map(
-                lambda response: response[0] == "none",
-                yp_client.get_objects("pod", pod_ids, selectors=["/status/eviction/state"]),
-            ))
+            return all(
+                map(
+                    lambda response: response[0] == "none",
+                    yp_client.get_objects("pod", pod_ids, selectors=["/status/eviction/state"]),
+                )
+            )
 
         # Only first segment is processed by the Heavy Scheduler.
-        assert_over_time(lambda: are_none_eviction_states(second_segment_pod_ids), iter=wait_time, sleep_backoff=1.0)
+        assert_over_time(
+            lambda: are_none_eviction_states(second_segment_pod_ids),
+            iter=wait_time,
+            sleep_backoff=1.0,
+        )
 
         # Implicitly validates that Heavy Scheduler requests eviction with reason = "scheduler".
-        run_eviction_acknowledger(yp_client, iteration_count=wait_time, sleep_time=1.0, eviction_reason="scheduler")
+        run_eviction_acknowledger(
+            yp_client, iteration_count=wait_time, sleep_time=1.0, eviction_reason="scheduler"
+        )
         wait_pods_are_assigned(yp_client, first_segment_pod_ids)
 
 
@@ -202,17 +221,18 @@ class TestHeavySchedulerEvictionGarbageCollector(object):
     START_YP_HEAVY_SCHEDULER = True
 
     YP_HEAVY_SCHEDULER_CONFIG = dict(
-        heavy_scheduler = dict(
-            eviction_garbage_collector = dict(
-                time_limit = 20 * 1000,
-            ),
-        ),
+        heavy_scheduler=dict(eviction_garbage_collector=dict(time_limit=20 * 1000,),),
     )
 
     def test(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
 
-        time_limit = self.YP_HEAVY_SCHEDULER_CONFIG["heavy_scheduler"]["eviction_garbage_collector"]["time_limit"] / 1000.0
+        time_limit = (
+            self.YP_HEAVY_SCHEDULER_CONFIG["heavy_scheduler"]["eviction_garbage_collector"][
+                "time_limit"
+            ]
+            / 1000.0
+        )
 
         def get_eviction_state(pod_id):
             return yp_client.get_object("pod", pod_id, selectors=["/status/eviction/state"])[0]
@@ -251,31 +271,30 @@ class TestConcurrentHeavySchedulerBase(object):
 
         bloat_pod_ids = []
         for node_id, pod_set_id in zip(node_ids, pod_set_ids):
-            bloat_pod_ids.append(create_pod_with_boilerplate(
-                yp_client,
-                pod_set_id,
-                spec=dict(
-                    node_id=node_id,
-                    resource_requests=dict(
-                        vcpu_guarantee=5000,
-                        memory_limit=2 ** 30,
+            bloat_pod_ids.append(
+                create_pod_with_boilerplate(
+                    yp_client,
+                    pod_set_id,
+                    spec=dict(
+                        node_id=node_id,
+                        resource_requests=dict(vcpu_guarantee=5000, memory_limit=2 ** 30,),
                     ),
-                ),
-            ))
+                )
+            )
             # NB: can not create pod with /spec/node_id and /spec/enable_scheduling both set.
-            yp_client.update_object("pod", bloat_pod_ids[-1],
-                                    set_updates=[dict(path="/spec/enable_scheduling", value=True)])
+            yp_client.update_object(
+                "pod",
+                bloat_pod_ids[-1],
+                set_updates=[dict(path="/spec/enable_scheduling", value=True)],
+            )
 
-        for pod_set_id in pod_set_ids[len(bloat_pod_ids):]:
+        for pod_set_id in pod_set_ids[len(bloat_pod_ids) :]:
             create_pod_with_boilerplate(
                 yp_client,
                 pod_set_id,
                 spec=dict(
                     enable_scheduling=True,
-                    resource_requests=dict(
-                        vcpu_guarantee=10000,
-                        memory_limit=2 ** 30,
-                    ),
+                    resource_requests=dict(vcpu_guarantee=10000, memory_limit=2 ** 30,),
                 ),
             )
 
@@ -290,18 +309,13 @@ class TestConcurrentHeavySchedulerBase(object):
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestConcurrentHeavyScheduler(TestConcurrentHeavySchedulerBase):
     YP_HEAVY_SCHEDULER_CONFIG = dict(
-        heavy_scheduler = dict(
-            verbose = True,
-            node_segment = "default",
-            safe_cluster_pod_eviction_count = 9,
-            task_manager = dict(
-                task_slots_per_source = dict(
-                    swap_defragmentator = 2,
-                ),
-            ),
-            disruption_throttler = dict(
-                validate_pod_disruption_budget = False,
-                safe_suitable_node_count = 1,
+        heavy_scheduler=dict(
+            verbose=True,
+            node_segment="default",
+            safe_cluster_pod_eviction_count=9,
+            task_manager=dict(task_slots_per_source=dict(swap_defragmentator=2,),),
+            disruption_throttler=dict(
+                validate_pod_disruption_budget=False, safe_suitable_node_count=1,
             ),
         ),
     )
@@ -322,18 +336,14 @@ class TestConcurrentHeavyScheduler(TestConcurrentHeavySchedulerBase):
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestConcurrentHeavySchedulerLimitEvictions(TestConcurrentHeavySchedulerBase):
     YP_HEAVY_SCHEDULER_CONFIG = dict(
-        heavy_scheduler = dict(
-            node_segment = "default",
-            safe_cluster_pod_eviction_count = 9,
-            task_manager = dict(
-                task_slots_per_source = dict(
-                    swap_defragmentator = 2,
-                ),
-            ),
-            disruption_throttler = dict(
-                limit_evictions_by_pod_set = False,
-                validate_pod_disruption_budget = False,
-                safe_suitable_node_count = 1,
+        heavy_scheduler=dict(
+            node_segment="default",
+            safe_cluster_pod_eviction_count=9,
+            task_manager=dict(task_slots_per_source=dict(swap_defragmentator=2,),),
+            disruption_throttler=dict(
+                limit_evictions_by_pod_set=False,
+                validate_pod_disruption_budget=False,
+                safe_suitable_node_count=1,
             ),
         ),
     )
@@ -348,19 +358,15 @@ class TestConcurrentHeavySchedulerLimitEvictions(TestConcurrentHeavySchedulerBas
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestConcurrentHeavySchedulerSubsequentEvictions(TestConcurrentHeavySchedulerBase):
     YP_HEAVY_SCHEDULER_CONFIG = dict(
-        heavy_scheduler = dict(
-            verbose = True,
-            node_segment = "default",
-            safe_cluster_pod_eviction_count = 9,
-            task_manager = dict(
-                task_slots_per_source = dict(
-                    swap_defragmentator = 9,
-                ),
-            ),
-            disruption_throttler = dict(
-                limit_evictions_by_pod_set = True,
-                validate_pod_disruption_budget = False,
-                safe_suitable_node_count = 1,
+        heavy_scheduler=dict(
+            verbose=True,
+            node_segment="default",
+            safe_cluster_pod_eviction_count=9,
+            task_manager=dict(task_slots_per_source=dict(swap_defragmentator=9,),),
+            disruption_throttler=dict(
+                limit_evictions_by_pod_set=True,
+                validate_pod_disruption_budget=False,
+                safe_suitable_node_count=1,
             ),
         ),
     )
@@ -377,13 +383,12 @@ class TestAntiaffinityHealer(object):
     START_YP_HEAVY_SCHEDULER = True
 
     YP_HEAVY_SCHEDULER_CONFIG = dict(
-        heavy_scheduler = dict(
-            verbose = True,
-            node_segment = "default",
-            safe_cluster_pod_eviction_count = 9,
-            disruption_throttler = dict(
-                validate_pod_disruption_budget = False,
-                safe_suitable_node_count = 1,
+        heavy_scheduler=dict(
+            verbose=True,
+            node_segment="default",
+            safe_cluster_pod_eviction_count=9,
+            disruption_throttler=dict(
+                validate_pod_disruption_budget=False, safe_suitable_node_count=1,
             ),
         ),
     )
@@ -394,16 +399,12 @@ class TestAntiaffinityHealer(object):
             node_count=1,
             cpu_total_capacity=100000,
             memory_total_capacity=2 ** 60,
-            labels=dict(
-                segment="default",
-            ),
+            labels=dict(segment="default",),
         )[0]
-        topology = dict(
-            node=node_id,
-            rack=rack,
-            dc=dc,
+        topology = dict(node=node_id, rack=rack, dc=dc,)
+        yp_client.update_object(
+            "node", node_id, set_updates=[dict(path="/labels/topology", value=topology)]
         )
-        yp_client.update_object("node", node_id, set_updates=[dict(path="/labels/topology", value=topology)])
         return node_id
 
     def test_simple_antiaffinity_healing(self, yp_env_configurable):
@@ -412,22 +413,26 @@ class TestAntiaffinityHealer(object):
         self._make_node(yp_client, "one")
 
         pod_set_id = create_pod_set(yp_client)
-        pod_ids = [create_pod_with_boilerplate(
-            yp_client,
-            pod_set_id,
-            spec=dict(
-                enable_scheduling=True,
-                resource_requests=dict(
-                    vcpu_guarantee=1000,
-                    memory_limit=2 ** 30,
+        pod_ids = [
+            create_pod_with_boilerplate(
+                yp_client,
+                pod_set_id,
+                spec=dict(
+                    enable_scheduling=True,
+                    resource_requests=dict(vcpu_guarantee=1000, memory_limit=2 ** 30,),
                 ),
-            ),
-        ) for _ in range(2)]
+            )
+            for _ in range(2)
+        ]
         wait_pods_are_assigned(yp_client, pod_ids)
 
-        yp_client.update_object("pod_set", pod_set_id, set_updates=[
-            dict(path="/spec/antiaffinity_constraints", value=[dict(key="node", max_pods=1)])
-        ])
+        yp_client.update_object(
+            "pod_set",
+            pod_set_id,
+            set_updates=[
+                dict(path="/spec/antiaffinity_constraints", value=[dict(key="node", max_pods=1)])
+            ],
+        )
 
         self._make_node(yp_client, "one")
 
@@ -438,31 +443,36 @@ class TestAntiaffinityHealer(object):
     def test_sharded_antiaffinity_healing(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
 
-        pod_set_id = create_pod_set(yp_client, spec=dict(antiaffinity_constraints=[
-            dict(key="node", max_pods=1, pod_group_id_path="/labels/shard"),
-        ]))
+        pod_set_id = create_pod_set(
+            yp_client,
+            spec=dict(
+                antiaffinity_constraints=[
+                    dict(key="node", max_pods=1, pod_group_id_path="/labels/shard"),
+                ]
+            ),
+        )
 
         self._make_node(yp_client)
-        pod_ids = [create_pod_with_boilerplate(
-            yp_client,
-            pod_set_id,
-            spec=dict(
-                enable_scheduling=True,
-                resource_requests=dict(
-                    vcpu_guarantee=1000,
-                    memory_limit=2 ** 30,
+        pod_ids = [
+            create_pod_with_boilerplate(
+                yp_client,
+                pod_set_id,
+                spec=dict(
+                    enable_scheduling=True,
+                    resource_requests=dict(vcpu_guarantee=1000, memory_limit=2 ** 30,),
                 ),
-            ),
-            labels=dict(
-                shard=str(i),
-            ),
-        ) for i in range(10)]
+                labels=dict(shard=str(i),),
+            )
+            for i in range(10)
+        ]
 
         wait_pods_are_assigned(yp_client, pod_ids)
 
         self._make_node(yp_client)
 
-        yp_client.update_object("pod", pod_ids[7], set_updates=[dict(path="/labels/shard", value="2")])
+        yp_client.update_object(
+            "pod", pod_ids[7], set_updates=[dict(path="/labels/shard", value="2")]
+        )
 
         new_shard_pod_ids = [pod_ids[2], pod_ids[7]]
         wait(lambda: get_evictions_count(yp_client, new_shard_pod_ids) == 1)
@@ -473,28 +483,30 @@ class TestAntiaffinityHealer(object):
     def test_antiaffinity_healer_limit_by_pod_set(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
 
-        pod_set_id = create_pod_set(yp_client, spec=dict(antiaffinity_constraints=[
-            dict(key="rack", max_pods=1),
-        ]))
+        pod_set_id = create_pod_set(
+            yp_client, spec=dict(antiaffinity_constraints=[dict(key="rack", max_pods=1),])
+        )
 
         old_node_ids = [self._make_node(yp_client, "old_{}".format(i)) for i in range(3)]
 
-        pod_ids = [create_pod_with_boilerplate(
-            yp_client,
-            pod_set_id,
-            spec=dict(
-                enable_scheduling=True,
-                resource_requests=dict(
-                    vcpu_guarantee=1000,
-                    memory_limit=2 ** 30,
+        pod_ids = [
+            create_pod_with_boilerplate(
+                yp_client,
+                pod_set_id,
+                spec=dict(
+                    enable_scheduling=True,
+                    resource_requests=dict(vcpu_guarantee=1000, memory_limit=2 ** 30,),
                 ),
-            ),
-        ) for i in range(3)]
+            )
+            for i in range(3)
+        ]
 
         wait_pods_are_assigned(yp_client, pod_ids)
 
         for node_id in old_node_ids:
-            yp_client.update_object("node", node_id, set_updates=[dict(path="/labels/topology/rack", value="old")])
+            yp_client.update_object(
+                "node", node_id, set_updates=[dict(path="/labels/topology/rack", value="old")]
+            )
 
         for i in range(10):
             self._make_node(yp_client, str(i))
@@ -510,12 +522,7 @@ class TestAntiaffinityHealer(object):
 
         pod_set_id = create_pod_set(yp_client)
 
-        pod_spec = dict(
-            resource_requests=dict(
-                vcpu_guarantee=1000,
-                memory_limit=2**30,
-            )
-        )
+        pod_spec = dict(resource_requests=dict(vcpu_guarantee=1000, memory_limit=2 ** 30,))
 
         pod_ids = []
         for i in range(12):
@@ -526,16 +533,22 @@ class TestAntiaffinityHealer(object):
         pod_ids.append(create_pod_with_boilerplate(yp_client, pod_set_id, pod_spec))
 
         for pod_id in pod_ids:
-            yp_client.update_object("pod", pod_id, set_updates=[dict(path="/spec/enable_scheduling",
-                                                                     value=True)])
+            yp_client.update_object(
+                "pod", pod_id, set_updates=[dict(path="/spec/enable_scheduling", value=True)]
+            )
 
         antiaffinity_constraints = [
             dict(key="node", max_pods=2),
             dict(key="rack", max_pods=6),
             dict(key="dc", max_pods=12),
         ]
-        yp_client.update_object("pod_set", pod_set_id, set_updates=[dict(path="/spec/antiaffinity_constraints",
-                                                                         value=antiaffinity_constraints)])
+        yp_client.update_object(
+            "pod_set",
+            pod_set_id,
+            set_updates=[
+                dict(path="/spec/antiaffinity_constraints", value=antiaffinity_constraints)
+            ],
+        )
 
         pods_to_evict = [pod_ids[0], pod_ids[6], pod_ids[12]]
         wait(lambda: get_evictions_count(yp_client, pod_ids) == 1)

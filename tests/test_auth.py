@@ -64,9 +64,7 @@ class TestAuth(object):
 
     def test_good_user_ticket(self, yp_env_auth, set_bb_response):
         set_bb_response(BLACKBOX_USER_TICKET_REQUEST, BLACKBOX_USER_TICKET_RESPONSE)
-        with _create_client(
-            yp_env_auth, {"user_ticket": TEST_USER_TICKET}
-        ) as yp_client:
+        with _create_client(yp_env_auth, {"user_ticket": TEST_USER_TICKET}) as yp_client:
             _select_objects_succeeds(yp_client)
             yp_client.update_user_ticket("BadUserTicket")
             _select_objects_fails(yp_client)

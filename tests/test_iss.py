@@ -29,6 +29,7 @@ import time
 
 def is_in_arcadia():
     from .conftest import yatest_common
+
     return yatest_common is not None
 
 
@@ -69,11 +70,7 @@ def yp_agent_grpc_port(open_port_iterator):
 
 
 @pytest.fixture(scope="function")
-def iss_agent(request,
-              iss_agent_address,
-              yp_agent_grpc_port,
-              sandbox_base,
-              open_port_iterator):
+def iss_agent(request, iss_agent_address, yp_agent_grpc_port, sandbox_base, open_port_iterator):
     qemu_sandbox_path = sandbox_base.make_sandbox("iss_local_qemu")
     iss_local = IssLocal(
         dom0_address=iss_agent_address,
@@ -83,10 +80,12 @@ def iss_agent(request,
         port_generator=open_port_iterator,
     )
     iss_agent = iss_local.start()
+
     def finalizer():
         iss_agent.stop()
         iss_local.stop()
         yatest_save_sandbox(qemu_sandbox_path)
+
     request.addfinalizer(finalizer)
     return iss_agent
 
@@ -94,28 +93,22 @@ def iss_agent(request,
 @pytest.fixture(scope="function")
 def iss_resource_manager(request, iss_agent_address, sandbox_base):
     sandbox_path = sandbox_base.make_sandbox("iss_resource_manager")
-    resource_manager = ResourceManager(
-        sandbox_path,
-        ssl=False,
-        host=iss_agent_address,
-    )
+    resource_manager = ResourceManager(sandbox_path, ssl=False, host=iss_agent_address,)
     resource_manager.start()
+
     def finalizer():
         resource_manager.stop()
         yatest_save_sandbox(sandbox_path)
+
     request.addfinalizer(finalizer)
     return resource_manager
 
 
 @pytest.fixture(scope="class")
 def test_environment_iss(request, iss_agent_address, yp_agent_grpc_port, sandbox_base):
-    yp_master_config = dict( # TODO: Fix addresses overriding in the yp/local.py::YpInstance.
+    yp_master_config = dict(  # TODO: Fix addresses overriding in the yp/local.py::YpInstance.
         agent_grpc_server=dict(
-            addresses=[
-                dict(
-                    address="[{}]:{}".format(iss_agent_address, yp_agent_grpc_port)
-                )
-            ]
+            addresses=[dict(address="[{}]:{}".format(iss_agent_address, yp_agent_grpc_port))]
         )
     )
     environment = YpTestEnvironment(yp_master_config=yp_master_config, sandbox_base=sandbox_base)
@@ -140,20 +133,17 @@ class Resources(object):
     def load(iss_resource_manager):
         with open(POD_AGENT_ROOTFS_FILE_PATH, "rb") as pod_agent_rootfs_file:
             pod_agent_rootfs = iss_resource_manager.put_resource(
-                "pod_agent_rootfs.tar.gz",
-                pod_agent_rootfs_file.read()
+                "pod_agent_rootfs.tar.gz", pod_agent_rootfs_file.read()
             )
 
         with open(POD_AGENT_BINARY_FILE_PATH, "rb") as pod_agent_binary_file:
             pod_agent_binary = iss_resource_manager.put_resource(
-                "pod_agent",
-                pod_agent_binary_file.read()
+                "pod_agent", pod_agent_binary_file.read()
             )
 
         with open(WORKLOAD_ROOTFS_FILE_PATH, "rb") as workload_rootfs_file:
             workload_rootfs = iss_resource_manager.put_resource(
-                "workload_rootfs.tar.gz",
-                workload_rootfs_file.read()
+                "workload_rootfs.tar.gz", workload_rootfs_file.read()
             )
 
         return Resources(
@@ -164,26 +154,22 @@ class Resources(object):
 
 
 @pytest.mark.skipif(
-    not is_in_arcadia(),
-    reason="YP Iss tests are disabled outside Arcadia environment",
+    not is_in_arcadia(), reason="YP Iss tests are disabled outside Arcadia environment",
 )
 @pytest.mark.usefixtures("yp_env_iss", "iss_agent", "iss_resource_manager")
 class TestSchedulePod(object):
     def is_workload_active(self, yp_client, pod_id, workload_id):
         status_response = yp_client.get_object(
-            "pod",
-            pod_id,
-            selectors=["/status/agent/pod_agent_payload/status"]
+            "pod", pod_id, selectors=["/status/agent/pod_agent_payload/status"]
         )[0]
-        if status_response == None: # Check for YsonEntity or None.
+        if status_response == None:  # Check for YsonEntity or None.
             return False
         workloads = status_response.get("workloads", [])
         if len(workloads) < 1:
             return False
         assert len(workloads) == 1
         workload_status = workloads[0]
-        return workload_status.get("id") == workload_id and \
-            workload_status.get("state") == "active"
+        return workload_status.get("id") == workload_id and workload_status.get("state") == "active"
 
     def get_agent_initialization_time_limit(self):
         return 300
@@ -200,11 +186,7 @@ class TestSchedulePod(object):
 
         resources = Resources.load(iss_resource_manager)
 
-        pod_id, workload_id = self._start_workload(
-            yp_client,
-            iss_agent,
-            resources,
-        )
+        pod_id, workload_id = self._start_workload(yp_client, iss_agent, resources,)
 
         self.wait_for_active_workload(yp_client, pod_id, workload_id)
 
@@ -213,25 +195,17 @@ class TestSchedulePod(object):
 
         resources = Resources.load(iss_resource_manager)
 
-        pod_id, workload_id = self._start_workload(
-            yp_client,
-            iss_agent,
-            resources,
-        )
+        pod_id, workload_id = self._start_workload(yp_client, iss_agent, resources,)
 
         def get_master_spec_timestamp():
             return yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status/master_spec_timestamp"],
+                "pod", pod_id, selectors=["/status/master_spec_timestamp"],
             )[0]
 
         def get_agent_spec_timestamp():
-            return yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status/agent_spec_timestamp"],
-            )[0]
+            return yp_client.get_object("pod", pod_id, selectors=["/status/agent_spec_timestamp"],)[
+                0
+            ]
 
         def sync():
             wait(
@@ -251,14 +225,8 @@ class TestSchedulePod(object):
                     "pod",
                     pod_id,
                     set_updates=[
-                        dict(
-                            path="/status/agent/pod_agent_payload",
-                            value=dict(),
-                        ),
-                        dict(
-                            path="/spec/enable_scheduling",
-                            value=True,
-                        ),
+                        dict(path="/status/agent/pod_agent_payload", value=dict(),),
+                        dict(path="/spec/enable_scheduling", value=True,),
                     ],
                 )
                 successful_update_count += 1
@@ -274,11 +242,7 @@ class TestSchedulePod(object):
 
         resources = Resources.load(iss_resource_manager)
 
-        pod_id, workload_id = self._start_workload(
-            yp_client,
-            iss_agent,
-            resources,
-        )
+        pod_id, workload_id = self._start_workload(yp_client, iss_agent, resources,)
 
         # Try to interfere with the agent.
         time.sleep(random.randint(1, self.get_agent_initialization_time_limit()))
@@ -288,27 +252,15 @@ class TestSchedulePod(object):
             yp_client,
             pod_id,
             node_id="",
-            other_updates=[
-                dict(
-                    path="/spec/enable_scheduling",
-                    value=False,
-                ),
-            ],
+            other_updates=[dict(path="/spec/enable_scheduling", value=False,),],
             with_retries=True,
         )
 
         def validate_status():
-            status = yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status"],
-            )[0]
+            status = yp_client.get_object("pod", pod_id, selectors=["/status"],)[0]
 
             assert status["agent"] == dict(
-                iss=dict(),
-                state="unknown",
-                iss_payload="",
-                pod_agent_payload=dict(),
+                iss=dict(), state="unknown", iss_payload="", pod_agent_payload=dict(),
             )
 
             assert status["agent_spec_timestamp"] == 0
@@ -322,28 +274,15 @@ class TestSchedulePod(object):
         subnet = iss_agent.allocatable_subnet.exploded
         yp_client.create_object(
             "network_project",
-            attributes=dict(
-                meta=dict(id=network_project_id),
-                spec=dict(project_id=0xdeaf),
-            ),
+            attributes=dict(meta=dict(id=network_project_id), spec=dict(project_id=0xDEAF),),
         )
         create_nodes(
-            yp_client,
-            vlan_id="backbone",
-            subnet=subnet,
-            node_ids=[node_id],
+            yp_client, vlan_id="backbone", subnet=subnet, node_ids=[node_id],
         )
         pod_set_id = create_pod_set(yp_client)
-        return create_pod_with_boilerplate(
-            yp_client,
-            pod_set_id,
-            spec=pod_spec,
-        )
+        return create_pod_with_boilerplate(yp_client, pod_set_id, spec=pod_spec,)
 
-    def _start_workload(self,
-                        yp_client,
-                        iss_agent,
-                        resources):
+    def _start_workload(self, yp_client, iss_agent, resources):
         workload_id = "workload-id"
         box_id = "box-id"
         layer_id = "layer-id"
@@ -354,68 +293,61 @@ class TestSchedulePod(object):
                 "meta": {
                     "url": resources.pod_agent_binary.url,
                     "checksum": resources.pod_agent_binary.verification,
-                    "layers": [{
-                        "url": resources.pod_agent_rootfs.url,
-                        "checksum": resources.pod_agent_rootfs.verification,
-                    }]
+                    "layers": [
+                        {
+                            "url": resources.pod_agent_rootfs.url,
+                            "checksum": resources.pod_agent_rootfs.verification,
+                        }
+                    ],
                 },
                 "spec": {
-                    "workloads": [{
-                        "id": workload_id,
-                        "box_ref": box_id,
-                        "start": {
-                            "command_line": "sleep 1000",
-                            "time_limit": {
-                                "min_restart_period_ms": 100,
-                                "max_restart_period_ms": 1000,
-                                "max_execution_time_ms": 10000
-                            }
-                        },
-                        "readiness_check": {
-                            "container": {
-                                "command_line": "echo ready",
+                    "workloads": [
+                        {
+                            "id": workload_id,
+                            "box_ref": box_id,
+                            "start": {
+                                "command_line": "sleep 1000",
                                 "time_limit": {
                                     "min_restart_period_ms": 100,
                                     "max_restart_period_ms": 1000,
-                                    "max_execution_time_ms": 10000
+                                    "max_execution_time_ms": 10000,
+                                },
+                            },
+                            "readiness_check": {
+                                "container": {
+                                    "command_line": "echo ready",
+                                    "time_limit": {
+                                        "min_restart_period_ms": 100,
+                                        "max_restart_period_ms": 1000,
+                                        "max_execution_time_ms": 10000,
+                                    },
                                 }
-                            }
+                            },
                         }
-                    }],
-                    "boxes": [{
-                        "id": box_id,
-                        "rootfs": {
-                            "layer_refs": [layer_id]
-                        }
-                    }],
+                    ],
+                    "boxes": [{"id": box_id, "rootfs": {"layer_refs": [layer_id]}}],
                     "resources": {
-                        "layers": [{
-                            "id": layer_id,
-                            "url": resources.workload_rootfs.url,
-                            "checksum": resources.workload_rootfs.verification
-                        }]
+                        "layers": [
+                            {
+                                "id": layer_id,
+                                "url": resources.workload_rootfs.url,
+                                "checksum": resources.workload_rootfs.verification,
+                            }
+                        ]
                     },
-                    "mutable_workloads": [{
-                        "workload_ref": workload_id,
-                        "target_state": "active"
-                    }],
-                    "revision": 1
-                }
-            },
-            "ip6_address_requests": [{
-                "network_id": network_project_id,
-                "vlan_id": "backbone"
-            }],
-            "disk_volume_requests": [{
-                "id": "allocation",
-                "storage_class": "hdd",
-                "quota_policy": {
-                    "capacity": 1024 * 1024 * 1024
+                    "mutable_workloads": [{"workload_ref": workload_id, "target_state": "active"}],
+                    "revision": 1,
                 },
-                "labels": {
-                    "used_by_infra": True
+            },
+            "ip6_address_requests": [{"network_id": network_project_id, "vlan_id": "backbone"}],
+            "disk_volume_requests": [
+                {
+                    "id": "allocation",
+                    "storage_class": "hdd",
+                    "quota_policy": {"capacity": 1024 * 1024 * 1024},
+                    "labels": {"used_by_infra": True},
                 }
-            }]
+            ],
         }
         pod_id = self.prepare_objects(yp_client, iss_agent, pod_spec, network_project_id)
 
@@ -424,19 +356,15 @@ class TestSchedulePod(object):
         return pod_id, workload_id
 
         expected_spec_timestamp = yp_client.get_object(
-            "pod",
-            pod_id,
-            selectors=["/status/master_spec_timestamp"],
+            "pod", pod_id, selectors=["/status/master_spec_timestamp"],
         )[0]
         assert expected_spec_timestamp > 0
 
         def is_spec_applied():
-            pod_agent_status = yp_client.get_object(
-                "pod",
-                pod_id,
-                selectors=["/status/agent"],
-            )[0]
-            return pod_agent_status.get("current_spec_timestamp") == expected_spec_timestamp \
+            pod_agent_status = yp_client.get_object("pod", pod_id, selectors=["/status/agent"],)[0]
+            return (
+                pod_agent_status.get("current_spec_timestamp") == expected_spec_timestamp
                 and "current_spec_applied" in pod_agent_status
+            )
 
         wait(is_spec_applied, iter=300, sleep_backoff=1)

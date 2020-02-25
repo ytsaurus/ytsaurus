@@ -11,6 +11,7 @@ try:
 except ImportError:  # Python 3
     imap = map
 
+
 @pytest.mark.usefixtures("yp_env")
 class TestGrpcStubs(object):
     def _test_some_methods(self, yp_client):
@@ -35,7 +36,11 @@ class TestGrpcStubs(object):
         req.selector.paths[:] = ["/status/agent/state", "/meta/id", "/meta/pod_set_id"]
         rsp = object_stub.GetObject(req)
 
-        assert list(imap(yson._loads_from_native_str, rsp.result.values)) == ["unknown", pod_id, pod_set_id]
+        assert list(imap(yson._loads_from_native_str, rsp.result.values)) == [
+            "unknown",
+            pod_id,
+            pod_set_id,
+        ]
 
     def test_grpc_client(self, yp_env):
         with yp_env.yp_instance.create_client(transport="grpc") as yp_client:
@@ -129,7 +134,10 @@ class TestGrpcStubs(object):
         update.path = "/spec/pod_agent_payload"
         rsp = object_stub.UpdateObject(req)
 
-        assert yp_client.get_object("pod", pod_id, selectors=["/spec/pod_agent_payload/spec/id"])[0] == "some_id"
+        assert (
+            yp_client.get_object("pod", pod_id, selectors=["/spec/pod_agent_payload/spec/id"])[0]
+            == "some_id"
+        )
 
     def test_proto_payload_update_object(self, yp_env):
         with yp_env.yp_instance.create_client(transport="grpc") as yp_client:
@@ -151,7 +159,10 @@ class TestGrpcStubs(object):
         update.path = "/spec/pod_agent_payload"
         rsp = object_stub.UpdateObjects(req)
 
-        assert yp_client.get_object("pod", pod_id, selectors=["/spec/pod_agent_payload/spec/id"])[0] == "some_id"
+        assert (
+            yp_client.get_object("pod", pod_id, selectors=["/spec/pod_agent_payload/spec/id"])[0]
+            == "some_id"
+        )
 
     def test_proto_payload_update_objects(self, yp_env):
         with yp_env.yp_instance.create_client(transport="grpc") as yp_client:

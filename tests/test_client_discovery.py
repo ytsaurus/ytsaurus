@@ -19,23 +19,16 @@ class TestClientYpMasterDiscovery(object):
         class MockYpClient(object):
             def get_masters(self, _allow_retries=None):
                 return dict(master_infos=instance_discovery_infos)
+
         return MockYpClient()
 
     def test_nonalive_filtering(self):
-        client = self.get_mock_yp_client([
-            dict(
-                alive=False,
-                fqdn="fqdn1",
-                instance_tag="tag1",
-                http_address="httpaddress1",
-            ),
-            dict(
-                alive=False,
-                fqdn="fqdn2",
-                instance_tag="tag2",
-                http_address="httpaddress2",
-            ),
-        ])
+        client = self.get_mock_yp_client(
+            [
+                dict(alive=False, fqdn="fqdn1", instance_tag="tag1", http_address="httpaddress1",),
+                dict(alive=False, fqdn="fqdn2", instance_tag="tag2", http_address="httpaddress2",),
+            ]
+        )
         discovery = YpMasterDiscovery(client, expiration_time=100)
         with pytest.raises(YpClientError):
             discovery.get_random_instance_address("http")
@@ -43,32 +36,14 @@ class TestClientYpMasterDiscovery(object):
             discovery.get_instance_address_by_tag("tag1", "http")
 
     def test_transport(self):
-        client = self.get_mock_yp_client([
-            dict(
-                alive=True,
-                fqdn="fqdn1",
-                instance_tag="tag1",
-                http_address="httpaddress1",
-            ),
-            dict(
-                alive=False,
-                fqdn="fqdn2",
-                instance_tag="tag2",
-                http_address="httpaddress2",
-            ),
-            dict(
-                alive=True,
-                fqdn="fqdn3",
-                instance_tag="tag3",
-                grpc_address="grpcaddress1",
-            ),
-            dict(
-                alive=False,
-                fqdn="fqdn4",
-                instance_tag="tag4",
-                grpc_address="grpcaddress2",
-            ),
-        ])
+        client = self.get_mock_yp_client(
+            [
+                dict(alive=True, fqdn="fqdn1", instance_tag="tag1", http_address="httpaddress1",),
+                dict(alive=False, fqdn="fqdn2", instance_tag="tag2", http_address="httpaddress2",),
+                dict(alive=True, fqdn="fqdn3", instance_tag="tag3", grpc_address="grpcaddress1",),
+                dict(alive=False, fqdn="fqdn4", instance_tag="tag4", grpc_address="grpcaddress2",),
+            ]
+        )
         discovery = YpMasterDiscovery(client, expiration_time=100)
         for _ in range(10):
             assert discovery.get_random_instance_address("grpc") == "grpcaddress1"
@@ -76,10 +51,7 @@ class TestClientYpMasterDiscovery(object):
 
     def test_required_fields(self):
         instance_discovery_info = dict(
-            alive=True,
-            fqdn="fqdn1",
-            instance_tag="tag1",
-            grpc_address="grpcaddress1",
+            alive=True, fqdn="fqdn1", instance_tag="tag1", grpc_address="grpcaddress1",
         )
         for field in ["alive", "fqdn", "instance_tag", "grpc_address"]:
             info = copy.deepcopy(instance_discovery_info)
@@ -93,20 +65,12 @@ class TestClientYpMasterDiscovery(object):
         assert discovery.get_random_instance_address("grpc") == "grpcaddress1"
 
     def test_duplicate_tags(self):
-        client = self.get_mock_yp_client([
-            dict(
-                alive=True,
-                fqdn="fqdn1",
-                instance_tag="tag1",
-                http_address="httpaddress1",
-            ),
-            dict(
-                alive=False,
-                fqdn="fqdn2",
-                instance_tag="tag1",
-                http_address="httpaddress2",
-            )
-        ])
+        client = self.get_mock_yp_client(
+            [
+                dict(alive=True, fqdn="fqdn1", instance_tag="tag1", http_address="httpaddress1",),
+                dict(alive=False, fqdn="fqdn2", instance_tag="tag1", http_address="httpaddress2",),
+            ]
+        )
         discovery = YpMasterDiscovery(client, expiration_time=100)
         with pytest.raises(YpClientError):
             discovery.get_random_instance_address("http")
@@ -118,14 +82,17 @@ class TestClientYpMasterDiscovery(object):
 
             def get_masters(self, _allow_retries=None):
                 self._request_count += 1
-                return dict(master_infos=[
-                    dict(
-                        alive=True,
-                        fqdn="fqdn",
-                        instance_tag="tag",
-                        grpc_address=str(self._request_count),
-                    )
-                ])
+                return dict(
+                    master_infos=[
+                        dict(
+                            alive=True,
+                            fqdn="fqdn",
+                            instance_tag="tag",
+                            grpc_address=str(self._request_count),
+                        )
+                    ]
+                )
+
         EXPIRATION_TIME = 1000
         client = MockYpClient()
         discovery = YpMasterDiscovery(client, expiration_time=EXPIRATION_TIME)
@@ -137,20 +104,12 @@ class TestClientYpMasterDiscovery(object):
         assert int(discovery.get_random_instance_address("grpc")) > 1
 
     def test_balancing(self):
-        client = self.get_mock_yp_client([
-            dict(
-                alive=True,
-                fqdn="fqdn1",
-                instance_tag="tag1",
-                http_address="httpaddress1",
-            ),
-            dict(
-                alive=True,
-                fqdn="fqdn2",
-                instance_tag="tag2",
-                http_address="httpaddress2",
-            )
-        ])
+        client = self.get_mock_yp_client(
+            [
+                dict(alive=True, fqdn="fqdn1", instance_tag="tag1", http_address="httpaddress1",),
+                dict(alive=True, fqdn="fqdn2", instance_tag="tag2", http_address="httpaddress2",),
+            ]
+        )
         discovery = YpMasterDiscovery(client, expiration_time=100)
         addresses = set()
         for _ in range(1000):
@@ -175,14 +134,12 @@ class TestClientYpMasterDiscovery(object):
                 self._request_count += 1
                 if self._request_count == 1:
                     raise GrpcDeadlineExceededError()
-                return dict(master_infos=[
-                    dict(
-                        alive=True,
-                        fqdn="fqdn",
-                        instance_tag="tag",
-                        grpc_address="address"
-                    )
-                ])
+                return dict(
+                    master_infos=[
+                        dict(alive=True, fqdn="fqdn", instance_tag="tag", grpc_address="address")
+                    ]
+                )
+
         client = MockYpClient()
         discovery = YpMasterDiscovery(client, expiration_time=2000)
         with pytest.raises(GrpcDeadlineExceededError):
@@ -194,14 +151,12 @@ class TestClientYpMasterDiscovery(object):
         class MockYpClient(object):
             def get_masters(self, _allow_retries=True):
                 assert _allow_retries == False
-                return dict(master_infos=[
-                    dict(
-                        alive=True,
-                        fqdn="fqdn",
-                        instance_tag="tag",
-                        grpc_address="address"
-                    )
-                ])
+                return dict(
+                    master_infos=[
+                        dict(alive=True, fqdn="fqdn", instance_tag="tag", grpc_address="address")
+                    ]
+                )
+
         client = MockYpClient()
         discovery = YpMasterDiscovery(client, expiration_time=2000)
         assert discovery.get_random_instance_address("grpc") == "address"
@@ -217,8 +172,7 @@ class TestClientYpMasterDiscovery(object):
 
         def create_client():
             retries_config = update(
-                get_default_retries_config(),
-                dict(_CHAOS_MONKEY_FACTORY=lambda: ChaosMonkey()),
+                get_default_retries_config(), dict(_CHAOS_MONKEY_FACTORY=lambda: ChaosMonkey()),
             )
             return yp_env.yp_instance.create_client(config=dict(retries=retries_config))
 
