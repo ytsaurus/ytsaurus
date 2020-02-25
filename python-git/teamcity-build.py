@@ -228,7 +228,7 @@ def set_suid_bit(options):
 
 @build_step
 def copy_modules_from_contrib(options):
-    run(["./prepare_source_tree.py", "--yt-root", options.yt_source_directory], cwd=options.checkout_directory)
+    run(["./prepare_source_tree.py", "--yt-root", options.yt_source_directory], cwd=os.path.join(options.checkout_directory, "prepare_source_tree"))
 
 def _run_tests(options, python_version):
     sandbox_directory = os.path.join(options.sandbox_directory, python_version)
