@@ -112,6 +112,7 @@ def main():
     parser = argparse.ArgumentParser(description="Analyze harfile of opening one dashboard")
     parser.add_argument("HARFILE", type=str, help=".har file to analyze")
     parser.add_argument("--clique", type=str, default="ch_datalens", help="Alias of the clique serving the dashboard")
+    parser.add_argument("--log-level", type=str, default="info", help="Log level of logs to use")
     parser.add_argument("-v", "--verbose", action="store_true", help="Print lots of debugging information")
     args = parser.parse_args()
     
@@ -134,7 +135,9 @@ def main():
     substr_condition = " OR ".join("is_substr('{}', message)".format(invocation.get_request_id()) 
                                    for invocation in invocations)
 
-    rows = grep_logs.select_rows_batched("//sys/clickhouse/kolkhoz/{}/clickhouse.log".format(args.clique),
+    debug_suffix = "" if args.log_level == "info" else ".debug"
+
+    rows = grep_logs.select_rows_batched("//sys/clickhouse/kolkhoz/{}/clickhouse{}.log".format(args.clique, debug_suffix),
                                          [substr_condition], from_ts, to_ts, WINDOW_SIZE, False)
 
     for row in rows:
@@ -149,7 +152,10 @@ def main():
     if args.verbose:
         for invocation in invocations:
             first_row, last_row = invocation.get_boundary_log_rows()
-            assert first_row is not None and last_row is not None
+            if first_row is None or last_row is None:
+                logger.warn("There are no boundary rows for request %s (start_time = %s, finish_time = %s)", 
+                            invocation.get_request_id(), invocation.get_start_time(), invocation.get_finish_time())
+                continue
             logger.debug("Boundary rows for request %s (start_time = %s, finish_time = %s) are:", 
                          invocation.get_request_id(), invocation.get_start_time(), invocation.get_finish_time())
             grep_logs.print_row(first_row, file=sys.stderr)
