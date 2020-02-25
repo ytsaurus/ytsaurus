@@ -374,6 +374,18 @@ enum EMaintenanceKind
     [(NYT.NYson.NProto.enum_value_name) = "temporary-unreachable"];
 }
 
+enum EMaintenancePriority
+{
+    MP_NONE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "none"];
+
+    MP_HIGH = 1
+    [(NYT.NYson.NProto.enum_value_name) = "high"];
+
+    MP_NORMAL = 2
+    [(NYT.NYson.NProto.enum_value_name) = "normal"];
+}
+
 message TMaintenanceInfo
 {
     reserved 3;
@@ -402,6 +414,9 @@ message TMaintenanceInfo
 
     // Dynamically typed description.
     optional NYT.NYTree.NProto.TAttributeDictionary labels = 8;
+
+    // Priority.
+    optional EMaintenancePriority priority = 10;
 }
 
 message TNodeAlert
