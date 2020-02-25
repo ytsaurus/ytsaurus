@@ -70,6 +70,22 @@ class TestStages(object):
                 ],
             )
 
+        with pytest.raises(YtResponseError):
+            yp_client.update_object("stage", stage_id, set_updates=[{
+                "path": "/spec",
+                "value": {
+                    "account_id": "tmp",
+                    "deploy_units": {
+                        "replica_set": {},
+                        "correct_deploy_unit_id": {
+                            "images_for_boxes": {
+                                "unknown-box": {}
+                            }
+                        }
+                    }
+                }
+            }])
+
     def test_update_project_id(self, yp_env):
         yp_client = yp_env.yp_client
         stage_id = yp_client.create_object(

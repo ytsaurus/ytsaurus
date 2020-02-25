@@ -140,13 +140,14 @@ TEST(StageValidator, ValidatePodAgentSpecSameIdTest)
 {
     static auto checkSameId = [] (std::function<void(NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& id)> addObject) {
         NInfra::NPodAgent::API::TPodAgentSpec spec;
+        google::protobuf::Map<google::protobuf::string, NClient::NApi::NProto::TDockerImageDescription> emptyMap;
 
         addObject(spec, "id1");
         addObject(spec, "id2");
-        ValidatePodAgentSpec(spec);
+        ValidatePodAgentSpec(spec, emptyMap);
 
         addObject(spec, "id1");
-        ASSERT_THROW(ValidatePodAgentSpec(spec), TErrorException);
+        ASSERT_THROW(ValidatePodAgentSpec(spec, emptyMap), TErrorException);
     };
 
     // Static resource.
@@ -186,12 +187,13 @@ TEST(StageValidator, ValidatePodAgentSpecBadRefsTest)
         std::function<void(NInfra::NPodAgent::API::TPodAgentSpec& spec, const TString& refId)> addRef)
     {
         NInfra::NPodAgent::API::TPodAgentSpec spec;
+        google::protobuf::Map<google::protobuf::string, NClient::NApi::NProto::TDockerImageDescription> emptyMap;
 
         addObjectWithRef(spec, "id", "refId");
-        ASSERT_THROW(ValidatePodAgentSpec(spec), TErrorException);
+        ASSERT_THROW(ValidatePodAgentSpec(spec, emptyMap), TErrorException);
 
         addRef(spec, "refId");
-        ValidatePodAgentSpec(spec);
+        ValidatePodAgentSpec(spec, emptyMap);
     };
 
     // Volume -> layer.
@@ -246,23 +248,37 @@ TEST(StageValidator, ValidatePodAgentSpecBadRefsTest)
     );
 }
 
-
 TEST(StageValidator, ValidatePodAgentSpecWorkloadAndMutableWorkloadTest)
 {
     NInfra::NPodAgent::API::TPodAgentSpec spec;
+    google::protobuf::Map<google::protobuf::string, NClient::NApi::NProto::TDockerImageDescription> emptyMap;
 
     AddBoxToPodAgentSpec(spec, "box_ref", {}, {}, {});
 
     AddWorkloadToPodAgentSpec(spec, "id", "box_ref");
     // Workload, no mutable workload.
-    ASSERT_THROW(ValidatePodAgentSpec(spec), TErrorException);
+    ASSERT_THROW(ValidatePodAgentSpec(spec, emptyMap), TErrorException);
 
     AddMutableWorkloadToPodAgentSpec(spec, "id");
-    ValidatePodAgentSpec(spec);
+    ValidatePodAgentSpec(spec, emptyMap);
 
     spec.clear_workloads();
     // No workload, mutable workload.
-    ASSERT_THROW(ValidatePodAgentSpec(spec), TErrorException);
+    ASSERT_THROW(ValidatePodAgentSpec(spec, emptyMap), TErrorException);
+}
+
+TEST(StageValidator, ValidatePodAgentSpecBoxIdForDockerImagesTest)
+{
+    NInfra::NPodAgent::API::TPodAgentSpec spec;
+    google::protobuf::Map<google::protobuf::string, NClient::NApi::NProto::TDockerImageDescription> imagesForBoxes;
+    imagesForBoxes.insert({"box", NClient::NApi::NProto::TDockerImageDescription()});
+
+    // No box.
+    ASSERT_THROW(ValidatePodAgentSpec(spec, imagesForBoxes), TErrorException);
+
+    AddBoxToPodAgentSpec(spec, "box", {}, {}, {});
+
+    ValidatePodAgentSpec(spec, imagesForBoxes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

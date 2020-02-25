@@ -227,7 +227,22 @@ def prepare_docker_resources_objects(yp_client):
                             box1: default_docker_resource,
                             box2: default_docker_resource,
                         },
-                        "replica_set": {"replica_set_template": {"pod_template_spec": {}}},
+                        "replica_set": {
+                            "replica_set_template": {
+                                "pod_template_spec": {
+                                    "spec": {
+                                        "pod_agent_payload": {
+                                            "spec": {
+                                                "boxes": [
+                                                    {"id": box1},
+                                                    {"id": box2}
+                                                ]
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
                     }
                 },
             },

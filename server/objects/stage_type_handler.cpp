@@ -13,8 +13,6 @@
 
 #include <yp/server/access_control/access_control_manager.h>
 
-#include <yp/client/api/proto/stage.pb.h>
-
 #include <contrib/libs/re2/re2/re2.h>
 
 namespace NYP::NServer::NObjects {
@@ -154,7 +152,7 @@ private:
                     oldPodTemplateSpec.spec(),
                     podTemplateSpec.spec(),
                     PodSpecValidationConfig_);
-                ValidatePodAgentSpec(podTemplateSpec.spec().pod_agent_payload().spec());
+                ValidatePodAgentSpec(podTemplateSpec.spec().pod_agent_payload().spec(), deployUnit.images_for_boxes());
 
                 if (deployUnit.has_tvm_config()) {
                     ValidateTvmConfig(deployUnit.tvm_config());
@@ -265,7 +263,9 @@ void ValidateStageAndDeployUnitId(const TObjectId& id, const TString& descriptio
     }
 }
 
-void ValidatePodAgentSpec(const NInfra::NPodAgent::API::TPodAgentSpec& spec)
+void ValidatePodAgentSpec(
+    const NInfra::NPodAgent::API::TPodAgentSpec& spec,
+    const google::protobuf::Map<google::protobuf::string, NClient::NApi::NProto::TDockerImageDescription>& imagesForBoxes)
 {
     THashSet<TString> staticResourceIds;
     THashSet<TString> layerIds;
@@ -336,6 +336,12 @@ void ValidatePodAgentSpec(const NInfra::NPodAgent::API::TPodAgentSpec& spec)
                     box.id(),
                     mountedVolume.volume_ref());
             }
+        }
+    }
+
+    for (auto& imageForBox: imagesForBoxes) {
+        if (!boxIds.contains(imageForBox.first)) {
+            THROW_ERROR_EXCEPTION("Unknown box %Qv specified for docker images", imageForBox.first);
         }
     }
 
