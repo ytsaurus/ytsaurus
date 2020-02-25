@@ -1,7 +1,9 @@
 package yterrors
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -108,4 +110,16 @@ retry error:
 		assert.Equal(t, testCase.brief, fmt.Sprintf("%v", testCase.err))
 		assert.Equal(t, testCase.full[1:], fmt.Sprintf("%+v", testCase.err))
 	}
+}
+
+func TestJSONInt64Attr(t *testing.T) {
+	ytErr := Err("error", Attr("i", uint64(math.MaxUint64)))
+
+	js, err := json.Marshal(ytErr)
+	require.NoError(t, err)
+
+	var out Error
+	require.NoError(t, json.Unmarshal(js, &out))
+
+	require.Equal(t, fmt.Sprintf("%+v", ytErr), fmt.Sprintf("%+v", &out))
 }

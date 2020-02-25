@@ -8,16 +8,15 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"a.yandex-team.ru/library/go/core/log/ctxlog"
-	"a.yandex-team.ru/yt/go/yterrors"
+	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/library/go/core/log/ctxlog"
 	"a.yandex-team.ru/library/go/core/log/nop"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/internal"
-
-	"golang.org/x/xerrors"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 func decodeYTErrorFromHeaders(h http.Header) (ytErr *yterrors.Error, err error) {
@@ -26,11 +25,8 @@ func decodeYTErrorFromHeaders(h http.Header) (ytErr *yterrors.Error, err error) 
 		return nil, nil
 	}
 
-	d := json.NewDecoder(bytes.NewBufferString(header))
-	d.UseNumber()
-
 	ytErr = &yterrors.Error{}
-	if decodeErr := d.Decode(ytErr); decodeErr != nil {
+	if decodeErr := json.Unmarshal([]byte(header), ytErr); decodeErr != nil {
 		err = xerrors.Errorf("yt: malformed 'X-YT-Error' header: %w", decodeErr)
 	}
 

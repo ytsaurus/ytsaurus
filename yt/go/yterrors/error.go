@@ -1,6 +1,8 @@
 package yterrors
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"sort"
@@ -230,4 +232,16 @@ func Err(args ...interface{}) error {
 	}
 
 	return err
+}
+
+var (
+	_ json.Unmarshaler = (*Error)(nil)
+)
+
+func (yt *Error) UnmarshalJSON(b []byte) error {
+	d := json.NewDecoder(bytes.NewBuffer(b))
+	d.UseNumber()
+
+	type ytError Error
+	return d.Decode((*ytError)(yt))
 }
