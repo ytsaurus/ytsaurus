@@ -573,6 +573,10 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             logger.warning("Access to %s is denied", node.path)
             return
 
+        if "type" not in node.content.attributes:
+            logger.warning("No attribute 'type' at %s", node.path)
+            node.content.attributes["type"] = "document"
+
         object_type = node.content.attributes["type"]
 
         if node.followed_by_link and object_type == "link":
