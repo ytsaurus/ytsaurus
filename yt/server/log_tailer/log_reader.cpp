@@ -110,9 +110,9 @@ TLogFileReader::TLogFileReader(
     , Bootstrap_(bootstrap)
     , RowBuffer_(New<TRowBuffer>())
     , LogTableNameTable_(New<TNameTable>())
-    , Logger("LogReader")
+    , Logger("LogTailer")
     , ExtraLogTableColumns_(std::move(extraLogTableColumns))
-    , Profiler_("/log_reader", {TProfileManager::Get()->RegisterTag("filename", Config_->Path)})
+    , Profiler_("/log_tailer", {TProfileManager::Get()->RegisterTag("filename", Config_->Path)})
 {
     Logger.AddTag("LogFile: %v", Config_->Path);
 
@@ -247,6 +247,7 @@ void TLogFileReader::DoReadBuffer()
         for (int index = 0; index < bytesRead; ++index) {
             char symbol = buffer.data()[index];
             if (symbol == '\n') {
+                auto currentIncrement = NextIncrement_++;
                 if (Buffer_) {
                     TLogRecord record;
                     try {
@@ -259,7 +260,7 @@ void TLogFileReader::DoReadBuffer()
                         Buffer_.clear();
                         continue;
                     }
-                    record.Increment = NextIncrement_++;
+                    record.Increment = currentIncrement;
                     RecordsBuffer_.push_back(record);
                     Buffer_.clear();
                 }
@@ -340,8 +341,7 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
             transaction->GetId());
         transaction->WriteRows(
             tableConfig->Path,
-            // TODO(max42): remove this when YT-11869 is fixed.
-            New<TNameTable>(*LogTableNameTable_),
+            LogTableNameTable_,
             TSharedRange<NTableClient::TUnversionedRow>{rows, MakeStrong(this)});
     }
 

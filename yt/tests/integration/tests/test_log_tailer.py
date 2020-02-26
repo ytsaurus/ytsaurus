@@ -158,7 +158,7 @@ class TestLogTailer(YTEnvSetup):
         try:
             def check_rows_written_profiling():
                 try:
-                    r = requests.get(url="http://localhost:{}/orchid/profiling/log_reader/rows_written".format(log_tailer_monitoring_port))
+                    r = requests.get(url="http://localhost:{}/orchid/profiling/log_tailer/rows_written".format(log_tailer_monitoring_port))
                     rsp = r.json()
                     if len(rsp) == 0:
                         return False
