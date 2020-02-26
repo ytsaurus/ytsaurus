@@ -359,7 +359,7 @@ def prepare_configs(instance_count,
 
 def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_version=None, client=None):
     # COMPAT(max42)
-    atomicity = "none" if _is_fresher_than(log_tailer_version, "20.2.34072") else "full"
+    atomicity = "none" if _is_fresher_than(log_tailer_version, "19.8.34144") else "full"
 
     attributes = {
         "min_data_versions": 0,
