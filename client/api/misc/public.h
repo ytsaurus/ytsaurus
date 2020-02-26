@@ -27,6 +27,8 @@ class TTvmConfig;
 
 class TAntiaffinityConstraint;
 
+class TDockerImageDescription;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

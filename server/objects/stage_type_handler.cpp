@@ -13,6 +13,8 @@
 
 #include <yp/server/access_control/access_control_manager.h>
 
+#include <yp/client/api/proto/stage.pb.h>
+
 #include <contrib/libs/re2/re2/re2.h>
 
 namespace NYP::NServer::NObjects {
@@ -339,7 +341,7 @@ void ValidatePodAgentSpec(
         }
     }
 
-    for (auto& imageForBox: imagesForBoxes) {
+    for (const auto& imageForBox: imagesForBoxes) {
         if (!boxIds.contains(imageForBox.first)) {
             THROW_ERROR_EXCEPTION("Unknown box %Qv specified for docker images", imageForBox.first);
         }

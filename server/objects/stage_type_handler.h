@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yp/client/api/proto/stage.pb.h>
-
 namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
