@@ -383,6 +383,28 @@ def execute_command_with_output_format(command_name, kwargs, input_stream=None):
 
 ###########################################################################
 
+def _assert_true_for_cell(cell_index, predicate):
+    assert predicate(get_driver(cell_index))
+
+def assert_true_for_secondary_cells(env, predicate):
+    for i in xrange(env.secondary_master_cell_count):
+        _assert_true_for_cell(i + 1, predicate)
+
+def assert_true_for_all_cells(env, predicate):
+    _assert_true_for_cell(0, predicate)
+    assert_true_for_secondary_cells(env, predicate)
+
+def _check_true_for_all_cells(env, predicate):
+    for i in xrange(env.secondary_master_cell_count + 1):
+        if not predicate(get_driver(i)):
+            return False
+    return True
+
+def wait_true_for_all_cells(env, predicate):
+    wait(lambda: _check_true_for_all_cells(env, predicate))
+
+###########################################################################
+
 def multicell_sleep():
     if is_multicell:
         time.sleep(0.5)

@@ -91,20 +91,6 @@ class TestMasterCellAddition(YTEnvSetup):
     def modify_node_config(cls, config):
         cls._disable_last_cell_and_stash_config(config["cluster_connection"])
 
-    def _assert_true_for_secondary_cells(self, predicate):
-        for i in xrange(self.Env.secondary_master_cell_count):
-            self._assert_true_for_cell(i + 1, predicate)
-
-    def _assert_true_for_cell(self, cell_index, predicate):
-        assert predicate(get_driver(cell_index))
-
-    def _wait_true_for_secondary_cells(self, predicate):
-        for i in xrange(self.Env.secondary_master_cell_count):
-            self._wait_true_for_cell(i + 1, predicate)
-
-    def _wait_true_for_cell(self, cell_index, predicate):
-        wait(lambda: predicate(get_driver(cell_index)))
-
     def _do_for_cell(self, cell_index, callback):
         return callback(get_driver(cell_index))
 
@@ -123,16 +109,16 @@ class TestMasterCellAddition(YTEnvSetup):
 
         yield
 
-        self._assert_true_for_secondary_cells(
+        assert_true_for_secondary_cells(self.Env,
             lambda driver: not exists("//sys/accounts/acc_sync_remove", driver=driver))
         assert not exists("//sys/accounts/acc_sync_remove")
 
-        self._assert_true_for_secondary_cells(
+        assert_true_for_secondary_cells(self.Env,
             lambda driver: get("//sys/accounts/acc_sync_create/@life_stage", driver=driver) == "creation_committed")
         assert get("//sys/accounts/acc_sync_create/@life_stage") == "creation_committed"
 
         wait(lambda: get("//sys/accounts/acc_async_create/@life_stage") == "creation_committed")
-        self._assert_true_for_secondary_cells(
+        assert_true_for_secondary_cells(self.Env,
             lambda driver: get("//sys/accounts/acc_async_create/@life_stage", driver=driver) == "creation_committed")
 
         assert get("//sys/accounts/acc_async_remove/@life_stage") == "removal_started"
@@ -143,7 +129,7 @@ class TestMasterCellAddition(YTEnvSetup):
         remove("//tmp/t")
 
         wait(lambda: not exists("//sys/accounts/acc_async_remove"))
-        self._assert_true_for_secondary_cells(
+        assert_true_for_secondary_cells(self.Env,
             lambda driver: not exists("//sys/accounts/acc_async_remove", driver=driver))
 
     @authors("shakurov")
