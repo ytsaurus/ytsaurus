@@ -610,6 +610,22 @@ TEST_F(TFutureTest, AnyOf)
     EXPECT_EQ(2, result);
 }
 
+TEST_F(TFutureTest, AnyOfRetainError)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AnyOf(futures, TRetainErrorPolicy{});
+    EXPECT_FALSE(f.IsSet());
+    p2.Set(TError("oops"));
+    EXPECT_TRUE(f.IsSet());
+    auto resultOrError = f.Get();
+    EXPECT_FALSE(resultOrError.IsOK());
+}
+
 TEST_F(TFutureTest, AnyOfEmpty)
 {
     std::vector<TFuture<int>> futures;

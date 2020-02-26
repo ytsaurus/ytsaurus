@@ -660,7 +660,7 @@ TFuture<T> AnyOf(
 //! Errors happening in #futures are regarded as regular values; the first-set (either
 //! successfully or not) future completes the whole computation.
 template <class T>
-TFuture<TErrorOr<T>> AnyOf(
+TFuture<T> AnyOf(
     std::vector<TFuture<T>> futures,
     TRetainErrorPolicy errorPolicy,
     TFutureCombinerOptions options = {});
