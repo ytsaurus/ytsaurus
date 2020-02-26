@@ -28,6 +28,7 @@ void TNetworkProject::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, Name_);
     Save(context, ProjectId_);
+    Save(context, Acd_);
 }
 
 void TNetworkProject::Load(NCellMaster::TLoadContext& context)
@@ -37,6 +38,14 @@ void TNetworkProject::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, Name_);
     Load(context, ProjectId_);
+
+    // COMPAT(gritukan)
+    using NCellMaster::EMasterReign;
+    if (context.GetVersion() >= EMasterReign::FixNetworkProjectSerialization ||
+       (context.GetVersion() >= EMasterReign::FixNetworkProjectSerialization_19_8 && context.GetVersion() < EMasterReign::TruncateJournals))
+    {
+        Load(context, Acd_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

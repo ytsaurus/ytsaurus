@@ -6,6 +6,7 @@
 #    yt/server/master/cell_master/serialize.cpp - if the version differs, then the update should be done with master snapshots (+ --set-read-only).
 #    yt/server/node/tablet_node/serialize.cpp - if the version differs, then the update should be done with tablet cell recreation.
 
+* gritukan: Serialization of network projects fixed. Update masters via snapshot.
 * savrus: Changed semantics of mount locking on secondary master. Update masters via snapshot.
 * lexolordan: To use force unmount user is required to have permission "administer" on cell_bundle. Update masters via snapshot.
 * shakurov: ACL validation semantics have changed for portal nodes. Update masters via snapshot.
