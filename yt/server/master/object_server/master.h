@@ -16,6 +16,8 @@ class TMasterObject
 public:
     explicit TMasterObject(TObjectId id);
 
+    virtual TString GetLowercaseObjectName() const override;
+    virtual TString GetCapitalizedObjectName() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

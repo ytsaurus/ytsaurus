@@ -116,6 +116,16 @@ TLock::TLock(const TLockId& id)
     : TNonversionedObjectBase(id)
 { }
 
+TString TLock::GetLowercaseObjectName() const
+{
+    return Format("lock %v", GetId());
+}
+
+TString TLock::GetCapitalizedObjectName() const
+{
+    return Format("Lock %v", GetId());
+}
+
 void TLock::Save(TSaveContext& context) const
 {
     TNonversionedObjectBase::Save(context);

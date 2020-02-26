@@ -92,11 +92,6 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual TString DoGetName(const TTableReplica* replica) override
-    {
-        return Format("table replica %v", replica->GetId());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TTableReplica* replica, TTransaction* /*transaction*/) override
     {
         return CreateTableReplicaProxy(Bootstrap_, &Metadata_, replica);

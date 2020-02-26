@@ -59,12 +59,6 @@ IObjectProxyPtr TNonversionedMapObjectTypeHandlerBase<TObject>::DoGetProxy(
 }
 
 template <class TObject>
-TString TNonversionedMapObjectTypeHandlerBase<TObject>::DoGetName(const TObject* object)
-{
-    return Format("object %v", object->GetName());
-}
-
-template <class TObject>
 NSecurityServer::TAccessControlDescriptor*
 TNonversionedMapObjectTypeHandlerBase<TObject>::DoFindAcd(TObject* object)
 {

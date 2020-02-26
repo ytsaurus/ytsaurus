@@ -55,7 +55,8 @@ public:
 public:
     explicit TAccount(TAccountId id, bool isRoot = false);
 
-    virtual TString GetObjectName() const override;
+    virtual TString GetLowercaseObjectName() const override;
+    virtual TString GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

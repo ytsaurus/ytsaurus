@@ -11,7 +11,12 @@ TNetworkProject::TNetworkProject(TNetworkProjectId id)
     , Acd_(this)
 { }
 
-TString TNetworkProject::GetObjectName() const
+TString TNetworkProject::GetLowercaseObjectName() const
+{
+    return Format("network project %Qv", Name_);
+}
+
+TString TNetworkProject::GetCapitalizedObjectName() const
 {
     return Format("Network project %Qv", Name_);
 }

@@ -446,6 +446,16 @@ TTablet::TTablet(TTabletId id)
     , RetainedTimestamp_(MinTimestamp)
 { }
 
+TString TTablet::GetLowercaseObjectName() const
+{
+    return Format("tablet %v", GetId());
+}
+
+TString TTablet::GetCapitalizedObjectName() const
+{
+    return Format("Tablet %v", GetId());
+}
+
 void TTablet::Save(TSaveContext& context) const
 {
     TNonversionedObjectBase::Save(context);

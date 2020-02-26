@@ -16,6 +16,16 @@ TTabletAction::TTabletAction(TTabletActionId id)
     : TNonversionedObjectBase(id)
 { }
 
+TString TTabletAction::GetLowercaseObjectName() const
+{
+    return Format("tablet action %v", GetId());
+}
+
+TString TTabletAction::GetCapitalizedObjectName() const
+{
+    return Format("Tablet action %v", GetId());
+}
+
 void TTabletAction::Save(NCellMaster::TSaveContext& context) const
 {
     TNonversionedObjectBase::Save(context);

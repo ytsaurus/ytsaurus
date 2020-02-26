@@ -39,6 +39,9 @@ public:
 
     std::vector<const TTabletCell*> GetAliveCells() const;
 
+    virtual TString GetLowercaseObjectName() const override;
+    virtual TString GetCapitalizedObjectName() const override;
+
     virtual void Save(NCellMaster::TSaveContext& context) const override;
     virtual void Load(NCellMaster::TLoadContext& context) override;
 };

@@ -106,11 +106,6 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual TString DoGetName(const TTabletAction* action) override
-    {
-        return Format("tablet action %v", action->GetId());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TTabletAction* action, TTransaction* /*transaction*/) override
     {
         return CreateTabletActionProxy(Bootstrap_, &Metadata_, action);

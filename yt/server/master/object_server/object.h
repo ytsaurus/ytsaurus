@@ -177,6 +177,9 @@ public:
     //! Returns |true| if the objects is not foreign.
     bool IsNative() const;
 
+    //! Builds a human-readable string for diagnostics.
+    virtual TString GetLowercaseObjectName() const;
+    virtual TString GetCapitalizedObjectName() const;
 
     //! Returns an immutable collection of attributes associated with the object or |nullptr| is there are none.
     const TAttributeSet* GetAttributes() const;
@@ -254,9 +257,6 @@ class TNonversionedObjectBase
 {
 public:
     explicit TNonversionedObjectBase(TObjectId id);
-
-    //! Builds a human-readable string for diagnostics.
-    virtual TString GetObjectName() const;
 
     //! Throws if the current life stage is not #EObjectLifeStage::CreationCommitted.
     void ValidateActiveLifeStage() const;

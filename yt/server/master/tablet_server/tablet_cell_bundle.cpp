@@ -55,6 +55,16 @@ std::vector<const TTabletCell*> TTabletCellBundle::GetAliveCells() const
     return cells;
 }
 
+TString TTabletCellBundle::GetLowercaseObjectName() const
+{
+    return Format("tablet cell bundle %Qv", GetName());
+}
+
+TString TTabletCellBundle::GetCapitalizedObjectName() const
+{
+    return Format("Tablet cell bundle %Qv", GetName());
+}
+
 void TTabletCellBundle::Save(TSaveContext& context) const
 {
     TCellBundle::Save(context);

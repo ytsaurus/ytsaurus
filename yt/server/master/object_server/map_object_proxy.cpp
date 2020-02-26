@@ -421,8 +421,7 @@ void TNonversionedMapObjectProxyBase<TObject>::RenameSelf(const TString& newName
     auto* impl = TBase::GetThisImpl();
     auto* parent = impl->GetParent();
     if (!parent) {
-        // XXX(kiselyovp) object name is capitalized here, fix this in YT-11362
-        THROW_ERROR_EXCEPTION("Cannot rename %v as it has no parent", impl->GetObjectName());
+        THROW_ERROR_EXCEPTION("Cannot rename %v as it has no parent", impl->GetLowercaseObjectName());
     }
     auto oldName = impl->GetName();
     if (oldName == newName) {
@@ -578,7 +577,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateRemoval()
         auto refCount = objectManager->GetObjectRefCounter(TBase::GetObject());
         auto expectedRefCount = GetChildCount() + 1;
         if (refCount != expectedRefCount) {
-            THROW_ERROR_EXCEPTION("%v is in use", TBase::GetThisImpl()->GetObjectName());
+            THROW_ERROR_EXCEPTION("%v is in use", TBase::GetThisImpl()->GetCapitalizedObjectName());
         }
     }
 }
@@ -598,7 +597,7 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateChildNameAvailability(con
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::AlreadyExists,
             "%v already has a child %Qv",
-            impl->GetObjectName(),
+            impl->GetCapitalizedObjectName(),
             childName);
     }
 }
@@ -898,11 +897,10 @@ void TNonversionedMapObjectFactoryBase<TObject>::AttachChild(
 
         parent->ValidateAfterAttachChild(key, child);
     } catch (const std::exception& ex) {
-        // XXX(kiselyovp) object name is capitalized here, fix this in YT-11362
         THROW_ERROR_EXCEPTION(
             "Failed to attach child %Qv to %v",
             key,
-            parent->GetObject()->template As<TObject>()->GetObjectName())
+            parent->GetObject()->template As<TObject>()->GetLowercaseObjectName())
             << ex;
     }
 }

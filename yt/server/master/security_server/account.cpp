@@ -67,7 +67,12 @@ TAccount::TAccount(TAccountId id, bool isRoot)
     : TNonversionedMapObjectBase<TAccount>(id, isRoot)
 { }
 
-TString TAccount::GetObjectName() const
+TString TAccount::GetLowercaseObjectName() const
+{
+    return Format("account %Qv", GetName());
+}
+
+TString TAccount::GetCapitalizedObjectName() const
 {
     return Format("Account %Qv", GetName());
 }

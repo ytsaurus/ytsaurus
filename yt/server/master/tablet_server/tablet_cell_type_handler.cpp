@@ -54,11 +54,6 @@ public:
 private:
     using TBase = TCellTypeHandlerBase<TTabletCell>;
 
-    virtual TString DoGetName(const TTabletCell* cell) override
-    {
-        return Format("tablet cell %v", cell->GetId());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TTabletCell* cell, TTransaction* /*transaction*/) override
     {
         return CreateTabletCellProxy(Bootstrap_, &Metadata_, cell);
