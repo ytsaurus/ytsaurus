@@ -301,9 +301,6 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
         }
     }
 
-    def _replicator_sleep(self):
-        time.sleep(self.REPLICATOR_REACTION_TIME)
-
     def _set_account_chunk_count_limit(self, account, value):
         set("//sys/accounts/{0}/@resource_limits/chunk_count".format(account), value)
 
@@ -326,9 +323,6 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
         set("//tmp/a/@account", "max")
 
         self._set_account_chunk_count_limit("max", 0)
-        self._replicator_sleep()
-        assert not self._is_account_chunk_count_limit_violated("max")
-
         with pytest.raises(YtError): copy("//tmp/t", "//tmp/a/t")
         assert not exists("//tmp/a/t")
         copy("//tmp/t", "//tmp/a/t", pessimistic_quota_check=False)
@@ -344,9 +338,6 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
         set("//tmp/a/@account", "max")
 
         set_account_disk_space_limit("max", 0)
-        self._replicator_sleep()
-        assert not self._is_account_disk_space_limit_violated("max")
-
         with pytest.raises(YtError): copy("//tmp/t", "//tmp/a/t")
         assert not exists("//tmp/a/t")
         copy("//tmp/t", "//tmp/a/t", pessimistic_quota_check=False)
