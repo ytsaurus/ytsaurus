@@ -158,11 +158,6 @@ private:
 
     TImpl* const Owner_;
 
-    virtual TString DoGetName(const TAccount* account) override
-    {
-        return Format("account %Qv", account->GetName());
-    }
-
     virtual std::optional<int> GetDepthLimit() const override
     {
         return AccountTreeDepthLimit;
@@ -208,11 +203,6 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual TString DoGetName(const TUser* user) override
-    {
-        return Format("user %Qv", user->GetName());
-    }
-
     virtual TAccessControlDescriptor* DoFindAcd(TUser* user) override
     {
         return &user->Acd();
@@ -257,11 +247,6 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual TString DoGetName(const TGroup* group) override
-    {
-        return Format("group %Qv", group->GetName());
-    }
-
     virtual TAccessControlDescriptor* DoFindAcd(TGroup* group) override
     {
         return &group->Acd();
@@ -302,11 +287,6 @@ public:
 
 private:
     TImpl* const Owner_;
-
-    virtual TString DoGetName(const TNetworkProject* networkProject) override
-    {
-        return Format("network project %Qv", networkProject->GetName());
-    }
 
     virtual IObjectProxyPtr DoGetProxy(TNetworkProject* networkProject, TTransaction* transaction) override;
     virtual void DoZombifyObject(TNetworkProject* networkProject) override;
@@ -649,7 +629,7 @@ public:
 
         auto delta = currentMasterMemoryUsage - node->GetChargedMasterMemoryUsage();
         YT_LOG_TRACE_UNLESS(IsRecovery(), "Updating master memory usage (Account: %v, MasterMemoryUsage: %v, Delta: %v)",
-            account->GetObjectName(),
+            account->GetName(),
             account->GetMasterMemoryUsage(),
             delta);
         account->SetMasterMemoryUsage(account->GetMasterMemoryUsage() + delta);

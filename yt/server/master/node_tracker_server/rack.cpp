@@ -12,6 +12,16 @@ TRack::TRack(TRackId id)
     , Index_(-1)
 { }
 
+TString TRack::GetLowercaseObjectName() const
+{
+    return Format("rack %Qv", GetName());
+}
+
+TString TRack::GetCapitalizedObjectName() const
+{
+    return Format("Rack %Qv", GetName());
+}
+
 void TRack::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);

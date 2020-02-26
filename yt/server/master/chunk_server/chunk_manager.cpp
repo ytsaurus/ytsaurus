@@ -231,13 +231,6 @@ public:
     {
         return EObjectType::Chunk;
     }
-
-private:
-    virtual TString DoGetName(const TChunk* chunk) override
-    {
-        return Format("chunk %v", chunk->GetId());
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -258,12 +251,6 @@ public:
 
 private:
     const EObjectType Type_;
-
-    virtual TString DoGetName(const TChunk* chunk) override
-    {
-        return Format("erasure chunk %v", chunk->GetId());
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -280,13 +267,6 @@ public:
     {
         return EObjectType::JournalChunk;
     }
-
-private:
-    virtual TString DoGetName(const TChunk* chunk) override
-    {
-        return Format("journal chunk %v", chunk->GetId());
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -323,11 +303,6 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual TString DoGetName(const TMedium* medium) override
-    {
-        return Format("medium %Qv", medium->GetName());
-    }
-
     virtual TAccessControlDescriptor* DoFindAcd(TMedium* medium) override
     {
         return &medium->Acd();
@@ -354,12 +329,6 @@ public:
 private:
     TImpl* const Owner_;
 
-
-    virtual TString DoGetName(const TChunkList* chunkList) override
-    {
-        return Format("chunk list %v", chunkList->GetId());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TChunkList* chunkList, TTransaction* transaction) override;
 
     virtual void DoDestroyObject(TChunkList* chunkList) override;
@@ -382,12 +351,6 @@ public:
 
 private:
     TImpl* const Owner_;
-
-
-    virtual TString DoGetName(const TChunkView* chunkView) override
-    {
-        return Format("chunk view %v", chunkView->GetId());
-    }
 
     virtual IObjectProxyPtr DoGetProxy(TChunkView* chunkView, TTransaction* transaction) override;
 

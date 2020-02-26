@@ -630,7 +630,7 @@ private:
         return externalCellTag == NotReplicatedCellTag ? TCellTagList() : TCellTagList{externalCellTag};
     }
 
-    virtual TString DoGetName(const TCypressNode* node);
+    virtual TString DoGetName(const TCypressNode* node) override;
 
     virtual IObjectProxyPtr DoGetProxy(
         TCypressNode* node,
@@ -668,11 +668,6 @@ public:
     }
 
 private:
-    virtual TString DoGetName(const TLock* lock) override
-    {
-        return Format("lock %v", lock->GetId());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(
         TLock* lock,
         TTransaction* /*transaction*/) override

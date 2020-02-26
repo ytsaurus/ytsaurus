@@ -12,7 +12,12 @@ TGroup::TGroup(TGroupId id)
     : TSubject(id)
 { }
 
-TString TGroup::GetObjectName() const
+TString TGroup::GetLowercaseObjectName() const
+{
+    return Format("group %Qv", Name_);
+}
+
+TString TGroup::GetCapitalizedObjectName() const
 {
     return Format("Group %Qv", Name_);
 }
