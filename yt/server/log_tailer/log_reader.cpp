@@ -316,14 +316,14 @@ bool TLogFileReader::TryProcessRecordRange(TIteratorRange<TLogRecordBuffer::iter
 
     ui64 bytesToWrite = 0;
     for (size_t index = 0; index < rowsToWrite; ++index) {
-        const auto& record = RecordsBuffer_[index];
+        const auto& record = recordRange[index];
         bytesToWrite += record.Size;
         for (size_t tableIndex = 0; tableIndex < Config_->Tables.size(); ++tableIndex) {
             if (Config_->Tables[tableIndex]->RequireTraceId && record.TraceId.empty()) {
                 continue;
             }
             rowsPerTable[tableIndex].emplace_back(LogRecordToUnversionedRow(
-                RecordsBuffer_[index],
+                record,
                 RowBuffer_,
                 LogTableNameTable_,
                 ExtraLogTableColumns_));
