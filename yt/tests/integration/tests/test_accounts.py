@@ -107,7 +107,7 @@ class AccountsTestSuiteBase(YTEnvSetup):
         set("//sys/accounts/{0}/@resource_limits".format(account), self._build_resource_limits())
 
     def _multiply_account_limits(self, account, multiplier):
-        old_limits = get("//sys/accounts/{0test}/@resource_limits".format(account))
+        old_limits = get("//sys/accounts/{0}/@resource_limits".format(account))
         new_limits = multiply_recursive(old_limits, multiplier)
         set("//sys/accounts/{0}/@resource_limits".format(account), new_limits)
 
