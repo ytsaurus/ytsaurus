@@ -120,6 +120,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_12139_FixDoublePrepare)                                    (1112))  // babenko
     ((FixDoBranch_19_8)                                             (1113))  // aleksandra-zh
     ((YT_11951_FixMountLock)                                        (1114))  // savrus
+    ((FixNetworkProjectSerialization_19_8)                          (1115))  // gritukan
     ((TruncateJournals)                                             (1200))  // aleksandra-zh
     ((PrevRandomSeed)                                               (1201))  // aleksandra-zh
     ((FixDenseMapSerialization)                                     (1202))  // aleksandra-zh
@@ -129,6 +130,7 @@ DEFINE_ENUM(EMasterReign,
     ((MasterMemoryUsageAccounting)                                  (1206))  // aleksandra-zh
     ((InitializeAccountMasterMemoryUsage)                           (1207))  // aleksandra-zh
     ((YT_11279_UnmountForceOnlySuperuser)                           (1208))  // lexolordan
+    ((FixNetworkProjectSerialization)                               (1209))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
