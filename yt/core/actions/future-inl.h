@@ -1603,7 +1603,7 @@ public:
     }
 };
 
-template <class T, class R>
+template <class T>
 class TAnyOfFutureCombiner
     : public TRefCounted
 {
@@ -1617,7 +1617,7 @@ public:
         , Options_(options)
     { }
 
-    TFuture<R> Run()
+    TFuture<T> Run()
     {
         if (this->Futures_.empty()) {
             return MakeFuture<T>(TError(
@@ -1640,7 +1640,7 @@ private:
     const std::vector<TFuture<T>> Futures_;
     const bool SkipErrors_;
     const TFutureCombinerOptions Options_;
-    const TPromise<R> Promise_ = NewPromise<T>();
+    const TPromise<T> Promise_ = NewPromise<T>();
 
     std::atomic_flag FuturesCanceled_ = ATOMIC_FLAG_INIT;
 
@@ -1933,17 +1933,17 @@ TFuture<T> AnyOf(
     if (futures.size() == 1) {
         return std::move(futures[0]);
     }
-    return New<NDetail::TAnyOfFutureCombiner<T, T>>(std::move(futures), true, options)
+    return New<NDetail::TAnyOfFutureCombiner<T>>(std::move(futures), true, options)
         ->Run();
 }
 
 template <class T>
-TFuture<TErrorOr<T>> AnyOf(
+TFuture<T> AnyOf(
     std::vector<TFuture<T>> futures,
     TRetainErrorPolicy /*errorPolicy*/,
     TFutureCombinerOptions options)
 {
-    return New<NDetail::TAnyOfFutureCombiner<T, TErrorOr<T>>>(std::move(futures), false, options)
+    return New<NDetail::TAnyOfFutureCombiner<T>>(std::move(futures), false, options)
         ->Run();
 }
 
