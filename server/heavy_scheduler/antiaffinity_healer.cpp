@@ -16,6 +16,8 @@
 
 #include <yp/client/api/native/helpers.h>
 
+#include <yt/core/misc/finally.h>
+
 #include <util/random/shuffle.h>
 
 namespace NYP::NServer::NHeavyScheduler {
@@ -120,22 +122,34 @@ private:
     THeavyScheduler* const HeavyScheduler_;
     const TAntiaffinityHealerConfigPtr Config_;
 
+    int AntiaffinityOvercommitCount_;
+
+    struct TProfiling
+    {
+        NProfiling::TSimpleGauge AntiaffinityOvercommitCount{"/antiaffinity_overcommit_count"};
+    };
+
+    TProfiling Profiling_;
+
     void GuardedRun(const TClusterPtr& cluster)
     {
         auto podSets = cluster->GetPodSets();
         Shuffle(podSets.begin(), podSets.end());
         int podsLeft = Config_->PodsPerIterationSoftLimit;
 
+        AntiaffinityOvercommitCount_ = 0;
+        auto finally = Finally([this] () {
+            Profiler.Update(Profiling_.AntiaffinityOvercommitCount, AntiaffinityOvercommitCount_);
+        });
+
         for (const auto& podSet : podSets) {
-            if (podsLeft <= 0) {
-                break;
-            }
+            bool dryRun = podsLeft <= 0;
             podsLeft -= static_cast<int>(podSet->SchedulablePods().size());
-            CreatePodSetTasks(podSet);
+            CreatePodSetTasks(podSet, dryRun);
         }
     }
 
-    void CreatePodSetTasks(TPodSet* podSet)
+    void CreatePodSetTasks(TPodSet* podSet, bool dryRun)
     {
         auto topologyZonePods = GetTopologyZonePods(podSet);
 
@@ -183,7 +197,8 @@ private:
                         pod->GetId(),
                         podSet->GetId(),
                         *zone);
-                    if (!disruptionThrottler->ThrottleEviction(pod))
+                    ++AntiaffinityOvercommitCount_;
+                    if (!dryRun && !disruptionThrottler->ThrottleEviction(pod))
                     {
                         if (taskManager->GetTaskSlotCount(ETaskSource::AntiaffinityHealer) > 0) {
                             taskManager->Add(CreateEvictionTask(HeavyScheduler_->GetClient(), pod),

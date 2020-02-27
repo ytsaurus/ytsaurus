@@ -46,33 +46,34 @@ public:
     {
         auto now = TInstant::Now();
 
-        int timedOutCount = 0;
-        int succeededCount = 0;
-        int failedCount = 0;
-        int activeCount = 0;
+        TEnumIndexedVector<ETaskSource, int> timedOutCount;
+        TEnumIndexedVector<ETaskSource, int> succeededCount;
+        TEnumIndexedVector<ETaskSource, int> failedCount;
+        TEnumIndexedVector<ETaskSource, int> activeCount;
 
-        for (auto& tasks : Tasks_) {
+        for (auto source : TEnumTraits<ETaskSource>::GetDomainValues()) {
+            auto& tasks = Tasks_[source];
             auto finishedIt = std::partition(
                 tasks.begin(),
                 tasks.end(),
                 [&] (const ITaskPtr& task) {
                     if (task->GetState() == ETaskState::Succeeded) {
-                        ++succeededCount;
+                        ++succeededCount[source];
                         return false;
                     }
                     if (task->GetState() == ETaskState::Failed) {
-                        ++failedCount;
+                        ++failedCount[source];
                         return false;
                     }
                     if (task->GetStartTime() + Config_->TaskTimeLimit < now) {
-                        ++timedOutCount;
+                        ++timedOutCount[source];
                         YT_LOG_DEBUG("Task time limit exceeded (TaskId: %v, StartTime: %v, TimeLimit: %v)",
                             task->GetId(),
                             task->GetStartTime(),
                             Config_->TaskTimeLimit);
                         return false;
                     }
-                    ++activeCount;
+                    ++activeCount[source];
                     return true;
                 });
 
@@ -88,10 +89,25 @@ public:
             }
         }
 
-        Profiler_.Update(Profiling_.TimedOutCounter, timedOutCount);
-        Profiler_.Update(Profiling_.SucceededCounter, succeededCount);
-        Profiler_.Update(Profiling_.FailedCounter, failedCount);
-        Profiler_.Update(Profiling_.ActiveCounter, activeCount);
+        for (auto source : TEnumTraits<ETaskSource>::GetDomainValues()) {
+            const char* path;
+            switch (source) {
+                case ETaskSource::AntiaffinityHealer:
+                    path = "/antiaffinity_healer";
+                    break;
+                case ETaskSource::SwapDefragmentator:
+                    path = "/swap_defragmentator";
+                    break;
+                default:
+                    YT_ABORT();
+            };
+            auto profiler = Profiler_.AppendPath(path);
+            auto profiling = Profiling_[source];
+            profiler.Update(profiling.TimedOutCounter, timedOutCount[source]);
+            profiler.Update(profiling.SucceededCounter, succeededCount[source]);
+            profiler.Update(profiling.FailedCounter, failedCount[source]);
+            profiler.Update(profiling.ActiveCounter, activeCount[source]);
+        }
     }
 
     void Add(ITaskPtr task, ETaskSource source)
@@ -126,7 +142,7 @@ private:
         NProfiling::TSimpleGauge ActiveCounter{"/active"};
     };
 
-    TProfiling Profiling_;
+    TEnumIndexedVector<ETaskSource, TProfiling> Profiling_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

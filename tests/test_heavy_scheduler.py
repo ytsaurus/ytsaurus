@@ -100,14 +100,16 @@ class TestHeavyScheduler(object):
         )
 
         def are_task_counters_initialized():
-            for name in ("active", "succeeded", "failed", "timed_out"):
-                samples = json.loads(
-                    monitoring_client.get("/profiling/heavy_scheduler/task_manager/{}".format(name))
-                )
-                if len(samples) > 0 and samples[-1]["value"] == 0:
-                    continue
-                else:
-                    return False
+            for component in ("swap_defragmentator", "antiaffinity_healer"):
+                for name in ("active", "succeeded", "failed", "timed_out"):
+                    samples = json.loads(
+                        monitoring_client.get("/profiling/heavy_scheduler/task_manager/{}/{}"
+                                              .format(component, name))
+                    )
+                    if len(samples) > 0 and samples[-1]["value"] == 0:
+                        continue
+                    else:
+                        return False
             return True
 
         wait(are_task_counters_initialized, ignore_exceptions=True)
