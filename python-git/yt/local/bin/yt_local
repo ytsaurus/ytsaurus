@@ -110,10 +110,8 @@ def start_func(**kwargs):
         kwargs["http_proxy_count"] = 0
     if kwargs["rpc_proxy"] and kwargs["rpc_proxy_count"] is None:
         kwargs["rpc_proxy_count"] = 1
-    if kwargs["proxy_port"] is not None:
-        kwargs["http_proxy_ports"] = kwargs["proxy_port"]
 
-    for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start", "operations_memory_limit", "no_proxy", "rpc_proxy", "proxy_port"):
+    for opt in ("masters_count", "nodes_count", "schedulers_count", "ports_range_start", "operations_memory_limit", "no_proxy", "rpc_proxy"):
         del kwargs[opt]
     # Tests options
     sync_mode_sleep_timeout = kwargs.pop("sync_mode_sleep_timeout")
@@ -198,7 +196,12 @@ def add_start_subparser(subparsers):
     parser.add_argument("-q", "--quiet", action="store_true", default=False,
                         help="decrease verbosity (leave only warnings and errors)")
 
-    parser.add_argument("--proxy-port", type=int, nargs="+", help="proxy ports for http proxy; number of values should be equal to http-proxy-count.")
+    parser.add_argument("--proxy-port", type=int, nargs="+", dest="http_proxy_ports",
+                        help="proxy ports for http proxy; number of values should be equal to http-proxy-count.")
+    parser.add_argument("--http-proxy-port", type=int, nargs="+", dest="http_proxy_ports",
+                        help="proxy ports for http proxy; number of values should be equal to http-proxy-count.")
+    parser.add_argument("--rpc-proxy-port", type=int, nargs="+", dest="rpc_proxy_ports",
+                        help="ports for rpc proxues; number of values should be equal to rpc-proxy-count.")
     parser.add_argument("--enable-debug-logging", action="store_true", default=False,
                         help="set logging level threshold to DEBUG")
     parser.add_argument("--enable-logging-compression", action="store_true", default=False,
