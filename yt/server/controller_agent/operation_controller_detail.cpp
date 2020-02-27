@@ -1370,6 +1370,9 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
     for (int index = 0; index < OutputTables_.size(); ++index) {
         if (OutputTables_[index]->Path.GetRowCountLimit()) {
             YT_LOG_INFO("Output table has row count limit, force disabling auto merge (TableIndex: %v)", index);
+            auto error = TError("Output table has row count limit, force disabling auto merge")
+                << TErrorAttribute("table_index", index);
+            SetOperationAlert(EOperationAlertType::AutoMergeDisabled, error);
             return false;
         }
     }
@@ -1392,32 +1395,41 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
         OperationId);
 
     bool autoMergeEnabled = false;
+    bool sortedOutputAutoMergeRequired = false;
 
     auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
     for (int index = 0; index < OutputTables_.size(); ++index) {
         const auto& outputTable = OutputTables_[index];
-        if (outputTable->Path.GetAutoMerge() &&
-            !outputTable->TableUploadOptions.TableSchema.IsSorted())
-        {
-            auto edgeDescriptor = standardEdgeDescriptors[index];
-            // Auto-merge jobs produce single output, so we override the table
-            // index in writer options with 0.
-            edgeDescriptor.TableWriterOptions = CloneYsonSerializable(edgeDescriptor.TableWriterOptions);
-            edgeDescriptor.TableWriterOptions->TableIndex = 0;
-            auto task = New<TAutoMergeTask>(
-                this /* taskHost */,
-                index,
-                chunkCountPerMergeJob,
-                autoMergeSpec->ChunkSizeThreshold,
-                dataWeightPerJob,
-                Spec_->MaxDataWeightPerJob,
-                edgeDescriptor);
-            RegisterTask(task);
-            AutoMergeTasks.emplace_back(std::move(task));
-            autoMergeEnabled = true;
+        if (outputTable->Path.GetAutoMerge()) {
+            if (outputTable->TableUploadOptions.TableSchema.IsSorted()) {
+                sortedOutputAutoMergeRequired = true;
+                AutoMergeTasks.emplace_back(nullptr);
+            } else {
+                auto edgeDescriptor = standardEdgeDescriptors[index];
+                // Auto-merge jobs produce single output, so we override the table
+                // index in writer options with 0.
+                edgeDescriptor.TableWriterOptions = CloneYsonSerializable(edgeDescriptor.TableWriterOptions);
+                edgeDescriptor.TableWriterOptions->TableIndex = 0;
+                auto task = New<TAutoMergeTask>(
+                    this /* taskHost */,
+                    index,
+                    chunkCountPerMergeJob,
+                    autoMergeSpec->ChunkSizeThreshold,
+                    dataWeightPerJob,
+                    Spec_->MaxDataWeightPerJob,
+                    edgeDescriptor);
+                RegisterTask(task);
+                AutoMergeTasks.emplace_back(std::move(task));
+                autoMergeEnabled = true;
+            }
         } else {
             AutoMergeTasks.emplace_back(nullptr);
         }
+    }
+
+    if (sortedOutputAutoMergeRequired && !autoMergeEnabled) {
+        auto error = TError("Sorted output with auto merge is not supported for now, it will be done in YT-8024");
+        SetOperationAlert(EOperationAlertType::AutoMergeDisabled, error);
     }
 
     return autoMergeEnabled;
