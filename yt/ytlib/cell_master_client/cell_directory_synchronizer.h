@@ -22,6 +22,8 @@ public:
         TCellDirectorySynchronizerConfigPtr config,
         TCellDirectoryPtr directory);
 
+    ~TCellDirectorySynchronizer();
+
     void Start();
     void Stop();
 

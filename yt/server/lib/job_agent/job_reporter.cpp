@@ -836,6 +836,9 @@ TJobReporter::TJobReporter(
             : nullptr)
 { }
 
+TJobReporter::~TJobReporter()
+{ }
+
 void TJobReporter::ReportStatistics(TJobReport&& statistics)
 {
     if (Impl_) {

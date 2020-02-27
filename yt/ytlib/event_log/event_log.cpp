@@ -212,6 +212,9 @@ TEventLogWriter::TEventLogWriter(
     : Impl_(New<TImpl>(config, client, invoker))
 { }
 
+TEventLogWriter::~TEventLogWriter()
+{ }
+
 std::unique_ptr<IYsonConsumer> TEventLogWriter::CreateConsumer()
 {
     return Impl_->CreateConsumer();

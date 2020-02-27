@@ -114,6 +114,9 @@ TJobNodeDescriptorCache::TJobNodeDescriptorCache(
         std::move(schedulerChannel)))
 { }
 
+TJobNodeDescriptorCache::~TJobNodeDescriptorCache()
+{ }
+
 TFuture<TNodeDescriptor> TJobNodeDescriptorCache::Get(const TJobNodeDescriptorKey& key)
 {
     return Impl_->Get(key);

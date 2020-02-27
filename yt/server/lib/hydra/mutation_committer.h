@@ -91,6 +91,8 @@ public:
         IChangelogStorePtr changelogStore,
         TEpochContext* epochContext);
 
+    ~TLeaderCommitter();
+
     //! Initiates a new distributed commit.
     /*!
      *  A distributed commit is completed when the mutation is received, applied,

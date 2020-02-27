@@ -191,6 +191,9 @@ TCellDirectorySynchronizer::TCellDirectorySynchronizer(
         std::move(directory)))
 { }
 
+TCellDirectorySynchronizer::~TCellDirectorySynchronizer()
+{ }
+
 void TCellDirectorySynchronizer::Start()
 {
     Impl_->Start();

@@ -56,6 +56,8 @@ class TCompositeMapService
 public:
     TCompositeMapService();
 
+    ~TCompositeMapService();
+
     virtual std::vector<TString> GetKeys(i64 limit = std::numeric_limits<i64>::max()) const override;
     virtual i64 GetSize() const override;
     virtual IYPathServicePtr FindItemService(TStringBuf key) const override;

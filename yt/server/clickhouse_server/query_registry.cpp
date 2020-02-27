@@ -414,6 +414,9 @@ TQueryRegistry::TQueryRegistry(NYT::NClickHouseServer::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
 
+TQueryRegistry::~TQueryRegistry()
+{ }
+
 void TQueryRegistry::Register(TQueryContext* queryContext)
 {
     Impl_->Register(queryContext);

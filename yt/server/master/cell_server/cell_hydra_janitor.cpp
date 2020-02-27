@@ -229,6 +229,9 @@ TCellHydraJanitor::TCellHydraJanitor(NCellMaster::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
 
+TCellHydraJanitor::~TCellHydraJanitor()
+{ }
+
 void TCellHydraJanitor::Initialize()
 {
     Impl_->Initialize();

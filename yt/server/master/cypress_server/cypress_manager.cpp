@@ -3415,6 +3415,9 @@ TCypressManager::TCypressManager(TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
 
+TCypressManager::~TCypressManager()
+{ }
+
 void TCypressManager::Initialize()
 {
     Impl_->Initialize();

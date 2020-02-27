@@ -40,6 +40,8 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         TChunkPlacementPtr chunkPlacement);
 
+    ~TChunkReplicator();
+
     void Start(TChunk* frontChunk, int chunkCount);
     void Stop();
 

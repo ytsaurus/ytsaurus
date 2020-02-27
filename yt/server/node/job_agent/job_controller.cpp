@@ -1450,6 +1450,9 @@ TJobController::TJobController(
         bootstrap))
 { }
 
+TJobController::~TJobController()
+{ }
+
 void TJobController::Initialize()
 {
     Impl_->Initialize();

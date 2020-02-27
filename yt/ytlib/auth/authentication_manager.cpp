@@ -152,6 +152,9 @@ TAuthenticationManager::TAuthenticationManager(
         std::move(profiler)))
 { }
 
+TAuthenticationManager::~TAuthenticationManager()
+{ }
+
 const NRpc::IAuthenticatorPtr& TAuthenticationManager::GetRpcAuthenticator() const
 {
     return Impl_->GetRpcAuthenticator();

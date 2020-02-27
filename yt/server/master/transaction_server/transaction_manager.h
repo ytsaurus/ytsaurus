@@ -39,6 +39,8 @@ public:
 public:
     explicit TTransactionManager(NCellMaster::TBootstrap* bootstrap);
 
+    ~TTransactionManager();
+
     void Initialize();
 
     TTransaction* StartTransaction(

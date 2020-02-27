@@ -225,6 +225,9 @@ TPartWriter::TPartWriter(IChunkWriterPtr writer, const std::vector<i64>& blockSi
     : Impl_(New<TImpl>(writer, blockSizes, computeChecksum))
 { }
 
+TPartWriter::~TPartWriter()
+{ }
+
 TFuture<void> TPartWriter::Consume(const TPartRange& range, const TSharedRef& block)
 {
     return Impl_->Consume(range, block);
@@ -387,6 +390,9 @@ TPartReader::TPartReader(
         blockSizes))
 { }
 
+TPartReader::~TPartReader()
+{ }
+
 TFuture<TSharedRef> TPartReader::Produce(const TPartRange& range)
 {
     return Impl_->Produce(range);
@@ -493,6 +499,9 @@ TPartEncoder::TPartEncoder(
         encodeRanges,
         producers,
         consumers))
+{ }
+
+TPartEncoder::~TPartEncoder()
 { }
 
 void TPartEncoder::Run()

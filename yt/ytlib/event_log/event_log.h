@@ -92,6 +92,8 @@ public:
         const NApi::NNative::IClientPtr& client,
         const IInvokerPtr& invoker);
 
+    ~TEventLogWriter();
+
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateConsumer() override;
 
     virtual void UpdateConfig(const TEventLogManagerConfigPtr& config) override;

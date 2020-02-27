@@ -31,6 +31,8 @@ public:
         const NApi::NNative::IConnectionPtr& masterConnection,
         std::optional<TString> localAddress = std::nullopt);
 
+    ~TJobReporter();
+
     void ReportStatistics(TJobReport&& statistics);
     void SetEnabled(bool enable);
     void SetSpecEnabled(bool enable);

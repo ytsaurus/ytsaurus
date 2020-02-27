@@ -165,6 +165,9 @@ TCellTracker::TCellTracker(NCellMaster::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
 
+TCellTracker::~TCellTracker()
+{ }
+
 void TCellTracker::Start()
 {
     Impl_->Start();

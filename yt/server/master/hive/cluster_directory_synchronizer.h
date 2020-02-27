@@ -21,6 +21,8 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         const NHiveClient::TClusterDirectoryPtr& clusterDirectory);
 
+    ~TClusterDirectorySynchronizer();
+
     //! Starts periodic syncs.
     void Start();
 

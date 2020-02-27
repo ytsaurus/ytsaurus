@@ -1224,7 +1224,7 @@ private:
             if (!IsObjectAlive(node)) {
                 continue;
             }
-            
+
             node->RebuildTags();
             InitializeNodeStates(node);
             InitializeNodeIOWeights(node);
@@ -1953,6 +1953,9 @@ TNodeTracker::TNodeTracker(
     TNodeTrackerConfigPtr config,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
+{ }
+
+TNodeTracker::~TNodeTracker()
 { }
 
 void TNodeTracker::Initialize()

@@ -996,6 +996,9 @@ TMulticellManager::TMulticellManager(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
+TMulticellManager::~TMulticellManager()
+{ }
+
 void TMulticellManager::Initialize()
 {
     Impl_->Initialize();

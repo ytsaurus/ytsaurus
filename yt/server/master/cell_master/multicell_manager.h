@@ -73,6 +73,8 @@ public:
         TMulticellManagerConfigPtr config,
         TBootstrap* bootstrap);
 
+    ~TMulticellManager();
+
     void Initialize();
 
     bool IsPrimaryMaster();

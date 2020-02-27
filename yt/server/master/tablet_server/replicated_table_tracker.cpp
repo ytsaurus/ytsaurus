@@ -95,7 +95,7 @@ public:
 
 private:
     const NTabletServer::TReplicatedTableTrackerConfigPtr Config_;
-    
+
     bool Enabled_ = false;
 
     class TBundleHealthCache
@@ -803,6 +803,9 @@ TReplicatedTableTracker::TReplicatedTableTracker(
     TReplicatedTableTrackerConfigPtr config,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(std::move(config), bootstrap))
+{ }
+
+TReplicatedTableTracker::~TReplicatedTableTracker()
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
