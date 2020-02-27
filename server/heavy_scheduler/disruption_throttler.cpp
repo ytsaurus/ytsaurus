@@ -149,6 +149,11 @@ public:
         return EvictingPodIds_.find(podId) != EvictingPodIds_.end();
     }
 
+    bool GetValidatePodDisruptionBudget() const
+    {
+        return Config_->ValidatePodDisruptionBudget;
+    }
+
 private:
     THeavyScheduler* const HeavyScheduler_;
     const TDisruptionThrottlerConfigPtr Config_;
@@ -205,6 +210,11 @@ int TDisruptionThrottler::EvictionCount() const
 bool TDisruptionThrottler::IsBeingEvicted(const TObjectId& podId) const
 {
     return Impl_->IsBeingEvicted(podId);
+}
+
+bool TDisruptionThrottler::GetValidatePodDisruptionBudget() const
+{
+    return Impl_->GetValidatePodDisruptionBudget();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -130,7 +130,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITaskPtr CreateSwapTask(const IClientPtr& client, TPod* starvingPod, TPod* victimPod)
+ITaskPtr CreateSwapTask(
+    const IClientPtr& client,
+    TPod* starvingPod,
+    TPod* victimPod,
+    bool validateDisruptionBudget)
 {
     auto id = TGuid::Create();
     auto starvingPodCompositeId = GetCompositeId(starvingPod);
@@ -146,7 +150,7 @@ ITaskPtr CreateSwapTask(const IClientPtr& client, TPod* starvingPod, TPod* victi
         victimPod->GetId(),
         Format("Heavy Scheduler cluster defragmentation (TaskId: %v)", id),
         TRequestPodEvictionOptions{
-            .ValidateDisruptionBudget = true,
+            validateDisruptionBudget,
             .Reason = EEvictionReason::Scheduler}))
         .ValueOrThrow();
 
@@ -263,8 +267,9 @@ private:
             auto task = CreateSwapTask(
                 HeavyScheduler_->GetClient(),
                 starvingPod,
-                victimPod);
-            taskManager->Add(task, ETaskSource::SwapDefragmentator);
+                victimPod,
+                HeavyScheduler_->GetDisruptionThrottler()->GetValidatePodDisruptionBudget());
+            taskManager->Add(std::move(task), ETaskSource::SwapDefragmentator);
             HeavyScheduler_->GetDisruptionThrottler()->RegisterPodEviction(victimPod);
         } else {
             YT_LOG_DEBUG("Failed to create swap task: concurrent task limit reached for swap defragmentator "

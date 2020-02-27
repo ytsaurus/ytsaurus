@@ -26,6 +26,8 @@ public:
 
     bool IsBeingEvicted(const NCluster::TObjectId& podId) const;
 
+    bool GetValidatePodDisruptionBudget() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

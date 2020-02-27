@@ -72,7 +72,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ITaskPtr CreateEvictionTask(const IClientPtr& client, TPod* pod)
+ITaskPtr CreateEvictionTask(const IClientPtr& client, TPod* pod, bool validateDisruptionBudget)
 {
     auto id = TGuid::Create();
     auto podCompositeId = GetCompositeId(pod);
@@ -86,7 +86,7 @@ ITaskPtr CreateEvictionTask(const IClientPtr& client, TPod* pod)
         pod->GetId(),
         Format("Heavy Scheduler antiaffinity healing (TaskId: %v)", id),
         TRequestPodEvictionOptions{
-            .ValidateDisruptionBudget = true,
+            validateDisruptionBudget,
             .Reason = EEvictionReason::Scheduler}))
         .ValueOrThrow();
 
@@ -201,8 +201,10 @@ private:
                     if (!dryRun && !disruptionThrottler->ThrottleEviction(pod))
                     {
                         if (taskManager->GetTaskSlotCount(ETaskSource::AntiaffinityHealer) > 0) {
-                            taskManager->Add(CreateEvictionTask(HeavyScheduler_->GetClient(), pod),
-                                ETaskSource::AntiaffinityHealer);
+                            auto task = CreateEvictionTask(HeavyScheduler_->GetClient(),
+                                pod,
+                                disruptionThrottler->GetValidatePodDisruptionBudget());
+                            taskManager->Add(std::move(task), ETaskSource::AntiaffinityHealer);
                             disruptionThrottler->RegisterPodEviction(pod);
                             evictingPodCount += 1;
                         } else {
