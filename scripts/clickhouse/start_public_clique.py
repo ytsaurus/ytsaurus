@@ -37,7 +37,7 @@ def main():
         enable_monitoring=True,
         enable_job_tables=True,
         cypress_geodata_path="//sys/clickhouse/geodata/geodata.tgz",
-        cypress_ytserver_log_tailer_path="//sys/clickhouse/bin/ytserver-log-tailer-20.2.34072-local-ya~b8df5c3856+max42+atomicity",
+        cypress_ytserver_log_tailer_path="//sys/clickhouse/bin/ytserver-log-tailer-19.8.34144-local-ya~b00d808768+max42+now-correct",
         cypress_ytserver_clickhouse_path=args.bin,
         spec={
             "acl": [{
