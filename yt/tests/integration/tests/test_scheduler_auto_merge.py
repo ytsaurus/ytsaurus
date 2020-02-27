@@ -416,6 +416,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 },
             })
         assert get("//tmp/t_out/@chunk_count") >= 5
+        assert "auto_merge_disabled" in op.get_alerts()
 
     @authors("max42")
     @pytest.mark.timeout(60)
@@ -451,6 +452,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 },
             })
         assert get("//tmp/t_out/@chunk_count") >= 5
+        assert "auto_merge_disabled" in op.get_alerts()
 
         op = map(
             in_="//tmp/t_in",
@@ -468,6 +470,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 },
             })
         assert get("//tmp/t_out_with_schema/@chunk_count") >= 5
+        assert "auto_merge_disabled" in op.get_alerts()
 
     @authors("max42")
     @pytest.mark.timeout(60)
