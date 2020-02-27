@@ -42,10 +42,11 @@ def remerge_tables(input_table_paths):
             if not args.dry_run:
                 tracker.add(spec_builder)
 
-            input_table_backup_path = input_table_path + args.backup_suffix
+            if args.backup_suffix is not None: 
+                input_table_backup_path = input_table_path + args.backup_suffix
+                to_move += [(input_table_path, input_table_backup_path)]
 
-            to_move += [(input_table_path, input_table_backup_path),
-                        (output_table_path, input_table_path)]
+            to_move += [(output_table_path, input_table_path)]
 
     for src_path, dst_path in to_move:
         logger.debug("Moving %s to %s", src_path, dst_path)
@@ -73,7 +74,7 @@ def main():
     parser.add_argument("--pool-poll-period", type=int, default=1000, help="Poll period in ms")
     parser.add_argument("--dry-run", action="store_true", help="Only log what is going to happen")
     parser.add_argument("-v", "--verbose", action="store_true", help="Print lots of debugging information")
-    parser.add_argument("--backup-suffix", default=".bak", help="Suffix for backing up input tables")
+    parser.add_argument("--backup-suffix", default=None, help="Suffix for backing up input tables")
     parser.add_argument("--remerge-tables", action="store_true", help="Remerge tables")
 
     global args
