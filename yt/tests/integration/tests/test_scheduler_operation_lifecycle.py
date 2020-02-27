@@ -686,7 +686,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             with_tags={"pool": "unique_pool"},
             aggr_method="max")
         min_share_resources_memory_max = Metric.at_scheduler(
-            metric_prefix + "min_share_resources/memory",
+            metric_prefix + "min_share_resources/user_memory",
             with_tags={"pool": "unique_pool"},
             aggr_method="max")
         min_share_resources_user_slots_max = Metric.at_scheduler(
