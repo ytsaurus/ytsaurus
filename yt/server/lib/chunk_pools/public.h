@@ -21,9 +21,9 @@ DECLARE_REFCOUNTED_CLASS(TJobSizeAdjusterConfig)
 DECLARE_REFCOUNTED_CLASS(TInputChunkMapping)
 
 DEFINE_ENUM(EErrorCode,
-    ((DataSliceLimitExceeded)(2000))
-    ((MaxDataWeightPerJobExceeded)(2001))
-    ((MaxPrimaryDataWeightPerJobExceeded)(2002))
+    ((DataSliceLimitExceeded)             (2000))
+    ((MaxDataWeightPerJobExceeded)        (2001))
+    ((MaxPrimaryDataWeightPerJobExceeded) (2002))
 );
 
 constexpr double ApproximateSizesBoostFactor = 1.3;
