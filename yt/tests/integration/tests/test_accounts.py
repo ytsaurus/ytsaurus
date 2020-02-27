@@ -3004,6 +3004,33 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         self._set_account_node_count_limit("yt", 3)
 
+    @authors("aleksandra-zh")
+    def test_enable_master_memory_usage_overcommit(self):
+        set("//sys/@config/security_manager/enable_master_memory_usage_account_overcommit_validation", False)
+
+        create_account("a", attributes={
+            "resource_limits": self._build_resource_limits(master_memory_usage=10000)
+        })
+        create_account("b", "a", attributes={
+            "resource_limits": self._build_resource_limits(master_memory_usage=5000)
+        })
+        create_account("c", "a", attributes={
+            "resource_limits": self._build_resource_limits(master_memory_usage=6000)
+        })
+
+        with pytest.raises(YtError):
+            self._set_account_master_memory_usage("a", 1000)
+
+        self._set_account_master_memory_usage("b", 10000)
+
+        self._set_account_master_memory_usage("b", 5000)
+        self._set_account_master_memory_usage("c", 5000)
+
+        set("//sys/@config/security_manager/enable_master_memory_usage_account_overcommit_validation", True)
+
+        with pytest.raises(YtError):
+            self._set_account_master_memory_usage("b", 10000)
+
     @authors("shakurov")
     def test_negative_limits(self):
         with pytest.raises(YtError):

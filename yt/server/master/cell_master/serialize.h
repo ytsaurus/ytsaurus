@@ -131,6 +131,7 @@ DEFINE_ENUM(EMasterReign,
     ((InitializeAccountMasterMemoryUsage)                           (1207))  // aleksandra-zh
     ((YT_11279_UnmountForceOnlySuperuser)                           (1208))  // lexolordan
     ((FixNetworkProjectSerialization)                               (1209))  // gritukan
+    ((DisableMasterMemoryUsageAccountOvercommitValidation)          (1300))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

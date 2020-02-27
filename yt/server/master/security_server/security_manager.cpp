@@ -495,6 +495,17 @@ public:
             });
     }
 
+    bool IsAccountOvercommited(TAccount* account, TClusterResources newResources)
+    {
+        auto totalChildrenLimits = account->ComputeTotalChildrenLimits();
+        const auto& dynamicConfig = GetDynamicConfig();
+        if (!dynamicConfig->EnableMasterMemoryUsageAccountOvercommitValidation) {
+            newResources.MasterMemoryUsage = 0;
+            totalChildrenLimits.MasterMemoryUsage = 0;
+        }
+        return newResources.IsAtLeastOneResourceLessThan(totalChildrenLimits);
+    }
+
     void ValidateResourceLimits(TAccount* account, const TClusterResources& resourceLimits)
     {
         if (!Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
@@ -517,14 +528,10 @@ public:
                 }
             }
 
-            if (!account->GetAllowChildrenLimitOvercommit()) {
-                auto totalChildrenLimits = account->ComputeTotalChildrenLimits();
-
-                if (resourceLimits.IsAtLeastOneResourceLessThan(totalChildrenLimits)) {
-                    THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: "
-                        "the limit cannot be below the sum of its children limits",
-                        account->GetName());
-                }
+            if (!account->GetAllowChildrenLimitOvercommit() && IsAccountOvercommited(account, resourceLimits)) {
+                THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: "
+                    "the limit cannot be below the sum of its children limits",
+                    account->GetName());
             }
         }
 
@@ -537,15 +544,12 @@ public:
                         account->GetName());
                 }
 
-                if (!parent->GetAllowChildrenLimitOvercommit()) {
-                    auto totalChildrenLimits =
-                        parent->ComputeTotalChildrenLimits() - currentResourceLimits + resourceLimits;
-
-                    if (parentResourceLimits.IsAtLeastOneResourceLessThan(totalChildrenLimits)) {
-                        THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: "
-                            "the change would overcommit its parent",
-                            account->GetName());
-                    }
+                if (!parent->GetAllowChildrenLimitOvercommit() &&
+                    IsAccountOvercommited(parent, parent->ClusterResourceLimits() + currentResourceLimits - resourceLimits))
+                {
+                    THROW_ERROR_EXCEPTION("Failed to change resource limits for account %Qv: "
+                        "the change would overcommit its parent",
+                        account->GetName());
                 }
             }
         }
@@ -1575,16 +1579,11 @@ public:
                 parentAccount->GetName());
         }
 
-        if (!parentAccount->GetAllowChildrenLimitOvercommit()) {
-            auto totalChildrenLimits =
-                parentAccount->ComputeTotalChildrenLimits() + childLimits;
-
-            if (parentLimits.IsAtLeastOneResourceLessThan(totalChildrenLimits)) {
-                THROW_ERROR_EXCEPTION("Failed to change account %Qv parent to %Qv: "
-                    "the sum of children limits cannot be above parent limits",
-                    childAccount->GetName(),
-                    parentAccount->GetName());
-            }
+        if (!parentAccount->GetAllowChildrenLimitOvercommit() && IsAccountOvercommited(parentAccount, parentLimits - childLimits)) {
+            THROW_ERROR_EXCEPTION("Failed to change account %Qv parent to %Qv: "
+                "the sum of children limits cannot be above parent limits",
+                childAccount->GetName(),
+                parentAccount->GetName());
         }
 
         ValidateResourceUsageIncrease(parentAccount, childUsage, true /*allowRootAccount*/);
@@ -1594,13 +1593,12 @@ public:
         TAccount* account,
         bool overcommitAllowed)
     {
-        if (!overcommitAllowed && account->GetAllowChildrenLimitOvercommit()) {
-            auto totalChildrenLimits = account->ComputeTotalChildrenLimits();
-            const auto& limits = account->ClusterResourceLimits();
-            if (limits.IsAtLeastOneResourceLessThan(totalChildrenLimits)) {
-                THROW_ERROR_EXCEPTION("Failed to disable children limit overcommit for account %Qv because it is currently overcommitted",
-                    account->GetName());
-            }
+        if (!overcommitAllowed && account->GetAllowChildrenLimitOvercommit() &&
+            IsAccountOvercommited(account, account->ClusterResourceLimits()))
+        {
+            THROW_ERROR_EXCEPTION(
+                "Failed to disable children limit overcommit for account %Qv because it is currently overcommitted",
+                account->GetName());
         }
 
         account->SetAllowChildrenLimitOvercommit(overcommitAllowed);
