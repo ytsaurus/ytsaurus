@@ -89,7 +89,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStreamLogWriter final
+class TStreamLogWriter
     : public TStreamLogWriterBase
 {
 public:
@@ -106,7 +106,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStderrLogWriter final
+class TStderrLogWriter
     : public TStreamLogWriterBase
 {
 public:
@@ -119,7 +119,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStdoutLogWriter final
+class TStdoutLogWriter
     : public TStreamLogWriterBase
 {
 public:
@@ -131,7 +131,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFileLogWriter final
+class TFileLogWriter
     : public TStreamLogWriterBase
 {
 public:
