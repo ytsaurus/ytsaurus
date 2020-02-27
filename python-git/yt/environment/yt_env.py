@@ -151,7 +151,7 @@ class YTInstance(object):
                  node_count=1, defer_node_start=False,
                  scheduler_count=1, defer_scheduler_start=False,
                  controller_agent_count=None, defer_controller_agent_start=False,
-                 http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, cell_tag=0,
+                 http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, rpc_proxy_ports=None, cell_tag=0,
                  enable_debug_logging=True, enable_logging_compression=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, local_port_range=None, port_range_start=None, node_port_set_size=None,
                  fqdn=None, jobs_resource_limits=None, jobs_memory_limit=None,
@@ -298,6 +298,7 @@ class YTInstance(object):
         self.http_proxy_ports = http_proxy_ports
         self.has_rpc_proxy = rpc_proxy_count > 0
         self.rpc_proxy_count = rpc_proxy_count
+        self.rpc_proxy_ports = rpc_proxy_ports
         self._enable_debug_logging = enable_debug_logging
         self._enable_logging_compression = enable_logging_compression
         self._cell_tag = cell_tag
@@ -452,6 +453,7 @@ class YTInstance(object):
         provision["http_proxy"]["count"] = self.http_proxy_count
         provision["http_proxy"]["http_ports"] = self.http_proxy_ports
         provision["rpc_proxy"]["count"] = self.rpc_proxy_count
+        provision["rpc_proxy"]["rpc_ports"] = self.rpc_proxy_ports
         provision["driver"]["backend"] = self.driver_backend
         provision["fqdn"] = self._hostname
         provision["enable_debug_logging"] = self._enable_debug_logging
