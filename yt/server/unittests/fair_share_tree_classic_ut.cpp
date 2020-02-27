@@ -2,7 +2,7 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
-#include <yt/server/scheduler/fair_share_tree_element.h>
+#include <yt/server/scheduler/fair_share_tree_element_classic.h>
 #include <yt/server/scheduler/operation_controller.h>
 #include <yt/server/scheduler/resource_tree.h>
 
@@ -14,10 +14,7 @@
 #include <contrib/libs/gmock/gmock/gmock-matchers.h>
 #include <contrib/libs/gmock/gmock/gmock-actions.h>
 
-namespace NYT::NScheduler::NVectorScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
+namespace NYT::NScheduler::NClassicScheduler {
 namespace {
 
 using namespace NControllerAgent;
@@ -325,11 +322,11 @@ private:
     TResourceTreePtr ResourceTree_;
 };
 
-class TFairShareTreeTest
+class TClassicFairShareTreeTest
     : public testing::Test
 {
 public:
-    TFairShareTreeTest()
+    TClassicFairShareTreeTest()
     {
         TreeConfig_->AggressivePreemptionSatisfactionThreshold = 0.5;
     }
@@ -438,14 +435,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-MATCHER_P2(ResourceVectorNear, vec, absError, "") {
-//    *result_listener << "where the remainder is " << (arg % n);
-    return TResourceVector::Near(arg, vec, absError);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TEST_F(TFairShareTreeTest, TestAttributes)
+TEST_F(TClassicFairShareTreeTest, TestAttributes)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -464,8 +454,8 @@ TEST_F(TFairShareTreeTest, TestAttributes)
 
     auto rootElement = CreateTestRootElement(host.Get());
 
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
+    auto poolA = CreateTestPool(host.Get(), "A");
+    auto poolB = CreateTestPool(host.Get(), "B");
 
     poolA->AttachParent(rootElement.Get());
     poolB->AttachParent(rootElement.Get());
@@ -477,22 +467,21 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     operationElementX->Enable();
 
     {
-        TDynamicAttributesList dynamicAttributes = {};
+        auto dynamicAttributes = TDynamicAttributesList(4);
 
         TUpdateFairShareContext updateContext;
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
         rootElement->Update(&dynamicAttributes, &updateContext);
 
-        TResourceVector operationDemand = TResourceVector::FromJobResources(jobResources, nodeResources, 0, 1);
-        EXPECT_EQ(operationDemand, rootElement->Attributes().DemandShare);
-        EXPECT_EQ(operationDemand, poolA->Attributes().DemandShare);
-        EXPECT_EQ(TResourceVector::Zero(), poolB->Attributes().DemandShare);
-        EXPECT_EQ(operationDemand, operationElementX->Attributes().DemandShare);
+        EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
+        EXPECT_EQ(0.1, poolA->Attributes().DemandRatio);
+        EXPECT_EQ(0.0, poolB->Attributes().DemandRatio);
+        EXPECT_EQ(0.1, operationElementX->Attributes().DemandRatio);
 
-        EXPECT_EQ(operationDemand, rootElement->Attributes().FairShare);
-        EXPECT_EQ(operationDemand, rootElement->Attributes().DemandShare);
-        EXPECT_EQ(TResourceVector::Zero(), poolB->Attributes().FairShare);
-        EXPECT_EQ(operationDemand, operationElementX->Attributes().FairShare);
+        EXPECT_EQ(0.1, rootElement->Attributes().FairShareRatio);
+        EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
+        EXPECT_EQ(0.0, poolB->Attributes().FairShareRatio);
+        EXPECT_EQ(0.1, operationElementX->Attributes().FairShareRatio);
     }
 
     std::vector<TJobId> jobIds;
@@ -514,11 +503,11 @@ TEST_F(TFairShareTreeTest, TestAttributes)
 
         EXPECT_EQ(0.5, dynamicAttributes[operationElementX->GetTreeIndex()].SatisfactionRatio);
         EXPECT_EQ(0.5, dynamicAttributes[poolA->GetTreeIndex()].SatisfactionRatio);
-        EXPECT_EQ(InfiniteSatisfactionRatio, dynamicAttributes[poolB->GetTreeIndex()].SatisfactionRatio);
+        EXPECT_EQ(std::numeric_limits<double>::max(), dynamicAttributes[poolB->GetTreeIndex()].SatisfactionRatio);
     }
 }
 
-TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
+TEST_F(TClassicFairShareTreeTest, TestUpdatePreemptableJobsList)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(10);
@@ -553,13 +542,14 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
             /* precommitedResources */ {});
     }
 
-    TDynamicAttributesList dynamicAttributes;
+    auto dynamicAttributes = TDynamicAttributesList(2);
+
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
     rootElement->Update(&dynamicAttributes, &updateContext);
 
-    EXPECT_EQ(1.6, operationElementX->Attributes().GetDemandRatio());
-    EXPECT_EQ(1.0, operationElementX->Attributes().GetFairShareRatio());
+    EXPECT_EQ(1.6, operationElementX->Attributes().DemandRatio);
+    EXPECT_EQ(1.0, operationElementX->Attributes().FairShareRatio);
 
     for (int i = 0; i < 50; ++i) {
         EXPECT_FALSE(operationElementX->IsJobPreemptable(jobIds[i], true));
@@ -573,7 +563,7 @@ TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
     }
 }
 
-TEST_F(TFairShareTreeTest, TestBestAllocationShare)
+TEST_F(TClassicFairShareTreeTest, TestBestAllocationRatio)
 {
     TJobResourcesWithQuota nodeResourcesA;
     nodeResourcesA.SetUserSlots(10);
@@ -603,21 +593,18 @@ TEST_F(TFairShareTreeTest, TestBestAllocationShare)
     operationElementX->AttachParent(rootElement.Get(), true);
     operationElementX->Enable();
 
-    TDynamicAttributesList dynamicAttributes = {};
+    auto dynamicAttributes = TDynamicAttributesList(4);
 
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
     rootElement->Update(&dynamicAttributes, &updateContext);
 
-    auto totalResources = nodeResourcesA * 2. + nodeResourcesB;
-    auto demandShare = TResourceVector::FromJobResources(jobResources * 3., totalResources, 0, 1);
-    auto fairShare = TResourceVector::FromJobResources(jobResources, totalResources, 0, 1);
-    EXPECT_EQ(demandShare, operationElementX->Attributes().DemandShare);
-    EXPECT_EQ(0.375, operationElementX->BestAllocationShare()[EJobResourceType::Memory]);
-    EXPECT_EQ(fairShare, operationElementX->Attributes().FairShare);
+    EXPECT_EQ(1.125, operationElementX->Attributes().DemandRatio);
+    EXPECT_EQ(0.375, operationElementX->Attributes().BestAllocationRatio);
+    EXPECT_EQ(0.375, operationElementX->Attributes().FairShareRatio);
 }
 
-TEST_F(TFairShareTreeTest, TestOperationCountLimits)
+TEST_F(TClassicFairShareTreeTest, TestOperationCountLimits)
 {
     auto host = New<TSchedulerStrategyHostMock>();
     auto rootElement = CreateTestRootElement(host.Get());
@@ -655,7 +642,7 @@ TEST_F(TFairShareTreeTest, TestOperationCountLimits)
     EXPECT_EQ(0, rootElement->RunningOperationCount());
 }
 
-TEST_F(TFairShareTreeTest, TestMaxPossibleUsageShareWithoutLimit)
+TEST_F(TClassicFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
 {
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
@@ -683,7 +670,7 @@ TEST_F(TFairShareTreeTest, TestMaxPossibleUsageShareWithoutLimit)
     auto secondOperationElement = CreateTestOperationElement(host.Get(), operationOptions, secondOperation.Get());
 
     // Pool with total demand <10, 15>.
-    auto pool = CreateTestPool(host.Get(), "PoolA");
+    auto pool = CreateTestPool(host.Get(), "A");
 
     // Root element.
     auto rootElement = CreateTestRootElement(host.Get());
@@ -692,18 +679,16 @@ TEST_F(TFairShareTreeTest, TestMaxPossibleUsageShareWithoutLimit)
     firstOperationElement->AttachParent(pool.Get(), true);
     secondOperationElement->AttachParent(pool.Get(), true);
 
-    // Сheck MaxPossibleUsageShare computation.
-    TDynamicAttributesList dynamicAttributes = {};
+    // Сheck MaxPossibleUsageRatio computation.
+    auto dynamicAttributes = TDynamicAttributesList(4);
 
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
     rootElement->Update(&dynamicAttributes, &updateContext);
-    EXPECT_EQ(
-        TResourceVector::FromJobResources(firstOperationJobResources + secondOperationJobResources, nodeResources, 0, 1),
-        pool->Attributes().MaxPossibleUsageShare);
+    EXPECT_EQ(0.15, pool->Attributes().MaxPossibleUsageRatio);
 }
 
-TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
+TEST_F(TClassicFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
 {
     // Create 3 nodes.
     TJobResourcesWithQuota nodeResources;
@@ -772,368 +757,9 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     EXPECT_TRUE(Combine(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
 }
 
-TEST_F(TFairShareTreeTest, TestVectorFairShareEmptyTree)
-{
-    // Create a cluster with 1 large node
-    const int nodeCount = 1;
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetUserSlots(100);
-    nodeResources.SetCpu(100);
-    nodeResources.SetMemory(1000);
-
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
-
-    // Create a tree with 2 pools
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
-    poolA->AttachParent(rootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
-    poolB->AttachParent(rootElement.Get());
-
-    // Update tree
-    TDynamicAttributesList dynamicAttributes = {};
-    TUpdateFairShareContext updateContext;
-    rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    rootElement->Update(&dynamicAttributes, &updateContext);
-
-    // Check the values
-    EXPECT_EQ(TResourceVector::Zero(), rootElement->GetFairShare());
-    EXPECT_EQ(TResourceVector::Zero(), poolA->GetFairShare());
-    EXPECT_EQ(TResourceVector::Zero(), poolB->GetFairShare());
-}
-
-TEST_F(TFairShareTreeTest, TestVectorFairShareOneLargeOperation)
-{
-    // Create a cluster with 1 large node
-    const int nodeCount = 1;
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetUserSlots(100);
-    nodeResources.SetCpu(100);
-    nodeResources.SetMemory(1000);
-
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
-
-    // Create a tree with 2 pools
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
-    poolA->AttachParent(rootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
-    poolB->AttachParent(rootElement.Get());
-
-    // Create operation with demand larger than the available resources
-    const int jobCount = 200;
-    TJobResourcesWithQuota jobResources;
-    jobResources.SetUserSlots(1);
-    jobResources.SetCpu(1);
-    jobResources.SetMemory(20);
-
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions->Weight = 1.0;
-
-    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
-
-    operationElementX->AttachParent(poolA.Get(), true);
-    operationElementX->Enable();
-
-    // Update tree
-    TDynamicAttributesList dynamicAttributes = {};
-    TUpdateFairShareContext updateContext;
-    rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    rootElement->Update(&dynamicAttributes, &updateContext);
-
-    // Check the values
-    EXPECT_EQ(TResourceVector({0.5, 0.5, 0.0, 1.0, 0.0}), rootElement->GetFairShare());
-    EXPECT_EQ(TResourceVector({0.5, 0.5, 0.0, 1.0, 0.0}), poolA->GetFairShare());
-    EXPECT_EQ(TResourceVector({0.5, 0.5, 0.0, 1.0, 0.0}), operationElementX->GetFairShare());
-    EXPECT_EQ(TResourceVector::Zero(), poolB->GetFairShare());
-}
-
-TEST_F(TFairShareTreeTest, TestVectorFairShareOneSmallOperation)
-{
-    // Create a cluster with 1 large node
-    const int nodeCount = 1;
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetUserSlots(100);
-    nodeResources.SetCpu(100);
-    nodeResources.SetMemory(1000);
-
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
-
-    // Create a tree with 2 pools
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
-    poolA->AttachParent(rootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
-    poolB->AttachParent(rootElement.Get());
-
-    // Create operation with demand smaller than the available resources
-    const int jobCount = 30;
-    TJobResourcesWithQuota jobResources;
-    jobResources.SetUserSlots(1);
-    jobResources.SetCpu(1);
-    jobResources.SetMemory(20);
-
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions->Weight = 1.0;
-
-    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
-
-    operationElementX->AttachParent(poolA.Get(), true);
-    operationElementX->Enable();
-
-    // Update tree
-    TDynamicAttributesList dynamicAttributes = {};
-    TUpdateFairShareContext updateContext;
-    rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    rootElement->Update(&dynamicAttributes, &updateContext);
-
-    // Check the values
-    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.6, 0.0}), rootElement->GetFairShare());
-    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.6, 0.0}), poolA->GetFairShare());
-    EXPECT_EQ(TResourceVector({0.3, 0.3, 0.0, 0.6, 0.0}), operationElementX->GetFairShare());
-    EXPECT_EQ(TResourceVector::Zero(), poolB->GetFairShare());
-}
-
-TEST_F(TFairShareTreeTest, TestVectorFairShareTwoComplementaryOperations)
-{
-    // Create a cluster with 1 large node
-    const int nodeCount = 1;
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetUserSlots(100);
-    nodeResources.SetCpu(100);
-    nodeResources.SetMemory(1000);
-
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
-
-    // Create a tree with 2 pools
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
-    poolA->AttachParent(rootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
-    poolB->AttachParent(rootElement.Get());
-
-    // Create first operation
-    const int jobCount1 = 100;
-    TJobResourcesWithQuota jobResources1;
-    jobResources1.SetUserSlots(1);
-    jobResources1.SetCpu(1);
-    jobResources1.SetMemory(20);
-
-    auto operationOptions1 = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions1->Weight = 1.0;
-
-    auto operation1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount1, jobResources1));
-    auto operationElement1 = CreateTestOperationElement(host.Get(), operationOptions1, operation1.Get());
-
-    operationElement1->AttachParent(poolA.Get(), true);
-    operationElement1->Enable();
-
-    // Second operation with symmetric resource demand
-    const int jobCount2 = 100;
-    TJobResourcesWithQuota jobResources2;
-    jobResources2.SetUserSlots(1);
-    jobResources2.SetCpu(2);
-    jobResources2.SetMemory(10);
-
-    auto operationOptions2 = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions2->Weight = 1.0;
-
-    auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
-    auto operationElement2 = CreateTestOperationElement(host.Get(), operationOptions2, operation2.Get());
-
-    operationElement2->AttachParent(poolA.Get(), true);
-    operationElement2->Enable();
-
-    // Update tree
-    TDynamicAttributesList dynamicAttributes = {};
-    TUpdateFairShareContext updateContext;
-    rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    rootElement->Update(&dynamicAttributes, &updateContext);
-
-    // Check the values
-    EXPECT_EQ(TResourceVector({2.0 / 3, 1.0, 0.0, 1.0, 0.0}), rootElement->GetFairShare());
-    EXPECT_EQ(TResourceVector({2.0 / 3, 1.0, 0.0, 1.0, 0.0}), poolA->GetFairShare());
-    EXPECT_EQ(TResourceVector({1.0 / 3, 1.0 / 3, 0.0, 2.0 / 3, 0.0}), operationElement1->GetFairShare());
-    EXPECT_EQ(TResourceVector({1.0 / 3, 2.0 / 3, 0.0, 1.0 / 3, 0.0}), operationElement2->GetFairShare());
-    EXPECT_EQ(TResourceVector::Zero(), poolB->GetFairShare());
-}
-
-TEST_F(TFairShareTreeTest, TestVectorFairShareComplexCase)
-{
-    // Create a cluster with 1 large node
-    const int nodeCount = 1;
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetUserSlots(100);
-    nodeResources.SetCpu(100);
-    nodeResources.SetMemory(1000);
-
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
-
-    // Create a tree with 2 pools
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
-    poolA->AttachParent(rootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
-    poolB->AttachParent(rootElement.Get());
-
-    // Create an operation with resource demand proportion <1, 2> and small jobCount in PoolA
-    const int jobCount1 = 10;
-    TJobResourcesWithQuota jobResources1;
-    jobResources1.SetUserSlots(1);
-    jobResources1.SetCpu(1);
-    jobResources1.SetMemory(20);
-
-    auto operationOptions1 = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions1->Weight = 1.0;
-
-    auto operation1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount1, jobResources1));
-    auto operationElement1 = CreateTestOperationElement(host.Get(), operationOptions1, operation1.Get());
-
-    operationElement1->AttachParent(poolA.Get(), true);
-    operationElement1->Enable();
-
-    // Create an operation with resource demand proportion <3, 1> and large jobCount in PoolA
-    const int jobCount2 = 1000;
-    TJobResourcesWithQuota jobResources2;
-    jobResources2.SetUserSlots(1);
-    jobResources2.SetCpu(3);
-    jobResources2.SetMemory(10);
-
-    auto operationOptions2 = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions2->Weight = 1.0;
-
-    auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
-    auto operationElement2 = CreateTestOperationElement(host.Get(), operationOptions2, operation2.Get());
-
-    operationElement2->AttachParent(poolA.Get(), true);
-    operationElement2->Enable();
-
-    // Create operation with resource demand proportion <1, 5> and large jobCount in PoolB
-    const int jobCount3 = 1000;
-    TJobResourcesWithQuota jobResources3;
-    jobResources3.SetUserSlots(2);
-    jobResources3.SetCpu(2);
-    jobResources3.SetMemory(100);
-
-    auto operationOptions3 = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions3->Weight = 1.0;
-
-    auto operation3 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount3, jobResources3));
-    auto operationElement3 = CreateTestOperationElement(host.Get(), operationOptions3, operation3.Get());
-
-    operationElement3->AttachParent(poolB.Get(), true);
-    operationElement3->Enable();
-
-    // Update tree
-    TDynamicAttributesList dynamicAttributes = {};
-    TUpdateFairShareContext updateContext;
-    rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    rootElement->Update(&dynamicAttributes, &updateContext);
-
-    // Check the values
-
-    // Memory will be saturated first (see the usages of operations bellow)
-    EXPECT_THAT(
-        rootElement->GetFairShare(),
-        ResourceVectorNear(TResourceVector({16.0 / 40, 30.0 / 40, 0.0, 40.0 / 40, 0.0}), 1e-7));
-    EXPECT_THAT(
-        poolA->GetFairShare(),
-        ResourceVectorNear(TResourceVector({11.0 / 40, 25.0 / 40, 0.0, 15.0 / 40, 0.0}), 1e-7));
-    EXPECT_THAT(
-        poolB->GetFairShare(),
-        ResourceVectorNear(TResourceVector({5.0 / 40, 5.0 / 40, 0.0, 25.0 / 40, 0.0}), 1e-7));
-
-    // operation1 uses 4/40 CPU and 8/40 Memory
-    EXPECT_THAT(
-        operationElement1->GetFairShare(),
-        ResourceVectorNear(TResourceVector({4.0 / 40, 4.0 / 40, 0.0, 8.0 / 40, 0.0}), 1e-7));
-    // operation2 uses 21/40 CPU and 7/40 Memory
-    EXPECT_THAT(
-        operationElement2->GetFairShare(),
-        ResourceVectorNear(TResourceVector({7.0 / 40, 21.0 / 40, 0.0, 7.0 / 40, 0.0}), 1e-7));
-    // operation3 uses 5/40 CPU and 25/40 Memory
-    EXPECT_THAT(
-        operationElement3->GetFairShare(),
-        ResourceVectorNear(TResourceVector({5.0 / 40, 5.0 / 40, 0.0, 25.0 / 40, 0.0}), 1e-7));
-}
-
-TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShare)
-{
-    // Create a cluster with 1 large node
-    const int nodeCount = 1;
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetUserSlots(100'000);
-    nodeResources.SetCpu(100);
-    nodeResources.SetMemory(100_GB);
-    nodeResources.SetNetwork(100);
-
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
-
-    // Create a tree with 2 pools
-    auto rootElement = CreateTestRootElement(host.Get());
-    auto poolA = CreateTestPool(host.Get(), "PoolA");
-    poolA->AttachParent(rootElement.Get());
-    auto poolB = CreateTestPool(host.Get(), "PoolB");
-    poolB->AttachParent(rootElement.Get());
-
-    // Create an operation with resource demand proportion <1, 1, 4>, weight=10, and small jobCount in PoolA
-    const int jobCount1 = 10;
-    TJobResourcesWithQuota jobResources1;
-    jobResources1.SetUserSlots(1);
-    jobResources1.SetCpu(1);
-    jobResources1.SetMemory(1_GB);
-    jobResources1.SetNetwork(4);
-
-    auto operationOptions1 = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions1->Weight = 10.0;
-
-    auto operation1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount1, jobResources1));
-    auto operationElement1 = CreateTestOperationElement(host.Get(), operationOptions1, operation1.Get());
-
-    operationElement1->AttachParent(poolA.Get(), true);
-    operationElement1->Enable();
-
-    // Create an operation with resource demand proportion <1, 1, 0>, weight=1, and large jobCount in PoolA
-    const int jobCount2 = 1000;
-    TJobResourcesWithQuota jobResources2;
-    jobResources2.SetUserSlots(1);
-    jobResources2.SetCpu(1);
-    jobResources2.SetMemory(1_GB);
-    jobResources2.SetNetwork(0);
-
-    auto operationOptions2 = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions2->Weight = 1.0;
-
-    auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
-    auto operationElement2 = CreateTestOperationElement(host.Get(), operationOptions2, operation2.Get());
-
-    operationElement2->AttachParent(poolA.Get(), true);
-    operationElement2->Enable();
-
-    // Update tree
-    TDynamicAttributesList dynamicAttributes = {};
-    TUpdateFairShareContext updateContext;
-    rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    rootElement->Update(&dynamicAttributes, &updateContext);
-
-    // Check the values
-
-    // Memory will be saturated first (see the usages of operations bellow)
-    EXPECT_THAT(rootElement->GetFairShare(), ResourceVectorNear(TResourceVector({0.001, 1.0, 0.0, 1.0, 0.4}), 1e-7));
-    EXPECT_THAT(poolA->GetFairShare(), ResourceVectorNear(TResourceVector({0.001, 1.0, 0.0, 1.0, 0.4}), 1e-7));
-    EXPECT_THAT(poolB->GetFairShare(), ResourceVectorNear(TResourceVector::Zero(), 1e-7));
-
-    // operation1 uses 0.1 CPU, 0.1 Memory, and 0.4 Network
-    EXPECT_THAT(operationElement1->GetFairShare(), ResourceVectorNear(TResourceVector({0.0001, 0.1, 0.0, 0.1, 0.4}), 1e-7));
-    // operation2 uses 0.9 CPU, 0.9 Memory, and 0 Network
-    EXPECT_THAT(operationElement2->GetFairShare(), ResourceVectorNear(TResourceVector({0.0009, 0.9, 0.0, 0.9, 0.0}), 1e-7));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
+TEST_F(TClassicFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
 {
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetUserSlots(100);
@@ -1178,33 +804,32 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
     rootElement->Update(&dynamicAttributes, &updateContext);
 
-    EXPECT_EQ(TResourceVector({0.0, 0.4, 0.0, 0.4, 0.0}), operationElement->Attributes().DemandShare);
-    EXPECT_EQ(TResourceVector({0.0, 0.4, 0.0, 0.4, 0.0}), operationElement->Attributes().FairShare);
+    EXPECT_EQ(0.4, operationElement->Attributes().DemandRatio);
+    EXPECT_EQ(0.4, operationElement->Attributes().FairShareRatio);
 
     for (int i = 0; i < 2; ++i) {
-        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ true));
+        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], true));
     }
     for (int i = 2; i < 4; ++i) {
-        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ false));
-        EXPECT_TRUE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ true));
+        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], false));
+        EXPECT_TRUE(operationElement->IsJobPreemptable(jobIds[i], true));
     }
 
     TJobResources delta;
     delta.SetCpu(10);
     delta.SetMemory(10);
-    // FairShare is now less than usage and we would start preempting jobs of this operation.
     operationElement->IncreaseJobResourceUsage(jobIds[0], delta);
 
     for (int i = 0; i < 1; ++i) {
-        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ true));
+        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], true));
     }
     for (int i = 1; i < 4; ++i) {
-        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ false));
-        EXPECT_TRUE(operationElement->IsJobPreemptable(jobIds[i], /* aggressivePreemptionEnabled */ true));
+        EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], false));
+        EXPECT_TRUE(operationElement->IsJobPreemptable(jobIds[i], true));
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NScheduler::NVectorScheduler
+} // namespace NYT::NScheduler::NClassicScheduler

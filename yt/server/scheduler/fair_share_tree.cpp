@@ -1,9 +1,12 @@
 #include "fair_share_tree.h"
 #include "fair_share_tree_element.h"
+#include "fair_share_tree_element_classic.h"
+#include "fair_share_implementations.h"
 #include "public.h"
 #include "pools_config_parser.h"
 #include "resource_tree.h"
 #include "scheduler_strategy.h"
+#include "scheduler_tree.h"
 #include "scheduling_context.h"
 #include "fair_share_strategy_operation_controller.h"
 
@@ -41,15 +44,6 @@ static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TJobWithPreemptionInfo
-{
-    TJobPtr Job;
-    bool IsPreemptable;
-    TOperationElementPtr OperationElement;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFairShareStrategyOperationState::TFairShareStrategyOperationState(IOperationStrategyHost* host)
     : Host_(host)
     , Controller_(New<TFairShareStrategyOperationController>(host))
@@ -67,12 +61,6 @@ void TFairShareStrategyOperationState::EraseTree(const TString& treeId)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TTagIdList GetFailReasonProfilingTags(EScheduleJobFailReason reason)
-{
-    static const NProfiling::TEnumMemberTagCache<EScheduleJobFailReason> ReasonTagCache("reason");
-    return {ReasonTagCache.GetTag(reason)};
-}
 
 namespace {
 
@@ -132,13 +120,16 @@ TFairShareStrategyOperationStatePtr CreateFairShareStrategyOperationState(IOpera
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationElement* TFairShareTree::TRootElementSnapshot::FindOperationElement(TOperationId operationId) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TRootElementSnapshot::FindOperationElement(
+    TOperationId operationId) const -> TOperationElement*
 {
     auto it = OperationIdToElement.find(operationId);
     return it != OperationIdToElement.end() ? it->second : nullptr;
 }
 
-TPool* TFairShareTree::TRootElementSnapshot::FindPool(const TString& poolName) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TRootElementSnapshot::FindPool(const TString& poolName) const -> TPool*
 {
     auto it = PoolNameToElement.find(poolName);
     return it != PoolNameToElement.end() ? it->second : nullptr;
@@ -146,7 +137,8 @@ TPool* TFairShareTree::TRootElementSnapshot::FindPool(const TString& poolName) c
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareTree::TFairShareTreeSnapshot::TFairShareTreeSnapshot(
+template <class TFairShareImpl>
+TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::TFairShareTreeSnapshot(
     TFairShareTreePtr tree,
     TFairShareTree::TRootElementSnapshotPtr rootElementSnapshot,
     TSchedulingTagFilter nodesFilter,
@@ -159,7 +151,9 @@ TFairShareTree::TFairShareTreeSnapshot::TFairShareTreeSnapshot(
     , Logger(logger)
 { }
 
-TFuture<void> TFairShareTree::TFairShareTreeSnapshot::ScheduleJobs(const ISchedulingContextPtr& schedulingContext)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::ScheduleJobs(
+    const ISchedulingContextPtr& schedulingContext) -> TFuture<void>
 {
     return BIND(&TFairShareTree::DoScheduleJobs,
         Tree_,
@@ -169,15 +163,18 @@ TFuture<void> TFairShareTree::TFairShareTreeSnapshot::ScheduleJobs(const ISchedu
         .Run();
 }
 
-void TFairShareTree::TFairShareTreeSnapshot::PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::PreemptJobsGracefully(
+    const ISchedulingContextPtr& schedulingContext) -> void
 {
     Tree_->DoPreemptJobsGracefully(schedulingContext, RootElementSnapshot_);
 }
 
-void TFairShareTree::TFairShareTreeSnapshot::ProcessUpdatedJob(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::ProcessUpdatedJob(
     TOperationId operationId,
     TJobId jobId,
-    const TJobResources& delta)
+    const TJobResources& delta) -> void
 {
     // NB: Should be filtered out on large clusters.
     YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v)", operationId, jobId);
@@ -187,7 +184,10 @@ void TFairShareTree::TFairShareTreeSnapshot::ProcessUpdatedJob(
     }
 }
 
-void TFairShareTree::TFairShareTreeSnapshot::ProcessFinishedJob(TOperationId operationId, TJobId jobId)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::ProcessFinishedJob(
+    TOperationId operationId,
+    TJobId jobId) -> void
 {
     // NB: Should be filtered out on large clusters.
     YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
@@ -197,9 +197,10 @@ void TFairShareTree::TFairShareTreeSnapshot::ProcessFinishedJob(TOperationId ope
     }
 }
 
-void TFairShareTree::TFairShareTreeSnapshot::ApplyJobMetricsDelta(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::ApplyJobMetricsDelta(
     TOperationId operationId,
-    const TJobMetrics& jobMetricsDelta)
+    const TJobMetrics& jobMetricsDelta) -> void
 {
     auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
     if (operationElement) {
@@ -207,33 +208,40 @@ void TFairShareTree::TFairShareTreeSnapshot::ApplyJobMetricsDelta(
     }
 }
 
-void TFairShareTree::TFairShareTreeSnapshot::ProfileFairShare() const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::ProfileFairShare() const -> void
 {
     Tree_->DoProfileFairShare(RootElementSnapshot_);
 }
 
-bool TFairShareTree::TFairShareTreeSnapshot::HasOperation(TOperationId operationId) const
+template <class TFairShareImpl>
+bool TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::HasOperation(TOperationId operationId) const
 {
     auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
     return operationElement != nullptr;
 }
 
-bool TFairShareTree::TFairShareTreeSnapshot::IsOperationDisabled(TOperationId operationId) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::IsOperationDisabled(TOperationId operationId) const -> bool
 {
     return RootElementSnapshot_->DisabledOperations.contains(operationId);
 }
 
-const TSchedulingTagFilter& TFairShareTree::TFairShareTreeSnapshot::GetNodesFilter() const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::GetNodesFilter() const -> const TSchedulingTagFilter&
 {
     return NodesFilter_;
 }
 
-TJobResources TFairShareTree::TFairShareTreeSnapshot::GetTotalResourceLimits() const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::GetTotalResourceLimits() const -> TJobResources
 {
     return TotalResourceLimits_;
 }
 
-std::optional<TSchedulerElementStateSnapshot> TFairShareTree::TFairShareTreeSnapshot::GetMaybeStateSnapshotForPool(const TString& poolId) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::GetMaybeStateSnapshotForPool(
+    const TString& poolId) const -> std::optional<TSchedulerElementStateSnapshot>
 {
     if (auto* element = RootElementSnapshot_->FindPool(poolId)) {
         return TSchedulerElementStateSnapshot{
@@ -246,11 +254,12 @@ std::optional<TSchedulerElementStateSnapshot> TFairShareTree::TFairShareTreeSnap
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareTree::TFairShareTree(
+template <class TFairShareImpl>
+TFairShareTree<TFairShareImpl>::TFairShareTree(
     TFairShareStrategyTreeConfigPtr config,
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     ISchedulerStrategyHost* strategyHost,
-    ISchedulerTreeHost* treeHost,
+    ITreeHost* treeHost,
     std::vector<IInvokerPtr> feasibleInvokers,
     const TString& treeId)
     : Config_(std::move(config))
@@ -280,13 +289,16 @@ TFairShareTree::TFairShareTree(
     RootElement_ = New<TRootElement>(StrategyHost_, this, Config_, GetPoolProfilingTag(RootPoolName), TreeId_, Logger);
 }
 
-
-TFairShareStrategyTreeConfigPtr TFairShareTree::GetConfig() const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetConfig() const -> TFairShareStrategyTreeConfigPtr
 {
     return Config_;
 }
 
-TFuture<void> TFairShareTree::ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ValidateOperationPoolsCanBeUsed(
+    const IOperationStrategyHost* operation,
+    const TPoolName& poolName) -> TFuture<void>
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -295,7 +307,10 @@ TFuture<void> TFairShareTree::ValidateOperationPoolsCanBeUsed(const IOperationSt
         .Run(operation, poolName);
 }
 
-void TFairShareTree::ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ValidatePoolLimits(
+    const IOperationStrategyHost* operation,
+    const TPoolName& poolName) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -303,7 +318,8 @@ void TFairShareTree::ValidatePoolLimits(const IOperationStrategyHost* operation,
     ValidateEphemeralPoolLimit(operation, poolName);
 }
 
-void TFairShareTree::ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -311,7 +327,10 @@ void TFairShareTree::ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost
     ValidateAllOperationsCountsOnPoolChange(operation->GetId(), newPoolName);
 }
 
-std::vector<const TCompositeSchedulerElement*> TFairShareTree::GetPoolsToValidateOperationCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetPoolsToValidateOperationCountsOnPoolChange(
+    TOperationId operationId,
+    const TPoolName& newPoolName) -> std::vector<const TCompositeSchedulerElement*>
 {
     auto operationElement = GetOperationElement(operationId);
 
@@ -343,7 +362,8 @@ std::vector<const TCompositeSchedulerElement*> TFairShareTree::GetPoolsToValidat
     return poolsToValidate;
 }
 
-void TFairShareTree::ValidateAllOperationsCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName)
+template <class TFairShareImpl>
+void TFairShareTree<TFairShareImpl>::ValidateAllOperationsCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName)
 {
     for (const auto* currentPool : GetPoolsToValidateOperationCountsOnPoolChange(operationId, newPoolName)) {
         if (currentPool->OperationCount() >= currentPool->GetMaxOperationCount()) {
@@ -355,7 +375,8 @@ void TFairShareTree::ValidateAllOperationsCountsOnPoolChange(TOperationId operat
     }
 }
 
-void TFairShareTree::RegisterOperation(
+template <class TFairShareImpl>
+void TFairShareTree<TFairShareImpl>::RegisterOperation(
     const TFairShareStrategyOperationStatePtr& state,
     const TStrategyOperationSpecPtr& spec,
     const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters)
@@ -398,8 +419,9 @@ void TFairShareTree::RegisterOperation(
     }
 }
 
-void TFairShareTree::UnregisterOperation(
-    const TFairShareStrategyOperationStatePtr& state)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::UnregisterOperation(
+    const TFairShareStrategyOperationStatePtr& state) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -422,7 +444,8 @@ void TFairShareTree::UnregisterOperation(
     OperationIdToActivationTime_.erase(operationId);
 }
 
-void TFairShareTree::TryRunAllWaitingOperations()
+template <class TFairShareImpl>
+void TFairShareTree<TFairShareImpl>::TryRunAllWaitingOperations()
 {
     std::vector<TOperationId> readyOperationIds;
     std::vector<std::pair<TOperationElementPtr, TCompositeSchedulerElement*>> stillWaiting;
@@ -450,7 +473,8 @@ void TFairShareTree::TryRunAllWaitingOperations()
     }
 }
 
-void TFairShareTree::CheckOperationsWaitingForPool(TCompositeSchedulerElement* pool)
+template <class TFairShareImpl>
+void TFairShareTree<TFairShareImpl>::CheckOperationsWaitingForPool(TCompositeSchedulerElement* pool)
 {
     auto* current = pool;
     while (current) {
@@ -478,10 +502,11 @@ void TFairShareTree::CheckOperationsWaitingForPool(TCompositeSchedulerElement* p
     }
 }
 
-void TFairShareTree::OnOperationRemovedFromPool(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::OnOperationRemovedFromPool(
     const TFairShareStrategyOperationStatePtr& state,
     const TOperationElementPtr& element,
-    const TCompositeSchedulerElementPtr& parent)
+    const TCompositeSchedulerElementPtr& parent) -> void
 {
     auto operationId = state->GetHost()->GetId();
     ReleaseOperationSlotIndex(state, parent->GetId());
@@ -498,7 +523,8 @@ void TFairShareTree::OnOperationRemovedFromPool(
     RemoveEmptyEphemeralPoolsRecursive(parent.Get());
 }
 
-void TFairShareTree::RemoveEmptyEphemeralPoolsRecursive(TCompositeSchedulerElement* compositeElement)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::RemoveEmptyEphemeralPoolsRecursive(TCompositeSchedulerElement* compositeElement) -> void
 {
     if (!compositeElement->IsRoot() && compositeElement->IsEmpty()) {
         TPoolPtr parentPool = static_cast<TPool*>(compositeElement);
@@ -509,9 +535,10 @@ void TFairShareTree::RemoveEmptyEphemeralPoolsRecursive(TCompositeSchedulerEleme
     }
 }
 
-bool TFairShareTree::OnOperationAddedToPool(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::OnOperationAddedToPool(
     const TFairShareStrategyOperationStatePtr& state,
-    const TOperationElementPtr& operationElement)
+    const TOperationElementPtr& operationElement) -> bool
 {
     AllocateOperationSlotIndex(state, operationElement->GetParent()->GetId());
 
@@ -534,7 +561,8 @@ bool TFairShareTree::OnOperationAddedToPool(
     return false;
 }
 
-void TFairShareTree::DisableOperation(const TFairShareStrategyOperationStatePtr& state)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DisableOperation(const TFairShareStrategyOperationStatePtr& state) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -543,7 +571,8 @@ void TFairShareTree::DisableOperation(const TFairShareStrategyOperationStatePtr&
     operationElement->GetMutableParent()->DisableChild(operationElement);
 }
 
-void TFairShareTree::EnableOperation(const TFairShareStrategyOperationStatePtr& state)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::EnableOperation(const TFairShareStrategyOperationStatePtr& state) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -555,7 +584,8 @@ void TFairShareTree::EnableOperation(const TFairShareStrategyOperationStatePtr& 
     operationElement->Enable();
 }
 
-TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::UpdatePools(const INodePtr& poolsNode) -> TPoolsUpdateResult
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -650,10 +680,11 @@ TPoolsUpdateResult TFairShareTree::UpdatePools(const INodePtr& poolsNode)
     return {LastPoolsNodeUpdateError_, true};
 }
 
-void TFairShareTree::ChangeOperationPool(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ChangeOperationPool(
     TOperationId operationId,
     const TFairShareStrategyOperationStatePtr& state,
-    const TPoolName& newPool)
+    const TPoolName& newPool) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -676,11 +707,12 @@ void TFairShareTree::ChangeOperationPool(
     }
 }
 
-TError TFairShareTree::CheckOperationUnschedulable(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::CheckOperationUnschedulable(
     TOperationId operationId,
     TDuration safeTimeout,
     int minScheduleJobCallAttempts,
-    THashSet<EDeactivationReason> deactivationReasons)
+    THashSet<EDeactivationReason> deactivationReasons) -> TError
 {
     // TODO(ignat): Could we guarantee that operation must be in tree?
     auto element = FindRecentOperationElementSnapshot(operationId);
@@ -729,9 +761,10 @@ TError TFairShareTree::CheckOperationUnschedulable(
     return TError();
 }
 
-void TFairShareTree::UpdateOperationRuntimeParameters(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::UpdateOperationRuntimeParameters(
     TOperationId operationId,
-    const TOperationFairShareTreeRuntimeParametersPtr& newParams)
+    const TOperationFairShareTreeRuntimeParametersPtr& newParams) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -740,7 +773,8 @@ void TFairShareTree::UpdateOperationRuntimeParameters(
     }
 }
 
-void TFairShareTree::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -753,7 +787,8 @@ void TFairShareTree::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
     }
 }
 
-void TFairShareTree::UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -764,7 +799,8 @@ void TFairShareTree::UpdateControllerConfig(const TFairShareStrategyOperationCon
     }
 }
 
-void TFairShareTree::BuildOperationAttributes(TOperationId operationId, TFluentMap fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildOperationAttributes(TOperationId operationId, TFluentMap fluent) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -775,7 +811,8 @@ void TFairShareTree::BuildOperationAttributes(TOperationId operationId, TFluentM
         .Item("pool").Value(element->GetParent()->GetId());
 }
 
-void TFairShareTree::BuildOperationProgress(TOperationId operationId, TFluentMap fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildOperationProgress(TOperationId operationId, TFluentMap fluent) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -797,7 +834,8 @@ void TFairShareTree::BuildOperationProgress(TOperationId operationId, TFluentMap
         .Do(std::bind(&TFairShareTree::BuildElementYson, this, element, std::placeholders::_1));
 }
 
-void TFairShareTree::BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -811,10 +849,11 @@ void TFairShareTree::BuildBriefOperationProgress(TOperationId operationId, TFlue
     fluent
         .Item("pool").Value(parent->GetId())
         .Item("weight").Value(element->GetWeight())
-        .Item("fair_share_ratio").Value(attributes.FairShareRatio);
+        .Item("fair_share_ratio").Value(attributes.GetFairShareRatio());
 }
 
-void TFairShareTree::BuildUserToEphemeralPoolsInDefaultPool(TFluentAny fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildUserToEphemeralPoolsInDefaultPool(TFluentAny fluent) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -826,14 +865,16 @@ void TFairShareTree::BuildUserToEphemeralPoolsInDefaultPool(TFluentAny fluent)
         });
 }
 
-TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>> TFairShareTree::OnFairShareUpdateAt(TInstant now)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::OnFairShareUpdateAt(TInstant now) -> TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>>
 {
     return BIND(&TFairShareTree::DoFairShareUpdateAt, MakeStrong(this), now)
         .AsyncVia(GetCurrentInvoker())
         .Run();
 }
 
-void TFairShareTree::LogOperationsInfo()
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::LogOperationsInfo() -> void
 {
     for (const auto& [operationId, element] : OperationIdToElement_) {
         auto* recentOperationElement = FindRecentOperationElementSnapshot(operationId);
@@ -843,7 +884,8 @@ void TFairShareTree::LogOperationsInfo()
     }
 }
 
-void TFairShareTree::LogPoolsInfo()
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::LogPoolsInfo() -> void
 {
     for (const auto& [poolName, element] : Pools_) {
         auto recentPoolElement = FindRecentPoolSnapshot(poolName);
@@ -854,7 +896,8 @@ void TFairShareTree::LogPoolsInfo()
 }
 
 // NB: This function is public for testing purposes.
-void TFairShareTree::OnFairShareLoggingAt(TInstant now)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::OnFairShareLoggingAt(TInstant now) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -870,7 +913,8 @@ void TFairShareTree::OnFairShareLoggingAt(TInstant now)
 }
 
 // NB: This function is public for testing purposes.
-void TFairShareTree::OnFairShareEssentialLoggingAt(TInstant now)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::OnFairShareEssentialLoggingAt(TInstant now) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -885,7 +929,8 @@ void TFairShareTree::OnFairShareEssentialLoggingAt(TInstant now)
     }
 }
 
-void TFairShareTree::RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -899,7 +944,8 @@ void TFairShareTree::RegisterJobsFromRevivedOperation(TOperationId operationId, 
     }
 }
 
-void TFairShareTree::BuildPoolsInformation(TFluentMap fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildPoolsInformation(TFluentMap fluent) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -930,14 +976,15 @@ void TFairShareTree::BuildPoolsInformation(TFluentMap fluent)
     fluent
         .Item("pool_count").Value(GetPoolCount())
         .Item("pools").BeginMap()
-            .DoFor(Pools_, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
+            .DoFor(Pools_, [&] (TFluentMap fluent, const typename TPoolMap::value_type& pair) {
                 buildPoolInfo(FindRecentPoolSnapshot(pair.first), fluent);
             })
             .Do(std::bind(buildPoolInfo, GetRecentRootSnapshot(), std::placeholders::_1))
         .EndMap();
 }
 
-void TFairShareTree::BuildStaticPoolsInformation(TFluentAny fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildStaticPoolsInformation(TFluentAny fluent) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -949,7 +996,8 @@ void TFairShareTree::BuildStaticPoolsInformation(TFluentAny fluent)
         });
 }
 
-void TFairShareTree::BuildOrchid(TFluentMap fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildOrchid(TFluentMap fluent) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -957,7 +1005,8 @@ void TFairShareTree::BuildOrchid(TFluentMap fluent)
         .Item("resource_usage").Value(GetRecentRootSnapshot()->GetLocalResourceUsage());
 }
 
-void TFairShareTree::BuildFairShareInfo(TFluentMap fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildFairShareInfo(TFluentMap fluent) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -965,7 +1014,7 @@ void TFairShareTree::BuildFairShareInfo(TFluentMap fluent)
         .Do(BIND(&TFairShareTree::BuildPoolsInformation, Unretained(this)))
         .Item("operations").DoMapFor(
             OperationIdToElement_,
-            [=] (TFluentMap fluent, const TOperationElementMap::value_type& pair) {
+            [=] (TFluentMap fluent, const typename TOperationElementMap::value_type& pair) {
                 auto operationId = pair.first;
                 fluent
                     .Item(ToString(operationId)).BeginMap()
@@ -974,7 +1023,8 @@ void TFairShareTree::BuildFairShareInfo(TFluentMap fluent)
             });
 }
 
-void TFairShareTree::BuildEssentialFairShareInfo(TFluentMap fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildEssentialFairShareInfo(TFluentMap fluent) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -982,7 +1032,7 @@ void TFairShareTree::BuildEssentialFairShareInfo(TFluentMap fluent)
         .Do(BIND(&TFairShareTree::BuildEssentialPoolsInformation, Unretained(this)))
         .Item("operations").DoMapFor(
             OperationIdToElement_,
-            [=] (TFluentMap fluent, const TOperationElementMap::value_type& pair) {
+            [=] (TFluentMap fluent, const typename TOperationElementMap::value_type& pair) {
                 auto operationId = pair.first;
                 fluent
                     .Item(ToString(operationId)).BeginMap()
@@ -991,7 +1041,8 @@ void TFairShareTree::BuildEssentialFairShareInfo(TFluentMap fluent)
             });
 }
 
-void TFairShareTree::ResetState()
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ResetState() -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -999,14 +1050,16 @@ void TFairShareTree::ResetState()
     LastPoolsNodeUpdateError_ = TError();
 }
 
-const TSchedulingTagFilter& TFairShareTree::GetNodesFilter() const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetNodesFilter() const -> const TSchedulingTagFilter&
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     return Config_->NodesFilter;
 }
 
-TPoolName TFairShareTree::CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::CreatePoolName(const std::optional<TString>& poolFromSpec, const TString& user) -> TPoolName
 {
     if (!poolFromSpec) {
         return TPoolName(user, std::nullopt);
@@ -1018,12 +1071,14 @@ TPoolName TFairShareTree::CreatePoolName(const std::optional<TString>& poolFromS
     return TPoolName(*poolFromSpec, std::nullopt);
 }
 
-bool TFairShareTree::HasOperation(TOperationId operationId)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::HasOperation(TOperationId operationId) -> bool
 {
     return static_cast<bool>(FindOperationElement(operationId));
 }
 
-bool TFairShareTree::HasRunningOperation(TOperationId operationId)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::HasRunningOperation(TOperationId operationId) -> bool
 {
     if (auto element = FindOperationElement(operationId)) {
         return element->IsOperationRunningInPool();
@@ -1031,12 +1086,14 @@ bool TFairShareTree::HasRunningOperation(TOperationId operationId)
     return false;
 }
 
-TResourceTree* TFairShareTree::GetResourceTree()
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetResourceTree() -> TResourceTree*
 {
     return ResourceTree_.Get();
 }
 
-TAggregateGauge& TFairShareTree::GetProfilingCounter(const TString& name)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetProfilingCounter(const TString& name) -> TAggregateGauge&
 {
     TGuard<TSpinLock> guard(CustomProfilingCountersLock_);
 
@@ -1049,7 +1106,8 @@ TAggregateGauge& TFairShareTree::GetProfilingCounter(const TString& name)
     return *it->second;
 }
 
-void ReactivateBadPackingOperations(TFairShareContext* context)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ReactivateBadPackingOperations(TFairShareContext* context) -> void
 {
     for (const auto& operation : context->BadPackingOperations) {
         context->DynamicAttributesList[operation->GetTreeIndex()].Active = true;
@@ -1059,7 +1117,8 @@ void ReactivateBadPackingOperations(TFairShareContext* context)
     context->BadPackingOperations.clear();
 }
 
-TDynamicAttributes TFairShareTree::GetGlobalDynamicAttributes(const TSchedulerElement* element) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetGlobalDynamicAttributes(const TSchedulerElement* element) const -> TDynamicAttributes
 {
     TReaderGuard guard(GlobalDynamicAttributesLock_);
     auto it = ElementIndexes_.find(element->GetId());
@@ -1072,7 +1131,8 @@ TDynamicAttributes TFairShareTree::GetGlobalDynamicAttributes(const TSchedulerEl
     }
 }
 
-std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt(TInstant now)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoFairShareUpdateAt(TInstant now) -> std::pair<IFairShareTreeSnapshotPtr, TError>
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1171,12 +1231,13 @@ std::pair<IFairShareTreeSnapshotPtr, TError> TFairShareTree::DoFairShareUpdateAt
     return std::make_pair(treeSnapshot, error);
 }
 
-void TFairShareTree::DoScheduleJobsWithoutPreemptionImpl(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithoutPreemptionImpl(
     const TRootElementSnapshotPtr& rootElementSnapshot,
     TFairShareContext* context,
     TCpuInstant startTime,
     bool ignorePacking,
-    bool oneJobOnly)
+    bool oneJobOnly) -> void
 {
     auto& rootElement = rootElementSnapshot->RootElement;
 
@@ -1212,10 +1273,11 @@ void TFairShareTree::DoScheduleJobsWithoutPreemptionImpl(
     }
 }
 
-void TFairShareTree::DoScheduleJobsWithoutPreemption(
-    const NYT::NScheduler::TFairShareTree::TRootElementSnapshotPtr& rootElementSnapshot,
-    NYT::NScheduler::TFairShareContext* context,
-    NYT::NProfiling::TCpuInstant startTime)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithoutPreemption(
+    const TFairShareTree::TRootElementSnapshotPtr& rootElementSnapshot,
+    TFairShareContext* context,
+    NYT::NProfiling::TCpuInstant startTime) -> void
 {
     YT_LOG_TRACE("Scheduling new jobs");
 
@@ -1227,10 +1289,11 @@ void TFairShareTree::DoScheduleJobsWithoutPreemption(
         /* oneJobOnly */ false);
 }
 
-void TFairShareTree::DoScheduleJobsPackingFallback(
-    const NYT::NScheduler::TFairShareTree::TRootElementSnapshotPtr& rootElementSnapshot,
-    NYT::NScheduler::TFairShareContext* context,
-    NYT::NProfiling::TCpuInstant startTime)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoScheduleJobsPackingFallback(
+    const TFairShareTree::TRootElementSnapshotPtr& rootElementSnapshot,
+    TFairShareContext* context,
+    NYT::NProfiling::TCpuInstant startTime) -> void
 {
     YT_LOG_TRACE("Scheduling jobs with packing ignored");
 
@@ -1243,10 +1306,11 @@ void TFairShareTree::DoScheduleJobsPackingFallback(
         /* oneJobOnly */ true);
 }
 
-void TFairShareTree::DoScheduleJobsWithPreemption(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemption(
     const TRootElementSnapshotPtr& rootElementSnapshot,
     TFairShareContext* context,
-    TCpuInstant startTime)
+    TCpuInstant startTime) -> void
 {
     auto& rootElement = rootElementSnapshot->RootElement;
     auto& config = rootElementSnapshot->Config;
@@ -1299,7 +1363,10 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     // NB: Schedule at most one job with preemption.
     TJobPtr jobStartedUsingPreemption;
     {
-        YT_LOG_TRACE("Scheduling new jobs with preemption");
+        YT_LOG_TRACE(
+            "Scheduling new jobs with preemption (PreemptableJobs: %v ResourceUsageDiscount: %v)",
+            preemptableJobs.size(),
+            FormatResources(context->SchedulingContext->ResourceUsageDiscount()));
 
         bool prescheduleExecuted = false;
         TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(ControllerConfig_->ScheduleJobsTimeout);
@@ -1433,9 +1500,10 @@ void TFairShareTree::DoScheduleJobsWithPreemption(
     }
 }
 
-void TFairShareTree::DoScheduleJobs(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoScheduleJobs(
     const ISchedulingContextPtr& schedulingContext,
-    const TRootElementSnapshotPtr& rootElementSnapshot)
+    const TRootElementSnapshotPtr& rootElementSnapshot) -> void
 {
     bool enableSchedulingInfoLogging = false;
     auto now = schedulingContext->GetNow();
@@ -1544,9 +1612,10 @@ void TFairShareTree::DoScheduleJobs(
     schedulingContext->SetSchedulingStatistics(context.SchedulingStatistics);
 }
 
-void TFairShareTree::DoPreemptJobsGracefully(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoPreemptJobsGracefully(
     const ISchedulingContextPtr& schedulingContext,
-    const TRootElementSnapshotPtr& rootElementSnapshot)
+    const TRootElementSnapshotPtr& rootElementSnapshot) -> void
 {
     YT_LOG_TRACE("Looking for gracefully preemptable jobs");
     for (const auto& job : schedulingContext->RunningJobs()) {
@@ -1569,7 +1638,8 @@ void TFairShareTree::DoPreemptJobsGracefully(
     }
 }
 
-void TFairShareTree::DoProfileFairShare(const TRootElementSnapshotPtr& rootElementSnapshotPtr) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoProfileFairShare(const TRootElementSnapshotPtr& rootElementSnapshotPtr) const -> void
 {
     TMetricsAccumulator accumulator;
 
@@ -1593,10 +1663,11 @@ void TFairShareTree::DoProfileFairShare(const TRootElementSnapshotPtr& rootEleme
 }
 
 
-void TFairShareTree::PreemptJob(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::PreemptJob(
     const TJobPtr& job,
     const TOperationElementPtr& operationElement,
-    const ISchedulingContextPtr& schedulingContext) const
+    const ISchedulingContextPtr& schedulingContext) const -> void
 {
     schedulingContext->ResourceUsage() -= job->ResourceUsage();
     operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
@@ -1605,7 +1676,8 @@ void TFairShareTree::PreemptJob(
     schedulingContext->PreemptJob(job);
 }
 
-TCompositeSchedulerElement* TFairShareTree::FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool) -> TCompositeSchedulerElement*
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -1618,7 +1690,8 @@ TCompositeSchedulerElement* TFairShareTree::FindPoolViolatingMaxRunningOperation
     return nullptr;
 }
 
-const TCompositeSchedulerElement* TFairShareTree::FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element) -> const TCompositeSchedulerElement*
 {
     const TCompositeSchedulerElement* current = element.Get();
     while (current) {
@@ -1630,7 +1703,8 @@ const TCompositeSchedulerElement* TFairShareTree::FindPoolWithViolatedOperationC
     return nullptr;
 }
 
-void TFairShareTree::DoRegisterPool(const TPoolPtr& pool)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoRegisterPool(const TPoolPtr& pool) -> void
 {
     int index = RegisterSchedulingTagFilter(pool->GetSchedulingTagFilter());
     pool->SetSchedulingTagFilterIndex(index);
@@ -1638,7 +1712,8 @@ void TFairShareTree::DoRegisterPool(const TPoolPtr& pool)
     YT_VERIFY(PoolToMinUnusedSlotIndex_.insert(std::make_pair(pool->GetId(), 0)).second);
 }
 
-void TFairShareTree::RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent) -> void
 {
     DoRegisterPool(pool);
 
@@ -1649,7 +1724,8 @@ void TFairShareTree::RegisterPool(const TPoolPtr& pool, const TCompositeSchedule
         parent->GetId());
 }
 
-void TFairShareTree::ReconfigurePool(const TPoolPtr& pool, const TPoolConfigPtr& config)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ReconfigurePool(const TPoolPtr& pool, const TPoolConfigPtr& config) -> void
 {
     auto oldSchedulingTagFilter = pool->GetSchedulingTagFilter();
     pool->SetConfig(config);
@@ -1661,7 +1737,8 @@ void TFairShareTree::ReconfigurePool(const TPoolPtr& pool, const TPoolConfigPtr&
     }
 }
 
-void TFairShareTree::UnregisterPool(const TPoolPtr& pool)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::UnregisterPool(const TPoolPtr& pool) -> void
 {
     auto userName = pool->GetUserName();
     if (userName && pool->IsEphemeralInDefaultParentPool()) {
@@ -1686,7 +1763,8 @@ void TFairShareTree::UnregisterPool(const TPoolPtr& pool)
         parent->GetId());
 }
 
-bool TFairShareTree::TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex) -> bool
 {
     auto& minUnusedIndex = GetOrCrash(PoolToMinUnusedSlotIndex_, poolName);
     auto& spareSlotIndices = PoolToSpareSlotIndices_[poolName];
@@ -1704,7 +1782,8 @@ bool TFairShareTree::TryAllocatePoolSlotIndex(const TString& poolName, int slotI
     }
 }
 
-void TFairShareTree::AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName) -> void
 {
     auto slotIndex = state->GetHost()->FindSlotIndex(TreeId_);
 
@@ -1737,7 +1816,8 @@ void TFairShareTree::AllocateOperationSlotIndex(const TFairShareStrategyOperatio
         *slotIndex);
 }
 
-void TFairShareTree::ReleaseOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ReleaseOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName) -> void
 {
     auto slotIndex = state->GetHost()->FindSlotIndex(TreeId_);
     YT_VERIFY(slotIndex);
@@ -1754,7 +1834,8 @@ void TFairShareTree::ReleaseOperationSlotIndex(const TFairShareStrategyOperation
         *slotIndex);
 }
 
-void TFairShareTree::BuildEssentialOperationProgress(TOperationId operationId, TFluentMap fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildEssentialOperationProgress(TOperationId operationId, TFluentMap fluent) -> void
 {
     const auto* element = FindRecentOperationElementSnapshot(operationId);
     if (!element) {
@@ -1765,7 +1846,8 @@ void TFairShareTree::BuildEssentialOperationProgress(TOperationId operationId, T
         .Do(std::bind(&TFairShareTree::BuildEssentialOperationElementYson, this, element, std::placeholders::_1));
 }
 
-int TFairShareTree::RegisterSchedulingTagFilter(const TSchedulingTagFilter& filter)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::RegisterSchedulingTagFilter(const TSchedulingTagFilter& filter) -> int
 {
     if (filter.IsEmpty()) {
         return EmptySchedulingTagFilterIndex;
@@ -1789,7 +1871,8 @@ int TFairShareTree::RegisterSchedulingTagFilter(const TSchedulingTagFilter& filt
     }
 }
 
-void TFairShareTree::UnregisterSchedulingTagFilter(int index)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::UnregisterSchedulingTagFilter(int index) -> void
 {
     if (index == EmptySchedulingTagFilterIndex) {
         return;
@@ -1797,7 +1880,8 @@ void TFairShareTree::UnregisterSchedulingTagFilter(int index)
     UnregisterSchedulingTagFilter(RegisteredSchedulingTagFilters_[index]);
 }
 
-void TFairShareTree::UnregisterSchedulingTagFilter(const TSchedulingTagFilter& filter)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::UnregisterSchedulingTagFilter(const TSchedulingTagFilter& filter) -> void
 {
     if (filter.IsEmpty()) {
         return;
@@ -1812,20 +1896,23 @@ void TFairShareTree::UnregisterSchedulingTagFilter(const TSchedulingTagFilter& f
     }
 }
 
-TPoolPtr TFairShareTree::FindPool(const TString& id) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::FindPool(const TString& id) const -> TPoolPtr
 {
     auto it = Pools_.find(id);
     return it == Pools_.end() ? nullptr : it->second;
 }
 
-TPoolPtr TFairShareTree::GetPool(const TString& id) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetPool(const TString& id) const -> TPoolPtr
 {
     auto pool = FindPool(id);
     YT_VERIFY(pool);
     return pool;
 }
 
-TPool* TFairShareTree::FindRecentPoolSnapshot(const TString& poolName) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::FindRecentPoolSnapshot(const TString& poolName) const -> TPool*
 {
     if (RootElementSnapshot_) {
         if (auto elementFromSnapshot = RootElementSnapshot_->FindPool(poolName)) {
@@ -1835,12 +1922,14 @@ TPool* TFairShareTree::FindRecentPoolSnapshot(const TString& poolName) const
     return FindPool(poolName).Get();
 }
 
-int TFairShareTree::GetPoolCount() const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetPoolCount() const -> int
 {
     return Pools_.size();
 }
 
-TPoolPtr TFairShareTree::GetOrCreatePool(const TPoolName& poolName, TString userName)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetOrCreatePool(const TPoolName& poolName, TString userName) -> TPoolPtr
 {
     auto pool = FindPool(poolName.GetPool());
     if (pool) {
@@ -1881,7 +1970,8 @@ TPoolPtr TFairShareTree::GetOrCreatePool(const TPoolName& poolName, TString user
     return pool;
 }
 
-NProfiling::TTagId TFairShareTree::GetPoolProfilingTag(const TString& id)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetPoolProfilingTag(const TString& id) -> NProfiling::TTagId
 {
     auto it = PoolIdToProfilingTagId_.find(id);
     if (it == PoolIdToProfilingTagId_.end()) {
@@ -1893,20 +1983,23 @@ NProfiling::TTagId TFairShareTree::GetPoolProfilingTag(const TString& id)
     return it->second;
 }
 
-TOperationElementPtr TFairShareTree::FindOperationElement(TOperationId operationId) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::FindOperationElement(TOperationId operationId) const -> TOperationElementPtr
 {
     auto it = OperationIdToElement_.find(operationId);
     return it == OperationIdToElement_.end() ? nullptr : it->second;
 }
 
-TOperationElementPtr TFairShareTree::GetOperationElement(TOperationId operationId) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetOperationElement(TOperationId operationId) const -> TOperationElementPtr
 {
     auto element = FindOperationElement(operationId);
     YT_VERIFY(element);
     return element;
 }
 
-TOperationElement* TFairShareTree::FindRecentOperationElementSnapshot(TOperationId operationId) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::FindRecentOperationElementSnapshot(TOperationId operationId) const -> TOperationElement*
 {
     if (RootElementSnapshot_) {
         if (auto elementFromSnapshot = RootElementSnapshot_->FindOperationElement(operationId)) {
@@ -1916,7 +2009,8 @@ TOperationElement* TFairShareTree::FindRecentOperationElementSnapshot(TOperation
     return FindOperationElement(operationId).Get();
 }
 
-TCompositeSchedulerElement* TFairShareTree::GetRecentRootSnapshot() const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetRecentRootSnapshot() const -> TCompositeSchedulerElement*
 {
     if (RootElementSnapshot_) {
         return RootElementSnapshot_->RootElement.Get();
@@ -1924,10 +2018,11 @@ TCompositeSchedulerElement* TFairShareTree::GetRecentRootSnapshot() const
     return RootElement_.Get();
 }
 
-void TFairShareTree::BuildEssentialPoolsInformation(TFluentMap fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildEssentialPoolsInformation(TFluentMap fluent) -> void
 {
     fluent
-        .Item("pools").DoMapFor(Pools_, [&] (TFluentMap fluent, const TPoolMap::value_type& pair) {
+        .Item("pools").DoMapFor(Pools_, [&] (TFluentMap fluent, const typename TPoolMap::value_type& pair) {
             const auto& [poolName, pool] = pair;
             fluent
                 .Item(poolName).BeginMap()
@@ -1936,12 +2031,13 @@ void TFairShareTree::BuildEssentialPoolsInformation(TFluentMap fluent)
         });
 }
 
-void TFairShareTree::BuildElementYson(const TSchedulerElement* element, TFluentMap fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildElementYson(const TSchedulerElement* element, TFluentMap fluent) -> void
 {
     const auto& attributes = element->Attributes();
     auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
-    auto guaranteedResources = StrategyHost_->GetResourceLimits(Config_->NodesFilter) * attributes.GuaranteedResourcesRatio;
+    auto guaranteedResources = StrategyHost_->GetResourceLimits(Config_->NodesFilter) * attributes.GetGuaranteedResourcesShare();
 
     fluent
         .Item("scheduling_status").Value(element->GetStatus())
@@ -1960,27 +2056,28 @@ void TFairShareTree::BuildElementYson(const TSchedulerElement* element, TFluentM
         .Item("min_share_ratio").Value(element->GetMinShareRatio())
         .Item("max_share_ratio").Value(element->GetMaxShareRatio())
         .Item("min_share_resources").Value(element->GetMinShareResources())
-        .Item("adjusted_min_share_ratio").Value(attributes.AdjustedMinShareRatio)
-        .Item("recursive_min_share_ratio").Value(attributes.RecursiveMinShareRatio)
-        .Item("guaranteed_resources_ratio").Value(attributes.GuaranteedResourcesRatio)
+        .Item("adjusted_min_share_ratio").Value(attributes.GetAdjustedMinShareRatio())
+        .Item("recursive_min_share_ratio").Value(attributes.GetRecursiveMinShareRatio())
+        .Item("guaranteed_resources_ratio").Value(attributes.GetGuaranteedResourcesRatio())
         .Item("guaranteed_resources").Value(guaranteedResources)
-        .Item("max_possible_usage_ratio").Value(attributes.MaxPossibleUsageRatio)
+        .Item("max_possible_usage_ratio").Value(attributes.GetMaxPossibleUsageRatio())
         .Item("usage_ratio").Value(element->GetResourceUsageRatio())
-        .Item("demand_ratio").Value(attributes.DemandRatio)
-        .Item("fair_share_ratio").Value(attributes.FairShareRatio)
-        .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
-        .Item("best_allocation_ratio").Value(attributes.BestAllocationRatio);
+        .Item("demand_ratio").Value(attributes.GetDemandRatio())
+        .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
+        // .Item("best_allocation_ratio").Value(attributes.BestAllocationRatio)
+        .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio);
 }
 
-void TFairShareTree::BuildEssentialElementYson(const TSchedulerElement* element, TFluentMap fluent, bool shouldPrintResourceUsage)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildEssentialElementYson(const TSchedulerElement* element, TFluentMap fluent, bool shouldPrintResourceUsage) -> void
 {
     const auto& attributes = element->Attributes();
     auto dynamicAttributes = GetGlobalDynamicAttributes(element);
 
     fluent
         .Item("usage_ratio").Value(element->GetResourceUsageRatio())
-        .Item("demand_ratio").Value(attributes.DemandRatio)
-        .Item("fair_share_ratio").Value(attributes.FairShareRatio)
+        .Item("demand_ratio").Value(attributes.GetDemandRatio())
+        .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
         .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
         .Item("dominant_resource").Value(attributes.DominantResource)
         .DoIf(shouldPrintResourceUsage, [&] (TFluentMap fluent) {
@@ -1989,17 +2086,20 @@ void TFairShareTree::BuildEssentialElementYson(const TSchedulerElement* element,
         });
 }
 
-void TFairShareTree::BuildEssentialPoolElementYson(const TSchedulerElement* element, TFluentMap fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildEssentialPoolElementYson(const TSchedulerElement* element, TFluentMap fluent) -> void
 {
     BuildEssentialElementYson(element, fluent, false);
 }
 
-void TFairShareTree::BuildEssentialOperationElementYson(const TSchedulerElement* element, TFluentMap fluent)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildEssentialOperationElementYson(const TSchedulerElement* element, TFluentMap fluent) -> void
 {
     BuildEssentialElementYson(element, fluent, true);
 }
 
-TYPath TFairShareTree::GetPoolPath(const TCompositeSchedulerElementPtr& element)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetPoolPath(const TCompositeSchedulerElementPtr& element) -> TYPath
 {
     std::vector<TString> tokens;
     const auto* current = element.Get();
@@ -2020,7 +2120,8 @@ TYPath TFairShareTree::GetPoolPath(const TCompositeSchedulerElementPtr& element)
     return path;
 }
 
-TCompositeSchedulerElementPtr TFairShareTree::GetDefaultParentPool()
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetDefaultParentPool() -> TCompositeSchedulerElementPtr
 {
     auto defaultPool = FindPool(Config_->DefaultParentPool);
     if (!defaultPool) {
@@ -2034,7 +2135,8 @@ TCompositeSchedulerElementPtr TFairShareTree::GetDefaultParentPool()
     return defaultPool;
 }
 
-TCompositeSchedulerElementPtr TFairShareTree::GetPoolOrParent(const TPoolName& poolName)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetPoolOrParent(const TPoolName& poolName) -> TCompositeSchedulerElementPtr
 {
     TCompositeSchedulerElementPtr pool = FindPool(poolName.GetPool());
     if (pool) {
@@ -2050,7 +2152,8 @@ TCompositeSchedulerElementPtr TFairShareTree::GetPoolOrParent(const TPoolName& p
     return pool;
 }
 
-void TFairShareTree::ValidateOperationCountLimit(const IOperationStrategyHost* operation, const TPoolName& poolName)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ValidateOperationCountLimit(const IOperationStrategyHost* operation, const TPoolName& poolName) -> void
 {
     auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(GetPoolOrParent(poolName));
     if (poolWithViolatedLimit) {
@@ -2063,7 +2166,8 @@ void TFairShareTree::ValidateOperationCountLimit(const IOperationStrategyHost* o
     }
 }
 
-void TFairShareTree::ValidateEphemeralPoolLimit(const IOperationStrategyHost* operation, const TPoolName& poolName)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ValidateEphemeralPoolLimit(const IOperationStrategyHost* operation, const TPoolName& poolName) -> void
 {
     auto pool = FindPool(poolName.GetPool());
     if (pool) {
@@ -2087,7 +2191,8 @@ void TFairShareTree::ValidateEphemeralPoolLimit(const IOperationStrategyHost* op
     }
 }
 
-void TFairShareTree::DoValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName)
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) -> void
 {
     TCompositeSchedulerElementPtr pool = FindPool(poolName.GetPool());
     // NB: Check is not performed if operation is started in default or unknown pool.
@@ -2102,7 +2207,8 @@ void TFairShareTree::DoValidateOperationPoolsCanBeUsed(const IOperationStrategyH
     StrategyHost_->ValidatePoolPermission(GetPoolPath(pool), operation->GetAuthenticatedUser(), EPermission::Use);
 }
 
-void TFairShareTree::ProfileOperationElement(TMetricsAccumulator& accumulator, TOperationElementPtr element) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ProfileOperationElement(TMetricsAccumulator& accumulator, TOperationElementPtr element) const -> void
 {
     if (auto slotIndex = element->GetMaybeSlotIndex()) {
         auto poolTag = element->GetParent()->GetProfilingTag();
@@ -2126,7 +2232,8 @@ void TFairShareTree::ProfileOperationElement(TMetricsAccumulator& accumulator, T
     }
 }
 
-void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accumulator, TCompositeSchedulerElementPtr element) const
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ProfileCompositeSchedulerElement(TMetricsAccumulator& accumulator, TCompositeSchedulerElementPtr element) const -> void
 {
     auto tag = element->GetProfilingTag();
     ProfileSchedulerElement(accumulator, element, "/pools", {tag, TreeIdProfilingTag_});
@@ -2157,15 +2264,16 @@ void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accum
     // TODO(eshcherbin): Add historic usage profiling.
 }
 
-void TFairShareTree::ProfileSchedulerElement(
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::ProfileSchedulerElement(
     TMetricsAccumulator& accumulator,
     const TSchedulerElementPtr& element,
     const TString& profilingPrefix,
-    const TTagIdList& tags) const
+    const TTagIdList& tags) const -> void
 {
     accumulator.Add(
         profilingPrefix + "/fair_share_ratio_x100000",
-        static_cast<i64>(element->Attributes().FairShareRatio * 1e5),
+        static_cast<i64>(element->Attributes().GetFairShareRatio() * 1e5),
         EMetricType::Gauge,
         tags);
     accumulator.Add(
@@ -2175,12 +2283,12 @@ void TFairShareTree::ProfileSchedulerElement(
         tags);
     accumulator.Add(
         profilingPrefix + "/demand_ratio_x100000",
-        static_cast<i64>(element->Attributes().DemandRatio * 1e5),
+        static_cast<i64>(element->Attributes().GetDemandRatio() * 1e5),
         EMetricType::Gauge,
         tags);
     accumulator.Add(
         profilingPrefix + "/guaranteed_resource_ratio_x100000",
-        static_cast<i64>(element->Attributes().GuaranteedResourcesRatio * 1e5),
+        static_cast<i64>(element->Attributes().GetGuaranteedResourcesRatio() * 1e5),
         EMetricType::Gauge,
         tags);
 
@@ -2194,7 +2302,8 @@ void TFairShareTree::ProfileSchedulerElement(
         tags);
 }
 
-void TFairShareTree::ProcessActivatableOperations()
+template <class TFairShareImpl>
+void TFairShareTree<TFairShareImpl>::ProcessActivatableOperations()
 {
     while (!ActivatableOperationIds_.empty()) {
         auto operationId = ActivatableOperationIds_.back();
@@ -2203,16 +2312,23 @@ void TFairShareTree::ProcessActivatableOperations()
     }
 }
 
-void TFairShareTree::OnTreeRemoveStarted()
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::OnTreeRemoveStarted() -> void
 {
     YT_LOG_DEBUG("Pool tree %Qv is marked to be removed", TreeId_);
     IsBeingRemoved_ = true;
 }
 
-bool TFairShareTree::IsBeingRemoved()
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::IsBeingRemoved() -> bool
 {
     return IsBeingRemoved_;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template class TFairShareTree<TVectorFairShareImpl>;
+template class TFairShareTree<TClassicFairShareImpl>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

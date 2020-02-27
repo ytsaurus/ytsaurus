@@ -245,6 +245,12 @@ public:
     // See: |Trim|.
     bool IsTrimmed() const;
 
+    // See: |TrimLeft|.
+    bool IsTrimmedLeft() const;
+
+    // See: |TrimRight|.
+    bool IsTrimmedRight() const;
+
     // Returns the leftmost segment that contains |x|.
     // |LeftSegmentAt(x).LeftLimitAt(x)| is guaranteed to be equal to |LeftLimitAt(x)|.
     const TSegment& LeftSegmentAt(double x, int* segmentIndex = nullptr) const;
@@ -348,7 +354,7 @@ public:
     // Equivalent to |ExtendRight(newRightBound, Segments().back().RightValue())|
     [[nodiscard]] TSelf ExtendRight(double newRightBound) const;
 
-    // Returns function |g| such that |g.ValueAt(x) == this->ValueAt(x) + other.Get(x)| for all |x| in the intersection of
+    // Returns function |g| such that |g.ValueAt(x) == this->ValueAt(x) + other.ValueAt(x)| for all |x| in the intersection of
     // the domains of |*this| and |other|.
     [[nodiscard]] TSelf operator+(const TSelf& other) const;
 

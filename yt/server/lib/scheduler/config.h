@@ -523,6 +523,9 @@ public:
     //! Increase this value to speedup registration.
     int FetchOperationAttributesSubbatchSize;
 
+    //! Use scheduling strategy based on fair share ratio instead of new one based on vector fair share.
+    bool UseClassicScheduler;
+
     TSchedulerConfig();
 };
 

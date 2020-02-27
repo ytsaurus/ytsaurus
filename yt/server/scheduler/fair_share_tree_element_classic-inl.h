@@ -1,11 +1,11 @@
 #pragma once
-#ifndef FAIR_SHARE_TREE_ELEMENT_INL_H_
-#error "Direct inclusion of this file is not allowed, include fair_share_tree_element.h"
+#ifndef FAIR_SHARE_TREE_ELEMENT_CLASSIC_INL_H_
+#error "Direct inclusion of this file is not allowed, include fair_share_tree_element_classic.h"
 // For the sake of sane code completion.
-#include "fair_share_tree_element.h"
+#include "fair_share_tree_element_classic.h"
 #endif
 
-namespace NYT::NScheduler::NVectorScheduler {
+namespace NYT::NScheduler::NClassicScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,16 +29,17 @@ inline void TSchedulerElement::SetAlive(bool alive)
     ResourceTreeElement_->SetAlive(alive);
 }
 
-inline void TSchedulerElement::SetFairShare(TResourceVector fairShare)
+inline void TSchedulerElement::SetFairShareRatio(double fairShareRatio)
 {
-    Attributes_.FairShare = fairShare;
     // This version is global and used to balance preemption lists.
-    ResourceTreeElement_->SetFairShare(fairShare);
+    ResourceTreeElement_->SetFairShareRatio(fairShareRatio);
+    // This version is local for tree and used to compute satisfaction ratios.
+    Attributes_.FairShareRatio = fairShareRatio;
 }
 
-inline TResourceVector TSchedulerElement::GetFairShare() const
+inline double TSchedulerElement::GetFairShareRatio() const
 {
-    return ResourceTreeElement_->GetFairShare();
+    return ResourceTreeElement_->GetFairShareRatio();
 }
 
 inline const NLogging::TLogger& TSchedulerElement::GetLogger() const
@@ -53,4 +54,4 @@ inline bool TOperationElement::DetailedLogsEnabled() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler::NVectorScheduler
+} // namespace NYT::NScheduler::NClassicScheduler

@@ -34,6 +34,7 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("nodes_filter", NodesFilter)
         .Default();
 
+    // TODO(FOOBAR): Completely remove MinSharePreemption.
     RegisterParameter("min_share_preemption_timeout", MinSharePreemptionTimeout)
         .Default(TDuration::Seconds(15));
     RegisterParameter("fair_share_preemption_timeout", FairSharePreemptionTimeout)
@@ -480,6 +481,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("fetch_operation_attributes_subbatch_size", FetchOperationAttributesSubbatchSize)
         .Default(1000);
+
+    RegisterParameter("use_classic_scheduler", UseClassicScheduler)
+        .Default(false);
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

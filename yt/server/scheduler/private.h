@@ -13,30 +13,44 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NClassicScheduler {
+
 DECLARE_REFCOUNTED_CLASS(TSchedulerElement)
 DECLARE_REFCOUNTED_CLASS(TOperationElement)
 DECLARE_REFCOUNTED_CLASS(TOperationElementSharedState)
-DECLARE_REFCOUNTED_CLASS(TFairShareTree)
-DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationController)
 DECLARE_REFCOUNTED_CLASS(TCompositeSchedulerElement)
 DECLARE_REFCOUNTED_CLASS(TPool)
 DECLARE_REFCOUNTED_CLASS(TRootElement)
+
+} // namespace NClassicScheduler
+
+namespace NVectorScheduler {
+
+DECLARE_REFCOUNTED_CLASS(TSchedulerElement)
+DECLARE_REFCOUNTED_CLASS(TOperationElement)
+DECLARE_REFCOUNTED_CLASS(TOperationElementSharedState)
+DECLARE_REFCOUNTED_CLASS(TCompositeSchedulerElement)
+DECLARE_REFCOUNTED_CLASS(TPool)
+DECLARE_REFCOUNTED_CLASS(TRootElement)
+
+} // namespace NVectorScheduler
+
 DECLARE_REFCOUNTED_CLASS(TResourceTree)
 DECLARE_REFCOUNTED_CLASS(TResourceTreeElement)
 DECLARE_REFCOUNTED_CLASS(IPackingMetric)
+DECLARE_REFCOUNTED_CLASS(IFairShareTreeHost)
 
+DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationController)
 DECLARE_REFCOUNTED_STRUCT(IFairShareTreeSnapshot)
+
+template <class TFairShareImpl>
+class ISchedulerTreeHost;
 
 class TFairShareContext;
 
 class TJobMetrics;
 
-using TRawOperationElementMap = THashMap<TOperationId, TOperationElement*>;
-using TOperationElementMap = THashMap<TOperationId, TOperationElementPtr>;
 using TDisabledOperationsSet = THashSet<TOperationId>;
-
-using TRawPoolMap = THashMap<TString, TPool*>;
-using TPoolMap = THashMap<TString, TPoolPtr>;
 
 using TJobCounter = THashMap<std::tuple<EJobType, EJobState>, i64>;
 using TAbortedJobCounter = THashMap<std::tuple<EJobType, EJobState, EAbortReason>, i64>;
@@ -44,8 +58,8 @@ using TCompletedJobCounter = THashMap<std::tuple<EJobType, EJobState, EInterrupt
 
 DEFINE_ENUM(ESchedulableStatus,
     (Normal)
-    (BelowMinShare)
     (BelowFairShare)
+    (BelowMinShare) // NB(antonkikh): For compatibility with the classic scheduler. Not used in vector fair share.
 );
 
 DEFINE_ENUM(EJobRevivalPhase,
