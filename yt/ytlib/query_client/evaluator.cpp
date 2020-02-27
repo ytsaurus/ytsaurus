@@ -404,6 +404,9 @@ TEvaluator::TEvaluator(
         std::move(memoryTracker)))
 { }
 
+TEvaluator::~TEvaluator()
+{ }
+
 TQueryStatistics TEvaluator::Run(
     TConstBaseQueryPtr query,
     ISchemafulReaderPtr reader,

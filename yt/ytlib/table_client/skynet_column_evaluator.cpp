@@ -101,6 +101,9 @@ TSkynetColumnEvaluator::TSkynetColumnEvaluator(const TTableSchema& schema)
     }
 }
 
+TSkynetColumnEvaluator::~TSkynetColumnEvaluator()
+{ }
+
 void TSkynetColumnEvaluator::ValidateAndComputeHashes(
     TMutableUnversionedRow fullRow,
     const TRowBufferPtr& buffer,

@@ -248,6 +248,9 @@ THydraFacade::THydraFacade(
     : Impl_(New<TImpl>(config, bootstrap))
 { }
 
+THydraFacade::~THydraFacade()
+{ }
+
 void THydraFacade::Initialize()
 {
     Impl_->Initialize();

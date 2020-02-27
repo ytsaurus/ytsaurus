@@ -292,6 +292,9 @@ TServiceCombiner::TServiceCombiner(std::vector<IYPathServicePtr> services, std::
     : Impl_(New<TImpl>(std::move(services), keysUpdatePeriod))
 { }
 
+TServiceCombiner::~TServiceCombiner()
+{ }
+
 void TServiceCombiner::SetUpdatePeriod(TDuration period)
 {
     Impl_->SetUpdatePeriod(period);

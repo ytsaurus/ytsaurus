@@ -49,6 +49,8 @@ public:
         NHydra::IHydraManagerPtr hydraManager,
         NHydra::TCompositeAutomatonPtr automaton);
 
+    ~THiveManager();
+
     /*!
      *  \note Thread affinity: any
      */

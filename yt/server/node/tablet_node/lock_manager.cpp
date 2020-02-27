@@ -192,6 +192,9 @@ TLockManager::TLockManager()
     : Impl_(New<TImpl>())
 { }
 
+TLockManager::~TLockManager()
+{ }
+
 void TLockManager::Lock(TTimestamp timestamp, TTransactionId transactionId, bool confirmed)
 {
     Impl_->Lock(timestamp, transactionId, confirmed);

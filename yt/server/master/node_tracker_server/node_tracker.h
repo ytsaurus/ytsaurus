@@ -33,6 +33,8 @@ public:
         TNodeTrackerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
+    ~TNodeTracker();
+
     void Initialize();
 
     using TCtxRegisterNode = NRpc::TTypedServiceContext<

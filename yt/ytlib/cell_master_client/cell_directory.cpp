@@ -385,6 +385,9 @@ TCellDirectory::TCellDirectory(
         std::move(logger)))
 { }
 
+TCellDirectory::~TCellDirectory()
+{ }
+
 void TCellDirectory::Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory)
 {
     return Impl_->Update(protoDirectory);

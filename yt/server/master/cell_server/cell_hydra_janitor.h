@@ -14,6 +14,8 @@ class TCellHydraJanitor
 public:
     explicit TCellHydraJanitor(NCellMaster::TBootstrap* bootstrap);
 
+    ~TCellHydraJanitor();
+
     void Initialize();
 
 private:

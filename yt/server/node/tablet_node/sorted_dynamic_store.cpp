@@ -841,6 +841,9 @@ TSortedDynamicStore::TSortedDynamicStore(
         static_cast<bool>(LookupHashTable_));
 }
 
+TSortedDynamicStore::~TSortedDynamicStore()
+{ }
+
 IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
 {
     YT_VERIFY(FlushRevision_ != InvalidRevision);

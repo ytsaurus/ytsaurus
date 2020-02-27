@@ -20,6 +20,8 @@ public:
 
     explicit TBundleNodeTracker(NCellMaster::TBootstrap* bootstrap);
 
+    ~TBundleNodeTracker();
+
     void Initialize();
     void Clear();
 

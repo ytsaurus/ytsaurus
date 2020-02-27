@@ -2023,6 +2023,9 @@ TObjectManager::TObjectManager(NCellMaster::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
 
+TObjectManager::~TObjectManager()
+{ }
+
 void TObjectManager::Initialize()
 {
     Impl_->Initialize();

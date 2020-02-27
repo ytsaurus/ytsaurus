@@ -329,6 +329,9 @@ TPortalManager::TPortalManager(NCellMaster::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
 
+TPortalManager::~TPortalManager()
+{ }
+
 void TPortalManager::RegisterEntranceNode(
     TPortalEntranceNode* node,
     const IAttributeDictionary& inheritedAttributes,

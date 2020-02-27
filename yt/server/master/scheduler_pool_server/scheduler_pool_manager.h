@@ -14,6 +14,8 @@ class TSchedulerPoolManager
 public:
     explicit TSchedulerPoolManager(NCellMaster::TBootstrap* bootstrap);
 
+    ~TSchedulerPoolManager();
+
     void Initialize();
 
     TSchedulerPool* CreateSchedulerPool();

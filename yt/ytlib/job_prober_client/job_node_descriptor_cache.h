@@ -40,6 +40,8 @@ public:
         TAsyncExpiringCacheConfigPtr config,
         NRpc::IChannelPtr schedulerChannel);
 
+    ~TJobNodeDescriptorCache();
+
     TFuture<NNodeTrackerClient::TNodeDescriptor> Get(const TJobNodeDescriptorKey& key);
 
 private:

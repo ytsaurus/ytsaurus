@@ -185,6 +185,9 @@ TClusterDirectorySynchronizer::TClusterDirectorySynchronizer(
     : Impl_(New<TImpl>(config, bootstrap, clusterDirectory))
 { }
 
+TClusterDirectorySynchronizer::~TClusterDirectorySynchronizer()
+{ }
+
 void TClusterDirectorySynchronizer::Start()
 {
     Impl_->Start();

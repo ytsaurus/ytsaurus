@@ -480,6 +480,9 @@ TSchedulerPoolManager::TSchedulerPoolManager(TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
 
+TSchedulerPoolManager::~TSchedulerPoolManager()
+{ }
+
 void TSchedulerPoolManager::Initialize()
 {
     Impl_->Initialize();

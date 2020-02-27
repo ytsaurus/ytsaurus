@@ -395,6 +395,9 @@ TLeaderCommitter::TLeaderCommitter(
     AutoSnapshotCheckExecutor_->Start();
 }
 
+TLeaderCommitter::~TLeaderCommitter()
+{ }
+
 TFuture<TMutationResponse> TLeaderCommitter::Commit(TMutationRequest&& request)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);

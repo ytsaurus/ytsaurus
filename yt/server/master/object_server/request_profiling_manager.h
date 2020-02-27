@@ -32,6 +32,8 @@ class TRequestProfilingManager
 public:
     TRequestProfilingManager();
 
+    ~TRequestProfilingManager();
+
     TRequestProfilingCountersPtr GetCounters(const TString& user, const TString& method);
 
 private:

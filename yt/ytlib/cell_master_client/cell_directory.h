@@ -36,6 +36,8 @@ public:
         NRpc::IChannelFactoryPtr channelFactory,
         NLogging::TLogger logger);
 
+    ~TCellDirectory();
+
     void Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory);
     void UpdateDefault();
 

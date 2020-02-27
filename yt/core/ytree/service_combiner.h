@@ -19,6 +19,8 @@ public:
     virtual TResolveResult Resolve(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
     virtual void Invoke(const NRpc::IServiceContextPtr& context) override;
 
+    ~TServiceCombiner();
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

@@ -157,6 +157,9 @@ TChunkReplicator::TChunkReplicator(
     InitInterDCEdges();
 }
 
+TChunkReplicator::~TChunkReplicator()
+{ }
+
 void TChunkReplicator::Start(TChunk* frontChunk, int chunkCount)
 {
     RefreshScanner_->Start(frontChunk, chunkCount);

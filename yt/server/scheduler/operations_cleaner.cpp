@@ -1158,6 +1158,9 @@ TOperationsCleaner::TOperationsCleaner(
     : Impl_(New<TImpl>(std::move(config), host, bootstrap))
 { }
 
+TOperationsCleaner::~TOperationsCleaner()
+{ }
+
 void TOperationsCleaner::Start()
 {
     Impl_->Start();

@@ -1331,6 +1331,9 @@ TTransactionManager::TTransactionManager(
         user))
 { }
 
+TTransactionManager::~TTransactionManager()
+{ }
+
 TFuture<TTransactionPtr> TTransactionManager::Start(
     ETransactionType type,
     const TTransactionStartOptions& options)
