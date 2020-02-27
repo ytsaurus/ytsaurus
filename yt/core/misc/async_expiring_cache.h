@@ -77,6 +77,7 @@ private:
 
         //! Check that entry is expired with respect to either access or update.
         bool IsExpired(NProfiling::TCpuInstant now) const;
+
     };
 
     NConcurrency::TReaderWriterSpinLock SpinLock_;
@@ -90,13 +91,13 @@ private:
         const TWeakPtr<TEntry>& entry,
         const TKey& key,
         const TErrorOr<TValue>& valueOrError);
-    
+
     void InvokeGetMany(
         const std::vector<TWeakPtr<TEntry>>& entries,
         const std::vector<TKey>& keys,
         bool isPeriodicUpdate,
         const TGetInfo&... getInfo);
-    
+
     void InvokeGet(
         const TWeakPtr<TEntry>& entry,
         const TKey& key,
