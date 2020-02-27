@@ -9,6 +9,8 @@
 #include <yt/core/misc/fixed_point_number.h>
 #include <yt/core/misc/small_vector.h>
 
+#include <yt/core/profiling/metrics_accumulator.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,6 +100,11 @@ TString FormatResources(const TExtendedJobResources& resources);
 
 void ProfileResources(
     const NProfiling::TProfiler& profiler,
+    const TJobResources& resources,
+    const TString& prefix = TString(),
+    const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
+void ProfileResources(
+    NProfiling::TMetricsAccumulator& accumulator,
     const TJobResources& resources,
     const TString& prefix = TString(),
     const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);

@@ -2152,22 +2152,7 @@ void TFairShareTree::ProfileCompositeSchedulerElement(TMetricsAccumulator& accum
         EMetricType::Gauge,
         {tag, TreeIdProfilingTag_});
 
-    const auto& minShareResources = element->GetMinShareResources();
-    accumulator.Add(
-        "/pools/min_share_resources/cpu",
-        static_cast<i64>(minShareResources.GetCpu()),
-        EMetricType::Gauge,
-        {tag, TreeIdProfilingTag_});
-    accumulator.Add(
-        "/pools/min_share_resources/memory",
-        minShareResources.GetMemory(),
-        EMetricType::Gauge,
-        {tag, TreeIdProfilingTag_});
-    accumulator.Add(
-        "/pools/min_share_resources/user_slots",
-        minShareResources.GetUserSlots(),
-        EMetricType::Gauge,
-        {tag, TreeIdProfilingTag_});
+    ProfileResources(accumulator, element->GetMinShareResources(), "/pools/min_share_resources", {tag, TreeIdProfilingTag_});
 
     // TODO(eshcherbin): Add historic usage profiling.
 }
@@ -2199,15 +2184,9 @@ void TFairShareTree::ProfileSchedulerElement(
         EMetricType::Gauge,
         tags);
 
-    auto profileResources = [&] (const TString& path, const TJobResources& resources) {
-        #define XX(name, Name) accumulator.Add(path + "/" #name, static_cast<i64>(resources.Get##Name()), EMetricType::Gauge, tags);
-        ITERATE_JOB_RESOURCES(XX)
-        #undef XX
-    };
-
-    profileResources(profilingPrefix + "/resource_usage", element->GetLocalResourceUsage());
-    profileResources(profilingPrefix + "/resource_limits", element->ResourceLimits());
-    profileResources(profilingPrefix + "/resource_demand", element->ResourceDemand());
+    ProfileResources(accumulator, element->GetLocalResourceUsage(), profilingPrefix + "/resource_usage", tags);
+    ProfileResources(accumulator, element->ResourceLimits(), profilingPrefix + "/resource_limits", tags);
+    ProfileResources(accumulator, element->ResourceDemand(), profilingPrefix + "/resource_demand", tags);
 
     element->GetJobMetrics().Profile(
         accumulator,
