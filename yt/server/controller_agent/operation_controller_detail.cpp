@@ -5418,9 +5418,10 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     ? FromProto<TTransactionId>(rsp->external_transaction_id())
                     : GetTransactionForOutputTable(table)->GetId();
 
-                YT_LOG_INFO("Output table locked (Path: %v, ObjectId: %v, ExternalTransactionId: %v, Revision: %llx)",
+                YT_LOG_INFO("Output table locked (Path: %v, ObjectId: %v, Schema: %v, ExternalTransactionId: %v, Revision: %llx)",
                     table->GetPath(),
                     objectId,
+                    table->TableUploadOptions.TableSchema,
                     table->ExternalTransactionId,
                     revision);
 
@@ -5559,7 +5560,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             table->EffectiveAcl = attributes->GetYson("effective_acl");
             table->WriterConfig = attributes->FindYson("chunk_writer");
 
-            YT_LOG_INFO("Output table locked (Path: %v, Options: %v, UploadTransactionId: %v)",
+            YT_LOG_INFO("Output table attributes fetched (Path: %v, Options: %v, UploadTransactionId: %v)",
                 path,
                 ConvertToYsonString(table->TableWriterOptions, EYsonFormat::Text).GetData(),
                 table->UploadTransactionId);
