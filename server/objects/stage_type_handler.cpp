@@ -316,6 +316,8 @@ void ValidatePodAgentSpec(
                 box.id());
         }
 
+        //TODO: validate specific box types exist in TProjectSpec.user_specific_box_types after DEPLOY-1502
+
         for (const auto& mountedStaticResource : box.static_resources()) {
             if (!staticResourceIds.contains(mountedStaticResource.resource_ref())) {
                 THROW_ERROR_EXCEPTION("Box %Qv refers to non-existing static resource %Qv",

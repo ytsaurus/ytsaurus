@@ -619,6 +619,10 @@ message TBox {
     // Rootfs volume будет создан в place, находящемся на этом виртуальном диске
     // NOTE: Валидация - должен совпадать с virtual_disk_id_ref у слоев и ресурсов, из которых собирается box
     string virtual_disk_id_ref = 14;
+
+    // Тип бокса
+    // Должен иметь значение "box", "system-box" или одно из значений в списке TProjectSpec.user_specific_box_types
+    string specific_type = 16;
 }
 
 // Успешными кодами ответов считаются те, что лежат в полуинтервале [200, 300)
