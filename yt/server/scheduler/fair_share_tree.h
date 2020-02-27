@@ -1,33 +1,12 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 #include "fair_share_tree_element.h"
-#include "scheduler_tree.h"
+#include "fair_share_tree_snapshot.h"
 
 #include <yt/server/lib/scheduler/job_metrics.h>
 
 namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Thread affinity: any
-struct IFairShareTreeSnapshot
-    : public TIntrinsicRefCounted
-{
-    virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
-    virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;
-    virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) = 0;
-    virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
-    virtual bool HasOperation(TOperationId operationId) const = 0;
-    virtual bool IsOperationDisabled(TOperationId operationId) const = 0;
-    virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) = 0;
-    virtual void ProfileFairShare() const = 0;
-    virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
-    virtual TJobResources GetTotalResourceLimits() const = 0;
-    virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IFairShareTreeSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,8 +44,6 @@ struct TPoolsUpdateResult
     bool Updated;
 };
 
-NProfiling::TTagIdList GetFailReasonProfilingTags(NControllerAgent::EScheduleJobFailReason reason);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This class represents fair share tree.
@@ -87,16 +64,53 @@ NProfiling::TTagIdList GetFailReasonProfilingTags(NControllerAgent::EScheduleJob
 //!
 //!   * Resource tree, it is thread safe tree that maintain shared attributes of tree elements.
 //!     More details can be find at #TResourceTree.
+template <class TFairShareImpl>
 class TFairShareTree
-    : public TIntrinsicRefCounted
-    , public IFairShareTreeHost
+    : public IFairShareTreeHost
 {
+public:
+    using TSchedulerElement = typename TFairShareImpl::TSchedulerElement;
+    using TSchedulerElementPtr = typename TFairShareImpl::TSchedulerElementPtr;
+    using TOperationElement = typename TFairShareImpl::TOperationElement;
+    using TOperationElementPtr = typename TFairShareImpl::TOperationElementPtr;
+    using TCompositeSchedulerElement = typename TFairShareImpl::TCompositeSchedulerElement;
+    using TCompositeSchedulerElementPtr = typename TFairShareImpl::TCompositeSchedulerElementPtr;
+    using TPool = typename TFairShareImpl::TPool;
+    using TPoolPtr = typename TFairShareImpl::TPoolPtr;
+    using TRootElement = typename TFairShareImpl::TRootElement;
+    using TRootElementPtr = typename TFairShareImpl::TRootElementPtr;
+
+    using TDynamicAttributes = typename TFairShareImpl::TDynamicAttributes;
+    using TDynamicAttributesList = typename TFairShareImpl::TDynamicAttributesList;
+    using TUpdateFairShareContext = typename TFairShareImpl::TUpdateFairShareContext;
+    using TFairShareSchedulingStage = typename TFairShareImpl::TFairShareSchedulingStage;
+    using TFairShareContext = typename TFairShareImpl::TFairShareContext;
+    using TSchedulableAttributes = typename TFairShareImpl::TSchedulableAttributes;
+    using TPersistentAttributes = typename TFairShareImpl::TPersistentAttributes;
+
+    using TRawOperationElementMap = typename TFairShareImpl::TRawOperationElementMap;
+    using TOperationElementMap = typename TFairShareImpl::TOperationElementMap;
+
+    using TRawPoolMap = typename TFairShareImpl::TRawPoolMap;
+    using TPoolMap = typename TFairShareImpl::TPoolMap;
+
+    using ITreeHost = ISchedulerTreeHost<TFairShareImpl>;
+
+    using TFairShareTreePtr = TIntrusivePtr<TFairShareTree>;
+
+    struct TJobWithPreemptionInfo
+    {
+        TJobPtr Job;
+        bool IsPreemptable;
+        TOperationElementPtr OperationElement;
+    };
+
 public:
     TFairShareTree(
         TFairShareStrategyTreeConfigPtr config,
         TFairShareStrategyOperationControllerConfigPtr controllerConfig,
         ISchedulerStrategyHost* strategyHost,
-        ISchedulerTreeHost* treeHost,
+        ITreeHost* treeHost,
         std::vector<IInvokerPtr> feasibleInvokers,
         const TString& treeId);
 
@@ -213,7 +227,7 @@ private:
 
     ISchedulerStrategyHost* const StrategyHost_;
 
-    ISchedulerTreeHost* TreeHost_;
+    ITreeHost* TreeHost_;
 
     std::vector<IInvokerPtr> FeasibleInvokers_;
 
@@ -425,9 +439,11 @@ private:
     void ProfileCompositeSchedulerElement(NProfiling::TMetricsAccumulator& accumulator, TCompositeSchedulerElementPtr element) const;
     void ProfileSchedulerElement(NProfiling::TMetricsAccumulator& accumulator, const TSchedulerElementPtr& element, const TString& profilingPrefix, const NProfiling::TTagIdList& tags) const;
     void RemoveEmptyEphemeralPoolsRecursive(TCompositeSchedulerElement* compositeElement);
+
+    void ReactivateBadPackingOperations(TFairShareContext* context);
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareTree)
+//DEFINE_REFCOUNTED_TYPE(TFairShareTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 

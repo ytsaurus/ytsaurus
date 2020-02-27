@@ -7,14 +7,17 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ISchedulerTreeHost
+template <class TFairShareImpl>
+class ISchedulerTreeHost
     : public virtual TRefCounted
 {
-    // May have context switches.
-    virtual void OnOperationReadyInTree(TOperationId operationId, TFairShareTree* tree) const = 0;
-};
+private:
+    using TTree = TFairShareTree<TFairShareImpl>;
 
-DEFINE_REFCOUNTED_TYPE(ISchedulerTreeHost)
+public:
+    // May have context switches.
+    virtual void OnOperationReadyInTree(TOperationId operationId, TTree* tree) const = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -552,7 +552,8 @@ class TestSchedulerCommon(YTEnvSetup):
 
         time.sleep(5)
         statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
-        operation_objects = ["NYT::NScheduler::TOperationElement", "NYT::NScheduler::TOperation"]
+        operation_objects = ["NYT::NScheduler::TOperation", "NYT::NScheduler::NVectorScheduler::TOperationElement",
+                             "NYT::NScheduler::NClassicScheduler::TOperationElement"]
         records = [record for record in statistics if record["name"] in operation_objects]
         assert len(records) == 2
         assert records[0]["objects_alive"] == 0

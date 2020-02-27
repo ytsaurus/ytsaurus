@@ -71,8 +71,9 @@ void TPackingStatistics::RecordHeartbeat(
     }
 }
 
+template <class TAnyOperationElement>
 bool TPackingStatistics::CheckPacking(
-    const TOperationElement* operationElement,
+    const TAnyOperationElement* operationElement,
     const TPackingHeartbeatSnapshot& heartbeatSnapshot,
     const TJobResourcesWithQuota& jobResourcesWithQuota,
     const TJobResources& totalResourceLimits,
@@ -126,6 +127,24 @@ bool TPackingStatistics::CheckPacking(
 
     return decision;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Explicit instantiations for the new and the classic scheduler.
+
+template bool TPackingStatistics::CheckPacking(
+    const NVectorScheduler::TOperationElement* operationElement,
+    const TPackingHeartbeatSnapshot& heartbeatSnapshot,
+    const TJobResourcesWithQuota& jobResourcesWithQuota,
+    const TJobResources& totalResourceLimits,
+    const TFairShareStrategyPackingConfigPtr& config) const;
+
+template bool TPackingStatistics::CheckPacking(
+    const NClassicScheduler::TOperationElement* operationElement,
+    const TPackingHeartbeatSnapshot& heartbeatSnapshot,
+    const TJobResourcesWithQuota& jobResourcesWithQuota,
+    const TJobResources& totalResourceLimits,
+    const TFairShareStrategyPackingConfigPtr& config) const;
 
 ////////////////////////////////////////////////////////////////////////////////
 
