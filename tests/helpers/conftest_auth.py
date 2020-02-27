@@ -76,5 +76,6 @@ def test_environment_auth(request, set_bb_response):
 @pytest.fixture(scope="function")
 def yp_env_auth(request, test_environment_auth):
     test_method_setup(test_environment_auth)
-    request.addfinalizer(lambda: test_method_teardown(test_environment_auth))
+    if not getattr(request.cls, "NO_TEARDOWN", False):
+        request.addfinalizer(lambda: test_method_teardown(test_environment_auth))
     return test_environment_auth

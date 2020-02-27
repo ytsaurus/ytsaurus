@@ -3,7 +3,8 @@ from yp.tests.helpers.conftest_auth import (
     BLACKBOX_OAUTH_RESPONSE,
 )
 
-from yp.common import YtResponseError
+from yp.common import YtResponseError, wait
+from yt.wrapper.errors import YtRpcUnavailable
 
 import copy
 import pytest
@@ -79,3 +80,33 @@ class TestAuth(object):
             _select_objects_succeeds(yp_client)
             yp_client.update_user_ticket("BadUserTicket")
             _select_objects_fails(yp_client)
+
+
+class TestBrokenTvm(object):
+    YP_MASTER_CONFIG = {
+        "authentication_manager": {"tvm_service": {"port": 25},},
+    }
+    START = False
+    NO_TEARDOWN = True
+
+    def test_retries(self, yp_env_auth):
+        yp_env_auth.yp_instance.start()
+        yp_env_auth.yp_client = yp_env_auth.create_client()
+        yp_client = yp_env_auth.yp_client
+        method = yp_client._transport_layer.execute_request
+        def wrapper(*args, **kwargs):
+            wrapper.count += 1
+            return method(*args, **kwargs)
+        wrapper.count = 0
+        yp_client._transport_layer.execute_request = wrapper
+        def try_select():
+            try:
+                yp_client.select_objects("pod", selectors=["/meta/id"])
+            except YtRpcUnavailable:
+                return True
+            except YtResponseError:
+                wrapper.count = 0
+                return False
+            assert False
+        wait(try_select)
+        assert wrapper.count > 2
