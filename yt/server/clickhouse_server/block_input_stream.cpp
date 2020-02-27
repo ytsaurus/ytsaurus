@@ -141,7 +141,7 @@ private:
         TTraceContextGuard guard(TraceContext_);
 
         NProfiling::TWallTimer totalWallTimer;
-        YT_LOG_DEBUG("Started reading one CH block");
+        YT_LOG_TRACE("Started reading one CH block");
 
         // TODO(max42): consult with psushin@ about contract here.
         std::vector<TUnversionedRow> rows;
@@ -187,7 +187,7 @@ private:
         RowBuffer_->Clear();
 
         auto totalElapsed = totalWallTimer.GetElapsedTime();
-        YT_LOG_DEBUG("Finished reading one CH block (WallTime: %v)", totalElapsed);
+        YT_LOG_TRACE("Finished reading one CH block (WallTime: %v)", totalElapsed);
 
         return block;
     }
