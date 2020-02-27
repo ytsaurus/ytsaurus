@@ -20,7 +20,6 @@ DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcherFactory)
 DECLARE_REFCOUNTED_CLASS(TJobSizeAdjusterConfig)
 DECLARE_REFCOUNTED_CLASS(TInputChunkMapping)
 
-// TODO(max42): add these codes to the documentation.
 DEFINE_ENUM(EErrorCode,
     ((DataSliceLimitExceeded)(2000))
     ((MaxDataWeightPerJobExceeded)(2001))
