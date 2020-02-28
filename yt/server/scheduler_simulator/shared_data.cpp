@@ -349,9 +349,9 @@ void TSharedSchedulerStrategy::ScheduleJobs(const ISchedulingContextPtr& schedul
         .ThrowOnError();
 }
 
-void TSharedSchedulerStrategy::PreemptJob(const TJobPtr& job, bool shouldLogEvent)
+void TSharedSchedulerStrategy::PreemptJob(const TJobPtr& job)
 {
-    StrategyHost_.PreemptJob(job, shouldLogEvent);
+    StrategyHost_.PreemptJob(job);
 }
 
 void TSharedSchedulerStrategy::ProcessJobUpdates(

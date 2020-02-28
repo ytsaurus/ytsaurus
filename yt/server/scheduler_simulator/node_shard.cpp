@@ -1,3 +1,4 @@
+#include "event_log.h"
 #include "node_shard.h"
 #include "operation_controller.h"
 
@@ -69,7 +70,12 @@ TSimulatorNodeShard::TSimulatorNodeShard(
     , Invoker_(CreateSerializedInvoker(commonNodeShardInvoker))
     , Logger(TLogger(NSchedulerSimulator::Logger)
         .AddTag("ShardId: %v", shardId))
-{ }
+{
+    if (Config_->RemoteEventLog) {
+        RemoteEventLogWriter_ = CreateRemoteEventLogWriter(Config_->RemoteEventLog, Invoker_);
+        RemoteEventLogConsumer_ = RemoteEventLogWriter_->CreateConsumer();
+    }
+}
 
 const IInvokerPtr& TSimulatorNodeShard::GetInvoker() const
 {
@@ -83,7 +89,7 @@ TFuture<void> TSimulatorNodeShard::AsyncRun()
         .Run();
 }
 
-void TSimulatorNodeShard::RegisterNode(const NYT::NScheduler::TExecNodePtr& node)
+void TSimulatorNodeShard::RegisterNode(const NScheduler::TExecNodePtr& node)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
 
@@ -109,6 +115,11 @@ void TSimulatorNodeShard::Run()
     }
 
     Events_->OnNodeShardSimulationFinished(ShardId_);
+
+    if (RemoteEventLogWriter_) {
+        WaitFor(RemoteEventLogWriter_->Close())
+            .ThrowOnError();
+    }
 }
 
 void TSimulatorNodeShard::RunOnce()
@@ -197,7 +208,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         job->SetFinishTime(event.Time);
         auto duration = event.Time - job->GetStartTime();
 
-        SchedulingStrategy_->PreemptJob(job, Config_->EnableFullEventLog);
+        PreemptJob(job, Config_->EnableFullEventLog);
         auto operation = RunningOperationsMap_->Get(job->GetOperationId());
         auto controller = operation->GetControllerStrategyHost();
         controller->OnNonscheduledJobAborted(job->GetId(), EAbortReason::Preemption);
@@ -260,6 +271,10 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
 
     job->SetState(EJobState::Completed);
     job->SetFinishTime(event.Time);
+
+    if (Config_->EnableFullEventLog) {
+        LogFinishedJobFluently(ELogEventType::JobCompleted, job);
+    }
 
     auto jobEvent = BuildSchedulerToAgentJobEvent(job);
 
@@ -327,6 +342,43 @@ void TSimulatorNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap flu
                 node->BuildAttributes(fluent);
             })
         .EndMap();
+}
+
+void TSimulatorNodeShard::PreemptJob(const NScheduler::TJobPtr& job, bool shouldLogEvent)
+{
+    SchedulingStrategy_->PreemptJob(job);
+
+    if (shouldLogEvent) {
+        auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, job);
+        if (auto preemptedFor = job->GetPreemptedFor()) {
+            fluent
+                .Item("preempted_for").Value(preemptedFor);
+        }
+    }
+}
+
+NYson::IYsonConsumer* TSimulatorNodeShard::GetEventLogConsumer()
+{
+    YT_VERIFY(RemoteEventLogConsumer_);
+    return RemoteEventLogConsumer_.get();
+}
+
+const NLogging::TLogger* TSimulatorNodeShard::GetEventLogger()
+{
+    return nullptr;
+}
+
+NEventLog::TFluentLogEvent TSimulatorNodeShard::LogFinishedJobFluently(ELogEventType eventType, const TJobPtr& job)
+{
+    YT_VERIFY(job->GetFinishTime());
+    YT_LOG_INFO("Logging job event");
+    return LogEventFluently(eventType, *job->GetFinishTime())
+        .Item("job_id").Value(job->GetId())
+        .Item("operation_id").Value(job->GetOperationId())
+        .Item("start_time").Value(job->GetStartTime())
+        .Item("finish_time").Value(job->GetFinishTime())
+        .Item("resource_limits").Value(job->ResourceLimits())
+        .Item("job_type").Value(job->GetType());
 }
 
 int GetNodeShardId(TNodeId nodeId, int nodeShardCount)

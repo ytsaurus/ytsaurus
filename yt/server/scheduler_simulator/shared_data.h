@@ -191,7 +191,7 @@ public:
 
     void ScheduleJobs(const NScheduler::ISchedulingContextPtr& schedulingContext);
 
-    void PreemptJob(const NScheduler::TJobPtr& job, bool shouldLogEvent);
+    void PreemptJob(const NScheduler::TJobPtr& job);
 
     void ProcessJobUpdates(
         const std::vector<NScheduler::TJobUpdate>& jobUpdates,

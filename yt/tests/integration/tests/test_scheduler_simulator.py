@@ -186,7 +186,7 @@ else:
 
 ONE_GB = 1024 * 1024 * 1024
 
-scheduler_simulator_config = {
+default_scheduler_simulator_config = {
     "heartbeat_period": 500,
     "pools_file": None,
     "operations_stats_file": None,
@@ -251,6 +251,7 @@ pools_config = yson.to_yson_type(
 )
 
 
+@authors("antonkikh")
 class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -277,7 +278,6 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         }
     }
 
-    @authors("antonkikh")
     def test_scheduler_simulator(self):
         resource_limits = {"cpu": 1, "memory": ONE_GB, "network": 10}
         create_pool("test_pool", attributes={"resource_limits": resource_limits})
@@ -320,7 +320,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
         self._set_scheduler_simulator_config_params(simulator_files_path)
         with open(simulator_files_path["scheduler_simulator_config_yson_file"], "w") as fout:
-            fout.write(yson.dumps(scheduler_simulator_config))
+            fout.write(yson.dumps(self.scheduler_simulator_config))
 
         with open(simulator_files_path["node_groups_yson_file"], "w") as fout:
             yson.dump(node_groups, fout)
@@ -355,12 +355,11 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         self.nodes_info_error_count = 0
         self.operations_resource_usage = None
 
-        with open(simulator_files_path["scheduler_event_log_file"]) as fin:
-            for item in yson.load(fin, "list_fragment"):
-                if item["event_type"] == "fair_share_info":
-                    self._parse_fair_share_info(item, operation_id)
-                if item["event_type"] == "nodes_info":
-                    self._parse_nodes_info(item)
+        for item in self._get_simulator_event_log():
+            if item["event_type"] == "fair_share_info":
+                self._parse_fair_share_info(item, operation_id)
+            if item["event_type"] == "nodes_info":
+                self._parse_nodes_info(item)
 
         assert self.pool_and_operation_info_count >= 5
         assert self.nodes_info_count >= 5
@@ -380,7 +379,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         files = dict()
         files["simulator_input_yson_file"] = os.path.join(simulator_data_dir, "simulator_input.yson")
         files["simulator_input_bin_file"] = os.path.join(simulator_data_dir, "simulator_input.bin")
-        files["scheduler_simulator_config_yson_file"] = os.path.join(simulator_data_dir, "scheduler_simulator_config.yson")
+        files["scheduler_simulator_config_yson_file"] = os.path.join(simulator_data_dir, "self.scheduler_simulator_config.yson")
         files["node_groups_yson_file"] = os.path.join(simulator_data_dir, "node_groups.yson")
         files["scheduler_config_yson_file"] = os.path.join(simulator_data_dir, "scheduler_config.yson")
         files["pools_test_yson_file"] = os.path.join(simulator_data_dir, "pools_test.yson")
@@ -390,13 +389,14 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         return files
 
     def _set_scheduler_simulator_config_params(self, simulator_files_path):
-        global scheduler_simulator_config
-        scheduler_simulator_config["pools_file"] = simulator_files_path["pools_test_yson_file"]
-        scheduler_simulator_config["operations_stats_file"] = simulator_files_path["operations_stats_file"]
-        scheduler_simulator_config["event_log_file"] = simulator_files_path["scheduler_event_log_file"]
-        scheduler_simulator_config["node_groups_file"] = simulator_files_path["node_groups_yson_file"]
-        scheduler_simulator_config["scheduler_config_file"] = simulator_files_path["scheduler_config_yson_file"]
-        scheduler_simulator_config["logging"]["writers"]["debug"]["file_name"] = \
+        # global default_scheduler_simulator_config
+        self.scheduler_simulator_config = default_scheduler_simulator_config
+        self.scheduler_simulator_config["pools_file"] = simulator_files_path["pools_test_yson_file"]
+        self.scheduler_simulator_config["operations_stats_file"] = simulator_files_path["operations_stats_file"]
+        self.scheduler_simulator_config["event_log_file"] = simulator_files_path["scheduler_event_log_file"]
+        self.scheduler_simulator_config["node_groups_file"] = simulator_files_path["node_groups_yson_file"]
+        self.scheduler_simulator_config["scheduler_config_file"] = simulator_files_path["scheduler_config_yson_file"]
+        self.scheduler_simulator_config["logging"]["writers"]["debug"]["file_name"] = \
             simulator_files_path["simulator_debug_logs"]
 
     def _parse_fair_share_info(self, item, operation_id):
@@ -435,5 +435,38 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         if not resources_equal(nodes_resource_usage, self.operations_resource_usage):
             self.nodes_info_error_count += 1
 
+    def _get_simulator_event_log(self):
+        simulator_data_dir = os.path.join(self.Env.path, "simulator_data")
+        simulator_files_path = self._get_simulator_files_path(simulator_data_dir)
+        with open(simulator_files_path["scheduler_event_log_file"]) as fin:
+            return yson.load(fin, "list_fragment")
+
+
+@authors("mrkastep")
+class TestSchedulerSimulatorWithRemoteEventLog(TestSchedulerSimulator):
+    
+    def _set_scheduler_simulator_config_params(self, simulator_files_path):
+        super(TestSchedulerSimulatorWithRemoteEventLog, self).\
+            _set_scheduler_simulator_config_params(simulator_files_path)
+
+        connection = self._get_cluster_connection()
+        create("table", "//tmp/event_log")
+
+        create_user("simulator")
+
+        self.scheduler_simulator_config["remote_event_log"] = {
+            "connection": connection,
+            "event_log_manager": {
+                "path": "//tmp/event_log"
+            },
+            "user": "simulator",
+        }
+
+    def _get_simulator_event_log(self):
+        return list(sorted(read_table("//tmp/event_log"), key=lambda r: r["timestamp"]))
+
+    @classmethod
+    def _get_cluster_connection(cls):
+        return cls.Env._cluster_configuration["scheduler"][0]["cluster_connection"]
 
 ##################################################################
