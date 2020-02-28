@@ -87,9 +87,10 @@ class JobEvents(object):
     def execute_once(self, cmd):
         shared_file = self._create_temp_file()
         tmp_file_pattern = os.path.join(self._tmpdir, "XXXXXX")
+        # We use race-free solution for mv -n (https://unix.stackexchange.com/a/248758)
         return 'tmpfile=$(mktemp "{tmp_file_pattern}"); '\
                'touch "$tmpfile"; '\
-               'mv -n "$tmpfile" "{shared_file}"; '\
+               'ln -PT "$tmpfile" "{shared_file}" && rm "$tmpfile"; '\
                'if [ ! -e "$tmpfile" ]; then {cmd}; fi; '\
                 .format(
                     tmp_file_pattern=tmp_file_pattern,
