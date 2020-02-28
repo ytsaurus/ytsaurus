@@ -11,7 +11,6 @@
 #include <yt/core/net/local_address.h>
 
 #include <yt/core/misc/async_expiring_cache.h>
-#include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
@@ -951,6 +950,8 @@ private:
 
     TDnsResolver DnsResolver_;
 
+    DECLARE_LEAKY_SINGLETON_FRIEND()
+
     virtual TFuture<TNetworkAddress> DoGet(const TString& hostName) override;
 
     const std::vector<TNetworkAddress>& GetLocalAddresses();
@@ -1077,7 +1078,7 @@ void TAddressResolver::TImpl::Configure(TAddressResolverConfigPtr config)
     Config_ = std::move(config);
 
     if (Config_->LocalHostFqdn) {
-        SetLocalHostName(*Config_->LocalHostFqdn);
+        WriteLocalHostName(*Config_->LocalHostFqdn);
     } else {
         UpdateLocalHostName([&] (const char* message, const char* details) {
             YT_LOG_INFO("Localhost FQDN resolution failed: %v: %v", message, details);
@@ -1093,11 +1094,9 @@ TAddressResolver::TAddressResolver()
     : Impl_(New<TImpl>(New<TAddressResolverConfig>()))
 { }
 
-TAddressResolver::~TAddressResolver() = default;
-
 TAddressResolver* TAddressResolver::Get()
 {
-    return Singleton<TAddressResolver>();
+    return LeakySingleton<TAddressResolver>();
 }
 
 void TAddressResolver::StaticShutdown()

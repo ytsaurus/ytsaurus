@@ -28,18 +28,17 @@ namespace NYT::NNet {
 // Read*s.
 // Write* may be called concurrently, but it blocks.
 const char* ReadLocalHostName() noexcept;
-void WriteLocalHostName(const char* data, size_t length) noexcept;
+void WriteLocalHostName(TStringBuf hostName) noexcept;
 
 // Get* & Set* wrap Read* & Write* for more convenient usage.
 // The price is -- a dynamically allocated string.
 TString GetLocalHostName();
-void SetLocalHostName(const TString& hostname);
 
 // Update* function interacts with the system to determine actual hostname
 // of the local machine (by calling `gethostname` and `getaddrinfo`).
 // On success, calls Write* with the hostname, and returns `true`.
 // On failure, calls error callback with diagnostics, and returns `false`.
-bool UpdateLocalHostName(std::function<void(const char*, const char*)> errorCb);
+bool UpdateLocalHostName(std::function<void(const char*, const char*)> errorCallback);
 
 ////////////////////////////////////////////////////////////////////////////////
 
