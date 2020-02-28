@@ -61,22 +61,6 @@ TJobResources GetNodeResourceLimit(const TNodeResourcesConfigPtr& config)
     return resourceLimits;
 }
 
-TSchedulerSimulatorConfigPtr LoadConfig(const TString& configFilename)
-{
-    INodePtr configNode;
-    try {
-        TIFStream configStream(configFilename);
-        configNode = ConvertToNode(&configStream);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading scheduler simulator configuration") << ex;
-    }
-
-    auto config = New<TSchedulerSimulatorConfig>();
-    config->Load(configNode);
-
-    return config;
-}
-
 std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>& nodeGroups)
 {
     std::vector<TExecNodePtr> execNodes;
@@ -257,7 +241,7 @@ protected:
             return;
         }
 
-        auto config = LoadConfig(/* configFilename */ parseResult.GetFreeArgs()[0]);
+        auto config = LoadConfig<TSchedulerSimulatorConfig>(/* configFilename */ parseResult.GetFreeArgs()[0]);
         ConfigureSingletons(config);
 
         {

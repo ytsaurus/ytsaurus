@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "config.h"
 
 #include <yt/server/scheduler/helpers.h>
 #include <yt/server/scheduler/job.h>
@@ -27,7 +28,8 @@ class TSchedulerStrategyHost
 public:
     TSchedulerStrategyHost(
         const std::vector<NScheduler::TExecNodePtr>* execNodes,
-        IOutputStream* eventLogOutputStream);
+        IOutputStream* eventLogOutputStream,
+        const TRemoteEventLogConfigPtr& remoteEventLogConfig);
 
     virtual IInvokerPtr GetControlInvoker(NScheduler::EControlQueue queue) const override;
     virtual IInvokerPtr GetFairShareProfilingInvoker() const override;
@@ -58,13 +60,11 @@ public:
 
     virtual void AbortOperation(NScheduler::TOperationId operationId, const TError& error) override;
 
-    void PreemptJob(const NScheduler::TJobPtr& job, bool shouldLogEvent);
+    void PreemptJob(const NScheduler::TJobPtr& job);
 
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
 
     virtual const NLogging::TLogger* GetEventLogger() override;
-
-    NEventLog::TFluentLogEvent LogFinishedJobFluently(NScheduler::ELogEventType eventType, NScheduler::TJobPtr job);
 
     virtual void SetSchedulerAlert(NScheduler::ESchedulerAlertType alertType, const TError& alert) override;
 
@@ -74,12 +74,17 @@ public:
         const TError& alert,
         std::optional<TDuration> timeout) override;
 
+    void CloseEventLogger();
+
 private:
     const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
     NScheduler::TJobResources TotalResourceLimits_;
     THashMap<NScheduler::TSchedulingTagFilter, NScheduler::TJobResources> FilterToJobResources_;
     mutable THashMap<NScheduler::TSchedulingTagFilter, NScheduler::TMemoryDistribution> FilterToMemoryDistribution_;
-    NYson::TYsonWriter Writer_;
+    std::optional<NYson::TYsonWriter> LocalEventLogWriter_;
+
+    NEventLog::IEventLogWriterPtr RemoteEventLogWriter_;
+    std::unique_ptr<NYson::IYsonConsumer> RemoteEventLogConsumer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

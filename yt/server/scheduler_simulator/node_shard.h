@@ -16,6 +16,7 @@ namespace NYT::NSchedulerSimulator {
 
 class TSimulatorNodeShard
     : public NYT::TRefCounted
+    , public NScheduler::TEventLogHostBase
 {
 public:
     TSimulatorNodeShard(
@@ -56,12 +57,23 @@ private:
 
     NLogging::TLogger Logger;
 
+    NEventLog::IEventLogWriterPtr RemoteEventLogWriter_;
+    std::unique_ptr<NYson::IYsonConsumer> RemoteEventLogConsumer_;
+
     void Run();
     void RunOnce();
 
     void OnHeartbeat(const TNodeShardEvent& event);
     void OnJobFinished(const TNodeShardEvent& event);
     void BuildNodeYson(const NScheduler::TExecNodePtr& node, NYTree::TFluentMap fluent);
+
+    void PreemptJob(const NScheduler::TJobPtr& job, bool shouldLogEvent);
+
+    NYson::IYsonConsumer* GetEventLogConsumer() override;
+
+    const NLogging::TLogger* GetEventLogger() override;
+
+    NEventLog::TFluentLogEvent LogFinishedJobFluently(NScheduler::ELogEventType eventType, const NScheduler::TJobPtr& job);
 };
 
 int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId, int nodeShardCount);

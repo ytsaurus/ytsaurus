@@ -77,7 +77,7 @@ TSimulatorControlThread::TSimulatorControlThread(
     , Config_(config)
     , ExecNodes_(execNodes)
     , ActionQueue_(New<TActionQueue>(Format("ControlThread")))
-    , StrategyHost_(execNodes, eventLogOutputStream)
+    , StrategyHost_(execNodes, eventLogOutputStream, config->RemoteEventLog)
     , SchedulerStrategy_(
         CreateFairShareStrategy<TVectorFairShareImpl>(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
     , SchedulerStrategyForNodeShards_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())
@@ -190,6 +190,7 @@ void TSimulatorControlThread::Run()
         .ThrowOnError();
 
     SchedulerStrategy_->OnMasterDisconnected();
+    StrategyHost_.CloseEventLogger();
 
     YT_LOG_INFO("Simulation finished");
 }
