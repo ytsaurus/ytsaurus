@@ -23,6 +23,7 @@ enum ENodeType : int
     NT_REPLICATED_TABLE     /* "replicated_table" */,
     NT_TABLE_REPLICA        /* "table_replica" */,
     NT_USER                 /* "user" */,
+    NT_SCHEDULER_POOL       /* "scheduler_pool" */,
 };
 
 // https://wiki.yandex-team.ru/yt/userdoc/api/#create
