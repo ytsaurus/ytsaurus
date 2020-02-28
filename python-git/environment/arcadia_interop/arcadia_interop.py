@@ -136,7 +136,7 @@ def prepare_yt_environment(destination, **kwargs):
     with open(prepared_path, "w"):
         pass
 
-    if yatest_common is not None and not int(yatest_common.get_param("inside_arcadia", True)):
+    if yatest_common is not None:
         yt_logger.LOGGER = logging.getLogger()
         yt_logger.LOGGER.setLevel(logging.DEBUG)
         yt_logger.set_formatter(yt_logger.BASIC_FORMATTER)

@@ -336,7 +336,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
             client.config["proxy"]["enable_proxy_discovery"] = False
 
             _initialize_world(client, environment, wait_tablet_cell_initialization,
-                              (environment.abi_version[0] == 19))
+                              (environment.abi_version[0] >= 19))
             if local_cypress_dir is not None:
                 _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, client)
 

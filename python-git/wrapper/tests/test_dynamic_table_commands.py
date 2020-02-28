@@ -1,6 +1,6 @@
 from __future__ import with_statement
 
-from .helpers import TEST_DIR, set_config_option, get_tests_sandbox, wait
+from .helpers import TEST_DIR, set_config_option, get_tests_sandbox, wait, check
 
 from yt.wrapper.driver import get_command_list, get_api_version
 
@@ -313,3 +313,39 @@ class TestDynamicTableCommands(object):
         yt.mount_table(table, sync=True)
 
         assert yt.get_tablet_infos(table, [0])["tablets"][0]["total_row_count"] == 0
+
+    def test_tablet_index_control_attribute(self):
+        self._sync_create_tablet_cell()
+        table = TEST_DIR + "/dyntable"
+        dump_table = TEST_DIR + "/dumptable"
+        schema = [{"name": "key", "type": "string"}]
+
+        self._create_dynamic_table(table, schema=schema)
+        yt.create("table", dump_table)
+
+        yt.reshard_table(table, tablet_count=2, sync=True)
+
+        yt.mount_table(table, sync=True, first_tablet_index=0, last_tablet_index=0)
+        yt.insert_rows(table, [{"key": "a"}])
+        yt.unmount_table(table, sync=True)
+
+        yt.mount_table(table, sync=True, first_tablet_index=1, last_tablet_index=1)
+        yt.insert_rows(table, [{"key": "b"}])
+        yt.unmount_table(table, sync=True)
+
+        @yt.with_context
+        def mapper(row, context):
+            yield {"tablet_index": context.tablet_index}
+
+        yt.run_map(
+            mapper,
+            table,
+            dump_table,
+            job_io={
+                "control_attributes": {
+                    "enable_tablet_index": True
+                }
+            }
+        )
+
+        check(yt.read_table(dump_table), [{"tablet_index": 0}, {"tablet_index": 1}], ordered=False)

@@ -232,9 +232,9 @@ class ConfigsProvider(object):
     def _build_rpc_proxy_configs(self, provision, master_connection_configs, ports_generator):
         pass
 
-def init_logging(node, path, name, enable_debug_logging, enable_compression, enable_structured_logging=False):
+def init_logging(node, path, name, log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging=False):
     if not node:
-        node = default_configs.get_logging_config(enable_debug_logging, enable_compression, enable_structured_logging)
+        node = default_configs.get_logging_config(log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging)
 
     def process(node, key, value):
         if isinstance(value, str):
@@ -395,6 +395,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
                 config["logging"] = init_logging(config.get("logging"), master_logs_dir,
                                                  "master-{0}-{1}".format(cell_index, master_index),
+                                                 log_errors_to_stderr=True,
                                                  enable_debug_logging=provision["enable_debug_logging"],
                                                  enable_compression=provision["enable_logging_compression"],
                                                  enable_structured_logging=provision["enable_structured_master_logging"])
@@ -460,6 +461,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
             config["logging"] = init_logging(config.get("logging"), clock_logs_dir,
                                              "clock-{0}".format(clock_index),
+                                             log_errors_to_stderr=True,
                                              enable_debug_logging=provision["enable_debug_logging"],
                                              enable_compression=provision["enable_logging_compression"])
 
@@ -492,9 +494,7 @@ class ConfigsProvider_19(ConfigsProvider):
                 "hard_backoff_time": 100
             },
             "cell_directory_synchronizer": {
-                "sync_period": 500,
-                "success_expiration_time": 500,
-                "failure_expiration_time": 500
+                "sync_period": 500
             },
             "cluster_directory_synchronizer": {
                 "sync_period": 500,
@@ -565,6 +565,7 @@ class ConfigsProvider_19(ConfigsProvider):
             config["monitoring_port"] = next(ports_generator)
             config["logging"] = init_logging(config.get("logging"), scheduler_logs_dir,
                                              "scheduler-" + str(index),
+                                             log_errors_to_stderr=False,
                                              enable_debug_logging=provision["enable_debug_logging"],
                                              enable_compression=provision["enable_logging_compression"],
                                              enable_structured_logging=provision["enable_structured_scheduler_logging"])
@@ -602,6 +603,7 @@ class ConfigsProvider_19(ConfigsProvider):
                 proxy_config.get("logging"),
                 proxy_logs_dir,
                 "http-proxy-{}".format(index),
+                log_errors_to_stderr=False,
                 enable_debug_logging=provision["enable_debug_logging"],
                 enable_compression=provision["enable_logging_compression"],
                 enable_structured_logging=True)
@@ -685,15 +687,17 @@ class ConfigsProvider_19(ConfigsProvider):
             set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])
 
             config["logging"] = init_logging(config.get("logging"), node_logs_dir, "node-{0}".format(index),
+                                             log_errors_to_stderr=False,
                                              enable_debug_logging=provision["enable_debug_logging"],
                                              enable_compression=provision["enable_logging_compression"])
 
             job_proxy_logging = get_at(config, "exec_agent/job_proxy_logging")
-            log_name = "job_proxy-{0}".format(index)
+            log_name = "job_proxy-{0}-slot-%slot_index%".format(index)
             set_at(
                 config,
                 "exec_agent/job_proxy_logging",
                 init_logging(job_proxy_logging, node_logs_dir, log_name,
+                             log_errors_to_stderr=False,
                              enable_debug_logging=provision["enable_debug_logging"],
                              enable_compression=provision["enable_logging_compression"])
             )
@@ -804,6 +808,7 @@ class ConfigsProvider_19(ConfigsProvider):
                 config.get("logging"),
                 proxy_logs_dir,
                 "rpc-proxy-{}".format(rpc_proxy_index),
+                log_errors_to_stderr=False,
                 enable_debug_logging=provision["enable_debug_logging"],
                 enable_compression=provision["enable_logging_compression"])
 
@@ -872,6 +877,7 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
             config["monitoring_port"] = next(ports_generator)
             config["logging"] = init_logging(config.get("logging"), controller_agent_logs_dir,
                                              "controller-agent-" + str(index),
+                                             log_errors_to_stderr=False,
                                              enable_debug_logging=provision["enable_debug_logging"],
                                              enable_compression=provision["enable_logging_compression"],
                                              enable_structured_logging=provision["enable_structured_scheduler_logging"])
