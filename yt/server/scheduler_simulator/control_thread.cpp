@@ -24,6 +24,8 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 
+using std::placeholders::_1;
+
 static const auto& Logger = SchedulerSimulatorLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,6 +240,12 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
 
     // Notify scheduler.
     SchedulerStrategy_->RegisterOperation(operation.Get());
+    StrategyHost_.LogEventFluently(ELogEventType::OperationStarted)
+        .Item("operation_id").Value(operation->GetId())
+        .Item("operation_type").Value(operation->GetType())
+        .Item("spec").Value(operation->GetSpecString())
+        .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
+        .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, SchedulerStrategy_, operation.Get(), _1));
     SchedulerStrategy_->EnableOperation(operation.Get());
 
     JobAndOperationCounter_.OnOperationStarted();
