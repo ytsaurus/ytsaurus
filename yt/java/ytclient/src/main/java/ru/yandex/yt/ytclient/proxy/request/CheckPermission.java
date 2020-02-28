@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 import java.util.Set;
 
 import ru.yandex.bolts.collection.Cf;
+import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
@@ -12,6 +13,8 @@ public class CheckPermission extends MutateNode<CheckPermission> {
     private final String path;
     private final int permissions;
     private final Set<String> columns;
+
+    private MasterReadOptions masterReadOptions;
 
     public CheckPermission(String user, String path, int permissions) {
         this(user, path, permissions, Cf.set());
@@ -24,6 +27,11 @@ public class CheckPermission extends MutateNode<CheckPermission> {
         this.columns = columns;
     }
 
+    public CheckPermission setMasterReadOptions(MasterReadOptions masterReadOptions) {
+        this.masterReadOptions = masterReadOptions;
+        return this;
+    }
+
     public TReqCheckPermission.Builder writeTo(TReqCheckPermission.Builder builder) {
 
         if (transactionalOptions != null) {
@@ -34,6 +42,9 @@ public class CheckPermission extends MutateNode<CheckPermission> {
         }
         if (additionalData != null) {
             builder.mergeFrom(additionalData);
+        }
+        if (masterReadOptions != null) {
+            builder.setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));
         }
 
         return builder
