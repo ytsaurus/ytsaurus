@@ -2291,7 +2291,19 @@ Y_UNIT_TEST_SUITE(Operations)
         TConfig::Get()->StartOperationRetryInterval = TDuration::MilliSeconds(0);
 
         size_t maxOperationCount = 1;
-        client->Create("//sys/pools/research/testing", NT_MAP, TCreateOptions().IgnoreExisting(true).Recursive(true));
+        client->Create(
+            "",
+            NT_SCHEDULER_POOL,
+            TCreateOptions().Attributes(NYT::TNode()
+                ("name", "research")
+                ("pool_tree", "default")));
+        client->Create(
+            "",
+            NT_SCHEDULER_POOL,
+            TCreateOptions().Attributes(NYT::TNode()
+                ("name", "testing")
+                ("pool_tree", "default")
+                ("parent_name", "research")));
         client->Set("//sys/pools/research/testing/@max_operation_count", maxOperationCount);
 
         CreateTableWithFooColumn(client, workingDir + "/input");
