@@ -170,7 +170,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
 
         replicated_table_path = "//tmp/{}".format(generate_uuid())
-        self._create_replicated_table(replicated_table_path, schema, enable_profiling=True)
+        self._create_replicated_table(replicated_table_path, schema, enable_profiling=True, dynamic_store_auto_flush_period=None)
 
         tablet_profiling = self._get_table_profiling(replicated_table_path)
         def get_all_counters():
@@ -192,7 +192,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
 
         replicated_table_path = "//tmp/{}".format(generate_uuid())
-        self._create_replicated_table(replicated_table_path, schema, enable_profiling=True)
+        self._create_replicated_table(replicated_table_path, schema, enable_profiling=True, dynamic_store_auto_flush_period=None)
 
         replica_table_path = "//tmp/{}".format(generate_uuid())
         replica_id = create_table_replica(replicated_table_path, self.REPLICA_CLUSTER_NAME, replica_table_path)
