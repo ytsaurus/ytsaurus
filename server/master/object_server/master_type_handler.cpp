@@ -35,11 +35,6 @@ private:
         YT_ABORT();
     }
 
-    virtual TString DoGetName(const TMasterObject* /*object*/) override
-    {
-        return "master";
-    }
-
     virtual IObjectProxyPtr DoGetProxy(
         TMasterObject* object,
         NTransactionServer::TTransaction* /*transaction*/) override

@@ -87,7 +87,7 @@ private:
                 YT_VERIFY(idToVersion.emplace(info.CellId, info.ConfigVersion).second);
             }
 
-            WaitFor(HydraManager_->SyncWithUpstream())
+            WaitFor(HydraManager_->SyncWithLeader())
                 .ThrowOnError();
 
             for (const auto [cellId, cell] : CellManager_->Cells()) {

@@ -145,6 +145,8 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
+        table->ValidateNoCurrentMountTransaction("Cannot mount table");
+
         if (table->IsNative()) {
             auto currentPath = cypressManager->GetNodePath(table, nullptr);
             if (path != currentPath) {
@@ -157,20 +159,8 @@ private:
             auto* cellBundle = table->GetTabletCellBundle();
             securityManager->ValidatePermission(cellBundle, EPermission::Use);
 
-            // CurrentMountTransactionId is used to prevent primary master to copy/move node when
-            // secondary master has already committed mount (this causes an unexpected error in CloneTable).
-            // Primary master is lazy coordinator of 2pc, thus clone command and participant commit command are
-            // serialized. Moreover secondary master (participant) commit happens strictly before primary commit.
-            // CurrentMountTransactionId mechanism ensures that clone command can be sent only before
-            // primary master has been started participating in 2pc. Thus clone command cannot appear
-            // on the secondary master after commit. It can however arrive between prepare and commit
-            // so we don't call this validation on secondary master. Note that this deals with
-            // clone command 'before' mount. Refer to UpdateTabletState to see how we deal with it 'after' mount.
-            table->ValidateNoCurrentMountTransaction("Cannot mount table");
-            table->SetCurrentMountTransactionId(transaction->GetId());
+            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
         }
-
-        cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->PrepareMountTable(
@@ -181,6 +171,20 @@ private:
             targetCellIds,
             freeze,
             mountTimestamp);
+
+        // CurrentMountTransactionId is used to prevent primary master to copy/move node when
+        // secondary master has already committed mount (this causes an unexpected error in CloneTable).
+        // Primary master is lazy coordinator of 2pc, thus clone command and participant commit command are
+        // serialized. Moreover secondary master (participant) commit happens strictly before primary commit.
+        // CurrentMountTransactionId mechanism ensures that clone command can be sent only before
+        // primary master has been started participating in 2pc. Thus clone command cannot appear
+        // on the secondary master after commit. It can however arrive between prepare and commit
+        // so we don't call this validation on secondary master. Note that this deals with
+        // clone command 'before' mount. Refer to UpdateTabletState to see how we deal with it 'after' mount.
+        //
+        // We also lock node on secondary master to prevent resharding tablet actions to change table structure
+        // during two phase mount.
+        table->LockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(request->path(), transaction, "PrepareMount");
     }
@@ -215,11 +219,8 @@ private:
             return;
         }
 
-        if (table->IsNative()) {
-            table->SetCurrentMountTransactionId(TTransactionId());
-        }
+        table->UnlockCurrentMountTransaction(transaction->GetId());
 
-        table->SetLastMountTransactionId(transaction->GetId());
         table->UpdateExpectedTabletState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -265,9 +266,7 @@ private:
             return;
         }
 
-        if (table->IsNative()) {
-            table->SetCurrentMountTransactionId(TTransactionId());
-        }
+        table->UnlockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(request->path(), transaction, "AbortMount");
     }
@@ -293,12 +292,17 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (table->IsNative()) {
-            table->ValidateNoCurrentMountTransaction("Cannot unmount table");
-            table->SetCurrentMountTransactionId(transaction->GetId());
+        if (force) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto* cellBundle = table->GetTabletCellBundle();
+            securityManager->ValidatePermission(cellBundle, EPermission::Administer);
         }
 
-        cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
+        table->ValidateNoCurrentMountTransaction("Cannot unmount table");
+
+        if (table->IsNative()) {
+            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
+        }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->PrepareUnmountTable(
@@ -306,6 +310,8 @@ private:
             force,
             firstTabletIndex,
             lastTabletIndex);
+
+        table->LockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "PrepareUnmount");
     }
@@ -333,9 +339,7 @@ private:
             return;
         }
 
-        if (table->IsNative()) {
-            table->SetCurrentMountTransactionId(TTransactionId());
-        }
+        table->UnlockCurrentMountTransaction(transaction->GetId());
 
         table->SetLastMountTransactionId(transaction->GetId());
 
@@ -372,9 +376,7 @@ private:
             return;
         }
 
-        if (table->IsNative()) {
-            table->SetCurrentMountTransactionId(TTransactionId());
-        }
+        table->UnlockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnmount");
     }
@@ -398,18 +400,19 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (table->IsNative()) {
-            table->ValidateNoCurrentMountTransaction("Cannot freeze table");
-            table->SetCurrentMountTransactionId(transaction->GetId());
-        }
+        table->ValidateNoCurrentMountTransaction("Cannot freeze table");
 
-        cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
+        if (table->IsNative()) {
+            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
+        }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->PrepareFreezeTable(
             table,
             firstTabletIndex,
             lastTabletIndex);
+
+        table->LockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "PrepareFreeze");
     }
@@ -435,9 +438,7 @@ private:
             return;
         }
 
-        if (table->IsNative()) {
-            table->SetCurrentMountTransactionId(TTransactionId());
-        }
+        table->UnlockCurrentMountTransaction(transaction->GetId());
 
         table->SetLastMountTransactionId(transaction->GetId());
 
@@ -471,9 +472,7 @@ private:
             return;
         }
 
-        if (table->IsNative()) {
-            table->SetCurrentMountTransactionId(TTransactionId());
-        }
+        table->UnlockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "AbortFreeze");
     }
@@ -497,18 +496,19 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (table->IsNative()) {
-            table->ValidateNoCurrentMountTransaction("Cannot unfreeze table");
-            table->SetCurrentMountTransactionId(transaction->GetId());
-        }
+        table->ValidateNoCurrentMountTransaction("Cannot unfreeze table");
 
-        cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
+        if (table->IsNative()) {
+            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
+        }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->PrepareUnfreezeTable(
             table,
             firstTabletIndex,
             lastTabletIndex);
+
+        table->LockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "PrepareUnfreeze");
     }
@@ -534,9 +534,7 @@ private:
             return;
         }
 
-        if (table->IsNative()) {
-            table->SetCurrentMountTransactionId(TTransactionId());
-        }
+        table->UnlockCurrentMountTransaction(transaction->GetId());
 
         table->SetLastMountTransactionId(transaction->GetId());
         table->UpdateExpectedTabletState(ETabletState::Mounted);
@@ -571,9 +569,7 @@ private:
             return;
         }
 
-        if (table->IsNative()) {
-            table->SetCurrentMountTransactionId(TTransactionId());
-        }
+        table->UnlockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "AbortUnfreeze");
     }
@@ -597,18 +593,19 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
-        if (table->IsNative()) {
-            table->ValidateNoCurrentMountTransaction("Cannot remount table");
-            table->SetCurrentMountTransactionId(transaction->GetId());
-        }
+        table->ValidateNoCurrentMountTransaction("Cannot remount table");
 
-        cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
+        if (table->IsNative()) {
+            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
+        }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->PrepareRemountTable(
             table,
             firstTabletIndex,
             lastTabletIndex);
+
+        table->LockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "PrepareRemount");
     }
@@ -634,9 +631,7 @@ private:
             return;
         }
 
-        if (table->IsNative()) {
-            table->SetCurrentMountTransactionId(TTransactionId());
-        }
+        table->UnlockCurrentMountTransaction(transaction->GetId());
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         tabletManager->RemountTable(
@@ -668,9 +663,7 @@ private:
             return;
         }
 
-        if (table->IsNative()) {
-            table->SetCurrentMountTransactionId(TTransactionId());
-        }
+        table->UnlockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "AbortRemount");
     }
@@ -698,15 +691,10 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
+        table->ValidateNoCurrentMountTransaction("Cannot reshard table");
+
         if (table->IsNative()) {
-            table->ValidateNoCurrentMountTransaction("Cannot reshard table");
-            table->SetCurrentMountTransactionId(transaction->GetId());
-        }
-
-        cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
-
-        if (!table->IsDynamic()) {
-            THROW_ERROR_EXCEPTION("Cannot reshard a static table");
+            cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
         }
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
@@ -716,6 +704,8 @@ private:
             lastTabletIndex,
             tabletCount,
             pivotKeys);
+
+        table->LockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "PrepareReshard");
     }
@@ -745,9 +735,7 @@ private:
             return;
         }
 
-        if (table->IsNative()) {
-            table->SetCurrentMountTransactionId(TTransactionId());
-        }
+        table->UnlockCurrentMountTransaction(transaction->GetId());
 
         table->SetLastMountTransactionId(transaction->GetId());
 
@@ -787,9 +775,7 @@ private:
             return;
         }
 
-        if (table->IsNative()) {
-            table->SetCurrentMountTransactionId(TTransactionId());
-        }
+        table->UnlockCurrentMountTransaction(transaction->GetId());
 
         YT_LOG_ACCESS(cypressManager->GetNodePath(table, nullptr), transaction, "AbortReshard");
     }

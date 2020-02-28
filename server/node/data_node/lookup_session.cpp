@@ -39,6 +39,8 @@ TLookupSession::TLookupSession(
     TChunkId chunkId,
     TReadSessionId readSessionId,
     TWorkloadDescriptor workloadDescriptor,
+    TColumnFilter columnFilter,
+    TTimestamp timestamp,
     bool produceAllVersions,
     TCachedTableSchemaPtr tableSchema,
     const TString& requestedKeysString)
@@ -46,6 +48,8 @@ TLookupSession::TLookupSession(
     , ChunkId_(chunkId)
     , ReadSessionId_(readSessionId)
     , WorkloadDescriptor_(std::move(workloadDescriptor))
+    , ColumnFilter_(std::move(columnFilter))
+    , Timestamp_(timestamp)
     , ProduceAllVersions_(produceAllVersions)
     , TableSchema_(std::move(tableSchema))
 {
@@ -224,8 +228,8 @@ TSharedRef TLookupSession::DoRun()
         chunkState->ChunkMeta,
         Options_,
         RequestedKeys_,
-        NTableClient::TColumnFilter(),
-        MaxTimestamp,
+        ColumnFilter_,
+        Timestamp_,
         ProduceAllVersions_);
     rowReaderAdapter->ReadRowset(onRow);
 

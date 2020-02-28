@@ -16,8 +16,7 @@ template <class T>
     YT_ASSERT(future);
     YT_ASSERT(invoker);
 
-    void WaitForImpl(TAwaitable awaitable, IInvokerPtr invoker);
-    WaitForImpl(future.AsAwaitable(), std::move(invoker));
+    WaitFor(future.AsAwaitable(), std::move(invoker));
 
     return future.Get();
 }

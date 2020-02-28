@@ -43,6 +43,16 @@ TTransaction::TTransaction(TTransactionId id)
     , Acd_(this)
 { }
 
+TString TTransaction::GetLowercaseObjectName() const
+{
+    return Format("transaction %v", GetId());
+}
+
+TString TTransaction::GetCapitalizedObjectName() const
+{
+    return Format("Transaction %v", GetId());
+}
+
 void TTransaction::Save(NCellMaster::TSaveContext& context) const
 {
     TNonversionedObjectBase::Save(context);

@@ -624,7 +624,9 @@ struct TConcatenateNodesOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
     , public TMutatingOptions
-{ };
+{
+    NChunkClient::TFetcherConfigPtr ChunkMetaFetcherConfig;
+};
 
 struct TNodeExistsOptions
     : public TTimeoutOptions
@@ -1029,6 +1031,7 @@ struct TJob
     NYson::TYsonString InputPaths;
     NYson::TYsonString CoreInfos;
     NYson::TYsonString Events;
+    std::optional<bool> IsStale;
 };
 
 void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey);

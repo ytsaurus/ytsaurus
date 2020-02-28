@@ -7,6 +7,8 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <yt/core/profiling/profiler.h>
+
 #include <util/generic/iterator_range.h>
 
 namespace NYT::NLogTailer {
@@ -23,6 +25,8 @@ struct TLogRecord
     TString ThreadId;
     TString FiberId;
     TString TraceId;
+    ui64 Increment;
+    ui64 Size;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +45,8 @@ public:
     void OnLogRotation();
 
     void OnTermination();
+
+    void OnProfiling();
 
     i64 GetTotalBytesRead() const;
 
@@ -66,9 +72,19 @@ private:
 
     std::vector<std::pair<TString, TString>> ExtraLogTableColumns_;
 
-    ui64 Increment_ = 0;
+    ui64 NextIncrement_ = 0;
 
     TInstant LastLogReadTime_;
+
+    NProfiling::TProfiler Profiler_;
+
+    i64 TotalBytesWritten_ = 0;
+    i64 TotalRowsWritten_ = 0;
+    i64 TotalWriteErrors_ = 0;
+    i64 TotalUnparsedRows_ = 0;
+    i64 TotalTrimmedRows_ = 0;
+    i64 TotalTrimmedBytes_ = 0;
+    std::optional<TInstant> EarliestRecordTimestamp_;
 
     void DoReadLog();
     void DoOpenLogFile();

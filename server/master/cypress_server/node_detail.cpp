@@ -298,8 +298,8 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     auto keyToAttribute = Load<std::vector<std::pair<TString, TYsonString>>>(*context);
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = trunkNode->GetMutableAttributes();
-        for (const auto& pair : keyToAttribute) {
-            YT_VERIFY(clonedAttributes->Attributes().insert(pair).second);
+        for (const auto& [key, value] : keyToAttribute) {
+            YT_VERIFY(clonedAttributes->TryInsert(key, value));
         }
     }
 
@@ -312,7 +312,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     return true;
 }
 
-void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
+void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
     TCypressNode* originatingNode,
     TCypressNode* branchedNode,
     TTransaction* transaction,
@@ -354,7 +354,14 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCore(
     objectManager->BranchAttributes(originatingNode, branchedNode);
 }
 
-void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
+void TNontemplateCypressNodeTypeHandlerBase::BranchCoreEpilogue(
+    TCypressNode* branchedNode)
+{
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->UpdateMasterMemoryUsage(branchedNode);
+}
+
+void TNontemplateCypressNodeTypeHandlerBase::MergeCorePrologue(
     TCypressNode* originatingNode,
     TCypressNode* branchedNode)
 {
@@ -372,6 +379,13 @@ void TNontemplateCypressNodeTypeHandlerBase::MergeCore(
     originatingNode->SetModificationTime(std::max(originatingNode->GetModificationTime(), branchedNode->GetModificationTime()));
     originatingNode->SetAttributesRevision(mutationContext->GetVersion().ToRevision());
     originatingNode->SetContentRevision(mutationContext->GetVersion().ToRevision());
+}
+
+void TNontemplateCypressNodeTypeHandlerBase::MergeCoreEpilogue(
+    TCypressNode* originatingNode)
+{
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->UpdateMasterMemoryUsage(originatingNode);
 }
 
 TCypressNode* TNontemplateCypressNodeTypeHandlerBase::CloneCorePrologue(
@@ -410,8 +424,8 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
         factory->GetTransaction());
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = clonedTrunkNode->GetMutableAttributes();
-        for (const auto& pair : keyToAttribute) {
-            YT_VERIFY(clonedAttributes->Attributes().insert(pair).second);
+        for (const auto& [key, value] : keyToAttribute) {
+            YT_VERIFY(clonedAttributes->TryInsert(key, value));
         }
     }
 
@@ -429,6 +443,9 @@ void TNontemplateCypressNodeTypeHandlerBase::CloneCoreEpilogue(
     if (mode == ENodeCloneMode::Move) {
         clonedTrunkNode->SetCreationTime(sourceNode->GetCreationTime());
     }
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->UpdateMasterMemoryUsage(clonedTrunkNode);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -712,29 +729,119 @@ void TCompositeNodeTypeHandler<TImpl>::DoEndCopy(
 
 TMapNodeChildren::~TMapNodeChildren()
 {
-    YT_VERIFY(KeyToChild.empty());
-    YT_VERIFY(ChildToKey.empty());
+    YT_VERIFY(KeyToChild_.empty());
+    YT_VERIFY(ChildToKey_.empty());
 }
 
 void TMapNodeChildren::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
 
-    Save(context, KeyToChild);
+    Save(context, KeyToChild_);
 }
 
 void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
 {
     using NYT::Load;
 
-    Load(context, KeyToChild);
+    Load(context, KeyToChild_);
 
     // Reconstruct ChildToKey map.
-    for (const auto& [key, childNode] : KeyToChild) {
+    for (const auto& [key, childNode] : KeyToChild_) {
         if (childNode) {
-            YT_VERIFY(ChildToKey.emplace(childNode, key).second);
+            YT_VERIFY(ChildToKey_.emplace(childNode, key).second);
         }
     }
+
+    RecomputeMasterMemoryUsage();
+}
+
+void TMapNodeChildren::RecomputeMasterMemoryUsage()
+{
+    MasterMemoryUsage_ = 0;
+    for (const auto& [key, childNode] : KeyToChild_) {
+        MasterMemoryUsage_ += key.size();
+    }
+}
+
+void TMapNodeChildren::Set(const TObjectManagerPtr& objectManager, const TString& key, TCypressNode* child)
+{
+    YT_VERIFY(!child || child->IsTrunk());
+
+    auto it = KeyToChild_.find(key);
+    if (it == KeyToChild_.end()) {
+        MasterMemoryUsage_ += key.size();
+    } else if (it->second) {
+        if (it->second == child) {
+            return;
+        }
+        objectManager->UnrefObject(it->second);
+        YT_VERIFY(ChildToKey_.erase(it->second));
+    }
+
+    KeyToChild_[key] = child;
+    if (child) {
+        objectManager->RefObject(child);
+        YT_VERIFY(ChildToKey_.emplace(child, key).second);
+    }
+}
+
+void TMapNodeChildren::Insert(const TObjectManagerPtr& objectManager, const TString& key, TCypressNode* child)
+{
+    YT_VERIFY(!child || child->IsTrunk());
+
+    YT_VERIFY(KeyToChild_.emplace(key, child).second);
+    MasterMemoryUsage_ += key.size();
+
+    if (child) {
+        objectManager->RefObject(child);
+        YT_VERIFY(ChildToKey_.emplace(child, key).second);
+    }
+}
+
+void TMapNodeChildren::Remove(const TObjectManagerPtr& objectManager, const TString& key, TCypressNode* child)
+{
+    YT_VERIFY(!child || child->IsTrunk());
+
+    auto it = KeyToChild_.find(key);
+    YT_VERIFY(it != KeyToChild_.end());
+    YT_VERIFY(it->second == child);
+    MasterMemoryUsage_ -= static_cast<i64>(key.size());
+    KeyToChild_.erase(it);
+    if (child) {
+        objectManager->UnrefObject(child);
+        YT_VERIFY(ChildToKey_.erase(child) > 0);
+    }
+}
+
+bool TMapNodeChildren::Contains(const TString& key) const
+{
+    return KeyToChild_.find(key) != KeyToChild_.end();
+}
+
+const TMapNodeChildren::TKeyToChild& TMapNodeChildren::KeyToChild() const
+{
+    return KeyToChild_;
+}
+
+const TMapNodeChildren::TChildToKey& TMapNodeChildren::ChildToKey() const
+{
+    return ChildToKey_;
+}
+
+int TMapNodeChildren::GetRefCount() const noexcept
+{
+    return RefCount_;
+}
+
+void TMapNodeChildren::Ref() noexcept
+{
+    ++RefCount_;
+}
+
+void TMapNodeChildren::Unref() noexcept
+{
+    YT_VERIFY(--RefCount_ >= 0);
 }
 
 /*static*/ void TMapNodeChildren::Destroy(
@@ -744,8 +851,8 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
     YT_VERIFY(children->GetRefCount() == 0);
     children->UnrefChildren(objectManager);
 
-    children->KeyToChild.clear();
-    children->ChildToKey.clear();
+    children->KeyToChild_.clear();
+    children->ChildToKey_.clear();
 
     delete children;
 }
@@ -759,8 +866,8 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
     // It's okay to clear and forget. Recursive unref is not necessary here
     // because, during automaton clearing, all nodes will be destroyed anyway -
     // regardless of their refcounter.
-    children->KeyToChild.clear();
-    children->ChildToKey.clear();
+    children->KeyToChild_.clear();
+    children->ChildToKey_.clear();
 
     delete children;
 }
@@ -772,10 +879,12 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
     YT_VERIFY(srcChildren->GetRefCount() != 0);
 
     auto holder = std::make_unique<TMapNodeChildren>();
-    holder->KeyToChild = srcChildren->KeyToChild;
-    holder->ChildToKey = srcChildren->ChildToKey;
+    holder->KeyToChild_ = srcChildren->KeyToChild_;
+    holder->ChildToKey_ = srcChildren->ChildToKey_;
 
     holder->RefChildren(objectManager);
+
+    holder->RecomputeMasterMemoryUsage();
 
     return holder.release();
 }
@@ -783,20 +892,16 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
 void TMapNodeChildren::RefChildren(const NObjectServer::TObjectManagerPtr& objectManager)
 {
     // Make sure we handle children in a stable order.
-    for (const auto& [key, childNode] : SortHashMapByKeys(KeyToChild)) {
-        if (childNode) {
-            objectManager->RefObject(childNode);
-        }
+    for (const auto& [childNode, key] : SortHashMapByKeys(ChildToKey_)) {
+        objectManager->RefObject(childNode);
     }
 }
 
 void TMapNodeChildren::UnrefChildren(const NObjectServer::TObjectManagerPtr& objectManager)
 {
     // Make sure we handle children in a stable order.
-    for (const auto& [key, childNode] : SortHashMapByKeys(KeyToChild)) {
-        if (childNode) {
-            objectManager->UnrefObject(childNode);
-        }
+    for (const auto& [childNode, key] : SortHashMapByKeys(ChildToKey_)) {
+        objectManager->UnrefObject(childNode);
     }
 }
 
@@ -815,22 +920,17 @@ TMapNode::~TMapNode()
 
 const TMapNode::TKeyToChild& TMapNode::KeyToChild() const
 {
-    return Children_.Get().KeyToChild;
+    return Children_.Get().KeyToChild();
 }
 
 const TMapNode::TChildToKey& TMapNode::ChildToKey() const
 {
-    return Children_.Get().ChildToKey;
+    return Children_.Get().ChildToKey();
 }
 
-TMapNode::TKeyToChild& TMapNode::MutableKeyToChild(const TObjectManagerPtr& objectManager)
+TMapNodeChildren& TMapNode::MutableChildren(const TObjectManagerPtr& objectManager)
 {
-    return Children_.MutableGet(objectManager).KeyToChild;
-}
-
-TMapNode::TChildToKey& TMapNode::MutableChildToKey(const TObjectManagerPtr& objectManager)
-{
-    return Children_.MutableGet(objectManager).ChildToKey;
+    return Children_.MutableGet(objectManager);
 }
 
 ENodeType TMapNode::GetNodeType() const
@@ -854,34 +954,25 @@ void TMapNode::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, ChildCountDelta_);
-
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::SnapshotLockableMapNodes) {
-        Children_.ResetToDefaultConstructed();
-        // Passing a nullptr as the object manager is a dirty hack: in this
-        // particular case, we're sure there's no CoW sharing, and the object
-        // manager won't actually be used.
-        auto& keyToChild = MutableKeyToChild(nullptr);
-        auto& childToKey = MutableChildToKey(nullptr);
-        TMapSerializer<
-            TDefaultSerializer,
-            TNonversionedObjectRefSerializer
-        >::Load(context, keyToChild);
-
-        // Reconstruct ChildToKey map.
-        for (const auto& [key, childNode] : keyToChild) {
-            if (childNode) {
-                YT_VERIFY(childToKey.emplace(childNode, key).second);
-            }
-        }
-    } else {
-        Load(context, Children_);
-    }
+    Load(context, Children_);
 }
 
 int TMapNode::GetGCWeight() const
 {
     return TObject::GetGCWeight() + KeyToChild().size();
+}
+
+i64 TMapNode::GetMasterMemoryUsage() const
+{
+    return TCompositeNodeBase::GetMasterMemoryUsage() + Children_.Get().GetMasterMemoryUsage();
+}
+
+void TMapNode::AssignChildren(
+    const TObjectPartCoWPtr<TMapNodeChildren>& children,
+    const TObjectManagerPtr& objectManager)
+{
+    Children_.Assign(children, objectManager);
+    MutableChildren(objectManager).RecomputeMasterMemoryUsage();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -919,10 +1010,9 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
 
     if (lockRequest.Mode == ELockMode::Snapshot) {
         const auto& objectManager = this->Bootstrap_->GetObjectManager();
-
         if (originatingNode->IsTrunk()) {
             branchedNode->ChildCountDelta() = originatingNode->ChildCountDelta();
-            branchedNode->Children_.Assign(originatingNode->Children_, objectManager);
+            branchedNode->AssignChildren(originatingNode->Children_, objectManager);
         } else {
             const auto& cypressManager = this->Bootstrap_->GetCypressManager();
 
@@ -934,13 +1024,9 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
                 &keyToChildStorage);
 
             branchedNode->ChildCountDelta() = originatingNodeChildren.size();
-            branchedNode->MutableKeyToChild(objectManager) = originatingNodeChildren;
-            auto& childToKey = branchedNode->MutableChildToKey(objectManager);
-            for (const auto& [key, childNode] : SortHashMapByKeys(branchedNode->KeyToChild())) {
-                if (childNode) {
-                    objectManager->RefObject(childNode);
-                    YT_VERIFY(childToKey.emplace(childNode, key).second);
-                }
+            auto& children = branchedNode->MutableChildren(objectManager);
+            for (const auto& [key, childNode] : SortHashMapByKeys(originatingNodeChildren)) {
+                children.Insert(objectManager, key, childNode);
             }
         }
     }
@@ -959,44 +1045,26 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoMerge(
 
     bool isOriginatingNodeBranched = originatingNode->GetTransaction() != nullptr;
 
-    auto& keyToChild = originatingNode->MutableKeyToChild(objectManager);
-    auto& childToKey = originatingNode->MutableChildToKey(objectManager);
+    auto& children = originatingNode->MutableChildren(objectManager);
+    const auto& keyToChild = originatingNode->KeyToChild();
 
     for (const auto& [key, trunkChildNode] : SortHashMapByKeys(branchedNode->KeyToChild())) {
         auto it = keyToChild.find(key);
         if (trunkChildNode) {
-            objectManager->RefObject(trunkChildNode);
-
-            if (it == keyToChild.end()) {
-                // Originating: missing
-                YT_VERIFY(childToKey.emplace(trunkChildNode, key).second);
-                YT_VERIFY(keyToChild.emplace(key, trunkChildNode).second);
-            } else if (it->second) {
-                // Originating: present
-                objectManager->UnrefObject(it->second);
-                YT_VERIFY(childToKey.erase(it->second) == 1);
-                YT_VERIFY(childToKey.emplace(trunkChildNode, key).second);
-                it->second = trunkChildNode;
-            } else {
-                // Originating: tombstone
-                it->second = trunkChildNode;
-                YT_VERIFY(childToKey.emplace(trunkChildNode, key).second);
-            }
+            children.Set(objectManager, key, trunkChildNode);
         } else {
             // Branched: tombstone
             if (it == keyToChild.end()) {
                 // Originating: missing
                 if (isOriginatingNodeBranched) {
-                    YT_VERIFY(keyToChild.emplace(key, nullptr).second);
+                    children.Insert(objectManager, key, nullptr);
                 }
             } else if (it->second) {
                 // Originating: present
-                objectManager->UnrefObject(it->second);
-                YT_VERIFY(childToKey.erase(it->second) == 1);
                 if (isOriginatingNodeBranched) {
-                    it->second = nullptr;
+                    children.Set(objectManager, key, nullptr);
                 } else {
-                    keyToChild.erase(it);
+                    children.Remove(objectManager, key, it->second);
                 }
             } else {
                 // Originating: tombstone
@@ -1044,8 +1112,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
     auto keyToChildList = SortHashMapByKeys(keyToChildMap);
 
     const auto& objectManager = this->Bootstrap_->GetObjectManager();
-    auto& clonedNodeKeyToChild = clonedTrunkNode->MutableKeyToChild(objectManager);
-    auto& clonedNodeChildToKey = clonedTrunkNode->MutableChildToKey(objectManager);
+    auto& clonedChildren = clonedTrunkNode->MutableChildren(objectManager);
 
     for (const auto& [key, trunkChildNode] : keyToChildList) {
         auto* childNode = cypressManager->GetVersionedNode(trunkChildNode, transaction);
@@ -1053,10 +1120,9 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
         auto* clonedChildNode = factory->CloneNode(childNode, mode);
         auto* clonedTrunkChildNode = clonedChildNode->GetTrunkNode();
 
-        YT_VERIFY(clonedNodeKeyToChild.emplace(key, clonedTrunkChildNode).second);
-        YT_VERIFY(clonedNodeChildToKey.emplace(clonedTrunkChildNode, key).second);
+        clonedChildren.Insert(objectManager, key, clonedTrunkChildNode);
 
-        AttachChild(objectManager, clonedTrunkNode, clonedChildNode);
+        AttachChild(clonedTrunkNode, clonedChildNode);
 
         ++clonedTrunkNode->ChildCountDelta();
     }
@@ -1113,8 +1179,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
     using NYT::Load;
 
     const auto& objectManager = this->Bootstrap_->GetObjectManager();
-    auto& keyToChild = trunkNode->MutableKeyToChild(objectManager);
-    auto& childToKey = trunkNode->MutableChildToKey(objectManager);
+    auto& children = trunkNode->MutableChildren(objectManager);
 
     size_t size = TSizeSerializer::Load(*context);
     for (size_t index = 0; index < size; ++index) {
@@ -1123,10 +1188,9 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
         auto* childNode = factory->EndCopyNode(context);
         auto* trunkChildNode = childNode->GetTrunkNode();
 
-        YT_VERIFY(keyToChild.emplace(key, trunkChildNode).second);
-        YT_VERIFY(childToKey.emplace(trunkChildNode, key).second);
+        children.Insert(objectManager, key, trunkChildNode);
 
-        AttachChild(objectManager, trunkNode->GetTrunkNode(), childNode);
+        AttachChild(trunkNode->GetTrunkNode(), childNode);
 
         ++trunkNode->ChildCountDelta();
     }
@@ -1261,7 +1325,8 @@ void TListNodeTypeHandler::DoClone(
         clonedTrunkNode->IndexToChild().push_back(clonedChildTrunkNode);
         YT_VERIFY(clonedTrunkNode->ChildToIndex().emplace(clonedChildTrunkNode, index).second);
 
-        AttachChild(objectManager, clonedTrunkNode, clonedChildNode);
+        AttachChild(clonedTrunkNode, clonedChildNode);
+        objectManager->RefObject(clonedChildNode->GetTrunkNode());
     }
 }
 
@@ -1313,7 +1378,8 @@ void TListNodeTypeHandler::DoEndCopy(
         indexToChild.push_back(trunkChildNode);
         YT_VERIFY(childToIndex.emplace(trunkChildNode, index).second);
 
-        AttachChild(objectManager, trunkNode, childNode);
+        AttachChild(trunkNode, childNode);
+        objectManager->RefObject(childNode->GetTrunkNode());
     }
 }
 

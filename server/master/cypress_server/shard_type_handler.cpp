@@ -34,11 +34,6 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual TString DoGetName(const TCypressShard* action) override
-    {
-        return Format("Cypress shard %v", action->GetId());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TCypressShard* shard, TTransaction* /*transaction*/) override
     {
         return CreateCypressShardProxy(Bootstrap_, &Metadata_, shard);

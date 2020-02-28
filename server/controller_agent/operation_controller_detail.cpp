@@ -1370,6 +1370,9 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
     for (int index = 0; index < OutputTables_.size(); ++index) {
         if (OutputTables_[index]->Path.GetRowCountLimit()) {
             YT_LOG_INFO("Output table has row count limit, force disabling auto merge (TableIndex: %v)", index);
+            auto error = TError("Output table has row count limit, force disabling auto merge")
+                << TErrorAttribute("table_index", index);
+            SetOperationAlert(EOperationAlertType::AutoMergeDisabled, error);
             return false;
         }
     }
@@ -1392,32 +1395,41 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
         OperationId);
 
     bool autoMergeEnabled = false;
+    bool sortedOutputAutoMergeRequired = false;
 
     auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
     for (int index = 0; index < OutputTables_.size(); ++index) {
         const auto& outputTable = OutputTables_[index];
-        if (outputTable->Path.GetAutoMerge() &&
-            !outputTable->TableUploadOptions.TableSchema.IsSorted())
-        {
-            auto edgeDescriptor = standardEdgeDescriptors[index];
-            // Auto-merge jobs produce single output, so we override the table
-            // index in writer options with 0.
-            edgeDescriptor.TableWriterOptions = CloneYsonSerializable(edgeDescriptor.TableWriterOptions);
-            edgeDescriptor.TableWriterOptions->TableIndex = 0;
-            auto task = New<TAutoMergeTask>(
-                this /* taskHost */,
-                index,
-                chunkCountPerMergeJob,
-                autoMergeSpec->ChunkSizeThreshold,
-                dataWeightPerJob,
-                Spec_->MaxDataWeightPerJob,
-                edgeDescriptor);
-            RegisterTask(task);
-            AutoMergeTasks.emplace_back(std::move(task));
-            autoMergeEnabled = true;
+        if (outputTable->Path.GetAutoMerge()) {
+            if (outputTable->TableUploadOptions.TableSchema.IsSorted()) {
+                sortedOutputAutoMergeRequired = true;
+                AutoMergeTasks.emplace_back(nullptr);
+            } else {
+                auto edgeDescriptor = standardEdgeDescriptors[index];
+                // Auto-merge jobs produce single output, so we override the table
+                // index in writer options with 0.
+                edgeDescriptor.TableWriterOptions = CloneYsonSerializable(edgeDescriptor.TableWriterOptions);
+                edgeDescriptor.TableWriterOptions->TableIndex = 0;
+                auto task = New<TAutoMergeTask>(
+                    this /* taskHost */,
+                    index,
+                    chunkCountPerMergeJob,
+                    autoMergeSpec->ChunkSizeThreshold,
+                    dataWeightPerJob,
+                    Spec_->MaxDataWeightPerJob,
+                    edgeDescriptor);
+                RegisterTask(task);
+                AutoMergeTasks.emplace_back(std::move(task));
+                autoMergeEnabled = true;
+            }
         } else {
             AutoMergeTasks.emplace_back(nullptr);
         }
+    }
+
+    if (sortedOutputAutoMergeRequired && !autoMergeEnabled) {
+        auto error = TError("Sorted output with auto merge is not supported for now, it will be done in YT-8024");
+        SetOperationAlert(EOperationAlertType::AutoMergeDisabled, error);
     }
 
     return autoMergeEnabled;
@@ -2286,23 +2298,12 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     auto jobId = jobSummary->Id;
     auto abandoned = jobSummary->Abandoned;
 
-    // NB: We should not explicitly tell node to remove abandoned job because it may be still
-    // running at the node.
-    if (!abandoned) {
-        CompletedJobIdsReleaseQueue_.Push(jobId);
-    }
-
     // Testing purpose code.
     if (Config->EnableControllerFailureSpecOption && Spec_->TestingOperationOptions &&
         Spec_->TestingOperationOptions->ControllerFailure &&
         *Spec_->TestingOperationOptions->ControllerFailure == EControllerFailureType::ExceptionThrownInOnJobCompleted)
     {
         THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::TestingError, "Testing exception");
-    }
-
-    if (State != EControllerState::Running) {
-        YT_LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
-        return;
     }
 
     const auto& result = jobSummary->Result;
@@ -2342,6 +2343,17 @@ void TOperationControllerBase::SafeOnJobCompleted(std::unique_ptr<TCompletedJobS
     if (maybeAbortReason) {
         YT_LOG_DEBUG("Job is considered aborted since its competitor has already completed (JobId: %v)", jobId);
         OnJobAborted(std::make_unique<TAbortedJobSummary>(*jobSummary, *maybeAbortReason), /* byScheduler */ false);
+        return;
+    }
+
+    // NB: We should not explicitly tell node to remove abandoned job because it may be still
+    // running at the node.
+    if (!abandoned) {
+        CompletedJobIdsReleaseQueue_.Push(jobId);
+    }
+
+    if (State != EControllerState::Running) {
+        YT_LOG_DEBUG("Stale job completed, ignored (JobId: %v)", jobId);
         return;
     }
 
@@ -2771,6 +2783,14 @@ IYsonConsumer* TOperationControllerBase::GetEventLogConsumer()
 
     return EventLogConsumer_.get();
 }
+
+const TLogger* TOperationControllerBase::GetEventLogger()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return &ControllerEventLogger;
+}
+
 
 void TOperationControllerBase::OnChunkFailed(TChunkId chunkId)
 {
@@ -4697,7 +4717,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
     const auto& connection = Host->GetClient()->GetNativeConnection();
     for (const auto& table : OutputTables_) {
         if (table->Dynamic) {
-            suppressionErrors.emplace_back("Output table %v is dynamic", ToString(table->Path, EYsonFormat::Text));
+            suppressionErrors.emplace_back("Output table %v is dynamic", table->Path);
             break;
         }
     }
@@ -4708,7 +4728,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         {
             suppressionErrors.emplace_back(
                 "Output table %v is non-external and cluster is multicell",
-                ToString(table->Path, EYsonFormat::Text));
+                table->Path);
             break;
         }
     }
@@ -4718,7 +4738,7 @@ void TOperationControllerBase::SuppressLivePreviewIfNeeded()
         if (table->Schema.HasNontrivialSchemaModification()) {
             suppressionErrors.emplace_back(
                 "Input table %v has non-trivial schema modification",
-                ToString(table->Path, EYsonFormat::Text));
+                table->Path);
             break;
         }
     }
@@ -5398,9 +5418,10 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                     ? FromProto<TTransactionId>(rsp->external_transaction_id())
                     : GetTransactionForOutputTable(table)->GetId();
 
-                YT_LOG_INFO("Output table locked (Path: %v, ObjectId: %v, ExternalTransactionId: %v, Revision: %llx)",
+                YT_LOG_INFO("Output table locked (Path: %v, ObjectId: %v, Schema: %v, ExternalTransactionId: %v, Revision: %llx)",
                     table->GetPath(),
                     objectId,
+                    table->TableUploadOptions.TableSchema,
                     table->ExternalTransactionId,
                     revision);
 
@@ -5539,7 +5560,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             table->EffectiveAcl = attributes->GetYson("effective_acl");
             table->WriterConfig = attributes->FindYson("chunk_writer");
 
-            YT_LOG_INFO("Output table locked (Path: %v, Options: %v, UploadTransactionId: %v)",
+            YT_LOG_INFO("Output table attributes fetched (Path: %v, Options: %v, UploadTransactionId: %v)",
                 path,
                 ConvertToYsonString(table->TableWriterOptions, EYsonFormat::Text).GetData(),
                 table->UploadTransactionId);
@@ -7723,7 +7744,7 @@ i64 TOperationControllerBase::GetDataSliceCount() const
 
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NScheduler::NProto::TUserJobSpec* jobSpec,
-    TUserJobSpecPtr config,
+    const TUserJobSpecPtr& config,
     const std::vector<TUserFile>& files,
     const TString& fileAccount)
 {
@@ -7820,6 +7841,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     jobSpec->set_write_sparse_core_dumps(GetWriteSparseCoreDumps());
+    jobSpec->set_enable_porto(static_cast<int>(config->EnablePorto));
 
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {

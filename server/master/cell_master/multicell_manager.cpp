@@ -11,9 +11,12 @@
 
 #include <yt/core/ytree/ypath_client.h>
 
+#include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/async_batcher.h>
 
 #include <yt/core/rpc/retrying_channel.h>
+#include <yt/core/rpc/dispatcher.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -52,6 +55,7 @@ using namespace NHydra;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CellMasterLogger;
+static const auto& Profiler = CellMasterProfiler;
 static const auto RegisterRetryPeriod = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,6 +75,9 @@ public:
         TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::MulticellManager)
         , Config_(config)
+        , UpstreamSyncBatcher_(New<TAsyncBatcher<void>>(
+            BIND_DONT_CAPTURE_TRACE_CONTEXT(&TImpl::DoSyncWithUpstream, MakeWeak(this)),
+            Config_->UpstreamSyncDelay))
     {
         YT_VERIFY(Config_);
 
@@ -92,42 +99,45 @@ public:
 
     void Initialize()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
-
-        if (IsSecondaryMaster()) {
-            // NB: This causes a cyclic reference but we don't care.
-            const auto& hiveManager = Bootstrap_->GetHiveManager();
-            hiveManager->SubscribeIncomingMessageUpstreamSync(BIND(&TImpl::OnIncomingMessageUpstreamSync, MakeStrong(this)));
-
-            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-            hydraManager->SubscribeUpstreamSync(BIND(&TImpl::OnHydraUpstreamSync, MakeStrong(this)));
-        }
     }
 
 
     bool IsPrimaryMaster()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Bootstrap_->IsPrimaryMaster();
     }
 
     bool IsSecondaryMaster()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Bootstrap_->IsSecondaryMaster();
     }
 
     bool IsMulticell()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Bootstrap_->IsMulticell();
     }
 
     TCellId GetCellId()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Bootstrap_->GetCellId();
     }
 
     TCellId GetCellId(TCellTag cellTag)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return cellTag == PrimaryMasterCellTag
             ? GetPrimaryCellId()
             : ReplaceCellTagInId(GetPrimaryCellId(), cellTag);
@@ -135,21 +145,29 @@ public:
 
     TCellTag GetCellTag()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Bootstrap_->GetCellTag();
     }
 
     TCellId GetPrimaryCellId()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Bootstrap_->GetPrimaryCellId();
     }
 
     TCellTag GetPrimaryCellTag()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Bootstrap_->GetPrimaryCellTag();
     }
 
     const TCellTagList& GetSecondaryCellTags()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return Bootstrap_->GetSecondaryCellTags();
     }
 
@@ -159,6 +177,8 @@ public:
         TCellTag cellTag,
         bool reliable)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto encapsulatedMessage = BuildHiveMessage(message);
         DoPostMessage(std::move(encapsulatedMessage), TCellTagList{cellTag}, reliable);
     }
@@ -168,6 +188,8 @@ public:
         const TCellTagList& cellTags,
         bool reliable)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         if (cellTags.empty()) {
             return;
         }
@@ -180,7 +202,9 @@ public:
         const TCrossCellMessage& message,
         bool reliable)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsPrimaryMaster());
+
         if (IsMulticell()) {
             PostToMasters(message, GetRegisteredMasterCellTags(), reliable);
         }
@@ -189,6 +213,8 @@ public:
 
     bool IsLocalMasterCellRegistered()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         if (IsPrimaryMaster()) {
             return true;
         }
@@ -202,28 +228,38 @@ public:
 
     bool IsRegisteredSecondaryMaster(TCellTag cellTag)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         return FindMasterEntry(cellTag) != nullptr;
     }
 
     EMasterCellRoles GetMasterCellRoles(TCellTag cellTag)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto it = MasterCellRolesMap_.find(cellTag);
         return it == MasterCellRolesMap_.end() ? EMasterCellRoles::None : it->second;
     }
 
     const TCellTagList& GetRegisteredMasterCellTags()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         return RegisteredMasterCellTags_;
     }
 
     int GetRegisteredMasterCellIndex(TCellTag cellTag)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         return GetMasterEntry(cellTag)->Index;
     }
 
 
     TCellTag PickSecondaryChunkHostCell(double bias)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         // List candidates.
         SmallVector<std::pair<TCellTag, i64>, MaxSecondaryMasterCells> candidates;
         auto maybeAddCandidate = [&] (TCellTag cellTag, i64 chunkCount) {
@@ -287,6 +323,8 @@ public:
 
     NProto::TCellStatistics ComputeClusterStatistics()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         auto result = GetLocalCellStatistics();
         for (const auto& [cellTag, entry] : RegisteredMasterMap_) {
             result += entry.Statistics;
@@ -343,7 +381,23 @@ public:
 
     TMailbox* FindPrimaryMasterMailbox()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         return PrimaryMasterMailbox_;
+    }
+
+    TFuture<void> SyncWithUpstream()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        // This shortcut prevents waiting for the (no-op) batcher at primary cell leader.
+        // XXX(babenko): tx cells
+        if (IsPrimaryMaster()) {
+            const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+            return hydraManager->SyncWithLeader();
+        }
+
+        return UpstreamSyncBatcher_->Run();
     }
 
 
@@ -391,8 +445,17 @@ private:
 
     THashMap<TCellTag, EMasterCellRoles> MasterCellRolesMap_;
 
+    const TIntrusivePtr<TAsyncBatcher<void>> UpstreamSyncBatcher_;
+    NProfiling::TAggregateGauge UpstreamSyncTimeGauge_{"/upstream_sync_time"};
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+
     virtual void OnAfterSnapshotLoaded()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
         RegisteredMasterCellTags_.resize(RegisteredMasterMap_.size());
@@ -420,6 +483,8 @@ private:
 
     virtual void Clear() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         TMasterAutomatonPart::Clear();
 
         RegisteredMasterMap_.clear();
@@ -447,6 +512,8 @@ private:
 
     virtual void OnLeaderActive() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         TMasterAutomatonPart::OnLeaderActive();
 
         if (IsSecondaryMaster()) {
@@ -467,6 +534,8 @@ private:
 
     virtual void OnStartLeading() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         TMasterAutomatonPart::OnStartLeading();
 
         OnStartEpoch();
@@ -474,6 +543,8 @@ private:
 
     virtual void OnStopLeading() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         TMasterAutomatonPart::OnStopLeading();
 
         if (RegisterAtPrimaryMasterExecutor_) {
@@ -491,6 +562,8 @@ private:
 
     virtual void OnStartFollowing() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         TMasterAutomatonPart::OnStartFollowing();
 
         OnStartEpoch();
@@ -498,6 +571,8 @@ private:
 
     virtual void OnStopFollowing() override
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         TMasterAutomatonPart::OnStopFollowing();
 
         OnStopEpoch();
@@ -509,6 +584,9 @@ private:
 
     void OnStopEpoch()
     {
+        auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+        UpstreamSyncBatcher_->Cancel(error);
+
         ClearCaches();
     }
 
@@ -522,6 +600,7 @@ private:
 
     void HydraRegisterSecondaryMasterAtPrimary(NProto::TReqRegisterSecondaryMasterAtPrimary* request)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsPrimaryMaster());
 
         auto cellTag = request->cell_tag();
@@ -569,6 +648,7 @@ private:
 
     void HydraOnSecondaryMasterRegisteredAtPrimary(NProto::TRspRegisterSecondaryMasterAtPrimary* response)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
         if (response->has_error()) {
@@ -585,6 +665,7 @@ private:
 
     void HydraRegisterSecondaryMasterAtSecondary(NProto::TReqRegisterSecondaryMasterAtSecondary* request)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
         auto cellTag = request->cell_tag();
@@ -603,6 +684,7 @@ private:
 
     void HydraStartSecondaryMasterRegistration(NProto::TReqStartSecondaryMasterRegistration* /*request*/)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
         if (RegisterState_ != EPrimaryRegisterState::None) {
@@ -621,6 +703,7 @@ private:
 
     void HydraSetCellStatistics(NProto::TReqSetCellStatistics* request)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsPrimaryMaster());
 
         auto cellTag = request->cell_tag();
@@ -634,6 +717,8 @@ private:
 
     void ValidateSecondaryCellTag(TCellTag cellTag)
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         const auto& config = Bootstrap_->GetConfig();
         for (auto cellConfig : config->SecondaryMasters) {
             if (CellTagFromId(cellConfig->CellId) == cellTag)
@@ -711,6 +796,7 @@ private:
 
     void OnStartSecondaryMasterRegistration()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
         const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
@@ -729,6 +815,7 @@ private:
 
     void OnCellStatisticsGossip()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
         if (!IsLocalMasterCellRegistered()) {
@@ -752,28 +839,56 @@ private:
         return result;
     }
 
-    // XXX(babenko): tx cells
-    TFuture<void> SyncWithPrimaryCell()
+
+    static TFuture<void> DoSyncWithUpstream(const TWeakPtr<TImpl>& weakThis)
     {
-        if (!IsLocalMasterCellRegistered()) {
-            return VoidFuture;
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto this_ = weakThis.Lock();
+        if (!this_) {
+            return MakeFuture(TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped"));
         }
+
+        return this_->DoSyncWithUpstreamCore();
+    }
+
+    TFuture<void> DoSyncWithUpstreamCore()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+        YT_VERIFY(IsSecondaryMaster());
+
+        YT_LOG_DEBUG("Synchronizing with upstream");
+
+        NProfiling::TWallTimer timer;
+
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        return hiveManager->SyncWith(GetPrimaryCellId(), false);
+
+        std::vector<TFuture<void>> asyncResults{
+            hydraManager->SyncWithLeader(),
+            hiveManager->SyncWith(GetPrimaryCellId(), false)
+        };
+
+        // NB: Many subscribers are typically waiting for the upstream sync to complete.
+        // Make sure the promise is set in a large thread pool.
+        return AllOf(std::move(asyncResults)).Apply(
+            BIND(&TImpl::OnUpstreamSyncReached, MakeStrong(this), timer)
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
-    TFuture<void> OnIncomingMessageUpstreamSync(TCellId srcCellId)
+    void OnUpstreamSyncReached(const NProfiling::TWallTimer& timer, const TError& error)
     {
-        if (srcCellId == GetPrimaryCellId() || CellTagFromId(srcCellId) != EObjectType::MasterCell) {
-            return VoidFuture;
-        }
-        return SyncWithPrimaryCell();
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            error,
+            NRpc::EErrorCode::Unavailable,
+            "Error synchronizing with upstream");
+
+        YT_LOG_DEBUG("Upstream synchronization complete");
+        Profiler.Update(UpstreamSyncTimeGauge_, timer.GetElapsedValue());
     }
 
-    TFuture<void> OnHydraUpstreamSync()
-    {
-        return SyncWithPrimaryCell();
-    }
 
 
     TSerializedMessagePtr BuildHiveMessage(const TCrossCellMessage& crossCellMessage)
@@ -836,6 +951,8 @@ private:
 
     void OnDynamicConfigChanged()
     {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
         if (CellStatisticsGossipExecutor_) {
             CellStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->CellStatisticsGossipPeriod);
         }
@@ -857,7 +974,7 @@ private:
 
     EMasterCellRoles GetDefaultMasterCellRoles(TCellTag cellTag)
     {
-        return (cellTag == GetPrimaryCellTag())
+        return cellTag == GetPrimaryCellTag()
             ? (EMasterCellRoles::CypressNodeHost |
                EMasterCellRoles::TransactionCoordinator |
                (IsMulticell() ? EMasterCellRoles::None : EMasterCellRoles::ChunkHost))
@@ -1000,6 +1117,11 @@ IChannelPtr TMulticellManager::FindMasterChannel(TCellTag cellTag, EPeerKind pee
 TMailbox* TMulticellManager::FindPrimaryMasterMailbox()
 {
     return Impl_->FindPrimaryMasterMailbox();
+}
+
+TFuture<void> TMulticellManager::SyncWithUpstream()
+{
+    return Impl_->SyncWithUpstream();
 }
 
 DELEGATE_SIGNAL(TMulticellManager, void(TCellTag), ValidateSecondaryMasterRegistration, *Impl_);

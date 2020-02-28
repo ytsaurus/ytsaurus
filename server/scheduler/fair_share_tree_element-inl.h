@@ -5,7 +5,7 @@
 #include "fair_share_tree_element.h"
 #endif
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NVectorScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,17 +29,16 @@ inline void TSchedulerElement::SetAlive(bool alive)
     ResourceTreeElement_->SetAlive(alive);
 }
 
-inline void TSchedulerElement::SetFairShareRatio(double fairShareRatio)
+inline void TSchedulerElement::SetFairShare(TResourceVector fairShare)
 {
+    Attributes_.FairShare = fairShare;
     // This version is global and used to balance preemption lists.
-    ResourceTreeElement_->SetFairShareRatio(fairShareRatio);
-    // This version is local for tree and used to compute satisfaction ratios.
-    Attributes_.FairShareRatio = fairShareRatio;
+    ResourceTreeElement_->SetFairShare(fairShare);
 }
 
-inline double TSchedulerElement::GetFairShareRatio() const
+inline TResourceVector TSchedulerElement::GetFairShare() const
 {
-    return ResourceTreeElement_->GetFairShareRatio();
+    return ResourceTreeElement_->GetFairShare();
 }
 
 inline const NLogging::TLogger& TSchedulerElement::GetLogger() const
@@ -54,4 +53,4 @@ inline bool TOperationElement::DetailedLogsEnabled() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NVectorScheduler

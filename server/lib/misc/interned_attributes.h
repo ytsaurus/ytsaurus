@@ -31,6 +31,7 @@
     XX(AvailableSpacePerMedium, available_space_per_medium) \
     XX(Banned, banned) \
     XX(BannedNodeCount, banned_node_count) \
+    XX(BoundaryKeys, boundary_keys) \
     XX(BranchedNodeIds, branched_node_ids) \
     XX(Broken, broken) \
     XX(Builtin, builtin) \
@@ -175,6 +176,7 @@
     XX(LockMode, lock_mode) \
     XX(LockedNodeIds, locked_node_ids) \
     XX(Locks, locks) \
+    XX(LogFairShareRatioDisagreementThreshold, log_fair_share_ratio_disagreement_threshold) \
     XX(LowerLimit, lower_limit) \
     XX(MasterCacheNodes, master_cache_nodes) \
     XX(MasterMetaSize, master_meta_size) \

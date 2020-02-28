@@ -3,6 +3,8 @@
 #include <yt/core/net/address.h>
 #include <yt/core/net/socket.h>
 
+#include <util/system/fs.h>
+
 #ifdef _unix_
     #include <sys/types.h>
     #include <sys/socket.h>
@@ -75,15 +77,18 @@ TEST(TNetworkAddressTest, UnixSocketName)
     close(fds[0]);
     close(fds[1]);
 
-    auto address = TNetworkAddress::CreateUnixDomainAddress("abc");
-    EXPECT_EQ("unix://[abc]", ToString(address));
+    auto address = TNetworkAddress::CreateUnixDomainSocketAddress("abc");
+    EXPECT_EQ(Format("unix://%v/abc", NFs::CurrentWorkingDirectory()), ToString(address));
+
+    auto absctractAddress = TNetworkAddress::CreateAbstractUnixDomainSocketAddress("abc");
+    EXPECT_EQ("unix://[abc]", ToString(absctractAddress));
 
     auto binaryString = TString("a\0c", 3);
-    auto binaryAddress = TNetworkAddress::CreateUnixDomainAddress(binaryString);
+    auto binaryAbstractAddress = TNetworkAddress::CreateAbstractUnixDomainSocketAddress(binaryString);
 
     EXPECT_EQ(
         Format("%Qv", TString("unix://[a\\x00c]")),
-        Format("%Qv", ToString(binaryAddress)));
+        Format("%Qv", ToString(binaryAbstractAddress)));
 }
 
 #endif

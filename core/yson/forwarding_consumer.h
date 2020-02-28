@@ -39,6 +39,11 @@ protected:
         std::function<void()> onFinished = nullptr,
         EYsonType type = EYsonType::Node);
 
+    void Forward(
+        std::vector<IYsonConsumer*> consumers,
+        std::function<void()> onFinished = nullptr,
+        EYsonType type = EYsonType::Node);
+
     virtual void OnMyStringScalar(TStringBuf value);
     virtual void OnMyInt64Scalar(i64 value);
     virtual void OnMyUint64Scalar(ui64 value);
@@ -60,7 +65,7 @@ protected:
     virtual void OnMyRaw(TStringBuf yson, EYsonType type);
 
 private:
-    IYsonConsumer* ForwardingConsumer_ = nullptr;
+    std::vector<IYsonConsumer*> ForwardingConsumers_;
     int ForwardingDepth_ = 0;
     EYsonType ForwardingType_;
     std::function<void()> OnFinished_;

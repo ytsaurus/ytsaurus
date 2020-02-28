@@ -61,7 +61,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    const TSharedRange<TRowRange>& singletonClippingRange = {});
+    const TSharedRange<TRowRange>& singletonClippingRange = {},
+    const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
 IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderConfigPtr config,
@@ -73,7 +74,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TOwningKey upperLimit,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
-    bool produceAllVersions);
+    bool produceAllVersions,
+    const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
 //! Creates a versioned chunk reader for a given set of keys.
 /*!
@@ -89,7 +91,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TSharedRange<TKey>& keys,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
-    bool produceAllVersions);
+    bool produceAllVersions,
+    const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

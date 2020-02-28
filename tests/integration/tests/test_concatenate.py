@@ -291,6 +291,275 @@ class TestConcatenate(YTEnvSetup):
         assert get("//tmp/union/@schema_mode") == "weak"
         assert get("//tmp/union/@schema") == orig_schema
 
+    @authors("gritukan")
+    def test_sorted_concatenation(self):
+        def make_rows(values):
+            return [{"a": value} for value in values]
+
+        create("table", "//tmp/in",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64"}])
+           })
+
+        for x in [1, 3, 2]:
+            write_table("<chunk_key_column_count=1;append=true>//tmp/in", make_rows([x]))
+        assert get("//tmp/in/@chunk_count") == 3
+
+        assert read_table("//tmp/in") == make_rows([1, 3, 2])
+
+        create("table", "//tmp/out",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64", "sort_order": "ascending"}])
+           })
+
+        concatenate(["//tmp/in"], "//tmp/out")
+
+        assert read_table("//tmp/out") == make_rows([1, 2, 3])
+        assert get("//tmp/out/@sorted")
+
+    @authors("gritukan")
+    def test_sorted_concatenation_comparator(self):
+        create("table", "//tmp/in",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}])
+           })
+
+        write_table("<chunk_key_column_count=1;append=true>//tmp/in", [{"a": 1, "b": "x"}, {"a": 2, "b": "z"}])
+        write_table("<chunk_key_column_count=1;append=true>//tmp/in", [{"a": 1, "b": "y"}, {"a": 1, "b": "z"}])
+        assert read_table("//tmp/in") == [
+            {"a": 1, "b": "x"},
+            {"a": 2, "b": "z"},
+            {"a": 1, "b": "y"},
+            {"a": 1, "b": "z"},
+        ]
+
+        create("table", "//tmp/out",
+           attributes={
+               "schema": make_schema(
+                   [
+                       {"name": "a", "type": "int64", "sort_order": "ascending"},
+                       {"name": "b", "type": "string"},
+                   ])
+           })
+
+        concatenate(["//tmp/in"], "//tmp/out")
+        assert read_table("//tmp/out") == [
+            {"a": 1, "b": "y"},
+            {"a": 1, "b": "z"},
+            {"a": 1, "b": "x"},
+            {"a": 2, "b": "z"},
+        ]
+        assert get("//tmp/out/@sorted")
+
+    @authors("gritukan")
+    def test_sorted_concatenation_with_overlapping_ranges(self):
+        def make_rows(values):
+            return [{"a": value} for value in values]
+
+        create("table", "//tmp/in",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64"}])
+           })
+
+        write_table("<chunk_key_column_count=1;append=true>//tmp/in", make_rows([1, 3]))
+        write_table("<chunk_key_column_count=1;append=true>//tmp/in", make_rows([2, 4]))
+        assert get("//tmp/in/@chunk_count") == 2
+
+        assert read_table("//tmp/in") == make_rows([1, 3, 2, 4])
+
+        create("table", "//tmp/out1",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64", "sort_order": "ascending"}])
+           })
+
+        create("table", "//tmp/out2",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64"}])
+           })
+
+        with raises_yt_error(SortOrderViolation):
+            concatenate(["//tmp/in"], "//tmp/out1")
+
+        concatenate(["//tmp/in"], "//tmp/out2")
+        assert read_table("//tmp/out2") == make_rows([1, 3, 2, 4])
+        assert get("//tmp/out2/@sorted") == False
+
+    @authors("gritukan")
+    def test_sorted_concatenation_schema(self):
+        def make_row(a, b, c):
+            return {"a": a, "b": b, "c": c}
+
+        create("table", "//tmp/in1",
+           attributes={
+               "schema": make_schema(
+                   [
+                       {"name": "a", "type": "int64"},
+                       {"name": "b", "type": "int64"},
+                       {"name": "c", "type": "int64"},
+                   ])
+           })
+
+        write_table("<chunk_key_column_count=3;append=true>//tmp/in1", [make_row(3, 3, 3), make_row(4, 4, 4)])
+        write_table("<chunk_key_column_count=2;append=true>//tmp/in1", [make_row(1, 1, 1), make_row(2, 2, 2)])
+        assert read_table("//tmp/in1") == [make_row(3, 3, 3), make_row(4, 4, 4), make_row(1, 1, 1), make_row(2, 2, 2)]
+
+        create("table", "//tmp/out1",
+           attributes={
+               "schema": make_schema(
+                   [
+                       {"name": "a", "type": "int64", "sort_order": "ascending"},
+                       {"name": "b", "type": "int64", "sort_order": "ascending"},
+                       {"name": "c", "type": "int64"},
+                   ])
+           })
+
+        concatenate(["//tmp/in1"], "//tmp/out1")
+        assert read_table("//tmp/out1") == [make_row(1, 1, 1), make_row(2, 2, 2), make_row(3, 3, 3), make_row(4, 4, 4)]
+
+        create("table", "//tmp/out2",
+           attributes={
+               "schema": make_schema(
+                   [
+                       {"name": "a", "type": "int64", "sort_order": "ascending"},
+                       {"name": "b", "type": "int64", "sort_order": "ascending"},
+                       {"name": "c", "type": "int64", "sort_order": "ascending"},
+                   ])
+           })
+
+        with raises_yt_error(SchemaViolation):
+            concatenate(["//tmp/in1"], "//tmp/out2")
+
+        create("table", "//tmp/in2",
+            attributes={
+                "schema": make_schema([{"name": "a", "type": "int64", "sort_order": "ascending"}])
+            })
+        write_table("//tmp/in2", [{"a": 1}, {"a": 3}])
+
+        create("table", "//tmp/in3",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64", "sort_order": "ascending"}])
+           })
+        write_table("//tmp/in3", [{"a": 2}, {"a": 4}])
+
+        create("table", "//tmp/out3")
+        concatenate(["//tmp/in2", "//tmp/in3"], "//tmp/out3")
+        assert get("//tmp/out3/@sorted") == False
+        assert read_table("//tmp/out3") == [{"a": 1}, {"a": 3}, {"a": 2}, {"a": 4}]
+
+    @authors("gritukan")
+    def test_sorted_concatenation_append(self):
+        def make_rows(values):
+            return [{"a": value} for value in values]
+
+        create("table", "//tmp/in1",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64"}])
+           })
+        write_table("<chunk_key_column_count=1;append=true>//tmp/in1", make_rows([1, 2]))
+
+        create("table", "//tmp/in2",
+               attributes={
+                   "schema": make_schema([{"name": "a", "type": "int64"}])
+               })
+        write_table("<chunk_key_column_count=1;append=true>//tmp/in2", make_rows([5, 6]))
+
+        create("table", "//tmp/out1",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64", "sort_order": "ascending"}])
+           })
+        write_table("//tmp/out1", make_rows([3, 4]))
+
+        with raises_yt_error(SortOrderViolation):
+            concatenate(["//tmp/in1"], "<append=true>//tmp/out1")
+
+        concatenate(["//tmp/in2"], "<append=true>//tmp/out1")
+        assert read_table("//tmp/out1") == make_rows([3, 4, 5, 6])
+
+        create("table", "//tmp/in3",
+           attributes={
+               "schema": make_schema(
+                   [
+                       {"name": "a", "type": "int64", "sort_order": "ascending"},
+                   ],
+                   unique_keys=False)
+           })
+
+        write_table("<chunk_key_column_count=1;append=true>//tmp/in3", make_rows([2, 2]))
+
+        concatenate(["//tmp/in3", "//tmp/in3"], "<append=true>//tmp/in3")
+        assert read_table("//tmp/in3") == make_rows([2, 2, 2, 2, 2, 2])
+
+        create("table", "//tmp/in4",
+            attributes={
+             "schema": make_schema(
+                 [
+                     {"name": "a", "type": "int64", "sort_order": "ascending"},
+                 ],
+                 unique_keys=True)
+            })
+        write_table("<chunk_key_column_count=1;append=true>//tmp/in4", make_rows([2]))
+        with raises_yt_error(UniqueKeyViolation):
+            concatenate(["//tmp/in4", "//tmp/in4"], "<append=true>//tmp/in4")
+
+    @authors("gritukan")
+    def test_sorted_concatenate_unique_keys(self):
+        def make_rows(values):
+            return [{"a": value} for value in values]
+
+        create("table", "//tmp/in1",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64"}])
+           })
+        for x in [1, 4, 2, 3]:
+            write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/in1", make_rows([x]))
+
+        create("table", "//tmp/out1",
+           attributes={
+               "schema": make_schema(
+               [
+                   {"name": "a", "type": "int64", "sort_order": "ascending"}
+               ],
+               unique_keys=True)
+           })
+        concatenate(["//tmp/in1"], "//tmp/out1")
+        assert read_table("//tmp/out1") == make_rows([1, 2, 3, 4])
+
+        write_table("<chunk_key_column_count=1;append=true>//tmp/in1", make_rows([5]))
+        with raises_yt_error(SchemaViolation):
+            concatenate(["//tmp/in1"], "//tmp/out1")
+
+        create("table", "//tmp/in2",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64"}])
+           })
+        for x in [1, 3, 2, 2, 4, 5]:
+            write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/in2", make_rows([x]))
+
+        with raises_yt_error(UniqueKeyViolation):
+            concatenate(["//tmp/in2"], "//tmp/out1")
+
+        create("table", "//tmp/in3",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64"}])
+           })
+        for x in [4, 3, 2]:
+            write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/in3", make_rows([x]))
+
+        create("table", "//tmp/out2",
+           attributes={
+               "schema": make_schema(
+               [
+                   {"name": "a", "type": "int64", "sort_order": "ascending"}
+               ],
+               unique_keys=True)
+           })
+        write_table("//tmp/out2", make_rows([1, 2]))
+        with raises_yt_error(UniqueKeyViolation):
+            concatenate(["//tmp/in3"], "<append=true>//tmp/out2")
+
+        concatenate(["//tmp/in3"], "//tmp/out2")
+        assert read_table("//tmp/out2") == make_rows([2, 3, 4])
+
 ##################################################################
 
 class TestConcatenateMulticell(TestConcatenate):

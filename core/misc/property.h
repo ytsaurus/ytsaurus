@@ -199,7 +199,7 @@ public: \
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Below are macro helpers for extra properites.
+//! Below are macro helpers for extra properties.
 //! Extra properties should be used for lazy memory allocation for properties that
 //! hold default values for the majority of objects.
 

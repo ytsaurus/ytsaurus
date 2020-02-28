@@ -237,11 +237,17 @@ public:
      */
     TErrorOr<T> GetUnique() const;
 
-    //! Waits for setting the value.
+    //! Waits for the value to become set.
     /*!
-     *  This call will block until either the value is set or timeout expired.
+     *  This call blocks until either the value is set or #timeout expires.
      */
     bool TimedWait(TDuration timeout) const;
+
+    //! Waits for the value to become set.
+    /*!
+     *  This call blocks until either the value is set or #deadline is reached.
+     */
+    bool TimedWait(TInstant deadline) const;
 
     //! Gets the value; returns null if the value is not set yet.
     /*!
@@ -598,59 +604,129 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+// Future combiners: take a set of futures and meld them into a new one.
+
+//! When some of the combiner inputs fails, its error is immediately propagated
+//! into the combined future.
+struct TPropagateErrorPolicy
+{ };
+
+//! Errors occuring in input futures are not considered any special; in particular,
+//! the values of these futures are always wrapped within #TErrorOr.
+struct TRetainErrorPolicy
+{ };
+
+//! The combiner is mostly interested in successful responses; errors occuring in input
+//! futures are skipped (but recorded and reported in case the needed number of successful
+//! responses cannot be collected).
+struct TSkipErrorPolicy
+{ };
 
 template <class T>
-struct TFutureCombineTraits
+struct TFutureCombinerTraits
 {
     using TCombinedVector = std::vector<T>;
-    template <class K>
-    using TCombinedHashMap = THashMap<K, T>;
 };
 
 template <>
-struct TFutureCombineTraits<void>
+struct TFutureCombinerTraits<void>
 {
     using TCombinedVector = void;
-
-    template <class K>
-    using TCombinedHashMap = void;
 };
 
-//! Combines a number of same-typed asynchronous computations into a single one.
-/*!
- *  If |T| is |void|, then the asynchronous return type is |void|, otherwise
- *  it is |std::vector<T>| / |THashMap<K, T>|.
- *  The order of results always coincides with that of #futures (for vector variant of Combine).
- *
- *  If any of #futures fails, the others are canceled and the error is propagated immediately.
- */
-template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
-    std::vector<TFuture<T>> futures);
-template <class K, class T>
-TFuture<typename TFutureCombineTraits<T>::template TCombinedHashMap<K>> Combine(
-    const THashMap<K, TFuture<T>>& futures);
+struct TFutureCombinerOptions
+{
+    //! If true, canceling the future returned from the combiner
+    //! automatically cancels the original input futures.
+    bool PropagateCancelationToInput = true;
 
-//! Same as #Combine but only wait for #quorum successful results.
-/*!
- *  A single local failure, however, still propagates into a global failure.
- *  In contrast to #Combine, for non-void results their relative order is not guaranteed.
- */
+    //! If true, the combiner cancels all irrelevant input futures
+    //! when the combined future gets set. E.g. when #AnyOf
+    //! notices some of its inputs being set, it cancels the others.
+    bool CancelInputOnShortcut = true;
+};
+
+//! Returns the future that gets set when any of #futures is set.
+//! The value of the returned future is set to the value of that first-set
+//! future among #futures.
+//! Individual errors are ignored; if all input futures fail then an error is reported.
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombinedVector> CombineQuorum(
+TFuture<T> AnyOf(
+    std::vector<TFuture<T>> futures,
+    TSkipErrorPolicy errorPolicy = {},
+    TFutureCombinerOptions options = {});
+
+//! Same as above.
+//! Errors happening in #futures are regarded as regular values; the first-set (either
+//! successfully or not) future completes the whole computation.
+template <class T>
+TFuture<T> AnyOf(
+    std::vector<TFuture<T>> futures,
+    TRetainErrorPolicy errorPolicy,
+    TFutureCombinerOptions options = {});
+
+//! Returns the future that gets set when all of #futures are set.
+//! The values of #futures are collected and returned in the
+//! value of the combined future (the order matches that of #futures).
+//! When some of #futures fail, its error is immediately propagated into the combined future
+//! and thus interrupts the whole computation.
+template <class T>
+TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AllOf(
+    std::vector<TFuture<T>> futures,
+    TPropagateErrorPolicy errorPolicy = {},
+    TFutureCombinerOptions options = {});
+
+//! Same as above.
+//! The values of #futures are wrapped in #TErrorOr; individual
+//! errors are propagated as-is and do not interrupt the whole computation.
+template <class T>
+TFuture<std::vector<TErrorOr<T>>> AllOf(
+    std::vector<TFuture<T>> futures,
+    TRetainErrorPolicy errorPolicy,
+    TFutureCombinerOptions options = {});
+
+//! Returns the future that gets set when #n of #futures are set.
+//! The values of #futures are collected and returned in the
+//! value of the combined future (in the order of their fulfillment,
+//! which is typically racy).
+//! Individual errors are ignored; if less than #n successful results
+//! could be collected then an error is reported.
+template <class T>
+TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AnyNOf(
+    std::vector<TFuture<T>> futures,
+    int n,
+    TSkipErrorPolicy errorPolicy = {},
+    TFutureCombinerOptions options = {});
+
+//! Same as above.
+//! The values of #futures are wrapped in TErrorOr; individual
+//! errors are propagated as-is and do not interrupt the whole computation.
+template <class T>
+TFuture<std::vector<TErrorOr<T>>> AnyNOf(
+    std::vector<TFuture<T>> futures,
+    int n,
+    TRetainErrorPolicy errorPolicy,
+    TFutureCombinerOptions options = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+// COMPAT(babenko) [[deprecated("Use AllOf instead")]]
+TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> Combine(
+    std::vector<TFuture<T>> futures);
+
+template <class T>
+// COMPAT(babenko) [[deprecated("Use AnyNOf instead")]]
+TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> CombineQuorum(
     std::vector<TFuture<T>> futures,
     int quorum);
 
-//! A variant of |Combine| that accepts future holders instead of futures.
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
-    std::vector<TFutureHolder<T>> holders);
-
-//! Similar to #Combine but waits for the results in all components, i.e.
-//! errors occurring in components will not cause early termination.
-template <class T>
+// COMPAT(babenko) [[deprecated("Use AnyOf instead")]]
 TFuture<std::vector<TErrorOr<T>>> CombineAll(
     std::vector<TFuture<T>> futures);
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Executes given #callbacks, allowing up to #concurrencyLimit simultaneous invocations.
 template <class T>

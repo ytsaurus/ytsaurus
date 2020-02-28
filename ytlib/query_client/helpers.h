@@ -41,8 +41,6 @@ void SetSorted(TDataSplit* dataSplit, bool isSorted);
 
 NLogging::TLogger MakeQueryLogger(TConstBaseQueryPtr query);
 
-size_t GetSignificantWidth(TRow row);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

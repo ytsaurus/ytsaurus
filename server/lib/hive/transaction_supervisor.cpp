@@ -1005,7 +1005,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
-        auto prepareOnlyParticipantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
+        auto prepareOnlyParticipantCellIds = FromProto<std::vector<TCellId>>(request->prepare_only_participant_cell_ids());
         auto generatePrepareTimestamp = request->generate_prepare_timestamp();
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
         auto coordindatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());

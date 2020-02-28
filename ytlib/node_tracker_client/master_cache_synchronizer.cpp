@@ -83,7 +83,7 @@ private:
 
             auto client = connection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
 
-            YT_LOG_DEBUG("Started updating master cache node list");
+            YT_LOG_DEBUG("Started synchronizing master cache node list");
 
             TGetClusterMetaOptions options;
             options.ReadFrom = EMasterChannelKind::SecondLevelCache;
@@ -110,9 +110,9 @@ private:
 
             MasterCacheNodeAddressesUpdated_.Fire(GetAddresses());
 
-            YT_LOG_DEBUG("Finished updating master cache node list");
+            YT_LOG_DEBUG("Finished synchronizing master cache node list");
         } catch (const std::exception& ex) {
-            YT_LOG_INFO(ex, "Failed updating master cache node list");
+            YT_LOG_INFO(ex, "Failed synchronizing master cache node list");
         }
     }
 };

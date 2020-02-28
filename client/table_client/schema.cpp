@@ -7,6 +7,7 @@
 #include <yt/core/ytree/yson_serializable.h>
 
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
+#include <yt/client/table_client/proto/wire_protocol.pb.h>
 
 #include <yt/client/tablet_client/public.h>
 
@@ -535,6 +536,32 @@ int TTableSchema::GetKeyColumnCount() const
 int TTableSchema::GetValueColumnCount() const
 {
     return GetColumnCount() - GetKeyColumnCount();
+}
+
+TTableSchema TTableSchema::SetKeyColumnCount(int keyColumnCount) const
+{
+    auto schema = *this;
+
+    for (int columnIndex = 0; columnIndex < schema.GetColumnCount(); ++columnIndex) {
+        auto& column = schema.Columns_[columnIndex];
+        if (columnIndex < keyColumnCount) {
+            column.SetSortOrder(ESortOrder::Ascending);
+        } else {
+            column.SetSortOrder(std::nullopt);
+        }
+    }
+
+    schema.KeyColumnCount_ = keyColumnCount;
+
+    return schema;
+}
+
+TTableSchema TTableSchema::SetUniqueKeys(bool uniqueKeys) const
+{
+    auto schema = *this;
+    schema.UniqueKeys_ = uniqueKeys;
+
+    return schema;
 }
 
 bool TTableSchema::HasNontrivialSchemaModification() const
@@ -1334,6 +1361,22 @@ void ToProto(TKeyColumnsExt* protoKeyColumns, const TKeyColumns& keyColumns)
 void FromProto(TKeyColumns* keyColumns, const TKeyColumnsExt& protoKeyColumns)
 {
     *keyColumns = FromProto<TKeyColumns>(protoKeyColumns.names());
+}
+
+void ToProto(TColumnFilter* protoColumnFilter, const NTableClient::TColumnFilter& columnFilter)
+{
+    if (!columnFilter.IsUniversal()) {
+        for (auto index : columnFilter.GetIndexes()) {
+            protoColumnFilter->add_indexes(index);
+        }
+    }
+}
+
+void FromProto(NTableClient::TColumnFilter* columnFilter, const TColumnFilter& protoColumnFilter)
+{
+    *columnFilter = protoColumnFilter.indexes().empty()
+        ? NTableClient::TColumnFilter()
+        : NTableClient::TColumnFilter(FromProto<NTableClient::TColumnFilter::TIndexes>(protoColumnFilter.indexes()));
 }
 
 } // namespace NProto

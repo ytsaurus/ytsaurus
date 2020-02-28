@@ -1,3 +1,4 @@
+#include "balancing_helpers.h"
 #include "config.h"
 #include "cypress_integration.h"
 #include "private.h"
@@ -601,6 +602,8 @@ public:
         // Validate that table is not in process of mount/unmount/etc.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->LockNode(table, nullptr, ELockMode::Exclusive);
+
+        table->ValidateNoCurrentMountTransaction("Cannot create tablet action");
 
         for (const auto* tablet : tablets) {
             if (tablet->GetTable() != table) {
@@ -1377,7 +1380,7 @@ public:
         // This is a job of secondary master in a two-phase commit.
         // Should not throw when table is created.
 
-        auto& tablets = table->MutableTablets();
+        const auto& tablets = table->Tablets();
         YT_VERIFY(tablets.size() == table->GetChunkList()->Children().size());
 
         ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
@@ -1426,7 +1429,7 @@ public:
         // (which we are about to drop) are properly trimmed.
         if (newTabletCount < oldTabletCount) {
             for (int index = firstTabletIndex + newTabletCount; index < firstTabletIndex + oldTabletCount; ++index) {
-                const auto* tablet = table->Tablets()[index];
+                const auto* tablet = tablets[index];
                 const auto& chunkListStatistics = tablet->GetChunkList()->Statistics();
                 if (tablet->GetTrimmedRowCount() != chunkListStatistics.LogicalRowCount - chunkListStatistics.RowCount) {
                     THROW_ERROR_EXCEPTION("Some chunks of tablet %v are not fully trimmed; such a tablet cannot "
@@ -1618,15 +1621,125 @@ public:
     }
 
 
+    TGuid GenerateTabletBalancerCorrelationId() const
+    {
+        auto mutationContext = GetCurrentMutationContext();
+        auto& gen = mutationContext->RandomGenerator();
+        ui64 lo = gen.Generate<ui64>();
+        ui64 hi = gen.Generate<ui64>();
+        return TGuid(lo, hi);
+    }
+
+    TTabletActionId SpawnTabletAction(const TReshardDescriptor& descriptor)
+    {
+        std::vector<TTabletId> tabletIds;
+        for (const auto& tablet : descriptor.Tablets) {
+            tabletIds.push_back(tablet->GetId());
+        }
+
+        auto* table = descriptor.Tablets[0]->GetTable();
+
+        auto correlationId = GenerateTabletBalancerCorrelationId();
+
+        YT_LOG_DEBUG("Automatically resharding tablets "
+            "(TableId: %v, TabletIds: %v, NewTabletCount: %v, TotalSize: %v, Bundle: %v, "
+            "TabletBalancerCorrelationId: %v, Sync: true)",
+            table->GetId(),
+            tabletIds,
+            descriptor.TabletCount,
+            descriptor.DataSize,
+            table->GetTabletCellBundle()->GetName(),
+            correlationId);
+
+        try {
+            auto* action = CreateTabletAction(
+                TObjectId{},
+                ETabletActionKind::Reshard,
+                descriptor.Tablets,
+                {}, // cells
+                {}, // pivotKeys
+                descriptor.TabletCount,
+                false, // skipFreezing
+                correlationId,
+                TInstant::Zero());
+            return action->GetId();
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Failed to create tablet action during sync reshard (TabletBalancerCorrelationId: %v)",
+                correlationId);
+            return NullObjectId;
+        }
+
+    }
+
+    TTabletActionId SpawnTabletAction(const TTabletMoveDescriptor& descriptor)
+    {
+        auto* table = descriptor.Tablet->GetTable();
+
+        auto correlationId = GenerateTabletBalancerCorrelationId();
+
+        YT_LOG_DEBUG("Moving tablet during cell balancing "
+            "(TableId: %v, InMemoryMode: %v, TabletId: %v, SrcCellId: %v, DstCellId: %v, "
+            "Bundle: %v, TabletBalancerCorrelationId: %v, Sync: true)",
+            table->GetId(),
+            table->GetInMemoryMode(),
+            descriptor.Tablet->GetId(),
+            descriptor.Tablet->GetCell()->GetId(),
+            descriptor.TabletCellId,
+            table->GetTabletCellBundle()->GetName(),
+            correlationId);
+
+        try {
+            auto* action = CreateTabletAction(
+                TObjectId{},
+                ETabletActionKind::Move,
+                {descriptor.Tablet},
+                {GetTabletCellOrThrow(descriptor.TabletCellId)},
+                {}, // pivotKeys
+                std::nullopt, // tabletCount
+                false, // skipFreezing
+                correlationId,
+                TInstant::Zero());
+            return action->GetId();
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG("Failed to create tablet action during sync cells balancing (TabletBalancerCorrelationId: %v)",
+                correlationId);
+            return NullObjectId;
+        }
+    }
+
     std::vector<TTabletActionId> SyncBalanceCells(
         TTabletCellBundle* bundle,
         const std::optional<std::vector<TTableNode*>>& tables,
         bool keepActions)
     {
-        auto actions = TabletBalancer_->SyncBalanceCells(bundle, tables);
+        if (bundle->GetActiveTabletActionCount() > 0) {
+            return {};
+        }
+
+        std::optional<THashSet<const TTableNode*>> tablesSet;
+        if (tables) {
+            tablesSet = THashSet<const TTableNode*>(tables->begin(), tables->end());
+        }
+
+        std::vector<TTabletActionId> actions;
+        TTabletBalancerContext context;
+        auto descriptors = ReassignInMemoryTablets(
+            bundle,
+            tablesSet,
+            true, // ignoreConfig
+            &context,
+            Bootstrap_->GetTabletManager());
+
+        for (auto descriptor : descriptors) {
+            if (auto actionId = SpawnTabletAction(descriptor)) {
+                actions.push_back(actionId);
+            }
+        }
+
         if (keepActions) {
             SetSyncTabletActionsKeepalive(actions);
         }
+
         return actions;
     }
 
@@ -1642,7 +1755,32 @@ public:
             THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
         }
 
-        auto actions = TabletBalancer_->SyncBalanceTablets(table);
+        for (const auto& tablet : table->Tablets()) {
+            if (tablet->GetAction()) {
+                return {};
+            }
+        }
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+
+        std::vector<TTabletActionId> actions;
+        TTabletBalancerContext context;
+        for (const auto& tablet : table->Tablets()) {
+            if (!IsTabletReshardable(tablet, /*ignoreConfig*/ true) || !context.IsTabletUntouched(tablet)) {
+                continue;
+            }
+
+            auto bounds = GetTabletSizeConfig(tablet);
+
+            auto descriptors = MergeSplitTablet(tablet, bounds, &context, tabletManager);
+
+            for (auto descriptor : descriptors) {
+                if (auto actionId = SpawnTabletAction(descriptor)) {
+                    actions.push_back(actionId);
+                }
+            }
+        }
+
         if (keepActions) {
             SetSyncTabletActionsKeepalive(actions);
         }
@@ -1759,6 +1897,7 @@ public:
             chunkManager->AttachToChunkList(clonedRootChunkList, tabletChunkList);
 
             clonedTablets.push_back(clonedTablet);
+            trunkClonedTable->RecomputeTabletMasterMemoryUsage();
         }
 
         if (sourceTable->IsReplicated()) {
@@ -1858,7 +1997,8 @@ public:
         if (table->IsSorted()) {
             tablet->SetPivotKey(EmptyKey());
         }
-        table->MutableTablets().push_back(tablet);
+        table->MutableTablets() = {tablet};
+        table->RecomputeTabletMasterMemoryUsage();
 
         auto* tabletChunkList = chunkManager->CreateChunkList(table->IsPhysicallySorted()
             ? EChunkListKind::SortedDynamicTablet
@@ -1876,6 +2016,7 @@ public:
 
         auto tabletResourceUsage = table->GetTabletResourceUsage();
         securityManager->UpdateTabletResourceUsage(table, tabletResourceUsage);
+        securityManager->UpdateMasterMemoryUsage(table);
         ScheduleTableStatisticsUpdate(table, false);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to dynamic mode (TableId: %v)",
@@ -1943,11 +2084,13 @@ public:
             objectManager->UnrefObject(tablet);
         }
         table->MutableTablets().clear();
+        table->RecomputeTabletMasterMemoryUsage();
 
         table->SetLastCommitTimestamp(NullTimestamp);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->UpdateTabletResourceUsage(table, -tabletResourceUsage);
+        securityManager->UpdateMasterMemoryUsage(table);
         ScheduleTableStatisticsUpdate(table, false);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to static mode (TableId: %v)",
@@ -3290,6 +3433,7 @@ private:
         // NB: Evaluation order is important here, consider the case lastTabletIndex == -1.
         tablets.erase(tablets.begin() + firstTabletIndex, tablets.begin() + (lastTabletIndex + 1));
         tablets.insert(tablets.begin() + firstTabletIndex, newTablets.begin(), newTablets.end());
+        table->RecomputeTabletMasterMemoryUsage();
 
         // Update all indexes.
         for (int index = 0; index < static_cast<int>(tablets.size()); ++index) {
@@ -3497,6 +3641,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto resourceUsageDelta = table->GetTabletResourceUsage() - resourceUsageBefore;
         securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
+        securityManager->UpdateMasterMemoryUsage(table);
         ScheduleTableStatisticsUpdate(table);
     }
 

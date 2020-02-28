@@ -1063,39 +1063,51 @@ private:
 
     void ValidateSortAndUnique(const std::vector<TUnversionedRow>& rows)
     {
-        if (!Schema_.IsSorted() || !Options_->ValidateSorted || rows.empty()) {
+        if (!Options_->ValidateSorted || rows.empty()) {
             return;
         }
 
-        ValidateSortOrder(LastKey_.Get(), rows.front());
-
-        for (int i = 1; i < rows.size(); ++i) {
-            ValidateSortOrder(rows[i-1], rows[i]);
+        if (Schema_.IsSorted() || Options_->TableKeyColumnCount) {
+            auto tableKeyColumnCount = Options_->TableKeyColumnCount.value_or(Schema_.GetKeyColumnCount());
+            auto tableUniqueKeys = Options_->TableUniqueKeys.value_or(Schema_.IsUniqueKeys());
+            ValidateSortOrder(LastKey_.Get(), rows.front(), tableKeyColumnCount, tableUniqueKeys);
         }
 
-        const auto& lastKey = rows.back();
-        for (int i = 0; i < Schema_.GetKeyColumnCount(); ++i) {
-            KeyBuilder_.AddValue(lastKey[i]);
+        if (Schema_.IsSorted()) {
+            auto chunkKeyColumnCount = Schema_.GetKeyColumnCount();
+            auto chunkUniqueKeys = Schema_.IsUniqueKeys();
+            for (int rowIndex = 1; rowIndex < rows.size(); ++rowIndex) {
+                ValidateSortOrder(rows[rowIndex - 1], rows[rowIndex], chunkKeyColumnCount, chunkUniqueKeys);
+            }
+
+            const auto& lastKey = rows.back();
+            for (int keyColumnIndex = 0; keyColumnIndex < Schema_.GetKeyColumnCount(); ++keyColumnIndex) {
+                KeyBuilder_.AddValue(lastKey[keyColumnIndex]);
+            }
+            LastKey_ = KeyBuilder_.FinishRow();
         }
-        LastKey_ = KeyBuilder_.FinishRow();
     }
 
-    void ValidateSortOrder(TUnversionedRow lhs, TUnversionedRow rhs)
+    void ValidateSortOrder(
+        TUnversionedRow lhs,
+        TUnversionedRow rhs,
+        int keyColumnCount,
+        bool checkKeysUniqueness)
     {
-        int cmp = CompareRows(lhs, rhs, Schema_.GetKeyColumnCount());
+        int cmp = CompareRows(lhs, rhs, keyColumnCount);
         if (cmp < 0) {
             return;
         }
 
-        if (cmp == 0 && !Options_->ValidateUniqueKeys) {
+        if (cmp == 0 && (!checkKeysUniqueness || !Options_->ValidateUniqueKeys)) {
             return;
         }
 
         // Output error.
         TUnversionedOwningRowBuilder leftBuilder, rightBuilder;
-        for (int i = 0; i < Schema_.GetKeyColumnCount(); ++i) {
-            leftBuilder.AddValue(lhs[i]);
-            rightBuilder.AddValue(rhs[i]);
+        for (int keyColumnIndex = 0; keyColumnIndex < keyColumnCount; ++keyColumnIndex) {
+            leftBuilder.AddValue(lhs[keyColumnIndex]);
+            rightBuilder.AddValue(rhs[keyColumnIndex]);
         }
 
         if (cmp == 0) {
@@ -1864,6 +1876,48 @@ private:
     ITransactionPtr UploadTransaction_;
     ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
 
+    TTableSchema GetChunkSchema() const
+    {
+        auto chunkSchema = GetSchema();
+
+        auto chunkKeyColumnCount = RichPath_.GetChunkKeyColumnCount();
+        if (chunkKeyColumnCount) {
+            if (chunkKeyColumnCount < 0 || chunkKeyColumnCount > chunkSchema.GetColumnCount()) {
+                THROW_ERROR_EXCEPTION(EErrorCode::InvalidSchemaValue, "Invalid chunk key column count")
+                    << TErrorAttribute("key_column_count", chunkKeyColumnCount)
+                    << TErrorAttribute("column_count", chunkSchema.GetColumnCount());
+            }
+
+            if (*chunkKeyColumnCount < GetSchema().GetKeyColumnCount()) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::SchemaViolation,
+                    "Chunk key column count is less than table schema key column count")
+                    << TErrorAttribute("chunk_key_column_count", *chunkKeyColumnCount)
+                    << TErrorAttribute("table_key_column_count", GetSchema().GetKeyColumnCount());
+            }
+
+            chunkSchema = chunkSchema.SetKeyColumnCount(*chunkKeyColumnCount);
+        }
+
+        auto chunkUniqueKeys = RichPath_.GetChunkUniqueKeys();
+        if (chunkUniqueKeys) {
+            if (!*chunkUniqueKeys && GetSchema().IsUniqueKeys()) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::SchemaViolation,
+                    "Table schema forces keys to be unique while chunk schema does not");
+            }
+
+            chunkSchema = chunkSchema.SetUniqueKeys(*chunkUniqueKeys);
+        }
+
+        if (chunkSchema.IsUniqueKeys() && !chunkSchema.IsSorted()) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::InvalidSchemaValue,
+                "Non-sorted schema can't have unique keys requirement");
+        }
+
+        return chunkSchema;
+    }
 
     void DoOpen()
     {
@@ -1892,6 +1946,8 @@ private:
         auto nativeCellTag = CellTagFromId(ObjectId_);
         auto externalCellTag = userObject.ExternalCellTag;
         auto objectIdPath = FromObjectId(ObjectId_);
+
+        TTableSchema chunkSchema;
 
         {
             YT_LOG_DEBUG("Requesting extended table attributes");
@@ -1937,6 +1993,8 @@ private:
                 attributes,
                 attributes.Get<i64>("row_count"));
 
+            chunkSchema = GetChunkSchema();
+
             Options_->ReplicationFactor = attributes.Get<int>("replication_factor");
             Options_->MediumName = attributes.Get<TString>("primary_medium");
             Options_->CompressionCodec = TableUploadOptions_.CompressionCodec;
@@ -1944,10 +2002,15 @@ private:
             Options_->Account = attributes.Get<TString>("account");
             Options_->ChunksVital = attributes.Get<bool>("vital");
             Options_->EnableSkynetSharing = attributes.Get<bool>("enable_skynet_sharing", false);
-            Options_->ValidateSorted = TableUploadOptions_.TableSchema.IsSorted();
-            Options_->ValidateUniqueKeys = TableUploadOptions_.TableSchema.GetUniqueKeys();
+
+            // Table's schema is never stricter than chunk's schema.
+            Options_->ValidateSorted = chunkSchema.IsSorted();
+            Options_->ValidateUniqueKeys = chunkSchema.IsUniqueKeys();
+
             Options_->OptimizeFor = TableUploadOptions_.OptimizeFor;
             Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema.HasComputedColumns();
+            Options_->TableKeyColumnCount = GetSchema().GetKeyColumnCount();
+            Options_->TableUniqueKeys = GetSchema().IsUniqueKeys();
 
             auto chunkWriterConfig = attributes.FindYson("chunk_writer");
             if (chunkWriterConfig) {
@@ -2043,7 +2106,7 @@ private:
             writerConfig,
             Options_,
             NameTable_,
-            TableUploadOptions_.TableSchema,
+            chunkSchema,
             writerLastKey,
             Client_,
             externalCellTag,

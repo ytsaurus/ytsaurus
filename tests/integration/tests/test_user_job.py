@@ -806,30 +806,13 @@ class TestNetworkIsolation(YTEnvSetup):
 @unix_only
 class TestJobStderr(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 16
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100,
-            "operations_update_period": 10,
-            "running_jobs_update_period": 10,
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operations_update_period": 10,
-            "map_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 5000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
-            },
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
         }
     }
 
@@ -1026,30 +1009,13 @@ class TestJobStderrPorto(YTEnvSetup):
 
 class TestUserFiles(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 16
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100,
-            "operations_update_period": 10,
-            "running_jobs_update_period": 10,
-        }
-    }
-
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operations_update_period": 10,
-            "map_operation_options": {
-                "job_splitter": {
-                    "min_job_time": 5000,
-                    "min_total_data_size": 1024,
-                    "update_period": 100,
-                    "candidate_percentile": 0.8,
-                    "max_jobs_per_split": 3,
-                },
-            },
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
         }
     }
 
@@ -1394,5 +1360,3 @@ class TestSecureVault(YTEnvSetup):
                 out="//tmp/t_out",
                 spec={"secure_vault": {"x" * (2**16 + 1): 42}},
                 command="cat")
-
-##################################################################

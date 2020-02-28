@@ -33,6 +33,7 @@ DEFINE_ENUM(EWriterType,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TLogManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TFormatterConfig)
 DECLARE_REFCOUNTED_CLASS(TWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TRuleConfig)
 

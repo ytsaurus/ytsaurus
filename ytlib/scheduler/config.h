@@ -457,6 +457,8 @@ public:
     bool RegisterSpeculativeJobOnJobScheduled;
     bool RegisterSpeculativeJobOnJobScheduledOnce;
 
+    bool LogResidualCustomJobMetricsOnTermination;
+
     TTestingOperationOptions();
 };
 
@@ -738,6 +740,8 @@ public:
 
     //! Name of the network project to use in job.
     std::optional<TString> NetworkProject;
+
+    EEnablePorto EnablePorto;
 
     TUserJobSpec();
 

@@ -25,6 +25,7 @@
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/multi_reader_base.h>
+#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 
@@ -306,7 +307,8 @@ public:
         const TKeyColumns& keyColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
-        std::optional<int> partitionTag);
+        std::optional<int> partitionTag,
+        const TChunkReaderMemoryManagerPtr& memoryManager);
 
     virtual TDataStatistics GetDataStatistics() const override;
 
@@ -351,12 +353,14 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
     const TKeyColumns& keyColumns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
-    std::optional<int> partitionTag)
+    std::optional<int> partitionTag,
+    const TChunkReaderMemoryManagerPtr& memoryManager)
     : TChunkReaderBase(
         config,
         underlyingReader,
         chunkState->BlockCache,
-        blockReadOptions)
+        blockReadOptions,
+        memoryManager)
     , TSchemalessChunkReaderBase(
         chunkState,
         config,
@@ -463,7 +467,8 @@ public:
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TReadRange& readRange,
-        std::optional<int> partitionTag);
+        std::optional<int> partitionTag,
+        const TChunkReaderMemoryManagerPtr& memoryManager);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
     virtual TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override;
@@ -499,7 +504,8 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
-    std::optional<int> partitionTag)
+    std::optional<int> partitionTag,
+    const TChunkReaderMemoryManagerPtr& memoryManager)
     : THorizontalSchemalessChunkReaderBase(
         chunkState,
         chunkMeta,
@@ -511,7 +517,8 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
         keyColumns,
         omittedInaccessibleColumns,
         columnFilter,
-        partitionTag)
+        partitionTag,
+        memoryManager)
     , ReadRange_(readRange)
 {
     YT_LOG_DEBUG("Reading range %v", ReadRange_);
@@ -765,7 +772,8 @@ public:
         const TColumnFilter& columnFilter,
         const TSharedRange<TKey>& keys,
         TChunkReaderPerformanceCountersPtr performanceCounters,
-        std::optional<int> partitionTag = std::nullopt);
+        std::optional<int> partitionTag = std::nullopt,
+        const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
@@ -798,7 +806,8 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    std::optional<int> partitionTag)
+    std::optional<int> partitionTag,
+    const TChunkReaderMemoryManagerPtr& memoryManager)
     : THorizontalSchemalessChunkReaderBase(
         chunkState,
         chunkMeta,
@@ -810,7 +819,8 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
         keyColumns,
         omittedInaccessibleColumns,
         columnFilter,
-        partitionTag)
+        partitionTag,
+        memoryManager)
     , Keys_(keys)
     , PerformanceCounters_(std::move(performanceCounters))
     , KeyFilterTest_(Keys_.Size(), true)
@@ -984,7 +994,8 @@ public:
         const TKeyColumns& keyColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
-        const TReadRange& readRange)
+        const TReadRange& readRange,
+        const TChunkReaderMemoryManagerPtr& memoryManager)
         : TSchemalessChunkReaderBase(
             chunkState,
             config,
@@ -1000,7 +1011,8 @@ public:
             config,
             underlyingReader,
             chunkState->BlockCache,
-            blockReadOptions)
+            blockReadOptions,
+            memoryManager)
     {
         YT_LOG_DEBUG("Reading range %v", readRange);
 
@@ -1428,7 +1440,8 @@ public:
         const std::vector<TString>& omittedInaccessibleColumns,
         const TColumnFilter& columnFilter,
         const TSharedRange<TKey>& keys,
-        TChunkReaderPerformanceCountersPtr performanceCounters)
+        TChunkReaderPerformanceCountersPtr performanceCounters,
+        const TChunkReaderMemoryManagerPtr& memoryManager)
         : TSchemalessChunkReaderBase(
             chunkState,
             config,
@@ -1444,7 +1457,8 @@ public:
             config,
             underlyingReader,
             chunkState->BlockCache,
-            blockReadOptions)
+            blockReadOptions,
+            memoryManager)
         , PerformanceCounters_(std::move(performanceCounters))
     {
         Keys_ = keys;
@@ -1705,7 +1719,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnFilter& columnFilter,
     const TReadRange& readRange,
-    std::optional<int> partitionTag)
+    std::optional<int> partitionTag,
+    const TChunkReaderMemoryManagerPtr& memoryManager)
 {
     YT_VERIFY(chunkMeta->GetChunkType() == EChunkType::Table);
 
@@ -1723,7 +1738,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 omittedInaccessibleColumns,
                 columnFilter,
                 readRange,
-                partitionTag);
+                partitionTag,
+                memoryManager);
 
         case ETableChunkFormat::UnversionedColumnar:
             return New<TColumnarSchemalessRangeChunkReader>(
@@ -1737,7 +1753,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 keyColumns,
                 omittedInaccessibleColumns,
                 columnFilter,
-                readRange);
+                readRange,
+                memoryManager);
 
         default:
             YT_ABORT();
@@ -1759,7 +1776,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    std::optional<int> partitionTag)
+    std::optional<int> partitionTag,
+    const TChunkReaderMemoryManagerPtr& memoryManager)
 {
     YT_VERIFY(chunkMeta->GetChunkType() == EChunkType::Table);
 
@@ -1779,7 +1797,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 columnFilter,
                 keys,
                 std::move(performanceCounters),
-                partitionTag);
+                partitionTag,
+                memoryManager);
 
         case ETableChunkFormat::UnversionedColumnar:
             return New<TColumnarSchemalessLookupChunkReader>(
@@ -1794,7 +1813,8 @@ ISchemalessChunkReaderPtr CreateSchemalessChunkReader(
                 omittedInaccessibleColumns,
                 columnFilter,
                 keys,
-                std::move(performanceCounters));
+                std::move(performanceCounters),
+                memoryManager);
 
         default:
             THROW_ERROR_EXCEPTION(
@@ -2474,6 +2494,8 @@ private:
 
     TPromise<void> ErrorPromise_ = NewPromise<void>();
 
+    IMultiReaderMemoryManagerPtr ParallelReaderMemoryManager_;
+
     TSchemalessMergingMultiChunkReader(
         TTableReaderOptionsPtr options,
         ISchemafulReaderPtr underlyingReader,
@@ -2481,7 +2503,8 @@ private:
         TTableSchema schema,
         std::vector<int> idMapping,
         TNameTablePtr nameTable,
-        i64 rowCount)
+        i64 rowCount,
+        IMultiReaderMemoryManagerPtr parallelReaderMemoryManager)
         : Options_(options)
         , UnderlyingReader_(std::move(underlyingReader))
         , DataSliceDescriptor_(dataSliceDescriptor)
@@ -2489,6 +2512,7 @@ private:
         , IdMapping_(idMapping)
         , NameTable_(nameTable)
         , RowCount_(rowCount)
+        , ParallelReaderMemoryManager_(std::move(parallelReaderMemoryManager))
     {
         if (!DataSliceDescriptor_.ChunkSpecs.empty()) {
             TableIndex_ = DataSliceDescriptor_.ChunkSpecs.front().table_index();
@@ -2649,6 +2673,12 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto performanceCounters = New<TChunkReaderPerformanceCounters>();
 
+    auto parallelReaderMemoryManager = CreateParallelReaderMemoryManager(
+        TParallelReaderMemoryManagerOptions(
+            config->MaxBufferSize,
+            config->WindowSize),
+        NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+
     auto createVersionedReader = [
         config,
         options,
@@ -2666,6 +2696,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         bandwidthThrottler,
         rpsThrottler,
         renameDescriptors,
+        parallelReaderMemoryManager,
         Logger
     ] (int index) -> IVersionedReaderPtr {
         const auto& chunkSpec = chunkSpecs[index];
@@ -2725,6 +2756,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             nullptr,
             performanceCounters,
             nullptr);
+        auto chunkReaderMemoryManager =
+            parallelReaderMemoryManager->CreateChunkReaderMemoryManager(chunkMeta->Misc().uncompressed_data_size());
 
         return CreateVersionedChunkReader(
             config,
@@ -2736,7 +2769,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             upperLimit.GetKey(),
             TColumnFilter(),
             timestamp,
-            false);
+            false,
+            chunkReaderMemoryManager);
     };
 
     struct TSchemalessMergingMultiChunkReaderBufferTag
@@ -2771,7 +2805,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         versionedReadSchema,
         std::move(idMapping),
         std::move(nameTable),
-        rowCount);
+        rowCount,
+        std::move(parallelReaderMemoryManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

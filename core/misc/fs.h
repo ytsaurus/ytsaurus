@@ -66,6 +66,15 @@ std::vector<TString> EnumerateFiles(const TString& path, int depth = 1);
 //! Returns all directories in a given directory.
 std::vector<TString> EnumerateDirectories(const TString& path, int depth = 1);
 
+//! Returns path to `to` relative to `from`.
+TString GetRelativePath(const TString& from, const TString& to);
+
+//! Returns path to `path` relative to working directory.
+TString GetRelativePath(const TString& path);
+
+//! Returns the shortest among absolute and relative to working directory path to `path`.
+TString GetShortestPath(const TString& path);
+
 //! Describes total, free, and available space on a disk drive.
 struct TDiskSpaceStatistics
 {

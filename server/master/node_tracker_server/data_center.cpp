@@ -10,6 +10,16 @@ TDataCenter::TDataCenter(TDataCenterId id)
     : TObject(id)
 { }
 
+TString TDataCenter::GetLowercaseObjectName() const
+{
+    return Format("data center %Qv", GetName());
+}
+
+TString TDataCenter::GetCapitalizedObjectName() const
+{
+    return Format("Data center %Qv", GetName());
+}
+
 void TDataCenter::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);

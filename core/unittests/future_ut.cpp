@@ -90,24 +90,6 @@ TEST_F(TFutureTest, SetAndGet)
     EXPECT_EQ(57, future.Get().Value()); // Second Get() should also work.
 }
 
-#ifndef NDEBUG
-TEST_F(TFutureTest, DISABLED_DoubleSet)
-{
-#ifdef _darwin_
-    // DEATH tests are working on Darwin platform only in single-thread applications.
-    if (testing::internal::GetThreadCount() != 1) {
-        GTEST_LOG_(WARNING) << "TFutureTest.DoubleSet was skipped, but it can be run separately";
-        return;
-    }
-#endif
-    // Debug-only.
-    auto promise = NewPromise<int>();
-
-    promise.Set(17);
-    ASSERT_DEATH({ promise.Set(42); }, "YT_VERIFY\\(!Set_\\).*");
-}
-#endif
-
 TEST_F(TFutureTest, SetAndTryGet)
 {
     auto promise = NewPromise<int>();
@@ -602,37 +584,182 @@ TEST_F(TFutureTest, ApplyIntToFutureInt)
     EXPECT_EQ(42, target.Get().Value());
 }
 
-static TFuture<int> AsyncDivide(int a, int b, TDuration delay)
+TEST_F(TFutureTest, TestCancelDelayed)
 {
-    auto promise = NewPromise<int>();
-    TDelayedExecutor::Submit(
-        BIND([=] () mutable {
-            if (b == 0) {
-                promise.Set(TError("Division by zero"));
-            } else {
-                promise.Set(a / b);
-            }
-        }),
-        delay);
-    return promise;
+    auto future = NConcurrency::TDelayedExecutor::MakeDelayed(TDuration::Seconds(10));
+    future.Cancel(TError("Canceled"));
+    EXPECT_TRUE(future.IsSet());
+    EXPECT_FALSE(future.Get().IsOK());
 }
 
-TEST_F(TFutureTest, CombineEmpty)
+TEST_F(TFutureTest, AnyOf)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AnyOf(futures);
+    EXPECT_FALSE(f.IsSet());
+    p2.Set(2);
+    EXPECT_TRUE(f.IsSet());
+    auto resultOrError = f.Get();
+    EXPECT_TRUE(resultOrError.IsOK());
+    auto result = resultOrError.Value();
+    EXPECT_EQ(2, result);
+}
+
+TEST_F(TFutureTest, AnyOfRetainError)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AnyOf(futures, TRetainErrorPolicy{});
+    EXPECT_FALSE(f.IsSet());
+    p2.Set(TError("oops"));
+    EXPECT_TRUE(f.IsSet());
+    auto resultOrError = f.Get();
+    EXPECT_FALSE(resultOrError.IsOK());
+}
+
+TEST_F(TFutureTest, AnyOfEmpty)
 {
     std::vector<TFuture<int>> futures;
-    auto resultOrError = Combine(futures).Get();
-    EXPECT_TRUE(resultOrError.IsOK());
-    const auto& result = resultOrError.Value();
-    EXPECT_TRUE(result.size() == 0);
+    auto error = AnyOf(futures).Get();
+    EXPECT_EQ(NYT::EErrorCode::FutureCombinerFailure, error.GetCode());
 }
 
-TEST_F(TFutureTest, CombineNonEmpty)
+TEST_F(TFutureTest, AnyOfSkipError)
 {
-    std::vector<TFuture<int>> asyncResults {
-        AsyncDivide(5, 2, TDuration::Seconds(0.1)),
-        AsyncDivide(30, 3, TDuration::Seconds(0.2))
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    auto p3 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture(),
+        p3.ToFuture()
     };
-    auto resultOrError = Combine(asyncResults).Get();
+    auto f = AnyOf(futures);
+    EXPECT_FALSE(f.IsSet());
+    EXPECT_FALSE(p2.IsCanceled());
+    p1.Set(TError("oops"));
+    EXPECT_FALSE(f.IsSet());
+    p2.Set(123);
+    EXPECT_TRUE(f.IsSet());
+    auto result = f.Get();
+    EXPECT_TRUE(result.IsOK());
+    EXPECT_EQ(123, result.Value());
+    EXPECT_TRUE(p3.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyOfSuccessShortcut)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AnyOf(futures);
+    EXPECT_FALSE(f.IsSet());
+    EXPECT_FALSE(p2.IsCanceled());
+    p1.Set(1);
+    EXPECT_TRUE(f.IsSet());
+    auto result = f.Get();
+    EXPECT_TRUE(result.IsOK());
+    EXPECT_EQ(1, result.Value());
+    EXPECT_TRUE(p2.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyOfDontCancelOnShortcut)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AnyOf(
+        futures,
+        TSkipErrorPolicy{},
+        TFutureCombinerOptions{.CancelInputOnShortcut = false});
+    p1.Set(1);
+    EXPECT_FALSE(p2.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyOfPropagateCancelation)
+{
+    auto p1 = NewPromise<void>();
+    auto p2 = NewPromise<void>();
+    std::vector<TFuture<void>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AnyOf(futures);
+    EXPECT_FALSE(p1.IsCanceled());
+    EXPECT_FALSE(p2.IsCanceled());
+    f.Cancel(TError("oops"));
+    EXPECT_TRUE(p1.IsCanceled());
+    EXPECT_TRUE(p2.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyOfDontPropagateCancelation)
+{
+    auto p1 = NewPromise<void>();
+    auto p2 = NewPromise<void>();
+    std::vector<TFuture<void>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AnyOf(
+        futures,
+        TSkipErrorPolicy{},
+        TFutureCombinerOptions{.PropagateCancelationToInput = false});
+    EXPECT_FALSE(p1.IsCanceled());
+    EXPECT_FALSE(p2.IsCanceled());
+    f.Cancel(TError("oops"));
+    EXPECT_FALSE(p1.IsCanceled());
+    EXPECT_FALSE(p2.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyOf1)
+{
+    auto promise = NewPromise<int>();
+    auto future = promise.ToFuture();
+    std::vector<TFuture<int>> futures{
+        future
+    };
+    EXPECT_EQ(future, AnyOf(futures));
+}
+
+TEST_F(TFutureTest, AllOfEmpty)
+{
+    std::vector<TFuture<int>> futures{};
+    auto resultOrError = AllOf(futures).Get();
+    EXPECT_TRUE(resultOrError.IsOK());
+    const auto& result = resultOrError.Value();
+    EXPECT_TRUE(result.empty());
+}
+
+TEST_F(TFutureTest, AllOf)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AllOf(futures);
+    EXPECT_FALSE(f.IsSet());
+    p1.Set(2);
+    EXPECT_FALSE(f.IsSet());
+    p2.Set(10);
+    EXPECT_TRUE(f.IsSet());
+    auto resultOrError = f.Get();
     EXPECT_TRUE(resultOrError.IsOK());
     const auto& result = resultOrError.Value();
     EXPECT_EQ(2, result.size());
@@ -640,73 +767,391 @@ TEST_F(TFutureTest, CombineNonEmpty)
     EXPECT_EQ(10, result[1]);
 }
 
-TEST_F(TFutureTest, CombineError)
+TEST_F(TFutureTest, AllOfError)
 {
-    std::vector<TFuture<int>> asyncResults {
-        AsyncDivide(5, 2, TDuration::Seconds(0.1)),
-        AsyncDivide(30, 0, TDuration::Seconds(0.2))
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
     };
-    auto resultOrError = Combine(asyncResults).Get();
+    auto f = AllOf(futures);
+    EXPECT_FALSE(f.IsSet());
+    p1.Set(2);
+    EXPECT_FALSE(f.IsSet());
+    p2.Set(TError("oops"));
+    EXPECT_TRUE(f.IsSet());
+    auto resultOrError = f.Get();
     EXPECT_FALSE(resultOrError.IsOK());
 }
 
-TEST_F(TFutureTest, CombinePrematureExit)
+TEST_F(TFutureTest, AllOfFailureShortcut)
 {
-    std::vector<TFuture<int>> asyncResults {
-        AsyncDivide(5, 2, TDuration::Seconds(0.5)),
-        MakeFuture<int>(TError("oops"))
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
     };
-    auto asyncResult = Combine(asyncResults);
-    EXPECT_TRUE(asyncResult.IsSet());
-    auto result = asyncResult.Get();
+    auto f = AllOf(futures);
+    EXPECT_FALSE(f.IsSet());
+    EXPECT_FALSE(p2.IsCanceled());
+    p1.Set(TError("oops"));
+    EXPECT_TRUE(f.IsSet());
+    auto result = f.Get();
     EXPECT_FALSE(result.IsOK());
+    EXPECT_TRUE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, CombineCancel)
+TEST_F(TFutureTest, AllOfDontCancelOnShortcut)
 {
-    std::vector<TFuture<void>> asyncResults {
-        TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)),
-        TDelayedExecutor::MakeDelayed(TDuration::Seconds(5)),
-        TDelayedExecutor::MakeDelayed(TDuration::Seconds(5))
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
     };
-    auto asyncResult = Combine(asyncResults);
-    asyncResult.Cancel(TError("Error"));
-    EXPECT_TRUE(asyncResult.IsSet());
-    const auto& result = asyncResult.Get();
+    auto f = AllOf(
+        futures,
+        TPropagateErrorPolicy{},
+        TFutureCombinerOptions{.CancelInputOnShortcut = false});
+    p1.Set(TError("oops"));
+    EXPECT_FALSE(p2.IsCanceled());
+}
+
+TEST_F(TFutureTest, AllOfCancel)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    auto p3 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture(),
+        p3.ToFuture()
+    };
+    auto f = AllOf(futures);
+    EXPECT_FALSE(f.IsSet());
+    f.Cancel(TError("oops"));
+    EXPECT_TRUE(f.IsSet());
+    const auto& result = f.Get();
     EXPECT_EQ(NYT::EErrorCode::Canceled, result.GetCode());
 }
 
-TEST_F(TFutureTest, CombineHashMapEmpty)
+TEST_F(TFutureTest, AllOfVoid0)
 {
-    THashMap<TString, TFuture<int>> futures;
-    auto resultOrError = Combine(futures).Get();
-    EXPECT_TRUE(resultOrError.IsOK());
-    const auto& result = resultOrError.Value();
-    EXPECT_TRUE(result.size() == 0);
+    std::vector<TFuture<void>> futures;
+    EXPECT_EQ(VoidFuture, AllOf(futures));
 }
 
-TEST_F(TFutureTest, CombineHashMapNonEmpty)
+TEST_F(TFutureTest, AllOfVoid1)
 {
-    THashMap<TString, TFuture<int>> asyncResults {
-        {"two", AsyncDivide(5, 2, TDuration::Seconds(0.1))},
-        {"ten", AsyncDivide(30, 3, TDuration::Seconds(0.2))},
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+    std::vector<TFuture<void>> futures{
+        future
     };
-    auto resultOrError = Combine(asyncResults).Get();
+    EXPECT_EQ(future, AllOf(futures));
+}
+
+TEST_F(TFutureTest, AllOfRetainError)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture(),
+    };
+    auto f = AllOf(futures, TRetainErrorPolicy{});
+    EXPECT_FALSE(f.IsSet());
+    p1.Set(2);
+    EXPECT_FALSE(f.IsSet());
+    p2.Set(TError("oops"));
+    EXPECT_TRUE(f.IsSet());
+    auto resultOrError = f.Get();
     EXPECT_TRUE(resultOrError.IsOK());
     const auto& result = resultOrError.Value();
     EXPECT_EQ(2, result.size());
-    EXPECT_EQ(2, result.at("two"));
-    EXPECT_EQ(10, result.at("ten"));
+    EXPECT_TRUE(result[0].IsOK());
+    EXPECT_EQ(2, result[0].Value());
+    EXPECT_FALSE(result[1].IsOK());
 }
 
-TEST_F(TFutureTest, CombineHashMapError)
+TEST_F(TFutureTest, AllOfPropagateCancelation)
 {
-    THashMap<TString, TFuture<int>> asyncResults {
-        {"two", AsyncDivide(5, 2, TDuration::Seconds(0.1))},
-        {"error", AsyncDivide(30, 0, TDuration::Seconds(0.2))},
+    auto p1 = NewPromise<void>();
+    auto p2 = NewPromise<void>();
+    std::vector<TFuture<void>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
     };
-    auto resultOrError = Combine(asyncResults).Get();
-    EXPECT_FALSE(resultOrError.IsOK());
+    auto f = AllOf(futures);
+    EXPECT_FALSE(p1.IsCanceled());
+    EXPECT_FALSE(p2.IsCanceled());
+    f.Cancel(TError("oops"));
+    EXPECT_TRUE(p1.IsCanceled());
+    EXPECT_TRUE(p2.IsCanceled());
+}
+
+TEST_F(TFutureTest, AllOfDontPropagateCancelation)
+{
+    auto p1 = NewPromise<void>();
+    auto p2 = NewPromise<void>();
+    std::vector<TFuture<void>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AllOf(
+        futures,
+        TPropagateErrorPolicy{},
+        TFutureCombinerOptions{.PropagateCancelationToInput = false});
+    EXPECT_FALSE(p1.IsCanceled());
+    EXPECT_FALSE(p2.IsCanceled());
+    f.Cancel(TError("oops"));
+    EXPECT_FALSE(p1.IsCanceled());
+    EXPECT_FALSE(p2.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyNOfEmpty)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AnyNOf(futures, 0);
+    EXPECT_TRUE(f.IsSet());
+    const auto& resultOrError = f.Get();
+    EXPECT_TRUE(resultOrError.IsOK());
+    const auto& result = resultOrError.Value();
+    EXPECT_TRUE(result.empty());
+    EXPECT_TRUE(p1.IsCanceled());
+    EXPECT_TRUE(p2.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyNOfDontCancelOnEmptyShortcut)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AnyNOf(
+        futures,
+        0,
+        TSkipErrorPolicy{},
+        TFutureCombinerOptions{.CancelInputOnShortcut = false});
+    EXPECT_FALSE(p1.IsCanceled());
+    EXPECT_FALSE(p2.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyNOfInsufficientInputs)
+{
+    auto p1 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture()
+    };
+    auto f = AnyNOf(futures, 2);
+    EXPECT_TRUE(f.IsSet());
+    const auto& resultOrError = f.Get();
+    EXPECT_EQ(NYT::EErrorCode::FutureCombinerFailure, resultOrError.GetCode());
+    EXPECT_TRUE(p1.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyNOfDontCancelOnInsufficientInputsShortcut)
+{
+    auto p1 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture()
+    };
+    auto f = AnyNOf(
+        futures,
+        2,
+        TSkipErrorPolicy{},
+        TFutureCombinerOptions{.CancelInputOnShortcut = false});
+    EXPECT_FALSE(p1.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyNOfTooManyFailures)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    auto p3 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture(),
+        p3.ToFuture()
+    };
+    auto f = AnyNOf(
+        futures,
+        2,
+        TSkipErrorPolicy{});
+    EXPECT_FALSE(f.IsSet());
+    EXPECT_FALSE(p3.IsCanceled());
+    p1.Set(TError("oops1"));
+    p2.Set(TError("oops2"));
+    EXPECT_TRUE(f.IsSet());
+    const auto& resultOrError = f.Get();
+    EXPECT_EQ(NYT::EErrorCode::FutureCombinerFailure, resultOrError.GetCode());
+    EXPECT_TRUE(p3.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyNOfDontCancelOnTooManyFailuresShortcut)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    auto p3 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture(),
+        p3.ToFuture()
+    };
+    auto f = AnyNOf(
+        futures,
+        2,
+        TSkipErrorPolicy{},
+        TFutureCombinerOptions{.CancelInputOnShortcut = false});
+    p1.Set(TError("oops1"));
+    p2.Set(TError("oops2"));
+    EXPECT_FALSE(p3.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyNOf)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    auto p3 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture(),
+        p3.ToFuture()
+    };
+    auto f = AnyNOf(futures, 2);
+    EXPECT_FALSE(f.IsSet());
+    EXPECT_FALSE(p1.IsCanceled());
+    p2.Set(1);
+    p3.Set(2);
+    EXPECT_TRUE(f.IsSet());
+    const auto& resultOrError = f.Get();
+    EXPECT_TRUE(resultOrError.IsOK());
+    auto result = resultOrError.Value();
+    std::sort(result.begin(), result.end());
+    EXPECT_EQ(2, result.size());
+    EXPECT_EQ(1, result[0]);
+    EXPECT_EQ(2, result[1]);
+    EXPECT_TRUE(p1.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyNOfDontCancelOnShortcut)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    auto p3 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture(),
+        p3.ToFuture()
+    };
+    auto f = AnyNOf(
+        futures,
+        2,
+        TSkipErrorPolicy{},
+        TFutureCombinerOptions{.CancelInputOnShortcut = false});
+    p2.Set(1);
+    p3.Set(2);
+    EXPECT_FALSE(p1.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyNOfDontCancelOnPropagateErrorShortcut)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    auto p3 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture(),
+        p3.ToFuture()
+    };
+    auto f = AnyNOf(
+        futures,
+        2,
+        TSkipErrorPolicy{},
+        TFutureCombinerOptions{.CancelInputOnShortcut = false});
+    p3.Set(TError("oops"));
+    EXPECT_FALSE(p1.IsCanceled());
+    EXPECT_FALSE(p2.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyNOfVoid1)
+{
+    auto promise = NewPromise<void>();
+    auto future = promise.ToFuture();
+    std::vector<TFuture<void>> futures{
+        future
+    };
+    EXPECT_EQ(future, AnyNOf(futures, 1));
+}
+
+TEST_F(TFutureTest, AnyNOfRetainError)
+{
+    auto p1 = NewPromise<int>();
+    auto p2 = NewPromise<int>();
+    auto p3 = NewPromise<int>();
+    std::vector<TFuture<int>> futures{
+        p1.ToFuture(),
+        p2.ToFuture(),
+        p3.ToFuture()
+    };
+    auto f = AnyNOf(futures, 2, TRetainErrorPolicy{});
+    EXPECT_FALSE(f.IsSet());
+    p1.Set(2);
+    EXPECT_FALSE(f.IsSet());
+    p3.Set(TError("oops"));
+    EXPECT_TRUE(f.IsSet());
+    auto resultOrError = f.Get();
+    EXPECT_TRUE(resultOrError.IsOK());
+    const auto& result = resultOrError.Value();
+    EXPECT_EQ(2, result.size());
+    EXPECT_TRUE(result[0].IsOK());
+    EXPECT_EQ(2, result[0].Value());
+    EXPECT_FALSE(result[1].IsOK());
+}
+
+TEST_F(TFutureTest, AnyNOfPropagateCancelation)
+{
+    auto p1 = NewPromise<void>();
+    auto p2 = NewPromise<void>();
+    std::vector<TFuture<void>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AnyNOf(futures, 1);
+    EXPECT_FALSE(p1.IsCanceled());
+    EXPECT_FALSE(p2.IsCanceled());
+    f.Cancel(TError("oops"));
+    EXPECT_TRUE(p1.IsCanceled());
+    EXPECT_TRUE(p2.IsCanceled());
+}
+
+TEST_F(TFutureTest, AnyNOfDontPropagateCancelation)
+{
+    auto p1 = NewPromise<void>();
+    auto p2 = NewPromise<void>();
+    std::vector<TFuture<void>> futures{
+        p1.ToFuture(),
+        p2.ToFuture()
+    };
+    auto f = AnyNOf(
+        futures,
+        1,
+        TSkipErrorPolicy{},
+        TFutureCombinerOptions{.PropagateCancelationToInput = false});
+    EXPECT_FALSE(p1.IsCanceled());
+    EXPECT_FALSE(p2.IsCanceled());
+    f.Cancel(TError("oops"));
+    EXPECT_FALSE(p1.IsCanceled());
+    EXPECT_FALSE(p2.IsCanceled());
 }
 
 TEST_F(TFutureTest, AsyncViaCanceledInvoker)
@@ -714,7 +1159,7 @@ TEST_F(TFutureTest, AsyncViaCanceledInvoker)
     auto context = New<TCancelableContext>();
     auto invoker = context->CreateInvoker(GetSyncInvoker());
     auto generator = BIND([] () {}).AsyncVia(invoker);
-    context->Cancel(TError("Error"));
+    context->Cancel(TError("oops"));
     auto future = generator.Run();
     auto error = future.Get();
     ASSERT_EQ(NYT::EErrorCode::Canceled, error.GetCode());

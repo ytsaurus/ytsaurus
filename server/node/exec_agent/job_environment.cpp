@@ -639,7 +639,7 @@ private:
                 WaitFor(PortoExecutor_->SetProperty(
                     GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
                     "controllers",
-                    "freezer;cpu;cpuacct;cpuset"))
+                    "freezer;cpu;cpuacct;cpuset;net_cls"))
                     .ThrowOnError();
             }
         } catch (const std::exception& ex) {

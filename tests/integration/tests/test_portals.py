@@ -961,6 +961,19 @@ class TestPortals(YTEnvSetup):
 
         assert not get("//tmp/l&/@broken")
 
+    @authors("shakurov")
+    def test_remove_portal_not_permitted_by_acl(self):
+        create_user("u")
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+
+        assert not get("//tmp/p/@inherit_acl")
+        # NB: denying removal for portal exit only!
+        set("//tmp/p/@acl", [make_ace("deny", "u", "remove", "object_and_descendants")])
+
+        assert check_permission("u", "remove", "//tmp/p")["action"] == "deny"
+
+        with pytest.raises(YtError):
+            remove("//tmp/p", authenticated_user="u")
 ##################################################################
 
 class TestResolveCache(YTEnvSetup):

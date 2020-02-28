@@ -19,6 +19,9 @@
 #include <yt/core/tracing/trace_context.h>
 
 #include <util/system/align.h>
+#include <util/system/mutex.h>
+#include <util/system/flock.h>
+#include <util/system/align.h>
 
 namespace NYT::NHydra {
 
@@ -69,7 +72,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(Lock_);
+        auto guard = Guard(Mutex_);
 
         Error_.ThrowOnError();
         ValidateNotOpen();
@@ -110,7 +113,9 @@ public:
             NFS::ExpectIOErrors([&] {
                 dataFile->Seek(0, sSet);
                 if (dataFile->Load(&header, FileHeaderSize_) != FileHeaderSize_) {
-                    THROW_ERROR_EXCEPTION("Changelog header cannot be read");
+                    THROW_ERROR_EXCEPTION(
+                        NHydra::EErrorCode::ChangelogIOError,
+                        "Changelog header cannot be read");
                 }
             });
 
@@ -149,7 +154,7 @@ public:
         Open_ = true;
 
         YT_LOG_DEBUG("Changelog opened (RecordCount: %v, TruncatedRecordCount: %v, Format: %v)",
-            RecordCount_,
+            RecordCount_.load(),
             TruncatedRecordCount_,
             Format_);
     }
@@ -158,7 +163,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(Lock_);
+        auto guard = Guard(Mutex_);
 
         Error_.ThrowOnError();
 
@@ -190,7 +195,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(Lock_);
+        auto guard = Guard(Mutex_);
 
         Error_.ThrowOnError();
         ValidateNotOpen();
@@ -221,7 +226,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(Lock_);
         return RecordCount_;
     }
 
@@ -229,7 +233,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(Lock_);
         return CurrentFilePosition_;
     }
 
@@ -237,7 +240,6 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(Lock_);
         return Open_;
     }
 
@@ -248,7 +250,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(Lock_);
+        auto guard = Guard(Mutex_);
 
         Error_.ThrowOnError();
         ValidateOpen();
@@ -276,7 +278,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(Lock_);
+        auto guard = Guard(Mutex_);
 
         Error_.ThrowOnError();
         ValidateOpen();
@@ -307,7 +309,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(Lock_);
+        auto guard = Guard(Mutex_);
 
         Error_.ThrowOnError();
         ValidateOpen();
@@ -334,7 +336,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(Lock_);
+        auto guard = Guard(Mutex_);
 
         Error_.ThrowOnError();
         ValidateOpen();
@@ -362,7 +364,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = Guard(Lock_);
+        auto guard = Guard(Mutex_);
 
         YT_VERIFY(CurrentFilePosition_ <= size);
 
@@ -373,6 +375,30 @@ public:
     }
 
 private:
+    const NChunkClient::IIOEnginePtr IOEngine_;
+    const TString FileName_;
+    const TFileChangelogConfigPtr Config_;
+    const NLogging::TLogger Logger;
+
+    TSysMutex Mutex_;
+    TError Error_;
+    std::atomic<bool> Open_ = false;
+    EFileChangelogFormat Format_ = EFileChangelogFormat::V5;
+    int FileHeaderSize_ = -1;
+    int RecordHeaderSize_ = -1;
+    std::optional<TGuid> Uuid_;
+    std::atomic<int> RecordCount_ = -1;
+    std::optional<int> TruncatedRecordCount_;
+    std::atomic<i64> CurrentFilePosition_ = -1;
+
+    std::shared_ptr<TFileHandle> DataFile_;
+    TAsyncFileChangelogIndex IndexFile_;
+
+    // Reused by Append.
+    std::vector<int> AppendSizes_;
+    TBlobOutput AppendOutput_;
+
+
     struct TEnvelopeData
     {
         i64 GetLength() const
@@ -417,7 +443,9 @@ private:
     void ValidateOpen()
     {
         if (!Open_) {
-            THROW_ERROR_EXCEPTION("Changelog is not open");
+            THROW_ERROR_EXCEPTION(
+                NHydra::EErrorCode::InvalidChangelogState,
+                "Changelog is not open");
         }
     }
 
@@ -425,7 +453,9 @@ private:
     void ValidateNotOpen()
     {
         if (Open_) {
-            THROW_ERROR_EXCEPTION("Changelog is already open");
+            THROW_ERROR_EXCEPTION(
+                NHydra::EErrorCode::InvalidChangelogState,
+                "Changelog is already open");
         }
     }
 
@@ -438,15 +468,18 @@ private:
             if (DataFile_->Flock(LOCK_EX | LOCK_NB) == 0) {
                 YT_LOG_DEBUG("Data file locked successfullly");
                 break;
-            } else {
-                if (++index >= MaxLockRetries) {
-                    THROW_ERROR_EXCEPTION(
-                        "Cannot flock %Qv",
-                        FileName_) << TError::FromSystem();
-                }
-                YT_LOG_WARNING("Error locking data file; backing off and retrying");
-                TDelayedExecutor::WaitForDuration(LockBackoffTime);
             }
+
+            if (++index >= MaxLockRetries) {
+                THROW_ERROR_EXCEPTION(
+                    NHydra::EErrorCode::ChangelogIOError,
+                    "Cannot flock %Qv",
+                    FileName_)
+                    << TError::FromSystem();
+            }
+
+            YT_LOG_WARNING("Error locking data file; backing off and retrying");
+            TDelayedExecutor::WaitForDuration(LockBackoffTime);
         }
     }
 
@@ -610,7 +643,9 @@ private:
             auto recordInfoOrError = TryReadRecord(dataReader);
             if (!recordInfoOrError.IsOK()) {
                 if (TruncatedRecordCount_ && RecordCount_ < *TruncatedRecordCount_) {
-                    THROW_ERROR_EXCEPTION("Broken record found in truncated changelog %v",
+                    THROW_ERROR_EXCEPTION(
+                        NHydra::EErrorCode::BrokenChangelog,
+                        "Broken record found in truncated changelog %v",
                         FileName_)
                         << TErrorAttribute("record_id", RecordCount_)
                         << TErrorAttribute("offset", CurrentFilePosition_)
@@ -618,8 +653,8 @@ private:
                 }
 
                 YT_LOG_WARNING(recordInfoOrError, "Broken record found in changelog, trimmed (RecordId: %v, Offset: %v)",
-                    RecordCount_,
-                    CurrentFilePosition_);
+                    RecordCount_.load(),
+                    CurrentFilePosition_.load());
                 break;
             }
 
@@ -651,7 +686,7 @@ private:
 
         IndexFile_.FlushData().Get().ThrowOnError();
 
-        auto validSize = ::AlignUp<i64>(CurrentFilePosition_, Alignment);
+        auto validSize = ::AlignUp<i64>(CurrentFilePosition_.load(), Alignment);
         // Rewrite the last 4K-block in case of incorrect size?
         if (validSize > CurrentFilePosition_) {
             YT_VERIFY(lastValidRecordInfo);
@@ -666,7 +701,9 @@ private:
             TFileWrapper file(FileName_, RdWr);
             file.Seek(offset, sSet);
             if (file.Load(&header, sizeof(header)) != sizeof(header)) {
-                THROW_ERROR_EXCEPTION("Record header cannot be read");
+                THROW_ERROR_EXCEPTION(
+                    NHydra::EErrorCode::ChangelogIOError,
+                    "Record header cannot be read");
             }
 
             header.PaddingSize = validSize - CurrentFilePosition_;
@@ -873,7 +910,7 @@ private:
                 AppendSizes_.push_back(totalSize);
             }
 
-            YT_VERIFY(::AlignUp(CurrentFilePosition_, Alignment) == CurrentFilePosition_);
+            YT_VERIFY(::AlignUp(CurrentFilePosition_.load(), Alignment) == CurrentFilePosition_);
             YT_VERIFY(::AlignUp<i64>(AppendOutput_.Size(), Alignment) == AppendOutput_.Size());
 
             TSharedRef data(AppendOutput_.Blob().Begin(), AppendOutput_.Size(), MakeStrong(this));
@@ -931,7 +968,9 @@ private:
                 ReadPodPadded(inputStream, header);
 
                 if (header.RecordId != recordId) {
-                    THROW_ERROR_EXCEPTION("Record data id mismatch in %v", FileName_)
+                    THROW_ERROR_EXCEPTION(
+                        NHydra::EErrorCode::BrokenChangelog,
+                        "Record data id mismatch in %v", FileName_)
                         << TErrorAttribute("expected", header.RecordId)
                         << TErrorAttribute("actual", recordId);
                 }
@@ -946,7 +985,9 @@ private:
 
                 auto checksum = GetChecksum(data);
                 if (header.Checksum != checksum) {
-                    THROW_ERROR_EXCEPTION("Record data checksum mismatch in %v", FileName_)
+                    THROW_ERROR_EXCEPTION(
+                        NHydra::EErrorCode::BrokenChangelog,
+                        "Record data checksum mismatch in %v", FileName_)
                         << TErrorAttribute("record_id", header.RecordId);
                 }
 
@@ -965,34 +1006,6 @@ private:
         YT_LOG_DEBUG("Finished reading changelog");
         return records;
     }
-
-    const NChunkClient::IIOEnginePtr IOEngine_;
-
-    const TString FileName_;
-    const TFileChangelogConfigPtr Config_;
-    const NLogging::TLogger Logger;
-
-    TError Error_;
-    bool Open_ = false;
-    EFileChangelogFormat Format_ = EFileChangelogFormat::V5;
-    int FileHeaderSize_ = -1;
-    int RecordHeaderSize_ = -1;
-    std::optional<TGuid> Uuid_;
-    int RecordCount_ = -1;
-    std::optional<int> TruncatedRecordCount_;
-    i64 CurrentFilePosition_ = -1;
-
-    std::shared_ptr<TFileHandle> DataFile_;
-    TAsyncFileChangelogIndex IndexFile_;
-
-    // Reused by Append.
-    std::vector<int> AppendSizes_;
-    TBlobOutput AppendOutput_;
-
-    //! Auxiliary data.
-    //! Protects file resources.
-    mutable TSpinLock Lock_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

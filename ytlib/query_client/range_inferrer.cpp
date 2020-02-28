@@ -3,6 +3,7 @@
 #include "folding_profiler.h"
 #include "key_trie.h"
 #include "query_helpers.h"
+#include "coordination_helpers.h"
 
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schema.h>
@@ -418,8 +419,8 @@ void EnrichKeyRange(
     const TColumnEvaluator& evaluator,
     const TSchemaColumns& columns,
     TRowBuffer* buffer,
-    TMutableRowRange& range,
-    std::vector<TMutableRowRange>& ranges,
+    TMutableRowRange range,
+    std::vector<TRowRange>& ranges,
     size_t keySize,
     ui64* rangeExpansionLeft)
 {
@@ -773,40 +774,44 @@ TRangeInferrer CreateHeavyRangeInferrer(
         ? options.RangeExpansionLimit - ranges.size()
         : 0;
 
-    std::vector<TMutableRowRange> enrichedRanges;
-    for (int index = 0; index < ranges.size(); ++index) {
+    std::vector<TRowRange> enrichedRanges;
+    for (auto range : ranges) {
         EnrichKeyRange(
             *evaluator,
             schema.Columns(),
             buffer.Get(),
-            ranges[index],
+            range,
             enrichedRanges,
             keySize,
             &rangeExpansionLeft);
     }
     std::sort(enrichedRanges.begin(), enrichedRanges.end());
-    enrichedRanges = MergeOverlappingRanges(std::move(enrichedRanges));
+    enrichedRanges.erase(
+        MergeOverlappingRanges(enrichedRanges.begin(), enrichedRanges.end()),
+        enrichedRanges.end());
 
     return [
         MOVE(enrichedRanges),
         MOVE(buffer)
     ] (const TRowRange& keyRange, const TRowBufferPtr& rowBuffer) mutable {
-        auto startIt = std::lower_bound(
-            enrichedRanges.begin(),
-            enrichedRanges.end(),
-            keyRange,
-            [] (const TRowRange& it, const TRowRange& value) {
-                return it.second <= value.first;
+        auto subrange = CropItems(
+            MakeRange(enrichedRanges),
+            [&] (auto it) {
+                return !(keyRange.first < it->second);
+            },
+            [&] (auto it) {
+                return it->first < keyRange.second;
             });
 
-        // TODO(lukyan): Use here binary search and do min/max only for first and last element.
-
         std::vector<TMutableRowRange> result;
-        while (startIt < enrichedRanges.end() && startIt->first < keyRange.second) {
-            auto lower = std::max(TRow(startIt->first), keyRange.first);
-            auto upper = std::min(TRow(startIt->second), keyRange.second);
-            result.emplace_back(rowBuffer->Capture(lower), rowBuffer->Capture(upper));
-            ++startIt;
+        if (!subrange.Empty()) {
+            auto lower = std::max(subrange.Front().first, keyRange.first);
+            auto upper = std::min(subrange.Back().second, keyRange.second);
+
+            ForEachRange(subrange, TRowRange(lower, upper), [&] (auto item) {
+                auto [lower, upper] = item;
+                result.emplace_back(rowBuffer->Capture(lower), rowBuffer->Capture(upper));
+            });
         }
 
         return result;

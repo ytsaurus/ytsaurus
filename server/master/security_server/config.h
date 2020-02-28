@@ -14,10 +14,12 @@ class TDynamicSecurityManagerConfig
 public:
     TDuration AccountStatisticsGossipPeriod;
     TDuration RequestRateSmoothingPeriod;
+    TDuration AccountMasterMemoryUsageUpdatePeriod;
 
     bool EnableDelayedMembershipClosureRecomputation;
     bool EnableAccessLog;
     TDuration MembershipClosureRecomputePeriod;
+    bool EnableMasterMemoryUsageValidation;
 
     TDynamicSecurityManagerConfig()
     {
@@ -25,6 +27,8 @@ public:
             .Default(TDuration::Seconds(1));
         RegisterParameter("request_rate_smoothing_period", RequestRateSmoothingPeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("account_master_memory_usage_update_period", AccountMasterMemoryUsageUpdatePeriod)
+            .Default(TDuration::Seconds(60));
 
         RegisterParameter("enable_delayed_membership_closure_recomputation", EnableDelayedMembershipClosureRecomputation)
             .Default(true);
@@ -32,6 +36,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("enable_access_log", EnableAccessLog)
             .Default(true);
+        RegisterParameter("enable_master_memory_usage_validation", EnableMasterMemoryUsageValidation)
+            .Default(false);
     }
 };
 

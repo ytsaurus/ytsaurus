@@ -85,6 +85,8 @@ using namespace NNet;
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
 
+static const TString SlotIndexPattern("\%slot_index\%");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob
@@ -1296,6 +1298,13 @@ private:
             proxyConfig->RootPath = RootVolume_->GetPath();
             proxyConfig->Binds = Config_->RootFSBinds;
         }
+        // This replace logic used for testing puproses.
+        for (const auto& [name, writerConfig]: proxyConfig->Logging->WriterConfigs) {
+            size_t index = writerConfig->FileName.find(SlotIndexPattern);
+            if (index != TString::npos) {
+                writerConfig->FileName.replace(index, SlotIndexPattern.size(), ToString(Slot_->GetSlotIndex()));
+            }
+        }
 
         for (const auto& slot : GpuSlots_) {
             proxyConfig->GpuDevices.push_back(slot->GetDeviceName());
@@ -1304,6 +1313,9 @@ private:
         if (NetworkProjectId_) {
             if (!Config_->TestNetwork) {
                 const auto& nodeAddresses = Bootstrap_->GetResolvedNodeAddresses();
+                if (nodeAddresses.empty()) {
+                    THROW_ERROR_EXCEPTION("No resolved IPv6 node addresses found");
+                }
                 proxyConfig->NetworkAddresses.reserve(nodeAddresses.size());
                 for (const auto& address : nodeAddresses) {
                     proxyConfig->NetworkAddresses.emplace_back(TMtnAddress{address}
@@ -1640,20 +1652,22 @@ private:
         }
 
         if (auto jobProxyFailedError = resultError.FindMatching(NExecAgent::EErrorCode::JobProxyFailed)) {
-            if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode))
-            {
+            if (auto processError = resultError.FindMatching(EProcessErrorCode::NonZeroExitCode)) {
                 auto exitCode = NExecAgent::EJobProxyExitCode(processError->Attributes().Get<int>("exit_code"));
-                if (exitCode == EJobProxyExitCode::HeartbeatFailed ||
-                    exitCode == EJobProxyExitCode::ResultReportFailed ||
-                    exitCode == EJobProxyExitCode::ResourcesUpdateFailed ||
-                    exitCode == EJobProxyExitCode::GetJobSpecFailed ||
-                    exitCode == EJobProxyExitCode::InvalidSpecVersion ||
-                    exitCode == EJobProxyExitCode::PortoManagmentFailed)
-                {
-                    return EAbortReason::Other;
-                }
-                if (exitCode == EJobProxyExitCode::ResourceOverdraft) {
-                    return EAbortReason::ResourceOverdraft;
+                switch (exitCode) {
+                    case EJobProxyExitCode::HeartbeatFailed:
+                    case EJobProxyExitCode::ResultReportFailed:
+                    case EJobProxyExitCode::ResourcesUpdateFailed:
+                    case EJobProxyExitCode::GetJobSpecFailed:
+                    case EJobProxyExitCode::InvalidSpecVersion:
+                    case EJobProxyExitCode::PortoManagementFailed:
+                        return EAbortReason::Other;
+
+                    case EJobProxyExitCode::ResourceOverdraft:
+                        return EAbortReason::ResourceOverdraft;
+
+                    default:
+                        break;
                 }
             }
         }

@@ -76,15 +76,12 @@ THashSet<TString> ListNodeAttributes(
     NTransactionServer::TTransaction* transaction);
 
 void AttachChild(
-    const NObjectServer::TObjectManagerPtr& objectManager,
     TCypressNode* trunkParent,
     TCypressNode* child);
 
 void DetachChild(
-    const NObjectServer::TObjectManagerPtr& objectManager,
     TCypressNode* trunkParent,
-    TCypressNode* child,
-    bool unref);
+    TCypressNode* child);
 
 bool NodeHasKey(const TCypressNode* node);
 std::optional<TString> FindNodeKey(

@@ -46,7 +46,16 @@ struct IUserJobEnvironment
 
     virtual void SetIOThrottle(i64 operations) = 0;
 
-    virtual TProcessBasePtr CreateUserJobProcess(const TString& path, int uid, const std::optional<TString>& coreHandlerSocketPath) = 0;
+    struct TUserJobProcessOptions
+    {
+        std::optional<TString> CoreHandlerSocketPath;
+        NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
+    };
+
+    virtual TProcessBasePtr CreateUserJobProcess(
+        const TString& path,
+        int uid,
+        const TUserJobProcessOptions& options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobEnvironment)

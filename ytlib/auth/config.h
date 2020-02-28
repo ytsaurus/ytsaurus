@@ -354,7 +354,7 @@ public:
             .Optional();
         RegisterParameter("blackbox_cookie_authenticator", BlackboxCookieAuthenticator)
             .Alias("cookie_authenticator")
-            .Optional();
+            .DefaultNew();
         RegisterParameter("blackbox_service", BlackboxService)
             .Alias("blackbox")
             .DefaultNew();

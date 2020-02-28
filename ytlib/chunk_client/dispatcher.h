@@ -32,6 +32,9 @@ public:
     //! Return invoker over "ChunkWriter" thread.
     IInvokerPtr GetWriterInvoker();
 
+    //! Serialized invoker for reader memory managers.
+    const IInvokerPtr& GetReaderMemoryManagerInvoker();
+
 private:
     class TImpl;
     const std::unique_ptr<TImpl> Impl_;

@@ -39,9 +39,13 @@ void THydraServiceBase::ValidatePeer(EPeerKind kind)
 
 void THydraServiceBase::SyncWithUpstream()
 {
-    auto hydraManager = GetHydraManager();
-    WaitFor(hydraManager->SyncWithUpstream())
+    WaitFor(DoSyncWithUpstream())
         .ThrowOnError();
+}
+
+TFuture<void> THydraServiceBase::DoSyncWithUpstream()
+{
+    return GetHydraManager()->SyncWithLeader();
 }
 
 bool THydraServiceBase::IsUp(const TCtxDiscoverPtr& context)

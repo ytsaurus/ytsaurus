@@ -27,6 +27,7 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/wire_protocol.h>
 
@@ -206,7 +207,14 @@ public:
         const TTableSchema& tableSchema,
         std::optional<i64> estimatedSize,
         std::atomic<i64>* uncompressedDataSize,
+        const TColumnFilter& columnFilter,
+        TTimestamp timestamp,
         bool produceAllVersions) override;
+
+    virtual bool IsLookupSupported() const override
+    {
+        return true;
+    }
 
     virtual TChunkId GetChunkId() const override
     {
@@ -674,17 +682,20 @@ protected:
     }
 
     template <class TResponsePtr>
-    void ProcessError(TErrorOr<TResponsePtr> rspOrError, const TString& peerAddress, TError wrappingError)
+    void ProcessError(const TErrorOr<TResponsePtr>& rspOrError, const TString& peerAddress, const TError& wrappingError)
     {
         auto error = wrappingError << rspOrError;
-        if (rspOrError.GetCode() != NRpc::EErrorCode::Unavailable &&
-            rspOrError.GetCode() != NRpc::EErrorCode::RequestQueueSizeLimitExceeded)
+        auto code = rspOrError.GetCode();
+        if (code == NRpc::EErrorCode::Unavailable ||
+            code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded ||
+            code == NHydra::EErrorCode::InvalidChangelogState)
         {
-            BanPeer(peerAddress, rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk);
-            RegisterError(error);
-        } else {
             YT_LOG_DEBUG(error);
+            return;
         }
+
+        BanPeer(peerAddress, rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk);
+        RegisterError(error);
     }
 
     std::vector<TPeer> PickPeerCandidates(
@@ -2007,6 +2018,8 @@ public:
         TTableSchema tableSchema,
         const std::optional<i64> estimatedSize,
         std::atomic<i64>* uncompressedDataSize,
+        const TColumnFilter& columnFilter,
+        TTimestamp timestamp,
         bool produceAllVersions)
         : TSessionBase(reader, options)
         , LookupKeys_(std::move(lookupKeys))
@@ -2016,6 +2029,8 @@ public:
         , EstimatedSize_(estimatedSize)
         , UncompressedDataSizePtr_(uncompressedDataSize)
         , ReadSessionId_(options.ReadSessionId)
+        , ColumnFilter_(columnFilter)
+        , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
     {
         Logger.AddTag("TableId: %v, Revision: %llx",
@@ -2047,6 +2062,8 @@ private:
     const std::optional<i64> EstimatedSize_;
     std::atomic<i64>* const UncompressedDataSizePtr_;
     const TReadSessionId ReadSessionId_;
+    const TColumnFilter ColumnFilter_;
+    TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
     const TPromise<TSharedRef> Promise_ = NewPromise<TSharedRef>();
 
@@ -2249,6 +2266,8 @@ private:
         ToProto(req->mutable_lookup_keys(), MergeRefsToString(writer.Finish()));
 
         ToProto(req->mutable_read_session_id(), ReadSessionId_);
+        req->set_timestamp(Timestamp_);
+        ToProto(req->mutable_column_filter(), ColumnFilter_);
         req->set_produce_all_versions(ProduceAllVersions_);
 
         auto schemaData = req->mutable_schema_data();
@@ -2383,6 +2402,8 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
     const TTableSchema& tableSchema,
     std::optional<i64> estimatedSize,
     std::atomic<i64>* uncompressedDataSize,
+    const TColumnFilter& columnFilter,
+    TTimestamp timestamp,
     bool produceAllVersions)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -2396,6 +2417,8 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
         tableSchema,
         estimatedSize,
         uncompressedDataSize,
+        columnFilter,
+        timestamp,
         produceAllVersions);
     return session->Run();
 }

@@ -63,6 +63,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((LegacyLivePreviewSuppressed)                 (18))
     ((LowGpuUsage)                                 (19))
     ((HighQueueAverageWaitTime)                    (20))
+    ((AutoMergeDisabled)                           (21))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,

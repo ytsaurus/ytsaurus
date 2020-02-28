@@ -128,7 +128,10 @@ protected:
         return EmptyCellTags();
     }
 
-    virtual TString DoGetName(const TImpl* object) = 0;
+    virtual TString DoGetName(const TImpl* object)
+    {
+        return object->GetLowercaseObjectName();
+    }
 
     virtual IObjectProxyPtr DoGetProxy(
         TImpl* object,

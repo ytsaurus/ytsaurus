@@ -621,9 +621,19 @@ bool TRichYPath::GetPartiallySorted() const
     return GetAttribute<bool>(*this, "partially_sorted", false);
 }
 
+std::optional<int> TRichYPath::GetChunkKeyColumnCount() const
+{
+    return FindAttribute<int>(*this, "chunk_key_column_count");
+}
+
+std::optional<bool> TRichYPath::GetChunkUniqueKeys() const
+{
+    return FindAttribute<bool>(*this, "chunk_unique_keys");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const TRichYPath& path, EYsonFormat ysonFormat)
+TString ConvertToString(const TRichYPath& path, EYsonFormat ysonFormat)
 {
     const IAttributeDictionary* attributes = nullptr;
     std::unique_ptr<IAttributeDictionary> attrHolder;
@@ -653,6 +663,12 @@ TString ToString(const TRichYPath& path, EYsonFormat ysonFormat)
     }
 
     return builder.Flush();
+}
+
+TString ToString(const TRichYPath& path)
+{
+    // NB: we intentionally use Text format since string-representation of rich ypath should be readable.
+    return ConvertToString(path, EYsonFormat::Text);
 }
 
 std::vector<TRichYPath> Normalize(const std::vector<TRichYPath>& paths)
@@ -687,7 +703,7 @@ void Deserialize(TRichYPath& richPath, INodePtr node)
 
 void ToProto(TString* protoPath, const TRichYPath& path)
 {
-    *protoPath = ToString(path);
+    *protoPath = ConvertToString(path, EYsonFormat::Binary);
 }
 
 void FromProto(TRichYPath* path, const TString& protoPath)

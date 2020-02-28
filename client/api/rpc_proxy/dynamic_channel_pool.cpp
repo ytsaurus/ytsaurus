@@ -127,7 +127,8 @@ TFuture<IChannelPtr> TDynamicChannelPool::GetRandomChannel()
     for (int i = 0; i < TryCount; ++i) {
         if (Slots_[index]->SeemsBroken || !Slots_[index]->IsWarm(now)) {
             index = RandomNumber(Slots_.size());
-            continue;
+        } else {
+            break;
         }
     }
 

@@ -171,6 +171,13 @@ public:
     //! The resulting schema is validated.
     static TTableSchema FromKeyColumns(const TKeyColumns& keyColumns);
 
+    //! Returns schema with first `keyColumnCount' columns sorted in ascending order
+    //! and other columns non-sorted.
+    TTableSchema SetKeyColumnCount(int keyColumnCount) const;
+
+    //! Returns schema with `UniqueKeys' set to given value.
+    TTableSchema SetUniqueKeys(bool uniqueKeys) const;
+
     //! For sorted tables, return the current schema as-is.
     //! For ordered tables, prepends the current schema with |(tablet_index, row_index)| key columns.
     TTableSchema ToQuery() const;
@@ -308,6 +315,9 @@ namespace NProto {
 
 void ToProto(NProto::TKeyColumnsExt* protoKeyColumns, const TKeyColumns& keyColumns);
 void FromProto(TKeyColumns* keyColumns, const NProto::TKeyColumnsExt& protoKeyColumns);
+
+void ToProto(TColumnFilter* protoColumnFilter, const NTableClient::TColumnFilter& columnFilter);
+void FromProto(NTableClient::TColumnFilter* columnFilter, const TColumnFilter& protoColumnFilter);
 
 } // namespace NProto
 

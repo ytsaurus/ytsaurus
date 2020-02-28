@@ -159,6 +159,11 @@ NYson::IYsonConsumer* TSchedulerStrategyHost::GetEventLogConsumer()
     return &Writer_;
 }
 
+const NLogging::TLogger* TSchedulerStrategyHost::GetEventLogger()
+{
+    return nullptr;
+}
+
 NEventLog::TFluentLogEvent TSchedulerStrategyHost::LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
 {
     return LogEventFluently(eventType)

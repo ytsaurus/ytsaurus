@@ -20,6 +20,7 @@
 #include <yt/core/ytree/tree_visitor.h>
 
 #include <util/stream/null.h>
+#include <util/string/hex.h>
 
 namespace NYT {
 namespace {
@@ -1101,8 +1102,7 @@ TEST(TSkiffWriter, TestKeySwitch)
 
 TEST(TSkiffWriter, TestRowRangeIndex)
 {
-    auto skiffSchema = CreateTupleSchema({
-        CreateSimpleTypeSchema(EWireType::String32)->SetName("value"),
+    const auto rowAndRangeIndex = CreateTupleSchema({
         CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
             CreateSimpleTypeSchema(EWireType::Int64),
@@ -1113,70 +1113,190 @@ TEST(TSkiffWriter, TestRowRangeIndex)
         })->SetName("$row_index"),
     });
 
-    {
+    struct TRow {
+        int TableIndex;
+        std::optional<int> RangeIndex;
+        std::optional<int> RowIndex;
+    };
+    auto generateUnversionedRow = [] (const TRow& row, const TNameTablePtr& nameTable) {
+        std::vector<TUnversionedValue> values = {
+            MakeUnversionedInt64Value(row.TableIndex, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
+        };
+        if (row.RangeIndex) {
+            values.emplace_back(
+                MakeUnversionedInt64Value(*row.RangeIndex, nameTable->GetIdOrRegisterName(RangeIndexColumnName))
+            );
+        }
+        if (row.RowIndex) {
+            values.emplace_back(
+                MakeUnversionedInt64Value(*row.RowIndex, nameTable->GetIdOrRegisterName(RowIndexColumnName))
+            );
+        }
+        return MakeRow(values);
+    };
+
+    auto skiffWrite = [generateUnversionedRow] (const std::vector<TRow>& rows, const TSkiffSchemaPtr& skiffSchema) {
+        std::vector<TTableSchema> tableSchemas;
+        {
+            THashSet<int> tableIndices;
+            for (const auto& row : rows) {
+                tableIndices.insert(row.TableIndex);
+            }
+            tableSchemas.assign(tableIndices.size(), TTableSchema());
+        }
+
+
         TStringStream resultStream;
         auto nameTable = New<TNameTable>();
-        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {TTableSchema()}, 1);
+        auto writer = CreateSkiffWriter(
+            skiffSchema,
+            nameTable,
+            &resultStream,
+            tableSchemas);
 
-        // Row 0.
-        writer->Write({
-            MakeRow({
-                MakeUnversionedStringValue("zero", nameTable->GetIdOrRegisterName("value")),
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(RangeIndexColumnName)),
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(RowIndexColumnName)),
-            }).Get(),
-        });
-        // Row 1 next row.
-        writer->Write({
-            MakeRow({
-                MakeUnversionedStringValue("one", nameTable->GetIdOrRegisterName("value")),
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(RangeIndexColumnName)),
-                MakeUnversionedInt64Value(1, nameTable->GetIdOrRegisterName(RowIndexColumnName)),
-            }).Get(),
-        });
-        // Row 2 next range.
-        writer->Write({
-            MakeRow({
-                MakeUnversionedStringValue("two", nameTable->GetIdOrRegisterName("value")),
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-                MakeUnversionedInt64Value(1, nameTable->GetIdOrRegisterName(RangeIndexColumnName)),
-                MakeUnversionedInt64Value(2, nameTable->GetIdOrRegisterName(RowIndexColumnName)),
-            }).Get(),
-        });
+        for (const auto& row : rows) {
+            writer->Write({generateUnversionedRow(row, nameTable)});
+        }
         writer->Close()
             .Get()
             .ThrowOnError();
 
-        TStringInput resultInput(resultStream.Str());
-        TCheckedSkiffParser checkedSkiffParser(CreateVariant16Schema({skiffSchema}), &resultInput);
+        return HexEncode(resultStream.Str());
+    };
 
-        // row 0
-        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
-        ASSERT_EQ(checkedSkiffParser.ParseString32(), "zero");
-        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
-        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 0);
-        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
-        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 0);
+    EXPECT_STREQ(
+        skiffWrite({
+            {0, 0, 0},
+            {0, 0, 1},
+            {0, 0, 2},
+        }, rowAndRangeIndex).data(),
 
-        // row 1
-        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
-        ASSERT_EQ(checkedSkiffParser.ParseString32(), "one");
-        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
-        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
+        "0000" "01""00000000""00000000" "01""00000000""00000000"
+        "0000" "00" "00"
+        "0000" "00" "00"
+    );
 
-        // row 0
-        ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
-        ASSERT_EQ(checkedSkiffParser.ParseString32(), "two");
-        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
-        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 1);
-        ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
-        ASSERT_EQ(checkedSkiffParser.ParseInt64(), 2);
+    EXPECT_STREQ(
+        skiffWrite({
+            {0, 0, 0},
+            {0, 0, 1},
+            {0, 0, 3},
+        }, rowAndRangeIndex).data(),
 
-        ASSERT_EQ(checkedSkiffParser.HasMoreData(), false);
-        checkedSkiffParser.ValidateFinished();
-    }
+        "0000" "01""00000000""00000000" "01""00000000""00000000"
+        "0000" "00" "00"
+        "0000" "00" "01""03000000""00000000"
+    );
+
+    EXPECT_STREQ(
+        skiffWrite({
+            {0, 0, 0},
+            {0, 0, 1},
+            {0, 1, 2},
+            {0, 1, 3},
+        }, rowAndRangeIndex).data(),
+
+        "0000" "01""00000000""00000000" "01""00000000""00000000"
+        "0000" "00" "00"
+        "0000" "01""01000000""00000000" "01""02000000""00000000"
+        "0000" "00" "00"
+    );
+
+    EXPECT_THROW_WITH_SUBSTRING(skiffWrite({{0, 0, {}}}, rowAndRangeIndex), "index requested but reader did not return it");
+    EXPECT_THROW_WITH_SUBSTRING(skiffWrite({{0, {}, 0}}, rowAndRangeIndex), "index requested but reader did not return it");
+
+    const auto rowAndRangeIndexAllowMissing = CreateTupleSchema({
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Int64),
+            CreateSimpleTypeSchema(EWireType::Nothing),
+        })->SetName("$range_index"),
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Int64),
+            CreateSimpleTypeSchema(EWireType::Nothing),
+        })->SetName("$row_index"),
+    });
+
+    EXPECT_STREQ(
+        skiffWrite({
+            {0, 0, 0},
+            {0, 0, 1},
+            {0, 0, 2},
+        }, rowAndRangeIndexAllowMissing).data(),
+
+        "0000" "01""00000000""00000000" "01""00000000""00000000"
+        "0000" "00" "00"
+        "0000" "00" "00"
+    );
+
+    EXPECT_STREQ(
+        skiffWrite({
+            {0, 0, 0},
+            {0, 0, 1},
+            {0, 0, 3},
+        }, rowAndRangeIndexAllowMissing).data(),
+
+        "0000" "01""00000000""00000000" "01""00000000""00000000"
+        "0000" "00" "00"
+        "0000" "00" "01""03000000""00000000"
+    );
+
+    EXPECT_STREQ(
+        skiffWrite({
+            {0, 0, 0},
+            {0, 0, 1},
+            {0, 1, 2},
+            {0, 1, 3},
+        }, rowAndRangeIndexAllowMissing).data(),
+
+        "0000" "01""00000000""00000000" "01""00000000""00000000"
+        "0000" "00" "00"
+        "0000" "01""01000000""00000000" "01""02000000""00000000"
+        "0000" "00" "00"
+    );
+
+    EXPECT_STREQ(
+        skiffWrite({
+            {0, {}, {}},
+            {0, {}, {}},
+            {0, {}, {}},
+            {0, {}, {}},
+        }, rowAndRangeIndexAllowMissing).data(),
+
+        "0000" "02" "02"
+        "0000" "02" "02"
+        "0000" "02" "02"
+        "0000" "02" "02"
+    );
+
+    EXPECT_STREQ(
+        skiffWrite({
+            {0, {}, 0},
+            {0, {}, 1},
+            {0, {}, 3},
+            {0, {}, 4},
+        }, rowAndRangeIndexAllowMissing).data(),
+
+        "0000" "02" "01""00000000""00000000"
+        "0000" "02" "00"
+        "0000" "02" "01""03000000""00000000"
+        "0000" "02" "00"
+    );
+
+    EXPECT_STREQ(
+        skiffWrite({
+            {0, 0, {}},
+            {0, 0, {}},
+            {0, 1, {}},
+            {0, 1, {}},
+        }, rowAndRangeIndexAllowMissing).data(),
+
+        "0000" "01""00000000""00000000" "02"
+        "0000" "00" "02"
+        "0000" "01""01000000""00000000" "02"
+        "0000" "00" "02"
+    );
 }
 
 TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
@@ -1978,6 +2098,18 @@ TEST(TSkiffParser, TestBadWireTypeForSimpleColumn)
         CreateParserForSkiff(skiffSchema, &collectedRows),
         "cannot be represented with skiff schema"
     );
+}
+
+TEST(TSkiffParser, TestEmptyColumns)
+{
+    auto skiffSchema = CreateTupleSchema({});
+    TCollectingValueConsumer collectedRows;
+    auto parser = CreateParserForSkiff(skiffSchema, &collectedRows);
+
+    parser->Read(AsStringBuf("\x00\x00\x00\x00"));
+    parser->Finish();
+
+    ASSERT_EQ(collectedRows.Size(), 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

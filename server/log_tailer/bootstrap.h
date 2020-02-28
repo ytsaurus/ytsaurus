@@ -3,8 +3,12 @@
 #include "config.h"
 #include "log_rotator.h"
 
+#include <yt/ytlib/monitoring/public.h>
+
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
+
+#include <yt/core/http/public.h>
 
 namespace NYT::NLogTailer {
 
@@ -15,7 +19,9 @@ class TBootstrap
 public:
     static constexpr int InterruptionExitCode = 0;
 
-    TBootstrap(TLogTailerBootstrapConfigPtr config);
+    TBootstrap(
+        TLogTailerBootstrapConfigPtr config,
+        ui16 monitoringPort);
 
     void Run();
 
@@ -27,7 +33,7 @@ public:
 
     const TLogTailerPtr& GetLogTailer() const;
 
-    void Terminate();
+    void Terminate(int exitCode = 0);
 
 private:
     TLogTailerBootstrapConfigPtr Config_;
@@ -37,7 +43,15 @@ private:
 
     NConcurrency::TActionQueuePtr LogTailerQueue_;
 
+    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+
+    NYTree::IMapNodePtr OrchidRoot_;
+
+    NHttp::IServerPtr HttpServer_;
+
     TLogTailerPtr LogTailer_;
+
+    ui16 MonitoringPort_;
 
     std::atomic<int> SigintCounter_ = {0};
 

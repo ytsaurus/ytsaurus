@@ -15,6 +15,10 @@ TEST(TFSTest, GetRealPath)
     EXPECT_EQ(CombinePaths(cwd, "dir"), GetRealPath("dir"));
     EXPECT_EQ(cwd, GetRealPath("dir/.."));
     EXPECT_EQ(CombinePaths(cwd, "dir"), GetRealPath("dir/./a/b/../../."));
+    EXPECT_EQ(GetRealPath("/a"), "/a");
+    EXPECT_EQ(GetRealPath("/a/b"), "/a/b");
+    EXPECT_EQ(GetRealPath("/a/b/c/.././../d/."), "/a/d");
+
 }
 
 TEST(TFSTest, IsPathRelativeAndInvolvesNoTraversal)
@@ -40,6 +44,19 @@ TEST(TFSTest, IsPathRelativeAndInvolvesNoTraversal)
     EXPECT_FALSE(NFS::IsPathRelativeAndInvolvesNoTraversal("../some"));
     EXPECT_FALSE(NFS::IsPathRelativeAndInvolvesNoTraversal("a/../.."));
     EXPECT_FALSE(NFS::IsPathRelativeAndInvolvesNoTraversal("a/../../b"));
+}
+
+TEST(TFSTest, TestGetRelativePath)
+{
+    EXPECT_EQ(GetRelativePath("/a", "/a/b"), "b");
+    EXPECT_EQ(GetRelativePath("/a/b", "/a"), "..");
+    EXPECT_EQ(GetRelativePath("/a/b/c", "/d/e"), "../../../d/e");
+    EXPECT_EQ(GetRelativePath("/a/b/c/d", "/a/b"), "../..");
+    EXPECT_EQ(GetRelativePath("/a/b/c/d/e", "/a/b/c/f/g/h"), "../../f/g/h");
+    EXPECT_EQ(GetRelativePath("a/b/c", "d/e"), "../../../d/e");
+    EXPECT_EQ(GetRelativePath("/a/b", "/a/b"), ".");
+
+    EXPECT_EQ(GetRelativePath(CombinePaths(NFs::CurrentWorkingDirectory(), "dir")), "dir");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

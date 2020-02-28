@@ -447,7 +447,7 @@ void TBootstrap::DoInitialize()
 
     auto localAddress = GetDefaultAddress(localRpcAddresses);
 
-    {
+    if (ConvertTo<EJobEnvironmentType>(Config_->ExecAgent->SlotManager->JobEnvironment->AsMap()->FindChild("type")) == EJobEnvironmentType::Porto) {
         auto* resolver = TAddressResolver::Get();
         ResolvedNodeAddresses_.reserve(Config_->Addresses.size());
         for (const auto& [addressName, address] : Config_->Addresses) {

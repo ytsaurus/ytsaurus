@@ -19,11 +19,43 @@ struct TChunkReaderMemoryManagerOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkReaderMemoryManager
+//! This interface is used by MultiReaderMemoryManager to track children memory managers.
+class IReaderMemoryManager
     : public TRefCounted
 {
 public:
-    explicit TChunkReaderMemoryManager(TChunkReaderMemoryManagerOptions options);
+    //! Minimum amount of memory required by reader to perform reads.
+    virtual i64 GetRequiredMemorySize() const = 0;
+
+    //! Desired amount of memory, enabling reader to do prefetch.
+    virtual i64 GetDesiredMemorySize() const = 0;
+
+    //! Amount of memory already reserved for this reader.
+    virtual i64 GetReservedMemorySize() const = 0;
+
+    //! Change reserved amount of memory reserved for this reader.
+    virtual void SetReservedMemorySize(i64 size) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IReaderMemoryManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkReaderMemoryManager
+    : public IReaderMemoryManager
+{
+public:
+    explicit TChunkReaderMemoryManager(
+        TChunkReaderMemoryManagerOptions options,
+        TWeakPtr<IReaderMemoryManagerHost> hostMemoryManager = nullptr);
+
+    virtual i64 GetRequiredMemorySize() const override;
+
+    virtual i64 GetDesiredMemorySize() const override;
+
+    virtual i64 GetReservedMemorySize() const override;
+
+    virtual void SetReservedMemorySize(i64 size) override;
 
     //! Always succeeds, possibly with overcommit.
     TMemoryUsageGuardPtr Acquire(i64 size);
@@ -33,27 +65,46 @@ public:
 
     void Release(i64 size);
 
+    void TryUnregister();
+
     //! Returns amount of memory that is possible to acquire now.
     i64 GetAvailableSize() const;
 
     //! Set total size of blocks we are going to read. Called by block fetcher.
-    //! Does nothing for now.
     void SetTotalSize(i64 size);
 
     //! Sets minimal required memory size by chunk reader.
-    //! Does nothing for now.
     void SetRequiredMemorySize(i64 size);
 
+    void SetPrefetchMemorySize(i64 size);
+
     //! Called by fetcher when all blocks were fetched.
-    //! Does nothing for now.
     void Finalize();
 
 private:
     void OnSemaphoreAcquired(TPromise<TMemoryUsageGuardPtr> promise, NConcurrency::TAsyncSemaphoreGuard semaphoreGuard);
 
+    void OnMemoryRequirementsUpdated();
+
+    void DoUnregister();
+
+    i64 GetUsedMemorySize() const;
+
     TChunkReaderMemoryManagerOptions Options_;
 
+    std::atomic<i64> ReservedMemorySize_ = {0};
+    std::atomic<i64> PrefetchMemorySize_ = {0};
+    std::atomic<i64> RequiredMemorySize_ = {0};
+
+    constexpr static i64 TotalMemorySizeUnknown = -1;
+    std::atomic<i64> TotalMemorySize_ = {TotalMemorySizeUnknown};
+
+    std::atomic<bool> Finalized_ = {false};
+    std::atomic_flag Unregistered_ = ATOMIC_FLAG_INIT;
+
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
+
+    TWeakPtr<IReaderMemoryManagerHost> HostMemoryManager_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderMemoryManager)
@@ -65,9 +116,14 @@ struct TMemoryUsageGuard
 {
     TMemoryUsageGuard() = default;
 
-    TMemoryUsageGuard(NConcurrency::TAsyncSemaphoreGuard guard);
+    TMemoryUsageGuard(
+        NConcurrency::TAsyncSemaphoreGuard guard,
+        TWeakPtr<TChunkReaderMemoryManager> memoryManager);
+
+    ~TMemoryUsageGuard();
 
     NConcurrency::TAsyncSemaphoreGuard Guard;
+    TWeakPtr<TChunkReaderMemoryManager> MemoryManager;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryUsageGuard)

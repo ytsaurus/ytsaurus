@@ -46,6 +46,16 @@ int TObject::IncrementLifeStageVoteCount()
     return ++LifeStageVoteCount_;
 }
 
+TString TObject::GetLowercaseObjectName() const
+{
+    return Format("object %v", Id_);
+}
+
+TString TObject::GetCapitalizedObjectName() const
+{
+    return Format("Object %v", Id_);
+}
+
 const TAttributeSet* TObject::GetAttributes() const
 {
     return Attributes_.get();
@@ -106,18 +116,13 @@ void TObject::Load(NCellMaster::TLoadContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString TNonversionedObjectBase::GetObjectName() const
-{
-    return Format("Object %v", Id_);
-}
-
 void TNonversionedObjectBase::ValidateActiveLifeStage() const
 {
     if (LifeStage_ != EObjectLifeStage::CreationCommitted && !NHiveServer::IsHiveMutation()) {
         THROW_ERROR_EXCEPTION(
             NObjectClient::EErrorCode::InvalidObjectLifeStage,
             "%v cannot be used since it is in %Qlv life stage",
-            GetObjectName(),
+            GetCapitalizedObjectName(),
             LifeStage_);
     }
 }

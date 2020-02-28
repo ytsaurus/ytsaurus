@@ -59,11 +59,6 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual TString DoGetName(const TDataCenter* dc) override
-    {
-        return Format("DC %Qv", dc->GetName());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TDataCenter* dc, TTransaction* /*transaction*/) override
     {
         return CreateDataCenterProxy(Bootstrap_, &Metadata_, dc);

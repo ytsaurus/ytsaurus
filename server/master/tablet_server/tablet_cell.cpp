@@ -27,6 +27,16 @@ TTabletCell::TTabletCell(TTabletCellId id)
     : TCellBase(id)
 { }
 
+TString TTabletCell::GetLowercaseObjectName() const
+{
+    return Format("tablet cell %v", GetId());
+}
+
+TString TTabletCell::GetCapitalizedObjectName() const
+{
+    return Format("Tablet cell %v", GetId());
+}
+
 void TTabletCell::Save(TSaveContext& context) const
 {
     TCellBase::Save(context);

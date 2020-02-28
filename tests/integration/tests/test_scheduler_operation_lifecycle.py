@@ -14,6 +14,7 @@ from distutils.spawn import find_executable
 import pytest
 from flaky import flaky
 
+import shutil
 import time
 import subprocess
 from datetime import datetime, timedelta
@@ -685,7 +686,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             with_tags={"pool": "unique_pool"},
             aggr_method="max")
         min_share_resources_memory_max = Metric.at_scheduler(
-            metric_prefix + "min_share_resources/memory",
+            metric_prefix + "min_share_resources/user_memory",
             with_tags={"pool": "unique_pool"},
             aggr_method="max")
         min_share_resources_user_slots_max = Metric.at_scheduler(
@@ -978,7 +979,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         "controller_agent": {
             "operation_time_limit_check_period": 100,
             "operation_controller_fail_timeout": 3000,
-            "operations_job_metrics_push_period": 1000000000,
+            "operation_job_metrics_push_period": 1000000000,
             "job_metrics_report_period": 100,
             "custom_job_metrics": [
                 {
@@ -1029,7 +1030,11 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
             "scheduler/pools/metrics/metric_completed",
             with_tags={"pool": "unique_pool"})
 
-        map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
+        # TODO(eshcherbin): This is used for flap diagnostics. Remove when the test is fixed.
+        print_debug("metric_completed_delta.start_time:", metric_completed_delta.start_time)
+
+        testing_options = {"log_residual_custom_job_metrics_on_termination": True}
+        map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool", "testing": testing_options})
 
         wait(lambda: metric_completed_delta.update().get(verbose=True) == 117)
 
@@ -1046,12 +1051,38 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
             "scheduler/pools/metrics/metric_failed",
             with_tags={"pool": "unique_pool"})
 
+        # TODO(eshcherbin): This is used for flap diagnostics. Remove when the test is fixed.
+        print_debug("metric_failed_delta.start_time:", metric_failed_delta.start_time)
+
+        testing_options = {"log_residual_custom_job_metrics_on_termination": True}
         op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out",
-                 spec={"max_failed_job_count": 1, "pool": "unique_pool"}, track=False)
+                 spec={"max_failed_job_count": 1, "pool": "unique_pool", "testing": testing_options}, track=False)
         op.track(raise_on_failed=False)
 
         wait(lambda: metric_failed_delta.update().get(verbose=True) == 225)
 
+
+class TestSchedulerProfilingOnOperationFinishedWrongOption(TestSchedulerProfilingOnOperationFinished):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operation_time_limit_check_period": 100,
+            "operation_controller_fail_timeout": 3000,
+            "operations_job_metrics_push_period": 1000000000,
+            "job_metrics_report_period": 100,
+            "custom_job_metrics": [
+                {
+                    "statistics_path": "/custom/value_completed",
+                    "profiling_name": "metric_completed",
+                    "aggregate_type": "sum",
+                },
+                {
+                    "statistics_path": "/custom/value_failed",
+                    "profiling_name": "metric_failed",
+                    "aggregate_type": "sum",
+                },
+            ]
+        }
+    }
 
 ##################################################################
 
@@ -1152,6 +1183,11 @@ class TestSafeAssertionsMode(YTEnvSetup):
             "enable_controller_failure_spec_option": True,
         },
     }
+
+    @classmethod
+    def teardown_class(cls):
+        shutil.rmtree(cls.core_path)
+        super(TestSafeAssertionsMode, cls).teardown_class()
 
     @classmethod
     def modify_controller_agent_config(cls, config):

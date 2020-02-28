@@ -16,6 +16,7 @@
 #include <yt/core/misc/small_vector.h>
 
 #include <atomic>
+#include <type_traits>
 
 namespace NYT {
 
@@ -192,6 +193,7 @@ public:
     }
 
     bool TimedWait(TDuration timeout) const;
+    bool TimedWait(TInstant deadline) const;
 
 protected:
     //! Number of promises.
@@ -911,6 +913,13 @@ bool TFutureBase<T>::TimedWait(TDuration timeout) const
 }
 
 template <class T>
+bool TFutureBase<T>::TimedWait(TInstant deadline) const
+{
+    YT_ASSERT(Impl_);
+    return Impl_->TimedWait(deadline);
+}
+
+template <class T>
 std::optional<TErrorOr<T>> TFutureBase<T>::TryGet() const
 {
     YT_ASSERT(Impl_);
@@ -1521,19 +1530,23 @@ TFuture<T>* TFutureHolder<T>::operator->() // noexcept
 namespace NDetail {
 
 template <class T>
-class TFutureCombinerVectorResultHolder
+class TFutureCombinerResultHolder
 {
 public:
     using TResult = std::vector<T>;
 
-public:
-    explicit TFutureCombinerVectorResultHolder(int size)
+    explicit TFutureCombinerResultHolder(int size)
         : Result_(size)
     { }
 
-    void SetItem(int index, const TErrorOr<T>& value)
+    bool SetResult(int index, const TErrorOr<T>& errorOrValue)
     {
-        Result_[index] = value.Value();
+        if (errorOrValue.IsOK()) {
+            Result_[index] = errorOrValue.Value();
+            return true;
+        } else {
+            return false;
+        }
     }
 
     void SetPromise(const TPromise<TResult>& promise)
@@ -1543,21 +1556,46 @@ public:
 
 private:
     TResult Result_;
+};
 
+template <class T>
+class TFutureCombinerResultHolder<TErrorOr<T>>
+{
+public:
+    using TResult = std::vector<TErrorOr<T>>;
+
+    explicit TFutureCombinerResultHolder(int size)
+        : Result_(size)
+    { }
+
+    bool SetResult(int index, const TErrorOr<T>& errorOrValue)
+    {
+        Result_[index] = errorOrValue;
+        return true;
+    }
+
+    void SetPromise(const TPromise<TResult>& promise)
+    {
+        promise.TrySet(std::move(Result_));
+    }
+
+private:
+    TResult Result_;
 };
 
 template <>
-class TFutureCombinerVectorResultHolder<void>
+class TFutureCombinerResultHolder<void>
 {
 public:
     using TResult = void;
 
-public:
-    explicit TFutureCombinerVectorResultHolder(int /*size*/)
+    explicit TFutureCombinerResultHolder(int /*size*/)
     { }
 
-    void SetItem(int /*index*/, const TError& /*value*/)
-    { }
+    bool SetResult(int /*index*/, const TError& error)
+    {
+        return error.IsOK();
+    }
 
     void SetPromise(const TPromise<TResult>& promise)
     {
@@ -1565,222 +1603,355 @@ public:
     }
 };
 
-template <class K, class T>
-class TFutureCombinerHashMapResultHolder
-{
-public:
-    using TResult = THashMap<K, T>;
-
-public:
-    TFutureCombinerHashMapResultHolder(std::vector<K> keys)
-        : Keys_(std::move(keys))
-    { }
-
-    void SetItem(int index, const TErrorOr<T>& value)
-    {
-        Result_.emplace(Keys_[index], value.Value());
-    }
-
-    void SetPromise(const TPromise<TResult>& promise)
-    {
-        promise.TrySet(std::move(Result_));
-    }
-
-private:
-    const std::vector<K> Keys_;
-    TResult Result_;
-};
-
-template <class K>
-class TFutureCombinerHashMapResultHolder<K, void>
-{
-public:
-    using TResult = void;
-
-public:
-    TFutureCombinerHashMapResultHolder(std::vector<K> /*keys*/)
-    { }
-
-    void SetItem(int /*index*/, const TError& /*value*/)
-    { }
-
-    void SetPromise(const TPromise<TResult>& promise)
-    {
-        promise.TrySet();
-    }
-};
-
-template <class TItem, class TResult>
-class TFutureCombinerBase
+template <class T>
+class TAnyOfFutureCombiner
     : public TRefCounted
 {
 public:
-    explicit TFutureCombinerBase(std::vector<TFuture<TItem>> futures)
+    explicit TAnyOfFutureCombiner(
+        std::vector<TFuture<T>> futures,
+        bool skipErrors,
+        TFutureCombinerOptions options)
         : Futures_(std::move(futures))
+        , SkipErrors_(skipErrors)
+        , Options_(options)
     { }
 
-    TFuture<TResult> Run()
+    TFuture<T> Run()
     {
-        if (ShouldCompletePrematurely()) {
-            SetPromisePrematurely(Promise_);
-        } else {
-            for (size_t index = 0; index < Futures_.size(); ++index) {
-                Futures_[index].Subscribe(BIND(&TFutureCombinerBase::OnFutureSet, MakeStrong(this), index));
-            }
-            Promise_.OnCanceled(BIND(&TFutureCombinerBase::CancelFutures, MakeWeak(this)));
+        if (this->Futures_.empty()) {
+            return MakeFuture<T>(TError(
+                NYT::EErrorCode::FutureCombinerFailure,
+                "Any-of combiner failure: empty input"));
         }
+
+        for (const auto& future : Futures_) {
+            future.Subscribe(BIND(&TAnyOfFutureCombiner::OnFutureSet, MakeStrong(this)));
+        }
+
+        if (Options_.PropagateCancelationToInput) {
+            Promise_.OnCanceled(BIND(&TAnyOfFutureCombiner::OnCanceled, MakeWeak(this)));
+        }
+
         return Promise_;
     }
 
-protected:
-    std::vector<TFuture<TItem>> Futures_;
-    TPromise<TResult> Promise_ = NewPromise<TResult>();
-    std::atomic_flag Canceled_ = ATOMIC_FLAG_INIT;
+private:
+    const std::vector<TFuture<T>> Futures_;
+    const bool SkipErrors_;
+    const TFutureCombinerOptions Options_;
+    const TPromise<T> Promise_ = NewPromise<T>();
+
+    std::atomic_flag FuturesCanceled_ = ATOMIC_FLAG_INIT;
+
+    TSpinLock ErrorsLock_;
+    std::vector<TError> Errors_;
 
     void CancelFutures(const TError& error)
     {
-        if (Canceled_.test_and_set()) {
+        for (const auto& future : Futures_) {
+            future.Cancel(error);
+        }
+    }
+
+    void OnFutureSet(const TErrorOr<T>& result)
+    {
+        if (SkipErrors_ && !result.IsOK()) {
+            RegisterError(result);
             return;
         }
-        for (size_t index = 0; index < Futures_.size(); ++index) {
-            Futures_[index].Cancel(error);
+
+        Promise_.TrySet(result);
+
+        if (Options_.CancelInputOnShortcut && Futures_.size() > 1 && !FuturesCanceled_.test_and_set()) {
+            CancelFutures(TError(
+                NYT::EErrorCode::FutureCombinerShortcut,
+                "Any-of combiner shortcut: some response received"));
         }
     }
 
-    virtual void OnFutureSet(int futureIndex, const TErrorOr<TItem>& result) = 0;
-    virtual bool ShouldCompletePrematurely() = 0;
-
-private:
-    template <class T>
-    static void SetPromisePrematurely(const TPromise<T>& promise)
+    void OnCanceled(const TError& error)
     {
-        promise.Set(T());
+        if (!FuturesCanceled_.test_and_set()) {
+            CancelFutures(error);
+        }
     }
 
-    static void SetPromisePrematurely(const TPromise<void>& promise)
+    void RegisterError(const TError& error)
     {
-        promise.Set();
+        auto guard = Guard(ErrorsLock_);
+
+        Errors_.push_back(error);
+
+        if (Errors_.size() < Futures_.size()) {
+            return;
+        }
+
+        auto combinerError = TError(
+            NYT::EErrorCode::FutureCombinerFailure,
+            "Any-of combiner failure: all responses have failed")
+            << Errors_;
+
+        guard.Release();
+
+        Promise_.TrySet(combinerError);
     }
 };
 
 template <class T, class TResultHolder>
-class TFutureCombiner
-    : public TFutureCombinerBase<T, typename TResultHolder::TResult>
+class TFutureCombinerBase
+    : public TRefCounted
 {
 public:
-    template <typename... Args>
-    TFutureCombiner(std::vector<TFuture<T>> futures, Args... args)
-        : TFutureCombinerBase<T, typename TResultHolder::TResult>(std::move(futures))
-        , ResultHolder_(args...)
-        , PendingResponseCount_(this->Futures_.size())
+    TFutureCombinerBase(std::vector<TFuture<T>> futures, TFutureCombinerOptions options)
+        : Futures_(std::move(futures))
+        , Options_(options)
+        , ResultHolder_(Futures_.size())
     { }
 
-private:
+    TFutureCombinerBase(std::vector<TFuture<T>> futures, int n, TFutureCombinerOptions options)
+        : Futures_(std::move(futures))
+        , Options_(options)
+        , ResultHolder_(n)
+    { }
+
+protected:
+    const std::vector<TFuture<T>> Futures_;
+    const TFutureCombinerOptions Options_;
+    const TPromise<typename TResultHolder::TResult> Promise_ = NewPromise<typename TResultHolder::TResult>();
+
+    std::atomic_flag FuturesCanceled_ = ATOMIC_FLAG_INIT;
+
     TResultHolder ResultHolder_;
-    std::atomic<int> PendingResponseCount_;
 
-    virtual void OnFutureSet(int futureIndex, const TErrorOr<T>& result) override
+    TFuture<typename TResultHolder::TResult> DoRun()
     {
-        if (!result.IsOK()) {
-            TError error(result);
-            this->Promise_.TrySet(error);
-            this->CancelFutures(error);
-            return;
+        for (int index = 0; index < static_cast<int>(Futures_.size()); ++index) {
+            Futures_[index].Subscribe(BIND(&TFutureCombinerBase::OnFutureSet, MakeStrong(this), index));
         }
 
-        ResultHolder_.SetItem(futureIndex, result);
+        if (Options_.PropagateCancelationToInput) {
+            Promise_.OnCanceled(BIND(&TFutureCombinerBase::OnCanceled, MakeWeak(this)));
+        }
 
-        if (--PendingResponseCount_ == 0) {
-            ResultHolder_.SetPromise(this->Promise_);
+        return Promise_;
+    }
+
+    void CancelFutures(const TError& error)
+    {
+        for (const auto& future : Futures_) {
+            future.Cancel(error);
         }
     }
 
-    virtual bool ShouldCompletePrematurely() override
+    virtual void OnFutureSet(int index, const TErrorOr<T>& result) = 0;
+
+    void OnCanceled(const TError& error)
     {
-        return this->Futures_.empty();
-    }
-};
-
-template <class T>
-class TQuorumFutureCombiner
-    : public TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombinedVector>
-{
-public:
-    TQuorumFutureCombiner(std::vector<TFuture<T>> futures, int quorum)
-        : TFutureCombinerBase<T, typename TFutureCombineTraits<T>::TCombinedVector>(std::move(futures))
-        , Quorum_(quorum)
-        , ResultHolder_(quorum)
-        , PendingResponseCount_(quorum)
-    { }
-
-private:
-    const int Quorum_;
-
-    TFutureCombinerVectorResultHolder<T> ResultHolder_;
-    std::atomic<int> PendingResponseCount_;
-    std::atomic<int> CurrentResponseIndex_ = {0};
-
-
-    virtual void OnFutureSet(int /*futureIndex*/, const TErrorOr<T>& result) override
-    {
-        if (!result.IsOK()) {
-            TError error(result);
-            this->Promise_.TrySet(error);
-            this->CancelFutures(error);
-            return;
+        if (!FuturesCanceled_.test_and_set()) {
+            CancelFutures(error);
         }
-
-        int responseIndex = CurrentResponseIndex_++;
-        if (responseIndex < Quorum_) {
-            ResultHolder_.SetItem(responseIndex, result);
-        }
-
-        if (--PendingResponseCount_ == 0) {
-            ResultHolder_.SetPromise(this->Promise_);
-        }
-    }
-
-    virtual bool ShouldCompletePrematurely() override
-    {
-        return this->Futures_.empty() || Quorum_ == 0;
     }
 };
 
-template <class T>
-class TAllFutureCombiner
-    : public TFutureCombinerBase<T, std::vector<TErrorOr<T>>>
+template <class T, class TResultHolder>
+class TAllOfFutureCombiner
+    : public TFutureCombinerBase<T, TResultHolder>
 {
 public:
-    explicit TAllFutureCombiner(std::vector<TFuture<T>> futures)
-        : TFutureCombinerBase<T, std::vector<TErrorOr<T>>>(std::move(futures))
-        , Results_(this->Futures_.size())
-        , PendingResponseCount_(this->Futures_.size())
+    TAllOfFutureCombiner(
+        std::vector<TFuture<T>> futures,
+        TFutureCombinerOptions options)
+        : TFutureCombinerBase<T, TResultHolder>(std::move(futures), options)
     { }
 
-private:
-    std::vector<TErrorOr<T>> Results_;
-    std::atomic<int> PendingResponseCount_;
-
-
-    virtual void OnFutureSet(int futureIndex, const TErrorOr<T>& result) override
+    TFuture<typename TResultHolder::TResult> Run()
     {
-        Results_[futureIndex] = result;
-        if (--PendingResponseCount_ == 0) {
-            this->Promise_.Set(std::move(Results_));
+        if (this->Futures_.empty()) {
+            return MakeFuture<typename TResultHolder::TResult>({});
+        }
+
+        return this->DoRun();
+    }
+
+private:
+    std::atomic<int> ResponseCount_ = 0;
+
+    virtual void OnFutureSet(int index, const TErrorOr<T>& result) override
+    {
+        if (!this->ResultHolder_.SetResult(index, result)) {
+            TError error(result);
+            this->Promise_.TrySet(error);
+
+            if (this->Options_.CancelInputOnShortcut && this->Futures_.size() > 1 && !this->FuturesCanceled_.test_and_set()) {
+                this->CancelFutures(TError(
+                    NYT::EErrorCode::FutureCombinerShortcut,
+                    "All-of combiner shortcut: some response failed")
+                    << error);
+            }
+
+            return;
+        }
+
+        if (++ResponseCount_ == static_cast<int>(this->Futures_.size())) {
+            this->ResultHolder_.SetPromise(this->Promise_);
+        }
+    }
+};
+
+template <class T, class TResultHolder>
+class TAnyNOfFutureCombiner
+    : public TFutureCombinerBase<T, TResultHolder>
+{
+public:
+    TAnyNOfFutureCombiner(
+        std::vector<TFuture<T>> futures,
+        int n,
+        bool skipErrors,
+        TFutureCombinerOptions options)
+        : TFutureCombinerBase<T, TResultHolder>(std::move(futures), n, options)
+        , N_(n)
+        , SkipErrors_(skipErrors)
+    {
+        YT_VERIFY(N_ >= 0);
+    }
+
+    TFuture<typename TResultHolder::TResult> Run()
+    {
+        if (N_ == 0) {
+            if (this->Options_.CancelInputOnShortcut && !this->Futures_.empty()) {
+                this->CancelFutures(TError(
+                    NYT::EErrorCode::FutureCombinerShortcut,
+                    "Any-N-of combiner shortcut: no responses needed"));
+            }
+
+            return MakeFuture<typename TResultHolder::TResult>({});
+        }
+
+        if (static_cast<int>(this->Futures_.size()) < N_) {
+            if (this->Options_.CancelInputOnShortcut) {
+                this->CancelFutures(TError(
+                    NYT::EErrorCode::FutureCombinerShortcut,
+                    "Any-N-of combiner shortcut: too few inputs given"));
+            }
+
+            return MakeFuture<typename TResultHolder::TResult>(TError(
+                NYT::EErrorCode::FutureCombinerFailure,
+                "Any-N-of combiner failure: %v responses needed, %v inputs given",
+                N_,
+                this->Futures_.size()));
+        }
+
+        return this->DoRun();
+    }
+
+private:
+    const int N_;
+    const bool SkipErrors_;
+
+    std::atomic<int> ResponseCount_ = 0;
+
+    TSpinLock ErrorsLock_;
+    std::vector<TError> Errors_;
+
+    virtual void OnFutureSet(int /*index*/, const TErrorOr<T>& result) override
+    {
+        if (SkipErrors_ && !result.IsOK()) {
+            RegisterError(result);
+            return;
+        }
+
+        int responseIndex = ResponseCount_++;
+        if (responseIndex >= N_) {
+            return;
+        }
+
+        if (!this->ResultHolder_.SetResult(responseIndex, result)) {
+            TError error(result);
+            this->Promise_.TrySet(error);
+
+            if (this->Options_.CancelInputOnShortcut && this->Futures_.size() > 1) {
+                this->CancelFutures(TError(
+                    NYT::EErrorCode::FutureCombinerShortcut,
+                    "Any-N-of combiner shortcut: some input failed"));
+            }
+            return;
+        }
+
+        if (responseIndex == N_ - 1) {
+            this->ResultHolder_.SetPromise(this->Promise_);
+
+            if (this->Options_.CancelInputOnShortcut && responseIndex < static_cast<int>(this->Futures_.size()) - 1) {
+                this->CancelFutures(TError(
+                    NYT::EErrorCode::FutureCombinerShortcut,
+                    "Any-N-of combiner shortcut: enough responses received"));
+            }
         }
     }
 
-    virtual bool ShouldCompletePrematurely() override
+    void RegisterError(const TError& error)
     {
-        return this->Futures_.empty();
+        auto guard = Guard(ErrorsLock_);
+
+        Errors_.push_back(error);
+
+        auto totalCount = static_cast<int>(this->Futures_.size());
+        auto failedCount = static_cast<int>(Errors_.size());
+        if (totalCount - failedCount >= N_) {
+            return;
+        }
+
+        auto combinerError = TError(
+            NYT::EErrorCode::FutureCombinerFailure,
+            "Any-N-of combiner failure: %v responses needed, %v failed, %v inputs given",
+            N_,
+            failedCount,
+            totalCount)
+            << Errors_;
+
+        guard.Release();
+
+        this->Promise_.TrySet(combinerError);
+
+        if (this->Options_.CancelInputOnShortcut) {
+            this->CancelFutures(TError(
+                NYT::EErrorCode::FutureCombinerShortcut,
+                "Any-N-of combiner shortcut: one of responses failed")
+                << error);
+        }
     }
 };
 
 } // namespace NDetail
 
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
-    std::vector<TFuture<T>> futures)
+TFuture<T> AnyOf(
+    std::vector<TFuture<T>> futures,
+    TSkipErrorPolicy /*errorPolicy*/,
+    TFutureCombinerOptions options)
+{
+    if (futures.size() == 1) {
+        return std::move(futures[0]);
+    }
+    return New<NDetail::TAnyOfFutureCombiner<T>>(std::move(futures), true, options)
+        ->Run();
+}
+
+template <class T>
+TFuture<T> AnyOf(
+    std::vector<TFuture<T>> futures,
+    TRetainErrorPolicy /*errorPolicy*/,
+    TFutureCombinerOptions options)
+{
+    return New<NDetail::TAnyOfFutureCombiner<T>>(std::move(futures), false, options)
+        ->Run();
+}
+
+template <class T>
+TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AllOf(
+    std::vector<TFuture<T>> futures,
+    TPropagateErrorPolicy /*errorPolicy*/,
+    TFutureCombinerOptions options)
 {
     auto size = futures.size();
     if constexpr(std::is_same_v<T, void>) {
@@ -1791,66 +1962,71 @@ TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
             return std::move(futures[0]);
         }
     }
-    return New<NDetail::TFutureCombiner<T, NDetail::TFutureCombinerVectorResultHolder<T>>>(std::move(futures), size)
+    using TResultHolder = NDetail::TFutureCombinerResultHolder<T>;
+    return New<NDetail::TAllOfFutureCombiner<T, TResultHolder>>(std::move(futures), options)
         ->Run();
 }
 
-template <class K, class T>
-TFuture<typename TFutureCombineTraits<T>::template TCombinedHashMap<K>> Combine(
-    const THashMap<K, TFuture<T>>& futures)
+template <class T>
+TFuture<std::vector<TErrorOr<T>>> AllOf(
+    std::vector<TFuture<T>> futures,
+    TRetainErrorPolicy /*errorPolicy*/,
+    TFutureCombinerOptions options)
+{
+    using TResultHolder = NDetail::TFutureCombinerResultHolder<TErrorOr<T>>;
+    return New<NDetail::TAllOfFutureCombiner<T, TResultHolder>>(std::move(futures), options)
+        ->Run();
+}
+
+template <class T>
+TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AnyNOf(
+    std::vector<TFuture<T>> futures,
+    int n,
+    TSkipErrorPolicy /*errorPolicy*/,
+    TFutureCombinerOptions options)
 {
     auto size = futures.size();
     if constexpr(std::is_same_v<T, void>) {
-        if (size == 0) {
-            return VoidFuture;
-        }
-        if (size == 1) {
-            return THashMap<K, TFuture<void>>{*futures.begin()};
+        if (size == 1 && n == 1) {
+            return std::move(futures[0]);
         }
     }
-
-    std::vector<K> keys;
-    keys.reserve(size);
-    std::vector<TFuture<T>> values;
-    values.reserve(size);
-
-    for (const auto& item : futures) {
-        keys.emplace_back(item.first);
-        values.emplace_back(item.second);
-    }
-
-    return New<NDetail::TFutureCombiner<T, NDetail::TFutureCombinerHashMapResultHolder<K,T>>>(std::move(values), std::move(keys))
+    using TResultHolder = NDetail::TFutureCombinerResultHolder<T>;
+    return New<NDetail::TAnyNOfFutureCombiner<T, TResultHolder>>(std::move(futures), n, true, options)
         ->Run();
 }
 
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombinedVector> CombineQuorum(
+TFuture<std::vector<TErrorOr<T>>> AnyNOf(
     std::vector<TFuture<T>> futures,
-    int quorum)
+    int n,
+    TRetainErrorPolicy /*errorPolicy*/,
+    TFutureCombinerOptions options)
 {
-    YT_VERIFY(quorum >= 0);
-    return New<NDetail::TQuorumFutureCombiner<T>>(std::move(futures), quorum)
+    using TResultHolder = NDetail::TFutureCombinerResultHolder<TErrorOr<T>>;
+    return New<NDetail::TAnyNOfFutureCombiner<T, TResultHolder>>(std::move(futures), n, false, options)
         ->Run();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// COMPAT(babenko)
+
 template <class T>
-TFuture<typename TFutureCombineTraits<T>::TCombinedVector> Combine(
-    std::vector<TFutureHolder<T>> holders)
+TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> Combine(std::vector<TFuture<T>> futures)
 {
-    std::vector<TFuture<T>> futures;
-    futures.reserve(holders.size());
-    for (auto& holder : holders) {
-        futures.push_back(holder.Get());
-    }
-    return Combine(std::move(futures));
+    return AllOf(std::move(futures));
 }
 
 template <class T>
-TFuture<std::vector<TErrorOr<T>>> CombineAll(
-    std::vector<TFuture<T>> futures)
+TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> CombineQuorum(std::vector<TFuture<T>> futures, int quorum)
 {
-    return New<NDetail::TAllFutureCombiner<T>>(std::move(futures))
-        ->Run();
+    return AnyNOf(std::move(futures), quorum);
+}
+
+template <class T>
+TFuture<std::vector<TErrorOr<T>>> CombineAll(std::vector<TFuture<T>> futures)
+{
+    return AllOf(std::move(futures), TRetainErrorPolicy{});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1886,11 +2062,11 @@ public:
 private:
     const std::vector<TCallback<TFuture<T>()>> Callbacks_;
     const int ConcurrencyLimit_;
+    const TPromise<std::vector<TErrorOr<T>>> Promise_ = NewPromise<std::vector<TErrorOr<T>>>();
 
     std::vector<TErrorOr<T>> Results_;
-    TPromise<std::vector<TErrorOr<T>>> Promise_ = NewPromise<std::vector<TErrorOr<T>>>();
     std::atomic<int> CurrentIndex_;
-    std::atomic<int> FinishedCount_ = {0};
+    std::atomic<int> FinishedCount_ = 0;
 
 
     void RunCallback(int index)

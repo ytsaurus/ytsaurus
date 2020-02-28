@@ -208,11 +208,8 @@ void ScanOpHelper(
         }
 
         statistics->RowsRead += rows.size();
-        for (const auto& row : rows) {
-            statistics->BytesRead += GetDataWeight(row);
-        }
-
         for (auto row : rows) {
+            statistics->DataWeightRead += GetDataWeight(row);
             values.push_back(row.Begin());
         }
 

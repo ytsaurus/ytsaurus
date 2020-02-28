@@ -37,6 +37,8 @@ public:
     //! Set tablet static memory size.
     TClusterResources&& SetTabletStaticMemory(i64 tabletStaticMemory) &&;
 
+    TClusterResources&& SetMasterMemoryUsage(i64 masterMemoryUsage) &&;
+
     //! Set medium disk space.
     TClusterResources&& SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &&;
     void SetMediumDiskSpace(int mediumIndex, i64 diskSpace) &;
@@ -80,6 +82,9 @@ public:
     //! Occupied tablet static memory.
     i64 TabletStaticMemory;
 
+    //! Occupied master memory.
+    i64 MasterMemoryUsage;
+
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
@@ -115,7 +120,7 @@ private:
     i64 TabletStaticMemory_ = 0;
     THashMap<TString, i64> DiskSpacePerMedium_;
     i64 DiskSpace_; // Compatibility.
-
+    i64 MasterMemoryUsage_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSerializableClusterResources)

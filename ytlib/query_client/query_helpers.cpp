@@ -784,35 +784,6 @@ std::pair<TConstExpressionPtr, TConstExpressionPtr> SplitPredicateByColumnSubset
     return std::make_pair(projected, remaining);
 }
 
-std::vector<TMutableRowRange> MergeOverlappingRanges0(std::vector<TMutableRowRange> ranges)
-{
-    ranges.erase(MergeOverlappingRanges(ranges.begin(), ranges.end()), ranges.end());
-    return ranges;
-}
-
-std::vector<TMutableRowRange> MergeOverlappingRanges(
-    std::vector<TMutableRowRange> ranges)
-{
-    int lastIndex = ranges.empty() ? -1 : 0;
-    YT_VERIFY(std::is_sorted(ranges.begin(), ranges.end()));
-    for (int index = 1; index < ranges.size(); ++index) {
-        if (ranges[index].first <= ranges[lastIndex].second) {
-            if (ranges[lastIndex].second < ranges[index].second) {
-                ranges[lastIndex].second = std::move(ranges[index].second);
-            }
-        } else if (ranges[index].first == ranges[index].second) {
-            continue;
-        } else {
-            ++lastIndex;
-            if (lastIndex < index) {
-                ranges[lastIndex] = std::move(ranges[index]);
-            }
-        }
-    }
-    ranges.resize(lastIndex + 1);
-    return ranges;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

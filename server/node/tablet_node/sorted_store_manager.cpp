@@ -653,6 +653,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         const auto& rowCache = tabletSnapshot->RowCache;
 
+	THazardPtrFlushGuard flushGuard;
+
         while (true) {
             // NB: Memory store reader is always synchronous.
             reader->Read(&rows);

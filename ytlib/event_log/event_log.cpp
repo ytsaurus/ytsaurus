@@ -7,6 +7,8 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <yt/core/logging/log.h>
+
 #include <yt/core/misc/lock_free.h>
 
 namespace NYT::NEventLog {
@@ -18,31 +20,40 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFluentEventLogger::~TFluentEventLogger()
+TFluentLogEventConsumer::TFluentLogEventConsumer(IYsonConsumer* tableConsumer, const NLogging::TLogger* logger)
+    : Logger_(logger)
+    , TableConsumer_(tableConsumer)
 {
-    YT_VERIFY(!Consumer_);
-}
-
-TFluentLogEvent TFluentEventLogger::LogEventFluently(IYsonConsumer* consumer)
-{
-    YT_VERIFY(consumer);
-    YT_VERIFY(!Consumer_);
-    Consumer_ = consumer;
-    return TFluentLogEvent(this);
-}
-
-void TFluentEventLogger::Acquire()
-{
-    if (++Counter_ == 1) {
-        Consumer_->OnBeginMap();
+    YT_VERIFY(tableConsumer || logger);
+    if (Logger_) {
+        State_ = New<TState>(EYsonFormat::Binary, EYsonType::MapFragment);
     }
 }
 
-void TFluentEventLogger::Release()
+void TFluentLogEventConsumer::OnMyBeginMap()
 {
-    if (--Counter_ == 0) {
-        Consumer_->OnEndMap();
-        Consumer_ = nullptr;
+    std::vector<IYsonConsumer*> consumers;
+
+    if (TableConsumer_) {
+        TableConsumer_->OnBeginMap();
+        consumers.push_back(TableConsumer_);
+    }
+
+    if (Logger_) {
+        YT_VERIFY(State_);
+        consumers.push_back(State_->GetConsumer());
+    }
+
+    Forward(std::move(consumers), nullptr, EYsonType::MapFragment);
+}
+
+void TFluentLogEventConsumer::OnMyEndMap()
+{
+    if (TableConsumer_) {
+        TableConsumer_->OnEndMap();
+    }
+    if (Logger_) {
+        LogStructuredEvent(*Logger_, State_->GetValue(), NLogging::ELogLevel::Info);
     }
 }
 

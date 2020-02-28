@@ -42,6 +42,16 @@ void TChunkView::SetReadRange(TReadRange readRange)
     }
 }
 
+TString TChunkView::GetLowercaseObjectName() const
+{
+    return Format("chunk view %v", GetId());
+}
+
+TString TChunkView::GetCapitalizedObjectName() const
+{
+    return Format("Chunk view %v", GetId());
+}
+
 void TChunkView::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);

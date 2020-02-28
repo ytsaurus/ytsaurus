@@ -33,17 +33,14 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TFlushDeleteList
+struct TDeleteListFlusher
 {
-    ~TFlushDeleteList()
-    {
-        while (ScanDeleteList());
-    }
+    ~TDeleteListFlusher();
 };
 
 struct TRowCache
     : public TRefCounted
-    , public TFlushDeleteList
+    , public TDeleteListFlusher
 {
     TSlabAllocator Allocator;
     TConcurrentCache<TCachedRow, TSlabAllocator> Cache;

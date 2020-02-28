@@ -67,7 +67,12 @@ TAccount::TAccount(TAccountId id, bool isRoot)
     : TNonversionedMapObjectBase<TAccount>(id, isRoot)
 { }
 
-TString TAccount::GetObjectName() const
+TString TAccount::GetLowercaseObjectName() const
+{
+    return Format("account %Qv", GetName());
+}
+
+TString TAccount::GetCapitalizedObjectName() const
 {
     return Format("Account %Qv", GetName());
 }
@@ -157,6 +162,11 @@ bool TAccount::IsTabletCountLimitViolated() const
 bool TAccount::IsTabletStaticMemoryLimitViolated() const
 {
     return ClusterStatistics_.ResourceUsage.TabletStaticMemory > ClusterResourceLimits_.TabletStaticMemory;
+}
+
+bool TAccount::IsMasterMemoryUsageViolated() const
+{
+    return ClusterStatistics_.ResourceUsage.MasterMemoryUsage > ClusterResourceLimits_.MasterMemoryUsage;
 }
 
 TAccountStatistics* TAccount::GetCellStatistics(NObjectClient::TCellTag cellTag)

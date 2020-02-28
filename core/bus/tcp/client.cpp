@@ -117,15 +117,19 @@ class TTcpBusClient
 {
 public:
     explicit TTcpBusClient(TTcpBusClientConfigPtr config)
-        : Config_(config)
-        , EndpointDescription_(Config_->Address
-            ? *Config_->Address
-            : Format("unix://%v", *Config_->UnixDomainName))
-        , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
+        : Config_(std::move(config))
+    {
+        if (Config_->Address) {
+            EndpointDescription_ = *Config_->Address;
+        } else if (Config_->UnixDomainSocketPath) {
+            EndpointDescription_ = Format("unix://%v", *Config_->UnixDomainSocketPath);
+        }
+
+        EndpointAttributes_ = ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Item("address").Value(EndpointDescription_)
-            .EndMap()))
-    { }
+            .EndMap());
+    }
 
     virtual const TString& GetEndpointDescription() const override
     {
@@ -170,7 +174,7 @@ public:
             *endpointAttributes,
             TNetworkAddress{},
             Config_->Address,
-            Config_->UnixDomainName,
+            Config_->UnixDomainSocketPath,
             handler,
             TTcpDispatcher::TImpl::Get()->GetXferPoller());
         connection->Start();
@@ -180,8 +184,8 @@ public:
 
 private:
     const TTcpBusClientConfigPtr Config_;
-    const TString EndpointDescription_;
-    const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
+    TString EndpointDescription_;
+    std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
 
 };
 

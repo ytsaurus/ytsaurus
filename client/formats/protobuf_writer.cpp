@@ -10,8 +10,10 @@
 #include <yt/client/table_client/schema.h>
 
 #include <yt/core/misc/varint.h>
+#include <yt/core/misc/zerocopy_output_writer.h>
 
 #include <yt/core/yson/pull_parser.h>
+#include <yt/core/yson/token_writer.h>
 
 #include <util/generic/buffer.h>
 
@@ -144,17 +146,17 @@ public:
         return FieldDescription_->TagSize + WireFormatLite::UInt32Size(length) + length;
     }
 
-    void WriteProtoField(IOutputStream* stream) const
+    void WriteProtoField(TZeroCopyOutputStreamWriter* writer) const
     {
         if (!IsEnabled()) {
             return;
         }
 
         YT_VERIFY(!InsideRow_);
-        WriteVarUint32(stream, FieldDescription_->WireTag);
+        WriteVarUint32(writer, FieldDescription_->WireTag);
         auto buffer = GetYsonString();
-        WriteVarUint32(stream, buffer.size());
-        stream->Write(buffer.begin(), buffer.size());
+        WriteVarUint32(writer, buffer.size());
+        writer->Write(buffer.begin(), buffer.size());
     }
 
 private:
@@ -192,93 +194,101 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TValueGetter>
-void WriteProtobufField(
-    IOutputStream* stream,
+class TEnumVisitor
+{
+public:
+    Y_FORCE_INLINE void OnInt64(i64 value)
+    {
+        InRange = TryIntegralCast<i32>(value, &EnumValue);
+    }
+
+    Y_FORCE_INLINE void OnUint64(ui64 value)
+    {
+        InRange = TryIntegralCast<i32>(value, &EnumValue);
+    }
+
+    Y_FORCE_INLINE void OnString(TStringBuf value, const TProtobufFieldDescription& fieldDescription)
+    {
+        if (Y_UNLIKELY(!fieldDescription.EnumerationDescription)) {
+            THROW_ERROR_EXCEPTION("Enumeration description not found for field %Qv",
+                fieldDescription.Name);
+        }
+        EnumValue = fieldDescription.EnumerationDescription->GetValue(value);
+    }
+
+public:
+    bool InRange = true;
+    i32 EnumValue;
+};
+
+template <typename TValueExtractor>
+Y_FORCE_INLINE void WriteProtobufField(
+    TZeroCopyOutputStreamWriter* writer,
     const TProtobufFieldDescription& fieldDescription,
-    const TValueGetter& getter)
+    const TValueExtractor& extractor)
 {
     switch (fieldDescription.Type) {
         case EProtobufType::String:
         case EProtobufType::Bytes:
         case EProtobufType::Message: {
-            auto stringBuf = getter.GetString();
-            WriteVarUint32(stream, stringBuf.size());
-            stream->Write(stringBuf.data(), stringBuf.size());
+            auto stringBuf = extractor.ExtractString();
+            WriteVarUint32(writer, stringBuf.size());
+            writer->Write(stringBuf.data(), stringBuf.size());
             return;
         }
         case EProtobufType::Uint64:
-            WriteVarUint64(stream, getter.GetUint64());
+            WriteVarUint64(writer, extractor.ExtractUint64());
             return;
         case EProtobufType::Uint32:
-            WriteVarUint32(stream, getter.GetUint64());
+            WriteVarUint32(writer, extractor.ExtractUint64());
             return;
         case EProtobufType::Int64:
-            WriteVarUint64(stream, getter.GetInt64()); // no zigzag
+            WriteVarUint64(writer, extractor.ExtractInt64()); // no zigzag
             return;
         case EProtobufType::Int32:
-            WriteVarUint64(stream, getter.GetInt64()); // no zigzag
+            WriteVarUint64(writer, extractor.ExtractInt64()); // no zigzag
             return;
         case EProtobufType::Sint64:
-            WriteVarInt64(stream, getter.GetInt64()); // zigzag
+            WriteVarInt64(writer, extractor.ExtractInt64()); // zigzag
             return;
         case EProtobufType::Sint32:
-            WriteVarInt32(stream, getter.GetInt64()); // zigzag
+            WriteVarInt32(writer, extractor.ExtractInt64()); // zigzag
             return;
         case EProtobufType::Fixed64:
-            WritePod(*stream, getter.GetUint64());
+            WritePod(*writer, extractor.ExtractUint64());
             return;
         case EProtobufType::Fixed32:
-            WritePod(*stream, static_cast<ui32>(getter.GetUint64()));
+            WritePod(*writer, static_cast<ui32>(extractor.ExtractUint64()));
             return;
         case EProtobufType::Sfixed64:
-            WritePod(*stream, getter.GetInt64());
+            WritePod(*writer, extractor.ExtractInt64());
             return;
         case EProtobufType::Sfixed32:
-            WritePod(*stream, static_cast<i32>(getter.GetInt64()));
+            WritePod(*writer, static_cast<i32>(extractor.ExtractInt64()));
             return;
         case EProtobufType::Double:
-            WritePod(*stream, getter.GetDouble());
+            WritePod(*writer, extractor.ExtractDouble());
             return;
         case EProtobufType::Float:
-            WritePod(*stream, static_cast<float>(getter.GetDouble()));
+            WritePod(*writer, static_cast<float>(extractor.ExtractDouble()));
             return;
         case EProtobufType::Bool:
-            WritePod(*stream, static_cast<ui8>(getter.GetBoolean()));
+            WritePod(*writer, static_cast<ui8>(extractor.ExtractBoolean()));
             return;
         case EProtobufType::EnumInt:
         case EProtobufType::EnumString: {
-            i32 enumValue;
-            bool inRange = true;
             auto getEnumerationName = [&] () {
                 return fieldDescription.EnumerationDescription
                     ? fieldDescription.EnumerationDescription->GetEnumerationName()
                     : "<unknown>";
             };
-            switch (getter.GetType()) {
-                case EValueType::Uint64:
-                    inRange = TryIntegralCast<i32>(getter.GetUint64(), &enumValue);
-                    break;
-                case EValueType::Int64:
-                    inRange = TryIntegralCast<i32>(getter.GetInt64(), &enumValue);
-                    break;
-                case EValueType::String:
-                    if (Y_UNLIKELY(!fieldDescription.EnumerationDescription)) {
-                        THROW_ERROR_EXCEPTION("Enumeration description not found for field %Qv",
-                            fieldDescription.Name);
-                    }
-                    enumValue = fieldDescription.EnumerationDescription->GetValue(getter.GetString());
-                    break;
-                default:
-                    THROW_ERROR_EXCEPTION("Cannot parse protobuf enumeration %Qv from value of type %Qlv",
-                        getEnumerationName(),
-                        getter.GetType());
-            }
-            if (Y_UNLIKELY(!inRange)) {
+            TEnumVisitor visitor;
+            extractor.ExtractEnum(&visitor, fieldDescription);
+            if (Y_UNLIKELY(!visitor.InRange)) {
                 THROW_ERROR_EXCEPTION("Value out of range for protobuf enumeration %Qv",
                     getEnumerationName());
             }
-            WriteVarUint64(stream, enumValue); // No zigzag int32.
+            WriteVarUint64(writer, static_cast<ui64>(visitor.EnumValue)); // No zigzag int32.
             return;
         }
 
@@ -305,66 +315,61 @@ void ValidateYsonCursorType(const TYsonPullParserCursor* cursor, EYsonItemType e
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYsonValueGetter
+class TYsonValueExtractor
 {
 public:
-    explicit TYsonValueGetter(TYsonPullParserCursor* cursor)
-        : Cursor_(cursor)
+    explicit TYsonValueExtractor(TYsonPullParser* parser)
+        : Parser_(parser)
     { }
 
-    EValueType GetType() const
+    void ExtractEnum(TEnumVisitor* visitor, const TProtobufFieldDescription& fieldDescription) const
     {
-        switch (Cursor_->GetCurrent().GetType()) {
-            case EYsonItemType::EntityValue:
-                return EValueType::Null;
-            case EYsonItemType::BooleanValue:
-                return EValueType::Boolean;
+        auto item = Parser_->Next();
+        switch (item.GetType()) {
             case EYsonItemType::Int64Value:
-                return EValueType::Int64;
+                visitor->OnInt64(item.UncheckedAsInt64());
+                return;
             case EYsonItemType::Uint64Value:
-                return EValueType::Uint64;
-            case EYsonItemType::DoubleValue:
-                return EValueType::Double;
+                visitor->OnUint64(item.UncheckedAsUint64());
+                return;
             case EYsonItemType::StringValue:
-                return EValueType::String;
+                visitor->OnString(item.UncheckedAsString(), fieldDescription);
+                return;
             default:
-                THROW_ERROR_EXCEPTION("EYsonItemType %Qlv cannot be converted to EValueType",
-                    Cursor_->GetCurrent().GetType());
+                auto* enumDescription = fieldDescription.EnumerationDescription;
+                THROW_ERROR_EXCEPTION("Cannot parse protobuf enumeration %Qv from YSON value of type %Qlv",
+                    enumDescription ? enumDescription->GetEnumerationName() : "<unknown>",
+                    item.GetType());
         }
     }
 
-    i64 GetInt64() const
+    i64 ExtractInt64() const
     {
-        ValidateYsonCursorType(Cursor_, EYsonItemType::Int64Value);
-        return Cursor_->GetCurrent().UncheckedAsInt64();
+        return Parser_->ParseInt64();
     }
 
-    ui64 GetUint64() const
+    ui64 ExtractUint64() const
     {
-        ValidateYsonCursorType(Cursor_, EYsonItemType::Uint64Value);
-        return Cursor_->GetCurrent().UncheckedAsUint64();
+        return Parser_->ParseUint64();
     }
 
-    TStringBuf GetString() const
+    TStringBuf ExtractString() const
     {
-        ValidateYsonCursorType(Cursor_, EYsonItemType::StringValue);
-        return Cursor_->GetCurrent().UncheckedAsString();
+        return Parser_->ParseString();
     }
 
-    bool GetBoolean() const
+    bool ExtractBoolean() const
     {
-        ValidateYsonCursorType(Cursor_, EYsonItemType::BooleanValue);
-        return Cursor_->GetCurrent().UncheckedAsBoolean();
+        return Parser_->ParseBoolean();
     }
 
-    double GetDouble() const
+    double ExtractDouble() const
     {
-        ValidateYsonCursorType(Cursor_, EYsonItemType::DoubleValue);
-        return Cursor_->GetCurrent().UncheckedAsDouble();
+        return Parser_->ParseDouble();
     }
 
 private:
-    const TYsonPullParserCursor* const Cursor_;
+    TYsonPullParser* const Parser_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -380,43 +385,60 @@ void ValidateUnversionedValueType(const TUnversionedValue& value, EValueType typ
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnversionedValueGetter
+// This class actually doesn't change the `TUnversionedValue` passed to it,
+// but is named consistently with more tricky `TYsonValueExtractor`.
+class TUnversionedValueExtractor
 {
 public:
-    explicit TUnversionedValueGetter(TUnversionedValue value)
+    explicit TUnversionedValueExtractor(TUnversionedValue value)
         : Value_(value)
     { }
 
-    EValueType GetType() const
+    void ExtractEnum(TEnumVisitor* visitor, const TProtobufFieldDescription& fieldDescription) const
     {
-        return Value_.Type;
+        switch (Value_.Type) {
+            case EValueType::Int64:
+                visitor->OnInt64(Value_.Data.Int64);
+                return;
+            case EValueType::Uint64:
+                visitor->OnUint64(Value_.Data.Uint64);
+                return;
+            case EValueType::String:
+                visitor->OnString(TStringBuf(Value_.Data.String, Value_.Length), fieldDescription);
+                return;
+            default:
+                auto* enumDescription = fieldDescription.EnumerationDescription;
+                THROW_ERROR_EXCEPTION("Cannot parse protobuf enumeration %Qv from unverioned value of type %Qlv",
+                    enumDescription ? enumDescription->GetEnumerationName() : "<unknown>",
+                    Value_.Type);
+        }
     }
 
-    i64 GetInt64() const
+    i64 ExtractInt64() const
     {
         ValidateUnversionedValueType(Value_, EValueType::Int64);
         return Value_.Data.Int64;
     }
 
-    ui64 GetUint64() const
+    ui64 ExtractUint64() const
     {
         ValidateUnversionedValueType(Value_, EValueType::Uint64);
         return Value_.Data.Uint64;
     }
 
-    TStringBuf GetString() const
+    TStringBuf ExtractString() const
     {
         ValidateUnversionedValueType(Value_, EValueType::String);
         return {Value_.Data.String, Value_.Length};
     }
 
-    bool GetBoolean() const
+    bool ExtractBoolean() const
     {
         ValidateUnversionedValueType(Value_, EValueType::Boolean);
         return Value_.Data.Boolean;
     }
 
-    double GetDouble() const
+    double ExtractDouble() const
     {
         ValidateUnversionedValueType(Value_, EValueType::Double);
         return Value_.Data.Double;
@@ -428,15 +450,83 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Implementation details:
-// Actual data chunks are accumulated in |Buffer_|.
-// The |Result_| vector stores sequence of "nodes" to produce the final result (in |WriteResult()|).
-//   * "Data node" describes a continuous chunk in |Buffer_|.
-//   * "Header node" describes a pair (wire tag, size) that preceeds some
-//     protobuf types (strings and messages). Header nodes are necessary when we do not know
-//     the size of the following message.
+// Write varint reprsentation occupying exactly `size` bytes.
+// If `value` is too small, `0x80` bytes will be added in due amount.
+int WriteVarUint64WithPadding(char* output, ui64 value, int size)
+{
+    for (int i = 0; i < size - 1; ++i) {
+        *output++ = static_cast<ui8>(value | 0x80);
+        value >>= 7;
+    }
+    *output++ = static_cast<ui8>(value);
+    YT_VERIFY(value < 0x80);
+    return size;
+}
+
+class TZeroCopyWriterWithGapsBase
+{
+public:
+    TZeroCopyWriterWithGapsBase(TBlob& blob)
+        : Blob_(blob)
+        , InitialSize_(blob.Size())
+    { }
+
+protected:
+    TBlob& Blob_;
+    ui64 InitialSize_;
+};
+
+// Same as `TZeroCopyOutputStreamWriter` but also allows leaving small "gaps"
+// of fixed size in the output blob to be filled afterwards.
+//
+// Example usage:
+// ```
+//   auto gap = writer->CreateGap(sizeof(ui64));
+//   auto writtenSizeBefore = writer->GetTotalWrittenSize();
+//   ...  // Write something to the writer.
+//   auto writtenSizeAfter = writer->GetTotalWrittenSize();
+//   ui64 size = writtenSizeAfter - writtenSizeBefore;
+//   memcpy(writer->GetGapPointer(gap), &size, sizeof(size));
+// ```
+class TZeroCopyWriterWithGaps
+    : public TZeroCopyWriterWithGapsBase
+    , public TZeroCopyOutputStreamWriter
+{
+public:
+    static constexpr ui64 MaxGapSize = 16;
+
+    using TGapPosition = ui64;
+
+    // NOTE: We need base class to initialize `InitialSize_` before `TZeroCopyOutputStreamWriter`.
+    TZeroCopyWriterWithGaps(TBlobOutput* blobOutput)
+        : TZeroCopyWriterWithGapsBase(blobOutput->Blob())
+        , TZeroCopyOutputStreamWriter(blobOutput)
+    { }
+
+    TGapPosition CreateGap(ui64 size)
+    {
+        auto position = InitialSize_ + GetTotalWrittenSize();
+        if (size <= RemainingBytes()) {
+            Advance(size);
+        } else {
+            char Buffer[MaxGapSize];
+            YT_VERIFY(size <= MaxGapSize);
+            Write(Buffer, size);
+        }
+        return position;
+    }
+
+    char* GetGapPointer(TGapPosition gap)
+    {
+        return Blob_.Begin() + gap;
+    }
+};
+
 class TWriterImpl
 {
+private:
+    using TMessageSize = ui32;
+
 public:
     TWriterImpl(
         const std::vector<TTableSchema>& schemas,
@@ -444,7 +534,6 @@ public:
         const TProtobufFormatDescriptionPtr& description,
         EComplexTypeMode complexTypeMode)
         : OtherColumnsWriter_(schemas, nameTable, description, complexTypeMode)
-        , BufferOutput_(Buffer_)
     { }
 
     void SetTableIndex(i64 tableIndex)
@@ -452,222 +541,187 @@ public:
         OtherColumnsWriter_.SetTableIndex(tableIndex);
     }
 
-    void OnBeginRow()
+    Y_FORCE_INLINE void OnBeginRow(TZeroCopyWriterWithGaps* writer)
     {
-        TotalSize_ = 0;
-        Result_.clear();
-        Buffer_.Clear();
+        Writer_ = writer;
+        MessageSizeGapPosition_ = Writer_->CreateGap(sizeof(TMessageSize));
         OtherColumnsWriter_.OnBeginRow();
+        TotalWrittenSizeBefore_ = Writer_->GetTotalWrittenSize();
     }
 
-    void OnValue(TUnversionedValue value, const TProtobufFieldDescription& fieldDescription)
+    // It's quite likely that this value can be bounded by `WireFormatLite::UInt64Size(10 * ysonLength)`,
+    // but currently we return just maximum size of a varint representation of 32-bit number.
+    static Y_FORCE_INLINE int GetMaxVarIntSizeOfProtobufSizeOfComplexType(ui64 ysonLength)
+    {
+        return MaxVarUint32Size;
+    }
+
+    static Y_FORCE_INLINE ui64 GetMaxBinaryYsonSize(TUnversionedValue value)
+    {
+        switch (value.Type) {
+            case EValueType::Uint64:
+                return 1 + MaxVarUint64Size;
+            case EValueType::Int64:
+                return 1 + MaxVarInt64Size;
+            case EValueType::Double:
+                return 1 + sizeof(double);
+            case EValueType::Boolean:
+                return 1;
+            case EValueType::String:
+                return 1 + MaxVarInt32Size + value.Length;
+            case EValueType::Any:
+                return value.Length;
+            case EValueType::Null:
+                return 1;
+            case EValueType::Min:
+            case EValueType::Max:
+            case EValueType::TheBottom:
+                YT_ABORT();
+        }
+        YT_ABORT();
+    }
+
+    Y_FORCE_INLINE void OnValue(TUnversionedValue value, const TProtobufFieldDescription& fieldDescription)
     {
         if (fieldDescription.Repeated || fieldDescription.Type == EProtobufType::StructuredMessage) {
             ValidateUnversionedValueType(value, EValueType::Any);
             TMemoryInput input(value.Data.String, value.Length);
             TYsonPullParser parser(&input, EYsonType::Node);
-            TYsonPullParserCursor cursor(&parser);
-            TotalSize_ += Traverse(fieldDescription, &cursor, /* repeatedProcessed */ false);
-        } else if (fieldDescription.Type == EProtobufType::Any) {
-            TotalSize_ += ProcessAnyValue(
-                fieldDescription,
-                [value] (TYsonWriter& writer) {
-                    UnversionedValueToYson(value, &writer);
-                });
+            auto maxVarIntSize = GetMaxVarIntSizeOfProtobufSizeOfComplexType(value.Length);
+            Traverse(fieldDescription, &parser, maxVarIntSize);
         } else {
-            TotalSize_ += ProcessSimpleType(fieldDescription, TUnversionedValueGetter(value));
+            WriteVarUint32(Writer_, fieldDescription.WireTag);
+            if (fieldDescription.Type == EProtobufType::Any) {
+                auto maxYsonSize = GetMaxBinaryYsonSize(value);
+                WriteWithSizePrefix(WireFormatLite::UInt64Size(maxYsonSize), [&] {
+                    TCheckedInDebugYsonTokenWriter tokenWriter(Writer_);
+                    UnversionedValueToYson(value, &tokenWriter);
+                });
+            } else {
+                WriteProtobufField(Writer_, fieldDescription, TUnversionedValueExtractor(value));
+            }
         }
     }
 
-    void OnUnknownValue(TUnversionedValue value)
+    Y_FORCE_INLINE void OnUnknownValue(TUnversionedValue value)
     {
         OtherColumnsWriter_.OnValue(value);
     }
 
-    void OnEndRow()
+    Y_FORCE_INLINE void OnEndRow()
     {
         OtherColumnsWriter_.OnEndRow();
-        TotalSize_ += OtherColumnsWriter_.GetProtobufSize();
-    }
-
-    void WriteMessage(IOutputStream* stream)
-    {
-        WritePod(*stream, static_cast<ui32>(TotalSize_));
-        for (const auto& resultNode : Result_) {
-            Visit(resultNode,
-                [&] (const THeaderResultNode& headerNode) {
-                    WriteVarUint32(stream, static_cast<ui32>(headerNode.WireTag));
-                    WriteVarUint32(stream, static_cast<ui32>(headerNode.Size));
-                },
-                [&] (const TDataResultNode& dataNode) {
-                    stream->Write(
-                        Buffer_.data() + dataNode.Begin,
-                        static_cast<size_t>(dataNode.Size));
-                });
+        OtherColumnsWriter_.WriteProtoField(Writer_);
+        Writer_->UndoRemaining();
+        auto totalWrittenSizeAfter = Writer_->GetTotalWrittenSize();
+        auto messageSize = totalWrittenSizeAfter - TotalWrittenSizeBefore_;
+        if (messageSize >= std::numeric_limits<TMessageSize>::max()) {
+            THROW_ERROR_EXCEPTION("Too large protobuf message: limit is %v, actual size is %v",
+                std::numeric_limits<TMessageSize>::max(),
+                messageSize);
         }
-        OtherColumnsWriter_.WriteProtoField(stream);
+        auto messageSizeCast = static_cast<TMessageSize>(messageSize);
+        memcpy(Writer_->GetGapPointer(MessageSizeGapPosition_), &messageSizeCast, sizeof(messageSizeCast));
     }
 
 private:
-    struct THeaderResultNode
-    {
-        ui64 WireTag;
-        i64 Size;
-    };
-
-    struct TDataResultNode
-    {
-        i64 Begin;
-        i64 Size;
-    };
-
-    using TResultNode = std::variant<
-        THeaderResultNode,
-        TDataResultNode>;
-
-private:
-    i64 Traverse(
+    void Traverse(
         const TProtobufFieldDescription& fieldDescription,
-        TYsonPullParserCursor* cursor,
-        bool repeatedProcessed)
+        TYsonPullParser* parser,
+        int maxVarIntSize)
     {
-        auto actuallyRepeated = fieldDescription.Repeated && !repeatedProcessed;
-        if (actuallyRepeated) {
+        if (fieldDescription.Repeated) {
             YT_VERIFY(!fieldDescription.Optional);
-            ValidateYsonCursorType(cursor, EYsonItemType::BeginList);
-            cursor->Next();
-            i64 size = 0;
-            while (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
-                size += Traverse(fieldDescription, cursor, /* repeatedProcessed */ true);
+            parser->ParseBeginList();
+            while (!parser->IsEndList()) {
+                TraverseNonRepeated(fieldDescription, parser, maxVarIntSize);
             }
-            cursor->Next();
-            return size;
+            parser->ParseEndList();
+        } else {
+            TraverseNonRepeated(fieldDescription, parser, maxVarIntSize);
         }
+    }
 
-        if (cursor->GetCurrent().GetType() == EYsonItemType::EntityValue) {
+    template <typename TFun>
+    Y_FORCE_INLINE void WriteWithSizePrefix(int maxVarIntSize, TFun writerFun)
+    {
+        auto gap = Writer_->CreateGap(maxVarIntSize);
+        auto totalWrittenSizeBefore = Writer_->GetTotalWrittenSize();
+
+        writerFun();
+
+        auto totalWrittenSizeAfter = Writer_->GetTotalWrittenSize();
+        auto messageSize = totalWrittenSizeAfter - totalWrittenSizeBefore;
+        WriteVarUint64WithPadding(Writer_->GetGapPointer(gap), messageSize, maxVarIntSize);
+    }
+
+    Y_FORCE_INLINE void TraverseNonRepeated(
+        const TProtobufFieldDescription& fieldDescription,
+        TYsonPullParser* parser,
+        int maxVarIntSize)
+    {
+        if (fieldDescription.Optional && parser->IsEntity()) {
+            parser->ParseEntity();
             if (fieldDescription.Type == EProtobufType::Any) {
-                cursor->Next();
-                return ProcessEntityValue(fieldDescription);
+                WriteVarUint32(Writer_, fieldDescription.WireTag);
+                WriteWithSizePrefix(1, [&] {
+                    TCheckedInDebugYsonTokenWriter writer(Writer_);
+                    writer.WriteEntity();
+                });
             }
-            if (Y_UNLIKELY(!fieldDescription.Optional)) {
-                THROW_ERROR_EXCEPTION("Expected non-optional protobuf field %Qv of type %Qlv, "
-                    "got YSON \"entity\" item",
-                    fieldDescription.Name,
-                    fieldDescription.Type);
-            }
-            cursor->Next();
-            return 0;
+            return;
         }
 
+        WriteVarUint32(Writer_, fieldDescription.WireTag);
         switch (fieldDescription.Type) {
-            case EProtobufType::StructuredMessage: {
-                auto headerResultNodeIndex = Result_.size();
-                Result_.emplace_back(THeaderResultNode{});
-
-                ValidateYsonCursorType(cursor, EYsonItemType::BeginList);
-                int elementIndex = 0;
-                cursor->Next();
-                auto childIterator = fieldDescription.Children.cbegin();
-                i64 fieldsSize = 0;
-                while (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
-                    if (childIterator != fieldDescription.Children.cend() && childIterator->StructElementIndex == elementIndex) {
-                        fieldsSize += Traverse(*childIterator, cursor, /* repeatedProcessed */ false);
-                        ++childIterator;
-                    } else {
-                        cursor->SkipComplexValue();
-                    }
-                    ++elementIndex;
-                }
-                cursor->Next();
-
-                auto& headerResultNode = std::get<THeaderResultNode>(Result_[headerResultNodeIndex]);
-                headerResultNode.WireTag = fieldDescription.WireTag;
-                headerResultNode.Size = fieldsSize;
-                auto fieldsSizeSize = static_cast<i64>(WireFormatLite::Int64Size(fieldsSize));
-                return fieldDescription.TagSize + fieldsSizeSize + fieldsSize;
-            }
+            case EProtobufType::StructuredMessage:
+                WriteWithSizePrefix(maxVarIntSize, [&] {
+                    WriteStruct(fieldDescription, parser, maxVarIntSize);
+                });
+                return;
             case EProtobufType::Any:
-                return ProcessAnyValue(
-                    fieldDescription,
-                    [&] (TYsonWriter& writer) {
-                        cursor->TransferComplexValue(&writer);
-                    });
-            default: {
-                auto size = ProcessSimpleType(fieldDescription, TYsonValueGetter(cursor));
-                cursor->Next();
-                return size;
+                WriteWithSizePrefix(maxVarIntSize, [&] {
+                    TCheckedInDebugYsonTokenWriter writer(Writer_);
+                    parser->TransferComplexValue(&writer);
+                });
+                return;
+            default:
+                WriteProtobufField(Writer_, fieldDescription, TYsonValueExtractor(parser));
+                return;
+        }
+        YT_ABORT();
+    }
+
+    Y_FORCE_INLINE void WriteStruct(
+        const TProtobufFieldDescription& fieldDescription,
+        TYsonPullParser* parser,
+        int maxVarIntSize)
+    {
+        parser->ParseBeginList();
+        auto childIterator = fieldDescription.Children.cbegin();
+        int elementIndex = 0;
+        while (!parser->IsEndList()) {
+            if (childIterator == fieldDescription.Children.cend() || childIterator->StructElementIndex != elementIndex) {
+                parser->SkipComplexValue();
+                ++elementIndex;
+                continue;
             }
+            if (childIterator->Repeated) {
+                Traverse(*childIterator, parser, maxVarIntSize);
+            } else {
+                TraverseNonRepeated(*childIterator, parser, maxVarIntSize);
+            }
+            ++childIterator;
+            ++elementIndex;
         }
-    }
-
-    template <typename TCallback>
-    i64 ProcessAnyValue(const TProtobufFieldDescription& fieldDescription, TCallback callback)
-    {
-        auto headerResultNodeIndex = Result_.size();
-        Result_.emplace_back(THeaderResultNode{});
-        auto& dataResultNode = std::get<TDataResultNode>(Result_.emplace_back(TDataResultNode{}));
-        auto originalBufferSize = static_cast<i64>(Buffer_.size());
-
-        TYsonWriter writer(&BufferOutput_, EYsonFormat::Binary, EYsonType::Node, /* enableRaw */ true);
-        callback(writer);
-
-        auto writtenByteCount = static_cast<i64>(Buffer_.size()) - originalBufferSize;
-        dataResultNode.Begin = originalBufferSize;
-        dataResultNode.Size = writtenByteCount;
-
-        auto& headerResultNode = std::get<THeaderResultNode>(Result_[headerResultNodeIndex]);
-        headerResultNode.WireTag = fieldDescription.WireTag;
-        headerResultNode.Size = writtenByteCount;
-        auto writtenByteCountSize = static_cast<i64>(WireFormatLite::Int64Size(writtenByteCount));
-        return fieldDescription.TagSize + writtenByteCountSize + writtenByteCount;
-    }
-
-    template <typename TFieldWriter>
-    i64 WriteSimpleField(const TProtobufFieldDescription& fieldDescription, const TFieldWriter& fieldWriter)
-    {
-        auto& dataResultNode = GetOrCreateDataResultNode();
-        auto originalBufferSize = static_cast<i64>(Buffer_.size());
-        WriteVarUint32(&BufferOutput_, fieldDescription.WireTag);
-        fieldWriter(&BufferOutput_);
-        auto writtenByteCount = static_cast<i64>(Buffer_.size()) - originalBufferSize;
-        dataResultNode.Size += writtenByteCount;
-        return writtenByteCount;
-    }
-
-    i64 ProcessEntityValue(const TProtobufFieldDescription& fieldDescription)
-    {
-        static const auto EntityValue = AsStringBuf("#");
-        return WriteSimpleField(fieldDescription, [] (IOutputStream* stream) {
-            WriteVarUint32(stream, EntityValue.size());
-            stream->Write(EntityValue.data(), EntityValue.size());
-        });
-    }
-
-    template <typename TValueGetter>
-    i64 ProcessSimpleType(const TProtobufFieldDescription& fieldDescription, const TValueGetter& valueGetter)
-    {
-        return WriteSimpleField(fieldDescription, [&] (IOutputStream* stream) {
-            WriteProtobufField(stream, fieldDescription, valueGetter);
-        });
-    }
-
-    TDataResultNode& GetOrCreateDataResultNode()
-    {
-        if (Result_.empty() || !std::holds_alternative<TDataResultNode>(Result_.back())) {
-            TDataResultNode node;
-            node.Begin = Buffer_.size();
-            node.Size = 0;
-            Result_.push_back(node);
-        }
-        return std::get<TDataResultNode>(Result_.back());
+        parser->ParseEndList();
     }
 
 private:
     TOtherColumnsWriter OtherColumnsWriter_;
-    i64 TotalSize_ = 0;
-    TBuffer Buffer_;
-    TBufferOutput BufferOutput_;
-    std::vector<TResultNode> Result_;
+    TZeroCopyWriterWithGaps* Writer_;
+    TZeroCopyWriterWithGaps::TGapPosition MessageSizeGapPosition_;
+    ui64 TotalWrittenSizeBefore_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -693,6 +747,7 @@ public:
             keyColumnCount)
         , Description_(description)
         , WriterImpl_(schemas, nameTable, description, complexTypeMode)
+        , StreamWriter_(GetOutputStream())
     {
         TableIndexToFieldIndexToDescription_.resize(Description_->GetTableCount());
         WriterImpl_.SetTableIndex(CurrentTableIndex_);
@@ -701,19 +756,21 @@ public:
 private:
     virtual void DoWrite(TRange<TUnversionedRow> rows) override
     {
-        auto stream = GetOutputStream();
+        if (!StreamWriter_) {
+            StreamWriter_.emplace(GetOutputStream());
+        }
 
         int rowCount = static_cast<int>(rows.Size());
         for (int index = 0; index < rowCount; ++index) {
             auto row = rows[index];
 
             if (CheckKeySwitch(row, index + 1 == rowCount)) {
-                WritePod(*stream, LenvalKeySwitch);
+                WritePod(*StreamWriter_, LenvalKeySwitch);
             }
 
             WriteControlAttributes(row);
 
-            WriterImpl_.OnBeginRow();
+            WriterImpl_.OnBeginRow(&*StreamWriter_);
             for (const auto& value : row) {
                 const auto* fieldDescription = GetFieldDescription(
                     CurrentTableIndex_,
@@ -738,10 +795,15 @@ private:
                 }
             }
             WriterImpl_.OnEndRow();
-            WriterImpl_.WriteMessage(stream);
             TryFlushBuffer(false);
         }
         TryFlushBuffer(true);
+    }
+
+    virtual void FlushWriter() override
+    {
+        StreamWriter_.reset();
+        TSchemalessFormatWriterBase::FlushWriter();
     }
 
     virtual void WriteTableIndex(i64 tableIndex) override
@@ -749,26 +811,26 @@ private:
         CurrentTableIndex_ = tableIndex;
         WriterImpl_.SetTableIndex(tableIndex);
 
-        auto* stream = GetOutputStream();
-        WritePod(*stream, static_cast<ui32>(LenvalTableIndexMarker));
-        WritePod(*stream, static_cast<ui32>(tableIndex));
+        WritePod(*StreamWriter_, static_cast<ui32>(LenvalTableIndexMarker));
+        WritePod(*StreamWriter_, static_cast<ui32>(tableIndex));
     }
 
     virtual void WriteRangeIndex(i64 rangeIndex) override
     {
-        auto* stream = GetOutputStream();
-        WritePod(*stream, static_cast<ui32>(LenvalRangeIndexMarker));
-        WritePod(*stream, static_cast<ui32>(rangeIndex));
+        WritePod(*StreamWriter_, static_cast<ui32>(LenvalRangeIndexMarker));
+        WritePod(*StreamWriter_, static_cast<ui32>(rangeIndex));
     }
 
     virtual void WriteRowIndex(i64 rowIndex) override
     {
-        auto* stream = GetOutputStream();
-        WritePod(*stream, static_cast<ui32>(LenvalRowIndexMarker));
-        WritePod(*stream, static_cast<ui64>(rowIndex));
+        WritePod(*StreamWriter_, static_cast<ui32>(LenvalRowIndexMarker));
+        WritePod(*StreamWriter_, static_cast<ui64>(rowIndex));
     }
 
-    const TProtobufFieldDescription* GetFieldDescription(ui32 tableIndex, ui32 fieldIndex, const NTableClient::TNameTablePtr& nameTable)
+    const TProtobufFieldDescription* GetFieldDescription(
+        ui32 tableIndex,
+        ui32 fieldIndex,
+        const TNameTablePtr& nameTable)
     {
         if (Y_UNLIKELY(tableIndex >= TableIndexToFieldIndexToDescription_.size())) {
             THROW_ERROR_EXCEPTION("Table with index %v is missing in format description",
@@ -796,6 +858,9 @@ private:
     const TProtobufFormatDescriptionPtr Description_;
     std::vector<std::vector<const TProtobufFieldDescription*>> TableIndexToFieldIndexToDescription_;
     TWriterImpl WriterImpl_;
+
+    // Use optional to be able to destruct underlying object when switching output streams.
+    std::optional<TZeroCopyWriterWithGaps> StreamWriter_;
 
     int CurrentTableIndex_ = 0;
 };

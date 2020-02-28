@@ -202,6 +202,9 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
                 "Error reading journal chunk %v",
                 Id_)
                 << blocksOrError;
+            if (blocksOrError.FindMatching(NHydra::EErrorCode::InvalidChangelogState)) {
+                THROW_ERROR error;
+            }
             Location_->Disable(error);
             YT_ABORT(); // Disable() exits the process.
         }
@@ -322,9 +325,10 @@ bool TJournalChunk::IsSealed() const
 TFuture<void> TJournalChunk::Seal()
 {
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
-    return dispatcher->SealChangelog(this).Apply(BIND([this, this_ = MakeStrong(this)] () {
-        Sealed_ = true;
-    }));
+    return dispatcher->SealChangelog(this).Apply(
+        BIND([this, this_ = MakeStrong(this)] () {
+            Sealed_ = true;
+        }).AsyncVia(Bootstrap_->GetControlInvoker()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,7 @@
 
 #include "fair_share_tree.h"
 #include "helpers.h"
+#include "piecewise_linear_function_helpers.h"
 #include "resource_tree.h"
 #include "resource_tree_element.h"
 #include "scheduling_context.h"
@@ -18,7 +19,7 @@
 
 #include <util/generic/ymath.h>
 
-namespace NYT::NScheduler {
+namespace NYT::NScheduler::NVectorScheduler {
 
 using namespace NConcurrency;
 using namespace NJobTrackerClient;
@@ -27,14 +28,14 @@ using namespace NYTree;
 using namespace NProfiling;
 using namespace NControllerAgent;
 
+using NProfiling::CpuDurationToDuration;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const double RatioComputationPrecision = std::numeric_limits<double>::epsilon();
-static const double RatioComparisonPrecision = std::sqrt(RatioComputationPrecision);
 static const TString MissingCustomProfilingTag("missing");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -79,42 +80,18 @@ TJobResources ToJobResources(const TResourceLimitsConfigPtr& config, TJobResourc
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
-    const TString& prefix,
-    const NProfiling::TTagIdList& treeIdProfilingTags)
-    : PrescheduleJobTime(prefix + "/preschedule_job_time", treeIdProfilingTags)
-    , TotalControllerScheduleJobTime(prefix + "/controller_schedule_job_time/total", treeIdProfilingTags)
-    , ExecControllerScheduleJobTime(prefix + "/controller_schedule_job_time/exec", treeIdProfilingTags)
-    , StrategyScheduleJobTime(prefix + "/strategy_schedule_job_time", treeIdProfilingTags)
-    , PackingRecordHeartbeatTime(prefix + "/packing_record_heartbeat_time", treeIdProfilingTags)
-    , PackingCheckTime(prefix + "/packing_check_time", treeIdProfilingTags)
-    , ScheduleJobAttemptCount(prefix + "/schedule_job_attempt_count", treeIdProfilingTags)
-    , ScheduleJobFailureCount(prefix + "/schedule_job_failure_count", treeIdProfilingTags)
-{
-    for (auto reason : TEnumTraits<NControllerAgent::EScheduleJobFailReason>::GetDomainValues()) {
-        auto tags = GetFailReasonProfilingTags(reason);
-        tags.insert(tags.end(), treeIdProfilingTags.begin(), treeIdProfilingTags.end());
-
-        ControllerScheduleJobFail[reason] = NProfiling::TMonotonicCounter(
-            prefix + "/controller_schedule_job_fail",
-            tags);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFairShareSchedulingStage::TFairShareSchedulingStage(const TString& loggingName, TScheduleJobsProfilingCounters profilingCounters)
-    : LoggingName(loggingName)
+TFairShareSchedulingStage::TFairShareSchedulingStage(TString loggingName, TScheduleJobsProfilingCounters profilingCounters)
+    : LoggingName(std::move(loggingName))
     , ProfilingCounters(std::move(profilingCounters))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFairShareContext::TFairShareContext(
-    const ISchedulingContextPtr& schedulingContext,
+    ISchedulingContextPtr schedulingContext,
     bool enableSchedulingInfoLogging,
     const NLogging::TLogger& logger)
-    : SchedulingContext(schedulingContext)
+    : SchedulingContext(std::move(schedulingContext))
     , EnableSchedulingInfoLogging(enableSchedulingInfoLogging)
     , Logger(logger)
 { }
@@ -232,13 +209,13 @@ void TFairShareContext::LogStageStatistics()
 TSchedulerElementFixedState::TSchedulerElementFixedState(
     ISchedulerStrategyHost* host,
     IFairShareTreeHost* treeHost,
-    const TFairShareStrategyTreeConfigPtr& treeConfig,
-    const TString& treeId)
+    TFairShareStrategyTreeConfigPtr treeConfig,
+    TString treeId)
     : Host_(host)
     , TreeHost_(treeHost)
-    , TreeConfig_(treeConfig)
-    , TotalResourceLimits_(host->GetResourceLimits(treeConfig->NodesFilter))
-    , TreeId_(treeId)
+    , TreeConfig_(std::move(treeConfig))
+    , TotalResourceLimits_(host->GetResourceLimits(TreeConfig_->NodesFilter))
+    , TreeId_(std::move(treeId))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -264,7 +241,7 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
-void TSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* , TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -274,18 +251,50 @@ void TSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttribu
     ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
 }
 
-void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* )
 {
     YT_VERIFY(Mutable_);
+
+    LimitsShare_ = TResourceVector::FromDouble(MinComponent(TResourceVector::FromJobResources(
+        Min(ResourceLimits_, TotalResourceLimits_),
+        TotalResourceLimits_,
+        /* zeroDivByZero */ 1.0,
+        /* oneDivByZero */ 1.0)));
+    YT_VERIFY(Dominates(TResourceVector::Ones(), LimitsShare_));
+    YT_VERIFY(Dominates(LimitsShare_, TResourceVector::Zero()));
 
     UpdateAttributes();
-    (*dynamicAttributesList)[GetTreeIndex()].Active = true;
-    UpdateDynamicAttributes(dynamicAttributesList);
 }
 
-void TSchedulerElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TSchedulerElement::UpdatePreemption(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
+
+    Attributes_.AdjustedMinShare = TResourceVector::Min(Attributes_.RecursiveMinShare, Attributes_.FairShare);
+
+    if (Parent_) {
+        Attributes_.AdjustedFairShareStarvationTolerance = std::min(
+            GetFairShareStarvationTolerance(),
+            Parent_->AdjustedFairShareStarvationToleranceLimit());
+
+        Attributes_.AdjustedMinSharePreemptionTimeout = std::max(
+            GetMinSharePreemptionTimeout(),
+            Parent_->AdjustedMinSharePreemptionTimeoutLimit());
+
+        Attributes_.AdjustedFairSharePreemptionTimeout = std::max(
+            GetFairSharePreemptionTimeout(),
+            Parent_->AdjustedFairSharePreemptionTimeoutLimit());
+    }
+}
+
+void TSchedulerElement::UpdateDynamicAttributes(
+    TDynamicAttributesList* dynamicAttributesList,
+    TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    (*dynamicAttributesList)[GetTreeIndex()].Active = true;
+    UpdateDynamicAttributes(dynamicAttributesList);
 }
 
 void TSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList)
@@ -305,30 +314,22 @@ void TSchedulerElement::UpdateAttributes()
 {
     YT_VERIFY(Mutable_);
 
-    // Choose dominant resource types, compute max share ratios, compute demand ratios.
-    const auto& demand = ResourceDemand();
-    auto usage = GetLocalResourceUsage();
-
     auto maxPossibleResourceUsage = Min(TotalResourceLimits_, MaxPossibleResourceUsage_);
 
-    if (usage == TJobResources()) {
-        Attributes_.DominantResource = GetDominantResource(demand, TotalResourceLimits_);
+    if (ResourceUsageAtUpdate_ == TJobResources()) {
+        Attributes_.DominantResource = GetDominantResource(ResourceDemand_, TotalResourceLimits_);
     } else {
-        Attributes_.DominantResource = GetDominantResource(usage, TotalResourceLimits_);
+        Attributes_.DominantResource = GetDominantResource(ResourceUsageAtUpdate_, TotalResourceLimits_);
     }
 
-    Attributes_.DominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
-
-    auto dominantDemand = GetResource(demand, Attributes_.DominantResource);
-    Attributes_.DemandRatio =
-        Attributes_.DominantLimit == 0 ? 1.0 : dominantDemand / Attributes_.DominantLimit;
+    Attributes_.UsageShare = TResourceVector::FromJobResources(ResourceUsageAtUpdate_, TotalResourceLimits_, 0, 1);
+    Attributes_.DemandShare = TResourceVector::FromJobResources(ResourceDemand_, TotalResourceLimits_, 0, 1);
+    YT_VERIFY(Dominates(Attributes_.DemandShare, Attributes_.UsageShare));
 
     auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
-    double possibleUsageRatio = GetDominantResourceUsage(possibleUsage, TotalResourceLimits_);
-
-    Attributes_.MaxPossibleUsageRatio = std::min(
-        possibleUsageRatio,
-        GetMaxShareRatio());
+    Attributes_.MaxPossibleUsageShare = TResourceVector::Min(
+        TResourceVector::FromJobResources(possibleUsage, TotalResourceLimits_, 0, 1),
+        GetMaxShare());
 }
 
 const TSchedulingTagFilter& TSchedulerElement::GetSchedulingTagFilter() const
@@ -346,24 +347,29 @@ bool TSchedulerElement::IsOperation() const
     return false;
 }
 
-
 TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributes& dynamicAttributes) const
 {
     return Format(
-        "Status: %v, DominantResource: %v, Demand: %.6lf, "
-        "Usage: %.6lf, FairShare: %.6lf, Satisfaction: %.4lg, AdjustedMinShare: %.6lf, "
-        "GuaranteedResourcesRatio: %.6lf, MaxPossibleUsage: %.6lf,  BestAllocation: %.6lf, "
-        "Starving: %v, Weight: %v",
+        "Status: %v, "
+        "DominantResource: %v, "
+        "DemandShare: %.6v, "
+        "UsageShare: %.6v, "
+        "FairShare: %.6v, "
+        "Satisfaction: %.4lg, "
+        "AdjustedMinShare: %.6v, "
+        "GuaranteedResourcesShare: %.6v, "
+        "MaxPossibleUsageShare: %.6v,  "
+        "Starving: %v, "
+        "Weight: %v",
         GetStatus(),
         Attributes_.DominantResource,
-        Attributes_.DemandRatio,
-        GetResourceUsageRatio(),
-        Attributes_.FairShareRatio,
+        Attributes_.DemandShare,
+        GetResourceUsageShare(),
+        Attributes_.FairShare,
         dynamicAttributes.SatisfactionRatio,
-        Attributes_.AdjustedMinShareRatio,
-        Attributes_.GuaranteedResourcesRatio,
-        Attributes_.MaxPossibleUsageRatio,
-        Attributes_.BestAllocationRatio,
+        Attributes_.AdjustedMinShare,
+        Attributes_.GuaranteedResourcesShare,
+        Attributes_.MaxPossibleUsageShare,
         GetStarving(),
         GetWeight());
 }
@@ -398,21 +404,22 @@ double TSchedulerElement::GetWeight() const
     if (!TreeConfig_->InferWeightFromMinShareRatioMultiplier) {
         return 1.0;
     }
-    if (Attributes().RecursiveMinShareRatio < RatioComputationPrecision) {
+    double minShareRatio = MaxComponent(Attributes().RecursiveMinShare);
+
+    if (minShareRatio < RatioComputationPrecision) {
         return 1.0;
     }
 
     double parentMinShareRatio = 1.0;
     if (GetParent()) {
-        parentMinShareRatio = GetParent()->Attributes().RecursiveMinShareRatio;
+        parentMinShareRatio = MaxComponent(GetParent()->Attributes().RecursiveMinShare);
     }
 
     if (parentMinShareRatio < RatioComputationPrecision) {
         return 1.0;
     }
 
-    return Attributes().RecursiveMinShareRatio * (*TreeConfig_->InferWeightFromMinShareRatioMultiplier) /
-        parentMinShareRatio;
+    return minShareRatio * (*TreeConfig_->InferWeightFromMinShareRatioMultiplier) / parentMinShareRatio;
 }
 
 TCompositeSchedulerElement* TSchedulerElement::GetMutableParent()
@@ -467,22 +474,25 @@ TJobMetrics TSchedulerElement::GetJobMetrics() const
     return ResourceTreeElement_->GetJobMetrics();
 }
 
+double TSchedulerElement::GetMaxShareRatio() const
+{
+    return MaxComponent(GetMaxShare());
+}
+
+TResourceVector TSchedulerElement::GetResourceUsageShare() const
+{
+    return TResourceVector::FromJobResources(ResourceTreeElement_->GetResourceUsage(), TotalResourceLimits_, 0, 1);
+}
+
 double TSchedulerElement::GetResourceUsageRatio() const
 {
-    return ComputeResourceUsageRatio(ResourceTreeElement_->GetResourceUsage());
+    return MaxComponent(GetResourceUsageShare());
 }
 
-double TSchedulerElement::GetResourceUsageRatioWithPrecommit() const
+TResourceVector TSchedulerElement::GetResourceUsageShareWithPrecommit() const
 {
-    return ComputeResourceUsageRatio(ResourceTreeElement_->GetResourceUsageWithPrecommit());
-}
-
-double TSchedulerElement::ComputeResourceUsageRatio(const TJobResources& resourceUsage) const
-{
-    if (Attributes_.DominantLimit == 0) {
-        return 0.0;
-    }
-    return GetResource(resourceUsage, Attributes_.DominantResource) / Attributes_.DominantLimit;
+    return TResourceVector::FromJobResources(
+        ResourceTreeElement_->GetResourceUsageWithPrecommit(), TotalResourceLimits_, 0, 1);
 }
 
 TString TSchedulerElement::GetTreeId() const
@@ -519,10 +529,10 @@ void TSchedulerElement::IncreaseHierarchicalResourceUsage(const TJobResources& d
 TSchedulerElement::TSchedulerElement(
     ISchedulerStrategyHost* host,
     IFairShareTreeHost* treeHost,
-    const TFairShareStrategyTreeConfigPtr& treeConfig,
-    const TString& treeId,
+    TFairShareStrategyTreeConfigPtr treeConfig,
+    TString treeId,
     const NLogging::TLogger& logger)
-    : TSchedulerElementFixedState(host, treeHost, treeConfig, treeId)
+    : TSchedulerElementFixedState(host, treeHost, std::move(treeConfig), std::move(treeId))
     , ResourceTreeElement_(New<TResourceTreeElement>())
     , Logger(logger)
 { }
@@ -552,46 +562,89 @@ IFairShareTreeHost* TSchedulerElement::GetTreeHost() const
 
 double TSchedulerElement::ComputeLocalSatisfactionRatio() const
 {
-    double minShareRatio = Attributes_.AdjustedMinShareRatio;
-    double fairShareRatio = Attributes_.FairShareRatio;
-    double usageRatio = GetResourceUsageRatioWithPrecommit();
-
-    // Check for corner cases.
-    if (fairShareRatio < RatioComputationPrecision) {
-        return std::numeric_limits<double>::max();
-    }
+    const TResourceVector& fairShare = Attributes_.FairShare;
+    TResourceVector usageShare = GetResourceUsageShare();
 
     // Starvation is disabled for operations in FIFO pool.
     if (Attributes_.FifoIndex >= 0) {
-        return std::numeric_limits<double>::max();
+        return InfiniteSatisfactionRatio;
     }
 
-    if (minShareRatio > RatioComputationPrecision && usageRatio < minShareRatio) {
-        // Needy element, negative satisfaction.
-        return usageRatio / minShareRatio - 1.0;
-    } else {
-        // Regular element, positive satisfaction.
-        return usageRatio / fairShareRatio;
+    // Check if the element is over-satisfied.
+    if (TResourceVector::Any(usageShare, fairShare, [] (double usage, double fair) { return usage > fair; })) {
+        double satisfactionRatio = MaxComponent(
+            Div(usageShare, fairShare, /* zeroDivByZero */ 0, /* oneDivByZero */ InfiniteSatisfactionRatio));
+        YT_VERIFY(satisfactionRatio > 1);
+        return satisfactionRatio;
     }
+
+    double satisfactionRatio = 0.0;
+
+    if (AreAllResourcesBlocked()) {
+        // NB(antonkikh): Using MaxComponent would lead to satisfaction ratio being non-monotonous.
+        satisfactionRatio = MinComponent(Div(usageShare, fairShare, 1, 1));
+    } else {
+        satisfactionRatio = 0;
+        for (auto resourceType : TEnumTraits<EJobResourceType>::GetDomainValues()) {
+            if (!IsResourceBlocked(resourceType) && fairShare[resourceType] != 0) {
+                satisfactionRatio = std::max(satisfactionRatio, usageShare[resourceType] / fairShare[resourceType]);
+            }
+        }
+    }
+
+    YT_VERIFY(satisfactionRatio <= 1.0);
+    return satisfactionRatio;
 }
 
-ESchedulableStatus TSchedulerElement::GetStatus(double defaultTolerance) const
+bool TSchedulerElement::IsResourceBlocked(EJobResourceType resource) const
 {
-    double usageRatio = GetResourceUsageRatio();
-    double demandRatio = Attributes_.DemandRatio;
+    return Attributes_.DemandShare[resource] == Attributes_.FairShare[resource];
+}
 
-    double tolerance =
-        demandRatio < Attributes_.FairShareRatio + RatioComparisonPrecision
-        ? 1.0
-        : defaultTolerance;
+bool TSchedulerElement::AreAllResourcesBlocked() const
+{
+    return Attributes_.DemandShare == Attributes_.FairShare;
+}
 
-    if (usageRatio > Attributes_.FairShareRatio * tolerance - RatioComparisonPrecision) {
-        return ESchedulableStatus::Normal;
+// Returns true either if there are non-blocked resources and for any such resource |r|: |lhs[r] > rhs[r]|
+// or if all resources are blocked and there is at least one resource |r|: |lhs[r] > rhs[r]|.
+// Note that this relation is neither reflective nor irreflective and cannot be used for sorting.
+//
+// This relation is monotonous in several aspects:
+// * First argument monotonicity:
+//      If |Dominates(vec2, vec1)| and |IsStrictlyDominatesNonBlocked(vec1, rhs)|,
+//      then |IsStrictlyDominatesNonBlocked(vec2, rhs)|.
+// * Second argument monotonicity:
+//      If |Dominates(vec1, vec2)| and |IsStrictlyDominatesNonBlocked(lhs, vec1)|,
+//      then |IsStrictlyDominatesNonBlocked(lsh, vec2)|.
+// * Blocked resources monotonicity:
+//      If |IsStrictlyDominatesNonBlocked(vec, rhs)| and the set of blocked resources increases,
+//      then |IsStrictlyDominatesNonBlocked(vec, rhs)|.
+// These properties are important for sensible scheduling.
+bool TSchedulerElement::IsStrictlyDominatesNonBlocked(const TResourceVector& lhs, const TResourceVector& rhs) const
+{
+    if (AreAllResourcesBlocked()) {
+        return TResourceVector::Any(lhs, rhs, [] (double x, double y) { return x > y; });
     }
 
-    return usageRatio < Attributes_.AdjustedMinShareRatio
-           ? ESchedulableStatus::BelowMinShare
-           : ESchedulableStatus::BelowFairShare;
+    for (int i = 0; i < TResourceVector::Size; i++) {
+        if (!IsResourceBlocked(TResourceVector::GetResourceTypeById(i)) && lhs[i] <= rhs[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+ESchedulableStatus TSchedulerElement::GetStatus(double tolerance) const
+{
+    TResourceVector usageShare = GetResourceUsageShare();
+
+    if (IsStrictlyDominatesNonBlocked(Attributes_.FairShare * tolerance, usageShare)) {
+        return ESchedulableStatus::BelowFairShare;
+    }
+
+    return ESchedulableStatus::Normal;
 }
 
 void TSchedulerElement::CheckForStarvationImpl(
@@ -612,10 +665,6 @@ void TSchedulerElement::CheckForStarvationImpl(
 
     auto status = GetStatus();
     switch (status) {
-        case ESchedulableStatus::BelowMinShare:
-            updateStarving(minSharePreemptionTimeout);
-            break;
-
         case ESchedulableStatus::BelowFairShare:
             updateStarving(fairSharePreemptionTimeout);
             break;
@@ -650,7 +699,7 @@ TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
     // Shortcut: if the scheduling tag filter is empty then we just use the resource limits for
     // the tree's nodes filter, which were computed earlier in PreUpdateBottomUp.
     if (GetSchedulingTagFilter() == EmptySchedulingTagFilter) {
-        return TotalResourceLimits_ * GetMaxShareRatio();
+        return TotalResourceLimits_ * GetMaxShare();
     }
 
     auto connectionTime = InstantToCpuInstant(Host_->GetConnectionTime());
@@ -659,8 +708,191 @@ TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
         // Return infinity during the cluster startup.
         return TJobResources::Infinite();
     } else {
-        return GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter()) * GetMaxShareRatio();
+        return GetHost()->GetResourceLimits(TreeConfig_->NodesFilter & GetSchedulingTagFilter()) * GetMaxShare();
     }
+}
+
+TResourceVector TSchedulerElement::GetVectorSuggestion(double suggestion) const
+{
+    // TODO(FOOBAR): move this YT_VERIFY to another place.
+    YT_VERIFY(Dominates(LimitsShare_, Attributes().RecursiveMinShare));
+    TResourceVector vectorSuggestion = TResourceVector::FromDouble(suggestion);
+    vectorSuggestion = TResourceVector::Max(vectorSuggestion, Attributes().RecursiveMinShare);
+    vectorSuggestion = TResourceVector::Min(vectorSuggestion, LimitsShare_);
+    return vectorSuggestion;
+}
+
+void TSchedulerElement::PrepareUpdateFairShare(TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    {
+        TWallTimer timer;
+        PrepareFairShareByFitFactor(context);
+        context->PrepareFairShareByFitFactorTotalTime += timer.GetElapsedCpuTime();
+    }
+    YT_VERIFY(FairShareByFitFactor_.has_value());
+    NDetail::VerifyNondecreasing(*FairShareByFitFactor_, Logger);
+    YT_VERIFY(FairShareByFitFactor_->IsTrimmed());
+
+    {
+        TWallTimer timer;
+        PrepareMaxFitFactorBySuggestion(context);
+        context->PrepareMaxFitFactorBySuggestionTotalTime += timer.GetElapsedCpuTime();
+    }
+    YT_VERIFY(MaxFitFactorBySuggestion_.has_value());
+    YT_VERIFY(MaxFitFactorBySuggestion_->LeftFunctionBound() == 0);
+    YT_VERIFY(MaxFitFactorBySuggestion_->RightFunctionBound() == 1);
+    NDetail::VerifyNondecreasing(*MaxFitFactorBySuggestion_, Logger);
+    YT_VERIFY(MaxFitFactorBySuggestion_->IsTrimmed());
+
+    {
+        TWallTimer timer;
+        FairShareBySuggestion_ = FairShareByFitFactor_->Compose(*MaxFitFactorBySuggestion_);
+        context->ComposeTotalTime += timer.GetElapsedCpuTime();
+    }
+    YT_VERIFY(FairShareBySuggestion_.has_value());
+    YT_VERIFY(FairShareBySuggestion_->LeftFunctionBound() == 0);
+    YT_VERIFY(FairShareBySuggestion_->RightFunctionBound() == 1);
+    NDetail::VerifyNondecreasing(*FairShareBySuggestion_, Logger);
+    YT_VERIFY(FairShareBySuggestion_->IsTrimmed());
+
+    {
+        TWallTimer timer;
+        *FairShareBySuggestion_ = NDetail::CompressFunction(*FairShareBySuggestion_, 1e-15);
+        context->CompressFunctionTotalTime += timer.GetElapsedCpuTime();
+    }
+    NDetail::VerifyNondecreasing(*FairShareBySuggestion_, Logger);
+
+    auto sampleFairShareBySuggestion = [&] (double suggestion) -> TResourceVector {
+        const TResourceVector suggestedVector = GetVectorSuggestion(suggestion);
+
+        double maxFitFactor;
+        if (Dominates(suggestedVector, FairShareByFitFactor_->ValueAt(0))) {
+            maxFitFactor = FloatingPointInverseLowerBound(
+                /* lo */ 0,
+                /* hi */ FairShareByFitFactor_->RightFunctionBound(),
+                /* predicate */ [&] (double mid) {
+                    return Dominates(suggestedVector, FairShareByFitFactor_->ValueAt(mid));
+                });
+        } else {
+            maxFitFactor = 0;
+        }
+
+        return FairShareByFitFactor_->ValueAt(maxFitFactor);
+    };
+
+    // TODO(FOOBAR): Fix randomized checks.
+    // TODO(FOOBAR): This function is not continuous
+    // FairShareBySuggestion_->DoRandomizedCheckContinuous(sampleFairShareBySuggestion, Logger, 20, NLogging::ELogLevel::Fatal);
+    std::ignore = sampleFairShareBySuggestion;
+}
+
+void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+    YT_VERIFY(FairShareByFitFactor_);
+
+    std::vector<TScalarPiecewiseLinearFunction> mffForComponents;  // Mff stands for "MaxFitFactor".
+
+    for (int r = 0; r < ResourceCount; r++) {
+        // Fsbff stands for "FairShareByFitFactor".
+        auto fsbffComponent = NDetail::ExtractComponent(r, *FairShareByFitFactor_);
+        YT_VERIFY(fsbffComponent.IsTrimmed());
+
+        double limit = std::min(LimitsShare_[r], fsbffComponent.RightFunctionValue());
+
+        double guarantee = Attributes().RecursiveMinShare[r];
+        guarantee = std::max(guarantee, fsbffComponent.LeftFunctionValue());
+        guarantee = std::min(guarantee, limit);
+
+        auto mffForComponent = std::move(fsbffComponent)
+            .Transpose()
+            .Narrow(guarantee, limit)
+            .TrimLeft()
+            .Extend(/* newLeftBound */ 0, /* newRightBound */ 1.0)
+            .Trim();
+        mffForComponents.push_back(std::move(mffForComponent));
+    }
+
+    {
+        TWallTimer timer;
+        MaxFitFactorBySuggestion_ = PointwiseMin(mffForComponents);
+        context->PointwiseMinTotalTime += timer.GetElapsedCpuTime();
+    }
+
+    TResourceVector precisionAdjustedRecursiveMinShare = FairShareByFitFactor_->ValueAt(0);
+    YT_VERIFY(Dominates(
+        Attributes().RecursiveMinShare + TResourceVector::Epsilon(),
+        precisionAdjustedRecursiveMinShare));
+
+    auto sampleMaxFitFactor = [&] (double suggestion) -> double {
+        const auto suggestedVector = TResourceVector::Max(
+            GetVectorSuggestion(suggestion),
+            precisionAdjustedRecursiveMinShare);
+
+        return FloatingPointInverseLowerBound(
+            /* lo */ 0,
+            /* hi */ FairShareByFitFactor_->RightFunctionBound(),
+            /* predicate */ [&] (double mid) {
+                return Dominates(suggestedVector, FairShareByFitFactor_->ValueAt(mid));
+            });
+    };
+
+    auto errorHandler = [&] (const auto& /* sample */, double arg) {
+        auto mffSegment = MaxFitFactorBySuggestion_->SegmentAt(arg);
+
+        // We are checking the function as if it is continuous.
+        // The chance of hitting a discontinuity point by randomized check is close to zero.
+        if (mffSegment.IsVertical()) {
+            return;
+        }
+
+        auto expectedFitFactor = sampleMaxFitFactor(arg);
+        auto actualFitFactor = mffSegment.ValueAt(arg);
+
+        auto expectedFairShare = FairShareByFitFactor_->ValueAt(expectedFitFactor);
+        auto actualFairShare = FairShareByFitFactor_->ValueAt(actualFitFactor);
+
+        YT_LOG_FATAL(
+            "Invalid MaxFitFactorBySuggestion_. "
+            "Arg: %.16v, "
+            "FitFactorDiff: %.16v,"
+            "ExpectedFitFactor: %.16v, "
+            "ActualFitFactor: %.16v, "
+            "FairShareDiff: %.16v, "
+            "ExpectedFairShare: %.16v, "
+            "ActualFairShare: %.16v, "
+            "FitFactorSegmentBounds: {%.16v, %.16v}, "
+            "FitFactorSegmentValues: {%.16v, %.16v}",
+            arg,
+            expectedFitFactor - actualFitFactor,
+            expectedFitFactor,
+            actualFitFactor,
+            expectedFairShare - actualFairShare,
+            expectedFairShare,
+            actualFairShare,
+            mffSegment.LeftBound(), mffSegment.RightBound(),
+            mffSegment.LeftValue(), mffSegment.RightValue());
+    };
+
+    // TODO(FOOBAR): Fix randomized checks.
+    // MaxFitFactorBySuggestion_->DoRandomizedCheckContinuous(sampleMaxFitFactor, 20, errorHandler);
+    std::ignore = sampleMaxFitFactor;
+    std::ignore = errorHandler;
+}
+
+void TSchedulerElement::LogDetailedInfo() const
+{
+    auto maxPossibleResourceUsage = Min(TotalResourceLimits_, MaxPossibleResourceUsage_);
+    auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage, /* logDetailedInfo */ true);
+
+    YT_LOG_DEBUG("XXX Detailed information (TotalResourceLimits: %v, Demand: %v, Usage: %v, MaxPossibleResourceUsage: %v, RecursiveMaxPossibleResourceUsage: %v)",
+        FormatResources(TotalResourceLimits_),
+        FormatResources(ResourceDemand()),
+        FormatResources(GetLocalResourceUsage()),
+        FormatResources(maxPossibleResourceUsage),
+        FormatResources(possibleUsage));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -672,7 +904,7 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     NProfiling::TTagId profilingTag,
     const TString& treeId,
     const NLogging::TLogger& logger)
-    : TSchedulerElement(host, treeHost, treeConfig, treeId, logger)
+    : TSchedulerElement(host, treeHost, std::move(treeConfig), treeId, logger)
     , ProfilingTag_(profilingTag)
 { }
 
@@ -756,11 +988,13 @@ void TCompositeSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynam
 {
     YT_VERIFY(Mutable_);
 
+    ResourceUsageAtUpdate_ = {};
     ResourceDemand_ = {};
 
     for (const auto& child : EnabledChildren_) {
         child->PreUpdateBottomUp(dynamicAttributesList, context);
 
+        ResourceUsageAtUpdate_ += child->ResourceUsageAtUpdate();
         ResourceDemand_ += child->ResourceDemand();
     }
 
@@ -771,7 +1005,6 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicA
 {
     YT_VERIFY(Mutable_);
 
-    Attributes_.BestAllocationRatio = 0.0;
     PendingJobCount_ = 0;
 
     SchedulableChildren_.clear();
@@ -784,67 +1017,70 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicA
             child->PersistentAttributes_.HistoricUsageAggregator.UpdateParameters(
                 GetHistoricUsageAggregationParameters());
 
-            auto usage = child->GetResourceUsageRatio();
-            child->PersistentAttributes_.HistoricUsageAggregator.UpdateAt(context->Now, usage);
+            // TODO(eshcherbin): should we use vectors instead of ratios?
+            auto usageRatio = MaxComponent(child->GetResourceUsageShare());
+            child->PersistentAttributes_.HistoricUsageAggregator.UpdateAt(context->Now, usageRatio);
         }
-
-        Attributes_.BestAllocationRatio = std::max(
-            Attributes_.BestAllocationRatio,
-            child->Attributes().BestAllocationRatio);
-        PendingJobCount_ += child->GetPendingJobCount();
-
-        maxPossibleChildrenResourceUsage += child->MaxPossibleResourceUsage();
 
         if (child->IsSchedulable()) {
             SchedulableChildren_.push_back(child);
         }
+
+        PendingJobCount_ += child->GetPendingJobCount();
+        maxPossibleChildrenResourceUsage += child->MaxPossibleResourceUsage();
     }
 
     MaxPossibleResourceUsage_ = Min(maxPossibleChildrenResourceUsage, ResourceLimits_);
     TSchedulerElement::UpdateBottomUp(dynamicAttributesList, context);
 }
 
-void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TCompositeSchedulerElement::UpdatePreemption(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
+    TSchedulerElement::UpdatePreemption(context);
 
-    switch (Mode_) {
-        case ESchedulingMode::Fifo:
-            // Easy case -- the first child get everything, others get none.
-            UpdateFifo(dynamicAttributesList, context);
-            break;
+    if (Parent_) {
+        AdjustedFairShareStarvationToleranceLimit_ = std::min(
+            GetFairShareStarvationToleranceLimit(),
+            Parent_->AdjustedFairShareStarvationToleranceLimit());
 
-        case ESchedulingMode::FairShare:
-            // Hard case -- compute fair shares using fit factor.
-            UpdateFairShare(dynamicAttributesList, context);
-            break;
+        AdjustedMinSharePreemptionTimeoutLimit_ = std::max(
+            GetMinSharePreemptionTimeoutLimit(),
+            Parent_->AdjustedMinSharePreemptionTimeoutLimit());
 
-        default:
-            YT_ABORT();
+        AdjustedFairSharePreemptionTimeoutLimit_ = std::max(
+            GetFairSharePreemptionTimeoutLimit(),
+            Parent_->AdjustedFairSharePreemptionTimeoutLimit());
     }
 
-    UpdatePreemptionSettingsLimits();
-
+    // Propagate updates to children.
     for (const auto& child : EnabledChildren_) {
-        // It is necessary to update satisfaction ratio in global attributes during update.
-        auto& dynamicAttributes = (*dynamicAttributesList)[child->GetTreeIndex()];
-        dynamicAttributes.Active = true;
-        child->UpdateDynamicAttributes(dynamicAttributesList);
-
-        // Propagate updates to children.
-        UpdateChildPreemptionSettings(child);
-        child->UpdateTopDown(dynamicAttributesList, context);
+        child->UpdatePreemption(context);
     }
 }
 
-TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit) const
+void TCompositeSchedulerElement::UpdateDynamicAttributes(
+    TDynamicAttributesList* dynamicAttributesList,
+    TUpdateFairShareContext* context)
+{
+    for (const auto& child : EnabledChildren_) {
+        child->UpdateDynamicAttributes(dynamicAttributesList, context);
+    }
+
+    TSchedulerElement::UpdateDynamicAttributes(dynamicAttributesList, context);
+}
+
+TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit, bool logDetailedInfo) const
 {
     TJobResources additionalUsage;
 
     for (const auto& child : EnabledChildren_) {
-        auto childUsage = child->ComputePossibleResourceUsage(limit);
+        auto childUsage = child->ComputePossibleResourceUsage(limit, logDetailedInfo);
         limit -= childUsage;
         additionalUsage += childUsage;
+        if (logDetailedInfo) {
+            YT_LOG_DEBUG("XXX Current state after processing %v (Limit: %v, AdditionalUsage: %v)", child->GetId(), FormatResources(limit), FormatResources(additionalUsage));
+        }
     }
 
     return additionalUsage;
@@ -865,44 +1101,6 @@ TDuration TCompositeSchedulerElement::GetFairSharePreemptionTimeoutLimit() const
     return TDuration::Zero();
 }
 
-void TCompositeSchedulerElement::UpdatePreemptionSettingsLimits()
-{
-    YT_VERIFY(Mutable_);
-
-    if (Parent_) {
-        AdjustedFairShareStarvationToleranceLimit_ = std::min(
-            GetFairShareStarvationToleranceLimit(),
-            Parent_->AdjustedFairShareStarvationToleranceLimit());
-
-        AdjustedMinSharePreemptionTimeoutLimit_ = std::max(
-            GetMinSharePreemptionTimeoutLimit(),
-            Parent_->AdjustedMinSharePreemptionTimeoutLimit());
-
-        AdjustedFairSharePreemptionTimeoutLimit_ = std::max(
-            GetFairSharePreemptionTimeoutLimit(),
-            Parent_->AdjustedFairSharePreemptionTimeoutLimit());
-    }
-}
-
-void TCompositeSchedulerElement::UpdateChildPreemptionSettings(const TSchedulerElementPtr& child)
-{
-    YT_VERIFY(Mutable_);
-
-    auto& childAttributes = child->Attributes();
-
-    childAttributes.AdjustedFairShareStarvationTolerance = std::min(
-        child->GetFairShareStarvationTolerance(),
-        AdjustedFairShareStarvationToleranceLimit_);
-
-    childAttributes.AdjustedMinSharePreemptionTimeout = std::max(
-        child->GetMinSharePreemptionTimeout(),
-        AdjustedMinSharePreemptionTimeoutLimit_);
-
-    childAttributes.AdjustedFairSharePreemptionTimeout = std::max(
-        child->GetFairSharePreemptionTimeout(),
-        AdjustedFairSharePreemptionTimeoutLimit_);
-}
-
 void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList)
 {
     YT_VERIFY(IsActive(*dynamicAttributesList));
@@ -913,9 +1111,9 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList*
         return;
     }
 
-    // Compute local satisfaction ratio.
-    attributes.SatisfactionRatio = ComputeLocalSatisfactionRatio();
-    // Adjust satisfaction ratio using children.
+    // Satisfaction ratio of a composite element is a minimum of satisfaction ratios of its children.
+    attributes.SatisfactionRatio = InfiniteSatisfactionRatio;
+
     // Declare the element passive if all children are passive.
     attributes.Active = false;
     attributes.BestLeafDescendant = nullptr;
@@ -931,10 +1129,7 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList*
             childBestLeafDescendant = bestChildAttributes.BestLeafDescendant;
         }
 
-        attributes.SatisfactionRatio = std::min(
-            attributes.SatisfactionRatio,
-            bestChildAttributes.SatisfactionRatio);
-
+        attributes.SatisfactionRatio = bestChildAttributes.SatisfactionRatio;
         attributes.BestLeafDescendant = childBestLeafDescendant;
         attributes.Active = true;
         break;
@@ -1142,230 +1337,446 @@ NProfiling::TTagId TCompositeSchedulerElement::GetProfilingTag() const
     return ProfilingTag_;
 }
 
-// Given a non-descending continuous |f|, |f(0) = 0|, and a scalar |a|,
-// computes |x \in [0,1]| s.t. |f(x) = a|.
-// If |f(1) <= a| then still returns 1.
-template <class F>
-static double BinarySearch(const F& f, double a)
-{
-    if (f(1) <= a) {
-        return 1.0;
-    }
-
-    double lo = 0.0;
-    double hi = 1.0;
-    while (hi - lo > RatioComputationPrecision) {
-        double x = (lo + hi) / 2.0;
-        if (f(x) < a) {
-            lo = x;
-        } else {
-            hi = x;
-        }
-    }
-    return (lo + hi) / 2.0;
-}
-
-template <class TGetter, class TSetter>
-void TCompositeSchedulerElement::ComputeByFitting(
+template <class TValue, class TGetter, class TSetter>
+TValue TCompositeSchedulerElement::ComputeByFitting(
     const TGetter& getter,
     const TSetter& setter,
-    double sum)
+    TValue maxSum)
 {
-    auto getSum = [&] (double fitFactor) -> double {
-        double sum = 0.0;
+    auto checkSum = [&] (double fitFactor) -> bool {
+        TValue sum = {};
         for (const auto& child : EnabledChildren_) {
             sum += getter(fitFactor, child);
         }
-        return sum;
+
+        if constexpr (std::is_same_v<TValue, TResourceVector>) {
+            return Dominates(maxSum, sum);
+        } else {
+            return maxSum >= sum;
+        }
     };
 
     // Run binary search to compute fit factor.
-    double fitFactor = BinarySearch(getSum, sum);
+    double fitFactor = FloatingPointInverseLowerBound(0, 1, checkSum);
 
-    double resultSum = getSum(fitFactor);
-    double uncertaintyRatio = 1.0;
-    if (resultSum > RatioComputationPrecision && std::abs(sum - resultSum) > RatioComputationPrecision) {
-        uncertaintyRatio = sum / resultSum;
-    }
+    TValue resultSum = {};
 
-    // Compute actual min shares from fit factor.
+    // Compute actual values from fit factor.
     for (const auto& child : EnabledChildren_) {
-        double value = getter(fitFactor, child);
-        setter(child, value, uncertaintyRatio);
+        TValue value = getter(fitFactor, child);
+        resultSum += value;
+        setter(child, value);
     }
+
+    return resultSum;
 }
 
-void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* /* context */)
+void TCompositeSchedulerElement::UpdateMinShare(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
-    auto children = EnabledChildren_;
+    switch (Mode_) {
+        case ESchedulingMode::Fifo:
+            UpdateMinShareFifo(context);
+            break;
+
+        case ESchedulingMode::FairShare:
+            UpdateMinShareNormal(context);
+            break;
+
+        default:
+            YT_ABORT();
+    }
+
+    // Recursively update children.
+    for (const auto& child : EnabledChildren_) {
+        child->UpdateMinShare(context);
+    }
+}
+
+
+void TCompositeSchedulerElement::UpdateMinShareFifo(TUpdateFairShareContext* context)
+{
+    SortedEnabledChildren_ = EnabledChildren_;
     std::sort(
-        children.begin(),
-        children.end(),
+        begin(SortedEnabledChildren_),
+        end(SortedEnabledChildren_),
         [&] (const auto& lhs, const auto& rhs) {
             return HasHigherPriorityInFifoMode(lhs.Get(), rhs.Get());
         });
 
-    double remainingFairShareRatio = Attributes_.FairShareRatio;
-
     int index = 0;
-    for (const auto& child : children) {
+    for (const auto& child : SortedEnabledChildren_) {
         auto& childAttributes = child->Attributes();
 
-        childAttributes.RecursiveMinShareRatio = 0.0;
-        childAttributes.AdjustedMinShareRatio = 0.0;
+        childAttributes.RecursiveMinShare = TResourceVector::Zero();
+        childAttributes.AdjustedMinShare = TResourceVector::Zero();
 
         childAttributes.FifoIndex = index;
         ++index;
-
-        double childFairShareRatio = remainingFairShareRatio;
-        childFairShareRatio = std::min(childFairShareRatio, childAttributes.MaxPossibleUsageRatio);
-        childFairShareRatio = std::min(childFairShareRatio, childAttributes.BestAllocationRatio);
-        child->SetFairShareRatio(childFairShareRatio);
-        remainingFairShareRatio -= childFairShareRatio;
     }
 }
 
-void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TCompositeSchedulerElement::UpdateMinShareNormal(TUpdateFairShareContext* context)
 {
-    YT_VERIFY(Mutable_);
-
-    if (IsRoot()) {
-        SetFairShareRatio(1.0);
-    }
-
-    // Compute min shares sum and min weight.
-    double minShareRatioSumForPools = 0.0;
-    double minShareRatioSumForOperations = 0.0;
-    double minWeight = std::numeric_limits<double>::max();
+    TResourceVector minShareSumForPools = {};
+    TResourceVector minShareSumForOperations = {};
     for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
-        auto minShareRatio = child->GetMinShareRatio();
-        auto minShareRatioByResources = GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_);
+        double minShareRatio = child->GetMinShareRatio();
+        double minShareRatioByResources = GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_);
+        // TODO(FOOBAR): New type of MinShare.
 
-        childAttributes.RecursiveMinShareRatio = std::max(
-            Attributes_.RecursiveMinShareRatio * minShareRatio,
-            minShareRatioByResources);
+        childAttributes.RecursiveMinShare = Attributes_.RecursiveMinShare * minShareRatio;
+        childAttributes.RecursiveMinShare = TResourceVector::Max(
+            childAttributes.RecursiveMinShare,
+            TResourceVector::FromDouble(minShareRatioByResources));
+
+        // RecursiveMinShare must not be greater than LimitsShare_
+        childAttributes.RecursiveMinShare = TResourceVector::Min(
+            childAttributes.RecursiveMinShare,
+            child->LimitsShare_);
 
         if (child->IsOperation()) {
-            minShareRatioSumForOperations += childAttributes.RecursiveMinShareRatio;
+            minShareSumForOperations += childAttributes.RecursiveMinShare;
         } else {
-            minShareRatioSumForPools += childAttributes.RecursiveMinShareRatio;
+            minShareSumForPools += childAttributes.RecursiveMinShare;
         }
 
-        if ((!child->IsOperation() && minShareRatio > 0) && Attributes_.RecursiveMinShareRatio == 0) {
+        if ((!child->IsOperation() && minShareRatio > 0) && Attributes_.RecursiveMinShare == TResourceVector::Zero()) {
             context->Errors.emplace_back(
                 "Min share ratio setting for %Qv has no effect "
                 "because min share ratio of parent pool %Qv is zero",
                 child->GetId(),
                 GetId());
         }
-        if ((!child->IsOperation() && minShareRatioByResources > 0) && Attributes_.RecursiveMinShareRatio == 0) {
+        if ((!child->IsOperation() && minShareRatioByResources > 0) &&
+            Attributes_.RecursiveMinShare == TResourceVector::Zero())
+        {
             context->Errors.emplace_back(
                 "Min share ratio resources setting for %Qv has no effect "
-                "because min share ratio of parent pool %Qv is zero",
+                "because min share of parent pool %Qv is zero",
                 child->GetId(),
                 GetId());
-        }
-
-        if (child->GetWeight() > RatioComputationPrecision) {
-            minWeight = std::min(minWeight, child->GetWeight());
         }
     }
 
     // If min share sum is larger than one, adjust all children min shares to sum up to one.
-    if (minShareRatioSumForPools > Attributes_.RecursiveMinShareRatio + RatioComparisonPrecision) {
-        context->Errors.emplace_back(
-            "Impossible to satisfy resources guarantees of pool %Qv, "
-            "total min share ratio of children pools is too large: %v > %v",
-            GetId(),
-            minShareRatioSumForPools,
-            Attributes_.RecursiveMinShareRatio);
+    if (!Dominates(Attributes_.RecursiveMinShare, minShareSumForPools)) {
+        if (!Dominates(Attributes_.RecursiveMinShare + TResourceVector::SmallEpsilon(), minShareSumForPools)) {
+            context->Errors.emplace_back(
+                "Impossible to satisfy resources guarantees of pool %Qv, "
+                "total min share of children pools is too large: %v > %v",
+                GetId(),
+                minShareSumForPools,
+                Attributes_.RecursiveMinShare);
+        }
 
-        double fitFactor = Attributes_.RecursiveMinShareRatio / minShareRatioSumForPools;
         for (const auto& child : EnabledChildren_) {
-            auto& childAttributes = child->Attributes();
             if (child->IsOperation()) {
-                childAttributes.RecursiveMinShareRatio = 0.0;
-            } else {
-                childAttributes.RecursiveMinShareRatio *= fitFactor;
+                child->Attributes().RecursiveMinShare = {};
             }
         }
-    } else if (minShareRatioSumForPools + minShareRatioSumForOperations > Attributes_.RecursiveMinShareRatio + RatioComparisonPrecision) {
-        // Min share ratios of operations are fitted silently.
-        double fitFactor = (Attributes_.RecursiveMinShareRatio - minShareRatioSumForPools + RatioComparisonPrecision) / minShareRatioSumForOperations;
-        for (const auto& child : EnabledChildren_) {
-            auto& childAttributes = child->Attributes();
-            if (child->IsOperation()) {
-                childAttributes.RecursiveMinShareRatio *= fitFactor;
-            }
-        }
+
+        // Use binary search instead of division to avoid problems with precision.
+        ComputeByFitting(
+            /* getter */ [&] (double fitFactor, const TSchedulerElementPtr& child) -> TResourceVector {
+                return child->Attributes().RecursiveMinShare * fitFactor;
+            },
+            /* setter */ [&] (const TSchedulerElementPtr& child, TResourceVector value) {
+                child->Attributes().RecursiveMinShare = value;
+            },
+            /* maxSum */ Attributes().RecursiveMinShare);
+    }
+    if (!Dominates(Attributes_.RecursiveMinShare, minShareSumForPools + minShareSumForOperations)) {
+        // Min shares of operations are fitted silently.
+        ComputeByFitting(
+            /* getter */ [&] (double fitFactor, const TSchedulerElementPtr& child) -> TResourceVector {
+                if (child->IsOperation()) {
+                    return child->Attributes().RecursiveMinShare * fitFactor;
+                } else {
+                    return child->Attributes().RecursiveMinShare;
+                }
+            },
+            /* setter */ [&] (const TSchedulerElementPtr& child, TResourceVector value) {
+                child->Attributes().RecursiveMinShare = value;
+            },
+            /* maxSum */ Attributes().RecursiveMinShare);
     }
 
-    // Compute fair shares.
-    ComputeByFitting(
-        [&] (double fitFactor, const TSchedulerElementPtr& child) -> double {
-            const auto& childAttributes = child->Attributes();
-            double result = fitFactor * child->GetWeight() / minWeight;
-            // Never give less than promised by min share.
-            result = std::max(result, childAttributes.RecursiveMinShareRatio);
-            // Never give more than can be used.
-            result = std::min(result, childAttributes.MaxPossibleUsageRatio);
-            // Never give more than we can allocate.
-            result = std::min(result, childAttributes.BestAllocationRatio);
-            return result;
-        },
-        [&] (const TSchedulerElementPtr& child, double value, double uncertaintyRatio) {
-            if (IsRoot() && uncertaintyRatio > 1.0) {
-                uncertaintyRatio = 1.0;
-            }
-            child->SetFairShareRatio(value * uncertaintyRatio);
-            if (uncertaintyRatio < 0.99 && !IsRoot()) {
-                YT_LOG_DEBUG("Detected situation with parent/child fair share ratio disagreement "
-                    "(Child: %v, Parent: %v, UncertaintyRatio: %v)",
-                    child->GetId(),
-                    child->GetParent()->GetId(),
-                    uncertaintyRatio);
-            }
-        },
-        Attributes_.FairShareRatio);
-
-    if (IsRoot()) {
-        double fairShareRatio = 0.0;
-        for (const auto& child : EnabledChildren_) {
-            fairShareRatio += child->GetFairShareRatio();
-        }
-        if (fairShareRatio < 1.0 - RatioComparisonPrecision) {
-            SetFairShareRatio(fairShareRatio);
-        }
-    }
+    double minWeight = GetMinChildWeight(EnabledChildren_);
 
     // Compute guaranteed shares.
     ComputeByFitting(
-        [&] (double fitFactor, const TSchedulerElementPtr& child) -> double {
+        [&] (double fitFactor, const TSchedulerElementPtr& child) -> TResourceVector {
             const auto& childAttributes = child->Attributes();
-            double result = fitFactor * child->GetWeight() / minWeight;
+            auto result = TResourceVector::FromDouble(fitFactor * child->GetWeight() / minWeight);
             // Never give less than promised by min share.
-            result = std::max(result, childAttributes.RecursiveMinShareRatio);
+            result = TResourceVector::Max(result, childAttributes.RecursiveMinShare);
+            result = TResourceVector::Min(result, child->LimitsShare());
             return result;
         },
-        [&] (const TSchedulerElementPtr& child, double value, double uncertaintyRatio) {
+        [&] (const TSchedulerElementPtr& child, TResourceVector value) {
             auto& attributes = child->Attributes();
-            attributes.GuaranteedResourcesRatio = value * uncertaintyRatio;
+            attributes.GuaranteedResourcesShare = value;
         },
-        Attributes_.GuaranteedResourcesRatio);
+        Attributes_.GuaranteedResourcesShare);
+}
 
-    // Compute adjusted min share ratios.
+void TCompositeSchedulerElement::PrepareUpdateFairShare(TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
     for (const auto& child : EnabledChildren_) {
-        auto& childAttributes = child->Attributes();
-        double result = childAttributes.RecursiveMinShareRatio;
-        // Never give more than can be used.
-        result = std::min(result, childAttributes.MaxPossibleUsageRatio);
-        // Never give more than we can allocate.
-        result = std::min(result, childAttributes.BestAllocationRatio);
-        childAttributes.AdjustedMinShareRatio = result;
+        child->PrepareUpdateFairShare(context);
     }
+
+    TSchedulerElement::PrepareUpdateFairShare(context);
+}
+
+void TCompositeSchedulerElement::PrepareFairShareByFitFactor(TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    switch (Mode_) {
+        case ESchedulingMode::Fifo:
+            PrepareFairShareByFitFactorFifo(context);
+            break;
+
+        case ESchedulingMode::FairShare:
+            PrepareFairShareByFitFactorNormal(context);
+            break;
+
+        default:
+            YT_ABORT();
+    }
+}
+
+// Fit factor for a FIFO pool is defined as the number of satisfied children plus the suggestion
+// of the first child that is not satisfied, if any.
+// A child is said to be satisfied when it is suggested the whole cluster (|suggestion == 1.0|).
+// Note that this doesn't necessarily mean that the child's demand is satisfied.
+// For an empty FIFO pool fit factor is not well defined.
+//
+// The unambiguity of the definition of the fit factor follows the fact that the suggestion of
+// an unsatisfied child is, by definition, less than 1.
+//
+// The completeness of the definition of the fit factor (i.e. that it represents any
+// sensible allocation for a FIFO pool) follows from the fact that for any child:
+// |child->FairShareBySuggestion_(0.0) == TResourceVector::Zero()|, which, in turn, follows from the fact
+// that the children of a FIFO pool do not have resource guarantees.
+void TCompositeSchedulerElement::PrepareFairShareByFitFactorFifo(TUpdateFairShareContext* context)
+{
+    TWallTimer timer;
+    auto finally = Finally([&] {
+        context->PrepareFairShareByFitFactorFifoTotalTime += timer.GetElapsedCpuTime();
+    });
+
+    if (SortedEnabledChildren_.empty()) {
+        FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Constant(0, 1, TResourceVector::Zero());
+        return;
+    }
+
+    double rightFunctionBound = SortedEnabledChildren_.size();
+    FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Constant(0, rightFunctionBound, TResourceVector::Zero());
+
+    double currentRightBound = 0;
+    for (const auto& child : SortedEnabledChildren_) {
+        const auto& childFSBS = *child->FairShareBySuggestion_;
+
+        // NB(antonkikh): The resulting function must be continuous on borders between children (see the function comment).
+        YT_VERIFY(childFSBS.IsTrimmedLeft() && childFSBS.IsTrimmedRight());
+        // Children of FIFO pools don't have guaranteed resources.
+        YT_VERIFY(childFSBS.LeftFunctionValue() == TResourceVector::Zero());
+
+        // TODO(antonkikh): This can be implemented much more efficiently by concatenating functions instead of adding.
+        *FairShareByFitFactor_ += childFSBS
+            .Shift(/* deltaArgument */ currentRightBound)
+            .Extend(/* newLeftBound */ 0.0, /* newRightBound */ rightFunctionBound);
+        currentRightBound += 1;
+    }
+
+    YT_VERIFY(currentRightBound == rightFunctionBound);
+}
+
+void TCompositeSchedulerElement::PrepareFairShareByFitFactorNormal(TUpdateFairShareContext* context)
+{
+    TWallTimer timer;
+    auto finally = Finally([&] {
+        context->PrepareFairShareByFitFactorNormalTotalTime += timer.GetElapsedCpuTime();
+    });
+
+    if (EnabledChildren_.empty()) {
+        FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Constant(0, 1, TResourceVector::Zero());
+    } else {
+        std::vector<TVectorPiecewiseLinearFunction> childrenFunctions;
+
+        double minWeight = GetMinChildWeight(EnabledChildren_);
+        for (const auto& child : EnabledChildren_) {
+            const auto& childFSBS = *child->FairShareBySuggestion_;
+
+            auto childFunction = childFSBS
+                .ScaleArgument(child->GetWeight() / minWeight)
+                .ExtendRight(/* newRightBound */ 1.0);
+
+            childrenFunctions.emplace_back(std::move(childFunction));
+        }
+
+        FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
+    }
+
+    // TODO(FOOBAR): Fix randomized checks.
+    // TODO(FOOBAR): This function is not continuous
+    // FairShareByFitFactor_->DoRandomizedCheckContinuous(
+    //     [&] (double fitFactor) {
+    //         return std::accumulate(
+    //             begin(EnabledChildren_),
+    //             end(EnabledChildren_),
+    //             TResourceVector::Zero(),
+    //             [&] (TResourceVector sum, const auto& child) {
+    //                 return sum + child->FairShareBySuggestion()->ValueAt(std::min(1.0, fitFactor * (child->GetWeight() / minWeight)));
+    //             });
+    //     },
+    //     /* logger */ Logger,
+    //     /* sampleCount */ 20,
+    //     /* logLevel */ NLogging::ELogLevel::Fatal);
+}
+
+TResourceVector TCompositeSchedulerElement::DoUpdateFairShare(double suggestion, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    switch (Mode_) {
+        case ESchedulingMode::Fifo:
+            return DoUpdateFairShareFifo(suggestion, context);
+
+        case ESchedulingMode::FairShare:
+            return DoUpdateFairShareNormal(suggestion, context);
+
+        default:
+            YT_ABORT();
+    }
+}
+
+TResourceVector TCompositeSchedulerElement::DoUpdateFairShareFifo(double suggestion, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    double fitFactor = MaxFitFactorBySuggestion_->ValueAt(suggestion);
+
+    TResourceVector usedFairShare;
+    if (!SortedEnabledChildren_.empty()) {
+        // See |TCompositeSchedulerElement::PrepareFairShareByFitFactorFifo| for the definition of fit factor for FIFO pools.
+        int satisfiedChildrenCount = static_cast<int>(fitFactor);
+        double notSatisfiedChildSuggestion = fitFactor - satisfiedChildrenCount;
+
+        usedFairShare = TResourceVector::Zero();
+
+        YT_VERIFY(satisfiedChildrenCount <= SortedEnabledChildren_.size());
+        for (int i = 0; i < satisfiedChildrenCount; i++) {
+            usedFairShare += SortedEnabledChildren_[i]->DoUpdateFairShare(1.0, context);
+        }
+
+        if (notSatisfiedChildSuggestion != 0) {
+            YT_VERIFY(satisfiedChildrenCount < SortedEnabledChildren_.size());
+            usedFairShare += SortedEnabledChildren_[satisfiedChildrenCount]
+                ->DoUpdateFairShare(notSatisfiedChildSuggestion, context);
+        }
+    } else {
+        // Fit factor is not well defined for an empty FIFO pool.
+        usedFairShare = TResourceVector::Zero();
+    }
+
+    YT_LOG_WARNING_UNLESS(
+        TResourceVector::Near(usedFairShare, FairShareBySuggestion()->ValueAt(suggestion), 1e-4 * MaxComponent(usedFairShare)),
+        "Fair share significantly differs from predicted in FIFO pool ("
+        "Suggestion: %.10v, "
+        "UsedFairShare: %.10v, "
+        "FSPredicted: %.10v, "
+        "FSBFFPredicted: %.10v, "
+        "FitFactor: %.10v, "
+        "ChildrenCount: %v, "
+        "OperationCount: %v, "
+        "RunningOperationCount: %v)",
+        suggestion,
+        usedFairShare,
+        FairShareBySuggestion()->ValueAt(suggestion),
+        FairShareByFitFactor()->ValueAt(fitFactor),
+        fitFactor,
+        EnabledChildren_.size(),
+        OperationCount(),
+        RunningOperationCount());
+    YT_LOG_WARNING_UNLESS(
+        Dominates(GetVectorSuggestion(suggestion) + TResourceVector::Epsilon(), usedFairShare),
+        "Used significantly more fair share than was suggested (Suggestion: %.6v, UsedFairShare: %.6v)",
+        GetVectorSuggestion(suggestion),
+        usedFairShare);
+
+    SetFairShare(usedFairShare);
+    return usedFairShare;
+}
+
+TResourceVector TCompositeSchedulerElement::DoUpdateFairShareNormal(double suggestion, TUpdateFairShareContext* context)
+{
+    YT_VERIFY(Mutable_);
+
+    double fitFactor = MaxFitFactorBySuggestion()->ValueAt(suggestion);
+    double minWeight = GetMinChildWeight(EnabledChildren_);
+
+    TResourceVector usedFairShare = {};
+    for (const auto& child : EnabledChildren_) {
+        double childSuggestion = std::min(1.0, fitFactor * (child->GetWeight() / minWeight));
+        usedFairShare += child->DoUpdateFairShare(childSuggestion, context);
+    }
+
+    YT_LOG_WARNING_UNLESS(
+        TResourceVector::Near(usedFairShare, FairShareBySuggestion()->ValueAt(suggestion), 1e-4 * MaxComponent(usedFairShare)),
+        "Fair share significantly differs from predicted in normal pool ("
+        "Suggestion: %.10v, "
+        "UsedFairShare: %.10v, "
+        "FSPredicted: %.10v, "
+        "FSBFFPredicted: %.10v, "
+        "FSChildrenSumPredicted: %.10v, "
+        "FitFactor: %.10v, "
+        "MinWeight: %.10v, "
+        "ChildrenCount: %v, "
+        "OperationCount: %v, "
+        "RunningOperationCount: %v)",
+        suggestion,
+        usedFairShare,
+        FairShareBySuggestion()->ValueAt(suggestion),
+        FairShareByFitFactor()->ValueAt(fitFactor),
+        std::accumulate(
+            begin(EnabledChildren_),
+            end(EnabledChildren_),
+            TResourceVector::Zero(),
+            [&] (TResourceVector sum, const auto& child) {
+                return sum + child->FairShareBySuggestion()->ValueAt(std::min(1.0, fitFactor * (child->GetWeight() / minWeight)));
+            }),
+        fitFactor,
+        minWeight,
+        EnabledChildren_.size(),
+        OperationCount(),
+        RunningOperationCount());
+    YT_LOG_WARNING_UNLESS(
+        Dominates(GetVectorSuggestion(suggestion) + TResourceVector::Epsilon(), usedFairShare),
+        "Used significantly more fair share than was suggested (Suggestion: %.6v, UsedFairShare: %.6v)",
+        GetVectorSuggestion(suggestion),
+        usedFairShare);
+
+    SetFairShare(usedFairShare);
+    return usedFairShare;
+}
+
+double TCompositeSchedulerElement::GetMinChildWeight(const TChildList& children)
+{
+    double minWeight = std::numeric_limits<double>::max();
+    for (const auto& child : children) {
+        if (child->GetWeight() > RatioComputationPrecision) {
+            minWeight = std::min(minWeight, child->GetWeight());
+        }
+    }
+    return minWeight;
 }
 
 TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const
@@ -1398,7 +1809,7 @@ TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChildFifo(const TDyn
 TSchedulerElement* TCompositeSchedulerElement::GetBestActiveChildFairShare(const TDynamicAttributesList& dynamicAttributesList) const
 {
     TSchedulerElement* bestChild = nullptr;
-    double bestChildSatisfactionRatio = std::numeric_limits<double>::max();
+    double bestChildSatisfactionRatio = InfiniteSatisfactionRatio;
     for (const auto& child : SchedulableChildren_) {
         if (child->IsActive(dynamicAttributesList)) {
             double childSatisfactionRatio = dynamicAttributesList[child->GetTreeIndex()].SatisfactionRatio;
@@ -1484,8 +1895,8 @@ int TCompositeSchedulerElement::GetAvailableRunningOperationCount() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPoolFixedState::TPoolFixedState(const TString& id)
-    : Id_(id)
+TPoolFixedState::TPoolFixedState(TString id)
+    : Id_(std::move(id))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1503,13 +1914,15 @@ TPool::TPool(
     : TCompositeSchedulerElement(
         host,
         treeHost,
-        treeConfig,
+        std::move(treeConfig),
         profilingTag,
         treeId,
-        NLogging::TLogger(logger).AddTag("PoolId: %v", id))
+        NLogging::TLogger(logger)
+            .AddTag("PoolId: %v", id)
+            .AddTag("SchedulingMode: %v", config->Mode))
     , TPoolFixedState(id)
 {
-    DoSetConfig(config);
+    DoSetConfig(std::move(config));
     DefaultConfigured_ = defaultConfigured;
 }
 
@@ -1549,7 +1962,7 @@ void TPool::SetConfig(TPoolConfigPtr config)
 {
     YT_VERIFY(Mutable_);
 
-    DoSetConfig(config);
+    DoSetConfig(std::move(config));
     DefaultConfigured_ = false;
 }
 
@@ -1604,9 +2017,9 @@ TJobResources TPool::GetMinShareResources() const
     return ToJobResources(Config_->MinShareResources, {});
 }
 
-double TPool::GetMaxShareRatio() const
+TResourceVector TPool::GetMaxShare() const
 {
-    return Config_->MaxShareRatio.value_or(1.0);
+    return TResourceVector::FromDouble(Config_->MaxShareRatio.value_or(1.0));
 }
 
 ESchedulableStatus TPool::GetStatus() const
@@ -1884,31 +2297,35 @@ TJobResources TOperationElementSharedState::IncreaseJobResourceUsage(
 }
 
 void TOperationElementSharedState::UpdatePreemptableJobsList(
-    double fairShareRatio,
+    const TResourceVector& fairShare,
     const TJobResources& totalResourceLimits,
     double preemptionSatisfactionThreshold,
     double aggressivePreemptionSatisfactionThreshold,
-    int* moveCount)
+    int* moveCount,
+    TOperationElement* operationElement)
 {
     TWriterGuard guard(JobPropertiesMapLock_);
 
-    auto getUsageRatio = [&] (const TJobResources& resourceUsage) {
-        return GetDominantResourceUsage(resourceUsage, totalResourceLimits);
+    auto getUsageShare = [&] (const TJobResources& resourceUsage) -> TResourceVector {
+        return TResourceVector::FromJobResources(resourceUsage, totalResourceLimits, 0, 1);
     };
 
     auto balanceLists = [&] (
         TJobIdList* left,
         TJobIdList* right,
         TJobResources resourceUsage,
-        double fairShareRatioBound,
+        TResourceVector fairShareBound,
         std::function<void(TJobProperties*)> onMovedLeftToRight,
         std::function<void(TJobProperties*)> onMovedRightToLeft)
     {
+        // Move from left to right and decrease |resourceUsage| until the next move causes
+        // |operationElement->IsStrictlyDominatesNonBlocked(fairShareBound, getUsageShare(nextUsage))| to become true.
         while (!left->empty()) {
             auto jobId = left->back();
             auto* jobProperties = GetJobProperties(jobId);
 
-            if (getUsageRatio(resourceUsage - jobProperties->ResourceUsage) < fairShareRatioBound) {
+            auto nextUsage = resourceUsage - jobProperties->ResourceUsage;
+            if (operationElement->IsStrictlyDominatesNonBlocked(fairShareBound, getUsageShare(nextUsage))) {
                 break;
             }
 
@@ -1917,15 +2334,14 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             jobProperties->JobIdListIterator = right->begin();
             onMovedLeftToRight(jobProperties);
 
-            resourceUsage -= jobProperties->ResourceUsage;
+            resourceUsage = nextUsage;
             ++(*moveCount);
         }
 
-        while (!right->empty()) {
-            if (getUsageRatio(resourceUsage) >= fairShareRatioBound) {
-                break;
-            }
-
+        // Move from right to left and increase |resourceUsage|.
+        while (!right->empty() &&
+            operationElement->IsStrictlyDominatesNonBlocked(fairShareBound, getUsageShare(resourceUsage)))
+        {
             auto jobId = right->front();
             auto* jobProperties = GetJobProperties(jobId);
 
@@ -1956,12 +2372,14 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
         properties->AggressivelyPreemptable = false;
     };
 
-    bool enableLogging = (UpdatePreemptableJobsListCount_.fetch_add(1) % UpdatePreemptableJobsListLoggingPeriod_) == 0;
+    bool enableLogging =
+        (UpdatePreemptableJobsListCount_.fetch_add(1) % UpdatePreemptableJobsListLoggingPeriod_) == 0 ||
+        operationElement->DetailedLogsEnabled();
 
     YT_LOG_DEBUG_IF(enableLogging,
-        "Update preemptable job lists inputs (FairShareRatio: %v, TotalResourceLimits: %v, "
+        "Update preemptable lists inputs (FairShare: %.6v, TotalResourceLimits: %v, "
         "PreemptionSatisfactionThreshold: %v, AggressivePreemptionSatisfactionThreshold: %v)",
-        fairShareRatio,
+        fairShare,
         FormatResources(totalResourceLimits),
         preemptionSatisfactionThreshold,
         aggressivePreemptionSatisfactionThreshold);
@@ -1981,7 +2399,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             &NonpreemptableJobs_,
             &AggressivelyPreemptableJobs_,
             NonpreemptableResourceUsage_,
-            fairShareRatio * aggressivePreemptionSatisfactionThreshold,
+            fairShare * aggressivePreemptionSatisfactionThreshold,
             setAggressivelyPreemptable,
             setNonPreemptable);
 
@@ -1989,7 +2407,7 @@ void TOperationElementSharedState::UpdatePreemptableJobsList(
             &AggressivelyPreemptableJobs_,
             &PreemptableJobs_,
             startNonPreemptableAndAggressivelyPreemptableResourceUsage_,
-            Preemptable_ ? fairShareRatio * preemptionSatisfactionThreshold : 1.0,
+            Preemptable_ ? fairShare * preemptionSatisfactionThreshold : TResourceVector::Infinity(),
             setPreemptable,
             setAggressivelyPreemptable);
 
@@ -2176,9 +2594,9 @@ std::optional<NProfiling::TTagId> TOperationElement::GetCustomProfilingTag()
     }
 
     if (tagName) {
-        return NScheduler::GetCustomProfilingTag(*tagName);
+        return NVectorScheduler::GetCustomProfilingTag(*tagName);
     } else {
-        return NScheduler::GetCustomProfilingTag(MissingCustomProfilingTag);
+        return NVectorScheduler::GetCustomProfilingTag(MissingCustomProfilingTag);
     }
 }
 
@@ -2326,10 +2744,10 @@ TOperationElement::TOperationElement(
     : TSchedulerElement(
         host,
         treeHost,
-        treeConfig,
+        std::move(treeConfig),
         treeId,
         NLogging::TLogger(logger).AddTag("OperationId: %v", operation->GetId()))
-    , TOperationElementFixedState(operation, controllerConfig)
+    , TOperationElementFixedState(operation, std::move(controllerConfig))
     , RuntimeParameters_(std::move(runtimeParameters))
     , Spec_(spec)
     , OperationElementSharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod, Logger))
@@ -2375,7 +2793,9 @@ void TOperationElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttribu
 
     UnschedulableReason_ = ComputeUnschedulableReason();
     SlotIndex_ = Operation_->FindSlotIndex(GetTreeId());
-    ResourceDemand_ = ComputeResourceDemand();
+    ResourceUsageAtUpdate_ = GetLocalResourceUsage();
+    ResourceDemand_ = Max(ComputeResourceDemand(), ResourceUsageAtUpdate_);
+    ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
     StartTime_ = Operation_->GetStartTime();
 
     TSchedulerElement::PreUpdateBottomUp(dynamicAttributesList, context);
@@ -2396,10 +2816,12 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
         ResourceDemand_,
         TotalResourceLimits_,
         GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
-    auto dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
-    auto dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
-    Attributes_.BestAllocationRatio =
-        dominantLimit == 0 ? 1.0 : dominantAllocationLimit / dominantLimit;
+    BestAllocationShare_ = TResourceVector::Max(
+        Attributes_.UsageShare,
+        TResourceVector::FromJobResources(allocationLimits, TotalResourceLimits_, 0, 1));
+
+    RemainingDemandShare_ = Attributes_.DemandShare - Attributes_.UsageShare;
+    YT_VERIFY(Dominates(RemainingDemandShare_, TResourceVector::Zero()));
 
     if (!IsSchedulable()) {
         (*dynamicAttributesList)[GetTreeIndex()].Active = false;
@@ -2407,17 +2829,18 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
     }
 }
 
-void TOperationElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TOperationElement::UpdatePreemption(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
+    TSchedulerElement::UpdatePreemption(context);
 
-    TSchedulerElement::UpdateTopDown(dynamicAttributesList, context);
     // If fair share ratio equals demand ratio then we want to explicitly disable preemption.
     // It is necessary since some job's resource usage may increase before the next fair share update,
     //  and in this case we don't want any jobs to become preemptable
     bool isFairShareRatioEqualToDemandRatio =
-        std::abs(Attributes_.DemandRatio - GetFairShareRatio()) < RatioComparisonPrecision &&
-        Attributes_.DemandRatio > RatioComparisonPrecision;
+        TResourceVector::Near(Attributes_.FairShare, Attributes_.DemandShare, RatioComparisonPrecision) &&
+        !Dominates(TResourceVector::Epsilon(), Attributes_.DemandShare);
+
     bool newPreemptableValue = !isFairShareRatioEqualToDemandRatio;
     bool oldPreemptableValue = OperationElementSharedState_->GetPreemptable();
     if (oldPreemptableValue != newPreemptableValue) {
@@ -2428,19 +2851,120 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesL
     UpdatePreemptableJobsList();
 }
 
-TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit) const
+void TOperationElement::UpdateMinShare(TUpdateFairShareContext* context)
+{ }
+
+void TOperationElement::PrepareFairShareByFitFactor(TUpdateFairShareContext* context)
+{
+    TWallTimer timer;
+    auto finally = Finally([&] {
+        context->PrepareFairShareByFitFactorOperationsTotalTime += timer.GetElapsedCpuTime();
+    });
+
+    TVectorPiecewiseLinearFunction::TBuilder builder;
+
+    // First we try to satisfy the current usage by giving equal fair share for each resource.
+    // More precisely, for fit factor 0 <= f <= 1, fair share for resource r will be equal to min(usage[r], f * maxUsage).
+    double maxUsage = MaxComponent(Attributes_.UsageShare);
+    if (maxUsage == 0.0) {
+        builder.PushSegment({0.0, TResourceVector::Zero()}, {1.0, TResourceVector::Zero()});
+    } else {
+        std::vector<double> sortedUsage;
+        for (int r = 0; r < ResourceCount; ++r) {
+            sortedUsage.push_back(Attributes_.UsageShare[r]);
+        }
+        std::sort(sortedUsage.begin(), sortedUsage.end());
+
+        builder.AddPoint({0.0, TResourceVector::Zero()});
+        double previousUsageFitFactor = 0.0;
+        for (auto usage : sortedUsage) {
+            double currentUsageFitFactor = usage / maxUsage;
+            if (currentUsageFitFactor > previousUsageFitFactor) {
+                builder.AddPoint({
+                    currentUsageFitFactor,
+                    TResourceVector::Min(TResourceVector::FromDouble(usage), Attributes_.UsageShare)});
+                previousUsageFitFactor = currentUsageFitFactor;
+            }
+        }
+        YT_VERIFY(previousUsageFitFactor == 1.0);
+    }
+
+    // After that we just give fair share proportionally to the remaining demand.
+    double maxRemainingDemandFitFactor = 1.0;
+    for (int r = 0; r < ResourceCount; ++r) {
+        if (RemainingDemandShare_[r] < RatioComputationPrecision) {
+            continue;
+        }
+
+        if (BestAllocationShare_[r] - Attributes_.UsageShare[r] < RemainingDemandShare_[r]) {
+            maxRemainingDemandFitFactor = std::min(
+                maxRemainingDemandFitFactor,
+                (BestAllocationShare_[r] - Attributes_.UsageShare[r]) / RemainingDemandShare_[r]);
+        }
+    }
+
+    TResourceVector rightBoundValue = Attributes_.UsageShare + RemainingDemandShare_ * maxRemainingDemandFitFactor;
+    if (maxRemainingDemandFitFactor > 0.0) {
+        builder.PushSegment({1.0, Attributes_.UsageShare}, {1.0 + maxRemainingDemandFitFactor, rightBoundValue});
+    }
+    if (maxRemainingDemandFitFactor < 1.0) {
+        builder.PushSegment({1.0 + maxRemainingDemandFitFactor, rightBoundValue}, {2.0, rightBoundValue});
+    }
+
+    FairShareByFitFactor_ = builder.Finish();
+}
+
+TResourceVector TOperationElement::DoUpdateFairShare(double suggestion, TUpdateFairShareContext* context)
+{
+    TResourceVector usedFairShare = FairShareBySuggestion()->ValueAt(suggestion);
+    SetFairShare(usedFairShare);
+
+    const auto fsbsSegment = FairShareBySuggestion()->SegmentAt(suggestion);
+    const auto fitFactor = MaxFitFactorBySuggestion()->ValueAt(suggestion);
+    const auto fsbffSegment = FairShareByFitFactor()->SegmentAt(fitFactor);
+
+    OPERATION_LOG_DETAILED(this,
+        "Updated Operation fair share. ("
+        "Suggestion: %.6v, "
+        "UsedFairShare: %.6v, "
+        "FSBSSegmentArguments: {%.6v, %.6v}, "
+        "FSBSSegmentValues: {%.6v, %.6v}, "
+        "FitFactor: %.6v, "
+        "FSBFFSegmentArguments: {%.6v, %.6v}, "
+        "FSBFFSegmentValues: {%.6v, %.6v})",
+        suggestion,
+        usedFairShare,
+        fsbsSegment.LeftBound(), fsbsSegment.RightBound(),
+        fsbsSegment.LeftValue(), fsbsSegment.RightValue(),
+        fitFactor,
+        fsbffSegment.LeftBound(), fsbffSegment.RightBound(),
+        fsbffSegment.LeftValue(), fsbffSegment.RightValue());
+    return usedFairShare;
+}
+
+TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit, bool logDetailedInfo) const
 {
     auto usage = GetLocalResourceUsage();
     if (!Dominates(limit, usage)) {
+        if (logDetailedInfo) {
+            YT_LOG_DEBUG("XXX Scale usage (Limit: %v, Usage: %v, Scale: %v)", FormatResources(limit), FormatResources(usage), GetMinResourceRatio(limit, usage));
+        }
         return usage * GetMinResourceRatio(limit, usage);
     } else {
-        auto remainingDemand = ResourceDemand() - usage;
+        // Hotfix while YT-12329 is not done.
+        auto remainingDemand = Max(TJobResources(), ResourceDemand() - usage);
         if (remainingDemand == TJobResources()) {
+            if (logDetailedInfo) {
+                YT_LOG_DEBUG("XXX Zero additional demand");
+            }
             return usage;
         }
 
         auto remainingLimit = Max({}, limit - usage);
         // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
+        if (logDetailedInfo) {
+            YT_LOG_DEBUG("XXX Scale demand (Limit: %v, RemainingDemand: %v)", FormatResources(limit), FormatResources(remainingDemand));
+        }
         return Min(ResourceDemand(), usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand));
     }
 }
@@ -2746,9 +3270,9 @@ TJobResources TOperationElement::GetMinShareResources() const
     return ToJobResources(Spec_->MinShareResources, {});
 }
 
-double TOperationElement::GetMaxShareRatio() const
+TResourceVector TOperationElement::GetMaxShare() const
 {
-    return Spec_->MaxShareRatio.value_or(1.0);
+    return TResourceVector::FromDouble(Spec_->MaxShareRatio.value_or(1.0));
 }
 
 const TSchedulingTagFilter& TOperationElement::GetSchedulingTagFilter() const
@@ -2820,26 +3344,23 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
 
     const TSchedulerElement* element = this;
 
-    while (element && !element->IsRoot()) {
-        if (element->GetStarving()) {
-            OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceStarvingParent);
-            return false;
-        }
+    if (element->GetStarving()) {
+        OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceStarving);
+        return false;
+    }
 
-        bool aggressivePreemptionEnabled = context.SchedulingStatistics.HasAggressivelyStarvingElements &&
-            element->IsAggressiveStarvationPreemptionAllowed() &&
-            IsAggressiveStarvationPreemptionAllowed();
-        auto threshold = aggressivePreemptionEnabled
-            ? config->AggressivePreemptionSatisfactionThreshold
-            : config->PreemptionSatisfactionThreshold;
+    bool aggressivePreemptionEnabled = context.SchedulingStatistics.HasAggressivelyStarvingElements &&
+        element->IsAggressiveStarvationPreemptionAllowed() &&
+        IsAggressiveStarvationPreemptionAllowed();
 
-        // NB: we want to use <s>local</s> satisfaction here.
-        if (element->ComputeLocalSatisfactionRatio() < threshold + RatioComparisonPrecision) {
-            OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfiedParentOrSelf);
-            return false;
-        }
+    auto threshold = aggressivePreemptionEnabled
+        ? config->AggressivePreemptionSatisfactionThreshold
+        : config->PreemptionSatisfactionThreshold;
 
-        element = element->GetParent();
+    // NB: we want to use <s>local</s> satisfaction here.
+    if (element->ComputeLocalSatisfactionRatio() < threshold + RatioComparisonPrecision) {
+        OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfied);
+        return false;
     }
 
     OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::Allowed);
@@ -3093,11 +3614,12 @@ void TOperationElement::UpdatePreemptableJobsList()
     int moveCount = 0;
 
     OperationElementSharedState_->UpdatePreemptableJobsList(
-        GetFairShareRatio(),
+        GetFairShare(),
         TotalResourceLimits_,
         TreeConfig_->PreemptionSatisfactionThreshold,
         TreeConfig_->AggressivePreemptionSatisfactionThreshold,
-        &moveCount);
+        &moveCount,
+        this);
 
     auto elapsed = timer.GetElapsedTime();
 
@@ -3121,7 +3643,7 @@ bool TOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
         availableResourceLimitsOutput);
 }
 
-void TOperationElement::AttachParent(NYT::NScheduler::TCompositeSchedulerElement* newParent, bool enabled)
+void TOperationElement::AttachParent(TCompositeSchedulerElement* newParent, bool enabled)
 {
     YT_VERIFY(Mutable_);
     YT_VERIFY(!Parent_);
@@ -3135,7 +3657,7 @@ void TOperationElement::AttachParent(NYT::NScheduler::TCompositeSchedulerElement
     YT_LOG_DEBUG("Operation attached to pool (Pool: %v)", newParent->GetId());
 }
 
-void TOperationElement::ChangeParent(NYT::NScheduler::TCompositeSchedulerElement* parent)
+void TOperationElement::ChangeParent(TCompositeSchedulerElement* parent)
 {
     YT_VERIFY(Mutable_);
     YT_VERIFY(Parent_);
@@ -3175,7 +3697,7 @@ void TOperationElement::DetachParent()
     Parent_ = nullptr;
     TreeHost_->GetResourceTree()->DetachParent(ResourceTreeElement_);
 
-    YT_LOG_DEBUG("Operation attached to pool (Pool: %v)", parentId);
+    YT_LOG_DEBUG("Operation detached from pool (Pool: %v)", parentId);
 }
 
 void TOperationElement::MarkOperationRunningInPool()
@@ -3223,12 +3745,15 @@ TRootElement::TRootElement(
         treeConfig,
         profilingTag,
         treeId,
-        logger)
+        NLogging::TLogger(logger)
+            .AddTag("PoolId: %v", RootPoolName)
+            .AddTag("SchedulingMode: %v", ESchedulingMode::FairShare))
 {
-    SetFairShareRatio(1.0);
-    Attributes_.GuaranteedResourcesRatio = 1.0;
-    Attributes_.AdjustedMinShareRatio = 1.0;
-    Attributes_.RecursiveMinShareRatio = 1.0;
+    SetFairShare(TResourceVector::Ones());
+    Attributes_.GuaranteedResourcesShare = TResourceVector::Ones();
+    Attributes_.RecursiveMinShare = TResourceVector::Ones();
+    Attributes_.AdjustedMinShare = TResourceVector::Ones();
+
     Mode_ = ESchedulingMode::FairShare;
     Attributes_.AdjustedFairShareStarvationTolerance = GetFairShareStarvationTolerance();
     Attributes_.AdjustedMinSharePreemptionTimeout = GetMinSharePreemptionTimeout();
@@ -3274,7 +3799,42 @@ void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdate
     TForbidContextSwitchGuard contextSwitchGuard;
 
     UpdateBottomUp(dynamicAttributesList, context);
-    UpdateTopDown(dynamicAttributesList, context);
+    UpdateMinShare(context);
+    UpdateFairShare(context);
+    // These function must be called after UpdateFairShare.
+    UpdatePreemption(context);
+    UpdateDynamicAttributes(dynamicAttributesList, context);
+}
+
+void TRootElement::UpdateFairShare(TUpdateFairShareContext* context)
+{
+    YT_LOG_DEBUG("Updating fair share");
+
+    TWallTimer timer;
+    PrepareUpdateFairShare(context);
+    DoUpdateFairShare(/* suggestion */ 1.0, context);
+    auto totalDuration = timer.GetElapsedCpuTime();
+
+    YT_LOG_DEBUG(
+        "Finished updating fair share. "
+        "TotalTime: %v, "
+        "PrepareFairShareByFitFactor/TotalTime: %v, "
+        "PrepareFairShareByFitFactor/Operations/TotalTime: %v, "
+        "PrepareFairShareByFitFactor/Fifo/TotalTime: %v, "
+        "PrepareFairShareByFitFactor/Normal/TotalTime: %v, "
+        "PrepareMaxFitFactorBySuggestion/TotalTime: %v, "
+        "PrepareMaxFitFactorBySuggestion/PointwiseMin/TotalTime: %v, "
+        "Compose/TotalTime: %v., "
+        "CompressFunction/TotalTime: %v.",
+        CpuDurationToDuration(totalDuration).MicroSeconds(),
+        CpuDurationToDuration(context->PrepareFairShareByFitFactorTotalTime).MicroSeconds(),
+        CpuDurationToDuration(context->PrepareFairShareByFitFactorOperationsTotalTime).MicroSeconds(),
+        CpuDurationToDuration(context->PrepareFairShareByFitFactorFifoTotalTime).MicroSeconds(),
+        CpuDurationToDuration(context->PrepareFairShareByFitFactorNormalTotalTime).MicroSeconds(),
+        CpuDurationToDuration(context->PrepareMaxFitFactorBySuggestionTotalTime).MicroSeconds(),
+        CpuDurationToDuration(context->PointwiseMinTotalTime).MicroSeconds(),
+        CpuDurationToDuration(context->ComposeTotalTime).MicroSeconds(),
+        CpuDurationToDuration(context->CompressFunctionTotalTime).MicroSeconds());
 }
 
 bool TRootElement::IsRoot() const
@@ -3307,9 +3867,9 @@ TJobResources TRootElement::GetMinShareResources() const
     return TotalResourceLimits_;
 }
 
-double TRootElement::GetMaxShareRatio() const
+TResourceVector TRootElement::GetMaxShare() const
 {
-    return 1.0;
+    return TResourceVector::Ones();
 }
 
 double TRootElement::GetFairShareStarvationTolerance() const
@@ -3394,4 +3954,4 @@ bool TRootElement::IsDefaultConfigured() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT::NScheduler::NVectorScheduler

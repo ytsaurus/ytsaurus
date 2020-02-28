@@ -14,6 +14,16 @@ TMedium::TMedium(TMediumId id)
     , Acd_(this)
 { }
 
+TString TMedium::GetLowercaseObjectName() const
+{
+    return Format("medium %Qv", GetName());
+}
+
+TString TMedium::GetCapitalizedObjectName() const
+{
+    return Format("Medium %Qv", GetName());
+}
+
 void TMedium::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);

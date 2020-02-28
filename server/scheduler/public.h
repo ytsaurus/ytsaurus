@@ -43,6 +43,13 @@ struct TOperationRevivalDescriptor;
 class TMasterConnector;
 class TBootstrap;
 
+namespace NClassicScheduler {
+
+// TODO(mrkastep) Move to private.h
+DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationState)
+
+} // namespace NClassicScheduler
+
 // TODO(mrkastep) Move to private.h
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationState)
 

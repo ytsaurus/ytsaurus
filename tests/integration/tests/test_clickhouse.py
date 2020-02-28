@@ -344,6 +344,7 @@ class ClickHouseTestBase(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     NODE_PORT_SET_SIZE = 25
+    USE_DYNAMIC_TABLES = True
 
     ENABLE_HTTP_PROXY = True
 
@@ -560,8 +561,98 @@ class TestClickHouseCommon(ClickHouseTestBase):
             new_description = clique.make_query('describe "//tmp/t"')
             assert new_description[0]["name"] == "b"
 
+    @authors("evgenstf")
+    def test_concat_directory_with_mixed_objects(self):
+        with Clique(1) as clique:
+            create("map_node", "//tmp/test_dir")
+
+            # static table
+            create("table", "//tmp/test_dir/table_1", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            write_table("//tmp/test_dir/table_1", [{"i": 1}])
+
+            # link to static table
+            create("map_node", "//tmp/dir_with_static_table")
+            create("table", "//tmp/dir_with_static_table/table_2", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            write_table("//tmp/dir_with_static_table/table_2", [{"i": 2}])
+            create("link", "//tmp/test_dir/link_to_table_2", attributes={"target_path": "//tmp/dir_with_static_table/table_2"})
+
+            # dynamic table
+            sync_create_cells(1)
+            create("table", "//tmp/test_dir/table_3", attributes={"dynamic": True, "schema": [{"name": "i", "type": "int64"}]})
+            sync_mount_table("//tmp/test_dir/table_3")
+            insert_rows("//tmp/test_dir/table_3", [{"i": 3}])
+
+            # link to dynamic table
+            create("map_node", "//tmp/dir_with_dynamic_table")
+            create("table", "//tmp/dir_with_dynamic_table/table_4", attributes={"dynamic": True, "schema": [{"name": "i", "type": "int64"}]})
+            sync_mount_table("//tmp/dir_with_dynamic_table/table_4", sync=True)
+            insert_rows("//tmp/dir_with_dynamic_table/table_4", [{"i": 4}])
+            create("link", "//tmp/test_dir/link_to_table_4", attributes={"target_path": "//tmp/dir_with_dynamic_table/table_4"})
+
+            # map_node
+            create("map_node", "//tmp/test_dir/map_node")
+
+            # link to map_node
+            create("map_node", "//tmp/dir_with_map_node")
+            create("map_node", "//tmp/dir_with_map_node/map_node")
+            create("link", "//tmp/test_dir/link_to_map_node", attributes={"target_path": "//tmp/dir_with_map_node/map_node"})
+
+            # link to link to static table
+            create("table", "//tmp/dir_with_static_table/table_5", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            write_table("//tmp/dir_with_static_table/table_5", [{"i": 5}])
+            create("map_node", "//tmp/dir_with_link_to_static_table")
+            create("link", "//tmp/dir_with_link_to_static_table/link_to_table_5", attributes={"target_path": "//tmp/dir_with_static_table/table_5"})
+            create("link", "//tmp/test_dir/link_to_link_to_table_5", attributes={"target_path": "//tmp/dir_with_link_to_static_table/link_to_table_5"})
+
+            assert clique.make_query("select * from concatYtTablesRange('//tmp/test_dir') order by i") == [{'i': 1}, {'i': 2}, {'i': 5}]
+
+    @authors("evgenstf")
+    def test_concat_tables_filter_range(self):
+        with Clique(1) as clique:
+            create("map_node", "//tmp/test_dir")
+            for table_index in range(1, 7):
+                create("table", "//tmp/test_dir/table_" + str(table_index), attributes={"schema": [{"name": "i", "type": "int64"}]})
+                write_table("//tmp/test_dir/table_" + str(table_index), [{"i": table_index}])
+            assert clique.make_query("select * from concatYtTablesRange('//tmp/test_dir', 'table_2', 'table_5') order by i") == [{'i': 2}, {'i': 3}, {'i': 4}, {'i': 5}]
+
+    @authors("evgenstf")
+    def test_concat_tables_filter_regexp(self):
+        with Clique(1) as clique:
+            create("map_node", "//tmp/test_dir")
+            create("table", "//tmp/test_dir/t1", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            create("table", "//tmp/test_dir/table_2", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            create("table", "//tmp/test_dir/table_3", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            create("table", "//tmp/test_dir/table_4", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            create("table", "//tmp/test_dir/table_5", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            create("table", "//tmp/test_dir/t6", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            write_table("//tmp/test_dir/t1", [{"i": 1}])
+            write_table("//tmp/test_dir/table_2", [{"i": 2}])
+            write_table("//tmp/test_dir/table_3", [{"i": 3}])
+            write_table("//tmp/test_dir/table_4", [{"i": 4}])
+            write_table("//tmp/test_dir/table_5", [{"i": 5}])
+            write_table("//tmp/test_dir/t6", [{"i": 6}])
+            assert clique.make_query("select * from concatYtTablesRegexp('//tmp/test_dir', 'table_*') order by i") == [{'i': 2}, {'i': 3}, {'i': 4}, {'i': 5}]
+
+    @authors("evgenstf")
+    def test_concat_tables_filter_like(self):
+        with Clique(1) as clique:
+            create("map_node", "//tmp/test_dir")
+            create("table", "//tmp/test_dir/t1", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            create("table", "//tmp/test_dir/table_3", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            create("table", "//tmp/test_dir/table.3", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            create("table", "//tmp/test_dir/table.4", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            create("table", "//tmp/test_dir/table_4", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            create("table", "//tmp/test_dir/t6", attributes={"schema": [{"name": "i", "type": "int64"}]})
+            write_table("//tmp/test_dir/t1", [{"i": 1}])
+            write_table("//tmp/test_dir/table_3", [{"i": 2}])
+            write_table("//tmp/test_dir/table.3", [{"i": 3}])
+            write_table("//tmp/test_dir/table.4", [{"i": 4}])
+            write_table("//tmp/test_dir/table_4", [{"i": 5}])
+            write_table("//tmp/test_dir/t6", [{"i": 6}])
+            assert clique.make_query("select * from concatYtTablesLike('//tmp/test_dir', 'table.*') order by i") == [{'i': 3}, {'i': 4}]
+
     @authors("max42")
-    def test_concat_inside_link(self):
+    def test_concat_tables_inside_link(self):
         with Clique(1) as clique:
             create("map_node", "//tmp/dir")
             create("link", "//tmp/link", attributes={"target_path": "//tmp/dir"})
@@ -1187,7 +1278,7 @@ class TestMutations(ClickHouseTestBase):
                 {"name": "i64", "type": "int64", "sort_order": "ascending", "required": True},
                 {"name": "ui64", "type": "uint64", "required": True},
                 {"name": "dbl", "type": "double", "required": True},
-                {"name": "i32", "type": "int64", "required": True},
+                {"name": "i32", "type": "int32", "required": True},
                 {"name": "dt", "type": "date", "required": True},
                 {"name": "dtm", "type": "datetime", "required": True},
             ], strict=True, unique_keys=False)
@@ -1205,7 +1296,7 @@ class TestMutations(ClickHouseTestBase):
                 {"name": "i64", "type": "int64", "sort_order": "ascending", "required": False},
                 {"name": "ui64", "type": "uint64", "required": False},
                 {"name": "dbl", "type": "double", "required": False},
-                {"name": "i32", "type": "int64", "required": False},
+                {"name": "i32", "type": "int32", "required": False},
                 {"name": "dt", "type": "date", "required": False},
                 {"name": "dtm", "type": "datetime", "required": False},
             ], strict=True, unique_keys=False)
@@ -1267,7 +1358,7 @@ class TestMutations(ClickHouseTestBase):
                   {"name": "dbl", "type": "double", "required": False},
                   {"name": "bool", "type": "boolean", "required": False}]
         schema_copied = copy.deepcopy(schema)
-        schema_copied[4]["type"] = "uint64"
+        schema_copied[4]["type"] = "uint8"
         create("table", "//tmp/s1", attributes={"schema": schema,
                                                 "compression_codec": "snappy"})
 
@@ -1653,6 +1744,33 @@ class TestYtDictionaries(ClickHouseTestBase):
 class TestClickHouseSchema(ClickHouseTestBase):
     def setup(self):
         self._setup()
+
+    @authors("evgenstf")
+    def test_int_types(self):
+        with Clique(5) as clique:
+            create("table", "//tmp/test_table", attributes={"schema": [
+                {"name": "int64_value", "type": "int64"},
+                {"name": "int32_value", "type": "int32"},
+                {"name": "int16_value", "type": "int16"},
+                {"name": "int8_value", "type": "int8"},
+                {"name": "uint64_value", "type": "uint64"},
+                {"name": "uint32_value", "type": "uint32"},
+                {"name": "uint16_value", "type": "uint16"},
+                {"name": "uint8_value", "type": "uint8"},
+            ]})
+            name_to_expected_type = {
+                'int64_value': 'Nullable(Int64)',
+                'int32_value': 'Nullable(Int32)',
+                'int16_value': 'Nullable(Int16)',
+                'int8_value':  'Nullable(Int8)',
+                'uint64_value': 'Nullable(UInt64)',
+                'uint32_value': 'Nullable(UInt32)',
+                'uint16_value': 'Nullable(UInt16)',
+                'uint8_value': 'Nullable(UInt8)',
+            }
+            table_description = clique.make_query('describe "//tmp/test_table"')
+            for column_description in table_description:
+                assert name_to_expected_type[column_description['name']] == column_description['type']
 
     @authors("max42")
     def test_missing_schema(self):
@@ -2421,7 +2539,8 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
                     {"name": "job_id", "type": "string"},
                     {"name": "operation_id", "type": "string"},
                 ],
-                "tablet_cell_bundle": "sys"
+                "tablet_cell_bundle": "sys",
+                "atomicity": "none",
             })
 
         sync_mount_table(log_table)

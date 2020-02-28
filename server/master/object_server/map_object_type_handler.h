@@ -45,7 +45,6 @@ protected:
     static constexpr const char* NameRegex_ = "[A-Za-z0-9-_]+";
 
     virtual IObjectProxyPtr DoGetProxy(TObject* object, NTransactionServer::TTransaction* transaction) override;
-    virtual TString DoGetName(const TObject* object) override;
     virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TObject* object) override;
     virtual void DoZombifyObject(TObject* object) override;
 

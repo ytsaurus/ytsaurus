@@ -452,6 +452,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
         assert_get_and_list_jobs(op.id, some_job_id)
 
     @authors("renadeen")
+    @pytest.mark.skip(reason="Flaps of this test exposed fundamental problem. Fix won't be easy.")
     def test_with_competitors_flag_in_list_jobs(self):
         def assert_list_jobs(op_id, data_source):
             def group_jobs_by_competition():

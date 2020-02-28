@@ -34,6 +34,9 @@ public:
     void SetUnderlyingChunk(TChunk* underlyingChunk);
     void SetReadRange(NChunkClient::TReadRange readRange);
 
+    virtual TString GetLowercaseObjectName() const override;
+    virtual TString GetCapitalizedObjectName() const override;
+
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 

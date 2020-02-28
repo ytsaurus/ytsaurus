@@ -81,7 +81,10 @@ void TBlockPeerData::DoSweep(F&& func)
         Sort(
             Entries_,
             [] (const auto& lhs, const auto& rhs) { return lhs.ExpirationTime > rhs.ExpirationTime; });
-        Entries_.erase(Entries_.begin() + EntryCountLimit_, Entries_.end());
+        // NB: SortUniqueBy could have already pruned the vector.
+        if (Entries_.size() > EntryCountLimit_) {
+            Entries_.erase(Entries_.begin() + EntryCountLimit_, Entries_.end());
+        }
     }
 }
 

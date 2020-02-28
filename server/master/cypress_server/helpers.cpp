@@ -290,7 +290,6 @@ THashSet<TString> ListNodeAttributes(
 }
 
 void AttachChild(
-    const TObjectManagerPtr& objectManager,
     TCypressNode* trunkParent,
     TCypressNode* child)
 {
@@ -309,21 +308,13 @@ void AttachChild(
             currentChild = currentChild->GetOriginator();
         }
     }
-
-    objectManager->RefObject(trunkChild);
 }
 
 void DetachChild(
-    const TObjectManagerPtr& objectManager,
     TCypressNode* /*trunkParent*/,
-    TCypressNode* child,
-    bool unref)
+    TCypressNode* child)
 {
     child->SetParent(nullptr);
-
-    if (unref) {
-        objectManager->UnrefObject(child->GetTrunkNode());
-    }
 }
 
 bool NodeHasKey(const TCypressNode* node)

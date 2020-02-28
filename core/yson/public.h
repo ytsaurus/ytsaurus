@@ -62,6 +62,8 @@ class TYsonItem;
 class TYsonPullParser;
 class TYsonPullParserCursor;
 
+class TForwardingYsonConsumer;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYson

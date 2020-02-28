@@ -13,7 +13,7 @@ from time import sleep
 
 ##################################################################
 
-class TestOrderedDynamicTables(DynamicTablesBase):
+class TestOrderedDynamicTablesBase(DynamicTablesBase):
     def _create_simple_table(self, path, **attributes):
         if "schema" not in attributes:
             attributes.update({"schema": [
@@ -56,6 +56,9 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         for tablet_chunk_list in tablet_chunk_lists:
             self._verify_cumulative_statistics_match_statistics(tablet_chunk_list)
 
+##################################################################
+
+class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
     @authors("babenko")
     def test_mount(self):
         sync_create_cells(1)
@@ -97,17 +100,15 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         assert select_rows("a from [//tmp/t]") == rows
         with pytest.raises(YtError): insert_rows("//tmp/t", rows)
 
-    # TODO(savrus): fix flaps.
     @authors("gridem")
-    @flaky(max_runs=3)
     def test_ordered_tablet_node_profiling(self):
-        path = "//tmp/x"
         sync_create_cells(1)
-        self._create_simple_table(path)
-        sync_mount_table(path)
 
-        tablet_profiling = self._get_table_profiling(path)
-        select_profiling = self._get_profiling(path)
+        table_path = "//tmp/{}".format(generate_uuid())
+        self._create_simple_table(table_path)
+        sync_mount_table(table_path)
+
+        tablet_profiling = self._get_table_profiling(table_path)
 
         def get_all_counters(count_name):
             return (
@@ -117,29 +118,20 @@ class TestOrderedDynamicTables(DynamicTablesBase):
 
         assert get_all_counters("row_count") == (0, 0, 0)
         assert get_all_counters("data_weight") == (0, 0, 0)
-        assert select_profiling.get_counter("select/cpu_time") == 0
+        assert tablet_profiling.get_counter("select/cpu_time") == 0
 
-        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(9)]
-        insert_rows(path, rows)
+        rows = [{"a": i, "b": i * 0.5, "c": "payload" + str(i)} for i in xrange(10)]
+        insert_rows(table_path, rows)
 
-        sleep(2)  # sleep is needed to ensure that the profiling counters are updated properly
+        wait(lambda: get_all_counters("row_count") == (0, 10, 10))
+        wait(lambda: get_all_counters("data_weight") == (0, 250, 250))
+        assert tablet_profiling.get_counter("select/cpu_time") == 0
 
-        rows = [{"a": 100, "b": 0.5, "c": "data"}]
-        insert_rows(path, rows)
+        select_rows("* from [{}]".format(table_path))
 
-        sleep(2)
-
-        assert get_all_counters("row_count") == (0, 10, 10)
-        assert get_all_counters("data_weight") == (0, 246, 246)
-        assert select_profiling.get_counter("select/cpu_time") == 0
-
-        select_rows("* from [{}]".format(path))
-
-        sleep(2)
-
-        assert get_all_counters("row_count") == (10, 10, 10)
-        assert get_all_counters("data_weight") == (406, 246, 246)
-        assert select_profiling.get_counter("select/cpu_time") > 0
+        wait(lambda: get_all_counters("row_count") == (10, 10, 10))
+        wait(lambda: get_all_counters("data_weight") == (410, 250, 250))
+        wait(lambda: tablet_profiling.get_counter("select/cpu_time") > 0)
 
     @authors("babenko", "levysotsky")
     def test_insert(self):
@@ -979,19 +971,29 @@ class TestOrderedDynamicTables(DynamicTablesBase):
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [dict(key=1)])
 
-
-##################################################################
-
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
-
-##################################################################
 
 class TestOrderedDynamicTablesPortal(TestOrderedDynamicTablesMulticell):
     ENABLE_TMP_PORTAL = True
 
-##################################################################
-
 class TestOrderedDynamicTablesRpcProxy(TestOrderedDynamicTables):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
+
+##################################################################
+
+class TestOrderedDynamicTablesMultipleWriteBatches(TestOrderedDynamicTablesBase):
+    DELTA_DRIVER_CONFIG = {
+        "max_rows_per_write_request": 10
+    }
+
+    @authors("babenko")
+    def test_multiple_write_batches(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"a": i, "c": "text"} for i in xrange(100)]
+        insert_rows("//tmp/t", rows)
+        assert select_rows("a, c from [//tmp/t]") == rows

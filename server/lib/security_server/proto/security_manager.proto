@@ -10,6 +10,7 @@ message TClusterResources
     required int64 node_count = 3;
     required int32 tablet_count = 5;
     required int64 tablet_static_memory_size = 6;
+    required int64 master_memory_usage = 7;
 
     message TMediumDiskSpace
     {
@@ -44,5 +45,17 @@ message TReqSetAccountStatistics
 
 message TReqRecomputeMembershipClosure
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdateAccountMasterMemoryUsage
+{
+    message TUpdateEntry
+    {
+        required NYT.NProto.TGuid account_id = 1;
+        required int64 master_memory_usage = 2;
+    }
+    repeated TUpdateEntry entries = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////

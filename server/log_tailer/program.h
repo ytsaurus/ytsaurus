@@ -17,6 +17,10 @@ public:
     TLogTailerProgram()
         : TProgramConfigMixin(Opts_, false)
     {
+        Opts_.AddLongOption("monitoring-port", "ytserver monitoring port")
+            .DefaultValue(10242)
+            .StoreResult(&MonitoringPort_);
+
         Opts_.SetFreeArgsMin(0);
         Opts_.SetFreeArgsMax(1);
         Opts_.SetFreeArgTitle(0, "writer-pid");
@@ -37,9 +41,12 @@ protected:
 
         ConfigureSingletons(config);
 
-        TBootstrap bootstrap{std::move(config)};
+        TBootstrap bootstrap{std::move(config), MonitoringPort_};
         bootstrap.Run();
     }
+
+private:
+    ui16 MonitoringPort_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

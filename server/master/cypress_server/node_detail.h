@@ -80,22 +80,25 @@ protected:
         TEndCopyContext* context,
         ICypressNodeFactory* factory);
 
-    void BranchCore(
+    void BranchCorePrologue(
         TCypressNode* originatingNode,
         TCypressNode* branchedNode,
         NTransactionServer::TTransaction* transaction,
         const TLockRequest& lockRequest);
+    void BranchCoreEpilogue(
+        TCypressNode* branchedNode);
 
-    void MergeCore(
+    void MergeCorePrologue(
         TCypressNode* originatingNode,
         TCypressNode* branchedNode);
+    void MergeCoreEpilogue(
+        TCypressNode* originatingNode);
 
     TCypressNode* CloneCorePrologue(
         ICypressNodeFactory* factory,
         TNodeId hintId,
         TCypressNode* sourceNode,
         NSecurityServer::TAccount* account);
-
     void CloneCoreEpilogue(
         TCypressNode* sourceNode,
         TCypressNode* clonedTrunkNode,
@@ -119,6 +122,11 @@ public:
         NTransactionServer::TTransaction* transaction) override
     {
         return DoGetProxy(trunkNode->As<TImpl>(), transaction);
+    }
+
+    virtual i64 GetStaticMasterMemoryUsage() const override
+    {
+        return sizeof(TImpl);
     }
 
     virtual std::unique_ptr<TCypressNode> Instantiate(
@@ -202,12 +210,13 @@ public:
 
         // Run core stuff.
         auto* typedOriginatingNode = originatingNode->As<TImpl>();
-        BranchCore(typedOriginatingNode, typedBranchedNode, transaction, lockRequest);
+        BranchCorePrologue(typedOriginatingNode, typedBranchedNode, transaction, lockRequest);
 
         // Run custom stuff.
         DoBranch(typedOriginatingNode, typedBranchedNode, lockRequest);
         DoLogBranch(typedOriginatingNode, typedBranchedNode, lockRequest);
 
+        BranchCoreEpilogue(typedBranchedNode);
         return std::move(branchedNodeHolder);
     }
 
@@ -229,11 +238,15 @@ public:
         // Run core stuff.
         auto* typedOriginatingNode = originatingNode->As<TImpl>();
         auto* typedBranchedNode = branchedNode->As<TImpl>();
-        MergeCore(typedOriginatingNode, typedBranchedNode);
+
+        MergeCorePrologue(typedOriginatingNode, typedBranchedNode);
 
         // Run custom stuff.
         DoMerge(typedOriginatingNode, typedBranchedNode);
         DoLogMerge(typedOriginatingNode, typedBranchedNode);
+
+        // Update only originating node, because ResetAccount is called for branched node.
+        MergeCoreEpilogue(typedOriginatingNode);
     }
 
     virtual TCypressNode* Clone(
@@ -723,14 +736,11 @@ protected:
 
 //! The core of a map node. May be shared between multiple map nodes for CoW optimization.
 //! Designed to be wrapped into TObjectPartCoWPtr.
-struct TMapNodeChildren
+class TMapNodeChildren
 {
+public:
     using TKeyToChild = THashMap<TString, TCypressNode*>;
     using TChildToKey = THashMap<TCypressNode*, TString>;
-
-    TKeyToChild KeyToChild;
-    TChildToKey ChildToKey;
-    int RefCount_ = 0;
 
     TMapNodeChildren() = default;
     ~TMapNodeChildren();
@@ -742,28 +752,33 @@ struct TMapNodeChildren
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    int GetRefCount() const noexcept
-    {
-        return RefCount_;
-    }
+    void RecomputeMasterMemoryUsage();
 
-    void Ref() noexcept
-    {
-        ++RefCount_;
-    }
+    void Set(const NObjectServer::TObjectManagerPtr& objectManager, const TString& key, TCypressNode* child);
+    void Insert(const NObjectServer::TObjectManagerPtr& objectManager, const TString& key, TCypressNode* child);
+    void Remove(const NObjectServer::TObjectManagerPtr& objectManager, const TString& key, TCypressNode* child);
+    bool Contains(const TString& key) const;
 
-    void Unref() noexcept
-    {
-        YT_VERIFY(--RefCount_ >= 0);
-    }
+    const TKeyToChild& KeyToChild() const;
+    const TChildToKey& ChildToKey() const;
+
+    int GetRefCount() const noexcept;
+    void Ref() noexcept;
+    void Unref() noexcept;
 
     static void Destroy(TMapNodeChildren* children, const NObjectServer::TObjectManagerPtr& objectManager);
     static void Clear(TMapNodeChildren* children);
     static TMapNodeChildren* Copy(TMapNodeChildren* srcChildren, const NObjectServer::TObjectManagerPtr& objectManager);
 
+    DEFINE_BYVAL_RO_PROPERTY(i64, MasterMemoryUsage);
+
 private:
     void RefChildren(const NObjectServer::TObjectManagerPtr& objectManager);
     void UnrefChildren(const NObjectServer::TObjectManagerPtr& objectManager);
+
+    TKeyToChild KeyToChild_;
+    TChildToKey ChildToKey_;
+    int RefCount_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -789,8 +804,7 @@ public:
     const TChildToKey& ChildToKey() const;
 
     // Potentially does the 'copy' part of CoW.
-    TKeyToChild& MutableKeyToChild(const NObjectServer::TObjectManagerPtr& objectManager);
-    TChildToKey& MutableChildToKey(const NObjectServer::TObjectManagerPtr& objectManager);
+    TMapNodeChildren& MutableChildren(const NObjectServer::TObjectManagerPtr& objectManager);
 
     virtual NYTree::ENodeType GetNodeType() const override;
 
@@ -798,6 +812,11 @@ public:
     virtual void Load(NCellMaster::TLoadContext& context) override;
 
     virtual int GetGCWeight() const override;
+    virtual i64 GetMasterMemoryUsage() const override;
+
+    void AssignChildren(
+        const NObjectServer::TObjectPartCoWPtr<TMapNodeChildren>& children,
+        const NObjectServer::TObjectManagerPtr& objectManager);
 
 private:
     NObjectServer::TObjectPartCoWPtr<TMapNodeChildren> Children_;

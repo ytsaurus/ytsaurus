@@ -21,7 +21,12 @@ TUser::TUser(TUserId id)
     , RequestLimits_(New<TUserRequestLimitsConfig>())
 { }
 
-TString TUser::GetObjectName() const
+TString TUser::GetLowercaseObjectName() const
+{
+    return Format("user %Qv", Name_);
+}
+
+TString TUser::GetCapitalizedObjectName() const
 {
     return Format("User %Qv", Name_);
 }

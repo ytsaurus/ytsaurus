@@ -93,8 +93,8 @@ public:
     TValueFuture Lookup(const TKey& key);
 
     TInsertCookie BeginInsert(const TKey& key);
-    bool TryRemove(const TKey& key);
-    bool TryRemove(TValuePtr value);
+    bool TryRemove(const TKey& key, bool forbidResurrection = false);
+    bool TryRemove(const TValuePtr& value, bool forbidResurrection = false);
     void Clear();
 
 protected:

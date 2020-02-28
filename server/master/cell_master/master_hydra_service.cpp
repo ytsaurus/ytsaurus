@@ -35,6 +35,11 @@ IHydraManagerPtr TMasterHydraServiceBase::GetHydraManager()
     return Bootstrap_->GetHydraFacade()->GetHydraManager();
 }
 
+TFuture<void> TMasterHydraServiceBase::DoSyncWithUpstream()
+{
+    return Bootstrap_->GetMulticellManager()->SyncWithUpstream();
+}
+
 void TMasterHydraServiceBase::ValidateClusterInitialized()
 {
     const auto& worldInitializer = Bootstrap_->GetWorldInitializer();

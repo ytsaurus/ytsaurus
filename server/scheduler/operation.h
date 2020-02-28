@@ -141,6 +141,7 @@ struct IOperationStrategyHost
 
 protected:
     friend class TFairShareStrategyOperationState;
+    friend class NClassicScheduler::TFairShareStrategyOperationState;
 
     virtual void EraseTree(const TString& treeId) = 0;
 };

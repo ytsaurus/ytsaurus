@@ -2,7 +2,9 @@
 #include "operation_controller.h"
 #include "node_shard.h"
 
+#include <yt/server/scheduler/fair_share_implementations.h>
 #include <yt/server/scheduler/fair_share_strategy.h>
+#include <yt/server/scheduler/fair_share_tree.h>
 
 #include <yt/client/security_client/acl.h>
 
@@ -74,7 +76,8 @@ TSimulatorControlThread::TSimulatorControlThread(
     , ExecNodes_(execNodes)
     , ActionQueue_(New<TActionQueue>(Format("ControlThread")))
     , StrategyHost_(execNodes, eventLogOutputStream)
-    , SchedulerStrategy_(CreateFairShareStrategy(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
+    , SchedulerStrategy_(
+        CreateFairShareStrategy<TVectorFairShareImpl>(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
     , SchedulerStrategyForNodeShards_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())
     , NodeShardEventQueue_(
         *execNodes,
@@ -111,11 +114,11 @@ TSimulatorControlThread::TSimulatorControlThread(
     }
 }
 
-void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode, TInstant now)
+void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode)
 {
     YT_VERIFY(!Initialized_.load());
     WaitFor(
-        BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesNode, now)
+        BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesNode)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run())
         .ThrowOnError();
@@ -169,7 +172,7 @@ void TSimulatorControlThread::Run()
                 JobAndOperationCounter_.GetTotalOperationCount(),
                 JobAndOperationCounter_.GetRunningJobCount());
 
-            RunningOperationsMap_.ApplyRead([this] (const auto& pair) {
+            RunningOperationsMap_.ApplyRead([this](const auto& pair) {
                 const auto& operation = pair.second;
                 YT_LOG_INFO("%v, (OperationId: %v)",
                     operation->GetController()->GetLoggingProgress(),
@@ -225,7 +228,8 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
         description.Type);
     auto operation = New<NSchedulerSimulator::TOperation>(description, runtimeParameters);
 
-    auto operationController = CreateSimulatorOperationController(operation.Get(), &description, Config_->ScheduleJobDelay);
+    auto operationController = CreateSimulatorOperationController(operation.Get(), &description,
+        Config_->ScheduleJobDelay);
     operation->SetController(operationController);
 
     RunningOperationsMap_.Insert(operation->GetId(), operation);
@@ -266,13 +270,13 @@ void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
     std::vector<TFuture<TYsonString>> nodeListFutures;
     for (const auto& nodeShard : NodeShards_) {
         nodeListFutures.push_back(
-            BIND([nodeShard] () {
+            BIND([nodeShard]() {
                 return BuildYsonStringFluently<EYsonType::MapFragment>()
                     .Do(BIND(&TSimulatorNodeShard::BuildNodesYson, nodeShard))
                     .Finish();
             })
-            .AsyncVia(nodeShard->GetInvoker())
-            .Run());
+                .AsyncVia(nodeShard->GetInvoker())
+                .Run());
     }
 
     auto nodeLists = WaitFor(Combine(nodeListFutures))
@@ -280,7 +284,7 @@ void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
 
     StrategyHost_.LogEventFluently(ELogEventType::NodesInfo, event.Time)
         .Item("nodes")
-        .DoMapFor(nodeLists, [] (TFluentMap fluent, const auto& nodeList) {
+        .DoMapFor(nodeLists, [](TFluentMap fluent, const auto& nodeList) {
             fluent.Items(nodeList);
         });
 

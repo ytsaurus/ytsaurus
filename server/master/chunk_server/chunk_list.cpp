@@ -51,6 +51,16 @@ void TChunkList::ValidateUniqueAncestors()
     }
 }
 
+TString TChunkList::GetLowercaseObjectName() const
+{
+    return Format("chunk list %v", GetId());
+}
+
+TString TChunkList::GetCapitalizedObjectName() const
+{
+    return Format("Chunk list %v", GetId());
+}
+
 void TChunkList::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);

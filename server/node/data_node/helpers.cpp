@@ -9,6 +9,7 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 
+#include <yt/ytlib/cypress_client/object_attribute_fetcher.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
@@ -37,7 +38,7 @@ static constexpr int MaxChunksPerLocateRequest = 10000;
 
 TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     const NYPath::TYPath& path,
-    std::optional<NHydra::TRevision> contentRevision,
+    NHydra::TRevision contentRevision,
     NCellNode::TBootstrap const* bootstrap,
     EMasterChannelKind masterChannelKind,
     const NLogging::TLogger& logger)
@@ -48,7 +49,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     userObject.Path = path;
 
     {
-        YT_LOG_INFO("Fetching layer basic attributes (LayerPath: %v, OldContentRevision: %v",
+        YT_LOG_INFO("Fetching layer basic attributes (LayerPath: %v, OldContentRevision: %v)",
             path,
             contentRevision);
 
@@ -78,11 +79,36 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     auto objectId = userObject.ObjectId;
     auto objectIdPath = FromObjectId(objectId);
 
+    {
+        YT_LOG_INFO("Fetching layer revision (LayerPath: %v, OldContentRevision: %v)",
+            path,
+            contentRevision);
+
+        auto attributesFuture = NCypressClient::FetchAttributes(
+            {objectIdPath},
+            {"content_revision"},
+            bootstrap->GetMasterClient());
+
+        try {
+            auto fetchResult = WaitFor(attributesFuture)
+                .ValueOrThrow();
+
+            auto attributesMap = fetchResult[0]
+                .ValueOrThrow();
+
+            auto fetchedRevision = NHydra::TRevision(attributesMap["content_revision"]->AsUint64()->GetValue());
+            userObject.ContentRevision = fetchedRevision;
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error fetching revision for layer %v", path)
+                << ex;
+        }
+    }
+
     auto result = TFetchedArtifactKey {
         .ContentRevision = userObject.ContentRevision
     };
 
-    if (contentRevision && *contentRevision == userObject.ContentRevision) {
+    if (contentRevision == userObject.ContentRevision) {
         YT_LOG_INFO("Layer revision not changed, using cached (LayerPath: %v, ObjectId: %v)",
             path,
             objectId);

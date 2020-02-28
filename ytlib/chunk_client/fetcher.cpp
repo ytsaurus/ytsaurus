@@ -220,6 +220,7 @@ int TFetcherBase::GetChunkCount() const
 
 TFuture<void> TFetcherBase::Fetch()
 {
+    OnFetchingStarted();
     BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))
         .Via(Invoker_)
         .Run();
@@ -372,6 +373,9 @@ void TFetcherBase::OnFetchingRoundCompleted(const TError& error)
 
     StartFetchingRound();
 }
+
+void TFetcherBase::OnFetchingStarted()
+{ }
 
 void TFetcherBase::OnFetchingCompleted()
 { }

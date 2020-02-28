@@ -34,6 +34,8 @@ private:
 
     virtual TFuture<void> FetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<int> chunkIndexes) override;
 
+    virtual void OnFetchingStarted() override;
+
     void OnResponse(
         NNodeTrackerClient::TNodeId,
         std::vector<int> chunkIndexes,

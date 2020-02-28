@@ -325,6 +325,16 @@ ENodeState TNode::GetAggregatedState() const
     return AggregatedState_;
 }
 
+TString TNode::GetLowercaseObjectName() const
+{
+    return Format("node %v", GetDefaultAddress());
+}
+
+TString TNode::GetCapitalizedObjectName() const
+{
+    return Format("Node %v", GetDefaultAddress());
+}
+
 void TNode::Save(NCellMaster::TSaveContext& context) const
 {
     TObject::Save(context);

@@ -61,11 +61,6 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual TString DoGetName(const TNode* node) override
-    {
-        return Format("node %v", node->GetDefaultAddress());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TNode* node, TTransaction* transaction) override
     {
         return CreateClusterNodeProxy(Bootstrap_, &Metadata_, node);

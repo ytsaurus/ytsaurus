@@ -80,8 +80,6 @@ TIter MergeOverlappingRanges(TIter begin, TIter end)
     return dest;
 }
 
-std::vector<TMutableRowRange> MergeOverlappingRanges(std::vector<TMutableRowRange> ranges);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

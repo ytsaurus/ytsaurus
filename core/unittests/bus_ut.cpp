@@ -10,6 +10,8 @@
 
 #include <yt/core/concurrency/event_count.h>
 
+#include <yt/core/misc/fs.h>
+
 namespace NYT::NBus {
 namespace {
 
@@ -153,13 +155,13 @@ TEST(TBusTest, CreateTcpBusClientConfig)
 {
     auto config = TTcpBusClientConfig::CreateTcp("localhost:2000");
     EXPECT_EQ("localhost:2000", *config->Address);
-    EXPECT_FALSE(config->UnixDomainName);
+    EXPECT_FALSE(config->UnixDomainSocketPath);
 }
 
 TEST(TBusTest, CreateUnixDomainBusClientConfig)
 {
     auto config = TTcpBusClientConfig::CreateUnixDomain("unix-socket");
-    EXPECT_EQ("unix-socket", *config->UnixDomainName);
+    EXPECT_EQ("unix-socket", *config->UnixDomainSocketPath);
 }
 
 TEST(TBusTest, OK)

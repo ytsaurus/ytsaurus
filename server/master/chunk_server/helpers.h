@@ -85,6 +85,15 @@ NTableClient::TOwningKey GetMinKeyOrThrow(const TChunk* chunk);
 //! first chunk in it contains no boundary info (i.e. it's not sorted).
 NTableClient::TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree);
 
+//! Returns the maximum key of a chunk. Throws if the chunk contains no boundary
+//! info (i.e. it's not sorted).
+NTableClient::TOwningKey GetMaxKeyOrThrow(const TChunk* chunk);
+
+//! Returns the maximum key of a chunk tree. Throws if the tree is empty or the
+//! last chunk in it contains no boundary info (i.e. it's not sorted).
+//! Doesn't support chunk views.
+NTableClient::TOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree);
+
 struct TChunkViewMergeResult;
 
 std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChunkView*> chunkViews);

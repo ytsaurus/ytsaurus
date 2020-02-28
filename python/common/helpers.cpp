@@ -78,7 +78,7 @@ std::string Repr(const Object& obj)
 TString Str(const Object& obj)
 {
     auto stdString = obj.str().as_std_string("utf-8", "replace");
-    return TString(stdString.begin(), stdString.end());
+    return TString(stdString);
 }
 
 Object CreateIterator(const Object& obj)

@@ -142,7 +142,14 @@ TFuture<TSharedRef> TFileReader::LookupRows(
     const NTableClient::TTableSchema& /*tableSchema*/,
     std::optional<i64> /*estimatedSize*/,
     std::atomic<i64>* /*uncompressedDataSize*/,
+    const NTableClient::TColumnFilter& columnFilter,
+    NTableClient::TTimestamp timestamp,
     bool /*produceAllVersions*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
+bool TFileReader::IsLookupSupported() const
 {
     YT_UNIMPLEMENTED();
 }

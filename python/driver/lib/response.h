@@ -72,6 +72,8 @@ public:
 private:
     TFuture<void> Response_;
     TIntrusivePtr<TDriverResponseHolder> Holder_;
+
+    static TString TypeName_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -105,6 +105,8 @@ constexpr TChecksum NullChecksum = 0;
 template <class T, unsigned Size>
 class SmallVector;
 
+class TRef;
+
 namespace NDetail {
 
 template <typename KeyT, typename ValueT>
@@ -158,10 +160,12 @@ class TSummary;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
-    ((OK)                 (0))
-    ((Generic)            (1))
-    ((Canceled)           (2))
-    ((Timeout)            (3))
+    ((OK)                    (0))
+    ((Generic)               (1))
+    ((Canceled)              (2))
+    ((Timeout)               (3))
+    ((FutureCombinerFailure) (4))
+    ((FutureCombinerShortcut)(5))
 );
 
 DEFINE_ENUM(EProcessErrorCode,
