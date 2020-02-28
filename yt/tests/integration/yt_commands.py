@@ -913,10 +913,10 @@ class Operation(object):
         job_phase_path = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/job_phase".format(node, job_id)
         return get(job_phase_path, verbose=False)
 
-    def ensure_running(self, timeout=2.0):
+    def ensure_running(self, timeout=10.0):
         print_debug("Waiting for operation %s to become running" % self.id)
 
-        state = self.get_state(verbose=False)
+        state = self.get_runtime_state(verbose=False)
         while state != "running" and timeout > 0:
             time.sleep(self._poll_frequency)
             timeout -= self._poll_frequency
@@ -924,6 +924,8 @@ class Operation(object):
 
         if state != "running":
             raise TimeoutError("Operation didn't become running within timeout")
+
+        wait(lambda: self.get_state() == "running", sleep_backoff=self._poll_frequency, iter=(1 + int(timeout / self._poll_frequency)))
 
     def get_job_count(self, state, from_orchid=True):
         if from_orchid:
@@ -944,6 +946,9 @@ class Operation(object):
     def get_running_jobs(self):
         jobs_path = self.get_path() + "/controller_orchid/running_jobs"
         return get(jobs_path, verbose=False, default={})
+
+    def get_runtime_state(self, **kwargs):
+        return get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(self.id), **kwargs)
 
     def get_state(self, **kwargs):
         try:
