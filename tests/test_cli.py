@@ -595,27 +595,35 @@ class TestCliMaintenance(object):
 
         node_id, pod_set_id, pod_id = prepare_objects(yp_client)
 
-        def _get_maintenance():
+        def get_pod_maintenance():
             return yp_client.get_object("pod", pod_id, selectors=["/status/maintenance"])[0]
+
+        def get_node_maintenance():
+            return yp_client.get_object("node", node_id, selectors=["/status/maintenance"])[0]
 
         yp_client.update_hfsm_state(
             node_id, "prepare_maintenance", "Test", maintenance_info=dict(id="aba"),
         )
 
-        wait(lambda: _get_maintenance().get("state") == "requested")
+        wait(lambda: get_pod_maintenance().get("state") == "requested")
 
-        maintenance = _get_maintenance()
+        maintenance = get_pod_maintenance()
         assert maintenance["info"]["id"] == "aba"
         assert len(maintenance["info"]["uuid"]) > 0
 
         # Acknowledgement of requested maintenance.
         cli.check_output(["acknowledge-pod-maintenance", pod_id])
-        new_maintenance = _get_maintenance()
+        new_maintenance = get_pod_maintenance()
         assert new_maintenance["state"] == "acknowledged"
         assert maintenance["info"] == new_maintenance["info"]
 
+        # Wait for node maintenance acknowledgement to prevent lock conflicts.
+        wait(lambda: get_node_maintenance().get("state") == "acknowledged")
+
         # Renouncement of acknowledged maintenance.
         cli.check_output(["renounce-pod-maintenance", pod_id])
-        new_maintenance = _get_maintenance()
+        new_maintenance = get_pod_maintenance()
         assert maintenance["state"] == new_maintenance["state"]
         assert maintenance["info"] == new_maintenance["info"]
+
+        assert get_node_maintenance()["state"] == "requested"
