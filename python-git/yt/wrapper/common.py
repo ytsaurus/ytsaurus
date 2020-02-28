@@ -192,14 +192,23 @@ def get_version():
     except:
         VERSION = None
 
-    # Add svn revision to version if it presented.
+    # Add svn revision or git commit to version if any of them is present.
     try:
         import library.python.svn_version
-        svn_revision = "r" + str(library.python.svn_version.svn_revision())
-        if VERSION is None:
-            VERSION = svn_revision
-        else:
-            VERSION = '{0} (r{1})'.format(VERSION, svn_revision)
+        svn_revision = library.python.svn_version.svn_revision()
+        git_commit = library.python.svn_version.commit_id()
+        suffix = None
+
+        if svn_revision != -1:
+            suffix = "r" + str(svn_revision)
+        elif git_commit != "":
+            suffix = "git:" + git_commit[:10]
+
+        if suffix is not None:
+            if VERSION is None:
+                VERSION = suffix
+            else:
+                VERSION = '{0} ({1})'.format(VERSION, suffix)
     except ImportError:
         pass
 
