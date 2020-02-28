@@ -235,7 +235,7 @@ public:
         , WriteThreadPool_(New<TThreadPool>(Config_->WriteThreadCount, Format("IOW:%v", locationId)))
         , ReadInvoker_(CreatePrioritizedInvoker(ReadThreadPool_->GetInvoker()))
         , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
-        , Profiler_(profiler)
+        , Profiler(profiler)
         , Logger(logger)
         , UseDirectIO_(Config_->UseDirectIO)
     { }
@@ -360,7 +360,7 @@ private:
     const TThreadPoolPtr WriteThreadPool_;
     const IPrioritizedInvokerPtr ReadInvoker_;
     const IPrioritizedInvokerPtr WriteInvoker_;
-    const TProfiler Profiler_;
+    const TProfiler Profiler;
     const NLogging::TLogger Logger;
 
     const bool UseDirectIO_;
@@ -372,11 +372,15 @@ private:
     TSpinLock WriteWaitSpinLock_;
     std::optional<TInstant> SickWriteWaitStart_;
 
-    std::atomic<bool> Sick_ = { false };
-    std::atomic<i64> SicknessCounter_ = { 0 };
+    std::atomic<bool> Sick_ = false;
+    std::atomic<i64> SicknessCounter_ = 0;
 
     NProfiling::TSimpleGauge SickGauge_{"/sick"};
-    NProfiling::TSimpleGauge SickEventsCount_{"/sick_events"};
+    NProfiling::TSimpleGauge SickEventsGauge_{"/sick_events"};
+    NProfiling::TAggregateGauge PreadTimeGauge_{"/pread_time"};
+    NProfiling::TAggregateGauge PwriteTimeGauge_{"/pwrite_time"};
+    NProfiling::TAggregateGauge FdatasyncTimeGauge_{"/fdatasync_time"};
+    NProfiling::TAggregateGauge FsyncTimeGauge_{"/fsync_time"};
 
     bool IsDirectAligned(const std::shared_ptr<TFileHandle>& handle)
     {
@@ -390,14 +394,18 @@ private:
 
     bool DoFlushData(const std::shared_ptr<TFileHandle>& handle)
     {
-        NTracing::TNullTraceContextGuard nullTraceContextGuard;
-        return handle->FlushData();
+        PROFILE_AGGREGATED_TIMING(FdatasyncTimeGauge_) {
+            NTracing::TNullTraceContextGuard nullTraceContextGuard;
+            return handle->FlushData();
+        }
     }
 
     bool DoFlush(const std::shared_ptr<TFileHandle>& handle)
     {
-        NTracing::TNullTraceContextGuard nullTraceContextGuard;
-        return handle->Flush();
+        PROFILE_AGGREGATED_TIMING(FsyncTimeGauge_) {
+            NTracing::TNullTraceContextGuard nullTraceContextGuard;
+            return handle->Flush();
+        }
     }
 
     TSharedMutableRef DoPread(
@@ -438,7 +446,7 @@ private:
                 i32 toRead = static_cast<i32>(Min(MaxBytesPerRead, readPortion));
 
                 i32 reallyRead;
-                {
+                PROFILE_AGGREGATED_TIMING(PreadTimeGauge_) {
                     NTracing::TNullTraceContextGuard nullTraceContextGuard;
                     reallyRead = handle->Pread(buf, toRead, from);
                 }
@@ -502,7 +510,7 @@ private:
                 i32 toWrite = static_cast<i32>(Min(MaxBytesPerRead, numBytes));
 
                 i32 reallyWritten;
-                {
+                PROFILE_AGGREGATED_TIMING(PwriteTimeGauge_) {
                     NTracing::TNullTraceContextGuard nullTraceContextGuard;
                     reallyWritten = handle->Pwrite(buf, toWrite, offset);
                 }
@@ -597,8 +605,8 @@ private:
 
     void UpdateSicknessProfiling()
     {
-        Profiler_.Update(SickGauge_, Sick_.load());
-        Profiler_.Update(SickEventsCount_, SicknessCounter_.load());
+        Profiler.Update(SickGauge_, Sick_.load());
+        Profiler.Update(SickEventsGauge_, SicknessCounter_.load());
     }
 };
 
@@ -779,11 +787,15 @@ public:
     using TConfig = TAioEngineConfig;
     using TConfigPtr = TIntrusivePtr<TConfig>;
 
-    TAioEngine(const TConfigPtr& config, const TString& locationId, const TProfiler& profiler, const NLogging::TLogger& logger)
+    TAioEngine(
+        const TConfigPtr& config,
+        const TString& locationId,
+        const TProfiler& profiler,
+        const NLogging::TLogger& logger)
         : TIOEngineBase(logger)
-        , Profiler_(profiler)
+        , Profiler(profiler)
         , MaxQueueSize_(config->MaxQueueSize)
-        , Semaphore_(New<TProfiledAsyncSemaphore>(MaxQueueSize_, Profiler_, "/waiting_ops"))
+        , Semaphore_(New<TProfiledAsyncSemaphore>(MaxQueueSize_, Profiler, "/waiting_ops"))
         , Thread_(TThread::TParams(StaticLoop, this).SetName(Format("DiskEvents:%v", locationId)))
         , ThreadPool_(New<TThreadPool>(1, Format("FileOpener:%v", locationId)))
     {
@@ -875,7 +887,7 @@ public:
     }
 
 private:
-    const TProfiler Profiler_;
+    const TProfiler Profiler;
 
     aio_context_t Ctx_ = 0;
     const int MaxQueueSize_;
