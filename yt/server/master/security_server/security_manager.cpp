@@ -2611,6 +2611,7 @@ private:
         if (EnsureBuiltinAccountInitialized(RootAccount_, RootAccountId_, RootAccountName)) {
             RootAccount_->ClusterResourceLimits() = TClusterResources::Infinite();
         }
+        RootAccount_->SetAllowChildrenLimitOvercommit(true);
 
         auto defaultResources = TClusterResources()
             .SetNodeCount(100000)
