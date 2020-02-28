@@ -4,8 +4,8 @@ if [[ "$1" != "" ]] ; then
     kind=$1
 fi
 
-if [[ "$kind" != "ytserver-log-tailer" && "$kind" != "ytserver-clickhouse" && "$kind" != "clickhouse-trampoline" && "$kind" != "yt-start-clickhouse-clique" ]] ; then
-    echo "Wrong kind ${kind}, expected one of: ytserver-log-tailer, ytserver-clickhouse, clickhouse-trampoline, yt-start-clickhouse-clique"
+if [[ "$kind" != "ytserver-log-tailer" && "$kind" != "ytserver-clickhouse" && "$kind" != "clickhouse-trampoline" ]] ; then
+    echo "Wrong kind ${kind}, expected one of: ytserver-log-tailer, ytserver-clickhouse, clickhouse-trampoline"
     exit 1
 fi
 
