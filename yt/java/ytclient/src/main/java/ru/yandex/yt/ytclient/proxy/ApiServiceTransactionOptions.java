@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 
 import ru.yandex.inside.yt.kosher.common.GUID;
@@ -24,6 +25,7 @@ public class ApiServiceTransactionOptions {
     private Boolean sticky;
     private EAtomicity atomicity;
     private EDurability durability;
+    private List<GUID> prerequisiteTransactionIds;
     private Duration pingPeriod = Duration.ofSeconds(5);
 
     public ApiServiceTransactionOptions(ETransactionType type) {
@@ -72,6 +74,10 @@ public class ApiServiceTransactionOptions {
 
     public EDurability getDurability() {
         return durability;
+    }
+
+    public List<GUID> getPrerequisiteTransactionIds() {
+        return prerequisiteTransactionIds;
     }
 
     public Duration getPingPeriod() {
@@ -125,6 +131,11 @@ public class ApiServiceTransactionOptions {
 
     public ApiServiceTransactionOptions setAtomicity(EDurability durability) {
         this.durability = durability;
+        return this;
+    }
+
+    public ApiServiceTransactionOptions setPrerequisiteTransactionIds(List<GUID> prerequisiteTransactionIds) {
+        this.prerequisiteTransactionIds = prerequisiteTransactionIds;
         return this;
     }
 
