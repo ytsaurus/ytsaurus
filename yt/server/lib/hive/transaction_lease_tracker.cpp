@@ -4,6 +4,8 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <yt/core/misc/variant.h>
+
 namespace NYT::NHiveServer {
 
 using namespace NConcurrency;

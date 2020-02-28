@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/core/misc/variant.h>
+#include <variant>
 
 namespace NYT::NScheduler {
 

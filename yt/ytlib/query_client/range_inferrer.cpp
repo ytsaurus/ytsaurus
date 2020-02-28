@@ -11,7 +11,6 @@
 
 #include <yt/core/misc/ref_counted.h>
 #include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/variant.h>
 
 #include <cstdlib>
 

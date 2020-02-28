@@ -2,6 +2,7 @@
 #include "phoenix.h"
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/variant.h>
 
 #include <yt/core/yson/string.h>
 

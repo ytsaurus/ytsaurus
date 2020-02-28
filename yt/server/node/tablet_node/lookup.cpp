@@ -35,7 +35,6 @@
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/variant.h>
 #include <yt/core/misc/tls_cache.h>
 
 ////////////////////////////////////////////////////////////////////////////////

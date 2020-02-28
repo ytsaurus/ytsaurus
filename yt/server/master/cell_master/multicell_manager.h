@@ -11,11 +11,12 @@
 #include <yt/ytlib/hydra/public.h>
 
 #include <yt/core/misc/ref.h>
-#include <yt/core/misc/variant.h>
 
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/rpc/public.h>
+
+#include <variant>
 
 namespace NYT::NCellMaster {
 
