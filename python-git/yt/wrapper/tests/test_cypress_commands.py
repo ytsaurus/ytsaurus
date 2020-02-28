@@ -517,7 +517,7 @@ class TestCypressCommands(object):
             yt.config.COMMAND_PARAMS["transaction_id"] = "0-0-0-0"
             yt.abort_transaction(tx)
 
-        tx = yt.start_transaction(timeout=2000)
+        tx = yt.start_transaction(timeout=60*1000)
         client = yt.YtClient(config=yt.config.config)
         client.COMMAND_PARAMS["transaction_id"] = tx
         try:
