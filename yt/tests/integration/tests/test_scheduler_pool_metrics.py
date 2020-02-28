@@ -279,6 +279,8 @@ class TestPoolMetrics(YTEnvSetup):
              + total_time_operation_aborted_delta.update().get("parent", verbose=True)
              > 0)
 
+    # Temporarily flaky due to YT-12207.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_total_time_operation_completed_several_jobs(self):
         create_pool("unique_pool")
@@ -343,6 +345,8 @@ class TestPoolMetrics(YTEnvSetup):
         assert total_time_operation_failed_delta.update().get(verbose=True) == 0
         assert total_time_operation_aborted_delta.update().get(verbose=True) == 0
 
+    # Temporarily flaky due to YT-12207.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_total_time_operation_failed_several_jobs(self):
         create_pool("unique_pool")
@@ -391,6 +395,8 @@ class TestPoolMetrics(YTEnvSetup):
         assert total_time_operation_completed_delta.update().get(verbose=True) == 0
         assert total_time_operation_aborted_delta.update().get(verbose=True) == 0
 
+    # Temporarily flaky due to YT-12207.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_total_time_operation_completed_per_tree(self):
         create("table", "//tmp/t_in")
