@@ -1,5 +1,7 @@
 #include "ast.h"
 
+#include <yt/core/misc/variant.h>
+
 #include <util/string/escape.h>
 
 namespace NYT::NQueryClient::NAst {

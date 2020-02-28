@@ -1,12 +1,8 @@
 #pragma once
 
 #include "public.h"
-
 #include "detail.h"
-
 #include "syntax_checker.h"
-
-#include <yt/core/misc/variant.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -14,7 +10,6 @@
 #include <util/stream/zerocopy.h>
 
 #include <stack>
-
 
 namespace NYT::NYson {
 

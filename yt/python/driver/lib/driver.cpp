@@ -11,6 +11,7 @@
 #include <yt/core/misc/crash_handler.h>
 #include <yt/core/misc/signal_registry.h>
 #include <yt/core/misc/shutdown.h>
+#include <yt/core/misc/variant.h>
 
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
@@ -21,7 +22,6 @@
 #include <yt/core/tracing/config.h>
 
 #include <yt/core/net/config.h>
-
 
 namespace NYT::NPython {
 

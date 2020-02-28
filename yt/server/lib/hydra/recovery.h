@@ -12,9 +12,10 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/ref.h>
-#include <yt/core/misc/variant.h>
 
 #include <yt/core/rpc/public.h>
+
+#include <variant>
 
 namespace NYT::NHydra {
 

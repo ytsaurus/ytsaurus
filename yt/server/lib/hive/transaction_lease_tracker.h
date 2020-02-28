@@ -6,11 +6,12 @@
 
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/lock_free.h>
-#include <yt/core/misc/variant.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/logging/log.h>
+
+#include <variant>
 
 namespace NYT::NHiveServer {
 
