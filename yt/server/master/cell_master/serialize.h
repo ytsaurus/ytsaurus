@@ -133,6 +133,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixNetworkProjectSerialization)                               (1209))  // gritukan
     ((DisableMasterMemoryUsageAccountOvercommitValidation)          (1300))  // aleksandra-zh
     ((FasterTError)                                                 (1301))  // babenko
+    ((FixRootAccountLimits)                                         (1302))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
