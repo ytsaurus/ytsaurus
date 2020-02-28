@@ -403,7 +403,7 @@ void TError::ExtractOriginAttributes()
 
     static const TString HostKey("host");
     HostHolder_ = Attributes_->GetAndRemove<TString>(HostKey, TString());
-    Host_ = HostHolder_;
+    Host_ = HostHolder_.empty() ? TStringBuf() : HostHolder_;
 
     static const TString DatetimeKey("datetime");
     Datetime_ = Attributes_->GetAndRemove<TInstant>(DatetimeKey, TInstant());
