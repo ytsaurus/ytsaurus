@@ -551,7 +551,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
                 "max_failed_job_count": 1
             })
 
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
 
         jobs = wait_breakpoint(timeout=datetime.timedelta(seconds=300))
         assert len(jobs) == 1

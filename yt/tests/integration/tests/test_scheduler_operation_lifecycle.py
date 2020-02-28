@@ -109,8 +109,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         op1 = map(track=False, in_="//tmp/t_in", out="//tmp/t_out1", command="sleep 1000")
         op2 = map(track=False, in_="//tmp/t_in", out="//tmp/t_out2", command="sleep 1000")
-        wait(lambda: op1.get_state() == "running")
-        wait(lambda: op2.get_state() == "running")
+        op1.ensure_running()
+        op2.ensure_running()
 
         set(op1.get_path() + "/@banned", True)
 
@@ -197,7 +197,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             command="sleep 1000",
             in_=["//tmp/in"],
             out="//tmp/out")
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
 
         op.suspend()
         wait(lambda: get(op.get_path() + "/@suspended"))
@@ -205,8 +205,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        time.sleep(2)
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
+
         wait(lambda: op.get_job_count("running") == 0)
 
         assert get(op.get_path() + "/@suspended")

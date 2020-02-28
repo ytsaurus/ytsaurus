@@ -707,13 +707,13 @@ class TestSchedulerCommon(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
         assert get(op.get_path() + "/@nested_input_transaction_ids") == [nested_tx]
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             abort_transaction(nested_tx)
 
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
         new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
         assert len(new_nested_input_transaction_ids) == 1
         assert new_nested_input_transaction_ids[0] != nested_tx
@@ -748,13 +748,13 @@ class TestSchedulerCommon(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
         assert get(op.get_path() + "/@nested_input_transaction_ids") == [nested_tx, nested_tx]
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             abort_transaction(nested_tx)
 
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
         new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
         assert len(new_nested_input_transaction_ids) == 2
         assert new_nested_input_transaction_ids[0] == new_nested_input_transaction_ids[1]
@@ -1047,9 +1047,9 @@ class TestSchedulerConfig(YTEnvSetup):
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
-        time.sleep(1)
 
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
+
         # XXX(ignat)
         for spec_type in ("full_spec",):
             assert get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type)) == 1000
