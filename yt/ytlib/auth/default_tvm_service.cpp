@@ -6,6 +6,8 @@
 
 #include <yt/core/json/json_parser.h>
 
+#include <yt/core/rpc/public.h>
+
 #include <yt/core/ytree/ypath_client.h>
 
 #include <yt/core/ypath/token.h>
@@ -119,14 +121,18 @@ private:
         };
 
         if (!rspOrError.IsOK()) {
-            onError(TError("TVM call failed")
+            onError(TError(NRpc::EErrorCode::Unavailable, "TVM call failed")
                 << rspOrError);
         }
 
         const auto& rsp = rspOrError.Value();
         if (rsp->GetStatusCode() != EStatusCode::OK) {
-            onError(TError("TVM call returned HTTP status code %v",
-                static_cast<int>(rsp->GetStatusCode())));
+            TErrorCode errorCode = NYT::EErrorCode::Generic;
+            int statusCode = static_cast<int>(rsp->GetStatusCode());
+            if (statusCode >= 500) {
+                errorCode = NRpc::EErrorCode::Unavailable;
+            }
+            onError(TError(errorCode, "TVM call returned HTTP status code %v", statusCode));
         }
 
         INodePtr rootNode;
