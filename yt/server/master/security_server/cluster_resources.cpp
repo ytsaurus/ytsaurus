@@ -114,13 +114,13 @@ const NChunkClient::TMediumMap<i64>& TClusterResources::DiskSpace() const
 /*static*/ TClusterResources TClusterResources::Infinite()
 {
     auto resources = TClusterResources()
-        .SetNodeCount(std::numeric_limits<i64>::max())
-        .SetTabletCount(std::numeric_limits<int>::max())
-        .SetChunkCount(std::numeric_limits<i64>::max())
-        .SetTabletStaticMemory(std::numeric_limits<i64>::max())
-        .SetMasterMemoryUsage(std::numeric_limits<i64>::max());
+        .SetNodeCount(std::numeric_limits<i64>::max() / 2)
+        .SetTabletCount(std::numeric_limits<int>::max() / 2)
+        .SetChunkCount(std::numeric_limits<i64>::max() / 2)
+        .SetTabletStaticMemory(std::numeric_limits<i64>::max() / 2)
+        .SetMasterMemoryUsage(std::numeric_limits<i64>::max() / 2);
     for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
-        resources.SetMediumDiskSpace(mediumIndex, std::numeric_limits<i64>::max());
+        resources.SetMediumDiskSpace(mediumIndex, std::numeric_limits<i64>::max() / 2);
     }
     return resources;
 }

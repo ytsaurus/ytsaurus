@@ -1804,6 +1804,8 @@ private:
     // COMPAT(aleksandra-zh)
     bool MustInitializeMasterMemoryLimits_ = false;
 
+    bool NeedAdjustRootAccountLimits_ = false;
+
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
         auto isErasure = erasureCodec != NErasure::ECodec::None;
@@ -2115,6 +2117,9 @@ private:
 
         // COMPAT(aleksandra-zh)
         MustInitializeMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountMasterMemoryUsage;
+
+        // COMPAT(aleksandra-zh)
+        NeedAdjustRootAccountLimits_ = context.GetVersion() < EMasterReign::FixRootAccountLimits;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2235,6 +2240,11 @@ private:
                 TrySetResourceLimits(account, resourceLimits);
             }
         }
+
+        if (NeedAdjustRootAccountLimits_) {
+            RootAccount_->ClusterResourceLimits() = TClusterResources::Infinite();
+        }
+
         // COMPAT(shakurov)
         RecomputeAccountResourceUsage();
 
