@@ -51,7 +51,7 @@ NYson::TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format
     TString result;
     TStringOutput stringOutput(result);
     WriteYson(&stringOutput, value, type, format);
-    return NYson::TYsonString(result, type);
+    return NYson::TYsonString(std::move(result), type);
 }
 
 template <class T>
@@ -61,7 +61,7 @@ NYson::TYsonString ConvertToYsonString(const T& value, NYson::EYsonFormat format
     TString result;
     TStringOutput stringOutput(result);
     WriteYson(&stringOutput, value, type, format, indent);
-    return NYson::TYsonString(result, type);
+    return NYson::TYsonString(std::move(result), type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
