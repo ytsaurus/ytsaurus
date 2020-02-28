@@ -132,6 +132,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_11279_UnmountForceOnlySuperuser)                           (1208))  // lexolordan
     ((FixNetworkProjectSerialization)                               (1209))  // gritukan
     ((DisableMasterMemoryUsageAccountOvercommitValidation)          (1300))  // aleksandra-zh
+    ((FasterTError)                                                 (1301))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
