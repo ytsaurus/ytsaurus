@@ -281,6 +281,10 @@ public class ApiServiceClient implements TransactionalClient {
         if (options.getDurability() != null) {
             builder.body().setDurability(options.getDurability());
         }
+        if (options.getPrerequisiteTransactionIds() != null) {
+            // builder.body().setPrerequisiteTransactionIds(options.getPrerequisiteTransactionIds());
+            throw new RuntimeException("prerequisite_transaction_ids is not supported in RPC proxy API yet");
+        }
         final boolean ping = builder.body().getPing();
         final boolean pingAncestors = builder.body().getPingAncestors();
         final boolean sticky = builder.body().getSticky();
