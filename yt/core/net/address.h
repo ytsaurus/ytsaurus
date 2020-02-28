@@ -164,8 +164,6 @@ void Serialize(const TIP6Network& value, NYson::IYsonConsumer* consumer);
 class TAddressResolver
 {
 public:
-    ~TAddressResolver();
-
     //! Returns the singleton instance.
     static TAddressResolver* Get();
 
