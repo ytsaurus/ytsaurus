@@ -80,6 +80,34 @@ i64 TChunk::GetPartDiskSpace() const
     return result;
 }
 
+TString TChunk::GetLowercaseObjectName() const
+{
+    switch (GetType()) {
+        case EObjectType::Chunk:
+            return Format("chunk %v", GetId());
+        case EObjectType::ErasureChunk:
+            return Format("erasure chunk %v", GetId());
+        case EObjectType::JournalChunk:
+            return Format("journal chunk %v", GetId());
+        default:
+            YT_ABORT();
+    }
+}
+
+TString TChunk::GetCapitalizedObjectName() const
+{
+    switch (GetType()) {
+        case EObjectType::Chunk:
+            return Format("Chunk %v", GetId());
+        case EObjectType::ErasureChunk:
+            return Format("Erasure chunk %v", GetId());
+        case EObjectType::JournalChunk:
+            return Format("Journal chunk %v", GetId());
+        default:
+            YT_ABORT();
+    }
+}
+
 void TChunk::Save(NCellMaster::TSaveContext& context) const
 {
     TChunkTree::Save(context);
@@ -478,6 +506,11 @@ void TChunk::Unexport(
 
         UpdateAggregatedRequisitionIndex(registry, objectManager);
     }
+}
+
+i64 TChunk::GetMasterMemoryUsage() const
+{
+    return ChunkMeta().ByteSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

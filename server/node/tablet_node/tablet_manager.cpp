@@ -1205,7 +1205,7 @@ private:
             storeManager->DiscardAllStores();
         }
 
-        storeManager->BulkAddStores(MakeRange(storesToAdd.begin(), storesToAdd.end()), /*onMount*/ false);
+        storeManager->BulkAddStores(MakeRange(storesToAdd), /*onMount*/ false);
 
         const auto& lockManager = tablet->GetLockManager();
 

@@ -965,7 +965,7 @@ private:
             }
 
             YT_LOG_DEBUG_IF(bundle->Health() != oldHealth,
-                "Bundle health changed (Bundle: %Qv, OldHealth: %v, NewHealth: %v)",
+                "Bundle health changed (Bundle: %v, OldHealth: %v, NewHealth: %v)",
                 bundle->GetName(),
                 oldHealth,
                 bundle->Health());

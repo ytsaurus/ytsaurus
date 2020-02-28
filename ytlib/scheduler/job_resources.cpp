@@ -200,6 +200,17 @@ void ProfileResources(
     #undef XX
 }
 
+void ProfileResources(
+    NProfiling::TMetricsAccumulator& accumulator,
+    const TJobResources& resources,
+    const TString& prefix,
+    const NProfiling::TTagIdList& tagIds)
+{
+    #define XX(name, Name) accumulator.Add(prefix + "/" #name, static_cast<i64>(resources.Get##Name()), EMetricType::Gauge, tagIds);
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+}
+
 EResourceType GetDominantResource(
     const TJobResources& demand,
     const TJobResources& limits)

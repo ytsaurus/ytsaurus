@@ -268,6 +268,9 @@ public:
 public:
     explicit TTablet(TTabletId id);
 
+    virtual TString GetLowercaseObjectName() const override;
+    virtual TString GetCapitalizedObjectName() const override;
+
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
@@ -288,6 +291,7 @@ public:
 
     i64 GetTabletStaticMemorySize(NTabletClient::EInMemoryMode mode) const;
     i64 GetTabletStaticMemorySize() const;
+    i64 GetTabletMasterMemoryUsage() const;
 
 private:
     ETabletState State_ = ETabletState::Unmounted;

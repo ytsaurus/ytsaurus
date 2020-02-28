@@ -1,12 +1,15 @@
 #pragma once
 
 #include "helpers.h"
+#include "resource_vector.h"
 
 #include <yt/server/lib/scheduler/job_metrics.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
+
+#include <yt/core/misc/atomic_object.h>
 
 namespace NYT::NScheduler {
 
@@ -70,14 +73,26 @@ public:
         Alive_ = alive;
     }
 
-    inline double GetFairShareRatio() const
+    inline TResourceVector GetFairShare() const
     {
-        return FairShareRatio_.load(std::memory_order_relaxed);
+        return FairShare_.Load();
     }
 
-    inline void SetFairShareRatio(double fairShareRatio)
+    inline void SetFairShare(TResourceVector fairShare)
     {
-        FairShareRatio_ = fairShareRatio;
+        FairShare_.Store(fairShare);
+    }
+
+    // NB(antonkikh): For compatibility with the classic scheduler.
+    inline double GetFairShareRatio() const
+    {
+        return MaxComponent(FairShare_.Load());
+    }
+
+    // NB(antonkikh): For compatibility with the classic scheduler.
+    inline void SetFairShareRatio(double fairShare)
+    {
+        FairShare_.Store(TResourceVector::FromDouble(fairShare));
     }
 
 private:
@@ -93,7 +108,7 @@ private:
     TResourceTreeElementPtr Parent_;
 
     std::atomic<bool> Alive_ = {true};
-    std::atomic<double> FairShareRatio_ = {0.0};
+    TAtomicObject<TResourceVector> FairShare_ = {};
 
     bool IncreaseLocalResourceUsagePrecommitWithCheck(
         const TJobResources& delta,

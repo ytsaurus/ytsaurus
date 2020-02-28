@@ -491,7 +491,7 @@ void ToProto(
     const NQueryClient::TQueryStatistics& statistics)
 {
     protoStatistics->set_rows_read(statistics.RowsRead);
-    protoStatistics->set_bytes_read(statistics.BytesRead);
+    protoStatistics->set_data_weight_read(statistics.DataWeightRead);
     protoStatistics->set_rows_written(statistics.RowsWritten);
     protoStatistics->set_sync_time(statistics.SyncTime.GetValue());
     protoStatistics->set_async_time(statistics.AsyncTime.GetValue());
@@ -512,7 +512,7 @@ void FromProto(
     const NProto::TQueryStatistics& protoStatistics)
 {
     statistics->RowsRead = protoStatistics.rows_read();
-    statistics->BytesRead = protoStatistics.bytes_read();
+    statistics->DataWeightRead = protoStatistics.data_weight_read();
     statistics->RowsWritten = protoStatistics.rows_written();
     statistics->SyncTime = TDuration::FromValue(protoStatistics.sync_time());
     statistics->AsyncTime = TDuration::FromValue(protoStatistics.async_time());
@@ -754,6 +754,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.HasCompetitors) {
         protoJob->set_has_competitors(*job.HasCompetitors);
     }
+    if (job.IsStale) {
+        protoJob->set_is_stale(*job.IsStale);
+    }
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -852,6 +855,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->HasCompetitors = protoJob.has_competitors();
     } else {
         job->HasCompetitors = false;
+    }
+    if (protoJob.has_is_stale()) {
+        job->IsStale = protoJob.is_stale();
+    } else {
+        job->IsStale.reset();
     }
 }
 

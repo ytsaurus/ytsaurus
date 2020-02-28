@@ -22,6 +22,7 @@ protected:
     void SyncWithUpstream();
 
     virtual IHydraManagerPtr GetHydraManager() = 0;
+    virtual TFuture<void> DoSyncWithUpstream();
 
 private:
     virtual bool IsUp(const TCtxDiscoverPtr& context) override;

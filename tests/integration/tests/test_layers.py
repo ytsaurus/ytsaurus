@@ -8,13 +8,14 @@ import pytest
 import inspect
 import os
 import time
+from functools import partial
 
 from flaky import flaky
 
 @pytest.fixture(scope="module")
 def layers_resource():
     if arcadia_interop.yatest_common is None:
-        from_sandbox("1290617403")
+        from_sandbox("1367238824")
 
 @pytest.mark.skip_if('not porto_avaliable()')
 @pytest.mark.usefixtures("layers_resource")
@@ -541,6 +542,89 @@ class TestGpuLayer(YTEnvSetup):
 
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
+
+
+@pytest.mark.usefixtures("layers_resource")
+@pytest.mark.skip_if('not porto_available()')
+@authors("mrkastep")
+class TestGpuLayerUpdate(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+    NUM_SECONDARY_MASTER_CELLS = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_root_fs" : True,
+            "job_controller": {
+                "test_gpu_resource": True,
+                "test_gpu_layers": True,
+                "gpu_manager": {
+                    "driver_layer_directory_path": "//tmp/drivers",
+                    "driver_version": "test_version",
+                    "driver_layer_fetch_period": 10000,
+                }
+            },
+            "slot_manager": {
+                "job_environment" : {
+                    "type" : "porto",
+                },
+            }
+        },
+    }
+
+    USE_PORTO_FOR_SERVERS = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+
+    def _write_driver_layer(self, name):
+        path = "layers/{}.tar.gz".format(name)
+        write_file("//tmp/drivers/test_version", open(path).read(), file_writer={"upload_replication_factor": 1})
+
+    def setup_files(self):
+        tx = start_transaction()
+
+        create("map_node", "//tmp/drivers", tx=tx)
+        create("file", "//tmp/drivers/test_version", attributes={"replication_factor": 1}, tx=tx)
+
+        create("file", "//tmp/bin", attributes={"replication_factor": 1}, tx=tx)
+        file_name = "layers/static-bin.tar.gz"
+        write_file("//tmp/bin", open(file_name).read(), file_writer={"upload_replication_factor": 1}, tx=tx)
+
+        commit_transaction(tx)
+
+    def test_update_file(self):
+        self.setup_files()
+
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1}, file_writer={"upload_replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1}, file_writer={"upload_replication_factor": 1})
+
+        write_table("//tmp/t_in", [{"k": 0}])
+
+        def check_cat(content):
+            op = map(
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                command='$YT_ROOT_FS/static-bin/static-cat $YT_ROOT_FS/name >&2',
+                spec={
+                    "max_failed_job_count": 1,
+                    "mapper": {
+                        "job_count": 1,
+                        "layer_paths": ["//tmp/bin"],
+                        "enable_gpu_layers": True,
+                    }
+                })
+
+            jobs_path = op.get_path() + "/jobs"
+            assert get(jobs_path + "/@count") == 1
+            job_id = ls(jobs_path)[0]
+
+            res = op.read_stderr(job_id)
+            return res == content
+
+        self._write_driver_layer("olli")
+        wait(partial(check_cat, "Olli Tukiainen\n"))
+
+        self._write_driver_layer("marko")
+        wait(partial(check_cat, "Marko Saaresto\n"))
 
 
 @pytest.mark.usefixtures("layers_resource")

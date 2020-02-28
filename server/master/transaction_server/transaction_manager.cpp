@@ -97,11 +97,6 @@ private:
         return transaction->ReplicatedToCellTags();
     }
 
-    virtual TString DoGetName(const TTransaction* transaction) override
-    {
-        return Format("transaction %v", transaction->GetId());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TTransaction* transaction, TTransaction* /*dummyTransaction*/) override
     {
         return CreateTransactionProxy(Bootstrap_, &Metadata_, transaction);

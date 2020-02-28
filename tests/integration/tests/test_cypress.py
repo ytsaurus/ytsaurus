@@ -292,6 +292,42 @@ class TestCypress(YTEnvSetup):
         assert get("//tmp/map") == {}
         assert get("//tmp/map/@count") == 0
 
+    @authors("aleksandra-zh")
+    def test_ref_count(self):
+        create("map_node", "//tmp/d")
+        assert get("//tmp/d/@ref_counter") == 1
+
+        tx = start_transaction()
+        create("table", "//tmp/d/t", tx=tx)
+        assert get("//tmp/d/@ref_counter") == 2
+        abort_transaction(tx)
+        assert get("//tmp/d/@ref_counter") == 1
+
+        tx = start_transaction()
+        lock("//tmp/d", tx=tx, mode="snapshot")
+        assert get("//tmp/d/@ref_counter") == 2
+        commit_transaction(tx)
+        assert get("//tmp/d/@ref_counter") == 1
+
+    @authors("aleksandra-zh")
+    def test_ref_count_move(self):
+        create("table", "//tmp/t")
+        assert get("//tmp/t/@ref_counter") == 1
+
+        tx = start_transaction()
+        move("//tmp/t", "//tmp/t1", tx=tx)
+        assert get("//tmp/t/@ref_counter") == 2
+        abort_transaction(tx)
+        assert get("//tmp/t/@ref_counter") == 1
+
+        tx = start_transaction()
+        move("//tmp/t", "//tmp/t1", tx=tx)
+        assert get("//tmp/t/@ref_counter") == 2
+        commit_transaction(tx)
+        # should not crash
+        with pytest.raises(YtError): get("//tmp/t/@ref_counter")
+        assert get("//tmp/t1/@ref_counter") == 1
+
     @authors("ignat")
     def test_list_remove_all(self):
         # remove items from list
@@ -304,7 +340,7 @@ class TestCypress(YTEnvSetup):
     @authors("ignat")
     def test_attr_remove_all1(self):
         # remove items from attributes
-        set("//tmp/attr", "<_foo=bar;_key=value>42", is_raw=True);
+        set("//tmp/attr", "<_foo=bar;_key=value>42", is_raw=True)
         remove("//tmp/attr/@*")
         with pytest.raises(YtError): get("//tmp/attr/@_foo")
         with pytest.raises(YtError): get("//tmp/attr/@_key")
@@ -1463,7 +1499,7 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError): set("//tmp/t/@expiration_time", str(self._now()))
         unlock("//tmp/t", tx=tx)
         set("//tmp/t/@expiration_time", str(self._now()))
-        time.sleep(0.2)
+        time.sleep(1)
         assert not exists("//tmp/t")
 
     @authors("babenko")
@@ -1587,15 +1623,10 @@ class TestCypress(YTEnvSetup):
     def test_expiration_time_versioning5(self):
         tx = start_transaction()
         create("table", "//tmp/t1", attributes={"expiration_time": str(self._now())}, tx=tx)
-
         time.sleep(1)
-
         assert exists("//tmp/t1", tx=tx)
-
         commit_transaction(tx)
-
-        time.sleep(0.2)
-
+        time.sleep(1)
         assert not exists("//tmp/t1")
 
     @authors("babenko")

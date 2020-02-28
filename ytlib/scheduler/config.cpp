@@ -182,6 +182,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("cancellation_stage", CancelationStage)
         .Default();
+    RegisterParameter("log_residual_custom_job_metrics_on_termination", LogResidualCustomJobMetricsOnTermination)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -594,6 +596,8 @@ TUserJobSpec::TUserJobSpec()
         .GreaterThan(TDuration::Zero());
     RegisterParameter("network_project", NetworkProject)
         .Default();
+    RegisterParameter("enable_porto", EnablePorto)
+        .Default(EEnablePorto::Isolate);
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {

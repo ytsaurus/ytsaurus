@@ -7,8 +7,14 @@
 
 #include <yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/chunk_meta_fetcher.h>
+#include <yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/ytlib/chunk_client/chunk_teleporter.h>
+#include <yt/ytlib/chunk_client/input_chunk.h>
+#include <yt/ytlib/chunk_client/fetcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/throttler_manager.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
@@ -16,6 +22,7 @@
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/schema_inferer.h>
 
 #include <yt/ytlib/transaction_client/transaction_manager.h>
@@ -906,10 +913,14 @@ void TClient::DoConcatenateNodes(
             srcObjects.emplace_back(srcPath);
         }
 
+        std::vector<i64> chunkCounts;
+        chunkCounts.reserve(srcObjects.size());
+
         TUserObject dstObject(dstPath);
 
         std::unique_ptr<IOutputSchemaInferer> outputSchemaInferer;
         std::vector<TSecurityTag> inferredSecurityTags;
+        bool sortedConcatenation = false;
         {
             auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
             auto batchReq = proxy->ExecuteBatch();
@@ -999,6 +1010,35 @@ void TClient::DoConcatenateNodes(
                 checkType(*dstObject);
             }
 
+            // Get chunk counts.
+            {
+                auto createGetChunkCountRequest = [&] (const TUserObject& object) {
+                    auto req = TYPathProxy::Get(object.GetObjectIdPath() + "/@");
+                    AddCellTagToSyncWith(req, object.ObjectId);
+                    SetTransactionId(req, options, true);
+                    req->mutable_attributes()->add_keys("chunk_count");
+                    return req;
+                };
+
+                auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
+                auto getChunkCountsReq = proxy->ExecuteBatch();
+                for (const auto& srcObject : srcObjects) {
+                    auto req = createGetChunkCountRequest(srcObject);
+                    getChunkCountsReq->AddRequest(req);
+                }
+
+                auto batchRspOrError = WaitFor(getChunkCountsReq->Invoke());
+                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching source objects chunk counts");
+
+                for (const auto& rspOrError : batchRspOrError.Value()->GetResponses<TYPathProxy::TRspGet>()) {
+                    const auto& rsp = rspOrError.Value();
+
+                    auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+                    auto chunkCount = attributes->Get<i64>("chunk_count");
+                    chunkCounts.push_back(chunkCount);
+                }
+            }
+
             // Check table schemas.
             if (*commonType == EObjectType::Table) {
                 auto createGetSchemaRequest = [&] (const TUserObject& object) {
@@ -1008,6 +1048,7 @@ void TClient::DoConcatenateNodes(
                     SetTransactionId(req, options, true);
                     req->mutable_attributes()->add_keys("schema");
                     req->mutable_attributes()->add_keys("schema_mode");
+                    req->mutable_attributes()->add_keys("dynamic");
                     return req;
                 };
 
@@ -1037,12 +1078,19 @@ void TClient::DoConcatenateNodes(
 
                     const auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
                     const auto schema = attributes->Get<TTableSchema>("schema");
+
+                    if (attributes->Get<bool>("dynamic")) {
+                        THROW_ERROR_EXCEPTION("Destination table %v is dynamic, concatenation into dynamic table is not supported",
+                            simpleDstPath);
+                    }
+
                     const auto schemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
                     switch (schemaMode) {
                         case ETableSchemaMode::Strong:
                             if (schema.IsSorted()) {
-                                THROW_ERROR_EXCEPTION("Destination path %v has sorted schema, concatenation into sorted table is not supported",
-                                    dstObject.GetPath());
+                                YT_LOG_DEBUG("Using sorted concatenation (PinnedUser: %v)",
+                                    Options_.PinnedUser);
+                                sortedConcatenation = true;
                             }
                             outputSchemaInferer = CreateSchemaCompatibilityChecker(dstObject.GetPath(), schema);
                             break;
@@ -1066,45 +1114,245 @@ void TClient::DoConcatenateNodes(
                         const auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
                         const auto schema = attributes->Get<TTableSchema>("schema");
                         const auto schemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
+
+                        if (attributes->Get<bool>("dynamic")) {
+                            THROW_ERROR_EXCEPTION("Source table %v is dynamic, concatenation of dynamic tables is not supported",
+                                srcObject->GetPath());
+                        }
+
                         outputSchemaInferer->AddInputTableSchema(srcObject->GetPath(), schema, schemaMode);
                     }
                 }
             }
         }
 
-        // Get source chunk ids.
-        // Maps src object index -> list of chunk ids for this src.
-        std::vector<std::vector<TChunkId>> chunkIdsPerSrc(srcObjects.size());
+        std::vector<NChunkClient::NProto::TChunkSpec> srcChunkSpecs;
+
+        // Get source chunk specs.
         {
-            THashMap<TCellTag, std::vector<const TUserObject*>> srcExternalCellTagMap;
-            for (const auto& srcObject : srcObjects) {
-                srcExternalCellTagMap[srcObject.ExternalCellTag].push_back(&srcObject);
+            auto chunkSpecFetcher = New<TChunkSpecFetcher>(
+                MakeStrong(this),
+                Connection_->GetNodeDirectory(),
+                Connection_->GetInvoker(),
+                Connection_->GetConfig()->MaxChunksPerFetch,
+                Connection_->GetConfig()->MaxChunksPerLocateRequest,
+                [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& request, int srcObjectIndex) {
+                    const auto& srcObject = srcObjects[srcObjectIndex];
+
+                    request->set_fetch_all_meta_extensions(false);
+                    if (sortedConcatenation) {
+                        request->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+                        request->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                    }
+                    AddCellTagToSyncWith(request, srcObject.ObjectId);
+                    NCypressClient::SetTransactionId(request, srcObject.ExternalTransactionId);
+                },
+                Logger);
+
+            for (int srcObjectIndex = 0; srcObjectIndex < srcObjects.size(); ++srcObjectIndex) {
+                const auto& srcObject = srcObjects[srcObjectIndex];
+
+                chunkSpecFetcher->Add(
+                    srcObject.ObjectId,
+                    srcObject.ExternalCellTag,
+                    chunkCounts[srcObjectIndex],
+                    srcObjectIndex);
             }
 
-            for (const auto& [srcExternalCellTag, thisCellSrcObjects] : srcExternalCellTagMap) {
-                auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions(), srcExternalCellTag);
-                auto batchReq = proxy->ExecuteBatch();
+            YT_LOG_DEBUG("Fetching chunk specs");
 
-                for (const auto* srcObject : thisCellSrcObjects) {
-                    auto req = TChunkOwnerYPathProxy::Fetch(srcObject->GetObjectIdPath());
-                    AddCellTagToSyncWith(req, srcObject->ObjectId);
-                    req->Tag() = srcObject;
-                    NCypressClient::SetTransactionId(req, srcObject->ExternalTransactionId);
-                    ToProto(req->mutable_ranges(), std::vector<TReadRange>{TReadRange()});
-                    batchReq->AddRequest(req, "fetch");
+            WaitFor(chunkSpecFetcher->Fetch())
+                .ThrowOnError();
+
+            srcChunkSpecs = chunkSpecFetcher->GetChunkSpecsOrderedNaturally();
+
+            YT_LOG_DEBUG("Chunk specs fetched (ChunkSpecCount: %v)",
+                srcChunkSpecs.size());
+        }
+
+        if (sortedConcatenation) {
+            auto chunkMetaFetcher = New<TChunkMetaFetcher>(
+                options.ChunkMetaFetcherConfig,
+                Connection_->GetNodeDirectory(),
+                Connection_->GetInvoker(),
+                nullptr /* fetcherChunkScraper */,
+                MakeStrong(this),
+                Logger,
+                TUserWorkloadDescriptor{EUserWorkloadCategory::Batch},
+                [] (NChunkClient::NProto::TReqGetChunkMeta& request) {
+                    request.add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TTableSchemaExt>::Value);
+                });
+
+            for (const auto& chunkSpec : srcChunkSpecs) {
+                chunkMetaFetcher->AddChunk(New<TInputChunk>(chunkSpec));
+            }
+
+            YT_LOG_DEBUG("Fetching chunk metas");
+
+            WaitFor(chunkMetaFetcher->Fetch())
+                .ThrowOnError();
+
+            const auto& srcChunkMetas = chunkMetaFetcher->ChunkMetas();
+
+            YT_LOG_DEBUG("Chunk metas fecthed (ChunkMetaCount: %v)",
+                srcChunkMetas.size());
+
+            YT_VERIFY(srcChunkSpecs.size() == srcChunkMetas.size());
+
+            YT_LOG_DEBUG("Validating chunks schemas");
+
+            const auto& outputTableSchema = outputSchemaInferer->GetOutputTableSchema();
+
+            for (int chunkIndex = 0; chunkIndex < srcChunkSpecs.size(); ++chunkIndex) {
+                const auto& chunkMeta = srcChunkMetas[chunkIndex];
+                const auto& chunkSpec = srcChunkSpecs[chunkIndex];
+                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+
+                if (!chunkMeta) {
+                    THROW_ERROR_EXCEPTION("Chunk %v meta was not fetched", chunkId);
                 }
 
-                auto batchRspOrError = WaitFor(batchReq->Invoke());
-                THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching input chunks");
+                auto chunkSchemaExt =
+                    FindProtoExtension<NTableClient::NProto::TTableSchemaExt>(chunkMeta->extensions());
+                if (!chunkSchemaExt) {
+                    THROW_ERROR_EXCEPTION("Chunk %v does not have schema extension in meta",
+                        FromProto<TChunkId>(chunkSpec.chunk_id()));
+                }
 
-                const auto& batchRsp = batchRspOrError.Value();
-                auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>("fetch");
-                for (const auto& rspOrError : rspsOrError) {
-                    const auto& rsp = rspOrError.Value();
-                    const auto* srcObject = std::any_cast<const TUserObject*>(rsp->Tag());
-                    for (const auto& chunk : rsp->chunks()) {
-                        auto srcIndex = srcObject - srcObjects.data();
-                        chunkIdsPerSrc[srcIndex].push_back(FromProto<TChunkId>(chunk.chunk_id()));
+                auto chunkSchema = FromProto<TTableSchema>(*chunkSchemaExt);
+
+                if (outputTableSchema.GetKeyColumnCount() > chunkSchema.GetKeyColumnCount()) {
+                    THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
+                        "Chunk %v has less key columns than output schema",
+                        FromProto<TChunkId>(chunkSpec.chunk_id()))
+                        << TErrorAttribute("chunk_key_column_count", chunkSchema.GetKeyColumnCount())
+                        << TErrorAttribute("output_table_key_column_count", outputTableSchema.GetKeyColumnCount());
+                }
+
+                if (outputTableSchema.GetUniqueKeys() && !chunkSchema.GetUniqueKeys()) {
+                    THROW_ERROR_EXCEPTION(
+                        NTableClient::EErrorCode::SchemaViolation,
+                        "Output table schema forces keys to be unique while chunk %v schema does not",
+                        chunkId);
+                }
+            }
+
+            for (const auto& chunkSpec : srcChunkSpecs) {
+                if (!FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions())) {
+                    THROW_ERROR_EXCEPTION("Chunk %v does not have boundary keys in meta",
+                        FromProto<TChunkId>(chunkSpec.chunk_id()));
+                }
+            }
+
+            YT_LOG_DEBUG("Sorting chunks");
+
+            std::stable_sort(
+                srcChunkSpecs.begin(),
+                srcChunkSpecs.end(),
+                [&] (const NChunkClient::NProto::TChunkSpec& lhs, const NChunkClient::NProto::TChunkSpec& rhs) {
+                    auto lhsBoundaryKeysExt =
+                        FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(lhs.chunk_meta().extensions());
+                    auto rhsBoundaryKeysExt =
+                        FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(rhs.chunk_meta().extensions());
+                    auto lhsMinKey = FromProto<TOwningKey>(lhsBoundaryKeysExt->min());
+                    auto rhsMinKey = FromProto<TOwningKey>(rhsBoundaryKeysExt->min());
+
+                    int compareResult = CompareRows(lhsMinKey, rhsMinKey, outputTableSchema.GetKeyColumnCount());
+                    if (compareResult < 0) {
+                        return true;
+                    } else if (compareResult > 0) {
+                        return false;
+                    } else {
+                        auto lhsMaxKey = FromProto<TOwningKey>(lhsBoundaryKeysExt->max());
+                        auto rhsMaxKey = FromProto<TOwningKey>(rhsBoundaryKeysExt->max());
+
+                        return CompareRows(lhsMaxKey, rhsMaxKey, outputTableSchema.GetKeyColumnCount()) < 0;
+                    }
+                });
+
+            YT_LOG_DEBUG("Validating chunks ranges");
+
+            for (int chunkIndex = 0; chunkIndex + 1 < srcChunkSpecs.size(); ++chunkIndex) {
+                const auto& currentChunkSpec = srcChunkSpecs[chunkIndex];
+                const auto& nextChunkSpec = srcChunkSpecs[chunkIndex + 1];
+
+                auto currentChunkMaxKey = FromProto<TOwningKey>(
+                    FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
+                        currentChunkSpec.chunk_meta().extensions())->max());
+                auto nextChunkMinKey = FromProto<TOwningKey>(
+                    FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
+                        nextChunkSpec.chunk_meta().extensions())->min());
+
+                int compareResult = CompareRows(
+                    currentChunkMaxKey,
+                    nextChunkMinKey,
+                    outputTableSchema.GetKeyColumnCount());
+
+                if (compareResult > 0) {
+                    THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SortOrderViolation, "Chunks ranges are overlapping")
+                        << TErrorAttribute("current_chunk_id", FromProto<TChunkId>(currentChunkSpec.chunk_id()))
+                        << TErrorAttribute("next_chunk_id", FromProto<TChunkId>(nextChunkSpec.chunk_id()))
+                        << TErrorAttribute("current_chunk_max_key", currentChunkMaxKey)
+                        << TErrorAttribute("next_chunk_min_key", nextChunkMinKey)
+                        << TErrorAttribute("key_column_count", outputTableSchema.GetKeyColumnCount());
+                }
+
+                if (compareResult == 0 && outputTableSchema.GetUniqueKeys()) {
+                    THROW_ERROR_EXCEPTION(
+                        NTableClient::EErrorCode::UniqueKeyViolation,
+                        "Key appears in two chunks but output table schema requires unique keys")
+                        << TErrorAttribute("current_chunk_id", FromProto<TChunkId>(currentChunkSpec.chunk_id()))
+                        << TErrorAttribute("next_chunk_id", FromProto<TChunkId>(nextChunkSpec.chunk_id()))
+                        << TErrorAttribute("current_chunk_max_key", currentChunkMaxKey)
+                        << TErrorAttribute("next_chunk_min_key", nextChunkMinKey)
+                        << TErrorAttribute("key_column_count", outputTableSchema.GetKeyColumnCount());
+                }
+            }
+
+            if (append) {
+                auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
+
+                auto request = TTableYPathProxy::Get(dstObject.GetObjectIdPath() + "/@boundary_keys");
+                AddCellTagToSyncWith(request, dstObject.ObjectId);
+                SetTransactionId(request, options, true);
+
+                auto rspOrError = WaitFor(proxy->Execute(request));
+                THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to fetch boundary keys of destination table %v",
+                    simpleDstPath);
+
+                auto boundaryKeysMap = ConvertToNode(TYsonString(rspOrError.Value()->value()))->AsMap();
+                auto maxKeyNode = boundaryKeysMap->FindChild("max_key");
+
+                if (maxKeyNode && !srcChunkSpecs.empty()) {
+                    auto maxKey = ConvertTo<TOwningKey>(maxKeyNode);
+
+                    auto firstChunkMinKey = FromProto<TOwningKey>(
+                        FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(
+                        srcChunkSpecs[0].chunk_meta().extensions())->min());
+
+                    auto compareResult = CompareRows(
+                        maxKey,
+                        firstChunkMinKey,
+                        outputTableSchema.GetKeyColumnCount());
+
+                    if (compareResult > 0) {
+                        THROW_ERROR_EXCEPTION(
+                            NTableClient::EErrorCode::SortOrderViolation,
+                            "First key of chunk to append is less than last key in table")
+                            << TErrorAttribute("chunk_id", FromProto<TChunkId>(srcChunkSpecs[0].chunk_id()))
+                            << TErrorAttribute("table_max_key", maxKey)
+                            << TErrorAttribute("first_chunk_min_key", firstChunkMinKey)
+                            << TErrorAttribute("key_column_count", outputTableSchema.GetKeyColumnCount());
+                    }
+
+                    if (compareResult == 0 && outputTableSchema.GetUniqueKeys()) {
+                        THROW_ERROR_EXCEPTION(
+                            NTableClient::EErrorCode::UniqueKeyViolation,
+                            "First key of chunk to append equals to last key in table")
+                            << TErrorAttribute("chunk_id", FromProto<TChunkId>(srcChunkSpecs[0].chunk_id()))
+                            << TErrorAttribute("table_max_key", maxKey)
+                            << TErrorAttribute("first_chunk_min_key", firstChunkMinKey)
+                            << TErrorAttribute("key_column_count", outputTableSchema.GetKeyColumnCount());
                     }
                 }
             }
@@ -1141,12 +1389,6 @@ void TClient::DoConcatenateNodes(
             .PingAncestors = options.PingAncestors
         });
 
-        // Flatten chunk ids.
-        std::vector<TChunkId> flatChunkIds;
-        for (const auto& chunkIds : chunkIdsPerSrc) {
-            flatChunkIds.insert(flatChunkIds.end(), chunkIds.begin(), chunkIds.end());
-        }
-
         // Teleport chunks.
         {
             auto teleporter = New<TChunkTeleporter>(
@@ -1156,8 +1398,8 @@ void TClient::DoConcatenateNodes(
                 uploadTransactionId,
                 Logger);
 
-            for (auto chunkId : flatChunkIds) {
-                teleporter->RegisterChunk(chunkId, dstObject.ExternalCellTag);
+            for (const auto& chunkSpec : srcChunkSpecs) {
+                teleporter->RegisterChunk(FromProto<TChunkId>(chunkSpec.chunk_id()), dstObject.ExternalCellTag);
             }
 
             WaitFor(teleporter->Run())
@@ -1191,7 +1433,10 @@ void TClient::DoConcatenateNodes(
 
             auto req = batchReq->add_attach_chunk_trees_subrequests();
             ToProto(req->mutable_parent_id(), chunkListId);
-            ToProto(req->mutable_child_ids(), flatChunkIds);
+
+            for (const auto& chunkSpec : srcChunkSpecs) {
+                *req->add_child_ids() = chunkSpec.chunk_id();
+            }
             req->set_request_statistics(true);
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());

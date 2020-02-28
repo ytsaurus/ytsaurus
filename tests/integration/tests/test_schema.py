@@ -18,11 +18,11 @@ POSITIONAL_YSON = yson.loads("<complex_type_mode=positional>yson")
 
 class TypeTester(object):
     class DynamicHelper(object):
-        def make_schema(self, type_v2):
+        def make_schema(self, type_v3):
             return make_schema(
                 [
                     make_sorted_column("key", "int64"),
-                    make_column("column", type_v2),
+                    make_column("column", type_v3),
                 ],
                 unique_keys=True,
             )
@@ -31,11 +31,11 @@ class TypeTester(object):
             insert_rows(path, [{"key": 0, "column": value}])
 
     class StaticHelper(object):
-        def make_schema(self, type_v2):
-            return make_schema([make_column("column", type_v2)])
+        def make_schema(self, type_v3):
+            return make_schema([make_column("column", type_v3)])
 
         def write(self, path, value):
-            write_table(path, [{"column": value}], input_format=POSITIONAL_YSON)
+            tx_write_table(path, [{"column": value}], input_format=POSITIONAL_YSON)
 
     def __init__(self, type_list, dynamic=False):
         self.types = {}
@@ -85,7 +85,7 @@ class SingleColumnTable(object):
         })
 
     def check_good_value(self, value):
-        write_table(self.path, [{"column": value}], input_format=POSITIONAL_YSON)
+        tx_write_table(self.path, [{"column": value}], input_format=POSITIONAL_YSON)
 
     def check_bad_value(self, value):
         with raises_yt_error(SchemaViolation):
@@ -93,11 +93,11 @@ class SingleColumnTable(object):
 
 TypeV1 = collections.namedtuple("TypeV1", ["type", "required"])
 
-def type_v2_to_type_v1(type_v2):
-    table = "//tmp/type_v2_to_type_v1_helper"
+def type_v3_to_type_v1(type_v3):
+    table = "//tmp/type_v3_to_type_v1_helper"
     create("table", table, force=True, attributes={
         "schema": make_schema(
-            [make_column("column", type_v2)],
+            [make_column("column", type_v3)],
             strict=True,
             unique_keys=False,
         )
@@ -111,10 +111,10 @@ def type_v2_to_type_v1(type_v2):
 class TestComplexTypes(YTEnvSetup):
     @authors("ermolovd")
     def test_complex_optional(self, optimize_for):
-        type_v2 = optional_type(optional_type("int8"))
-        assert type_v2_to_type_v1(type_v2) == TypeV1("any", False)
+        type_v3 = optional_type(optional_type("int8"))
+        assert type_v3_to_type_v1(type_v3) == TypeV1("any", False)
 
-        test_table = SingleColumnTable(type_v2, optimize_for)
+        test_table = SingleColumnTable(type_v3, optimize_for)
         test_table.check_good_value(None)
         test_table.check_good_value([None])
         test_table.check_good_value([-42])
@@ -124,13 +124,13 @@ class TestComplexTypes(YTEnvSetup):
 
     @authors("ermolovd")
     def test_struct(self, optimize_for):
-        type_v2 = struct_type([
+        type_v3 = struct_type([
             ("a", "utf8"),
             ("b", optional_type("int64")),
         ])
-        assert type_v2_to_type_v1(type_v2) == TypeV1("any", True)
+        assert type_v3_to_type_v1(type_v3) == TypeV1("any", True)
 
-        test_table = SingleColumnTable(type_v2, optimize_for)
+        test_table = SingleColumnTable(type_v3, optimize_for)
         test_table.check_good_value(["one", 1])
         test_table.check_good_value(["two", None])
         test_table.check_good_value(["three"])
@@ -152,11 +152,11 @@ class TestComplexTypes(YTEnvSetup):
 
     @authors("ermolovd")
     def test_list(self, optimize_for):
-        type_v2 = list_type(optional_type("string"))
+        type_v3 = list_type(optional_type("string"))
 
-        assert type_v2_to_type_v1(type_v2) == TypeV1("any", True)
+        assert type_v3_to_type_v1(type_v3) == TypeV1("any", True)
 
-        test_table = SingleColumnTable(type_v2, optimize_for)
+        test_table = SingleColumnTable(type_v3, optimize_for)
         test_table.check_good_value([])
         test_table.check_good_value(["one"])
         test_table.check_good_value(["one", "two"])
@@ -168,13 +168,13 @@ class TestComplexTypes(YTEnvSetup):
 
     @authors("ermolovd")
     def test_tuple(self, optimize_for):
-        type_v2 = tuple_type([
+        type_v3 = tuple_type([
             "utf8",
             optional_type("int64")
         ])
-        assert type_v2_to_type_v1(type_v2) == TypeV1("any", True)
+        assert type_v3_to_type_v1(type_v3) == TypeV1("any", True)
 
-        test_table = SingleColumnTable(type_v2, optimize_for)
+        test_table = SingleColumnTable(type_v3, optimize_for)
         test_table.check_good_value(["one", 1])
         test_table.check_good_value(["two", None])
 
@@ -191,7 +191,7 @@ class TestComplexTypes(YTEnvSetup):
     ])
     @authors("ermolovd")
     def test_variant(self, logical_type, optimize_for):
-        assert type_v2_to_type_v1(logical_type) == TypeV1("any", True)
+        assert type_v3_to_type_v1(logical_type) == TypeV1("any", True)
 
         test_table = SingleColumnTable(logical_type, optimize_for)
         test_table.check_good_value([0, "foo"])
@@ -212,13 +212,13 @@ class TestComplexTypes(YTEnvSetup):
             column_schema = get("//tmp/table/@schema/0")
             assert column_schema["required"] == False
             assert column_schema["type"] == null_type
-            assert column_schema["type_v2"] == null_type
+            assert column_schema["type_v3"] == null_type
 
         create("table", "//tmp/table", force=True, attributes={
             "optimize_for": optimize_for,
             "schema": make_schema([{
                 "name": "column",
-                "type_v2": null_type,
+                "type_v3": null_type,
             }])
         })
         check_schema()
@@ -242,9 +242,9 @@ class TestComplexTypes(YTEnvSetup):
         check_schema()
 
         # no exception
-        write_table("//tmp/table", [{}, {"column": None}])
+        tx_write_table("//tmp/table", [{}, {"column": None}])
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/table", [{"column": 0}])
+            tx_write_table("//tmp/table", [{"column": 0}])
 
 
         with raises_yt_error("Null type cannot be required"):
@@ -259,41 +259,41 @@ class TestComplexTypes(YTEnvSetup):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
                 "name": "column",
-                "type_v2": list_type(null_type),
+                "type_v3": list_type(null_type),
             }])
         })
-        write_table("//tmp/table", [{"column": []}, {"column": [None]}])
-        write_table("//tmp/table", [{"column": []}, {"column": [None, None]}])
+        tx_write_table("//tmp/table", [{"column": []}, {"column": [None]}])
+        tx_write_table("//tmp/table", [{"column": []}, {"column": [None, None]}])
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/table", [{"column": [0]}])
+            tx_write_table("//tmp/table", [{"column": [0]}])
 
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
                 "name": "column",
-                "type_v2": optional_type(null_type)
+                "type_v3": optional_type(null_type)
             }])
         })
-        write_table("//tmp/table", [{"column": None}, {"column": [None]}])
+        tx_write_table("//tmp/table", [{"column": None}, {"column": [None]}])
 
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/table", [{"column": []}])
+            tx_write_table("//tmp/table", [{"column": []}])
 
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/table", [{"column": []}])
+            tx_write_table("//tmp/table", [{"column": []}])
 
     @authors("ermolovd")
     def test_dict(self, optimize_for):
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
                 "name": "column",
-                "type_v2": dict_type(optional_type("string"), "int64"),
+                "type_v3": dict_type(optional_type("string"), "int64"),
             }]),
             "optimize_for": optimize_for,
         })
         assert get("//tmp/table/@schema/0/type") == "any"
         assert get("//tmp/table/@schema/0/required") == True
 
-        write_table("//tmp/table", [
+        tx_write_table("//tmp/table", [
             {"column": []},
             {"column": [["one", 1]]},
             {"column": [["one", 1], ["two", 2]]},
@@ -302,7 +302,7 @@ class TestComplexTypes(YTEnvSetup):
 
         def check_bad(value):
             with raises_yt_error(SchemaViolation):
-                write_table("//tmp/table", [
+                tx_write_table("//tmp/table", [
                     {"column": value},
                 ])
         check_bad(None)
@@ -318,7 +318,7 @@ class TestComplexTypes(YTEnvSetup):
             ("a", tagged_type("yt.cluster_name", "utf8")),
             ("b", optional_type("int64")),
         ])
-        assert type_v2_to_type_v1(logical_type1) == TypeV1("any", True)
+        assert type_v3_to_type_v1(logical_type1) == TypeV1("any", True)
 
         table1 = SingleColumnTable(logical_type1, optimize_for)
 
@@ -332,7 +332,7 @@ class TestComplexTypes(YTEnvSetup):
         table1.check_bad_value(["betula", "redwood"])
 
         logical_type2 = tagged_type("even", optional_type("int64"))
-        assert type_v2_to_type_v1(logical_type2) == TypeV1("int64", False)
+        assert type_v3_to_type_v1(logical_type2) == TypeV1("int64", False)
 
         table2 = SingleColumnTable(logical_type2, optimize_for)
 
@@ -362,7 +362,7 @@ class TestComplexTypesMisc(YTEnvSetup):
                 unique_keys=False)
         })
 
-        assert get("//tmp/table/@schema/0/type_v2") == optional_type("int64")
+        assert get("//tmp/table/@schema/0/type_v3") == optional_type("int64")
 
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema(
@@ -377,7 +377,7 @@ class TestComplexTypesMisc(YTEnvSetup):
                 unique_keys=False)
         })
 
-        assert get("//tmp/table/@schema/0/type_v2") == "uint8"
+        assert get("//tmp/table/@schema/0/type_v3") == "uint8"
 
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema(
@@ -393,7 +393,7 @@ class TestComplexTypesMisc(YTEnvSetup):
             )
         })
 
-        assert get("//tmp/table/@schema/0/type_v2") == optional_type("utf8")
+        assert get("//tmp/table/@schema/0/type_v3") == optional_type("utf8")
 
     @authors("ermolovd")
     def test_set_new_schema(self):
@@ -402,7 +402,7 @@ class TestComplexTypesMisc(YTEnvSetup):
                 [
                     {
                         "name": "foo",
-                        "type_v2": optional_type("int8"),
+                        "type_v3": optional_type("int8"),
                     }
                 ],
                 strict=True,
@@ -418,7 +418,7 @@ class TestComplexTypesMisc(YTEnvSetup):
                 [
                     {
                         "name": "foo",
-                        "type_v2": "string",
+                        "type_v3": "string",
                     }
                 ],
                 strict=True,
@@ -435,46 +435,46 @@ class TestComplexTypesMisc(YTEnvSetup):
             "schema": make_schema([{
                 "name": "foo",
                 "type": "uint32",
-                "type_v2": "uint32"
+                "type_v3": "uint32"
             }])
         })
 
         assert get("//tmp/table/@schema/0/type") == "uint32"
         assert get("//tmp/table/@schema/0/required") == True
-        assert get("//tmp/table/@schema/0/type_v2") == "uint32"
+        assert get("//tmp/table/@schema/0/type_v3") == "uint32"
 
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
                 "name": "foo",
                 "type": "double",
                 "required": False,
-                "type_v2": optional_type("double")
+                "type_v3": optional_type("double")
             }])
         })
 
         assert get("//tmp/table/@schema/0/type") == "double"
         assert get("//tmp/table/@schema/0/required") == False
-        assert get("//tmp/table/@schema/0/type_v2") == optional_type("double")
+        assert get("//tmp/table/@schema/0/type_v3") == optional_type("double")
 
         create("table", "//tmp/table", force=True, attributes={
             "schema": make_schema([{
                 "name": "foo",
                 "type": "boolean",
                 "required": True,
-                "type_v2": "boolean"
+                "type_v3": "bool"
             }])
         })
 
         assert get("//tmp/table/@schema/0/type") == "boolean"
         assert get("//tmp/table/@schema/0/required") == True
-        assert get("//tmp/table/@schema/0/type_v2") == "boolean"
+        assert get("//tmp/table/@schema/0/type_v3") == "bool"
 
         with raises_yt_error("Error validating column"):
             create("table", "//tmp/table", force=True, attributes={
                 "schema": make_schema([{
                     "name": "foo",
                     "type": "double",
-                    "type_v2": "string",
+                    "type_v3": "string",
                 }])
             })
 
@@ -487,12 +487,12 @@ class TestComplexTypesMisc(YTEnvSetup):
                 "schema": make_schema([
                     {
                         "name": "key",
-                        "type_v2": optional_type(optional_type("string")),
+                        "type_v3": optional_type(optional_type("string")),
                         "sort_order": "ascending",
                     },
                     {
                         "name": "value",
-                        "type_v2": "string",
+                        "type_v3": "string",
                     },
                 ], unique_keys=True),
                 "dynamic": True})
@@ -502,12 +502,12 @@ class TestComplexTypesMisc(YTEnvSetup):
                 "schema": make_schema([
                     {
                         "name": "key",
-                        "type_v2": "string",
+                        "type_v3": "string",
                         "sort_order": "ascending",
                     },
                     {
                         "name": "value",
-                        "type_v2": optional_type(optional_type("string")),
+                        "type_v3": optional_type(optional_type("string")),
                     },
                 ], unique_keys=True),
                 "dynamic": True})
@@ -519,7 +519,7 @@ class TestComplexTypesMisc(YTEnvSetup):
                 make_column("column", list_type("int64")),
             ])
         })
-        write_table("//table", [{"column": []}])
+        tx_write_table("//table", [{"column": []}])
         with raises_yt_error("Type mismatch for column"):
             alter_table("//table", schema=make_schema([
                 make_column("column", optional_type(list_type("int64")))
@@ -540,15 +540,15 @@ class TestComplexTypesMisc(YTEnvSetup):
     def test_infer_tagged_schema(self):
         table = "//tmp/input1"
         create("table", table, attributes={"schema": make_schema([
-            {"name": "value", "type_v2": tagged_type("some-tag", "string")}
+            {"name": "value", "type_v3": tagged_type("some-tag", "string")}
         ], unique_keys=False, strict=True)})
         table = "//tmp/input2"
         create("table", table, attributes={"schema": make_schema([
-            {"name": "value", "type_v2": "string"},
+            {"name": "value", "type_v3": "string"},
         ], unique_keys=False, strict=True)})
 
-        write_table("//tmp/input1", [{"value": "foo"}])
-        write_table("//tmp/input2", [{"value": "bar"}])
+        tx_write_table("//tmp/input1", [{"value": "foo"}])
+        tx_write_table("//tmp/input2", [{"value": "bar"}])
 
         create("table", "//tmp/output")
 
@@ -556,7 +556,7 @@ class TestComplexTypesMisc(YTEnvSetup):
             merge(in_=["//tmp/input1", "//tmp/input2"], out="//tmp/output", mode="unordered")
 
         merge(in_=["//tmp/input1", "//tmp/input2"],
-              out="<schema=[{name=value;type_v2=utf8}]>//tmp/output",
+              out="<schema=[{name=value;type_v3=utf8}]>//tmp/output",
               spec={"schema_inference_mode" : "from_output"},
               mode="unordered")
 
@@ -564,15 +564,15 @@ class TestComplexTypesMisc(YTEnvSetup):
     def test_infer_null_void(self):
         table = "//tmp/input1"
         create("table", table, attributes={"schema": make_schema([
-            {"name": "value", "type_v2": "void"},
+            {"name": "value", "type_v3": "void"},
         ], unique_keys=False, strict=True)})
         table = "//tmp/input2"
         create("table", table, attributes={"schema": make_schema([
-            {"name": "value", "type_v2": "null"},
+            {"name": "value", "type_v3": "null"},
         ], unique_keys=False, strict=True)})
 
-        write_table("//tmp/input1", [{"value": None}])
-        write_table("//tmp/input2", [{"value": None}])
+        tx_write_table("//tmp/input1", [{"value": None}])
+        tx_write_table("//tmp/input2", [{"value": None}])
 
         create("table", "//tmp/output")
 
@@ -580,7 +580,7 @@ class TestComplexTypesMisc(YTEnvSetup):
             merge(in_=["//tmp/input1", "//tmp/input2"], out="//tmp/output", mode="unordered")
 
         merge(in_=["//tmp/input1", "//tmp/input2"],
-              out="<schema=[{name=value;type_v2=null}]>//tmp/output",
+              out="<schema=[{name=value;type_v3=null}]>//tmp/output",
               spec={"schema_inference_mode" : "from_output"},
               mode="unordered")
 
@@ -708,7 +708,7 @@ class TestLogicalType(YTEnvSetup):
             remove("//test-alter-table", force=True)
             create("table", "//test-alter-table", attributes={"schema": schema_before})
             # Make table nonempty, since empty table allows any alter
-            write_table("//test-alter-table", [{}])
+            tx_write_table("//test-alter-table", [{}])
             with raises_yt_error("Cannot alter type" ):
                 alter_table("//test-alter-table", schema=schema_after)
 
@@ -752,13 +752,13 @@ class TestRequiredOption(YTEnvSetup):
                    ],
                })
 
-        write_table("//tmp/required_table", [{"value": "foo"}])
+        tx_write_table("//tmp/required_table", [{"value": "foo"}])
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/required_table", [{"value": 100500}])
+            tx_write_table("//tmp/required_table", [{"value": 100500}])
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/required_table", [{"value": None}])
+            tx_write_table("//tmp/required_table", [{"value": None}])
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/required_table", [{}])
+            tx_write_table("//tmp/required_table", [{}])
 
     @authors("ermolovd")
     def test_required_any_is_disallowed(self):
@@ -803,7 +803,7 @@ class TestRequiredOption(YTEnvSetup):
                        }
                    ],
                })
-        write_table(table, [{"column": None}])
+        tx_write_table(table, [{"column": None}])
         with raises_yt_error("Cannot alter type"):
             alter_table(
                 table,
@@ -815,7 +815,7 @@ class TestRequiredOption(YTEnvSetup):
                     }
                 ]
             )
-        write_table(table, [{"column": None}])
+        tx_write_table(table, [{"column": None}])
 
         create("table", table,
                force=True,
@@ -828,7 +828,7 @@ class TestRequiredOption(YTEnvSetup):
                        }
                    ],
                })
-        write_table(table, [{"column": "foo"}])
+        tx_write_table(table, [{"column": "foo"}])
 
         # No exception.
         alter_table(
@@ -851,7 +851,7 @@ class TestRequiredOption(YTEnvSetup):
                        }
                    ],
                })
-        write_table(table, [{"column1": "foo"}])
+        tx_write_table(table, [{"column1": "foo"}])
 
         with raises_yt_error("Cannot insert a new required column "):
             alter_table(
@@ -886,8 +886,8 @@ class TestRequiredOption(YTEnvSetup):
         create("table", table, attributes={"schema": schema})
         table = "//tmp/input2"
         create("table", table, attributes={"schema": schema})
-        write_table("//tmp/input1", [{"key": "foo", "value": "bar"}])
-        write_table("//tmp/input2", [{"key": "foo", "value": "baz"}])
+        tx_write_table("//tmp/input1", [{"key": "foo", "value": "bar"}])
+        tx_write_table("//tmp/input2", [{"key": "foo", "value": "baz"}])
 
         create("table", "//tmp/output")
 
@@ -907,8 +907,8 @@ class TestRequiredOption(YTEnvSetup):
             make_column("value", optional_type("string"))
         ], unique_keys=False, strict=True)})
 
-        write_table("//tmp/input1", [{"value": "foo"}])
-        write_table("//tmp/input2", [{"value": "bar"}])
+        tx_write_table("//tmp/input1", [{"value": "foo"}])
+        tx_write_table("//tmp/input2", [{"value": "bar"}])
 
         create("table", "//tmp/output")
 
@@ -993,11 +993,11 @@ class TestSchemaValidation(YTEnvSetup):
 
         create("table", "//tmp/bad-schema-2")
         with raises_yt_error("Too many columns in row"):
-            write_table("//tmp/bad-schema-2", [make_row(bad_size)])
+            tx_write_table("//tmp/bad-schema-2", [make_row(bad_size)])
 
         ok_size = bad_size - 1
         create("table", "//tmp/ok-schema", attributes={"schema": make_schema(ok_size)})
-        write_table("//tmp/ok-schema", [make_row(ok_size)])
+        tx_write_table("//tmp/ok-schema", [make_row(ok_size)])
 
 
 @authors("ermolovd")
@@ -1026,4 +1026,4 @@ class TestErrorCodes(YTEnvSetup):
         create("table", "//tmp/t", attributes={"schema": schema})
 
         with raises_yt_error(SchemaViolation):
-            write_table("//tmp/t", [{"foo": -1}])
+            tx_write_table("//tmp/t", [{"foo": -1}])

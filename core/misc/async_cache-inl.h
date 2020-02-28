@@ -174,7 +174,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             // This holds an extra reference to the promise state...
             auto promise = item->ValuePromise;
 
-            YT_VERIFY(ItemMap_.insert(std::make_pair(key, item)).second);
+            YT_VERIFY(ItemMap_.emplace(key, item).second);
             ++ItemMapSize_;
 
             auto weight = PushToYounger(item);
@@ -225,7 +225,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
                 .ToFuture()
                 .ToUncancelable();
 
-            YT_VERIFY(ItemMap_.insert(std::make_pair(key, item)).second);
+            YT_VERIFY(ItemMap_.emplace(key, item).second);
             ++ItemMapSize_;
 
             return TInsertCookie(
@@ -241,7 +241,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
             auto value = item->Value;
             YT_ASSERT(value);
 
-            YT_VERIFY(ItemMap_.insert(std::make_pair(key, item)).second);
+            YT_VERIFY(ItemMap_.emplace(key, item).second);
             ++ItemMapSize_;
 
             auto weight = PushToYounger(item);
@@ -283,7 +283,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::EndInsert(TValuePtr value)
     item->Value = value;
     auto promise = item->ValuePromise;
 
-    YT_VERIFY(ValueMap_.insert(std::make_pair(key, value.Get())).second);
+    YT_VERIFY(ValueMap_.emplace(key, value.Get()).second);
 
     auto weight = PushToYounger(item);
     Profiler.Increment(MissedWeightCounter_, weight);
@@ -331,7 +331,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
+bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key, bool forbidResurrection)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
 
@@ -351,7 +351,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
     ItemMap_.erase(it);
     --ItemMapSize_;
 
-    if (!IsResurrectionSupported()) {
+    if (forbidResurrection || !IsResurrectionSupported()) {
         YT_VERIFY(ValueMap_.erase(key) == 1);
         value->Cache_.Reset();
     }
@@ -372,7 +372,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
+bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TValuePtr& value, bool forbidResurrection)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
 
@@ -382,16 +382,15 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
     if (valueIt == ValueMap_.end() || valueIt->second != value) {
         return false;
     }
-    ValueMap_.erase(valueIt);
 
     auto itemIt = ItemMap_.find(value->GetKey());
     if (itemIt != ItemMap_.end()) {
         auto* item = itemIt->second;
-        
+
         ItemMap_.erase(itemIt);
         --ItemMapSize_;
 
-        if (!IsResurrectionSupported()) {
+        if (forbidResurrection || !IsResurrectionSupported()) {
             YT_VERIFY(ValueMap_.erase(value->GetKey()) == 1);
             value->Cache_.Reset();
         }
@@ -400,8 +399,6 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(TValuePtr value)
 
         delete item;
     }
-
-    value->Cache_.Reset();
 
     guard.Release();
 

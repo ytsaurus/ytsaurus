@@ -26,15 +26,21 @@ TChunkReaderBase::TChunkReaderBase(
     TBlockFetcherConfigPtr config,
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
-    const TClientBlockReadOptions& blockReadOptions)
+    const TClientBlockReadOptions& blockReadOptions,
+    const TChunkReaderMemoryManagerPtr& memoryManager)
     : Config_(std::move(config))
     , BlockCache_(std::move(blockCache))
     , UnderlyingReader_(std::move(underlyingReader))
     , BlockReadOptions_(blockReadOptions)
-    , MemoryManager_(New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize)))
     , Logger(NLogging::TLogger(TableClientLogger)
         .AddTag("ChunkId: %v", UnderlyingReader_->GetChunkId()))
 {
+    if (memoryManager) {
+        MemoryManager_ = memoryManager;
+    } else {
+        MemoryManager_ = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
+    }
+
     if (BlockReadOptions_.ReadSessionId) {
         Logger.AddTag("ReadSessionId: %v", BlockReadOptions_.ReadSessionId);
     }

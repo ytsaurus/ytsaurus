@@ -446,6 +446,16 @@ TTablet::TTablet(TTabletId id)
     , RetainedTimestamp_(MinTimestamp)
 { }
 
+TString TTablet::GetLowercaseObjectName() const
+{
+    return Format("tablet %v", GetId());
+}
+
+TString TTablet::GetCapitalizedObjectName() const
+{
+    return Format("Tablet %v", GetId());
+}
+
 void TTablet::Save(TSaveContext& context) const
 {
     TNonversionedObjectBase::Save(context);
@@ -605,6 +615,11 @@ i64 TTablet::GetTabletStaticMemorySize(EInMemoryMode mode) const
 i64 TTablet::GetTabletStaticMemorySize() const
 {
     return GetTabletStaticMemorySize(GetInMemoryMode());
+}
+
+i64 TTablet::GetTabletMasterMemoryUsage() const
+{
+    return sizeof(TTablet) + GetDataWeight(GetPivotKey());
 }
 
 ETabletState TTablet::GetState() const

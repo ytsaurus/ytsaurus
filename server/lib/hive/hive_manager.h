@@ -97,11 +97,6 @@ public:
      */
     TFuture<void> SyncWith(TCellId cellId, bool enableBatching);
 
-    //! Raised upon receiving incoming messages from another Hive instance.
-    //! The handler must start an appropriate synchronization process and return a future
-    //! that gets set when sync is reached.
-    DECLARE_SIGNAL(TFuture<void>(NHiveClient::TCellId srcCellId), IncomingMessageUpstreamSync);
-
     DECLARE_ENTITY_MAP_ACCESSORS(Mailbox, TMailbox);
 
 private:

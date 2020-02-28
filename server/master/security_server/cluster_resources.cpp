@@ -38,6 +38,7 @@ TClusterResources::TClusterResources()
     , ChunkCount(0)
     , TabletCount(0)
     , TabletStaticMemory(0)
+    , MasterMemoryUsage(0)
 { }
 
 TClusterResources&& TClusterResources::SetNodeCount(i64 nodeCount) &&
@@ -61,6 +62,12 @@ TClusterResources&& TClusterResources::SetTabletCount(int tabletCount) &&
 TClusterResources&& TClusterResources::SetTabletStaticMemory(i64 tabletStaticMemory) &&
 {
     TabletStaticMemory = tabletStaticMemory;
+    return std::move(*this);
+}
+
+TClusterResources&& TClusterResources::SetMasterMemoryUsage(i64 masterMemoryUsage) &&
+{
+    MasterMemoryUsage = masterMemoryUsage;
     return std::move(*this);
 }
 
@@ -110,7 +117,8 @@ const NChunkClient::TMediumMap<i64>& TClusterResources::DiskSpace() const
         .SetNodeCount(std::numeric_limits<i64>::max())
         .SetTabletCount(std::numeric_limits<int>::max())
         .SetChunkCount(std::numeric_limits<i64>::max())
-        .SetTabletStaticMemory(std::numeric_limits<i64>::max());
+        .SetTabletStaticMemory(std::numeric_limits<i64>::max())
+        .SetMasterMemoryUsage(std::numeric_limits<i64>::max());
     for (int mediumIndex = 0; mediumIndex < NChunkClient::MaxMediumCount; ++mediumIndex) {
         resources.SetMediumDiskSpace(mediumIndex, std::numeric_limits<i64>::max());
     }
@@ -125,6 +133,7 @@ void TClusterResources::Save(NCellMaster::TSaveContext& context) const
     Save(context, ChunkCount);
     Save(context, TabletCount);
     Save(context, TabletStaticMemory);
+    Save(context, MasterMemoryUsage);
 }
 
 void TClusterResources::Load(NCellMaster::TLoadContext& context)
@@ -164,6 +173,10 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
     }
     Load(context, TabletCount);
     Load(context, TabletStaticMemory);
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= NCellMaster::EMasterReign::MasterMemoryUsageAccounting) {
+        Load(context, MasterMemoryUsage);
+    }
 }
 
 void TClusterResources::Save(NCypressServer::TBeginCopyContext& context) const
@@ -178,6 +191,7 @@ void TClusterResources::Save(NCypressServer::TBeginCopyContext& context) const
     Save(context, ChunkCount);
     Save(context, TabletCount);
     Save(context, TabletStaticMemory);
+    Save(context, MasterMemoryUsage);
 }
 
 void TClusterResources::Load(NCypressServer::TEndCopyContext& context)
@@ -193,6 +207,7 @@ void TClusterResources::Load(NCypressServer::TEndCopyContext& context)
     Load(context, ChunkCount);
     Load(context, TabletCount);
     Load(context, TabletStaticMemory);
+    Load(context, MasterMemoryUsage);
 }
 
 bool TClusterResources::IsAtLeastOneResourceLessThan(const TClusterResources& rhs) const
@@ -219,7 +234,8 @@ bool TClusterResources::IsAtLeastOneResourceLessThan(const TClusterResources& rh
         NodeCount < rhs.NodeCount ||
         ChunkCount < rhs.ChunkCount ||
         TabletCount < rhs.TabletCount ||
-        TabletStaticMemory < rhs.TabletStaticMemory;
+        TabletStaticMemory < rhs.TabletStaticMemory ||
+        MasterMemoryUsage < rhs.MasterMemoryUsage;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,6 +246,7 @@ void ToProto(NProto::TClusterResources* protoResources, const TClusterResources&
     protoResources->set_node_count(resources.NodeCount);
     protoResources->set_tablet_count(resources.TabletCount);
     protoResources->set_tablet_static_memory_size(resources.TabletStaticMemory);
+    protoResources->set_master_memory_usage(resources.MasterMemoryUsage);
 
     for (const auto& [index, diskSpace] : resources.DiskSpace()) {
         if (diskSpace != 0) {
@@ -246,6 +263,7 @@ void FromProto(TClusterResources* resources, const NProto::TClusterResources& pr
     resources->NodeCount = protoResources.node_count();
     resources->TabletCount = protoResources.tablet_count();
     resources->TabletStaticMemory = protoResources.tablet_static_memory_size();
+    resources->MasterMemoryUsage = protoResources.master_memory_usage();
 
     resources->ClearDiskSpace();
     for (const auto& spaceStats : protoResources.disk_space_per_medium()) {
@@ -276,6 +294,9 @@ TSerializableClusterResources::TSerializableClusterResources(bool serializeDiskS
         RegisterParameter("disk_space", DiskSpace_)
             .Optional();
     }
+    RegisterParameter("master_memory_usage", MasterMemoryUsage_)
+        .GreaterThanOrEqual(0)
+        .Optional();
 
     RegisterPostprocessor([&] {
         for (const auto& pair : DiskSpacePerMedium_) {
@@ -294,6 +315,7 @@ TSerializableClusterResources::TSerializableClusterResources(
     ChunkCount_ = clusterResources.ChunkCount;
     TabletCount_ = clusterResources.TabletCount;
     TabletStaticMemory_ = clusterResources.TabletStaticMemory;
+    MasterMemoryUsage_ = clusterResources.MasterMemoryUsage;
     DiskSpace_ = 0;
     for (const auto& [mediumIndex, mediumDiskSpace] : clusterResources.DiskSpace()) {
         const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
@@ -313,7 +335,8 @@ TClusterResources TSerializableClusterResources::ToClusterResources(const NChunk
         .SetNodeCount(NodeCount_)
         .SetChunkCount(ChunkCount_)
         .SetTabletCount(TabletCount_)
-        .SetTabletStaticMemory(TabletStaticMemory_);
+        .SetTabletStaticMemory(TabletStaticMemory_)
+        .SetMasterMemoryUsage(MasterMemoryUsage_);
     for (const auto& [mediumName, mediumDiskSpace] : DiskSpacePerMedium_) {
         auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
         result.SetMediumDiskSpace(medium->GetIndex(), mediumDiskSpace);
@@ -337,6 +360,7 @@ TClusterResources& operator += (TClusterResources& lhs, const TClusterResources&
     lhs.ChunkCount += rhs.ChunkCount;
     lhs.TabletCount += rhs.TabletCount;
     lhs.TabletStaticMemory += rhs.TabletStaticMemory;
+    lhs.MasterMemoryUsage += rhs.MasterMemoryUsage;
     return lhs;
 }
 
@@ -356,6 +380,7 @@ TClusterResources& operator -= (TClusterResources& lhs, const TClusterResources&
     lhs.ChunkCount -= rhs.ChunkCount;
     lhs.TabletCount -= rhs.TabletCount;
     lhs.TabletStaticMemory -= rhs.TabletStaticMemory;
+    lhs.MasterMemoryUsage -= rhs.MasterMemoryUsage;
     return lhs;
 }
 
@@ -375,6 +400,7 @@ TClusterResources& operator *= (TClusterResources& lhs, i64 rhs)
     lhs.ChunkCount *= rhs;
     lhs.TabletCount *= rhs;
     lhs.TabletStaticMemory *= rhs;
+    lhs.MasterMemoryUsage *= rhs;
     return lhs;
 }
 
@@ -395,6 +421,7 @@ TClusterResources operator -  (const TClusterResources& resources)
     result.ChunkCount = -resources.ChunkCount;
     result.TabletCount = -resources.TabletCount;
     result.TabletStaticMemory = -resources.TabletStaticMemory;
+    result.MasterMemoryUsage = -resources.MasterMemoryUsage;
     return result;
 }
 
@@ -424,6 +451,9 @@ bool operator == (const TClusterResources& lhs, const TClusterResources& rhs)
     if (lhs.TabletStaticMemory != rhs.TabletStaticMemory) {
         return false;
     }
+    if (lhs.MasterMemoryUsage != rhs.MasterMemoryUsage) {
+        return false;
+    }
     return true;
 }
 
@@ -447,11 +477,12 @@ void FormatValue(TStringBuilderBase* builder, const TClusterResources& resources
             firstDiskSpace = false;
         }
     }
-    builder->AppendFormat("], NodeCount: %v, ChunkCount: %v, TabletCount: %v, TabletStaticMemory: %v}",
+    builder->AppendFormat("], NodeCount: %v, ChunkCount: %v, TabletCount: %v, TabletStaticMemory: %v, MasterMemoryUsage: %v}",
         resources.NodeCount,
         resources.ChunkCount,
         resources.TabletCount,
-        resources.TabletStaticMemory);
+        resources.TabletStaticMemory,
+        resources.MasterMemoryUsage);
 }
 
 TString ToString(const TClusterResources& resources)

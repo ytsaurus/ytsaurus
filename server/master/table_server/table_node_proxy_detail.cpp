@@ -11,6 +11,7 @@
 #include <yt/server/master/chunk_server/chunk.h>
 #include <yt/server/master/chunk_server/chunk_list.h>
 #include <yt/server/master/chunk_server/chunk_visitor.h>
+#include <yt/server/master/chunk_server/helpers.h>
 
 #include <yt/server/master/node_tracker_server/node_directory_builder.h>
 
@@ -296,6 +297,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetReplicated(true)
         .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::BoundaryKeys)
+        .SetExternal(isExternal)
+        .SetOpaque(true)
+        .SetPresent(isSorted && !isDynamic));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -514,7 +519,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 break;
             }
             TTabletStatistics tabletStatistics;
-            for (const auto& tablet : trunkTable->Tablets()) {
+            for (const auto* tablet : trunkTable->Tablets()) {
                 tabletStatistics += tabletManager->GetTabletStatistics(tablet);
             }
             BuildYsonFluently(consumer)
@@ -653,6 +658,26 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             BuildYsonFluently(consumer)
                 .Value(trunkTable->TabletBalancerConfig());
             return true;
+
+        case EInternedAttributeKey::BoundaryKeys: {
+            if (!isSorted || isDynamic || isExternal) {
+                break;
+            }
+
+            const auto* table = GetThisImpl();
+            const auto* chunkList = table->GetChunkList();
+
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .DoIf(!IsEmpty(chunkList), [&] (TFluentMap fluent) {
+                        fluent
+                            .Item("min_key").Value(GetMinKeyOrThrow(chunkList))
+                            .Item("max_key").Value(GetMaxKeyOrThrow(chunkList));
+                    })
+                .EndMap();
+
+            return true;
+        }
 
         default:
             break;
@@ -1038,7 +1063,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_schema(), trunkTable->GetTableSchema());
 
     THashSet<TTabletCell*> cells;
-    for (auto* tablet : trunkTable->Tablets()) {
+    for (const auto* tablet : trunkTable->Tablets()) {
         auto* cell = tablet->GetCell();
         auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());

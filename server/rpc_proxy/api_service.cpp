@@ -1298,9 +1298,15 @@ private:
             FromProto(&options, request->mutating_options());
         }
 
+        options.ChunkMetaFetcherConfig = New<NChunkClient::TFetcherConfig>();
+
         context->SetRequestInfo("SrcPaths: %v, DstPath: %v",
             srcPaths,
             dstPath);
+
+        if (request->has_fetcher()) {
+            options.ChunkMetaFetcherConfig->NodeRpcTimeout = FromProto<TDuration>(request->fetcher().node_rpc_timeout());
+        }
 
         CompleteCallWith(
             client,
@@ -3158,7 +3164,9 @@ private:
 
         context->SetRequestInfo(
             "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v",
-            path);
+            path,
+            options.Unordered,
+            options.OmitInaccessibleColumns);
 
         auto tableReader = WaitFor(client->CreateTableReader(path, options))
             .ValueOrThrow();
@@ -3328,9 +3336,9 @@ private:
         }
 
         context->SetRequestInfo("Path: %v, MD5: %v, CachePath: %v",
-                                path,
-                                md5,
-                                options.CachePath);
+            path,
+            md5,
+            options.CachePath);
 
         CompleteCallWith(
             client,

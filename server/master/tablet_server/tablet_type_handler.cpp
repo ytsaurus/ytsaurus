@@ -35,11 +35,6 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    virtual TString DoGetName(const TTablet* object) override
-    {
-        return Format("tablet %v", object->GetId());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TTablet* tablet, TTransaction* /*transaction*/) override
     {
         return CreateTabletProxy(Bootstrap_, &Metadata_, tablet);

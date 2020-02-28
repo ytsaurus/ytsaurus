@@ -71,8 +71,6 @@ private:
 
     THashSet<int> FreeSlots_;
 
-    bool JobProxySocketNameDirectoryCreated_ = false;
-
     TSpinLock SpinLock_;
     std::optional<TError> PersistentAlert_;
     std::optional<TError> TransientAlert_;

@@ -10,7 +10,7 @@ from time import sleep
 
 class TestSchedulerAutoMerge(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 16
+    NUM_NODES = 4
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
     ENABLE_BULK_INSERT = True
@@ -34,7 +34,22 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     DELTA_MASTER_CONFIG = {
         "object_manager": {
             "gc_sweep_period": 10
-        }
+        },
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 4,
+                    "cpu": 4,
+                    "memory": 4 * 1024 ** 3,
+                }
+            }
+        },
     }
 
     def _create_account(self, chunk_count):
@@ -401,6 +416,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 },
             })
         assert get("//tmp/t_out/@chunk_count") >= 5
+        assert "auto_merge_disabled" in op.get_alerts()
 
     @authors("max42")
     @pytest.mark.timeout(60)
@@ -436,6 +452,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 },
             })
         assert get("//tmp/t_out/@chunk_count") >= 5
+        assert "auto_merge_disabled" in op.get_alerts()
 
         op = map(
             in_="//tmp/t_in",
@@ -453,6 +470,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                 },
             })
         assert get("//tmp/t_out_with_schema/@chunk_count") >= 5
+        assert "auto_merge_disabled" in op.get_alerts()
 
     @authors("max42")
     @pytest.mark.timeout(60)

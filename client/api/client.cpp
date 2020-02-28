@@ -114,8 +114,35 @@ TError TCheckPermissionResult::ToError(const TString& user, EPermission permissi
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Tries to find "abort_reason" attribute in the error and parse it as |EAbortReason|.
+// Returns |std::nullopt| if the attribute is not found or any of two parsings is unsuccessful.
+static std::optional<NScheduler::EAbortReason> TryGetJobAbortReasonFromError(const NYson::TYsonString& errorYson)
+{
+    if (!errorYson) {
+        return std::nullopt;
+    }
+
+    TError error;
+    try {
+        error = ConvertTo<TError>(errorYson);
+    } catch (const TErrorException& exception) {
+        return std::nullopt;
+    }
+
+    if (auto yson = error.Attributes().FindYson("abort_reason")) {
+        try {
+            return ConvertTo<NScheduler::EAbortReason>(yson);
+        } catch (const TErrorException& exception) {
+            return std::nullopt;
+        }
+    }
+
+    return std::nullopt;
+}
+
 void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey)
 {
+
     NYTree::BuildYsonFluently(consumer)
         .BeginMap()
             .OptionalItem(idKey, job.Id)
@@ -134,11 +161,13 @@ void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey
             .OptionalItem("stderr_size", job.StderrSize)
             .OptionalItem("fail_context_size", job.FailContextSize)
             .OptionalItem("error", job.Error)
+            .OptionalItem("abort_reason", TryGetJobAbortReasonFromError(job.Error))
             .OptionalItem("brief_statistics", job.BriefStatistics)
             .OptionalItem("input_paths", job.InputPaths)
             .OptionalItem("core_infos", job.CoreInfos)
             .OptionalItem("events", job.Events)
             .OptionalItem("statistics", job.Statistics)
+            .OptionalItem("is_stale", job.IsStale)
         .EndMap();
 }
 

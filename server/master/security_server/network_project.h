@@ -22,7 +22,8 @@ public:
 public:
     explicit TNetworkProject(TNetworkProjectId id);
 
-    virtual TString GetObjectName() const override;
+    virtual TString GetLowercaseObjectName() const override;
+    virtual TString GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);

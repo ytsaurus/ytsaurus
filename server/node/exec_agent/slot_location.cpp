@@ -56,7 +56,7 @@ TSlotLocation::TSlotLocation(
     , Config_(config)
     , Bootstrap_(bootstrap)
     , JobDirectoryManager_(jobDirectoryManager)
-    , LocationQueue_(New<TActionQueue>(id))
+    , LocationQueue_(New<TActionQueue>(Format("IO:%v", id)))
     , EnableTmpfs_(enableTmpfs)
     , HasRootPermissions_(HasRootPermissions())
 {

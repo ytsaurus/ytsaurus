@@ -261,7 +261,8 @@ public:
                     .SetTabletStaticMemory(0);
             } else {
                 resourceUsageIncrease = TClusterResources()
-                    .SetNodeCount(1);
+                    .SetNodeCount(1)
+                    .SetMasterMemoryUsage(1);
             }
             securityManager->ValidateResourceUsageIncrease(clonedAccount, resourceUsageIncrease);
         }
@@ -298,7 +299,10 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = GetNewNodeAccount();
         securityManager->ValidatePermission(account, EPermission::Use);
-        securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetNodeCount(1));
+        auto deltaResources = TClusterResources()
+            .SetNodeCount(1)
+            .SetMasterMemoryUsage(1);
+        securityManager->ValidateResourceUsageIncrease(account, deltaResources);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         bool defaultExternal =
@@ -404,6 +408,8 @@ public:
                 explicitAttributes->Clone()
             });
         }
+
+        securityManager->UpdateMasterMemoryUsage(trunkNode);
 
         return cypressManager->GetNodeProxy(trunkNode, Transaction_);
     }
@@ -624,7 +630,7 @@ private:
         return externalCellTag == NotReplicatedCellTag ? TCellTagList() : TCellTagList{externalCellTag};
     }
 
-    virtual TString DoGetName(const TCypressNode* node);
+    virtual TString DoGetName(const TCypressNode* node) override;
 
     virtual IObjectProxyPtr DoGetProxy(
         TCypressNode* node,
@@ -662,11 +668,6 @@ public:
     }
 
 private:
-    virtual TString DoGetName(const TLock* lock) override
-    {
-        return Format("lock %v", lock->GetId());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(
         TLock* lock,
         TTransaction* /*transaction*/) override

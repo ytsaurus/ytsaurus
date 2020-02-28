@@ -64,6 +64,16 @@ TCypressShardAccountStatistics TCypressShard::ComputeTotalAccountStatistics() co
     return result;
 }
 
+TString TCypressShard::GetLowercaseObjectName() const
+{
+    return Format("Cypress shard %v", GetId());
+}
+
+TString TCypressShard::GetCapitalizedObjectName() const
+{
+    return Format("Cypress shard %v", GetId());
+}
+
 void TCypressShard::Save(NCellMaster::TSaveContext& context) const
 {
     TNonversionedObjectBase::Save(context);

@@ -384,12 +384,14 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto chunkReader = GetChunkReader(throttler);
 
-    if (tabletSnapshot->Config->EnableDataNodeLookup) {
+    if (tabletSnapshot->Config->EnableDataNodeLookup && chunkReader->IsLookupSupported()) {
         return CreateRowLookupReader(
             std::move(chunkReader),
             blockReadOptions,
             filteredKeys,
             tabletSnapshot,
+            columnFilter,
+            timestamp,
             produceAllVersions);
     }
 

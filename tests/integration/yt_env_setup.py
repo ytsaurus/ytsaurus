@@ -48,13 +48,13 @@ else:
     SANDBOX_ROOTDIR = None
     SANDBOX_STORAGE_ROOTDIR = None
 
-yt.logger.LOGGER.setLevel(logging.DEBUG)
-
 ##################################################################
 
 def prepare_yatest_environment(need_suid):
     if arcadia_interop.yatest_common is None:
         return
+
+    yt.logger.LOGGER.setLevel(logging.DEBUG)
 
     global SANDBOX_ROOTDIR
     global SANDBOX_STORAGE_ROOTDIR
@@ -592,6 +592,7 @@ class YTEnvSetup(object):
             cell_tag=index * 10,
             driver_backend=cls.get_param("DRIVER_BACKEND", index),
             enable_structured_master_logging=True,
+            enable_structured_scheduler_logging=True,
             capture_stderr_to_file=capture_stderr_to_file)
 
         instance._cluster_name = cls.get_cluster_name(index)
@@ -711,7 +712,7 @@ class YTEnvSetup(object):
                     continue
                 yt_commands.set("//sys/clusters", clusters, driver=driver)
 
-        # TODO(babenko): get rid of this sleep
+        # TODO(babenko): wait for cluster sync
         if cls.remote_envs:
             sleep(1.0)
 
@@ -867,7 +868,8 @@ class YTEnvSetup(object):
                     attributes={
                         "account": "tmp",
                         "exit_cell_tag": 1,
-                        "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
+                        "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]},
+                                {"action": "allow", "permissions": ["read"], "subjects": ["everyone"]}],
                     },
                     force=True,
                     driver=driver)

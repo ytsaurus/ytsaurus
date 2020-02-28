@@ -81,7 +81,7 @@ struct IHydraManager
     //! Returns |true| if the peer is a follower ready to serve reads.
     /*!
      *  Any follower still can lag arbitrarily behind the leader.
-     *  One should use #SyncWithUpstream to workaround stale reads.
+     *  One should use #SyncWithLeader to workaround stale reads.
      *
      *  \note Thread affinity: any
      */
@@ -99,31 +99,16 @@ struct IHydraManager
      */
     virtual TCancelableContextPtr GetAutomatonCancelableContext() const = 0;
 
-    //! Synchronizes with the upstream.
+    //! Synchronizes with the leader.
     /*!
-     *  Used to prevent stale reads by ensuring that the automaton has seen enough mutations
-     *  from all "upstream" services.
+     *  Used to prevent stale reads at followers by ensuring that the automaton
+     *  has seen enough mutations from leader.
      *
-     *  Synchronization requests are automatically batched together.
-     *
-     *  Internally, this combines two means of synchronization:
-     *  1) follower-with-leader synchronization
-     *  2) custom synchronization
-     *
-     *  In both cases a certain "synchronizer" is invoked that returns a future that gets
-     *  set when synchronization is complete.
-     *
-     *  Synchronizer (1) ensures that when invoked at follower at instant T,
-     *  completes when the committed version becomes equal to or larger than
-     *  the committed version at leader at T.
-     *
-     *  Synchronizer (1) has no effect at leader.
-     *
-     *  Synchronizers (2) are user-supplied (see UpstreamSync signal).
+     *  Synchronization has no effect at leader.
      *
      *  \note Thread affinity: any
      */
-    virtual TFuture<void> SyncWithUpstream() = 0;
+    virtual TFuture<void> SyncWithLeader() = 0;
 
     //! Commits a mutation.
     /*!
@@ -182,10 +167,6 @@ struct IHydraManager
     //! A subscriber must start an appropriate check and return a future
     //! summarizing its outcome.
     DECLARE_INTERFACE_SIGNAL(TFuture<void>(), LeaderLeaseCheck);
-    //! Raised during upstream sync..
-    //! A subscriber must start an appropriate synchronization process and return a future
-    //! that gets set when sync is reached.
-    DECLARE_INTERFACE_SIGNAL(TFuture<void>(), UpstreamSync);
 
     //! Raised when the set of alive peers changes.
     //! On leader, it's raised when pinging one of the followers fails.

@@ -2,6 +2,7 @@
 #include "private.h"
 #include "fair_share_strategy.h"
 #include "fair_share_tree.h"
+#include "fair_share_implementations.h"
 #include "helpers.h"
 #include "job_prober_service.h"
 #include "master_connector.h"
@@ -204,7 +205,12 @@ public:
                 feasibleInvokers.push_back(Bootstrap_->GetControlInvoker(controlQueue));
             }
 
-            Strategy_ = CreateFairShareStrategy(Config_, this, feasibleInvokers);
+            if (config->UseClassicScheduler) {
+                Strategy_ = CreateFairShareStrategy<TClassicFairShareImpl>(Config_, this, feasibleInvokers);
+            } else {
+                Strategy_ = CreateFairShareStrategy<TVectorFairShareImpl>(Config_, this, feasibleInvokers);
+            }
+
         }
     }
 
@@ -1083,9 +1089,17 @@ public:
         } else {
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
             asyncMaterializeResult = operation->GetController()->Materialize();
+
+            bool shouldWaitForFullFairShareUpdate = operation->Spec()->ScheduleInSingleTree &&
+                !Strategy_->IsOperationTreeSetConsistentWithSnapshots(operation->GetId());
+            auto maybeFullFairShareUpdateFinished = shouldWaitForFullFairShareUpdate
+                ? Strategy_->GetFullFairShareUpdateFinished()
+                : VoidFuture;
+
             asyncCombineResult = Combine(std::vector<TFuture<void>>({
                 asyncMaterializeResult.As<void>(),
-                ResetOperationRevival(operation)
+                ResetOperationRevival(operation),
+                maybeFullFairShareUpdateFinished
             }));
         }
 
@@ -1214,6 +1228,13 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return EventLogWriterConsumer_.get();
+    }
+
+    virtual const NLogging::TLogger* GetEventLogger() override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return &SchedulerEventLogger;
     }
 
     // INodeShardHost implementation
@@ -1962,7 +1983,7 @@ private:
             return;
         }
 
-        Strategy_->UpdatePoolTrees(poolTreesNode, TInstant::Now());
+        Strategy_->UpdatePoolTrees(poolTreesNode);
     }
 
 
@@ -2773,6 +2794,22 @@ private:
         const TOperationPtr& operation,
         const TOperationControllerUnregisterResult& result) const
     {
+        if (operation->Spec()->TestingOperationOptions->LogResidualCustomJobMetricsOnTermination) {
+            THashMap<TString, THashMap<TString, i64>> residualCustomJobMetricsPerTree;
+            for (const auto& [treeId, jobMetrics] : result.ResidualJobMetrics) {
+                THashMap<TString, i64> profilingNameToValue;
+                for (const auto& [customMetricDescription, value] : jobMetrics.CustomValues()) {
+                    profilingNameToValue.emplace(customMetricDescription.ProfilingName, value);
+                }
+                residualCustomJobMetricsPerTree.emplace(treeId, profilingNameToValue);
+            }
+
+            YT_LOG_DEBUG("Processing result of unregistering operation in controller "
+                "(OperationId: %v, ResidualCustomJobMetrics: %v)",
+                operation->GetId(),
+                residualCustomJobMetricsPerTree);
+        }
+
         if (!result.ResidualJobMetrics.empty()) {
             GetStrategy()->ApplyJobMetricsDelta({{operation->GetId(), result.ResidualJobMetrics}});
         }

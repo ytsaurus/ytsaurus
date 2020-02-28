@@ -727,12 +727,11 @@ private:
             }
         };
 
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
         if (syncWithUpstream) {
-            addAsyncResult(hydraManager->SyncWithUpstream());
+            addAsyncResult(multicellManager->SyncWithUpstream());
         }
 
         TCellTagList syncCellTags;

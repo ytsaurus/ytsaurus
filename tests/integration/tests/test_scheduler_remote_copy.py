@@ -96,12 +96,12 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     @authors("ermolovd")
     def test_schema_validation_complex_types(self):
         input_schema = make_schema([
-            {"name": "index", "type_v2": "int64"},
-            {"name": "value", "type_v2": optional_type(optional_type("string"))},
+            {"name": "index", "type_v3": "int64"},
+            {"name": "value", "type_v3": optional_type(optional_type("string"))},
         ], unique_keys=False, strict=True)
         output_schema = make_schema([
-            {"name": "index", "type_v2": "int64"},
-            {"name": "value", "type_v2": list_type(optional_type("string"))},
+            {"name": "index", "type_v3": "int64"},
+            {"name": "value", "type_v3": list_type(optional_type("string"))},
         ], unique_keys=False, strict=True)
 
         create("table", "//tmp/input", attributes={"schema": input_schema}, driver=self.remote_driver)
@@ -125,7 +125,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
             out="//tmp/output",
             spec={"cluster_name": self.REMOTE_CLUSTER_NAME, "schema_inference_mode": "from_input"},
         )
-        assert normalize_schema_v2(input_schema) == normalize_schema_v2(get("//tmp/output/@schema"))
+        assert normalize_schema_v3(input_schema) == normalize_schema_v3(get("//tmp/output/@schema"))
 
     @authors("ignat")
     def test_cluster_connection_config(self):
@@ -293,6 +293,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         cluster_connection = clusters[self.REMOTE_CLUSTER_NAME]
         try:
             set("//sys/clusters", {})
+            # TODO(babenko): wait for cluster sync
             time.sleep(2)
             op = remote_copy(track=False, in_="//tmp/t1", out="//tmp/t2",
                     spec={"cluster_connection": cluster_connection, "job_count": 100})
@@ -310,6 +311,8 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
             assert input_tx != get(op.get_path() + "/@input_transaction_id")
         finally:
             set("//sys/clusters", clusters)
+            # TODO(babenko): wait for cluster sync
+            time.sleep(2)
 
         assert read_table("//tmp/t2") ==  [{"a" : i} for i in xrange(100)]
 

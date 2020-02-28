@@ -213,6 +213,11 @@ TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const TStri
     }
 }
 
+bool TObjectServiceCache::IsResurrectionSupported() const
+{
+    return false;
+}
+
 void TObjectServiceCache::OnAdded(const TObjectServiceCacheEntryPtr& entry)
 {
     VERIFY_THREAD_AFFINITY_ANY();

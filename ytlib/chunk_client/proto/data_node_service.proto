@@ -11,6 +11,7 @@ import "yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto";
 import "yt/ytlib/chunk_client/proto/chunk_slice.proto";
 import "yt/ytlib/chunk_client/proto/session_id.proto";
 import "yt/client/table_client/proto/chunk_meta.proto";
+import "yt/client/table_client/proto/wire_protocol.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -206,6 +207,8 @@ message TReqLookupRows
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
     required NYT.NProto.TGuid read_session_id = 4;
     required bool produce_all_versions = 5;
+    optional NTableClient.NProto.TColumnFilter column_filter = 7;
+    optional uint64 timestamp = 8;
 
     required TTableSchemaData schema_data = 6;
 }

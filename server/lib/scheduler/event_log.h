@@ -48,9 +48,7 @@ public:
 
 protected:
     virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
-
-private:
-    NEventLog::TFluentEventLogger EventLogger_;
+    virtual const NLogging::TLogger* GetEventLogger() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fair_share_tree_element.h"
+#include "fair_share_tree_element_classic.h"
 
 #include <yt/core/logging/log.h>
 

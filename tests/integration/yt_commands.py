@@ -42,11 +42,12 @@ default_api_version = 4
 SortOrderViolation = 301
 UniqueKeyViolation = 306
 SchemaViolation = 307
+InvalidSchemaValue = 314
 AuthorizationErrorCode = 901
+UnrecognizedConfigOption = 1400
 NoSuchOperation = 1915
 NoSuchAttribute = 1920
 TabletNotMounted = 1702
-UnrecognizedConfigOption = 1400
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
@@ -382,9 +383,36 @@ def execute_command_with_output_format(command_name, kwargs, input_stream=None):
 
 ###########################################################################
 
+def _assert_true_for_cell(cell_index, predicate):
+    assert predicate(get_driver(cell_index))
+
+def assert_true_for_secondary_cells(env, predicate):
+    for i in xrange(env.secondary_master_cell_count):
+        _assert_true_for_cell(i + 1, predicate)
+
+def assert_true_for_all_cells(env, predicate):
+    _assert_true_for_cell(0, predicate)
+    assert_true_for_secondary_cells(env, predicate)
+
+def _check_true_for_all_cells(env, predicate):
+    for i in xrange(env.secondary_master_cell_count + 1):
+        if not predicate(get_driver(i)):
+            return False
+    return True
+
+def wait_true_for_all_cells(env, predicate):
+    wait(lambda: _check_true_for_all_cells(env, predicate))
+
+###########################################################################
+
 def multicell_sleep():
     if is_multicell:
         time.sleep(0.5)
+
+def master_memory_usage_sleep():
+    multicell_sleep()
+    time.sleep(0.2)
+    multicell_sleep()
 
 def dump_job_context(job_id, path, **kwargs):
     kwargs["job_id"] = job_id
@@ -568,6 +596,37 @@ def write_table(path, value=None, is_raw=False, **kwargs):
         attributes["sorted_by"] = flatten(kwargs["sorted_by"])
     kwargs["path"] = yson.to_yson_type(path, attributes=attributes)
     return execute_command("write_table", kwargs, input_stream=input_stream)
+
+def tx_write_table(*args, **kwargs):
+    """
+    Write rows to table transactionally.
+
+    If write_table fails with some error it is not guaranteed that table is not locked.
+    Locks can linger for some time and prevent from working with this table.
+
+    This function avoids such lingering locks by explicitly creating external transaction
+    and aborting it explicitly in case of error.
+    """
+    parent_tx = kwargs.pop("tx", "0-0-0-0")
+    timeout = kwargs.pop("timeout", 60000)
+
+    try:
+        tx = start_transaction(timeout=timeout, tx=parent_tx)
+    except Exception as e:
+        raise AssertionError("Cannot start transaction: {}".format(e))
+
+    try:
+        write_table(*args, tx=tx, **kwargs)
+    except:
+        try:
+            abort_transaction(tx)
+        except Exception as e:
+            raise AssertionError(
+                "Cannot abort wrapper transaction: {}".format(e)
+            )
+        raise
+
+    commit_transaction(tx)
 
 def locate_skynet_share(path, **kwargs):
     kwargs["path"] = path
@@ -1187,7 +1246,8 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
             "chunk_count": 100000,
             "node_count": 1000,
             "tablet_count": 0,
-            "tablet_static_memory": 0
+            "tablet_static_memory": 0,
+            "master_memory_usage": 100000
         }
     execute_command("create", kwargs)
     if sync:
@@ -1459,17 +1519,17 @@ def make_ace(action, subjects, permissions, inheritance_mode="object_and_descend
 
 #########################################
 
-def make_column(name, type_v2, **attributes):
+def make_column(name, type_v3, **attributes):
     result = {
         "name": name,
-        "type_v2": type_v2,
+        "type_v3": type_v3,
     }
     for k in attributes:
         result[k] = attributes[k]
     return result
 
-def make_sorted_column(name, type_v2, **attributes):
-    return make_column(name, type_v2, sort_order="ascending", **attributes)
+def make_sorted_column(name, type_v3, **attributes):
+    return make_column(name, type_v3, sort_order="ascending", **attributes)
 
 def make_schema(columns, **attributes):
     schema = yson.YsonList()
@@ -1484,32 +1544,38 @@ def normalize_schema(schema):
     """Remove 'type_v2' / 'type_v3' field from schema, useful for schema comparison."""
     result = pycopy.deepcopy(schema)
     for column in result:
-        if "type_v2" in column:
-            del column["type_v2"]
-        if "type_v3" in column:
-            del column["type_v3"]
+        column.pop("type_v2", None)
+        column.pop("type_v3", None)
     return result
 
-def normalize_schema_v2(schema):
-    """Remove "type" / "required" / "type_v3" fields from schema, useful for schema comparison."""
+def normalize_schema_v3(schema):
+    """Remove "type" / "required" / "type_v2" fields from schema, useful for schema comparison."""
     result = pycopy.deepcopy(schema)
     for column in result:
-        for f in ["type", "required", "type_v3"]:
+        for f in ["type", "required", "type_v2"]:
             if f in column:
                 del column[f]
     return result
 
 def optional_type(element_type):
     return {
-        "metatype": "optional",
-        "element": element_type,
+        "type_name": "optional",
+        "item": element_type,
     }
 
-def make_struct_field_descriptions(fields):
+def make_struct_members(fields):
     result = []
     for name, type in fields:
         result.append({
             "name": name,
+            "type": type,
+        })
+    return result
+
+def make_tuple_elements(elements):
+    result = []
+    for type in elements:
+        result.append({
             "type": type,
         })
     return result
@@ -1520,48 +1586,48 @@ def struct_type(fields):
     fields is a list of (name, type) pairs.
     """
     result = {
-        "metatype": "struct",
-        "fields": make_struct_field_descriptions(fields),
+        "type_name": "struct",
+        "members": make_struct_members(fields),
     }
     return result
 
 def list_type(element_type):
     return {
-        "metatype": "list",
-        "element": element_type,
+        "type_name": "list",
+        "item": element_type,
     }
 
 def tuple_type(elements):
     return {
-        "metatype": "tuple",
-        "elements": elements,
+        "type_name": "tuple",
+        "elements": make_tuple_elements(elements),
     }
 
 def variant_struct_type(fields):
     result = {
-        "metatype": "variant_struct",
-        "fields": make_struct_field_descriptions(fields),
+        "type_name": "variant",
+        "members": make_struct_members(fields),
     }
     return result
 
 def variant_tuple_type(elements):
     return {
-        "metatype": "variant_tuple",
-        "elements": elements,
+        "type_name": "variant",
+        "elements": make_tuple_elements(elements)
     }
 
 def dict_type(key_type, value_type):
     return {
-        "metatype": "dict",
+        "type_name": "dict",
         "key": key_type,
         "value": value_type,
     }
 
 def tagged_type(tag, element_type):
     return {
-        "metatype": "tagged",
+        "type_name": "tagged",
         "tag": tag,
-        "element": element_type,
+        "item": element_type,
     }
 
 ##################################################################

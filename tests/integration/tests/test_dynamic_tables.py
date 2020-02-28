@@ -39,10 +39,6 @@ class DynamicTablesBase(YTEnvSetup):
     NUM_SCHEDULERS = 0
     USE_DYNAMIC_TABLES = True
 
-    DELTA_DRIVER_CONFIG = {
-        "max_rows_per_write_request": 2
-    }
-
     DELTA_MASTER_CONFIG = {
         "tablet_manager": {
             "leader_reassignment_timeout" : 2000,
@@ -113,46 +109,26 @@ class DynamicTablesBase(YTEnvSetup):
             set_node_decommissioned(addr, True)
         return addresses
 
-    def _get_profiling(self, table, filter=None, filter_table=False):
+    def _get_table_profiling(self, table):
         tablets = get(table + "/@tablets")
         assert len(tablets) == 1
         tablet = tablets[0]
         address = get("#%s/@peers/0/address" % tablet["cell_id"])
-        filter_value = (filter, table if filter_table else tablet[filter]) if filter else None
 
         class Profiling:
-            def __init__(self):
-                self._shifts = {}
-
-            def _get_counter_impl(self, counter_name):
+            def get_counter(self, counter_name):
                 try:
                     counters = get("//sys/cluster_nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))
-                    if filter_value:
-                        filter, value = filter_value
-                        for counter in counters[::-1]:
-                            tags = counter["tags"]
-                            if filter in tags and tags[filter] == value:
-                                return counter["value"]
-                    else:
-                        return counters[-1]["value"]
+                    for counter in counters[::-1]:
+                        tags = counter["tags"]
+                        if tags.get("table_path", None) == table:
+                            return counter["value"]
                 except YtResponseError as error:
                     if not error.is_resolve_error():
                         raise
                 return 0
 
-            def get_counter(self, counter_name):
-                # Get difference since last query since typically we are interested in couter rate.
-                # (Same table name is shared between tests and there is no way to reset couters.)
-                result = self._get_counter_impl(counter_name)
-                if counter_name not in self._shifts:
-                    self._shifts[counter_name] = result
-                return result - self._shifts[counter_name]
-
         return Profiling()
-
-    def _get_table_profiling(self, table):
-        return self._get_profiling(table, "table_path", filter_table=True)
-
 
 ##################################################################
 
@@ -461,7 +437,6 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
 ##################################################################
 
-
 class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("babenko")
     def test_force_unmount_on_remove(self):
@@ -731,6 +706,19 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         sync_unmount_table("//tmp/t", authenticated_user="u")
         remount_table("//tmp/t", authenticated_user="u")
         sync_reshard_table("//tmp/t", [[]], authenticated_user="u")
+
+    @authors("lexolordan")
+    def test_force_unmount_allowed_and_denied(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+        create_user('u')
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "use"))
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b", authenticated_user="u")
+        set("//tmp/t/@acl/end", make_ace("allow", "u", "mount"))
+        sync_mount_table("//tmp/t", authenticated_user="u")
+        with pytest.raises(YtError): sync_unmount_table("//tmp/t", force=True, authenticated_user="u")
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "administer"))
+        sync_unmount_table("//tmp/t", force=True, authenticated_user="u")
 
     @authors("savrus")
     def test_mount_permission_allowed_by_ancestor(self):
@@ -1542,7 +1530,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         set(path, value)
         for i in xrange(self.Env.secondary_master_cell_count):
             driver = get_driver(i + 1)
-            wait(lambda: get(path, driver=driver) == value)
+            wait(lambda: exists(path, driver=driver) and get(path, driver=driver) == value)
 
     def _multicell_wait(self, predicate):
         for i in xrange(self.Env.secondary_master_cell_count):
@@ -1559,13 +1547,21 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
+        def _wait_func(driver):
+            limits = get("//sys/accounts/test_account/@resource_limits", driver=driver)
+            if resource == "chunk_count":
+                return limits["chunk_count"] == 0
+            else:
+                return limits["disk_space"] == 0
+        self._multicell_wait(lambda driver: lambda: _wait_func(driver))
+
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
         sync_flush_table("//tmp/t")
 
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
 
-        set("//sys/accounts/test_account/@resource_limits/" + resource, 10000)
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/" + resource, 10000)
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
 
         set("//sys/accounts/test_account/@resource_limits/" + resource, 0)
@@ -1590,7 +1586,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
 
         assert get("//sys/accounts/test_account/@ref_counter") == 1
 
-        set("//sys/accounts/test_account/@resource_limits/tablet_count", 4)
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 4)
         self._create_ordered_table("//tmp/t1", account="test_account", tablet_count=2)
         self._verify_resource_usage("test_account", "tablet_count", 2)
         self._create_sorted_table("//tmp/t2", account="test_account", pivot_keys=[[], [1]])
@@ -1605,14 +1601,14 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         self._create_ordered_table("//tmp/t2", account="test_account")
 
         # Wait for resource usage since tabels can be placed to different cells.
-        self._multicell_wait(lambda x: lambda: get("//sys/accounts/test_account/@resource_usage/tablet_count", driver=x) == 2)
+        self._multicell_wait(lambda driver: lambda: get("//sys/accounts/test_account/@resource_usage/tablet_count", driver=driver) == 2)
 
         with pytest.raises(YtError):
             reshard_table("//tmp/t1", [[], [1]])
         with pytest.raises(YtError):
             reshard_table("//tmp/t2", 2)
 
-        set("//sys/accounts/test_account/@resource_limits/tablet_count", 4)
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 4)
         sync_reshard_table("//tmp/t1", [[], [1]])
         sync_reshard_table("//tmp/t2", 2)
         self._verify_resource_usage("test_account", "tablet_count", 4)
@@ -1620,7 +1616,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
     @authors("savrus")
     def test_tablet_count_limit_copy(self):
         create_account("test_account")
-        set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
 
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", account="test_account")
@@ -1634,7 +1630,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         with pytest.raises(YtError):
             copy("//tmp/t", "//tmp/t_copy", preserve_account=True)
 
-        set("//sys/accounts/test_account/@resource_limits/tablet_count", 2)
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 2)
         copy("//tmp/t", "//tmp/t_copy", preserve_account=True)
         self._verify_resource_usage("test_account", "tablet_count", 2)
 
@@ -1642,8 +1638,8 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
     def test_tablet_count_copy_across_accounts(self):
         create_account("test_account1")
         create_account("test_account2")
-        set("//sys/accounts/test_account1/@resource_limits/tablet_count", 10)
-        set("//sys/accounts/test_account2/@resource_limits/tablet_count", 0)
+        self._multicell_set("//sys/accounts/test_account1/@resource_limits/tablet_count", 10)
+        self._multicell_set("//sys/accounts/test_account2/@resource_limits/tablet_count", 0)
 
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", account="test_account1")
@@ -1658,7 +1654,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
 
         self._verify_resource_usage("test_account2", "tablet_count", 0)
 
-        set("//sys/accounts/test_account2/@resource_limits/tablet_count", 1)
+        self._multicell_set("//sys/accounts/test_account2/@resource_limits/tablet_count", 1)
         copy("//tmp/t", "//tmp/dir/t_copy", preserve_account=False)
 
         self._verify_resource_usage("test_account1", "tablet_count", 1)
@@ -1667,7 +1663,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
     @authors("savrus")
     def test_tablet_count_remove(self):
         create_account("test_account")
-        set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", account="test_account")
         self._verify_resource_usage("test_account", "tablet_count", 1)
@@ -1700,11 +1696,11 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         alter_table("//tmp/t", dynamic=False)
         self._verify_resource_usage("test_account", "tablet_count", 0)
 
-        set("//sys/accounts/test_account/@resource_limits/tablet_count", 0)
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 0)
         with pytest.raises(YtError):
             alter_table("//tmp/t", dynamic=True)
 
-        set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 1)
         alter_table("//tmp/t", dynamic=True)
         self._verify_resource_usage("test_account", "tablet_count", 1)
 
@@ -1811,7 +1807,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         create("table", "//tmp/junk", attributes={"account": "test_account"})
         write_table("//tmp/junk", [{"key": "value"}])
         set("//sys/accounts/test_account/@resource_limits/disk_space_per_medium/default", 0)
-        wait(lambda: get("//sys/accounts/test_account/@violated_resource_limits/disk_space_per_medium/default"))
+        self._multicell_wait(lambda driver: lambda: get("//sys/accounts/test_account/@resource_limits/disk_space", driver=driver) == 0)
 
         sync_mount_table("//tmp/t")
 
@@ -1832,8 +1828,8 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
     def test_chunk_view_accounting(self):
         create_account("test_account")
         create_account("other_account")
-        set("//sys/accounts/test_account/@resource_limits/tablet_count", 10)
-        set("//sys/accounts/other_account/@resource_limits/tablet_count", 10)
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 10)
+        self._multicell_set("//sys/accounts/other_account/@resource_limits/tablet_count", 10)
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t", account="test_account")
 

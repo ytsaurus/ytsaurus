@@ -6,7 +6,7 @@ from yt_helpers import *
 
 from yt.yson import *
 from yt.wrapper import JsonFormat
-from yt.common import date_string_to_timestamp
+from yt.common import date_string_to_timestamp, update
 
 import pytest
 
@@ -16,11 +16,25 @@ from datetime import datetime
 
 import __builtin__
 
+import json
+
 ##################################################################
+
+SCHEDULER_COMMON_NODE_CONFIG_PATCH = {
+    "exec_agent": {
+        "job_controller": {
+            "resource_limits": {
+                "user_slots": 5,
+                "cpu": 5,
+                "memory": 5 * 1024 ** 3,
+            }
+        }
+    }
+}
 
 class TestSchedulerCommon(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 16
+    NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
@@ -49,7 +63,10 @@ class TestSchedulerCommon(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = get_cgroup_delta_node_config()
+    DELTA_NODE_CONFIG = update(
+        get_cgroup_delta_node_config(),
+        SCHEDULER_COMMON_NODE_CONFIG_PATCH
+    )
 
     @authors("ignat")
     def test_failed_jobs_twice(self):
@@ -535,7 +552,8 @@ class TestSchedulerCommon(YTEnvSetup):
 
         time.sleep(5)
         statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
-        operation_objects = ["NYT::NScheduler::TOperationElement", "NYT::NScheduler::TOperation"]
+        operation_objects = ["NYT::NScheduler::TOperation", "NYT::NScheduler::NVectorScheduler::TOperationElement",
+                             "NYT::NScheduler::NClassicScheduler::TOperationElement"]
         records = [record for record in statistics if record["name"] in operation_objects]
         assert len(records) == 2
         assert records[0]["objects_alive"] == 0
@@ -743,32 +761,6 @@ class TestSchedulerCommon(YTEnvSetup):
         assert new_nested_input_transaction_ids[0] != nested_tx
 
     @authors("babenko")
-    def test_ban_nodes_with_failed_jobs(self):
-        create("table", "//tmp/t1")
-        write_table("//tmp/t1", [{"foo": i} for i in range(10)])
-
-        create("table", "//tmp/t2")
-
-        op = map(
-            track=False,
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            command="exit 1",
-            spec={
-                "resource_limits": {
-                    "cpu": 1
-                },
-                "max_failed_job_count": 10,
-                "ban_nodes_with_failed_jobs": True
-            })
-        with pytest.raises(YtError):
-            op.track()
-
-        jobs = ls(op.get_path() + "/jobs", attributes=["state", "address"])
-        assert all(job.attributes["state"] == "failed" for job in jobs)
-        assert len(__builtin__.set(job.attributes["address"] for job in jobs)) == 10
-
-    @authors("babenko")
     def test_update_lock_transaction_timeout(self):
         lock_tx = get("//sys/scheduler/lock/@locks/0/transaction_id")
         new_timeout = get("#{}/@timeout".format(lock_tx)) + 1234
@@ -780,7 +772,10 @@ class TestSchedulerCommonMulticell(TestSchedulerCommon):
 
 @patch_porto_env_only(TestSchedulerCommon)
 class TestSchedulerCommonPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    DELTA_NODE_CONFIG = update(
+        get_porto_delta_node_config(),
+        SCHEDULER_COMMON_NODE_CONFIG_PATCH
+    )
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
@@ -1872,5 +1867,56 @@ class TestEventLog(YTEnvSetup):
             return True
         wait(check)
 
+    @authors("mrkastep")
+    def test_structured_event_log(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat")
+
+        # Let's wait until scheduler dumps the information on our map operation
+        def check_event_log():
+            event_log = read_table("//sys/scheduler/event_log")
+            for event in event_log:
+                if event["event_type"] == "operation_completed" and event["operation_id"] == op.id:
+                    return True
+            return False
+
+        wait(check_event_log)
+
+        event_log = read_table("//sys/scheduler/event_log")
+
+        def check_structured():
+            def extract_event_log(filename):
+                with open(filename) as f:
+                    items = [json.loads(line) for line in f]
+                    events = list(filter(lambda e: "event_type" in e, items))
+                    return events
+
+            scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
+            controller_agent_log_file = self.path_to_run + "/logs/controller-agent-0.json.log"
+
+            structured_log = extract_event_log(scheduler_log_file) + extract_event_log(controller_agent_log_file)
+
+            for normal_event in event_log:
+                flag = False
+                for structured_event in structured_log:
+                    def key(event):
+                        return (event["timestamp"],
+                                event["event_type"],
+                                event["operation_id"] if "operation_id" in event else "")
+
+                    if key(normal_event) == key(structured_event):
+                        flag = True
+                        break
+                if not flag:
+                    return False
+            return True
+
+        wait(check_structured)
 
 

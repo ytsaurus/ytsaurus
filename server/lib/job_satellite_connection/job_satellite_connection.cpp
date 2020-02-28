@@ -20,7 +20,18 @@ const TString SatelliteConfigFileName("satellite_config.yson");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString GetJobSatelliteUnixDomainSocketPath(const TString& slotPath, TJobId jobId)
+{
+    return NFS::GetRealPath(NFS::CombinePaths({
+        slotPath,
+        "pipes",
+        Format("%v-job-satellite", jobId)}));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJobSatelliteConnection::TJobSatelliteConnection(
+    const TString& slotPath,
     TJobId jobId,
     TTcpBusServerConfigPtr jobProxyRpcServerConfig,
     EJobEnvironmentType environmentType,
@@ -28,9 +39,11 @@ TJobSatelliteConnection::TJobSatelliteConnection(
     : JobId_(jobId)
 {
     ConnectionConfig_ = New<TJobSatelliteConnectionConfig>();
-    auto unixDomainName = Format("%v-job-satellite", JobId_);
-    ConnectionConfig_->SatelliteRpcServerConfig->UnixDomainName = unixDomainName;
-    ConnectionConfig_->JobProxyRpcClientConfig->UnixDomainName = jobProxyRpcServerConfig->UnixDomainName;
+    auto jobSatelliteUnixDomainSocketPath = GetJobSatelliteUnixDomainSocketPath(slotPath, jobId);
+    ConnectionConfig_->SatelliteRpcServerConfig->UnixDomainSocketPath = jobSatelliteUnixDomainSocketPath;
+    if (jobProxyRpcServerConfig->UnixDomainSocketPath) {
+        ConnectionConfig_->JobProxyRpcClientConfig->UnixDomainSocketPath = *jobProxyRpcServerConfig->UnixDomainSocketPath;
+    }
     ConnectionConfig_->EnvironmentType = environmentType;
     ConnectionConfig_->EnableSecureVaultVariablesInJobShell = enableSecureVaultVariablesInJobShell;
 }
@@ -42,7 +55,7 @@ TString TJobSatelliteConnection::GetConfigPath() const
 
 TTcpBusClientConfigPtr TJobSatelliteConnection::GetRpcClientConfig() const
 {
-    return TTcpBusClientConfig::CreateUnixDomain(*ConnectionConfig_->SatelliteRpcServerConfig->UnixDomainName);
+    return TTcpBusClientConfig::CreateUnixDomain(GetJobSatelliteUnixDomainSocketPath(".", JobId_));
 }
 
 NJobTrackerClient::TJobId TJobSatelliteConnection::GetJobId() const

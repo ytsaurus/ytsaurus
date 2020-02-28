@@ -427,11 +427,6 @@ protected:
             ETypeFlags::Removable;
     }
 
-    virtual TString DoGetName(const TSchedulerPoolTree* object) override
-    {
-        return Format("pool tree %v", object->GetTreeName());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TSchedulerPoolTree* object, NTransactionServer::TTransaction* transaction) override
     {
         return New<TSchedulerPoolProxy>(Owner_->Bootstrap_, &Metadata_, object->GetRootPool());

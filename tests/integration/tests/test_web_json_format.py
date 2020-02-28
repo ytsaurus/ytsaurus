@@ -35,7 +35,7 @@ COLUMN_LIST = [
         False),
     Column(
         "yson32_column",
-        optional_type("any"),
+        optional_type("yson"),
         [
             [110, "xxx", {"foo": "bar"}],
             "just a string",
@@ -109,7 +109,7 @@ COLUMN_LIST = [
         False),
     Column(
         "boolean_column",
-        optional_type("boolean"),
+        optional_type("bool"),
         [
             True,
             True,
@@ -182,7 +182,7 @@ COLUMN_LIST = [
     Column(
         "struct_column",
         struct_type([
-            ("a", "boolean"),
+            ("a", "bool"),
             ("b", "uint64"),
             ("c", "string"),
             ("d", optional_type("null")),
@@ -397,7 +397,7 @@ def get_schema(dynamic=False, key_column_names=(), **kwargs):
 
         column_schema = {
             "name": column.name,
-            "type_v2": column.type,
+            "type_v3": column.type,
         }
 
         if column.name in key_column_names:

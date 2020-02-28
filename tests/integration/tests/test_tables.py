@@ -1399,6 +1399,191 @@ class TestTables(YTEnvSetup):
             write_table("<append=true;sorted_by=[key]>//tmp/t", [{"key": 15}, {"key": 20}, {"key": 25}])
         self._wait_until_unlocked("//tmp/t")
 
+    @authors("gritukan")
+    def test_boundary_keys_attribute(self):
+        create("table", "//tmp/t1",
+           attributes={
+               "schema": make_schema(
+                   [
+                       {"name": "a", "type": "int64", "sort_order": "ascending"},
+                       {"name": "b", "type": "string"},
+                   ])
+           })
+
+        assert get("//tmp/t1/@boundary_keys") == {}
+        write_table("//tmp/t1", [{"a": 1, "b": "x"}, {"a": 2, "b": "x"}, {"a": 3, "b": "x"}])
+        assert get("//tmp/t1/@boundary_keys/min_key") == [1]
+        assert get("//tmp/t1/@boundary_keys/max_key") == [3]
+
+        create("table", "//tmp/t2")
+        assert not exists("//tmp/t2/@boundary_keys")
+
+    @authors("gritukan")
+    def test_chunk_key_column_count(self):
+        def make_row(a, b, c):
+            return {"a": a, "b": b, "c": c}
+
+        create("table", "//tmp/t1",
+            attributes={
+                "schema": make_schema(
+                    [
+                        {"name": "a", "type": "int64", "sort_order": "ascending"},
+                        {"name": "b", "type": "int64", "sort_order": "ascending"},
+                        {"name": "c", "type": "int64"},
+                    ])
+            })
+
+        write_table("<chunk_key_column_count=2>//tmp/t1", [make_row(1, 2, 3), make_row(4, 5, 6)])
+        assert read_table("//tmp/t1") == [make_row(1, 2, 3), make_row(4, 5, 6)]
+
+        with raises_yt_error(SchemaViolation):
+            write_table("<chunk_key_column_count=1>//tmp/t1", [make_row(31, 41, 59)])
+
+        with raises_yt_error(InvalidSchemaValue):
+            write_table("<chunk_key_column_count=4>//tmp/t1", [make_row(31, 41, 59)])
+
+        with raises_yt_error(InvalidSchemaValue):
+            write_table("<chunk_key_column_count=-1>//tmp/t1", [make_row(31, 41, 59)])
+
+        with pytest.raises(YtError):
+            write_table("<chunk_key_column_count=abacaba>//tmp/t1", [make_row(3, 14, 15)])
+
+        with raises_yt_error(SortOrderViolation):
+            write_table("<chunk_key_column_count=3>//tmp/t1", [make_row(100, 200, 300), make_row(100, 200, 100)])
+
+        # Check, whether boundary keys are validated by table schema not chunk schema.
+        create("table", "//tmp/t3",
+           attributes={
+               "schema": make_schema(
+                   [
+                       {"name": "a", "type": "int64"},
+                       {"name": "b", "type": "int64"},
+                       {"name": "c", "type": "int64"},
+                   ])
+           })
+
+        write_table("<chunk_key_column_count=2>//tmp/t3", [make_row(3, 3, 3), make_row(4, 4, 4)])
+        write_table("<chunk_key_column_count=2;append=true>//tmp/t3", [make_row(1, 1, 1), make_row(2, 2, 2)])
+        assert read_table("//tmp/t3") == [make_row(3, 3, 3), make_row(4, 4, 4), make_row(1, 1, 1), make_row(2, 2, 2)]
+
+    @authors("gritukan")
+    def test_chunk_key_column_count_locks(self):
+        # Check whether shared lock is enough to append ordered chunks to unordered table.
+        create("table", "//tmp/t",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64"}])
+           })
+
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+
+        write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t", [{"a": 1}], tx=tx1)
+        write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t", [{"a": 2}], tx=tx2)
+
+        commit_transaction(tx=tx1)
+        commit_transaction(tx=tx2)
+
+        assert get("//tmp/t/@chunk_count") == 2
+        assert sorted(read_table("//tmp/t")) == [{"a": 1}, {"a": 2}]
+
+    @authors("gritukan")
+    def test_chunk_key_column_count_with_equal_keys(self):
+        def make_rows(values):
+            return [{"a": value} for value in values]
+
+        create("table", "//tmp/t1",
+           attributes={
+               "schema": make_schema(
+                   [
+                       {"name": "a", "type": "int64", "sort_order": "ascending"},
+                   ],
+                   unique_keys=True)
+           })
+
+        create("table", "//tmp/t2",
+           attributes={
+               "schema": make_schema(
+                   [
+                       {"name": "a", "type": "int64", "sort_order": "ascending"},
+                   ],
+                   unique_keys=False)
+           })
+
+        with raises_yt_error(UniqueKeyViolation):
+            write_table("<chunk_key_column_count=1;append=true>//tmp/t1", make_rows([1, 2, 2, 3]))
+
+        write_table("<chunk_key_column_count=1;append=true>//tmp/t2", make_rows([1, 2, 2, 3]))
+        write_table("<chunk_key_column_count=1;append=true>//tmp/t2", make_rows([3, 4, 4, 5]))
+
+        assert read_table("//tmp/t2") == make_rows([1, 2, 2, 3, 3, 4, 4, 5])
+
+    @authors("gritukan")
+    def test_chunk_unique_keys(self):
+        def make_rows(values):
+            return [{"a": value} for value in values]
+
+        create("table", "//tmp/t1",
+           attributes={
+               "schema": make_schema(
+                   [
+                       {"name": "a", "type": "int64", "sort_order": "ascending"},
+                   ],
+                   unique_keys=True)
+           })
+        create("table", "//tmp/t2",
+           attributes={
+               "schema": make_schema(
+                   [
+                       {"name": "a", "type": "int64", "sort_order": "ascending"}
+                   ],
+                   unique_keys=False)
+           })
+        create("table", "//tmp/t3",
+           attributes={
+               "schema": make_schema([{"name": "a", "type": "int64"}])
+           })
+
+        # Write simple chunk.
+        write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t1", make_rows([1]))
+        write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t2", make_rows([1]))
+        write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t3", make_rows([1]))
+
+        # Keys inside chunks are unique, but resulting table has two same keys.
+        with raises_yt_error(UniqueKeyViolation):
+            write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t1", make_rows([1]))
+        write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t2", make_rows([1]))
+        write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t3", make_rows([1]))
+
+        # Keys inside chunks are not unique.
+        with raises_yt_error(UniqueKeyViolation):
+            write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t1", make_rows([2, 2]))
+        with raises_yt_error(UniqueKeyViolation):
+            write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t2", make_rows([2, 2]))
+        with raises_yt_error(UniqueKeyViolation):
+            write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t3", make_rows([2, 2]))
+
+        # `key_column_count' infers from table schema.
+        write_table("<chunk_unique_keys=true;append=true>//tmp/t1", make_rows([3]))
+        write_table("<chunk_unique_keys=true;append=true>//tmp/t2", make_rows([3]))
+        with raises_yt_error(InvalidSchemaValue):
+            write_table("<chunk_unique_keys=true;append=true>//tmp/t3", make_rows([3]))
+
+        # Keys are not ordered between chunks.
+        with raises_yt_error(SortOrderViolation):
+            write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t1", make_rows([0]))
+        with raises_yt_error(SortOrderViolation):
+            write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t2", make_rows([0]))
+        write_table("<chunk_key_column_count=1;chunk_unique_keys=true;append=true>//tmp/t3", make_rows([0]))
+
+        # Do not check unique keys inside chunk.
+        with raises_yt_error(SchemaViolation):
+            write_table("<chunk_key_column_count=1;chunk_unique_keys=false;append=true>//tmp/t1", make_rows([4, 4]))
+        write_table("<chunk_key_column_count=1;chunk_unique_keys=false;append=true>//tmp/t2", make_rows([4, 4]))
+        write_table("<chunk_key_column_count=1;chunk_unique_keys=false;append=true>//tmp/t3", make_rows([4, 4]))
+
+        assert read_table("//tmp/t1") == make_rows([1, 3])
+        assert read_table("//tmp/t2") == make_rows([1, 1, 3, 4, 4])
+        assert read_table("//tmp/t3") == make_rows([1, 1, 0, 4, 4])
 
 ##################################################################
 

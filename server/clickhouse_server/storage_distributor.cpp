@@ -288,7 +288,7 @@ public:
             int firstSubqueryIndex = index * Subqueries_.size() / subqueryCount;
             int lastSubqueryIndex = (index + 1) * Subqueries_.size() / subqueryCount;
 
-            auto threadSubqueries = MakeRange(Subqueries_.begin() + firstSubqueryIndex, Subqueries_.begin() + lastSubqueryIndex);
+            auto threadSubqueries = MakeRange(Subqueries_.data() + firstSubqueryIndex, Subqueries_.data() + lastSubqueryIndex);
 
             YT_LOG_DEBUG("Preparing subquery (SubqueryIndex: %v, ThreadSubqueryCount: %v)",
                 index,

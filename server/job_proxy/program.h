@@ -57,6 +57,9 @@ protected:
         NYTAlloc::ConfigureFromEnv();
         NYTAlloc::SetLibunwindBacktraceProvider();
 
+        // Make RSS predictable.
+        NYTAlloc::SetEnableEagerMemoryRelease(true);
+
         try {
             SafeCreateStderrFile("stderr");
         } catch (const std::exception& ex) {

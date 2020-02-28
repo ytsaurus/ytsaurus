@@ -118,15 +118,19 @@ std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryConte
         const auto& path = richPaths[index];
         const auto& attrOrError = attributeOrErrors[index];
 
-        if (!attrOrError.IsOK()) {
+        if (attrOrError.IsOK()) {
+            if (ConvertTo<NObjectClient::EObjectType>(attrOrError.Value().at("type")) == NObjectClient::EObjectType::Table &&
+                ConvertTo<bool>(attrOrError.Value().at("dynamic")) == false)
+            {
+                tables.emplace_back(std::make_shared<TClickHouseTable>(path,
+                    AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attrOrError.Value().at("schema")))));
+            }
+        } else {
             // We intentionally skip missing tables.
             if (!attrOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 errors.emplace_back(attrOrError
                     << TErrorAttribute("path", path));
             }
-        } else if (ConvertTo<NObjectClient::EObjectType>(attrOrError.Value().at("type")) == NObjectClient::EObjectType::Table) {
-            tables.emplace_back(std::make_shared<TClickHouseTable>(path,
-                AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attrOrError.Value().at("schema")))));
         }
     }
     if (!errors.empty()) {
@@ -234,6 +238,7 @@ public:
         options.Attributes = {
             "type",
             "path",
+            "target_path",
             "dynamic",
         };
         options.SuppressAccessTracking = true;
@@ -245,30 +250,25 @@ public:
         std::vector<TRichYPath> tablePaths;
         for (const auto& child : itemList->GetChildren()) {
             const auto& attributes = child->Attributes();
-            if (attributes.Get<NObjectClient::EObjectType>("type") == NObjectClient::EObjectType::Table &&
-                attributes.Get<bool>("dynamic") == false)
-            {
-                auto richPath = TRichYPath(attributes.Get<TYPath>("path"), directory.Attributes());
-                tablePaths.emplace_back(richPath);
+            auto path = attributes.Get<TYPath>("path");
+            if (IsPathAllowed(path, arguments, context)) {
+                if (attributes.Get<NObjectClient::EObjectType>("type") == NObjectClient::EObjectType::Link) {
+                    path = attributes.Get<TYPath>("target_path");
+                }
+                tablePaths.emplace_back(path, directory.Attributes());
             }
         }
-
-        YT_LOG_INFO("Tables listed (ItemCount: %v, TableCount: %v)", itemList->GetChildCount(), tablePaths.size());
 
         std::sort(tablePaths.begin(), tablePaths.end(), [] (const auto& lhs, const auto& rhs) {
             return lhs.GetPath() < rhs.GetPath();
         });
 
-        tablePaths = FilterTables(tablePaths, arguments, context);
-
-        auto tables = FetchClickHouseTables(queryContext, tablePaths);
-
-        return CreateStorage(std::move(tables), context);
+        return CreateStorage(FetchClickHouseTables(queryContext, std::move(tablePaths)), context);
     }
 
 protected:
-    virtual std::vector<TRichYPath> FilterTables(
-        const std::vector<TRichYPath>& tablePaths,
+    virtual bool IsPathAllowed(
+        const TYPath& path,
         TArguments& arguments,
         const Context& context) const = 0;
 
@@ -319,43 +319,26 @@ public:
     }
 
 private:
-    std::vector<TRichYPath> FilterTables(
-        const std::vector<TRichYPath>& tablePaths,
+    bool IsPathAllowed(
+        const TYPath& path,
         TArguments& arguments,
         const Context& context) const override
     {
-        const size_t argumentCount = arguments.size();
-
-        if (argumentCount == 1) {
-            // All tables in directory
-            return tablePaths;
-        }
-
-        std::vector<TRichYPath> result;
-
-        if (argumentCount == 2) {
-            // [from, ...)
+        if (arguments.size() == 1) {
+            return true;
+        } else if (arguments.size() == 2) {
             auto from = TString(EvaluateArgument<std::string>(arguments[1], context));
-
-            std::copy_if(tablePaths.begin(), tablePaths.end(), std::back_inserter(result), [&] (const auto& name) {
-                return BaseName(name.GetPath()) >= from;
-            });
-        } else if (argumentCount == 3) {
-            // [from, to] name range
+            return BaseName(path) >= from;
+        } else if (arguments.size() == 3) {
             auto from = TString(EvaluateArgument<std::string>(arguments[1], context));
             auto to = TString(EvaluateArgument<std::string>(arguments[2], context));
-
-            std::copy_if(tablePaths.begin(), tablePaths.end(), std::back_inserter(result), [&] (const auto& name) {
-                return BaseName(name.GetPath()) >= from && BaseName(name.GetPath()) <= to;
-            });
+            return BaseName(path) >= from && BaseName(path) <= to;
         } else {
             throw Exception(
                 "Too may arguments: "
                 "expected 1, 2 or 3, provided: " + std::to_string(arguments.size()),
                 ErrorCodes::TOO_MANY_ARGUMENTS_FOR_FUNCTION);
         }
-
-        return result;
     }
 };
 
@@ -380,25 +363,22 @@ public:
     }
 
 private:
-    std::vector<TRichYPath> FilterTables(
-        const std::vector<TRichYPath>& tablePaths,
+    mutable std::unique_ptr<OptimizedRegularExpression> Matcher_;
+
+    bool IsPathAllowed(
+        const TYPath& path,
         TArguments& arguments,
         const Context& context) const override
     {
         // 1) directory, 2) regexp
         ValidateNumberOfArguments(arguments, 2);
 
-        const auto regexp = EvaluateArgument<std::string>(arguments[1], context);
+        if (!Matcher_) {
+            const auto regexp = EvaluateArgument<std::string>(arguments[1], context);
+            Matcher_ = std::make_unique<OptimizedRegularExpression>(std::move(regexp));
+        }
 
-        auto matcher = std::make_shared<OptimizedRegularExpression>(std::move(regexp));
-
-        std::vector<TRichYPath> result;
-
-        std::copy_if(tablePaths.begin(), tablePaths.end(), std::back_inserter(result), [&] (const auto& path) {
-            return matcher->match(BaseName(path.GetPath()));
-        });
-
-        return result;
+        return Matcher_->match(BaseName(path));
     }
 };
 
@@ -423,25 +403,22 @@ public:
     }
 
 private:
-    std::vector<TRichYPath> FilterTables(
-        const std::vector<TRichYPath>& tablePaths,
+    mutable std::unique_ptr<Poco::Glob> Matcher_;
+
+    bool IsPathAllowed(
+        const TYPath& path,
         TArguments& arguments,
         const Context& context) const override
     {
         // 1) directory 2) pattern
         ValidateNumberOfArguments(arguments, 2);
 
-        auto pattern = EvaluateArgument<std::string>(arguments[1], context);
+        if (!Matcher_) {
+            auto pattern = EvaluateArgument<std::string>(arguments[1], context);
+            Matcher_ = std::make_unique<Poco::Glob>(pattern);
+        }
 
-        auto matcher = std::make_shared<Poco::Glob>(pattern);
-
-        std::vector<TRichYPath> result;
-
-        std::copy_if(tablePaths.begin(), tablePaths.end(), std::back_inserter(result), [&] (const auto& path) {
-            return matcher->match(BaseName(path.GetPath()));
-        });
-
-        return result;
+        return Matcher_->match(BaseName(path));
     }
 };
 

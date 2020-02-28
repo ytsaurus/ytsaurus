@@ -54,11 +54,6 @@ public:
 private:
     using TBase = TCellBundleTypeHandlerBase<TTabletCellBundle>;
 
-    virtual TString DoGetName(const TTabletCellBundle* cellBundle) override
-    {
-        return Format("tablet cell bundle %Qv", cellBundle->GetName());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TTabletCellBundle* cellBundle, TTransaction* /*transaction*/) override
     {
         return CreateTabletCellBundleProxy(Bootstrap_, &Metadata_, cellBundle);

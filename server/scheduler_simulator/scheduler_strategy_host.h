@@ -62,6 +62,8 @@ public:
 
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
 
+    virtual const NLogging::TLogger* GetEventLogger() override;
+
     NEventLog::TFluentLogEvent LogFinishedJobFluently(NScheduler::ELogEventType eventType, NScheduler::TJobPtr job);
 
     virtual void SetSchedulerAlert(NScheduler::ESchedulerAlertType alertType, const TError& alert) override;

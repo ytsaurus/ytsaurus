@@ -29,14 +29,20 @@ TColumnarChunkReaderBase::TColumnarChunkReaderBase(
     TChunkReaderConfigPtr config,
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
-    const TClientBlockReadOptions& blockReadOptions)
+    const TClientBlockReadOptions& blockReadOptions,
+    const TChunkReaderMemoryManagerPtr& memoryManager)
     : ChunkMeta_(std::move(chunkMeta))
     , Config_(std::move(config))
     , UnderlyingReader_(std::move(underlyingReader))
     , BlockCache_(std::move(blockCache))
     , BlockReadOptions_(blockReadOptions)
-    , MemoryManager_(New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize)))
-{ }
+{
+    if (memoryManager) {
+        MemoryManager_ = memoryManager;
+    } else {
+        MemoryManager_ = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
+    }
+}
 
 TDataStatistics TColumnarChunkReaderBase::GetDataStatistics() const
 {

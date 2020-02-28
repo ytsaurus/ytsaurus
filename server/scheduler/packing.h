@@ -53,8 +53,11 @@ public:
     void RecordHeartbeat(
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TFairShareStrategyPackingConfigPtr& config);
+
+    // NB(antonkikh): the template is for compatibility with the classic scheduler.
+    template <class TAnyOperationElement>
     bool CheckPacking(
-        const TOperationElement* operationElement,
+        const TAnyOperationElement* operationElement,
         const TPackingHeartbeatSnapshot& heartbeatSnapshot,
         const TJobResourcesWithQuota& jobResourcesWithQuota,
         const TJobResources& totalResourceLimits,

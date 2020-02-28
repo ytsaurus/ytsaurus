@@ -29,10 +29,17 @@ TSchedulerPool::TSchedulerPool(TObjectId id, bool isRoot)
     , FullConfig_(New<NScheduler::TPoolConfig>())
 { }
 
-TString TSchedulerPool::GetObjectName() const
+TString TSchedulerPool::GetLowercaseObjectName() const
 {
     return IsRoot()
-        ? MaybePoolTree_->GetObjectName()
+        ? MaybePoolTree_->GetLowercaseObjectName()
+        : Format("scheduler pool %Qv", GetName());
+}
+
+TString TSchedulerPool::GetCapitalizedObjectName() const
+{
+    return IsRoot()
+        ? MaybePoolTree_->GetCapitalizedObjectName()
         : Format("Scheduler pool %Qv", GetName());
 }
 
@@ -136,7 +143,12 @@ TSchedulerPoolTree::TSchedulerPoolTree(NCypressClient::TObjectId id)
     , FullConfig_(New<TFairShareStrategyTreeConfig>())
 { }
 
-TString TSchedulerPoolTree::GetObjectName() const
+TString TSchedulerPoolTree::GetLowercaseObjectName() const
+{
+    return Format("scheduler pool tree %Qv", TreeName_);
+}
+
+TString TSchedulerPoolTree::GetCapitalizedObjectName() const
 {
     return Format("Scheduler pool tree %Qv", TreeName_);
 }

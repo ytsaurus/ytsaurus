@@ -490,3 +490,34 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
 
 ##################################################################
 
+class TestOperationNodeBan(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 5
+
+    @authors("babenko")
+    def test_ban_nodes_with_failed_jobs(self):
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", [{"foo": i} for i in range(4)])
+
+        create("table", "//tmp/t2")
+
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="exit 1",
+            spec={
+                "resource_limits": {
+                    "cpu": 1
+                },
+                "max_failed_job_count": 3,
+                "ban_nodes_with_failed_jobs": True
+            })
+
+        with pytest.raises(YtError):
+            op.track()
+
+        jobs = ls(op.get_path() + "/jobs", attributes=["state", "address"])
+        assert all(job.attributes["state"] == "failed" for job in jobs)
+        assert len(__builtin__.set(job.attributes["address"] for job in jobs)) == 3
+

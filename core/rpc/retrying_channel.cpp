@@ -27,10 +27,10 @@ public:
     TRetryingChannel(
         TRetryingChannelConfigPtr config,
         IChannelPtr underlyingChannel,
-        TCallback<bool(const TError&)> isRetriableError)
+        TRetryChecker retryChecker)
         : TChannelWrapper(std::move(underlyingChannel))
         , Config_(std::move(config))
-        , IsRetriableError_(isRetriableError)
+        , RetryChecker_(std::move(retryChecker))
     {
         YT_VERIFY(Config_);
     }
@@ -49,14 +49,14 @@ public:
             std::move(request),
             std::move(responseHandler),
             options,
-            IsRetriableError_)
+            RetryChecker_)
         ->Send();
     }
 
 
 private:
     const TRetryingChannelConfigPtr Config_;
-    const TCallback<bool(const TError&)> IsRetriableError_;
+    const TCallback<bool(const TError&)> RetryChecker_;
 
 
     class TRetryingRequest
@@ -69,13 +69,13 @@ private:
             IClientRequestPtr request,
             IClientResponseHandlerPtr responseHandler,
             const TSendOptions& options,
-            TCallback<bool(const TError&)> isRetriableError)
+            TCallback<bool(const TError&)> retryChecker)
             : Config_(std::move(config))
             , UnderlyingChannel_(std::move(underlyingChannel))
             , Request_(std::move(request))
             , ResponseHandler_(std::move(responseHandler))
             , Options_(options)
-            , IsRetriableError_(std::move(isRetriableError))
+            , RetryChecker_(std::move(retryChecker))
         {
             YT_ASSERT(Config_);
             YT_ASSERT(UnderlyingChannel_);
@@ -174,7 +174,7 @@ private:
         const IClientRequestPtr Request_;
         const IClientResponseHandlerPtr ResponseHandler_;
         const TSendOptions Options_;
-        const TCallback<bool(const TError&)> IsRetriableError_;
+        const TCallback<bool(const TError&)> RetryChecker_;
         const TRetryingRequestControlThunkPtr RequestControlThunk_ = New<TRetryingRequestControlThunk>();
 
         //! The current attempt number (1-based).
@@ -199,7 +199,7 @@ private:
                 CurrentAttempt_,
                 Config_->RetryAttempts);
 
-            if (!IsRetriableError_.Run(error)) {
+            if (!RetryChecker_.Run(error)) {
                 ResponseHandler_->HandleError(error);
                 return;
             }
@@ -299,9 +299,13 @@ private:
 IChannelPtr CreateRetryingChannel(
     TRetryingChannelConfigPtr config,
     IChannelPtr underlyingChannel,
-    TCallback<bool(const TError&)> isRetriableError)
+    TCallback<bool(const TError&)> retryChecker)
 {
-    return New<TRetryingChannel>(config, underlyingChannel, isRetriableError);
+    static const auto DefaultRetryChecker = BIND(&IsRetriableError);
+    return New<TRetryingChannel>(
+        std::move(config),
+        std::move(underlyingChannel),
+        retryChecker ? retryChecker : DefaultRetryChecker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

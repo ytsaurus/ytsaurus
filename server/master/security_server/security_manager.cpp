@@ -27,6 +27,8 @@
 #include <yt/server/master/cypress_server/node.h>
 #include <yt/server/master/cypress_server/cypress_manager.h>
 
+#include <yt/server/master/tablet_server/tablet.h>
+
 #include <yt/server/lib/hydra/composite_automaton.h>
 #include <yt/server/lib/hydra/entity_map.h>
 
@@ -156,11 +158,6 @@ private:
 
     TImpl* const Owner_;
 
-    virtual TString DoGetName(const TAccount* account) override
-    {
-        return Format("account %Qv", account->GetName());
-    }
-
     virtual std::optional<int> GetDepthLimit() const override
     {
         return AccountTreeDepthLimit;
@@ -206,11 +203,6 @@ public:
 private:
     TImpl* const Owner_;
 
-    virtual TString DoGetName(const TUser* user) override
-    {
-        return Format("user %Qv", user->GetName());
-    }
-
     virtual TAccessControlDescriptor* DoFindAcd(TUser* user) override
     {
         return &user->Acd();
@@ -255,11 +247,6 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual TString DoGetName(const TGroup* group) override
-    {
-        return Format("group %Qv", group->GetName());
-    }
-
     virtual TAccessControlDescriptor* DoFindAcd(TGroup* group) override
     {
         return &group->Acd();
@@ -300,11 +287,6 @@ public:
 
 private:
     TImpl* const Owner_;
-
-    virtual TString DoGetName(const TNetworkProject* networkProject) override
-    {
-        return Format("network project %Qv", networkProject->GetName());
-    }
 
     virtual IObjectProxyPtr DoGetProxy(TNetworkProject* networkProject, TTransaction* transaction) override;
     virtual void DoZombifyObject(TNetworkProject* networkProject) override;
@@ -362,6 +344,7 @@ public:
 
         RegisterMethod(BIND(&TImpl::HydraSetAccountStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRecomputeMembershipClosure, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateAccountMasterMemoryUsage, Unretained(this)));
     }
 
     void Initialize()
@@ -587,7 +570,8 @@ public:
             chunk,
             requisition,
             delta,
-            [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, bool committed) {
+            [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 masterMemoryUsage, bool committed) {
+                account->SetMasterMemoryUsage(account->GetMasterMemoryUsage() + masterMemoryUsage);
                 doCharge(&account->ClusterStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 doCharge(&account->LocalStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 if (committed) {
@@ -608,7 +592,7 @@ public:
         auto* stagingTransaction = chunk->GetStagingTransaction();
         auto* stagingAccount = chunk->GetStagingAccount();
 
-        auto chargeTransaction = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, bool /*committed*/) {
+        auto chargeTransaction = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 /*masterMemoryUsage*/, bool /*committed*/) {
             // If a chunk has been created before the migration but is being confirmed after it,
             // charge it to the staging account anyway: it's ok, because transaction resource usage accounting
             // isn't really delta-based, and it's nicer from the user's point of view.
@@ -622,6 +606,39 @@ public:
         };
 
         ComputeChunkResourceDelta(chunk, requisition, delta, chargeTransaction);
+    }
+
+    void ResetMasterMemoryUsage(TCypressNode* node)
+    {
+        ChargeMasterMemoryUsage(node, 0);
+    }
+
+    void UpdateMasterMemoryUsage(TCypressNode* node)
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& typeHandler = cypressManager->GetHandler(node);
+        ChargeMasterMemoryUsage(node, node->GetMasterMemoryUsage() + typeHandler->GetStaticMasterMemoryUsage());
+    }
+
+    void ChargeMasterMemoryUsage(TCypressNode* node, i64 currentMasterMemoryUsage)
+    {
+        auto* account = node->GetAccount();
+        if (!account) {
+            return;
+        }
+
+        auto delta = currentMasterMemoryUsage - node->GetChargedMasterMemoryUsage();
+        YT_LOG_TRACE_UNLESS(IsRecovery(), "Updating master memory usage (Account: %v, MasterMemoryUsage: %v, Delta: %v)",
+            account->GetName(),
+            account->GetMasterMemoryUsage(),
+            delta);
+        account->SetMasterMemoryUsage(account->GetMasterMemoryUsage() + delta);
+        if (account->GetMasterMemoryUsage() < 0) {
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Master memory usage is negative (MasterMemoryUsage: %v, Account: %v)",
+                account->GetMasterMemoryUsage(),
+                account->GetName());
+        }
+        node->SetChargedMasterMemoryUsage(currentMasterMemoryUsage);
     }
 
     void ResetTransactionAccountResourceUsage(TTransaction* transaction)
@@ -678,6 +695,7 @@ public:
                 cypressManager->UpdateShardNodeCount(shard, oldAccount, -1);
             }
             UpdateAccountNodeCountUsage(node, oldAccount, nullptr, -1);
+            ResetMasterMemoryUsage(node);
             objectManager->UnrefObject(oldAccount);
         }
 
@@ -686,8 +704,8 @@ public:
         }
         UpdateAccountNodeCountUsage(node, newAccount, transaction, +1);
         node->SetAccount(newAccount);
+        UpdateMasterMemoryUsage(node);
         objectManager->RefObject(newAccount);
-
         UpdateAccountTabletResourceUsage(node, oldAccount, true, newAccount, !transaction);
     }
 
@@ -698,6 +716,7 @@ public:
             return;
         }
 
+        ResetMasterMemoryUsage(node);
         node->SetAccount(nullptr);
 
         UpdateAccountNodeCountUsage(node, account, node->GetTransaction(), -1);
@@ -1499,6 +1518,8 @@ public:
                 << TErrorAttribute("limit", limit);
         };
 
+        const auto& dynamicConfig = GetDynamicConfig();
+
         for (; account; account = account->GetParent()) {
             const auto& usage = account->ClusterStatistics().ResourceUsage;
             const auto& committedUsage = account->ClusterStatistics().CommittedResourceUsage;
@@ -1531,6 +1552,11 @@ public:
             }
             if (delta.TabletStaticMemory > 0 && usage.TabletStaticMemory + delta.TabletStaticMemory > limits.TabletStaticMemory) {
                 throwOverdraftError("tablet static memory", account, usage.TabletStaticMemory, limits.TabletStaticMemory);
+            }
+            if (dynamicConfig->EnableMasterMemoryUsageValidation && delta.MasterMemoryUsage > 0 &&
+                usage.MasterMemoryUsage + delta.MasterMemoryUsage > limits.MasterMemoryUsage)
+            {
+                throwOverdraftError("master memory usage", account, usage.MasterMemoryUsage, limits.MasterMemoryUsage);
             }
         }
 
@@ -1688,6 +1714,7 @@ private:
     TPeriodicExecutorPtr AccountStatisticsGossipExecutor_;
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr MembershipClosureRecomputeExecutor_;
+    TPeriodicExecutorPtr AccountMasterMemoryUsageUpdateExecutor_;
 
     NHydra::TEntityMap<TAccount> AccountMap_;
     THashMap<TString, TAccount*> AccountNameMap_;
@@ -1776,6 +1803,9 @@ private:
     // COMPAT(kiselyovp)
     bool MustInitializeAccountHierarchy_ = false;
 
+    // COMPAT(aleksandra-zh)
+    bool MustInitializeMasterMemoryLimits_ = false;
+
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
     {
         auto isErasure = erasureCodec != NErasure::ECodec::None;
@@ -1814,6 +1844,7 @@ private:
         const TAccount* lastAccount = nullptr;
         auto lastMediumIndex = InvalidMediumIndex;
         i64 lastDiskSpace = 0;
+        auto masterMemoryUsage = delta * chunk->GetMasterMemoryUsage();
 
         for (const auto& entry : requisition) {
             auto* account = entry.Account;
@@ -1847,7 +1878,7 @@ private:
             ChargeAccountAncestry(
                 account,
                 [&] (TAccount* account) {
-                    doCharge(account, mediumIndex, chunkCount, diskSpace, entry.Committed);
+                    doCharge(account, mediumIndex, chunkCount, diskSpace, masterMemoryUsage, entry.Committed);
                 });
 
             lastAccount = account;
@@ -1860,6 +1891,7 @@ private:
     TAccount* DoCreateAccount(TAccountId id)
     {
         auto accountHolder = std::make_unique<TAccount>(id, id == RootAccountId_);
+
         auto* account = AccountMap_.Insert(id, std::move(accountHolder));
 
         InitializeAccountStatistics(account);
@@ -2082,6 +2114,9 @@ private:
 
         // COMPAT(kiselyovp)
         MustInitializeAccountHierarchy_ = context.GetVersion() < EMasterReign::HierarchicalAccounts;
+
+        // COMPAT(aleksandra-zh)
+        MustInitializeMasterMemoryLimits_ = context.GetVersion() < EMasterReign::InitializeAccountMasterMemoryUsage;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2189,8 +2224,23 @@ private:
             }
         }
 
+        // Leads to overcommit in hierarchical accounts!
+        if (MustInitializeMasterMemoryLimits_) {
+            for (auto [accountId, account] : AccountMap_) {
+                if (!IsObjectAlive(account)) {
+                    continue;
+                }
+
+                auto resourceLimits = account->ClusterResourceLimits();
+                resourceLimits.MasterMemoryUsage = 100_GB;
+
+                TrySetResourceLimits(account, resourceLimits);
+            }
+        }
         // COMPAT(shakurov)
         RecomputeAccountResourceUsage();
+
+        RecomputeAccountMasterMemoryUsage();
     }
 
     void RecomputeAccountResourceUsage()
@@ -2232,7 +2282,7 @@ private:
             }
         }
 
-        auto chargeStatMap = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, bool committed) {
+        auto chargeStatMap = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 /*masterMemoryUsage*/, bool committed) {
             auto& stat = statMap[account];
             stat.NodeUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
             stat.NodeUsage.ChunkCount += chunkCount;
@@ -2304,7 +2354,7 @@ private:
                         expectedCommittedUsage);
                 }
             }
-            if (RecomputeAccountResourceUsage_) {
+            if (RecomputeAccountResourceUsage_) {;
                 actualUsage = expectedUsage;
                 actualCommittedUsage = expectedCommittedUsage;
 
@@ -2314,6 +2364,58 @@ private:
                 }
             }
         }
+    }
+
+    void RecomputeAccountMasterMemoryUsage()
+    {
+        YT_LOG_INFO("Started recomputing account master memory usage");
+
+        for (auto [id, account] : AccountMap_) {
+            if (!IsObjectAlive(account)) {
+                continue;
+            }
+            account->SetMasterMemoryUsage(0);
+        }
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        for (auto [nodeId, node] : cypressManager->Nodes()) {
+            if (node->IsDestroyed()) {
+                continue;
+            }
+
+            if (IsTableType(node->GetType()) && node->IsTrunk()) {
+                auto* table = node->As<TTableNode>();
+                table->RecomputeTabletMasterMemoryUsage();
+            }
+            UpdateMasterMemoryUsage(node);
+        }
+
+        auto chargeAccount = [&] (TAccount* account, int /*mediumIndex*/, i64 /*chunkCount*/, i64 /*diskSpace*/, i64 masterMemoryUsage, bool /*committed*/) {
+            account->SetMasterMemoryUsage(account->GetMasterMemoryUsage() + masterMemoryUsage);
+        };
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        const auto* requisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+
+        for (auto [chunkId, chunk] : chunkManager->Chunks()) {
+            // NB: zombie chunks are still accounted.
+            if (chunk->IsDestroyed()) {
+                continue;
+            }
+
+            if (chunk->IsForeign()) {
+                continue;
+            }
+
+            if (!chunk->IsDiskSizeFinal()) {
+                continue;
+            }
+
+            auto requisition = chunk->GetAggregatedRequisition(requisitionRegistry);
+            ComputeChunkResourceDelta(chunk, requisition, +1, chargeAccount);
+        }
+
+        YT_LOG_INFO("Finished recomputing account master memory usage");
     }
 
     virtual void Clear() override
@@ -2512,52 +2614,49 @@ private:
             RootAccount_->ClusterResourceLimits() = TClusterResources::Infinite();
         }
 
-        // sys, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks, 100 000 tablets, 10TB tablet static memory, allowed for: root
+        auto defaultResources = TClusterResources()
+            .SetNodeCount(100000)
+            .SetChunkCount(1000000000)
+            .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB)
+            .SetMasterMemoryUsage(100_GB);
+
+        // sys, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks, 100 000 tablets, 10TB tablet static memory, 100_GB master memory allowed for: root
         if (EnsureBuiltinAccountInitialized(SysAccount_, SysAccountId_, SysAccountName)) {
-            auto resourceLimits = TClusterResources()
-                .SetNodeCount(100000)
-                .SetChunkCount(1000000000)
-                .SetTabletCount(100000)
-                .SetTabletStaticMemory(10_TB)
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
+            auto resourceLimits = defaultResources;
+            resourceLimits.TabletCount = 100000;
+            resourceLimits.TabletStaticMemory = 10_TB;
             TrySetResourceLimits(SysAccount_, resourceLimits);
+
             SysAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 RootUser_,
                 EPermission::Use));
         }
 
-        // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks allowed for: users
+        // tmp, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks, 100_GB master memory, allowed for: users
         if (EnsureBuiltinAccountInitialized(TmpAccount_, TmpAccountId_, TmpAccountName)) {
-            auto resourceLimits = TClusterResources()
-                .SetNodeCount(100000)
-                .SetChunkCount(1000000000)
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
-            TrySetResourceLimits(TmpAccount_, resourceLimits);
+            TrySetResourceLimits(TmpAccount_, defaultResources);
             TmpAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
                 EPermission::Use));
         }
 
-        // intermediate, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks allowed for: users
+        // intermediate, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks, 100_GB master memory allowed for: users
         if (EnsureBuiltinAccountInitialized(IntermediateAccount_, IntermediateAccountId_, IntermediateAccountName)) {
-            auto resourceLimits = TClusterResources()
-                .SetNodeCount(100000)
-                .SetChunkCount(1000000000)
-                .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB);
-            TrySetResourceLimits(IntermediateAccount_, resourceLimits);
+            TrySetResourceLimits(IntermediateAccount_, defaultResources);
             IntermediateAccount_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 UsersGroup_,
                 EPermission::Use));
         }
 
-        // chunk_wise_accounting_migration, maximum disk space, maximum nodes, maximum chunks allowed for: root
+        // chunk_wise_accounting_migration, maximum disk space, maximum nodes, maximum chunks, 100_GB master memory allowed for: root
         if (EnsureBuiltinAccountInitialized(ChunkWiseAccountingMigrationAccount_, ChunkWiseAccountingMigrationAccountId_, ChunkWiseAccountingMigrationAccountName)) {
             auto resourceLimits = TClusterResources()
                 .SetNodeCount(std::numeric_limits<int>::max())
                 .SetChunkCount(std::numeric_limits<int>::max())
+                .SetMasterMemoryUsage(100_GB)
                 .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, std::numeric_limits<i64>::max() / 4);
             TrySetResourceLimits(ChunkWiseAccountingMigrationAccount_, resourceLimits);
             ChunkWiseAccountingMigrationAccount_->Acd().AddEntry(TAccessControlEntry(
@@ -2644,6 +2743,11 @@ private:
             BIND(&TImpl::OnRecomputeMembershipClosure, MakeWeak(this)));
         MembershipClosureRecomputeExecutor_->Start();
 
+        AccountMasterMemoryUsageUpdateExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::SecurityManager),
+            BIND(&TImpl::CommitAccountMasterMemoryUsage, MakeWeak(this)));
+        AccountMasterMemoryUsageUpdateExecutor_->Start();
+
         OnDynamicConfigChanged();
     }
 
@@ -2662,6 +2766,11 @@ private:
             MembershipClosureRecomputeExecutor_->Stop();
             MembershipClosureRecomputeExecutor_.Reset();
         }
+
+        if (AccountMasterMemoryUsageUpdateExecutor_) {
+            AccountMasterMemoryUsageUpdateExecutor_->Stop();
+            AccountMasterMemoryUsageUpdateExecutor_.Reset();
+        }
     }
 
     virtual void OnStopFollowing() override
@@ -2669,6 +2778,30 @@ private:
         TMasterAutomatonPart::OnStopFollowing();
 
         RequestTracker_->Stop();
+    }
+
+
+    void CommitAccountMasterMemoryUsage()
+    {
+        NProto::TReqUpdateAccountMasterMemoryUsage request;
+        for (auto [id, account] : AccountMap_) {
+            if (!IsObjectAlive(account)) {
+                continue;
+            }
+
+            const auto& resources = account->LocalStatistics().ResourceUsage;
+
+            auto newMemoryUsage = account->GetMasterMemoryUsage();
+            if (newMemoryUsage == resources.MasterMemoryUsage) {
+                continue;
+            }
+
+            auto* entry = request.add_entries();
+            ToProto(entry->mutable_account_id(), account->GetId());
+            entry->set_master_memory_usage(newMemoryUsage);
+        }
+        CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
+            ->CommitAndLog(Logger);
     }
 
 
@@ -2688,6 +2821,7 @@ private:
         }
 
         account->SetLocalStatisticsPtr(&multicellStatistics[cellTag]);
+        account->SetMasterMemoryUsage(multicellStatistics[cellTag].ResourceUsage.MasterMemoryUsage);
     }
 
     void OnAccountStatisticsGossip()
@@ -2757,6 +2891,26 @@ private:
     {
         if (MustRecomputeMembershipClosure_) {
             DoRecomputeMembershipClosure();
+        }
+    }
+
+    void HydraUpdateAccountMasterMemoryUsage(NProto::TReqUpdateAccountMasterMemoryUsage* request)
+    {
+        for (const auto& entry : request->entries()) {
+            auto accountId = FromProto<TAccountId>(entry.account_id());
+            auto* account = FindAccount(accountId);
+
+            if (!IsObjectAlive(account)) {
+                continue;
+            }
+
+            auto masterMemoryUsage = entry.master_memory_usage();
+
+            account->ClusterStatistics().ResourceUsage.MasterMemoryUsage = masterMemoryUsage;
+            account->LocalStatistics().ResourceUsage.MasterMemoryUsage = masterMemoryUsage;
+
+            account->ClusterStatistics().CommittedResourceUsage.MasterMemoryUsage = masterMemoryUsage;
+            account->LocalStatistics().CommittedResourceUsage.MasterMemoryUsage = masterMemoryUsage;
         }
     }
 
@@ -3131,6 +3285,10 @@ private:
         if (MembershipClosureRecomputeExecutor_) {
             MembershipClosureRecomputeExecutor_->SetPeriod(GetDynamicConfig()->MembershipClosureRecomputePeriod);
         }
+
+        if (AccountMasterMemoryUsageUpdateExecutor_) {
+            AccountMasterMemoryUsageUpdateExecutor_->SetPeriod(GetDynamicConfig()->AccountMasterMemoryUsageUpdatePeriod);
+        }
     }
 
 
@@ -3406,6 +3564,11 @@ void TSecurityManager::UpdateTabletResourceUsage(TCypressNode* node, const TClus
 void TSecurityManager::UpdateTransactionResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
 {
     Impl_->UpdateTransactionResourceUsage(chunk, requisition, delta);
+}
+
+void TSecurityManager::UpdateMasterMemoryUsage(NCypressServer::TCypressNode* node)
+{
+    Impl_->UpdateMasterMemoryUsage(node);
 }
 
 void TSecurityManager::ResetTransactionAccountResourceUsage(TTransaction* transaction)

@@ -91,10 +91,38 @@ private:
     THashSet<TTransaction::TImpl*> AliveTransactions_;
 
 
-    TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel, bool retry)
+    static TRetryChecker GetCommitRetryChecker()
     {
-        if (retry) {
-            channel = CreateRetryingChannel(Config_, std::move(channel));
+        static const auto Result = BIND(&IsRetriableError);
+        return Result;
+    }
+
+    static TRetryChecker GetAbortRetryChecker()
+    {
+        static const auto Result = BIND([] (const TError& error) {
+            return
+                IsRetriableError(error) ||
+                error.FindMatching(NTransactionClient::EErrorCode::InvalidTransactionState);
+        });
+        return Result;
+    }
+
+    static TRetryChecker GetPingRetryChecker()
+    {
+        static const auto Result = BIND(&IsRetriableError);
+        return Result;
+    }
+
+    static TRetryChecker GetCheckDownedParticipantsRetryChecker()
+    {
+        static const auto Result = BIND(&IsRetriableError);
+        return Result;
+    }
+
+    TTransactionSupervisorServiceProxy MakeSupervisorProxy(IChannelPtr channel, TRetryChecker retryChecker)
+    {
+        if (retryChecker) {
+            channel = CreateRetryingChannel(Config_, std::move(channel), std::move(retryChecker));
         }
         TTransactionSupervisorServiceProxy proxy(std::move(channel));
         proxy.SetDefaultTimeout(Config_->RpcTimeout);
@@ -777,7 +805,7 @@ private:
                 supervisorPrepareOnlyParticipantCellIds);
 
             auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(CoordinatorCellId_);
-            auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
+            auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCommitRetryChecker());
             auto req = proxy.CommitTransaction();
             req->SetUser(Owner_->User_);
             ToProto(req->mutable_transaction_id(), Id_);
@@ -850,7 +878,7 @@ private:
 
         YT_VERIFY(CoordinatorCellId_);
         auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(CoordinatorCellId_);
-        auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), true);
+        auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCheckDownedParticipantsRetryChecker());
         auto req = proxy.GetDownedParticipants();
         req->SetUser(Owner_->User_);
         ToProto(req->mutable_cell_ids(), participantIds);
@@ -925,7 +953,9 @@ private:
                 continue;
             }
 
-            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), options.EnableRetries);
+            auto proxy = Owner_->MakeSupervisorProxy(
+                std::move(channel),
+                options.EnableRetries ? Owner_->GetPingRetryChecker() : TRetryChecker());
             auto req = proxy.PingTransaction();
             req->SetUser(Owner_->User_);
             ToProto(req->mutable_transaction_id(), Id_);
@@ -1027,7 +1057,7 @@ private:
                 continue;
             }
 
-            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), true);
+            auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), Owner_->GetAbortRetryChecker());
             auto req = proxy.AbortTransaction();
             req->SetHeavy(true);
             req->SetUser(Owner_->User_);

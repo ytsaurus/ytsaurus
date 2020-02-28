@@ -61,11 +61,6 @@ private:
         return AllSecondaryCellTags();
     }
 
-    virtual TString DoGetName(const TRack* rack) override
-    {
-        return Format("rack %Qv", rack->GetName());
-    }
-
     virtual IObjectProxyPtr DoGetProxy(TRack* rack, TTransaction* transaction) override
     {
         return CreateRackProxy(Bootstrap_, &Metadata_, rack);

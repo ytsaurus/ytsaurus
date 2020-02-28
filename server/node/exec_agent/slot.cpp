@@ -23,6 +23,8 @@
 
 namespace NYT::NExecAgent {
 
+static NLogging::TLogger Logger("SlotLogger");
+
 using namespace NBus;
 using namespace NConcurrency;
 using namespace NDataNode;
@@ -40,14 +42,23 @@ public:
         TSlotLocationPtr location,
         IJobEnvironmentPtr environment,
         IVolumeManagerPtr volumeManager,
-        const TString& nodeTag)
+        const TString& nodeTag,
+        const std::optional<TString>& jobProxySocketNameDirectory)
         : SlotIndex_(slotIndex)
         , JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
         , VolumeManager_(std::move(volumeManager))
         , NodeTag_(nodeTag)
+        , JobProxyUnixDomainSocketPath_(GetJobProxyUnixDomainSocketPath())
     {
         Location_->IncreaseSessionCount();
+
+        if (jobProxySocketNameDirectory) {
+            auto filePath = Format("%v/%v", *jobProxySocketNameDirectory, JobEnvironment_->GetUserId(slotIndex));
+            TFile file(filePath, CreateAlways | WrOnly | Seq | CloseOnExec);
+            TUnbufferedFileOutput fileOutput(file);
+            fileOutput << JobProxyUnixDomainSocketPath_ << Endl;
+        }
     }
 
     virtual void CleanProcesses() override
@@ -169,14 +180,12 @@ public:
 
     virtual TTcpBusServerConfigPtr GetBusServerConfig() const override
     {
-        auto unixDomainName = Format("%v-job-proxy-%v", NodeTag_, SlotIndex_);
-        return TTcpBusServerConfig::CreateUnixDomain(unixDomainName);
+        return TTcpBusServerConfig::CreateUnixDomain(JobProxyUnixDomainSocketPath_);
     }
 
     virtual TTcpBusClientConfigPtr GetBusClientConfig() const override
     {
-        auto unixDomainName = GetJobProxyUnixDomainName(NodeTag_, SlotIndex_);
-        return TTcpBusClientConfig::CreateUnixDomain(unixDomainName);
+        return TTcpBusClientConfig::CreateUnixDomain(JobProxyUnixDomainSocketPath_);
     }
 
     virtual TFuture<std::vector<TString>> CreateSandboxDirectories(const TUserSandboxOptions& options)
@@ -217,6 +226,8 @@ private:
     std::vector<TFuture<void>> PreparationFutures_;
     bool PreparationCanceled_ = false;
 
+    const TString JobProxyUnixDomainSocketPath_;
+
     template <class T>
     TFuture<T> RunPrepareAction(std::function<TFuture<T>()> action, bool uncancelable = false)
     {
@@ -232,6 +243,14 @@ private:
             return future;
         }
     }
+
+    TString GetJobProxyUnixDomainSocketPath() const
+    {
+        return NFS::GetRealPath(NFS::CombinePaths({
+            Location_->GetSlotPath(SlotIndex_),
+            "pipes",
+            Format("%v-job-proxy-%v", NodeTag_, SlotIndex_)}));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -241,14 +260,16 @@ ISlotPtr CreateSlot(
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
-    const TString& nodeTag)
+    const TString& nodeTag,
+    const std::optional<TString>& jobProxySocketNameDirectory)
 {
     auto slot = New<TSlot>(
         slotIndex,
         std::move(location),
         std::move(environment),
         std::move(volumeManager),
-        nodeTag);
+        nodeTag,
+        jobProxySocketNameDirectory);
 
     return slot;
 }

@@ -47,7 +47,7 @@ struct ITaskHost
     // TODO(max42): split this function into purely controller part and task part.
     virtual void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
-        NScheduler::TUserJobSpecPtr config,
+        const NScheduler::TUserJobSpecPtr& config,
         const std::vector<TUserFile>& files,
         const TString& fileAccount) = 0;
     // TODO(max42): get rid of this; serialize files either in tasks or in controller.

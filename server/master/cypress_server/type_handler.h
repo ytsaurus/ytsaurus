@@ -46,6 +46,9 @@ struct INodeTypeHandler
     //! Returns the (static) node type.
     virtual NYTree::ENodeType GetNodeType() const = 0;
 
+    //! Returns static master memory usage.
+    virtual i64 GetStaticMasterMemoryUsage() const = 0;
+
     //! Create an empty instance of a node.
     //! Called during snapshot deserialization and node cloning.
     virtual std::unique_ptr<TCypressNode> Instantiate(

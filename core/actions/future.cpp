@@ -96,6 +96,11 @@ void TFutureStateBase::OnCanceled(TCancelHandler handler)
 
 bool TFutureStateBase::TimedWait(TDuration timeout) const
 {
+    return TimedWait(timeout.ToDeadLine());
+}
+
+bool TFutureStateBase::TimedWait(TInstant deadline) const
+{
     // Fast path.
     if (Set_ || AbandonedUnset_) {
         return true;
@@ -113,7 +118,7 @@ bool TFutureStateBase::TimedWait(TDuration timeout) const
         }
     }
 
-    return ReadyEvent_->Wait(timeout.ToDeadLine());
+    return ReadyEvent_->Wait(deadline);
 }
 
 void TFutureStateBase::InstallAbandonedError() const

@@ -49,10 +49,14 @@ public:
     // COMPAT(kiselyovp)
     DEFINE_BYVAL_RW_PROPERTY(TString, LegacyName);
 
+    //! Transient property.
+    DEFINE_BYVAL_RW_PROPERTY(i64, MasterMemoryUsage);
+
 public:
     explicit TAccount(TAccountId id, bool isRoot = false);
 
-    virtual TString GetObjectName() const override;
+    virtual TString GetLowercaseObjectName() const override;
+    virtual TString GetCapitalizedObjectName() const override;
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
@@ -68,21 +72,25 @@ public:
     //! i.e. no more disk space could be allocated.
     bool IsDiskSpaceLimitViolated(int mediumIndex) const;
 
-    //! Returns |true| is node count limit is exceeded,
+    //! Returns |true| if node count limit is exceeded,
     //! i.e. no more Cypress node could be created.
     bool IsNodeCountLimitViolated() const;
 
-    //! Returns |true| is chunk count limit is exceeded,
+    //! Returns |true| if chunk count limit is exceeded,
     //! i.e. no more chunks could be created.
     bool IsChunkCountLimitViolated() const;
 
-    //! Returns |true| is tablet count limit is exceeded,
+    //! Returns |true| if tablet count limit is exceeded,
     //! i.e. no more tablets could be created.
     bool IsTabletCountLimitViolated() const;
 
-    //! Returns |true| is tablet static memory limit is exceeded,
+    //! Returns |true| if tablet static memory limit is exceeded,
     //! i.e. no more data could be stored in tablet static memory.
     bool IsTabletStaticMemoryLimitViolated() const;
+
+    //! Returns |true| if master memory usage is exceeded,
+    //! i.e. no more master memory can be occupied.
+    bool IsMasterMemoryUsageViolated() const;
 
     //! Returns statistics for a given cell tag.
     TAccountStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);

@@ -4,6 +4,8 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString TCommandDescriptor::TypeName_;
+
 TCommandDescriptor::TCommandDescriptor(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TCommandDescriptor>::PythonClass(self, args, kwargs)
 { }
@@ -40,8 +42,8 @@ void TCommandDescriptor::InitType(const TString& moduleName)
         return;
     }
 
-    TString typeName = moduleName + ".CommandDescriptor";
-    behaviors().name(typeName.c_str());
+    TypeName_ = moduleName + ".CommandDescriptor";
+    behaviors().name(TypeName_.c_str());
     behaviors().doc("Describe command properties");
     behaviors().supportGetattro();
     behaviors().supportSetattro();

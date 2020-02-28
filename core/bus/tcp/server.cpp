@@ -10,8 +10,9 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/net/address.h>
-
 #include <yt/core/net/socket.h>
+
+#include <yt/core/misc/fs.h>
 #include <yt/core/misc/string.h>
 
 #include <yt/core/ytree/convert.h>
@@ -54,8 +55,8 @@ public:
         if (Config_->Port) {
             Logger.AddTag("ServerPort: %v", *Config_->Port);
         }
-        if (Config_->UnixDomainName) {
-            Logger.AddTag("UnixDomainName: %v", *Config_->UnixDomainName);
+        if (Config_->UnixDomainSocketPath) {
+            Logger.AddTag("UnixDomainSocketPath: %v", *Config_->UnixDomainSocketPath);
         }
 
         for (const auto& network : Config_->Networks) {
@@ -163,6 +164,9 @@ protected:
     {
         if (ServerSocket_ != INVALID_SOCKET) {
             close(ServerSocket_);
+            if (Config_->UnixDomainSocketPath) {
+                unlink(Config_->UnixDomainSocketPath->c_str());
+            }
             ServerSocket_ = INVALID_SOCKET;
             YT_LOG_DEBUG("Server socket closed");
         }
@@ -362,8 +366,9 @@ private:
 
         {
             TNetworkAddress netAddress;
-            if (Config_->UnixDomainName) {
-                netAddress = TNetworkAddress::CreateUnixDomainAddress(*Config_->UnixDomainName);
+            if (Config_->UnixDomainSocketPath) {
+                // NB(gritukan): Unix domain socket path cannot be longer than 108 symbols, so let's try to shorten it.
+                netAddress = TNetworkAddress::CreateUnixDomainSocketAddress(NFS::GetShortestPath(*Config_->UnixDomainSocketPath));
             } else {
                 netAddress = GetLocalBusAddress(*Config_->Port);
             }

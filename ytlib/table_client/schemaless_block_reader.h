@@ -44,8 +44,8 @@ public:
     i64 GetRowIndex() const;
 
 private:
-    TSharedRef Block_;
-    NProto::TBlockMeta Meta_;
+    const TSharedRef Block_;
+    const NProto::TBlockMeta Meta_;
 
     // Maps chunk name table ids to client name table ids.
     std::vector<TColumnIdMapping> IdMapping_;
@@ -66,7 +66,8 @@ private:
     const char* CurrentPointer_;
     ui32 ValueCount_;
 
-    const static size_t DefaultKeyBufferCapacity = 512;
+    constexpr static size_t DefaultKeyBufferCapacity = 512;
+
     SmallVector<char, DefaultKeyBufferCapacity> KeyBuffer_;
     TMutableKey Key_;
 

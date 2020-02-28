@@ -440,7 +440,7 @@ private:
         YT_LOG_DEBUG("Changelog list received");
 
         auto items = ConvertTo<IListNodePtr>(result);
-        
+
         int latestId = -1;
         int latestRowCount = -1;
         for (const auto& item : items->GetChildren()) {
@@ -452,9 +452,9 @@ private:
                     Path_);
             }
             if (!item->Attributes().Get<bool>("sealed", false)) {
-                THROW_ERROR_EXCEPTION("Changelog %Qv is changelog store %v is not sealed",
+                THROW_ERROR_EXCEPTION("Changelog %Qv in changelog store %v is not sealed",
                     key,
-                    Path_);                
+                    Path_);
             }
             if (id > latestId) {
                 latestId = id;

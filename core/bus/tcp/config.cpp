@@ -8,7 +8,7 @@ TTcpBusServerConfig::TTcpBusServerConfig()
 {
     RegisterParameter("port", Port)
         .Default();
-    RegisterParameter("unix_domain_name", UnixDomainName)
+    RegisterParameter("unix_domain_socket_path", UnixDomainSocketPath)
         .Default();
     RegisterParameter("max_backlog_size", MaxBacklogSize)
         .Default(8192);
@@ -33,10 +33,10 @@ TTcpBusServerConfigPtr TTcpBusServerConfig::CreateTcp(int port)
     return config;
 }
 
-TTcpBusServerConfigPtr TTcpBusServerConfig::CreateUnixDomain(const TString& address)
+TTcpBusServerConfigPtr TTcpBusServerConfig::CreateUnixDomain(const TString& socketPath)
 {
     auto config = New<TTcpBusServerConfig>();
-    config->UnixDomainName = address;
+    config->UnixDomainSocketPath = socketPath;
     return config;
 }
 
@@ -75,10 +75,10 @@ TTcpBusClientConfigPtr TTcpBusClientConfig::CreateTcp(const TString& address, co
     return config;
 }
 
-TTcpBusClientConfigPtr TTcpBusClientConfig::CreateUnixDomain(const TString& address)
+TTcpBusClientConfigPtr TTcpBusClientConfig::CreateUnixDomain(const TString& socketPath)
 {
     auto config = New<TTcpBusClientConfig>();
-    config->UnixDomainName = address;
+    config->UnixDomainSocketPath = socketPath;
     return config;
 }
 

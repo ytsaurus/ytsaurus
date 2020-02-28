@@ -6,11 +6,30 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Search returns iterator to the first element that is !pred(it).
+// Reverse(Search) returns iterator to the last element that pred(it).
+
+// With default predicate you can use shortcuts LowerBound and UpperBound.
+// If custom predicate is needed you should use Binary/ExponentialSearch because LowerBound and UpperBound is
+// determined by predicate (see implementation).
+
+// Properties of Binary/ExponentialSearch:
+// let Reverse = std::make_reverse_iterator
+// let Search = Binary/ExponentialSearch
+// Reverse(Search(begin, end, pred)) ~ Search(Reverse(end), Reverse(begin), [&] (auto it) { return !pred(it); })
+// Use first case due to reverse iterator contains extra fields (see LWG #2360).
+// Do not use it - 1 pattern (i.e. LowerBound(...) - 1). Convert iterator to reverse and compare with .rend()
+// instead. it - 1 causes STL debug assert violations when it is equal to .begin().
+
 template <class TIter, class TPredicate>
 TIter BinarySearch(TIter begin, TIter end, TPredicate pred);
 
 template <class TIter, class TPredicate>
 TIter ExponentialSearch(TIter begin, TIter end, TPredicate pred);
+
+// Properties based on property a <= b ~ !(b < a):
+// UpperBound(a < b) ~ LowerBound(a <= b)
+// UpperBound(a <= b) ~ LowerBound(a < b)
 
 template <class TIter, class T>
 TIter LowerBound(TIter begin, TIter end, const T& value);

@@ -495,8 +495,35 @@ TEST(TProtobufFormat, TestConfigParsing)
     });
 
     EXPECT_THROW_WITH_SUBSTRING(
-        ParseAndValidateConfig(duplicateColumnNamesConfig, {schema}),
+        ParseAndValidateConfig(anyCorrespondsToStruct, {schema}),
         "Schema and protobuf config mismatch");
+
+    auto configWithBytes = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("SomeColumn")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("bytes")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    auto schemaWithUtf8 = TTableSchema({
+        TColumnSchema("SomeColumn", SimpleLogicalType(ESimpleLogicalValueType::Utf8)),
+    });
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ParseAndValidateConfig(configWithBytes, {schemaWithUtf8}),
+        "mismatch: expected logical type to be one of");
 }
 
 TEST(TProtobufFormat, TestParseBigZigZag)
@@ -995,6 +1022,8 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(ECo
             {"two", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"three", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         })},
+
+        {"utf8_field", SimpleLogicalType(ESimpleLogicalValueType::Utf8)},
     });
 
     auto config = BuildYsonNodeFluently()
@@ -1228,6 +1257,12 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(ECo
                             .Item("proto_type").Value("enum_string")
                             .Item("enumeration_name").Value("EEnum")
                         .EndMap()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("utf8_field")
+                            .Item("field_number").Value(16)
+                            .Item("proto_type").Value("string")
+                        .EndMap()
 
                         // list<optional<any>>.
                         .Item()
@@ -1286,6 +1321,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     auto enumIntFieldId = nameTable->RegisterName("enum_int_field");
     auto enumStringStringFieldId = nameTable->RegisterName("enum_string_string_field");
     auto enumStringInt64FieldId = nameTable->RegisterName("enum_string_int64_field");
+    auto utf8FieldId = nameTable->RegisterName("utf8_field");
     auto repeatedOptionalAnyFieldId = nameTable->RegisterName("repeated_optional_any_field");
     auto otherComplexFieldId = nameTable->RegisterName("other_complex_field");
 
@@ -1412,6 +1448,9 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     builder.AddValue(MakeUnversionedStringValue("Three", enumStringStringFieldId));
     builder.AddValue(MakeUnversionedInt64Value(1, enumStringInt64FieldId));
 
+    const auto HelloWorldInRussian = "\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82, \xd0\xbc\xd0\xb8\xd1\x80!";
+    builder.AddValue(MakeUnversionedStringValue(HelloWorldInRussian, utf8FieldId));
+
     builder.AddValue(MakeUnversionedAnyValue(repeatedOptionalAnyYson.GetData(), repeatedOptionalAnyFieldId));
 
     builder.AddValue(MakeUnversionedAnyValue(otherComplexFieldYson.GetData(), otherComplexFieldId));
@@ -1507,6 +1546,8 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     EXPECT_EQ(message.enum_int_field(), NProtobufFormatTest::EEnum::minus_forty_two);
     EXPECT_EQ(message.enum_string_string_field(), NProtobufFormatTest::EEnum::three);
     EXPECT_EQ(message.enum_string_int64_field(), NProtobufFormatTest::EEnum::one);
+
+    EXPECT_EQ(message.utf8_field(), HelloWorldInRussian);
 
     std::vector<TYsonString> repeatedOptionalAnyField(
         message.repeated_optional_any_field().begin(),
@@ -1611,6 +1652,9 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
     // Note that we don't set the "enum_string_int64_field" as it would fail during parsing.
     message.set_enum_int_field(NProtobufFormatTest::EEnum::minus_forty_two);
     message.set_enum_string_string_field(NProtobufFormatTest::EEnum::three);
+
+    const auto HelloWorldInChinese = "\xe4\xbd\xa0\xe5\xa5\xbd\xef\xbc\x8c\xe4\xb8\x96\xe7\x95\x8c";
+    message.set_utf8_field(HelloWorldInChinese);
 
     message.add_repeated_optional_any_field("#");
     message.add_repeated_optional_any_field("1");
@@ -1752,6 +1796,8 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
 
     EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "enum_int_field")), -42);
     EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "enum_string_string_field")), "Three");
+
+    EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "utf8_field")), HelloWorldInChinese);
 
     auto repeatedRepeatedOptionalAnyNode = GetAny(rowCollector.GetRowValue(0, "repeated_optional_any_field"));
     auto expectedRepeatedOptionalAnyNode = BuildYsonNodeFluently()

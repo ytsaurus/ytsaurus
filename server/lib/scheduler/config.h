@@ -163,6 +163,8 @@ public:
     //! List of operation types which should not be run in that tree as tentative.
     std::optional<THashSet<EOperationType>> NonTentativeOperationTypes;
 
+    double LogFairShareRatioDisagreementThreshold;
+
     TFairShareStrategyTreeConfig();
 };
 
@@ -520,6 +522,9 @@ public:
     //! Option to manage subbatch size for fetching operation during registration.
     //! Increase this value to speedup registration.
     int FetchOperationAttributesSubbatchSize;
+
+    //! Use scheduling strategy based on fair share ratio instead of new one based on vector fair share.
+    bool UseClassicScheduler;
 
     TSchedulerConfig();
 };

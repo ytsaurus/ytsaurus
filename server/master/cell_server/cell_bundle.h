@@ -45,7 +45,8 @@ public:
 public:
     explicit TCellBundle(TCellBundleId id);
 
-    virtual TString GetObjectName() const override;
+    virtual TString GetLowercaseObjectName() const override;
+    virtual TString GetCapitalizedObjectName() const override;
 
     void IncreaseActiveTabletActionCount();
     void DecreaseActiveTabletActionCount();

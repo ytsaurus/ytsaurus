@@ -69,9 +69,9 @@ private:
                 return;
             }
 
-            auto client = connection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
+            YT_LOG_DEBUG("Started synchronizing node directory");
 
-            YT_LOG_DEBUG("Started updating node directory");
+            auto client = connection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
 
             TGetClusterMetaOptions options;
             options.ReadFrom = EMasterChannelKind::Cache;
@@ -86,9 +86,9 @@ private:
 
             NodeDirectory_->MergeFrom(*meta.NodeDirectory);
 
-            YT_LOG_DEBUG("Finished updating node directory");
+            YT_LOG_DEBUG("Finished synchronizing node directory");
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error updating node directory")
+            THROW_ERROR_EXCEPTION("Error synchronizing node directory")
                 << ex;
         }
     }

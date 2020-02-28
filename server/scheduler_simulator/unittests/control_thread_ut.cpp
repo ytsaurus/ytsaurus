@@ -259,7 +259,7 @@ TEST_F(TControlThreadTest, TestSingleOperation)
         operations,
         earliestTime);
 
-    simulatorControlThread->Initialize(CreatePoolTreesConfig(), earliestTime);
+    simulatorControlThread->Initialize(CreatePoolTreesConfig());
     WaitFor(simulatorControlThread->AsyncRun())
         .ThrowOnError();
 
@@ -299,7 +299,7 @@ TEST_F(TControlThreadTest, TestTwoComplementaryOperations)
         operations,
         earliestTime);
 
-    simulatorControlThread->Initialize(CreatePoolTreesConfig(), earliestTime);
+    simulatorControlThread->Initialize(CreatePoolTreesConfig());
     WaitFor(simulatorControlThread->AsyncRun())
         .ThrowOnError();
 
@@ -327,13 +327,13 @@ TEST_F(TControlThreadTest, TestNormalPreemption)
     std::vector<TOperationDescription> operations = {
         CreateOperationDescription(
             CreateJobDescriptions(TDuration::Seconds(120), CreateJobResources(2, 2_GB, 0), /* count */ 100),
-            earliestTime,
-            "test10"
+            /* startTime */ earliestTime,
+            /* pool */ "test10"
         ),
         CreateOperationDescription(
             CreateJobDescriptions(TDuration::Seconds(120), CreateJobResources(2, 2_GB, 1), /* count */ 100),
-            earliestTime + TDuration::Seconds(20),
-            "test20"
+            /* startTime */ earliestTime + TDuration::Seconds(20),
+            /* pool */ "test20"
         )
     };
 
@@ -348,7 +348,7 @@ TEST_F(TControlThreadTest, TestNormalPreemption)
         operations,
         earliestTime);
 
-    simulatorControlThread->Initialize(CreatePoolTreesConfig(), earliestTime);
+    simulatorControlThread->Initialize(CreatePoolTreesConfig());
     WaitFor(simulatorControlThread->AsyncRun())
         .ThrowOnError();
 

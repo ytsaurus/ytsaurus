@@ -275,7 +275,7 @@ public:
     virtual ui64 NextJobIndex() override;
     virtual void InitUserJobSpecTemplate(
         NScheduler::NProto::TUserJobSpec* proto,
-        NScheduler::TUserJobSpecPtr config,
+        const NScheduler::TUserJobSpecPtr& config,
         const std::vector<TUserFile>& files,
         const TString& fileAccount) override;
     virtual const std::vector<TUserFile>& GetUserFiles(const TUserJobSpecPtr& userJobSpec) const override;
@@ -1149,6 +1149,7 @@ private:
         const TJobSummary& jobSummary);
 
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
+    virtual const NLogging::TLogger* GetEventLogger() override;
 
     void SleepInCommitStage(NScheduler::EDelayInsideOperationCommitStage desiredStage);
     void SleepInRevive();

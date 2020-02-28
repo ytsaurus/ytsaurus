@@ -257,6 +257,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         wait_breakpoint()
 
         wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 3.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_2"), 0))
         wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 3.0))
         wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 2.0 / 3.0))
 
@@ -269,8 +270,10 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         time.sleep(1)
 
-        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0))
-        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 3.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_2"), 0))
+        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 3.0))
+        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 2.0 / 3.0))
 
         release_breakpoint()
         op1.track()
@@ -889,6 +892,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestSchedulerPreemption, self).setup_method(method)
+        set("//sys/pool_trees/default/@preemption_satisfaction_threshold", 0.99)
         set("//sys/pool_trees/default/@fair_share_starvation_tolerance", 0.7)
         set("//sys/pool_trees/default/@fair_share_starvation_tolerance_limit", 0.9)
         set("//sys/pool_trees/default/@min_share_preemption_timeout", 100)
@@ -908,6 +912,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         op1 = map(track=False, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out1",
                   spec={"pool": "fake_pool", "job_count": 3, "locality_timeout": 0})
+        enable_op_detailed_logs(op1)
         time.sleep(3)
 
         pools_path = scheduler_orchid_default_pool_tree_path() + "/pools"
@@ -916,6 +921,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         create_pool("test_pool", attributes={"min_share_ratio": 1.0})
         op2 = map(track=False, command="cat", in_=["//tmp/t_in"], out="//tmp/t_out2", spec={"pool": "test_pool"})
+        enable_op_detailed_logs(op2)
         op2.track()
 
         op1.abort()
@@ -1002,7 +1008,9 @@ class TestSchedulerPreemption(YTEnvSetup):
             }
         )
 
+        enable_op_detailed_logs(op)
         wait_breakpoint()
+
         update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
         wait(lambda: op.get_job_count("running") == 0)
         op.track()
