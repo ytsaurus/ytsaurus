@@ -244,7 +244,10 @@ class TestHeavySchedulerEvictionGarbageCollector(object):
 
         def create_pod(spec=dict(), reason=None):
             pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, spec=spec)
-            update_node_id(yp_client, pod_id, node_id)
+            if spec.get("enable_scheduling", False):
+                wait_pods_are_assigned(yp_client, [pod_id])
+            else:
+                update_node_id(yp_client, pod_id, node_id)
             yp_client.request_pod_eviction(pod_id, "Test", reason=reason)
             return pod_id
 
