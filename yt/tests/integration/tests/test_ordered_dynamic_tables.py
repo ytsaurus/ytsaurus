@@ -105,7 +105,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_create_cells(1)
 
         table_path = "//tmp/{}".format(generate_uuid())
-        self._create_simple_table(table_path)
+        self._create_simple_table(table_path, dynamic_store_auto_flush_period=None)
         sync_mount_table(table_path)
 
         tablet_profiling = self._get_table_profiling(table_path)
