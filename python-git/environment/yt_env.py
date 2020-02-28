@@ -146,6 +146,7 @@ def _get_cgroup_path(cgroup_type, *args):
 
 
 class YTInstance(object):
+    # TODO(renadeen): remove extended_master_config when stable will get test_structured_security_logs
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0, clock_count=0,
                  node_count=1, defer_node_start=False,
                  scheduler_count=1, defer_scheduler_start=False,
@@ -161,8 +162,6 @@ class YTInstance(object):
                  enable_structured_master_logging=False, enable_structured_scheduler_logging=False,
                  use_native_client=False, run_watcher=True, capture_stderr_to_file=None,
                  ytserver_all_path=None):
-        # TODO(renadeen): remove extended_master_config when stable will get test_structured_security_logs
-
         _configure_logger()
 
         if use_porto_for_servers and not porto_avaliable():
@@ -288,7 +287,7 @@ class YTInstance(object):
         self.scheduler_count = scheduler_count
         self.defer_scheduler_start = defer_scheduler_start
         if controller_agent_count is None:
-            if self.abi_version >= (19, 3) and scheduler_count > 0:
+            if scheduler_count > 0:
                 controller_agent_count = 1
             else:
                 controller_agent_count = 0
@@ -925,7 +924,7 @@ class YTInstance(object):
         for i in xrange(len(self.configs[name])):
             args = None
             cgroup_paths = None
-            if self.abi_version[0] == 19:
+            if self.abi_version[0] >= 19:
                 args = [_get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)]
                 if self._kill_child_processes:
                     args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
@@ -1346,13 +1345,25 @@ class YTInstance(object):
             self.configs[name] = config
             self.config_paths[name] = config_path
 
-        self.driver_logging_config = init_logging(None, self.logs_path, "driver", self._enable_debug_logging, self._enable_logging_compression)
-        self.rpc_driver_logging_config = init_logging(None, self.logs_path, "rpc_driver", self._enable_debug_logging, self._enable_logging_compression)
+        self.driver_logging_config = init_logging(
+            None, self.logs_path, "driver",
+            log_errors_to_stderr=False,
+            enable_debug_logging=self._enable_debug_logging,
+            enable_compression=self._enable_logging_compression)
+        self.rpc_driver_logging_config = init_logging(
+            None, self.logs_path, "rpc_driver",
+            log_errors_to_stderr=False,
+            enable_debug_logging=self._enable_debug_logging,
+            enable_compression=self._enable_logging_compression)
 
     def _prepare_console_driver(self):
         config = {}
         config["driver"] = self.configs["driver"]
-        config["logging"] = init_logging(None, self.path, "console_driver", self._enable_debug_logging, self._enable_logging_compression)
+        config["logging"] = init_logging(
+            None, self.path, "console_driver",
+            log_errors_to_stderr=False,
+            enable_debug_logging=self._enable_debug_logging,
+            enable_compression=self._enable_logging_compression)
 
         config_path = os.path.join(self.path, "console_driver_config.yson")
 

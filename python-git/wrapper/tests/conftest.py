@@ -8,7 +8,7 @@ from yt.environment import YTInstance, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.wrapper.config import set_option
 from yt.wrapper.default_config import get_default_config
-from yt.wrapper.common import update, update_inplace
+from yt.wrapper.common import update, update_inplace, GB
 from yt.common import which, makedirp, format_error
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
@@ -283,25 +283,25 @@ def init_environment_for_test_session(mode, **kwargs):
 
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "v4", "native_v3", "native_v4"])
+@pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4"])
 def test_environment(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
+@pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
     environment = init_environment_for_test_session(request.param)
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def test_environment_for_yamr(request):
     environment = init_environment_for_test_session("yamr")
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def test_environment_multicell(request):
     environment = init_environment_for_test_session(
         "native_multicell",
@@ -309,7 +309,7 @@ def test_environment_multicell(request):
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def test_environment_job_archive(request):
     environment = init_environment_for_test_session(
         "job_archive",
@@ -338,7 +338,7 @@ def test_environment_job_archive(request):
 
     return environment
 
-@pytest.fixture(scope="session", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
+@pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
 def test_environment_with_porto(request):
     environment = init_environment_for_test_session(
         request.param,
@@ -358,6 +358,15 @@ def test_environment_with_porto(request):
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
+@pytest.fixture(scope="class", params=["v4", "rpc"])
+def test_environment_with_increased_memory(request):
+    environment = init_environment_for_test_session(
+        request.param,
+        env_options=dict(jobs_memory_limit=8*GB),
+    )
+
+    request.addfinalizer(lambda: environment.cleanup())
+    return environment
 
 # TODO(ignat): fix this copypaste from yt_env_setup
 def _remove_operations():
@@ -556,6 +565,14 @@ def yt_env_with_porto(request, test_environment_with_porto):
     yt.mkdir(TEST_DIR, recursive=True)
     request.addfinalizer(test_method_teardown)
     return test_environment_with_porto
+
+@pytest.fixture(scope="function")
+def yt_env_with_increased_memory(request, test_environment_with_increased_memory):
+    test_environment_with_increased_memory.check_liveness()
+    test_environment_with_increased_memory.reload_global_configuration()
+    yt.mkdir(TEST_DIR, recursive=True)
+    request.addfinalizer(test_method_teardown)
+    return test_environment_with_increased_memory
 
 @pytest.fixture(scope="function")
 def job_events(request):

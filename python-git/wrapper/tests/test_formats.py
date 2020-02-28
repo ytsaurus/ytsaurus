@@ -106,24 +106,44 @@ def test_yson_table_switch():
 
 def test_yson_iterator_mode():
     format = yt.YsonFormat(control_attributes_mode="iterator")
-    input = b'<"row_index"=0>#;<"range_index"=0>#;\n{"a"=1};\n<"row_index"=2>#;<"range_index"=3>#;<"table_index"=1>#;\n{"a"=1};\n{"b"=2};\n'
+    input = b'<"row_index"=0>#;<"range_index"=0>#;<"tablet_index"=0>#;\n' \
+            b'{"a"=1};\n' \
+            b'<"row_index"=1>#;<"tablet_index"=1>#;\n' \
+            b'{"b"=1};\n' \
+            b'<"row_index"=2>#;<"range_index"=3>#;<"table_index"=1>#;<"tablet_index"=4>#;\n' \
+            b'{"a"=2};\n' \
+            b'{"b"=2};\n'
 
     iterator = format.load_rows(BytesIO(input))
     assert iterator.table_index is None
     assert iterator.row_index is None
     assert iterator.range_index is None
+    assert iterator.tablet_index is None
+
     assert next(iterator) == {"a": 1}
     assert iterator.table_index is None
     assert iterator.row_index == 0
     assert iterator.range_index == 0
-    assert next(iterator) == {"a": 1}
+    assert iterator.tablet_index == 0
+
+    assert next(iterator) == {"b": 1}
+    assert iterator.table_index is None
+    assert iterator.row_index == 1
+    assert iterator.range_index == 0
+    assert iterator.tablet_index == 1
+
+    assert next(iterator) == {"a": 2}
     assert iterator.table_index == 1
     assert iterator.row_index == 2
     assert iterator.range_index == 3
+    assert iterator.tablet_index == 4
+
     assert next(iterator) == {"b": 2}
     assert iterator.table_index == 1
     assert iterator.row_index == 3
     assert iterator.range_index == 3
+    assert iterator.tablet_index == 4
+
     with pytest.raises(StopIteration):
         next(iterator)
 
