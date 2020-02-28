@@ -8,6 +8,12 @@
 
 #include <yt/core/ytree/attributes.h>
 
+#include <yt/core/tracing/public.h>
+
+#include <yt/core/concurrency/public.h>
+
+#include <util/system/getpid.h>
+
 #include <type_traits>
 
 namespace NYT {
@@ -62,11 +68,11 @@ public:
 
     TErrorOr(const std::exception& ex);
 
-    explicit TErrorOr(const TString& message);
+    explicit TErrorOr(TString message);
     template <class... TArgs>
     explicit TErrorOr(const char* format, const TArgs&... args);
 
-    TErrorOr(TErrorCode code, const TString& message);
+    TErrorOr(TErrorCode code, TString message);
     template <class... TArgs>
     TErrorOr(TErrorCode code, const char* format, const TArgs&... args);
 
@@ -82,7 +88,18 @@ public:
     TErrorCode GetNonTrivialCode() const;
 
     const TString& GetMessage() const;
-    TError& SetMessage(const TString& message);
+    TError& SetMessage(TString message);
+
+    bool HasOriginAttributes() const;
+    TStringBuf GetHost() const;
+    TInstant GetDatetime() const;
+    TProcessId GetPid() const;
+    NConcurrency::TThreadId GetTid() const;
+    NConcurrency::TFiberId GetFid() const;
+
+    bool HasTracingAttributes() const;
+    NTracing::TTraceId GetTraceId() const;
+    NTracing::TSpanId GetSpanId() const;
 
     const NYTree::IAttributeDictionary& Attributes() const;
     NYTree::IAttributeDictionary& Attributes();
@@ -110,10 +127,21 @@ public:
 private:
     TErrorCode Code_;
     TString Message_;
+    // Most errors are local; for these Host_ refers to a static buffer and HostHolder_ is not used.
+    // This saves one allocation on TError construction.
+    TStringBuf Host_;
+    TString HostHolder_;
+    TInstant Datetime_;
+    TProcessId Pid_ = 0;
+    NConcurrency::TThreadId Tid_ = NConcurrency::InvalidThreadId;
+    NConcurrency::TFiberId Fid_ = NConcurrency::InvalidFiberId;
+    NTracing::TTraceId TraceId_;
+    NTracing::TSpanId SpanId_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
     std::vector<TError> InnerErrors_;
 
     void CaptureOriginAttributes();
+    void ExtractOriginAttributes();
 
     friend void ToProto(NProto::TError* protoError, const TError& error);
     friend void FromProto(TError* error, const NProto::TError& protoError);
@@ -122,7 +150,7 @@ private:
         const TError& error,
         NYson::IYsonConsumer* consumer,
         const std::function<void(NYson::IYsonConsumer*)>* valueProducer);
-    friend void Deserialize(TError& error, NYTree::INodePtr node);
+    friend void Deserialize(TError& error, const NYTree::INodePtr& node);
 
 };
 
@@ -136,7 +164,9 @@ void Serialize(
     const TError& error,
     NYson::IYsonConsumer* consumer,
     const std::function<void(NYson::IYsonConsumer*)>* valueProducer = nullptr);
-void Deserialize(TError& error, NYTree::INodePtr node);
+void Deserialize(
+    TError& error,
+    const NYTree::INodePtr& node);
 
 void FormatValue(TStringBuilderBase* builder, const TError& error, TStringBuf spec);
 TString ToString(const TError& error);
