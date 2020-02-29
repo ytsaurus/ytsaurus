@@ -444,7 +444,6 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
 @authors("mrkastep")
 class TestSchedulerSimulatorWithRemoteEventLog(TestSchedulerSimulator):
-    
     def _set_scheduler_simulator_config_params(self, simulator_files_path):
         super(TestSchedulerSimulatorWithRemoteEventLog, self).\
             _set_scheduler_simulator_config_params(simulator_files_path)
@@ -468,5 +467,13 @@ class TestSchedulerSimulatorWithRemoteEventLog(TestSchedulerSimulator):
     @classmethod
     def _get_cluster_connection(cls):
         return cls.Env._cluster_configuration["scheduler"][0]["cluster_connection"]
+
+@authors("mrkastep")
+class TestSchedulerSimulatorWithVectorHDRF(TestSchedulerSimulator):
+    def _set_scheduler_simulator_config_params(self, simulator_files_path):
+        super(TestSchedulerSimulatorWithVectorHDRF, self).\
+            _set_scheduler_simulator_config_params(simulator_files_path)
+
+        self.scheduler_simulator_config["use_classic_scheduling"] = False
 
 ##################################################################
