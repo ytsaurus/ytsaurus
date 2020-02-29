@@ -606,22 +606,6 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 // Future combiners: take a set of futures and meld them into a new one.
 
-//! When some of the combiner inputs fails, its error is immediately propagated
-//! into the combined future.
-struct TPropagateErrorPolicy
-{ };
-
-//! Errors occuring in input futures are not considered any special; in particular,
-//! the values of these futures are always wrapped within #TErrorOr.
-struct TRetainErrorPolicy
-{ };
-
-//! The combiner is mostly interested in successful responses; errors occuring in input
-//! futures are skipped (but recorded and reported in case the needed number of successful
-//! responses cannot be collected).
-struct TSkipErrorPolicy
-{ };
-
 template <class T>
 struct TFutureCombinerTraits
 {
@@ -641,7 +625,7 @@ struct TFutureCombinerOptions
     bool PropagateCancelationToInput = true;
 
     //! If true, the combiner cancels all irrelevant input futures
-    //! when the combined future gets set. E.g. when #AnyOf
+    //! when the combined future gets set. E.g. when #AnySucceeded
     //! notices some of its inputs being set, it cancels the others.
     bool CancelInputOnShortcut = true;
 };
@@ -651,18 +635,16 @@ struct TFutureCombinerOptions
 //! future among #futures.
 //! Individual errors are ignored; if all input futures fail then an error is reported.
 template <class T>
-TFuture<T> AnyOf(
+TFuture<T> AnySucceded(
     std::vector<TFuture<T>> futures,
-    TSkipErrorPolicy errorPolicy = {},
     TFutureCombinerOptions options = {});
 
 //! Same as above.
 //! Errors happening in #futures are regarded as regular values; the first-set (either
 //! successfully or not) future completes the whole computation.
 template <class T>
-TFuture<T> AnyOf(
+TFuture<T> AnySet(
     std::vector<TFuture<T>> futures,
-    TRetainErrorPolicy errorPolicy,
     TFutureCombinerOptions options = {});
 
 //! Returns the future that gets set when all of #futures are set.
@@ -671,18 +653,16 @@ TFuture<T> AnyOf(
 //! When some of #futures fail, its error is immediately propagated into the combined future
 //! and thus interrupts the whole computation.
 template <class T>
-TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AllOf(
+TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AllSucceeded(
     std::vector<TFuture<T>> futures,
-    TPropagateErrorPolicy errorPolicy = {},
     TFutureCombinerOptions options = {});
 
 //! Same as above.
 //! The values of #futures are wrapped in #TErrorOr; individual
 //! errors are propagated as-is and do not interrupt the whole computation.
 template <class T>
-TFuture<std::vector<TErrorOr<T>>> AllOf(
+TFuture<std::vector<TErrorOr<T>>> AllSet(
     std::vector<TFuture<T>> futures,
-    TRetainErrorPolicy errorPolicy,
     TFutureCombinerOptions options = {});
 
 //! Returns the future that gets set when #n of #futures are set.
@@ -692,37 +672,35 @@ TFuture<std::vector<TErrorOr<T>>> AllOf(
 //! Individual errors are ignored; if less than #n successful results
 //! could be collected then an error is reported.
 template <class T>
-TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AnyNOf(
+TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AnyNSucceeded(
     std::vector<TFuture<T>> futures,
     int n,
-    TSkipErrorPolicy errorPolicy = {},
     TFutureCombinerOptions options = {});
 
 //! Same as above.
 //! The values of #futures are wrapped in TErrorOr; individual
 //! errors are propagated as-is and do not interrupt the whole computation.
 template <class T>
-TFuture<std::vector<TErrorOr<T>>> AnyNOf(
+TFuture<std::vector<TErrorOr<T>>> AnyNSet(
     std::vector<TFuture<T>> futures,
     int n,
-    TRetainErrorPolicy errorPolicy,
     TFutureCombinerOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-// COMPAT(babenko) [[deprecated("Use AllOf instead")]]
+// COMPAT(babenko) [[deprecated("Use AllSucceeded instead")]]
 TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> Combine(
     std::vector<TFuture<T>> futures);
 
 template <class T>
-// COMPAT(babenko) [[deprecated("Use AnyNOf instead")]]
+// COMPAT(babenko) [[deprecated("Use AnyNSet instead")]]
 TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> CombineQuorum(
     std::vector<TFuture<T>> futures,
     int quorum);
 
 template <class T>
-// COMPAT(babenko) [[deprecated("Use AnyOf instead")]]
+// COMPAT(babenko) [[deprecated("Use AllSet instead")]]
 TFuture<std::vector<TErrorOr<T>>> CombineAll(
     std::vector<TFuture<T>> futures);
 

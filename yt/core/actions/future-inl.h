@@ -1604,11 +1604,11 @@ public:
 };
 
 template <class T>
-class TAnyOfFutureCombiner
+class TAnyFutureCombiner
     : public TRefCounted
 {
 public:
-    explicit TAnyOfFutureCombiner(
+    explicit TAnyFutureCombiner(
         std::vector<TFuture<T>> futures,
         bool skipErrors,
         TFutureCombinerOptions options)
@@ -1626,11 +1626,11 @@ public:
         }
 
         for (const auto& future : Futures_) {
-            future.Subscribe(BIND(&TAnyOfFutureCombiner::OnFutureSet, MakeStrong(this)));
+            future.Subscribe(BIND(&TAnyFutureCombiner::OnFutureSet, MakeStrong(this)));
         }
 
         if (Options_.PropagateCancelationToInput) {
-            Promise_.OnCanceled(BIND(&TAnyOfFutureCombiner::OnCanceled, MakeWeak(this)));
+            Promise_.OnCanceled(BIND(&TAnyFutureCombiner::OnCanceled, MakeWeak(this)));
         }
 
         return Promise_;
@@ -1755,11 +1755,11 @@ protected:
 };
 
 template <class T, class TResultHolder>
-class TAllOfFutureCombiner
+class TAllFutureCombiner
     : public TFutureCombinerBase<T, TResultHolder>
 {
 public:
-    TAllOfFutureCombiner(
+    TAllFutureCombiner(
         std::vector<TFuture<T>> futures,
         TFutureCombinerOptions options)
         : TFutureCombinerBase<T, TResultHolder>(std::move(futures), options)
@@ -1800,11 +1800,11 @@ private:
 };
 
 template <class T, class TResultHolder>
-class TAnyNOfFutureCombiner
+class TAnyNFutureCombiner
     : public TFutureCombinerBase<T, TResultHolder>
 {
 public:
-    TAnyNOfFutureCombiner(
+    TAnyNFutureCombiner(
         std::vector<TFuture<T>> futures,
         int n,
         bool skipErrors,
@@ -1925,32 +1925,29 @@ private:
 } // namespace NDetail
 
 template <class T>
-TFuture<T> AnyOf(
+TFuture<T> AnySucceded(
     std::vector<TFuture<T>> futures,
-    TSkipErrorPolicy /*errorPolicy*/,
     TFutureCombinerOptions options)
 {
     if (futures.size() == 1) {
         return std::move(futures[0]);
     }
-    return New<NDetail::TAnyOfFutureCombiner<T>>(std::move(futures), true, options)
+    return New<NDetail::TAnyFutureCombiner<T>>(std::move(futures), true, options)
         ->Run();
 }
 
 template <class T>
-TFuture<T> AnyOf(
+TFuture<T> AnySet(
     std::vector<TFuture<T>> futures,
-    TRetainErrorPolicy /*errorPolicy*/,
     TFutureCombinerOptions options)
 {
-    return New<NDetail::TAnyOfFutureCombiner<T>>(std::move(futures), false, options)
+    return New<NDetail::TAnyFutureCombiner<T>>(std::move(futures), false, options)
         ->Run();
 }
 
 template <class T>
-TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AllOf(
+TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AllSucceeded(
     std::vector<TFuture<T>> futures,
-    TPropagateErrorPolicy /*errorPolicy*/,
     TFutureCombinerOptions options)
 {
     auto size = futures.size();
@@ -1963,26 +1960,24 @@ TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AllOf(
         }
     }
     using TResultHolder = NDetail::TFutureCombinerResultHolder<T>;
-    return New<NDetail::TAllOfFutureCombiner<T, TResultHolder>>(std::move(futures), options)
+    return New<NDetail::TAllFutureCombiner<T, TResultHolder>>(std::move(futures), options)
         ->Run();
 }
 
 template <class T>
-TFuture<std::vector<TErrorOr<T>>> AllOf(
+TFuture<std::vector<TErrorOr<T>>> AllSet(
     std::vector<TFuture<T>> futures,
-    TRetainErrorPolicy /*errorPolicy*/,
     TFutureCombinerOptions options)
 {
     using TResultHolder = NDetail::TFutureCombinerResultHolder<TErrorOr<T>>;
-    return New<NDetail::TAllOfFutureCombiner<T, TResultHolder>>(std::move(futures), options)
+    return New<NDetail::TAllFutureCombiner<T, TResultHolder>>(std::move(futures), options)
         ->Run();
 }
 
 template <class T>
-TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AnyNOf(
+TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AnyNSucceeded(
     std::vector<TFuture<T>> futures,
     int n,
-    TSkipErrorPolicy /*errorPolicy*/,
     TFutureCombinerOptions options)
 {
     auto size = futures.size();
@@ -1992,19 +1987,18 @@ TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> AnyNOf(
         }
     }
     using TResultHolder = NDetail::TFutureCombinerResultHolder<T>;
-    return New<NDetail::TAnyNOfFutureCombiner<T, TResultHolder>>(std::move(futures), n, true, options)
+    return New<NDetail::TAnyNFutureCombiner<T, TResultHolder>>(std::move(futures), n, true, options)
         ->Run();
 }
 
 template <class T>
-TFuture<std::vector<TErrorOr<T>>> AnyNOf(
+TFuture<std::vector<TErrorOr<T>>> AnyNSet(
     std::vector<TFuture<T>> futures,
     int n,
-    TRetainErrorPolicy /*errorPolicy*/,
     TFutureCombinerOptions options)
 {
     using TResultHolder = NDetail::TFutureCombinerResultHolder<TErrorOr<T>>;
-    return New<NDetail::TAnyNOfFutureCombiner<T, TResultHolder>>(std::move(futures), n, false, options)
+    return New<NDetail::TAnyNFutureCombiner<T, TResultHolder>>(std::move(futures), n, false, options)
         ->Run();
 }
 
@@ -2014,19 +2008,19 @@ TFuture<std::vector<TErrorOr<T>>> AnyNOf(
 template <class T>
 TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> Combine(std::vector<TFuture<T>> futures)
 {
-    return AllOf(std::move(futures));
+    return AllSucceeded(std::move(futures));
 }
 
 template <class T>
 TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> CombineQuorum(std::vector<TFuture<T>> futures, int quorum)
 {
-    return AnyNOf(std::move(futures), quorum);
+    return AnyNSucceeded(std::move(futures), quorum);
 }
 
 template <class T>
 TFuture<std::vector<TErrorOr<T>>> CombineAll(std::vector<TFuture<T>> futures)
 {
-    return AllOf(std::move(futures), TRetainErrorPolicy{});
+    return AllSet(std::move(futures));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
