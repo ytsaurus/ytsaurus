@@ -20,9 +20,10 @@ DEFINE_ENUM(ESnapshotVersion,
     // 19.8 starts here
     ((GroupedSpeculativeJobs)               (300220))
     ((ImproveSpeculativeHeuristic)          (300221))
-    // 19.9 starts here
+    // 20.1 starts here
     ((TabletIndexInMROverOrderedDynTables)  (300230))
     ((JobHasCompetitorsFlag)                (300231))
+    ((RetainedJobsCoreInfoCount)            (300232))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
