@@ -8232,6 +8232,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, EstimatedInputDataSizeHistogram_);
     Persist(context, InputDataSizeHistogram_);
     Persist(context, RetainedJobWithStderrCount_);
+    Persist(context, RetainedJobsCoreInfoCount_);
     Persist(context, RetainedJobCount_);
     Persist(context, FinishedJobs_);
     Persist(context, JobSpecCompletedArchiveCount_);
