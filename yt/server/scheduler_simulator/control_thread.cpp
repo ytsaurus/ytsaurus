@@ -174,7 +174,7 @@ void TSimulatorControlThread::Run()
                 JobAndOperationCounter_.GetTotalOperationCount(),
                 JobAndOperationCounter_.GetRunningJobCount());
 
-            RunningOperationsMap_.ApplyRead([this](const auto& pair) {
+            RunningOperationsMap_.ApplyRead([this] (const auto& pair) {
                 const auto& operation = pair.second;
                 YT_LOG_INFO("%v, (OperationId: %v)",
                     operation->GetController()->GetLoggingProgress(),
@@ -279,13 +279,13 @@ void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
     std::vector<TFuture<TYsonString>> nodeListFutures;
     for (const auto& nodeShard : NodeShards_) {
         nodeListFutures.push_back(
-            BIND([nodeShard]() {
+            BIND([nodeShard] () {
                 return BuildYsonStringFluently<EYsonType::MapFragment>()
                     .Do(BIND(&TSimulatorNodeShard::BuildNodesYson, nodeShard))
                     .Finish();
             })
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run());
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run());
     }
 
     auto nodeLists = WaitFor(Combine(nodeListFutures))
