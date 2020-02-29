@@ -17,6 +17,7 @@ using namespace NYTree;
 using namespace NYson;
 
 using ::testing::AllOf;
+using ::testing::AnyOf;
 using ::testing::HasSubstr;
 using ::testing::NiceMock;
 using ::testing::Return;
@@ -88,7 +89,10 @@ TEST_F(TDefaultTvmTest, FailOnBadHost)
     auto service = CreateDefaultTvmService(config);
     auto result = service->GetTicket("TheDestination").Get();
     ASSERT_TRUE(!result.IsOK());
-    EXPECT_THAT(CollectMessages(result), HasSubstr("DNS resolve failed"));
+    // Sometimes DNS is slow causing flaky tests.
+    EXPECT_THAT(
+        CollectMessages(result),
+        AnyOf(HasSubstr("Operation timed out"), HasSubstr("DNS resolve failed")));
 }
 
 TEST_F(TDefaultTvmTest, FailOn5xxResponse)
