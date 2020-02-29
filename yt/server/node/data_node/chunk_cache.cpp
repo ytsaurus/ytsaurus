@@ -516,15 +516,15 @@ private:
         const TError& validationStatus)
     {
         if (validationStatus.IsOK()) {
-            return MakeFuture(chunk).As<IChunkPtr>();
-        } else {
-            YT_LOG_INFO(validationStatus, "Chunk is corrupted, reloading (ChunkId: %v)",
-                chunk->GetId());
-            TryRemove(chunk);
-            return chunk->GetAsyncDestroyResult().Apply(BIND([=] () -> TFuture<IChunkPtr> {
-                return DownloadArtifact(key, options);
-            }));
+            return MakeFuture(IChunkPtr(chunk));
         }
+
+        YT_LOG_INFO(validationStatus, "Chunk is corrupted, reloading (ChunkId: %v)",
+            chunk->GetId());
+        TryRemove(chunk);
+        return chunk->GetAsyncDestroyResult().Apply(BIND([=] () -> TFuture<IChunkPtr> {
+            return DownloadArtifact(key, options);
+        }));
     }
 
     void OnChunkCreated(
@@ -541,19 +541,21 @@ private:
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
-        auto removeFuture = BIND(
-                &TCacheLocation::RemoveChunkFilesPermanently,
-                location,
-                descriptor.Id)
-            .AsyncVia(location->GetWritePoolInvoker())
-            .Run();
+        YT_LOG_DEBUG("Cached chunk destroyed (ChunkId: %v, LocationId: %v)",
+            descriptor.Id,
+            location->GetId());
 
         Bootstrap_->GetControlInvoker()->Invoke(BIND([=] () {
             location->UpdateChunkCount(-1);
             location->UpdateUsedSpace(-descriptor.DiskSpace);
         }));
 
-        return removeFuture;
+        return BIND(
+                &TCacheLocation::RemoveChunkFilesPermanently,
+                location,
+                descriptor.Id)
+            .AsyncVia(location->GetWritePoolInvoker())
+            .Run();
     }
 
     TCachedBlobChunkPtr CreateChunk(
@@ -614,6 +616,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        YT_LOG_DEBUG("Chunk added to cache (ChunkId: %v, LocationId: %v)",
+            chunk->GetId(),
+            chunk->GetLocation()->GetId());
+
         TAsyncSlruCacheBase::OnAdded(chunk);
 
         ChunkAdded_.Fire(chunk);
@@ -622,6 +628,10 @@ private:
     virtual void OnRemoved(const TCachedBlobChunkPtr& chunk) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
+
+        YT_LOG_DEBUG("Chunk removed from cache (ChunkId: %v, LocationId: %v)",
+            chunk->GetId(),
+            chunk->GetLocation()->GetId());
 
         TAsyncSlruCacheBase::OnRemoved(chunk);
 
