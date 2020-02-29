@@ -14,6 +14,8 @@
 
 #include <yt/core/rpc/dispatcher.h>
 
+#include <yt/core/concurrency/delayed_executor.h>
+
 namespace NYT::NAuth {
 
 using namespace NYTree;
@@ -191,7 +193,7 @@ private:
                 break;
             }
 
-            Sleep(std::min(Config_->BackoffTimeout, deadline - now));
+            TDelayedExecutor::WaitForDuration(std::min(Config_->BackoffTimeout, deadline - now));
         }
 
         AuthProfiler.Increment(BlackboxCallFatalErrors_);
