@@ -687,6 +687,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("enable_bulk_insert_for_everyone", EnableBulkInsertForEveryone)
         .Default(false);
 
+    RegisterParameter("default_enable_porto", DefaultEnablePorto)
+        .Default(NScheduler::EEnablePorto::Isolate);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

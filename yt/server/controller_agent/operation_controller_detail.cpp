@@ -7844,7 +7844,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     jobSpec->set_write_sparse_core_dumps(GetWriteSparseCoreDumps());
-    jobSpec->set_enable_porto(static_cast<int>(config->EnablePorto));
+    jobSpec->set_enable_porto(static_cast<int>(config->EnablePorto.value_or(Config->DefaultEnablePorto)));
     jobSpec->set_fail_job_on_core_dump(config->FailJobOnCoreDump);
 
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {

@@ -601,7 +601,7 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("network_project", NetworkProject)
         .Default();
     RegisterParameter("enable_porto", EnablePorto)
-        .Default(EEnablePorto::Isolate);
+        .Default();
     RegisterParameter("fail_job_on_core_dump", FailJobOnCoreDump)
         .Default(true);
 
