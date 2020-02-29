@@ -12,7 +12,6 @@
 
 #include <yt/core/misc/async_expiring_cache.h>
 #include <yt/core/misc/fs.h>
-#include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -949,8 +948,6 @@ private:
     const TActionQueuePtr Queue_ = New<TActionQueue>("AddressResolver");
 
     TDnsResolver DnsResolver_;
-
-    DECLARE_LEAKY_SINGLETON_FRIEND()
 
     virtual TFuture<TNetworkAddress> DoGet(const TString& hostName) override;
 

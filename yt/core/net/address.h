@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/core/misc/error.h>
+#include <yt/core/misc/singleton.h>
 
 #include <yt/core/actions/future.h>
 
@@ -198,7 +199,7 @@ private:
 
     TAddressResolver();
 
-    Y_DECLARE_SINGLETON_FRIEND();
+    DECLARE_LEAKY_SINGLETON_FRIEND()
 };
 
 ////////////////////////////////////////////////////////////////////////////////
