@@ -871,7 +871,7 @@ private:
 
         // NB: Many subscribers are typically waiting for the upstream sync to complete.
         // Make sure the promise is set in a large thread pool.
-        return AllOf(std::move(asyncResults)).Apply(
+        return AllSucceeded(std::move(asyncResults)).Apply(
             BIND(&TImpl::OnUpstreamSyncReached, MakeStrong(this), timer)
                 .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
