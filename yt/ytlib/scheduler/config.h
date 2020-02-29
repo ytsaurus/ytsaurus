@@ -744,8 +744,11 @@ public:
     //! Name of the network project to use in job.
     std::optional<TString> NetworkProject;
 
-    EEnablePorto EnablePorto;
+    //! Configures |enable_porto| setting for user job containers.
+    //! If not given, then the global default from controller agent's config is used.
+    std::optional<EEnablePorto> EnablePorto;
 
+    //! If true, then a job is considered failed once is produces a core dump.
     bool FailJobOnCoreDump;
 
     TUserJobSpec();

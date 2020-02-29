@@ -777,6 +777,8 @@ public:
 
     bool EnableBulkInsertForEveryone;
 
+    NScheduler::EEnablePorto DefaultEnablePorto;
+
     TControllerAgentConfig();
 
 private:
