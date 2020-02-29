@@ -7829,7 +7829,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     if (config->NetworkProject) {
         const auto& client = Host->GetClient();
-        const auto networkProjectPath = "//sys/network_projects/" + *config->NetworkProject;
+        const auto networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(*config->NetworkProject);
         auto checkPermissionRspOrError = WaitFor(client->CheckPermission(AuthenticatedUser,
             networkProjectPath,
             EPermission::Use));
