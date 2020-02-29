@@ -83,16 +83,21 @@ class TestAuth(object):
 
 
 class TestBrokenTvm(object):
+    # This breaks the TVM client.
     YP_MASTER_CONFIG = {
         "authentication_manager": {"tvm_service": {"port": 25},},
     }
+    # The start method checks the master, but the master is broken, so we don't call that.
     START = False
+    # The teardown tries to restore the DB, but the master is broken.
     NO_TEARDOWN = True
 
     def test_retries(self, yp_env_auth):
+        # Start the master by hand.
         yp_env_auth.yp_instance.start()
         yp_env_auth.yp_client = yp_env_auth.create_client()
         yp_client = yp_env_auth.yp_client
+        # Count the number of requests.
         method = yp_client._transport_layer.execute_request
         def wrapper(*args, **kwargs):
             wrapper.count += 1
@@ -103,8 +108,10 @@ class TestBrokenTvm(object):
             try:
                 yp_client.select_objects("pod", selectors=["/meta/id"])
             except YtRpcUnavailable:
+                # Unavailable gets returned from the broken TVM client. Check for retries.
                 return True
             except YtResponseError:
+                # Other errors mean the master is not up yet. Reset count.
                 wrapper.count = 0
                 return False
             assert False
