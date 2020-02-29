@@ -1034,6 +1034,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr CheckTentativeTreeEligibilityExecutor_;
 
     int RetainedJobWithStderrCount_ = 0;
+    int RetainedJobsCoreInfoCount_ = 0;
     int RetainedJobCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;
 

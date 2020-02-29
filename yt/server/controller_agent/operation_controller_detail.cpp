@@ -4604,6 +4604,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
 
     auto hasStderr = static_cast<bool>(stderrChunkId);
     auto hasFailContext = static_cast<bool>(failContextChunkId);
+    auto coreInfoCount = schedulerResultExt.core_infos().size();
 
     auto joblet = GetJoblet(jobId);
     // Job is not actually started.
@@ -4613,7 +4614,8 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
 
     bool shouldRetainJob =
         (requestJobNodeCreation && RetainedJobCount_ < Config->MaxJobNodesPerOperation) ||
-        (hasStderr && RetainedJobWithStderrCount_ < Spec_->MaxStderrCount);
+        (hasStderr && RetainedJobWithStderrCount_ < Spec_->MaxStderrCount) ||
+        (coreInfoCount > 0 && RetainedJobsCoreInfoCount_ + coreInfoCount <= Spec_->MaxCoreInfoCount);
 
     if (hasStderr && shouldRetainJob) {
         summary->ReleaseFlags.ArchiveStderr = true;
@@ -4678,6 +4680,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     if (hasStderr) {
         ++RetainedJobWithStderrCount_;
     }
+    RetainedJobsCoreInfoCount_ += coreInfoCount;
     ++RetainedJobCount_;
 }
 
@@ -7842,6 +7845,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_write_sparse_core_dumps(GetWriteSparseCoreDumps());
     jobSpec->set_enable_porto(static_cast<int>(config->EnablePorto));
+    jobSpec->set_fail_job_on_core_dump(config->FailJobOnCoreDump);
 
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {

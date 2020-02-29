@@ -339,6 +339,10 @@ TOperationSpecBase::TOperationSpecBase()
         .Default(10)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(150);
+    RegisterParameter("max_core_info_count", MaxCoreInfoCount)
+        .Default(10)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(150);
 
     RegisterParameter("job_proxy_memory_overcommit_limit", JobProxyMemoryOvercommitLimit)
         .Default()
@@ -598,6 +602,8 @@ TUserJobSpec::TUserJobSpec()
         .Default();
     RegisterParameter("enable_porto", EnablePorto)
         .Default(EEnablePorto::Isolate);
+    RegisterParameter("fail_job_on_core_dump", FailJobOnCoreDump)
+        .Default(true);
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {

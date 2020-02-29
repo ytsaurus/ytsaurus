@@ -358,12 +358,12 @@ unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys
 patch_porto_env_only = lambda parent: patch_subclass(parent, not porto_avaliable(), reason="you need configured porto to run it")
 
 def skip_if_porto(func):
-    def wrapped_func(self, *args, **kwargs):
+    def wrapper(func, self, *args, **kwargs):
         if hasattr(self, "USE_PORTO_FOR_SERVERS") and self.USE_PORTO_FOR_SERVERS:
             pytest.skip("This test does not support porto isolation")
-        func(self, *args, **kwargs)
-    return wrapped_func
+        return func(self, *args, **kwargs)
 
+    return decorator.decorate(func, wrapper)
 
 def is_asan_build():
     if arcadia_interop.yatest_common is not None:

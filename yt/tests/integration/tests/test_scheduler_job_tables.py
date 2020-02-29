@@ -535,7 +535,8 @@ class TestCoreTable(YTEnvSetup):
     # In order to find out the correspondence between job id and user id,
     # We create a special file in self.JOB_PROXY_UDS_NAME_DIR where we put
     # the user id and job id.
-    def _start_operation(self, job_count, max_failed_job_count=5, kill_self=False, sparse_core_dumps=False):
+    def _start_operation(self, job_count, max_failed_job_count=5,
+                         kill_self=False, sparse_core_dumps=False, fail_job_on_core_dump=True):
         cookie = random_cookie()
 
         correspondence_file_path = os.path.join(self.JOB_PROXY_UDS_NAME_DIR, cookie)
@@ -556,6 +557,7 @@ class TestCoreTable(YTEnvSetup):
                     "main": {
                         "command": command,
                         "job_count": job_count,
+                        "fail_job_on_core_dump": fail_job_on_core_dump,
                     }
                 },
                 "core_table_path": self.CORE_TABLE,
@@ -750,11 +752,13 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job_id: [ret_dict1["core_info"], ret_dict2["core_info"]]}
         assert self._get_core_table_content() == {job_id: [ret_dict1["core_data"], ret_dict2["core_data"]]}
 
-    @authors("max42")
+    @authors("gritukan", "max42")
+    @pytest.mark.parametrize("fail_job_on_core_dump", [False, True])
     @skip_if_porto
     @unix_only
-    def test_operation_fails(self):
-        op, correspondence_file_path = self._start_operation(1, max_failed_job_count=1)
+    def test_fail_job_on_core_dump(self, fail_job_on_core_dump):
+        op, correspondence_file_path = self._start_operation(1, max_failed_job_count=1, \
+            fail_job_on_core_dump=fail_job_on_core_dump)
         job_id_to_uid = self._get_job_uid_correspondence(op, correspondence_file_path)
 
         job_id, uid = job_id_to_uid.items()[0]
@@ -765,7 +769,11 @@ class TestCoreTable(YTEnvSetup):
         assert ret_dict["return_code"] == 0
 
         release_breakpoint()
-        with pytest.raises(YtError):
+
+        if fail_job_on_core_dump:
+            with pytest.raises(YtError):
+                op.track()
+        else:
             op.track()
 
         assert self._get_core_infos(op) == {job_id: [ret_dict["core_info"]]}
