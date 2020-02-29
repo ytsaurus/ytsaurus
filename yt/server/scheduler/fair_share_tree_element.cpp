@@ -715,7 +715,7 @@ TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
 
 TResourceVector TSchedulerElement::GetVectorSuggestion(double suggestion) const
 {
-    // TODO(HDRFV): move this YT_VERIFY to another place.
+    // TODO(ignat): move this YT_VERIFY to another place.
     YT_VERIFY(Dominates(LimitsShare_, Attributes().RecursiveMinShare));
     TResourceVector vectorSuggestion = TResourceVector::FromDouble(suggestion);
     vectorSuggestion = TResourceVector::Max(vectorSuggestion, Attributes().RecursiveMinShare);
@@ -784,8 +784,8 @@ void TSchedulerElement::PrepareUpdateFairShare(TUpdateFairShareContext* context)
         return FairShareByFitFactor_->ValueAt(maxFitFactor);
     };
 
-    // TODO(HDRFV): Fix randomized checks.
-    // TODO(HDRFV): This function is not continuous
+    // TODO(ignat): Fix randomized checks.
+    // TODO(ignat): This function is not continuous
     // FairShareBySuggestion_->DoRandomizedCheckContinuous(sampleFairShareBySuggestion, Logger, 20, NLogging::ELogLevel::Fatal);
     std::ignore = sampleFairShareBySuggestion;
 }
@@ -857,7 +857,7 @@ void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext*
         auto actualFairShare = FairShareByFitFactor_->ValueAt(actualFitFactor);
 
         YT_LOG_FATAL(
-            "Invalid MaxFitFactorBySuggestion_. "
+            "Invalid MaxFitFactorBySuggestio: "
             "Arg: %.16v, "
             "FitFactorDiff: %.16v,"
             "ExpectedFitFactor: %.16v, "
@@ -878,7 +878,7 @@ void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext*
             mffSegment.LeftValue(), mffSegment.RightValue());
     };
 
-    // TODO(HDRFV): Fix randomized checks.
+    // TODO(ignat): Fix randomized checks.
     // MaxFitFactorBySuggestion_->DoRandomizedCheckContinuous(sampleMaxFitFactor, 20, errorHandler);
     std::ignore = sampleMaxFitFactor;
     std::ignore = errorHandler;
@@ -1427,8 +1427,8 @@ void TCompositeSchedulerElement::UpdateMinShareNormal(TUpdateFairShareContext* c
         auto& childAttributes = child->Attributes();
         double minShareRatio = child->GetMinShareRatio();
         double minShareRatioByResources = GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_);
-        // TODO(HDRFV): New type of MinShare.
 
+        // NB: Semantics of this MinShare differs from the original one.
         childAttributes.RecursiveMinShare = Attributes_.RecursiveMinShare * minShareRatio;
         childAttributes.RecursiveMinShare = TResourceVector::Max(
             childAttributes.RecursiveMinShare,
@@ -1627,8 +1627,8 @@ void TCompositeSchedulerElement::PrepareFairShareByFitFactorNormal(TUpdateFairSh
         FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
     }
 
-    // TODO(HDRFV): Fix randomized checks.
-    // TODO(HDRFV): This function is not continuous
+    // TODO(ignat): Fix randomized checks.
+    // TODO(ignat): This function is not continuous
     // FairShareByFitFactor_->DoRandomizedCheckContinuous(
     //     [&] (double fitFactor) {
     //         return std::accumulate(
@@ -3507,7 +3507,7 @@ bool TOperationElement::IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
         ControllerConfig_->MaxConcurrentControllerScheduleJobCallsPerNodeShard);
 }
 
-bool TOperationElement::HasRecentScheduleJobFailure(NYT::NProfiling::TCpuInstant now) const
+bool TOperationElement::HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const
 {
     return Controller_->HasRecentScheduleJobFailure(now, ControllerConfig_->ScheduleJobFailBackoffTime);
 }

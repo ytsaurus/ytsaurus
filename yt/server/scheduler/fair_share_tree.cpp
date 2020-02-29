@@ -1277,7 +1277,7 @@ template <class TFairShareImpl>
 auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithoutPreemption(
     const TFairShareTree::TRootElementSnapshotPtr& rootElementSnapshot,
     TFairShareContext* context,
-    NYT::NProfiling::TCpuInstant startTime) -> void
+    NProfiling::TCpuInstant startTime) -> void
 {
     YT_LOG_TRACE("Scheduling new jobs");
 
@@ -1293,7 +1293,7 @@ template <class TFairShareImpl>
 auto TFairShareTree<TFairShareImpl>::DoScheduleJobsPackingFallback(
     const TFairShareTree::TRootElementSnapshotPtr& rootElementSnapshot,
     TFairShareContext* context,
-    NYT::NProfiling::TCpuInstant startTime) -> void
+    NProfiling::TCpuInstant startTime) -> void
 {
     YT_LOG_TRACE("Scheduling jobs with packing ignored");
 
@@ -2064,7 +2064,7 @@ auto TFairShareTree<TFairShareImpl>::BuildElementYson(const TSchedulerElement* e
         .Item("usage_ratio").Value(element->GetResourceUsageRatio())
         .Item("demand_ratio").Value(attributes.GetDemandRatio())
         .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
-        // .Item("best_allocation_ratio").Value(attributes.BestAllocationRatio)
+        .Item("best_allocation_ratio").Value(attributes.GetBestAllocationRatio())
         .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio);
 }
 

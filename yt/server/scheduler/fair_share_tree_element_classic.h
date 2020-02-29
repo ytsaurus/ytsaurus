@@ -50,7 +50,6 @@ struct TSchedulableAttributes
     TDuration AdjustedFairSharePreemptionTimeout;
 
     // Set of methods for compatibility with the vector scheduler.
-
     double GetFairShareRatio() const
     {
         return FairShareRatio;
@@ -79,6 +78,11 @@ struct TSchedulableAttributes
     double GetMaxPossibleUsageRatio() const
     {
         return MaxPossibleUsageRatio;
+    }
+
+    double GetBestAllocationRatio() const
+    {
+        return BestAllocationRatio;
     }
 
     TResourceVector GetGuaranteedResourcesShare() const
@@ -196,9 +200,6 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-const int UnassignedTreeIndex = -1;
-const int EmptySchedulingTagFilterIndex = -1;
 
 class TSchedulerElementFixedState
 {

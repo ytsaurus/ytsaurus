@@ -483,7 +483,7 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(1000);
 
     RegisterParameter("use_classic_scheduler", UseClassicScheduler)
-        .Default(false);
+        .Default(true);
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

@@ -27,8 +27,8 @@ struct TScheduleJobsProfilingCounters
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int UnassignedTreeIndex = -1;
-const int EmptySchedulingTagFilterIndex = -1;
+constexpr int UnassignedTreeIndex = -1;
+constexpr int EmptySchedulingTagFilterIndex = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -322,7 +322,6 @@ bool TSchedulerElement::IsOperation() const
     return false;
 }
 
-
 TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributes& dynamicAttributes) const
 {
     return Format(
@@ -2989,7 +2988,7 @@ bool TOperationElement::IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
         ControllerConfig_->MaxConcurrentControllerScheduleJobCallsPerNodeShard);
 }
 
-bool TOperationElement::HasRecentScheduleJobFailure(NYT::NProfiling::TCpuInstant now) const
+bool TOperationElement::HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const
 {
     return Controller_->HasRecentScheduleJobFailure(now, ControllerConfig_->ScheduleJobFailBackoffTime);
 }

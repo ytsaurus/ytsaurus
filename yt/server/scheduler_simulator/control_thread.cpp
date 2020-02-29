@@ -79,7 +79,10 @@ TSimulatorControlThread::TSimulatorControlThread(
     , ActionQueue_(New<TActionQueue>(Format("ControlThread")))
     , StrategyHost_(execNodes, eventLogOutputStream, config->RemoteEventLog)
     , SchedulerStrategy_(
-        CreateFairShareStrategy<TVectorFairShareImpl>(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
+        Config_->UseClassicScheduler
+        ? CreateFairShareStrategy<TClassicFairShareImpl>(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()})
+        : CreateFairShareStrategy<TVectorFairShareImpl>(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()})
+    )
     , SchedulerStrategyForNodeShards_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())
     , NodeShardEventQueue_(
         *execNodes,

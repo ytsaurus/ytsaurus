@@ -87,6 +87,12 @@ struct TSchedulableAttributes
         return MaxComponent(MaxPossibleUsageShare);
     }
 
+    double GetBestAllocationRatio() const
+    {
+        // TODO(ignat): support it for vector HDRF.
+        return 1.0;
+    }
+
     TResourceVector GetGuaranteedResourcesShare() const
     {
         return GuaranteedResourcesShare;
@@ -110,7 +116,7 @@ struct TDynamicAttributes
     TJobResources ResourceUsageDiscount;
 };
 
-typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
+using TDynamicAttributesList = std::vector<TDynamicAttributes>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -874,6 +880,8 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationElementSharedState)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TOperationElement
     : public TSchedulerElement
