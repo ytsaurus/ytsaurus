@@ -110,9 +110,10 @@ def run_ytserver_clickhouse(ytserver_clickhouse_bin, monitoring_port):
     return start_process(args)
 
 
-def run_log_tailer(log_tailer_bin, ytserver_clickhouse_pid):
+def run_log_tailer(log_tailer_bin, ytserver_clickhouse_pid, monitoring_port):
     logger.info("Running log tailer over pid %d", ytserver_clickhouse_pid)
     args = [log_tailer_bin, str(ytserver_clickhouse_pid), "--config", "./log_tailer_config_patched.yson"]
+    args += ["--monitoring-port", monitoring_port or os.environ["YT_PORT_4"]]
     return start_process(args)
 
 
@@ -144,6 +145,7 @@ def main():
     parser.add_argument("ytserver_clickhouse_bin", nargs="?", help="ytserver-clickhouse binary path")
     parser.add_argument("--prepare-geodata", action="store_true", help="Extract archive with geodata")
     parser.add_argument("--monitoring-port", help="Port for monitoring HTTP server")
+    parser.add_argument("--log-tailer-monitoring-port", help="Port for log tailer monitoring HTTP server")
     parser.add_argument("--core-dump-destination", help="Path where to move all core dumps that appear after execution")
     parser.add_argument("--interrupt-child", action="store_true",
                         help="Whether child should be interrupted on first SIGINT coming to trampoline; note that it "
@@ -172,7 +174,8 @@ def main():
     log_tailer_process = None
     if args.log_tailer_bin:
         patch_log_tailer_config()
-        log_tailer_process = run_log_tailer(args.log_tailer_bin, ytserver_clickhouse_process.pid)
+        log_tailer_process = run_log_tailer(args.log_tailer_bin, \
+            ytserver_clickhouse_process.pid, args.log_tailer_monitoring_port)
     logger.info("Waiting for ytserver-clickhouse to finish")
     exit_code = ytserver_clickhouse_process.wait()
     logger.info("ytserver-clickhouse exit code is %d", exit_code)
