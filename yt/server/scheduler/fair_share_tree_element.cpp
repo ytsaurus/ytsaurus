@@ -326,6 +326,7 @@ void TSchedulerElement::UpdateAttributes()
     Attributes_.DemandShare = TResourceVector::FromJobResources(ResourceDemand_, TotalResourceLimits_, 0, 1);
     YT_VERIFY(Dominates(Attributes_.DemandShare, Attributes_.UsageShare));
 
+    // TODO(HDRFV): Rethink how and why MaxPossibleUsageShare is computed and used.
     auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
     Attributes_.MaxPossibleUsageShare = TResourceVector::Min(
         TResourceVector::FromJobResources(possibleUsage, TotalResourceLimits_, 0, 1),
@@ -714,7 +715,7 @@ TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
 
 TResourceVector TSchedulerElement::GetVectorSuggestion(double suggestion) const
 {
-    // TODO(FOOBAR): move this YT_VERIFY to another place.
+    // TODO(HDRFV): move this YT_VERIFY to another place.
     YT_VERIFY(Dominates(LimitsShare_, Attributes().RecursiveMinShare));
     TResourceVector vectorSuggestion = TResourceVector::FromDouble(suggestion);
     vectorSuggestion = TResourceVector::Max(vectorSuggestion, Attributes().RecursiveMinShare);
@@ -759,6 +760,7 @@ void TSchedulerElement::PrepareUpdateFairShare(TUpdateFairShareContext* context)
 
     {
         TWallTimer timer;
+        // TODO(HDRFV, eshcherbin): Extract 1e-15 as a non-magic constant.
         *FairShareBySuggestion_ = NDetail::CompressFunction(*FairShareBySuggestion_, 1e-15);
         context->CompressFunctionTotalTime += timer.GetElapsedCpuTime();
     }
@@ -782,8 +784,8 @@ void TSchedulerElement::PrepareUpdateFairShare(TUpdateFairShareContext* context)
         return FairShareByFitFactor_->ValueAt(maxFitFactor);
     };
 
-    // TODO(FOOBAR): Fix randomized checks.
-    // TODO(FOOBAR): This function is not continuous
+    // TODO(HDRFV): Fix randomized checks.
+    // TODO(HDRFV): This function is not continuous
     // FairShareBySuggestion_->DoRandomizedCheckContinuous(sampleFairShareBySuggestion, Logger, 20, NLogging::ELogLevel::Fatal);
     std::ignore = sampleFairShareBySuggestion;
 }
@@ -876,7 +878,7 @@ void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext*
             mffSegment.LeftValue(), mffSegment.RightValue());
     };
 
-    // TODO(FOOBAR): Fix randomized checks.
+    // TODO(HDRFV): Fix randomized checks.
     // MaxFitFactorBySuggestion_->DoRandomizedCheckContinuous(sampleMaxFitFactor, 20, errorHandler);
     std::ignore = sampleMaxFitFactor;
     std::ignore = errorHandler;
@@ -1425,7 +1427,7 @@ void TCompositeSchedulerElement::UpdateMinShareNormal(TUpdateFairShareContext* c
         auto& childAttributes = child->Attributes();
         double minShareRatio = child->GetMinShareRatio();
         double minShareRatioByResources = GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_);
-        // TODO(FOOBAR): New type of MinShare.
+        // TODO(HDRFV): New type of MinShare.
 
         childAttributes.RecursiveMinShare = Attributes_.RecursiveMinShare * minShareRatio;
         childAttributes.RecursiveMinShare = TResourceVector::Max(
@@ -1625,8 +1627,8 @@ void TCompositeSchedulerElement::PrepareFairShareByFitFactorNormal(TUpdateFairSh
         FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
     }
 
-    // TODO(FOOBAR): Fix randomized checks.
-    // TODO(FOOBAR): This function is not continuous
+    // TODO(HDRFV): Fix randomized checks.
+    // TODO(HDRFV): This function is not continuous
     // FairShareByFitFactor_->DoRandomizedCheckContinuous(
     //     [&] (double fitFactor) {
     //         return std::accumulate(
