@@ -55,8 +55,7 @@ TUnpackedVectorPiecewiseSegmentBounds GetBounds(const TUnpackedVectorPiecewiseSe
 //!
 //! Unfortunately, we couldn't think of an efficient algorithm that solves this problem exactly,
 //! so here we implemented a greedy algorithm, that gives a good approximation (we think).
-//! Details: https://wiki.yandex-team.ru/users/eshcherbin/segments-compaction/.
-//! TODO(FOOBAR): Move the document with the algorithm description to the YT wiki section during integration.
+//! Details: https://wiki.yandex-team.ru/yt/internal/hdrfv-function-compression/.
 TVectorPiecewiseLinearFunction CompressFunction(
     const TVectorPiecewiseLinearFunction& vecFunc,
     double epsilon = RatioComputationPrecision);
