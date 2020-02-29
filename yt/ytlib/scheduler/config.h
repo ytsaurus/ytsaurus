@@ -534,6 +534,9 @@ public:
     //! Maximum number of saved stderr per job type.
     int MaxStderrCount;
 
+    //! Maximum number of saved coredumps info per job type.
+    int MaxCoreInfoCount;
+
     std::optional<i64> JobProxyMemoryOvercommitLimit;
 
     TDuration JobProxyRefCountedTrackerLogPeriod;
@@ -742,6 +745,8 @@ public:
     std::optional<TString> NetworkProject;
 
     EEnablePorto EnablePorto;
+
+    bool FailJobOnCoreDump;
 
     TUserJobSpec();
 
