@@ -2515,8 +2515,11 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     int failedJobCount = GetDataFlowGraph()->GetTotalJobCounter()->GetFailed();
     int maxFailedJobCount = Spec_->MaxFailedJobCount;
     if (failedJobCount >= maxFailedJobCount) {
-        OnOperationFailed(TError("Failed jobs limit exceeded")
-            << TErrorAttribute("max_failed_job_count", maxFailedJobCount));
+        OnOperationFailed(
+            TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
+                << TErrorAttribute("max_failed_job_count", maxFailedJobCount)
+                << error
+        );
         return;
     }
 

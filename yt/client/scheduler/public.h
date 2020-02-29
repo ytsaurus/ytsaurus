@@ -53,6 +53,7 @@ DEFINE_ENUM(EErrorCode,
     ((OperationControllerCrashed)             (212))
     ((TestingError)                           (213))
     ((PoolTreesAreUnspecified)                (214))
+    ((MaxFailedJobsLimitExceeded)             (215))
 );
 
 DEFINE_ENUM(EUnavailableChunkAction,
