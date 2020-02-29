@@ -281,8 +281,6 @@ def prepare(options, build_context):
     options.build_enable_dist_build = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_DIST_BUILD", "NO"))
 
     options.use_asan = parse_yes_no_bool(os.environ.get("USE_ASAN", "NO"))
-    assert not options.use_asan or options.build_system == "ya", "ASAN build is enabled only for --build-system=ya"
-
     options.use_tsan = parse_yes_no_bool(os.environ.get("USE_TSAN", "NO"))
     options.use_msan = parse_yes_no_bool(os.environ.get("USE_MSAN", "NO"))
     options.use_asan = options.use_asan or parse_yes_no_bool(os.environ.get("BUILD_ENABLE_ASAN", "NO"))  # compat
@@ -307,17 +305,6 @@ def prepare(options, build_context):
     options.repositories = ["yt-" + codename] + extra_repositories
     options.bindings_repositories = ["yt-common", "common"]
     options.ya_target_platform = os.environ.get("YA_TARGET_PLATFORM", None)  # None is for default
-
-    if options.build_system != "ya":
-        # Now determine the compiler.
-        options.cc = run_captured(["which", options.cc])
-        options.cxx = run_captured(["which", options.cxx])
-
-        if not options.cc:
-            raise RuntimeError("Failed to locate C compiler")
-
-        if not options.cxx:
-            raise RuntimeError("Failed to locate CXX compiler")
 
     options.use_thinlto = False  # (options.type != "Debug")
     options.use_lto = False
@@ -417,14 +404,14 @@ def gather_build_info(options, build_context):
 def set_suid_bit(options, build_context):
     for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
         path = os.path.join(get_bin_dir(options), binary)
-        if options.build_system == "ya":
-            # Binaries in bindir are hardlinks to files stored in ya cache directory.
-            # we don't want to change their owner and permissions since
-            # it will also affect files in ya cache directory.
-            # That can make ya crazy. So we replace hard links with real copy of these files.
-            copy_path = path + ".copy"
-            shutil.copy(path, copy_path)
-            shutil.move(copy_path, path)
+        # Binaries in bindir are hardlinks to files stored in ya cache directory.
+        # we don't want to change their owner and permissions since
+        # it will also affect files in ya cache directory.
+        # That can make ya crazy. So we replace hard links with real copy of these files.
+        copy_path = path + ".copy"
+        shutil.copy(path, copy_path)
+        shutil.move(copy_path, path)
+
         run(["sudo", "chown", "root", path])
         run(["sudo", "chmod", "4755", path])
 
@@ -1024,8 +1011,6 @@ def run_pytest(options, suite_name, suite_path, pytest_args=None, env=None, pyth
     env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
     env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
     env["YT_CORE_PATH"] = options.core_path
-#    if options.build_system == "ya":
-#        env["PERL5LIB"] = get_bin_dir(options)
     for var in ["TEAMCITY_YT_TOKEN", "TEAMCITY_SANDBOX_TOKEN"]:
         if var in os.environ:
             env[var] = os.environ[var]
@@ -1316,9 +1301,6 @@ def main():
     parser.add_argument(
         "--clean_sandbox_directory",
         type=parse_bool, action="store", default=True)
-    parser.add_argument(
-        "--build_system",
-        choices=["ya"], default="ya")
 
     parser.add_argument(
         "--clear-system-tmp",
@@ -1335,13 +1317,6 @@ def main():
     parser.add_argument(
         "--disable_tests",
         type=parse_bool, action="store", default=False)
-
-    parser.add_argument(
-        "--cc",
-        type=str, action="store", required=False, default="gcc-4.8")
-    parser.add_argument(
-        "--cxx",
-        type=str, action="store", required=False, default="g++-4.8")
 
     parser.add_argument(
         "--build_project",
