@@ -27,13 +27,12 @@ from teamcity.pytest_helpers import (
 from teamcity.ya import run_ya_command_with_retries
 
 import argparse
-import tempfile
 import os.path
 import pprint
+import shutil
 import socket
 import functools
 import re
-import shutil
 
 def get_bin_dir(options):
     return os.path.join(options.yt_build_directory, "bin")
@@ -276,7 +275,7 @@ def _run_tests(options, python_version):
                 "--debug",
                 "--junitxml={0}".format(junit_path)
             ] + additional_args,
-            cwd=options.checkout_directory,
+            cwd=os.path.join(options.checkout_directory, "yt"),
             env=env)
     except ChildHasNonZeroExitCode as err:
         teamcity_interact("buildProblem", description="Pytest failed (python: {}; exit code: {})".format(python_version, err.return_code))
@@ -378,13 +377,18 @@ def build_packages(options):
     packages = ["yandex-yt-python", "yandex-yt-python-tools",
                 "yandex-yt-transfer-manager-client", "yandex-yt-local"]
 
-    for package in packages:
-        with cwd(options.checkout_directory, package):
+    with cwd(options.checkout_directory, "packages"):
+        shutil.copytree(os.path.join(options.checkout_directory, "yt"), "yt")
+        for package in packages:
             package_version = run_captured(
-                "dpkg-parsechangelog | grep Version | awk '{print $2}'", shell=True).strip()
-            run(["dch", "-r", package_version, "'Resigned by teamcity'"])
-        run(["./deploy.sh", package], cwd=options.checkout_directory,
-            env={"TMPDIR": options.working_directory, "YT_SRC_DIR": options.yt_source_directory})
+                "dpkg-parsechangelog | grep Version | awk '{print $2}'",
+                shell=True,
+                cwd=package,
+            ).strip()
+            run(["dch", "-r", package_version, "'Resigned by teamcity'"],
+                cwd=package)
+            run(["./deploy.sh", package],
+                env={"TMPDIR": options.working_directory, "YT_SRC_DIR": options.yt_source_directory})
 
 @cleanup_step
 def clean_failed_tests(options, build_context, max_allowed_size=None):
@@ -393,7 +397,8 @@ def clean_failed_tests(options, build_context, max_allowed_size=None):
 @cleanup_step
 def clean_sandbox(options, build_context):
     # Note: ytserver tests may create files with that cannot be deleted by teamcity user.
-    sudo_rmtree(options.sandbox_directory)
+    if os.path.exists(options.sandbox_directory):
+        sudo_rmtree(options.sandbox_directory)
 
 ################################################################################
 # This is an entry-point. Just boiler-plate.
@@ -428,13 +433,6 @@ def main():
     parser.add_argument(
         "--run-ya-tests",
         type=parse_bool, action="store", default=None)
-
-    parser.add_argument(
-        "--cc",
-        action="store", required=False, default="gcc-4.9")
-    parser.add_argument(
-        "--cxx",
-        action="store", required=False, default="g++-4.9")
 
     options = parser.parse_args()
     options.failed_tests_path = os.path.expanduser("~/failed_tests")
