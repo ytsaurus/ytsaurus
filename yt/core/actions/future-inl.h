@@ -967,6 +967,9 @@ TFuture<T> TFutureBase<T>::ToUncancelable() const
         promise.Set(value);
     }));
 
+    static const auto NoopHandler = BIND([] (const TError&) { });
+    promise.OnCanceled(NoopHandler);
+
     return promise;
 }
 
