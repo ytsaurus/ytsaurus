@@ -356,9 +356,9 @@ public:
         if (expectedJobCount != jobCounter->GetRunning()) {
             THROW_ERROR_EXCEPTION(
                 NScheduler::EErrorCode::OperationFailedOnJobRestart,
-                "Cannot revive operation when spec option fail_on_job_restart is set and not "
+                "Cannot revive operation when \"fail_on_job_restart\" spec option is set and not "
                 "all jobs have already been started according to the operation snapshot"
-                "(i.e. not all jobs are running or completed)")
+                " (i.e. not all jobs are running or completed)")
                 << TErrorAttribute("operation_type", OperationType)
                 << TErrorAttribute("expected_job_count", expectedJobCount)
                 << TErrorAttribute("started_job_count", startedJobCount);
