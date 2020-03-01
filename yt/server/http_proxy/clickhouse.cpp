@@ -53,8 +53,7 @@ public:
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp,
         const TClickHouseConfigPtr& config,
-        const NAuth::ITokenAuthenticatorPtr& tokenAuthenticator,
-        const NApi::IClientPtr& client,
+        TBootstrap* bootstrap,
         const NHttp::IClientPtr& httpClient,
         const TCliqueCachePtr cliqueCache,
         IInvokerPtr controlInvoker,
@@ -63,8 +62,8 @@ public:
         , Request_(req)
         , Response_(rsp)
         , Config_(config)
-        , TokenAuthenticator_(tokenAuthenticator)
-        , Client_(client)
+        , Bootstrap_(bootstrap)
+        , Client_(Bootstrap_->GetClickHouseClient())
         , HttpClient_(httpClient)
         , CliqueCache_(cliqueCache)
         , ControlInvoker_(controlInvoker)
@@ -119,8 +118,11 @@ public:
             auto* traceContext = GetCurrentTraceContext();
             YT_VERIFY(traceContext);
 
-            if (!isDatalens) {
-                traceContext->SetSampled();
+            if (isDatalens) {
+                if (auto tracingOverride = Bootstrap_->GetCoordinator()->GetDynamicConfig()->DatalensTracingOverride) {
+
+                    traceContext->SetSampled(*tracingOverride);
+                }
             }
 
             CgiParameters_.emplace("query_id", ToString(traceContext->GetTraceId()));
@@ -266,8 +268,8 @@ private:
     const IRequestPtr& Request_;
     const IResponseWriterPtr& Response_;
     const TClickHouseConfigPtr& Config_;
-    const NAuth::ITokenAuthenticatorPtr& TokenAuthenticator_;
-    const NApi::IClientPtr& Client_;
+    TBootstrap* const Bootstrap_;
+    const NApi::IClientPtr Client_;
     const NHttp::IClientPtr& HttpClient_;
     const TCliqueCachePtr CliqueCache_;
     IInvokerPtr ControlInvoker_;
@@ -401,7 +403,7 @@ private:
             credentials.Token = Token_;
 
             PROFILE_AGGREGATED_TIMING(Metrics_.AuthenticateTime) {
-                User_ = WaitFor(TokenAuthenticator_->Authenticate(credentials))
+                User_ = WaitFor(Bootstrap_->GetTokenAuthenticator()->Authenticate(credentials))
                     .ValueOrThrow()
                     .Login;
             }
@@ -534,8 +536,7 @@ void TClickHouseHandler::HandleRequest(
             request,
             response,
             Config_,
-            Bootstrap_->GetTokenAuthenticator(),
-            Bootstrap_->GetClickHouseClient(),
+            Bootstrap_,
             HttpClient_,
             CliqueCache_,
             ControlInvoker_,

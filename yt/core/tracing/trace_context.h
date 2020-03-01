@@ -68,7 +68,7 @@ public:
     const TTagList& GetTags() const;
 
     void SetSpanName(const TString& spanName);
-    void SetSampled();
+    void SetSampled(bool value = true);
     void AddTag(const TString& tagKey, const TString& tagValue);
     void ResetStartTime();
 
