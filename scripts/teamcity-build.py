@@ -481,13 +481,19 @@ def package_python_proto(options, build_context):
             python_src_copy,
             symlinks=True)
 
-        with cwd(os.path.join(python_src_copy, "yandex-yt-python-proto")):
+        # Copy python modules inside packages before actual packaging.
+        shutil.copytree(
+            os.path.join(python_src_copy, "yt_proto"),
+            os.path.join(python_src_copy, "packages/yt_proto"),
+            symlinks=True)
+
+        with cwd(os.path.join(python_src_copy, "packages/yandex-yt-python-proto")):
             reset_debian_changelog()
             dch(version=config["yt_rpc_proxy_protocol_version"],
                 message="Proto package release.",
                 create_package="yandex-yt-python-proto")
 
-        run(["./build_proto.sh"], cwd=python_src_copy)
+        run(["./deploy.sh", "yandex-yt-python-proto"], cwd=os.path.join(python_src_copy, "packages"), env={"FORCE_BUILD": "1"})
 
         package_list = glob.glob("yandex-yt-python-proto*")
         if not package_list:
@@ -1076,7 +1082,7 @@ def run_yt_integration_tests(options, build_context):
         return
 
     # Run small portion of tests using pytest. Make sure it is still working.
-    pytest_args = ["-k", "TestSchedulerCommon"] 
+    pytest_args = ["-k", "TestSchedulerCommon"]
     if options.enable_parallel_testing:
         build_type = options.ya_build_type + ("-asan" if options.use_asan else "")
         pytest_args.extend(["--process-count", str(INTEGRATION_TESTS_PARALLELISM[build_type])])
@@ -1134,7 +1140,7 @@ def run_python_libraries_tests(options, build_context):
                     for name in test_names]
     run_pytest(options,
                "python_libraries",
-               "{0}/{1}/python".format(options.checkout_directory, get_relative_python_root(options)),
+               "{0}/{1}/python/yt".format(options.checkout_directory, get_relative_python_root(options)),
                pytest_args=pytest_args,
                env={
                    "TESTS_JOB_CONTROL": "1",
