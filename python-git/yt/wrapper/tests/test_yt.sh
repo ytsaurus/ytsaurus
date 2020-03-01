@@ -161,7 +161,7 @@ test_copy_move_link()
     $YT remove //home/wrapper_test/other_table
 
     $YT create account --attributes '{name=test}'
-    $YT set //sys/accounts/test/@resource_limits/master_memory_usage 1000000
+    $YT set //sys/accounts/test/@resource_limits/master_memory 1000000
     $YT set //sys/accounts/test/@resource_limits/node_count 1000
     $YT set //sys/accounts/test/@resource_limits/chunk_count 100000
     $YT set //sys/accounts/test/@resource_limits/disk_space_per_medium/default 1000000000
