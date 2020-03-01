@@ -25,10 +25,14 @@ def remerge_tables(input_table_paths):
             output_table_path = input_table_path + ".static"
             schema = yt.get(input_table_path + "/@schema")
             table_kind = get_table_kind(output_table_path)
-            logger.debug("Creating table %s with schema %s and setting log tailer attributes on it as for order kind %s", output_table_path, schema, table_kind)
+            log_tailer_version_path = input_table_path + "/@log_tailer_version"
+            log_tailer_version = None
+            if yt.exists(log_tailer_version_path):
+                log_tailer_version = yt.get(log_tailer_version_path)
+            logger.debug("Creating table %s with schema %s and setting log tailer attributes on it as for order kind %s, log tailer version = %s", output_table_path, schema, table_kind, log_tailer_version)
             if not args.dry_run:
                 yt.create("table", output_table_path, attributes={"schema": schema}, force=True)
-                yt.clickhouse.set_log_tailer_table_attributes(table_kind, output_table_path, 7 * 24 * 60 * 60 * 1000)
+                yt.clickhouse.set_log_tailer_table_attributes(table_kind, output_table_path, 7 * 24 * 60 * 60 * 1000, log_tailer_verion=log_tailer_version)
 
             spec_builder = yt.spec_builders.MergeSpecBuilder() \
                 .input_table_paths(input_table_path) \
@@ -42,7 +46,7 @@ def remerge_tables(input_table_paths):
             if not args.dry_run:
                 tracker.add(spec_builder)
 
-            if args.backup_suffix is not None: 
+            if args.backup_suffix is not None:
                 input_table_backup_path = input_table_path + args.backup_suffix
                 to_move += [(input_table_path, input_table_backup_path)]
 
