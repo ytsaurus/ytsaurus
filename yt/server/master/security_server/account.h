@@ -90,7 +90,7 @@ public:
 
     //! Returns |true| if master memory usage is exceeded,
     //! i.e. no more master memory can be occupied.
-    bool IsMasterMemoryUsageViolated() const;
+    bool IsMasterMemoryLimitViolated() const;
 
     //! Returns statistics for a given cell tag.
     TAccountStatistics* GetCellStatistics(NObjectClient::TCellTag cellTag);

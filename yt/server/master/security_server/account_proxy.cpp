@@ -233,7 +233,7 @@ private:
                         .Item("chunk_count").Value(account->IsChunkCountLimitViolated())
                         .Item("tablet_count").Value(account->IsTabletCountLimitViolated())
                         .Item("tablet_static_memory").Value(account->IsTabletStaticMemoryLimitViolated())
-                        .Item("master_memory_usage").Value(account->IsMasterMemoryUsageViolated())
+                        .Item("master_memory").Value(account->IsMasterMemoryLimitViolated())
                     .EndMap();
                 return true;
             }

@@ -409,7 +409,7 @@ def multicell_sleep():
     if is_multicell:
         time.sleep(0.5)
 
-def master_memory_usage_sleep():
+def master_memory_sleep():
     multicell_sleep()
     time.sleep(0.2)
     multicell_sleep()
@@ -1252,7 +1252,7 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
             "node_count": 1000,
             "tablet_count": 0,
             "tablet_static_memory": 0,
-            "master_memory_usage": 100000
+            "master_memory": 100000
         }
     execute_command("create", kwargs)
     if sync:

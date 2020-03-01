@@ -131,14 +131,14 @@ def check_hierarchical_accounts():
 
     assert get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default") == b11_disk_usage + b21_disk_usage
 
-def check_master_memory_usage():
+def check_master_memory():
     resource_limits = {
         "disk_space_per_medium": {"default": 100000},
         "chunk_count": 100,
         "node_count": 100,
         "tablet_count": 100,
         "tablet_static_memory": 100000,
-        "master_memory_usage": 100000
+        "master_memory": 100000
     }
     create_account("a", attributes={"resource_limits": resource_limits})
 
@@ -161,11 +161,11 @@ def check_master_memory_usage():
 
     sleep(3)
 
-    master_memory_usage = get("//sys/accounts/a/@resource_usage/master_memory_usage")
+    master_memory_usage = get("//sys/accounts/a/@resource_usage/master_memory")
 
     yield
 
-    wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory_usage") == master_memory_usage)
+    wait(lambda: get("//sys/accounts/a/@resource_usage/master_memory") == master_memory_usage)
 
 def check_dynamic_tables():
     sync_create_cells(1)
@@ -210,7 +210,7 @@ class TestMasterSnapshots(YTEnvSetup):
             check_dynamic_tables,
             check_security_tags,
             check_hierarchical_accounts,
-            check_master_memory_usage,
+            check_master_memory,
             check_removed_account # keep this item last as it's sensitive to timings
         ]
 
@@ -250,7 +250,7 @@ class TestAllMastersSnapshots(YTEnvSetup):
             check_dynamic_tables,
             check_security_tags,
             check_hierarchical_accounts,
-            check_master_memory_usage,
+            check_master_memory,
             check_removed_account # keep this item last as it's sensitive to timings
         ]
 
