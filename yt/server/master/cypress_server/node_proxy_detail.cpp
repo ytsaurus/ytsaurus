@@ -173,7 +173,7 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
     const auto& multicellManager = Proxy_->Bootstrap_->GetMulticellManager();
     if (Proxy_->TrunkNode_->GetNativeCellTag() == multicellManager->GetCellTag()) {
         auto resourceUsageIncrease = TClusterResources()
-            .SetMasterMemoryUsage(1);
+            .SetMasterMemory(1);
         securityManager->ValidateResourceUsageIncrease(node->GetAccount(), resourceUsageIncrease);
     }
 

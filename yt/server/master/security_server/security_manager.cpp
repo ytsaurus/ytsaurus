@@ -500,8 +500,8 @@ public:
         auto totalChildrenLimits = account->ComputeTotalChildrenLimits();
         const auto& dynamicConfig = GetDynamicConfig();
         if (!dynamicConfig->EnableMasterMemoryUsageAccountOvercommitValidation) {
-            newResources.MasterMemoryUsage = 0;
-            totalChildrenLimits.MasterMemoryUsage = 0;
+            newResources.MasterMemory = 0;
+            totalChildrenLimits.MasterMemory = 0;
         }
         return newResources.IsAtLeastOneResourceLessThan(totalChildrenLimits);
     }
@@ -574,8 +574,8 @@ public:
             chunk,
             requisition,
             delta,
-            [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 masterMemoryUsage, bool committed) {
-                account->SetMasterMemoryUsage(account->GetMasterMemoryUsage() + masterMemoryUsage);
+            [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 masterMemory, bool committed) {
+                account->SetMasterMemoryUsage(account->GetMasterMemoryUsage() + masterMemory);
                 doCharge(&account->ClusterStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 doCharge(&account->LocalStatistics().ResourceUsage, mediumIndex, chunkCount, diskSpace);
                 if (committed) {
@@ -1557,10 +1557,10 @@ public:
             if (delta.TabletStaticMemory > 0 && usage.TabletStaticMemory + delta.TabletStaticMemory > limits.TabletStaticMemory) {
                 throwOverdraftError("tablet static memory", account, usage.TabletStaticMemory, limits.TabletStaticMemory);
             }
-            if (dynamicConfig->EnableMasterMemoryUsageValidation && delta.MasterMemoryUsage > 0 &&
-                usage.MasterMemoryUsage + delta.MasterMemoryUsage > limits.MasterMemoryUsage)
+            if (dynamicConfig->EnableMasterMemoryUsageValidation && delta.MasterMemory > 0 &&
+                usage.MasterMemory + delta.MasterMemory > limits.MasterMemory)
             {
-                throwOverdraftError("master memory usage", account, usage.MasterMemoryUsage, limits.MasterMemoryUsage);
+                throwOverdraftError("master memory", account, usage.MasterMemory, limits.MasterMemory);
             }
         }
 
@@ -2200,7 +2200,7 @@ private:
                 }
 
                 auto resourceLimits = account->ClusterResourceLimits();
-                resourceLimits.MasterMemoryUsage = 100_GB;
+                resourceLimits.MasterMemory = 100_GB;
 
                 TrySetResourceLimits(account, resourceLimits);
             }
@@ -2590,7 +2590,7 @@ private:
             .SetNodeCount(100000)
             .SetChunkCount(1000000000)
             .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, 1_TB)
-            .SetMasterMemoryUsage(100_GB);
+            .SetMasterMemory(100_GB);
 
         // sys, 1 TB disk space, 100 000 nodes, 1 000 000 000 chunks, 100 000 tablets, 10TB tablet static memory, 100_GB master memory allowed for: root
         if (EnsureBuiltinAccountInitialized(SysAccount_, SysAccountId_, SysAccountName)) {
@@ -2628,7 +2628,7 @@ private:
             auto resourceLimits = TClusterResources()
                 .SetNodeCount(std::numeric_limits<int>::max())
                 .SetChunkCount(std::numeric_limits<int>::max())
-                .SetMasterMemoryUsage(100_GB)
+                .SetMasterMemory(100_GB)
                 .SetMediumDiskSpace(NChunkServer::DefaultStoreMediumIndex, std::numeric_limits<i64>::max() / 4);
             TrySetResourceLimits(ChunkWiseAccountingMigrationAccount_, resourceLimits);
             ChunkWiseAccountingMigrationAccount_->Acd().AddEntry(TAccessControlEntry(
@@ -2764,7 +2764,7 @@ private:
             const auto& resources = account->LocalStatistics().ResourceUsage;
 
             auto newMemoryUsage = account->GetMasterMemoryUsage();
-            if (newMemoryUsage == resources.MasterMemoryUsage) {
+            if (newMemoryUsage == resources.MasterMemory) {
                 continue;
             }
 
@@ -2793,7 +2793,7 @@ private:
         }
 
         account->SetLocalStatisticsPtr(&multicellStatistics[cellTag]);
-        account->SetMasterMemoryUsage(multicellStatistics[cellTag].ResourceUsage.MasterMemoryUsage);
+        account->SetMasterMemoryUsage(multicellStatistics[cellTag].ResourceUsage.MasterMemory);
     }
 
     void OnAccountStatisticsGossip()
@@ -2878,11 +2878,11 @@ private:
 
             auto masterMemoryUsage = entry.master_memory_usage();
 
-            account->ClusterStatistics().ResourceUsage.MasterMemoryUsage = masterMemoryUsage;
-            account->LocalStatistics().ResourceUsage.MasterMemoryUsage = masterMemoryUsage;
+            account->ClusterStatistics().ResourceUsage.MasterMemory = masterMemoryUsage;
+            account->LocalStatistics().ResourceUsage.MasterMemory = masterMemoryUsage;
 
-            account->ClusterStatistics().CommittedResourceUsage.MasterMemoryUsage = masterMemoryUsage;
-            account->LocalStatistics().CommittedResourceUsage.MasterMemoryUsage = masterMemoryUsage;
+            account->ClusterStatistics().CommittedResourceUsage.MasterMemory = masterMemoryUsage;
+            account->LocalStatistics().CommittedResourceUsage.MasterMemory = masterMemoryUsage;
         }
     }
 

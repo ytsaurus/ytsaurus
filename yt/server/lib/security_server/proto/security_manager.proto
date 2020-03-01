@@ -10,7 +10,7 @@ message TClusterResources
     required int64 node_count = 3;
     required int32 tablet_count = 5;
     required int64 tablet_static_memory_size = 6;
-    required int64 master_memory_usage = 7;
+    required int64 master_memory = 7;
 
     message TMediumDiskSpace
     {
