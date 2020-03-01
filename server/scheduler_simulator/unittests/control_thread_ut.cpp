@@ -9,9 +9,9 @@
 
 #include <util/stream/null.h>
 
-#include <contrib/libs/gmock/gmock/gmock.h>
-#include <contrib/libs/gmock/gmock/gmock-matchers.h>
-#include <contrib/libs/gmock/gmock/gmock-actions.h>
+#include <contrib/libs/gmock/include/gmock/gmock.h>
+#include <contrib/libs/gmock/include/gmock/gmock-matchers.h>
+#include <contrib/libs/gmock/include/gmock/gmock-actions.h>
 
 namespace NYT::NSchedulerSimulator {
 namespace {

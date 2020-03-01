@@ -7,8 +7,8 @@
 // Include Google Test and Google Mock headers.
 #define GTEST_DONT_DEFINE_FAIL 1
 
-#include <contrib/libs/gtest/gtest/gtest.h>
-#include <contrib/libs/gmock/gmock/gmock.h>
+#include <contrib/libs/gtest/include/gtest/gtest.h>
+#include <contrib/libs/gmock/include/gmock/gmock.h>
 
 namespace NYT {
 
