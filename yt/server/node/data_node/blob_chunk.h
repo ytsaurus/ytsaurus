@@ -152,22 +152,12 @@ public:
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta,
         const TArtifactKey& key,
-        TCallback<TFuture<void>()> destroyed,
-        bool requiresValidation);
+        TClosure destroyedHandler);
 
     ~TCachedBlobChunk();
 
-    TFuture<void> Validate();
-    TFuture<void> GetAsyncDestroyResult();
-
 private:
-    const TCallback<TFuture<void>()> Destroyed_;
-    std::atomic_flag ValidationLaunched_ = ATOMIC_FLAG_INIT;
-
-    TPromise<void> ValidationResult_ = NewPromise<void>();
-    TPromise<void> DestroyPromise_ = NewPromise<void>();
-
-    void DoValidate();
+    const TClosure DestroyedHandler_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedBlobChunk)

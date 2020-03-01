@@ -70,7 +70,7 @@ public:
      */
     TFuture<IChunkPtr> DownloadArtifact(
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& options);
+        const TArtifactDownloadOptions& artifactDownloadOptions);
 
     //! Constructs a producer that will download the artifact and feed its content to a stream.
     /*!
@@ -78,7 +78,7 @@ public:
      */
     std::function<void(IOutputStream*)> MakeArtifactDownloadProducer(
         const TArtifactKey& key,
-        const TArtifactDownloadOptions& options);
+        const TArtifactDownloadOptions& artifactDownloadOptions);
 
     //! Cache locations.
     DECLARE_BYREF_RO_PROPERTY(std::vector<TCacheLocationPtr>, Locations);
