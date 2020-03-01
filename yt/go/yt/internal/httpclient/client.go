@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
+	"sync"
 
 	"golang.org/x/xerrors"
 
@@ -47,16 +50,18 @@ type httpClient struct {
 	stop       *internal.StopGroup
 
 	credentials yt.Credentials
+
+	proxiesMu    sync.Mutex
+	refreshErr   error
+	refreshDone  chan struct{}
+	heavyProxies []string
+	refreshing   bool
 }
 
-func (c *httpClient) pickHeavyProxy(ctx context.Context) (string, error) {
-	if c.clusterURL.DisableDiscovery {
-		return c.clusterURL.URL, nil
-	}
-
+func (c *httpClient) doListHeavyProxies(ctx context.Context) ([]string, error) {
 	req, err := http.NewRequest("GET", c.clusterURL.URL+"/hosts", nil)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	var rsp *http.Response
@@ -68,25 +73,93 @@ func (c *httpClient) pickHeavyProxy(ctx context.Context) (string, error) {
 		default:
 		}
 
-		return "", err
+		return nil, err
 	}
 	defer func() { _ = rsp.Body.Close() }()
 
 	if rsp.StatusCode != 200 {
-		return "", unexpectedStatusCode(rsp)
+		return nil, unexpectedStatusCode(rsp)
 	}
 
 	var proxies []string
 	if err = json.NewDecoder(rsp.Body).Decode(&proxies); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if len(proxies) == 0 {
-		return "", xerrors.New("proxy list is empty")
+		return nil, xerrors.New("proxy list is empty")
 	}
 
-	best := "http://" + proxies[0]
-	return best, nil
+	return proxies, nil
+}
+
+func (c *httpClient) refreshHeavyProxies(done chan struct{}) {
+	defer close(done)
+	defer c.stop.Done()
+
+	ctx := c.stop.Context()
+	proxies, err := c.doListHeavyProxies(ctx)
+
+	c.proxiesMu.Lock()
+	c.refreshing = false
+	if err != nil {
+		c.refreshErr = err
+	} else {
+		c.heavyProxies = proxies
+	}
+	c.proxiesMu.Unlock()
+}
+
+func (c *httpClient) listHeavyProxies(ctx context.Context) ([]string, error) {
+	c.proxiesMu.Lock()
+	if !c.refreshing {
+		if !c.stop.TryAdd() {
+			c.proxiesMu.Unlock()
+			return nil, xerrors.New("client is stopped")
+		}
+
+		c.refreshing = true
+		c.refreshDone = make(chan struct{})
+		go c.refreshHeavyProxies(c.refreshDone)
+	}
+
+	refreshDone := c.refreshDone
+	proxies := c.heavyProxies
+	c.proxiesMu.Unlock()
+
+	if len(proxies) > 0 {
+		return proxies, nil
+	}
+
+	select {
+	case <-refreshDone:
+	case <-ctx.Done():
+		return nil, fmt.Errorf("error waiting for heavy list: %w", ctx.Err())
+	}
+
+	c.proxiesMu.Lock()
+	refreshErr := c.refreshErr
+	proxies = c.heavyProxies
+	c.proxiesMu.Unlock()
+
+	if len(proxies) > 0 {
+		return proxies, nil
+	}
+
+	return nil, refreshErr
+}
+
+func (c *httpClient) pickHeavyProxy(ctx context.Context) (string, error) {
+	if c.clusterURL.DisableDiscovery {
+		return c.clusterURL.URL, nil
+	}
+
+	proxies, err := c.listHeavyProxies(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	return "http://" + proxies[rand.Int()%len(proxies)], nil
 }
 
 func (c *httpClient) writeParams(req *http.Request, call *internal.Call) error {

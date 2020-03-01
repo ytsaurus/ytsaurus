@@ -1,6 +1,9 @@
 package internal
 
-import "sync"
+import (
+	"context"
+	"sync"
+)
 
 type StopGroup struct {
 	m        sync.Mutex
@@ -36,6 +39,31 @@ func (l *StopGroup) Done() {
 
 func (l *StopGroup) C() <-chan struct{} {
 	return l.c
+}
+
+type stopContext struct {
+	context.Context
+	l *StopGroup
+}
+
+func (ctx *stopContext) Done() <-chan struct{} {
+	return ctx.l.c
+}
+
+func (ctx *stopContext) Err() error {
+	select {
+	case <-ctx.l.c:
+		return context.Canceled
+	default:
+		return nil
+	}
+}
+
+func (l *StopGroup) Context() context.Context {
+	return &stopContext{
+		Context: context.Background(),
+		l:       l,
+	}
 }
 
 func (l *StopGroup) Stop() {
