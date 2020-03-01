@@ -238,8 +238,6 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
         auto value = TRefCounted::DangerousGetPtr(valueIt->second);
         if (value) {
             auto* item = new TItem(value);
-            auto value = item->Value;
-            YT_ASSERT(value);
 
             YT_VERIFY(ItemMap_.emplace(key, item).second);
             ++ItemMapSize_;
