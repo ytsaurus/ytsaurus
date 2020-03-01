@@ -333,4 +333,31 @@ NYTree::INodePtr ConvertFromLegacyConfig(const NYTree::INodePtr& legacyConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TDynamicConfig is part of proxy configuration stored in cypress.
+//
+// NOTE: config might me unavalable. Users must handle such cases
+// gracefully.
+class TDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NTracing::TSamplingConfigPtr Tracing;
+
+    TString FitnessFunction;
+    double CpuWeight;
+    double CpuWaitWeight;
+    double ConcurrentRequestsWeight;
+
+    bool RelaxCsrfCheck;
+
+    //! If set, force enable or disable tracing for requests from DataLens.
+    std::optional<bool> DatalensTracingOverride;
+
+    TDynamicConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHttpProxy
