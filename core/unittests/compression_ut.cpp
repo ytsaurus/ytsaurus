@@ -117,7 +117,7 @@ TEST_P(TCodecTest, VectorExpBuffers)
     TestCase(input);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     All,
     TCodecTest,
     ::testing::Combine(

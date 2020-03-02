@@ -1237,7 +1237,7 @@ TEST_P(TFairShareSchedulerTest, Test2)
         .ThrowOnError();
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Test,
     TFairShareSchedulerTest,
     ::testing::Values(

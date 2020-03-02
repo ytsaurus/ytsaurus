@@ -656,7 +656,7 @@ class TSkiffWriterSingular
     , public ::testing::WithParamInterface<ESimpleLogicalValueType>
 {};
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Singular,
     TSkiffWriterSingular,
     ::testing::Values(ESimpleLogicalValueType::Null, ESimpleLogicalValueType::Void));

@@ -741,8 +741,8 @@ template <class TImpl>
 using TRpcTest = TTestBase<TImpl>;
 template <class TImpl>
 using TNotGrpcTest = TTestBase<TImpl>;
-TYPED_TEST_CASE(TRpcTest, TAllTransports);
-TYPED_TEST_CASE(TNotGrpcTest, TWithoutGrpc);
+TYPED_TEST_SUITE(TRpcTest, TAllTransports);
+TYPED_TEST_SUITE(TNotGrpcTest, TWithoutGrpc);
 
 ////////////////////////////////////////////////////////////////////////////////
 
