@@ -4,6 +4,8 @@
 
 #include <yt/server/lib/exec_agent/config.h>
 
+#include <yt/server/lib/job_agent/statistics_reporter.h>
+
 #include <yt/server/node/cell_node/bootstrap.h>
 
 #include <yt/server/node/data_node/master_connector.h>

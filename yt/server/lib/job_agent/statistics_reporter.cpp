@@ -1,11 +1,7 @@
 #include "statistics_reporter.h"
-#include "private.h"
 
 #include <yt/server/lib/job_agent/config.h>
-
-#include <yt/server/node/data_node/master_connector.h>
-
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/lib/job_agent/job_statistics.h>
 
 #include <yt/client/api/connection.h>
 #include <yt/client/api/transaction.h>
@@ -35,7 +31,6 @@ using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
-using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NTableClient;
@@ -159,14 +154,14 @@ class THandlerBase
 public:
     THandlerBase(
         TSharedDataPtr data,
-        const TStatisticsReporterConfigPtr& config,
+        TStatisticsReporterConfigPtr config,
         const TString& reporterName,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
         const TProfiler& profiler,
         ui64 maxInProgressDataSize)
         : Data_(std::move(data))
-        , Config_(config)
+        , Config_(std::move(config))
         , Client_(std::move(client))
         , Profiler_(profiler)
         , Limiter_(maxInProgressDataSize)
@@ -377,11 +372,11 @@ class TJobHandler
 {
 public:
     TJobHandler(
-        const TString& localAddress,
+        std::optional<TString> localAddress,
         TSharedDataPtr data,
         const TStatisticsReporterConfigPtr& config,
         NNative::IClientPtr client,
-        IInvokerPtr invoker)
+        const IInvokerPtr& invoker)
         : THandlerBase(
             std::move(data),
             config,
@@ -390,12 +385,12 @@ public:
             invoker,
             JobProfiler,
             config->MaxInProgressJobDataSize)
-        , DefaultLocalAddress_(localAddress)
+        , DefaultLocalAddress_(std::move(localAddress))
     { }
 
 private:
     const TJobTableDescriptor Table_;
-    const TString DefaultLocalAddress_;
+    const std::optional<TString> DefaultLocalAddress_;
 
     virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) override
     {
@@ -427,7 +422,9 @@ private:
             if (statistics.FinishTime()) {
                 builder.AddValue(MakeUnversionedInt64Value(*statistics.FinishTime(), Table_.Index.FinishTime));
             }
-            builder.AddValue(MakeUnversionedStringValue(DefaultLocalAddress_, Table_.Index.Address));
+            if (DefaultLocalAddress_) {
+                builder.AddValue(MakeUnversionedStringValue(*DefaultLocalAddress_, Table_.Index.Address));
+            }
             if (statistics.Error()) {
                 builder.AddValue(MakeUnversionedAnyValue(*statistics.Error(), Table_.Index.Error));
             }
@@ -705,12 +702,13 @@ class TStatisticsReporter::TImpl
 public:
     TImpl(
         TStatisticsReporterConfigPtr reporterConfig,
-        TBootstrap* bootstrap)
+        const NApi::NNative::IConnectionPtr& masterConnection,
+        std::optional<TString> localAddress)
         : Client_(
-            bootstrap->GetMasterConnection()->CreateNativeClient(TClientOptions(reporterConfig->User)))
+            masterConnection->CreateNativeClient(TClientOptions(reporterConfig->User)))
         , JobHandler_(
             New<TJobHandler>(
-                bootstrap->GetMasterConnector()->GetLocalDescriptor().GetDefaultAddress(),
+                std::move(localAddress),
                 Data_,
                 reporterConfig,
                 Client_,
@@ -830,10 +828,11 @@ private:
 
 TStatisticsReporter::TStatisticsReporter(
     TStatisticsReporterConfigPtr reporterConfig,
-    TBootstrap* bootstrap)
+    const NApi::NNative::IConnectionPtr& masterConnection,
+    std::optional<TString> localAddress)
     : Impl_(
         reporterConfig->Enabled
-            ? New<TImpl>(std::move(reporterConfig), bootstrap)
+            ? New<TImpl>(std::move(reporterConfig), masterConnection, std::move(localAddress))
             : nullptr)
 { }
 

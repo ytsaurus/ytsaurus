@@ -9,6 +9,9 @@
 #include "scheduling_context.h"
 #include "config.h"
 
+#include <yt/server/lib/job_agent/job_statistics.h>
+#include <yt/server/lib/job_agent/statistics_reporter.h>
+
 #include <yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/server/lib/scheduler/helpers.h>
@@ -4632,7 +4635,6 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     }
 
     summary->ReleaseFlags.ArchiveProfile = true;
-    summary->ReleaseFlags.HasCompetitors = joblet->HasCompetitors;
 
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
 
@@ -8534,9 +8536,22 @@ void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason a
         TError("Job is aborted by controller") << TErrorAttribute("abort_reason", abortReason));
 }
 
-void TOperationControllerBase::MarkJobHasCompetitors(TJobId jobId)
+void TOperationControllerBase::OnSpeculativeJobScheduled(const TJobletPtr& joblet)
 {
-    GetJoblet(jobId)->HasCompetitors = true;
+    MarkJobHasCompetitors(joblet);
+    MarkJobHasCompetitors(GetJoblet(joblet->JobCompetitionId));
+}
+
+void TOperationControllerBase::MarkJobHasCompetitors(const TJobletPtr& joblet)
+{
+    if (!joblet->HasCompetitors) {
+        joblet->HasCompetitors = true;
+        auto statistics = NJobAgent::TJobStatistics()
+            .OperationId(OperationId)
+            .JobId(joblet->JobId)
+            .HasCompetitors(true);
+        Host->GetStatisticsReporter()->ReportStatistics(std::move(statistics));
+    }
 }
 
 void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId)

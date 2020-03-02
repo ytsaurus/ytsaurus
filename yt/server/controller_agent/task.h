@@ -281,7 +281,7 @@ private:
 
     void AbortJobViaScheduler(TJobId jobId, EAbortReason reason);
 
-    void MarkJobHasCompetitors(TJobId jobId);
+    void OnSpeculativeJobScheduled(const TJobletPtr& joblet);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

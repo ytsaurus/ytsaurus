@@ -24,6 +24,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((TabletIndexInMROverOrderedDynTables)  (300230))
     ((JobHasCompetitorsFlag)                (300231))
     ((RetainedJobsCoreInfoCount)            (300232))
+    ((ControllerWritesJobArchive)           (300233))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

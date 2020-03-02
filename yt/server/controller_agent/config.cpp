@@ -690,6 +690,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("default_enable_porto", DefaultEnablePorto)
         .Default(NScheduler::EEnablePorto::Isolate);
 
+    RegisterParameter("statistics_reporter", StatisticsReporter)
+        .DefaultNew();
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

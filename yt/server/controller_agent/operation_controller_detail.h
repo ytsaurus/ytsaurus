@@ -367,7 +367,7 @@ public:
     virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) override;
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
-    virtual void MarkJobHasCompetitors(TJobId jobId) override;
+    virtual void OnSpeculativeJobScheduled(const TJobletPtr& joblet) override;
 
 protected:
     const IOperationControllerHostPtr Host;
@@ -1212,6 +1212,8 @@ private:
         const TString& message);
 
     void MaybeCancel(ECancelationStage cancelationStage);
+
+    void MarkJobHasCompetitors(const TJobletPtr& joblet);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink
