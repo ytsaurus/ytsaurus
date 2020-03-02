@@ -2,8 +2,6 @@
 #include "private.h"
 #include "gpu_manager.h"
 
-#include <yt/server/lib/controller_agent/helpers.h>
-
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
 
@@ -13,6 +11,10 @@
 #include <yt/server/node/exec_agent/slot_manager.h>
 
 #include <yt/server/node/tablet_node/slot_manager.h>
+
+#include <yt/server/lib/controller_agent/helpers.h>
+
+#include <yt/server/lib/job_agent/statistics_reporter.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
@@ -862,11 +864,6 @@ void TJobController::TImpl::RemoveJob(
     if (releaseFlags.ArchiveProfile) {
         YT_LOG_INFO("Archiving profile (JobId: %v)", job->GetId());
         job->ReportProfile();
-    }
-
-    if (releaseFlags.HasCompetitors) {
-        YT_LOG_INFO("Archiving has_competitors flag (JobId: %v)", job->GetId());
-        job->ReportStatistics(TJobStatistics().HasCompetitors(true));
     }
 
     bool shouldSave = releaseFlags.ArchiveJobSpec || releaseFlags.ArchiveStderr;

@@ -2777,6 +2777,8 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
             if (row[hasCompetitorsIndex].Type != EValueType::Null) {
                 job.HasCompetitors = row[hasCompetitorsIndex].Data.Boolean;
+            } else {
+                job.HasCompetitors = false;
             }
 
             if (row[hasSpecIndex].Type != EValueType::Null) {
@@ -3853,8 +3855,12 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     if (auto jobCompetitionId = FindValue<TJobId>(row, columnFilter, table.Index.JobCompetitionId)) {
         job.JobCompetitionId = *jobCompetitionId;
     }
-    if (auto hasCompetitors = FindValue<bool>(row, columnFilter, table.Index.HasCompetitors)) {
-        job.HasCompetitors = *hasCompetitors;
+    if (columnFilter.FindPosition(table.Index.HasCompetitors)) {
+        if (auto hasCompetitors = FindValue<bool>(row, columnFilter, table.Index.HasCompetitors)) {
+            job.HasCompetitors = *hasCompetitors;
+        } else {
+            job.HasCompetitors = false;
+        }
     }
 
     return job;

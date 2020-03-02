@@ -14,6 +14,7 @@ DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TJobControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TStatisticsReporterConfig)
 DECLARE_REFCOUNTED_CLASS(TShellCommandConfig)
+DECLARE_REFCOUNTED_CLASS(TStatisticsReporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

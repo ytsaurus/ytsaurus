@@ -1,11 +1,9 @@
 #pragma once
 
-#include "public.h"
-#include "job.h"
-
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/lib/job_agent/public.h>
 
 #include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/client/api/public.h>
 #include <yt/client/api/operation_archive_schema.h>
@@ -30,7 +28,8 @@ class TStatisticsReporter
 public:
     TStatisticsReporter(
         TStatisticsReporterConfigPtr reporterConfig,
-        NCellNode::TBootstrap* bootstrap);
+        const NApi::NNative::IConnectionPtr& masterConnection,
+        std::optional<TString> localAddress = std::nullopt);
 
     void ReportStatistics(TJobStatistics&& statistics);
     void SetEnabled(bool enable);

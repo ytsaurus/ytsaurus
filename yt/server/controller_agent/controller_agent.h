@@ -84,6 +84,11 @@ public:
     const NEventLog::IEventLogWriterPtr& GetEventLogWriter() const;
 
     /*!
+     *  \note Thread affinity: any
+     */
+    const NJobAgent::TStatisticsReporterPtr& GetStatisticsReporter() const;
+
+    /*!
      * \note Thread affinity: any
      */
     TMemoryTagQueue* GetMemoryTagQueue();

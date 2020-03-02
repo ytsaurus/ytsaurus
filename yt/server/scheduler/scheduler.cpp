@@ -1392,7 +1392,7 @@ public:
         return proxy;
     }
 
-    virtual int GetOperationArchiveVersion() const override
+    virtual int GetOperationArchiveVersion() const final
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -4008,6 +4008,11 @@ void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
 TSerializableAccessControlList TScheduler::GetOperationBaseAcl() const
 {
     return Impl_->GetOperationBaseAcl();
+}
+
+int TScheduler::GetOperationArchiveVersion() const
+{
+    return Impl_->GetOperationArchiveVersion();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -38,7 +38,7 @@
 
 #include <yt/server/node/job_agent/gpu_manager.h>
 #include <yt/server/node/job_agent/job_controller.h>
-#include <yt/server/node/job_agent/statistics_reporter.h>
+#include <yt/server/lib/job_agent/statistics_reporter.h>
 
 #include <yt/server/lib/misc/address_helpers.h>
 
@@ -560,7 +560,8 @@ void TBootstrap::DoInitialize()
 
     StatisticsReporter_ = New<TStatisticsReporter>(
         Config_->ExecAgent->StatisticsReporter,
-        this);
+        this->GetMasterConnection(),
+        this->GetMasterConnector()->GetLocalDescriptor().GetDefaultAddress());
 
     RpcServer_->RegisterService(CreateJobProberService(this));
 

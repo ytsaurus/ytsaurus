@@ -144,6 +144,8 @@ public:
 
     NSecurityClient::TSerializableAccessControlList GetOperationBaseAcl() const;
 
+    int GetOperationArchiveVersion() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

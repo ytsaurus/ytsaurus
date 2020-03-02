@@ -17,7 +17,6 @@ struct TReleaseJobFlags
     bool ArchiveStderr = false;
     bool ArchiveFailContext = false;
     bool ArchiveProfile = false;
-    bool HasCompetitors = false;
 
     bool IsNonTrivial() const;
 

@@ -49,7 +49,7 @@ TTask::TTask()
     , CachedTotalJobCount_(-1)
     , CompletedFired_(false)
     , CompetitiveJobManager_(
-        std::bind(&TTask::MarkJobHasCompetitors, this, _1),
+        std::bind(&TTask::OnSpeculativeJobScheduled, this, _1),
         std::bind(&TTask::AbortJobViaScheduler, this, _1, _2),
         Logger,
         0)
@@ -65,7 +65,7 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors
     , CompletedFired_(false)
     , InputChunkMapping_(New<TInputChunkMapping>())
     , CompetitiveJobManager_(
-        std::bind(&TTask::MarkJobHasCompetitors, this, _1),
+        std::bind(&TTask::OnSpeculativeJobScheduled, this, _1),
         std::bind(&TTask::AbortJobViaScheduler, this, _1, _2),
         Logger,
         taskHost->GetSpec()->MaxSpeculativeJobCountPerTask)
@@ -1220,9 +1220,9 @@ void TTask::AbortJobViaScheduler(TJobId jobId, EAbortReason reason)
     GetTaskHost()->AbortJobViaScheduler(jobId, reason);
 }
 
-void TTask::MarkJobHasCompetitors(TJobId jobId)
+void TTask::OnSpeculativeJobScheduled(const TJobletPtr& joblet)
 {
-    GetTaskHost()->MarkJobHasCompetitors(jobId);
+    GetTaskHost()->OnSpeculativeJobScheduled(joblet);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

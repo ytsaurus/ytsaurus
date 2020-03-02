@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/lib/job_agent/config.h>
+
 #include <yt/server/lib/misc/config.h>
 
 #include <yt/server/lib/scheduler/job_metrics.h>
@@ -778,6 +780,8 @@ public:
     bool EnableBulkInsertForEveryone;
 
     NScheduler::EEnablePorto DefaultEnablePorto;
+
+    NJobAgent::TStatisticsReporterConfigPtr StatisticsReporter;
 
     TControllerAgentConfig();
 

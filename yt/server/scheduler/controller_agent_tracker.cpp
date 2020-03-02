@@ -1175,6 +1175,8 @@ public:
                 }));
         }
 
+        response->set_operation_archive_version(Bootstrap_->GetScheduler()->GetOperationArchiveVersion());
+
         context->Reply();
     }
 

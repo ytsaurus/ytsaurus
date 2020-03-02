@@ -19,7 +19,7 @@
 
 #include <yt/server/node/job_agent/job.h>
 #include <yt/server/node/job_agent/gpu_manager.h>
-#include <yt/server/node/job_agent/statistics_reporter.h>
+#include <yt/server/lib/job_agent/statistics_reporter.h>
 
 #include <yt/server/lib/scheduler/config.h>
 
@@ -127,7 +127,7 @@ public:
             GetType());
 
         JobEvents_.emplace_back(JobState_, JobPhase_);
-        ReportStatistics(MakeDefaultJobStatistics().HasCompetitors(false));
+        ReportStatistics(MakeDefaultJobStatistics());
     }
 
     virtual void Start() override
