@@ -561,7 +561,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id)
 
         counter_start = inserter.get_inserted_counter()
-        assert counter_start <= 6
+        assert counter_start <= 7
         for i in xrange(20):
             sleep(1.0)
             inserted = inserter.get_inserted_counter()
