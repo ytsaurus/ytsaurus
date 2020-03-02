@@ -138,7 +138,7 @@ StoragePtr TDatabase::GetTable(
             .Run())
         .ThrowOnError();
 
-    return CreateStorageDistributor({std::move(table)});
+    return CreateStorageDistributor(queryContext, {std::move(table)});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

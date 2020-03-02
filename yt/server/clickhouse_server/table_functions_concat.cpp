@@ -202,7 +202,7 @@ private:
     {
         auto tables = FetchClickHouseTables(queryContext, tablePaths);
 
-        return CreateStorageDistributor(std::move(tables));
+        return CreateStorageDistributor(queryContext, std::move(tables));
     }
 };
 
@@ -288,13 +288,15 @@ private:
 
     StoragePtr CreateStorage(
         const std::vector<TClickHouseTablePtr>& tables,
-        const Context& /* context */) const
+        const Context& context) const
     {
+        auto* queryContext = GetQueryContext(context);
+
         if (tables.empty()) {
             throw Exception("No tables found by " + getName(), ErrorCodes::CANNOT_SELECT);
         }
 
-        return CreateStorageDistributor(tables);
+        return CreateStorageDistributor(queryContext, tables);
     }
 };
 
