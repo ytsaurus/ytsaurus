@@ -120,9 +120,11 @@ public:
 
             if (isDatalens) {
                 if (auto tracingOverride = Bootstrap_->GetCoordinator()->GetDynamicConfig()->DatalensTracingOverride) {
-
                     traceContext->SetSampled(*tracingOverride);
                 }
+            } else {
+                // For non-datalens queries, force sampling.
+                traceContext->SetSampled(true);
             }
 
             CgiParameters_.emplace("query_id", ToString(traceContext->GetTraceId()));
