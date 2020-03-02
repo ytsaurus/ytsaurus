@@ -86,10 +86,10 @@ auto ValuesForVarIntTests = Values(
     std::make_tuple(static_cast<ui64>(-1), TString("\xff\xff\xff\xff\xff\xff\xff\xff\xff\x01", 10))
 );
 
-INSTANTIATE_TEST_CASE_P(ValueParametrized, TWriteVarIntTest,
+INSTANTIATE_TEST_SUITE_P(ValueParametrized, TWriteVarIntTest,
     ValuesForVarIntTests);
 
-INSTANTIATE_TEST_CASE_P(ValueParametrized, TReadVarIntTest,
+INSTANTIATE_TEST_SUITE_P(ValueParametrized, TReadVarIntTest,
     ValuesForVarIntTests);
 
 ////////////////////////////////////////////////////////////////////////////////

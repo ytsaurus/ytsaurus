@@ -416,7 +416,7 @@ TEST_P(TRichYPathToStringTest, TestRichYPathToString)
     EXPECT_TRUE(path.Attributes() == parsedPath.Attributes());
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TRichYPathToStringTest,
     TRichYPathToStringTest,
     ::testing::Values(

@@ -26,7 +26,7 @@ TEST_P(TArithmeticFormulaTestWithoutVariables, Test)
         << "expected value: " << expected;
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TArithmeticFormulaTestWithoutVariables1,
     TArithmeticFormulaTestWithoutVariables,
     ::testing::Values(
@@ -73,7 +73,7 @@ INSTANTIATE_TEST_CASE_P(
         std::make_tuple(" ! 12 >=17+ ( 25+ 10)<15 < 36", 1)
 ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TArithmeticFormulaTestWithoutVariables2,
     TArithmeticFormulaTestWithoutVariables,
     ::testing::Values(
@@ -123,7 +123,7 @@ TEST_P(TArithmeticFormulaTestParseError, Test)
     EXPECT_THROW(MakeArithmeticFormula(formula), TErrorException);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TArithmeticFormulaTestParseError,
     TArithmeticFormulaTestParseError,
     ::testing::Values(

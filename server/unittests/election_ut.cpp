@@ -457,7 +457,7 @@ TEST_P(TElectionGenericTest, Basic)
 
 static TEpochId OtherEpoch = TEpochId::Create();
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     ValueParametrized,
     TElectionGenericTest,
     ::testing::Values(
@@ -542,7 +542,7 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
     RunElections();
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     ValueParametrized,
     TElectionDelayedTest,
     ::testing::Values(
