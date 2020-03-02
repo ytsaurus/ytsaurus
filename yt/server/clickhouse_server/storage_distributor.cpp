@@ -159,10 +159,12 @@ public:
     friend class TQueryAnalyzer;
 
     TStorageDistributor(
+        TQueryContext* queryContext,
         NTableClient::TTableSchema schema,
         TClickHouseTableSchema clickHouseSchema,
         std::vector<TRichYPath> tablePaths)
-        : ClickHouseSchema_(std::move(clickHouseSchema))
+        : QueryContext_(queryContext)
+        , ClickHouseSchema_(std::move(clickHouseSchema))
         , Schema_(std::move(schema))
         , TablePaths_(std::move(tablePaths))
     { }
@@ -229,19 +231,20 @@ public:
         size_t /* maxBlockSize */,
         unsigned /* numStreams */) override
     {
-        auto* queryContext = GetQueryContext(context);
-        const auto& Logger = queryContext->Logger;
+        const auto& Logger = QueryContext_->Logger;
 
         YT_LOG_TRACE("StorageDistributor started reading (Address: %v)", static_cast<void*>(this));
 
         SpecTemplate_ = TSubquerySpec();
-        SpecTemplate_.InitialQueryId = queryContext->QueryId;
+        SpecTemplate_.InitialQueryId = QueryContext_->QueryId;
         SpecTemplate_.InitialQuery = ToString(queryInfo.query);
 
-        auto cliqueNodes = queryContext->Bootstrap->GetHost()->GetNodes();
+        auto cliqueNodes = QueryContext_->Bootstrap->GetHost()->GetNodes();
         if (cliqueNodes.empty()) {
             THROW_ERROR_EXCEPTION("There are no instances available through discovery");
         }
+
+        QueryContext_->MoveToPhase(EQueryPhase::Preparation);
 
         Prepare(cliqueNodes.size(), queryInfo, context);
 
@@ -282,6 +285,8 @@ public:
         for (const auto& cliqueNode : cliqueNodes) {
             YT_LOG_DEBUG("Clique node (Host: %v, Port: %v, IsLocal: %v)", cliqueNode->GetName().Host, cliqueNode->GetName().Port, cliqueNode->IsLocal());
         }
+
+        QueryContext_->MoveToPhase(EQueryPhase::Execution);
 
         int subqueryCount = std::min(Subqueries_.size(), cliqueNodes.size());
         for (int index = 0; index < subqueryCount; ++index) {
@@ -346,9 +351,8 @@ public:
         return true;
     }
 
-    virtual DB::BlockOutputStreamPtr write(const DB::ASTPtr& /* ptr */, const DB::Context& context) override
+    virtual DB::BlockOutputStreamPtr write(const DB::ASTPtr& /* ptr */, const DB::Context& /* context */) override
     {
-        auto* queryContext = GetQueryContext(context);
         // Set append if it is not set.
 
         if (TablePaths_.size() != 1) {
@@ -359,14 +363,14 @@ public:
         auto path = TablePaths_.front();
         path.SetAppend(path.GetAppend(true /* defaultValue */));
         auto writer = WaitFor(CreateSchemalessTableWriter(
-            queryContext->Bootstrap->GetConfig()->TableWriterConfig,
+            QueryContext_->Bootstrap->GetConfig()->TableWriterConfig,
             New<TTableWriterOptions>(),
             path,
             New<TNameTable>(),
-            queryContext->Client(),
+            QueryContext_->Client(),
             nullptr /* transaction */))
             .ValueOrThrow();
-        return CreateBlockOutputStream(std::move(writer), queryContext->Logger);
+        return CreateBlockOutputStream(std::move(writer), QueryContext_->Logger);
     }
 
     // IStorageDistributor overrides.
@@ -387,6 +391,7 @@ public:
     }
 
 private:
+    TQueryContext* QueryContext_;
     TClickHouseTableSchema ClickHouseSchema_;
     NTableClient::TTableSchema Schema_;
     TSubquerySpec SpecTemplate_;
@@ -403,18 +408,16 @@ private:
         const DB::SelectQueryInfo& queryInfo,
         const DB::Context& context)
     {
-        auto* queryContext = GetQueryContext(context);
-
         QueryAnalyzer_.emplace(context, queryInfo);
         auto queryAnalysisResult = QueryAnalyzer_->Analyze();
 
         auto input = FetchInput(
-            queryContext->Bootstrap,
-            queryContext->Client(),
-            queryContext->Bootstrap->GetSerializedWorkerInvoker(),
+            QueryContext_->Bootstrap,
+            QueryContext_->Client(),
+            QueryContext_->Bootstrap->GetSerializedWorkerInvoker(),
             queryAnalysisResult,
-            queryContext->RowBuffer,
-            queryContext->Bootstrap->GetConfig()->Engine->Subquery,
+            QueryContext_->RowBuffer,
+            QueryContext_->Bootstrap->GetConfig()->Engine->Subquery,
             SpecTemplate_);
 
         MiscExtMap_ = std::move(input.MiscExtMap);
@@ -438,7 +441,7 @@ private:
             std::max<int>(1, subqueryCount * context.getSettings().max_threads),
             samplingRate,
             context,
-            queryContext->Bootstrap->GetConfig()->Engine->Subquery);
+            QueryContext_->Bootstrap->GetConfig()->Engine->Subquery);
     }
 };
 
@@ -510,6 +513,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
 
     return std::make_shared<TStorageDistributor>(
+        queryContext,
         schema,
         TClickHouseTableSchema::From(TClickHouseTable(path, schema)),
         std::vector<TRichYPath>{path});
@@ -517,7 +521,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageDistributor(std::vector<TClickHouseTablePtr> tables)
+DB::StoragePtr CreateStorageDistributor(TQueryContext* queryContext, std::vector<TClickHouseTablePtr> tables)
 {
     if (tables.empty()) {
         THROW_ERROR_EXCEPTION("Cannot concatenate empty list of tables");
@@ -546,6 +550,7 @@ DB::StoragePtr CreateStorageDistributor(std::vector<TClickHouseTablePtr> tables)
     }
 
     auto storage = std::make_shared<TStorageDistributor>(
+        queryContext,
         std::move(schema),
         std::move(clickHouseSchema),
         std::move(paths));

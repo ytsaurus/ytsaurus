@@ -40,16 +40,17 @@ TQueryContext::TQueryContext(
     , QueryId(queryId)
     , QueryKind(static_cast<EQueryKind>(context.getClientInfo().query_kind))
     , Bootstrap(bootstrap)
-    , DataLensRequestId_(std::move(dataLensRequestId))
+    , DataLensRequestId(std::move(dataLensRequestId))
     , RowBuffer(New<NTableClient::TRowBuffer>())
     , Host_(Bootstrap->GetHost())
     , TraceContextGuard_(TraceContext)
 {
     Logger.AddTag("QueryId: %v", QueryId);
-    if (DataLensRequestId_) {
-        Logger.AddTag("DataLensRequestId: %v", DataLensRequestId_);
+    if (DataLensRequestId) {
+        Logger.AddTag("DataLensRequestId: %v", DataLensRequestId);
     }
     YT_LOG_INFO("Query context created (User: %v, QueryKind: %v)", User, QueryKind);
+    LastPhaseTime_ = StartTime_ = TInstant::Now();
 
     const auto& clientInfo = context.getClientInfo();
 
@@ -93,6 +94,8 @@ TQueryContext::TQueryContext(
 
 TQueryContext::~TQueryContext()
 {
+    MoveToPhase(EQueryPhase::Finish);
+
     if (TraceContext) {
         TraceContext->Finish();
     }
@@ -103,6 +106,11 @@ TQueryContext::~TQueryContext()
         this)
         .AsyncVia(Bootstrap->GetControlInvoker())
         .Run());
+
+    auto finishTime = TInstant::Now();
+    auto duration = finishTime - StartTime_;
+    YT_LOG_INFO("Query time statistics (StartTime: %v, FinishTime: %v, Duration: %v)", StartTime_, finishTime, duration);
+    YT_LOG_INFO("Query phase debug string (DebugString: %v)", PhaseDebugString_);
 
     // Trying so hard to not throw exception from the destructor :(
     if (error.IsOK()) {
@@ -127,6 +135,27 @@ const NApi::NNative::IClientPtr& TQueryContext::Client() const
     return Client_;
 }
 
+void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
+{
+    // Weak check. CurrentPhase_ changes in monotonic manner, so it
+    // may result in false-positive, but not false-negative.
+    if (nextPhase <= CurrentPhase_.load()) {
+        return;
+    }
+
+    TGuard<TSpinLock> readerGuard(PhaseLock_);
+
+    if (nextPhase <= CurrentPhase_.load()) {
+        return;
+    }
+
+    auto currentTime = TInstant::Now();
+    auto duration = currentTime - LastPhaseTime_;
+    PhaseDebugString_ += Format(" - %v - %v", duration, nextPhase);
+    YT_LOG_INFO("Query phase changed (FromPhase: %v, ToPhase: %v, Duration: %v)", CurrentPhase_.load(), nextPhase, duration);
+    CurrentPhase_ = nextPhase;
+}
+
 void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const DB::QueryStatusInfo* queryStatus)
 {
     BuildYsonFluently(consumer)
@@ -149,7 +178,7 @@ void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const
                     .Item("initial_query").Value(queryContext.InitialQuery);
             })
             .Item("query_status").Value(queryStatus)
-            .OptionalItem("datalens_request_id", queryContext.DataLensRequestId_)
+            .OptionalItem("datalens_request_id", queryContext.DataLensRequestId)
         .EndMap();
 }
 
