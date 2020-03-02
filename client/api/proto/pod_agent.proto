@@ -864,6 +864,12 @@ enum EWorkloadState {
     // Процесс start активен и последний запуск readiness завершился ошибкой
     EWorkloadState_SEMI_FAILURE = 2 [(NYT.NYson.NProto.enum_value_name) = "semi_failure"]; // deprecated DEPLOY-1365
     EWorkloadState_READINESS_FAILED = 13 [(NYT.NYson.NProto.enum_value_name) = "readiness_failed"];
+
+    // При попытке сделать запуск readiness произошла системная ошибка
+    EWorkloadState_FAILED_TO_START_READINESS = 14 [(NYT.NYson.NProto.enum_value_name) = "failed_to_start_readiness"];
+
+    // При попытке сделать запуск liveness произошла системная ошибка
+    EWorkloadState_FAILED_TO_START_LIVENESS = 15 [(NYT.NYson.NProto.enum_value_name) = "failed_to_start_liveness"];
 }
 
 // Описание результата выполнения хука
