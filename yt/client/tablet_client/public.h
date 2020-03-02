@@ -49,6 +49,8 @@ DEFINE_ENUM(EErrorCode,
     ((QueryInputRowCountLimitExceeded)  (1709))
     ((QueryOutputRowCountLimitExceeded) (1710))
     ((QueryExpressionDepthLimitExceeded)(1711))
+    ((RowIsBlocked)                     (1712))
+    ((BlockedRowWaitTimeout)            (1713))
 );
 
 DEFINE_ENUM(EInMemoryMode,

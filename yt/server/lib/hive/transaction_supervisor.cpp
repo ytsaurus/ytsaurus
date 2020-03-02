@@ -1835,7 +1835,10 @@ private:
                         commit->GetTransactionId(),
                         participantCellId,
                         state);
-                    auto wrappedError = TError("Participant %v has failed to prepare", participantCellId)
+                    auto wrappedError = TError(
+                        NTransactionClient::EErrorCode::ParticipantFailedToPrepare,
+                        "Participant %v has failed to prepare",
+                        participantCellId)
                         << error;
                     ChangeCommitTransientState(commit, ECommitState::Aborting, wrappedError);
                     break;
