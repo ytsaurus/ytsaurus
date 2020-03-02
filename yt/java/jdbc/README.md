@@ -20,7 +20,7 @@ select * from [TABLE_NAME] order by FIELD limit 10
  
 
 # Где скачать
-https://proxy.sandbox.yandex-team.ru/1198975101
+https://proxy.sandbox.yandex-team.ru/1378802315
 
 # Регистрация в IDEA
 
