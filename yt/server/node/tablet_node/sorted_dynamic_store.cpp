@@ -904,8 +904,8 @@ void TSortedDynamicStore::WaitOnBlockedRow(
             break;
         }
 
-        auto throwError = [&] (const TString& message) {
-            THROW_ERROR_EXCEPTION(message)
+        auto throwError = [&] (NTabletClient::EErrorCode errorCode, const TString& message) {
+            THROW_ERROR_EXCEPTION(errorCode, message)
                 << TErrorAttribute("lock", LockIndexToName_[lockIndex])
                 << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("table_path", TablePath_)
@@ -915,13 +915,13 @@ void TSortedDynamicStore::WaitOnBlockedRow(
 
         auto handler = GetRowBlockedHandler();
         if (!handler) {
-            throwError("Row is blocked");
+            throwError(NTabletClient::EErrorCode::RowIsBlocked, "Row is blocked");
         }
 
         handler.Run(row, lockIndex);
 
         if (NProfiling::GetCpuInstant() > deadline) {
-            throwError("Timed out waiting on blocked row");
+            throwError(NTabletClient::EErrorCode::BlockedRowWaitTimeout, "Timed out waiting on blocked row");
         }
     }
 }

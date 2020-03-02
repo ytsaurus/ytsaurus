@@ -34,6 +34,8 @@ DEFINE_ENUM(EErrorCode,
     ((NestedExternalTransactionExists)  (11001))
     ((TransactionDepthLimitReached)     (11002))
     ((InvalidTransactionState)          (11003))
+    ((ParticipantFailedToPrepare)       (11004))
+    ((SomeParticipantsAreDown)          (11005))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
