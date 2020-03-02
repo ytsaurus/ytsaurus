@@ -33,15 +33,18 @@ type UserScript struct {
 	CoreTablePath   ypath.YPath       `yson:"core_table_path,omitempty"`
 
 	TmpfsPath string `yson:"tmpfs_path,omitempty"`
+	CopyFiles bool   `yson:"copy_files,omitempty"`
 
 	// CPULimit corresponds to cpu_limit job setting.
 	//
 	// This setting results in GOMAXPROCS set to max(1, ceil(CPULimit)).
-	CPULimit    float32 `yson:"cpu_limit,omitempty"`
-	MemoryLimit int64   `yson:"memory_limit,omitempty"`
+	CPULimit         float32 `yson:"cpu_limit,omitempty"`
+	EnableCPUReclaim *bool   `yson:"enable_cpu_reclaim,omitempty"`
+	MemoryLimit      int64   `yson:"memory_limit,omitempty"`
 
-	// JobCount is used only in vanilla operations
-	JobCount int `yson:"job_count,omitempty"`
+	// JobCount and OutputTablePaths are used only in vanilla operations.
+	JobCount         int           `yson:"job_count,omitempty"`
+	OutputTablePaths []ypath.YPath `yson:"output_table_paths,omitempty"`
 }
 
 type ControlAttributes struct {

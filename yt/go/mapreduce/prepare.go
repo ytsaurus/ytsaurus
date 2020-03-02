@@ -125,12 +125,28 @@ func (p *prepare) prepare() error {
 		}
 	}
 
-	for _, outputTablePath := range p.spec.OutputTablePaths {
-		if ok, err := cypress.NodeExists(p.ctx, outputTablePath, nil); err != nil {
+	createOutputTable := func(path ypath.YPath) error {
+		if ok, err := cypress.NodeExists(p.ctx, path, nil); err != nil {
 			return err
 		} else if !ok {
-			_, err := cypress.CreateNode(p.ctx, outputTablePath, yt.NodeTable, nil)
+			_, err := cypress.CreateNode(p.ctx, path, yt.NodeTable, nil)
 			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	for _, outputTablePath := range p.spec.OutputTablePaths {
+		if err := createOutputTable(outputTablePath); err != nil {
+			return err
+		}
+	}
+
+	for _, us := range p.spec.Tasks {
+		for _, outputTablePath := range us.OutputTablePaths {
+			if err := createOutputTable(outputTablePath); err != nil {
 				return err
 			}
 		}

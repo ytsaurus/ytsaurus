@@ -113,7 +113,7 @@ func (mr *client) Vanilla(s *spec.Spec, jobs map[string]Job) (Operation, error) 
 		state := new(jobState)
 		p.tasksState[name] = state
 
-		p.addJobCommand(job, &us, state, 0)
+		p.addJobCommand(job, &us, state, len(us.OutputTablePaths))
 	}
 
 	return p.start()
