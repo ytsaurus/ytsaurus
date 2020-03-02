@@ -7,6 +7,7 @@ from .conftest import (
     create_pod_set,
     create_pod_set_with_quota,
     create_pod_with_boilerplate,
+    create_user,
     is_pod_assigned,
     update_node_id,
 )
@@ -121,8 +122,8 @@ class TestPods(object):
         yp_client_root = yp_env.yp_client
 
         account_id = yp_client_root.create_object("account")
-        user_id = yp_client_root.create_object("user")
 
+        user_id = create_user(yp_client_root, grant_create_permission_for_types=("pod_set", "pod"))
         yp_env.sync_access_control()
 
         with yp_env.yp_instance.create_client(config=dict(user=user_id)) as yp_client_user:
@@ -1635,7 +1636,7 @@ class TestPods(object):
 
         meta = {"pod_set_id": pod_set_id}
 
-        user_id = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        user_id = create_user(yp_client, grant_create_permission_for_types=("pod",))
         yp_env.sync_access_control()
 
         yp_client.update_object(

@@ -1,8 +1,11 @@
+from .conftest import create_user
+
 from yp.common import YtResponseError, YpAuthorizationError
 
 from yt.yson import YsonEntity
 
 import pytest
+
 
 MY_SECRET = {"secret_id": "id", "secret_version": "version", "delegation_token": "token"}
 
@@ -162,11 +165,10 @@ class TestSecrets(object):
     def test_secrets_are_opaque(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        user_id = create_user(yp_client, grant_create_permission_for_types=("pod_set", "pod"))
+        yp_env.sync_access_control()
 
-        with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
-            yp_env.sync_access_control()
-
+        with yp_env.yp_instance.create_client(config={"user": user_id}) as yp_client1:
             pod_set_id = yp_client1.create_object("pod_set")
             pod_id = yp_client1.create_object(
                 "pod", attributes={"meta": {"pod_set_id": pod_set_id}}

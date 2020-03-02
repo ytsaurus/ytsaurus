@@ -1,4 +1,5 @@
 from . import templates
+from .conftest import create_user
 
 from yp.common import YtResponseError, YpAuthorizationError
 
@@ -136,14 +137,10 @@ class TestDeployTickets(object):
             )
 
         # Case 3: user has no write permission to stage
-        user_id = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
-        upds = [
-            {
-                "path": "/meta/acl/end",
-                "value": {"action": "allow", "permissions": ["create"], "subjects": [user_id]},
-            }
-        ]
-        yp_client.update_object("schema", "deploy_ticket", set_updates=upds)
+        user_id = create_user(
+            yp_client,
+            grant_create_permission_for_types=("deploy_ticket",),
+        )
         yp_env.sync_access_control()
 
         def create_deploy_ticket():
@@ -178,7 +175,7 @@ class TestDeployTickets(object):
             "deploy_ticket", attributes={"meta": {"id": "val", "stage_id": stage_id}, "spec": spec}
         )
 
-        user = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        user = create_user(yp_client)
         yp_client.update_object(
             "stage",
             stage_id,

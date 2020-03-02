@@ -1,3 +1,5 @@
+from .conftest import create_user
+
 from yp.common import YtResponseError
 
 import pytest
@@ -30,7 +32,7 @@ class TestNetworkProjects(object):
             "network_project", attributes={"meta": {"id": "MYPROJECT"}, "spec": {"project_id": 123}}
         )
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        create_user(yp_client, "u", grant_create_permission_for_types=("pod_set", "pod"))
         yp_env.sync_access_control()
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:

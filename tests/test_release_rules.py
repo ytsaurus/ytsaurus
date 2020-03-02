@@ -1,4 +1,5 @@
 from . import templates
+from .conftest import create_user
 
 import yp.data_model
 from yp.common import YtResponseError, YpAuthorizationError
@@ -193,7 +194,7 @@ class TestReleaseRules(object):
             # assert exc.contains_text("Cannot set null stage")
 
         # Case 3: user has no write permission to stage
-        user_id = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        user_id = create_user(yp_client, grant_create_permission_for_types=("release_rule",))
         yp_env.sync_access_control()
 
         with yp_env.yp_instance.create_client(config={"user": user_id}) as client:

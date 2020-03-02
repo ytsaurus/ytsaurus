@@ -382,6 +382,34 @@ def attach_pod_set_to_disruption_budget(yp_client, pod_set_id, pod_disruption_bu
     run_with_retries(impl, exceptions=(YtResponseError,))
 
 
+def create_user(yp_client, id=None, grant_create_permission_for_types=None):
+    attributes = dict()
+    if id is not None:
+        attributes["meta"] = dict(id=id)
+    id = yp_client.create_object("user", attributes=attributes)
+
+    if grant_create_permission_for_types:
+        yp_client.update_objects([
+            dict(
+                object_type="schema",
+                object_id=object_type,
+                set_updates=[
+                    dict(
+                        path="/meta/acl/end",
+                        value=dict(
+                            action="allow",
+                            permissions=["create"],
+                            subjects=[id],
+                        ),
+                    ),
+                ],
+            )
+            for object_type in grant_create_permission_for_types
+        ])
+
+    return id
+
+
 class Cli(object):
     def __init__(self, binary_path):
         if yatest_common is None:

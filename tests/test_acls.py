@@ -4,6 +4,7 @@ from .conftest import (
     create_nodes,
     create_pod_set,
     create_pod_with_boilerplate,
+    create_user,
     wait_pod_is_assigned,
 )
 
@@ -30,20 +31,21 @@ class TestAcls(object):
     def test_owner(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u1"}})
-        yp_client.create_object("user", attributes={"meta": {"id": "u2"}})
+        for user_id in ("u1", "u2"):
+            create_user(
+                yp_client,
+                id=user_id,
+                grant_create_permission_for_types=("pod_set",),
+            )
+        yp_env.sync_access_control()
 
         with yp_env.yp_instance.create_client(config={"user": "u1"}) as yp_client1:
-            yp_env.sync_access_control()
-
             id = yp_client1.create_object("pod_set")
             yp_client1.update_object(
                 "pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}]
             )
 
         with yp_env.yp_instance.create_client(config={"user": "u2"}) as yp_client2:
-            yp_env.sync_access_control()
-
             with pytest.raises(YpAuthorizationError):
                 yp_client2.update_object(
                     "pod_set", id, set_updates=[{"path": "/labels/a", "value": "b"}]
@@ -52,7 +54,7 @@ class TestAcls(object):
     def test_groups_immediate(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u1"}})
+        create_user(yp_client, id="u1")
         yp_client.create_object("group", attributes={"meta": {"id": "g"}})
 
         with yp_env.yp_instance.create_client(config={"user": "u1"}) as yp_client1:
@@ -83,7 +85,7 @@ class TestAcls(object):
     def test_groups_recursive(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u1"}})
+        create_user(yp_client, "u1")
         yp_client.create_object("group", attributes={"meta": {"id": "g1"}})
         yp_client.create_object("group", attributes={"meta": {"id": "g2"}})
         with yp_env.yp_instance.create_client(config={"user": "u1"}) as yp_client1:
@@ -117,7 +119,7 @@ class TestAcls(object):
     def test_inherit_acl(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u1"}})
+        create_user(yp_client, "u1", grant_create_permission_for_types=("pod_set", "pod"))
         with yp_env.yp_instance.create_client(config={"user": "u1"}) as yp_client1:
             yp_env.sync_access_control()
 
@@ -140,7 +142,7 @@ class TestAcls(object):
     def test_endpoint_inherits_from_endpoint_set(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u1"}})
+        create_user(yp_client, "u1")
         with yp_env.yp_instance.create_client(config={"user": "u1"}) as yp_client1:
             yp_env.sync_access_control()
 
@@ -172,7 +174,7 @@ class TestAcls(object):
     def test_check_permissions(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        create_user(yp_client, "u")
         yp_env.sync_access_control()
 
         endpoint_set_id = yp_client.create_object(
@@ -222,7 +224,7 @@ class TestAcls(object):
     def test_create_at_schema(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u1"}})
+        create_user(yp_client, "u1", grant_create_permission_for_types=("endpoint_set",))
         with yp_env.yp_instance.create_client(config={"user": "u1"}) as yp_client1:
             yp_env.sync_access_control()
 
@@ -249,7 +251,7 @@ class TestAcls(object):
     def test_create_requires_write_at_parent(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u1"}})
+        create_user(yp_client, "u1", grant_create_permission_for_types=("endpoint_set", "endpoint"))
 
         with yp_env.yp_instance.create_client(config={"user": "u1"}) as yp_client1:
             yp_env.sync_access_control()
@@ -292,9 +294,8 @@ class TestAcls(object):
     def test_get_object_access_allowed_for(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u1"}})
-        yp_client.create_object("user", attributes={"meta": {"id": "u2"}})
-        yp_client.create_object("user", attributes={"meta": {"id": "u3"}})
+        for user_id in ("u1", "u2", "u3"):
+            create_user(yp_client, user_id)
 
         yp_client.create_object(
             "group", attributes={"meta": {"id": "g1"}, "spec": {"members": ["u1", "u2"]}}
@@ -408,7 +409,7 @@ class TestAcls(object):
         # Empty subrequests.
         assert_items_equal(yp_client.get_user_access_allowed_to([]), [])
 
-        yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
+        create_user(yp_client, "u1")
 
         def create_network_project(acl, inherit_acl):
             return yp_client.create_object(
@@ -561,7 +562,8 @@ class TestAcls(object):
     def test_get_user_access_allowed_to_continuation(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
+        create_user(yp_client, "u1")
+
         object_count = 100
         object_ids = []
         for _ in xrange(object_count):
@@ -621,7 +623,7 @@ class TestAcls(object):
     def test_get_user_access_allowed_to_filter(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes=dict(meta=dict(id="user_id1")))
+        create_user(yp_client, "user_id1")
 
         object_count = 26
         label_values = [
@@ -709,7 +711,7 @@ class TestAcls(object):
     def test_assign_pod_to_node_permission1(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        create_user(yp_client, "u", grant_create_permission_for_types=("pod",))
 
         yp_env.sync_access_control()
 
@@ -722,7 +724,6 @@ class TestAcls(object):
         )
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
-
             def try_create():
                 yp_client1.create_object(
                     "pod",
@@ -758,7 +759,7 @@ class TestAcls(object):
     def test_assign_pod_to_node_permission2(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        create_user(yp_client, "u")
 
         yp_env.sync_access_control()
 
@@ -778,7 +779,6 @@ class TestAcls(object):
         )
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
-
             def try_update():
                 yp_client1.update_object(
                     "pod", pod_id, set_updates=[{"path": "/spec/node_id", "value": node_id}]
@@ -810,7 +810,7 @@ class TestAcls(object):
     def test_only_superuser_can_request_subnet_without_network_project(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        create_user(yp_client, "u", grant_create_permission_for_types=("pod",))
 
         yp_env.sync_access_control()
 
@@ -823,7 +823,6 @@ class TestAcls(object):
         )
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
-
             def try_create():
                 yp_client1.create_object(
                     "pod",
@@ -855,7 +854,7 @@ class TestAcls(object):
                 "pod", pod_id, selectors=["/spec/resource_requests/thread_limit"],
             )[0]
 
-        yp_client_root.create_object("user", attributes={"meta": {"id": "u"}})
+        create_user(yp_client_root, "u", grant_create_permission_for_types=("pod",))
         yp_env.sync_access_control()
 
         pod_set_id = create_pod_set(yp_client_root)
@@ -963,8 +962,8 @@ class TestAcls(object):
 
         # Add ace with existant subject when acl already contains non-existant subject.
         subject_name2 = "subject2"
-        yp_client.create_object("user", attributes=dict(meta=dict(id=subject_name)))
-        yp_client.create_object("user", attributes=dict(meta=dict(id=subject_name2)))
+        create_user(yp_client, subject_name)
+        create_user(yp_client, subject_name2)
         yp_env.sync_access_control()
 
         yp_client.update_object(
@@ -989,7 +988,7 @@ class TestAcls(object):
 @pytest.mark.usefixtures("yp_env")
 class TestSeveralAccessControlParents(object):
     def _prepare(self, yp_client):
-        yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
+        create_user(yp_client, "u1")
 
     def check_object_permission(
         self, yp_env, pod_set_meta, pod_meta, pod_set_schema_acl, pod_schema_acl
@@ -1189,7 +1188,7 @@ class TestAttributeAcls(object):
     def test_simple(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
+        create_user(yp_client, "u1")
 
         create_nodes(yp_client, 1)
         pod_set_id = yp_client.create_object(
@@ -1237,7 +1236,7 @@ class TestAttributeAcls(object):
     def test_invalid(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes=dict(meta=dict(id="u1")))
+        create_user(yp_client, "u1")
 
         def create(attribute):
             return yp_client.create_object(
@@ -1266,7 +1265,7 @@ class TestAttributeAcls(object):
         yp_client = yp_env.yp_client
 
         for i in xrange(5):
-            yp_client.create_object("user", attributes=dict(meta=dict(id="u{}".format(i))))
+            create_user(yp_client, "u{}".format(i))
 
         yp_env.sync_access_control()
 
@@ -1323,7 +1322,7 @@ class TestAttributeAcls(object):
     def test_get_user_access_allowed_to(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes=dict(meta=dict(id="u")))
+        create_user(yp_client, "u")
 
         def create(attributes):
             ids = []
@@ -1377,7 +1376,7 @@ class TestAttributeAcls(object):
     def test_check_permissions(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes=dict(meta=dict(id="u")))
+        create_user(yp_client, "u")
         yp_env.sync_access_control()
 
         endpoint_set_id = yp_client.create_object(
@@ -1467,7 +1466,7 @@ class TestApiGetUserAccessAllowedTo(object):
     def test(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
 
-        u1 = yp_client.create_object("user")
+        u1 = create_user(yp_client)
 
         yp_env_configurable.sync_access_control()
 

@@ -2,6 +2,7 @@ from . import templates
 from .conftest import (
     create_nodes,
     create_pod_with_boilerplate,
+    create_user,
     wait_pod_is_assigned,
 )
 
@@ -58,7 +59,7 @@ class TestIP4AddressPools(object):
     ):
         yp_client = yp_env.yp_client
 
-        user_name = yp_client.create_object("user")
+        user_name = create_user(yp_client, grant_create_permission_for_types=("pod",))
 
         vlan_id = "somevlan"
         network_id = yp_client.create_object(
@@ -103,10 +104,10 @@ class TestIP4AddressPools(object):
             },
         )
 
-        with yp_env.yp_instance.create_client(config={"user": user_name}) as yp_client:
+        with yp_env.yp_instance.create_client(config={"user": user_name}) as yp_client_user:
             yp_env.sync_access_control()
             return create_pod_with_boilerplate(
-                yp_client,
+                yp_client_user,
                 pod_set_id,
                 spec={
                     "ip6_address_requests": [
@@ -140,31 +141,8 @@ class TestIP4AddressPools(object):
     def test_create_pool_as_user(self, yp_env):
         yp_client = yp_env.yp_client
 
-        @contextmanager
-        def allow_pool_creation(user_name):
-            try:
-                yp_client.update_object(
-                    "schema",
-                    "ip4_address_pool",
-                    set_updates=[
-                        {
-                            "path": "/meta/acl/end",
-                            "value": {
-                                "action": "allow",
-                                "permissions": ["create", "write"],
-                                "subjects": [user_name],
-                            },
-                        },
-                    ],
-                )
-                yield
-            finally:
-                yp_client.update_object(
-                    "schema", "ip4_address_pool", remove_updates=[{"path": "/meta/acl/-1",},]
-                )
+        user_name = create_user(yp_client, grant_create_permission_for_types=("ip4_address_pool",))
+        yp_env.sync_access_control()
 
-        user_name = yp_client.create_object("user")
-        with allow_pool_creation(user_name):
-            with yp_env.yp_instance.create_client(config={"user": user_name}) as user_yp_client:
-                yp_env.sync_access_control()
-                user_yp_client.create_object("ip4_address_pool")
+        with yp_env.yp_instance.create_client(config={"user": user_name}) as yp_client_user:
+            yp_client_user.create_object("ip4_address_pool")

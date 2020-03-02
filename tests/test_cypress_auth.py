@@ -1,3 +1,5 @@
+from .conftest import create_user
+
 from yp.common import YtResponseError
 
 import pytest
@@ -23,7 +25,7 @@ class TestCypressAuth(object):
         yt_client.set("//yp/tokens/VALIDTOKEN", "u")
 
         yp_client = yp_env_auth.yp_client
-        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        create_user(yp_client, "u")
         yp_env_auth.sync_access_control()
 
         # Overrides the default Oauth token.
@@ -36,12 +38,11 @@ class TestCypressAuth(object):
     def test_ban_user(self, yp_env_auth):
         yp_client = yp_env_auth.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        create_user(yp_client, "u")
+        yp_env_auth.sync_access_control()
 
         yt_client = yp_env_auth.yt_client
         yt_client.set("//yp/tokens/VALIDTOKEN", "u")
-
-        yp_env_auth.sync_access_control()
 
         with yp_env_auth.create_client({"token": "VALIDTOKEN"}) as yp_client_u:
             assert yp_client_u.get_object("user", "u", selectors=["/meta/id"])[0] == "u"

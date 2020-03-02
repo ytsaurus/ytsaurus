@@ -1,3 +1,5 @@
+from .conftest import create_user
+
 from yp.common import YtResponseError
 
 import pytest
@@ -437,7 +439,7 @@ class TestCommitDeployTicket(object):
     def test_full_commit_with_inherit_acl(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         stage_id, ticket_id = prepare_sandbox_resources_objects(yp_client)
-        user = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        user = create_user(yp_client)
 
         with yp_env_configurable.yp_instance.create_client(config={"user": user}) as client:
             with pytest.raises(YtResponseError):

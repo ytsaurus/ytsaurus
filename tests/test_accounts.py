@@ -1,8 +1,9 @@
 from .conftest import (
     ZERO_RESOURCE_REQUESTS,
     create_nodes,
-    create_pod_with_boilerplate,
     create_pod_set_with_quota,
+    create_pod_with_boilerplate,
+    create_user,
 )
 
 from yp.common import YtResponseError, wait
@@ -65,11 +66,14 @@ class TestAccounts(object):
 
         account_id = yp_client.create_object("account", attributes={"spec": {}})
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        create_user(
+            yp_client,
+            id="u",
+            grant_create_permission_for_types=("pod_set", "pod"),
+        )
         yp_env.sync_access_control()
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
-
             def create_pod_set():
                 yp_client1.create_object("pod_set", attributes={"spec": {"account_id": account_id}})
 
@@ -94,7 +98,11 @@ class TestAccounts(object):
 
         account_id = yp_client.create_object("account", attributes={"spec": {}})
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        create_user(
+            yp_client,
+            id="u",
+            grant_create_permission_for_types=("pod_set", "pod"),
+        )
         yp_env.sync_access_control()
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
@@ -131,7 +139,11 @@ class TestAccounts(object):
     def test_null_account_id_yp_717(self, yp_env):
         yp_client = yp_env.yp_client
 
-        yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        create_user(
+            yp_client,
+            id="u",
+            grant_create_permission_for_types=("pod_set", "pod"),
+        )
         yp_env.sync_access_control()
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client_with_user:

@@ -1,4 +1,5 @@
 from . import templates
+from .conftest import create_user
 
 from yp.common import YtResponseError
 
@@ -112,7 +113,7 @@ class TestStages(object):
             },
         }
 
-        user_id = yp_env.yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        user_id = create_user(yp_env.yp_client, grant_create_permission_for_types=("stage",))
         yp_env.sync_access_control()
 
         templates.network_project_permissions_test_template(
@@ -141,7 +142,7 @@ class TestStages(object):
             },
         }
 
-        user_id = yp_env.yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        user_id = create_user(yp_env.yp_client, grant_create_permission_for_types=("stage",))
         yp_env.sync_access_control()
 
         templates.network_project_permissions_test_template(
@@ -181,7 +182,7 @@ class TestStages(object):
             "network_project", attributes={"spec": {"project_id": 1234}, "meta": {"id": project_id}}
         )
 
-        user_id = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+        user_id = create_user(yp_client, grant_create_permission_for_types=("stage",))
         yp_client.update_object(
             "network_project",
             project_id,

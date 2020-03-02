@@ -2,6 +2,7 @@ from .conftest import (
     are_pods_assigned,
     assert_over_time,
     create_nodes,
+    create_user,
     is_pod_assigned,
     wait,
 )
@@ -206,11 +207,10 @@ class TestNodeSegmentPodConstraints(object):
 
         username = "simple_user"
 
-        yp_client_root.create_object("user", attributes={"meta": {"id": username}})
+        user_id = create_user(yp_client_root, grant_create_permission_for_types=("pod_set",))
         yp_env.sync_access_control()
 
-        with yp_env.yp_instance.create_client(config={"user": username}) as yp_client_simple_user:
-
+        with yp_env.yp_instance.create_client(config={"user": user_id}) as yp_client_user:
             def _create_pod_set(yp_client, violate):
                 return yp_client.create_object(
                     "pod_set",
@@ -237,15 +237,15 @@ class TestNodeSegmentPodConstraints(object):
                 )
 
             with pytest.raises(YpAuthorizationError):
-                _create_pod_set(yp_client_simple_user, True)
+                _create_pod_set(yp_client_user, True)
 
-            pod_set_id = _create_pod_set(yp_client_simple_user, False)
+            pod_set_id = _create_pod_set(yp_client_user, False)
             with pytest.raises(YpAuthorizationError):
-                _update_pod_set_violation(yp_client_simple_user, True)
+                _update_pod_set_violation(yp_client_user, True)
 
             _update_pod_set_violation(yp_client_root, True)
-            _update_pod_set_violation(yp_client_simple_user, True)
-            _update_pod_set_violation(yp_client_simple_user, False)
+            _update_pod_set_violation(yp_client_user, True)
+            _update_pod_set_violation(yp_client_user, False)
 
             yp_client_root.update_object(
                 "node_segment",
@@ -257,7 +257,7 @@ class TestNodeSegmentPodConstraints(object):
                             {
                                 "action": "allow",
                                 "permissions": ["use"],
-                                "subjects": [username],
+                                "subjects": [user_id],
                                 "attributes": [
                                     "/access/pod_constraints/violate/vcpu_guarantee_to_limit_ratio"
                                 ],
@@ -268,5 +268,5 @@ class TestNodeSegmentPodConstraints(object):
             )
             yp_env.sync_access_control()
 
-            _update_pod_set_violation(yp_client_simple_user, True)
-            _update_pod_set_violation(yp_client_simple_user, False)
+            _update_pod_set_violation(yp_client_user, True)
+            _update_pod_set_violation(yp_client_user, False)

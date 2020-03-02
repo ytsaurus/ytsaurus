@@ -1,4 +1,8 @@
-from .conftest import DEFAULT_ACCOUNT_ID, create_pod_set
+from .conftest import (
+    DEFAULT_ACCOUNT_ID,
+    create_pod_set,
+    create_user,
+)
 
 from yp.local import set_account_infinite_resource_limits
 
@@ -248,13 +252,12 @@ class TestUpdateObjects(object):
                     obj.validate(yp_client)
 
     def test_batch_add_to_array_end(self, yp_env):
-        username = "simple_user"
-        yp_env.yp_client.create_object("user", attributes={"meta": {"id": username}})
+        user_id = create_user(yp_env.yp_client, grant_create_permission_for_types=("pod_set",))
         yp_env.sync_access_control()
 
         ace_types = ["read", "write", "use"]
 
-        with yp_env.yp_instance.create_client(config=dict(user=username)) as yp_client:
+        with yp_env.yp_instance.create_client(config=dict(user=user_id)) as yp_client:
             pod_set_ids = [create_pod_set(yp_client) for _ in range(2)]
 
             start_acls = yp_client.get_objects("pod_set", pod_set_ids, ["/meta/acl"])
@@ -268,7 +271,7 @@ class TestUpdateObjects(object):
                             dict(
                                 path="/meta/acl/end",
                                 value=dict(
-                                    action="allow", subjects=[username], permissions=[permission]
+                                    action="allow", subjects=[user_id], permissions=[permission]
                                 ),
                             )
                         ],
@@ -283,7 +286,7 @@ class TestUpdateObjects(object):
                 [
                     dict(
                         path="/meta/acl/end",
-                        value=dict(action="allow", subjects=[username], permissions=[permission]),
+                        value=dict(action="allow", subjects=[user_id], permissions=[permission]),
                     )
                     for permission in ace_types
                 ],
@@ -300,5 +303,5 @@ class TestUpdateObjects(object):
 
                 for ace_type, ace in zip(ace_types, end_acl[0][len(start_acl) :]):
                     assert ace["action"] == "allow"
-                    assert ace["subjects"] == [username]
+                    assert ace["subjects"] == [user_id]
                     assert ace["permissions"] == [ace_type]

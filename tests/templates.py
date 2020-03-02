@@ -1,3 +1,5 @@
+from .conftest import create_user
+
 from yp.common import YtResponseError, YpAuthorizationError
 
 import pytest
@@ -25,7 +27,7 @@ def permissions_test_template(
         )
         assert exc.contains_text("Cannot set null account")
 
-    user_id = yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+    user_id = create_user(yp_client, "u", grant_create_permission_for_types=(object_type,))
     yp_env.sync_access_control()
 
     with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
@@ -113,7 +115,7 @@ def replica_set_network_project_permissions_test_template(yp_env, replica_set_ob
         },
     }
 
-    user_id = yp_env.yp_client.create_object("user", attributes={"meta": {"id": "u"}})
+    user_id = create_user(yp_env.yp_client, "u", grant_create_permission_for_types=(replica_set_object_type,))
     yp_env.sync_access_control()
 
     network_project_permissions_test_template(
@@ -149,10 +151,10 @@ def network_project_permissions_test_template(
     yp_env.sync_access_control()
 
     with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
-        stage_id = client.create_object(object_type, attributes={"spec": spec, "meta": meta})
+        object_id = client.create_object(object_type, attributes={"spec": spec, "meta": meta})
 
     yp_client.remove_object("network_project", network_project)
 
     # spec is now invalid as it is, but update succeeds because it does not change network project
     with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
-        client.update_object(object_type, stage_id, set_updates=[{"path": "/spec", "value": spec}])
+        client.update_object(object_type, object_id, set_updates=[{"path": "/spec", "value": spec}])
