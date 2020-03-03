@@ -9,7 +9,7 @@
 #include "memory_tag_queue.h"
 #include "bootstrap.h"
 
-#include <yt/server/lib/job_agent/statistics_reporter.h>
+#include <yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/server/lib/scheduler/message_queue.h>
 #include <yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
@@ -224,8 +224,8 @@ public:
             Config_->EventLog,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetControlInvoker()))
-        , StatisticsReporter_(New<NJobAgent::TStatisticsReporter>(
-            Config_->StatisticsReporter,
+        , JobReporter_(New<NJobAgent::TJobReporter>(
+            Config_->JobReporter,
             Bootstrap_->GetMasterClient()->GetNativeConnection()))
         , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
@@ -245,7 +245,6 @@ public:
 
         MasterConnector_->Initialize();
         ScheduleConnect(true);
-        StatisticsReporter_->SetEnabled(true);
     }
 
     IYPathServicePtr CreateOrchidService()
@@ -418,9 +417,9 @@ public:
         return EventLogWriter_;
     }
 
-    const NJobAgent::TStatisticsReporterPtr& GetStatisticsReporter() const
+    const NJobAgent::TJobReporterPtr& GetJobReporter() const
     {
-        return StatisticsReporter_;
+        return JobReporter_;
     }
 
     TOperationPtr FindOperation(TOperationId operationId) const
@@ -831,7 +830,7 @@ private:
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;
     const TAsyncSemaphorePtr CoreSemaphore_;
     const IEventLogWriterPtr EventLogWriter_;
-    const NJobAgent::TStatisticsReporterPtr StatisticsReporter_;
+    const NJobAgent::TJobReporterPtr JobReporter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
 
     bool Connected_= false;
@@ -1303,7 +1302,8 @@ private:
             UnregisterOperation(operation->GetId());
         }
 
-        StatisticsReporter_->SetOperationArchiveVersion(rsp->operation_archive_version());
+        JobReporter_->SetOperationArchiveVersion(rsp->operation_archive_version());
+        JobReporter_->SetEnabled(rsp->enable_job_reporter());
         ConfirmHeartbeatRequest(preparedRequest);
     }
 
@@ -1696,9 +1696,9 @@ const IEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
     return Impl_->GetEventLogWriter();
 }
 
-const NJobAgent::TStatisticsReporterPtr& TControllerAgent::GetStatisticsReporter() const
+const NJobAgent::TJobReporterPtr& TControllerAgent::GetJobReporter() const
 {
-    return Impl_->GetStatisticsReporter();
+    return Impl_->GetJobReporter();
 }
 
 TMemoryTagQueue* TControllerAgent::GetMemoryTagQueue()

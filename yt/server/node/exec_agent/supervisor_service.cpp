@@ -152,21 +152,21 @@ private:
 
         job->SetResult(result);
 
-        auto statistics = TJobStatistics().Error(error);
+        auto jobReport = TNodeJobReport().Error(error);
         if (request->has_statistics()) {
             auto ysonStatistics = TYsonString(request->statistics());
             job->SetStatistics(ysonStatistics);
-            statistics.SetStatistics(ysonStatistics);
+            jobReport.SetStatistics(ysonStatistics);
         }
         // COMPAT(ignat): migrate to new fields (node_start_time, node_finish_time)
         if (request->has_start_time()) {
-            statistics.SetStartTime(FromProto<TInstant>(request->start_time()));
+            jobReport.SetStartTime(FromProto<TInstant>(request->start_time()));
         }
         if (request->has_finish_time()) {
-            statistics.SetFinishTime(FromProto<TInstant>(request->finish_time()));
+            jobReport.SetFinishTime(FromProto<TInstant>(request->finish_time()));
         }
         job->SetCoreInfos(FromProto<TCoreInfos>(request->core_infos()));
-        job->ReportStatistics(std::move(statistics));
+        job->ReportStatistics(std::move(jobReport));
 
         if (request->has_job_stderr()) {
             job->SetStderr(request->job_stderr());

@@ -482,7 +482,7 @@ class TestCoreTable(YTEnvSetup):
             "scheduler_connector": {
                 "heartbeat_period": 100 # 100 msec
             },
-            "statistics_reporter": {
+            "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
                 "min_repeat_delay": 10,

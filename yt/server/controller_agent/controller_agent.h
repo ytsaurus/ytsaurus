@@ -86,7 +86,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    const NJobAgent::TStatisticsReporterPtr& GetStatisticsReporter() const;
+    const NJobAgent::TJobReporterPtr& GetJobReporter() const;
 
     /*!
      * \note Thread affinity: any

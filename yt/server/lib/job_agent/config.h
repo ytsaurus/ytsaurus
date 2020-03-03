@@ -277,7 +277,7 @@ DEFINE_REFCOUNTED_TYPE(TJobControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStatisticsReporterConfig
+class TJobReporterConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -292,7 +292,7 @@ public:
     int MaxItemsInBatch;
     TString User;
 
-    TStatisticsReporterConfig()
+    TJobReporterConfig()
     {
         RegisterParameter("enabled", Enabled)
             .Default(true);
@@ -317,7 +317,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TStatisticsReporterConfig)
+DEFINE_REFCOUNTED_TYPE(TJobReporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

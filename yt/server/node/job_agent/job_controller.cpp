@@ -14,7 +14,7 @@
 
 #include <yt/server/lib/controller_agent/helpers.h>
 
-#include <yt/server/lib/job_agent/statistics_reporter.h>
+#include <yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
@@ -982,8 +982,8 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
 
     *request->mutable_disk_resources() = GetDiskResources();
 
-    request->set_job_reporter_write_failures_count(Bootstrap_->GetStatisticsReporter()->ExtractWriteFailuresCount());
-    request->set_job_reporter_queue_is_too_large(Bootstrap_->GetStatisticsReporter()->GetQueueIsTooLarge());
+    request->set_job_reporter_write_failures_count(Bootstrap_->GetJobReporter()->ExtractWriteFailuresCount());
+    request->set_job_reporter_queue_is_too_large(Bootstrap_->GetJobReporter()->GetQueueIsTooLarge());
 
     // A container for all scheduler jobs that are candidate to send statistics. This set contains
     // only the running jobs since all completed/aborted/failed jobs always send their statistics.

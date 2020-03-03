@@ -781,7 +781,7 @@ public:
 
     NScheduler::EEnablePorto DefaultEnablePorto;
 
-    NJobAgent::TStatisticsReporterConfigPtr StatisticsReporter;
+    NJobAgent::TJobReporterConfigPtr JobReporter;
 
     TControllerAgentConfig();
 

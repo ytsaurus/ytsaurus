@@ -159,7 +159,7 @@ struct IOperationControllerHost
     virtual const ICoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
-    virtual const NJobAgent::TStatisticsReporterPtr& GetStatisticsReporter() = 0;
+    virtual const NJobAgent::TJobReporterPtr& GetJobReporter() = 0;
     virtual TMemoryTagQueue* GetMemoryTagQueue() = 0;
 
     virtual int GetOnlineExecNodeCount() = 0;

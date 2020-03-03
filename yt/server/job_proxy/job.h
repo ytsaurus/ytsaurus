@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/lib/job_agent/job_statistics.h>
+#include <yt/server/lib/job_agent/job_report.h>
 
 #include <yt/server/job_proxy/environment.h>
 

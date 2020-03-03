@@ -38,7 +38,7 @@
 
 #include <yt/server/node/job_agent/gpu_manager.h>
 #include <yt/server/node/job_agent/job_controller.h>
-#include <yt/server/lib/job_agent/statistics_reporter.h>
+#include <yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/server/lib/misc/address_helpers.h>
 
@@ -560,8 +560,8 @@ void TBootstrap::DoInitialize()
     JobController_->RegisterJobFactory(NJobAgent::EJobType::RepairChunk, createChunkJob);
     JobController_->RegisterJobFactory(NJobAgent::EJobType::SealChunk, createChunkJob);
 
-    StatisticsReporter_ = New<TStatisticsReporter>(
-        Config_->ExecAgent->StatisticsReporter,
+    JobReporter_ = New<TJobReporter>(
+        Config_->ExecAgent->JobReporter,
         this->GetMasterConnection(),
         this->GetMasterConnector()->GetLocalDescriptor().GetDefaultAddress());
 
@@ -842,9 +842,9 @@ const TJobControllerPtr& TBootstrap::GetJobController() const
     return JobController_;
 }
 
-const TStatisticsReporterPtr& TBootstrap::GetStatisticsReporter() const
+const TJobReporterPtr& TBootstrap::GetJobReporter() const
 {
-    return StatisticsReporter_;
+    return JobReporter_;
 }
 
 const NTabletNode::TSlotManagerPtr& TBootstrap::GetTabletSlotManager() const
