@@ -71,7 +71,7 @@ public:
     const NRpc::IServerPtr& GetRpcServer() const;
     const NYTree::IMapNodePtr& GetOrchidRoot() const;
     const NJobAgent::TJobControllerPtr& GetJobController() const;
-    const NJobAgent::TStatisticsReporterPtr& GetStatisticsReporter() const;
+    const NJobAgent::TJobReporterPtr& GetJobReporter() const;
     const NTabletNode::TSlotManagerPtr& GetTabletSlotManager() const;
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
     const NTabletNode::IInMemoryManagerPtr& GetInMemoryManager() const;
@@ -155,7 +155,7 @@ private:
     NHttp::IServerPtr SkynetHttpServer_;
     NYTree::IMapNodePtr OrchidRoot_;
     NJobAgent::TJobControllerPtr JobController_;
-    NJobAgent::TStatisticsReporterPtr StatisticsReporter_;
+    NJobAgent::TJobReporterPtr JobReporter_;
     NExecAgent::TSlotManagerPtr ExecSlotManager_;
     NJobAgent::TGpuManagerPtr GpuManager_;
     NJobProxy::TJobProxyConfigPtr JobProxyConfigTemplate_;

@@ -9,8 +9,8 @@
 #include "scheduling_context.h"
 #include "config.h"
 
-#include <yt/server/lib/job_agent/job_statistics.h>
-#include <yt/server/lib/job_agent/statistics_reporter.h>
+#include <yt/server/lib/job_agent/job_report.h>
+#include <yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/server/lib/misc/job_table_schema.h>
 
@@ -8546,11 +8546,11 @@ void TOperationControllerBase::MarkJobHasCompetitors(const TJobletPtr& joblet)
 {
     if (!joblet->HasCompetitors) {
         joblet->HasCompetitors = true;
-        auto statistics = NJobAgent::TJobStatistics()
+        auto statistics = NJobAgent::TControllerJobReport()
             .OperationId(OperationId)
             .JobId(joblet->JobId)
             .HasCompetitors(true);
-        Host->GetStatisticsReporter()->ReportStatistics(std::move(statistics));
+        Host->GetJobReporter()->ReportStatistics(std::move(statistics));
     }
 }
 

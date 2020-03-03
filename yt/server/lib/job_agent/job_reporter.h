@@ -22,16 +22,16 @@ using NYT::NApi::TJobSpecTableDescriptor;
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Periodically reports job statistics to the dynamic table.
-class TStatisticsReporter
+class TJobReporter
     : public TRefCounted
 {
 public:
-    TStatisticsReporter(
-        TStatisticsReporterConfigPtr reporterConfig,
+    TJobReporter(
+        TJobReporterConfigPtr reporterConfig,
         const NApi::NNative::IConnectionPtr& masterConnection,
         std::optional<TString> localAddress = std::nullopt);
 
-    void ReportStatistics(TJobStatistics&& statistics);
+    void ReportStatistics(TJobReport&& statistics);
     void SetEnabled(bool enable);
     void SetSpecEnabled(bool enable);
     void SetStderrEnabled(bool enable);
@@ -46,7 +46,7 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TStatisticsReporter)
+DEFINE_REFCOUNTED_TYPE(TJobReporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

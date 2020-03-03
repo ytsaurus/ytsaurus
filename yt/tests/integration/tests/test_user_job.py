@@ -492,7 +492,7 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
                     "supported_cgroups": ["cpuacct", "blkio", "cpu"],
                 },
             },
-            "statistics_reporter": {
+            "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
                 "min_repeat_delay": 10,

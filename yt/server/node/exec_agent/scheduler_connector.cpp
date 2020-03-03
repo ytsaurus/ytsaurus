@@ -4,7 +4,7 @@
 
 #include <yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/lib/job_agent/statistics_reporter.h>
+#include <yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/server/node/cell_node/bootstrap.h>
 
@@ -135,7 +135,7 @@ void TSchedulerConnector::SendHeartbeat()
         LastFullyProcessedHeartbeatTime_ = TInstant::Now();
     }
 
-    const auto& reporter = Bootstrap_->GetStatisticsReporter();
+    const auto& reporter = Bootstrap_->GetJobReporter();
     if (rsp->has_enable_job_reporter()) {
         reporter->SetEnabled(rsp->enable_job_reporter());
     }

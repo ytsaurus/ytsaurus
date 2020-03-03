@@ -343,7 +343,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "statistics_reporter": {
+            "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
                 "min_repeat_delay": 10,
@@ -384,7 +384,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
         "controller_agent": {
             "operations_update_period": 10,
             "controller_static_orchid_update_period": 100,
-            "statistics_reporter": {
+            "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
                 "min_repeat_delay": 10,
