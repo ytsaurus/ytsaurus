@@ -11,7 +11,7 @@ import (
 
 func TestFullCrashers(t *testing.T) {
 	files, err := ioutil.ReadDir("crashers")
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	for _, f := range files {
 		if strings.HasSuffix(f.Name(), ".output") {
@@ -23,7 +23,7 @@ func TestFullCrashers(t *testing.T) {
 
 		t.Run(f.Name(), func(t *testing.T) {
 			data, err := ioutil.ReadFile(filepath.Join("crashers", f.Name()))
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			Fuzz(data)
 

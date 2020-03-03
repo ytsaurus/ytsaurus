@@ -148,14 +148,14 @@ func TestMarshalMapKeys(t *testing.T) {
 
 	newTextMarshaler := func() textMarshaler {
 		v, err := uuid.NewV4()
-		require.Nil(t, err)
+		require.NoError(t, err)
 		return textMarshaler(v)
 	}
 	testRoundtrip(t, map[textMarshaler]textMarshaler{newTextMarshaler(): newTextMarshaler()})
 
 	newBinaryMarshaler := func() binaryMarshaler {
 		v, err := uuid.NewV4()
-		require.Nil(t, err)
+		require.NoError(t, err)
 		return binaryMarshaler(v)
 	}
 	testRoundtrip(t, map[binaryMarshaler]binaryMarshaler{newBinaryMarshaler(): newBinaryMarshaler()})
@@ -185,7 +185,7 @@ var _ Marshaler = (*customMarshal)(nil)
 
 func TestYSONTranscoding(t *testing.T) {
 	data, err := Marshal(&customMarshal{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, []byte("{a=b;c=[1;2;3;];}"), data)
 }
 
