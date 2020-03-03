@@ -102,7 +102,7 @@ TString FormatResourceUsage(const TJobResources& usage, const TJobResources& lim
 TString FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits,
-    const NNodeTrackerClient::NProto::TDiskResources& diskInfo);
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources);
 TString FormatResources(const TJobResources& resources);
 TString FormatResources(const TJobResourcesWithQuota& resources);
 TString FormatResources(const TExtendedJobResources& resources);
@@ -172,15 +172,15 @@ void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
 const TJobResources& MinSpareNodeResources();
 
 bool CanSatisfyDiskRequest(
-    const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources,
     i64 diskRequest);
 
 bool CanSatisfyDiskRequests(
-    const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources,
     const std::vector<i64>& diskRequests);
 
 i64 GetMaxAvailableDiskSpace(
-    const NNodeTrackerClient::NProto::TDiskResources& diskInfo);
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources);
 
 ////////////////////////////////////////////////////////////////////////////////
 

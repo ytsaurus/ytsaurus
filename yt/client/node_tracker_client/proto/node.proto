@@ -86,7 +86,7 @@ message TNodeResources
     optional int32 gpu = 12;
 }
 
-message TDiskResourcesInfo
+message TDiskLocationResources
 {
     required int64 usage = 1;
     required int64 limit = 2;
@@ -94,7 +94,7 @@ message TDiskResourcesInfo
 
 message TDiskResources
 {
-    repeated TDiskResourcesInfo disk_reports = 1;
+    repeated TDiskLocationResources disk_location_resources = 1;
 }
 
 // Limits overrides pushed from master to node.

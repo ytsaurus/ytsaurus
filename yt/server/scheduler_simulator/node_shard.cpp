@@ -159,7 +159,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         FormatResourceUsage(
             TJobResources(node->GetResourceUsage()),
             TJobResources(node->GetResourceLimits()),
-            node->GetDiskInfo()),
+            node->GetDiskResources()),
         node->Jobs().size());
 
     // Prepare scheduling context.

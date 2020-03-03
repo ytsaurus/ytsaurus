@@ -436,7 +436,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     context->SetRequestInfo("NodeId: %v, NodeAddress: %v, ResourceUsage: %v, JobCount: %v, Confirmation: {C: %v, U: %v}",
         nodeId,
         descriptor.GetDefaultAddress(),
-        FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits), request->disk_info()),
+        FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits), request->disk_resources()),
         request->jobs().size(),
         request->confirmed_job_count(),
         request->unconfirmed_jobs().size());
@@ -465,7 +465,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         UpdateNodeResources(node,
             request->resource_limits(),
             request->resource_usage(),
-            request->disk_info());
+            request->disk_resources());
     }
 
     TLeaseManager::RenewLease(node->GetHeartbeatLease());
@@ -1995,7 +1995,7 @@ void TNodeShard::UpdateNodeResources(
     const TExecNodePtr& node,
     const TJobResources& limits,
     const TJobResources& usage,
-    const NNodeTrackerClient::NProto::TDiskResources& diskInfo)
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources)
 {
     auto oldResourceLimits = node->GetResourceLimits();
 
@@ -2007,7 +2007,7 @@ void TNodeShard::UpdateNodeResources(
         }
         node->SetResourceLimits(limits);
         node->SetResourceUsage(usage);
-        node->SetDiskInfo(diskInfo);
+        node->SetDiskResources(diskResources);
     } else {
         if (node->GetResourceLimits().GetUserSlots() > 0 && node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
             ExecNodeCount_ -= 1;

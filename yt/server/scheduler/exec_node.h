@@ -146,18 +146,18 @@ public:
      */
     const TJobResources& GetResourceUsage() const;
 
-    const NNodeTrackerClient::NProto::TDiskResources& GetDiskInfo() const;
+    const NNodeTrackerClient::NProto::TDiskResources& GetDiskResources() const;
 
     //! Sets the node's resource usage.
     void SetResourceUsage(const TJobResources& value);
 
-    void SetDiskInfo(const NNodeTrackerClient::NProto::TDiskResources& value);
+    void SetDiskResources(const NNodeTrackerClient::NProto::TDiskResources& value);
 
     void BuildAttributes(NYTree::TFluentMap fluent);
 
 private:
     TJobResources ResourceUsage_;
-    NNodeTrackerClient::NProto::TDiskResources DiskInfo_;
+    NNodeTrackerClient::NProto::TDiskResources DiskResources_;
 
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
     TJobResources ResourceLimits_;

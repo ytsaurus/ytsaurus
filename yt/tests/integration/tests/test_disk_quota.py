@@ -68,7 +68,7 @@ class TestDiskUsage(QuotaMixin):
                         "disk_usage_watermark": 0
                     }
                 ],
-                "disk_info_update_period": 100,
+                "disk_resources_update_period": 100,
             },
             "job_controller": {
                 "waiting_jobs_timeout": 1000,

@@ -93,7 +93,7 @@ void TSchedulerConnector::SendHeartbeat()
         req.Get());
 
     YT_LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
-        FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_info()));
+        FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_resources()));
 
     auto profileInterval = [&] (TInstant lastTime, NProfiling::TAggregateGauge& counter) {
         if (lastTime != TInstant::Zero()) {

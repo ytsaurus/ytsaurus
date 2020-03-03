@@ -95,7 +95,7 @@ public:
 
     TNodeResources GetResourceLimits() const;
     TNodeResources GetResourceUsage(bool includeWaiting = false) const;
-    TDiskResources GetDiskInfo() const;
+    TDiskResources GetDiskResources() const;
     void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits);
 
     void SetDisableSchedulerJobs(bool value);
@@ -568,9 +568,9 @@ void TJobController::TImpl::CheckReservedMappedMemory()
     }
 }
 
-TDiskResources TJobController::TImpl::GetDiskInfo() const
+TDiskResources TJobController::TImpl::GetDiskResources() const
 {
-    return Bootstrap_->GetExecSlotManager()->GetDiskInfo();
+    return Bootstrap_->GetExecSlotManager()->GetDiskResources();
 }
 
 void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
@@ -980,7 +980,7 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     *request->mutable_resource_limits() = GetResourceLimits();
     *request->mutable_resource_usage() = GetResourceUsage(/* includeWaiting */ true);
 
-    *request->mutable_disk_info() = GetDiskInfo();
+    *request->mutable_disk_resources() = GetDiskResources();
 
     request->set_job_reporter_write_failures_count(Bootstrap_->GetStatisticsReporter()->ExtractWriteFailuresCount());
     request->set_job_reporter_queue_is_too_large(Bootstrap_->GetStatisticsReporter()->GetQueueIsTooLarge());
