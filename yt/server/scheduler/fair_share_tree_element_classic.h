@@ -270,7 +270,7 @@ public:
 
     //! Prepares attributes that need to be computed in the control thread in a thread-unsafe manner.
     //! For example: TotalResourceLimits.
-    virtual void PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
+    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context);
 
     //! Updates attributes that need to be computed from leafs up to root.
     //! For example: |parent->ResourceDemand = Sum(child->ResourceDemand)|.
@@ -459,7 +459,7 @@ public:
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
-    virtual void PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
 
@@ -834,7 +834,7 @@ public:
     virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
-    virtual void PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdateTopDown(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
 
