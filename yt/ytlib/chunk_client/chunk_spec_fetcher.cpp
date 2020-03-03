@@ -161,9 +161,15 @@ void TChunkSpecFetcher::DoFetch()
         .ThrowOnError();
     YT_LOG_INFO("Finished processing chunk specs");
 
-    if (!ForeignChunkSpecs_.empty()) {
-        YT_LOG_INFO("Locating foreign chunks (ForeignChunkCount: %v)", ForeignChunkSpecs_.size());
-        LocateChunks(Client_, MaxChunksPerLocateRequest_, ForeignChunkSpecs_, NodeDirectory_, Logger, SkipUnavailableChunks_);
+    std::vector<NProto::TChunkSpec*> foreignChunkSpecs;
+    for (const auto& [cellTag, cellState] : CellTagToState_) {
+        const auto& cellForeignChunkSpecs = cellState.ForeignChunkSpecs;
+        foreignChunkSpecs.insert(foreignChunkSpecs.end(), cellForeignChunkSpecs.begin(), cellForeignChunkSpecs.end());
+    }
+
+    if (!foreignChunkSpecs.empty()) {
+        YT_LOG_INFO("Locating foreign chunks (ForeignChunkCount: %v)", foreignChunkSpecs.size());
+        LocateChunks(Client_, MaxChunksPerLocateRequest_, foreignChunkSpecs, NodeDirectory_, Logger, SkipUnavailableChunks_);
         YT_LOG_INFO("Finished locating foreign chunks");
     }
 
@@ -191,8 +197,6 @@ void TChunkSpecFetcher::DoFetchFromCell(TCellTag cellTag)
     const auto& batchRsp = batchRspOrError.Value();
     auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>("fetch");
 
-    std::vector<NProto::TChunkSpec*> foreignChunkSpecs;
-
     for (int resultIndex = 0; resultIndex < static_cast<int>(rspsOrError.size()); ++resultIndex) {
         auto& rsp = rspsOrError[resultIndex].Value();
         for (auto& chunkSpec : *rsp->mutable_chunks()) {
@@ -209,13 +213,13 @@ void TChunkSpecFetcher::DoFetchFromCell(TCellTag cellTag)
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
         auto chunkCellTag = CellTagFromId(chunkId);
         if (chunkCellTag != cellTag) {
-            ForeignChunkSpecs_.push_back(&chunkSpec);
+            cellState.ForeignChunkSpecs.push_back(&chunkSpec);
         }
     }
     YT_LOG_DEBUG("Finished processing cell chunk spec fetch results (CellTag: %v, FetchedChunkCount: %v, ForeignChunkCount: %v)",
         cellTag,
         cellState.ChunkSpecs.size(),
-        foreignChunkSpecs.size());
+        cellState.ForeignChunkSpecs.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
