@@ -40,13 +40,13 @@ func TestNullHandling(t *testing.T) {
 	{
 		s := &NullTest{}
 		err := json.Unmarshal([]byte(`null`), &s)
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 
 	{
 		s := &NullTest{}
 		err := yson.Unmarshal([]byte(`#`), &s)
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 }
 
@@ -546,13 +546,13 @@ func TestUnmarshalEmbeddedUnexportedNilPtr(t *testing.T) {
 	{
 		s := &S{}
 		err := json.Unmarshal([]byte(`{"id":"str"}`), s)
-		require.NotNil(t, err)
+		require.Error(t, err)
 	}
 
 	{
 		s := &S{}
 		err := yson.Unmarshal([]byte(`{id=str;}`), s)
-		require.NotNil(t, err)
+		require.Error(t, err)
 	}
 }
 
@@ -565,6 +565,6 @@ func TestUnmarshalEmbeddedUnexportedNonStruct(t *testing.T) {
 	{
 		s := &S{}
 		err := yson.Unmarshal([]byte(`{i=4;}`), s)
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 }

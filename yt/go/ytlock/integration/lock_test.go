@@ -5,14 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofrs/uuid"
+	"github.com/stretchr/testify/require"
+
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yterrors"
 	"a.yandex-team.ru/yt/go/ytlock"
 	"a.yandex-team.ru/yt/go/yttest"
-
-	"github.com/gofrs/uuid"
-	"github.com/stretchr/testify/require"
 )
 
 func randomPath() ypath.Path {
@@ -85,7 +85,7 @@ func TestConcurrentLocks(t *testing.T) {
 	firstLock := ytlock.NewLock(env.YT, path)
 	firstLost, err := firstLock.Acquire(env.Ctx)
 	defer func() { _ = firstLock.Release(env.Ctx) }()
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.False(t, isDone(firstLost), "First lock should be acquired")
 
 	time.Sleep(100 * time.Millisecond)
@@ -137,7 +137,7 @@ func TestAbortedTxReleasesLock(t *testing.T) {
 	require.False(t, isDone(lost), "lock should be acquired")
 
 	err = ytlock.AbortExclusiveLock(env.Ctx, env.YT, path)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	select {
 	case <-lost:

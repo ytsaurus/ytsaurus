@@ -120,7 +120,7 @@ func TestOmitEmpty(t *testing.T) {
 	s.S2 = "a"
 
 	data, err := Marshal(s)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, "<I2=1;>{S2=a;}", string(data))
 }
 
