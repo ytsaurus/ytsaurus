@@ -74,12 +74,12 @@ TString FormatResourceUsage(
     return Format("{%v}", FormatResources(usage, limits));
 }
 
-TString ToString(const NProto::TDiskResources& diskInfo)
+TString ToString(const NProto::TDiskResources& diskResources)
 {
     std::vector<TString> disk;
-    disk.reserve(diskInfo.disk_reports().size());
-    for (const auto& report : diskInfo.disk_reports()) {
-        disk.emplace_back(Format("{usage %v, limit %v}", report.usage(), report.limit()));
+    disk.reserve(diskResources.disk_location_resources().size());
+    for (const auto& locationResources : diskResources.disk_location_resources()) {
+        disk.emplace_back(Format("{usage %v, limit %v}", locationResources.usage(), locationResources.limit()));
     }
     return Format("%v", disk);
 }
@@ -87,9 +87,9 @@ TString ToString(const NProto::TDiskResources& diskInfo)
 TString FormatResourceUsage(
     const TNodeResources& usage,
     const TNodeResources& limits,
-    const TDiskResources& diskInfo)
+    const TDiskResources& diskResources)
 {
-    return Format("{%v, DiskInfo: %v}", FormatResources(usage, limits), ToString(diskInfo));
+    return Format("{%v, DiskResources: %v}", FormatResources(usage, limits), ToString(diskResources));
 }
 
 TString FormatResources(const TNodeResources& resources)

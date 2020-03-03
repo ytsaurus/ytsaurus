@@ -74,7 +74,7 @@ public:
     void IncreaseSessionCount();
     void DecreaseSessionCount();
 
-    NNodeTrackerClient::NProto::TDiskResourcesInfo GetDiskInfo() const;
+    NNodeTrackerClient::NProto::TDiskLocationResources GetDiskResources() const;
 
     void Disable(const TError& error);
 
@@ -97,9 +97,9 @@ private:
 
     TDiskHealthCheckerPtr HealthChecker_;
 
-    NNodeTrackerClient::NProto::TDiskResourcesInfo DiskInfo_;
-    NConcurrency::TReaderWriterSpinLock DiskInfoLock_;
-    NConcurrency::TPeriodicExecutorPtr DiskInfoUpdateExecutor_;
+    NNodeTrackerClient::NProto::TDiskLocationResources DiskResources_;
+    NConcurrency::TReaderWriterSpinLock DiskResourcesLock_;
+    NConcurrency::TPeriodicExecutorPtr DiskResourcesUpdateExecutor_;
 
     void ValidateEnabled() const;
 
@@ -111,7 +111,7 @@ private:
 
     void ForceSubdirectories(const TString& filePath, const TString& sandboxPath) const;
 
-    void UpdateDiskInfo();
+    void UpdateDiskResources();
 
     TString GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
     TString GetConfigPath(int slotIndex) const;

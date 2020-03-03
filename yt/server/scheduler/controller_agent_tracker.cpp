@@ -462,7 +462,7 @@ public:
         request->TreeId = treeId;
         request->NodeId = nodeId;
         request->NodeResourceLimits = context->ResourceLimits();
-        request->NodeDiskInfo = context->DiskInfo();
+        request->NodeDiskResources = context->DiskResources();
 
         TIncarnationId incarnationId;
         {
@@ -1088,7 +1088,7 @@ public:
                     protoRequest->set_tree_id(request->TreeId);
                     ToProto(protoRequest->mutable_job_resource_limits(), request->JobResourceLimits);
                     ToProto(protoRequest->mutable_node_resource_limits(), request->NodeResourceLimits);
-                    protoRequest->mutable_node_disk_info()->CopyFrom(request->NodeDiskInfo);
+                    protoRequest->mutable_node_disk_resources()->CopyFrom(request->NodeDiskResources);
                 });
         });
 

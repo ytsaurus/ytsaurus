@@ -66,9 +66,9 @@ std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>
     std::vector<TExecNodePtr> execNodes;
 
     NNodeTrackerClient::NProto::TDiskResources diskResources;
-    auto* diskReport = diskResources.add_disk_reports();
-    diskReport->set_limit(100_GB);
-    diskReport->set_usage(0);
+    auto* locationResources = diskResources.add_disk_location_resources();
+    locationResources->set_limit(100_GB);
+    locationResources->set_usage(0);
 
     for (const auto& nodeGroupConfig : nodeGroups) {
         for (int i = 0; i < nodeGroupConfig->Count; ++i) {
@@ -79,7 +79,7 @@ std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>
             auto node = New<TExecNode>(nodeId, descriptor, NScheduler::ENodeState::Online);
             node->Tags() = nodeGroupConfig->Tags;
             node->SetResourceLimits(GetNodeResourceLimit(nodeGroupConfig->ResourceLimits));
-            node->SetDiskInfo(diskResources);
+            node->SetDiskResources(diskResources);
             node->SetMasterState(NNodeTrackerClient::ENodeState::Online);
             node->SetSchedulerState(NScheduler::ENodeState::Online);
             execNodes.push_back(node);

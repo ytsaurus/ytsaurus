@@ -54,7 +54,7 @@ struct TScheduleJobRequest
     TString TreeId;
     NNodeTrackerClient::TNodeId NodeId;
     TJobResources NodeResourceLimits;
-    NNodeTrackerClient::NProto::TDiskResources NodeDiskInfo;
+    NNodeTrackerClient::NProto::TDiskResources NodeDiskResources;
 };
 
 using TScheduleJobRequestPtr = std::unique_ptr<TScheduleJobRequest>;

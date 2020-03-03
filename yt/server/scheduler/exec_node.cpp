@@ -75,9 +75,9 @@ const TJobResources& TExecNode::GetResourceUsage() const
 }
 
 
-const NNodeTrackerClient::NProto::TDiskResources& TExecNode::GetDiskInfo() const
+const NNodeTrackerClient::NProto::TDiskResources& TExecNode::GetDiskResources() const
 {
-    return DiskInfo_;
+    return DiskResources_;
 }
 
 
@@ -88,9 +88,9 @@ void TExecNode::SetResourceUsage(const TJobResources& value)
     ResourceUsage_ = value;
 }
 
-void TExecNode::SetDiskInfo(const NNodeTrackerClient::NProto::TDiskResources& value)
+void TExecNode::SetDiskResources(const NNodeTrackerClient::NProto::TDiskResources& value)
 {
-    DiskInfo_ = value;
+    DiskResources_ = value;
 }
 
 void TExecNode::BuildAttributes(TFluentMap fluent)

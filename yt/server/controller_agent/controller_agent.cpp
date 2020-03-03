@@ -86,7 +86,7 @@ public:
         const NScheduler::NProto::TScheduleJobRequest* request,
         const TExecNodeDescriptor& nodeDescriptor)
         : ResourceLimits_(FromProto<TJobResources>(request->node_resource_limits()))
-        , DiskInfo_(request->node_disk_info())
+        , DiskResources_(request->node_disk_resources())
         , JobId_(FromProto<TJobId>(request->job_id()))
         , NodeDescriptor_(nodeDescriptor)
     { }
@@ -101,9 +101,9 @@ public:
         return ResourceLimits_;
     }
 
-    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskInfo() const override
+    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskResources() const override
     {
-        return DiskInfo_;
+        return DiskResources_;
     }
 
     virtual TJobId GetJobId() const override
@@ -118,7 +118,7 @@ public:
 
 private:
     const TJobResources ResourceLimits_;
-    const NNodeTrackerClient::NProto::TDiskResources& DiskInfo_;
+    const NNodeTrackerClient::NProto::TDiskResources& DiskResources_;
     const TJobId JobId_;
     const TExecNodeDescriptor& NodeDescriptor_;
 };
@@ -1458,7 +1458,7 @@ private:
                         TSchedulingContext context(protoRequest, descriptorIt->second);
 
                         TJobResourcesWithQuota jobLimitsWithQuota(jobLimits);
-                        jobLimitsWithQuota.SetDiskQuota(GetMaxAvailableDiskSpace(context.DiskInfo()));
+                        jobLimitsWithQuota.SetDiskQuota(GetMaxAvailableDiskSpace(context.DiskResources()));
 
                         response.OperationId = operationId;
                         response.JobId = jobId;
