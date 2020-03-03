@@ -43,7 +43,6 @@ TFuture<typename TNonblockingBatch<T>::TBatch> TNonblockingBatch<T>::DequeueBatc
     Promises_.push_back(promise);
     StartTimer(guard);
     CheckReturn(guard);
-    guard.Release();
     return promise.ToFuture();
 }
 
@@ -115,6 +114,7 @@ void TNonblockingBatch<T>::CheckReturn(TGuard<TSpinLock>& guard)
     Batches_.pop();
     auto promise = std::move(Promises_.front());
     Promises_.pop_front();
+    guard.Release();
     promise.Set(std::move(batch));
 }
 
