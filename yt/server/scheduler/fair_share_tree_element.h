@@ -296,7 +296,7 @@ public:
 
     //! Prepares attributes that need to be computed in the control thread in a thread-unsafe manner.
     //! For example: TotalResourceLimits.
-    virtual void PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
+    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context);
 
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
 
@@ -506,7 +506,7 @@ public:
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
-    virtual void PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdatePreemption(TUpdateFairShareContext* context) override;
     virtual void UpdateDynamicAttributes(
@@ -909,7 +909,7 @@ public:
     virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
-    virtual void PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdatePreemption(TUpdateFairShareContext* context) override;
 

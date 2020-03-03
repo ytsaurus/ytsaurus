@@ -241,7 +241,7 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
-void TSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* , TUpdateFairShareContext* context)
+void TSchedulerElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -986,7 +986,7 @@ void TCompositeSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeCo
     updateChildrenConfig(DisabledChildren_);
 }
 
-void TCompositeSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TCompositeSchedulerElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -994,13 +994,13 @@ void TCompositeSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynam
     ResourceDemand_ = {};
 
     for (const auto& child : EnabledChildren_) {
-        child->PreUpdateBottomUp(dynamicAttributesList, context);
+        child->PreUpdateBottomUp(context);
 
         ResourceUsageAtUpdate_ += child->ResourceUsageAtUpdate();
         ResourceDemand_ += child->ResourceDemand();
     }
 
-    TSchedulerElement::PreUpdateBottomUp(dynamicAttributesList, context);
+    TSchedulerElement::PreUpdateBottomUp(context);
 }
 
 void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
@@ -2789,7 +2789,7 @@ TDuration TOperationElement::GetFairSharePreemptionTimeout() const
 void TOperationElement::DisableNonAliveElements()
 { }
 
-void TOperationElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -2800,7 +2800,7 @@ void TOperationElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttribu
     ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
     StartTime_ = Operation_->GetStartTime();
 
-    TSchedulerElement::PreUpdateBottomUp(dynamicAttributesList, context);
+    TSchedulerElement::PreUpdateBottomUp(context);
 }
 
 void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
@@ -3790,7 +3790,7 @@ void TRootElement::PreUpdate(TDynamicAttributesList* dynamicAttributesList, TUpd
     dynamicAttributesList->assign(TreeSize_, TDynamicAttributes());
     context->TotalResourceLimits = GetHost()->GetResourceLimits(TreeConfig_->NodesFilter);
 
-    PreUpdateBottomUp(dynamicAttributesList, context);
+    PreUpdateBottomUp(context);
 }
 
 void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
