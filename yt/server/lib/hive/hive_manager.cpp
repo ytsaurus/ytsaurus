@@ -385,7 +385,7 @@ private:
                 ->CommitAndLog(Logger);
 
             THROW_ERROR_EXCEPTION(
-                NHiveServer::EErrorCode::MailboxNotCreatedYet,
+                NHiveClient::EErrorCode::MailboxNotCreatedYet,
                 "Mailbox %v is not created yet",
                 srcCellId);
         }
@@ -1118,7 +1118,7 @@ private:
         mailbox->SetInFlightOutcomingMessageCount(0);
         mailbox->SetPostInProgress(false);
 
-        if (rspOrError.GetCode() == NHiveServer::EErrorCode::MailboxNotCreatedYet) {
+        if (rspOrError.GetCode() == NHiveClient::EErrorCode::MailboxNotCreatedYet) {
             YT_LOG_DEBUG(rspOrError, "Mailbox is not created yet; will retry (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId());

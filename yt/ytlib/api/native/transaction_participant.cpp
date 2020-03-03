@@ -55,11 +55,8 @@ public:
         if (CellDirectory_->IsCellUnregistered(CellId_)) {
             return ETransactionParticipantState::Unregistered;
         }
-        if (!Connection_) {
-            return ETransactionParticipantState::Valid;
-        }
-        if (Connection_->IsTerminated()) {
-            return ETransactionParticipantState::Invalid;
+        if (Connection_ && Connection_->IsTerminated()) {
+            return ETransactionParticipantState::Invalidated;
         }
         return ETransactionParticipantState::Valid;
     }
@@ -106,19 +103,6 @@ public:
         return GetChannel().Apply(BIND([=, this_ = MakeStrong(this)] (const NRpc::IChannelPtr& channel) {
             THydraServiceProxy proxy(channel);
             auto req = proxy.Poke();
-            PrepareRequest(req);
-            return req->Invoke().template As<void>();
-        }));
-    }
-
-    // COMPAT(savrus) Compatibility with pre 19.6 participants.
-    virtual TFuture<void> CheckAvailabilityPre196() override
-    {
-        return GetChannel().Apply(BIND([=, this_ = MakeStrong(this)] (const NRpc::IChannelPtr& channel) {
-            THydraServiceProxy proxy(channel);
-            auto req = proxy.CommitMutation();
-            req->set_type(HeartbeatMutationType);
-            req->Attachments().emplace_back();
             PrepareRequest(req);
             return req->Invoke().template As<void>();
         }));
