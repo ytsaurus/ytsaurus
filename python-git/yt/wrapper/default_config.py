@@ -546,7 +546,7 @@ default_config = {
 
     "enable_operations_api": True,
 
-    "skynet_manager_url": "http://skynet-manager.yt.yandex.net/api/v1",
+    "skynet_manager_url": "http://skynet.{cluster_name}.yt.yandex.net/api/v1",
 
     "enable_logging_for_params_changes": False,
 
