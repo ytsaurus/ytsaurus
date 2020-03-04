@@ -18,6 +18,7 @@ TSchedulerStrategyHost::TSchedulerStrategyHost(
     IOutputStream* eventLogOutputStream,
     const TRemoteEventLogConfigPtr& remoteEventLogConfig)
     : ExecNodes_(execNodes)
+    , MediumDirectory_(CreateDefaultMediumDirectory())
 {
     YT_VERIFY(eventLogOutputStream || remoteEventLogConfig);
 
@@ -133,6 +134,19 @@ TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDes
     }
 
     return result;
+}
+
+TString TSchedulerStrategyHost::FormatResources(const TJobResourcesWithQuota& resources) const
+{
+    return NScheduler::FormatResources(resources, MediumDirectory_);
+}
+
+TString TSchedulerStrategyHost::FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits,
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources) const
+{
+    return NScheduler::FormatResourceUsage(usage, limits, diskResources, MediumDirectory_);
 }
 
 void TSchedulerStrategyHost::ValidatePoolPermission(

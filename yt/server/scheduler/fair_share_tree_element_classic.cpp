@@ -2717,7 +2717,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         context->DynamicAttributesFor(this).SatisfactionRatio,
         context->SchedulingContext->GetNodeDescriptor().Id,
         startDescriptor.Id,
-        FormatResources(startDescriptor.ResourceLimits));
+        Host_->FormatResources(startDescriptor.ResourceLimits));
     return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ true);
 }
 
@@ -3040,7 +3040,7 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
             YT_LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, Limits: %v, JobResources: %v)",
                 jobId,
                 FormatResources(*precommittedResources + availableDelta),
-                FormatResources(startDescriptor.ResourceLimits));
+                FormatResources(startDescriptor.ResourceLimits.ToJobResources()));
 
             Controller_->AbortJob(jobId, EAbortReason::SchedulingResourceOvercommit);
 

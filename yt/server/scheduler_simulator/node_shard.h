@@ -21,6 +21,7 @@ class TSimulatorNodeShard
 public:
     TSimulatorNodeShard(
         const IInvokerPtr& commonNodeShardInvoker,
+        TSchedulerStrategyHost* strategyHost,
         TSharedEventQueue* events,
         TSharedSchedulerStrategy* schedulingStrategy,
         TSharedOperationStatistics* operationStatistics,
@@ -43,6 +44,7 @@ public:
 private:
     THashMap<NNodeTrackerClient::TNodeId, NScheduler::TExecNodePtr> IdToNode_;
     TSharedEventQueue* Events_;
+    TSchedulerStrategyHost* StrategyHost_;
     TSharedSchedulerStrategy* SchedulingStrategy_;
     TSharedOperationStatistics* OperationStatistics_;
     IOperationStatisticsOutput* OperationStatisticsOutput_;
@@ -56,6 +58,8 @@ private:
     const IInvokerPtr Invoker_;
 
     NLogging::TLogger Logger;
+
+    NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 
     NEventLog::IEventLogWriterPtr RemoteEventLogWriter_;
     std::unique_ptr<NYson::IYsonConsumer> RemoteEventLogConsumer_;

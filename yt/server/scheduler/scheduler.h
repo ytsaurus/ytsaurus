@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/hydra/public.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/ytlib/transaction_client/public.h>
@@ -146,6 +148,14 @@ public:
 
     int GetOperationArchiveVersion() const;
     bool IsJobReporterEnabled() const;
+
+    TString FormatResources(const TJobResourcesWithQuota& resources) const;
+    TString FormatResourceUsage(
+        const TJobResources& usage,
+        const TJobResources& limits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const;
+
+    void SetMediumDirectory(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
 private:
     class TImpl;

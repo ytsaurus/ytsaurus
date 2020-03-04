@@ -15,7 +15,7 @@ using namespace NProfiling;
 TPackingNodeResourcesSnapshot::TPackingNodeResourcesSnapshot(
     const TJobResources& usage,
     const TJobResources& limits,
-    i64 diskQuota)
+    TDiskQuota diskQuota)
     : Usage_(usage)
     , Limits_(limits)
     , DiskQuota_(diskQuota)
@@ -30,29 +30,27 @@ TPackingHeartbeatSnapshot::TPackingHeartbeatSnapshot(
 
 bool TPackingHeartbeatSnapshot::CanSchedule(const TJobResourcesWithQuota& jobResourcesWithQuota) const
 {
-    return
-        Dominates(Resources().Free(), jobResourcesWithQuota.ToJobResources()) &&
-        Resources().DiskQuota() >= jobResourcesWithQuota.GetDiskQuota();
+    return Dominates(Resources().Free(), jobResourcesWithQuota);
 }
 
 TPackingHeartbeatSnapshot CreateHeartbeatSnapshot(const ISchedulingContextPtr& schedulingContext)
 {
-    const auto& perLocationResources = schedulingContext->DiskResources().disk_location_resources();
-    auto bestLocation = std::max_element(perLocationResources.begin(), perLocationResources.end(), [](const auto& lhs, const auto& rhs) {
-        return (lhs.limit() - lhs.usage()) < (rhs.limit() - rhs.usage());
-    });
-
-    i64 freeSpaceOnBestDisk;
-    if (bestLocation != perLocationResources.end()) {
-        freeSpaceOnBestDisk = bestLocation->limit() - bestLocation->usage();
-    } else {
-        freeSpaceOnBestDisk = 0;
+    TDiskQuota diskQuota;
+    for (const auto& locationResources : schedulingContext->DiskResources().disk_location_resources()) {
+        int mediumIndex = locationResources.medium_index();
+        i64 freeDiskSpace = locationResources.limit() - locationResources.usage();
+        auto it = diskQuota.DiskSpacePerMedium.find(mediumIndex);
+        if (it == diskQuota.DiskSpacePerMedium.end()) {
+            diskQuota.DiskSpacePerMedium.insert(std::make_pair(mediumIndex, freeDiskSpace));
+        } else {
+            it->second = std::max(it->second, freeDiskSpace);
+        }
     }
 
     auto resourcesSnapshot = TPackingNodeResourcesSnapshot(
         schedulingContext->ResourceUsage(),
         schedulingContext->ResourceLimits(),
-        freeSpaceOnBestDisk);
+        diskQuota);
 
     return TPackingHeartbeatSnapshot(schedulingContext->GetNow(), resourcesSnapshot);
 }
@@ -121,8 +119,8 @@ bool TPackingStatistics::CheckPacking(
         betterPastSnapshots,
         currentMetricValue,
         WindowOfHeartbeats_.size(),
-        FormatResources(heartbeatSnapshot.Resources().Free()),
-        FormatResources(jobResourcesWithQuota.ToJobResources()),
+        // TODO(ignat): use TMediumDirectory to log disk resources.
+        FormatResources(heartbeatSnapshot.Resources().Free().ToJobResources()),
         decision);
 
     return decision;

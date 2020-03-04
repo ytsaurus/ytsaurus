@@ -1,10 +1,12 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/concurrency/action_queue.h>
-
 #include <yt/server/scheduler/fair_share_tree_element.h>
 #include <yt/server/scheduler/operation_controller.h>
 #include <yt/server/scheduler/resource_tree.h>
+
+#include <yt/ytlib/chunk_client/proto/medium_directory.pb.h>
+
+#include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -31,7 +33,15 @@ struct TSchedulerStrategyHostMock
 {
     explicit TSchedulerStrategyHostMock(TJobResourcesWithQuotaList nodeResourceLimitsList)
         : NodeResourceLimitsList(std::move(nodeResourceLimitsList))
-    { }
+        , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
+    {
+        NChunkClient::NProto::TMediumDirectory protoDirectory;
+        auto* item = protoDirectory.add_items();
+        item->set_name(NChunkClient::DefaultSlotsMediumName);
+        item->set_index(NChunkClient::DefaultSlotsMediumIndex);
+        item->set_priority(0);
+        MediumDirectory_->LoadFrom(protoDirectory);
+    }
 
     TSchedulerStrategyHostMock()
         : TSchedulerStrategyHostMock(TJobResourcesWithQuotaList{})
@@ -135,7 +145,28 @@ struct TSchedulerStrategyHostMock
         return nullptr;
     }
 
+    virtual TString FormatResources(const TJobResourcesWithQuota& resources) const override
+    {
+        YT_VERIFY(MediumDirectory_);
+        return NScheduler::FormatResources(resources, MediumDirectory_);
+    }
+
+    virtual TString FormatResourceUsage(
+        const TJobResources& usage,
+        const TJobResources& limits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
+    {
+        YT_VERIFY(MediumDirectory_);
+        return NScheduler::FormatResourceUsage(usage, limits, diskResources, MediumDirectory_);
+    }
+
+    const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const
+    {
+        return MediumDirectory_;
+    }
+
     TJobResourcesWithQuotaList NodeResourceLimitsList;
+    NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerStrategyHostMock)
@@ -342,6 +373,13 @@ protected:
         /* nameInLogs */ "Test scheduling stage",
         TScheduleJobsProfilingCounters("/test_scheduling_stage", /* treeIdProfilingTags */ {}));
 
+    TDiskQuota CreateDiskQuota(i64 diskSpace)
+    {
+        TDiskQuota diskQuota;
+        diskQuota.DiskSpacePerMedium[NChunkClient::DefaultSlotsMediumIndex] = diskSpace;
+        return diskQuota;
+    }
+
     TRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* host)
     {
         return New<TRootElement>(
@@ -392,7 +430,7 @@ protected:
     {
         NNodeTrackerClient::NProto::TDiskResources diskResources;
         diskResources.mutable_disk_location_resources()->Add();
-        diskResources.mutable_disk_location_resources(0)->set_limit(nodeResources.GetDiskQuota());
+        diskResources.mutable_disk_location_resources(0)->set_limit(nodeResources.GetDiskQuota().DiskSpacePerMedium[NChunkClient::DefaultSlotsMediumIndex]);
 
         auto execNode = New<TExecNode>(id, NNodeTrackerClient::TNodeDescriptor(), ENodeState::Online);
         execNode->SetResourceLimits(nodeResources.ToJobResources());
@@ -404,13 +442,15 @@ protected:
     void DoTestSchedule(
         const TRootElementPtr& rootElement,
         const TOperationElementPtr& operationElement,
-        const TExecNodePtr& execNode)
+        const TExecNodePtr& execNode,
+        const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
     {
         auto schedulingContext = CreateSchedulingContext(
             /* nodeShardId */ 0,
             SchedulerConfig_,
             execNode,
-            /* runningJobs */ {});
+            /* runningJobs */ {},
+            mediumDirectory);
         TFairShareContext context(schedulingContext, /* enableSchedulingInfoLogging */ true, SchedulerLogger);
         TDynamicAttributesList dynamicAttributes;
 
@@ -709,7 +749,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     TJobResourcesWithQuota nodeResources;
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(100);
+    nodeResources.SetDiskQuota(CreateDiskQuota(100));
 
     std::vector<TExecNodePtr> execNodes(3);
     for (int i = 0; i < execNodes.size(); ++i) {
@@ -722,7 +762,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     TJobResourcesWithQuota operationJobResources;
     operationJobResources.SetCpu(10);
     operationJobResources.SetMemory(10);
-    operationJobResources.SetDiskQuota(0);
+    operationJobResources.SetDiskQuota(CreateDiskQuota(0));
 
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
@@ -756,7 +796,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     auto actionQueue = New<NConcurrency::TActionQueue>();
     for (int i = 0; i < 2; ++i) {
         auto future = BIND([&, i]() {
-            DoTestSchedule(rootElement, operationElement, execNodes[i]);
+            DoTestSchedule(rootElement, operationElement, execNodes[i], host->GetMediumDirectory());
         }).AsyncVia(actionQueue->GetInvoker()).Run();
         futures.push_back(std::move(future));
     }
@@ -766,7 +806,7 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     }
     // Number of expected calls to `operationControllerStrategyHost.ScheduleJob(...)` is set to 2.
     // In this way, the mock object library checks that this heartbeat doesn't get to actual scheduling.
-    DoTestSchedule(rootElement, operationElement, execNodes[2]);
+    DoTestSchedule(rootElement, operationElement, execNodes[2], host->GetMediumDirectory());
     readyToGo.Set();
 
     EXPECT_TRUE(Combine(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
@@ -1139,7 +1179,7 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
     nodeResources.SetUserSlots(100);
     nodeResources.SetCpu(100);
     nodeResources.SetMemory(100);
-    nodeResources.SetDiskQuota(100);
+    nodeResources.SetDiskQuota(CreateDiskQuota(100));
 
     auto execNode = CreateTestExecNode(static_cast<NNodeTrackerClient::TNodeId>(0), nodeResources);
 
@@ -1149,7 +1189,7 @@ TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
     TJobResourcesWithQuota jobResources;
     jobResources.SetCpu(10);
     jobResources.SetMemory(10);
-    jobResources.SetDiskQuota(0);
+    jobResources.SetDiskQuota(CreateDiskQuota(0));
 
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;

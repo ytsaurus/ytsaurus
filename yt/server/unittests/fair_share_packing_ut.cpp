@@ -15,6 +15,13 @@ class TFairSharePackingTest
 protected:
     TFairSharePackingTest() = default;
 
+    TDiskQuota CreateDiskQuota(i64 diskSpace)
+    {
+        TDiskQuota diskQuota;
+        diskQuota.DiskSpacePerMedium[NChunkClient::DefaultSlotsMediumIndex] = diskSpace;
+        return diskQuota;
+    }
+
     static constexpr double ABS_ERROR = 1e-8;
 };
 
@@ -91,7 +98,7 @@ TEST_F(TFairSharePackingAnglePackingMetricTest, TestPerfectJobHasZeroMetricValue
         nodeLimits.GetMemory() - 50_GB,
         nodeLimits.GetNetwork() - 100,
         nodeLimits.GetUserSlots() - 150);
-    auto nodeResourcesSnapshot = TPackingNodeResourcesSnapshot(nodeUsage, nodeLimits, /* diskQuota */ 100);
+    auto nodeResourcesSnapshot = TPackingNodeResourcesSnapshot(nodeUsage, nodeLimits, CreateDiskQuota(100));
 
     EXPECT_NEAR(0, AnglePackingMetric(nodeResourcesSnapshot, jobResources, totalResources), ABS_ERROR);
 }
@@ -106,7 +113,7 @@ TEST_F(TFairSharePackingAnglePackingMetricTest, TestCompareDifferentAngles)
         nodeLimits.GetMemory() - 10_GB,
         nodeLimits.GetNetwork() - 20,
         nodeLimits.GetUserSlots() - 50);
-    auto nodeResourcesSnapshot = TPackingNodeResourcesSnapshot(nodeUsage, nodeLimits, /* diskQuota */ 100);
+    auto nodeResourcesSnapshot = TPackingNodeResourcesSnapshot(nodeUsage, nodeLimits, CreateDiskQuota(100));
 
     EXPECT_LT(
         AnglePackingMetric(nodeResourcesSnapshot, CreateJobResourceLimits(13, 1_GB, /* network */ 0), totalResources),

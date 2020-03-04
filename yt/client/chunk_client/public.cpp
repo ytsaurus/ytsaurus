@@ -16,6 +16,7 @@ const TChunkTreeId NullChunkTreeId = NObjectClient::NullObjectId;
 const TString DefaultStoreAccountName("sys");
 const TString DefaultStoreMediumName("default");
 const TString DefaultCacheMediumName("cache");
+const TString DefaultSlotsMediumName("default");
 
 ////////////////////////////////////////////////////////////////////////////////
 

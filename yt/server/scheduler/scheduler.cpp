@@ -1446,6 +1446,27 @@ public:
         return *OperationBaseAcl_;
     }
 
+    virtual TString FormatResources(const TJobResourcesWithQuota& resources) const override
+    {
+        auto mediumDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetMediumDirectory();
+        return NScheduler::FormatResources(resources, mediumDirectory);
+    }
+
+    virtual TString FormatResourceUsage(
+        const TJobResources& usage,
+        const TJobResources& limits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
+    {
+        auto mediumDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetMediumDirectory();
+        return NScheduler::FormatResourceUsage(usage, limits, diskResources, mediumDirectory);
+    }
+
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
@@ -1455,6 +1476,9 @@ private:
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> Connected_ = {false};
+
+    mutable TReaderWriterSpinLock MediumDirectoryLock_;
+    NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 
     TOperationsCleanerPtr OperationsCleaner_;
 
@@ -3401,6 +3425,12 @@ private:
                                 fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
                             }
                         })
+                    .Item("medium_directory").Value(
+                        Bootstrap_
+                        ->GetMasterClient()
+                        ->GetNativeConnection()
+                        ->GetMediumDirectory()
+                    )
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
                     .Items(BuildSuspiciousJobsYson())
@@ -4067,6 +4097,22 @@ int TScheduler::GetOperationArchiveVersion() const
 bool TScheduler::IsJobReporterEnabled() const
 {
     return Impl_->IsJobReporterEnabled();
+}
+
+TString TScheduler::FormatResources(const TJobResourcesWithQuota& resources) const
+{
+    return Impl_->FormatResources(resources);
+}
+
+TString TScheduler::FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits,
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources) const
+{
+    return Impl_->FormatResourceUsage(
+        usage,
+        limits,
+        diskResources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

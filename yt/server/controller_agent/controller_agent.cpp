@@ -17,21 +17,22 @@
 #include <yt/server/lib/scheduler/exec_node_descriptor.h>
 #include <yt/server/lib/scheduler/helpers.h>
 
-#include <yt/client/api/transaction.h>
-
 #include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/ytlib/chunk_client/throttler_manager.h>
-
-#include <yt/client/object_client/helpers.h>
+#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/ytlib/event_log/event_log.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 #include <yt/ytlib/scheduler/config.h>
 #include <yt/ytlib/scheduler/helpers.h>
+
+#include <yt/client/api/transaction.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -347,6 +348,16 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return MasterConnector_.get();
+    }
+
+    const TMediumDirectoryPtr& GetMediumDirectory() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetMediumDirectory();
     }
 
     const TControllerAgentConfigPtr& GetConfig() const
@@ -967,6 +978,7 @@ private:
         try {
             OnConnecting();
             SyncClusterDirectory();
+            SyncMediumDirectory();
             UpdateConfig();
             PerformHandshake();
             FetchOperationsEffectiveAcl();
@@ -1010,6 +1022,20 @@ private:
             .ThrowOnError();
 
         YT_LOG_INFO("Cluster directory synchronized");
+    }
+
+    void SyncMediumDirectory()
+    {
+        YT_LOG_INFO("Requesting medium directory");
+
+        WaitFor(Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetMediumDirectorySynchronizer()
+            ->Sync(/* force */ true))
+            .ThrowOnError();
+
+        YT_LOG_INFO("Medium directory received");
     }
 
     void UpdateConfig()
@@ -1623,6 +1649,12 @@ private:
                     .DoList([&] (TFluentList fluent) {
                         MemoryTagQueue_.BuildTaggedMemoryStatistics(fluent);
                     })
+                .Item("medium_directory").Value(
+                    Bootstrap_
+                        ->GetMasterClient()
+                        ->GetNativeConnection()
+                        ->GetMediumDirectory()
+                )
             .EndMap();
     }
 

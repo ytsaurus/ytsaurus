@@ -4,7 +4,11 @@
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/ytlib/chunk_client/medium_directory.h>
+
 #include <yt/client/node_tracker_client/proto/node.pb.h>
+
+#include <yt/client/chunk_client/public.h>
 
 #include <yt/core/misc/fixed_point_number.h>
 #include <yt/core/misc/small_vector.h>
@@ -79,11 +83,28 @@ DEFINE_ENUM(EJobResourceType,
     (Network)
 );
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDiskQuota
+{
+    SmallDenseMap<int, i64> DiskSpacePerMedium = SmallDenseMap<int, i64>{1};
+
+    void Persist(const TStreamPersistenceContext& context);
+};
+
+
+void FormatValue(TStringBuilderBase* builder, TDiskQuota diskQuota, TStringBuf spec);
+TString ToString(TDiskQuota diskQuota);
+
+TDiskQuota CreateDiskQuota(i32 mediumIndex, i64 diskSpace);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobResourcesWithQuota
     : public TJobResources
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(i64, DiskQuota)
+    DEFINE_BYVAL_RW_PROPERTY(TDiskQuota, DiskQuota)
 
 public:
     TJobResourcesWithQuota() = default;
@@ -98,13 +119,21 @@ public:
 
 using TJobResourcesWithQuotaList = SmallVector<TJobResourcesWithQuota, 8>;
 
-TString FormatResourceUsage(const TJobResources& usage, const TJobResources& limits);
+TString FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits);
 TString FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits,
-    const NNodeTrackerClient::NProto::TDiskResources& diskResources);
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources,
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 TString FormatResources(const TJobResources& resources);
+
+[[deprecated("Did you forget to pass medium directory parameter?")]]
 TString FormatResources(const TJobResourcesWithQuota& resources);
+TString FormatResources(
+    const TJobResourcesWithQuota& resources,
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 TString FormatResources(const TExtendedJobResources& resources);
 
 void ProfileResources(
@@ -171,20 +200,30 @@ void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
 
 const TJobResources& MinSpareNodeResources();
 
-bool CanSatisfyDiskRequest(
+bool CanSatisfyDiskQuotaRequest(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
-    i64 diskRequest);
+    TDiskQuota diskQuotaRequest);
 
-bool CanSatisfyDiskRequests(
+bool CanSatisfyDiskQuotaRequests(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
-    const std::vector<i64>& diskRequests);
+    const std::vector<TDiskQuota>& diskQuotaRequests);
 
-i64 GetMaxAvailableDiskSpace(
+TDiskQuota GetMaxAvailableDiskSpace(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// For testing purposes.
+bool CanSatisfyDiskQuotaRequests(
+    std::vector<i64> availableDiskSpacePerLocation,
+    std::vector<i64> diskSpaceRequests);
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NProto {
+
+void ToProto(NScheduler::NProto::TDiskQuota* protoDiskQuota, const NScheduler::TDiskQuota& diskQuota);
+void FromProto(NScheduler::TDiskQuota* diskQuota, const NScheduler::NProto::TDiskQuota& protoDiskQuota);
 
 void ToProto(NScheduler::NProto::TJobResources* protoResources, const NScheduler::TJobResources& resources);
 void FromProto(NScheduler::TJobResources* resources, const NScheduler::NProto::TJobResources& protoResources);

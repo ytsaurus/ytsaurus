@@ -84,7 +84,8 @@ ISchedulingContextPtr CreateSchedulingContext(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs);
+    const std::vector<TJobPtr>& runningJobs,
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,24 +2,24 @@
 
 #include "public.h"
 
-#include <yt/client/api/public.h>
+#include <yt/ytlib/api/native/public.h>
 
 #include <yt/core/actions/future.h>
 #include <yt/core/actions/signal.h>
 
-namespace NYT::NHiveClient {
+namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterDirectorySynchronizer
+class TMediumDirectorySynchronizer
     : public TRefCounted
 {
 public:
-    TClusterDirectorySynchronizer(
-        TClusterDirectorySynchronizerConfigPtr config,
-        NApi::IConnectionPtr directoryConnection,
-        TClusterDirectoryPtr clusterDirectory);
-    ~TClusterDirectorySynchronizer();
+    TMediumDirectorySynchronizer(
+        TMediumDirectorySynchronizerConfigPtr config,
+        NApi::IConnectionPtr clusterConnection,
+        TMediumDirectoryPtr mediumDirectory);
+    ~TMediumDirectorySynchronizer();
 
     //! Starts periodic syncs.
     void Start();
@@ -39,8 +39,8 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TClusterDirectorySynchronizer)
+DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHiveClient
+} // namespace NYT::NChunkClient

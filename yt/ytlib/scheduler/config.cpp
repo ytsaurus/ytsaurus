@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/ytlib/chunk_client/medium_directory.h>
+
 #include <yt/client/security_client/acl.h>
 #include <yt/client/security_client/helpers.h>
 
@@ -308,6 +310,29 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NScheduler::NProto::
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDiskRequestConfig::TDiskRequestConfig()
+{
+    RegisterParameter("disk_space", DiskSpace);
+    RegisterParameter("inode_count", InodeCount)
+        .Default();
+    RegisterParameter("medium_name", MediumName)
+        .Default(NChunkClient::DefaultSlotsMediumName);
+}
+
+void ToProto(
+    NProto::TDiskRequest* protoDiskRequest,
+    const TDiskRequestConfig& diskRequestConfig)
+{
+    YT_VERIFY(diskRequestConfig.MediumIndex);
+    protoDiskRequest->set_disk_space(diskRequestConfig.DiskSpace);
+    if (diskRequestConfig.InodeCount) {
+        protoDiskRequest->set_inode_count(*diskRequestConfig.InodeCount);
+    }
+    protoDiskRequest->set_medium_index(*diskRequestConfig.MediumIndex);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationSpecBase::TOperationSpecBase()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -586,6 +611,8 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("inode_limit", InodeLimit)
         .Default()
         .GreaterThanOrEqual(0);
+    RegisterParameter("disk_request", DiskRequest)
+        .Default();
     RegisterParameter("copy_files", CopyFiles)
         .Default(false);
     RegisterParameter("deterministic", Deterministic)
@@ -686,6 +713,27 @@ TUserJobSpec::TUserJobSpec()
 
         for (auto& path : FilePaths) {
             path = path.Normalize();
+        }
+
+        if (!DiskSpaceLimit && InodeLimit) {
+            THROW_ERROR_EXCEPTION("Option \"inode_limit\" can be specified only with \"disk_space_limit\"");
+        }
+
+        if (DiskSpaceLimit && DiskRequest) {
+            THROW_ERROR_EXCEPTION(
+                "Options \"disk_space_limit\" and \"inode_limit\" cannot be specified "
+                "together with \"disk_request\"")
+                << TErrorAttribute("disk_space_limit", DiskSpaceLimit)
+                << TErrorAttribute("inode_limit", InodeLimit)
+                << TErrorAttribute("disk_request", DiskRequest);
+        }
+
+        if (DiskSpaceLimit) {
+            DiskRequest = New<TDiskRequestConfig>();
+            DiskRequest->DiskSpace = *DiskSpaceLimit;
+            DiskRequest->InodeCount = InodeLimit;
+            DiskSpaceLimit = std::nullopt;
+            InodeLimit = std::nullopt;
         }
     });
 }
