@@ -186,6 +186,8 @@ message TDeployUnitStatus
             string replica_set_id = 1;
             // Created endpoint set id in this cluster.
             string endpoint_set_id = 2;
+            // Created horizontal pod autoscaler id in this cluster.
+            string horizontal_pod_autoscaler_id = 3;
         }
 
         // <cluster id> -> <cluster status>.
