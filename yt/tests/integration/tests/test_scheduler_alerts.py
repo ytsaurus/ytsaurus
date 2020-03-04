@@ -335,6 +335,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     def test_short_jobs_alert(self):
         create_test_tables(row_count=4)
 
+        set("//sys/controller_agents/config/operation_alerts", {"short_jobs_alert_min_job_duration": 60000})
         op = map(
             command="cat",
             in_="//tmp/t_in",
@@ -345,6 +346,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "short_jobs_duration" in op.get_alerts()
 
+        set("//sys/controller_agents/config/operation_alerts", {"short_jobs_alert_min_job_duration": 5000})
         op = map(
             command="sleep 5; cat",
             in_="//tmp/t_in",
