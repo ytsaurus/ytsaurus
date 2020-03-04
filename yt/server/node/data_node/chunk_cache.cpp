@@ -375,10 +375,8 @@ public:
         auto cookieValue = cookie.GetValue();
 
         if (cookie.IsActive()) {
-            // NB: Access to RegisteredChunkMap_ is read-only and happens after
-            // it was populated in #Initialize.
-            if (auto it = RegisteredChunkMap_.find(key)) {
-                DoValidateArtifact(std::move(cookie), key, artifactDownloadOptions, blockReadOptions, it->second, Logger);
+            if (auto optionalDescriptor = ExtractRegisteredChunk(key)) {
+                DoValidateArtifact(std::move(cookie), key, artifactDownloadOptions, blockReadOptions, *optionalDescriptor, Logger);
             } else {
                 DoDownloadArtifact(std::move(cookie), key, artifactDownloadOptions, blockReadOptions, Logger);
             }
@@ -386,7 +384,6 @@ public:
             YT_LOG_INFO("Artifact is already being downloaded");
         }
         return cookieValue.As<IChunkPtr>();
-
     }
 
     std::function<void(IOutputStream*)> MakeArtifactDownloadProducer(
@@ -423,13 +420,14 @@ private:
     const TDataNodeConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
-    //! Describes a registered but not yet validated yet chunk.
+    //! Describes a registered but not yet validated chunk.
     struct TRegisteredChunkDescriptor
     {
         TCacheLocationPtr Location;
         TChunkDescriptor Descriptor;
     };
 
+    TSpinLock RegisteredChunkMapLock_;
     THashMap<TArtifactKey, TRegisteredChunkDescriptor> RegisteredChunkMap_;
 
     DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
@@ -437,6 +435,18 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+
+    std::optional<TRegisteredChunkDescriptor> ExtractRegisteredChunk(const TArtifactKey& key)
+    {
+        auto guard = Guard(RegisteredChunkMapLock_);
+        auto it = RegisteredChunkMap_.find(key);
+        if (it == RegisteredChunkMap_.end()) {
+            return std::nullopt;
+        }
+        auto descriptor = std::move(it->second);
+        RegisteredChunkMap_.erase(it);
+        return descriptor;
+    }
 
     void DoDownloadArtifact(
         TInsertCookie cookie,
@@ -657,10 +667,14 @@ private:
         }
         const auto& key = *optionalKey;
 
-        auto [it, inserted] = RegisteredChunkMap_.emplace(key, TRegisteredChunkDescriptor{
-            .Location = location,
-            .Descriptor = descriptor
-        });
+        bool inserted;
+        {
+            auto guard = Guard(RegisteredChunkMapLock_);
+            inserted = RegisteredChunkMap_.emplace(key, TRegisteredChunkDescriptor{
+                .Location = location,
+                .Descriptor = descriptor
+            }).second;
+        }
 
         if (!inserted) {
             YT_LOG_WARNING("Removing duplicate cached chunk (ChunkId: %v)",
