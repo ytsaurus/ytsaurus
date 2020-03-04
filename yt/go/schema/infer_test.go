@@ -25,6 +25,7 @@ type testBasicTypes struct {
 
 	S string
 	B []byte
+	innerStruct
 
 	A0 interface{}
 	A1 innerStruct
@@ -50,6 +51,7 @@ func TestInfer(t *testing.T) {
 			{Name: "U16", Type: TypeUint16, Required: true},
 			{Name: "S", Type: TypeString, Required: true},
 			{Name: "B", Type: TypeBytes, Required: true},
+			{Name: "Field", Type: TypeInt64, Required: true},
 			{Name: "A0", Type: TypeAny},
 			{Name: "A1", Type: TypeAny},
 			{Name: "A2", Type: TypeAny},
@@ -92,6 +94,19 @@ func TestInferEmbedding(t *testing.T) {
 	})
 }
 
+func TestInfer_nonStructEmbedding(t *testing.T) {
+	type S string
+	type A struct {
+		S
+	}
+	type B struct {
+		A
+	}
+
+	_, err := Infer(&B{})
+	require.Error(t, err)
+}
+
 type testPrivateFields struct {
 	I int64
 	i int64
@@ -126,40 +141,40 @@ func TestInferType(t *testing.T) {
 	require.Error(t, err)
 }
 
-type textMarhaler struct{}
+type textMarshaler struct{}
 
-func (*textMarhaler) MarshalText() (text []byte, err error) {
+func (*textMarshaler) MarshalText() (text []byte, err error) {
 	panic("implement me")
 }
 
-type valueTextMarhaler struct{}
+type valueTextMarshaler struct{}
 
-func (valueTextMarhaler) MarshalText() (text []byte, err error) {
+func (valueTextMarshaler) MarshalText() (text []byte, err error) {
 	panic("implement me")
 }
 
-type binaryMarhaler struct{}
+type binaryMarshaler struct{}
 
-func (*binaryMarhaler) MarshalBinary() (text []byte, err error) {
+func (*binaryMarshaler) MarshalBinary() (text []byte, err error) {
 	panic("implement me")
 }
 
-type valueBinaryMarhaler struct{}
+type valueBinaryMarshaler struct{}
 
-func (valueBinaryMarhaler) MarshalBinary() (text []byte, err error) {
+func (valueBinaryMarshaler) MarshalBinary() (text []byte, err error) {
 	panic("implement me")
 }
 
 type testMarshalers struct {
-	M0 textMarhaler
-	M1 valueTextMarhaler
-	M2 binaryMarhaler
-	M3 valueBinaryMarhaler
+	M0 textMarshaler
+	M1 valueTextMarshaler
+	M2 binaryMarshaler
+	M3 valueBinaryMarshaler
 
-	O0 *textMarhaler
-	O1 *valueTextMarhaler
-	O2 *binaryMarhaler
-	O3 *valueBinaryMarhaler
+	O0 *textMarshaler
+	O1 *valueTextMarshaler
+	O2 *binaryMarshaler
+	O3 *valueBinaryMarshaler
 }
 
 func TestInferMarshalerTypes(t *testing.T) {

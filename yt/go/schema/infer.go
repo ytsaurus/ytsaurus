@@ -118,8 +118,8 @@ func Infer(value interface{}) (s Schema, err error) {
 			typ = typ.Elem()
 		}
 
-		if v.Kind() != reflect.Struct {
-			err = xerrors.Errorf("can't infer schema from type %v", v.Type())
+		if typ.Kind() != reflect.Struct {
+			return xerrors.Errorf("can't infer schema from type %v", v.Type())
 		}
 
 		for i := 0; i < typ.NumField(); i++ {
@@ -206,9 +206,9 @@ func InferMap(value interface{}) (s Schema, err error) {
 	return
 }
 
-// reflectValueOfType creates value reflection of requested type for schema inferring
+// reflectValueOfType creates value reflection of requested type for schema inferring.
 func reflectValueOfType(value interface{}, k reflect.Kind) (v reflect.Value, err error) {
-	// Check for nil, reflect of nil value causes panic
+	// Check for nil, reflect of nil value causes panic.
 	if value == nil {
 		err = xerrors.New("can't infer schema from nil value")
 		return
