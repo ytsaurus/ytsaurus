@@ -583,6 +583,8 @@ class TestLocalMode(object):
         with local_yt(id=_get_id("ytserver_all"), ytserver_all_path=ytserver_all_paths[0]) as environment:
             client = environment.create_client()
             client.get("/")
+            client.write_table("//tmp/test_table", [{"a": "b"}])
+            client.run_map("cat", "//tmp/test_table", "//tmp/test_table", format=yt.JsonFormat())
 
     def test_ports(self):
         if not os.path.exists(os.environ.get("YT_LOCAL_PORT_LOCKS_PATH")):
