@@ -53,6 +53,7 @@ def main():
             "engine": {
                 "settings": {
                     "max_execution_time": 600 if args.type == "datalens" else 1800,
+                    "max_threads": 3 if args.type in ("datalens", "prestable") else cpu_limit,
                 },
             },
         },
