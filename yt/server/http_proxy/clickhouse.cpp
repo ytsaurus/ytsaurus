@@ -68,7 +68,11 @@ public:
         , CliqueCache_(cliqueCache)
         , ControlInvoker_(controlInvoker)
         , Metrics_(metrics)
-    { }
+    {
+        if (auto* traceParent = req->GetHeaders()->Find("traceparent")) {
+            YT_LOG_INFO("Request contains traceparent (Traceparent: %v)", traceParent);
+        }
+    }
 
     bool TryPrepare()
     {
@@ -229,7 +233,8 @@ public:
         }
     }
 
-    void ReplyWithAllOccuredErrors(TError error) {
+    void ReplyWithAllOccuredErrors(TError error)
+    {
         ReplyWithError(EStatusCode::InternalServerError, error
             << RequestErrors_);
     }
