@@ -202,9 +202,6 @@ def _build_spark_config(num_executors=None,
     _set_none_safe(spark_conf, "spark.app.name", app_name)
     set_conf(spark_conf, spark_conf_args)
 
-    for k, v in spark_conf.getAll():
-        print("{}: {}".format(k, v))
-
     return spark_conf
 
 
