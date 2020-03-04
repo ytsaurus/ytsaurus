@@ -133,6 +133,14 @@ func (id *NodeID) UnmarshalYSON(data []byte) (err error) {
 	return
 }
 
+func (id NodeID) MarshalText() ([]byte, error) {
+	return guid.GUID(id).MarshalText()
+}
+
+func (id *NodeID) UnmarshalText(data []byte) (err error) {
+	return (*guid.GUID)(id).UnmarshalText(data)
+}
+
 func (id NodeID) YPath() ypath.Path {
 	return ypath.Path("#" + id.String())
 }
