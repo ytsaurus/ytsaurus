@@ -209,8 +209,9 @@ public:
         , WindowSlots_(New<TAsyncSemaphore>(config->SendWindowSize))
         , UploadReplicationFactor_(Config_->UploadReplicationFactor)
         , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
+        , UncancelableStateError_(StateError_.ToFuture().ToUncancelable())
     {
-        ClosePromise_.TrySetFrom(StateError_.ToFuture());
+        ClosePromise_.TrySetFrom(UncancelableStateError_);
     }
 
     ~TReplicationWriter()
@@ -260,7 +261,7 @@ public:
         YT_VERIFY(State_.load() == EReplicationWriterState::Open);
 
         auto promise = NewPromise<void>();
-        promise.TrySetFrom(StateError_.ToFuture());
+        promise.TrySetFrom(UncancelableStateError_);
         promise.TrySetFrom(WindowSlots_->GetReadyEvent());
 
         return promise.ToFuture();
@@ -350,6 +351,8 @@ private:
 
     TPromise<void> StateError_ = NewPromise<void>();
     TPromise<void> ClosePromise_ = NewPromise<void>();
+    //! We use uncancelable future to make sure that we control all the places, where StateError_ is set.
+    TFuture<void> UncancelableStateError_;
     std::atomic<EReplicationWriterState> State_ = { EReplicationWriterState::Created };
 
     //! This flag is raised whenever #Close is invoked.
