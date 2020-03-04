@@ -538,6 +538,8 @@ def configure_deploy_public_object_creators(client):
         "stage",
     )
     deploy_public_object_creators = Group("deploy-public-object-creators")
+    members = (Group("staff:department:1"),)
+    add_group_members(client, deploy_public_object_creators, members)
     create(client, deploy_public_object_creators)
     for object_type in deploy_public_object_types:
         add_permission(
