@@ -182,6 +182,8 @@ public:
     int MaxChunksPerFetch;
     int MaxChunksPerLocateRequest;
 
+    ui64 MaxDataWeightPerSubquery;
+
     TSubqueryConfig()
     {
         RegisterParameter("chunk_slice_fetcher", ChunkSliceFetcher)
@@ -194,6 +196,8 @@ public:
             .Default(100'000);
         RegisterParameter("max_chunks_per_locate_request", MaxChunksPerLocateRequest)
             .Default(10'000);
+        RegisterParameter("max_data_weight_per_subquery", MaxDataWeightPerSubquery)
+            .Default(50_GB);
     }
 };
 

@@ -83,6 +83,10 @@ DECLARE_SHARED_STRUCT(TClickHouseTable);
 
 #undef DELCARE_SHARED_STRUCT
 
+DEFINE_ENUM(EErrorCode,
+    ((SubqueryDataWeightLimitExceeded) (2200))
+);
+
 } // namespace NYT::NClickHouseServer
 
 namespace DB {
