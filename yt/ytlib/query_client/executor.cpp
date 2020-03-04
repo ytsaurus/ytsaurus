@@ -227,7 +227,7 @@ private:
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
 
-        if (query->OriginalSchema != tableInfo->Schemas[ETableSchemaKind::Query]) {
+        if (query->Schema.Original != tableInfo->Schemas[ETableSchemaKind::Query]) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::InvalidMountRevision,
                 "Invalid revision for table info; schema changed")

@@ -29,8 +29,8 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
     auto subqueryPattern = New<TQuery>();
 
-    subqueryPattern->OriginalSchema = query->OriginalSchema;
-    subqueryPattern->SchemaMapping = query->SchemaMapping;
+    subqueryPattern->Schema.Original = query->Schema.Original;
+    subqueryPattern->Schema.Mapping = query->Schema.Mapping;
     subqueryPattern->JoinClauses = query->JoinClauses;
     subqueryPattern->OrderClause = query->OrderClause;
     subqueryPattern->HavingClause = query->HavingClause;
@@ -156,7 +156,7 @@ TRowRanges GetPrunedRanges(
     auto Logger = MakeQueryLogger(query);
     return GetPrunedRanges(
         query->WhereClause,
-        query->OriginalSchema,
+        query->Schema.Original,
         query->GetKeyColumns(),
         tableId,
         std::move(ranges),

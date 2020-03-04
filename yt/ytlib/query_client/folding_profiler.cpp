@@ -1195,7 +1195,7 @@ void TQueryProfiler::Profile(
                     bool isEvaluated;
                     std::tie(expression, isEvaluated) = column;
 
-                    const auto& expressionSchema = isEvaluated ? joinClause->OriginalSchema : schema;
+                    const auto& expressionSchema = isEvaluated ? joinClause->Schema.Original : schema;
 
                     selfKeys.emplace_back(
                         TExpressionProfiler::Profile(
@@ -1226,8 +1226,8 @@ void TQueryProfiler::Profile(
                     // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
                     auto subquery = New<TQuery>();
 
-                    subquery->OriginalSchema = joinClause->OriginalSchema;
-                    subquery->SchemaMapping = joinClause->SchemaMapping;
+                    subquery->Schema.Original = joinClause->Schema.Original;
+                    subquery->Schema.Mapping = joinClause->Schema.Mapping;
 
                     // (join key... , other columns...)
                     auto projectClause = New<TProjectClause>();
@@ -1332,7 +1332,7 @@ void TQueryProfiler::Profile(
                 bool isEvaluated;
                 std::tie(expression, isEvaluated) = column;
 
-                const auto& expressionSchema = isEvaluated ? joinClause->OriginalSchema : schema;
+                const auto& expressionSchema = isEvaluated ? joinClause->Schema.Original : schema;
 
                 selfKeys.emplace_back(
                     TExpressionProfiler::Profile(
@@ -1376,8 +1376,8 @@ void TQueryProfiler::Profile(
                 // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
                 auto subquery = New<TQuery>();
 
-                subquery->OriginalSchema = joinClause->OriginalSchema;
-                subquery->SchemaMapping = joinClause->SchemaMapping;
+                subquery->Schema.Original = joinClause->Schema.Original;
+                subquery->Schema.Mapping = joinClause->Schema.Mapping;
 
                 // (join key... , other columns...)
                 auto projectClause = New<TProjectClause>();
