@@ -683,11 +683,11 @@ private:
 
         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag());
 
-        auto keySize = Query_->OriginalSchema.GetKeyColumnCount();
+        auto keySize = Query_->Schema.Original.GetKeyColumnCount();
 
         std::vector<EValueType> keySchema;
         for (size_t index = 0; index < keySize; ++index) {
-            keySchema.push_back(Query_->OriginalSchema.Columns()[index].GetPhysicalType());
+            keySchema.push_back(Query_->Schema.Original.Columns()[index].GetPhysicalType());
         }
 
         bool hasRanges = false;

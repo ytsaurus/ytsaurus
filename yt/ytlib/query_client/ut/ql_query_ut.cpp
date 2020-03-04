@@ -291,14 +291,14 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(sum(a)) from [//t] group by k",
-        ContainsRegex("Misuse of aggregate function .*"));
+        ContainsRegex("Misuse of aggregate .*"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(a) from [//t]",
-        ContainsRegex("Misuse of aggregate function .*"));
+        ContainsRegex("Misuse of aggregate .*"));
 }
 
 TEST_F(TQueryPrepareTest, FailedTypeInference)
@@ -321,7 +321,7 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
 
     ExpectPrepareThrowsWithDiagnostics(
         "a, b from [//t] join [//s] using b",
-        ContainsRegex("Column \"a\" occurs both in main and joined tables"));
+        ContainsRegex("Ambiguous resolution"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
@@ -331,7 +331,7 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] join [//s] using b",
-        ContainsRegex("Column .* occurs both in main and joined tables"));
+        ContainsRegex("Ambiguous resolution"));
 }
 
 TEST_F(TQueryPrepareTest, SortMergeJoin)
@@ -705,7 +705,7 @@ TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
 
     EXPECT_THROW_THAT({
         PreparePlanFragment(&PrepareMock_, "avg(a) from [//t] group by 1");
-    }, HasSubstr("Type mismatch in function \"avg\""));
+    }, HasSubstr("Type mismatch (Function: \"avg\""));
 }
 
 TEST_F(TQueryPrepareTest, OrderByWithoutLimit)

@@ -131,7 +131,6 @@ using NTableClient::TRowBufferPtr;
 
 using NNodeTrackerClient::TNodeDirectoryPtr;
 
-struct TBaseColumn;
 typedef std::vector<NTableClient::TColumnSchema> TSchemaColumns;
 
 typedef NTableClient::TUnversionedRow TRow;
