@@ -164,14 +164,18 @@ class TestLocalMode(object):
         os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = os.path.join(_get_tests_sandbox(), "ports")
         cls.yt_local = YtLocalBinary(os.environ["YT_LOCAL_ROOT_PATH"],
                                      os.environ["YT_LOCAL_PORT_LOCKS_PATH"])
-        cls.env_path = os.environ["PATH"]
+        cls.env_path = os.environ.get("PATH")
 
     @classmethod
     def teardown_class(cls):
         if cls.old_yt_local_root_path is not None:
             os.environ["YT_LOCAL_ROOT_PATH"] = cls.old_yt_local_root_path
         del os.environ["YT_LOCAL_PORT_LOCKS_PATH"]
-        os.environ["PATH"] = cls.env_path
+        if cls.env_path is None:
+            if "PATH" in os.environ:
+                del os.environ["PATH"]
+        else:
+            os.environ["PATH"] = cls.env_path
 
     def test_logging(self):
         master_count = 3
