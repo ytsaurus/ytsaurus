@@ -399,7 +399,6 @@ void UpdatePodDiskVolumeAllocations(
                 volumeBandwidthGuarantee * getWriteOperationRateFactor(diskSpec));
         }
 
-        // For disk resource attributes update without rescheduling is supported only partially.
         if (auto optionalVolumeBandwidthLimit = NCluster::GetDiskVolumeRequestOptionalBandwidthLimit(volumeRequest)) {
             auto volumeBandwidthLimit = *optionalVolumeBandwidthLimit;
             volumeAllocation->set_read_bandwidth_limit(
