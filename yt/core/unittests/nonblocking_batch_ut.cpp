@@ -7,7 +7,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto Quantum = TDuration::MilliSeconds(100);
+static constexpr auto Quantum = TDuration::Seconds(1);
 
 template <class T>
 void EnqueueAll(
