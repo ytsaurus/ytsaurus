@@ -443,6 +443,29 @@ class TestClickHouseCommon(ClickHouseTestBase):
         self._setup()
 
     @authors("evgenstf")
+    def test_drop_nonexistent_table(self):
+        patch = get_object_attibute_cache_config(500, 500, None)
+        with Clique(1, config_patch=patch) as clique:
+            assert exists("//tmp/t") == False
+            assert clique.make_query('exists "//tmp/t"') == [{'result': 0}]
+            with pytest.raises(Exception):
+                assert clique.make_query('drop table "//tmp/t"')
+
+
+    @authors("evgenstf")
+    def test_drop_table(self):
+        patch = get_object_attibute_cache_config(500, 500, None)
+        with Clique(1, config_patch=patch) as clique:
+            create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
+            write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
+            assert clique.make_query('select * from "//tmp/t"') == [{"a": "2012-12-12 20:00:00"}]
+            clique.make_query('drop table "//tmp/t"')
+            time.sleep(1)
+            assert exists("//tmp/t") == False
+            assert clique.make_query('exists "//tmp/t"') == [{'result': 0}]
+
+
+    @authors("evgenstf")
     def test_subquery_data_weight_limit_exceeded(self):
         with Clique(1, config_patch={"engine": {"subquery": {"max_data_weight_per_subquery": 0}}}) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
@@ -528,8 +551,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert result[0]["value"] == "1234"
             assert result[0]["changed"] == 1
 
-    @authors("max42", "dakovalkov")
-    def test_schema_caching(self):
+    @authors("max42", "dakovalkov", "evgenstf")
+    @pytest.mark.parametrize("remove_method", ["yt", "chyt"])
+    def test_schema_caching(self, remove_method):
         patch = get_object_attibute_cache_config(500, 500, None)
 
         with Clique(1, config_patch=patch) as clique:
@@ -537,7 +561,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
             write_table("//tmp/t", [{"a": 1}])
             old_description = clique.make_query('describe "//tmp/t"')
             assert old_description[0]["name"] == "a"
-            remove("//tmp/t")
+            if remove_method == "yt":
+                remove("//tmp/t")
+            else:
+                clique.make_query('drop table "//tmp/t"')
             cached_description = clique.make_query('describe "//tmp/t"')
             assert cached_description == old_description
             create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "int64"}]})
