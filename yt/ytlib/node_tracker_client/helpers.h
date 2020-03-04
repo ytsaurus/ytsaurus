@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/chunk_client/medium_directory.h>
+
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/client/node_tracker_client/proto/node.pb.h>
@@ -66,6 +68,11 @@ TString FormatResourceUsage(
     const NProto::TNodeResources& limits,
     const NProto::TDiskResources& diskResources);
 TString FormatResources(const NProto::TNodeResources& resources);
+TString ToString(
+    const NProto::TDiskResources& diskResources,
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
+
+void FormatValue(TStringBuilderBase* builder, const NProto::TDiskResources& diskResources, TStringBuf spec);
 TString ToString(const NProto::TDiskResources& diskResources);
 
 void ProfileResources(NProfiling::TProfiler& profiler, const NProto::TNodeResources& resources);

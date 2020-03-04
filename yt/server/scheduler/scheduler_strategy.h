@@ -38,6 +38,12 @@ struct ISchedulerStrategyHost
     virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
 
+    virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
+    virtual TString FormatResourceUsage(
+        const TJobResources& usage,
+        const TJobResources& limits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const = 0;
+
     virtual TInstant GetConnectionTime() const = 0;
 
     virtual void ActivateOperation(TOperationId operationId) = 0;

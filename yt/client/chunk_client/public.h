@@ -112,6 +112,7 @@ constexpr int AllMediaIndex = MaxMediumCount; // passed to various APIs to indic
 constexpr int InvalidMediumIndex = -1;
 constexpr int DefaultStoreMediumIndex = 0;
 constexpr int DefaultCacheMediumIndex = 1;
+constexpr int DefaultSlotsMediumIndex = 0;
 
 //! Valid indexes (including sentinels) are in range |[0, MediumIndexBound)|.
 constexpr int MediumIndexBound = AllMediaIndex + 1;
@@ -125,6 +126,7 @@ using TChunkReplicaList = SmallVector<TChunkReplica, TypicalReplicaCount>;
 extern const TString DefaultStoreAccountName;
 extern const TString DefaultStoreMediumName;
 extern const TString DefaultCacheMediumName;
+extern const TString DefaultSlotsMediumName;
 
 DECLARE_REFCOUNTED_CLASS(TFetchChunkSpecConfig)
 DECLARE_REFCOUNTED_CLASS(TFetcherConfig)

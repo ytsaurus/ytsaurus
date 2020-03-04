@@ -13,26 +13,27 @@
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
-#include <yt/client/security_client/acl.h>
-
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
-
-#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/security_client/acl.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -595,6 +596,7 @@ private:
             AssumeControl();
             UpdateGlobalWatchers();
             SyncClusterDirectory();
+            SyncMediumDirectory();
             ListOperations();
             RequestOperationAttributes();
             SubmitOperationsToCleaner();
@@ -735,6 +737,17 @@ private:
                 ->GetMasterClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectorySynchronizer()
+                ->Sync())
+                .ThrowOnError();
+        }
+
+        void SyncMediumDirectory()
+        {
+            WaitFor(Owner_
+                ->Bootstrap_
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetMediumDirectorySynchronizer()
                 ->Sync())
                 .ThrowOnError();
         }
@@ -1540,7 +1553,6 @@ private:
             YT_LOG_WARNING(rspOrError, "Error updating scheduler alerts");
         }
     }
-
 
     void OnClusterDirectorySynchronized(const TError& error)
     {

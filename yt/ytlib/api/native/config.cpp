@@ -57,6 +57,8 @@ TConnectionConfig::TConnectionConfig()
         .DefaultNew();
     RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
         .DefaultNew();
+    RegisterParameter("medium_directory_synchronizer", MediumDirectorySynchronizer)
+        .DefaultNew();
     RegisterParameter("node_directory_synchronizer", NodeDirectorySynchronizer)
         .DefaultNew();
 

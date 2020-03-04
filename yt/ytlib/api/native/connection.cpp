@@ -11,6 +11,8 @@
 #include <yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
@@ -158,6 +160,12 @@ public:
             Config_->ClusterDirectorySynchronizer,
             this,
             ClusterDirectory_);
+
+        MediumDirectory_ = New<TMediumDirectory>();
+        MediumDirectorySynchronizer_ = New<TMediumDirectorySynchronizer>(
+            Config_->MediumDirectorySynchronizer,
+            this,
+            MediumDirectory_);
 
         CellDirectory_ = New<NHiveClient::TCellDirectory>(
             Config_->CellDirectory,
@@ -363,6 +371,16 @@ public:
         return ClusterDirectorySynchronizer_;
     }
 
+    virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override
+    {
+        return MediumDirectory_;
+    }
+
+    virtual const NChunkClient::TMediumDirectorySynchronizerPtr& GetMediumDirectorySynchronizer() override
+    {
+        return MediumDirectorySynchronizer_;
+    }
+
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) override
     {
@@ -401,6 +419,9 @@ public:
 
         CellDirectory_->Clear();
         CellDirectorySynchronizer_->Stop();
+
+        MediumDirectory_->Clear();
+        MediumDirectorySynchronizer_->Stop();
 
         NodeDirectorySynchronizer_->Stop();
     }
@@ -469,6 +490,9 @@ private:
 
     TClusterDirectoryPtr ClusterDirectory_;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
+
+    TMediumDirectoryPtr MediumDirectory_;
+    TMediumDirectorySynchronizerPtr MediumDirectorySynchronizer_;
 
     TNodeDirectoryPtr NodeDirectory_;
     TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/api/native/public.h>
+
 #include <yt/core/concurrency/rw_spinlock.h>
 
 namespace NYT::NChunkClient {
@@ -28,7 +30,11 @@ public:
     const TMediumDescriptor* FindByName(const TString& name) const;
     const TMediumDescriptor* GetByNameOrThrow(const TString& name) const;
 
+    std::vector<int> GetMediumIndexes() const;
+
     void LoadFrom(const NProto::TMediumDirectory& protoDirectory);
+
+    void Clear();
 
 private:
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
@@ -40,6 +46,10 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMediumDirectory)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TMediumDirectoryPtr& mediumDirectory, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

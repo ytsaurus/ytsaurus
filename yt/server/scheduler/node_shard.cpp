@@ -15,13 +15,15 @@
 
 #include <yt/server/lib/shell/config.h>
 
-#include <yt/ytlib/job_proxy/public.h>
+#include <yt/ytlib/api/native/connection.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/ytlib/job_proxy/public.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/finally.h>
 
@@ -436,7 +438,11 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     context->SetRequestInfo("NodeId: %v, NodeAddress: %v, ResourceUsage: %v, JobCount: %v, Confirmation: {C: %v, U: %v}",
         nodeId,
         descriptor.GetDefaultAddress(),
-        FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits), request->disk_resources()),
+        Host_->FormatResourceUsage(
+            TJobResources(resourceUsage),
+            TJobResources(resourceLimits),
+            request->disk_resources()
+        ),
         request->jobs().size(),
         request->confirmed_job_count(),
         request->unconfirmed_jobs().size());
@@ -556,11 +562,16 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         }
     }
 
+    auto mediumDirectory = Bootstrap_
+        ->GetMasterClient()
+        ->GetNativeConnection()
+        ->GetMediumDirectory();
     auto schedulingContext = CreateSchedulingContext(
         Id_,
         Config_,
         node,
-        runningJobs);
+        runningJobs,
+        mediumDirectory);
 
     PROFILE_AGGREGATED_TIMING (GracefulPreemptionTimeCounter) {
         for (const auto& job : runningJobs) {

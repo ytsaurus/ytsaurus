@@ -275,6 +275,7 @@ TOperationControllerBase::TOperationControllerBase(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::CheckTentativeTreeEligibility, MakeWeak(this)),
         Config->CheckTentativeTreeEligibilityPeriod))
+    , MediumDirectory_(Host->GetMediumDirectory())
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -4126,7 +4127,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
                 bestTask->GetTitle(),
                 address,
                 bestLocality,
-                FormatResources(jobLimits),
+                FormatResources(jobLimits, GetMediumDirectory()),
                 bestTask->GetPendingDataWeight(),
                 bestTask->GetPendingJobCount());
 
@@ -4253,7 +4254,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     "PendingDataWeight: %v, PendingJobCount: %v)",
                     task->GetTitle(),
                     address,
-                    FormatResources(jobLimits),
+                    FormatResources(jobLimits, GetMediumDirectory()),
                     task->GetPendingDataWeight(),
                     task->GetPendingJobCount());
 
@@ -4419,7 +4420,15 @@ void TOperationControllerBase::UpdateMinNeededJobResources()
             }
 
             auto jobType = task->GetJobType();
-            auto resources = task->GetMinNeededResources();
+            TJobResourcesWithQuota resources;
+            try {
+                resources = task->GetMinNeededResources();
+            } catch (const std::exception& ex) {
+                auto error = TError("Failed to update min nedeeded resources")
+                    << ex;
+                OnOperationFailed(error);
+                return;
+            }
 
             auto resIt = minNeededJobResources.find(jobType);
             if (resIt == minNeededJobResources.end()) {
@@ -4434,7 +4443,7 @@ void TOperationControllerBase::UpdateMinNeededJobResources()
             result.push_back(resources);
             YT_LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
                 jobType,
-                FormatResources(resources));
+                FormatResources(resources, GetMediumDirectory()));
         }
 
         {
@@ -7838,11 +7847,22 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         }
     }
 
-    if (config->DiskSpaceLimit) {
-        jobSpec->set_disk_space_limit(*config->DiskSpaceLimit);
-    }
-    if (config->InodeLimit) {
-        jobSpec->set_inode_limit(*config->InodeLimit);
+    if (config->DiskRequest) {
+        auto mediumDirectory = GetMediumDirectory();
+        auto* mediumDescriptor = mediumDirectory->FindByName(config->DiskRequest->MediumName);
+        if (!mediumDescriptor) {
+            THROW_ERROR_EXCEPTION("Unknown medium %Qv", config->DiskRequest->MediumName);
+        }
+
+        config->DiskRequest->MediumIndex = mediumDescriptor->Index;
+
+        ToProto(jobSpec->mutable_disk_request(), *config->DiskRequest);
+
+        // COMPAT(ignat): remove after nodes update.
+        jobSpec->set_disk_space_limit(config->DiskRequest->DiskSpace);
+        if (config->DiskRequest->InodeCount) {
+            jobSpec->set_inode_limit(*config->DiskRequest->InodeCount);
+        }
     }
     if (config->InterruptionSignal) {
         jobSpec->set_interruption_signal(*config->InterruptionSignal);
@@ -8730,6 +8750,11 @@ void TOperationControllerBase::MaybeCancel(ECancelationStage cancelationStage)
         YT_LOG_INFO("Making test cancelation (CancelationStage: %v)", cancelationStage);
         Cancel();
     }
+}
+
+const NChunkClient::TMediumDirectoryPtr& TOperationControllerBase::GetMediumDirectory() const
+{
+    return MediumDirectory_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

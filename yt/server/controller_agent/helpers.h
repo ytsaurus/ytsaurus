@@ -141,6 +141,12 @@ TFuture<std::optional<T>> WithSoftTimeout(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDiskQuota CreateDiskQuota(
+    const TDiskRequestConfigPtr& diskRequestConfig,
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent
 
 #define HELPERS_INL_H_

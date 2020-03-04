@@ -2,9 +2,15 @@
 
 #include <yt/core/misc/error.h>
 
+#include <yt/core/ytree/fluent.h>
+
+#include <yt/ytlib/api/native/client.h>
+
 #include <yt/ytlib/chunk_client/proto/medium_directory.pb.h>
 
 namespace NYT::NChunkClient {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +31,7 @@ bool TMediumDescriptor::operator!=(const TMediumDescriptor& other) const
 
 const TMediumDescriptor* TMediumDirectory::FindByIndex(int index) const
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    TReaderGuard guard(SpinLock_);
     auto it = IndexToDescriptor_.find(index);
     return it == IndexToDescriptor_.end() ? nullptr : it->second;
 }
@@ -41,7 +47,7 @@ const TMediumDescriptor* TMediumDirectory::GetByIndexOrThrow(int index) const
 
 const TMediumDescriptor* TMediumDirectory::FindByName(const TString& name) const
 {
-    NConcurrency::TReaderGuard guard(SpinLock_);
+    TReaderGuard guard(SpinLock_);
     auto it = NameToDescriptor_.find(name);
     return it == NameToDescriptor_.end() ? nullptr : it->second;
 }
@@ -55,9 +61,20 @@ const TMediumDescriptor* TMediumDirectory::GetByNameOrThrow(const TString& name)
     return result;
 }
 
+std::vector<int> TMediumDirectory::GetMediumIndexes() const
+{
+    TReaderGuard guard(SpinLock_);
+    std::vector<int> result;
+    result.reserve(IndexToDescriptor_.size());
+    for (const auto& [index, descriptor] : IndexToDescriptor_) {
+        result.push_back(index);
+    }
+    return result;
+}
+
 void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
+    TWriterGuard guard(SpinLock_);
     auto oldIndexToDescriptor = std::move(IndexToDescriptor_);
     IndexToDescriptor_.clear();
     NameToDescriptor_.clear();
@@ -80,6 +97,37 @@ void TMediumDirectory::LoadFrom(const NProto::TMediumDirectory& protoDirectory)
         YT_VERIFY(IndexToDescriptor_.emplace(descriptor.Index, descriptorPtr).second);
         YT_VERIFY(NameToDescriptor_.emplace(descriptor.Name, descriptorPtr).second);
     }
+}
+
+void TMediumDirectory::Clear()
+{
+    TWriterGuard guard(SpinLock_);
+    IndexToDescriptor_.clear();
+    NameToDescriptor_.clear();
+    Descriptors_.clear();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void Serialize(const TMediumDirectoryPtr& mediumDirectory, NYson::IYsonConsumer* consumer)
+{
+    if (!mediumDirectory) {
+        NYTree::BuildYsonFluently(consumer)
+            .BeginMap()
+            .EndMap();
+        return;
+    }
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .DoFor(mediumDirectory->GetMediumIndexes(), [&] (auto fluent, int mediumIndex) {
+                auto* descriptor = mediumDirectory->FindByIndex(mediumIndex);
+                if (descriptor) {
+                    fluent.Item(descriptor->Name).BeginMap()
+                        .Item("index").Value(descriptor->Index)
+                    .EndMap();
+                }
+            })
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

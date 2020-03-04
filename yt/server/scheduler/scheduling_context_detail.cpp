@@ -1,13 +1,17 @@
 #include "scheduling_context_detail.h"
 #include "exec_node.h"
 #include "job.h"
+#include "private.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/structs.h>
 
+#include <yt/ytlib/scheduler/job_resources.h>
+
+#include <yt/client/node_tracker_client/helpers.h>
+
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT::NScheduler {
 
@@ -20,7 +24,8 @@ TSchedulingContextBase::TSchedulingContextBase(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs)
+    const std::vector<TJobPtr>& runningJobs,
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
     : NodeShardId_(nodeShardId)
     , ResourceUsage_(node->GetResourceUsage())
     , ResourceLimits_(node->GetResourceLimits())
@@ -30,6 +35,7 @@ TSchedulingContextBase::TSchedulingContextBase(
     , Node_(std::move(node))
     , NodeDescriptor_(Node_->BuildExecDescriptor())
     , NodeTags_(Node_->Tags())
+    , MediumDirectory_(mediumDirectory)
 { }
 
 const TExecNodeDescriptor& TSchedulingContextBase::GetNodeDescriptor() const
@@ -46,11 +52,11 @@ bool TSchedulingContextBase::CanSatisfyResourceRequest(const TJobResources& jobR
 
 bool TSchedulingContextBase::CanStartJob(const TJobResourcesWithQuota& jobResourcesWithQuota) const
 {
-    std::vector<i64> diskRequests(DiskRequests_);
+    std::vector<NScheduler::TDiskQuota> diskRequests(DiskRequests_);
     diskRequests.push_back(jobResourcesWithQuota.GetDiskQuota());
     return
         CanSatisfyResourceRequest(jobResourcesWithQuota.ToJobResources()) &&
-        CanSatisfyDiskRequests(DiskResources_, diskRequests);
+        CanSatisfyDiskQuotaRequests(DiskResources_, diskRequests);
 }
 
 bool TSchedulingContextBase::CanStartMoreJobs() const
@@ -86,7 +92,7 @@ void TSchedulingContextBase::StartJob(
     EPreemptionMode preemptionMode)
 {
     ResourceUsage_ += startDescriptor.ResourceLimits.ToJobResources();
-    if (startDescriptor.ResourceLimits.GetDiskQuota() > 0) {
+    if (!startDescriptor.ResourceLimits.GetDiskQuota().DiskSpacePerMedium.empty()) {
         DiskRequests_.push_back(startDescriptor.ResourceLimits.GetDiskQuota());
     }
     auto startTime = NProfiling::CpuInstantToInstant(GetNow());
