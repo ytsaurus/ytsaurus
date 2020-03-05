@@ -946,18 +946,3 @@ def get_porto_delta_node_config():
             }
         }
     }
-
-def get_cgroup_delta_node_config(cgroups=None):
-    if cgroups is None:
-        cgroups = ["cpuacct", "cpu", "blkio"]
-
-    return {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "supported_cgroups": cgroups,
-                },
-            }
-        }
-    }

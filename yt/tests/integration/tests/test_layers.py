@@ -545,7 +545,7 @@ class TestGpuLayer(YTEnvSetup):
 
 
 @pytest.mark.usefixtures("layers_resource")
-@pytest.mark.skip_if('not porto_available()')
+@pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestGpuLayerUpdate(YTEnvSetup):
     NUM_SCHEDULERS = 1
