@@ -3,6 +3,8 @@
 #include "intrusive_ptr.h"
 #include "port.h"
 
+#include <library/ytalloc/api/ytalloc.h>
+
 #include <util/generic/noncopyable.h>
 
 #include <atomic>
@@ -15,7 +17,6 @@ class TSourceLocation;
 
 class TRefCountedBase;
 
-template <bool EnableWeak>
 class TRefCountedImpl;
 
 //! Default base class for all ref-counted types.
@@ -24,16 +25,10 @@ class TRefCountedImpl;
  *
  *  Instances are created with a single memory allocation.
  */
-using TRefCounted = TRefCountedImpl<true>;
+using TRefCounted = TRefCountedImpl;
 
-//! Lightweight version of TRefCounted.
-/*!
- *  Does not support weak pointers.
- *
- *  Compared to TRefCounted, Ref/Unref calls are somewhat cheaper.
- *  Also instances of TIntrinsicRefCounted have smaller memory footprint.
- */
-using TIntrinsicRefCounted = TRefCountedImpl<false>;
+// COMPAT(lukyan): Both versions are lightweight and support weak pointers.
+using TIntrinsicRefCounted = TRefCountedImpl;
 
 using TRefCountedTypeCookie = int;
 const int NullRefCountedTypeCookie = -1;
@@ -67,110 +62,6 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-template <bool EnableWeak>
-class TRefCounter;
-
-template <>
-class TRefCounter<false>
-{
-public:
-    // Default-constructable.
-    TRefCounter() = default;
-
-    // Non-copyable, non-assignable.
-    TRefCounter(const TRefCounter&) = delete;
-    TRefCounter(TRefCounter&&) = delete;
-    TRefCounter& operator=(const TRefCounter&) = delete;
-    TRefCounter& operator=(TRefCounter&&) = delete;
-
-    //! Adds a strong reference to the counter.
-    void Ref() noexcept;
-
-    //! Removes a strong reference from the counter.
-    void Unref(const TRefCountedBase* object);
-
-    //! Tries to add a strong reference to the counter.
-    bool TryRef() noexcept;
-
-    //! Returns the current number of strong references.
-    int GetRefCount() const noexcept;
-
-private:
-    //! Number of strong references.
-    std::atomic<int> StrongCount_ = {1};
-
-    //! This method is called when there are no strong references remaining
-    //! and the object's dtor must to be called and the memory must be reclaimed.
-    void DestroyAndDispose(const TRefCountedBase* object);
-};
-
-template <>
-class TRefCounter<true>
-{
-public:
-    // Default-constructable.
-    TRefCounter() = default;
-
-    // Non-copyable, non-assignable.
-    TRefCounter(const TRefCounter&) = delete;
-    TRefCounter(TRefCounter&&) = delete;
-    TRefCounter& operator=(const TRefCounter&) = delete;
-    TRefCounter& operator=(TRefCounter&&) = delete;
-
-    //! Initializes the memory region pointer.
-    void SetPtr(void* ptr) noexcept;
-
-    //! Adds a strong reference to the counter.
-    void Ref() noexcept;
-
-    //! Removes a strong reference from the counter.
-    void Unref(const TRefCountedBase* object);
-
-    //! Tries to add a strong reference to the counter.
-    bool TryRef() noexcept;
-
-    //! Adds a weak reference to the counter.
-    void WeakRef() noexcept;
-
-    //! Removes a weak reference from the counter.
-    void WeakUnref();
-
-    //! Returns the current number of strong references.
-    int GetRefCount() const noexcept;
-
-    //! Returns the current number of weak references.
-    int GetWeakRefCount() const noexcept;
-
-private:
-    //! Number of strong references.
-    std::atomic<int> StrongCount_ = {1};
-
-    //! Number of weak references plus one if there is at least one strong reference.
-    std::atomic<int> WeakCount_ = {1};
-
-    //! Pointer to the start of the memory region where the object is allocated.
-    void* Ptr_ = nullptr;
-
-    //! This method is called when there are no strong references remaining
-    //! and the object's dtor must be called.
-    void Destroy(const TRefCountedBase* object);
-
-    //! This method is called when neither strong
-    //! nor weak references being held and the memory must be reclaimed.
-    void Dispose();
-};
-
-//! Normally delegates to #TRefCountedBase::InitializeTracking.
-void InitializeRefCountedTracking(
-    TRefCountedBase* object,
-    TRefCountedTypeCookie typeCookie);
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! A technical base class for TRefCountedImpl and promise states.
 class TRefCountedBase
 {
@@ -180,63 +71,51 @@ public:
 
     void operator delete(void* ptr) noexcept;
 
-    virtual void* GetDerived() = 0;
+    virtual const void* GetDerived() const = 0;
 
 private:
-    template <bool EnableWeak>
-    friend class NDetail::TRefCounter;
-
     TRefCountedBase(const TRefCountedBase&) = delete;
     TRefCountedBase(TRefCountedBase&&) = delete;
 
     TRefCountedBase& operator=(const TRefCountedBase&) = delete;
     TRefCountedBase& operator=(TRefCountedBase&&) = delete;
 
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-protected:
-    TRefCountedTypeCookie TypeCookie_ = NullRefCountedTypeCookie;
-
-    void FinalizeTracking();
-
-private:
-    friend void NDetail::InitializeRefCountedTracking(
-        TRefCountedBase* object,
-        TRefCountedTypeCookie typeCookie);
-
-    void InitializeTracking(TRefCountedTypeCookie typeCookie);
-#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Base class for all reference-counted objects.
-template <bool EnableWeak = true>
 class TRefCountedImpl
     : public TRefCountedBase
 {
 public:
     TRefCountedImpl() = default;
-    ~TRefCountedImpl() noexcept;
+    ~TRefCountedImpl() noexcept = default;
 
-    //! Increments the reference counter.
+    //! Increments the strong reference counter.
     void Ref() const noexcept;
 
-    //! Decrements the reference counter.
+    //! Decrements the strong reference counter.
     void Unref() const;
 
-    //! Returns current number of references to the object.
+    //! Increments the strong reference counter if it is not null.
+    bool TryRef() const noexcept;
+
+    //! Increments the weak reference counter.
+    void WeakRef() const noexcept;
+
+    //! Decrements the weak reference counter.
+    void WeakUnref() const;
+
+    //! Returns current number of strong references to the object.
     /*!
      * Note that you should never ever use this method in production code.
      * This method is mainly for debugging purposes.
      */
     int GetRefCount() const noexcept;
 
-    //! Returns pointer to the underlying reference counter of the object.
-    /*!
-     * Note that you should never ever use this method in production code.
-     * This method is mainly for debugging purposes and for TWeakPtr.
-     */
-    NDetail::TRefCounter<EnableWeak>* GetRefCounter() const noexcept;
+    //! Returns current number of weak references to the object.
+    int GetWeakRefCount() const noexcept;
 
     //! Tries to obtain an intrusive pointer for an object that may had
     //! already lost all of its references and, thus, is about to be deleted.
@@ -258,7 +137,11 @@ public:
     static TIntrusivePtr<T> DangerousGetPtr(T* object);
 
 private:
-    mutable NDetail::TRefCounter<EnableWeak> RefCounter_;
+    //! Number of strong references.
+    mutable std::atomic<int> StrongCount_ = {1};
+
+    //! Number of weak references plus one if there is at least one strong reference.
+    mutable std::atomic<int> WeakCount_ = {1};
 
 };
 

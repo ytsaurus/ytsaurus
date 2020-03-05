@@ -16,229 +16,85 @@ Y_FORCE_INLINE void TRefCountedBase::operator delete(void* ptr) noexcept
     NYTAlloc::FreeNonNull(ptr);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+Y_FORCE_INLINE void TRefCountedImpl::Ref() const noexcept
+{
+    // It is safe to use relaxed here, since new reference is always created from another live reference.
+    auto oldStrongCount = StrongCount_.fetch_add(1, std::memory_order_relaxed);
+    YT_ASSERT(oldStrongCount > 0 && WeakCount_.load() > 0);
+}
 
-namespace NDetail {
+Y_FORCE_INLINE void TRefCountedImpl::Unref() const
+{
+    auto oldStrongCount = StrongCount_.fetch_sub(1, std::memory_order_release);
+    YT_ASSERT(oldStrongCount > 0);
+
+    if (oldStrongCount == 1) {
+        // We must properly synchronize last access to object with it destruction.
+        // Otherwise compiler might reorder access to object past this decrement.
+        //
+        // See http://www.boost.org/doc/libs/1_55_0/doc/html/atomic/usage_examples.html#boost_atomic.usage_examples.example_reference_counters
+        //
+        StrongCount_.load(std::memory_order_acquire);
+
+        // Save pointer to derived to the place of vtable pointer.
+        const void* derived = this->GetDerived();
+        const void** vTablePtr = reinterpret_cast<const void**>(const_cast<TRefCountedImpl*>(this));
+        // Dtor is virtual.
+        this->~TRefCountedImpl();
+        *vTablePtr = derived;
+
+        WeakUnref();
+    }
+}
 
 Y_FORCE_INLINE int AtomicallyIncrementIfNonZero(std::atomic<int>& atomic)
 {
     // Atomically performs the following:
     // { auto v = *p; if (v != 0) ++(*p); return v; }
-    while (true) {
-        auto value = atomic.load();
+    auto value = atomic.load(std::memory_order_relaxed);
 
-        if (value == 0) {
-            return value;
-        }
+    while (value != 0 && !atomic.compare_exchange_weak(value, value + 1));
 
-        if (atomic.compare_exchange_weak(value, value + 1)) {
-            return value;
-        }
-    }
+    return value;
 }
 
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-
-Y_FORCE_INLINE void InitializeRefCountedTracking(
-    TRefCountedBase* object,
-    TRefCountedTypeCookie typeCookie)
-{
-    object->InitializeTracking(typeCookie);
-}
-
-#endif
-
-////////////////////////////////////////////////////////////////////////////////
-
-Y_FORCE_INLINE void TRefCounter<false>::Ref() noexcept
-{
-    // It is safe to use relaxed here, since new reference is always created from another live reference.
-    auto oldStrongCount = StrongCount_.fetch_add(1, std::memory_order_relaxed);
-    YT_ASSERT(oldStrongCount > 0);
-}
-
-Y_FORCE_INLINE void TRefCounter<false>::Unref(const TRefCountedBase* object)
-{
-    // We must properly synchronize last access to object with it destruction.
-    // Otherwise compiler might reorder access to object past this decrement.
-    //
-    // See http://www.boost.org/doc/libs/1_55_0/doc/html/atomic/usage_examples.html#boost_atomic.usage_examples.example_reference_counters
-    //
-    auto oldStrongCount = StrongCount_.fetch_sub(1, std::memory_order_release);
-    YT_ASSERT(oldStrongCount > 0);
-
-    if (oldStrongCount == 1) {
-        StrongCount_.load(std::memory_order_acquire);
-        DestroyAndDispose(object);
-    }
-}
-
-Y_FORCE_INLINE bool TRefCounter<false>::TryRef() noexcept
-{
-    return AtomicallyIncrementIfNonZero(StrongCount_) > 0;
-}
-
-Y_FORCE_INLINE int TRefCounter<false>::GetRefCount() const noexcept
-{
-    return StrongCount_.load(std::memory_order_relaxed);
-}
-
-Y_FORCE_INLINE void TRefCounter<false>::DestroyAndDispose(const TRefCountedBase* object)
-{
-    // Dtor is virtual.
-    // operator delete calls YTAlloc::Free.
-    delete object;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-static_assert(
-    std::is_trivially_destructible<TRefCounter<true>>::value,
-    "TRefCounter<true> must be trivially destructible.");
-
-Y_FORCE_INLINE void TRefCounter<true>::SetPtr(void* ptr) noexcept
-{
-    YT_ASSERT(!Ptr_);
-    Ptr_ = ptr;
-}
-
-Y_FORCE_INLINE void TRefCounter<true>::Ref() noexcept
-{
-    auto oldStrongCount = StrongCount_++;
-    YT_ASSERT(oldStrongCount > 0 && WeakCount_.load() > 0);
-}
-
-Y_FORCE_INLINE void TRefCounter<true>::Unref(const TRefCountedBase* object)
-{
-    auto oldStrongCount = StrongCount_--;
-    YT_ASSERT(oldStrongCount > 0);
-
-    if (oldStrongCount == 1) {
-        Destroy(object);
-
-        auto oldWeakCount = WeakCount_--;
-        YT_ASSERT(oldWeakCount > 0);
-
-        if (oldWeakCount == 1) {
-            Dispose();
-        }
-    }
-}
-
-Y_FORCE_INLINE bool TRefCounter<true>::TryRef() noexcept
+Y_FORCE_INLINE bool TRefCountedImpl::TryRef() const noexcept
 {
     YT_ASSERT(WeakCount_.load(std::memory_order_relaxed) > 0);
     return AtomicallyIncrementIfNonZero(StrongCount_) > 0;
 }
 
-Y_FORCE_INLINE void TRefCounter<true>::WeakRef() noexcept
+Y_FORCE_INLINE void TRefCountedImpl::WeakRef() const noexcept
 {
     auto oldWeakCount = WeakCount_.fetch_add(1, std::memory_order_relaxed);
     YT_ASSERT(oldWeakCount > 0);
 }
 
-Y_FORCE_INLINE void TRefCounter<true>::WeakUnref()
+Y_FORCE_INLINE void TRefCountedImpl::WeakUnref() const
 {
     auto oldWeakCount = WeakCount_--;
     YT_ASSERT(oldWeakCount > 0);
     if (oldWeakCount == 1) {
-        Dispose();
+        void** vTablePtr = reinterpret_cast<void**>(const_cast<TRefCountedImpl*>(this));
+        void* derived = *vTablePtr;
+        NYTAlloc::FreeNonNull(derived);
     }
 }
 
-Y_FORCE_INLINE int TRefCounter<true>::GetRefCount() const noexcept
+Y_FORCE_INLINE int TRefCountedImpl::GetRefCount() const noexcept
 {
     return StrongCount_.load(std::memory_order_relaxed);
 }
 
-Y_FORCE_INLINE int TRefCounter<true>::GetWeakRefCount() const noexcept
+Y_FORCE_INLINE int TRefCountedImpl::GetWeakRefCount() const noexcept
 {
     return WeakCount_.load(std::memory_order_relaxed);
 }
 
-Y_FORCE_INLINE void TRefCounter<true>::Destroy(const TRefCountedBase* object)
-{
-    // Dtor is virtual.
-    object->~TRefCountedBase();
-}
-
-Y_FORCE_INLINE void TRefCounter<true>::Dispose()
-{
-    NYTAlloc::FreeNonNull(Ptr_);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-
-Y_FORCE_INLINE void TRefCountedBase::InitializeTracking(TRefCountedTypeCookie typeCookie)
-{
-    YT_ASSERT(TypeCookie_ == NullRefCountedTypeCookie);
-    TypeCookie_ = typeCookie;
-    TRefCountedTrackerFacade::AllocateInstance(typeCookie);
-}
-
-Y_FORCE_INLINE void TRefCountedBase::FinalizeTracking()
-{
-    YT_ASSERT(TypeCookie_ != NullRefCountedTypeCookie);
-    TRefCountedTrackerFacade::FreeInstance(TypeCookie_);
-}
-
-#endif
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <bool EnableWeak>
-Y_FORCE_INLINE TRefCountedImpl<EnableWeak>::~TRefCountedImpl() noexcept
-{
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-    // NB: If we are still in the NewImpl(...), TypeCookie_ is still
-    // NullRefCountedTypeCookie and the reference counter should be equal to
-    // 1 since the first strong pointer is not created (and hence
-    // destructed) yet.
-    if (Y_UNLIKELY(TypeCookie_ == NullRefCountedTypeCookie)) {
-        YT_VERIFY(GetRefCount() == 1);
-    } else {
-        FinalizeTracking();
-    }
-#else
-    YT_VERIFY(GetRefCount() == 0);
-#endif
-}
-
-template <bool EnableWeak>
-Y_FORCE_INLINE void TRefCountedImpl<EnableWeak>::Ref() const noexcept
-{
-    RefCounter_.Ref();
-}
-
-template <bool EnableWeak>
-Y_FORCE_INLINE void TRefCountedImpl<EnableWeak>::Unref() const
-{
-    RefCounter_.Unref(this);
-}
-
-template <bool EnableWeak>
-Y_FORCE_INLINE int TRefCountedImpl<EnableWeak>::GetRefCount() const noexcept
-{
-    return RefCounter_.GetRefCount();
-}
-
-template <bool EnableWeak>
-Y_FORCE_INLINE NDetail::TRefCounter<EnableWeak>* TRefCountedImpl<EnableWeak>::GetRefCounter() const noexcept
-{
-    return &RefCounter_;
-}
-
-template <bool EnableWeak>
 template <class T>
-Y_FORCE_INLINE TIntrusivePtr<T> TRefCountedImpl<EnableWeak>::DangerousGetPtr(T* object)
+Y_FORCE_INLINE TIntrusivePtr<T> TRefCountedImpl::DangerousGetPtr(T* object)
 {
-    return object->RefCounter_.TryRef()
+    return object->TryRef()
         ? TIntrusivePtr<T>(object, false)
         : TIntrusivePtr<T>();
 }
