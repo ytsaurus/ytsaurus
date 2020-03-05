@@ -705,6 +705,10 @@ TEST_W(TSchedulerTest, CancelDelayedFuture)
     auto future = TDelayedExecutor::MakeDelayed(TDuration::Seconds(10));
     future.Cancel(TError("Error"));
     EXPECT_TRUE(future.IsSet());
+    auto error = future.Get();
+    EXPECT_EQ(NYT::EErrorCode::Canceled, error.GetCode());
+    EXPECT_EQ(1, error.InnerErrors().size());
+    EXPECT_EQ(NYT::EErrorCode::Generic, error.InnerErrors()[0].GetCode());
 }
 
 void CheckTraceContextTime(const NTracing::TTraceContextPtr& traceContext, TDuration lo, TDuration hi)
