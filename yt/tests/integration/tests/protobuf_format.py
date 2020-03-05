@@ -27,11 +27,15 @@ class BytesReader:
         self.inp = inp
 
     def try_read_chunk(self, size):
+        if size == 0:
+            return b''
         result = self.inp.read(size)
         assert size == len(result) or len(result) == 0
         return result if len(result) else None
 
     def read_chunk(self, size):
+        if size == 0:
+            return b''
         result = self.try_read_chunk(size)
         assert result
         return result
@@ -246,7 +250,6 @@ def parse_protobuf_message(message, field_configs, enumerations):
     result = {}
     bufio = StringIO(message)
     reader = ProtobufReader(bufio)
-    print "Message", repr(message)
     while True:
         tag = reader.try_read_varint()
         if tag is None:
@@ -254,7 +257,6 @@ def parse_protobuf_message(message, field_configs, enumerations):
         field_number = tag >> 3
         field_config = field_number_to_field_config[field_number]
         field_type, field_name = field_config["proto_type"], field_config["name"]
-        print tag, field_name, field_config
         type_info = TYPE_NAME_TO_TYPE_INFO[field_type]
         assert tag & 0b111 == type_info.wire_type
 
@@ -352,7 +354,6 @@ def write_protobuf_message(message_dict, field_configs, enumerations):
         for field_config in field_configs
         if field_config["proto_type"] != "other_columns"
     }
-    print field_name_to_field_config
     other_columns_configs = [c for c in field_configs if c["proto_type"] == "other_columns"]
     assert len(other_columns_configs) <= 1
     other_columns_config = None
@@ -363,7 +364,6 @@ def write_protobuf_message(message_dict, field_configs, enumerations):
     bufio = StringIO()
     writer = ProtobufWriter(bufio)
     for name, value in message_dict.items():
-        print "Name", name
         if name not in field_name_to_field_config:
             if other_columns_config is not None:
                 other_columns[name] = value
@@ -375,7 +375,6 @@ def write_protobuf_message(message_dict, field_configs, enumerations):
         field_type = field_config["proto_type"]
         type_info = TYPE_NAME_TO_TYPE_INFO[field_type]
         tag = create_protobuf_tag(type_info, field_config["field_number"])
-        print field_config, name, value
         if field_config.get("repeated", False):
             assert isinstance(value, list)
             for el in value:
