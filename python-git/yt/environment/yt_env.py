@@ -35,6 +35,7 @@ import shutil
 import sys
 import getpass
 import random
+import traceback
 from collections import defaultdict, namedtuple
 from threading import RLock
 from itertools import count
@@ -1432,7 +1433,7 @@ class YTInstance(object):
                     resp = requests.get("http://{0}/api".format(address))
                     resp.raise_for_status()
             except (requests.exceptions.RequestException, socket.error):
-                return False
+                return False, traceback.format_exc()
 
             return True
 
