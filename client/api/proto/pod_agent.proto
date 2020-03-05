@@ -284,8 +284,14 @@ enum EVolumeMountMode {
 
 // Позволяет монитровать один вольюм в разные mountPoint
 message TMountedVolume {
-    // Id volume, который требуется подмонтировать
-    string volume_ref = 1;
+    oneof volume_type {
+        // Id volume, который требуется подмонтировать
+        string volume_ref = 1;
+
+        // Rbind volume ref
+        // Директория будет примонтирована из специальной директории rootfs pod'a: <special_dir>/<rbind_volume_ref>
+        string rbind_volume_ref = 4;
+    }
 
     // Точка монтирования
     string mount_point = 2;
@@ -578,6 +584,7 @@ message TBox {
     // TODO: Валидировать что mount_point не пересекается со static_resource
     // NOTE: Валидация - все mount_point различны
     // NOTE: Валидация - все id volume в списке уникальны
+    // NOTE: Валидация - все rbind_volume_ref в списке уникальны
     repeated TMountedVolume volumes = 8;
 
     // Процессы, запускаемые при подготовке Box после создания вольюмов
