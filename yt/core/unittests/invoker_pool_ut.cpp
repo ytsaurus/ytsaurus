@@ -83,11 +83,11 @@ class TTransformInvokerPoolTest
     : public ::testing::Test
 {
 protected:
-    TActionQueue Queue_;
+    const TActionQueuePtr Queue_ = New<TActionQueue>();
 
     virtual void TearDown() override
     {
-        Queue_.Shutdown();
+        Queue_->Shutdown();
     }
 
     template <class TInvokerPoolPtr, class TGetCallbackCount>
@@ -111,7 +111,7 @@ TEST_F(TTransformInvokerPoolTest, Simple)
 {
     static constexpr auto InvokerCount = 5;
 
-    auto inputInvokerPool = CreateDummyInvokerPool(Queue_.GetInvoker(), InvokerCount);
+    auto inputInvokerPool = CreateDummyInvokerPool(Queue_->GetInvoker(), InvokerCount);
     auto mockInvokerPool = TransformInvokerPool(std::move(inputInvokerPool), CreateMockInvoker);
     auto outputInvokerPool = TransformInvokerPool(mockInvokerPool, CreateSuspendableInvoker);
 
@@ -136,7 +136,7 @@ TEST_F(TTransformInvokerPoolTest, OutputPoolOutlivesInputPool)
 
     static constexpr auto InvokerCount = 10;
 
-    auto inputInvokerPool = CreateDummyInvokerPool(Queue_.GetInvoker(), InvokerCount);
+    auto inputInvokerPool = CreateDummyInvokerPool(Queue_->GetInvoker(), InvokerCount);
     auto mockInvokerPool = TransformInvokerPool(inputInvokerPool, CreateMockInvoker);
 
     // Bound invokers and invoker pool so destruction of the pool breaks invokers functionallity.
@@ -163,7 +163,7 @@ TEST_F(TTransformInvokerPoolTest, OutputPoolOutlivesInputPool)
 TEST_F(TTransformInvokerPoolTest, InstantiateForWellKnownTypes)
 {
     const auto testOne = [this] (auto invokerFunctor) {
-        auto inputInvokerPool = CreateDummyInvokerPool(Queue_.GetInvoker(), /* invokerCount */ 10);
+        auto inputInvokerPool = CreateDummyInvokerPool(Queue_->GetInvoker(), /* invokerCount */ 10);
         return TransformInvokerPool(std::move(inputInvokerPool), invokerFunctor);
     };
 
@@ -173,7 +173,7 @@ TEST_F(TTransformInvokerPoolTest, InstantiateForWellKnownTypes)
     IInvokerPoolPtr w = testOne(CreateIdenticalInvokerByConstReference);
 
     const auto testPair = [this] (auto firstInvokerFunctor, auto secondInvokerFunctor) {
-        auto inputInvokerPool = CreateDummyInvokerPool(Queue_.GetInvoker(), /* invokerCount */ 10);
+        auto inputInvokerPool = CreateDummyInvokerPool(Queue_->GetInvoker(), /* invokerCount */ 10);
         auto intermediateInvokerPool = TransformInvokerPool(std::move(inputInvokerPool), firstInvokerFunctor);
         auto outputInvokerPool = TransformInvokerPool(std::move(intermediateInvokerPool), secondInvokerFunctor);
     };
@@ -199,7 +199,7 @@ TEST_F(TTransformInvokerPoolTest, Chaining)
 
     // NB! Intentionally do not use 'auto' here.
     IMockInvokerPoolPtr invokerPool = TransformInvokerPool(TransformInvokerPool(TransformInvokerPool(
-        CreateDummyInvokerPool(Queue_.GetInvoker(), InvokerCount),
+        CreateDummyInvokerPool(Queue_->GetInvoker(), InvokerCount),
         CreateSuspendableInvoker),
         CreatePrioritizedInvoker),
         CreateMockInvoker);
@@ -219,7 +219,7 @@ TEST_F(TTransformInvokerPoolTest, Chaining)
 
 TEST_F(TTransformInvokerPoolTest, ReturnTypeConvertability)
 {
-    auto invokerPool = CreateDummyInvokerPool(Queue_.GetInvoker(), /* invokerCount */ 10);
+    auto invokerPool = CreateDummyInvokerPool(Queue_->GetInvoker(), /* invokerCount */ 10);
     auto suspendableInvokerPool = TransformInvokerPool(invokerPool, CreateSuspendableInvoker);
     auto prioritizedInvokerPool = TransformInvokerPool(suspendableInvokerPool, CreatePrioritizedInvoker);
 
@@ -246,9 +246,9 @@ DEFINE_ENUM(EInvokerIndex,
 
 TEST(TInvokerPoolTest, IndexByEnum)
 {
-    TActionQueue queue;
+    auto queue = New<TActionQueue>();
 
-    auto invokerPool = CreateDummyInvokerPool(queue.GetInvoker(), /* invokerCount */ 3);
+    auto invokerPool = CreateDummyInvokerPool(queue->GetInvoker(), /* invokerCount */ 3);
 
     EXPECT_EQ(invokerPool->GetInvoker(0).Get(), invokerPool->GetInvoker(EInvokerIndex::ZeroInvoker).Get());
     EXPECT_EQ(invokerPool->GetInvoker(1).Get(), invokerPool->GetInvoker(EInvokerIndex::FirstInvoker).Get());

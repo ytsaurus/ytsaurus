@@ -115,11 +115,7 @@ public:
         TTransactionManagerConfigPtr config,
         TTabletSlotPtr slot,
         NCellNode::TBootstrap* bootstrap)
-        : TCompositeAutomatonPart(
-            slot->GetHydraManager(),
-            slot->GetAutomaton(),
-            slot->GetAutomatonInvoker())
-        , TTabletAutomatonPart(
+        : TTabletAutomatonPart(
             slot,
             bootstrap)
         , Config_(config)

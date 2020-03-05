@@ -27,6 +27,8 @@ class TChunkReadGuard;
 
 struct TArtifactKey;
 
+class TNetworkStatistics;
+
 DECLARE_REFCOUNTED_CLASS(TMasterConnector)
 
 DECLARE_REFCOUNTED_CLASS(TChunkStore)
@@ -75,7 +77,6 @@ DECLARE_REFCOUNTED_CLASS(TPeerBlockDistributorConfig)
 DECLARE_REFCOUNTED_CLASS(TLayerLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TTmpfsLayerCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TVolumeManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TNetworkStatistics)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCacheConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IVolume)

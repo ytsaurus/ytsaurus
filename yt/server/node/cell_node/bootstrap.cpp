@@ -309,7 +309,7 @@ void TBootstrap::DoInitialize()
 
     ChunkBlockManager_ = New<TChunkBlockManager>(Config_->DataNode, this);
 
-    NetworkStatistics_ = New<TNetworkStatistics>(Config_->DataNode);
+    NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
 
     BlockCache_ = CreateServerBlockCache(Config_->DataNode, this);
 
@@ -907,9 +907,9 @@ const TChunkBlockManagerPtr& TBootstrap::GetChunkBlockManager() const
     return ChunkBlockManager_;
 }
 
-const TNetworkStatisticsPtr& TBootstrap::GetNetworkStatistics() const
+TNetworkStatistics& TBootstrap::GetNetworkStatistics() const
 {
-    return NetworkStatistics_;
+    return *NetworkStatistics_;
 }
 
 const TChunkMetaManagerPtr& TBootstrap::GetChunkMetaManager() const

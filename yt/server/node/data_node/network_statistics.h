@@ -15,15 +15,11 @@ namespace NYT::NDataNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNetworkCounters
-    : public TRefCounted
 {
     NProfiling::TMonotonicCounter ThrottledReadsCounter;
 };
 
-DEFINE_REFCOUNTED_TYPE(TNetworkCounters)
-
 class TNetworkStatistics
-    : public TRefCounted
 {
 public:
     explicit TNetworkStatistics(TDataNodeConfigPtr config);
@@ -37,8 +33,6 @@ private:
     NConcurrency::TReaderWriterSpinLock Lock_;
     THashMap<TString, TNetworkCounters> Counters_;
 };
-
-DEFINE_REFCOUNTED_TYPE(TNetworkStatistics)
 
 ////////////////////////////////////////////////////////////////////////////////
 

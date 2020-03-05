@@ -41,7 +41,7 @@ TEST(TSubprocessTest, PipeOutput)
 
 TEST(TSubprocessTest, PipeStdin)
 {
-    TActionQueuePtr queue = New<TActionQueue>();
+    auto queue = New<TActionQueue>();
 
     BIND([] () {
         TSubprocess subprocess("/bin/cat");
@@ -59,7 +59,7 @@ TEST(TSubprocessTest, PipeStdin)
 
 TEST(TSubprocessTest, PipeBigOutput)
 {
-    TActionQueuePtr queue = New<TActionQueue>();
+    auto queue = New<TActionQueue>();
 
     auto result = BIND([] () {
         TSubprocess subprocess("/bin/bash");
@@ -77,7 +77,7 @@ TEST(TSubprocessTest, PipeBigOutput)
 
 TEST(TSubprocessTest, PipeBigError)
 {
-    TActionQueuePtr queue = New<TActionQueue>();
+    auto queue = New<TActionQueue>();
 
     auto result = BIND([] () {
         TSubprocess subprocess("/bin/bash");

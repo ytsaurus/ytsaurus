@@ -448,7 +448,7 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
     TNodeStatistics result;
     ComputeTotalStatistics(&result);
     ComputeLocationSpecificStatistics(&result);
-    Bootstrap_->GetNetworkStatistics()->UpdateStatistics(&result);
+    Bootstrap_->GetNetworkStatistics().UpdateStatistics(&result);
     return result;
 }
 

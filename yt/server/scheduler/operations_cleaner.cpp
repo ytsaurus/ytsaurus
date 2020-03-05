@@ -391,8 +391,12 @@ public:
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
         , Host_(host)
-        , RemoveBatcher_(Config_->RemoveBatchSize, Config_->RemoveBatchTimeout)
-        , ArchiveBatcher_(Config_->ArchiveBatchSize, Config_->ArchiveBatchTimeout)
+        , RemoveBatcher_(New<TNonblockingBatch<TOperationId>>(
+            Config_->RemoveBatchSize,
+            Config_->RemoveBatchTimeout))
+        , ArchiveBatcher_(New<TNonblockingBatch<TOperationId>>(
+            Config_->ArchiveBatchSize,
+            Config_->ArchiveBatchTimeout))
         , Client_(Bootstrap_->GetMasterClient()->GetNativeConnection()
             ->CreateNativeClient(TClientOptions(NSecurityClient::OperationsCleanerUserName)))
     { }
@@ -524,8 +528,8 @@ private:
     std::multimap<TInstant, TOperationId> ArchiveTimeToOperationIdMap_;
     THashMap<TOperationId, TArchiveOperationRequest> OperationMap_;
 
-    TNonblockingBatch<TOperationId> RemoveBatcher_;
-    TNonblockingBatch<TOperationId> ArchiveBatcher_;
+    TIntrusivePtr<TNonblockingBatch<TOperationId>> RemoveBatcher_;
+    TIntrusivePtr<TNonblockingBatch<TOperationId>> ArchiveBatcher_;
 
     NNative::IClientPtr Client_;
 
@@ -636,8 +640,8 @@ private:
 
         DoStopArchivation();
 
-        ArchiveBatcher_.Drop();
-        RemoveBatcher_.Drop();
+        ArchiveBatcher_->Drop();
+        RemoveBatcher_->Drop();
         ArchiveTimeToOperationIdMap_.clear();
         OperationMap_.clear();
         Profiler.Update(ArchivePendingCounter_, 0);
@@ -724,7 +728,7 @@ private:
 
         YT_LOG_DEBUG("Operation enqueued for removal (OperationId: %v)", operationId);
         Profiler.Increment(RemovePendingCounter_, 1);
-        RemoveBatcher_.Enqueue(operationId);
+        RemoveBatcher_->Enqueue(operationId);
     }
 
     void EnqueueForArchivation(TOperationId operationId)
@@ -733,7 +737,7 @@ private:
 
         YT_LOG_DEBUG("Operation enqueued for archivation (OperationId: %v)", operationId);
         Profiler.Increment(ArchivePendingCounter_, 1);
-        ArchiveBatcher_.Enqueue(operationId);
+        ArchiveBatcher_->Enqueue(operationId);
     }
 
     void CleanOperation(TOperationId operationId)
@@ -872,7 +876,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-        auto batch = WaitFor(ArchiveBatcher_.DequeueBatch())
+        auto batch = WaitFor(ArchiveBatcher_->DequeueBatch())
             .ValueOrThrow();
 
         if (!batch.empty()) {
@@ -931,7 +935,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(GetInvoker());
 
-        auto batch = WaitFor(RemoveBatcher_.DequeueBatch())
+        auto batch = WaitFor(RemoveBatcher_->DequeueBatch())
             .ValueOrThrow();
 
         if (!batch.empty()) {
@@ -1044,7 +1048,7 @@ private:
             ProcessCleanedOperation(removedOperationIds);
 
             for (auto operationId : failedOperationIds) {
-                RemoveBatcher_.Enqueue(operationId);
+                RemoveBatcher_->Enqueue(operationId);
             }
 
             Profiler.Increment(RemovePendingCounter_, -removedCount);

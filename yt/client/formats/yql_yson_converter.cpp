@@ -301,9 +301,9 @@ TWeightLimitedYsonToYqlConverter CreateSimpleTypeYsonToYqlConverter(
 class TListYsonToYqlConverter
 {
 public:
-    TListYsonToYqlConverter(const TListLogicalType& type, TYqlConverterConfigPtr config)
+    TListYsonToYqlConverter(const TLogicalTypePtr& type, TYqlConverterConfigPtr config)
         : Config_(std::move(config))
-        , ElementConverter_(CreateWeightLimitedYsonToYqlConverter(type.GetElement(), Config_))
+        , ElementConverter_(CreateWeightLimitedYsonToYqlConverter(type, Config_))
     { }
 
     i64 operator() (TYsonPullParserCursor* cursor, TYqlJsonConsumer* consumer, i64 weightLimit)
@@ -511,7 +511,7 @@ static TWeightLimitedYsonToYqlConverter CreateWeightLimitedYsonToYqlConverter(
                 GetPhysicalType(logicalType->AsSimpleTypeRef().GetElement()),
                 std::move(config));
         case ELogicalMetatype::List:
-            return TListYsonToYqlConverter(logicalType->AsListTypeRef(), std::move(config));
+            return TListYsonToYqlConverter(logicalType->AsListTypeRef().GetElement(), std::move(config));
         case ELogicalMetatype::Struct:
             return TStructYsonToYqlConverter(logicalType->AsStructTypeRef(), std::move(config));
         case ELogicalMetatype::Optional:
@@ -525,9 +525,9 @@ static TWeightLimitedYsonToYqlConverter CreateWeightLimitedYsonToYqlConverter(
         case ELogicalMetatype::Dict:
             // Converter is identical to list<tuple<Key, Value>>.
             return TListYsonToYqlConverter(
-                TListLogicalType(TupleLogicalType({
+                TupleLogicalType({
                     logicalType->AsDictTypeRef().GetKey(),
-                    logicalType->AsDictTypeRef().GetValue()})),
+                    logicalType->AsDictTypeRef().GetValue()}),
                 std::move(config));
         case ELogicalMetatype::Tagged:
             return CreateWeightLimitedYsonToYqlConverter(

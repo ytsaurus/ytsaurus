@@ -753,11 +753,11 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
         }));
 
     std::vector<TFuture<void>> futures;
-    NConcurrency::TActionQueue actionQueue;
+    auto actionQueue = New<NConcurrency::TActionQueue>();
     for (int i = 0; i < 2; ++i) {
         auto future = BIND([&, i]() {
             DoTestSchedule(rootElement, operationElement, execNodes[i]);
-        }).AsyncVia(actionQueue.GetInvoker()).Run();
+        }).AsyncVia(actionQueue->GetInvoker()).Run();
         futures.push_back(std::move(future));
     }
 

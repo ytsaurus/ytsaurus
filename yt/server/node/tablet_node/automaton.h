@@ -57,7 +57,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletAutomaton)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletAutomatonPart
-    : public virtual NHydra::TCompositeAutomatonPart
+    : public NHydra::TCompositeAutomatonPart
     , public virtual NLogging::TLoggerOwner
 {
 protected:
