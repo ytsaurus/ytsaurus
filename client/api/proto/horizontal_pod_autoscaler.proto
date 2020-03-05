@@ -34,6 +34,7 @@ message THorizontalPodAutoscalerMetaBase
 ////////////////////////////////////////////////////////////////////////////////
 
 // Autoscaler will use pod average cpu usage (currently - for last 5 min) as a metric
+// yasm signal: havg(portoinst-cpu_usage_slot_hgram)
 message TCPUMetricSpec
 {
     // Target interval of cpu usage.
