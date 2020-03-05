@@ -51,6 +51,27 @@ Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const T
     return cookie;
 }
 
+template <class T>
+struct TRefCountedWrapper
+    : public T
+{
+    template <class... TArgs>
+    explicit TRefCountedWrapper(TArgs&&... args)
+        : T(std::forward<TArgs>(args)...)
+    { }
+
+    virtual void* GetDerived() override
+    {
+        return this;
+    }
+};
+
+template <class T>
+struct TRefCountedWrapper<TRefCountedWrapper<T>>
+{
+    TRefCountedWrapper() = delete;
+};
+
 namespace NDetail {
 
 Y_FORCE_INLINE void InitializeNewInstance(
@@ -74,7 +95,7 @@ Y_FORCE_INLINE TIntrusivePtr<T> NewEpilogue(
     auto* instance = static_cast<T*>(ptr);
 
     try {
-        new (instance) T(std::forward<As>(args)...);
+        new (instance) TRefCountedWrapper<T>(std::forward<As>(args)...);
     } catch (const std::exception& ex) {
         // Do not forget to free the memory.
         NYTAlloc::FreeNonNull(ptr);
