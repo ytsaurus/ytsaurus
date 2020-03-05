@@ -1748,9 +1748,10 @@ option (NYP.NClient.NApi.NProto.object_type) = {
 
 message TEndpointSetSpec
 {
-    /* If given, for each "ready" pod matching this filter, an endpoint will be created
+    /* If given, for each "ready" pod matching this filter, an endpoint will be created.
      * Pod considers as "ready" (has endpoint) when all described below conditions are true:
-     *     1. Pod's state is ACTIVE or pod's target state is ACTIVE.
+     *     1. * For pods with Pod Agent: pod's state is ACTIVE.
+              * For other pods: pod's state is ACTIVE or pod's target state is ACTIVE.
      *     2. Pod has backbone vlan in status.ip6_address_allocations.
      */
     optional string pod_filter = 1;
