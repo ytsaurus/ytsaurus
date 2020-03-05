@@ -23,11 +23,13 @@ void* TRegistry::DoInstantiate()
 template <class T>
 void TRegistry::Register(ui32 tag)
 {
+    using TIdClass = typename TIdClass<T>::TType;
+
     auto pair = TagToEntry_.emplace(tag, TEntry());
     YT_VERIFY(pair.second);
     auto& entry = pair.first->second;
     entry.Tag = tag;
-    entry.TypeInfo = &typeid (T);
+    entry.TypeInfo = &typeid(TIdClass);
     entry.Factory = std::bind(&DoInstantiate<T>);
     YT_VERIFY(TypeInfoToEntry_.insert(std::make_pair(entry.TypeInfo, &entry)).second);
 }
