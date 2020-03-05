@@ -56,12 +56,7 @@ public:
         , CancelableRefCount_(cancelableRefCount)
     { }
 
-    virtual ~TCancelableStateBase() noexcept
-    {
-#ifdef YT_ENABLE_REF_COUNTED_TRACKING
-        FinalizeTracking();
-#endif
-    }
+    virtual ~TCancelableStateBase() noexcept = default;
 
     virtual bool Cancel(const TError& error) noexcept = 0;
 

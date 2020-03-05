@@ -26,7 +26,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Forward declarations.
-template <bool EnableWeak>
 class TRefCountedImpl;
 
 template <class T>
@@ -370,10 +369,8 @@ struct TIsRawPtrToRefCountedType
 {
     enum {
         Value = (NMpl::TIsPointer<T>::Value && (
-            NMpl::TIsConvertible<T, const TRefCountedImpl<true>*>::Value ||
-            NMpl::TIsConvertible<T, const TRefCountedImpl<false>*>::Value ||
-            NMpl::TIsConvertible<T, TRefCountedImpl<true>*>::Value ||
-            NMpl::TIsConvertible<T, TRefCountedImpl<false>*>::Value
+            NMpl::TIsConvertible<T, const TRefCountedImpl*>::Value ||
+            NMpl::TIsConvertible<T, TRefCountedImpl*>::Value
         ))
     };
 };
