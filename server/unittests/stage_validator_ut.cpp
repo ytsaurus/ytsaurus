@@ -91,7 +91,7 @@ TEST(StageValidator, ValidateStageDeployUnitIdTest)
 
 TEST(StageValidator, ValidateStageIdLengthTest)
 {
-    TObjectId id = TString("a") * 45;
+    TObjectId id = TString("a") * 75;
     ASSERT_THROW(ValidateStageAndDeployUnitId(id, "Stage id"), TErrorException);
 }
 

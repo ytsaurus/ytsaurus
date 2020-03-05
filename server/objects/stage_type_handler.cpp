@@ -250,7 +250,7 @@ void ValidateTvmConfig(const NClient::NApi::NProto::TTvmConfig& config)
 void ValidateStageAndDeployUnitId(const TObjectId& id, const TString& description)
 {
     static const re2::RE2 stageIdPattern("[A-Za-z0-9-_]+");
-    static const size_t idLengthLimit = 40;
+    static const size_t idLengthLimit = 70;
     if (!re2::RE2::FullMatch(id, stageIdPattern)) {
         THROW_ERROR_EXCEPTION("%v %Qv must match regexp %Qv",
             description,
