@@ -16,8 +16,6 @@ using namespace NSkiff;
 using namespace NYson;
 using namespace NTableClient;
 
-using NYT::NFormats::EErrorCode;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 EWireType GetSkiffTypeForSimpleLogicalType(ESimpleLogicalValueType logicalType)
@@ -133,8 +131,7 @@ struct TOptionalTypesMatch
 
 [[noreturn]] void ThrowBadWireType(EWireType expected, EWireType actual)
 {
-    THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-        "Bad skiff wire type, expected: %Qlv, actual: %Qlv",
+    THROW_ERROR_EXCEPTION("Bad skiff wire type, expected: %Qlv, actual: %Qlv",
         expected,
         actual);
 }
@@ -144,8 +141,7 @@ struct TOptionalTypesMatch
     const TSkiffSchemaPtr& skiffSchema,
     const std::exception& ex)
 {
-    THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-        "Cannot match field %Qv to skiff schema",
+    THROW_ERROR_EXCEPTION("Cannot match field %Qv to skiff schema",
         descriptor.GetDescription())
         << SkiffYsonErrorAttributes(descriptor, skiffSchema)
         << ex;
@@ -154,8 +150,7 @@ struct TOptionalTypesMatch
 template <typename... Args>
 [[noreturn]] void ThrowYsonToSkiffConversionError(const TComplexTypeFieldDescriptor& descriptor, const Args&... args)
 {
-    THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-        "Yson to Skiff conversion error while converting %Qv field",
+    THROW_ERROR_EXCEPTION("Yson to Skiff conversion error while converting %Qv field",
         descriptor.GetDescription())
         << TError(args...);
 }
@@ -189,8 +184,7 @@ template <typename... Args>
 template <typename... Args>
 [[noreturn]] void ThrowSkiffToYsonConversionError(const TComplexTypeFieldDescriptor& descriptor, const Args&... args)
 {
-    THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-        "Skiff to Yson conversion error while converting %Qv field",
+    THROW_ERROR_EXCEPTION("Skiff to Yson conversion error while converting %Qv field",
         descriptor.GetDescription())
         << TError(args...);
 }
@@ -270,8 +264,7 @@ TOptionalTypesMatch MatchOptionalTypes(
         if (logicalNestingRelaxed != skiffNestingRelaxed &&
             !(allowOmitOptional && logicalNestingRelaxed == skiffNestingRelaxed + 1))
         {
-            THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-                "Optional nesting mismatch, logical type nesting: %Qv, skiff nesting: %Qv",
+            THROW_ERROR_EXCEPTION("Optional nesting mismatch, logical type nesting: %Qv, skiff nesting: %Qv",
                 logicalNestingRelaxed,
                 skiffNestingRelaxed);
         }
@@ -308,7 +301,7 @@ TTypePair MatchListTypes(const TComplexTypeFieldDescriptor& descriptor, const TS
             ThrowBadWireType(EWireType::RepeatedVariant8, skiffSchema->GetWireType());
         }
         if (skiffSchema->GetChildren().size() != 1) {
-            THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
+            THROW_ERROR_EXCEPTION(
                 "%Qv has too many children, expected: %Qv actual %Qv",
                 skiffSchema->GetWireType(),
                 1,
@@ -333,8 +326,7 @@ std::vector<TTypePair> MatchStructTypes(const TComplexTypeFieldDescriptor& descr
             for (size_t i = 0; i < children.size(); ++i) {
                 const auto& child = children[i];
                 if (child->GetName().empty()) {
-                    THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-                        "%Qv child #%v has empty name",
+                    THROW_ERROR_EXCEPTION("%Qv child #%v has empty name",
                         EWireType::Tuple,
                         i);
                 }
@@ -360,14 +352,12 @@ std::vector<TTypePair> MatchStructTypes(const TComplexTypeFieldDescriptor& descr
             auto skiffName = skiffFields[skiffFieldIndex].Name;
             for (const auto& ysonField : fields) {
                 if (ysonField.Name == skiffName) {
-                    THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-                        "%Qv child %Qv is out of order",
+                    THROW_ERROR_EXCEPTION("%Qv child %Qv is out of order",
                         EWireType::Tuple,
                         skiffName);
                 }
             }
-            THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-                "%Qv child %Qv is not found in logical type",
+            THROW_ERROR_EXCEPTION("%Qv child %Qv is not found in logical type",
                 EWireType::Tuple,
                 skiffName);
         }
@@ -388,8 +378,7 @@ std::vector<TTypePair> MatchTupleTypes(const TComplexTypeFieldDescriptor& descri
         const auto& children = skiffSchema->GetChildren();
 
         if (children.size() != elements.size()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-                "Tuple element counts do not match; logical type elements: %v skiff elements: %v",
+            THROW_ERROR_EXCEPTION("Tuple element counts do not match; logical type elements: %v skiff elements: %v",
                 elements.size(),
                 children.size());
         }
@@ -416,8 +405,7 @@ std::vector<TTypePair> MatchVariantTupleTypes(const TComplexTypeFieldDescriptor&
         const auto& children = skiffSchema->GetChildren();
 
         if (children.size() != elements.size()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-                "Variant element counts do not match; logical type elements: %v skiff elements: %v",
+            THROW_ERROR_EXCEPTION("Variant element counts do not match; logical type elements: %v skiff elements: %v",
                 elements.size(),
                 children.size());
         }
@@ -444,8 +432,7 @@ std::vector<TTypePair> MatchVariantStructTypes(const TComplexTypeFieldDescriptor
         const auto& children = skiffSchema->GetChildren();
 
         if (children.size() != fields.size()) {
-            THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-                "Variant element counts do not match; logical type elements: %v skiff elements: %v",
+            THROW_ERROR_EXCEPTION("Variant element counts do not match; logical type elements: %v skiff elements: %v",
                 fields.size(),
                 children.size());
         }
@@ -453,8 +440,7 @@ std::vector<TTypePair> MatchVariantStructTypes(const TComplexTypeFieldDescriptor
         std::vector<TTypePair> result;
         for (size_t i = 0; i < fields.size(); ++i) {
             if (fields[i].Name != children[i]->GetName()) {
-                THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-                    "Skiff %v child #%v expected to be %Qv but %Qv found",
+                THROW_ERROR_EXCEPTION("Skiff %v child #%v expected to be %Qv but %Qv found",
                     skiffSchema->GetWireType(),
                     i,
                     fields[i].Name,
@@ -477,8 +463,7 @@ std::pair<TTypePair, TTypePair> MatchDictTypes(const TComplexTypeFieldDescriptor
         }
 
         if (skiffSchema->GetChildren().size() != 1) {
-            THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-                "%Qlv has unexpected children count: %Qv expected children count: %Qv",
+            THROW_ERROR_EXCEPTION("%Qlv has unexpected children count: %Qv expected children count: %Qv",
                 EWireType::RepeatedVariant8,
                 skiffSchema->GetChildren().size(),
                 1);
@@ -486,16 +471,14 @@ std::pair<TTypePair, TTypePair> MatchDictTypes(const TComplexTypeFieldDescriptor
 
         auto tupleSchema = skiffSchema->GetChildren()[0];
         if (tupleSchema->GetWireType() != EWireType::Tuple) {
-            THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-                "%Qlv has unexpected child: %Qv expected: %Qv",
+            THROW_ERROR_EXCEPTION("%Qlv has unexpected child: %Qv expected: %Qv",
                 EWireType::RepeatedVariant8,
                 tupleSchema->GetWireType(),
                 EWireType::Tuple);
         }
 
         if (tupleSchema->GetChildren().size() != 2) {
-            THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-                "%Qlv has unexpected children count: %Qv expected children count: %Qv",
+            THROW_ERROR_EXCEPTION("%Qlv has unexpected children count: %Qv expected children count: %Qv",
                 EWireType::Tuple,
                 skiffSchema->GetChildren().size(),
                 1);
@@ -1136,8 +1119,7 @@ TSkiffToYsonConverter CreateSimpleSkiffToYsonConverter(
     auto valueType = logicalType.GetElement();
     auto wireType = skiffSchema->GetWireType();
     if (GetSkiffTypeForSimpleLogicalType(valueType) != wireType) {
-        THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError,
-            "Field %Qv of type %Qv cannot be represented as skiff type %Qlv",
+        THROW_ERROR_EXCEPTION("Field %Qv of type %Qv cannot be represented as skiff type %Qlv",
             descriptor.GetDescription(),
             *descriptor.GetType(),
             wireType

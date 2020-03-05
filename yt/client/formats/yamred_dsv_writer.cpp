@@ -132,7 +132,7 @@ private:
                 firstColumn = false;
             }
             if (!RowValues_[id]) {
-                THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError, "Key column %Qv is missing",
+                THROW_ERROR_EXCEPTION("Key column %Qv is missing",
                     NameTableReader_->GetName(id));
             }
             WriteUnversionedValue(*RowValues_[id], stream, ValueEscapeTable_);
@@ -198,11 +198,11 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamredDsv(
     int keyColumnCount)
 {
     if (controlAttributesConfig->EnableKeySwitch && !config->Lenval) {
-        THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError, "Key switches are not supported in text YAMRed DSV format");
+        THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMRed DSV format");
     }
 
     if (controlAttributesConfig->EnableRangeIndex && !config->Lenval) {
-        THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError, "Range indices are not supported in text YAMRed DSV format");
+        THROW_ERROR_EXCEPTION("Range indices are not supported in text YAMRed DSV format");
     }
 
     return New<TSchemalessWriterForYamredDsv>(
