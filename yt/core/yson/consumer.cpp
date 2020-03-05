@@ -11,6 +11,11 @@ void IYsonConsumer::OnRaw(const TYsonString& yson)
     OnRaw(yson.GetData(), yson.GetType());
 }
 
+void IYsonConsumer::OnRaw(const TYsonStringBuf& yson)
+{
+    OnRaw(yson.GetData(), yson.GetType());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TYsonConsumerBase::OnRaw(TStringBuf str, EYsonType type)

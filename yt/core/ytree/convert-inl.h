@@ -165,10 +165,14 @@ IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO(ui8)
 
 #undef IMPLEMENT_CHECKED_INTEGRAL_CONVERT_TO
 
-template <>
-inline double ConvertTo(const NYson::TYsonString& str)
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TData>
+double ConvertYsonStringBaseToDouble(const NYson::TYsonStringBase<TData>& yson)
 {
-    NYson::TTokenizer tokenizer(str.GetData());
+    NYson::TTokenizer tokenizer(yson.GetData());
     const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::Int64:
@@ -180,14 +184,14 @@ inline double ConvertTo(const NYson::TYsonString& str)
         default:
             THROW_ERROR_EXCEPTION("Cannot parse \"number\" from %Qlv value",
                 token.GetType())
-                << TErrorAttribute("data", str.GetData());
+                << TErrorAttribute("data", yson.GetData());
     }
 }
 
-template <>
-inline TString ConvertTo(const NYson::TYsonString& str)
+template <typename TData>
+TString ConvertYsonStringBaseToString(const NYson::TYsonStringBase<TData>& yson)
 {
-    NYson::TTokenizer tokenizer(str.GetData());
+    NYson::TTokenizer tokenizer(yson.GetData());
     const auto& token = SkipAttributes(&tokenizer);
     switch (token.GetType()) {
         case NYson::ETokenType::String:
@@ -195,8 +199,36 @@ inline TString ConvertTo(const NYson::TYsonString& str)
         default:
             THROW_ERROR_EXCEPTION("Cannot parse \"string\" from %Qlv value",
                 token.GetType())
-                << TErrorAttribute("data", str.GetData());
+                << TErrorAttribute("data", yson.GetData());
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+}
+
+template <>
+inline double ConvertTo(const NYson::TYsonString& str)
+{
+    return ConvertYsonStringBaseToDouble(str);
+}
+
+template <>
+inline double ConvertTo(const NYson::TYsonStringBuf& str)
+{
+    return ConvertYsonStringBaseToDouble(str);
+}
+
+template <>
+inline TString ConvertTo(const NYson::TYsonString& str)
+{
+    return ConvertYsonStringBaseToString(str);
+}
+
+template <>
+inline TString ConvertTo(const NYson::TYsonStringBuf& str)
+{
+    return ConvertYsonStringBaseToString(str);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

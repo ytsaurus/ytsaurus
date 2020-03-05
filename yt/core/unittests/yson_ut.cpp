@@ -12,33 +12,42 @@ namespace {
 
 using namespace NYTree;
 
-TEST(TYsonTest, GetYPath)
+using TYsonStringTypes = ::testing::Types<TYsonString, TYsonStringBuf>;
+
+template <typename T>
+class TYsonTypedTest
+    : public ::testing::Test
+{ };
+
+TYPED_TEST_CASE(TYsonTypedTest, TYsonStringTypes);
+
+TYPED_TEST(TYsonTypedTest, GetYPath)
 {
     TString yson = "{key=value; submap={ other_key=other_value; }}";
-    auto node = NYT::NYTree::ConvertToNode(TYsonString(yson));
+    auto node = NYT::NYTree::ConvertToNode(TypeParam(yson));
 
     EXPECT_EQ("/submap/other_key", node->AsMap()->GetChild("submap")->AsMap()->GetChild("other_key")->GetPath());
 }
 
-TEST(TYsonTest, SetNodeByYPath)
+TYPED_TEST(TYsonTypedTest, SetNodeByYPath)
 {
-    auto node = NYT::NYTree::ConvertToNode(TYsonString("{}"));
+    auto node = NYT::NYTree::ConvertToNode(TypeParam("{}"));
     ForceYPath(node, "/submap/other_key");
 
     auto submap = node->AsMap()->GetChild("submap")->AsMap();
     EXPECT_EQ(0, submap->GetChildCount());
 
-    auto value = NYT::NYTree::ConvertToNode(TYsonString("4"));
+    auto value = NYT::NYTree::ConvertToNode(TypeParam("4"));
 
     SetNodeByYPath(node, "/submap/other_key", value);
     submap = node->AsMap()->GetChild("submap")->AsMap();
     EXPECT_EQ(4, ConvertTo<int>(submap->GetChild("other_key")));
 }
 
-TEST(TYsonTest, ConvertToNode)
+TYPED_TEST(TYsonTypedTest, ConvertToNode)
 {
     TString yson = "{key=value; other_key=10}";
-    auto node = NYT::NYTree::ConvertToNode(TYsonString(yson));
+    auto node = NYT::NYTree::ConvertToNode(TypeParam(yson));
 
     ASSERT_NO_THROW(node->AsMap());
     ASSERT_THROW(node->AsList(), std::exception);
@@ -63,18 +72,18 @@ TEST(TYsonTest, ConvertToNode)
     }
 }
 
-TEST(TYsonTest, ListFragment)
+TYPED_TEST(TYsonTypedTest, ListFragment)
 {
     TString yson = "{a=b};{c=d}";
     NYT::NYTree::INodePtr node;
 
-    node = NYT::NYTree::ConvertToNode(TYsonString(yson, EYsonType::ListFragment));
+    node = NYT::NYTree::ConvertToNode(TypeParam(yson, EYsonType::ListFragment));
     ASSERT_NO_THROW(node->AsList());
     EXPECT_EQ("[{\"a\"=\"b\";};{\"c\"=\"d\";};]",
               ConvertToYsonString(node, EYsonFormat::Text).GetData());
 }
 
-TEST(TYsonTest, ConvertFromStream)
+TYPED_TEST(TYsonTypedTest, ConvertFromStream)
 {
     TString yson = "{key=value}";
     TStringInput ysonStream(yson);
@@ -85,14 +94,14 @@ TEST(TYsonTest, ConvertFromStream)
               ConvertToYsonString(node, EYsonFormat::Text).GetData());
 }
 
-TEST(TYsonTest, ConvertToProducerNode)
+TYPED_TEST(TYsonTypedTest, ConvertToProducerNode)
 {
     // Make consumer
     TStringStream output;
     TYsonWriter writer(&output, EYsonFormat::Text);
 
     // Make producer
-    auto ysonProducer = ConvertToProducer(TYsonString("{key=value}"));
+    auto ysonProducer = ConvertToProducer(TypeParam("{key=value}"));
 
     // Apply producer to consumer
     ysonProducer.Run(&writer);
@@ -100,22 +109,22 @@ TEST(TYsonTest, ConvertToProducerNode)
     EXPECT_EQ("{\"key\"=\"value\";}", output.Str());
 }
 
-TEST(TYsonTest, ConvertToProducerListFragment)
+TYPED_TEST(TYsonTypedTest, ConvertToProducerListFragment)
 {
     {
-        auto producer = ConvertToProducer(TYsonString("{a=b}; {c=d}", EYsonType::ListFragment));
+        auto producer = ConvertToProducer(TypeParam("{a=b}; {c=d}", EYsonType::ListFragment));
         EXPECT_EQ("{\"a\"=\"b\";};\n{\"c\"=\"d\";};\n",
             ConvertToYsonString(producer, EYsonFormat::Text).GetData());
     }
 
     {
-        auto producer = ConvertToProducer(TYsonString("{key=value}"));
+        auto producer = ConvertToProducer(TypeParam("{key=value}"));
         EXPECT_EQ("{\"key\"=\"value\";}",
             ConvertToYsonString(producer, EYsonFormat::Text).GetData());
     }
 }
 
-TEST(TYsonTest, ConvertToForPodTypes)
+TYPED_TEST(TYsonTypedTest, ConvertToForPodTypes)
 {
     {
         auto node = ConvertToNode(42);
@@ -161,10 +170,10 @@ TEST(TYsonTest, ConvertToForPodTypes)
     }
 
     EXPECT_EQ(ConvertTo<bool>("false"), false);
-    EXPECT_EQ(ConvertTo<bool>(TYsonString("%false")), false);
+    EXPECT_EQ(ConvertTo<bool>(TypeParam("%false")), false);
 
     EXPECT_EQ(ConvertTo<bool>("true"), true);
-    EXPECT_EQ(ConvertTo<bool>(TYsonString("%true")), true);
+    EXPECT_EQ(ConvertTo<bool>(TypeParam("%true")), true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,6 +237,47 @@ TEST(TYsonTest, UpdateNodes)
     EXPECT_EQ(
         "{\"x\"=\"y\";}",
         ConvertToYsonString(res->AsMap()->FindChild("key_d"), EYsonFormat::Text).GetData());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TYsonTest, TYsonStringTypesConversion)
+{
+    auto ysonString = TYsonString("{x=y;z=1}");
+    auto getData = [] (const TYsonStringBuf& ysonStringBuf) {
+        return ysonStringBuf.GetData();
+    };
+    auto getType = [] (const TYsonStringBuf& ysonStringBuf) {
+        return ysonStringBuf.GetType();
+    };
+
+    // We expect these functions to cast arguments implicitly.
+    EXPECT_EQ(getData(ysonString), ysonString.GetData());
+    EXPECT_EQ(getType(ysonString), ysonString.GetType());
+}
+
+TEST(TYsonTest, TYsonStringTypesHashing)
+{
+    auto ysonString = TYsonString("{x=y;z=1}");
+    auto ysonStringBuf = TYsonStringBuf("{x=y;z=1}");
+    EXPECT_EQ(THash<TYsonString>()(ysonString), THash<TYsonStringBuf>()(ysonStringBuf));
+}
+
+TEST(TYsonTest, TYsonStringTypesComparisons)
+{
+    auto ysonString = TYsonString("{x=y;z=1}");
+    auto ysonStringBuf = TYsonStringBuf("{x=y;z=1}");
+    EXPECT_EQ(ysonString, ysonString);
+    EXPECT_EQ(ysonStringBuf, ysonStringBuf);
+    EXPECT_EQ(ysonString, ysonStringBuf);
+    EXPECT_EQ(ysonStringBuf, ysonString);
+
+    auto otherYsonString = TYsonString("{x=z;y=1}");
+    auto otherYsonStringBuf = TYsonStringBuf("{x=z;y=1}");
+    EXPECT_NE(ysonString, otherYsonStringBuf);
+    EXPECT_NE(ysonStringBuf, otherYsonStringBuf);
+    EXPECT_NE(ysonString, otherYsonStringBuf);
+    EXPECT_NE(ysonStringBuf, otherYsonString);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
