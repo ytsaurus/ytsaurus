@@ -47,6 +47,8 @@ message TCPUMetricSpec
 
 message TReplicaSetScaleSpec
 {
+    // Note that autoscaler does not change replica_set.deployment_strategy (max_unavailable pod count).
+
     // Lower limit for the number of replicas to which the autoscaler can scale down.
     // Validation: zero value is accepted only if max_replicas is zero
     uint32 min_replicas = 1;
