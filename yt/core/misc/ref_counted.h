@@ -180,6 +180,8 @@ public:
 
     void operator delete(void* ptr) noexcept;
 
+    virtual void* GetDerived() = 0;
+
 private:
     template <bool EnableWeak>
     friend class NDetail::TRefCounter;
