@@ -18,3 +18,7 @@ def extract_column_attributes(schema, attributes=_well_known_attributes):
     else:
         raise TypeError("Expected schema to be a list of columns or a dict with key \"$value\", got {}".format(schema))
     return schema_copy
+
+
+# Better named alias
+normalize_schema = extract_column_attributes
