@@ -141,7 +141,7 @@ TWebJsonColumnFilter CreateWebJsonColumnFilter(const TWebJsonFormatConfigPtr& we
         columnNames.emplace();
         for (const auto& columnName : *webJsonConfig->ColumnNames) {
             if (!columnNames->insert(columnName).second) {
-                THROW_ERROR_EXCEPTION("Duplicate column name %Qv in \"column_names\" parameter of web_json format config",
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Duplicate column name %Qv in \"column_names\" parameter of web_json format config",
                     columnName);
             }
         }

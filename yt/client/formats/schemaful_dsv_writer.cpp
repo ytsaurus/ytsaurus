@@ -127,7 +127,7 @@ private:
             if (Config_->EnableTableIndex && ControlAttributesConfig_->EnableTableIndex &&
                 !CurrentRowValues_[IdToIndexInRow_[TableIndexColumnId_]])
             {
-                THROW_ERROR_EXCEPTION("Table index column is missing");
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Table index column is missing");
             }
 
             int missingValueIndex = FindMissingValueIndex();
@@ -135,7 +135,7 @@ private:
                 if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::SkipRow) {
                     continue;
                 } else if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) {
-                    THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", (*Config_->Columns)[missingValueIndex]);
+                    THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Column %Qv is in schema but missing", (*Config_->Columns)[missingValueIndex]);
                 }
             }
 
@@ -203,7 +203,7 @@ public:
     {
         for (const auto& row : rows) {
             if (!row) {
-                THROW_ERROR_EXCEPTION("Empty rows are not supported by schemaful dsv writer");
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Empty rows are not supported by schemaful dsv writer");
             }
 
             CurrentRowValues_.assign(CurrentRowValues_.size(), nullptr);
@@ -219,7 +219,7 @@ public:
                 if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::SkipRow) {
                     continue;
                 } else if (Config_->MissingValueMode == EMissingSchemafulDsvValueMode::Fail) {
-                    THROW_ERROR_EXCEPTION("Column %Qv is in schema but missing", (*Config_->Columns)[missingValueIndex]);
+                    THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Column %Qv is in schema but missing", (*Config_->Columns)[missingValueIndex]);
                 }
             }
 
@@ -267,7 +267,7 @@ void ValidateDuplicateColumns(const std::vector<TString>& columns)
     THashSet<TString> names;
     for (const auto& name : columns) {
         if (!names.insert(name).second) {
-            THROW_ERROR_EXCEPTION("Duplicate column name %Qv in schemaful DSV config",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Duplicate column name %Qv in schemaful DSV config",
                 name);
         }
     }
@@ -284,23 +284,23 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
     int /* keyColumnCount */)
 {
     if (controlAttributesConfig->EnableKeySwitch) {
-        THROW_ERROR_EXCEPTION("Key switches are not supported in schemaful DSV format");
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Key switches are not supported in schemaful DSV format");
     }
 
     if (controlAttributesConfig->EnableRangeIndex) {
-        THROW_ERROR_EXCEPTION("Range indices are not supported in schemaful DSV format");
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Range indices are not supported in schemaful DSV format");
     }
 
     if (controlAttributesConfig->EnableRowIndex) {
-        THROW_ERROR_EXCEPTION("Row indices are not supported in schemaful DSV format");
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Row indices are not supported in schemaful DSV format");
     }
 
     if (controlAttributesConfig->EnableTabletIndex) {
-        THROW_ERROR_EXCEPTION("Tablet indices are not supported in schemaful DSV format");
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Tablet indices are not supported in schemaful DSV format");
     }
 
     if (!config->Columns) {
-        THROW_ERROR_EXCEPTION("Config must contain columns for schemaful DSV schemaless writer");
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Config must contain columns for schemaful DSV schemaless writer");
     }
 
     std::vector<int> idToIndexInRow;
@@ -317,7 +317,7 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
             nameTable->GetIdOrRegisterName(columns[columnIndex]);
         }
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Failed to add columns to name table for schemaful DSV format")
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Failed to add columns to name table for schemaful DSV format")
             << ex;
     }
 

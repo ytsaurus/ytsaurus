@@ -75,7 +75,7 @@ public:
             RangeIndexColumnId_ = nameTable->GetIdOrRegisterName(RangeIndexColumnName);
             TableIndexColumnId_ = nameTable->GetIdOrRegisterName(TableIndexColumnName);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to add system columns to name table for protobuf writer")
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Failed to add system columns to name table for protobuf writer")
                 << ex;
         }
     }
@@ -210,7 +210,7 @@ public:
     Y_FORCE_INLINE void OnString(TStringBuf value, const TProtobufFieldDescription& fieldDescription)
     {
         if (Y_UNLIKELY(!fieldDescription.EnumerationDescription)) {
-            THROW_ERROR_EXCEPTION("Enumeration description not found for field %Qv",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Enumeration description not found for field %Qv",
                 fieldDescription.Name);
         }
         EnumValue = fieldDescription.EnumerationDescription->GetValue(value);
@@ -285,7 +285,7 @@ Y_FORCE_INLINE void WriteProtobufField(
             TEnumVisitor visitor;
             extractor.ExtractEnum(&visitor, fieldDescription);
             if (Y_UNLIKELY(!visitor.InRange)) {
-                THROW_ERROR_EXCEPTION("Value out of range for protobuf enumeration %Qv",
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Value out of range for protobuf enumeration %Qv",
                     getEnumerationName());
             }
             WriteVarUint64(writer, static_cast<ui64>(visitor.EnumValue)); // No zigzag int32.
@@ -295,7 +295,7 @@ Y_FORCE_INLINE void WriteProtobufField(
         case EProtobufType::Any:
         case EProtobufType::OtherColumns:
         case EProtobufType::StructuredMessage:
-            THROW_ERROR_EXCEPTION("Wrong protobuf type %Qlv",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Wrong protobuf type %Qlv",
                 fieldDescription.Type);
     }
     YT_ABORT();
@@ -307,7 +307,7 @@ void ValidateYsonCursorType(const TYsonPullParserCursor* cursor, EYsonItemType e
 {
     auto actual = cursor->GetCurrent().GetType();
     if (Y_UNLIKELY(actual != expected)) {
-        THROW_ERROR_EXCEPTION("Protobuf writing error: bad YSON item, expected %Qlv, actual %Qlv",
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Protobuf writing error: bad YSON item, expected %Qlv, actual %Qlv",
             expected,
             actual);
     }
@@ -337,7 +337,7 @@ public:
                 return;
             default:
                 auto* enumDescription = fieldDescription.EnumerationDescription;
-                THROW_ERROR_EXCEPTION("Cannot parse protobuf enumeration %Qv from YSON value of type %Qlv",
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Cannot parse protobuf enumeration %Qv from YSON value of type %Qlv",
                     enumDescription ? enumDescription->GetEnumerationName() : "<unknown>",
                     item.GetType());
         }
@@ -377,7 +377,7 @@ private:
 void ValidateUnversionedValueType(const TUnversionedValue& value, EValueType type)
 {
     if (Y_UNLIKELY(value.Type != type)) {
-        THROW_ERROR_EXCEPTION("Invalid protobuf storage type: expected %Qlv, got %Qlv",
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Invalid protobuf storage type: expected %Qlv, got %Qlv",
             type,
             value.Type);
     }
@@ -408,7 +408,7 @@ public:
                 return;
             default:
                 auto* enumDescription = fieldDescription.EnumerationDescription;
-                THROW_ERROR_EXCEPTION("Cannot parse protobuf enumeration %Qv from unverioned value of type %Qlv",
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Cannot parse protobuf enumeration %Qv from unverioned value of type %Qlv",
                     enumDescription ? enumDescription->GetEnumerationName() : "<unknown>",
                     Value_.Type);
         }
@@ -616,7 +616,7 @@ public:
         auto totalWrittenSizeAfter = Writer_->GetTotalWrittenSize();
         auto messageSize = totalWrittenSizeAfter - TotalWrittenSizeBefore_;
         if (messageSize >= std::numeric_limits<TMessageSize>::max()) {
-            THROW_ERROR_EXCEPTION("Too large protobuf message: limit is %v, actual size is %v",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Too large protobuf message: limit is %v, actual size is %v",
                 std::numeric_limits<TMessageSize>::max(),
                 messageSize);
         }
@@ -789,7 +789,7 @@ private:
                 try {
                     WriterImpl_.OnValue(value, *fieldDescription);
                 } catch (const std::exception& ex) {
-                    THROW_ERROR_EXCEPTION("Error writing value of field %Qv",
+                    THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Error writing value of field %Qv",
                         fieldDescription->Name)
                         << ex;
                 }
@@ -833,7 +833,7 @@ private:
         const TNameTablePtr& nameTable)
     {
         if (Y_UNLIKELY(tableIndex >= TableIndexToFieldIndexToDescription_.size())) {
-            THROW_ERROR_EXCEPTION("Table with index %v is missing in format description",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Table with index %v is missing in format description",
                 tableIndex);
         }
         auto& fieldIndexToDescription = TableIndexToFieldIndexToDescription_[tableIndex];

@@ -11,6 +11,10 @@ DEFINE_ENUM(EComplexTypeMode,
     (Named)
 );
 
+DEFINE_ENUM(EErrorCode,
+    ((GenericFormatError) (2300))
+);
+
 DECLARE_REFCOUNTED_CLASS(TYsonFormatConfig)
 DECLARE_REFCOUNTED_CLASS(TTableFormatConfigBase)
 DECLARE_REFCOUNTED_CLASS(TYamrFormatConfig)

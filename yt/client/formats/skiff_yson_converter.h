@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/client/table_client/public.h>
 #include <yt/client/table_client/row_base.h>
 

@@ -32,7 +32,7 @@ const TString& TEnumerationDescription::GetValueName(i32 value) const
 {
     auto it = ValueToName_.find(value);
     if (it == ValueToName_.end()) {
-        THROW_ERROR_EXCEPTION("Invalid value for enum")
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Invalid value for enum")
             << TErrorAttribute("enum_name", GetEnumerationName())
             << TErrorAttribute("value", value);
     }
@@ -43,7 +43,7 @@ i32 TEnumerationDescription::GetValue(TStringBuf valueName) const
 {
     auto it = NameToValue_.find(valueName);
     if (it == NameToValue_.end()) {
-        THROW_ERROR_EXCEPTION("Invalid value for enum")
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Invalid value for enum")
             << TErrorAttribute("enum_name", GetEnumerationName())
             << TErrorAttribute("value", valueName);
     }
@@ -53,12 +53,12 @@ i32 TEnumerationDescription::GetValue(TStringBuf valueName) const
 void TEnumerationDescription::Add(TString name, i32 value)
 {
     if (NameToValue_.find(name) != NameToValue_.end()) {
-        THROW_ERROR_EXCEPTION("Enumeration %v already has value %v",
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Enumeration %v already has value %v",
             Name_,
             name);
     }
     if (ValueToName_.find(value) != ValueToName_.end()) {
-        THROW_ERROR_EXCEPTION("Enumeration %v already has value %v",
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Enumeration %v already has value %v",
             Name_,
             value);
     }
@@ -79,7 +79,7 @@ public:
         DescriptorPool::ErrorCollector::ErrorLocation location,
         const TString& message) override
     {
-        THROW_ERROR_EXCEPTION("Error while building protobuf descriptors: %v", message)
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Error while building protobuf descriptors: %v", message)
             << TErrorAttribute("file_name", fileName)
             << TErrorAttribute("element_name", elementName);
     }
@@ -103,7 +103,7 @@ static TEnumerationDescription CreateEnumerationMap(
                 result.Add(name, valueNode->GetValue<i64>());
                 break;
             default:
-                THROW_ERROR_EXCEPTION("Invalid specification of %Qv enumeration; enumeration value expected type Int64 or Uint64 actual type: %v",
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Invalid specification of %Qv enumeration; enumeration value expected type Int64 or Uint64 actual type: %v",
                     enumName,
                     valueNode->GetType());
         }
@@ -290,7 +290,7 @@ void ValidateSimpleType(
     };
 
     auto throwMismatchError = [&] (TStringBuf message) {
-        THROW_ERROR_EXCEPTION("Simple logical type %Qlv and protobuf type %Qlv mismatch: %v",
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Simple logical type %Qlv and protobuf type %Qlv mismatch: %v",
             logicalType,
             protobufType,
             message);
@@ -370,20 +370,20 @@ void TProtobufFormatDescription::Init(
     const bool tablesSpecified = !config->Tables.empty();
     const bool fileDescriptorSetSpecified = !config->FileDescriptorSet.empty();
     if (tablesSpecified && fileDescriptorSetSpecified) {
-        THROW_ERROR_EXCEPTION(R"("tables" and "file_descriptor_set" must not be used together in protobuf format)");
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, R"("tables" and "file_descriptor_set" must not be used together in protobuf format)");
     } else if (tablesSpecified) {
         InitFromProtobufSchema(config, schemas, validateMissingFieldsOptionality);
     } else if (fileDescriptorSetSpecified) {
         InitFromFileDescriptors(config);
     } else {
-        THROW_ERROR_EXCEPTION(R"("tables" attribute is not specified in protobuf format)");
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, R"("tables" attribute is not specified in protobuf format)");
     }
 }
 
 const TProtobufTableDescription& TProtobufFormatDescription::GetTableDescription(ui32 tableIndex) const
 {
     if (tableIndex >= Tables_.size()) {
-        THROW_ERROR_EXCEPTION("Protobuf format does not have table with index %v",
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Protobuf format does not have table with index %v",
             tableIndex);
     }
     return Tables_[tableIndex];
@@ -397,15 +397,15 @@ size_t TProtobufFormatDescription::GetTableCount() const
 void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatConfigPtr& config)
 {
     if (config->FileIndices.empty()) {
-        THROW_ERROR_EXCEPTION(R"("file_indices" attribute must be non empty in protobuf format)");
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, R"("file_indices" attribute must be non empty in protobuf format)");
     }
     if (config->MessageIndices.size() != config->FileIndices.size()) {
-        THROW_ERROR_EXCEPTION(R"("message_indices" and "file_indices" must be of same size in protobuf format)");
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, R"("message_indices" and "file_indices" must be of same size in protobuf format)");
     }
 
     ::google::protobuf::FileDescriptorSet fileDescriptorSet;
     if (!fileDescriptorSet.ParseFromString(config->FileDescriptorSet)) {
-        THROW_ERROR_EXCEPTION(R"(Error parsing "file_descriptor_set" in protobuf config)");
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, R"(Error parsing "file_descriptor_set" in protobuf config)");
     }
 
     std::vector<const FileDescriptor*> fileDescriptors;
@@ -417,7 +417,7 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
             &errorCollector);
 
         if (!file) {
-            THROW_ERROR_EXCEPTION("Error building file %v",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Error building file %v",
                 fileDescriptorProto.name());
         }
 
@@ -428,14 +428,14 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
     std::vector<const Descriptor*> messageDescriptors;
     for (size_t i = 0; i < config->FileIndices.size(); ++i) {
         if (config->FileIndices[i] >= static_cast<int>(fileDescriptors.size())) {
-            THROW_ERROR_EXCEPTION("File index is out of bound")
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "File index is out of bound")
                 << TErrorAttribute("file_index", config->FileIndices[i])
                 << TErrorAttribute("file_count", fileDescriptors.size());
         }
         auto* fileDescriptor = fileDescriptors[config->FileIndices[i]];
 
         if (config->MessageIndices[i] >= fileDescriptor->message_type_count()) {
-            THROW_ERROR_EXCEPTION("Message index is out of bound")
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Message index is out of bound")
                 << TErrorAttribute("message_index", config->MessageIndices[i])
                 << TErrorAttribute("message_count", fileDescriptor->message_type_count());
         }
@@ -464,7 +464,7 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
 
             auto [fieldIt, inserted] = columns.emplace(columnName, TProtobufFieldDescription{});
             if (!inserted) {
-                THROW_ERROR_EXCEPTION("Multiple fields with same column name %Qv are forbidden in protobuf format",
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Multiple fields with same column name %Qv are forbidden in protobuf format",
                     columnName);
             }
             auto& field = fieldIt->second;
@@ -503,7 +503,7 @@ void TProtobufFormatDescription::InitFromProtobufSchema(
         const auto& enumerationConfigMap = config->Enumerations;
         for (const auto& [name, field] : enumerationConfigMap->GetChildren()) {
             if (field->GetType() != ENodeType::Map) {
-                THROW_ERROR_EXCEPTION(R"(Invalid enumeration specification type: expected "map", found %Qlv)",
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, R"(Invalid enumeration specification type: expected "map", found %Qlv)",
                     field->GetType());
             }
             const auto& enumerationConfig = field->AsMap();
@@ -513,7 +513,7 @@ void TProtobufFormatDescription::InitFromProtobufSchema(
 
     const auto& tableConfigs = config->Tables;
     if (tableConfigs.size() < schemas.size()) {
-        THROW_ERROR_EXCEPTION("Number of schemas is greater than number of tables in protobuf config: %v > %v",
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Number of schemas is greater than number of tables in protobuf config: %v > %v",
             schemas.size(),
             tableConfigs.size());
     }
@@ -525,7 +525,7 @@ void TProtobufFormatDescription::InitFromProtobufSchema(
         for (const auto& columnConfig : tableConfig->Columns) {
             auto [fieldIt, inserted] = columns.emplace(columnConfig->Name, TProtobufFieldDescription{});
             if (!inserted) {
-                THROW_ERROR_EXCEPTION("Multiple fields with same column name %Qv are forbidden in protobuf format",
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Multiple fields with same column name %Qv are forbidden in protobuf format",
                     columnConfig->Name);
             }
             auto columnSchema = tableSchema.FindColumn(columnConfig->Name);
@@ -533,12 +533,12 @@ void TProtobufFormatDescription::InitFromProtobufSchema(
 
             if (columnConfig->ProtoType == EProtobufType::OtherColumns) {
                 if (columnConfig->Repeated) {
-                    THROW_ERROR_EXCEPTION("Protobuf field %Qv of type %Qlv can not be repeated",
+                    THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Protobuf field %Qv of type %Qlv can not be repeated",
                         columnConfig->Name,
                         EProtobufType::OtherColumns);
                 }
                 if (logicalType) {
-                    THROW_ERROR_EXCEPTION("Protobuf field %Qv of type %Qlv should not match actual column in schema",
+                    THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Protobuf field %Qv of type %Qlv should not match actual column in schema",
                         columnConfig->Name,
                         EProtobufType::OtherColumns);
                 }
@@ -546,7 +546,7 @@ void TProtobufFormatDescription::InitFromProtobufSchema(
 
             bool needSchema = columnConfig->Repeated || columnConfig->ProtoType == EProtobufType::StructuredMessage;
             if (!logicalType && needSchema) {
-                THROW_ERROR_EXCEPTION("Schema is required for repeated and %Qlv protobuf fields",
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Schema is required for repeated and %Qlv protobuf fields",
                     EProtobufType::StructuredMessage);
             }
 
@@ -582,12 +582,12 @@ void TProtobufFormatDescription::InitSchemalessField(
 
     if (field->Type == EProtobufType::EnumString) {
         if (!columnConfig->EnumerationName) {
-            THROW_ERROR_EXCEPTION("Invalid format: \"enumeration_name\" for column %Qv is not specified",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Invalid format: \"enumeration_name\" for column %Qv is not specified",
                 columnConfig->Name);
         }
         auto it = EnumerationDescriptionMap_.find(*columnConfig->EnumerationName);
         if (it == EnumerationDescriptionMap_.end()) {
-            THROW_ERROR_EXCEPTION("Invalid format: cannot find enumeration with name %Qv",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Invalid format: cannot find enumeration with name %Qv",
                 *columnConfig->EnumerationName);
         }
         field->EnumerationDescription = &it->second;
@@ -609,7 +609,7 @@ void TProtobufFormatDescription::InitField(
     };
 
     if (columnConfig->ProtoType == EProtobufType::OtherColumns) {
-        THROW_ERROR_EXCEPTION("Protobuf field of type %Qlv is not allowed inside complex types",
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Protobuf field of type %Qlv is not allowed inside complex types",
             EProtobufType::OtherColumns)
             << errorAttributes;
     }
@@ -627,11 +627,11 @@ void TProtobufFormatDescription::InitField(
 
     if (field->Repeated) {
         if (field->Optional) {
-            THROW_ERROR_EXCEPTION("Optional list is not supported in protobuf")
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Optional list is not supported in protobuf")
                 << errorAttributes;
         }
         if (logicalType->GetMetatype() != ELogicalMetatype::List) {
-            THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",
                 ELogicalMetatype::List,
                 logicalType->GetMetatype())
                 << errorAttributes;
@@ -651,7 +651,7 @@ void TProtobufFormatDescription::InitField(
 
     if (field->Type != EProtobufType::StructuredMessage) {
         if (logicalType->GetMetatype() != ELogicalMetatype::Simple) {
-            THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",
                 ELogicalMetatype::Simple,
                 logicalType->GetMetatype())
                 << errorAttributes;
@@ -661,7 +661,7 @@ void TProtobufFormatDescription::InitField(
     }
 
     if (logicalType->GetMetatype() != ELogicalMetatype::Struct) {
-        THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",
             ELogicalMetatype::Struct,
             logicalType->GetMetatype())
             << errorAttributes;
@@ -673,7 +673,7 @@ void TProtobufFormatDescription::InitField(
     for (const auto& config : columnConfig->Fields) {
         auto inserted = nameToConfig.emplace(config->Name, config).second;
         if (!inserted) {
-            THROW_ERROR_EXCEPTION("Multiple fields with same column name %Qv are forbidden in protobuf format",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Multiple fields with same column name %Qv are forbidden in protobuf format",
                 config->Name)
                 << errorAttributes;
         }
@@ -686,7 +686,7 @@ void TProtobufFormatDescription::InitField(
         auto configIt = nameToConfig.find(element.Name);
         if (configIt == nameToConfig.end()) {
             if (validateMissingFieldsOptionality && element.Type->GetMetatype() != ELogicalMetatype::Optional) {
-                THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: "
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Schema and protobuf config mismatch: "
                     "non-optional field %Qv in schema is missing from protobuf config",
                     element.Name)
                     << errorAttributes;
@@ -708,7 +708,7 @@ void TProtobufFormatDescription::InitField(
         for (const auto& [name, config] : nameToConfig) {
             notFoundKeys.push_back(Format("%Qv", name));
         }
-        THROW_ERROR_EXCEPTION("Fields %v from protobuf config not found in schema",
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Fields %v from protobuf config not found in schema",
             notFoundKeys)
             << errorAttributes;
     }

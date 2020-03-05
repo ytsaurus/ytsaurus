@@ -107,7 +107,7 @@ private:
             }
 
             if (!key) {
-                THROW_ERROR_EXCEPTION("Missing key column %Qv in YAMR record", config->Key);
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Missing key column %Qv in YAMR record", config->Key);
             }
 
             if (!subkey) {
@@ -115,7 +115,7 @@ private:
             }
 
             if (!value) {
-                THROW_ERROR_EXCEPTION("Missing value column %Qv in YAMR record", config->Value);
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Missing value column %Qv in YAMR record", config->Value);
             }
 
             if (!config->Lenval) {
@@ -144,7 +144,7 @@ private:
     void ValidateColumnType(const TUnversionedValue* value, TStringBuf columnName)
     {
         if (value->Type != EValueType::String) {
-            THROW_ERROR_EXCEPTION("Wrong type %Qlv of column %Qv in YAMR record",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Wrong type %Qlv of column %Qv in YAMR record",
                 value->Type,
                 columnName);
         }
@@ -162,11 +162,11 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForYamr(
     int keyColumnCount)
 {
     if (controlAttributesConfig->EnableKeySwitch && !config->Lenval) {
-        THROW_ERROR_EXCEPTION("Key switches are not supported in text YAMR format");
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Key switches are not supported in text YAMR format");
     }
 
     if (controlAttributesConfig->EnableRangeIndex && !config->Lenval) {
-        THROW_ERROR_EXCEPTION("Range indices are not supported in text YAMR format");
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Range indices are not supported in text YAMR format");
     }
 
     return New<TSchemalessWriterForYamr>(
