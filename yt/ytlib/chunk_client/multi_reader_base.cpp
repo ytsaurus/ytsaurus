@@ -27,6 +27,7 @@ TMultiReaderBase::TMultiReaderBase(
     , ReaderFactories_(readerFactories)
     , Logger(NLogging::TLogger(ChunkClientLogger)
         .AddTag("MultiReaderId: %v", TGuid::Create()))
+    , UncancelableCompletionError_(CompletionError_.ToFuture().ToUncancelable())
     , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
     , FreeBufferSize_(Config_->MaxBufferSize)
 {
@@ -37,7 +38,7 @@ TMultiReaderBase::TMultiReaderBase(
 
     if (readerFactories.empty()) {
         CompletionError_.Set(TError());
-        ReadyEvent_ = CompletionError_.ToFuture();
+        ReadyEvent_ = UncancelableCompletionError_;
         return;
     }
     NonOpenedReaderIndexes_.reserve(readerFactories.size());
@@ -217,7 +218,7 @@ bool TMultiReaderBase::OnEmptyRead(bool readerFinished)
 TFuture<void> TMultiReaderBase::CombineCompletionError(TFuture<void> future)
 {
     auto promise = NewPromise<void>();
-    promise.TrySetFrom(CompletionError_.ToFuture());
+    promise.TrySetFrom(UncancelableCompletionError_);
     promise.TrySetFrom(future);
     return promise.ToFuture();
 }
@@ -255,7 +256,7 @@ TSequentialMultiReaderBase::TSequentialMultiReaderBase(
         NextReaders_.push_back(NewPromise<IReaderBasePtr>());
     }
 
-    CompletionError_.ToFuture().Subscribe(
+    UncancelableCompletionError_.Subscribe(
         BIND(&TSequentialMultiReaderBase::PropagateError, MakeWeak(this))
             .Via(ReaderInvoker_));
 }
@@ -367,7 +368,7 @@ TParallelMultiReaderBase::TParallelMultiReaderBase(
         readerFactories)
 {
     YT_LOG_DEBUG("Multi chunk reader is parallel");
-    CompletionError_.ToFuture().Subscribe(
+    UncancelableCompletionError_.Subscribe(
         BIND(&TParallelMultiReaderBase::PropagateError, MakeWeak(this)));
 }
 
