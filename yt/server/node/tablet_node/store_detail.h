@@ -53,22 +53,6 @@ public:
 
     virtual void BuildOrchidYson(NYTree::TFluentMap fluent) override;
 
-    virtual bool IsDynamic() const override;
-    virtual IDynamicStorePtr AsDynamic() override;
-
-    virtual bool IsChunk() const override;
-    virtual IChunkStorePtr AsChunk() override;
-
-    virtual bool IsSorted() const override;
-    virtual ISortedStorePtr AsSorted() override;
-    virtual TSortedDynamicStorePtr AsSortedDynamic() override;
-    virtual TSortedChunkStorePtr AsSortedChunk() override;
-
-    virtual bool IsOrdered() const override;
-    virtual IOrderedStorePtr AsOrdered() override;
-    virtual TOrderedDynamicStorePtr AsOrderedDynamic() override;
-    virtual TOrderedChunkStorePtr AsOrderedChunk() override;
-
 protected:
     const TTabletManagerConfigPtr Config_;
     const TTabletChunkReaderConfigPtr ReaderConfig_;
@@ -111,8 +95,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicStoreBase
-    : public virtual TStoreBase
-    , public virtual IDynamicStore
+    : public TStoreBase
+    , public IDynamicStore
 {
 public:
     TDynamicStoreBase(
@@ -183,8 +167,8 @@ DECLARE_REFCOUNTED_CLASS(TPreloadedBlockCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkStoreBase
-    : public virtual TStoreBase
-    , public virtual IChunkStore
+    : public TStoreBase
+    , public IChunkStore
 {
 public:
     TChunkStoreBase(
@@ -306,15 +290,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedStoreBase
-    : public virtual TStoreBase
-    , public virtual ISortedStore
+    : public ISortedStore
 {
 public:
-    TSortedStoreBase(
-        TTabletManagerConfigPtr config,
-        TStoreId id,
-        TTablet* tablet);
-
     virtual TPartition* GetPartition() const override;
     virtual void SetPartition(TPartition* partition) override;
 
@@ -329,23 +307,17 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOrderedStoreBase
-    : public virtual TStoreBase
-    , public virtual IOrderedStore
+    : public IOrderedStore
 {
 public:
-    TOrderedStoreBase(
-        TTabletManagerConfigPtr config,
-        TStoreId id,
-        TTablet* tablet);
-
     virtual bool IsOrdered() const override;
     virtual IOrderedStorePtr AsOrdered() override;
 
     virtual i64 GetStartingRowIndex() const override;
     virtual void SetStartingRowIndex(i64 value) override;
 
-    virtual void Save(TSaveContext& context) const override;
-    virtual void Load(TLoadContext& context) override;
+    void Save(TSaveContext& context) const;
+    void Load(TLoadContext& context);
 
 protected:
     i64 StartingRowIndex_ = 0;
