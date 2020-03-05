@@ -716,9 +716,9 @@ TNode::TListType SkyShareTable(
     if (dotPos == TString::npos) {
         ythrow yexception() << "Invalid server name";
     }
-    TString proxyName = auth.ServerName.substr(0, dotPos);
+    const auto proxyName = auth.ServerName.substr(0, dotPos);
     header.MergeParameters(SerializeParamsForSkyShareTable(proxyName, tablePath, options));
-    TAuth skyApiHost({"skynet-manager.yt.yandex.net", ""});
+    TAuth skyApiHost({"skynet-manager." + proxyName + ".yt.yandex.net", ""});
     TResponseInfo response = {};
 
     // As documented at https://wiki.yandex-team.ru/yt/userdoc/blob_tables/#shag3.sozdajomrazdachu
