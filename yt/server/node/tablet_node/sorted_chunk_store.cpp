@@ -168,8 +168,7 @@ TSortedChunkStore::TSortedChunkStore(
     TVersionedChunkMetaManagerPtr chunkMetaManager,
     NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor)
-    : TStoreBase(config, id, tablet)
-    , TChunkStoreBase(
+    : TChunkStoreBase(
         config,
         id,
         chunkId,
@@ -181,7 +180,6 @@ TSortedChunkStore::TSortedChunkStore(
         chunkMetaManager,
         client,
         localDescriptor)
-    , TSortedStoreBase(config, id, tablet)
     , KeyComparer_(tablet->GetRowKeyComparer())
 {
     TKey lowerBound;

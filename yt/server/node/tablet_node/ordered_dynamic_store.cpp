@@ -176,9 +176,7 @@ TOrderedDynamicStore::TOrderedDynamicStore(
     TTabletManagerConfigPtr config,
     TStoreId id,
     TTablet* tablet)
-    : TStoreBase(config, id, tablet)
-    , TDynamicStoreBase(config, id, tablet)
-    , TOrderedStoreBase(config, id, tablet)
+    : TDynamicStoreBase(config, id, tablet)
     , TimestampColumnId_(GetTimestampColumnId(Schema_))
 {
     AllocateCurrentSegment(InitialOrderedDynamicSegmentIndex);

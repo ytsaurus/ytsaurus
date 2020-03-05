@@ -816,9 +816,7 @@ TSortedDynamicStore::TSortedDynamicStore(
     TTabletManagerConfigPtr config,
     TStoreId id,
     TTablet* tablet)
-    : TStoreBase(config, id, tablet)
-    , TDynamicStoreBase(config, id, tablet)
-    , TSortedStoreBase(config, id, tablet)
+    : TDynamicStoreBase(config, id, tablet)
     , RowKeyComparer_(Tablet_->GetRowKeyComparer())
     , Rows_(new TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>(
         RowBuffer_->GetPool(),
