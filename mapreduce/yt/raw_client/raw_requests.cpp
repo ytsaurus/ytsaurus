@@ -718,7 +718,7 @@ TNode::TListType SkyShareTable(
     }
     const auto proxyName = auth.ServerName.substr(0, dotPos);
     header.MergeParameters(SerializeParamsForSkyShareTable(proxyName, tablePath, options));
-    TAuth skyApiHost({"skynet-manager." + proxyName + ".yt.yandex.net", ""});
+    TAuth skyApiHost({"skynet." + proxyName + ".yt.yandex.net", ""});
     TResponseInfo response = {};
 
     // As documented at https://wiki.yandex-team.ru/yt/userdoc/blob_tables/#shag3.sozdajomrazdachu
