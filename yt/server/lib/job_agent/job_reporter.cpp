@@ -165,7 +165,7 @@ public:
         , Client_(std::move(client))
         , Profiler_(profiler)
         , Limiter_(maxInProgressDataSize)
-        , Batcher_(New<TNonblockingBatch<TJobReporter>>(Config_->MaxItemsInBatch, Config_->ReportingPeriod))
+        , Batcher_(New<TNonblockingBatch<TJobReport>>(Config_->MaxItemsInBatch, Config_->ReportingPeriod))
     {
         BIND(&THandlerBase::Loop, MakeWeak(this))
             .Via(invoker)
