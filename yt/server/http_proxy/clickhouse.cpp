@@ -70,7 +70,11 @@ public:
         , Metrics_(metrics)
     {
         if (auto* traceParent = req->GetHeaders()->Find("traceparent")) {
-            YT_LOG_INFO("Request contains traceparent (Traceparent: %v)", traceParent);
+            YT_LOG_INFO("Request contains traceparent header (Traceparent: %v)", traceParent);
+        }
+
+        if (auto* xRequestId = req->GetHeaders()->Find("X-Request-Id")) {
+            YT_LOG_INFO("Request contains X-Request-Id header (X-Request-Id: %v)", xRequestId);
         }
     }
 
@@ -112,7 +116,6 @@ public:
 
             ProxiedRequestHeaders_ = Request_->GetHeaders()->Duplicate();
             ProxiedRequestHeaders_->Remove("Authorization");
-            ProxiedRequestHeaders_->Add("X-Yt-User", User_);
             ProxiedRequestHeaders_->Add("X-Clickhouse-User", User_);
 
             CgiParameters_.EraseAll("database");
@@ -131,13 +134,19 @@ public:
                 traceContext->SetSampled(true);
             }
 
-            CgiParameters_.emplace("query_id", ToString(traceContext->GetTraceId()));
-
             // COMPAT(max42): remove this, name is misleading.
             ProxiedRequestHeaders_->Add("X-Yt-Request-Id", ToString(Request_->GetRequestId()));
 
-            ProxiedRequestHeaders_->Add("X-Yt-Trace-Id", ToString(traceContext->GetTraceId()));
-            ProxiedRequestHeaders_->Add("X-Yt-Span-Id", Format("%" PRIx64, traceContext->GetSpanId()));
+            auto traceIdString = ToString(traceContext->GetTraceId());
+            auto spanIdString = Format("%" PRIx64, traceContext->GetSpanId());
+            auto sampledString = ToString(traceContext->IsSampled());
+            YT_LOG_INFO("Proxied request tracing parameters (TraceId: %v, SpanId: %v, Sampled: %v)",
+                traceIdString,
+                spanIdString,
+                sampledString);
+
+            ProxiedRequestHeaders_->Add("X-Yt-Trace-Id", traceIdString);
+            ProxiedRequestHeaders_->Add("X-Yt-Span-Id", spanIdString);
             ProxiedRequestHeaders_->Add("X-Yt-Sampled", ToString(traceContext->IsSampled()));
         } catch (const std::exception& ex) {
             ReplyWithError(EStatusCode::InternalServerError, TError("Preparation failed")
