@@ -1,7 +1,8 @@
 import pytest
 from flaky import flaky
 
-from yt_env_setup import YTEnvSetup, unix_only
+import yt.common
+from yt_env_setup import YTEnvSetup, unix_only, get_porto_delta_node_config, porto_avaliable
 from yt_commands import *
 
 import string
@@ -101,29 +102,31 @@ class TestSchedulerAlerts(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerOperationAlerts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    USE_PORTO_FOR_SERVERS = True
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "scheduler_connector": {
-                "heartbeat_period": 200
-            },
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "supported_cgroups": ["blkio", "cpu", "cpuacct"],
-                    "block_io_watchdog_period": 100
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        {
+            "exec_agent": {
+                "scheduler_connector": {
+                    "heartbeat_period": 200
+                },
+                "slot_manager": {
+                    "job_environment": {
+                        "block_io_watchdog_period": 100
+                    }
+                },
+                "job_controller": {
+                    "get_job_specs_timeout": 30000
                 }
-            },
-            "job_controller": {
-                "get_job_specs_timeout": 30000
             }
-        }
-    }
+        })
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {

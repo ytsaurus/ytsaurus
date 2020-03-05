@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, get_porto_delta_node_config
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, get_porto_delta_node_config, porto_avaliable
 from yt_commands import *
 
 from flaky import flaky
@@ -20,27 +20,15 @@ def check_memory_limit(op):
         inner_errors = get(jobs_path + "/" + job_id + "/@error/inner_errors")
         assert "Memory limit exceeded" in inner_errors[0]["message"]
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    USE_PORTO_FOR_SERVERS = True
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "memory_watchdog_period": 100,
-                    "supported_cgroups": [
-                        "cpuacct",
-                        "blkio",
-                        "cpu",
-                    ],
-                },
-            }
-        }
-    }
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
 
     #pytest.mark.xfail(run = False, reason = "Set-uid-root before running.")
     @authors("psushin")
@@ -85,32 +73,14 @@ while True:
         command = "cat > /dev/null; mkdir ./tmpxxx; echo 1 > ./tmpxxx/f1; chmod 700 ./tmpxxx;"
         map(in_="//tmp/t_in", out="//tmp/t_out", command=command)
 
-@patch_porto_env_only(TestSchedulerMemoryLimits)
-class TestSchedulerMemoryLimitsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    USE_PORTO_FOR_SERVERS = True
-
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestMemoryReserveFactor(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
-
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment" : {
-                    "type": "cgroups",
-                    "memory_watchdog_period": 100,
-                    "supported_cgroups": [
-                        "cpuacct",
-                        "blkio",
-                        "cpu",
-                    ],
-                },
-            }
-        }
-    }
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    USE_PORTO_FOR_SERVERS = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -181,11 +151,6 @@ time.sleep(5.0)
                 last_memory_reserve = int(event["statistics"]["user_job"]["memory_reserve"]["sum"])
         assert not last_memory_reserve is None
         assert 5e7 <= last_memory_reserve <= 10e7
-
-@patch_porto_env_only(TestMemoryReserveFactor)
-class TestMemoryReserveFactorPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    USE_PORTO_FOR_SERVERS = True
 
 ###############################################################################################
 

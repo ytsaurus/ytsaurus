@@ -1,12 +1,14 @@
 from yt_env_setup import (
     YTEnvSetup, wait, Restarter, require_ytserver_root_privileges, unix_only, is_asan_build,
     SCHEDULERS_SERVICE, MASTERS_SERVICE,
+    get_porto_delta_node_config, porto_avaliable,
 )
 
 from yt_commands import *
 from yt_helpers import *
 
 from yt.yson import YsonEntity
+import yt.common
 import yt.environment.init_operation_archive as init_operation_archive
 
 from distutils.spawn import find_executable
@@ -21,6 +23,7 @@ from datetime import datetime, timedelta
 
 ##################################################################
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -46,17 +49,8 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "memory_watchdog_period": 100,
-                    "supported_cgroups": ["cpuacct", "blkio", "cpu"],
-                },
-            }
-        }
-    }
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    USE_PORTO_FOR_SERVERS = True
 
     @authors("ignat")
     def test_connection_time(self):
@@ -583,6 +577,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         wait(lambda: op3.get_state() == "failed")
 
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -608,18 +603,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "memory_watchdog_period": 100,
-                    "supported_cgroups": ["cpuacct", "blkio", "cpu"],
-                },
-            }
-        }
-    }
-
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    USE_PORTO_FOR_SERVERS = True
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat", "eshcherbin")
@@ -961,6 +946,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
 ##################################################################
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -996,22 +982,17 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "memory_watchdog_period": 100,
-                    "supported_cgroups": ["cpuacct", "blkio", "cpu"],
-                },
-            },
-            "scheduler_connector": {
-                "heartbeat_period": 100,  # 100 msec
-            },
-        }
-    }
-
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    USE_PORTO_FOR_SERVERS = True
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        {
+            "exec_agent": {
+                "scheduler_connector": {
+                    "heartbeat_period": 100,  # 100 msec
+                },
+            }
+        })
 
     def _get_cypress_metrics(self, operation_id, key, job_state="completed", aggr="sum"):
         statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")

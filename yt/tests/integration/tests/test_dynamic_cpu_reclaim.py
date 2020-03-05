@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait, get_cgroup_delta_node_config
+from yt_env_setup import YTEnvSetup, wait, get_porto_delta_node_config, porto_avaliable
 from yt_commands import *
 from yt_helpers import *
 
@@ -21,13 +21,15 @@ SPEC_WITH_CPU_MONITOR = {
 }
 
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestAggregatedCpuMetrics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
+    USE_PORTO_FOR_SERVERS = True
     DELTA_NODE_CONFIG = yt.common.update(
-        get_cgroup_delta_node_config(),
+        get_porto_delta_node_config(),
         {
             "exec_agent": {
                 "scheduler_connector": {
@@ -51,8 +53,6 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
             "job_metrics_report_period": 100,
         }
     }
-
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("renadeen")
     def test_sleeping(self):
@@ -99,6 +99,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         wait(lambda: preemptable_cpu_delta.update().get(verbose=True) == 0)
 
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestDynamicCpuReclaim(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -110,26 +111,22 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "supported_cgroups": ["cpu", "cpuacct"]
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        {
+            "exec_agent": {
+                "job_controller": {
+                    "resource_limits": {
+                        "cpu": 1.5,
+                        "user_slots": 2
+                    },
+                    "cpu_overdraft_timeout": 1000,
+                    "resource_adjustment_period": 1000
                 }
-            },
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 1.5,
-                    "user_slots": 2
-                },
-                "cpu_overdraft_timeout": 1000,
-                "resource_adjustment_period": 1000
             }
-        }
-    }
+        })
 
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    USE_PORTO_FOR_SERVERS = True
 
     @authors("renadeen")
     def test_dynamic_cpu_statistics(self):
@@ -183,22 +180,18 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "supported_cgroups": ["cpu", "cpuacct"]
-                }
-            },
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 2.5,
-                    "user_slots": 3
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        {
+            "exec_agent": {
+                "job_controller": {
+                    "resource_limits": {
+                        "cpu": 2.5,
+                        "user_slots": 3
+                    }
                 }
             }
-        }
-    }
+        })
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -206,7 +199,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    USE_PORTO_FOR_SERVERS = True
 
     @authors("renadeen")
     def test_scheduler_aborts_job_on_lack_of_cpu(self):
@@ -244,8 +237,6 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
             }
         }
     }
-
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("renadeen")
     @pytest.mark.skip(reason = "Currently broken")

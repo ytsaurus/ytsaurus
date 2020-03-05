@@ -1,6 +1,6 @@
 from yt_env_setup import (
     YTEnvSetup, unix_only, patch_porto_env_only, wait, Restarter, CONTROLLER_AGENTS_SERVICE,
-    get_porto_delta_node_config, get_cgroup_delta_node_config,
+    get_porto_delta_node_config, porto_avaliable,
 )
 from yt_commands import *
 from yt_helpers import *
@@ -30,6 +30,7 @@ POOL_METRICS_NODE_CONFIG_PATCH = {
     }
 }
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestPoolMetrics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -79,9 +80,10 @@ class TestPoolMetrics(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = yt.common.update(
-        get_cgroup_delta_node_config(),
+        get_porto_delta_node_config(),
         POOL_METRICS_NODE_CONFIG_PATCH
     )
+    USE_PORTO_FOR_SERVERS = True
 
     @authors("ignat")
     @unix_only
@@ -482,15 +484,4 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: total_time_delta.update().get(verbose=True) > total_time_before_restart)
         wait(lambda: custom_metric_delta.update().get(verbose=True) == 120)
 
-
-@patch_porto_env_only(TestPoolMetrics)
-class TestPoolMetricsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = yt.common.update(
-        get_porto_delta_node_config(),
-        POOL_METRICS_NODE_CONFIG_PATCH
-    )
-    USE_PORTO_FOR_SERVERS = True
-
 ##################################################################
-
-
