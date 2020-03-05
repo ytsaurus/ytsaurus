@@ -348,17 +348,18 @@ public:
             THROW_ERROR_EXCEPTION("No tablet slots in node config");
         }
 
+        // WTF???
         // We create fake tablet slot here populating descriptors with the least amount
         // of data such that configuration succeeds.
         {
-            TTabletCellOptions options;
-            options.SnapshotAccount = "a";
-            options.ChangelogAccount = "a";
+            auto options = New<TTabletCellOptions>();
+            options->SnapshotAccount = "a";
+            options->ChangelogAccount = "a";
 
             NTabletClient::NProto::TCreateTabletSlotInfo protoInfo;
             ToProto(protoInfo.mutable_cell_id(), TGuid{});
             protoInfo.set_peer_id(0);
-            protoInfo.set_options(ConvertToYsonString(options).GetData());
+            protoInfo.set_options(ConvertToYsonString(*options).GetData());
             protoInfo.set_tablet_cell_bundle("b");
 
             CreateSlot(protoInfo);

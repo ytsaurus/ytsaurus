@@ -241,7 +241,7 @@ public:
             YT_LOG_DEBUG("Finalizing evaluation");
         });
 
-        auto memoryChunkProvider = MemoryProvider_.GetProvider(
+        auto memoryChunkProvider = MemoryProvider_->GetProvider(
             ToString(options.ReadSessionId),
             options.MemoryLimitPerNode,
             MemoryTracker_);
@@ -316,7 +316,7 @@ public:
 
 private:
     const IMemoryUsageTrackerPtr MemoryTracker_;
-    TMemoryProviderMapByTag MemoryProvider_;
+    const TMemoryProviderMapByTagPtr MemoryProvider_ = New<TMemoryProviderMapByTag>();
 
 
     TCGQueryCallback Codegen(

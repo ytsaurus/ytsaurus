@@ -453,7 +453,7 @@ private:
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
         if (netThrottling) {
-            Bootstrap_->GetNetworkStatistics()->IncrementReadThrottlingCounter(
+            Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
                 context->GetEndpointAttributes().Get("network", DefaultNetworkName));
         }
 
@@ -596,7 +596,7 @@ private:
         bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
         response->set_net_throttling(netThrottling);
         if (netThrottling) {
-            Bootstrap_->GetNetworkStatistics()->IncrementReadThrottlingCounter(
+            Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
                 context->GetEndpointAttributes().Get("network", DefaultNetworkName));
         }
 
@@ -737,7 +737,7 @@ private:
 
         if (request->enable_throttling() && context->GetBusStatistics().PendingOutBytes > Config_->NetOutThrottlingLimit) {
             response->set_net_throttling(true);
-            Bootstrap_->GetNetworkStatistics()->IncrementReadThrottlingCounter(
+            Bootstrap_->GetNetworkStatistics().IncrementReadThrottlingCounter(
                 context->GetEndpointAttributes().Get("network", DefaultNetworkName));
             context->Reply();
             return;

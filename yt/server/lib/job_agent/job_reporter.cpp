@@ -165,12 +165,12 @@ public:
         , Client_(std::move(client))
         , Profiler_(profiler)
         , Limiter_(maxInProgressDataSize)
-        , Batcher_(Config_->MaxItemsInBatch, Config_->ReportingPeriod)
+        , Batcher_(New<TNonblockingBatch<TJobReporter>>(Config_->MaxItemsInBatch, Config_->ReportingPeriod))
     {
         BIND(&THandlerBase::Loop, MakeWeak(this))
             .Via(invoker)
             .Run();
-        EnableSemaphore_.Acquire();
+        EnableSemaphore_->Acquire();
         Logger.AddTag("Reporter: %v", reporterName);
     }
 
@@ -180,7 +180,7 @@ public:
             return;
         }
         if (Limiter_.TryIncrease(statistics.EstimateSize())) {
-            Batcher_.Enqueue(std::move(statistics));
+            Batcher_->Enqueue(std::move(statistics));
             Profiler_.Increment(PendingCounter_);
             Profiler_.Increment(EnqueuedCounter_);
             Profiler_.Update(QueueIsTooLargeCounter_,
@@ -234,9 +234,9 @@ private:
     const NNative::IClientPtr Client_;
     const TProfiler& Profiler_;
     TLimiter Limiter_;
-    TNonblockingBatch<TJobReport> Batcher_;
+    TNonblockingBatchPtr<TJobReport> Batcher_;
 
-    TAsyncSemaphore EnableSemaphore_ {1};
+    TAsyncSemaphorePtr EnableSemaphore_ = New<TAsyncSemaphore>(1);
     std::atomic<bool> Enabled_ = {false};
     std::atomic<ui64> DroppedCount_ = {0};
     std::atomic<ui64> WriteFailuresCount_ = {0};
@@ -248,7 +248,7 @@ private:
     {
         while (true) {
             WaitForEnabled();
-            auto asyncBatch = Batcher_.DequeueBatch();
+            auto asyncBatch = Batcher_->DequeueBatch();
             auto batchOrError = WaitFor(asyncBatch);
             auto batch = batchOrError.ValueOrThrow();
 
@@ -330,14 +330,14 @@ private:
 
     void DoEnable()
     {
-        EnableSemaphore_.Release();
+        EnableSemaphore_->Release();
         YT_LOG_INFO("Job statistics reporter enabled");
     }
 
     void DoDisable()
     {
-        EnableSemaphore_.Acquire();
-        Batcher_.Drop();
+        EnableSemaphore_->Acquire();
+        Batcher_->Drop();
         Limiter_.Reset();
         DroppedCount_.store(0, std::memory_order_relaxed);
         Profiler_.Update(PendingCounter_, 0);
@@ -347,7 +347,7 @@ private:
 
     bool IsEnabled()
     {
-        return EnableSemaphore_.IsReady();
+        return EnableSemaphore_->IsReady();
     }
 
     void WaitForEnabled()
@@ -356,7 +356,7 @@ private:
             return;
         }
         YT_LOG_INFO("Waiting for job statistics reporter to become enabled");
-        auto event = EnableSemaphore_.GetReadyEvent();
+        auto event = EnableSemaphore_->GetReadyEvent();
         WaitFor(event).ThrowOnError();
         YT_LOG_INFO("Job statistics reporter became enabled, resuming statistics writing");
     }

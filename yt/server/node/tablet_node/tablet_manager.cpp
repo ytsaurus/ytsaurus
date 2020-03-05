@@ -141,11 +141,7 @@ public:
         TTabletManagerConfigPtr config,
         TTabletSlotPtr slot,
         TBootstrap* bootstrap)
-        : TCompositeAutomatonPart(
-            slot->GetHydraManager(),
-            slot->GetAutomaton(),
-            slot->GetAutomatonInvoker())
-        , TTabletAutomatonPart(
+        : TTabletAutomatonPart(
             slot,
             bootstrap)
         , Config_(config)
