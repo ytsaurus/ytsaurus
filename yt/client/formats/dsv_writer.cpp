@@ -140,7 +140,7 @@ void TDsvNodeConsumer::OnBooleanScalar(bool value)
 
 void TDsvNodeConsumer::OnEntity()
 {
-    THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError, "Entities are not supported by DSV");
+    THROW_ERROR_EXCEPTION("Entities are not supported by DSV");
 }
 
 void TDsvNodeConsumer::OnBeginList()
@@ -148,7 +148,7 @@ void TDsvNodeConsumer::OnBeginList()
     if (AllowBeginList_) {
         AllowBeginList_ = false;
     } else {
-        THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError, "Embedded lists are not supported by DSV");
+        THROW_ERROR_EXCEPTION("Embedded lists are not supported by DSV");
     }
 }
 
@@ -175,7 +175,7 @@ void TDsvNodeConsumer::OnBeginMap()
         AllowBeginMap_ = false;
         BeforeFirstMapItem_ = true;
     } else {
-        THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError, "Embedded maps are not supported by DSV");
+        THROW_ERROR_EXCEPTION("Embedded maps are not supported by DSV");
     }
 }
 
@@ -202,7 +202,7 @@ void TDsvNodeConsumer::OnEndMap()
 
 void TDsvNodeConsumer::OnBeginAttributes()
 {
-    THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError, "Embedded attributes are not supported by DSV");
+    THROW_ERROR_EXCEPTION("Embedded attributes are not supported by DSV");
 }
 
 void TDsvNodeConsumer::OnEndAttributes()
@@ -221,19 +221,19 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForDsv(
     int /* keyColumnCount */)
 {
     if (controlAttributesConfig->EnableKeySwitch) {
-        THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError, "Key switches are not supported in DSV format");
+        THROW_ERROR_EXCEPTION("Key switches are not supported in DSV format");
     }
 
     if (controlAttributesConfig->EnableRangeIndex) {
-        THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError, "Range indices are not supported in DSV format");
+        THROW_ERROR_EXCEPTION("Range indices are not supported in DSV format");
     }
 
     if (controlAttributesConfig->EnableRowIndex) {
-        THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError, "Row indices are not supported in DSV format");
+        THROW_ERROR_EXCEPTION("Row indices are not supported in DSV format");
     }
 
     if (controlAttributesConfig->EnableTabletIndex) {
-        THROW_ERROR_EXCEPTION(EErrorCode::GenericFormatError, "Tablet indices are not supported in DSV format");
+        THROW_ERROR_EXCEPTION("Tablet indices are not supported in DSV format");
     }
 
     return New<TSchemalessWriterForDsv>(
