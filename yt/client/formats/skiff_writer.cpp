@@ -138,7 +138,7 @@ void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiff
     if constexpr (wireType != EWireType::Yson32) {
         constexpr auto expectedValueType = WireTypeToValueType<wireType>();
         if (value.Type != expectedValueType) {
-            THROW_ERROR_EXCEPTION("Unexpected type of %Qv column, expected: %Qlv found %Qlv",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Unexpected type of %Qv column, expected: %Qlv found %Qlv",
                 context->NameTable->GetName(value.Id),
                 expectedValueType,
                 value.Type);
@@ -188,7 +188,7 @@ public:
             RowIndex_ = currentRowIndex;
         } else if (value.Type == EValueType::Null) {
             if constexpr (Mode == ERowRangeIndexMode::Incremental) {
-                THROW_ERROR_EXCEPTION("Row index requested but reader did not return it");
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Row index requested but reader did not return it");
             } else {
                 static_assert(Mode == ERowRangeIndexMode::IncrementalWithError);
                 writer->WriteVariant8Tag(MissingRowRangeIndexTag);
@@ -211,7 +211,7 @@ public:
             RangeIndex_ = currentRangeIndex;
         } else if (value.Type == EValueType::Null) {
             if constexpr (Mode == ERowRangeIndexMode::Incremental) {
-                THROW_ERROR_EXCEPTION("Range index requested but reader did not return it");
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Range index requested but reader did not return it");
             } else {
                 static_assert(Mode == ERowRangeIndexMode::IncrementalWithError);
                 writer->WriteVariant8Tag(MissingRowRangeIndexTag);
@@ -293,7 +293,7 @@ TUnversionedValueToSkiffConverter CreateComplexValueConverter(
             static const auto empty = AsStringBuf("#");
             input.Reset(empty.Data(), empty.Size());
         } else {
-            THROW_ERROR_EXCEPTION("Internal error: unexpected value type; expected: %Qlv or %Qlv actual: %Qlv",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Internal error: unexpected value type; expected: %Qlv or %Qlv actual: %Qlv",
                 EValueType::Any,
                 EValueType::Null,
                 value.Type);
@@ -595,7 +595,7 @@ private:
                 }
             }
             if (tableIndex >= TableDescriptionList_.size()) {
-                THROW_ERROR_EXCEPTION("Table #%v is not described by Skiff schema",
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Table #%v is not described by Skiff schema",
                     tableIndex)
                     << GetRowPositionErrorAttributes();
             }
@@ -650,7 +650,7 @@ private:
                         break;
                     case ESkiffWriterColumnType::Unknown:
                         if (!hasOtherColumns) {
-                            THROW_ERROR_EXCEPTION("Column %Qv is not described by Skiff schema and there is no %Qv column",
+                            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Column %Qv is not described by Skiff schema and there is no %Qv column",
                                 NameTable_->GetName(columnId),
                                 OtherColumnsName)
                                 << GetRowPositionErrorAttributes();

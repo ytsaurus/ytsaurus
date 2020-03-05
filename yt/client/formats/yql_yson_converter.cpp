@@ -202,7 +202,7 @@ static TWeightLimitedYsonToYqlConverter CreateWeightLimitedYsonToYqlConverter(
 static void EnsureYsonItemTypeEqual(TYsonItem item, EYsonItemType type)
 {
     if (Y_UNLIKELY(item.GetType() != type)) {
-        THROW_ERROR_EXCEPTION("YSON item type mismatch: expected %Qlv, got %Qlv",
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "YSON item type mismatch: expected %Qlv, got %Qlv",
             type,
             item.GetType());
     }
@@ -211,7 +211,7 @@ static void EnsureYsonItemTypeEqual(TYsonItem item, EYsonItemType type)
 static void EnsureYsonItemTypeNotEqual(TYsonItem item, EYsonItemType type)
 {
     if (Y_UNLIKELY(item.GetType() == type)) {
-        THROW_ERROR_EXCEPTION("Unexpected YSON item type %Qlv",
+        THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Unexpected YSON item type %Qlv",
             type);
     }
 }
@@ -475,7 +475,7 @@ public:
         EnsureYsonItemTypeEqual(cursor->GetCurrent(), EYsonItemType::Int64Value);
         const auto alternativeIndex = cursor->GetCurrent().UncheckedAsInt64();
         if (Y_UNLIKELY(!(0 <= alternativeIndex && alternativeIndex < static_cast<int>(ElementConverters_.size())))) {
-            THROW_ERROR_EXCEPTION("Alternative index is out of bounds: expected it to be in [%v, %v), got %v",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Alternative index is out of bounds: expected it to be in [%v, %v), got %v",
                 0,
                 ElementConverters_.size(),
                 alternativeIndex);
@@ -559,7 +559,7 @@ public:
         }
 
         if (Y_UNLIKELY(Type != EValueType::Any && value.Type != Type)) {
-            THROW_ERROR_EXCEPTION("Bad value Type: expected %Qlv, got %Qlv",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Bad value Type: expected %Qlv, got %Qlv",
                 Type,
                 value.Type);
         }
@@ -612,7 +612,7 @@ public:
         i64 weight = 0;
         if (value.Type == EValueType::Null) {
             if (Y_UNLIKELY(!IsNullable_)) {
-                THROW_ERROR_EXCEPTION("Unexpected value type %Qlv for non-nullable type %Qv",
+                THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Unexpected value type %Qlv for non-nullable type %Qv",
                     EValueType::Null,
                     NTableClient::ToString(*Type_));
             }
@@ -620,7 +620,7 @@ public:
             return weight;
         }
         if (Y_UNLIKELY(value.Type != EValueType::Any)) {
-            THROW_ERROR_EXCEPTION("Bad value type: expected %Qlv, got %Qlv",
+            THROW_ERROR_EXCEPTION(NFormats::EErrorCode::GenericFormatError, "Bad value type: expected %Qlv, got %Qlv",
                 EValueType::Any,
                 value.Type);
         }

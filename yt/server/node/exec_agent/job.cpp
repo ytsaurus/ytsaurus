@@ -1695,7 +1695,11 @@ private:
             error.FindMatching(NTableClient::EErrorCode::InvalidColumnFilter) ||
             error.FindMatching(NTableClient::EErrorCode::InvalidColumnRenaming) ||
             error.FindMatching(EErrorCode::SetupCommandFailed) ||
-            error.FindMatching(EErrorCode::GpuJobWithoutLayers);
+            error.FindMatching(EErrorCode::GpuJobWithoutLayers) ||
+            (
+                error.FindMatching(NFormats::EErrorCode::GenericFormatError) &&
+                error.FindMatching(NExecAgent::EErrorCode::ArtifactDownloadFailed)
+            );
     }
 
     TYsonString EnrichStatisticsWithGpuInfo(const TYsonString& statisticsYson)
