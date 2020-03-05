@@ -977,11 +977,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
             ApproximateSizesBoostFactor));
     }
 
-    auto operationWithUserJobSpec = dynamic_cast<TOperationWithUserJobSpec*>(TaskHost_->GetSpec().Get());
-    auto jobCpuMonitorConfig = operationWithUserJobSpec
-        ? operationWithUserJobSpec->JobCpuMonitor
-        : New<TJobCpuMonitorConfig>();
-    schedulerJobSpecExt->set_job_cpu_monitor_config(ConvertToYsonString(jobCpuMonitorConfig).GetData());
+    schedulerJobSpecExt->set_job_cpu_monitor_config(ConvertToYsonString(TaskHost_->GetSpec()->JobCpuMonitor).GetData());
 
     if (schedulerJobSpecExt->input_data_weight() > TaskHost_->GetSpec()->MaxDataWeightPerJob) {
         TaskHost_->OnOperationFailed(TError(

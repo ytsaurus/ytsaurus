@@ -914,11 +914,16 @@ void TJobProxy::Exit(EJobProxyExitCode exitCode)
 
 void TJobProxy::SetCpuShare(double cpuShare)
 {
-    YT_LOG_INFO("Changing CPU share (OldCpuShare: %v, NewCpuShare: %v)",
-        CpuShare_.load(),
-        cpuShare);
-    CpuShare_ = cpuShare;
-    UpdateResourceUsage();
+    if (auto environment = FindJobProxyEnvironment()) {
+        YT_LOG_INFO("Changing CPU share (OldCpuShare: %v, NewCpuShare: %v)",
+            CpuShare_.load(),
+            cpuShare);
+        CpuShare_ = cpuShare;
+        environment->SetCpuShare(cpuShare);
+        UpdateResourceUsage();
+    } else {
+        YT_LOG_INFO("Unable to change CPU share: environment is not set.");
+    }
 }
 
 TDuration TJobProxy::GetSpentCpuTime() const

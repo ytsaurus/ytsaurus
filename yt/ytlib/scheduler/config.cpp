@@ -455,6 +455,9 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("atomicity", Atomicity)
         .Default(EAtomicity::Full);
 
+    RegisterParameter("job_cpu_monitor", JobCpuMonitor)
+        .DefaultNew();
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -763,9 +766,6 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
         .DefaultNew();
     RegisterParameter("write_sparse_core_dumps", WriteSparseCoreDumps)
         .Default(true);
-
-    RegisterParameter("job_cpu_monitor", JobCpuMonitor)
-        .DefaultNew();
 
     RegisterPostprocessor([&] {
         if (StderrTablePath) {
@@ -1695,7 +1695,7 @@ TJobCpuMonitorConfig::TJobCpuMonitorConfig()
 
     RegisterParameter("smoothing_factor", SmoothingFactor)
         .InRange(0, 1)
-        .Default(0.05);
+        .Default(0.1);
 
     RegisterParameter("relative_upper_bound", RelativeUpperBound)
         .InRange(0, 1)
@@ -1707,19 +1707,19 @@ TJobCpuMonitorConfig::TJobCpuMonitorConfig()
 
     RegisterParameter("increase_coefficient", IncreaseCoefficient)
         .InRange(1, 2)
-        .Default(1.15);
+        .Default(1.45);
 
     RegisterParameter("decrease_coefficient", DecreaseCoefficient)
         .InRange(0, 1)
-        .Default(0.85);
+        .Default(0.97);
 
     RegisterParameter("vote_window_size", VoteWindowSize)
         .GreaterThan(0)
-        .Default(30);
+        .Default(5);
 
     RegisterParameter("vote_decision_threshold", VoteDecisionThreshold)
         .GreaterThan(0)
-        .Default(15);
+        .Default(3);
 
     RegisterParameter("min_cpu_limit", MinCpuLimit)
         .InRange(0, 1)
