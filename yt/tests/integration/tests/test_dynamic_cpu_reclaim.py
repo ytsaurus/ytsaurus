@@ -12,11 +12,13 @@ import copy
 SPEC_WITH_CPU_MONITOR = {
     "job_cpu_monitor": {
         "check_period": 10,
+        "increase_coefficient": 1.15,
+        "decrease_coefficient": 0.85,
         "smoothing_factor": 0.2,
-        "vote_window_size": 10,
+        "vote_window_size": 5,
         "vote_decision_threshold": 3,
         "min_cpu_limit": 0.1,
-        "enable_cpu_reclaim": True
+        "enable_cpu_reclaim": True,
     }
 }
 
@@ -129,6 +131,24 @@ class TestDynamicCpuReclaim(YTEnvSetup):
     USE_PORTO_FOR_SERVERS = True
 
     @authors("renadeen")
+    def test_dynamic_cpu_statistics_of_sort_operation(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+        n = 1000000
+        write_table("//tmp/t_in", [{"a": (42 * x) % n} for x in range(n)])
+
+        op = sort(in_="//tmp/t_in",
+                  out="//tmp/t_out",
+                  sort_by="a",
+                  spec=SPEC_WITH_CPU_MONITOR,
+                  track=False)
+        wait(lambda: len(list(op.get_running_jobs())) > 0, sleep_backoff=0.1)
+        stats_path = self.wait_and_get_stats_path(list(op.get_running_jobs())[0])
+        wait(lambda: exists(stats_path + "/preemptable_cpu_x100"), sleep_backoff=0.1)
+        # Sort is more io bound than cpu bound.
+        wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] > 50, sleep_backoff=0.1)
+
+    @authors("renadeen")
     def test_dynamic_cpu_statistics(self):
         run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"), SPEC_WITH_CPU_MONITOR)
         job_id = wait_breakpoint()[0]
@@ -171,7 +191,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
     def wait_and_get_stats_path(self, job_id):
         node = ls("//sys/cluster_nodes")[0]
         result = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/statistics/job_proxy".format(node, job_id)
-        wait(lambda: exists(result))
+        wait(lambda: exists(result), sleep_backoff=0.1)
         return result
 
 

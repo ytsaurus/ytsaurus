@@ -652,6 +652,8 @@ public:
     //! Should match the atomicity of output dynamic tables. If present, output dynamic tables are not locked.
     NTransactionClient::EAtomicity Atomicity;
 
+    TJobCpuMonitorConfigPtr JobCpuMonitor;
+
     TOperationSpecBase();
 
 private:
@@ -829,8 +831,6 @@ public:
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriter;
     bool WriteSparseCoreDumps;
 
-    TJobCpuMonitorConfigPtr JobCpuMonitor;
-
     TOperationWithUserJobSpec();
 };
 
@@ -860,7 +860,6 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationSpecBase, 0x7819ae12);
 };
 
-
 DEFINE_REFCOUNTED_TYPE(TSimpleOperationSpecBase);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -877,7 +876,6 @@ public:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase, 0x79aafe77);
 };
-
 
 DEFINE_REFCOUNTED_TYPE(TUnorderedOperationSpecBase)
 
