@@ -621,10 +621,10 @@ class TestGpuLayerUpdate(YTEnvSetup):
             return res == content
 
         self._write_driver_layer("olli")
-        wait(partial(check_cat, "Olli Tukiainen\n"))
+        wait(partial(check_cat, "Olli Tukiainen\n"), ignore_exceptions=True)
 
         self._write_driver_layer("marko")
-        wait(partial(check_cat, "Marko Saaresto\n"))
+        wait(partial(check_cat, "Marko Saaresto\n"), ignore_exceptions=True)
 
 
 @pytest.mark.usefixtures("layers_resource")
