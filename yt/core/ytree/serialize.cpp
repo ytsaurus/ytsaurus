@@ -19,6 +19,11 @@ EYsonType GetYsonType(const TYsonString& yson)
     return yson.GetType();
 }
 
+EYsonType GetYsonType(const TYsonStringBuf& yson)
+{
+    return yson.GetType();
+}
+
 EYsonType GetYsonType(const TYsonInput& input)
 {
     return input.GetType();

@@ -10,43 +10,50 @@ namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString::TYsonString()
+template <typename TData>
+TYsonStringBase<TData>::TYsonStringBase()
     : Null_(true)
 { }
 
-TYsonString::TYsonString(TString data, EYsonType type)
+template <typename TData>
+TYsonStringBase<TData>::TYsonStringBase(TData data, EYsonType type)
     : Null_(false)
     , Data_(std::move(data))
     , Type_(type)
 { }
 
-TYsonString::TYsonString(const char* data, size_t length, EYsonType type)
+template <typename TData>
+ TYsonStringBase<TData>::TYsonStringBase(const char* data, size_t length, EYsonType type)
     : Null_(false)
     , Data_(data, length)
     , Type_(type)
 { }
 
-TYsonString::operator bool() const
+template <typename TData>
+TYsonStringBase<TData>::operator bool() const
 {
     return !Null_;
 }
 
-const TString& TYsonString::GetData() const
+template <typename TData>
+const TData& TYsonStringBase<TData>::GetData() const
 {
     YT_VERIFY(!Null_);
     return Data_;
 }
 
-EYsonType TYsonString::GetType() const
+template <typename TData>
+EYsonType TYsonStringBase<TData>::GetType() const
 {
     YT_VERIFY(!Null_);
     return Type_;
 }
 
-void TYsonString::Validate() const
+template <typename TData>
+void TYsonStringBase<TData>::Validate() const
 {
     if (!Null_) {
-        TStringInput input(Data_);
+        TMemoryInput input(Data_);
         ParseYson(TYsonInput(&input, Type_), GetNullYsonConsumer());
     }
 }
@@ -75,6 +82,10 @@ void TYsonString::Load(TStreamLoadContext& context)
     }
 }
 
+// Explicitly instantiate the template to link successfully.
+template class TYsonStringBase<TString>;
+template class TYsonStringBase<TStringBuf>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TYsonString& yson, IYsonConsumer* consumer)
@@ -82,9 +93,35 @@ void Serialize(const TYsonString& yson, IYsonConsumer* consumer)
     consumer->OnRaw(yson);
 }
 
-bool operator == (const TYsonString& lhs, const TYsonString& rhs)
+void Serialize(const TYsonStringBuf& yson, IYsonConsumer* consumer)
+{
+    consumer->OnRaw(yson);
+}
+
+template <typename TLeft, typename TRight>
+bool Equals(const TLeft& lhs, const TRight& rhs)
 {
     return lhs.GetData() == rhs.GetData() && lhs.GetType() == rhs.GetType();
+}
+
+bool operator == (const TYsonString& lhs, const TYsonString& rhs)
+{
+    return Equals(lhs, rhs);
+}
+
+bool operator == (const TYsonString& lhs, const TYsonStringBuf& rhs)
+{
+    return Equals(lhs, rhs);
+}
+
+bool operator == (const TYsonStringBuf& lhs, const TYsonString& rhs)
+{
+    return Equals(lhs, rhs);
+}
+
+bool operator == (const TYsonStringBuf& lhs, const TYsonStringBuf& rhs)
+{
+    return Equals(lhs, rhs);
 }
 
 bool operator != (const TYsonString& lhs, const TYsonString& rhs)
@@ -92,9 +129,29 @@ bool operator != (const TYsonString& lhs, const TYsonString& rhs)
     return !(lhs == rhs);
 }
 
+bool operator != (const TYsonString& lhs, const TYsonStringBuf& rhs)
+{
+    return !(lhs == rhs);
+}
+
+bool operator != (const TYsonStringBuf& lhs, const TYsonString& rhs)
+{
+    return !(lhs == rhs);
+}
+
+bool operator != (const TYsonStringBuf& lhs, const TYsonStringBuf& rhs)
+{
+    return !(lhs == rhs);
+}
+
 TString ToString(const TYsonString& yson)
 {
     return yson.GetData();
+}
+
+TString ToString(const TYsonStringBuf& yson)
+{
+    return TString{yson.GetData()};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
