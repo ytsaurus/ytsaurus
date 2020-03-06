@@ -348,6 +348,15 @@ class TestMapOnDynamicTablesPorto(YTEnvSetup):
 ##################################################################
 
 class MRoverOrderedDynTablesHelper(YTEnvSetup):
+    CONTROL_ATTRIBUTES_SPEC = {
+        "control_attributes": {
+            "enable_tablet_index": True,
+            "enable_range_index": True,
+            "enable_row_index": True,
+            "enable_table_index": True
+        }
+    }
+
     @staticmethod
     def _run_map_operation(input_ranges, input_table_name="//tmp/t"):
         map(in_=["{0}{1}".format(input_ranges, input_table_name)],
@@ -356,20 +365,37 @@ class MRoverOrderedDynTablesHelper(YTEnvSetup):
             file=["//tmp/script.py"],
             spec={
                 "job_count": 1,
-                "job_io": {
-                    "control_attributes": {
-                        "enable_tablet_index": True,
-                        "enable_range_index": True,
-                        "enable_row_index": True,
-                        "enable_table_index": True
-                    }
-                },
+                "max_failed_job_count": 1,
+                "job_io": MRoverOrderedDynTablesHelper.CONTROL_ATTRIBUTES_SPEC,
                 "max_failed_job_count": 1,
 
                 "mapper": {
                     "format": yson.loads("<format=text>yson"),
                 }
             })
+
+    @staticmethod
+    def _run_map_reduce_operation(input_ranges, input_table_name="//tmp/t"):
+        map_reduce(
+            sort_by="key",
+            reduce_by="key",
+            in_=["{0}{1}".format(input_ranges, input_table_name)],
+            out="//tmp/t_out",
+            mapper_command="./script.py",
+            reducer_command="cat",
+            mapper_file=["//tmp/script.py"],
+            spec={
+                "job_count": 1,
+                "max_failed_job_count": 1,
+                "mapper": {
+                    "format": yson.loads("<format=text>yson"),
+                },
+                "reducer": {
+                    "format": yson.loads("<format=text>yson"),
+                },
+                "map_job_io": MRoverOrderedDynTablesHelper.CONTROL_ATTRIBUTES_SPEC,
+            },
+        )
 
     @staticmethod
     def _insert_chunk(first_value, tablet_index):
@@ -404,10 +430,10 @@ class MRoverOrderedDynTablesHelper(YTEnvSetup):
         assert sorted(expected_content) == sorted(actual_content)
 
     @staticmethod
-    def _prologue(shard_count):
+    def _prologue(shard_count, optimize_for):
         sync_create_cells(1)
         schema = [{"name": "key", "type": "int64"}]
-        create_dynamic_table("//tmp/t", schema=schema)
+        create_dynamic_table("//tmp/t", schema=schema, optimize_for=optimize_for)
         sync_reshard_table("//tmp/t", shard_count)
         sync_mount_table("//tmp/t")
 
@@ -434,8 +460,9 @@ class TestInputOutputForOrderedWithTabletIndex(MRoverOrderedDynTablesHelper):
     USE_DYNAMIC_TABLES = True
 
     @authors("akozhikhov")
-    def test_ordered_tablet_index_correctness(self):
-        self._prologue(shard_count=2)
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_ordered_tablet_index_correctness(self, optimize_for):
+        self._prologue(shard_count=2, optimize_for=optimize_for)
 
         self._insert_chunk(first_value=0, tablet_index=0)
         self._insert_chunk(first_value=4, tablet_index=1)
@@ -481,7 +508,7 @@ class TestInputOutputForOrderedWithTabletIndex(MRoverOrderedDynTablesHelper):
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_ordered_tablet_index_general(self, optimize_for):
-        self._prologue(shard_count=3)
+        self._prologue(shard_count=3, optimize_for=optimize_for)
 
         self._insert_chunk(first_value=0, tablet_index=0)
         self._insert_chunk(first_value=3, tablet_index=0)
@@ -562,7 +589,7 @@ class TestInputOutputForOrderedWithTabletIndex(MRoverOrderedDynTablesHelper):
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_ordered_tablet_index_multiple_parents(self, optimize_for):
-        self._prologue(shard_count=2)
+        self._prologue(shard_count=2, optimize_for=optimize_for)
 
         self._insert_chunk(0, tablet_index=0)
         self._insert_chunk(3, tablet_index=1)
@@ -676,7 +703,7 @@ class TestSchedulerMapReduceDynamic(MRoverOrderedDynTablesHelper):
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_ordered_tables_tablet_index_in_map_reduce(self, optimize_for):
-        self._prologue(2)
+        self._prologue(2, optimize_for=optimize_for)
 
         self._insert_chunk(first_value=0, tablet_index=0)
         self._insert_chunk(first_value=3, tablet_index=0)
@@ -702,6 +729,29 @@ class TestSchedulerMapReduceDynamic(MRoverOrderedDynTablesHelper):
         )
 
         assert read_table("//tmp/t_out") == [{"key": i} for i in range(2, 8)]
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_ordered_tablet_index_in_map_reduce_general(self, optimize_for):
+        self._prologue(2, optimize_for)
+
+        self._insert_chunk(first_value=0, tablet_index=0)
+        self._insert_chunk(first_value=3, tablet_index=0)
+        self._insert_chunk(first_value=6, tablet_index=1)
+
+        self._run_map_reduce_operation(
+            "<ranges=[{lower_limit={tablet_index=0; row_index=2}; upper_limit={tablet_index=1; row_index=2}}]>")
+
+        expected_content = [
+            {"key": 2, "tablet_index": 0, "range_index": 0},
+            {"key": 3, "tablet_index": 0, "range_index": 0},
+            {"key": 4, "tablet_index": 0, "range_index": 0},
+            {"key": 5, "tablet_index": 0, "range_index": 0},
+
+            {"key": 6, "tablet_index": 1, "range_index": 0},
+            {"key": 7, "tablet_index": 1, "range_index": 0},
+        ]
+        self._validate_output(expected_content)
 
 ##################################################################
 
