@@ -30,10 +30,12 @@ def main():
 
     alias = "*ch_" + args.type
 
+    cpu_limit = 8
+
     yt.start_clickhouse_clique(
         16 if args.type != "prestable" else 4,
         alias,
-        cpu_limit=8,
+        cpu_limit=cpu_limit,
         enable_monitoring=True,
         enable_job_tables=True,
         cypress_geodata_path="//sys/clickhouse/geodata/geodata.tgz",
@@ -53,7 +55,7 @@ def main():
             "engine": {
                 "settings": {
                     "max_execution_time": 600 if args.type == "datalens" else 1800,
-                    "max_threads": 3 if args.type in ("datalens", "prestable") else cpu_limit,
+                    "max_threads": 3 if args.type in ("prestable") else cpu_limit,
                 },
             },
         },
