@@ -174,7 +174,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         create_test_tables()
 
         op = map(
-            command="echo abcdef >local_file; sleep 1.5; cat",
+            command="echo abcdef >local_file; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
@@ -182,9 +182,11 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                     "tmpfs_size": 5 * 1024 * 1024,
                     "tmpfs_path": "."
                 }
-            })
+            },
+            track=False)
 
-        assert "unused_tmpfs_space" in op.get_alerts()
+        wait(lambda: "unused_tmpfs_space" in op.get_alerts())
+        op.abort()
 
         op = map(
             command="printf '=%.0s' {1..768} >local_file; sleep 1.5; cat",
@@ -274,6 +276,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         self.wait_for_running_jobs(op)
 
+        # Here we do need time.sleep in order to make aborted jobs long enough
         time.sleep(2)
 
         for job in op.get_running_jobs():
@@ -375,9 +378,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             },
             track=False)
 
-        time.sleep(8)
-
-        assert "schedule_job_timed_out" in op.get_alerts()
+        wait(lambda: "schedule_job_timed_out" in op.get_alerts())
 
     @authors("ignat")
     def test_event_log(self):

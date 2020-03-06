@@ -286,7 +286,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         data = [{"foo": i} for i in xrange(3)]
         write_table("//tmp/t_in", data)
 
-        map(
+        op = map(
             command="sleep 1;",
             in_="//tmp/t_in",
             out="//tmp/t_out",
@@ -295,12 +295,34 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
                   "data_size_per_job": 1,
                   "pool": "test_pool"})
 
-        time.sleep(5)
+        # time.sleep(5)
 
-        event_log = read_table("//sys/scheduler/event_log", verbose=False)
-        processed_rows = []
-        for row in event_log:
-            processed_rows.extend(list(process_event_log_row(row)))
+        def check_info_flushed():
+            check_info_flushed.processed_rows = []
+            event_log = read_table("//sys/scheduler/event_log", verbose=False)
+
+            operation_completed = False
+            job_completed = False
+
+            for row in event_log:
+                check_info_flushed.processed_rows.extend(list(process_event_log_row(row)))
+
+                if "operation_id" in row and row["operation_id"] == op.id:
+                    if is_operation_event(row):
+                        operation_completed |= is_operation_completion_event(row)
+                    elif is_job_event(row):
+                        job_completed |= is_job_completion_event(row)
+
+            return operation_completed and job_completed
+
+        check_info_flushed.processed_rows = []
+        wait(check_info_flushed)
+        processed_rows = check_info_flushed.processed_rows
+
+        # event_log = read_table("//sys/scheduler/event_log", verbose=False)
+        # processed_rows = []
+        # for row in event_log:
+        #     processed_rows.extend(list(process_event_log_row(row)))
 
         simulator_data_dir = os.path.join(self.Env.path, "simulator_data")
         os.mkdir(simulator_data_dir)
@@ -390,7 +412,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
     def _set_scheduler_simulator_config_params(self, simulator_files_path):
         # global default_scheduler_simulator_config
-        self.scheduler_simulator_config = default_scheduler_simulator_config
+        self.scheduler_simulator_config = deepcopy(default_scheduler_simulator_config)
         self.scheduler_simulator_config["pools_file"] = simulator_files_path["pools_test_yson_file"]
         self.scheduler_simulator_config["operations_stats_file"] = simulator_files_path["operations_stats_file"]
         self.scheduler_simulator_config["event_log_file"] = simulator_files_path["scheduler_event_log_file"]
