@@ -2,24 +2,21 @@ package ru.yandex.spark.yt.utils
 
 import java.io.OutputStream
 import java.nio.file.Paths
+import java.util.Optional
 import java.util.concurrent.CompletableFuture
 
 import org.apache.log4j.Logger
-import org.joda.time.{Duration => JodaDuration}
 import ru.yandex.bolts.collection.impl.DefaultListF
-import ru.yandex.bolts.collection.{Option => YOption}
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.inside.yt.kosher.common.GUID
-import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.operations.specs.{MergeMode, MergeSpec}
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import ru.yandex.yt.rpcproxy.ETransactionType.TT_MASTER
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl
 import ru.yandex.yt.ytclient.proxy.request._
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, ApiServiceTransactionOptions, FileWriter, YtClient}
-import ru.yandex.yt.ytclient.rpc.RpcError
-import ru.yandex.yt.rpcproxy.ETransactionType.TT_MASTER
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -100,7 +97,7 @@ object YtTableUtils {
     import scala.collection.JavaConverters._
     val srcList = formatPath(dstTable) +: listDirectory(srcDir, transaction).map(name => formatPath(s"$srcDir/$name"))
     ytHttp.operations().mergeAndGetOp(
-      toYOption(transaction.map(GUID.valueOf)),
+      toOptional(transaction.map(GUID.valueOf)),
       false,
       new MergeSpec(
         DefaultListF.wrap(seqAsJavaList(srcList)), formatPath(dstTable)
@@ -169,19 +166,19 @@ object YtTableUtils {
                      (implicit yt: YtClient, ec: ExecutionContext): Cancellable[Unit] = {
     @tailrec
     def ping(cancel: Future[Unit], retry: Int): Unit = {
-        try {
-          if (!cancel.isCompleted) {
-            tr.ping().join()
-          }
-        } catch {
-          case e: Throwable =>
-            log.error(s"Error in ping transaction ${tr.getId}, ${e.getMessage},\n" +
-              s"Suppressed: ${e.getSuppressed.map(_.getMessage).mkString("\n")}")
-            if (retry > 0) {
-              Thread.sleep(new Random().nextInt(2000) + 100)
-              ping(cancel, retry - 1)
-            }
+      try {
+        if (!cancel.isCompleted) {
+          tr.ping().join()
         }
+      } catch {
+        case e: Throwable =>
+          log.error(s"Error in ping transaction ${tr.getId}, ${e.getMessage},\n" +
+            s"Suppressed: ${e.getSuppressed.map(_.getMessage).mkString("\n")}")
+          if (retry > 0) {
+            Thread.sleep(new Random().nextInt(2000) + 100)
+            ping(cancel, retry - 1)
+          }
+      }
     }
 
     cancellable { cancel =>
@@ -194,8 +191,9 @@ object YtTableUtils {
     }
   }
 
-  private def toYOption[T](x: Option[T]): YOption[T] = {
-    YOption.when(x.nonEmpty, () => x.get)
+  private def toOptional[T](x: Option[T]): Optional[T] = x match {
+    case Some(value) => Optional.of(value)
+    case None => Optional.empty()
   }
 
   def abortTransaction(guid: String)(implicit yt: YtClient): Unit = {
