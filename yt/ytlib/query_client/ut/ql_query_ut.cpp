@@ -334,6 +334,65 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
         ContainsRegex("Ambiguous resolution"));
 }
 
+TEST_F(TQueryPrepareTest, SelectColumns)
+{
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("h", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(TString("a")),
+            TColumnSchema("a", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("c", EValueType::Int64),
+            TColumnSchema("d", EValueType::Int64)
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+            .WillRepeatedly(Return(MakeFuture(dataSplit)));
+    }
+
+
+    {
+        TString queryString = "* from [//t]";
+
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+
+        auto schema = query->GetReadSchema();
+
+        EXPECT_EQ(schema.Columns().size(), 5);
+
+        EXPECT_EQ(schema.Columns()[0].Name(), "h");
+        EXPECT_EQ(schema.Columns()[1].Name(), "a");
+        EXPECT_EQ(schema.Columns()[2].Name(), "b");
+        EXPECT_EQ(schema.Columns()[3].Name(), "c");
+        EXPECT_EQ(schema.Columns()[4].Name(), "d");
+    }
+
+    {
+        TString queryString = "d, c, a from [//t]";
+
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+
+        auto schema = query->GetReadSchema();
+
+        EXPECT_EQ(schema.Columns().size(), 3);
+
+        EXPECT_EQ(schema.Columns()[0].Name(), "a");
+        EXPECT_EQ(schema.Columns()[1].Name(), "c");
+        EXPECT_EQ(schema.Columns()[2].Name(), "d");
+    }
+}
+
 TEST_F(TQueryPrepareTest, SortMergeJoin)
 {
     {
