@@ -40,7 +40,7 @@ message TCPUMetricSpec
     // Target interval of cpu usage.
     // Autoscaler will skip scaling if:
     //  current_metric ∈ [lower_bound, upper_bound]
-    // Validation: values from 0 to 1
+    // Scale: cores - same as signal havg(portoinst-cpu_usage_slot_hgram)
     // Validation: lower_bound <= upper_bound
     float lower_bound = 1;
     float upper_bound = 2;
