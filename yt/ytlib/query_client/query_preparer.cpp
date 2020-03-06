@@ -1221,7 +1221,7 @@ public:
         }
     }
 
-    void Finish()
+    void PopulateAllColumns()
     {
         for (const auto& table : Tables) {
             for (const auto& column : table.Schema.Columns()) {
@@ -2325,9 +2325,10 @@ void PrepareQuery(
         query->ProjectClause = BuildProjectClause(
             *ast.SelectExprs,
             builder);
+    } else {
+        // Select all columns.
+        builder.PopulateAllColumns();
     }
-
-    builder.Finish();
 }
 
 void ParseQueryString(
