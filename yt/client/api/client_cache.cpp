@@ -18,10 +18,11 @@ const IClientPtr& TCachedClient::GetClient()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientCache::TClientCache(TSlruCacheConfigPtr config, IConnectionPtr connection, std::optional<TString> token)
+TClientCache::TClientCache(
+    TSlruCacheConfigPtr config,
+    IConnectionPtr connection)
     : TSyncSlruCacheBase<TString, TCachedClient>(std::move(config))
     , Connection_(std::move(connection))
-    , Token_(std::move(token))
 { }
 
 IClientPtr TClientCache::GetClient(const TString& user, const std::optional<TString>& userToken)
@@ -33,9 +34,7 @@ IClientPtr TClientCache::GetClient(const TString& user, const std::optional<TStr
         if (userToken) {
             options.Token = userToken;
         }
-        if (Token_) {
-            options.Token = Token_;
-        }
+
         cachedClient = New<TCachedClient>(user, Connection_->CreateClient(options));
 
         TryInsert(cachedClient, &cachedClient);

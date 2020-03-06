@@ -6,8 +6,12 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClientCache::TClientCache(TSlruCacheConfigPtr config, IConnectionPtr connection, std::optional <TString> token)
-    : NApi::TClientCache(std::move(config), std::move(connection), std::move(token))
+TClientCache::TClientCache(
+    TSlruCacheConfigPtr config,
+    IConnectionPtr connection)
+    : NApi::TClientCache(
+        std::move(config),
+        std::move(connection))
 { }
 
 IClientPtr TClientCache::GetClient(const TString& user, const std::optional<TString>& token)
