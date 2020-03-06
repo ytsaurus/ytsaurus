@@ -922,7 +922,7 @@ void TJobProxy::SetCpuShare(double cpuShare)
         environment->SetCpuShare(cpuShare);
         UpdateResourceUsage();
     } else {
-        YT_LOG_INFO("Unable to change CPU share: environment is not set.");
+        YT_LOG_INFO("Unable to change CPU share: environment is not set");
     }
 }
 
