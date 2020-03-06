@@ -1309,7 +1309,7 @@ INSTANTIATE_TEST_SUITE_P(
         EComplexTypeMode::Named,
         1}));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     ManyRows,
     TProtobufFormatStructuredMessage,
     ::testing::Values(TProtobufFormatStructuredMessageParameter{
@@ -2509,7 +2509,7 @@ INSTANTIATE_TEST_SUITE_P(
     TProtobufFormatAllFields,
     ::testing::Values(TProtobufFormatAllFieldsParameter{CreateAllFieldsFileDescriptorConfig(), 1}));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     ManyRows,
     TProtobufFormatAllFields,
     ::testing::Values(TProtobufFormatAllFieldsParameter{CreateAllFieldsSchemaConfig(), 50000}));
