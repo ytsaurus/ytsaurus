@@ -143,7 +143,7 @@ public:
     ///
     /// @brief Canonize YPath, moving all the complex YPath features to attributes.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#parse_ypath)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#parse-ypath)
     virtual TRichYPath CanonizeYPath(const TRichYPath& path) = 0;
 
     ///
@@ -151,7 +151,7 @@ public:
     ///
     /// @note Paths must contain column selectors.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#get_table_columnar_statistics)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#get-table-columnar-statistics)
     virtual TVector<TTableColumnarStatistics> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) = 0;
 
     ///
@@ -161,7 +161,7 @@ public:
     /// @param cachePath Path to the file cache.
     /// @param options Optional parameters.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#get_file_from_cache)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#get-file-from-cache)
     virtual TMaybe<TYPath> GetFileFromCache(
         const TString& md5Signature,
         const TYPath& cachePath,
@@ -177,7 +177,7 @@ public:
     ///
     /// @note The file in `filePath` must have been written with @ref NYT::TFileWriterOptions::ComputeMD5 set to `true`.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#put_file_to_cache)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#put-file-to-cache)
     virtual TYPath PutFileToCache(
         const TYPath& filePath,
         const TString& md5Signature,
