@@ -536,9 +536,13 @@ double TSchedulerElement::ComputeLocalSatisfactionRatio() const
         return std::numeric_limits<double>::max();
     }
 
-    // Starvation is disabled for operations in FIFO pool.
     if (Attributes_.FifoIndex >= 0) {
-        return std::numeric_limits<double>::max();
+        // Satisfaction is defined only for top operations in FIFO pool.
+        if (fairShareRatio > RatioComparisonPrecision) {
+            return usageRatio / fairShareRatio;
+        } else {
+            return std::numeric_limits<double>::max();
+        }
     }
 
     if (minShareRatio > RatioComputationPrecision && usageRatio < minShareRatio) {
@@ -1198,7 +1202,9 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList* , TUpdateFai
             return HasHigherPriorityInFifoMode(lhs.Get(), rhs.Get());
         });
 
-    double remainingFairShareRatio = Attributes_.FairShareRatio;
+    auto poolResources = TotalResourceLimits_ * Attributes_.FairShareRatio;
+    auto usedFairResources = TJobResources();
+    auto remainingFairResources = poolResources;
 
     int index = 0;
     for (const auto& child : children) {
@@ -1210,11 +1216,23 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList* , TUpdateFai
         childAttributes.FifoIndex = index;
         ++index;
 
-        double childFairShareRatio = remainingFairShareRatio;
+        auto offeredResources = child->ResourceDemand() * std::min(1.0, GetMinResourceRatio(remainingFairResources, child->ResourceDemand()));
+        double offeredFairShareRatio = GetDominantResourceUsage(offeredResources, TotalResourceLimits_);
+
+        double childFairShareRatio = offeredFairShareRatio;
         childFairShareRatio = std::min(childFairShareRatio, childAttributes.MaxPossibleUsageRatio);
         childFairShareRatio = std::min(childFairShareRatio, childAttributes.BestAllocationRatio);
         child->SetFairShareRatio(childFairShareRatio);
-        remainingFairShareRatio -= childFairShareRatio;
+
+        auto acceptedResources = offeredFairShareRatio > 0
+            ? offeredResources * (childFairShareRatio / offeredFairShareRatio)
+            : TJobResources();
+
+        remainingFairResources -= acceptedResources;
+        usedFairResources += acceptedResources;
+        if (GetDominantResourceUsage(usedFairResources, TotalResourceLimits_) > Attributes_.FairShareRatio - RatioComparisonPrecision) {
+            remainingFairResources = TJobResources();
+        }
     }
 }
 
