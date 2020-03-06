@@ -131,6 +131,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
     USE_PORTO_FOR_SERVERS = True
 
     @authors("renadeen")
+    @pytest.mark.skip(reason="Broken after move to porto")
     def test_dynamic_cpu_statistics_of_sort_operation(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
