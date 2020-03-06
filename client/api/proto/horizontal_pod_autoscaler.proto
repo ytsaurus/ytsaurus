@@ -71,14 +71,14 @@ message TReplicaSetScaleSpec
     // Metric upscale reaction time should be less than specified delay.
     // Otherwise autoscaler would perform several consecutive upscales which may lead to quota shortage.
     // Validation: not less that 5 min
-    // Default: 20 min (may change)
+    // Default: 30 min (may change)
     google.protobuf.Duration upscale_delay = 4;
 
     // The period since last downscale, before another downscale can be performed in horizontal pod autoscaler.
     // Metric downscale reaction time should be less than specified delay.
     // Otherwise autoscaler would perform several consecutive downscales which may lead to service degradation.
     // Validation: not less that 5 min
-    // Default: 40 min (may change)
+    // Default: 60 min (may change)
     google.protobuf.Duration downscale_delay = 5;
 }
 
