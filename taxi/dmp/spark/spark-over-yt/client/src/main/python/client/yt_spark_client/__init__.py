@@ -171,6 +171,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
                   spark_yt_base_path.join(dynamic_config["spark_launcher_name"])]
 
     layer_paths = ["//home/sashbel/delta/jdk/layer_with_jdk_lastest.tar.gz",
+                   "//home/sashbel/delta/python/layer_with_python37.tar.gz",
                    "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"]
 
     master_command = _launcher_command("Master", dynamic_config, master_opts) + \
@@ -187,7 +188,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
         "JAVA_HOME": "/opt/jdk8",
         "SPARK_HOME": dynamic_config["spark_name"],
         "YT_PROXY": yt_proxy,
-        "SPARK_DISCOVERY_PATH": str(spark_discovery.discovery())
+        "SPARK_DISCOVERY_PATH": str(spark_discovery.discovery()),
+        "IS_SPARK_CLUSTER": "true"
     }
 
     operation_spec = {

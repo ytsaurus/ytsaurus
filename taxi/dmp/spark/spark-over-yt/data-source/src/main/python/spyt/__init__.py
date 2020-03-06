@@ -108,6 +108,7 @@ def _configure_client_mode(spark_conf,
                            local_conf,
                            spark_id,
                            client=None):
+    _configure_python()
     master = get_master_from_discovery(discovery_path, spark_id, local_conf, client)
     event_log_dir = get_log_dir_from_discovery(discovery_path, spark_id, local_conf)
     yt_proxy = get_proxy_url(required=True, client=client)
@@ -159,6 +160,18 @@ def _set_none_safe(conf, key, value):
         conf.set(key, value)
 
 
+def _configure_python():
+    python_version = "%d.%d" % sys.version_info[:2]
+    if python_version == "3.7":
+        os.environ["PYSPARK_PYTHON"] = "/opt/python3.7/bin/python3.7"
+    elif python_version == "3.5":
+        os.environ["PYSPARK_PYTHON"] = "python3.5"
+    elif python_version == "2.7":
+        os.environ["PYSPARK_PYTHON"] = "python2.7"
+    else:
+        raise AssertionError("Python version {} is not supported".format(python_version))
+
+
 def _build_spark_config(num_executors=None,
                         yt_proxy=None,
                         discovery_path=None,
@@ -171,15 +184,13 @@ def _build_spark_config(num_executors=None,
                         spark_conf_args=None,
                         spark_id=None,
                         client=None):
-    is_client_mode = os.getenv("USER") is not None
-
+    is_client_mode = os.getenv("IS_SPARK_CLUSTER") is None
     local_conf = _read_config(config_path) if is_client_mode else {}
-    if is_client_mode:
-        app_name = app_name or "PySpark for {}".format(os.getenv("USER"))
 
     spark_conf = SparkConf()
 
     if is_client_mode:
+        app_name = app_name or "PySpark for {}".format(os.getenv("USER"))
         client = client or create_yt_client(yt_proxy, local_conf)
         _configure_client_mode(spark_conf, discovery_path, local_conf, spark_id, client)
 
