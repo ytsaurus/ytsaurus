@@ -20,9 +20,13 @@ class TClientCache
     : public NApi::TClientCache
 {
 public:
-    TClientCache(TSlruCacheConfigPtr config, NApi::NNative::IConnectionPtr connection, std::optional<TString> token = std::nullopt);
+    TClientCache(
+        TSlruCacheConfigPtr config,
+        NApi::NNative::IConnectionPtr connection);
 
-    IClientPtr GetClient(const TString& user, const std::optional<TString>& token = std::nullopt);
+    IClientPtr GetClient(
+        const TString& user,
+        const std::optional<TString>& token = std::nullopt);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientCache)
