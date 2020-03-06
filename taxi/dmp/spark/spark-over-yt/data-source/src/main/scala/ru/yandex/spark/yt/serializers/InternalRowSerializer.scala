@@ -79,6 +79,7 @@ class InternalRowSerializer(schema: StructType) extends WireRowSerializer[Intern
               case BooleanType => writeable.onBoolean(row.getBoolean(i))
               case IntegerType => writeable.onInteger(row.getInt(i))
               case DoubleType => writeable.onDouble(row.getDouble(i))
+              case ShortType => writeable.onInteger(row.getShort(i))
             }
         }
       }
