@@ -1182,7 +1182,8 @@ public:
     struct TColumnEntry
     {
         TBaseColumn Column;
-        size_t MaxTableIndex;
+
+        size_t LastTableIndex;
         size_t OriginTableIndex;
     };
 
@@ -1198,11 +1199,12 @@ public:
 
     // Columns already presented in Lookup are shared.
     // In mapping presented all columns needed for read and renamed schema.
-    // SelfJoinedColumns and ForeignJoinedColumns are builded from Lookup using OriginTableIndex and MaxTableIndex.
+    // SelfJoinedColumns and ForeignJoinedColumns are builded from Lookup using OriginTableIndex and LastTableIndex.
     void Merge(TBuilderCtxBase& other)
     {
         size_t otherTablesCount = other.Tables.size();
         size_t tablesCount = Tables.size();
+        size_t lastTableIndex = tablesCount + otherTablesCount - 1;
 
         std::move(other.Tables.begin(), other.Tables.end(), std::back_inserter(Tables));
 
@@ -1211,12 +1213,12 @@ public:
                 reference,
                 TColumnEntry{
                     entry.Column,
-                    tablesCount + entry.MaxTableIndex,
+                    0, // Consider not used yet.
                     tablesCount + entry.OriginTableIndex});
 
             if (!emplaced) {
-                // Column is shared. Increment MaxTableIndex to prevent search in new (other merged) tables.
-                it->second.MaxTableIndex += otherTablesCount;
+                // Column is shared. Increment LastTableIndex to prevent search in new (other merged) tables.
+                it->second.LastTableIndex = lastTableIndex;
             }
         }
     }
@@ -1307,14 +1309,18 @@ public:
             return FindColumn(*GroupItems, reference.ColumnName);
         }
 
+        size_t lastTableIndex = Tables.size() - 1;
+
         auto found = Lookup.find(reference);
         if (found != Lookup.end()) {
             // Provide column from max table index till end.
 
-            CheckNoOtherColumn(reference, found->second.MaxTableIndex);
+            size_t nextTableIndex = std::max(found->second.OriginTableIndex, found->second.LastTableIndex) + 1;
 
-            // Update MaxTableIndex after check.
-            found->second.MaxTableIndex = Tables.size();
+            CheckNoOtherColumn(reference, nextTableIndex);
+
+            // Update LastTableIndex after check.
+            found->second.LastTableIndex = lastTableIndex;
 
             return found->second.Column;
         } else if (auto [table, type] = ResolveColumn(reference); table) {
@@ -1325,7 +1331,7 @@ public:
                 reference,
                 TColumnEntry{
                     column,
-                    Tables.size(),
+                    lastTableIndex,
                     size_t(table - Tables.data())});
 
             YT_VERIFY(emplaced.second);
@@ -2682,12 +2688,12 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     for (const auto& [reference, entry] : builder.Lookup) {
         auto formattedName = NAst::InferColumnName(reference);
 
-        for (size_t index = entry.OriginTableIndex; index + 1 < entry.MaxTableIndex; ++index) {
+        for (size_t index = entry.OriginTableIndex; index < entry.LastTableIndex; ++index) {
             YT_VERIFY(index < joinClauses.size());
             joinClauses[index]->SelfJoinedColumns.push_back(formattedName);
         }
 
-        if (entry.OriginTableIndex > 0) {
+        if (entry.OriginTableIndex > 0 && entry.LastTableIndex > 0) {
             joinClauses[entry.OriginTableIndex - 1]->ForeignJoinedColumns.push_back(formattedName);
         }
     }
