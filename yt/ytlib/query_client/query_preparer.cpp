@@ -1350,7 +1350,7 @@ struct TBuilderCtx
 {
 public:
     const TString& Source;
-    const TConstTypeInferrerMapPtr& Functions;
+    const TConstTypeInferrerMapPtr Functions;
     const NAst::TAliasMap& AliasMap;
 
 private:
