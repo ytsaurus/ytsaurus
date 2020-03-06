@@ -32,7 +32,7 @@ def remerge_tables(input_table_paths):
             logger.debug("Creating table %s with schema %s and setting log tailer attributes on it as for order kind %s, log tailer version = %s", output_table_path, schema, table_kind, log_tailer_version)
             if not args.dry_run:
                 yt.create("table", output_table_path, attributes={"schema": schema}, force=True)
-                yt.clickhouse.set_log_tailer_table_attributes(table_kind, output_table_path, 7 * 24 * 60 * 60 * 1000, log_tailer_verion=log_tailer_version)
+                yt.clickhouse.set_log_tailer_table_attributes(table_kind, output_table_path, 7 * 24 * 60 * 60 * 1000, log_tailer_version=log_tailer_version)
 
             spec_builder = yt.spec_builders.MergeSpecBuilder() \
                 .input_table_paths(input_table_path) \
