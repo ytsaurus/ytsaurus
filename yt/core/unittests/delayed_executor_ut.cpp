@@ -66,8 +66,8 @@ TEST(TDelayedExecutorTest, StressTest)
         auto cookie = TDelayedExecutor::Submit(
             BIND([start, delay, &fired] () {
                 auto diff = (TInstant::Now() - start).MilliSeconds();
-                EXPECT_LE(delay, diff + 1);
-                EXPECT_LE(diff, delay + 15);
+                EXPECT_LE(delay, diff + 10);
+                EXPECT_LE(diff, delay + 30);
                 ++fired;
             }),
             TDuration::MilliSeconds(delay));
