@@ -120,7 +120,7 @@ TEST_P(TAsyncFileChangelogIndexTest, Simple)
     index2.Close();
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TAsyncFileChangelogIndexTest,
     TAsyncFileChangelogIndexTest,
     ::testing::Values(

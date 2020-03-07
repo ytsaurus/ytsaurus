@@ -109,7 +109,7 @@ TEST_P(TReadWriteTest, ReadAll)
     EXPECT_EQ(::memcmp(readData.Begin(), data.Begin(), readData.Size()), 0);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TReadWriteTest,
     TReadWriteTest,
     ::testing::Values(

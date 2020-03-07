@@ -748,7 +748,7 @@ auto* schema4 = "[{name=ColumnA;type=string;sort_order=ascending}; {name=ColumnB
 auto* schema5 = "[{name=ColumnB;type=string;sort_order=ascending}; {name=ColumnC;type=string;sort_order=ascending;expression=ColumnB}]";
 auto* schema45 = "[{name=ColumnA;type=string}; {name=ColumnB;type=string}; {name=ColumnC;type=string}]";
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TInferSchemaTest,
     TInferSchemaTest,
     ::testing::Values(
@@ -781,7 +781,7 @@ TEST_P(TInferSchemaInvalidTest, Basic)
     EXPECT_THROW(InferInputSchema(schemas, true), std::exception);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TInferSchemaInvalidTest,
     TInferSchemaInvalidTest,
     ::testing::Values(

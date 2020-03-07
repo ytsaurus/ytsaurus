@@ -88,7 +88,8 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     // Keep some stuff to reuse it in the transaction.
     auto connection = GetRpcProxyConnection();
     auto client = GetRpcProxyClient();
-    auto channel = GetStickyChannel();
+    bool sticky = (type == ETransactionType::Tablet) || options.Sticky;
+    auto channel = sticky ? GetStickyChannel() : GetChannel();
     const auto& config = connection->GetConfig();
 
     auto timeout = options.Timeout.value_or(config->DefaultTransactionTimeout);
@@ -114,9 +115,6 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     // TODO(babenko): prerequisite transactions are not supported
     // COMPAT(kiselyovp): remove auto_abort from the protocol
     req->set_auto_abort(false);
-    bool sticky = type == ETransactionType::Tablet
-        ? true
-        : options.Sticky;
     req->set_sticky(sticky);
     req->set_ping(options.Ping);
     req->set_ping_ancestors(options.PingAncestors);

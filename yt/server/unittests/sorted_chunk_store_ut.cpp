@@ -74,7 +74,7 @@ TEST_P(TSortedChunkStoreTestKeysFiltering, Test)
         actualFiltered.end()));
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Test,
     TSortedChunkStoreTestKeysFiltering,
     ::testing::Values(
@@ -142,7 +142,7 @@ TEST_P(TSortedChunkStoreTestRangesFiltering, Test)
         actualFiltered.end()));
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Test,
     TSortedChunkStoreTestRangesFiltering,
     ::testing::Values(

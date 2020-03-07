@@ -10,9 +10,9 @@
 
 #include <yt/core/yson/null_consumer.h>
 
-#include <contrib/libs/gmock/gmock/gmock.h>
-#include <contrib/libs/gmock/gmock/gmock-matchers.h>
-#include <contrib/libs/gmock/gmock/gmock-actions.h>
+#include <contrib/libs/gmock/include/gmock/gmock.h>
+#include <contrib/libs/gmock/include/gmock/gmock-matchers.h>
+#include <contrib/libs/gmock/include/gmock/gmock-actions.h>
 
 namespace NYT::NScheduler::NVectorScheduler {
 

@@ -67,12 +67,12 @@ TEST_P(TYTAllocTaggedTest, HugeCounters)
     EXPECT_LE(std::abs(hugeTotal3 - hugeTotal1), Eps);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     LargeCounters,
     TYTAllocTaggedTest,
     ::testing::Values(0, 1));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     HugeCounters,
     TYTAllocTaggedTest,
     ::testing::Values(0, 1));

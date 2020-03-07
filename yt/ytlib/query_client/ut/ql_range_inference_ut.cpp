@@ -255,7 +255,7 @@ TRefineKeyRangeTestCase refineCasesForEqualOpcodeInFirstComponent[] = {
         true, (""), ("")
     },
 };
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     EqualInFirstComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForEqualOpcodeInFirstComponent));
@@ -283,7 +283,7 @@ TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInFirstComponent[] = {
         false, ("1;1;1"), ("100;100;100")
     },
 };
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     NotEqualInFirstComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForNotEqualOpcodeInFirstComponent));
@@ -311,7 +311,7 @@ TRefineKeyRangeTestCase refineCasesForLessOpcodeInFirstComponent[] = {
         false, ("1;1;1"), ("100;100;100")
     },
 };
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     LessInFirstComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForLessOpcodeInFirstComponent));
@@ -344,7 +344,7 @@ TRefineKeyRangeTestCase refineCasesForLessOrEqualOpcodeInFirstComponent[] = {
         false, ("1;1;1"), ("100;100;100")
     },
 };
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     LessOrEqualInFirstComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForLessOrEqualOpcodeInFirstComponent));
@@ -377,7 +377,7 @@ TRefineKeyRangeTestCase refineCasesForGreaterOpcodeInFirstComponent[] = {
         true, (""), ("")
     },
 };
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     GreaterInFirstComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForGreaterOpcodeInFirstComponent));
@@ -405,7 +405,7 @@ TRefineKeyRangeTestCase refineCasesForGreaterOrEqualOpcodeInFirstComponent[] = {
         true, (""), ("")
     },
 };
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     GreaterOrEqualInFirstComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForGreaterOrEqualOpcodeInFirstComponent));
@@ -440,7 +440,7 @@ TRefineKeyRangeTestCase refineCasesForEqualOpcodeInLastComponent[] = {
         true, (""), ("")
     },
 };
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     EqualInLastComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForEqualOpcodeInLastComponent));
@@ -468,7 +468,7 @@ TRefineKeyRangeTestCase refineCasesForNotEqualOpcodeInLastComponent[] = {
         false, ("1;1;1"), ("1;1;100")
     },
 };
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     NotEqualInLastComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForNotEqualOpcodeInLastComponent));
@@ -496,7 +496,7 @@ TRefineKeyRangeTestCase refineCasesForLessOpcodeInLastComponent[] = {
         false, ("1;1;1"), ("1;1;100")
     },
 };
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     LessInLastComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForLessOpcodeInLastComponent));
@@ -529,7 +529,7 @@ TRefineKeyRangeTestCase refineCasesForLessOrEqualOpcodeInLastComponent[] = {
         false, ("1;1;1"), ("1;1;100")
     },
 };
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     LessOrEqualInLastComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForLessOrEqualOpcodeInLastComponent));
@@ -562,7 +562,7 @@ TRefineKeyRangeTestCase refineCasesForGreaterOpcodeInLastComponent[] = {
         true, (""), ("")
     },
 };
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     GreaterInLastComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForGreaterOpcodeInLastComponent));
@@ -590,7 +590,7 @@ TRefineKeyRangeTestCase refineCasesForGreaterOrEqualOpcodeInLastComponent[] = {
         true, (""), ("")
     },
 };
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     GreaterOrEqualInLastComponent,
     TRefineKeyRangeTest,
     ::testing::ValuesIn(refineCasesForGreaterOrEqualOpcodeInLastComponent));

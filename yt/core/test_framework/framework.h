@@ -7,8 +7,8 @@
 // Include Google Test and Google Mock headers.
 #define GTEST_DONT_DEFINE_FAIL 1
 
-#include <contrib/libs/gtest/gtest/gtest.h>
-#include <contrib/libs/gmock/gmock/gmock.h>
+#include <contrib/libs/gtest/include/gtest/gtest.h>
+#include <contrib/libs/gmock/include/gmock/gmock.h>
 
 namespace NYT {
 
@@ -170,6 +170,22 @@ template <class T>
 namespace testing {
 
 ////////////////////////////////////////////////////////////////////////////////
+//! Argument matcher for (const TStringBuf&).
+//! Semantics: Match by equality.
+template <>
+class Matcher<const TStringBuf&>
+    : public internal::MatcherBase<const TStringBuf&> {
+public:
+    Matcher() {}
+
+    explicit Matcher(const MatcherInterface<const TStringBuf&>* impl)
+        : internal::MatcherBase<const TStringBuf&>(impl)
+    {}
+
+    Matcher(const TString& s); // NOLINT
+    Matcher(const char* s); // NOLINT
+    Matcher(TStringBuf s); // NOLINT
+};
 
 //! Argument matcher for (TStringBuf).
 //! Semantics: Match by equality.
@@ -180,6 +196,10 @@ public:
     Matcher() {}
 
     explicit Matcher(const MatcherInterface<TStringBuf>* impl)
+        : internal::MatcherBase<TStringBuf>(impl)
+    {}
+
+    explicit Matcher(const MatcherInterface<const TStringBuf&>* impl)
         : internal::MatcherBase<TStringBuf>(impl)
     {}
 
@@ -213,6 +233,10 @@ public:
     Matcher() {}
 
     explicit Matcher(const MatcherInterface<TString>* impl)
+        : internal::MatcherBase<TString>(impl)
+    {}
+
+    explicit Matcher(const MatcherInterface<const TString&>* impl)
         : internal::MatcherBase<TString>(impl)
     {}
 
