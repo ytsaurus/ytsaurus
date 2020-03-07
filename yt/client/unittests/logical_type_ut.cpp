@@ -632,7 +632,7 @@ TEST_P(TLogicalTypeTestExamples, TestYsonSerialization)
     EXPECT_EQ(*type, *deserializedType);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Examples,
     TLogicalTypeTestExamples,
     ::testing::ValuesIn(ComplexTypeExampleList));
@@ -757,7 +757,7 @@ TEST_P(TCombineLogicalMetatypeTests, TestValidateAny)
     EXPECT_NO_THROW(ValidateLogicalType(TComplexTypeFieldDescriptor("test-column", combineFunc(goodType))));
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     CombineFunctions,
     TCombineLogicalMetatypeTests,
     ::testing::ValuesIn(CombineFunctions));
@@ -805,7 +805,7 @@ TEST_P(TStructValidationTest, Test)
         "Name of struct field #0 is not valid utf8");
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Tests,
     TStructValidationTest,
     ::testing::ValuesIn({ELogicalMetatype::Struct, ELogicalMetatype::VariantStruct}));

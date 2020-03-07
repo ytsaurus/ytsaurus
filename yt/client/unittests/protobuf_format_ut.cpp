@@ -1295,14 +1295,14 @@ class TProtobufFormatStructuredMessage
     : public ::testing::TestWithParam<TProtobufFormatStructuredMessageParameter>
 { };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Positional,
     TProtobufFormatStructuredMessage,
     ::testing::Values(TProtobufFormatStructuredMessageParameter{
         EComplexTypeMode::Positional,
         1}));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Named,
     TProtobufFormatStructuredMessage,
     ::testing::Values(TProtobufFormatStructuredMessageParameter{
@@ -2499,12 +2499,12 @@ public:
     }
 };
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Specification,
     TProtobufFormatAllFields,
     ::testing::Values(TProtobufFormatAllFieldsParameter{CreateAllFieldsSchemaConfig(), 1}));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     FileDescriptor,
     TProtobufFormatAllFields,
     ::testing::Values(TProtobufFormatAllFieldsParameter{CreateAllFieldsFileDescriptorConfig(), 1}));

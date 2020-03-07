@@ -3123,7 +3123,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     ASSERT_EQ(suspendedChunks.size(), suspendedCookies.size());
 }
 
-INSTANTIATE_TEST_CASE_P(VariousOperationsWithPoolInstantiation,
+INSTANTIATE_TEST_SUITE_P(VariousOperationsWithPoolInstantiation,
     TSortedChunkPoolTestRandomized,
     ::testing::Range(0, NumberOfRepeats));
 
