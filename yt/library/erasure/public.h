@@ -18,10 +18,12 @@ struct TLrcTag {};
 using ::NErasure::TPartIndexList;
 using ::NErasure::TPartIndexSet;
 
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
-    ((None)           (0))
-    ((ReedSolomon_6_3)(1))
-    ((Lrc_12_2_2)     (2))
+DEFINE_AMBIGUOUS_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
+    ((None)                 (0))
+    ((ReedSolomon_6_3)      (1))
+    ((Lrc_12_2_2)           (2))
+    ((Lrc_12_2_2_Isa)       (3))
+    ((Lrc_12_2_2_Jerasure)  (2))
 );
 
 struct TCodecTraits

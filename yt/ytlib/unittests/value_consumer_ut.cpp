@@ -138,7 +138,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
     }
 }
 
-INSTANTIATE_TEST_CASE_P(AllCombinations,
+INSTANTIATE_TEST_SUITE_P(AllCombinations,
     TValueConsumerTypeConversionTest,
     ::testing::Combine(::testing::Bool(), ::testing::Bool(), ::testing::Bool(), ::testing::Bool()));
 

@@ -214,7 +214,7 @@ typedef ::testing::Types<SmallVector<Constructable, 0>,
                          SmallVector<Constructable, 4>,
                          SmallVector<Constructable, 5>
                          > SmallVectorTestTypes;
-TYPED_TEST_CASE(SmallVectorTest, SmallVectorTestTypes);
+TYPED_TEST_SUITE(SmallVectorTest, SmallVectorTestTypes);
 
 // New vector test.
 TYPED_TEST(SmallVectorTest, EmptyVectorTest) {
@@ -700,7 +700,7 @@ typedef ::testing::Types<
     std::pair<SmallVector<Constructable, 2>, SmallVector<Constructable, 2>>
   > DualSmallVectorTestTypes;
 
-TYPED_TEST_CASE(DualSmallVectorsTest, DualSmallVectorTestTypes);
+TYPED_TEST_SUITE(DualSmallVectorsTest, DualSmallVectorTestTypes);
 
 TYPED_TEST(DualSmallVectorsTest, MoveAssignment) {
   SCOPED_TRACE("MoveAssignTest-DualVectorTypes");

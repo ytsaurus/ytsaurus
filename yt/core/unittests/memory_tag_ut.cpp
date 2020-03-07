@@ -255,7 +255,7 @@ TEST_P(TMemoryTagTest, Test)
         .ThrowOnError();
 }
 
-INSTANTIATE_TEST_CASE_P(MemoryTagTest, TMemoryTagTest, Values(
+INSTANTIATE_TEST_SUITE_P(MemoryTagTest, TMemoryTagTest, Values(
     &TestZero,
     &TestSimple,
     &TestStackingGuards,

@@ -302,7 +302,7 @@ TEST_P(TPipeBigReadWriteTest, RealReadWrite)
         (result.first - textFromPipe.Begin()) << " " << (int)(*result.first);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     ValueParametrized,
     TPipeBigReadWriteTest,
     ::testing::Values(

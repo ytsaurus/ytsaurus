@@ -26,7 +26,7 @@ class TYTreeFluentStringScalarTest
 {
 };
 
-TYPED_TEST_CASE_P(TYTreeFluentStringScalarTest);
+TYPED_TEST_SUITE_P(TYTreeFluentStringScalarTest);
 TYPED_TEST_P(TYTreeFluentStringScalarTest, Ok)
 {
     StrictMock<TMockYsonConsumer> mock;
@@ -41,8 +41,8 @@ TYPED_TEST_P(TYTreeFluentStringScalarTest, Ok)
 
 typedef Types<const char*, TString> TYTreeFluentStringScalarTestTypes;
 
-REGISTER_TYPED_TEST_CASE_P(TYTreeFluentStringScalarTest, Ok);
-INSTANTIATE_TYPED_TEST_CASE_P(
+REGISTER_TYPED_TEST_SUITE_P(TYTreeFluentStringScalarTest, Ok);
+INSTANTIATE_TYPED_TEST_SUITE_P(
     TypeParametrized,
     TYTreeFluentStringScalarTest,
     TYTreeFluentStringScalarTestTypes
@@ -60,7 +60,7 @@ class TYTreeFluentIntScalarTest
 {
 };
 
-TYPED_TEST_CASE_P(TYTreeFluentIntScalarTest);
+TYPED_TEST_SUITE_P(TYTreeFluentIntScalarTest);
 TYPED_TEST_P(TYTreeFluentIntScalarTest, Ok)
 {
     StrictMock<TMockYsonConsumer> mock;
@@ -75,8 +75,8 @@ TYPED_TEST_P(TYTreeFluentIntScalarTest, Ok)
 
 typedef Types<i8, i16, i32, i64>
     TYTreeFluentIntScalarTestTypes;
-REGISTER_TYPED_TEST_CASE_P(TYTreeFluentIntScalarTest, Ok);
-INSTANTIATE_TYPED_TEST_CASE_P(TypeParametrized, TYTreeFluentIntScalarTest,
+REGISTER_TYPED_TEST_SUITE_P(TYTreeFluentIntScalarTest, Ok);
+INSTANTIATE_TYPED_TEST_SUITE_P(TypeParametrized, TYTreeFluentIntScalarTest,
     TYTreeFluentIntScalarTestTypes
 );
 
@@ -92,7 +92,7 @@ class TYTreeFluentUintScalarTest
 {
 };
 
-TYPED_TEST_CASE_P(TYTreeFluentUintScalarTest);
+TYPED_TEST_SUITE_P(TYTreeFluentUintScalarTest);
 TYPED_TEST_P(TYTreeFluentUintScalarTest, Ok)
 {
     StrictMock<TMockYsonConsumer> mock;
@@ -107,8 +107,8 @@ TYPED_TEST_P(TYTreeFluentUintScalarTest, Ok)
 
 typedef Types<ui8, ui16, ui32, ui64>
     TYTreeFluentUintScalarTestTypes;
-REGISTER_TYPED_TEST_CASE_P(TYTreeFluentUintScalarTest, Ok);
-INSTANTIATE_TYPED_TEST_CASE_P(TypeParametrized, TYTreeFluentUintScalarTest,
+REGISTER_TYPED_TEST_SUITE_P(TYTreeFluentUintScalarTest, Ok);
+INSTANTIATE_TYPED_TEST_SUITE_P(TypeParametrized, TYTreeFluentUintScalarTest,
     TYTreeFluentUintScalarTestTypes
 );
 
@@ -124,7 +124,7 @@ class TYTreeFluentFloatScalarTest
 {
 };
 
-TYPED_TEST_CASE_P(TYTreeFluentFloatScalarTest);
+TYPED_TEST_SUITE_P(TYTreeFluentFloatScalarTest);
 TYPED_TEST_P(TYTreeFluentFloatScalarTest, Ok)
 {
     StrictMock<TMockYsonConsumer> mock;
@@ -139,8 +139,8 @@ TYPED_TEST_P(TYTreeFluentFloatScalarTest, Ok)
 
 typedef Types<float, double>
     TYTreeFluentFloatScalarTestTypes;
-REGISTER_TYPED_TEST_CASE_P(TYTreeFluentFloatScalarTest, Ok);
-INSTANTIATE_TYPED_TEST_CASE_P(TypeParametrized, TYTreeFluentFloatScalarTest,
+REGISTER_TYPED_TEST_SUITE_P(TYTreeFluentFloatScalarTest, Ok);
+INSTANTIATE_TYPED_TEST_SUITE_P(TypeParametrized, TYTreeFluentFloatScalarTest,
     TYTreeFluentFloatScalarTestTypes
 );
 

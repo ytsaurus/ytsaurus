@@ -929,7 +929,7 @@ TQueryStatistics DoExecuteQuery(
         std::mem_fn(TGetFunction(&TOwningRow::Get)));
 
     ON_CALL(*readerMock, Read(_))
-        .WillByDefault(DoAll(SetArgPointee<0>(sourceRows), Return(false)));
+        .WillByDefault(testing::DoAll(SetArgPointee<0>(sourceRows), Return(false)));
     EXPECT_CALL(*readerMock, Read(_));
 
     return evaluator->Run(
@@ -6100,7 +6100,7 @@ TEST_P(TQueryEvaluateComplexTest, All)
     }
 }
 
-INSTANTIATE_TEST_CASE_P(1, TQueryEvaluateComplexTest,
+INSTANTIATE_TEST_SUITE_P(1, TQueryEvaluateComplexTest,
 ::testing::Combine(
     ::testing::ValuesIn({
         "",

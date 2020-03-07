@@ -88,7 +88,7 @@ TEST_P(TConcurrentCacheTest, Stress)
     threadPool->Shutdown();
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Simple,
     TConcurrentCacheTest,
     ::testing::Values(

@@ -61,7 +61,7 @@ TEST_P(THyperLogLogTest, Random)
     EXPECT_NEAR(meanError, 0, 0.05);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     HyperLogLogTest,
     THyperLogLogTest,
     ::testing::Values(
