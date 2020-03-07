@@ -154,7 +154,7 @@ TEST_P(TExtractSubexpressionPredicateTest, Simple)
         << "expected: " << ::testing::PrintToString(expected);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TExtractSubexpressionPredicateTest,
     TExtractSubexpressionPredicateTest,
     ::testing::Values(
@@ -266,7 +266,7 @@ TEST_P(TEliminateLookupPredicateTest, Simple)
         << "expected: " << ::testing::PrintToString(expected);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TEliminateLookupPredicateTest,
     TEliminateLookupPredicateTest,
     ::testing::Values(
@@ -390,7 +390,7 @@ TEST_P(TEliminatePredicateTest, Simple)
         << "expected: " << ::testing::PrintToString(expected);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TEliminatePredicateTestOld,
     TEliminatePredicateTest,
     ::testing::Values(
@@ -462,7 +462,7 @@ INSTANTIATE_TEST_CASE_P(
             std::vector<const char*>{"2;2;2", "3;3;3"})
 ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TEliminatePredicateTest,
     TEliminatePredicateTest,
     ::testing::Values(
@@ -652,7 +652,7 @@ TEST_P(TPrepareExpressionTest, Simple)
         << "expr2: " << ::testing::PrintToString(expr2);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     CheckExpressions,
     TPrepareExpressionTest,
     ::testing::Values(
@@ -800,7 +800,7 @@ TEST_F(TPrepareExpressionTest, Negative1)
         HasSubstr("Type mismatch in expression"));
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     CheckExpressions2,
     TPrepareExpressionTest,
     ::testing::Values(
@@ -865,7 +865,7 @@ INSTANTIATE_TEST_CASE_P(
             "ku = 184467440737095520u / 3")
 ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     CheckPriorities,
     TPrepareExpressionTest,
     ::testing::Values(
@@ -1112,7 +1112,7 @@ TEST_P(TExpressionTest, EvaluateLhsLiteralRhsValue)
         << "row: " << ::testing::PrintToString(row);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TArithmeticTest,
     TExpressionTest,
     ::testing::Values(
@@ -1148,7 +1148,7 @@ INSTANTIATE_TEST_CASE_P(
         TArithmeticTestParam(EValueType::Uint64, "6u", "<=", "6u", MakeBoolean(true))
 ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TArithmeticNullTest,
     TExpressionTest,
     ::testing::Values(
@@ -1224,7 +1224,7 @@ TEST_P(TTernaryLogicTest, Evaluate)
     EXPECT_TRUE(CompareRowValues(result, expected) == 0);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     AndOr,
     TTernaryLogicTest,
     ::testing::Values(
@@ -1329,7 +1329,7 @@ TEST_P(TCompareWithNullTest, Simple)
         << "expr: " << ::testing::PrintToString(exprString) << std::endl;
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TCompareWithNullTest,
     TCompareWithNullTest,
     ::testing::Values(
@@ -1400,7 +1400,7 @@ TEST_P(TEvaluateAggregationTest, Basic)
     EXPECT_EQ(expected, result);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     EvaluateAggregationTest,
     TEvaluateAggregationTest,
     ::testing::Values(
@@ -1489,7 +1489,7 @@ TEST_P(TEvaluateExpressionTest, Basic)
     EXPECT_EQ(result, expected);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     EvaluateExpressionTest,
     TEvaluateExpressionTest,
     ::testing::Values(
@@ -1600,7 +1600,7 @@ INSTANTIATE_TEST_CASE_P(
             MakeBoolean(true))
 ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     EvaluateTimestampExpressionTest,
     TEvaluateExpressionTest,
     ::testing::Values(

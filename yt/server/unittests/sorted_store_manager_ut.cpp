@@ -627,7 +627,7 @@ TEST_P(TBlockedWriteTest, WriteConflictingWrite)
     EXPECT_FALSE(context.Error.IsOK());
 }
 
-INSTANTIATE_TEST_CASE_P(BlockedWrite,
+INSTANTIATE_TEST_SUITE_P(BlockedWrite,
     TBlockedWriteTest,
     ::testing::Values(false, true));
 

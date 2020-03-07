@@ -662,7 +662,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     ASSERT_EQ(resumedChunks.size() + suspendedChunks.size(), chunkCount);
 }
 
-INSTANTIATE_TEST_CASE_P(VariousOperationsWithPoolInstantiation,
+INSTANTIATE_TEST_SUITE_P(VariousOperationsWithPoolInstantiation,
     TOrderedChunkPoolTestRandomized,
     ::testing::Range(0, NumberOfRepeats));
 

@@ -31,7 +31,7 @@ TEST_P(TBooleanFormulaTest, Test)
         << "expected: " << expected;
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TBooleanFormulaTest,
     TBooleanFormulaTest,
     ::testing::Values(
@@ -75,7 +75,7 @@ TEST_P(TBooleanFormulaParseErrorTest, Test)
         << "formula: " << formula;
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TBooleanFormulaParseErrorTest,
     TBooleanFormulaParseErrorTest,
     ::testing::Values(

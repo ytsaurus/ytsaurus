@@ -97,9 +97,10 @@ public:
             }),
             delay);
 
-        promise.OnCanceled(BIND([=](const TError& error) {
+        promise.OnCanceled(BIND([=] (const TError& error) {
             TDelayedExecutor::Cancel(cookie);
-            promise.TrySet(error);
+            promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed callback canceled")
+                << error);
         }));
 
         return promise;

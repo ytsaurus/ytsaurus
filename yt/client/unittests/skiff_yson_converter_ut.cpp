@@ -614,7 +614,7 @@ TEST_P(TYsonSkiffConverterTestVariant, TestMalformedVariants)
         "Skiff to Yson conversion error");
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Variants,
     TYsonSkiffConverterTestVariant,
     ::testing::Combine(
