@@ -2,6 +2,8 @@ import pytest
 import json
 import os.path
 
+from flaky import flaky
+
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
@@ -211,6 +213,8 @@ class TestAccessLogPortal(TestAccessLog):
     NUM_SECONDARY_MASTER_CELLS = 3
     ENABLE_TMP_PORTAL = True
 
+    # TODO(shakurov): fix it in YT-12457.
+    @flaky(max_runs=3)
     def test_logs_portal(self):
         log_list = []
 
