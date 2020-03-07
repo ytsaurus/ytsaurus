@@ -377,7 +377,7 @@ TEST_P(TLookupFilterTest, TestVersionedLookupFilter)
         << "expectedSchema: " << schemaString << std::endl;
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TLookupFilterTest,
     TLookupFilterTest,
     ::testing::Values(

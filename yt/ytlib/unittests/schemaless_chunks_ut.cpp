@@ -339,7 +339,7 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
     CheckSchemalessResult(expected, chunkReader, 0);
 }
 
-INSTANTIATE_TEST_CASE_P(Unsorted,
+INSTANTIATE_TEST_SUITE_P(Unsorted,
     TSchemalessChunksTest,
     ::testing::Combine(
         ::testing::Values(
@@ -360,7 +360,7 @@ INSTANTIATE_TEST_CASE_P(Unsorted,
             TReadRange(TReadLimit().SetRowIndex(RowCount / 3), TReadLimit().SetRowIndex(2 * RowCount / 3)))));
 
 
-INSTANTIATE_TEST_CASE_P(Sorted,
+INSTANTIATE_TEST_SUITE_P(Sorted,
     TSchemalessChunksTest,
     ::testing::Combine(
         ::testing::Values(
@@ -649,7 +649,7 @@ TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
     CheckSchemalessResult(expected, reader, Schema_.GetKeyColumnCount());
 }
 
-INSTANTIATE_TEST_CASE_P(Sorted,
+INSTANTIATE_TEST_SUITE_P(Sorted,
     TSchemalessChunksLookupTest,
     ::testing::Combine(
         ::testing::Values(

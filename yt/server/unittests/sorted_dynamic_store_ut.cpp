@@ -676,7 +676,7 @@ auto comparerTestParams = ::testing::Values(
     "a=<\"type\"=\"min\">#",
     "a=<\"type\"=\"max\">#");
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     CodeGenerationTest,
     TSortedDynamicRowKeyComparerTest,
     ::testing::Combine(comparerTestParams, comparerTestParams));

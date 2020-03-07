@@ -229,7 +229,7 @@ TEST_P(TOrderedDynamicStoreReadTest, Read)
     }
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Read,
     TOrderedDynamicStoreReadTest,
     ::testing::Values(
@@ -268,7 +268,7 @@ TEST_P(TOrderedDynamicStoreWriteTest, Write)
     }
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     Write,
     TOrderedDynamicStoreWriteTest,
     ::testing::Values(
