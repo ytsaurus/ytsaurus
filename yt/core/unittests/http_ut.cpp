@@ -1053,8 +1053,8 @@ TEST_P(THttpServerTest, ConnectionKeepAlive)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INSTANTIATE_TEST_CASE_P(WithoutTls, THttpServerTest, ::testing::Values(false));
-INSTANTIATE_TEST_CASE_P(WithTls, THttpServerTest, ::testing::Values(true));
+INSTANTIATE_TEST_SUITE_P(WithoutTls, THttpServerTest, ::testing::Values(false));
+INSTANTIATE_TEST_SUITE_P(WithTls, THttpServerTest, ::testing::Values(true));
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -795,7 +795,7 @@ TEST_P(TComputedColumnTest, Join)
     EXPECT_EQ(YsonToKey(args[5]), result[1].second);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TComputedColumnTest,
     TComputedColumnTest,
     ::testing::Values(

@@ -27,7 +27,7 @@ TEST_P(TTimeFormulaParseTest, Test)
 }
 
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TTimeFormulaParseTest,
     TTimeFormulaParseTest,
     ::testing::Values(
@@ -69,7 +69,7 @@ TEST_P(TTimeFormulaCorrectnessTest, Test)
     EXPECT_EQ(count, expectedCount);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TTimeFormulaCorrectnessTest,
     TTimeFormulaCorrectnessTest,
     ::testing::Values(

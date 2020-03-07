@@ -166,7 +166,7 @@ TEST_P(TWriteFileChunkTest, Random)
     }
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TWriteFileChunkTest,
     TWriteFileChunkTest,
     ::testing::Values(

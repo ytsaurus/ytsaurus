@@ -623,7 +623,7 @@ TEST_P(TCellBaseBalancerTest, TestBalancer)
  * number of bundles,
  * number of cells per bundle
  */
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     CellBalancer,
     TCellBaseBalancerStressTest,
     ::testing::Values(
@@ -640,7 +640,7 @@ INSTANTIATE_TEST_CASE_P(
         tablet_slots_per_node,
         "{node_name: [cell_index; ...]; ...}"
 */
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     CellBalancer,
     TCellBaseBalancerRevokeTest,
     ::testing::Values(
@@ -652,7 +652,7 @@ INSTANTIATE_TEST_CASE_P(
             "{n1=[]; n2=[];}")
     ));
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     CellBalancer,
     TCellBaseBalancerTest,
     ::testing::Values(

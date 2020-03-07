@@ -322,7 +322,7 @@ TEST_P(TSyncFileChangelogTest, SealEmptyChangelog)
     changelog->Truncate(0);
 }
 
-INSTANTIATE_TEST_CASE_P(
+INSTANTIATE_TEST_SUITE_P(
     TSyncFileChangelogTest,
     TSyncFileChangelogTest,
     ::testing::Values(
