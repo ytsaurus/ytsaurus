@@ -275,6 +275,27 @@ extern const struct TReplicaSetsTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TDaemonSetsTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TDaemonSetsTable()
+        : TDBTable("daemon_sets")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Meta_PodSetId{"meta.pod_set_id", NTableClient::EValueType::String};
+        TDBField Spec{"spec", NTableClient::EValueType::Any};
+        TDBField Status{"status", NTableClient::EValueType::Any};
+    } Fields;
+} DaemonSetsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const struct TNodeSegmentToReplicaSetsTable
     : public TDBTable
 {

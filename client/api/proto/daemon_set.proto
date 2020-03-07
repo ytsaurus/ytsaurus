@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package NYP.NClient.NApi.NProto;
+
+import "yp/client/api/proto/data_model.proto";
+
+option python_package = "yp_proto.yp.client.api.proto";
+
+option go_package = "a.yandex-team.ru/yp/go/proto/ypapi";
+
+option java_package = "ru.yandex.yp.client.api";
+option java_outer_classname = "DaemonSet";
+option java_multiple_files = true;
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYP.NClient.NApi.NProto.object_type) = {
+    camel_case_name: "DaemonSet"
+    snake_case_name: "daemon_set"
+    type_value: 27
+};
+
+message TDaemonSetMetaBase
+{
+    string pod_set_id = 4;
+}
+
+message TDaemonSetSpec
+{
+    // Prohibits scheduling any pods into matching nodes until a Daemon pod is scheduled there.
+    bool strong = 1;
+}
+
+message TDaemonSetStatus
+{
+}

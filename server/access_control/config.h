@@ -42,6 +42,7 @@ public:
         RegisterParameter("cluster_state_allowed_object_types", ClusterStateAllowedObjectTypes)
             .Default({
                 NObjects::EObjectType::Account,
+                NObjects::EObjectType::DaemonSet,
                 NObjects::EObjectType::DynamicResource,
                 NObjects::EObjectType::EndpointSet,
                 NObjects::EObjectType::HorizontalPodAutoscaler,

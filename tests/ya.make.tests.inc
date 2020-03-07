@@ -21,6 +21,7 @@ SET(YP_TEST_SRCS
     test_client_discovery.py
     test_config.py
     test_cypress_auth.py
+    test_daemon_sets.py
     test_deploy_ticket_control.py
     test_deploy_tickets.py
     test_disk_bandwidth_resource.py
@@ -32,15 +33,15 @@ SET(YP_TEST_SRCS
     test_grpc_stubs.py
     test_heavy_scheduler.py
     test_history_api.py
-    test_http_api.py
     test_horizontal_pod_autoscaler.py
+    test_http_api.py
     test_ids.py
     test_internet_address.py
     test_ip4_address_pool.py
     test_labels.py
     test_local_cli.py
-    test_migrations.py
     test_maintenance.py
+    test_migrations.py
     test_multi_cluster_replica_sets.py
     test_net.py
     test_network_projects.py
@@ -53,8 +54,8 @@ SET(YP_TEST_SRCS
     test_pods.py
     test_projects.py
     test_proto_conversion.py
-    test_releases.py
     test_release_rules.py
+    test_releases.py
     test_replica_sets.py
     test_resource_cache.py
     test_resources.py

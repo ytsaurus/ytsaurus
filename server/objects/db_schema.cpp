@@ -17,6 +17,7 @@ const TAnnotationsTable AnnotationsTable;
 const TNetworkProjectsTable NetworkProjectsTable;
 const TDynamicResourcesTable DynamicResourcesTable;
 const TReplicaSetsTable ReplicaSetsTable;
+const TDaemonSetsTable DaemonSetsTable;
 const TNodeSegmentToReplicaSetsTable NodeSegmentToReplicaSetsTable;
 const TIP6NoncesTable IP6NoncesTable;
 const TEndpointsTable EndpointsTable;
@@ -68,6 +69,7 @@ const std::vector<const TDBTable*> Tables = {
     &NetworkProjectsTable,
     &DynamicResourcesTable,
     &ReplicaSetsTable,
+    &DaemonSetsTable,
     &NodeSegmentToReplicaSetsTable,
     &IP6NoncesTable,
     &EndpointsTable,
@@ -108,4 +110,3 @@ const std::vector<const TDBTable*> Tables = {
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NObjects
-

@@ -71,6 +71,7 @@ struct IObjectTypeHandler;
 class TAccount;
 class TDeployTicket;
 class TDnsRecordSet;
+class TDaemonSet;
 class TDynamicResource;
 class TEndpoint;
 class TEndpointSet;

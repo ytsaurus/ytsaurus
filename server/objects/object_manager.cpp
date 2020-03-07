@@ -2,6 +2,7 @@
 
 #include "account_type_handler.h"
 #include "config.h"
+#include "daemon_set_type_handler.h"
 #include "db_schema.h"
 #include "deploy_ticket_type_handler.h"
 #include "dns_record_set_type_handler.h"
@@ -103,6 +104,7 @@ public:
         RegisterTypeHandler(CreateIP4AddressPoolsTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateAccountTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateReplicaSetTypeHandler(Bootstrap_, Config_->PodTypeHandler->SpecValidation));
+        RegisterTypeHandler(CreateDaemonSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateDnsRecordSetTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateResourceCacheTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateMultiClusterReplicaSetTypeHandler(Bootstrap_, Config_->PodTypeHandler->SpecValidation));
@@ -385,4 +387,3 @@ bool TObjectManager::IsHistoryDisabledForType(EObjectType type) const
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NObjects
-

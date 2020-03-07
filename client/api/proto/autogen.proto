@@ -13,16 +13,17 @@ option go_package = "a.yandex-team.ru/yp/go/proto/ypapi";
 
 
 import "yp/client/api/proto/data_model.proto";
+import "yp/client/api/proto/daemon_set.proto";
 import "yp/client/api/proto/deploy_patch.proto";
 import "yp/client/api/proto/deploy.proto";
 import "yp/client/api/proto/deploy_ticket.proto";
-import "yp/client/api/proto/persistent_disk.proto";
-import "yp/client/api/proto/persistent_volume.proto";
-import "yp/client/api/proto/persistent_volume_claim.proto";
 import "yp/client/api/proto/dynamic_resource.proto";
 import "yp/client/api/proto/horizontal_pod_autoscaler.proto";
 import "yp/client/api/proto/host_infra.proto";
 import "yp/client/api/proto/multi_cluster_replica_set.proto";
+import "yp/client/api/proto/persistent_disk.proto";
+import "yp/client/api/proto/persistent_volume_claim.proto";
+import "yp/client/api/proto/persistent_volume.proto";
 import "yp/client/api/proto/project.proto";
 import "yp/client/api/proto/release.proto";
 import "yp/client/api/proto/release_rule.proto";
@@ -90,6 +91,9 @@ enum EObjectType
 
     OT_POD_DISRUPTION_BUDGET = 20
     [(NYT.NYson.NProto.enum_value_name) = "pod_disruption_budget"];
+
+    OT_DAEMON_SET = 27
+    [(NYT.NYson.NProto.enum_value_name) = "daemon_set"];
 
     OT_DEPLOY_TICKET = 25
     [(NYT.NYson.NProto.enum_value_name) = "deploy_ticket"];
@@ -508,6 +512,30 @@ message TPodDisruptionBudget
     TPodDisruptionBudgetMeta meta = 1;
     TPodDisruptionBudgetSpec spec = 2;
     TPodDisruptionBudgetStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TDaemonSetMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string pod_set_id = 4;
+}
+
+message TDaemonSet
+{
+    TDaemonSetMeta meta = 1;
+    TDaemonSetSpec spec = 2;
+    TDaemonSetStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }

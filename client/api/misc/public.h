@@ -107,6 +107,7 @@ DEFINE_ENUM(EObjectType,
     ((Release)                (24))
     ((DeployTicket)           (25))
     ((HorizontalPodAutoscaler)(26))
+    ((DaemonSet)              (27))
     ((NetworkModule)         (100)) // internal, not present in data_model.proto
     ((Schema)                (256))
 );
