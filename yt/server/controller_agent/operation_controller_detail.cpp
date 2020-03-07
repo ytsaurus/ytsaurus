@@ -301,6 +301,14 @@ void TOperationControllerBase::BuildStateYson(TFluentAny fluent) const
         .Value(State.load());
 }
 
+void TOperationControllerBase::BuildTestingState(TFluentAny fluent) const
+{
+    fluent
+        .BeginMap()
+            .Item("commit_sleep_started").Value(CommitSleepStarted_)
+        .EndMap();
+}
+
 // Resource management.
 TExtendedJobResources TOperationControllerBase::GetAutoMergeResources(
     const TChunkStripeStatisticsVector& statistics) const
@@ -726,7 +734,8 @@ void TOperationControllerBase::InitializeOrchid()
         ->AddChild("memory_usage", createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this))))
         ->AddChild("state", createService(BIND(&TOperationControllerBase::BuildStateYson, Unretained(this))))
         ->AddChild("data_flow_graph", DataFlowGraph_->GetService()
-            ->WithPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this))));
+            ->WithPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this))))
+        ->AddChild("testing", createService(BIND(&TOperationControllerBase::BuildTestingState, Unretained(this))));
     service->SetOpaque(false);
     Orchid_ = service
         ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
@@ -1624,8 +1633,24 @@ void TOperationControllerBase::SleepInCommitStage(EDelayInsideOperationCommitSta
 {
     auto delay = Spec_->TestingOperationOptions->DelayInsideOperationCommit;
     auto stage = Spec_->TestingOperationOptions->DelayInsideOperationCommitStage;
+    auto skipOnSecondEntrance = Spec_->TestingOperationOptions->NoDelayOnSecondEntranceToCommit;
 
-    if (delay && stage && *stage == desiredStage) {
+    {
+        const auto& client = Host->GetClient();
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        auto path = GetOperationPath(OperationId) + "/@testing";
+        auto req = TYPathProxy::Get(path);
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        if (rspOrError.IsOK()) {
+            auto rspNode = ConvertToNode(NYson::TYsonString(rspOrError.ValueOrThrow()->value()));
+            CommitSleepStarted_ = rspNode->AsMap()->GetChild("commit_sleep_started")->GetValue<bool>();
+        }
+    }
+
+    if (delay && stage && *stage == desiredStage && (!CommitSleepStarted_ || !skipOnSecondEntrance)) {
+        CommitSleepStarted_ = true;
         TDelayedExecutor::WaitForDuration(*delay);
     }
 }

@@ -166,6 +166,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
         .Default();
+    RegisterParameter("no_delay_on_second_entrance_to_commit", NoDelayOnSecondEntranceToCommit)
+        .Default(false);
     RegisterParameter("controller_failure", ControllerFailure)
         .Default();
     RegisterParameter("get_job_spec_delay", GetJobSpecDelay)

@@ -432,6 +432,7 @@ public:
 
     std::optional<TDuration> DelayInsideOperationCommit;
     std::optional<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
+    bool NoDelayOnSecondEntranceToCommit;
 
     std::optional<TDuration> DelayInsidePrepare;
 

@@ -1093,6 +1093,9 @@ private:
     //! Error that lead to operation failure.
     TError Error_;
 
+    // Used for testing purposes.
+    bool CommitSleepStarted_ = false;
+
     void InitializeOrchid();
 
     struct TLivePreviewChunkDescriptor
@@ -1165,6 +1168,8 @@ private:
 
     void BuildMemoryUsageYson(NYTree::TFluentAny fluent) const;
     void BuildStateYson(NYTree::TFluentAny fluent) const;
+    
+    void BuildTestingState(NYTree::TFluentAny fluent) const;
 
     void ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool suggestCreateJobNodeByStatus);
 
