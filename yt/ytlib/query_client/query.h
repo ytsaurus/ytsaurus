@@ -311,8 +311,7 @@ struct TMappedSchema
         for (const auto& item : GetOrderedSchemaMapping()) {
             result.emplace_back(item.Name, Original.Columns()[item.Index].LogicalType());
         }
-
-        return TTableSchema(result);
+        return TTableSchema(std::move(result));
     }
 
 };
@@ -367,7 +366,7 @@ struct TJoinClause
             }
         }
 
-        return TTableSchema(result);
+        return TTableSchema(std::move(result));
     }
 };
 
@@ -537,8 +536,7 @@ struct TQuery
                 Schema.Original.Columns()[item.Index].Name(),
                 Schema.Original.Columns()[item.Index].LogicalType());
         }
-
-        return TTableSchema(result);
+        return TTableSchema(std::move(result));
     }
 
     TTableSchema GetRenamedSchema() const
@@ -556,15 +554,14 @@ struct TQuery
             return GroupClause->GetTableSchema(IsFinal);
         }
 
-        TTableSchema result = GetRenamedSchema();
+        auto result = GetRenamedSchema();
 
         for (const auto& joinClause : JoinClauses) {
             result = joinClause->GetTableSchema(result);
         }
 
-        return TTableSchema(result);
+        return result;
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)

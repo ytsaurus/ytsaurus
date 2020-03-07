@@ -107,7 +107,7 @@ private:
         { }
 
     protected:
-        virtual TFuture<ETabletCellHealth> DoGet(const std::pair<NApi::IClientPtr, TString>& key) override
+        virtual TFuture<ETabletCellHealth> DoGet(const std::pair<NApi::IClientPtr, TString>& key, bool /*isPeriodicUpdate*/) override
         {
             const auto& [client, bundleName] = key;
             return client->GetNode("//sys/tablet_cell_bundles/" + bundleName + "/@health").ToUncancelable()

@@ -44,14 +44,6 @@ public:
     virtual void ResetAuthenticatedUser() override;
     virtual std::optional<TString> GetAuthenticatedUserName() override;
 
-    TFuture<void> CheckPermission(
-        const TString& path,
-        NYTree::EPermission permission);
-
-    void ValidatePermission(
-        const TString& path,
-        NYTree::EPermission permission);
-
     TFuture<void> CheckResourceLimits(
         const TString& account,
         const TString& mediumName,

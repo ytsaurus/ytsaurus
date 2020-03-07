@@ -33,6 +33,8 @@
 
 #include <yt/ytlib/scheduler/scheduler_channel.h>
 
+#include <yt/ytlib/security_client/permission_cache.h>
+
 #include <yt/client/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/native_table_mount_cache.h>
 
@@ -74,6 +76,7 @@ using namespace NQueryClient;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NJobProberClient;
+using namespace NSecurityClient;
 using namespace NScheduler;
 using namespace NProfiling;
 using namespace NYson;
@@ -141,6 +144,10 @@ public:
             ChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
+
+        PermissionCache_ = New<TPermissionCache>(
+            Config_->PermissionCache,
+            this);
 
         JobNodeDescriptorCache_ = New<TJobNodeDescriptorCache>(
             Config_->JobNodeDescriptorCache,
@@ -210,6 +217,11 @@ public:
     virtual const TJobNodeDescriptorCachePtr& GetJobNodeDescriptorCache() override
     {
         return JobNodeDescriptorCache_;
+    }
+
+    virtual const TPermissionCachePtr& GetPermissionCache() override
+    {
+        return PermissionCache_;
     }
 
     virtual IInvokerPtr GetInvoker() override
@@ -446,6 +458,7 @@ private:
     IChannelPtr TimestampProviderChannel_;
     ITimestampProviderPtr TimestampProvider_;
     TJobNodeDescriptorCachePtr JobNodeDescriptorCache_;
+    TPermissionCachePtr PermissionCache_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 

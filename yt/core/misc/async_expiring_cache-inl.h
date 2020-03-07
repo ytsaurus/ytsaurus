@@ -15,21 +15,21 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TKey, class TValue, class... TGetInfo>
-TAsyncExpiringCache<TKey, TValue, TGetInfo...>::TEntry::TEntry(NProfiling::TCpuInstant accessDeadline)
+template <class TKey, class TValue>
+TAsyncExpiringCache<TKey, TValue>::TEntry::TEntry(NProfiling::TCpuInstant accessDeadline)
     : AccessDeadline(accessDeadline)
     , UpdateDeadline(std::numeric_limits<NProfiling::TCpuInstant>::max())
     , Promise(NewPromise<TValue>())
 { }
 
-template <class TKey, class TValue, class... TGetInfo>
-bool TAsyncExpiringCache<TKey, TValue, TGetInfo...>::TEntry::IsExpired(NProfiling::TCpuInstant now) const
+template <class TKey, class TValue>
+bool TAsyncExpiringCache<TKey, TValue>::TEntry::IsExpired(NProfiling::TCpuInstant now) const
 {
     return now > AccessDeadline || now > UpdateDeadline;
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-TAsyncExpiringCache<TKey, TValue, TGetInfo...>::TAsyncExpiringCache(
+template <class TKey, class TValue>
+TAsyncExpiringCache<TKey, TValue>::TAsyncExpiringCache(
     TAsyncExpiringCacheConfigPtr config,
     NProfiling::TProfiler profiler)
     : Config_(std::move(config))
@@ -42,10 +42,9 @@ TAsyncExpiringCache<TKey, TValue, TGetInfo...>::TAsyncExpiringCache(
     }
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-typename TAsyncExpiringCache<TKey, TValue, TGetInfo...>::TExtendedGetResult TAsyncExpiringCache<TKey, TValue, TGetInfo...>::GetExtended(
-    const TKey& key,
-    const TGetInfo&... getInfo)
+template <class TKey, class TValue>
+typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCache<TKey, TValue>::GetExtended(
+    const TKey& key)
 {
     auto now = NProfiling::GetCpuInstant();
 
@@ -90,21 +89,20 @@ typename TAsyncExpiringCache<TKey, TValue, TGetInfo...>::TExtendedGetResult TAsy
         YT_VERIFY(Map_.emplace(key, std::move(entry)).second);
         Profiler_.Update(SizeCounter_, Map_.size());
         guard.Release();
-        InvokeGet(weakEntry, key, /* isPeriodicUpdate */ false, getInfo...);
+        InvokeGet(weakEntry, key, /* isPeriodicUpdate */ false);
         return {promise, true};
     }
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-TFuture<TValue> TAsyncExpiringCache<TKey, TValue, TGetInfo...>::Get(const TKey& key, const TGetInfo&... getInfo)
+template <class TKey, class TValue>
+TFuture<TValue> TAsyncExpiringCache<TKey, TValue>::Get(const TKey& key)
 {
-    return GetExtended(key, getInfo...).Future;
+    return GetExtended(key).Future;
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue, TGetInfo...>::Get(
-    const std::vector<TKey>& keys,
-    const TGetInfo&... getInfo)
+template <class TKey, class TValue>
+TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
+    const std::vector<TKey>& keys)
 {
     auto now = NProfiling::GetCpuInstant();
 
@@ -165,7 +163,7 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue, TGetInf
 
             YT_VERIFY(Map_.emplace(key, std::move(entry)).second);
         }
-        
+
         Profiler_.Update(SizeCounter_, Map_.size());
 
         std::vector<TKey> invokeKeys;
@@ -174,14 +172,14 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue, TGetInf
         }
 
         guard.Release();
-        InvokeGetMany(invokeEntries, invokeKeys, /* isPeriodicUpdate */ false, getInfo...);
+        InvokeGetMany(invokeEntries, invokeKeys, /* isPeriodicUpdate */ false);
     }
 
     return CombineAll(results);
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-std::optional<TErrorOr<TValue>> TAsyncExpiringCache<TKey, TValue, TGetInfo...>::Find(const TKey& key)
+template <class TKey, class TValue>
+std::optional<TErrorOr<TValue>> TAsyncExpiringCache<TKey, TValue>::Find(const TKey& key)
 {
     auto now = NProfiling::GetCpuInstant();
 
@@ -200,8 +198,8 @@ std::optional<TErrorOr<TValue>> TAsyncExpiringCache<TKey, TValue, TGetInfo...>::
     return std::nullopt;
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-std::vector<std::optional<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue, TGetInfo...>::Find(const std::vector<TKey>& keys)
+template <class TKey, class TValue>
+std::vector<std::optional<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Find(const std::vector<TKey>& keys)
 {
     auto now = NProfiling::GetCpuInstant();
 
@@ -228,8 +226,8 @@ std::vector<std::optional<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue, T
     return results;
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::Invalidate(const TKey& key)
+template <class TKey, class TValue>
+void TAsyncExpiringCache<TKey, TValue>::Invalidate(const TKey& key)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
     auto it = Map_.find(key);
@@ -241,8 +239,8 @@ void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::Invalidate(const TKey& key)
     }
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::SetValue(const TKey& key, TErrorOr<TValue> valueOrError)
+template <class TKey, class TValue>
+void TAsyncExpiringCache<TKey, TValue>::Set(const TKey& key, TErrorOr<TValue> valueOrError)
 {
     auto now = NProfiling::GetCpuInstant();
     auto accessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
@@ -276,37 +274,42 @@ void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::SetValue(const TKey& key, T
                     MakeWeak(this),
                     MakeWeak(entry),
                     key,
-                    /* isPeriodicUpdate */ true,
-                    TGetInfo()...),
+                    /* isPeriodicUpdate */ true),
                 *Config_->RefreshTime);
         }
     }
     Profiler_.Update(SizeCounter_, Map_.size());
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::Clear()
+template <class TKey, class TValue>
+void TAsyncExpiringCache<TKey, TValue>::Clear()
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
     if (!Config_->BatchUpdate) {
-        for (const auto& pair : Map_) {	
-            if (pair.second->Promise.IsSet()) {	
-                NConcurrency::TDelayedExecutor::CancelAndClear(pair.second->ProbationCookie);	
-            }	
+        for (const auto& pair : Map_) {
+            if (pair.second->Promise.IsSet()) {
+                NConcurrency::TDelayedExecutor::CancelAndClear(pair.second->ProbationCookie);
+            }
         }
     }
     Map_.clear();
     Profiler_.Update(SizeCounter_, 0);
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::SetResult(
+template <class TKey, class TValue>
+void TAsyncExpiringCache<TKey, TValue>::SetResult(
     const TWeakPtr<TEntry>& weakEntry,
     const TKey& key,
-    const TErrorOr<TValue>& valueOrError)
+    const TErrorOr<TValue>& valueOrError,
+    bool isPeriodicUpdate)
 {
     auto entry = weakEntry.Lock();
     if (!entry) {
+        return;
+    }
+
+    // Ignore cancelation errors during periodic update.
+    if (isPeriodicUpdate && valueOrError.FindMatching(NYT::EErrorCode::Canceled)) {
         return;
     }
 
@@ -336,33 +339,31 @@ void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::SetResult(
                 MakeWeak(this),
                 MakeWeak(entry),
                 key,
-                /* isPeriodicUpdate */ true,
-                TGetInfo()...),
+                /* isPeriodicUpdate */ true),
             *Config_->RefreshTime);
     }
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::InvokeGet(
+template <class TKey, class TValue>
+void TAsyncExpiringCache<TKey, TValue>::InvokeGet(
     const TWeakPtr<TEntry>& weakEntry,
     const TKey& key,
-    bool isPeriodicUpdate,
-    const TGetInfo&... getInfo)
+    bool isPeriodicUpdate)
 {
     if (isPeriodicUpdate && TryEraseExpired(weakEntry, key)) {
         return;
     }
 
-    DoGet(key, getInfo...)
+    DoGet(key, isPeriodicUpdate)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
             NConcurrency::TWriterGuard guard(SpinLock_);
 
-            SetResult(weakEntry, key, valueOrError);
+            SetResult(weakEntry, key, valueOrError, isPeriodicUpdate);
         }));
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-bool TAsyncExpiringCache<TKey, TValue, TGetInfo...>::TryEraseExpired(const TWeakPtr<TEntry>& weakEntry, const TKey& key)
+template <class TKey, class TValue>
+bool TAsyncExpiringCache<TKey, TValue>::TryEraseExpired(const TWeakPtr<TEntry>& weakEntry, const TKey& key)
 {
     auto entry = weakEntry.Lock();
     if (!entry) {
@@ -383,24 +384,23 @@ bool TAsyncExpiringCache<TKey, TValue, TGetInfo...>::TryEraseExpired(const TWeak
     return false;
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::InvokeGetMany(
+template <class TKey, class TValue>
+void TAsyncExpiringCache<TKey, TValue>::InvokeGetMany(
     const std::vector<TWeakPtr<TEntry>>& entries,
     const std::vector<TKey>& keys,
-    bool isPeriodicUpdate,
-    const TGetInfo&... getInfo)
+    bool isPeriodicUpdate)
 {
-    DoGetMany(keys, getInfo...)
+    DoGetMany(keys, isPeriodicUpdate)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<TValue>>>& valueOrError) {
             NConcurrency::TWriterGuard guard(SpinLock_);
 
             if (valueOrError.IsOK()) {
                 for (size_t index = 0; index < keys.size(); ++index) {
-                    SetResult(entries[index], keys[index], valueOrError.Value()[index]);
+                    SetResult(entries[index], keys[index], valueOrError.Value()[index], isPeriodicUpdate);
                 }
             } else {
                 for (size_t index = 0; index < keys.size(); ++index) {
-                    SetResult(entries[index], keys[index], TError(valueOrError));
+                    SetResult(entries[index], keys[index], TError(valueOrError), isPeriodicUpdate);
                 }
             }
 
@@ -412,31 +412,29 @@ void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::InvokeGetMany(
         }));
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue, TGetInfo...>::DoGetMany(
+template <class TKey, class TValue>
+TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::DoGetMany(
     const std::vector<TKey>& keys,
-    const TGetInfo&... getInfo)
+    bool isPeriodicUpdate)
 {
     std::vector<TFuture<TValue>> results;
-
     for (const auto& key : keys) {
-        results.push_back(DoGet(key, getInfo...));
+        results.push_back(DoGet(key, isPeriodicUpdate));
     }
-
-    return CombineAll(results);
+    return CombineAll(std::move(results));
 }
 
-template <class TKey, class TValue, class... TGetInfo>
-void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::OnErase(const TKey& )
+template <class TKey, class TValue>
+void TAsyncExpiringCache<TKey, TValue>::OnErase(const TKey& )
 { }
 
-template <class TKey, class TValue, class... TGetInfo>
-void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::UpdateAll()
+template <class TKey, class TValue>
+void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
 {
     std::vector<TWeakPtr<TEntry>> entries;
     std::vector<TKey> keys;
     std::vector<TKey> expiredKeys;
-    
+
     auto now = NProfiling::GetCpuInstant();
 
     {
@@ -477,7 +475,7 @@ void TAsyncExpiringCache<TKey, TValue, TGetInfo...>::UpdateAll()
             BIND(&TAsyncExpiringCache::UpdateAll, MakeWeak(this)),
             *Config_->RefreshTime);
     } else {
-        InvokeGetMany(entries, keys, /* isPeriodicUpdate */ true, TGetInfo()...);
+        InvokeGetMany(entries, keys, /* isPeriodicUpdate */ true);
     }
 }
 

@@ -1,6 +1,7 @@
 #include "permission_cache.h"
 
 #include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -21,6 +22,11 @@ TPermissionKey::operator size_t() const
     HashCombine(result, Object);
     HashCombine(result, User);
     HashCombine(result, Permission);
+    if (Columns) {
+        for (const auto& column : *Columns) {
+            HashCombine(result, column);
+        }
+    }
     return result;
 }
 
@@ -29,101 +35,137 @@ bool TPermissionKey::operator == (const TPermissionKey& other) const
     return
         Object == other.Object &&
         User == other.User &&
-        Permission == other.Permission;
+        Permission == other.Permission &&
+        Columns == other.Columns;
 }
 
 TString ToString(const TPermissionKey& key)
 {
-    return Format("%v:%v:%v",
+    return Format("%v:%v:%v:%v",
         key.Object,
         key.User,
-        key.Permission);
+        key.Permission,
+        key.Columns);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPermissionCache::TPermissionCache(
-    TPermissionCacheConfigPtr config,
-    IClientPtr client,
-    NProfiling::TProfiler profiler)
-    : TAsyncExpiringCache(config, std::move(profiler))
-    , Client_(std::move(client))
-    , Config_(std::move(config))
-{ }
+namespace {
 
-TFuture<std::vector<TError>> TPermissionCache::CheckPermissions(
-    const std::vector<TYPath>& paths,
-    const TString& user,
-    EPermission permission,
-    const IClientPtr& client)
+TObjectYPathProxy::TReqCheckPermissionPtr MakeCheckPermissionRequest(const TPermissionKey& key)
 {
-    std::vector<TPermissionKey> keys;
-    keys.reserve(paths.size());
-    for (const auto& path : paths) {
-        keys.push_back({path, user, permission});
+    auto req = TObjectYPathProxy::CheckPermission(key.Object);
+    req->set_user(key.User);
+    req->set_permission(static_cast<int>(key.Permission));
+    if (key.Columns) {
+        ToProto(req->mutable_columns()->mutable_items(), *key.Columns);
     }
-    return Get(keys, client);
+    NCypressClient::SetSuppressAccessTracking(req, true);
+    return req;
 }
 
-TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, const IClientPtr& client)
+TError ParseCheckPermissionResponse(
+    const TPermissionKey& key,
+    const TObjectYPathProxy::TErrorOrRspCheckPermissionPtr& rspOrError)
 {
-    return DoGetMany({key}, client)
-        .Apply(BIND([] (const std::vector<TError>& responses) {
-            responses[0].ThrowOnError();
+    if (!rspOrError.IsOK()) {
+        return rspOrError;
+    }
+    const auto& rsp = rspOrError.Value();
+
+    // TODO(dakovalkov): Remove this copy-paste code from native client.
+    auto parseResult = [] (const auto& protoResult) {
+        NApi::TCheckPermissionResult result;
+        result.Action = CheckedEnumCast<ESecurityAction>(protoResult.action());
+        result.ObjectId = FromProto<TObjectId>(protoResult.object_id());
+        result.ObjectName = protoResult.has_object_name() ? std::make_optional(protoResult.object_name()) : std::nullopt;
+        result.SubjectId = FromProto<TSubjectId>(protoResult.subject_id());
+        result.SubjectName = protoResult.has_subject_name() ? std::make_optional(protoResult.subject_name()) : std::nullopt;
+        return result;
+    };
+
+    TError error;
+    auto checkError = [&] (const NApi::TCheckPermissionResult& result, const std::optional<TString>& column) {
+        if (!error.IsOK()) {
+            return;
+        }
+        error = result.ToError(key.User, key.Permission, column);
+    };
+
+    checkError(parseResult(*rsp), std::nullopt);
+    if (key.Columns && rsp->has_columns()) {
+        for (int j = 0; j < rsp->columns().items_size(); ++j) {
+            checkError(parseResult(rsp->columns().items(j)), (*key.Columns)[j]);
+        }
+    }
+
+    return error;
+}
+
+} // namespace
+
+TPermissionCache::TPermissionCache(
+    TPermissionCacheConfigPtr config,
+    NApi::NNative::IConnectionPtr connection,
+    NProfiling::TProfiler profiler)
+    : TAsyncExpiringCache(config, std::move(profiler))
+    , Config_(std::move(config))
+    , Connection_(connection)
+{ }
+
+TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodicUpdate)
+{
+    auto connection = Connection_.Lock();
+    if (!connection) {
+        return MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
+    }
+
+    TObjectServiceProxy proxy(connection->GetMasterChannelOrThrow(Config_->ReadFrom));
+    auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetUser(isPeriodicUpdate ? Config_->RefreshUser : key.User);
+    batchReq->AddRequest(MakeCheckPermissionRequest(key));
+
+    return batchReq->Invoke()
+        .Apply(BIND([=] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
+            auto rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(0);
+            ParseCheckPermissionResponse(key, rspOrError)
+                .ThrowOnError();
         }));
 }
 
-TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
-    const std::vector<TPermissionKey>& keys,
-    const IClientPtr& client)
+TFuture<std::vector<TError>> TPermissionCache::DoGetMany(const std::vector<TPermissionKey>& keys, bool isPeriodicUpdate)
 {
     if (keys.empty()) {
         return MakeFuture(std::vector<TError>());
     }
 
-    TObjectServiceProxy proxy((client ? client : Client_)->GetMasterChannelOrThrow(Config_->ReadFrom));
+    if (!isPeriodicUpdate) {
+        return TAsyncExpiringCache::DoGetMany(keys, false);
+    }
+
+    auto connection = Connection_.Lock();
+    if (!connection) {
+        return MakeFuture<std::vector<TError>>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
+    }
+
+    TObjectServiceProxy proxy(connection->GetMasterChannelOrThrow(Config_->ReadFrom));
     auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetUser(Config_->RefreshUser);
     for (const auto& key : keys) {
-        auto req = TObjectYPathProxy::CheckPermission(key.Object);
-        req->set_user(key.User);
-        req->set_permission(static_cast<int>(key.Permission));
-        NCypressClient::SetSuppressAccessTracking(req, true);
-        batchReq->AddRequest(req);
+        batchReq->AddRequest(MakeCheckPermissionRequest(key));
     }
 
     return batchReq->Invoke()
         .Apply(BIND([=] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
-            auto responses = batchRsp->GetResponses<TObjectYPathProxy::TRspCheckPermission>();
-            std::vector<TError> result;
-            result.reserve(keys.size());
-            for (int i = 0; i < keys.size(); ++i) {
-                if (!responses[i].IsOK()) {
-                    result.push_back(responses[i]);
-                    continue;
-                }
-                // TODO(dakovalkov): Remove this copy-paste code from native client.
-                auto fillResult = [] (auto* result, const auto& protoResult) {
-                    result->Action = CheckedEnumCast<ESecurityAction>(protoResult.action());
-                    result->ObjectId = FromProto<TObjectId>(protoResult.object_id());
-                    result->ObjectName = protoResult.has_object_name() ? std::make_optional(protoResult.object_name()) : std::nullopt;
-                    result->SubjectId = FromProto<TSubjectId>(protoResult.subject_id());
-                    result->SubjectName = protoResult.has_subject_name() ? std::make_optional(protoResult.subject_name()) : std::nullopt;
-                };
-
-                NApi::TCheckPermissionResponse response;
-                const auto& rsp = responses[i].Value();
-                fillResult(&response, *rsp);
-                // TODO(dakovalkov): YT-10367, columnar ACL
-                if (rsp->has_columns()) {
-                    response.Columns.emplace();
-                    response.Columns->reserve(static_cast<size_t>(rsp->columns().items_size()));
-                    for (const auto& protoResult : rsp->columns().items()) {
-                        fillResult(&response.Columns->emplace_back(), protoResult);
-                    }
-                }
-                result.push_back(response.ToError(keys[i].User, keys[i].Permission));
+            auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspCheckPermission>();
+            std::vector<TError> results;
+            results.reserve(keys.size());
+            for (int index = 0; index < rspsOrError.size(); ++index) {
+                const auto& rspOrError = rspsOrError[index];
+                const auto& key = keys[index];
+                results.push_back(ParseCheckPermissionResponse(key, rspOrError));
             }
-            return result;
+            return results;
         }));
 }
 
