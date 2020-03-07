@@ -508,6 +508,11 @@ class ConfigsProvider_19(ConfigsProvider):
                 "expire_after_access_time": 0,
                 "refresh_time": 0
             },
+            "permission_cache": {
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "refresh_time": 0
+            },
             "master_cell_directory_synchronizer": {
                 "sync_period": 500,
                 "success_expiration_time": 500,
