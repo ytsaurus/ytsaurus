@@ -270,7 +270,7 @@ private:
     TSpinLock Lock_;
     THashMap<TString, NNet::TNetworkAddress> LastUserIP_;
 
-    virtual TFuture<TAuthenticationResult> DoGet(const TString& token) override
+    virtual TFuture<TAuthenticationResult> DoGet(const TString& token, bool /*isPeriodicUpdate*/) override
     {
         TTokenCredentials credentials;
         credentials.Token = token;

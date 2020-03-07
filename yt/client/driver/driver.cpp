@@ -312,11 +312,16 @@ public:
             request.CommandName,
             user);
 
-        auto client = ClientCache_->GetClient(user, request.UserToken);
+        IClientPtr client;
+        try {
+            client = ClientCache_->GetClient(user, request.UserToken);
+        } catch (const std::exception& ex) {
+            return MakeFuture<void>(ex);
+        }
 
         auto context = New<TCommandContext>(
             this,
-            client,
+            std::move(client),
             Config_,
             entry.Descriptor,
             request);

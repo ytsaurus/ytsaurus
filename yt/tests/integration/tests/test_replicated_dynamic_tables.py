@@ -1636,16 +1636,9 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
 class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
     DELTA_NODE_CONFIG = {
-        "tablet_node": {
-            "security_manager": {
-                "table_permission_cache": {
-                    "expire_after_access_time": 0,
-                },
-            },
-        },
         "master_cache_service": {
             "capacity": 0
-        },
+        }
     }
 
     @authors("ifsmirnov")

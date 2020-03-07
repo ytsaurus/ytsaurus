@@ -997,3 +997,69 @@ class TestOrderedDynamicTablesMultipleWriteBatches(TestOrderedDynamicTablesBase)
         rows = [{"a": i, "c": "text"} for i in xrange(100)]
         insert_rows("//tmp/t", rows)
         assert select_rows("a, c from [//tmp/t]") == rows
+
+##################################################################
+
+class TestOrderedDynamicTablesAcl(TestOrderedDynamicTablesBase):
+    def _prepare_allowed(self, permission):
+        create_user("u")
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        set("//tmp/t/@inherit_acl", False)
+        set("//tmp/t/@acl", [make_ace("allow", "u", permission)])
+
+    def _prepare_denied(self, permission):
+        create_user("u")
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        set("//tmp/t/@acl", [make_ace("deny", "u", permission)])
+
+    @authors("babenko")
+    def test_select_allowed(self):
+        self._prepare_allowed("read")
+        rows = [{"a": 1}]
+        insert_rows("//tmp/t", rows)
+        assert select_rows("a from [//tmp/t]", authenticated_user="u") == rows
+
+    @authors("babenko")
+    def test_select_denied(self):
+        self._prepare_denied("read")
+        with pytest.raises(YtError): select_rows("* from [//tmp/t]", authenticated_user="u")
+
+    @authors("babenko")
+    def test_insert_allowed(self):
+        self._prepare_allowed("write")
+        rows = [{"a": 1}]
+        insert_rows("//tmp/t", rows, authenticated_user="u")
+        assert select_rows("a from [//tmp/t]") == rows
+
+    @authors("babenko")
+    def test_insert_denied(self):
+        self._prepare_denied("write")
+        with pytest.raises(YtError): insert_rows("//tmp/t", [{"a": 1}], authenticated_user="u")
+
+    @authors("babenko")
+    def test_trim_allowed(self):
+        self._prepare_allowed("write")
+        rows = [{"a": 1}, {"a": 2}]
+        insert_rows("//tmp/t", rows)
+        trim_rows("//tmp/t", 0, 1, authenticated_user="u")
+        assert select_rows("a from [//tmp/t]") == rows[1:]
+
+    @authors("babenko")
+    def test_trim_denied(self):
+        self._prepare_denied("write")
+        insert_rows("//tmp/t", [{"a": 1}, {"a": 2}])
+        with pytest.raises(YtError): trim_rows("//tmp/t", 0, 1, authenticated_user="u")
+
+class TestOrderedDynamicTablesAclMulticell(TestOrderedDynamicTablesAcl):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestOrderedDynamicTablesAclRpcProxy(TestOrderedDynamicTablesAcl):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+class TestOrderedDynamicTablesAclPortal(TestOrderedDynamicTablesAclMulticell):
+    ENABLE_TMP_PORTAL = True

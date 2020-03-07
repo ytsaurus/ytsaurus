@@ -8,8 +8,6 @@
 
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/ytlib/security_client/permission_cache.h>
-
 #include <yt/core/concurrency/fls.h>
 #include <yt/core/concurrency/scheduler.h>
 
@@ -92,7 +90,7 @@ public:
 private:
     NCellNode::TBootstrap* const Bootstrap_;
 
-    virtual TFuture<void> DoGet(const TResourceLimitsKey& key) override
+    virtual TFuture<void> DoGet(const TResourceLimitsKey& key, bool isPeriodicUpdate) override
     {
         YT_LOG_DEBUG("Resource limits violation check started (Key: %v)",
             key);
@@ -159,7 +157,6 @@ public:
         NCellNode::TBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
-        , PermissionCache_(New<TPermissionCache>(Config_->PermissionCache, Bootstrap_->GetMasterClient()))
         , ResourceLimitsCache_(New<TResourceLimitsCache>(Config_->ResourceLimitsCache, Bootstrap_))
     { }
 
@@ -178,36 +175,6 @@ public:
     std::optional<TString> GetAuthenticatedUserName()
     {
         return *AuthenticatedUser_;
-    }
-
-    TFuture<void> CheckPermission(
-        const TString& path,
-        EPermission permission)
-    {
-        auto optionalUser = GetAuthenticatedUserName();
-        if (!optionalUser) {
-            return VoidFuture;
-        }
-
-        TPermissionKey key{path, *optionalUser, permission};
-        return PermissionCache_->Get(key, /* GetInfo */ nullptr);
-    }
-
-    void ValidatePermission(
-        const TString& path,
-        EPermission permission)
-    {
-        auto asyncResult = CheckPermission(path, permission);
-        auto optionalResult = asyncResult.TryGet();
-        TError result;
-        if (optionalResult) {
-            result = *optionalResult;
-        } else {
-            YT_LOG_DEBUG("Started waiting for persmission cache result");
-            result = WaitFor(asyncResult);
-            YT_LOG_DEBUG("Finished waiting for persmission cache result");
-        }
-        result.ThrowOnError();
     }
 
     TFuture<void> CheckResourceLimits(
@@ -233,7 +200,6 @@ private:
     const TSecurityManagerConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
-    const TPermissionCachePtr PermissionCache_;
     const TResourceLimitsCachePtr ResourceLimitsCache_;
 
     TFls<std::optional<TString>> AuthenticatedUser_;
@@ -265,20 +231,6 @@ void TSecurityManager::ResetAuthenticatedUser()
 std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
 {
     return Impl_->GetAuthenticatedUserName();
-}
-
-TFuture<void> TSecurityManager::CheckPermission(
-    const TString& path,
-    EPermission permission)
-{
-    return Impl_->CheckPermission(path, permission);
-}
-
-void TSecurityManager::ValidatePermission(
-    const TString& path,
-    EPermission permission)
-{
-    Impl_->ValidatePermission(path, permission);
 }
 
 TFuture<void> TSecurityManager::CheckResourceLimits(
