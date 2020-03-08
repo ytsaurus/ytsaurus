@@ -199,9 +199,7 @@ private:
     THashMap<TCookieAuthenticatorCacheKey, NNet::TNetworkAddress> LastUserIP_;
     TSpinLock LastUserIPLock_;
 
-    virtual TFuture<TAuthenticationResult> DoGet(
-        const TCookieAuthenticatorCacheKey& cacheKey,
-        bool /*isPeriodicUpdate*/) override
+    virtual TFuture<TAuthenticationResult> DoGet(const TCookieAuthenticatorCacheKey& cacheKey) override
     {
         TCookieCredentials credentials;
         credentials.SessionId = cacheKey.first;

@@ -72,7 +72,7 @@ public:
 private:
     TJobProberServiceProxy JobProberProxy_;
 
-    virtual TFuture<TNodeDescriptor> DoGet(const TJobNodeDescriptorKey& key, bool /*isPeriodicUpdate*/) override
+    virtual TFuture<TNodeDescriptor> DoGet(const TJobNodeDescriptorKey& key) override
     {
         YT_LOG_DEBUG("Requesting job node descriptor from scheduler (Key: %v)",
             key);

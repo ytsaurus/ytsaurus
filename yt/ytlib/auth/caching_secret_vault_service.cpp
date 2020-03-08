@@ -47,9 +47,7 @@ public:
 private:
     const ISecretVaultServicePtr Underlying_;
 
-    virtual TFuture<TSecretSubresponse> DoGet(
-        const TSecretSubrequest& subrequest,
-        bool /*isPeriodicUpdate*/) override
+    virtual TFuture<TSecretSubresponse> DoGet(const TSecretSubrequest& subrequest) override
     {
         return Underlying_->GetSecrets({subrequest})
             .Apply(BIND([] (const std::vector<TErrorOrSecretSubresponse>& result) {

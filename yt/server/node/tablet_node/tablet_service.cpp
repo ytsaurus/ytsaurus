@@ -73,8 +73,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)
     {
-        ValidatePeer(EPeerKind::Leader);
-
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -229,8 +227,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Trim)
     {
-        ValidatePeer(EPeerKind::Leader);
-
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
         auto trimmedRowCount = request->trimmed_row_count();
@@ -259,8 +255,16 @@ private:
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
+
+        slotManager->ValidateTabletAccess(
+            tabletSnapshot,
+            EPermission::Write,
+            SyncLastCommittedTimestamp);
+
         tabletSnapshot->ValidateCellId(Slot_->GetCellId());
+
         tabletSnapshot->ValidateMountRevision(mountRevision);
+
         return tabletSnapshot;
     }
 
@@ -269,6 +273,7 @@ private:
     {
         return Slot_->GetHydraManager();
     }
+
 };
 
 IServicePtr CreateTabletService(TTabletSlotPtr slot, NCellNode::TBootstrap* bootstrap)

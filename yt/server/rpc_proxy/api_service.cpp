@@ -434,6 +434,7 @@ private:
         }
 
         auto client = GetOrCreateClient(user);
+
         if (!client) {
             THROW_ERROR_EXCEPTION(
                 "No client found for user %Qv",

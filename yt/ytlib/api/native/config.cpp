@@ -165,9 +165,6 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("name", Name)
         .Default("default");
 
-    RegisterParameter("permission_cache", PermissionCache)
-        .DefaultNew();
-
     RegisterParameter("job_node_descriptor_cache", JobNodeDescriptorCache)
         .DefaultNew();
 

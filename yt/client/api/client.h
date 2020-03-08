@@ -284,10 +284,7 @@ struct TCheckPermissionOptions
 
 struct TCheckPermissionResult
 {
-    TError ToError(
-        const TString& user,
-        NYTree::EPermission permission,
-        const std::optional<TString>& columns = {}) const;
+    TError ToError(const TString& user, NYTree::EPermission permission) const;
 
     NSecurityClient::ESecurityAction Action;
     NObjectClient::TObjectId ObjectId;

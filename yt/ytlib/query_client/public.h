@@ -8,8 +8,6 @@
 
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/core/ypath/public.h>
-
 // TODO(babenko): kill this when refactoring TDataSplit
 namespace NYT { namespace NChunkClient { namespace NProto {
     class TChunkSpec;
@@ -150,10 +148,6 @@ typedef std::pair<TOwningKey, TOwningKey> TKeyRange;
 typedef std::pair<TMutableRow, TMutableRow> TMutableRowRange;
 typedef std::vector<TRowRange> TRowRanges;
 typedef std::vector<TMutableRowRange> TMutableRowRanges;
-
-////////////////////////////////////////////////////////////////////////////////
-
-extern const NYPath::TYPath QueryPoolsPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 

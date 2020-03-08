@@ -32,7 +32,7 @@ public:
     { }
 
 private:
-    virtual TFuture<TTableMountInfoPtr> DoGet(const TTableMountCacheKey& key, bool /*isPeriodicUpdate*/) override
+    virtual TFuture<TTableMountInfoPtr> DoGet(const TTableMountCacheKey& key) override
     {
         const auto& path = key.Path;
 

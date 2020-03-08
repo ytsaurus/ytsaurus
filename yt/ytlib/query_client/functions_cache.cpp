@@ -369,11 +369,13 @@ class TCypressFunctionRegistry
     , public IFunctionRegistry
 {
 public:
+    typedef TAsyncExpiringCache<std::pair<TString, TString>, TExternalFunctionSpec> TBase;
+
     TCypressFunctionRegistry(
         TAsyncExpiringCacheConfigPtr config,
         TWeakPtr<NNative::IClient> client,
         IInvokerPtr invoker)
-        : TAsyncExpiringCache(config)
+        : TBase(config)
         , Client_(client)
         , Invoker_(invoker)
     { }
@@ -404,11 +406,9 @@ private:
     const TWeakPtr<NNative::IClient> Client_;
     const IInvokerPtr Invoker_;
 
-    virtual TFuture<TExternalFunctionSpec> DoGet(
-        const std::pair<TString, TString>& key,
-        bool isPeriodicUpdate) override
+    virtual TFuture<TExternalFunctionSpec> DoGet(const std::pair<TString, TString>& key) override
     {
-        return DoGetMany({key}, isPeriodicUpdate)
+        return DoGetMany({key})
             .Apply(BIND([] (const std::vector<TErrorOr<TExternalFunctionSpec>>& specs) {
                 return specs[0]
                     .ValueOrThrow();
@@ -416,8 +416,7 @@ private:
     }
 
     virtual TFuture<std::vector<TErrorOr<TExternalFunctionSpec>>> DoGetMany(
-        const std::vector<std::pair<TString, TString>>& keys,
-        bool /*isPeriodicUpdate*/) override
+        const std::vector<std::pair<TString, TString>>& keys) override
     {
         if (auto client = Client_.Lock()) {
             auto future = BIND(LookupAllUdfDescriptors, keys, std::move(client))
