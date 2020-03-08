@@ -25,7 +25,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<NProto::TChunkSpec>, ChunkSpecs);
 
 public:
-    // NB: invoker should be serialized.
     TChunkSpecFetcher(
         const NApi::NNative::IClientPtr& client,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
