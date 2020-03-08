@@ -107,8 +107,11 @@ REQUIREMENTS(
 
 SIZE(MEDIUM)
 
-FORK_TESTS()
+# Treat test files independently.
 FORK_TEST_FILES()
+# Treat test suites inside one file independently (due to 'infinite' split factor).
+FORK_TESTS()
+SPLIT_FACTOR(32)
 
 TAG(
     ya:huge_logs
