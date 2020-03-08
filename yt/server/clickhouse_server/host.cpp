@@ -201,10 +201,9 @@ public:
                 CreateUsersManager(Bootstrap_, CliqueId_),
                 CreateDictionaryConfigRepository(Config_->Engine->Dictionaries),
                 std::make_unique<GeoDictionariesLoader>()))))
-        // TODO(babenko): use permission cache from connection
         , PermissionCache_(New<TPermissionCache>(
             Config_->PermissionCache,
-            Bootstrap_->GetConnection(),
+            Bootstrap_->GetCacheClient(),
             ServerProfiler.AppendPath("/permission_cache")))
         , TableAttributeCache_(New<NObjectClient::TObjectAttributeCache>(
             Config_->TableAttributeCache,
@@ -336,17 +335,7 @@ public:
 
         auto attributesFuture = TableAttributeCache_->GetFromClient(missedPaths, client);
 
-        std::vector<TPermissionKey> permissionCacheKeys;
-        permissionKeys.reserve(hitPaths.size());
-        for (const auto& path : hitPaths) {
-            permissionCacheKeys.push_back(TPermissionKey{
-                .Object = path,
-                .User = user,
-                .Permission = EPermission::Read
-                // TODO(max42): provide columns
-            });
-        }
-        auto permissionOrErrors = WaitFor(PermissionCache_->Get(permissionCacheKeys))
+        auto permissionOrErrors = WaitFor(PermissionCache_->CheckPermissions(hitPaths, user, EPermission::Read, client))
             .ValueOrThrow();
 
         auto attributeOrErrors = WaitFor(attributesFuture)
@@ -354,9 +343,9 @@ public:
 
         for (int index = 0; index < (int)missedPaths.size(); ++index) {
             if (attributeOrErrors[index].IsOK()) {
-                TableAttributeCache_->Set(missedPaths[index], attributeOrErrors[index]);
+                TableAttributeCache_->SetValue(missedPaths[index], attributeOrErrors[index]);
                 // User can read attributes -> user has read permissions to table.
-                PermissionCache_->Set({missedPaths[index], user, EPermission::Read, std::nullopt}, TError());
+                PermissionCache_->SetValue({missedPaths[index], user, EPermission::Read}, TError());
             }
         }
 

@@ -27,7 +27,7 @@ TObjectAttributeCache::TObjectAttributeCache(
 { }
 
 TFuture<std::vector<TErrorOr<TAttributeMap>>> TObjectAttributeCache::GetFromClient(
-    const std::vector<TYPath>& keys,
+    const std::vector<TYPath>& keys, 
     const NNative::IClientPtr& client) const
 {
     return NCypressClient::FetchAttributes(
@@ -42,19 +42,15 @@ TFuture<std::vector<TErrorOr<TAttributeMap>>> TObjectAttributeCache::GetFromClie
         });
 }
 
-TFuture<TAttributeMap> TObjectAttributeCache::DoGet(
-    const TYPath& path,
-    bool isPeriodicUpdate)
+TFuture<TAttributeMap> TObjectAttributeCache::DoGet(const TYPath& path)
 {
-    return DoGetMany({path}, isPeriodicUpdate)
+    return DoGetMany({path})
         .Apply(BIND([path] (const std::vector<TErrorOr<TAttributeMap>>& response) {
             return response[0].ValueOrThrow();
         }));
 }
 
-TFuture<std::vector<TErrorOr<TAttributeMap>>> TObjectAttributeCache::DoGetMany(
-    const std::vector<TYPath>& paths,
-    bool /*isPeriodicUpdate*/)
+TFuture<std::vector<TErrorOr<TAttributeMap>>> TObjectAttributeCache::DoGetMany(const std::vector<TYPath>& paths)
 {
     YT_LOG_DEBUG("Updating object attribute cache (PathCount: %v)", paths.size());
     return GetFromClient(paths, Client_);

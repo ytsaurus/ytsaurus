@@ -14,15 +14,11 @@ struct TPermissionCacheConfig
     : TAsyncExpiringCacheConfig
 {
     NApi::EMasterChannelKind ReadFrom;
-    TString RefreshUser;
 
     TPermissionCacheConfig()
     {
         RegisterParameter("read_from", ReadFrom)
             .Default(NApi::EMasterChannelKind::Cache);
-        RegisterParameter("refresh_user", RefreshUser)
-            // TODO(babenko): separate user
-            .Default(RootUserName);
     }
 };
 

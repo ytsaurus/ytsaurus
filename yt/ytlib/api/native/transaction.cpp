@@ -33,8 +33,6 @@
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
-#include <yt/ytlib/security_client/permission_cache.h>
-
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/compression/codec.h>
@@ -1424,16 +1422,6 @@ private:
     {
         auto it = TablePathToSession_.find(path);
         if (it == TablePathToSession_.end()) {
-            const auto& permissionCache = Client_->GetNativeConnection()->GetPermissionCache();
-            NSecurityClient::TPermissionKey permissionKey{
-                .Object = path,
-                .User = Client_->GetOptions().GetUser(),
-                .Permission = NYTree::EPermission::Write
-            };
-            auto permissionCheckFuture = permissionCache->Get(permissionKey);
-            (permissionCheckFuture.IsSet() ? permissionCheckFuture.Get() : WaitFor(std::move(permissionCheckFuture)))
-                .ThrowOnError();
-
             const auto& tableMountCache = Client_->GetTableMountCache();
             auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
                 .ValueOrThrow();
@@ -1461,7 +1449,7 @@ private:
         auto tabletId = tabletInfo->TabletId;
         auto it = TabletIdToSession_.find(tabletId);
         if (it == TabletIdToSession_.end()) {
-            const auto& evaluatorCache = Client_->GetNativeConnection()->GetColumnEvaluatorCache();
+            auto evaluatorCache = Client_->GetNativeConnection()->GetColumnEvaluatorCache();
             auto evaluator = evaluatorCache->Find(tableInfo->Schemas[ETableSchemaKind::Primary]);
             it = TabletIdToSession_.emplace(
                 tabletId,

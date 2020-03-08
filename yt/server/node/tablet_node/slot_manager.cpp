@@ -213,8 +213,15 @@ public:
         return snapshot;
     }
 
-    void ValidateTabletAccess(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
+    void ValidateTabletAccess(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        EPermission permission,
+        TTimestamp timestamp)
     {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+
+        securityManager->ValidatePermission(NObjectClient::FromObjectId(tabletSnapshot->TableId), permission);
+
         if (timestamp != AsyncLastCommittedTimestamp) {
             const auto& hydraManager = tabletSnapshot->HydraManager;
             if (!hydraManager->IsActiveLeader()) {
@@ -592,9 +599,12 @@ TTabletSnapshotPtr TSlotManager::GetTabletSnapshotOrThrow(TTabletId tabletId)
     return Impl_->GetTabletSnapshotOrThrow(tabletId);
 }
 
-void TSlotManager::ValidateTabletAccess(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
+void TSlotManager::ValidateTabletAccess(
+    const TTabletSnapshotPtr& tabletSnapshot,
+    EPermission permission,
+    TTimestamp timestamp)
 {
-    Impl_->ValidateTabletAccess(tabletSnapshot, timestamp);
+    Impl_->ValidateTabletAccess(tabletSnapshot, permission, timestamp);
 }
 
 void TSlotManager::RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet, std::optional<TLockManagerEpoch> epoch)

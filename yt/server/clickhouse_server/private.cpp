@@ -8,8 +8,6 @@ const NLogging::TLogger ServerLogger("Server");
 const NLogging::TLogger EngineLogger("Engine");
 const NProfiling::TProfiler ServerProfiler("/server");
 
-const TString CacheUserName("yt-clickhouse-cache");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

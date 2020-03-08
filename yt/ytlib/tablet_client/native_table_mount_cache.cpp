@@ -75,11 +75,12 @@ public:
     { }
 
 private:
-    virtual TFuture<TTableMountInfoPtr> DoGet(const TTableMountCacheKey& key, bool isPeriodicUpdate) override
+
+    virtual TFuture<TTableMountInfoPtr> DoGet(const TTableMountCacheKey& key) override
     {
         auto connection = Connection_.Lock();
         if (!connection) {
-            auto error = TError(NYT::EErrorCode::Canceled, "Connection destroyed")
+            auto error = TError("Unable to get table mount info: сonnection terminated")
                 << TErrorAttribute("table_path", key.Path);
             return MakeFuture<TTableMountInfoPtr>(error);
         }

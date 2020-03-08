@@ -608,10 +608,14 @@ class TSecurityManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
+    NSecurityClient::TPermissionCacheConfigPtr PermissionCache;
     TAsyncExpiringCacheConfigPtr ResourceLimitsCache;
 
     TSecurityManagerConfig()
     {
+        RegisterParameter("permission_cache", PermissionCache)
+            .Alias("table_permission_cache")
+            .DefaultNew();
         RegisterParameter("resource_limits_cache", ResourceLimitsCache)
             .DefaultNew();
     }

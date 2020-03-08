@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+
 #include "config.h"
 
 #include <yt/ytlib/api/native/public.h>
@@ -16,7 +17,6 @@ struct TPermissionKey
     TString Object;
     TString User;
     NYTree::EPermission Permission;
-    std::optional<std::vector<TString>> Columns;
 
     // Hasher.
     operator size_t() const;
@@ -31,24 +31,31 @@ struct TPermissionKey
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPermissionCache
-    : public TAsyncExpiringCache<TPermissionKey, void>
+    : public TAsyncExpiringCache<TPermissionKey, void, NApi::NNative::IClientPtr>
 {
 public:
     TPermissionCache(
         TPermissionCacheConfigPtr config,
-        NApi::NNative::IConnectionPtr connection,
+        NApi::NNative::IClientPtr client,
         NProfiling::TProfiler profiler = {});
 
+    TFuture<std::vector<TError>> CheckPermissions(
+        const std::vector<NYTree::TYPath>& paths,
+        const TString& user,
+        NYTree::EPermission permission,
+        const NApi::NNative::IClientPtr& = nullptr);
+
 private:
-    const TPermissionCacheConfigPtr Config_;
-    const TWeakPtr<NApi::NNative::IConnection> Connection_;
+    NApi::NNative::IClientPtr Client_;
+    TPermissionCacheConfigPtr Config_;
 
     virtual TFuture<void> DoGet(
         const TPermissionKey& key,
-        bool isPeriodicUpdate) override;
+        const NApi::NNative::IClientPtr& client) override;
+
     virtual TFuture<std::vector<TError>> DoGetMany(
-        const std::vector<TPermissionKey>& keys,
-        bool isPeriodicUpdate) override;
+        const std::vector<TPermissionKey>& keys, 
+        const NApi::NNative::IClientPtr& client) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPermissionCache)

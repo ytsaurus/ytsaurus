@@ -702,7 +702,6 @@ class YTEnvSetup(object):
                     "timestamp_provider": instance.configs["master"][0]["timestamp_provider"],
                     "transaction_manager": instance.configs["master"][0]["transaction_manager"],
                     "table_mount_cache": instance.configs["driver"]["table_mount_cache"],
-                    "permission_cache": instance.configs["driver"]["permission_cache"],
                     "cell_directory_synchronizer": instance.configs["driver"]["cell_directory_synchronizer"],
                     "cluster_directory_synchronizer": instance.configs["driver"]["cluster_directory_synchronizer"]
                 }

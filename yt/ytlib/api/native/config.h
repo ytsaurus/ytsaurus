@@ -22,8 +22,6 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/ytlib/security_client/config.h>
-
 #include <yt/core/bus/tcp/config.h>
 
 #include <yt/core/compression/public.h>
@@ -126,8 +124,6 @@ public:
     TString Name;
 
     TAsyncExpiringCacheConfigPtr JobNodeDescriptorCache;
-
-    NSecurityClient::TPermissionCacheConfigPtr PermissionCache;
 
     int MaxChunksPerFetch;
     int MaxChunksPerLocateRequest;

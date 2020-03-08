@@ -39,8 +39,6 @@
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
-#include <yt/ytlib/security_client/permission_cache.h>
-
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
@@ -100,23 +98,6 @@ TColumnFilter RemapColumnFilter(
         index = idMapping[index];
     }
     return TColumnFilter(std::move(remappedFilterIndexes));
-}
-
-std::vector<TString> GetLookupColumns(const TColumnFilter& columnFilter, const TTableSchema& schema)
-{
-    std::vector<TString> columns;
-    if (columnFilter.IsUniversal()) {
-        columns.reserve(schema.Columns().size());
-        for (const auto& columnSchema : schema.Columns()) {
-            columns.push_back(columnSchema.Name());
-        }
-    } else {
-        columns.reserve(columnFilter.GetIndexes().size());
-        for (auto index : columnFilter.GetIndexes()) {
-            columns.push_back(schema.Columns()[index].Name());
-        }
-    }
-    return columns;
 }
 
 void RemapValueIds(
@@ -597,17 +578,6 @@ TRowset TClient::DoLookupRowsOnce(
     auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary].Filter(remappedColumnFilter, true);
     auto resultSchemaData = TWireProtocolReader::GetSchemaData(schema, remappedColumnFilter);
 
-    NSecurityClient::TPermissionKey permissionKey{
-        .Object = path,
-        .User = Options_.GetUser(),
-        .Permission = EPermission::Read,
-        .Columns = GetLookupColumns(remappedColumnFilter, schema)
-    };
-    const auto& permissionCache = Connection_->GetPermissionCache();
-    auto permissionCheckFuture = permissionCache->Get(permissionKey);
-    (permissionCheckFuture.IsSet() ? permissionCheckFuture.Get() : WaitFor(std::move(permissionCheckFuture)))
-        .ThrowOnError();
-
     if (keys.Empty()) {
         return CreateRowset(resultSchema, TSharedRange<TRow>());
     }
@@ -991,45 +961,6 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             THROW_ERROR_EXCEPTION("Foreign table key is not used in the join clause; "
                 "the query is inefficient, consider rewriting it")
                 << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
-        }
-    }
-
-    std::vector<NSecurityClient::TPermissionKey> permissionKeys;
-
-    auto addTableForPermissionCheck = [&] (TTableId id, const TMappedSchema& schema) {
-        std::vector<TString> columns;
-        columns.reserve(schema.Mapping.size());
-        for (const auto& columnDescriptor : schema.Mapping) {
-            columns.push_back(schema.Original.Columns()[columnDescriptor.Index].Name());
-        }
-        permissionKeys.push_back(NSecurityClient::TPermissionKey{
-            .Object = FromObjectId(id),
-            .User = Options_.GetUser(),
-            .Permission = EPermission::Read,
-            .Columns = std::move(columns)
-        });
-    };
-    addTableForPermissionCheck(dataSource.Id, query->Schema);
-    for (const auto& joinClause : query->JoinClauses) {
-        addTableForPermissionCheck(joinClause->ForeignDataId, joinClause->Schema);
-    }
-
-    if (options.ExecutionPool) {
-        permissionKeys.push_back(NSecurityClient::TPermissionKey{
-            .Object = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool),
-            .User = Options_.GetUser(),
-            .Permission = EPermission::Use
-        });
-    }
-
-    const auto& permissionCache = Connection_->GetPermissionCache();
-    auto permissionCheckFuture = permissionCache->Get(permissionKeys);
-    auto permissionCheckErrors = (permissionCheckFuture.IsSet() ? permissionCheckFuture.Get() : WaitFor(std::move(permissionCheckFuture)))
-        .ValueOrThrow();
-    for (const auto& error : permissionCheckErrors) {
-        // Skip resolve errors, mostly for execution pool validation.
-        if (!error.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            error.ThrowOnError();
         }
     }
 
@@ -1466,16 +1397,6 @@ void TClient::DoTrimTable(
     i64 trimmedRowCount,
     const TTrimTableOptions& options)
 {
-    const auto& permissionCache = Connection_->GetPermissionCache();
-    NSecurityClient::TPermissionKey permissionKey{
-        .Object = path,
-        .User = Options_.GetUser(),
-        .Permission = NYTree::EPermission::Write
-    };
-    auto permissionCheckFuture = permissionCache->Get(permissionKey);
-    (permissionCheckFuture.IsSet() ? permissionCheckFuture.Get() : WaitFor(std::move(permissionCheckFuture)))
-        .ThrowOnError();
-
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
         .ValueOrThrow();
