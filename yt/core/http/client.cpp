@@ -9,6 +9,7 @@
 #include <yt/core/net/connection.h>
 
 #include <yt/core/concurrency/poller.h>
+#include <util/string/cast.h>
 
 namespace NYT::NHttp {
 
