@@ -20,6 +20,8 @@ public:
     void Register(TQueryContext* queryContext);
     void Unregister(TQueryContext* queryContext);
 
+    void AccountPhaseCounter(TQueryContext* queryContext, EQueryPhase fromPhase, EQueryPhase toPhase);
+
     size_t GetQueryCount() const;
     TFuture<void> GetIdleFuture() const;
 

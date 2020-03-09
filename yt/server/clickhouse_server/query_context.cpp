@@ -139,21 +139,39 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
 {
     // Weak check. CurrentPhase_ changes in monotonic manner, so it
     // may result in false-positive, but not false-negative.
-    if (nextPhase <= CurrentPhase_.load()) {
+    if (nextPhase <= QueryPhase_.load()) {
         return;
     }
 
     TGuard<TSpinLock> readerGuard(PhaseLock_);
 
-    if (nextPhase <= CurrentPhase_.load()) {
+    if (nextPhase <= QueryPhase_.load()) {
         return;
     }
 
     auto currentTime = TInstant::Now();
     auto duration = currentTime - LastPhaseTime_;
     PhaseDebugString_ += Format(" - %v - %v", duration, nextPhase);
-    YT_LOG_INFO("Query phase changed (FromPhase: %v, ToPhase: %v, Duration: %v)", CurrentPhase_.load(), nextPhase, duration);
-    CurrentPhase_ = nextPhase;
+
+    auto oldPhase = QueryPhase_.load();
+
+    YT_LOG_INFO("Query phase changed (FromPhase: %v, ToPhase: %v, Duration: %v)", oldPhase, nextPhase, duration);
+    WaitFor(BIND(
+        &TQueryRegistry::AccountPhaseCounter,
+        Bootstrap->GetQueryRegistry(),
+        this,
+        oldPhase,
+        nextPhase)
+        .AsyncVia(Bootstrap->GetControlInvoker())
+        .Run())
+        .ThrowOnError();
+
+    QueryPhase_ = nextPhase;
+}
+
+EQueryPhase TQueryContext::GetQueryPhase() const
+{
+    return QueryPhase_.load();
 }
 
 void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const DB::QueryStatusInfo* queryStatus)
@@ -163,6 +181,7 @@ void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const
             .Item("user").Value(queryContext.User)
             .Item("query_kind").Value(queryContext.QueryKind)
             .Item("query_id").Value(queryContext.QueryId)
+            .Item("query_phase").Value(queryContext.GetQueryPhase())
             .Item("interface").Value(ToString(queryContext.Interface))
             .DoIf(queryContext.Interface == EInterface::HTTP, [&] (TFluentMap fluent) {
                 fluent
