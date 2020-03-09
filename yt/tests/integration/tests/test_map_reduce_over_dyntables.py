@@ -365,10 +365,8 @@ class MRoverOrderedDynTablesHelper(YTEnvSetup):
             file=["//tmp/script.py"],
             spec={
                 "job_count": 1,
-                "max_failed_job_count": 1,
                 "job_io": MRoverOrderedDynTablesHelper.CONTROL_ATTRIBUTES_SPEC,
                 "max_failed_job_count": 1,
-
                 "mapper": {
                     "format": yson.loads("<format=text>yson"),
                 }
