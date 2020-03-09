@@ -13,6 +13,8 @@ extern const NProfiling::TProfiler ServerProfiler;
 
 constexpr int MemoryLimitExceededExitCode = 42;
 
+extern const TString CacheUserName;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {

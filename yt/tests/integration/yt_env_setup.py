@@ -503,6 +503,7 @@ class YTEnvSetup(object):
     USE_PORTO_FOR_SERVERS = False
     USE_DYNAMIC_TABLES = False
     USE_MASTER_CACHE = False
+    USE_PERMISSION_CACHE = True
     ENABLE_BULK_INSERT = False
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
@@ -588,6 +589,7 @@ class YTEnvSetup(object):
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
+            enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
             modify_configs_func=modify_configs_func,
             cell_tag=index * 10,
             driver_backend=cls.get_param("DRIVER_BACKEND", index),
@@ -702,6 +704,7 @@ class YTEnvSetup(object):
                     "timestamp_provider": instance.configs["master"][0]["timestamp_provider"],
                     "transaction_manager": instance.configs["master"][0]["transaction_manager"],
                     "table_mount_cache": instance.configs["driver"]["table_mount_cache"],
+                    "permission_cache": instance.configs["driver"]["permission_cache"],
                     "cell_directory_synchronizer": instance.configs["driver"]["cell_directory_synchronizer"],
                     "cluster_directory_synchronizer": instance.configs["driver"]["cluster_directory_synchronizer"]
                 }

@@ -249,10 +249,8 @@ private:
                         profilerGuard.SetProfilerTags(AddUserTag(user, tabletSnapshot->ProfilerTags));
                     }
 
-                    slotManager->ValidateTabletAccess(
-                        tabletSnapshot,
-                        EPermission::Read,
-                        timestamp);
+                    slotManager->ValidateTabletAccess(tabletSnapshot, timestamp);
+
                     tabletSnapshot->ValidateMountRevision(mountRevision);
 
                     struct TLookupRowBufferTag { };
@@ -342,10 +340,7 @@ private:
 
                             auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
-                            slotManager->ValidateTabletAccess(
-                                tabletSnapshot,
-                                EPermission::Read,
-                                timestamp);
+                            slotManager->ValidateTabletAccess(tabletSnapshot, timestamp);
                             tabletSnapshot->ValidateMountRevision(mountRevision);
 
                             auto requestData = requestCodec->Decompress(attachment);

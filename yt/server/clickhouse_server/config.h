@@ -479,7 +479,8 @@ public:
             PermissionCache->ExpireAfterFailedUpdateTime = TDuration::Zero();
             PermissionCache->RefreshTime = TDuration::Seconds(15);
             PermissionCache->BatchUpdate = true;
-            PermissionCache->ReadFrom = NApi::EMasterChannelKind::Follower;
+            PermissionCache->RefreshUser = CacheUserName;
+            PermissionCache->AlwaysUseRefreshUser = false;
         });
 
         RegisterParameter("table_attribute_cache", TableAttributeCache)

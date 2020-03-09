@@ -39,6 +39,8 @@
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
+#include <yt/ytlib/security_client/permission_cache.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
@@ -98,6 +100,23 @@ TColumnFilter RemapColumnFilter(
         index = idMapping[index];
     }
     return TColumnFilter(std::move(remappedFilterIndexes));
+}
+
+std::vector<TString> GetLookupColumns(const TColumnFilter& columnFilter, const TTableSchema& schema)
+{
+    std::vector<TString> columns;
+    if (columnFilter.IsUniversal()) {
+        columns.reserve(schema.Columns().size());
+        for (const auto& columnSchema : schema.Columns()) {
+            columns.push_back(columnSchema.Name());
+        }
+    } else {
+        columns.reserve(columnFilter.GetIndexes().size());
+        for (auto index : columnFilter.GetIndexes()) {
+            columns.push_back(schema.Columns()[index].Name());
+        }
+    }
+    return columns;
 }
 
 void RemapValueIds(
@@ -578,6 +597,16 @@ TRowset TClient::DoLookupRowsOnce(
     auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary].Filter(remappedColumnFilter, true);
     auto resultSchemaData = TWireProtocolReader::GetSchemaData(schema, remappedColumnFilter);
 
+    NSecurityClient::TPermissionKey permissionKey{
+        .Object = FromObjectId(tableInfo->TableId),
+        .User = Options_.GetUser(),
+        .Permission = EPermission::Read,
+        .Columns = GetLookupColumns(remappedColumnFilter, schema)
+    };
+    const auto& permissionCache = Connection_->GetPermissionCache();
+    WaitFor(permissionCache->Get(permissionKey))
+        .ThrowOnError();
+
     if (keys.Empty()) {
         return CreateRowset(resultSchema, TSharedRange<TRow>());
     }
@@ -962,6 +991,41 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
                 "the query is inefficient, consider rewriting it")
                 << TErrorAttribute("source", NAst::FormatJoin(ast.Joins[index]));
         }
+    }
+
+    std::vector<NSecurityClient::TPermissionKey> permissionKeys;
+
+    auto addTableForPermissionCheck = [&] (TTableId id, const TMappedSchema& schema) {
+        std::vector<TString> columns;
+        columns.reserve(schema.Mapping.size());
+        for (const auto& columnDescriptor : schema.Mapping) {
+            columns.push_back(schema.Original.Columns()[columnDescriptor.Index].Name());
+        }
+        permissionKeys.push_back(NSecurityClient::TPermissionKey{
+            .Object = FromObjectId(id),
+            .User = Options_.GetUser(),
+            .Permission = EPermission::Read,
+            .Columns = std::move(columns)
+        });
+    };
+    addTableForPermissionCheck(dataSource.Id, query->Schema);
+    for (const auto& joinClause : query->JoinClauses) {
+        addTableForPermissionCheck(joinClause->ForeignDataId, joinClause->Schema);
+    }
+
+    if (options.ExecutionPool) {
+        permissionKeys.push_back(NSecurityClient::TPermissionKey{
+            .Object = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool),
+            .User = Options_.GetUser(),
+            .Permission = EPermission::Use
+        });
+    }
+
+    const auto& permissionCache = Connection_->GetPermissionCache();
+    auto permissionCheckErrors = WaitFor(permissionCache->Get(permissionKeys))
+        .ValueOrThrow();
+    for (const auto& error : permissionCheckErrors) {
+        error.ThrowOnError();
     }
 
     TQueryOptions queryOptions;
@@ -1403,6 +1467,15 @@ void TClient::DoTrimTable(
 
     tableInfo->ValidateDynamic();
     tableInfo->ValidateOrdered();
+
+    const auto& permissionCache = Connection_->GetPermissionCache();
+    NSecurityClient::TPermissionKey permissionKey{
+        .Object = FromObjectId(tableInfo->TableId),
+        .User = Options_.GetUser(),
+        .Permission = NYTree::EPermission::Write
+    };
+    WaitFor(permissionCache->Get(permissionKey))
+        .ThrowOnError();
 
     auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(tabletIndex);
 

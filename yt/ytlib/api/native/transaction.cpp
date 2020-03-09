@@ -33,6 +33,8 @@
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
+#include <yt/ytlib/security_client/permission_cache.h>
+
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/compression/codec.h>
@@ -1426,6 +1428,15 @@ private:
             auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
                 .ValueOrThrow();
 
+            const auto& permissionCache = Client_->GetNativeConnection()->GetPermissionCache();
+            NSecurityClient::TPermissionKey permissionKey{
+                .Object = FromObjectId(tableInfo->TableId),
+                .User = Client_->GetOptions().GetUser(),
+                .Permission = NYTree::EPermission::Write
+            };
+            WaitFor(permissionCache->Get(permissionKey))
+                .ThrowOnError();
+
             auto session = New<TTableCommitSession>(this, std::move(tableInfo), upstreamReplicaId);
             PendingSessions_.push_back(session);
             it = TablePathToSession_.emplace(path, session).first;
@@ -1449,7 +1460,7 @@ private:
         auto tabletId = tabletInfo->TabletId;
         auto it = TabletIdToSession_.find(tabletId);
         if (it == TabletIdToSession_.end()) {
-            auto evaluatorCache = Client_->GetNativeConnection()->GetColumnEvaluatorCache();
+            const auto& evaluatorCache = Client_->GetNativeConnection()->GetColumnEvaluatorCache();
             auto evaluator = evaluatorCache->Find(tableInfo->Schemas[ETableSchemaKind::Primary]);
             it = TabletIdToSession_.emplace(
                 tabletId,

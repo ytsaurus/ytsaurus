@@ -30,7 +30,7 @@ public:
     }
 
 protected:
-    virtual TFuture<int> DoGet(const int&) override
+    virtual TFuture<int> DoGet(const int& /*key*/, bool /*isPeriodicUpdate*/) override
     {
         ++Count_;
 
@@ -70,11 +70,9 @@ public:
     }
 
 protected:
-    virtual TFuture<int> DoGet(const int&) override
+    virtual TFuture<int> DoGet(const int& /*key*/, bool /*isPeriodicUpdate*/) override
     {
-        ++Count_;
-
-        int count = Count_;
+        int count = ++Count_;
         return MakeDelayedFuture(Delay_, count);
     }
 

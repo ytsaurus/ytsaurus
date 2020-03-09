@@ -949,7 +949,7 @@ private:
 
     TDnsResolver DnsResolver_;
 
-    virtual TFuture<TNetworkAddress> DoGet(const TString& hostName) override;
+    virtual TFuture<TNetworkAddress> DoGet(const TString& hostName, bool isPeriodicUpdate) override;
 
     const std::vector<TNetworkAddress>& GetLocalAddresses();
 };
@@ -989,7 +989,7 @@ TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const TString& hostNam
     return Get(hostName);
 }
 
-TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const TString& hostname)
+TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const TString& hostname, bool /*isPeriodicUpdate*/)
 {
     return DnsResolver_
         .ResolveName(hostname, Config_->EnableIPv4, Config_->EnableIPv6)
