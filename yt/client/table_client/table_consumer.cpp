@@ -5,6 +5,7 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <cmath>
+#include <util/string/cast.h>
 
 namespace NYT::NTableClient {
 
