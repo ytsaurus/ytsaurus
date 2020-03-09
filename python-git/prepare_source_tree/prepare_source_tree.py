@@ -35,7 +35,7 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     "cloudpickle",
     "backports_abc",
     "singledispatch",
-    "tornado",
+    ("tornado", "tornado/tornado-4"),
     "tqdm",
 ]
 
@@ -81,6 +81,10 @@ def prepare_python_source_tree(python_root, yt_root, prepare_binary_symlinks=Tru
             cp_r(path, packages_dir)
 
     for package_name in CONTRIB_PYTHON_PACKAGE_LIST:
+        if isinstance(package_name, tuple):
+            package_name, package_relative_path = package_name
+        else:
+            package_relative_path = package_name
         logger.info("Preparing package %s", package_name)
         # By some reason tqdm has both tqdm dir and tqdm.py file, second must be ignored.
         files_to_copy = []
@@ -90,8 +94,9 @@ def prepare_python_source_tree(python_root, yt_root, prepare_binary_symlinks=Tru
                     yt_root=yt_root,
                     package_name=package_name))
         files_to_copy += glob.glob(
-            "{yt_root}/contrib/python/{package_name}/{package_name}".format(
+            "{yt_root}/contrib/python/{package_relative_path}/{package_name}".format(
                 yt_root=yt_root,
+                package_relative_path=package_relative_path,
                 package_name=package_name))
         for path in files_to_copy:
             cp_r(path, packages_dir)
