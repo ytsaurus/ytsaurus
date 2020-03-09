@@ -883,6 +883,9 @@ TPersistentQueuePoller::TPersistentQueuePoller(
         tabletIndexes))
 { }
 
+TPersistentQueuePoller::~TPersistentQueuePoller()
+{ }
+
 TFuture<IPersistentQueueRowsetPtr> TPersistentQueuePoller::Poll()
 {
     return Impl_->Poll();
