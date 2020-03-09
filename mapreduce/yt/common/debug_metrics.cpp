@@ -3,6 +3,7 @@
 #include <util/generic/hash.h>
 #include <util/generic/singleton.h>
 
+#include <util/string/cast.h>
 #include <util/system/mutex.h>
 
 namespace NYT {
