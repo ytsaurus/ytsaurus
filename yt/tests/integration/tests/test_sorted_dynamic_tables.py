@@ -736,20 +736,49 @@ class TestSortedDynamicTablesCopyReshardPortal(TestSortedDynamicTablesCopyReshar
 ################################################################################
 
 class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
-    def _prepare_allowed(self, permission):
-        sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
-        sync_mount_table("//tmp/t")
-        create_user("u")
-        set("//tmp/t/@inherit_acl", False)
-        set("//tmp/t/@acl", [make_ace("allow", "u", permission)])
+    USE_PERMISSION_CACHE = False
 
-    def _prepare_denied(self, permission):
+    SIMPLE_SCHEMA = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ]
+    COLUMNAR_SCHEMA = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"},
+            {"name": "value2", "type": "string"},
+            {"name": "value3", "type": "string"}
+        ]
+
+    def _prepare_env(self):
+        if not exists("//sys/users/u"):
+            create_user("u")
+        if get("//sys/tablet_cells/@count") == 0:
+            sync_create_cells(1)
+
+    def _prepare_allowed(self, permission, table="//tmp/t"):
+        self._prepare_env()
+        self._create_simple_table(table, schema=self.SIMPLE_SCHEMA)
+        sync_mount_table(table)
+        set(table + "/@inherit_acl", False)
+        set(table + "/@acl", [make_ace("allow", "u", permission)])
+
+    def _prepare_denied(self, permission, table="//tmp/t"):
+        self._prepare_env()
+        self._create_simple_table(table, schema=self.SIMPLE_SCHEMA)
+        sync_mount_table(table)
+        set(table + "/@acl", [make_ace("deny", "u", permission)])
+
+    def _prepare_columnar(self):
+        create_user("u1")
+        create_user("u2")
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", schema=self.COLUMNAR_SCHEMA)
         sync_mount_table("//tmp/t")
-        create_user("u")
-        set("//tmp/t/@acl", [make_ace("deny", "u", permission)])
+        set("//tmp/t/@acl", [
+            make_ace("allow", ["u1", "u2"], "read"),
+            make_ace("deny", "u1", "read", columns=["value1"]),
+            make_ace("allow", "u2", "read", columns=["value1"]),
+            make_ace("deny", "u2", "read", columns=["value2"])])
 
     @authors("babenko")
     def test_select_allowed(self):
@@ -758,6 +787,24 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
         expected = [{"key": 1, "value": "test"}]
         actual = select_rows("* from [//tmp/t]", authenticated_user="u")
         assert_items_equal(actual, expected)
+
+    @authors("babenko")
+    def test_select_with_join_allowed(self):
+        self._prepare_allowed("read", "//tmp/t1")
+        self._prepare_allowed("read", "//tmp/t2")
+        insert_rows("//tmp/t1", [{"key": 1, "value": "test1"}])
+        insert_rows("//tmp/t2", [{"key": 1, "value": "test2"}])
+        expected = [{"key": 1, "value1": "test1", "value2": "test2"}]
+        actual = select_rows("t1.key as key, t1.value as value1, t2.value as value2 from [//tmp/t1] as t1 join [//tmp/t2] as t2 on t1.key = t2.key", authenticated_user="u")
+        assert_items_equal(actual, expected)
+
+    @authors("babenko")
+    def test_select_with_join_denied(self):
+        self._prepare_allowed("read", "//tmp/t1")
+        self._prepare_denied("read", "//tmp/t2")
+        insert_rows("//tmp/t1", [{"key": 1, "value": "test1"}])
+        insert_rows("//tmp/t2", [{"key": 1, "value": "test2"}])
+        with pytest.raises(YtError): select_rows("t1.key as key, t1.value as value1, t2.value as value2 from [//tmp/t1] as t1 join [//tmp/t2] as t2 on t1.key = t2.key", authenticated_user="u")
 
     @authors("babenko")
     def test_select_denied(self):
@@ -777,6 +824,37 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
         self._prepare_denied("read")
         insert_rows("//tmp/t", [{"key": 1, "value": "test"}])
         with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key" : 1}], authenticated_user="u")
+
+    @authors("babenko")
+    def test_columnar_lookup_denied(self):
+        self._prepare_columnar()
+        insert_rows("//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}])
+        with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key" : 1}], authenticated_user="u1")
+        with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key" : 2}], authenticated_user="u1")
+        with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key" : 1}], column_names=["value1"], authenticated_user="u1")
+        with pytest.raises(YtError): lookup_rows("//tmp/t", [{"key" : 1}], column_names=["value2"], authenticated_user="u2")
+
+    @authors("babenko")
+    def test_columnar_lookup_allowed(self):
+        self._prepare_columnar()
+        insert_rows("//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}])
+        assert lookup_rows("//tmp/t", [{"key" : 1}], column_names=["key", "value3"], authenticated_user="u1") == [{"key": 1, "value3": "c"}]
+        assert lookup_rows("//tmp/t", [{"key" : 1}], column_names=["key", "value1"], authenticated_user="u2") == [{"key": 1, "value1": "a"}]
+
+    @authors("babenko")
+    def test_columnar_select_denied(self):
+        self._prepare_columnar()
+        insert_rows("//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}])
+        with pytest.raises(YtError): select_rows("* from [//tmp/t]", authenticated_user="u1")
+        with pytest.raises(YtError): select_rows("value1 from [//tmp/t]", authenticated_user="u1")
+        with pytest.raises(YtError): select_rows("value2 from [//tmp/t]", authenticated_user="u2")
+
+    @authors("babenko")
+    def test_columnar_select_allowed(self):
+        self._prepare_columnar()
+        insert_rows("//tmp/t", [{"key": 1, "value1": "a", "value2": "b", "value3": "c"}])
+        assert select_rows("key, value3 from [//tmp/t] where key = 1", authenticated_user="u1") == [{"key": 1, "value3": "c"}]
+        assert select_rows("key, value1 from [//tmp/t] where key = 1", authenticated_user="u2") == [{"key": 1, "value1": "a"}]
 
     @authors("babenko")
     def test_insert_allowed(self):

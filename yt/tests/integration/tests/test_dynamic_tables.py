@@ -1475,18 +1475,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
 ##################################################################
 
-class TestDynamicTablesPermissions(DynamicTablesBase):
+class TestDynamicTablesSafeMode(DynamicTablesBase):
+    USE_PERMISSION_CACHE = False
+
     DELTA_NODE_CONFIG = {
-        "tablet_node": {
-            "security_manager": {
-                "table_permission_cache": {
-                    "expire_after_access_time": 0,
-                },
-            },
-        },
         "master_cache_service": {
             "capacity": 0
-        },
+        }
     }
 
     @authors("savrus")
@@ -1510,6 +1505,8 @@ class TestDynamicTablesPermissions(DynamicTablesBase):
 ##################################################################
 
 class TestDynamicTablesResourceLimits(DynamicTablesBase):
+    USE_PERMISSION_CACHE = False
+
     DELTA_NODE_CONFIG = {
         "tablet_node": {
             "security_manager": {

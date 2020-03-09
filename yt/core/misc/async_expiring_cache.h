@@ -14,9 +14,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TGetInfo is added to Get and will be provided to DoGet and DoGetMany as is.
-// If DoGet or DoGetMany is called from periodic updater, TGetInfo will be set into default values.
-template <class TKey, class TValue, class... TGetInfo>
+template <class TKey, class TValue>
 class TAsyncExpiringCache
     : public virtual TRefCounted
 {
@@ -31,26 +29,27 @@ public:
         TAsyncExpiringCacheConfigPtr config,
         NProfiling::TProfiler profiler = {});
 
-    TFuture<TValue> Get(const TKey& key, const TGetInfo&... getInfo);
-    TExtendedGetResult GetExtended(const TKey& key, const TGetInfo&... getInfo);
-    TFuture<std::vector<TErrorOr<TValue>>> Get(const std::vector<TKey>& keys, const TGetInfo&... getInfo);
+    TFuture<TValue> Get(const TKey& key);
+    TExtendedGetResult GetExtended(const TKey& key);
+    TFuture<std::vector<TErrorOr<TValue>>> Get(const std::vector<TKey>& keys);
 
     std::optional<TErrorOr<TValue>> Find(const TKey& key);
     std::vector<std::optional<TErrorOr<TValue>>> Find(const std::vector<TKey>& keys);
 
     void Invalidate(const TKey& key);
-    void SetValue(const TKey& key, TErrorOr<TValue> valueOrError);
+    void Set(const TKey& key, TErrorOr<TValue> valueOrError);
 
     void Clear();
 
 protected:
     const TAsyncExpiringCacheConfigPtr Config_;
 
-    virtual TFuture<TValue> DoGet(const TKey& key, const TGetInfo&... getInfo) = 0;
-
+    virtual TFuture<TValue> DoGet(
+        const TKey& key,
+        bool isPeriodicUpdate) = 0;
     virtual TFuture<std::vector<TErrorOr<TValue>>> DoGetMany(
         const std::vector<TKey>& keys,
-        const TGetInfo&... getInfo);
+        bool isPeriodicUpdate);
 
     virtual void OnErase(const TKey& key);
 
@@ -90,19 +89,18 @@ private:
     void SetResult(
         const TWeakPtr<TEntry>& entry,
         const TKey& key,
-        const TErrorOr<TValue>& valueOrError);
+        const TErrorOr<TValue>& valueOrError,
+        bool isPeriodicUpdate);
 
     void InvokeGetMany(
         const std::vector<TWeakPtr<TEntry>>& entries,
         const std::vector<TKey>& keys,
-        bool isPeriodicUpdate,
-        const TGetInfo&... getInfo);
+        bool isPeriodicUpdate);
 
     void InvokeGet(
         const TWeakPtr<TEntry>& entry,
         const TKey& key,
-        bool isPeriodicUpdate,
-        const TGetInfo&... getInfo);
+        bool isPeriodicUpdate);
 
     bool TryEraseExpired(
         const TWeakPtr<TEntry>& weakEntry,

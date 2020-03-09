@@ -1632,20 +1632,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert async_replica["replica_id"] == replica_id1
         assert async_replica["current_replication_row_index"] <= 3
 
-    ##################################################################
+##################################################################
 
 class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
+    USE_PERMISSION_CACHE = False
+
     DELTA_NODE_CONFIG = {
-        "tablet_node": {
-            "security_manager": {
-                "table_permission_cache": {
-                    "expire_after_access_time": 0,
-                },
-            },
-        },
         "master_cache_service": {
             "capacity": 0
-        },
+        }
     }
 
     @authors("ifsmirnov")
