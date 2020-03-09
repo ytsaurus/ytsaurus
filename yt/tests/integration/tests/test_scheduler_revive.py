@@ -840,6 +840,7 @@ class OperationReviveBase(YTEnvSetup):
         assert op.get_state() == "completed"
 
     @authors("ignat")
+    @flaky(max_runs=3)
     def test_failing(self):
         self._prepare_tables()
 
