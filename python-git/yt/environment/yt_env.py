@@ -159,7 +159,8 @@ class YTInstance(object):
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
-                 add_binaries_to_path=True, enable_master_cache=None, driver_backend="native",
+                 add_binaries_to_path=True, enable_master_cache=None, enable_permission_cache=None,
+                 driver_backend="native",
                  enable_structured_master_logging=False, enable_structured_scheduler_logging=False,
                  use_native_client=False, run_watcher=True, capture_stderr_to_file=None,
                  ytserver_all_path=None):
@@ -322,7 +323,8 @@ class YTInstance(object):
 
         self._prepare_environment(jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                                   node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, node_port_set_size,
-                                  enable_master_cache, modify_configs_func, enable_structured_master_logging, enable_structured_scheduler_logging)
+                                  enable_master_cache, enable_permission_cache, modify_configs_func,
+                                  enable_structured_master_logging, enable_structured_scheduler_logging)
 
     def _get_ports_generator(self, port_range_start):
         if port_range_start and isinstance(port_range_start, int):
@@ -409,7 +411,8 @@ class YTInstance(object):
 
     def _prepare_environment(self, jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                              node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, node_port_set_size,
-                             enable_master_cache, modify_configs_func, enable_structured_master_logging, enable_structured_scheduler_logging):
+                             enable_master_cache, enable_permission_cache, modify_configs_func,
+                             enable_structured_master_logging, enable_structured_scheduler_logging):
         logger.info("Preparing cluster instance as follows:")
         logger.info("  uuid               %s", self._uuid)
         logger.info("  clocks             %d", self.clock_count)
@@ -462,6 +465,8 @@ class YTInstance(object):
         provision["enable_logging_compression"] = self._enable_logging_compression
         if enable_master_cache is not None:
             provision["enable_master_cache"] = enable_master_cache
+        if enable_permission_cache is not None:
+            provision["enable_permission_cache"] = enable_permission_cache
         provision["enable_structured_master_logging"] = enable_structured_master_logging
         provision["enable_structured_scheduler_logging"] = enable_structured_scheduler_logging
 
