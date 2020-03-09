@@ -4,6 +4,7 @@
 
 #include <yt/core/ypath/token.h>
 #include <yt/core/ypath/tokenizer.h>
+#include <util/string/cast.h>
 
 namespace NYP::NServer::NQueryHelpers {
 
