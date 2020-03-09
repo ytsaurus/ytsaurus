@@ -31,15 +31,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EQueryPhase,
-    ((Start)        (0))
-    ((Preparation)  (1))
-    ((Execution)    (2))
-    ((Finish)       (3))
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TQueryContext
     : public DB::IHostContext
 {
@@ -79,15 +70,16 @@ public:
 
     void MoveToPhase(EQueryPhase phase);
 
+    EQueryPhase GetQueryPhase() const;
+
 private:
     TClickHouseHostPtr Host_;
     NTracing::TTraceContextGuard TraceContextGuard_;
 
-
     TInstant StartTime_;
 
     mutable TSpinLock PhaseLock_;
-    std::atomic<EQueryPhase> CurrentPhase_ {EQueryPhase::Start};
+    std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};
     TInstant LastPhaseTime_;
     TString PhaseDebugString_ = ToString(EQueryPhase::Start);
 

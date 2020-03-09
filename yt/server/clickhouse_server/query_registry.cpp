@@ -109,6 +109,9 @@ public:
     int HistoricalInitialQueryCount = 0;
     int HistoricalSecondaryQueryCount = 0;
 
+    TEnumIndexedVector<EQueryPhase, int> PerPhaseRunningInitialQueryCount;
+    TEnumIndexedVector<EQueryPhase, int> PerPhaseRunningSecondaryQueryCount;
+
     NProfiling::TTagId TagId;
 
     explicit TUserProfilingEntry(const TString& name)
@@ -208,7 +211,11 @@ public:
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::UpdateProcessListSnapshot, MakeWeak(this)),
             Bootstrap_->GetConfig()->ProcessListSnapshotUpdatePeriod))
-    { }
+    {
+        for (const auto& queryPhase : TEnumTraits<EQueryPhase>::GetDomainValues()) {
+            QueryPhaseToProfilingTagId_[queryPhase] = NProfiling::TProfileManager::Get()->RegisterTag("query_phase", FormatEnum(queryPhase));
+        }
+    }
 
     void Start()
     {
@@ -236,10 +243,12 @@ public:
             case EQueryKind::InitialQuery:
                 ++userProfilingEntry.HistoricalInitialQueryCount;
                 ++userProfilingEntry.RunningInitialQueryCount;
+                ++userProfilingEntry.PerPhaseRunningInitialQueryCount[queryContext->GetQueryPhase()];
                 break;
             case EQueryKind::SecondaryQuery:
                 ++userProfilingEntry.HistoricalSecondaryQueryCount;
                 ++userProfilingEntry.RunningSecondaryQueryCount;
+                ++userProfilingEntry.PerPhaseRunningSecondaryQueryCount[queryContext->GetQueryPhase()];
                 break;
             default:
                 YT_ABORT();
@@ -268,9 +277,11 @@ public:
         {
             case EQueryKind::InitialQuery:
                 --userProfilingEntry.RunningInitialQueryCount;
+                --userProfilingEntry.PerPhaseRunningInitialQueryCount[queryContext->GetQueryPhase()];
                 break;
             case EQueryKind::SecondaryQuery:
                 --userProfilingEntry.RunningSecondaryQueryCount;
+                --userProfilingEntry.PerPhaseRunningSecondaryQueryCount[queryContext->GetQueryPhase()];
                 break;
             default:
                 YT_ABORT();
@@ -283,6 +294,24 @@ public:
 
         if (QueryContexts_.empty()) {
             IdlePromise_.Set();
+        }
+    }
+
+    void AccountPhaseCounter(TQueryContext* queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
+    {
+        auto& userProfilingEntry = GetOrCrash(UserToUserProfilingEntry_, queryContext->User);
+
+        switch (queryContext->QueryKind) {
+            case EQueryKind::InitialQuery:
+                --userProfilingEntry.PerPhaseRunningInitialQueryCount[fromPhase];
+                ++userProfilingEntry.PerPhaseRunningInitialQueryCount[toPhase];
+                break;
+            case EQueryKind::SecondaryQuery:
+                --userProfilingEntry.PerPhaseRunningSecondaryQueryCount[fromPhase];
+                ++userProfilingEntry.PerPhaseRunningSecondaryQueryCount[toPhase];
+                break;
+            default:
+                YT_ABORT();
         }
     }
 
@@ -316,6 +345,25 @@ public:
                 userProfilingInfo.RunningSecondaryQueryCount,
                 EMetricType::Gauge,
                 {userProfilingInfo.TagId});
+
+            for (const auto& queryPhase : TEnumTraits<EQueryPhase>::GetDomainValues()) {
+                if (queryPhase == EQueryPhase::Finish) {
+                    // There will be no such queries.
+                    continue;
+                }
+
+                ServerProfiler.Enqueue(
+                    "/running_initial_query_count_per_phase",
+                    userProfilingInfo.PerPhaseRunningInitialQueryCount[queryPhase],
+                    EMetricType::Gauge,
+                    {userProfilingInfo.TagId, QueryPhaseToProfilingTagId_[queryPhase]});
+
+                ServerProfiler.Enqueue(
+                    "/running_secondary_query_count_per_phase",
+                    userProfilingInfo.PerPhaseRunningSecondaryQueryCount[queryPhase],
+                    EMetricType::Gauge,
+                    {userProfilingInfo.TagId, QueryPhaseToProfilingTagId_[queryPhase]});
+            }
 
             ServerProfiler.Enqueue(
                 "/historical_initial_query_count",
@@ -378,6 +426,8 @@ private:
 
     TPeriodicExecutorPtr ProcessListSnapshotExecutor_;
 
+    TEnumIndexedVector<EQueryPhase, NProfiling::TTagId> QueryPhaseToProfilingTagId_;
+
     void BuildYson(IYsonConsumer* consumer) const
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
@@ -425,6 +475,11 @@ void TQueryRegistry::Register(TQueryContext* queryContext)
 void TQueryRegistry::Unregister(TQueryContext* queryContext)
 {
     Impl_->Unregister(queryContext);
+}
+
+void TQueryRegistry::AccountPhaseCounter(TQueryContext* queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
+{
+    Impl_->AccountPhaseCounter(queryContext, fromPhase, toPhase);
 }
 
 size_t TQueryRegistry::GetQueryCount() const

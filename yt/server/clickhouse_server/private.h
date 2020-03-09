@@ -49,23 +49,35 @@ class TSubquerySpec;
 struct TSubquery;
 struct TQueryAnalysisResult;
 
+////////////////////////////////////////////////////////////////////////////////
+
 //! This enum corresponds to DB::ClientInfo::QueryKind.
 DEFINE_ENUM(EQueryKind,
-    ((NoQuery)(0))
-    ((InitialQuery)(1))
-    ((SecondaryQuery)(2))
+    ((NoQuery)        (0))
+    ((InitialQuery)   (1))
+    ((SecondaryQuery) (2))
 );
 
 //! This enum corresponds to DB::ClientInfo::Interface.
 DEFINE_ENUM(EInterface,
-    ((TCP)(1))
-    ((HTTP)(2))
+    ((TCP)            (1))
+    ((HTTP)           (2))
 );
 
 DEFINE_ENUM(EInstanceState,
-    ((Active)(0))
-    ((Stopped)(1))
+    ((Active)         (0))
+    ((Stopped)        (1))
 );
+
+
+DEFINE_ENUM(EQueryPhase,
+    ((Start)          (0))
+    ((Preparation)    (1))
+    ((Execution)      (2))
+    ((Finish)         (3))
+);
+
+////////////////////////////////////////////////////////////////////////////////
 
 using TQueryId = TGuid;
 
