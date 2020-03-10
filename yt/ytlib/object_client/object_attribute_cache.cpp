@@ -44,7 +44,7 @@ TFuture<std::vector<TErrorOr<TAttributeMap>>> TObjectAttributeCache::GetFromClie
 
 TFuture<TAttributeMap> TObjectAttributeCache::DoGet(
     const TYPath& path,
-    bool isPeriodicUpdate)
+    bool isPeriodicUpdate) noexcept
 {
     return DoGetMany({path}, isPeriodicUpdate)
         .Apply(BIND([path] (const std::vector<TErrorOr<TAttributeMap>>& response) {
@@ -54,7 +54,7 @@ TFuture<TAttributeMap> TObjectAttributeCache::DoGet(
 
 TFuture<std::vector<TErrorOr<TAttributeMap>>> TObjectAttributeCache::DoGetMany(
     const std::vector<TYPath>& paths,
-    bool /*isPeriodicUpdate*/)
+    bool /*isPeriodicUpdate*/) noexcept
 {
     YT_LOG_DEBUG("Updating object attribute cache (PathCount: %v)", paths.size());
     return GetFromClient(paths, Client_);

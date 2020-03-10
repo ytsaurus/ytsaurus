@@ -270,7 +270,7 @@ private:
     TSpinLock Lock_;
     THashMap<TString, NNet::TNetworkAddress> LastUserIP_;
 
-    virtual TFuture<TAuthenticationResult> DoGet(const TString& token, bool /*isPeriodicUpdate*/) override
+    virtual TFuture<TAuthenticationResult> DoGet(const TString& token, bool /*isPeriodicUpdate*/) noexcept override
     {
         TTokenCredentials credentials;
         credentials.Token = token;
@@ -285,7 +285,7 @@ private:
         return TokenAuthenticator_->Authenticate(credentials);
     }
 
-    virtual void OnErase(const TString& token) override
+    virtual void OnEvicted(const TString& token) noexcept override
     {
         auto guard = Guard(Lock_);
         LastUserIP_.erase(token);
