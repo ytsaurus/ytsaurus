@@ -14,12 +14,12 @@ ICodec* GetCodec(ECodec id)
             return &result;
         }
         // NB: This codec uses Jerasure as a backend.
-        case ECodec::Lrc_12_2_2_Jerasure: {
+        case ECodec::JerasureLrc_12_2_2: {
             static TLrcJerasure<12, 4, 8, TCodecTraits> result;
             return &result;
         }
         // NB: This codec uses ISA-L as a backend.
-        case ECodec::Lrc_12_2_2_Isa: {
+        case ECodec::IsaLrc_12_2_2: {
             static TLrcIsa<12, 4, 8, TCodecTraits> result;
             return &result;
         }
