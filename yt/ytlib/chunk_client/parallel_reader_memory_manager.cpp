@@ -42,7 +42,7 @@ public:
         FreeMemory_ -= initialReaderMemory;
 
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeWeak(this), memoryManager));
-        Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoRebalance, MakeWeak(this)));
+        ScheduleRebalancing();
         return memoryManager;
     }
 
@@ -54,16 +54,26 @@ public:
     virtual void UpdateMemoryRequirements(IReaderMemoryManagerPtr readerMemoryManager) override
     {
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoUpdateReaderInfo, MakeWeak(this), std::move(readerMemoryManager)));
-        Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoRebalance, MakeWeak(this)));
+        ScheduleRebalancing();
     }
 
 private:
+    void ScheduleRebalancing()
+    {
+        if (RebalancingsScheduled_ == 0) {
+            ++RebalancingsScheduled_;
+            Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoRebalance, MakeWeak(this)));
+        }
+    }
+
     //! Performs memory rebalancing between readers. After rebalancing one of the following holds:
     //! 1) All readers have reserved_memory <= required_memory.
     //! 2) All readers have reserved_memory >= required_memory.
     void DoRebalance()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        --RebalancingsScheduled_;
 
         // Part 1: try to satisfy as many requirements as possible.
         {
@@ -136,7 +146,7 @@ private:
 
             // More allocations can be done, so schedule another rebalancing.
             if (FreeMemory_ > 0 && !ReadersWithoutDesiredMemoryAmount_.empty()) {
-                Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoRebalance, MakeWeak(this)));
+                ScheduleRebalancing();
             }
         }
     }
@@ -148,7 +158,7 @@ private:
         DoRemoveReaderInfo(readerMemoryManager);
         FreeMemory_ += readerMemoryManager->GetReservedMemorySize();
         readerMemoryManager->SetReservedMemorySize(0);
-        DoRebalance();
+        ScheduleRebalancing();
     }
 
     void DoUpdateReaderInfo(const IReaderMemoryManagerPtr& reader)
@@ -162,7 +172,7 @@ private:
 
         DoRemoveReaderInfo(reader);
         DoAddReaderInfo(reader);
-        DoRebalance();
+        ScheduleRebalancing();
     }
 
     void DoAddReaderInfo(const IReaderMemoryManagerPtr& reader)
@@ -226,6 +236,8 @@ private:
 
     TParallelReaderMemoryManagerOptions Options_;
     IInvokerPtr Invoker_;
+
+    std::atomic<int> RebalancingsScheduled_ = 0;
 
     std::atomic<i64> FreeMemory_ = 0;
 
