@@ -85,7 +85,7 @@ StringValue = get_mapped_value_class(IntegerValue, str)
 PermissionValue = get_mapped_value_class(lambda: CyclicValue(["read", "write"]), lambda x: x)
 
 AttributeBase = collections.namedtuple(
-    "AttributeBase", ["base_path", "initial_value", "variable_subpath", "variable_value",],
+    "AttributeBase", ["base_path", "initial_value", "variable_subpath", "variable_value"],
 )
 
 

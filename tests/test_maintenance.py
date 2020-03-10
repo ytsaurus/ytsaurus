@@ -119,7 +119,7 @@ class TestNodeMaintenanceInterface(object):
         assert info == get_info()
 
         update("up")
-        assert get_info() == None
+        assert get_info() == None  # noqa
 
 
 @pytest.mark.usefixtures("yp_env")
@@ -131,7 +131,7 @@ class TestNodeAlerts(object):
 
         def get():
             result = yp_client.get_object("node", node_id, selectors=["/status/alerts"])[0]
-            return [] if result == None else result
+            return [] if result == None else result  # noqa
 
         assert [] == get()
 
@@ -206,11 +206,11 @@ class TestNodeAlerts(object):
 
         def get_node_alerts():
             result = yp_client.get_object("node", node_id, selectors=["/status/alerts"])[0]
-            return [] if result == None else result
+            return [] if result == None else result  # noqa
 
         def get_pod_alerts(pod_id):
             result = yp_client.get_object("pod", pod_id, selectors=["/status/node_alerts"])[0]
-            return [] if result == None else result
+            return [] if result == None else result  # noqa
 
         def get_pod_alerts_timestamp():
             return yp_client.get_object(

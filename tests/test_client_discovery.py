@@ -121,7 +121,7 @@ class TestClientYpMasterDiscovery(object):
     # so we need to test that there are no cyclic references between discovery and client.
     def test_client_cyclic_reference(self):
         client = self.get_mock_yp_client([])
-        discovery = YpMasterDiscovery(client, expiration_time=100)
+        discovery = YpMasterDiscovery(client, expiration_time=100)  # noqa
         # One additional reference from getrefcount call argument.
         assert sys.getrefcount(client) == 2
 
@@ -150,7 +150,7 @@ class TestClientYpMasterDiscovery(object):
     def test_disabled_retries(self):
         class MockYpClient(object):
             def get_masters(self, _allow_retries=True):
-                assert _allow_retries == False
+                assert _allow_retries is False
                 return dict(
                     master_infos=[
                         dict(alive=True, fqdn="fqdn", instance_tag="tag", grpc_address="address")

@@ -129,7 +129,7 @@ class TestDeployTickets(object):
         )
 
         # Case 2: stage_id not updatable
-        with pytest.raises(YtResponseError) as exc:
+        with pytest.raises(YtResponseError):
             yp_client.update_object(
                 "deploy_ticket",
                 deploy_ticket_id,
@@ -137,10 +137,7 @@ class TestDeployTickets(object):
             )
 
         # Case 3: user has no write permission to stage
-        user_id = create_user(
-            yp_client,
-            grant_create_permission_for_types=("deploy_ticket",),
-        )
+        user_id = create_user(yp_client, grant_create_permission_for_types=("deploy_ticket",),)
         yp_env.sync_access_control()
 
         def create_deploy_ticket():

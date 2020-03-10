@@ -231,7 +231,7 @@ class TestDiskBandwidthResource(object):
                 "read_bandwidth_factor",
                 "write_bandwidth_factor",
             ):
-                with pytest.raises(YtResponseError) as error:
+                with pytest.raises(YtResponseError):
                     create_nodes(yp_client, 1, disk_specs=get_disk_specs(parameter_name, bad_value))
                 create_nodes(yp_client, 1, disk_specs=get_disk_specs(parameter_name, 1.0))
 

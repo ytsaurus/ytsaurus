@@ -26,8 +26,6 @@ from yt.wrapper.retries import run_with_retries
 
 from yt.yson import YsonEntity, YsonUint64
 
-import yt.common
-
 from yt.packages.six import itervalues
 from yt.packages.six.moves import xrange
 
@@ -95,7 +93,7 @@ class TestScheduler(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = create_pod_set(yp_client)
-        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {"enable_scheduling": False,})
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {"enable_scheduling": False})
 
         assert yp_client.get_object("pod", pod_id, selectors=["/status/scheduling/state"]) == [
             "disabled"
@@ -270,7 +268,7 @@ class TestScheduler(object):
 
         pod_set_id = create_pod_set(yp_client)
         for _ in xrange(10):
-            create_pod_with_boilerplate(yp_client, pod_set_id, {"enable_scheduling": True,})
+            create_pod_with_boilerplate(yp_client, pod_set_id, {"enable_scheduling": True})
 
         self._wait_for_pod_assignment(yp_env)
         assert all(
@@ -361,9 +359,9 @@ class TestScheduler(object):
                 "spec": {
                     "enable_scheduling": True,
                     "disk_volume_requests": [
-                        {"id": "disk0", "storage_class": "hdd", "quota_policy": {"capacity": 300,},}
+                        {"id": "disk0", "storage_class": "hdd", "quota_policy": {"capacity": 300}}
                     ],
-                    "gpu_requests": [{"id": "gpu0", "model": "v100", "min_memory": 2 ** 10,}],
+                    "gpu_requests": [{"id": "gpu0", "model": "v100", "min_memory": 2 ** 10}],
                 },
             },
         )
@@ -553,7 +551,7 @@ class TestSchedulerSlots(object):
         pod_id = create_pod_with_boilerplate(
             yp_client,
             pod_set_id,
-            {"resource_requests": {"vcpu_guarantee": 100, "slot": 1,}, "enable_scheduling": True,},
+            {"resource_requests": {"vcpu_guarantee": 100, "slot": 1}, "enable_scheduling": True},
         )
 
         wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
@@ -563,7 +561,7 @@ class TestSchedulerSlots(object):
         no_slot_pod_id = create_pod_with_boilerplate(
             yp_client,
             pod_set_id,
-            {"resource_requests": {"vcpu_guarantee": 100,}, "enable_scheduling": True,},
+            {"resource_requests": {"vcpu_guarantee": 100}, "enable_scheduling": True},
         )
         wait(
             lambda: is_assigned_pod_scheduling_status(
@@ -589,7 +587,7 @@ class TestSchedulerSlots(object):
                 yp_client,
                 pod_set_id,
                 {
-                    "resource_requests": {"vcpu_guarantee": 100, "slot": 1,},
+                    "resource_requests": {"vcpu_guarantee": 100, "slot": 1},
                     "enable_scheduling": True,
                 },
             )
@@ -609,7 +607,7 @@ class TestSchedulerSlots(object):
         new_pod_id = create_pod_with_boilerplate(
             yp_client,
             pod_set_id,
-            {"resource_requests": {"vcpu_guarantee": 100, "slot": 1,}, "enable_scheduling": True,},
+            {"resource_requests": {"vcpu_guarantee": 100, "slot": 1}, "enable_scheduling": True},
         )
 
         wait(
@@ -646,7 +644,7 @@ class TestSchedulerSlots(object):
         pod_ids = []
         for _ in range(3):
             pod_spec = {
-                "resource_requests": {"vcpu_guarantee": 100,},
+                "resource_requests": {"vcpu_guarantee": 100},
                 "enable_scheduling": True,
             }
             if slot_demand_before is not None:
@@ -719,7 +717,7 @@ class TestSchedulerExclusiveDiskUsage(object):
         pod_set_id = create_pod_set(yp_client)
 
         exclusive_pod_attributes = {
-            "meta": {"pod_set_id": pod_set_id,},
+            "meta": {"pod_set_id": pod_set_id},
             "spec": {
                 "enable_scheduling": True,
                 "resource_requests": ZERO_RESOURCE_REQUESTS,
@@ -727,14 +725,14 @@ class TestSchedulerExclusiveDiskUsage(object):
                     {
                         "id": "hdd1",
                         "storage_class": "hdd",
-                        "exclusive_policy": {"min_capacity": disk_total_capacity // 2,},
+                        "exclusive_policy": {"min_capacity": disk_total_capacity // 2},
                     },
                 ],
             },
         }
 
         nonexclusive_pod_attributes = {
-            "meta": {"pod_set_id": pod_set_id,},
+            "meta": {"pod_set_id": pod_set_id},
             "spec": {
                 "enable_scheduling": True,
                 "resource_requests": ZERO_RESOURCE_REQUESTS,
@@ -742,7 +740,7 @@ class TestSchedulerExclusiveDiskUsage(object):
                     {
                         "id": "hdd1",
                         "storage_class": "hdd",
-                        "quota_policy": {"capacity": disk_total_capacity // 2,},
+                        "quota_policy": {"capacity": disk_total_capacity // 2},
                     },
                 ],
             },
@@ -831,7 +829,7 @@ class TestSchedulerNodeFilter(object):
         pod_id = create_pod_with_boilerplate(
             yp_client,
             pod_set_id,
-            {"resource_requests": {"vcpu_guarantee": 100}, "enable_scheduling": True,},
+            {"resource_requests": {"vcpu_guarantee": 100}, "enable_scheduling": True},
         )
 
         wait(
@@ -912,7 +910,7 @@ class TestSchedulerNodeFilter(object):
         pod_set_id = create_pod_set(
             yp_client, spec=dict(node_filter='[/some/nonexisting] = "value"')
         )
-        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {"enable_scheduling": True,})
+        pod_id = create_pod_with_boilerplate(yp_client, pod_set_id, {"enable_scheduling": True})
 
         wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id)))
 
@@ -937,7 +935,7 @@ class TestSchedulerPartialAssignment:
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": 1000,
-            "failed_allocation_backoff": {"start": 15 * 1000, "max": 15 * 1000,},
+            "failed_allocation_backoff": {"start": 15 * 1000, "max": 15 * 1000},
         },
     }
 
@@ -1017,7 +1015,7 @@ class TestSchedulerFailedAllocationBackoff:
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": 1000,
-            "failed_allocation_backoff": {"start": 200, "max": 15 * 1000, "base": 2.0,},
+            "failed_allocation_backoff": {"start": 200, "max": 15 * 1000, "base": 2.0},
         },
     }
 
@@ -1063,8 +1061,8 @@ class TestSchedulerGpu(object):
             yp_client,
             pod_set_id,
             {
-                "resource_requests": {"vcpu_guarantee": 100,},
-                "gpu_requests": [{"id": "gpu1", "model": "k100", "min_memory": 2 ** 15,}],
+                "resource_requests": {"vcpu_guarantee": 100},
+                "gpu_requests": [{"id": "gpu1", "model": "k100", "min_memory": 2 ** 15}],
                 "enable_scheduling": True,
             },
         )
@@ -1087,7 +1085,7 @@ class TestSchedulerGpu(object):
             yp_client,
             pod_set_id,
             {
-                "gpu_requests": [{"id": "gpu1", "model": "v100", "min_memory": 2 ** 16,}],
+                "gpu_requests": [{"id": "gpu1", "model": "v100", "min_memory": 2 ** 16}],
                 "enable_scheduling": True,
             },
         )
@@ -1117,10 +1115,10 @@ class TestSchedulerGpu(object):
         yp_client.update_object(
             "pod",
             pod_ids[1],
-            set_updates=[dict(path="/spec/gpu_requests/0/min_memory", value=2 ** 40),],
+            set_updates=[dict(path="/spec/gpu_requests/0/min_memory", value=2 ** 40)],
         )
         yp_client.update_object(
-            "pod", pod_ids[1], set_updates=[dict(path="/spec/gpu_requests/0/model", value="v200"),]
+            "pod", pod_ids[1], set_updates=[dict(path="/spec/gpu_requests/0/model", value="v200")]
         )
 
         new_pod_id = make_pod()
@@ -1146,7 +1144,7 @@ class TestSchedulerGpu(object):
                 pod_set_id,
                 {
                     "node_id": node_id,
-                    "gpu_requests": [{"id": "gpu1", "model": "v100", "min_memory": 2 ** 10,}],
+                    "gpu_requests": [{"id": "gpu1", "model": "v100", "min_memory": 2 ** 10}],
                 },
             )
 
@@ -1155,7 +1153,7 @@ class TestSchedulerGpu(object):
             pod_set_id,
             {
                 "gpu_requests": [
-                    {"id": "gpu{}".format(i), "model": "v100", "min_memory": 2 ** 10,}
+                    {"id": "gpu{}".format(i), "model": "v100", "min_memory": 2 ** 10}
                     for i in range(3)
                 ],
                 "enable_scheduling": True,
@@ -1187,7 +1185,7 @@ class TestSchedulerGpu(object):
                 pod_set_id,
                 {
                     "gpu_requests": [
-                        {"id": "gpu1", "model": "v100", "min_memory": memory, "max_memory": memory,}
+                        {"id": "gpu1", "model": "v100", "min_memory": memory, "max_memory": memory}
                     ],
                     "enable_scheduling": True,
                 },
@@ -1219,7 +1217,7 @@ class TestSchedulerGpu(object):
             yp_client,
             pod_set_id,
             {
-                "gpu_requests": [{"id": "gpu1", "model": "v100", "min_memory": 2 ** 16,}],
+                "gpu_requests": [{"id": "gpu1", "model": "v100", "min_memory": 2 ** 16}],
                 "enable_scheduling": True,
             },
         )
@@ -1243,7 +1241,7 @@ class TestSchedulerGpu(object):
             yp_client,
             pod_set_id,
             {
-                "gpu_requests": [{"id": "gpu1", "model": "v100", "min_memory": 2 ** 16,}],
+                "gpu_requests": [{"id": "gpu1", "model": "v100", "min_memory": 2 ** 16}],
                 "enable_scheduling": True,
             },
         )
@@ -1316,7 +1314,7 @@ class TestSchedulerNetwork(object):
             create_pod_with_boilerplate(
                 yp_client,
                 pod_set_id,
-                {"resource_requests": {"vcpu_guarantee": 10,}, "enable_scheduling": True},
+                {"resource_requests": {"vcpu_guarantee": 10}, "enable_scheduling": True},
             )
         )
 
@@ -1356,7 +1354,7 @@ class TestSchedulerNetwork(object):
             yp_client,
             pod_set_id,
             {
-                "resource_requests": {"network_bandwidth_guarantee": 2 ** 20,},
+                "resource_requests": {"network_bandwidth_guarantee": 2 ** 20},
                 "enable_scheduling": True,
             },
         )
@@ -1379,7 +1377,7 @@ class TestSchedulerNetwork(object):
             yp_client,
             pod_set_id,
             {
-                "resource_requests": {"network_bandwidth_guarantee": 2 ** 20,},
+                "resource_requests": {"network_bandwidth_guarantee": 2 ** 20},
                 "enable_scheduling": True,
             },
         )
@@ -1400,9 +1398,9 @@ class TestSchedulerEveryNodeSelectionStrategyBase(object):
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": 100,
-            "failed_allocation_backoff": {"start": 150, "max": 150,},
+            "failed_allocation_backoff": {"start": 150, "max": 150},
             "global_resource_allocator": {
-                "every_node_selection_strategy": {"iteration_period": 5, "iteration_splay": 2,},
+                "every_node_selection_strategy": {"iteration_period": 5, "iteration_splay": 2},
             },
         },
     }
@@ -1507,9 +1505,9 @@ class TestSchedulerEveryNodeSelectionStrategyNetworkErrors(
         network_id = yp_client.create_object(
             "network_project",
             attributes={
-                "spec": {"project_id": 123,},
+                "spec": {"project_id": 123},
                 "meta": {
-                    "acl": [{"action": "allow", "permissions": ["use",], "subjects": [user_name,]}],
+                    "acl": [{"action": "allow", "permissions": ["use"], "subjects": [user_name]}],
                 },
             },
         )
@@ -1518,7 +1516,7 @@ class TestSchedulerEveryNodeSelectionStrategyNetworkErrors(
             "ip4_address_pool",
             attributes={
                 "meta": {
-                    "acl": [{"action": "allow", "permissions": ["use",], "subjects": [user_name,]}],
+                    "acl": [{"action": "allow", "permissions": ["use"], "subjects": [user_name]}],
                 },
             },
         )
@@ -1527,8 +1525,8 @@ class TestSchedulerEveryNodeSelectionStrategyNetworkErrors(
         yp_client.create_object(
             "internet_address",
             attributes={
-                "meta": {"ip4_address_pool_id": ip4_address_pool_id,},
-                "spec": {"ip4_address": "1.3.5.7", "network_module_id": network_module_id,},
+                "meta": {"ip4_address_pool_id": ip4_address_pool_id},
+                "spec": {"ip4_address": "1.3.5.7", "network_module_id": network_module_id},
             },
         )
 
@@ -1601,7 +1599,7 @@ class TestSchedulerEveryNodeSelectionStrategyResourceErrors(
         )
 
         pod_set_id = create_pod_set(
-            yp_client, spec=dict(antiaffinity_constraints=[dict(key="node", max_pods=1,),],),
+            yp_client, spec=dict(antiaffinity_constraints=[dict(key="node", max_pods=1,)],),
         )
 
         pod_spec = dict(enable_scheduling=True)
@@ -1754,8 +1752,8 @@ class TestSchedulePodsStageLimits(object):
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": LOOP_PERIOD_SECONDS * 1000,
-            "failed_allocation_backoff": {"start": 1000, "max": 1000,},
-            "schedule_pods_stage": {"pod_limit": SCHEDULE_PODS_STAGE_POD_LIMIT,},
+            "failed_allocation_backoff": {"start": 1000, "max": 1000},
+            "schedule_pods_stage": {"pod_limit": SCHEDULE_PODS_STAGE_POD_LIMIT},
         },
     }
 
@@ -1892,9 +1890,9 @@ class TestSchedulerNodeRandomHashPodNodeScore(object):
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": 100,
-            "failed_allocation_backoff": {"start": 150, "max": 150,},
+            "failed_allocation_backoff": {"start": 150, "max": 150},
             "global_resource_allocator": {
-                "pod_node_score": {"type": "node_random_hash", "parameters": {"seed": 100500,},},
+                "pod_node_score": {"type": "node_random_hash", "parameters": {"seed": 100500}},
             },
         },
     }
@@ -1908,9 +1906,9 @@ class TestSchedulerFreeCpuMemoryShareVariancePodNodeScore(object):
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": 100,
-            "failed_allocation_backoff": {"start": 150, "max": 150,},
+            "failed_allocation_backoff": {"start": 150, "max": 150},
             "global_resource_allocator": {
-                "pod_node_score": {"type": "free_cpu_memory_share_variance",},
+                "pod_node_score": {"type": "free_cpu_memory_share_variance"},
             },
         },
     }
@@ -1924,9 +1922,9 @@ class TestSchedulerFreeCpuMemoryShareSquaredMinDeltaPodNodeScore(object):
     YP_MASTER_CONFIG = {
         "scheduler": {
             "loop_period": 100,
-            "failed_allocation_backoff": {"start": 150, "max": 150,},
+            "failed_allocation_backoff": {"start": 150, "max": 150},
             "global_resource_allocator": {
-                "pod_node_score": {"type": "free_cpu_memory_share_squared_min_delta",},
+                "pod_node_score": {"type": "free_cpu_memory_share_squared_min_delta"},
             },
         },
     }

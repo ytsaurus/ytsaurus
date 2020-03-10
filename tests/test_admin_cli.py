@@ -33,7 +33,7 @@ ADMIN_CLI_TESTS_LOCAL_YT_OPTIONS = dict(http_proxy_count=1)
 def get_db_version(yp_env, yp_path):
     cli = YpAdminCli()
     output = cli.check_output(
-        ["get-db-version", "--yt-proxy", get_yt_proxy_address(yp_env), "--yp-path", yp_path,]
+        ["get-db-version", "--yt-proxy", get_yt_proxy_address(yp_env), "--yp-path", yp_path]
     )
     match = re.match("^Database version: ([0-9]+)$", output)
     assert match is not None

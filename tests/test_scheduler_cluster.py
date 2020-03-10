@@ -11,8 +11,6 @@ from .conftest import (
     wait_pod_is_assigned,
 )
 
-from yt.common import update
-
 from yt.packages.six.moves import xrange
 
 import pytest
@@ -101,7 +99,7 @@ class TestSchedulerCluster(BaseTestSchedulerCluster):
 
         create_nodes(yp_client, 1)
 
-        node_segment_id = yp_client.create_object(
+        yp_client.create_object(
             "node_segment", attributes=dict(spec=dict(node_filter="abracadabra")),
         )
         self._validate_scheduler_lifelessness(yp_client)
@@ -129,7 +127,7 @@ class TestSchedulerClusterWithHeavyScheduler(BaseTestSchedulerCluster):
                 pod_cpu = max(pod_cpu, free_cpu + 1)
         assert pod_cpu > 0
         pod_set_id = create_pod_set(yp_client)
-        pod_id = create_pod_with_boilerplate(
+        create_pod_with_boilerplate(
             yp_client,
             pod_set_id,
             spec=dict(enable_scheduling=True, resource_requests=dict(vcpu_guarantee=pod_cpu)),

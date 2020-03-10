@@ -3,7 +3,7 @@ import pytest
 from .conftest import ZERO_RESOURCE_REQUESTS
 
 from yp.common import YtResponseError, YpInvalidObjectTypeError
-from yp.local import DEFAULT_IP4_ADDRESS_POOL_ID, OBJECT_TYPES
+from yp.local import DEFAULT_IP4_ADDRESS_POOL_ID
 
 from yp.data_model import TPodSetMeta, TPodSetSpec, TPodSet
 
@@ -105,9 +105,7 @@ class TestObjects(object):
     def test_select_filter_with_transform_default_values(self, yp_env):
         yp_client = yp_env.yp_client
         pod_set_id = yp_client.create_object("pod_set", attributes=dict(meta=dict(id="podset")))
-        pod_id = yp_client.create_object(
-            "pod", attributes=dict(meta=dict(id="pod", pod_set_id=pod_set_id),)
-        )
+        yp_client.create_object("pod", attributes=dict(meta=dict(id="pod", pod_set_id=pod_set_id),))
         assert yp_client.select_objects(
             "pod",
             selectors=["/meta/id"],
@@ -230,7 +228,7 @@ class TestObjects(object):
     def test_select_objects_fetch_options(self, yp_env):
         yp_client = yp_env.yp_client
 
-        pod_set_id = yp_client.create_object("pod_set")
+        yp_client.create_object("pod_set")
 
         select_rsp1 = yp_client.select_objects(
             "pod_set",

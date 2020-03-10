@@ -162,7 +162,7 @@ class TestSchedulePod(object):
         status_response = yp_client.get_object(
             "pod", pod_id, selectors=["/status/agent/pod_agent_payload/status"]
         )[0]
-        if status_response == None:  # Check for YsonEntity or None.
+        if status_response is None:  # Check for YsonEntity or None.
             return False
         workloads = status_response.get("workloads", [])
         if len(workloads) < 1:
@@ -252,7 +252,7 @@ class TestSchedulePod(object):
             yp_client,
             pod_id,
             node_id="",
-            other_updates=[dict(path="/spec/enable_scheduling", value=False,),],
+            other_updates=[dict(path="/spec/enable_scheduling", value=False,)],
             with_retries=True,
         )
 

@@ -93,7 +93,7 @@ def update_spec_test_template(
     )
 
     yp_client.update_object(
-        object_type, object_id, set_updates=[{"path": update_path, "value": update_value},]
+        object_type, object_id, set_updates=[{"path": update_path, "value": update_value}]
     )
 
     assert yp_client.get_object(object_type, object_id, selectors=[update_path])[0] == update_value
@@ -115,7 +115,9 @@ def replica_set_network_project_permissions_test_template(yp_env, replica_set_ob
         },
     }
 
-    user_id = create_user(yp_env.yp_client, "u", grant_create_permission_for_types=(replica_set_object_type,))
+    user_id = create_user(
+        yp_env.yp_client, "u", grant_create_permission_for_types=(replica_set_object_type,)
+    )
     yp_env.sync_access_control()
 
     network_project_permissions_test_template(

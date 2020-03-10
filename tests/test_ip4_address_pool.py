@@ -10,7 +10,6 @@ from yp.local import DEFAULT_IP4_ADDRESS_POOL_ID
 
 from yp.common import YpAuthorizationError
 
-from contextlib import contextmanager
 import pytest
 
 
@@ -29,7 +28,7 @@ class TestIP4AddressPools(object):
             initial_spec={},
             update_path="/meta/acl",
             update_value=[
-                {"action": "allow", "permissions": ["read", "write",], "subjects": ["root",]}
+                {"action": "allow", "permissions": ["read", "write"], "subjects": ["root"]}
             ],
         )
 
@@ -43,8 +42,8 @@ class TestIP4AddressPools(object):
         addr_id = yp_client.create_object(
             "internet_address",
             attributes={
-                "meta": {"ip4_address_pool_id": pool_id,},
-                "spec": {"ip4_address": "1.3.5.7", "network_module_id": "VLA-100.500",},
+                "meta": {"ip4_address_pool_id": pool_id},
+                "spec": {"ip4_address": "1.3.5.7", "network_module_id": "VLA-100.500"},
             },
         )
         parent_records = yt_client.select_rows(
@@ -65,9 +64,9 @@ class TestIP4AddressPools(object):
         network_id = yp_client.create_object(
             "network_project",
             attributes={
-                "spec": {"project_id": 123,},
+                "spec": {"project_id": 123},
                 "meta": {
-                    "acl": [{"action": "allow", "permissions": ["use",], "subjects": [user_name,]}],
+                    "acl": [{"action": "allow", "permissions": ["use"], "subjects": [user_name]}],
                 },
             },
         )
@@ -75,10 +74,10 @@ class TestIP4AddressPools(object):
         if ip4_address_pool_id is None:
             assert ace_action is not None
 
-            acl = [{"action": ace_action, "permissions": ["use",], "subjects": [user_name,]}]
+            acl = [{"action": ace_action, "permissions": ["use"], "subjects": [user_name]}]
 
             ip4_address_pool_id = yp_client.create_object(
-                "ip4_address_pool", attributes={"meta": {"acl": acl,},}
+                "ip4_address_pool", attributes={"meta": {"acl": acl}}
             )
 
         network_module_id = "VLA-100.500"
@@ -88,8 +87,8 @@ class TestIP4AddressPools(object):
         yp_client.create_object(
             "internet_address",
             attributes={
-                "meta": {"ip4_address_pool_id": ip4_address_pool_id,},
-                "spec": {"ip4_address": ip4_address, "network_module_id": network_module_id,},
+                "meta": {"ip4_address_pool_id": ip4_address_pool_id},
+                "spec": {"ip4_address": ip4_address, "network_module_id": network_module_id},
             },
         )
 
@@ -97,9 +96,7 @@ class TestIP4AddressPools(object):
             "pod_set",
             attributes={
                 "meta": {
-                    "acl": [
-                        {"action": "allow", "permissions": ["write",], "subjects": [user_name,]}
-                    ],
+                    "acl": [{"action": "allow", "permissions": ["write"], "subjects": [user_name]}],
                 },
             },
         )
@@ -127,7 +124,6 @@ class TestIP4AddressPools(object):
         wait_pod_is_assigned(yp_client, pod_id)
 
     def test_acl_deny(self, yp_env):
-        yp_client = yp_env.yp_client
         with pytest.raises(YpAuthorizationError):
             self._create_pod_with_ip4_address_and_acl(yp_env, "1.3.5.7", ace_action="deny")
 

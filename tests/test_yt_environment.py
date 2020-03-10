@@ -52,7 +52,7 @@ class TestYTEnvironment(object):
             },
         ]
 
-        assert yt_client.get("//yp/@inherit_acl") == False
+        assert yt_client.get("//yp/@inherit_acl") == False  # noqa
         _check_lists_equal(expected_yp_effective_acls, yp_env.yt_client.get("//yp/@effective_acl"))
 
         expected_yp_tokens_effective_acls = [
@@ -76,7 +76,7 @@ class TestYTEnvironment(object):
             },
         ]
 
-        assert yt_client.get("//yp/tokens/@inherit_acl") == False
+        assert yt_client.get("//yp/tokens/@inherit_acl") == False  # noqa
         _check_lists_equal(
             expected_yp_tokens_effective_acls, yp_env.yt_client.get("//yp/tokens/@effective_acl")
         )

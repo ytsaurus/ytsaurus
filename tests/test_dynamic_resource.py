@@ -10,19 +10,19 @@ class TestDynamicResource(object):
         dynamic_resource_id = yp_client.create_object(
             object_type="dynamic_resource",
             attributes={
-                "meta": {"pod_set_id": pod_set_id,},
-                "spec": {"revision": 42, "deploy_groups": [{"urls": ["nonexistent://"],},],},
+                "meta": {"pod_set_id": pod_set_id},
+                "spec": {"revision": 42, "deploy_groups": [{"urls": ["nonexistent://"]}]},
                 "status": {
                     "revisions": [
                         {
                             "revision": 1,
-                            "ready": {"pod_count": 2, "condition": {"status": "true"},},
-                            "error": {"pod_count": 2, "condition": {"status": "false"},},
+                            "ready": {"pod_count": 2, "condition": {"status": "true"}},
+                            "error": {"pod_count": 2, "condition": {"status": "false"}},
                         },
                         {
                             "revision": 4,
-                            "ready": {"pod_count": 5, "condition": {"status": "true"},},
-                            "error": {"pod_count": 6, "condition": {"status": "false"},},
+                            "ready": {"pod_count": 5, "condition": {"status": "true"}},
+                            "error": {"pod_count": 6, "condition": {"status": "false"}},
                         },
                     ]
                 },
@@ -41,7 +41,7 @@ class TestDynamicResource(object):
 
         spec = {
             "revision": 43,
-            "deploy_groups": [{"urls": ["something://"],},],
+            "deploy_groups": [{"urls": ["something://"]}],
         }
 
         yp_client.update_object(
@@ -59,7 +59,7 @@ class TestDynamicResource(object):
                 {
                     "urls": ["something://"],
                     "storage_options": {
-                        "verification": {"checksum": "123", "check_period_ms": 1000,},
+                        "verification": {"checksum": "123", "check_period_ms": 1000},
                     },
                 }
             ],
@@ -79,10 +79,10 @@ class TestDynamicResource(object):
 
         pod_set_id = yp_client.create_object(object_type="pod_set", attributes={})
         dynamic_resource_id1 = yp_client.create_object(
-            object_type="dynamic_resource", attributes={"meta": {"pod_set_id": pod_set_id,}}
+            object_type="dynamic_resource", attributes={"meta": {"pod_set_id": pod_set_id}}
         )
         dynamic_resource_id2 = yp_client.create_object(
-            object_type="dynamic_resource", attributes={"meta": {"pod_set_id": pod_set_id,}}
+            object_type="dynamic_resource", attributes={"meta": {"pod_set_id": pod_set_id}}
         )
 
         assert dynamic_resource_id1 != dynamic_resource_id2
@@ -107,7 +107,7 @@ class TestDynamicResource(object):
 
         pod_set_id = yp_client.create_object(object_type="pod_set", attributes={})
         dynamic_resource_id = yp_client.create_object(
-            object_type="dynamic_resource", attributes={"meta": {"pod_set_id": pod_set_id,}}
+            object_type="dynamic_resource", attributes={"meta": {"pod_set_id": pod_set_id}}
         )
 
         assert (
@@ -116,7 +116,7 @@ class TestDynamicResource(object):
         )
 
         spec = [
-            {"id": dynamic_resource_id, "revision": 2, "mark": "mymark",},
+            {"id": dynamic_resource_id, "revision": 2, "mark": "mymark"},
         ]
         status = [
             {
@@ -129,7 +129,7 @@ class TestDynamicResource(object):
             }
         ]
         pod_id = yp_client.create_object(
-            object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id,}, "spec": {},}
+            object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}, "spec": {}}
         )
 
         result = yp_client.get_object(
@@ -163,7 +163,7 @@ class TestDynamicResource(object):
 
         pod_set_id = yp_client.create_object(object_type="pod_set", attributes={})
         dynamic_resource_id = yp_client.create_object(
-            object_type="dynamic_resource", attributes={"meta": {"pod_set_id": pod_set_id,}}
+            object_type="dynamic_resource", attributes={"meta": {"pod_set_id": pod_set_id}}
         )
 
         assert (
@@ -172,7 +172,7 @@ class TestDynamicResource(object):
         )
 
         spec = [
-            {"id": dynamic_resource_id, "revision": 2, "mark": "mymark",},
+            {"id": dynamic_resource_id, "revision": 2, "mark": "mymark"},
         ]
         status = [
             {
@@ -188,9 +188,9 @@ class TestDynamicResource(object):
         pod_id = yp_client.create_object(
             object_type="pod",
             attributes={
-                "meta": {"pod_set_id": pod_set_id,},
-                "spec": {"dynamic_resources": spec,},
-                "status": {"dynamic_resources": status,},
+                "meta": {"pod_set_id": pod_set_id},
+                "spec": {"dynamic_resources": spec},
+                "status": {"dynamic_resources": status},
             },
         )
 

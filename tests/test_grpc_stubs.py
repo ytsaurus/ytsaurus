@@ -132,7 +132,7 @@ class TestGrpcStubs(object):
         pod_agent_payload.spec.id = "some_id"
         update.value_payload.protobuf = pod_agent_payload.SerializeToString()
         update.path = "/spec/pod_agent_payload"
-        rsp = object_stub.UpdateObject(req)
+        object_stub.UpdateObject(req)
 
         assert (
             yp_client.get_object("pod", pod_id, selectors=["/spec/pod_agent_payload/spec/id"])[0]
@@ -157,7 +157,7 @@ class TestGrpcStubs(object):
         pod_agent_payload.spec.id = "some_id"
         update.value_payload.protobuf = pod_agent_payload.SerializeToString()
         update.path = "/spec/pod_agent_payload"
-        rsp = object_stub.UpdateObjects(req)
+        object_stub.UpdateObjects(req)
 
         assert (
             yp_client.get_object("pod", pod_id, selectors=["/spec/pod_agent_payload/spec/id"])[0]

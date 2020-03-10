@@ -1,14 +1,19 @@
-from .conftest import *
+from .conftest import YpTestEnvironment, test_method_setup, test_method_teardown
 
 from yp.tests.blackbox_recipe.lib import fake_blackbox, fake_tvm
 
+from yt.common import update
+
+import pytest
+
+import copy
 
 AUTH_YP_MASTER_CONFIG = {
     "authentication_manager": {
         "require_authentication": True,
-        "tvm_service": {"host": "localhost", "port": None, "token": None, "src": "yp",},
-        "blackbox_service": {"host": "localhost", "port": None, "secure": False, "use_tvm": True,},
-        "blackbox_token_authenticator": {"scope": "yp:api",},
+        "tvm_service": {"host": "localhost", "port": None, "token": None, "src": "yp"},
+        "blackbox_service": {"host": "localhost", "port": None, "secure": False, "use_tvm": True},
+        "blackbox_token_authenticator": {"scope": "yp:api"},
     },
 }
 
@@ -23,9 +28,9 @@ BLACKBOX_OAUTH_REQUEST_TEMPLATE = (
 )
 
 BLACKBOX_OAUTH_RESPONSE = {
-    "status": {"value": "VALID", "id": 0,},
-    "attributes": {"1008": "root",},
-    "oauth": {"client_id": "deadbeef", "client_name": "Mr. R00t", "scope": "yp:api",},
+    "status": {"value": "VALID", "id": 0},
+    "attributes": {"1008": "root"},
+    "oauth": {"client_id": "deadbeef", "client_name": "Mr. R00t", "scope": "yp:api"},
     "error": "OK",
 }
 

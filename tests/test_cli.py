@@ -175,13 +175,11 @@ class TestCli(object):
             ]
         )
 
-        result = cli.check_yson_output(
-            ["get", "pod_set", pod_set_id, "--selector", "/annotations",]
-        )
+        result = cli.check_yson_output(["get", "pod_set", pod_set_id, "--selector", "/annotations"])
         assert result == [{"hello": "\x01\x02"}]
 
         result = cli.check_output(
-            ["get", "pod_set", pod_set_id, "--selector", "/annotations", "--format", "json",]
+            ["get", "pod_set", pod_set_id, "--selector", "/annotations", "--format", "json"]
         )
         assert json.loads(result) == [{"hello": "\x01\x02"}]
 
@@ -264,7 +262,7 @@ class TestCli(object):
         create_nodes(yp_client, node_count, cpu_total_capacity=200, vlan_id=vlan_id)
         pod_set_id = create_pod_set(yp_client)
         network_project_id = yp_client.create_object(
-            "network_project", {"meta": {"id": "somenet"}, "spec": {"project_id": 42},}
+            "network_project", {"meta": {"id": "somenet"}, "spec": {"project_id": 42}}
         )
 
         def _create_pod(enable_scheduling):
@@ -310,7 +308,7 @@ class TestCli(object):
 
         node_id = initial_pod_dump["spec"]["node_id"]
         yp_client.update_object(
-            "node", node_id, [{"path": "/spec/ip6_subnets/0/subnet", "value": "4:3:2:1::/64",}]
+            "node", node_id, [{"path": "/spec/ip6_subnets/0/subnet", "value": "4:3:2:1::/64"}]
         )
 
         cli.check_output(["reallocate-pod-resources", pod_id])
@@ -574,7 +572,7 @@ class TestCliMaintenance(object):
 
         def _get_alerts():
             result = yp_client.get_object("node", node_id, selectors=["/status/alerts"])[0]
-            return [] if result == None else result
+            return [] if result == None else result  # noqa
 
         assert [] == _get_alerts()
 

@@ -1,5 +1,3 @@
-from yt.yson import YsonEntity, YsonUint64
-
 import pytest
 
 
@@ -32,10 +30,10 @@ class TestResourceCache(object):
 
         status = {
             "revision": 42,
-            "all_in_progress": {"pod_count": 31,},
-            "all_ready": {"pod_count": 1,},
-            "latest_in_progress": {"pod_count": 21,},
-            "latest_ready": {"pod_count": 11,},
+            "all_in_progress": {"pod_count": 31},
+            "all_ready": {"pod_count": 1},
+            "latest_in_progress": {"pod_count": 21},
+            "latest_ready": {"pod_count": 11},
             "cached_resource_status": [
                 {
                     "id": "my_layer",
@@ -55,7 +53,7 @@ class TestResourceCache(object):
                             "revision": 45,
                             "in_progress": {"pod_count": 771},
                             "ready": {"pod_count": 2291},
-                            "static_resource": {"id": "my_static_resource",},
+                            "static_resource": {"id": "my_static_resource"},
                         }
                     ],
                 },
@@ -90,7 +88,7 @@ class TestResourceCache(object):
 
         pod_set_id = yp_client.create_object(object_type="pod_set", attributes={})
         pod_id = yp_client.create_object(
-            object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id,}, "spec": {},}
+            object_type="pod", attributes={"meta": {"pod_set_id": pod_set_id}, "spec": {}}
         )
 
         resource_cache_spec = {
@@ -107,7 +105,7 @@ class TestResourceCache(object):
         yp_client.update_object(
             "pod",
             pod_id,
-            set_updates=[{"path": "/spec/resource_cache", "value": resource_cache_spec},],
+            set_updates=[{"path": "/spec/resource_cache", "value": resource_cache_spec}],
         )
 
         result = yp_client.get_object("pod", pod_id, selectors=["/meta", "/spec/resource_cache"])

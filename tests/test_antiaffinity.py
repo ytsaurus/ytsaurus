@@ -91,7 +91,7 @@ class TestAntiaffinity(object):
             yp_client,
             node_per_rack_count=node_count,
             pod_per_group_count=pod_count,
-            antiaffinity_constraints=[dict(key="node", max_pods=node_pod_limit),],
+            antiaffinity_constraints=[dict(key="node", max_pods=node_pod_limit)],
         )[0]
 
         wait(lambda: are_pods_touched_by_scheduler(yp_client, pod_ids))
@@ -288,7 +288,7 @@ class TestAntiaffinity(object):
             )
 
             yp_client.update_object(
-                "pod", pod_id, set_updates=[dict(path="/labels", value=dict(group_id="1"),),],
+                "pod", pod_id, set_updates=[dict(path="/labels", value=dict(group_id="1"),)],
             )
 
             wait(lambda: is_pod_assigned(yp_client, pod_id))
@@ -334,7 +334,7 @@ class TestAntiaffinity(object):
         wait(lambda: is_pod_assigned(yp_client, pod_id1))
 
         yp_client.update_object(
-            "pod", pod_id1, set_updates=[dict(path="/labels", value=dict(group_id=123123),),],
+            "pod", pod_id1, set_updates=[dict(path="/labels", value=dict(group_id=123123),)],
         )
 
         pod_id2 = create_pod_with_boilerplate(
@@ -344,7 +344,7 @@ class TestAntiaffinity(object):
         wait(lambda: is_error_pod_scheduling_status(get_pod_scheduling_status(yp_client, pod_id2)))
 
         yp_client.update_object(
-            "pod", pod_id1, set_updates=[dict(path="/labels", value=dict(group_id="42"),),],
+            "pod", pod_id1, set_updates=[dict(path="/labels", value=dict(group_id="42"),)],
         )
 
         wait(lambda: is_pod_assigned(yp_client, pod_id2))
@@ -355,7 +355,7 @@ class TestAntiaffinity(object):
         create_nodes(yp_client, 1)
 
         pod_set_id = self._prepare_pod_set(
-            yp_client, antiaffinity_constraints=[dict(key="node", max_pods=3,),],
+            yp_client, antiaffinity_constraints=[dict(key="node", max_pods=3,)],
         )
 
         def create_pod():

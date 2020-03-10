@@ -17,7 +17,7 @@ import pytest
 
 @pytest.mark.usefixtures("yp_env_configurable")
 class TestHistoryApiDisabledTypes(object):
-    YP_MASTER_CONFIG = dict(object_manager=dict(history_disabled_types=["pod",],),)
+    YP_MASTER_CONFIG = dict(object_manager=dict(history_disabled_types=["pod"],),)
 
     def test(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -171,7 +171,7 @@ class TestHistoryApi(object):
             assert isinstance(results[i]["value"], YsonEntity)
 
         yp_client.update_object(
-            "stage", stage_id, set_updates=[dict(path="/spec/account_id", value="tmp",),],
+            "stage", stage_id, set_updates=[dict(path="/spec/account_id", value="tmp",)],
         )
 
         next_events = yp_client.select_object_history("stage", stage_id, ["/spec"])["events"]

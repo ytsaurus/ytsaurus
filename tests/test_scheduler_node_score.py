@@ -9,7 +9,7 @@ from .conftest import (
 
 from yp.common import wait, WaitFailed
 
-from yt.packages.six.moves import xrange, map
+from yt.packages.six.moves import xrange
 
 import pytest
 
@@ -61,7 +61,7 @@ class TestSchedulerNodeScoreFeatures(object):
 
         yp_env.set_cypress_config_patch(
             self._create_scheduler_config(
-                node_score=dict(features=[dict(filter_query=correct_filter_query, weight=42),]),
+                node_score=dict(features=[dict(filter_query=correct_filter_query, weight=42)]),
             )
         )
         check_scheduler_liveness()

@@ -185,7 +185,7 @@ class TestReleaseRules(object):
         )
 
         # Case 2: stage_id not updatable
-        with pytest.raises(YtResponseError) as exc:
+        with pytest.raises(YtResponseError):
             yp_client.update_object(
                 "release_rule",
                 release_rule_id,

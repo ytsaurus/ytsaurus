@@ -33,9 +33,7 @@ class TestAcls(object):
 
         for user_id in ("u1", "u2"):
             create_user(
-                yp_client,
-                id=user_id,
-                grant_create_permission_for_types=("pod_set",),
+                yp_client, id=user_id, grant_create_permission_for_types=("pod_set",),
             )
         yp_env.sync_access_control()
 
@@ -435,11 +433,11 @@ class TestAcls(object):
                     ]
                 )
             ),
-            [[], [network_project_id1], [network_project_id1],],
+            [[], [network_project_id1], [network_project_id1]],
         )
 
         network_project_id2 = create_network_project(
-            acl=[dict(action="allow", subjects=["u1"], permissions=["read", "write"]),],
+            acl=[dict(action="allow", subjects=["u1"], permissions=["read", "write"])],
             inherit_acl=True,
         )
         yp_env.sync_access_control()
@@ -451,7 +449,7 @@ class TestAcls(object):
                     [dict(user_id="u1", object_type="network_project", permission="read",)]
                 )
             ),
-            [[network_project_id2],],
+            [[network_project_id2]],
         )
 
         # Method is not supported for the 'pod' object type.
@@ -463,7 +461,7 @@ class TestAcls(object):
             assert error.contains_code(103)  # No such method.
 
         network_project_id3 = create_network_project(
-            acl=[dict(action="allow", subjects=["u1"], permissions=["read", "write"]),],
+            acl=[dict(action="allow", subjects=["u1"], permissions=["read", "write"])],
             inherit_acl=True,
         )
         yp_env.sync_access_control()
@@ -490,19 +488,19 @@ class TestAcls(object):
                     ]
                 )
             ),
-            [[],],
+            [[]],
         )
 
         # Nonexistant object type.
         with pytest.raises(YpClientError):
             yp_client.get_user_access_allowed_to(
-                [dict(user_id="u1", object_type="abracadabra", permission="read",),]
+                [dict(user_id="u1", object_type="abracadabra", permission="read",)]
             )
 
         # Nonexistant permission.
         with pytest.raises(YpClientError):
             yp_client.get_user_access_allowed_to(
-                [dict(user_id="u1", object_type="network_project", permission="abracadabra",),]
+                [dict(user_id="u1", object_type="network_project", permission="abracadabra",)]
             )
 
         yp_client.create_object(
@@ -528,10 +526,10 @@ class TestAcls(object):
         assert_items_equal(
             extract_ids(
                 yp_client.get_user_access_allowed_to(
-                    [dict(user_id="u1", object_type="network_project", permission="write",),]
+                    [dict(user_id="u1", object_type="network_project", permission="write",)]
                 )
             ),
-            [[network_project_id3],],
+            [[network_project_id3]],
         )
 
         object_count = 100
@@ -553,7 +551,7 @@ class TestAcls(object):
         assert_items_equal(
             set(
                 yp_client.get_user_access_allowed_to(
-                    [dict(user_id="u1", object_type="account", permission="read",),]
+                    [dict(user_id="u1", object_type="account", permission="read",)]
                 )[0]["object_ids"]
             ),
             set(object_ids),
@@ -724,6 +722,7 @@ class TestAcls(object):
         )
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
+
             def try_create():
                 yp_client1.create_object(
                     "pod",
@@ -779,6 +778,7 @@ class TestAcls(object):
         )
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
+
             def try_update():
                 yp_client1.update_object(
                     "pod", pod_id, set_updates=[{"path": "/spec/node_id", "value": node_id}]
@@ -823,6 +823,7 @@ class TestAcls(object):
         )
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
+
             def try_create():
                 yp_client1.create_object(
                     "pod",
@@ -917,7 +918,7 @@ class TestAcls(object):
             assert 10 == get(pod_id)
 
             yp_client_root.update_object(
-                "node_segment", "default", remove_updates=[dict(path="/meta/acl/-1"),],
+                "node_segment", "default", remove_updates=[dict(path="/meta/acl/-1")],
             )
             yp_env.sync_access_control()
 
@@ -1221,7 +1222,7 @@ class TestAttributeAcls(object):
             yp_client1.request_pod_eviction(pod_id, "Test")
 
             yp_client1.update_object(
-                "pod", pod_id, set_updates=[dict(path="/spec/enable_scheduling", value=False,),],
+                "pod", pod_id, set_updates=[dict(path="/spec/enable_scheduling", value=False,)],
             )
 
             yp_client1.update_object(
@@ -1511,6 +1512,6 @@ class TestApiGetUserAccessAllowedTo(object):
         yp_env_configurable.sync_access_control()
 
         response = yp_client.get_user_access_allowed_to(
-            [dict(user_id=u1, object_type="pod", permission="write",),]
+            [dict(user_id=u1, object_type="pod", permission="write",)]
         )
         assert response[0]["object_ids"] == [pod1]

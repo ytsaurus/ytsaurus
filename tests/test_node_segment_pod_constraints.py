@@ -80,8 +80,8 @@ class TestNodeSegmentPodConstraints(object):
                 "pod",
                 pod_id,
                 set_updates=[
-                    {"path": "/spec/resource_requests/vcpu_guarantee", "value": guarantee,},
-                    {"path": "/spec/resource_requests/vcpu_limit", "value": limit,},
+                    {"path": "/spec/resource_requests/vcpu_guarantee", "value": guarantee},
+                    {"path": "/spec/resource_requests/vcpu_limit", "value": limit},
                 ],
             )
 
@@ -205,12 +205,11 @@ class TestNodeSegmentPodConstraints(object):
 
         node_segment_id = yp_client_root.get_object("node_segment", "default", ["/meta/id"])[0]
 
-        username = "simple_user"
-
         user_id = create_user(yp_client_root, grant_create_permission_for_types=("pod_set",))
         yp_env.sync_access_control()
 
         with yp_env.yp_instance.create_client(config={"user": user_id}) as yp_client_user:
+
             def _create_pod_set(yp_client, violate):
                 return yp_client.create_object(
                     "pod_set",

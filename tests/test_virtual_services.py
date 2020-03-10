@@ -1,5 +1,3 @@
-from yt.yson import YsonEntity, YsonUint64
-
 import pytest
 
 

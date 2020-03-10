@@ -56,8 +56,8 @@ class TestInternetAddresses(object):
         inet_addr_id = yp_client.create_object(
             "internet_address",
             attributes={
-                "meta": {"ip4_address_pool_id": ip4_address_pool_id,},
-                "spec": {"ip4_address": addr, "network_module_id": network_module_id,},
+                "meta": {"ip4_address_pool_id": ip4_address_pool_id},
+                "spec": {"ip4_address": addr, "network_module_id": network_module_id},
             },
         )
         return inet_addr_id
@@ -116,9 +116,9 @@ class TestInternetAddresses(object):
         inet_addr_id = yp_client.create_object(
             object_type="internet_address",
             attributes={
-                "meta": {"ip4_address_pool_id": DEFAULT_IP4_ADDRESS_POOL_ID, "id": "inet_addr",},
+                "meta": {"ip4_address_pool_id": DEFAULT_IP4_ADDRESS_POOL_ID, "id": "inet_addr"},
                 "spec": {"ip4_address": "1.2.3.4", "network_module_id": "VLA01,VLA02,VLA03"},
-                "status": {"pod_id": "42",},
+                "status": {"pod_id": "42"},
             },
         )
 
@@ -134,7 +134,7 @@ class TestInternetAddresses(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = self._prepare_objects(yp_client)
-        node_id = self._create_node(yp_client, "netmodule1")
+        self._create_node(yp_client, "netmodule1")
         inet_addr_id = self._create_inet_addr(yp_client, "netmodule1", "1.2.3.4")
         pod_id = self._create_pod(yp_client, pod_set_id, enable_internet=True)
 
@@ -158,8 +158,8 @@ class TestInternetAddresses(object):
         pod_set_id = self._prepare_objects(yp_client)
         inet_addr_id1 = self._create_inet_addr(yp_client, "netmodule1", "1.2.3.4")
 
-        node_id1 = self._create_node(yp_client, "netmodule1")
-        node_id2 = self._create_node(yp_client, "netmodule1")
+        self._create_node(yp_client, "netmodule1")
+        self._create_node(yp_client, "netmodule1")
 
         pod_id1 = self._create_pod(yp_client, pod_set_id, enable_internet=True)
         pod_id2 = self._create_pod(yp_client, pod_set_id, enable_internet=True)
@@ -266,7 +266,7 @@ class TestInternetAddresses(object):
         self._wait_scheduled_state(yp_client, [pod_id_without_address1], "assigned")
 
         with pytest.raises(YtResponseError):
-            pod_id_without_address2 = self._create_pod(
+            self._create_pod(
                 yp_client,
                 pod_set_id,
                 enable_internet=False,
@@ -395,7 +395,7 @@ class TestInternetAddresses(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = self._prepare_objects(yp_client)
-        node_id = self._create_node(yp_client, "netmodule1")
+        self._create_node(yp_client, "netmodule1")
         inet_addr_id = self._create_inet_addr(yp_client, "netmodule1", "1.2.3.4")
 
         pod_id = self._create_pod(yp_client, pod_set_id, enable_internet=True)
@@ -435,8 +435,8 @@ class TestInternetAddresses(object):
         yp_client = yp_env.yp_client
 
         pod_set_id = self._prepare_objects(yp_client)
-        node_id = self._create_node(yp_client, "netmodule")
-        inet_addr_id = self._create_inet_addr(yp_client, "netmodule", "1.2.3.4")
+        self._create_node(yp_client, "netmodule")
+        self._create_inet_addr(yp_client, "netmodule", "1.2.3.4")
 
         pod_id = yp_client.create_object(
             "pod",

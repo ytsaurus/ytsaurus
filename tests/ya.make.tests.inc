@@ -116,5 +116,3 @@ SPLIT_FACTOR(32)
 TAG(
     ya:huge_logs
 )
-
-NO_LINT()

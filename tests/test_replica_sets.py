@@ -1,7 +1,5 @@
 from . import templates
 
-from yp.common import YtResponseError
-
 from yt.yson.yson_types import YsonEntity
 
 import pytest
@@ -60,8 +58,8 @@ class TestReplicaSets(object):
         assert result[1]["deployment_strategy"]["max_surge"] == 13
 
         status = {
-            "in_progress": {"pod_count": 31,},
-            "ready": {"pod_count": 1,},
+            "in_progress": {"pod_count": 31},
+            "ready": {"pod_count": 1},
             "revisions": {
                 "123456": {
                     "revision_id": "123456",

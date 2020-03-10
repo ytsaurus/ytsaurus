@@ -155,7 +155,7 @@ class TestEndpointSets(object):
                             "error": {
                                 "code": code,
                                 "message": message,
-                                "attributes": {"attributes": attrs,},
+                                "attributes": {"attributes": attrs},
                                 "inner_errors": inner_errors,
                             }
                         },
@@ -182,7 +182,7 @@ class TestEndpointSets(object):
             code=0,
             message="Good evening!",
             attrs=[{"key": "key2", "value": "bytes2"}],
-            inner_errors=[{"code": 26,},],
+            inner_errors=[{"code": 26}],
         )
 
         yp_client.update_object(

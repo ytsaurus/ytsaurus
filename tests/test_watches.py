@@ -38,7 +38,6 @@ class TestWatches(object):
             )
 
     def test_watches_simple(yp_client, yp_env):
-        yt_client = yp_env.yt_client
         yp_client = yp_env.yp_client
 
         start_timestamp = yp_client.generate_timestamp()
@@ -55,7 +54,7 @@ class TestWatches(object):
             set_updates=[
                 {
                     "path": "/spec/antiaffinity_constraints",
-                    "value": [{"key": "node", "max_pods": 1},],
+                    "value": [{"key": "node", "max_pods": 1}],
                 }
             ],
         )
@@ -210,7 +209,7 @@ class TestWatches(object):
         yp_client.update_object(
             "virtual_service",
             vs_id,
-            set_updates=[{"path": "/spec", "value": {}},],
+            set_updates=[{"path": "/spec", "value": {}}],
             transaction_id=transaction_id,
         )
         yp_client.commit_transaction(transaction_id)
@@ -231,7 +230,7 @@ class TestWatches(object):
         yp_client.update_object(
             "virtual_service",
             vs_id,
-            set_updates=[{"path": "/spec", "value": {}},],
+            set_updates=[{"path": "/spec", "value": {}}],
             transaction_id=transaction_id,
         )
         yp_client.commit_transaction(transaction_id)
@@ -256,7 +255,7 @@ class TestWatches(object):
         yp_client.update_object(
             "virtual_service",
             vs_id,
-            set_updates=[{"path": "/spec", "value": {}},],
+            set_updates=[{"path": "/spec", "value": {}}],
             transaction_id=transaction_id,
         )
         yp_client.commit_transaction(transaction_id)
@@ -278,7 +277,7 @@ class TestWatches(object):
         yp_client.update_object(
             "virtual_service",
             vs_id,
-            set_updates=[{"path": "/spec", "value": {}},],
+            set_updates=[{"path": "/spec", "value": {}}],
             transaction_id=transaction_id,
         )
         yp_client.remove_object("virtual_service", vs_id, transaction_id=transaction_id)
@@ -302,7 +301,7 @@ class TestWatches(object):
             yp_client.create_object("pod_set")
         end_timestamp = yp_client.generate_timestamp()
 
-        result = yp_client.watch_objects(
+        yp_client.watch_objects(
             "pod_set",
             start_timestamp=start_timestamp,
             timestamp=end_timestamp,

@@ -4,13 +4,9 @@ from .conftest import (
     create_pod_with_boilerplate,
 )
 
-from yp.common import YtResponseError
-
 import yt.yson as yson
 
 import pytest
-
-import os
 
 
 class ScriptWrapper(Cli):

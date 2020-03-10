@@ -3,9 +3,9 @@ from yp_proto.yp.client.api.proto.object_service_pb2 import TReqCreateObject
 from yp.data_model import EObjectType, TPodSetMeta, TError, TAttribute
 
 try:
-    from yt_yson_bindings import loads_proto, dumps_proto, loads, dumps
+    from yt_yson_bindings import loads_proto, dumps_proto, loads
 except ImportError:
-    from yt_yson_bindings.yson_lib import loads_proto, dumps_proto, loads, dumps
+    from yt_yson_bindings.yson_lib import loads_proto, dumps_proto, loads
 
 
 class TestYsonProto(object):
@@ -38,10 +38,10 @@ class TestYsonProto(object):
 
         meta_dict = loads(dumps_proto(meta))
         assert meta_dict == {
-            "id": "1-1-1-1",
+            "id": "1-1-1-1",  # noqa
             "type": "pod_set",
             "creation_time": 123,
-            "id": "2-3-4-5",
+            "id": "2-3-4-5",  # noqa
         }
 
         meta_converted = loads_proto(dumps_proto(meta), TPodSetMeta)

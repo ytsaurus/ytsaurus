@@ -256,14 +256,14 @@ def create_nodes(
             ),
         )
         node_spec = {
-            "ip6_subnets": [{"vlan_id": vlan_id, "subnet": subnet,},],
+            "ip6_subnets": [{"vlan_id": vlan_id, "subnet": subnet}],
         }
         if network_module_id is not None:
             node_spec["network_module_id"] = network_module_id
 
         current_labels = update(base_labels, get_value(labels, {}))
         node_id = yp_client.create_object(
-            "node", attributes={"meta": node_meta, "spec": node_spec, "labels": current_labels,}
+            "node", attributes={"meta": node_meta, "spec": node_spec, "labels": current_labels}
         )
         yp_client.update_hfsm_state(node_id, hfsm_state, "Test")
         if i >= len(node_ids):
@@ -272,14 +272,14 @@ def create_nodes(
             "resource",
             attributes={
                 "meta": {"node_id": node_id},
-                "spec": {"cpu": {"total_capacity": cpu_total_capacity,}},
+                "spec": {"cpu": {"total_capacity": cpu_total_capacity}},
             },
         )
         yp_client.create_object(
             "resource",
             attributes={
                 "meta": {"node_id": node_id},
-                "spec": {"memory": {"total_capacity": memory_total_capacity,}},
+                "spec": {"memory": {"total_capacity": memory_total_capacity}},
             },
         )
         for spec in disk_specs:
@@ -308,7 +308,7 @@ def create_nodes(
                 "resource",
                 attributes={
                     "meta": {"node_id": node_id},
-                    "spec": {"network": {"total_bandwidth": network_bandwidth,}},
+                    "spec": {"network": {"total_bandwidth": network_bandwidth}},
                 },
             )
 
@@ -389,23 +389,21 @@ def create_user(yp_client, id=None, grant_create_permission_for_types=None):
     id = yp_client.create_object("user", attributes=attributes)
 
     if grant_create_permission_for_types:
-        yp_client.update_objects([
-            dict(
-                object_type="schema",
-                object_id=object_type,
-                set_updates=[
-                    dict(
-                        path="/meta/acl/end",
-                        value=dict(
-                            action="allow",
-                            permissions=["create"],
-                            subjects=[id],
+        yp_client.update_objects(
+            [
+                dict(
+                    object_type="schema",
+                    object_id=object_type,
+                    set_updates=[
+                        dict(
+                            path="/meta/acl/end",
+                            value=dict(action="allow", permissions=["create"], subjects=[id],),
                         ),
-                    ),
-                ],
-            )
-            for object_type in grant_create_permission_for_types
-        ])
+                    ],
+                )
+                for object_type in grant_create_permission_for_types
+            ]
+        )
 
     return id
 

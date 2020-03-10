@@ -67,13 +67,12 @@ class TestAccounts(object):
         account_id = yp_client.create_object("account", attributes={"spec": {}})
 
         create_user(
-            yp_client,
-            id="u",
-            grant_create_permission_for_types=("pod_set", "pod"),
+            yp_client, id="u", grant_create_permission_for_types=("pod_set", "pod"),
         )
         yp_env.sync_access_control()
 
         with yp_env.yp_instance.create_client(config={"user": "u"}) as yp_client1:
+
             def create_pod_set():
                 yp_client1.create_object("pod_set", attributes={"spec": {"account_id": account_id}})
 
@@ -99,9 +98,7 @@ class TestAccounts(object):
         account_id = yp_client.create_object("account", attributes={"spec": {}})
 
         create_user(
-            yp_client,
-            id="u",
-            grant_create_permission_for_types=("pod_set", "pod"),
+            yp_client, id="u", grant_create_permission_for_types=("pod_set", "pod"),
         )
         yp_env.sync_access_control()
 
@@ -140,9 +137,7 @@ class TestAccounts(object):
         yp_client = yp_env.yp_client
 
         create_user(
-            yp_client,
-            id="u",
-            grant_create_permission_for_types=("pod_set", "pod"),
+            yp_client, id="u", grant_create_permission_for_types=("pod_set", "pod"),
         )
         yp_env.sync_access_control()
 

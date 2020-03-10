@@ -49,5 +49,3 @@ TAG(
     ya:force_sandbox
     ya:noretries
 )
-
-NO_LINT()

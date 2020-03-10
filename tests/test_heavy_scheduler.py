@@ -16,7 +16,6 @@ from yp.logger import logger
 
 from yt.wrapper.errors import YtCypressTransactionLockConflict
 
-from yt.packages.six import PY3
 from yt.packages.six.moves import xrange
 
 import json
@@ -103,8 +102,9 @@ class TestHeavyScheduler(object):
             for component in ("swap_defragmentator", "antiaffinity_healer"):
                 for name in ("active", "succeeded", "failed", "timed_out"):
                     samples = json.loads(
-                        monitoring_client.get("/profiling/heavy_scheduler/task_manager/{}/{}"
-                                              .format(component, name))
+                        monitoring_client.get(
+                            "/profiling/heavy_scheduler/task_manager/{}/{}".format(component, name)
+                        )
                     )
                     if len(samples) > 0 and samples[-1]["value"] == 0:
                         continue
@@ -156,7 +156,7 @@ class TestHeavyScheduler(object):
         # - There is no node capable of containing more than one pod.
 
         # Create first batch of nodes and pods and wait for pods assignment.
-        first_node_ids = create_nodes(
+        create_nodes(
             yp_client,
             node_count=batch_size,
             cpu_total_capacity=4 * cpu,
@@ -169,7 +169,7 @@ class TestHeavyScheduler(object):
         wait_pods_are_assigned(yp_client, first_pod_ids)
 
         # Create second batch of nodes and pods and wait for scheduling errors.
-        second_node_ids = create_nodes(
+        create_nodes(
             yp_client,
             node_count=batch_size,
             cpu_total_capacity=6 * cpu,
@@ -489,7 +489,7 @@ class TestAntiaffinityHealer(object):
         yp_client = yp_env_configurable.yp_client
 
         pod_set_id = create_pod_set(
-            yp_client, spec=dict(antiaffinity_constraints=[dict(key="rack", max_pods=1),])
+            yp_client, spec=dict(antiaffinity_constraints=[dict(key="rack", max_pods=1)])
         )
 
         old_node_ids = [self._make_node(yp_client, "old_{}".format(i)) for i in range(3)]

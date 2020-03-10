@@ -30,7 +30,7 @@ class TestAggregateObjects(object):
             yp_client.create_object(
                 "pod",
                 attributes={
-                    "meta": {"pod_set_id": pod_set_id,},
+                    "meta": {"pod_set_id": pod_set_id},
                     "spec": {
                         "resource_requests": {
                             "memory_limit": memory_limit,
@@ -78,7 +78,7 @@ class TestAggregateObjects(object):
         yp_client = yp_env.yp_client
         pod_set_id = yp_client.create_object("pod_set")
         for _ in range(3):
-            yp_client.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id,},})
+            yp_client.create_object("pod", attributes={"meta": {"pod_set_id": pod_set_id}})
 
         result = yp_client.aggregate_objects(
             "pod",

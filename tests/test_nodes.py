@@ -2,8 +2,6 @@ from .conftest import ZERO_RESOURCE_REQUESTS
 
 from yp.common import YtResponseError
 
-from yt.yson import YsonEntity
-
 import pytest
 
 

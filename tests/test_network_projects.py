@@ -39,7 +39,7 @@ class TestNetworkProjects(object):
             pod_set_id = yp_client1.create_object("pod_set")
 
             def create_pod():
-                pod_id = yp_client1.create_object(
+                yp_client1.create_object(
                     "pod",
                     attributes={
                         "meta": {"pod_set_id": pod_set_id},

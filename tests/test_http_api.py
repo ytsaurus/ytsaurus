@@ -71,11 +71,11 @@ class TestHttpApi(object):
                 {
                     "object_type": "pod_set",
                     "attributes": {
-                        "spec": {"antiaffinity_constraints": [{"key": "dc", "max_pods": 10},]}
+                        "spec": {"antiaffinity_constraints": [{"key": "dc", "max_pods": 10}]}
                     },
                 }
             ),
-            headers={"Content-Type": "application/x-yson", "Accept": "application/x-yson",},
+            headers={"Content-Type": "application/x-yson", "Accept": "application/x-yson"},
         )
         raise_for_status(rsp)
         assert rsp.headers["Content-Type"] == "application/x-yson"
@@ -89,11 +89,11 @@ class TestHttpApi(object):
                 {
                     "object_type": "pod_set",
                     "attributes": {
-                        "spec": {"antiaffinity_constraints": [{"key": "dc", "max_pods": 10},]}
+                        "spec": {"antiaffinity_constraints": [{"key": "dc", "max_pods": 10}]}
                     },
                 }
             ),
-            headers={"Content-Type": "application/json", "Accept": "application/json",},
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
         )
         raise_for_status(rsp)
         assert rsp.headers["Content-Type"].startswith("application/json")
@@ -111,7 +111,7 @@ class TestHttpApi(object):
             data=json.dumps(
                 {
                     "object_type": "pod_set",
-                    "attributes": {"meta": {"id": "my_pod",}, "annotations": {"key": utf8_value,}},
+                    "attributes": {"meta": {"id": "my_pod"}, "annotations": {"key": utf8_value}},
                 }
             ),
             headers={

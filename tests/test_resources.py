@@ -298,7 +298,7 @@ class TestResources(object):
                 "spec": {
                     "node_id": node_id,
                     "gpu_requests": [
-                        {"id": "gpu{}".format(capacity), "model": "v100", "min_memory": capacity,}
+                        {"id": "gpu{}".format(capacity), "model": "v100", "min_memory": capacity}
                         for capacity in memory_capacities
                     ],
                 },
@@ -340,9 +340,7 @@ class TestResources(object):
                 "meta": {"pod_set_id": pod_set_id},
                 "spec": {
                     "node_id": node_id,
-                    "gpu_requests": [
-                        {"id": "gpu{}".format(i), "model": "v100",} for i in range(50)
-                    ],
+                    "gpu_requests": [{"id": "gpu{}".format(i), "model": "v100"} for i in range(50)],
                 },
             },
         )
@@ -401,7 +399,7 @@ class TestResources(object):
                 "meta": {"pod_set_id": pod_set_id},
                 "spec": {
                     "node_id": node_id,
-                    "gpu_requests": [{"id": "gpu0", "model": "v100", "min_memory": 2 ** 10,}],
+                    "gpu_requests": [{"id": "gpu0", "model": "v100", "min_memory": 2 ** 10}],
                 },
             },
         )
@@ -522,7 +520,7 @@ class TestResources(object):
                     "disk_volume_requests": [
                         {"id": "hdd", "storage_class": "hdd", "quota_policy": {"capacity": 300}}
                     ],
-                    "gpu_requests": [{"id": "mygpu", "model": "v100", "min_memory": 1000,}],
+                    "gpu_requests": [{"id": "mygpu", "model": "v100", "min_memory": 1000}],
                 },
             },
         )

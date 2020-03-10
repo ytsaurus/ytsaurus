@@ -17,7 +17,7 @@ def _select_objects_fails(yp_client):
 @pytest.mark.usefixtures("yp_env_auth")
 class TestCypressAuth(object):
     YP_MASTER_CONFIG = {
-        "authentication_manager": {"cypress_token_authenticator": {"root_path": "//yp/tokens",},},
+        "authentication_manager": {"cypress_token_authenticator": {"root_path": "//yp/tokens"}},
     }
 
     def test_cypress_tokens(self, yp_env_auth):

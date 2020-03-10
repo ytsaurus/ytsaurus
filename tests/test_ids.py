@@ -35,7 +35,7 @@ class TestIds(object):
         pod_set_id = yp_client.create_object("pod_set")
         for id in ["a" * 2561, " ", "/", "_", "."]:
             with pytest.raises(YpInvalidObjectIdError):
-                attributes = {"meta": {"id": id, "pod_set_id": pod_set_id,}}
+                attributes = {"meta": {"id": id, "pod_set_id": pod_set_id}}
                 yp_client.create_object("pod", attributes=attributes)
 
     def test_invalid_custom_generic_id(self, yp_env):
@@ -45,7 +45,7 @@ class TestIds(object):
         for id in ["a" * 2561, " ", "/", "@"]:
             with pytest.raises(YpInvalidObjectIdError):
                 attributes = {
-                    "meta": {"id": id, "node_id": node_id,},
+                    "meta": {"id": id, "node_id": node_id},
                     "spec": {"kind": "cpu", "total_capacity": 100500},
                 }
                 yp_client.create_object("resource", attributes=attributes)

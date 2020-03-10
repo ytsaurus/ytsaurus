@@ -1,6 +1,3 @@
-from yt.yson import YsonEntity, YsonUint64
-
-from datetime import timedelta
 import pytest
 
 
@@ -12,15 +9,15 @@ class TestHorizontalPodAutoscaler(object):
         replica_set_autoscale = {
             "min_replicas": 1,
             "max_replicas": 3,
-            "cpu": {"lower_bound": 0.25, "upper_bound": 0.5,},
-            "upscale_delay": {"seconds": 900,},
-            "downscale_delay": {"seconds": 900,},
-            "check_extensible_field": {"random_key_1243": "value",},
+            "cpu": {"lower_bound": 0.25, "upper_bound": 0.5},
+            "upscale_delay": {"seconds": 900},
+            "downscale_delay": {"seconds": 900},
+            "check_extensible_field": {"random_key_1243": "value"},
         }
 
         account_id = yp_client.create_object("account")
         replica_set_id = yp_client.create_object(
-            object_type="replica_set", attributes={"spec": {"account_id": account_id,}}
+            object_type="replica_set", attributes={"spec": {"account_id": account_id}}
         )
         horizontal_pod_autoscaler_id = yp_client.create_object(
             object_type="horizontal_pod_autoscaler",
@@ -41,9 +38,9 @@ class TestHorizontalPodAutoscaler(object):
             "current_replicas": 1,
             "desired_replicas": 2,
             "metric_value": 0.5,
-            "last_upscale_time": {"seconds": 1, "nanos": 2,},
-            "last_downscale_time": {"seconds": 3, "nanos": 4,},
-            "check_extensible_field": {"random_key_1243": "value",},
+            "last_upscale_time": {"seconds": 1, "nanos": 2},
+            "last_downscale_time": {"seconds": 3, "nanos": 4},
+            "check_extensible_field": {"random_key_1243": "value"},
         }
 
         yp_client.update_object(
@@ -62,7 +59,7 @@ class TestHorizontalPodAutoscaler(object):
 
         account_id = yp_client.create_object("account")
         replica_set_id = yp_client.create_object(
-            object_type="replica_set", attributes={"spec": {"account_id": account_id,}}
+            object_type="replica_set", attributes={"spec": {"account_id": account_id}}
         )
         horizontal_pod_autoscaler_id = yp_client.create_object(
             object_type="horizontal_pod_autoscaler",

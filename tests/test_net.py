@@ -12,8 +12,6 @@ from yp.common import (
     wait,
 )
 
-from yt.yson import YsonEntity
-
 import pytest
 
 
@@ -369,7 +367,7 @@ class TestNet(object):
         pod_id = self._create_pod_with_boilerplate(
             yp_client,
             spec={
-                "ip6_address_requests": [{"vlan_id": "somevlan", "network_id": "somenet"},],
+                "ip6_address_requests": [{"vlan_id": "somevlan", "network_id": "somenet"}],
                 "enable_scheduling": True,
             },
         )
@@ -392,7 +390,7 @@ class TestNet(object):
         pod_id = self._create_pod_with_boilerplate(
             yp_client,
             spec={
-                "ip6_subnet_requests": [{"vlan_id": "somevlan", "network_id": "somenet"},],
+                "ip6_subnet_requests": [{"vlan_id": "somevlan", "network_id": "somenet"}],
                 "enable_scheduling": True,
             },
         )
@@ -415,7 +413,7 @@ class TestNet(object):
 
         pod_id = self._create_pod_with_boilerplate(
             yp_client,
-            spec={"ip6_subnet_requests": [{"vlan_id": "somevlan"},], "enable_scheduling": True},
+            spec={"ip6_subnet_requests": [{"vlan_id": "somevlan"}], "enable_scheduling": True},
         )
 
         wait(
@@ -437,7 +435,7 @@ class TestNet(object):
         pod_id = self._create_pod_with_boilerplate(
             yp_client,
             spec={
-                "ip6_address_requests": [{"vlan_id": "somevlan", "network_id": "somenet"},],
+                "ip6_address_requests": [{"vlan_id": "somevlan", "network_id": "somenet"}],
                 "enable_scheduling": True,
             },
         )
@@ -501,10 +499,10 @@ class TestNet(object):
         yp_client = yp_env.yp_client
 
         vs_id1 = yp_client.create_object(
-            "virtual_service", attributes={"spec": {"ip4_addresses": ["1.1.1.1"],}}
+            "virtual_service", attributes={"spec": {"ip4_addresses": ["1.1.1.1"]}}
         )
         vs_id2 = yp_client.create_object(
-            "virtual_service", attributes={"spec": {"ip4_addresses": ["2.2.2.2"],}}
+            "virtual_service", attributes={"spec": {"ip4_addresses": ["2.2.2.2"]}}
         )
 
         vs_ids = [
@@ -600,7 +598,7 @@ class TestNet(object):
 
         def create_pod(virtual_service_ids=None):
             spec = dict(
-                ip6_address_requests=[dict(vlan_id="somevlan", network_id="somenet",),],
+                ip6_address_requests=[dict(vlan_id="somevlan", network_id="somenet",)],
                 enable_scheduling=True,
             )
 
@@ -630,7 +628,7 @@ class TestNet(object):
         pod_id = self._create_pod_with_boilerplate(
             yp_client,
             spec={
-                "ip6_address_requests": [{"vlan_id": "somevlan", "network_id": "somenet"},],
+                "ip6_address_requests": [{"vlan_id": "somevlan", "network_id": "somenet"}],
                 "enable_scheduling": True,
             },
         )

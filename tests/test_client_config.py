@@ -47,7 +47,7 @@ class TestClientConfig(object):
 
         # Check long to int implicit conversion.
         if not PY3:
-            validate_receive_message_length_constraint(long(1))
+            validate_receive_message_length_constraint(long(1))  # noqa
 
         # Make sure YP client is working with no options specified.
         client = yp_env.yp_instance.create_client()

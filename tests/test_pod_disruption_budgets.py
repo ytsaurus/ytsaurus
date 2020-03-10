@@ -334,7 +334,7 @@ class TestPodDisruptionBudgetController(object):
                 config["scheduler"]
                 .get("disable_stage", {})
                 .get("run_pod_disruption_budget_controller", None)
-                == True
+                == True  # noqa
             )
 
         wait(is_controller_disabled)
@@ -429,7 +429,7 @@ class TestPodDisruptionBudgetController(object):
         POD_SET_COUNT = 10
         POD_COUNT_PER_POD_SET = 5
 
-        node_ids = create_nodes(yp_client, NODE_COUNT)
+        create_nodes(yp_client, NODE_COUNT)
         pod_set_ids = []
         pod_ids = []
 

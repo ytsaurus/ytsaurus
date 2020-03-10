@@ -256,7 +256,7 @@ class TestAnnotations(object):
             yp_client.update_object(
                 "pod_set",
                 pod_set_id,
-                remove_updates=[dict(path="/annotations/hello"),],
+                remove_updates=[dict(path="/annotations/hello")],
                 transaction_id=tx_id,
             )
         else:
@@ -264,14 +264,14 @@ class TestAnnotations(object):
             yp_client.update_object(
                 "pod_set",
                 pod_set_id,
-                set_updates=[dict(path="/annotations", value=dict(),),],
+                set_updates=[dict(path="/annotations", value=dict(),)],
                 transaction_id=tx_id,
             )
 
         yp_client.update_object(
             "pod_set",
             pod_set_id,
-            set_updates=[dict(path="/annotations/hello", value="world2",),],
+            set_updates=[dict(path="/annotations/hello", value="world2",)],
             transaction_id=tx_id,
         )
 

@@ -38,7 +38,7 @@ class TestPodsWithLimitedVcpuGuarantee(object):
                 "default_vcpu_guarantee": 500,
                 "default_memory_guarantee": 1500,
                 "default_slot": 0,
-                "spec_validation": {"min_vcpu_guarantee": 150,},
+                "spec_validation": {"min_vcpu_guarantee": 150},
             },
         }
     }
@@ -258,7 +258,6 @@ class TestPods(object):
             )
 
         pod_set_id = yp_client.create_object(object_type="pod_set")
-        pod_attributes = {"meta": {"pod_set_id": pod_set_id}}
         pod_ids = [self._create_pod_with_boilerplate(yp_client, pod_set_id, {}) for i in xrange(10)]
 
         assert get_counts() == (1, 10, 10)
@@ -572,7 +571,7 @@ class TestPods(object):
             self._create_pod_with_boilerplate(
                 yp_client,
                 pod_set_id,
-                {"disk_volume_requests": [{"id": "a", "storage_class": "hdd",}]},
+                {"disk_volume_requests": [{"id": "a", "storage_class": "hdd"}]},
             )
 
     def test_disk_volume_request_update(self, yp_env):
@@ -744,7 +743,7 @@ class TestPods(object):
 
         pod_set_id = yp_client.create_object("pod_set")
         node_id = self._create_node(yp_client, hdd_capacity=1000, hdd_volume_slots=5)
-        hdd_resource_id = yp_client.select_objects(
+        yp_client.select_objects(
             "resource",
             filter='[/meta/kind] = "disk" and [/spec/disk/storage_class] = "hdd"',
             selectors=["/meta/id"],
@@ -861,7 +860,7 @@ class TestPods(object):
                 {
                     "id": {
                         "slot": {"service": "some-service", "host": "some-host"},
-                        "configuration": {"groupId": "some-groupId",},
+                        "configuration": {"groupId": "some-groupId"},
                     }
                 }
             ]
@@ -961,7 +960,7 @@ class TestPods(object):
                 incorrect_host_devices.append({"path": "/dev/kvm", "mode": symbol})
 
         correct_host_devices = [
-            {"path": "/dev/kvm", "mode": "r",},
+            {"path": "/dev/kvm", "mode": "r"},
             {"path": "/dev/net/tun", "mode": "rwm-"},
         ]
 
@@ -1496,10 +1495,10 @@ class TestPods(object):
                 yp_client,
                 pod_set_id,
                 {
-                    "resource_requests": {"vcpu_guarantee": 100,},
+                    "resource_requests": {"vcpu_guarantee": 100},
                     "gpu_requests": [
-                        {"id": "gpu1", "model": "v100",},
-                        {"id": "gpu1", "model": "v100",},
+                        {"id": "gpu1", "model": "v100"},
+                        {"id": "gpu1", "model": "v100"},
                     ],
                     "enable_scheduling": True,
                 },
@@ -1532,7 +1531,7 @@ class TestPods(object):
         create_nodes(yp_client, node_count, cpu_total_capacity=200, vlan_id=vlan_id)
         pod_set_id = create_pod_set(yp_client)
         network_project_id = yp_client.create_object(
-            "network_project", {"meta": {"id": "somenet"}, "spec": {"project_id": 42},}
+            "network_project", {"meta": {"id": "somenet"}, "spec": {"project_id": 42}}
         )
 
         def _create_pod(enable_scheduling):
@@ -1578,7 +1577,7 @@ class TestPods(object):
 
         node_id = initial_pod_dump["spec"]["node_id"]
         yp_client.update_object(
-            "node", node_id, [{"path": "/spec/ip6_subnets/0/subnet", "value": "4:3:2:1::/64",}]
+            "node", node_id, [{"path": "/spec/ip6_subnets/0/subnet", "value": "4:3:2:1::/64"}]
         )
 
         yp_client.reallocate_pod_resources(pod_id)
@@ -1663,7 +1662,7 @@ class TestPods(object):
 
         vlan_id = "backbone"
         network_project_id = yp_client.create_object(
-            "network_project", {"meta": {"id": "somenet"}, "spec": {"project_id": 42},}
+            "network_project", {"meta": {"id": "somenet"}, "spec": {"project_id": 42}}
         )
 
         address_requests = [
@@ -1675,7 +1674,7 @@ class TestPods(object):
                 create_pod_with_boilerplate(
                     yp_client,
                     pod_set_id,
-                    spec={"ip6_address_requests": address_requests, "enable_scheduling": True,},
+                    spec={"ip6_address_requests": address_requests, "enable_scheduling": True},
                     transaction_id=transaction_id,
                 )
                 for _ in xrange(pod_count)

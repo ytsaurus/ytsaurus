@@ -234,12 +234,7 @@ def prepare_docker_resources_objects(yp_client):
                                 "pod_template_spec": {
                                     "spec": {
                                         "pod_agent_payload": {
-                                            "spec": {
-                                                "boxes": [
-                                                    {"id": box1},
-                                                    {"id": box2}
-                                                ]
-                                            }
+                                            "spec": {"boxes": [{"id": box1}, {"id": box2}]}
                                         }
                                     }
                                 }

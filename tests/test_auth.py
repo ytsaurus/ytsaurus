@@ -17,7 +17,7 @@ BLACKBOX_USER_TICKET_REQUEST = "method=user_ticket&user_ticket={}&attributes=100
 )
 
 BLACKBOX_USER_TICKET_RESPONSE = {
-    "users": [{"login": "root",},],
+    "users": [{"login": "root"}],
 }
 
 
@@ -38,7 +38,7 @@ def _select_objects_fails(yp_client):
 @pytest.mark.usefixtures("yp_env_auth", "set_bb_response")
 class TestAuth(object):
     YP_MASTER_CONFIG = {
-        "authentication_manager": {"blackbox_ticket_authenticator": {},},
+        "authentication_manager": {"blackbox_ticket_authenticator": {}},
     }
 
     def test_no_auth(self, yp_env_auth):
@@ -85,7 +85,7 @@ class TestAuth(object):
 class TestBrokenTvm(object):
     # This breaks the TVM client.
     YP_MASTER_CONFIG = {
-        "authentication_manager": {"tvm_service": {"port": 25},},
+        "authentication_manager": {"tvm_service": {"port": 25}},
     }
     # The start method checks the master, but the master is broken, so we don't call that.
     START = False
@@ -99,11 +99,14 @@ class TestBrokenTvm(object):
         yp_client = yp_env_auth.yp_client
         # Count the number of requests.
         method = yp_client._transport_layer.execute_request
+
         def wrapper(*args, **kwargs):
             wrapper.count += 1
             return method(*args, **kwargs)
+
         wrapper.count = 0
         yp_client._transport_layer.execute_request = wrapper
+
         def try_select():
             try:
                 yp_client.select_objects("pod", selectors=["/meta/id"])
@@ -115,5 +118,6 @@ class TestBrokenTvm(object):
                 wrapper.count = 0
                 return False
             assert False
+
         wait(try_select)
         assert wrapper.count > 2
