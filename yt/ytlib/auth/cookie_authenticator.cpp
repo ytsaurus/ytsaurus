@@ -201,7 +201,7 @@ private:
 
     virtual TFuture<TAuthenticationResult> DoGet(
         const TCookieAuthenticatorCacheKey& cacheKey,
-        bool /*isPeriodicUpdate*/) override
+        bool /*isPeriodicUpdate*/) noexcept override
     {
         TCookieCredentials credentials;
         credentials.SessionId = cacheKey.first;
@@ -218,7 +218,7 @@ private:
         return UnderlyingAuthenticator_->Authenticate(credentials);
     }
 
-    virtual void OnErase(const TCookieAuthenticatorCacheKey& cacheKey) override
+    virtual void OnEvicted(const TCookieAuthenticatorCacheKey& cacheKey) noexcept override
     {
         auto guard = Guard(LastUserIPLock_);
         LastUserIP_.erase(cacheKey);

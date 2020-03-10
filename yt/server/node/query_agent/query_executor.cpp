@@ -1086,7 +1086,7 @@ private:
 
     virtual TFuture<double> DoGet(
         const TString& key,
-        bool /*isPeriodicUpdate*/) override
+        bool /*isPeriodicUpdate*/) noexcept override
     {
         if (auto client = Client_.Lock()) {
             return BIND(GetPoolWeight, std::move(client), key)

@@ -45,10 +45,10 @@ private:
 
     virtual TFuture<void> DoGet(
         const TPermissionKey& key,
-        bool isPeriodicUpdate) override;
+        bool isPeriodicUpdate) noexcept override;
     virtual TFuture<std::vector<TError>> DoGetMany(
         const std::vector<TPermissionKey>& keys,
-        bool isPeriodicUpdate) override;
+        bool isPeriodicUpdate) noexcept override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPermissionCache)

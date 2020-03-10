@@ -118,7 +118,7 @@ TPermissionCache::TPermissionCache(
     , Connection_(connection)
 { }
 
-TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodicUpdate)
+TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodicUpdate) noexcept
 {
     auto connection = Connection_.Lock();
     if (!connection) {
@@ -138,7 +138,9 @@ TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodic
         }));
 }
 
-TFuture<std::vector<TError>> TPermissionCache::DoGetMany(const std::vector<TPermissionKey>& keys, bool isPeriodicUpdate)
+TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
+    const std::vector<TPermissionKey>& keys,
+    bool isPeriodicUpdate) noexcept
 {
     if (keys.empty()) {
         return MakeFuture(std::vector<TError>());

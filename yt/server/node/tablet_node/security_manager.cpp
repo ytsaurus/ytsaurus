@@ -90,7 +90,7 @@ public:
 private:
     NCellNode::TBootstrap* const Bootstrap_;
 
-    virtual TFuture<void> DoGet(const TResourceLimitsKey& key, bool isPeriodicUpdate) override
+    virtual TFuture<void> DoGet(const TResourceLimitsKey& key, bool isPeriodicUpdate) noexcept override
     {
         YT_LOG_DEBUG("Resource limits violation check started (Key: %v)",
             key);

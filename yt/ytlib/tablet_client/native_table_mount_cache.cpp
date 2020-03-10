@@ -75,7 +75,9 @@ public:
     { }
 
 private:
-    virtual TFuture<TTableMountInfoPtr> DoGet(const TTableMountCacheKey& key, bool isPeriodicUpdate) override
+    virtual TFuture<TTableMountInfoPtr> DoGet(
+        const TTableMountCacheKey& key,
+        bool isPeriodicUpdate) noexcept override
     {
         auto connection = Connection_.Lock();
         if (!connection) {
@@ -366,9 +368,9 @@ private:
             tableInfo->SecondaryRevision});
     }
 
-    virtual void OnErase(const TTableMountCacheKey& key) override
+    virtual void OnEvicted(const TTableMountCacheKey& key) noexcept override
     {
-        YT_LOG_DEBUG("Erase table mount info from cache (Path: %Qv, PrimaryRevision: %v, SecondaryRevision: %v)",
+        YT_LOG_DEBUG("Table mount info evicted from cache (Path: %Qv, PrimaryRevision: %v, SecondaryRevision: %v)",
             key.Path,
             key.RefreshPrimaryRevision,
             key.RefreshSecondaryRevision);
