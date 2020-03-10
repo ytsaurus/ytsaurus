@@ -144,6 +144,9 @@ TLocalHydraJanitor::TLocalHydraJanitor(
         std::move(invoker)))
 { }
 
+TLocalHydraJanitor::~TLocalHydraJanitor()
+{ }
+
 void TLocalHydraJanitor::Start()
 {
     Impl_->Start();

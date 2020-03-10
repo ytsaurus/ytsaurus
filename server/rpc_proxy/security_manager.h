@@ -9,7 +9,6 @@ namespace NYT::NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager
-    : public TRefCounted
 {
 public:
     TSecurityManager(

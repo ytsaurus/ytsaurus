@@ -25,7 +25,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<NProto::TChunkSpec>, ChunkSpecs);
 
 public:
-    // NB: invoker should be serialized.
     TChunkSpecFetcher(
         const NApi::NNative::IClientPtr& client,
         NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -57,7 +56,6 @@ private:
     std::function<void(const TChunkOwnerYPathProxy::TReqFetchPtr&, int)> InitializeFetchRequest_;
     NLogging::TLogger Logger;
     bool SkipUnavailableChunks_;
-    std::vector<NProto::TChunkSpec*> ForeignChunkSpecs_;
     i64 TotalChunkCount_ = 0;
     int TableCount_ = 0;
 
@@ -68,6 +66,7 @@ private:
         std::vector<int> TableIndices;
         std::vector<int> RangeIndices;
         std::vector<NProto::TChunkSpec> ChunkSpecs;
+        std::vector<NProto::TChunkSpec*> ForeignChunkSpecs;
     };
 
     THashMap<NObjectClient::TCellTag, TCellState> CellTagToState_;

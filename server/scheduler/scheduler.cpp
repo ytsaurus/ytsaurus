@@ -1392,11 +1392,18 @@ public:
         return proxy;
     }
 
-    virtual int GetOperationArchiveVersion() const override
+    virtual int GetOperationArchiveVersion() const final
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return OperationArchiveVersion_.load();
+    }
+
+    bool IsJobReporterEnabled() const
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return Config_->EnableJobReporter;
     }
 
     TSerializableAccessControlList GetOperationBaseAcl() const
@@ -4008,6 +4015,16 @@ void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
 TSerializableAccessControlList TScheduler::GetOperationBaseAcl() const
 {
     return Impl_->GetOperationBaseAcl();
+}
+
+int TScheduler::GetOperationArchiveVersion() const
+{
+    return Impl_->GetOperationArchiveVersion();
+}
+
+bool TScheduler::IsJobReporterEnabled() const
+{
+    return Impl_->IsJobReporterEnabled();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

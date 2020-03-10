@@ -744,7 +744,8 @@ class OperationReviveBase(YTEnvSetup):
             track=False,
             spec={
                 "testing": {
-                    "delay_inside_operation_commit": 5000,
+                    "delay_inside_operation_commit": 60000,
+                    "no_delay_on_second_entrance_to_commit": True,
                     "delay_inside_operation_commit_stage": stage,
                 },
                 "job_count": 2
@@ -760,12 +761,11 @@ class OperationReviveBase(YTEnvSetup):
         op.complete(ignore_result=True)
 
         self._wait_for_state(op, "completing")
-
-        # Wait to perform complete before sleep.
-        time.sleep(1.5)
+        wait(lambda: get(op.get_path() + "/controller_orchid/testing/commit_sleep_started"))
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             assert op.get_state() == "completing"
+            set(op.get_path() + "/@testing", {"commit_sleep_started": True})
 
         # complete_operation retry may come when operation is in reviving state. In this case we should complete operation again.
         wait(lambda: op.get_state() in ("running", "completed"))

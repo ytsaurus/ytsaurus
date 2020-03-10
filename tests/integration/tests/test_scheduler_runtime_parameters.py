@@ -66,7 +66,7 @@ class TestRuntimeParameters(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        wait(lambda: op.get_state() == "running", iter=10)
+        op.ensure_running()
 
         wait(lambda: are_almost_equal(get(progress_path + "/weight"), 3.0))
         # wait() is essential since resource limits are copied from runtime parameters only during fair-share update.

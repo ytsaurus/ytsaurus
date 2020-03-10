@@ -367,7 +367,7 @@ public:
     virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) override;
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
-    virtual void MarkJobHasCompetitors(TJobId jobId) override;
+    virtual void OnSpeculativeJobScheduled(const TJobletPtr& joblet) override;
 
 protected:
     const IOperationControllerHostPtr Host;
@@ -1034,6 +1034,7 @@ private:
     const NConcurrency::TPeriodicExecutorPtr CheckTentativeTreeEligibilityExecutor_;
 
     int RetainedJobWithStderrCount_ = 0;
+    int RetainedJobsCoreInfoCount_ = 0;
     int RetainedJobCount_ = 0;
     int JobSpecCompletedArchiveCount_ = 0;
 
@@ -1091,6 +1092,9 @@ private:
 
     //! Error that lead to operation failure.
     TError Error_;
+
+    // Used for testing purposes.
+    bool CommitSleepStarted_ = false;
 
     void InitializeOrchid();
 
@@ -1164,6 +1168,8 @@ private:
 
     void BuildMemoryUsageYson(NYTree::TFluentAny fluent) const;
     void BuildStateYson(NYTree::TFluentAny fluent) const;
+    
+    void BuildTestingState(NYTree::TFluentAny fluent) const;
 
     void ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool suggestCreateJobNodeByStatus);
 
@@ -1211,6 +1217,8 @@ private:
         const TString& message);
 
     void MaybeCancel(ECancelationStage cancelationStage);
+
+    void MarkJobHasCompetitors(const TJobletPtr& joblet);
 
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink

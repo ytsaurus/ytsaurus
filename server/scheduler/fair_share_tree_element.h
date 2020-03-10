@@ -87,6 +87,12 @@ struct TSchedulableAttributes
         return MaxComponent(MaxPossibleUsageShare);
     }
 
+    double GetBestAllocationRatio() const
+    {
+        // TODO(ignat): support it for vector HDRF.
+        return 1.0;
+    }
+
     TResourceVector GetGuaranteedResourcesShare() const
     {
         return GuaranteedResourcesShare;
@@ -110,7 +116,7 @@ struct TDynamicAttributes
     TJobResources ResourceUsageDiscount;
 };
 
-typedef std::vector<TDynamicAttributes> TDynamicAttributesList;
+using TDynamicAttributesList = std::vector<TDynamicAttributes>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -290,7 +296,7 @@ public:
 
     //! Prepares attributes that need to be computed in the control thread in a thread-unsafe manner.
     //! For example: TotalResourceLimits.
-    virtual void PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
+    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context);
 
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context);
 
@@ -500,7 +506,7 @@ public:
 
     virtual void UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config) override;
 
-    virtual void PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdatePreemption(TUpdateFairShareContext* context) override;
     virtual void UpdateDynamicAttributes(
@@ -875,6 +881,8 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TOperationElementSharedState)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationElement
     : public TSchedulerElement
     , public TOperationElementFixedState
@@ -901,7 +909,7 @@ public:
     virtual TDuration GetMinSharePreemptionTimeout() const override;
     virtual TDuration GetFairSharePreemptionTimeout() const override;
 
-    virtual void PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    virtual void PreUpdateBottomUp(TUpdateFairShareContext* context) override;
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdatePreemption(TUpdateFairShareContext* context) override;
 

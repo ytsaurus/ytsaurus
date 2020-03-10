@@ -161,6 +161,13 @@ public:
         PendingRowsFlushExecutor_->SetPeriod(Config_->PendingRowsFlushPeriod);
     }
 
+    TFuture<void> Close()
+    {
+        return BIND(&TEventLogWriter::TImpl::DoClose, Unretained(this))
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
+    }
+
 private:
     TEventLogManagerConfigPtr Config_;
     NApi::NNative::IClientPtr Client_;
@@ -181,6 +188,19 @@ private:
         std::vector<TUnversionedRow> rows(owningRows.begin(), owningRows.end());
         EventLogWriter_->Write(rows);
     }
+
+    void DoClose()
+    {
+        // NB(mrkastep): Since we want all rows added before Close to be flushed,
+        // we should schedule our own flush and wait until it is completed.
+        PendingRowsFlushExecutor_->ScheduleOutOfBand();
+        WaitFor(PendingRowsFlushExecutor_->GetExecutedEvent())
+            .ThrowOnError();
+        WaitFor(PendingRowsFlushExecutor_->Stop())
+            .ThrowOnError();
+        WaitFor(EventLogWriter_->Close())
+            .ThrowOnError();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,6 +212,9 @@ TEventLogWriter::TEventLogWriter(
     : Impl_(New<TImpl>(config, client, invoker))
 { }
 
+TEventLogWriter::~TEventLogWriter()
+{ }
+
 std::unique_ptr<IYsonConsumer> TEventLogWriter::CreateConsumer()
 {
     return Impl_->CreateConsumer();
@@ -200,6 +223,11 @@ std::unique_ptr<IYsonConsumer> TEventLogWriter::CreateConsumer()
 void TEventLogWriter::UpdateConfig(const TEventLogManagerConfigPtr& config)
 {
     Impl_->UpdateConfig(config);
+}
+
+TFuture<void> TEventLogWriter::Close()
+{
+    return Impl_->Close();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

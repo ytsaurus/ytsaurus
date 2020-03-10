@@ -1,11 +1,16 @@
 #include "store.h"
 #include "sorted_chunk_store.h"
 #include "sorted_dynamic_store.h"
+#include "ordered_chunk_store.h"
 #include "ordered_dynamic_store.h"
 
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// TODO(lukyan): Remove dynamic_cast. Return false or nullptr from IStore. Implement corresponding functions in
+// Derived classes.
+// TODO(lukyan): Remove GetType usages.
 
 bool IStore::IsDynamic() const
 {
@@ -78,6 +83,12 @@ IOrderedStorePtr IStore::AsOrdered()
 TOrderedDynamicStorePtr IStore::AsOrderedDynamic()
 {
     auto* result = dynamic_cast<TOrderedDynamicStore*>(this);
+    YT_VERIFY(result);
+    return result;
+}
+TOrderedChunkStorePtr IStore::AsOrderedChunk()
+{
+    auto* result = dynamic_cast<TOrderedChunkStore*>(this);
     YT_VERIFY(result);
     return result;
 }

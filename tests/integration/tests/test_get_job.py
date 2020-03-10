@@ -20,7 +20,7 @@ class TestGetJob(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "statistics_reporter": {
+            "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
                 "min_repeat_delay": 10,

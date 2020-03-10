@@ -137,7 +137,7 @@ struct ITaskHost
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) = 0;
 
-    virtual void MarkJobHasCompetitors(TJobId jobId) = 0;
+    virtual void OnSpeculativeJobScheduled(const TJobletPtr& joblet) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

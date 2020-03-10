@@ -18,6 +18,8 @@ class TSkynetColumnEvaluator
 public:
     TSkynetColumnEvaluator(const TTableSchema& schema);
 
+    ~TSkynetColumnEvaluator();
+
     //! Expects row to has "filename", "part_index" and "data" fields.
     //! Fills "sha1", "md5" and "data_size" fields.
     void ValidateAndComputeHashes(

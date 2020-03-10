@@ -170,7 +170,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
 
         replicated_table_path = "//tmp/{}".format(generate_uuid())
-        self._create_replicated_table(replicated_table_path, schema, enable_profiling=True)
+        self._create_replicated_table(replicated_table_path, schema, enable_profiling=True, dynamic_store_auto_flush_period=None)
 
         tablet_profiling = self._get_table_profiling(replicated_table_path)
         def get_all_counters():
@@ -192,7 +192,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         self._create_cells()
 
         replicated_table_path = "//tmp/{}".format(generate_uuid())
-        self._create_replicated_table(replicated_table_path, schema, enable_profiling=True)
+        self._create_replicated_table(replicated_table_path, schema, enable_profiling=True, dynamic_store_auto_flush_period=None)
 
         replica_table_path = "//tmp/{}".format(generate_uuid())
         replica_id = create_table_replica(replicated_table_path, self.REPLICA_CLUSTER_NAME, replica_table_path)
@@ -561,7 +561,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id)
 
         counter_start = inserter.get_inserted_counter()
-        assert counter_start <= 6
+        assert counter_start <= 7
         for i in xrange(20):
             sleep(1.0)
             inserted = inserter.get_inserted_counter()
@@ -1632,20 +1632,15 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert async_replica["replica_id"] == replica_id1
         assert async_replica["current_replication_row_index"] <= 3
 
-    ##################################################################
+##################################################################
 
 class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
+    USE_PERMISSION_CACHE = False
+
     DELTA_NODE_CONFIG = {
-        "tablet_node": {
-            "security_manager": {
-                "table_permission_cache": {
-                    "expire_after_access_time": 0,
-                },
-            },
-        },
         "master_cache_service": {
             "capacity": 0
-        },
+        }
     }
 
     @authors("ifsmirnov")

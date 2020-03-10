@@ -115,7 +115,7 @@ message TScheduleJobRequest
     required string tree_id = 3;
     required TJobResources job_resource_limits = 4;
     required TJobResources node_resource_limits = 5;
-    required NNodeTrackerClient.NProto.TDiskResources node_disk_info = 6;
+    required NNodeTrackerClient.NProto.TDiskResources node_disk_resources = 6;
 }
 
 message TScheduleJobResponse
@@ -230,6 +230,9 @@ message TRspHeartbeat
     required TSchedulerToAgentScheduleJobRequestsOutbox scheduler_to_agent_schedule_job_requests = 7;
 
     repeated NYT.NProto.TGuid operation_ids_to_unregister = 8;
+
+    optional int32 operation_archive_version = 9;
+    optional bool enable_job_reporter = 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,4 +1,4 @@
-#include "job_statistics.h"
+#include "job_report.h"
 
 #include <yt/server/lib/core_dump/helpers.h>
 
@@ -214,7 +214,7 @@ TYsonString StripAttributes(const TYsonString& yson)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t TJobStatistics::EstimateSize() const
+size_t TJobReport::EstimateSize() const
 {
     return EstimateSizes(
         OperationId_,
@@ -230,9 +230,9 @@ size_t TJobStatistics::EstimateSize() const
         Events_);
 }
 
-TJobStatistics TJobStatistics::ExtractSpec() const
+TJobReport TJobReport::ExtractSpec() const
 {
-    TJobStatistics copy;
+    TJobReport copy;
     copy.JobId_ = JobId_;
     copy.Spec_ = Spec_;
     copy.SpecVersion_ = SpecVersion_;
@@ -240,129 +240,178 @@ TJobStatistics TJobStatistics::ExtractSpec() const
     return copy;
 }
 
-TJobStatistics TJobStatistics::ExtractStderr() const
+TJobReport TJobReport::ExtractStderr() const
 {
-    TJobStatistics copy;
+    TJobReport copy;
     copy.JobId_ = JobId_;
     copy.OperationId_ = OperationId_;
     copy.Stderr_ = Stderr_;
     return copy;
 }
 
-TJobStatistics TJobStatistics::ExtractFailContext() const
+TJobReport TJobReport::ExtractFailContext() const
 {
-    TJobStatistics copy;
+    TJobReport copy;
     copy.JobId_ = JobId_;
     copy.OperationId_ = OperationId_;
     copy.FailContext_ = FailContext_;
     return copy;
 }
 
-TJobStatistics TJobStatistics::ExtractProfile() const
+TJobReport TJobReport::ExtractProfile() const
 {
-    TJobStatistics copy;
+    TJobReport copy;
     copy.JobId_ = JobId_;
     copy.OperationId_ = OperationId_;
     copy.Profile_ = Profile_;
     return copy;
 }
 
-bool TJobStatistics::IsEmpty() const
+bool TJobReport::IsEmpty() const
 {
     return !(Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ ||
              Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ ||
              CoreInfos_ || HasCompetitors_);
 }
 
-void TJobStatistics::SetOperationId(NJobTrackerClient::TOperationId operationId)
+TControllerJobReport TControllerJobReport::OperationId(NJobTrackerClient::TOperationId operationId)
 {
     OperationId_ = operationId;
+    return std::move(*this);
 }
 
-void TJobStatistics::SetJobId(NJobTrackerClient::TJobId jobId)
+TControllerJobReport TControllerJobReport::JobId(NJobTrackerClient::TJobId jobId)
 {
     JobId_ = jobId;
+    return std::move(*this);
 }
 
-void TJobStatistics::SetType(NJobTrackerClient::EJobType type)
+TControllerJobReport TControllerJobReport::HasCompetitors(bool hasCompetitors)
+{
+    HasCompetitors_ = hasCompetitors;
+    return std::move(*this);
+}
+
+TNodeJobReport TNodeJobReport::OperationId(NJobTrackerClient::TOperationId operationId)
+{
+    OperationId_ = operationId;
+    return std::move(*this);
+}
+
+TNodeJobReport TNodeJobReport::JobId(NJobTrackerClient::TJobId jobId)
+{
+    JobId_ = jobId;
+    return std::move(*this);
+}
+
+TNodeJobReport TNodeJobReport::Type(NJobTrackerClient::EJobType type)
 {
     Type_ = FormatEnum(type);
+    return std::move(*this);
 }
 
-void TJobStatistics::SetState(NJobTrackerClient::EJobState state)
+TNodeJobReport TNodeJobReport::State(NJobTrackerClient::EJobState state)
 {
     State_ = FormatEnum(state);
+    return std::move(*this);
 }
 
-void TJobStatistics::SetStartTime(TInstant startTime)
+TNodeJobReport TNodeJobReport::StartTime(TInstant startTime)
 {
     StartTime_ = startTime.MicroSeconds();
+    return std::move(*this);
 }
 
-void TJobStatistics::SetFinishTime(TInstant finishTime)
+TNodeJobReport TNodeJobReport::FinishTime(TInstant finishTime)
 {
     FinishTime_ = finishTime.MicroSeconds();
+    return std::move(*this);
 }
 
-void TJobStatistics::SetError(const TError& error)
+TNodeJobReport TNodeJobReport::Error(const TError& error)
 {
     if (!error.IsOK()) {
         Error_ = ConvertToYsonString(error).GetData();
     }
+    return std::move(*this);
 }
 
-void TJobStatistics::SetSpec(const NJobTrackerClient::NProto::TJobSpec& spec)
+TNodeJobReport TNodeJobReport::Spec(const NJobTrackerClient::NProto::TJobSpec& spec)
 {
     TString specString;
     YT_VERIFY(spec.SerializeToString(&specString));
     Spec_ = std::move(specString);
+    return std::move(*this);
 }
 
-void TJobStatistics::SetSpecVersion(i64 specVersion)
+TNodeJobReport TNodeJobReport::SpecVersion(i64 specVersion)
 {
     SpecVersion_ = specVersion;
+    return std::move(*this);
 }
 
-void TJobStatistics::SetStatistics(const TYsonString& statistics)
+TNodeJobReport TNodeJobReport::Statistics(const TYsonString& statistics)
+{
+    Statistics_ = StripAttributes(statistics).GetData();
+    return std::move(*this);
+}
+
+TNodeJobReport TNodeJobReport::Events(const TJobEvents& events)
+{
+    Events_ = ConvertToYsonString(events).GetData();
+    return std::move(*this);
+}
+
+TNodeJobReport TNodeJobReport::StderrSize(ui64 stderrSize)
+{
+    YT_VERIFY(!Stderr_.has_value());
+    StderrSize_ = stderrSize;
+    return std::move(*this);
+}
+
+TNodeJobReport TNodeJobReport::Stderr(const TString& stderr)
+{
+    Stderr_ = stderr;
+    StderrSize_ = Stderr_->size();
+    return std::move(*this);
+}
+
+TNodeJobReport TNodeJobReport::FailContext(const TString& failContext)
+{
+    FailContext_ = failContext;
+    return std::move(*this);
+}
+
+TNodeJobReport TNodeJobReport::Profile(const TJobProfile& profile)
+{
+    Profile_ = profile;
+    return std::move(*this);
+}
+
+TNodeJobReport TNodeJobReport::CoreInfos(TCoreInfos coreInfos)
+{
+    CoreInfos_ = std::move(coreInfos);
+    return std::move(*this);
+}
+
+void TNodeJobReport::SetStatistics(const TYsonString& statistics)
 {
     Statistics_ = StripAttributes(statistics).GetData();
 }
 
-void TJobStatistics::SetEvents(const TJobEvents& events)
+void TNodeJobReport::SetStartTime(TInstant startTime)
 {
-    Events_ = ConvertToYsonString(events).GetData();
+    StartTime_ = startTime.MicroSeconds();
 }
 
-void TJobStatistics::SetStderrSize(ui64 stderrSize)
+void TNodeJobReport::SetFinishTime(TInstant finishTime)
 {
-    YT_VERIFY(!Stderr_.has_value());
-    StderrSize_ = stderrSize;
+    FinishTime_ = finishTime.MicroSeconds();
 }
 
-void TJobStatistics::SetStderr(const TString& stderr)
+void TNodeJobReport::SetJobCompetitionId(NJobTrackerClient::TJobId jobCompetitionId)
 {
-    Stderr_ = stderr;
-    StderrSize_ = Stderr_->size();
-}
-
-void TJobStatistics::SetFailContext(const TString& failContext)
-{
-    FailContext_ = failContext;
-}
-
-void TJobStatistics::SetProfile(const TJobProfile& profile)
-{
-    Profile_ = profile;
-}
-
-void TJobStatistics::SetCoreInfos(TCoreInfos coreInfos)
-{
-    CoreInfos_ = std::move(coreInfos);
-}
-
-void TJobStatistics::SetHasCompetitors(bool hasCompetitors)
-{
-    HasCompetitors_ = hasCompetitors;
+    JobCompetitionId_ = jobCompetitionId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

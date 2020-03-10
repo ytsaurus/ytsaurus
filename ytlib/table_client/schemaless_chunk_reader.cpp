@@ -316,6 +316,8 @@ protected:
     using TSchemalessChunkReaderBase::Config_;
     using TSchemalessChunkReaderBase::Logger;
 
+    const TColumnarChunkMetaPtr ChunkMeta_;
+
     int ChunkKeyColumnCount_ = 0;
 
     std::optional<int> PartitionTag_;
@@ -328,14 +330,13 @@ protected:
 
     std::unique_ptr<THorizontalSchemalessBlockReader> BlockReader_;
 
-    TColumnarChunkMetaPtr ChunkMeta_;
     TRefCountedBlockMetaPtr BlockMetaExt_;
 
     std::vector<int> BlockIndexes_;
 
     virtual void DoInitializeBlockSequence() = 0;
 
-    void DownloadChunkMeta(std::vector<int> extensionTags, std::optional<int> partitionTag = std::nullopt);
+    void InitializeIdMapping();
 
     TFuture<void> InitializeBlockSequence();
 };
@@ -371,8 +372,8 @@ THorizontalSchemalessChunkReaderBase::THorizontalSchemalessChunkReaderBase(
         columnFilter,
         keyColumns,
         omittedInaccessibleColumns)
-    , PartitionTag_(partitionTag)
     , ChunkMeta_(chunkMeta)
+    , PartitionTag_(partitionTag)
 { }
 
 TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
@@ -399,7 +400,7 @@ TFuture<void> THorizontalSchemalessChunkReaderBase::InitializeBlockSequence()
     return DoOpen(std::move(blocks), ChunkMeta_->Misc());
 }
 
-void THorizontalSchemalessChunkReaderBase::DownloadChunkMeta(std::vector<int> extensionTags, std::optional<int> partitionTag)
+void THorizontalSchemalessChunkReaderBase::InitializeIdMapping()
 {
     YT_VERIFY(ChunkMeta_->GetChunkFormat() == ETableChunkFormat::SchemalessHorizontal);
 
@@ -483,9 +484,7 @@ private:
 
     void CreateBlockSequence(int beginIndex, int endIndex);
 
-    void InitializeBlockSequencePartition();
     void InitializeBlockSequenceSorted();
-    void InitializeBlockSequenceUnsorted();
 };
 
 DEFINE_REFCOUNTED_TYPE(THorizontalSchemalessRangeChunkReader)
@@ -550,26 +549,27 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
 
 void THorizontalSchemalessRangeChunkReader::DoInitializeBlockSequence()
 {
+    InitializeIdMapping();
+
     if (PartitionTag_) {
-        InitializeBlockSequencePartition();
+        YT_VERIFY(ReadRange_.LowerLimit().IsTrivial());
+        YT_VERIFY(ReadRange_.UpperLimit().IsTrivial());
+
+        CreateBlockSequence(0, BlockMetaExt_->blocks_size());
     } else {
         bool readSorted = ReadRange_.LowerLimit().HasKey() || ReadRange_.UpperLimit().HasKey() || !KeyColumns_.empty();
         if (readSorted) {
             InitializeBlockSequenceSorted();
         } else {
-            InitializeBlockSequenceUnsorted();
+            CreateBlockSequence(
+                ApplyLowerRowLimit(*BlockMetaExt_, ReadRange_.LowerLimit()),
+                ApplyUpperRowLimit(*BlockMetaExt_, ReadRange_.UpperLimit()));
         }
     }
 }
 
 void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
 {
-    std::vector<int> extensionTags = {
-        TProtoExtensionTag<NProto::TKeyColumnsExt>::Value,
-    };
-
-    DownloadChunkMeta(extensionTags);
-
     const auto& misc = ChunkMeta_->Misc();
     if (!misc.sorted()) {
         THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
@@ -599,24 +599,6 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
         ApplyUpperKeyLimit(ChunkMeta_->BlockLastKeys(), ReadRange_.UpperLimit(), keyColumnCount));
 
     CreateBlockSequence(beginIndex, endIndex);
-}
-
-void THorizontalSchemalessRangeChunkReader::InitializeBlockSequencePartition()
-{
-    YT_VERIFY(ReadRange_.LowerLimit().IsTrivial());
-    YT_VERIFY(ReadRange_.UpperLimit().IsTrivial());
-
-    DownloadChunkMeta(std::vector<int>(), PartitionTag_);
-    CreateBlockSequence(0, BlockMetaExt_->blocks_size());
-}
-
-void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceUnsorted()
-{
-    DownloadChunkMeta(std::vector<int>());
-
-    CreateBlockSequence(
-        ApplyLowerRowLimit(*BlockMetaExt_, ReadRange_.LowerLimit()),
-        ApplyUpperRowLimit(*BlockMetaExt_, ReadRange_.UpperLimit()));
 }
 
 void THorizontalSchemalessRangeChunkReader::CreateBlockSequence(int beginIndex, int endIndex)
@@ -841,11 +823,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
 
 void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
 {
-    std::vector<int> extensionTags = {
-        TProtoExtensionTag<NProto::TKeyColumnsExt>::Value,
-    };
-
-    DownloadChunkMeta(extensionTags, PartitionTag_);
+    InitializeIdMapping();
 
     const auto& misc = ChunkMeta_->Misc();
     if (!misc.sorted()) {

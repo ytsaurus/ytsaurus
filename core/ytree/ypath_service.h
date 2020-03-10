@@ -8,13 +8,14 @@
 #include <yt/core/logging/log.h>
 
 #include <yt/core/misc/property.h>
-#include <yt/core/misc/variant.h>
 
 #include <yt/core/profiling/profiler.h>
 
 #include <yt/core/rpc/public.h>
 
 #include <yt/core/yson/consumer.h>
+
+#include <variant>
 
 namespace NYT::NYTree {
 

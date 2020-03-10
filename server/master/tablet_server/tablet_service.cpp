@@ -788,6 +788,9 @@ TTabletService::TTabletService(
     : Impl_(New<TImpl>(bootstrap))
 { }
 
+TTabletService::~TTabletService()
+{ }
+
 void TTabletService::Initialize()
 {
     Impl_->Initialize();

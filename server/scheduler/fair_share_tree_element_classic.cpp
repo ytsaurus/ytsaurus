@@ -240,7 +240,7 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
-void TSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* , TUpdateFairShareContext* context)
+void TSchedulerElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -321,7 +321,6 @@ bool TSchedulerElement::IsOperation() const
 {
     return false;
 }
-
 
 TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributes& dynamicAttributes) const
 {
@@ -537,9 +536,13 @@ double TSchedulerElement::ComputeLocalSatisfactionRatio() const
         return std::numeric_limits<double>::max();
     }
 
-    // Starvation is disabled for operations in FIFO pool.
     if (Attributes_.FifoIndex >= 0) {
-        return std::numeric_limits<double>::max();
+        // Satisfaction is defined only for top operations in FIFO pool.
+        if (fairShareRatio > RatioComparisonPrecision) {
+            return usageRatio / fairShareRatio;
+        } else {
+            return std::numeric_limits<double>::max();
+        }
     }
 
     if (minShareRatio > RatioComputationPrecision && usageRatio < minShareRatio) {
@@ -741,19 +744,19 @@ void TCompositeSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeCo
     updateChildrenConfig(DisabledChildren_);
 }
 
-void TCompositeSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TCompositeSchedulerElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
     ResourceDemand_ = {};
 
     for (const auto& child : EnabledChildren_) {
-        child->PreUpdateBottomUp(dynamicAttributesList, context);
+        child->PreUpdateBottomUp(context);
 
         ResourceDemand_ += child->ResourceDemand();
     }
 
-    TSchedulerElement::PreUpdateBottomUp(dynamicAttributesList, context);
+    TSchedulerElement::PreUpdateBottomUp(context);
 }
 
 void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
@@ -1199,7 +1202,9 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList* , TUpdateFai
             return HasHigherPriorityInFifoMode(lhs.Get(), rhs.Get());
         });
 
-    double remainingFairShareRatio = Attributes_.FairShareRatio;
+    auto poolResources = TotalResourceLimits_ * Attributes_.FairShareRatio;
+    auto usedFairResources = TJobResources();
+    auto remainingFairResources = poolResources;
 
     int index = 0;
     for (const auto& child : children) {
@@ -1211,11 +1216,23 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList* , TUpdateFai
         childAttributes.FifoIndex = index;
         ++index;
 
-        double childFairShareRatio = remainingFairShareRatio;
+        auto offeredResources = child->ResourceDemand() * std::min(1.0, GetMinResourceRatio(remainingFairResources, child->ResourceDemand()));
+        double offeredFairShareRatio = GetDominantResourceUsage(offeredResources, TotalResourceLimits_);
+
+        double childFairShareRatio = offeredFairShareRatio;
         childFairShareRatio = std::min(childFairShareRatio, childAttributes.MaxPossibleUsageRatio);
         childFairShareRatio = std::min(childFairShareRatio, childAttributes.BestAllocationRatio);
         child->SetFairShareRatio(childFairShareRatio);
-        remainingFairShareRatio -= childFairShareRatio;
+
+        auto acceptedResources = offeredFairShareRatio > 0
+            ? offeredResources * (childFairShareRatio / offeredFairShareRatio)
+            : TJobResources();
+
+        remainingFairResources -= acceptedResources;
+        usedFairResources += acceptedResources;
+        if (GetDominantResourceUsage(usedFairResources, TotalResourceLimits_) > Attributes_.FairShareRatio - RatioComparisonPrecision) {
+            remainingFairResources = TJobResources();
+        }
     }
 }
 
@@ -2364,7 +2381,7 @@ TDuration TOperationElement::GetFairSharePreemptionTimeout() const
 void TOperationElement::DisableNonAliveElements()
 { }
 
-void TOperationElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -2373,7 +2390,7 @@ void TOperationElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttribu
     ResourceDemand_ = ComputeResourceDemand();
     StartTime_ = Operation_->GetStartTime();
 
-    TSchedulerElement::PreUpdateBottomUp(dynamicAttributesList, context);
+    TSchedulerElement::PreUpdateBottomUp(context);
 }
 
 void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
@@ -2989,7 +3006,7 @@ bool TOperationElement::IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
         ControllerConfig_->MaxConcurrentControllerScheduleJobCallsPerNodeShard);
 }
 
-bool TOperationElement::HasRecentScheduleJobFailure(NYT::NProfiling::TCpuInstant now) const
+bool TOperationElement::HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const
 {
     return Controller_->HasRecentScheduleJobFailure(now, ControllerConfig_->ScheduleJobFailBackoffTime);
 }
@@ -3268,7 +3285,7 @@ void TRootElement::PreUpdate(TDynamicAttributesList* dynamicAttributesList, TUpd
     dynamicAttributesList->assign(TreeSize_, TDynamicAttributes());
     context->TotalResourceLimits = GetHost()->GetResourceLimits(TreeConfig_->NodesFilter);
 
-    PreUpdateBottomUp(dynamicAttributesList, context);
+    PreUpdateBottomUp(context);
 }
 
 void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)

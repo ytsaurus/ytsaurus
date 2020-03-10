@@ -16,7 +16,7 @@ TEST(TLockFreeHashTableTest, Simple)
     size_t keyColumnCount = 3;
     size_t columnCount = 5;
 
-    TLockFreeHashTable<TElement, TDefaultAllocator> table(1000);
+    TLockFreeHashTable<TElement> table(1000);
     TDefaultAllocator allocator;
 
     THash<TElement> hash;

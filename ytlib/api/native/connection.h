@@ -14,6 +14,8 @@
 
 #include <yt/ytlib/job_prober_client/public.h>
 
+#include <yt/ytlib/security_client/public.h>
+
 #include <yt/ytlib/hive/public.h>
 
 namespace NYT::NApi::NNative {
@@ -63,6 +65,8 @@ struct IConnection
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
 
     virtual const NJobProberClient::TJobNodeDescriptorCachePtr& GetJobNodeDescriptorCache() = 0;
+
+    virtual const NSecurityClient::TPermissionCachePtr& GetPermissionCache() = 0;
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options = TClientOptions()) = 0;
 

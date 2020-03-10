@@ -1451,8 +1451,6 @@ private:
     int TotalReplicaCount_ = 0;
 
     bool NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
-    bool NeedInitializeMediumMaxReplicationFactor_ = false;
-    bool NeedSetChunkViewParents_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -2280,7 +2278,7 @@ private:
             auto resourceUsageIncrease = TClusterResources()
                 .SetChunkCount(1)
                 .SetMediumDiskSpace(mediumIndex, 1)
-                .SetMasterMemoryUsage(1);
+                .SetMasterMemory(1);
             securityManager->ValidateResourceUsageIncrease(account, resourceUsageIncrease);
         }
 
@@ -2505,11 +2503,7 @@ private:
         ChunkMap_.LoadKeys(context);
         ChunkListMap_.LoadKeys(context);
         MediumMap_.LoadKeys(context);
-
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::ChunkView) {
-            ChunkViewMap_.LoadKeys(context);
-        }
+        ChunkViewMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2520,27 +2514,13 @@ private:
         MediumMap_.LoadValues(context);
 
         Load(context, ChunkRequisitionRegistry_);
+        Load(context, ChunkListsAwaitingRequisitionTraverse_);
 
-        // COMPAT(shakurov)
-        if (context.GetVersion() >= EMasterReign::PersistRequisitionUpdateRequests) {
-            Load(context, ChunkListsAwaitingRequisitionTraverse_);
-        }
-
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::ChunkView) {
-            ChunkViewMap_.LoadValues(context);
-        }
-
-        // COMPAT(shakurov)
-        NeedInitializeMediumMaxReplicationFactor_ = context.GetVersion() < EMasterReign::PersistTNodeResourceUsageLimits;
+        ChunkViewMap_.LoadValues(context);
 
         // COMPAT(ifsmirnov)
         NeedToComputeCumulativeStatisticsForDynamicTables_ = context.GetVersion() <
             EMasterReign::YT_10639_CumulativeStatisticsInDynamicTables;
-
-        // COMPAT(ifsmirnov)
-        NeedSetChunkViewParents_ = context.GetVersion() <
-            EMasterReign::ChunkViewToParentsArray;
     }
 
     virtual void OnBeforeSnapshotLoaded() override
@@ -2548,8 +2528,6 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
 
         NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
-        NeedInitializeMediumMaxReplicationFactor_ = false;
-        NeedSetChunkViewParents_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() override
@@ -2600,20 +2578,6 @@ private:
         if (NeedToComputeCumulativeStatisticsForDynamicTables_) {
             ComputeCumulativeStatisticsForDynamicTables();
             NeedToComputeCumulativeStatisticsForDynamicTables_ = false;
-        }
-
-        if (NeedInitializeMediumMaxReplicationFactor_) {
-            for (const auto& pair : MediumMap_) {
-                auto* medium = pair.second;
-                InitializeMediumMaxReplicationFactor(medium);
-            }
-            NeedInitializeMediumMaxReplicationFactor_ = false;
-        }
-
-        if (NeedSetChunkViewParents_) {
-            for (const auto& [id, chunkView] : ChunkViewMap_) {
-                chunkView->GetUnderlyingChunk()->AddParent(chunkView);
-            }
         }
 
         YT_LOG_INFO("Finished initializing chunks");

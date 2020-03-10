@@ -343,7 +343,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "statistics_reporter": {
+            "job_reporter": {
                 "enabled": True,
                 "reporting_period": 10,
                 "min_repeat_delay": 10,
@@ -384,6 +384,12 @@ class TestListSpeculativeJobs(YTEnvSetup):
         "controller_agent": {
             "operations_update_period": 10,
             "controller_static_orchid_update_period": 100,
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
         }
     }
 
@@ -452,22 +458,18 @@ class TestListSpeculativeJobs(YTEnvSetup):
         assert_get_and_list_jobs(op.id, some_job_id)
 
     @authors("renadeen")
-    @pytest.mark.skip(reason="Flaps of this test exposed fundamental problem. Fix won't be easy.")
     def test_with_competitors_flag_in_list_jobs(self):
         def assert_list_jobs(op_id, data_source):
             def group_jobs_by_competition():
                 all_jobs = list_jobs(op_id, data_source=data_source)["jobs"]
                 assert len(all_jobs) == 3
+                assert len([j for j in all_jobs if j["has_competitors"]]) == 2
                 result = {}
-                has_competitors_count = 0
                 for job in all_jobs:
-                    if job["has_competitors"]:
-                        has_competitors_count += 1
                     competition_id = job["job_competition_id"]
                     if competition_id not in result:
                         result[competition_id] = []
                     result[competition_id].append(job["id"])
-                assert has_competitors_count == 2
                 return result
 
             grouped = group_jobs_by_competition()
@@ -488,5 +490,24 @@ class TestListSpeculativeJobs(YTEnvSetup):
 
         release_breakpoint()
         op.track()
-        # Operation completed but ReleaseFlags get to archive after some delay.
-        wait_assert(assert_list_jobs, op.id, "archive")
+        assert_list_jobs(op.id, "archive")
+
+    @authors("renadeen")
+    def test_has_competitors_flag_when_speculative_lost(self):
+        spec = {
+            "testing": {"register_speculative_job_on_job_scheduled_once": True},
+            "max_speculative_job_count_per_task": 10,
+        }
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=2)
+        wait_breakpoint(job_count=3)
+
+        jobs = get_sorted_jobs(op)
+        release_breakpoint(job_id=jobs[0]["id"])
+        release_breakpoint(job_id=jobs[1]["id"])
+        op.track()
+
+        jobs = list_jobs(op.id, with_competitors=True)["jobs"]
+        assert len(jobs) == 2
+        assert jobs[0]["has_competitors"]
+        assert jobs[1]["has_competitors"]

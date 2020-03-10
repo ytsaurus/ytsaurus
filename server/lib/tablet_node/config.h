@@ -111,6 +111,7 @@ public:
 
     int LookupCacheRowsPerTablet;
 
+    TDuration ReplicationTickPeriod;
     TDuration MinReplicationLogTtl;
     int MaxTimestampsPerReplicationCommit;
     int MaxRowsPerReplicationCommit;
@@ -265,6 +266,8 @@ public:
         RegisterParameter("lookup_cache_rows_per_tablet", LookupCacheRowsPerTablet)
             .Default(0);
 
+        RegisterParameter("replication_tick_period", ReplicationTickPeriod)
+            .Default(TDuration::MilliSeconds(100));
         RegisterParameter("min_replication_log_ttl", MinReplicationLogTtl)
             .Default(TDuration::Minutes(5));
         RegisterParameter("max_timestamps_per_replication_commit", MaxTimestampsPerReplicationCommit)
@@ -605,14 +608,10 @@ class TSecurityManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    NSecurityClient::TPermissionCacheConfigPtr PermissionCache;
     TAsyncExpiringCacheConfigPtr ResourceLimitsCache;
 
     TSecurityManagerConfig()
     {
-        RegisterParameter("permission_cache", PermissionCache)
-            .Alias("table_permission_cache")
-            .DefaultNew();
         RegisterParameter("resource_limits_cache", ResourceLimitsCache)
             .DefaultNew();
     }

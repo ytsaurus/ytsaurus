@@ -424,11 +424,8 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, LastSeenTime_);
     Load(context, Statistics_);
     Load(context, Alerts_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= EMasterReign::PersistTNodeResourceUsageLimits) {
-        Load(context, ResourceLimits_);
-        Load(context, ResourceUsage_);
-    }
+    Load(context, ResourceLimits_);
+    Load(context, ResourceUsage_);
     Load(context, ResourceLimitsOverrides_);
     Load(context, Rack_);
     Load(context, LeaseTransaction_);
@@ -453,12 +450,8 @@ void TNode::Load(NCellMaster::TLoadContext& context)
 
     Load(context, UnapprovedReplicas_);
     Load(context, TabletSlots_);
-
-    // COMPAT(psushin, prime)
-    if (context.GetVersion() >= EMasterReign::AddCypressAnnotations) {
-        Load(context, Annotations_);
-        Load(context, Version_);
-    }
+    Load(context, Annotations_);
+    Load(context, Version_);
 
     ComputeDefaultAddress();
 }

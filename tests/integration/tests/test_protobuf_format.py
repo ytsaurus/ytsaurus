@@ -5,6 +5,10 @@ from yt_env_setup import YTEnvSetup, unix_only
 
 import protobuf_format
 
+import copy
+import random
+import string
+
 
 def assert_rowsets_equal(first, second):
     assert len(first) == len(second)
@@ -128,6 +132,49 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         write_table("//tmp/t", value=data, is_raw=True, input_format=format)
         read_rows = read_table("//tmp/t")
         assert_rowsets_equal(read_rows, SCHEMALESS_TABLE_ROWS)
+
+    def _generate_random_rows(self, count):
+        rows = []
+        random.seed(42)
+        enum_names = ENUMERATIONS["MyEnum"].keys()
+        for _ in xrange(count):
+            rows.append({
+                "int64_column": random.randrange(1<<63),
+                "uint64_column": yson.YsonUint64(random.randrange(1<<64)),
+                "double_column": random.random(),
+                "bool_column": random.randrange(2) == 0,
+                "string_column": make_random_string(20),
+                "any_column": ["a", {"v": 4}],
+                "enum_string_column": random.choice(enum_names),
+                "enum_int_column": ENUMERATIONS["MyEnum"][random.choice(enum_names)],
+            })
+        return rows
+
+    @authors("levysotsky")
+    def test_large_read(self):
+        create("table", "//tmp/t")
+        table_config = SCHEMALESS_TABLE_PROTOBUF_CONFIG
+        format = create_protobuf_format([table_config], ENUMERATIONS)
+
+        row_count = 50000
+        rows = self._generate_random_rows(row_count)
+        write_table("//tmp/t", rows, verbose=False)
+        data = read_table("//tmp/t", output_format=format, verbose=False)
+        parsed_rows = protobuf_format.parse_lenval_protobuf(data, format)
+        assert_rowsets_equal(parsed_rows, rows)
+
+    @authors("levysotsky")
+    def test_large_write(self):
+        create("table", "//tmp/t")
+        table_config = SCHEMALESS_TABLE_PROTOBUF_CONFIG
+        format = create_protobuf_format([table_config], ENUMERATIONS)
+
+        row_count = 50000
+        rows = self._generate_random_rows(row_count)
+        data = protobuf_format.write_lenval_protobuf(rows, format)
+        write_table("//tmp/t", value=data, is_raw=True, input_format=format, verbose=False)
+        read_rows = read_table("//tmp/t", verbose=False)
+        assert_rowsets_equal(read_rows, rows)
 
     @authors("levysotsky")
     @unix_only
@@ -522,6 +569,65 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
             read_table("//tmp/t"),
             SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD
         )
+
+    def _generate_random_rows(self, count):
+        rows = []
+        random.seed(42)
+        enum_names = ENUMERATIONS["MyEnum"].keys()
+        for _ in xrange(count):
+            rows.append({
+                "int16": random.randrange(1<<15),
+                "list_of_strings": [make_random_string(random.randrange(10)) for _ in xrange(random.randrange(5))],
+                "optional_boolean": random.randrange(2) == 0,
+                "list_of_optional_any": [yson.YsonEntity(), {"x": random.randrange(1<<64)}, []],
+                "struct": {
+                    "key": make_random_string(10),
+                    "points": [{"x": random.randrange(100), "y": random.randrange(100)} for _ in xrange(random.randrange(5))],
+                    "enum_int": ENUMERATIONS["MyEnum"][random.choice(enum_names)],
+                    "enum_string": random.choice(enum_names),
+                    "extra_field": make_random_string(7),
+                },
+                "utf8": make_random_string(10),
+            })
+        return rows
+
+    @authors("levysotsky")
+    def test_large_write(self):
+        create("table", "//tmp/t", attributes={"schema": SCHEMA})
+        table_config = SCHEMAFUL_TABLE_PROTOBUF_CONFIG
+        format = create_protobuf_format([table_config], ENUMERATIONS)
+
+        row_count = 30000
+        rows = self._generate_random_rows(row_count)
+        data = protobuf_format.write_lenval_protobuf(rows, format)
+        write_table("//tmp/t", value=data, is_raw=True, input_format=format, verbose=False)
+        read_rows = read_table("//tmp/t", verbose=False)
+        expected_rows = copy.deepcopy(rows)
+        for row in expected_rows:
+            row["struct"]["extra_field"] = yson.YsonEntity()
+        assert_rowsets_equal(read_rows, expected_rows)
+
+    @authors("levysotsky")
+    def test_large_read(self):
+        create("table", "//tmp/t", attributes={"schema": SCHEMA})
+        table_config = SCHEMAFUL_TABLE_PROTOBUF_CONFIG
+        format = create_protobuf_format([table_config], ENUMERATIONS)
+
+        row_count = 30000
+        rows = self._generate_random_rows(row_count)
+        write_table("//tmp/t", rows, verbose=False)
+        data = read_table("//tmp/t", output_format=format, verbose=False)
+        parsed_rows = protobuf_format.parse_lenval_protobuf(data, format)
+
+        expected_rows = copy.deepcopy(rows)
+        for row in expected_rows:
+            del row["struct"]["extra_field"]
+            if len(row["list_of_strings"]) == 0:
+                del row["list_of_strings"]
+            if len(row["struct"]["points"]) == 0:
+                del row["struct"]["points"]
+        assert_rowsets_equal(parsed_rows, expected_rows)
+
 
     @unix_only
     def test_multi_output_map(self):

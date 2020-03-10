@@ -11,6 +11,7 @@
 
 #include <yt/client/ypath/rich.h>
 
+#include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
@@ -54,8 +55,9 @@ public:
         , Client_(client)
         , NameTable_(nameTable)
         , Path_(path)
+        , FlushBufferInvoker_(CreateSerializedInvoker(NChunkClient::TDispatcher::Get()->GetWriterInvoker()))
         , FlushExecutor_(New<TPeriodicExecutor>(
-            NChunkClient::TDispatcher::Get()->GetWriterInvoker(),
+            FlushBufferInvoker_,
             BIND(&TSchemalessBufferedTableWriter::OnPeriodicFlush, Unretained(this)), Config_->FlushPeriod))
     {
         for (auto& buffer : Buffers_) {
@@ -70,17 +72,22 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
     }
 
     virtual TFuture<void> Close() override
     {
-        YT_ABORT();
+        TGuard guard(SpinLock_);
+        Closed_ = true;
+        RotateBuffers();
+        return Combine(std::vector<TFuture<void>>(BufferFlushedFutures_.begin(), BufferFlushedFutures_.end()));
     }
 
     virtual bool Write(TRange<TUnversionedRow> rows) override
     {
         TGuard<TSpinLock> guard(SpinLock_);
+
+        YT_VERIFY(!Closed_);
 
         if (!CurrentBuffer_) {
             if (EmptyBuffers_.empty()) {
@@ -121,6 +128,7 @@ private:
     const TNameTablePtr NameTable_;
     const TYPath Path_;
 
+    IInvokerPtr FlushBufferInvoker_;
     const TPeriodicExecutorPtr FlushExecutor_;
 
     const TTableSchema Schema_;
@@ -175,12 +183,11 @@ private:
     i64 DroppedRowCount_ = 0;
     TBuffer* CurrentBuffer_ = nullptr;
     std::queue<TBuffer*> EmptyBuffers_;
-
-    // Only accessed in writer thread.
-    int FlushedBufferCount_ = 0;
+    std::deque<TFuture<void>> BufferFlushedFutures_;
 
     // Accessed under spinlock.
     int PendingFlushes_ = 0;
+    bool Closed_ = false;
 
     NLogging::TLogger Logger = TableClientLogger;
 
@@ -212,66 +219,63 @@ private:
         YT_LOG_DEBUG("Scheduling table chunk flush (BufferIndex: %v)",
             buffer->GetIndex());
 
-        NChunkClient::TDispatcher::Get()->GetWriterInvoker()->Invoke(BIND(
-            &TSchemalessBufferedTableWriter::FlushBuffer,
-            MakeWeak(this),
-            buffer));
-    }
+        BufferFlushedFutures_.push_back(BIND(&TSchemalessBufferedTableWriter::FlushBuffer, MakeWeak(this), buffer)
+            .AsyncVia(FlushBufferInvoker_)
+            .Run());
 
-    void ScheduleDelayedRetry(TBuffer* buffer)
-    {
-        TDelayedExecutor::Submit(
-            BIND(&TSchemalessBufferedTableWriter::ScheduleBufferFlush, MakeWeak(this), buffer),
-            Config_->RetryBackoffTime);
+        // Let's clean all the set futures
+        while (!BufferFlushedFutures_.empty() && BufferFlushedFutures_.front().IsSet()) {
+            BufferFlushedFutures_.pop_front();
+        }
     }
 
     void FlushBuffer(TBuffer* buffer)
     {
-        if (buffer->GetIndex() > FlushedBufferCount_) {
-            // Previous chunk not yet flushed.
-            ScheduleDelayedRetry(buffer);
-            return;
-        }
+        // NB(mrkastep): Here we use endless loop instead of chained callbacks
+        // because we want to set the corresponding FlushBuffer future only when
+        // the buffer is successfully flushed.
+        while (true) {
+            try {
+                YT_LOG_DEBUG("Started flushing table chunk (BufferIndex: %v, BufferSize: %v)",
+                    buffer->GetIndex(),
+                    buffer->GetSize());
 
-        try {
-            YT_LOG_DEBUG("Started flushing table chunk (BufferIndex: %v, BufferSize: %v)",
-                buffer->GetIndex(),
-                buffer->GetSize());
+                TRichYPath richPath(Path_);
+                richPath.SetAppend(true);
 
-            TRichYPath richPath(Path_);
-            richPath.SetAppend(true);
+                auto asyncWriter = CreateSchemalessTableWriter(
+                    Config_,
+                    Options_,
+                    richPath,
+                    NameTable_,
+                    Client_,
+                    nullptr
+                );
 
-            auto asyncWriter = CreateSchemalessTableWriter(
-                Config_,
-                Options_,
-                richPath,
-                NameTable_,
-                Client_,
-                nullptr);
+                auto writer = WaitFor(asyncWriter)
+                    .ValueOrThrow();
 
-            auto writer = WaitFor(asyncWriter)
-                .ValueOrThrow();
+                writer->Write(buffer->Rows());
+                WaitFor(writer->Close())
+                    .ThrowOnError();
 
-            writer->Write(buffer->Rows());
-            WaitFor(writer->Close())
-                .ThrowOnError();
+                YT_LOG_DEBUG("Finished flushing table chunk (BufferIndex: %v)",
+                    buffer->GetIndex());
 
-            YT_LOG_DEBUG("Finished flushing table chunk (BufferIndex: %v)",
-                buffer->GetIndex());
+                buffer->Clear();
 
-            buffer->Clear();
-            ++FlushedBufferCount_;
+                {
+                    TGuard<TSpinLock> guard(SpinLock_);
+                    EmptyBuffers_.push(buffer);
+                    --PendingFlushes_;
+                }
 
-            {
-                TGuard<TSpinLock> guard(SpinLock_);
-                EmptyBuffers_.push(buffer);
-                --PendingFlushes_;
+                return;
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Failed to flush table chunk; will retry later (BufferIndex: %v)",
+                    buffer->GetIndex());
+                TDelayedExecutor::WaitForDuration(Config_->RetryBackoffTime);
             }
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to flush table chunk; will retry later (BufferIndex: %v)",
-                buffer->GetIndex());
-
-            ScheduleDelayedRetry(buffer);
         }
     }
 };

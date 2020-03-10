@@ -42,7 +42,7 @@ TEST_P(TConcurrentCacheTest, Stress)
 
     TSlabAllocator allocator;
 
-    TConcurrentCache<TElement, TSlabAllocator> concurrentCache(tableSize);
+    TConcurrentCache<TElement> concurrentCache(tableSize);
 
     auto threadPool = New<TThreadPool>(threadCount, "Workers");
     std::vector<TFuture<size_t>> asyncResults;

@@ -41,6 +41,19 @@ public:
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler()) override;
 
+    virtual void Save(TSaveContext& context) const override
+    {
+        TStoreBase::Save(context);
+        TOrderedStoreBase::Save(context);
+    }
+
+    virtual void Load(TLoadContext& context) override
+    {
+        TStoreBase::Load(context);
+        TOrderedStoreBase::Load(context);
+    }
+
+
 private:
     class TReader;
 

@@ -71,7 +71,7 @@ public:
     const NRpc::IServerPtr& GetRpcServer() const;
     const NYTree::IMapNodePtr& GetOrchidRoot() const;
     const NJobAgent::TJobControllerPtr& GetJobController() const;
-    const NJobAgent::TStatisticsReporterPtr& GetStatisticsReporter() const;
+    const NJobAgent::TJobReporterPtr& GetJobReporter() const;
     const NTabletNode::TSlotManagerPtr& GetTabletSlotManager() const;
     const NTabletNode::TSecurityManagerPtr& GetSecurityManager() const;
     const NTabletNode::IInMemoryManagerPtr& GetInMemoryManager() const;
@@ -85,7 +85,7 @@ public:
     const NDataNode::TSessionManagerPtr& GetSessionManager() const;
     const NDataNode::TChunkMetaManagerPtr& GetChunkMetaManager() const;
     const NDataNode::TChunkBlockManagerPtr& GetChunkBlockManager() const;
-    const NDataNode::TNetworkStatisticsPtr& GetNetworkStatistics() const;
+    NDataNode::TNetworkStatistics& GetNetworkStatistics() const;
     const NChunkClient::IBlockCachePtr& GetBlockCache() const;
     const NTableClient::TBlockMetaCachePtr& GetBlockMetaCache() const;
     const NDataNode::TPeerBlockDistributorPtr& GetPeerBlockDistributor() const;
@@ -155,7 +155,7 @@ private:
     NHttp::IServerPtr SkynetHttpServer_;
     NYTree::IMapNodePtr OrchidRoot_;
     NJobAgent::TJobControllerPtr JobController_;
-    NJobAgent::TStatisticsReporterPtr StatisticsReporter_;
+    NJobAgent::TJobReporterPtr JobReporter_;
     NExecAgent::TSlotManagerPtr ExecSlotManager_;
     NJobAgent::TGpuManagerPtr GpuManager_;
     NJobProxy::TJobProxyConfigPtr JobProxyConfigTemplate_;
@@ -167,7 +167,7 @@ private:
     NDataNode::TSessionManagerPtr SessionManager_;
     NDataNode::TChunkMetaManagerPtr ChunkMetaManager_;
     NDataNode::TChunkBlockManagerPtr ChunkBlockManager_;
-    NDataNode::TNetworkStatisticsPtr NetworkStatistics_;
+    std::unique_ptr<NDataNode::TNetworkStatistics> NetworkStatistics_;
     NChunkClient::IBlockCachePtr BlockCache_;
     NTableClient::TBlockMetaCachePtr BlockMetaCache_;
     NDataNode::TPeerBlockTablePtr PeerBlockTable_;

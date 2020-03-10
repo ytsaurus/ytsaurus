@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/lib/job_agent/config.h>
+
 #include <yt/server/lib/misc/config.h>
 
 #include <yt/server/lib/scheduler/job_metrics.h>
@@ -776,6 +778,10 @@ public:
     NRe2::TRe2Ptr LegacyLivePreviewUserBlacklist;
 
     bool EnableBulkInsertForEveryone;
+
+    NScheduler::EEnablePorto DefaultEnablePorto;
+
+    NJobAgent::TJobReporterConfigPtr JobReporter;
 
     TControllerAgentConfig();
 

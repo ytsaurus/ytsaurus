@@ -60,13 +60,11 @@ public:
     //! Returns the snapshot for a given tablet or throws if no such tablet is known.
     TTabletSnapshotPtr GetTabletSnapshotOrThrow(TTabletId tabletId);
 
-    //! Checks that the current user is granted #permission access.
     //! If #timestamp is other than #AsyncLastCommitted then checks
     //! that the Hydra instance has a valid leader lease.
     //! Throws on failure.
     void ValidateTabletAccess(
         const TTabletSnapshotPtr& tabletSnapshot,
-        NYTree::EPermission permission,
         NTransactionClient::TTimestamp timestamp);
 
     //! Informs the manager that some slot now serves #tablet.

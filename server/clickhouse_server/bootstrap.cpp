@@ -83,8 +83,6 @@ using namespace NYTree;
 
 static const auto& Logger = ServerLogger;
 
-const TString CacheUser = "yt-clickhouse-cache";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail
@@ -215,7 +213,7 @@ void TBootstrap::DoRun()
     ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
     RootClient_ = ClientCache_->GetClient(Config_->User);
-    CacheClient_ = ClientCache_->GetClient(CacheUser);
+    CacheClient_ = ClientCache_->GetClient(CacheUserName);
 
     // Configure clique's directory.
     Config_->Discovery->Directory += "/" + CliqueId_;

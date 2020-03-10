@@ -34,6 +34,7 @@ DEFINE_ENUM(EYsonType,
 enum class ETokenType;
 
 class TYsonString;
+class TYsonStringBuf;
 
 class TYsonProducer;
 

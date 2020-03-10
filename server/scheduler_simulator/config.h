@@ -2,9 +2,33 @@
 
 #include <yt/server/lib/scheduler/config.h>
 
+#include <yt/core/ytree/public.h>
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <util/system/user.h>
+
 namespace NYT::NSchedulerSimulator {
+
+using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<class TConfig>
+TIntrusivePtr<TConfig> LoadConfig(const TString& configFilename)
+{
+    INodePtr configNode;
+    try {
+        TIFStream configStream(configFilename);
+        configNode = ConvertToNode(&configStream);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error reading scheduler simulator configuration") << ex;
+    }
+
+    auto config = New<TConfig>();
+    config->Load(configNode);
+
+    return config;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,6 +37,9 @@ typedef TIntrusivePtr<TNodeResourcesConfig> TNodeResourcesConfigPtr;
 
 class TNodeGroupConfig;
 typedef TIntrusivePtr<TNodeGroupConfig> TNodeGroupConfigPtr;
+
+class TRemoteEventLogConfig;
+typedef TIntrusivePtr<TRemoteEventLogConfig> TRemoteEventLogConfigPtr;
 
 class TSchedulerSimulatorConfig;
 typedef TIntrusivePtr<TSchedulerSimulatorConfig> TSchedulerSimulatorConfigPtr;
@@ -54,6 +81,40 @@ public:
     }
 };
 
+class TRemoteEventLogConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NEventLog::TEventLogManagerConfigPtr EventLogManager;
+
+    std::optional<TString> ConnectionFilename;
+    NApi::NNative::TConnectionConfigPtr Connection;
+    TString User;
+
+    TRemoteEventLogConfig()
+    {
+        RegisterParameter("event_log_manager", EventLogManager);
+
+        RegisterParameter("connection_filename", ConnectionFilename)
+            .Default();
+        RegisterParameter("connection", Connection)
+            .Default(nullptr);
+        RegisterParameter("user", User)
+            .Optional();
+
+        RegisterPostprocessor([&] {
+            YT_VERIFY(EventLogManager->Path);
+            if (ConnectionFilename) {
+                Connection = LoadConfig<NApi::NNative::TConnectionConfig>(*ConnectionFilename);
+            }
+
+            if (!User) {
+                User = GetUsername();
+            }
+        });
+    }
+};
+
 class TSchedulerSimulatorConfig
     : public TServerConfig
 {
@@ -75,6 +136,10 @@ public:
     std::optional<TDuration> ScheduleJobDelay;
 
     bool ShiftOperationsToStart;
+
+    TRemoteEventLogConfigPtr RemoteEventLog;
+
+    bool UseClassicScheduler;
 
     TSchedulerSimulatorConfig()
     {
@@ -108,6 +173,18 @@ public:
 
         RegisterParameter("shift_operations_to_start", ShiftOperationsToStart)
             .Default(false);
+
+        RegisterParameter("remote_event_log", RemoteEventLog)
+            .Default(nullptr);
+
+        RegisterParameter("use_classic_scheduler", UseClassicScheduler)
+            .Default(true);
+
+        RegisterPostprocessor([&] () {
+            if (EnableFullEventLog && !RemoteEventLog) {
+                THROW_ERROR_EXCEPTION("Full event log cannot be written locally. Please specify \"remote_event_log\" parameter");
+            }
+        });
     }
 };
 

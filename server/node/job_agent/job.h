@@ -1,9 +1,8 @@
 #pragma once
 
-#include "statistics_reporter.h"
 #include "gpu_manager.h"
 
-#include <yt/server/lib/job_agent/job_statistics.h>
+#include <yt/server/lib/job_agent/job_report.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -103,7 +102,7 @@ struct IJob
     virtual bool GetStored() const = 0;
     virtual void SetStored(bool value) = 0;
 
-    virtual void ReportStatistics(TJobStatistics&& statistics) = 0;
+    virtual void ReportStatistics(TNodeJobReport&& statistics) = 0;
     virtual void ReportSpec() = 0;
     virtual void ReportStderr() = 0;
     virtual void ReportFailContext() = 0;

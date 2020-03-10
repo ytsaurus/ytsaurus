@@ -108,6 +108,9 @@ TVersionedChunkMetaManager::TVersionedChunkMetaManager(
     : Impl_(New<TImpl>(std::move(config), bootstrap))
 { }
 
+TVersionedChunkMetaManager::~TVersionedChunkMetaManager()
+{ }
+
 TFuture<TCachedVersionedChunkMetaPtr> TVersionedChunkMetaManager::GetMeta(
     IChunkReaderPtr chunkReader,
     const TTableSchema& schema,

@@ -57,7 +57,6 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto ReplicationTickPeriod = TDuration::MilliSeconds(100);
 static const int TabletRowsPerRead = 1000;
 static const auto HardErrorAttribute = TErrorAttribute("hard", true);
 
@@ -153,8 +152,9 @@ private:
     void FiberMain()
     {
         while (true) {
-            TDelayedExecutor::WaitForDuration(ReplicationTickPeriod);
+            NProfiling::TWallTimer timer;
             FiberIteration();
+            TDelayedExecutor::WaitForDuration(MountConfig_->ReplicationTickPeriod - timer.GetElapsedTime());
         }
     }
 

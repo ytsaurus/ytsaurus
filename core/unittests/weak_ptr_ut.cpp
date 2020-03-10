@@ -54,14 +54,14 @@ public:
     // reference to the counter.
     void LockCounter()
     {
-        GetRefCounter()->WeakRef();
+        WeakRef();
     }
 
     // Release an additional reference to the reference counter acquired by
     // #LockCounter().
     void UnlockCounter()
     {
-        GetRefCounter()->WeakUnref();
+        WeakUnref();
     }
 
 private:
@@ -96,8 +96,8 @@ MATCHER_P2(HasRefCounts, strongRefs, weakRefs,
 {
     Y_UNUSED(result_listener);
     return
-        arg.GetRefCounter()->GetRefCount() == strongRefs &&
-        arg.GetRefCounter()->GetWeakRefCount() == weakRefs;
+        arg.GetRefCount() == strongRefs &&
+        arg.GetWeakRefCount() == weakRefs;
 }
 
 class TSlowlyDyingObject
@@ -124,8 +124,8 @@ template <class T>
 void PrintExtrinsicRefCounted(const T& arg, ::std::ostream* os)
 {
     *os << Format("%v strong and %v weak references",
-        arg.GetRefCounter()->GetRefCount(),
-        arg.GetRefCounter()->GetWeakRefCount());
+        arg.GetRefCount(),
+        arg.GetWeakRefCount());
 }
 
 void PrintTo(const TIntricateObject& arg, ::std::ostream* os)

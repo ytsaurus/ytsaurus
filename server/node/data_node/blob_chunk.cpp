@@ -391,7 +391,7 @@ void TBlobChunkBase::OnBlocksRead(
             Id_)
             << TError(blocksOrError);
         if (error.FindMatching(NChunkClient::EErrorCode::IncorrectChunkFileChecksum)) {
-            if (SyncOnClose()) {
+            if (ShouldSyncOnClose()) {
                 Location_->Disable(error);
                 YT_ABORT();
             } else {
@@ -461,18 +461,13 @@ void TBlobChunkBase::OnBlocksRead(
     DoReadBlockSet(session, endEntryIndex, std::move(pendingIOGuard));
 }
 
-bool TBlobChunkBase::SyncOnClose() const
+bool TBlobChunkBase::ShouldSyncOnClose() const
 {
     auto blocksExt = WeakBlocksExt_.Lock();
-    if (blocksExt) {
-        // COMPAT(gritukan)
-        if (!blocksExt->has_sync_on_close()) {
-            return true;
-        }
-        return blocksExt->sync_on_close();
+    if (!blocksExt) {
+        return true;
     }
-
-    return true;
+    return blocksExt->sync_on_close();
 }
 
 TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
@@ -615,97 +610,19 @@ TCachedBlobChunk::TCachedBlobChunk(
     const TChunkDescriptor& descriptor,
     TRefCountedChunkMetaPtr meta,
     const TArtifactKey& key,
-    TCallback<TFuture<void>()> destroyed,
-    bool requiresValidation)
+    TClosure destroyedHandler)
     : TBlobChunkBase(
         bootstrap,
         std::move(location),
         descriptor,
         std::move(meta))
     , TAsyncCacheValueBase<TArtifactKey, TCachedBlobChunk>(key)
-    , Destroyed_(std::move(destroyed))
-{
-    if (!requiresValidation) {
-        // If chunk was just downloaded, it doesn't require validation.
-        YT_VERIFY(!ValidationLaunched_.test_and_set());
-        ValidationResult_.Set();
-    }
-}
+    , DestroyedHandler_(std::move(destroyedHandler))
+{ }
 
 TCachedBlobChunk::~TCachedBlobChunk()
 {
-    DestroyPromise_.TrySetFrom(Destroyed_.Run());
-}
-
-TFuture<void> TCachedBlobChunk::GetAsyncDestroyResult()
-{
-    return DestroyPromise_.ToFuture();
-}
-
-TFuture<void> TCachedBlobChunk::Validate()
-{
-    if (!ValidationLaunched_.test_and_set()) {
-        YT_VERIFY(!ValidationResult_.IsSet());
-        ValidationResult_.SetFrom(BIND(&TCachedBlobChunk::DoValidate, MakeStrong(this))
-            .AsyncVia(GetLocation()->GetWritePoolInvoker())
-            .Run());
-    }
-
-    return ValidationResult_
-        .ToFuture()
-        .ToUncancelable();
-}
-
-void TCachedBlobChunk::DoValidate()
-{
-    // NB(psushin): cached chunks (non-artifacts) are not fsynced when written. This may result in truncated or even empty
-    // files on power loss. To detect corrupted chunks we validate their size against value in misc extension.
-
-    const auto& chunkId = GetId();
-    const auto& location = GetLocation();
-
-    auto Logger = NLogging::TLogger(DataNodeLogger)
-        .AddTag("ChunkId: %v", chunkId);
-
-    YT_LOG_INFO("Chunk validation started");
-
-    auto dataFileName = location->GetChunkPath(chunkId);
-
-    auto chunkReader = New<TFileReader>(
-        location->GetIOEngine(),
-        chunkId,
-        dataFileName);
-
-    TClientBlockReadOptions blockReadOptions{
-        TWorkloadDescriptor(EWorkloadCategory::Idle, 0, TInstant::Zero(), {"Validate chunk length"}),
-        New<TChunkReaderStatistics>(),
-        TReadSessionId::Create()
-    };
-
-    auto metaOrError = WaitFor(chunkReader->GetMeta(blockReadOptions));
-
-    if (!metaOrError.IsOK()) {
-        YT_LOG_WARNING(metaOrError, "Failed to read cached chunk meta");
-        metaOrError.ThrowOnError();
-    }
-
-    const auto& meta = *metaOrError.Value();
-    auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
-
-    try {
-        TFile dataFile(dataFileName, OpenExisting|RdOnly|CloseOnExec);
-        if (dataFile.GetLength() != miscExt.compressed_data_size()) {
-            THROW_ERROR_EXCEPTION("Chunk length mismatch")
-                << TErrorAttribute("chunk_id", chunkId)
-                << TErrorAttribute("expected_size", miscExt.compressed_data_size())
-                << TErrorAttribute("actual_size", dataFile.GetLength());
-        }
-    } catch (const std::exception& ex) {
-        YT_LOG_WARNING(ex, "Failed to validate cached chunk size");
-        throw;
-    }
-
-    YT_LOG_INFO("Chunk validation completed");
+    DestroyedHandler_.Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

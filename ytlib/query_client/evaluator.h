@@ -18,6 +18,8 @@ public:
         const NProfiling::TProfiler& profiler = NProfiling::TProfiler(),
         IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
+    ~TEvaluator();
+
     TQueryStatistics Run(
         TConstBaseQueryPtr fragment,
         ISchemafulReaderPtr reader,

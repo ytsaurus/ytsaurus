@@ -26,6 +26,8 @@ public:
         NApi::IClientPtr client,
         NProfiling::TProfiler profiler = AuthProfiler);
 
+    ~TAuthenticationManager();
+
     const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const;
     const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
     const NAuth::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;

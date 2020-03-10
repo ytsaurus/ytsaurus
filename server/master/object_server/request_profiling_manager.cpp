@@ -64,6 +64,9 @@ TRequestProfilingManager::TRequestProfilingManager()
     : Impl_(std::make_unique<TImpl>())
 { }
 
+TRequestProfilingManager::~TRequestProfilingManager()
+{ }
+
 TRequestProfilingCountersPtr TRequestProfilingManager::GetCounters(
     const TString& user,
     const TString& method)

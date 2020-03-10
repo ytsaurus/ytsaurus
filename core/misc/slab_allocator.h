@@ -1,10 +1,11 @@
 #pragma once
 
-#include <yt/core/misc/common.h>
-#include <yt/core/misc/lock_free_stack.h>
-#include <yt/core/misc/format.h>
-#include <yt/core/misc/error.h>
-#include <yt/core/misc/memory_usage_tracker.h>
+#include "common.h"
+#include "lock_free_stack.h"
+#include "format.h"
+#include "error.h"
+#include "memory_usage_tracker.h"
+#include "allocator_traits.h"
 
 #include <library/ytalloc/api/ytalloc.h>
 
@@ -15,6 +16,7 @@ namespace NYT {
 /////////////////////////////////////////////////////////////////////////////
 
 class TArenaPool
+    : public TDeleterBase
 {
 public:
     struct TFreeListItem
@@ -31,6 +33,12 @@ public:
     ~TArenaPool();
 
     void* Allocate();
+
+    static void Deallocate(TDeleterBase* deleter, void* obj)
+    {
+        auto self = static_cast<TArenaPool*>(deleter);
+        self->Free(obj);
+    }
 
     void Free(void* obj);
 
@@ -62,7 +70,7 @@ public:
 
     void* Allocate(size_t size);
 
-    static void Free(void* ptr);
+    TDeleterBase* GetDeleter(size_t size);
 
 private:
     struct TArenaDeleter

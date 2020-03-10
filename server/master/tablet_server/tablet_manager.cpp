@@ -2323,12 +2323,8 @@ private:
 
             Persist(context, DataStatistics);
             Persist(context, TabletResourceUsage);
-
-            // COMPAT(aozeritsky)
-            if (context.GetVersion() >= EMasterReign::OldVersion814) {
-                Persist(context, ModificationTime);
-                Persist(context, AccessTime);
-            }
+            Persist(context, ModificationTime);
+            Persist(context, AccessTime);
         }
     };
 
@@ -2342,13 +2338,8 @@ private:
     TTabletCellBundleId DefaultTabletCellBundleId_;
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
-    bool RecomputeTabletCountByState_ = false;
     bool RecomputeTabletCellStatistics_ = false;
-    bool RecomputeTabletErrorCount_ = false;
-    bool RecomputeExpectedTabletStates_ = false;
-    bool ValidateAllTablesUnmounted_ = false;
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
-    bool AddTabletCellBundleForActions_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -3136,7 +3127,7 @@ private:
                 switch (replica->GetState()) {
                     case ETableReplicaState::Enabled:
                     case ETableReplicaState::Enabling: {
-                        TReqSetTableReplicaEnabled req;
+                        TReqAlterTableReplica req;
                         ToProto(req.mutable_tablet_id(), tablet->GetId());
                         ToProto(req.mutable_replica_id(), replica->GetId());
                         req.set_enabled(true);
@@ -3785,23 +3776,10 @@ private:
         TabletMap_.LoadValues(context);
         TableReplicaMap_.LoadValues(context);
         TabletActionMap_.LoadValues(context);
-        // COMPAT(savrus)
-        if (context.GetVersion() >= EMasterReign::MulticellForDynamicTables) {
-            Load(context, TableStatisticsUpdates_);
-        }
+        Load(context, TableStatisticsUpdates_);
 
         // COMPAT(savrus)
-        RecomputeTabletCountByState_ = (context.GetVersion() < EMasterReign::UseCurrentMountTransactionIdToLockTableNodeDuringMount);
-        // COMPAT(savrus)
         RecomputeTabletCellStatistics_ = (context.GetVersion() < EMasterReign::CellServer);
-        // COMPAT(ifsmirnov)
-        RecomputeTabletErrorCount_ = (context.GetVersion() < EMasterReign::FixTabletErrorCountLag);
-        // COMPAT(savrus)
-        RecomputeExpectedTabletStates_ = (context.GetVersion() < EMasterReign::MulticellForDynamicTables);
-        // COMPAT(savrus)
-        ValidateAllTablesUnmounted_ = (context.GetVersion() < EMasterReign::MakeTabletStateBackwardCompatible);
-        // COMPAT(savrus,ifsmirnov)
-        AddTabletCellBundleForActions_ = (context.GetVersion() < EMasterReign::SynchronousHandlesForTabletBalancer);
     }
 
 
@@ -3810,132 +3788,6 @@ private:
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
         InitBuiltins();
-
-        // COMPAT(savrus,ifsmirnov)
-        if (AddTabletCellBundleForActions_) {
-            for (const auto [actionId, action] : TabletActionMap_) {
-                if (!IsObjectAlive(action)) {
-                    continue;
-                }
-
-                if (!action->IsFinished()) {
-                    auto* bundle = action->Tablets().front()->GetTable()->GetTabletCellBundle();
-                    action->SetTabletCellBundle(bundle);
-                    bundle->TabletActions().insert(action);
-                    bundle->IncreaseActiveTabletActionCount();
-                }
-            }
-        }
-
-        // COMPAT(savrus)
-        if (RecomputeTabletCountByState_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
-                if (node->IsTrunk() && IsTableType(node->GetType())) {
-                    auto* table = node->As<TTableNode>();
-                    if (table->IsDynamic()) {
-                        for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
-                            if (table->TabletCountByState().IsDomainValue(state)) {
-                                table->MutableTabletCountByState()[state] = 0;
-                            }
-                        }
-                        for (const auto* tablet : table->Tablets()) {
-                            ++table->MutableTabletCountByState()[tablet->GetState()];
-                        }
-                    }
-                }
-            }
-        }
-
-        // COMPAT(savrus)
-        if (RecomputeExpectedTabletStates_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
-                if (!node->IsTrunk() || !IsTableType(node->GetType())) {
-                    continue;
-                }
-
-                auto* table = node->As<TTableNode>();
-                if (!table->IsDynamic()) {
-                    continue;
-                }
-
-                for (auto state : TEnumTraits<ETabletState>::GetDomainValues()) {
-                    if (table->TabletCountByState().IsDomainValue(state)) {
-                        table->MutableTabletCountByExpectedState()[state] = 0;
-                    }
-                }
-
-                for (auto* tablet : table->Tablets()) {
-                    ++table->MutableTabletCountByExpectedState()[tablet->GetExpectedState()];
-                }
-
-                for (auto* tablet : table->Tablets()) {
-                    if (auto* action = tablet->GetAction()) {
-                        tablet->SetExpectedState(action->GetFreeze()
-                            ? ETabletState::Frozen
-                            : ETabletState::Mounted);
-                        continue;
-                    }
-
-                    switch (tablet->GetState()) {
-                        case ETabletState::Mounting:
-                        case ETabletState::Mounted:
-                        case ETabletState::Unmounting:
-                        case ETabletState::Unfreezing:
-                        case ETabletState::Freezing:
-                            tablet->SetExpectedState(ETabletState::Mounted);
-                            break;
-
-                        case ETabletState::Frozen:
-                        case ETabletState::FrozenMounting:
-                            tablet->SetExpectedState(ETabletState::Frozen);
-                            break;
-
-                        case ETabletState::Unmounted:
-                            tablet->SetExpectedState(ETabletState::Unmounted);
-                            break;
-
-                        default:
-                            YT_ABORT();
-                    }
-                }
-            }
-        }
-
-        // COMPAT(savrus)
-        if (ValidateAllTablesUnmounted_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
-                if (!node->IsTrunk() || node->IsExternal() || !IsTableType(node->GetType())) {
-                    continue;
-                }
-
-                auto* table = node->As<TTableNode>();
-                if (!table->IsDynamic()) {
-                    continue;
-                }
-
-                YT_VERIFY(table->TabletCountByState()[ETabletState::Unmounted] == table->Tablets().size());
-            }
-        }
-
-        // COMPAT(ifsmirnov)
-        if (RecomputeTabletErrorCount_) {
-            const auto& cypressManager = Bootstrap_->GetCypressManager();
-            for (auto [nodeId, node] : cypressManager->Nodes()) {
-                if (node->IsTrunk() && node->GetType() == EObjectType::Table) {
-                    auto* table = node->As<TTableNode>();
-                    if (table->IsDynamic()) {
-                        int errorCount = 0;
-                        for (const auto* tablet : table->Tablets()) {
-                            errorCount += tablet->GetTabletErrorCount();
-                        }
-                        table->SetTabletErrorCount(errorCount);
-                    }
-                }
-            }
-        }
     }
 
     void OnAfterCellManagerSnapshotLoaded()

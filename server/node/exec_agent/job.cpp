@@ -3,8 +3,6 @@
 #include "slot.h"
 #include "slot_manager.h"
 
-#include <yt/server/lib/exec_agent/config.h>
-
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
 
@@ -19,7 +17,7 @@
 
 #include <yt/server/node/job_agent/job.h>
 #include <yt/server/node/job_agent/gpu_manager.h>
-#include <yt/server/node/job_agent/statistics_reporter.h>
+#include <yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/server/lib/scheduler/config.h>
 
@@ -28,11 +26,9 @@
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/traffic_meter.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/ytlib/job_prober_client/public.h>
 #include <yt/ytlib/job_prober_client/job_probe.h>
-#include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/job_proxy/public.h>
 
@@ -127,7 +123,7 @@ public:
             GetType());
 
         JobEvents_.emplace_back(JobState_, JobPhase_);
-        ReportStatistics(MakeDefaultJobStatistics().HasCompetitors(false));
+        ReportStatistics(MakeDefaultJobStatistics());
     }
 
     virtual void Start() override
@@ -610,10 +606,10 @@ public:
         }
     }
 
-    virtual void ReportStatistics(TJobStatistics&& statistics) override
+    virtual void ReportStatistics(TNodeJobReport&& statistics) override
     {
-        Bootstrap_->GetStatisticsReporter()->ReportStatistics(
-            std::move(statistics)
+        Bootstrap_->GetJobReporter()->ReportStatistics(
+            statistics
                 .OperationId(GetOperationId())
                 .JobId(GetId()));
     }
@@ -626,14 +622,14 @@ public:
 
     virtual void ReportStderr() override
     {
-        ReportStatistics(TJobStatistics()
+        ReportStatistics(TNodeJobReport()
             .Stderr(GetStderr()));
     }
 
     virtual void ReportFailContext() override
     {
         if (auto failContext = GetFailContext()) {
-            ReportStatistics(TJobStatistics()
+            ReportStatistics(TNodeJobReport()
                 .FailContext(*failContext));
         }
     }
@@ -641,7 +637,7 @@ public:
     virtual void ReportProfile() override
     {
         if (auto profile = GetProfile()) {
-            ReportStatistics(TJobStatistics()
+            ReportStatistics(TNodeJobReport()
                 .Profile(*profile));
         }
     }
@@ -1154,7 +1150,7 @@ private:
         if (!error.IsOK()) {
             // NB: it is required to report error that occurred in some place different
             // from OnJobFinished method.
-            ReportStatistics(TJobStatistics().Error(error));
+            ReportStatistics(TNodeJobReport().Error(error));
         }
 
         if (error.IsOK()) {
@@ -1788,9 +1784,9 @@ private:
         return rootFS;
     }
 
-    TJobStatistics MakeDefaultJobStatistics()
+    TNodeJobReport MakeDefaultJobStatistics()
     {
-        auto statistics = TJobStatistics()
+        auto statistics = TNodeJobReport()
             .Type(GetType())
             .State(GetState())
             .StartTime(GetStartTime())
@@ -1801,7 +1797,9 @@ private:
             statistics.SetFinishTime(*FinishTime_);
         }
         if (SchedulerJobSpecExt_->has_job_competition_id()) {
-            FromProto(&statistics.JobCompetitionId(), SchedulerJobSpecExt_->job_competition_id());
+            TGuid dummy;
+            FromProto(&dummy, SchedulerJobSpecExt_->job_competition_id());
+            statistics.SetJobCompetitionId(dummy);
         }
 
         return statistics;

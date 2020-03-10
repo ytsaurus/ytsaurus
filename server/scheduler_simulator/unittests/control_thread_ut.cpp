@@ -204,10 +204,10 @@ protected:
         node->SetResourceLimits(resourceLimits);
 
         NNodeTrackerClient::NProto::TDiskResources diskResources;
-        auto* diskReport = diskResources.add_disk_reports();
-        diskReport->set_limit(100_GB);
-        diskReport->set_usage(0);
-        node->SetDiskInfo(diskResources);
+        auto* locationResources = diskResources.add_disk_location_resources();
+        locationResources->set_limit(100_GB);
+        locationResources->set_usage(0);
+        node->SetDiskResources(diskResources);
 
         return node;
     }

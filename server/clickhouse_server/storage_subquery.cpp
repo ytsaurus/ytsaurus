@@ -54,6 +54,8 @@ public:
         Logger.AddTag("SubqueryIndex: %v, SubqueryTableIndex: %v", SubquerySpec_.SubqueryIndex, SubquerySpec_.TableIndex);
 
         setColumns(ColumnsDescription(SubquerySpec_.Columns));
+
+        queryContext->MoveToPhase(EQueryPhase::Preparation);
     }
 
     std::string getName() const override { return "YT"; }
@@ -78,6 +80,8 @@ public:
         unsigned maxStreamCount) override
     {
         auto* queryContext = GetQueryContext(context);
+
+        queryContext->MoveToPhase(EQueryPhase::Execution);
 
         // TODO(max42): ?
         auto columns = ToString(columnNames);

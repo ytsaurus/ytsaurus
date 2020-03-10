@@ -48,7 +48,7 @@ public:
 
     std::optional<double> GetCpuLimit() const;
 
-    NNodeTrackerClient::NProto::TDiskResources GetDiskInfo();
+    NNodeTrackerClient::NProto::TDiskResources GetDiskResources();
 
     void OnJobFinished(EJobState jobState);
 

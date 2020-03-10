@@ -26,7 +26,6 @@
 #include <yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
-#include <yt/ytlib/node_tracker_client/master_cache_synchronizer.h>
 
 #include <yt/ytlib/job_prober_client/job_node_descriptor_cache.h>
 
@@ -34,11 +33,16 @@
 
 #include <yt/ytlib/scheduler/scheduler_channel.h>
 
+#include <yt/ytlib/security_client/permission_cache.h>
+
 #include <yt/client/tablet_client/table_mount_cache.h>
 #include <yt/ytlib/tablet_client/native_table_mount_cache.h>
 
 #include <yt/ytlib/transaction_client/config.h>
+
 #include <yt/client/transaction_client/remote_timestamp_provider.h>
+
+#include <yt/ytlib/node_tracker_client/node_addresses_provider.h>
 
 #include <yt/client/api/sticky_transaction_pool.h>
 
@@ -58,8 +62,6 @@
 #include <yt/core/rpc/caching_channel_factory.h>
 
 #include <yt/core/rpc/retrying_channel.h>
-#include <yt/core/rpc/roaming_channel.h>
-#include <yt/core/rpc/reconfigurable_roaming_channel_provider.h>
 
 namespace NYT::NApi::NNative {
 
@@ -74,6 +76,7 @@ using namespace NQueryClient;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NJobProberClient;
+using namespace NSecurityClient;
 using namespace NScheduler;
 using namespace NProfiling;
 using namespace NYson;
@@ -106,12 +109,6 @@ public:
             ThreadPool_ = New<TThreadPool>(*Config_->ThreadPoolSize, "Connection");
         }
 
-        if (Config_->MasterCache && Config_->MasterCache->EnableMasterCacheDiscovery) {
-            MasterCacheSynchronizer_ = New<TMasterCacheSynchronizer>(
-                Config_->MasterCache->MasterCacheDiscoveryPeriod,
-                MakeWeak(this));
-        }
-
         TerminateIdleChannelsExecutor_ = New<TPeriodicExecutor>(
             GetInvoker(),
             BIND(&ICachingChannelFactory::TerminateIdleChannels, MakeWeak(CachingChannelFactory_), Config_->IdleChannelTtl),
@@ -122,7 +119,6 @@ public:
             Config_,
             Options_,
             ChannelFactory_,
-            MasterCacheSynchronizer_,
             Logger);
         MasterCellDirectorySynchronizer_ = New<NCellMasterClient::TCellDirectorySynchronizer>(
             Config_->MasterCellDirectorySynchronizer,
@@ -131,24 +127,27 @@ public:
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
-            // Use masters for timestamp generation.
-            timestampProviderConfig = New<TRemoteTimestampProviderConfig>();
-            timestampProviderConfig->Addresses = Config_->PrimaryMaster->Addresses;
-            timestampProviderConfig->RpcTimeout = Config_->PrimaryMaster->RpcTimeout;
-            // TRetryingChannelConfig
-            timestampProviderConfig->RetryBackoffTime = Config_->PrimaryMaster->RetryBackoffTime;
-            timestampProviderConfig->RetryAttempts = Config_->PrimaryMaster->RetryAttempts;
-            timestampProviderConfig->RetryTimeout = Config_->PrimaryMaster->RetryTimeout;
+            timestampProviderConfig = CreateTimestampProviderConfig(Config_->PrimaryMaster);
         }
-        TimestampProvider_ = CreateRemoteTimestampProvider(
-            timestampProviderConfig,
-            ChannelFactory_);
+
+        TimestampProviderChannel_ = timestampProviderConfig->EnableTimestampProviderDiscovery ?
+            CreateNodeAddressesChannel(
+                timestampProviderConfig->TimestampProviderDiscoveryPeriod,
+                MakeWeak(MasterCellDirectory_),
+                ENodeRole::TimestampProvider,
+                BIND(&CreateTimestampProviderChannelFromAddresses, timestampProviderConfig, ChannelFactory_)) :
+            CreateTimestampProviderChannel(timestampProviderConfig, ChannelFactory_);
+        TimestampProvider_ = CreateRemoteTimestampProvider(timestampProviderConfig, TimestampProviderChannel_);
 
         SchedulerChannel_ = CreateSchedulerChannel(
             Config_->Scheduler,
             ChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
+
+        PermissionCache_ = New<TPermissionCache>(
+            Config_->PermissionCache,
+            this);
 
         JobNodeDescriptorCache_ = New<TJobNodeDescriptorCache>(
             Config_->JobNodeDescriptorCache,
@@ -196,10 +195,6 @@ public:
             Config_->NodeDirectorySynchronizer,
             MakeStrong(this),
             NodeDirectory_);
-
-        if (MasterCacheSynchronizer_) {
-            MasterCacheSynchronizer_->Start();
-        }
     }
 
     // IConnection implementation.
@@ -224,6 +219,11 @@ public:
         return JobNodeDescriptorCache_;
     }
 
+    virtual const TPermissionCachePtr& GetPermissionCache() override
+    {
+        return PermissionCache_;
+    }
+
     virtual IInvokerPtr GetInvoker() override
     {
         return ThreadPool_ ? ThreadPool_->GetInvoker() : GetCurrentInvoker();
@@ -242,6 +242,7 @@ public:
     virtual void ClearMetadataCaches() override
     {
         TableMountCache_->Clear();
+        PermissionCache_->Clear();
     }
 
     // NNative::IConnection implementation.
@@ -402,10 +403,6 @@ public:
         CellDirectorySynchronizer_->Stop();
 
         NodeDirectorySynchronizer_->Stop();
-
-        if (MasterCacheSynchronizer_) {
-            MasterCacheSynchronizer_->Stop();
-        }
     }
 
     virtual bool IsTerminated() override
@@ -459,8 +456,10 @@ private:
     IChannelPtr SchedulerChannel_;
     IBlockCachePtr BlockCache_;
     ITableMountCachePtr TableMountCache_;
+    IChannelPtr TimestampProviderChannel_;
     ITimestampProviderPtr TimestampProvider_;
     TJobNodeDescriptorCachePtr JobNodeDescriptorCache_;
+    TPermissionCachePtr PermissionCache_;
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
@@ -470,8 +469,6 @@ private:
 
     TClusterDirectoryPtr ClusterDirectory_;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
-
-    TMasterCacheSynchronizerPtr MasterCacheSynchronizer_;
 
     TNodeDirectoryPtr NodeDirectory_;
     TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;
@@ -485,19 +482,22 @@ private:
     void BuildOrchid(IYsonConsumer* consumer)
     {
         bool hasMasterCache = static_cast<bool>(Config_->MasterCache);
-
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("master_cache")
                     .BeginMap()
                         .Item("enabled").Value(hasMasterCache)
                         .DoIf(hasMasterCache, [this] (auto fluent) {
-                            bool dynamic = Config_->MasterCache->EnableMasterCacheDiscovery;
-                            const auto& addresses = dynamic ? MasterCacheSynchronizer_->GetAddresses() : Config_->MasterCache->Addresses;
+                            auto masterCacheChannel = MasterCellDirectory_->GetMasterChannelOrThrow(
+                                EMasterChannelKind::Cache,
+                                MasterCellDirectory_->GetPrimaryMasterCellId());
                             fluent
-                                .Item("dynamic").Value(dynamic)
-                                .Item("addresses").List(addresses);
+                                .Item("channel_attributes").Value(masterCacheChannel->GetEndpointAttributes());
                         })
+                    .EndMap()
+                .Item("timestamp_provider")
+                    .BeginMap()
+                        .Item("channel_attributes").Value(TimestampProviderChannel_->GetEndpointAttributes())
                     .EndMap()
             .EndMap();
     }

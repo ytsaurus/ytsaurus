@@ -587,8 +587,8 @@ void FromProto(TColumnDescriptor* original, const NProto::TColumnDescriptor& ser
 
 void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
 {
-    ToProto(proto->mutable_original_schema(), original->OriginalSchema);
-    ToProto(proto->mutable_schema_mapping(), original->SchemaMapping);
+    ToProto(proto->mutable_original_schema(), original->Schema.Original);
+    ToProto(proto->mutable_schema_mapping(), original->Schema.Mapping);
     ToProto(proto->mutable_self_joined_columns(), original->SelfJoinedColumns);
     ToProto(proto->mutable_foreign_joined_columns(), original->ForeignJoinedColumns);
 
@@ -613,8 +613,8 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
 void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& serialized)
 {
     auto result = New<TJoinClause>();
-    FromProto(&result->OriginalSchema, serialized.original_schema());
-    FromProto(&result->SchemaMapping, serialized.schema_mapping());
+    FromProto(&result->Schema.Original, serialized.original_schema());
+    FromProto(&result->Schema.Mapping, serialized.schema_mapping());
     FromProto(&result->SelfJoinedColumns, serialized.self_joined_columns());
     FromProto(&result->ForeignJoinedColumns, serialized.foreign_joined_columns());
     FromProto(&result->ForeignEquations, serialized.foreign_equations());
@@ -719,8 +719,8 @@ void ToProto(NProto::TQuery* serialized, const TConstQueryPtr& original)
     serialized->set_infer_ranges(original->InferRanges);
     serialized->set_is_final(original->IsFinal);
 
-    ToProto(serialized->mutable_original_schema(), original->OriginalSchema);
-    ToProto(serialized->mutable_schema_mapping(), original->SchemaMapping);
+    ToProto(serialized->mutable_original_schema(), original->Schema.Original);
+    ToProto(serialized->mutable_schema_mapping(), original->Schema.Mapping);
 
     ToProto(serialized->mutable_join_clauses(), original->JoinClauses);
 
@@ -755,8 +755,8 @@ void FromProto(TConstQueryPtr* original, const NProto::TQuery& serialized)
     result->InferRanges = serialized.infer_ranges();
     FromProto(&result->IsFinal, serialized.is_final());
 
-    FromProto(&result->OriginalSchema, serialized.original_schema());
-    FromProto(&result->SchemaMapping, serialized.schema_mapping());
+    FromProto(&result->Schema.Original, serialized.original_schema());
+    FromProto(&result->Schema.Mapping, serialized.schema_mapping());
 
     FromProto(&result->JoinClauses, serialized.join_clauses());
 

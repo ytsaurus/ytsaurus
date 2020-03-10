@@ -2777,6 +2777,8 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
             if (row[hasCompetitorsIndex].Type != EValueType::Null) {
                 job.HasCompetitors = row[hasCompetitorsIndex].Data.Boolean;
+            } else {
+                job.HasCompetitors = false;
             }
 
             if (row[hasSpecIndex].Type != EValueType::Null) {
@@ -3853,8 +3855,12 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     if (auto jobCompetitionId = FindValue<TJobId>(row, columnFilter, table.Index.JobCompetitionId)) {
         job.JobCompetitionId = *jobCompetitionId;
     }
-    if (auto hasCompetitors = FindValue<bool>(row, columnFilter, table.Index.HasCompetitors)) {
-        job.HasCompetitors = *hasCompetitors;
+    if (columnFilter.FindPosition(table.Index.HasCompetitors)) {
+        if (auto hasCompetitors = FindValue<bool>(row, columnFilter, table.Index.HasCompetitors)) {
+            job.HasCompetitors = *hasCompetitors;
+        } else {
+            job.HasCompetitors = false;
+        }
     }
 
     return job;
@@ -3970,6 +3976,7 @@ TClusterMeta TClient::DoGetClusterMeta(
     req->set_populate_cluster_directory(options.PopulateClusterDirectory);
     req->set_populate_medium_directory(options.PopulateMediumDirectory);
     req->set_populate_master_cache_node_addresses(options.PopulateMasterCacheNodeAddresses);
+    req->set_populate_timestamp_provider_node_addresses(options.PopulateTimestampProviderAddresses);
     SetCachingHeader(req, options);
     batchReq->AddRequest(req);
 
@@ -3993,6 +4000,9 @@ TClusterMeta TClient::DoGetClusterMeta(
     }
     if (options.PopulateMasterCacheNodeAddresses) {
         meta.MasterCacheNodeAddresses = FromProto<std::vector<TString>>(rsp->master_cache_node_addresses());
+    }
+    if (options.PopulateTimestampProviderAddresses) {
+        meta.TimestampProviderAddresses = FromProto<std::vector<TString>>(rsp->timestamp_provider_node_addresses());
     }
     return meta;
 }

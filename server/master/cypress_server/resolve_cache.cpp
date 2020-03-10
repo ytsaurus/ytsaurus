@@ -5,8 +5,6 @@
 #include "portal_entrance_node.h"
 #include "private.h"
 
-#include <yt/core/misc/variant.h>
-
 #include <yt/core/ypath/tokenizer.h>
 
 #include <yt/core/ytree/helpers.h>

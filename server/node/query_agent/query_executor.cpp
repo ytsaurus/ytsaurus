@@ -217,8 +217,6 @@ public:
     }
 };
 
-const TYPath QueryPoolsPath = "//sys/ql_pools";
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -248,10 +246,7 @@ public:
 
         tabletSnapshot->ValidateMountRevision(mountRevision);
 
-        SlotManager_->ValidateTabletAccess(
-            tabletSnapshot,
-            NYTree::EPermission::Read,
-            timestamp);
+        SlotManager_->ValidateTabletAccess(tabletSnapshot, timestamp);
 
         Map_.insert(std::make_pair(tabletId, tabletSnapshot));
 
@@ -683,11 +678,11 @@ private:
 
         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag());
 
-        auto keySize = Query_->OriginalSchema.GetKeyColumnCount();
+        auto keySize = Query_->Schema.Original.GetKeyColumnCount();
 
         std::vector<EValueType> keySchema;
         for (size_t index = 0; index < keySize; ++index) {
-            keySchema.push_back(Query_->OriginalSchema.Columns()[index].GetPhysicalType());
+            keySchema.push_back(Query_->Schema.Original.Columns()[index].GetPhysicalType());
         }
 
         bool hasRanges = false;
@@ -1070,32 +1065,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-double GetPoolWeight(const NApi::NNative::IClientPtr& client, const TString& key)
-{
-    TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Cache));
-    auto batchReq = proxy.ExecuteBatch();
-
-    auto getReq = TYPathProxy::Get(key + "/@weight");
-
-    ToProto(getReq->mutable_attributes()->mutable_keys(), std::vector<TString>{"weight"});
-    batchReq->AddRequest(getReq, "get_attributes");
-
-    auto batchRsp = WaitFor(batchReq->Invoke())
-        .ValueOrThrow();
-
-    auto getRspOrError = batchRsp->GetResponses<TYPathProxy::TRspGet>("get_attributes")[0];
-
-    THROW_ERROR_EXCEPTION_IF_FAILED(
-        getRspOrError,
-        "Failed to get pool %Qv weight from Cypress",
-        key);
-
-    auto getRsp = getRspOrError
-        .ValueOrThrow();
-
-    return ConvertTo<double>(NYson::TYsonString(getRsp->value()));
-}
-
 DECLARE_REFCOUNTED_CLASS(TPoolWeightCache)
 
 class TPoolWeightCache
@@ -1115,7 +1084,9 @@ private:
     const TWeakPtr<NApi::NNative::IClient> Client_;
     const IInvokerPtr Invoker_;
 
-    virtual TFuture<double> DoGet(const TString& key) override
+    virtual TFuture<double> DoGet(
+        const TString& key,
+        bool /*isPeriodicUpdate*/) override
     {
         if (auto client = Client_.Lock()) {
             return BIND(GetPoolWeight, std::move(client), key)
@@ -1125,9 +1096,29 @@ private:
             return MakeFuture<double>(TError("Client destroyed"));
         }
     }
+
+    static double GetPoolWeight(const NApi::NNative::IClientPtr& client, const TString& pool)
+    {
+        auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(pool);
+
+        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(NApi::EMasterChannelKind::Cache));
+        auto req = TYPathProxy::Get(path + "/@weight");
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            rspOrError,
+            "Failed to get pool %Qv weight from Cypress",
+            pool);
+
+        const auto& rsp = rspOrError.Value();
+        return ConvertTo<double>(NYson::TYsonString(rsp->value()));
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TPoolWeightCache)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TQuerySubexecutor
     : public IQuerySubexecutor
@@ -1169,23 +1160,10 @@ public:
     {
         ValidateReadTimestamp(options.Timestamp);
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto maybeUser = securityManager->GetAuthenticatedUserName();
-
-        double weight = 1.0;
-
-        if (options.ExecutionPool) {
-            auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool);
-
-            auto permissionOrError = WaitFor(securityManager->CheckPermission(path, EPermission::Use));
-
-            if (permissionOrError.IsOK()) {
-                weight = WaitFor(PoolWeightCache_->Get(path))
-                    .ValueOrThrow();
-            } else if (!permissionOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                THROW_ERROR permissionOrError;
-            }
-        }
+        double weight = options.ExecutionPool
+            ? WaitFor(PoolWeightCache_->Get(*options.ExecutionPool))
+                .ValueOrThrow()
+            : 1.0;
 
         auto queryInvoker = Bootstrap_->GetQueryPoolInvoker(
             options.ExecutionPool.value_or(""),

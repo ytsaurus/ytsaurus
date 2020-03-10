@@ -80,7 +80,7 @@ protected:
         ConfigureSingletons(config);
 
 
-        auto* bootstrap = new NHttpProxy::TBootstrap(std::move(config), std::move(configNode));
+        auto bootstrap = New<NHttpProxy::TBootstrap>(std::move(config), std::move(configNode));
         bootstrap->Run();
     }
 

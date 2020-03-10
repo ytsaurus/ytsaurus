@@ -43,7 +43,7 @@ struct TRowCache
     , public TDeleteListFlusher
 {
     TSlabAllocator Allocator;
-    TConcurrentCache<TCachedRow, TSlabAllocator> Cache;
+    TConcurrentCache<TCachedRow> Cache;
 
     TRowCache(size_t elementCount, IMemoryUsageTrackerPtr memoryTracker);
 };
@@ -401,8 +401,7 @@ public:
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::ECommitOrdering commitOrdering,
         NTabletClient::TTableReplicaId upstreamReplicaId,
-        TTimestamp retainedTimestamp,
-        bool useBuggyReplicatedSchema = false);
+        TTimestamp retainedTimestamp);
 
     ETabletState GetPersistentState() const;
 
@@ -543,7 +542,7 @@ private:
     NConcurrency::IReconfigurableThroughputThrottlerPtr CompactionThrottler_;
     NConcurrency::IReconfigurableThroughputThrottlerPtr PartitioningThrottler_;
 
-    void Initialize(bool useBuggyReplicatedSchema);
+    void Initialize();
 
     TPartition* GetContainingPartition(const ISortedStorePtr& store);
 

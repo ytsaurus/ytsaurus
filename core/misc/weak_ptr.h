@@ -9,6 +9,21 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Default (generic) implementation of Ref/Unref strategy.
+// Assumes the existence of Ref/Unref members.
+// Only works if |T| is fully defined.
+template <class T>
+void WeakRef(T* obj)
+{
+    obj->WeakRef();
+}
+
+template <class T>
+void WeakUnref(T* obj)
+{
+    obj->WeakUnref();
+}
+
 template <class T>
 class TWeakPtr
 {
@@ -30,11 +45,8 @@ public:
         : T_(p)
     {
         if (T_) {
-            RefCounter_ = T_->GetRefCounter();
-            RefCounter_->WeakRef();
+            WeakRef(T_);
         }
-
-        YT_ASSERT(!T_ || RefCounter_);
     }
 
     //! Constructor from a strong reference.
@@ -45,23 +57,17 @@ public:
         : T_(p.Get())
     {
         if (T_) {
-            RefCounter_ = T_->GetRefCounter();
-            RefCounter_->WeakRef();
+            WeakRef(T_);
         }
-
-        YT_ASSERT(!T_ || RefCounter_);
     }
 
     //! Copy constructor.
     explicit TWeakPtr(const TWeakPtr& other) noexcept
         : T_(other.T_)
-        , RefCounter_(other.RefCounter_)
     {
-        if (RefCounter_) {
-            RefCounter_->WeakRef();
+        if (T_) {
+            WeakRef(T_);
         }
-
-        YT_ASSERT(!T_ || RefCounter_);
     }
 
     //! Copy constructor with an upcast.
@@ -73,22 +79,15 @@ public:
         TIntrusivePtr<U> strongOther = other.Lock();
         if (strongOther) {
             T_ = strongOther.Get();
-            RefCounter_ = strongOther->GetRefCounter();
-            RefCounter_->WeakRef();
+            WeakRef(T_);
         }
-
-        YT_ASSERT(!T_ || RefCounter_);
     }
 
     //! Move constructor.
     explicit TWeakPtr(TWeakPtr&& other) noexcept
         : T_(other.T_)
-        , RefCounter_(other.RefCounter_)
     {
         other.T_ = nullptr;
-        other.RefCounter_ = nullptr;
-
-        YT_ASSERT(!T_ || RefCounter_);
     }
 
     //! Move constructor with an upcast.
@@ -100,20 +99,16 @@ public:
         TIntrusivePtr<U> strongOther = other.Lock();
         if (strongOther) {
             T_ = other.T_;
-            RefCounter_ = other.RefCounter_;
 
             other.T_ = nullptr;
-            other.RefCounter_ = nullptr;
         }
-
-        YT_ASSERT(!T_ || RefCounter_);
     }
 
     //! Destructor.
     ~TWeakPtr()
     {
-        if (RefCounter_) {
-            RefCounter_->WeakUnref();
+        if (T_) {
+            WeakUnref(T_);
         }
     }
 
@@ -187,7 +182,7 @@ public:
     //! Acquire a strong reference to the pointee and return a strong pointer.
     TIntrusivePtr<T> Lock() const noexcept
     {
-        return RefCounter_ && RefCounter_->TryRef()
+        return T_ && T_->TryRef()
             ? TIntrusivePtr<T>(T_, false)
             : TIntrusivePtr<T>();
     }
@@ -196,12 +191,11 @@ public:
     void Swap(TWeakPtr& r) noexcept
     {
         DoSwap(T_, r.T_);
-        DoSwap(RefCounter_, r.RefCounter_);
     }
 
     bool IsExpired() const noexcept
     {
-        return !RefCounter_ || (RefCounter_->GetRefCount() == 0);
+        return !T_ || (T_->GetRefCount() == 0);
     }
 
 private:
@@ -211,7 +205,6 @@ private:
     friend struct ::THash;
 
     T* T_ = nullptr;
-    NYT::NDetail::TRefCounter<true>* RefCounter_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -295,6 +288,6 @@ struct THash<NYT::TWeakPtr<T>>
 {
     size_t operator () (const NYT::TWeakPtr<T>& ptr) const
     {
-        return THash<T*>()(ptr.T_);
+        return THash<const NYT::TRefCounted*>()(ptr.T_);
     }
 };

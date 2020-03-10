@@ -17,6 +17,7 @@
 #include <yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/server/master/node_tracker_server/node.h>
 #include <yt/server/master/node_tracker_server/node_directory_builder.h>
+#include <yt/server/master/node_tracker_server/node_discovery_manager.h>
 
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/medium.h>
@@ -159,18 +160,21 @@ private:
         auto populateMediumDirectory = request->populate_medium_directory();
         auto populateCellDirectory = request->populate_cell_directory();
         auto populateMasterCacheNodeAddresses = request->populate_master_cache_node_addresses();
+        auto populateTimestampProviderNodeAddresses = request->populate_timestamp_provider_node_addresses();
 
         context->SetRequestInfo(
             "PopulateNodeDirectory: %v, "
             "PopulateClusterDirectory: %v, "
             "PopulateMediumDirectory: %v, "
             "PopulateCellDirectory: %v, "
-            "PopulateMasterCacheNodeAddresses: %v",
+            "PopulateMasterCacheNodeAddresses: %v, "
+            "PopulateTimestampProviderNodeAddresses: %v",
             populateNodeDirectory,
             populateClusterDirectory,
             populateMediumDirectory,
             populateCellDirectory,
-            populateMasterCacheNodeAddresses);
+            populateMasterCacheNodeAddresses,
+            populateTimestampProviderNodeAddresses);
 
         if (populateNodeDirectory) {
             TNodeDirectoryBuilder builder(response->mutable_node_directory());
@@ -238,10 +242,16 @@ private:
         }
 
         if (populateMasterCacheNodeAddresses) {
-            const auto& masterCacheNodeAddresses = Bootstrap_->GetNodeTracker()->GetMasterCacheNodeAddresses();
+            const auto& masterCacheNodeAddresses = Bootstrap_->GetNodeTracker()->GetNodeAddressesForRole(
+                NNodeTrackerClient::ENodeRole::MasterCache);
             ToProto(response->mutable_master_cache_node_addresses(), masterCacheNodeAddresses);
         }
 
+        if (populateTimestampProviderNodeAddresses) {
+            const auto& timestampProviderAddresses = Bootstrap_->GetNodeTracker()->GetNodeAddressesForRole(
+                NNodeTrackerClient::ENodeRole::TimestampProvider);
+            ToProto(response->mutable_timestamp_provider_node_addresses(), timestampProviderAddresses);
+        }
         context->Reply();
     }
 };

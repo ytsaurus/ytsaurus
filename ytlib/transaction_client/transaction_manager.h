@@ -143,6 +143,8 @@ public:
         NApi::NNative::IConnectionPtr connection,
         const TString& user);
 
+    ~TTransactionManager();
+
     //! Asynchronously starts a new transaction.
     /*!
      *  If |options.Ping| is |true| then transaction's lease will be renewed periodically.

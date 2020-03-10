@@ -161,7 +161,8 @@ TJobMetrics TJobMetrics::FromJobStatistics(
 
 bool TJobMetrics::IsEmpty() const
 {
-    return std::all_of(Values_.begin(), Values_.end(), [] (i64 value) { return value == 0; });
+    return std::all_of(Values_.begin(), Values_.end(), [] (i64 value) { return value == 0; }) &&
+        std::all_of(CustomValues_.begin(), CustomValues_.end(), [] (const auto& pair) { return pair.second == 0; });
 }
 
 void TJobMetrics::Profile(

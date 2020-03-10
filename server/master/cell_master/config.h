@@ -163,7 +163,7 @@ public:
 
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
 
-    NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
+    NTransactionClient::TRemoteTimestampProviderWithDiscoveryConfigPtr TimestampProvider;
 
     NHiveServer::TTransactionSupervisorConfigPtr TransactionSupervisor;
 

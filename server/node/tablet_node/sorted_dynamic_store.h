@@ -37,6 +37,8 @@ public:
         TStoreId id,
         TTablet* tablet);
 
+    ~TSortedDynamicStore();
+
 
     //! Returns the reader to be used during flush.
     NTableClient::IVersionedReaderPtr CreateFlushReader();

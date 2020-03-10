@@ -1,5 +1,7 @@
 #include "scheduler_strategy_host.h"
 
+#include "event_log.h"
+
 namespace NYT::NSchedulerSimulator {
 
 using namespace NScheduler;
@@ -13,10 +15,19 @@ static const auto& Logger = SchedulerSimulatorLogger;
 
 TSchedulerStrategyHost::TSchedulerStrategyHost(
     const std::vector<NScheduler::TExecNodePtr>* execNodes,
-    IOutputStream* eventLogOutputStream)
+    IOutputStream* eventLogOutputStream,
+    const TRemoteEventLogConfigPtr& remoteEventLogConfig)
     : ExecNodes_(execNodes)
-    , Writer_(eventLogOutputStream, NYson::EYsonFormat::Pretty, NYson::EYsonType::ListFragment)
 {
+    YT_VERIFY(eventLogOutputStream || remoteEventLogConfig);
+
+    if (remoteEventLogConfig) {
+        RemoteEventLogWriter_ = CreateRemoteEventLogWriter(remoteEventLogConfig, GetCurrentInvoker());
+        RemoteEventLogConsumer_ = RemoteEventLogWriter_->CreateConsumer();
+    } else {
+        LocalEventLogWriter_.emplace(eventLogOutputStream, NYson::EYsonFormat::Binary, NYson::EYsonType::ListFragment);
+    }
+
     for (const auto& execNode : *ExecNodes_) {
         TotalResourceLimits_ += execNode->GetResourceLimits();
     }
@@ -140,39 +151,25 @@ void TSchedulerStrategyHost::AbortOperation(TOperationId operationId, const TErr
     YT_VERIFY(false);
 }
 
-void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job, bool shouldLogEvent)
+void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job)
 {
     YT_VERIFY(job->GetNode()->Jobs().erase(job) == 1);
     job->SetState(NJobTrackerClient::EJobState::Aborted);
-
-    if (shouldLogEvent) {
-        auto fluent = LogFinishedJobFluently(ELogEventType::JobAborted, job);
-        if (auto preemptedFor = job->GetPreemptedFor()) {
-            fluent
-                .Item("preempted_for").Value(preemptedFor);
-        }
-    }
 }
 
 NYson::IYsonConsumer* TSchedulerStrategyHost::GetEventLogConsumer()
 {
-    return &Writer_;
+    YT_VERIFY(RemoteEventLogWriter_ || LocalEventLogWriter_);
+    if (RemoteEventLogConsumer_) {
+        return RemoteEventLogConsumer_.get();
+    } else {
+        return &LocalEventLogWriter_.value();
+    }
 }
 
 const NLogging::TLogger* TSchedulerStrategyHost::GetEventLogger()
 {
     return nullptr;
-}
-
-NEventLog::TFluentLogEvent TSchedulerStrategyHost::LogFinishedJobFluently(ELogEventType eventType, TJobPtr job)
-{
-    return LogEventFluently(eventType)
-        .Item("job_id").Value(job->GetId())
-        .Item("operation_id").Value(job->GetOperationId())
-        .Item("start_time").Value(job->GetStartTime())
-        .Item("finish_time").Value(job->GetFinishTime())
-        .Item("resource_limits").Value(job->ResourceLimits())
-        .Item("job_type").Value(job->GetType());
 }
 
 void TSchedulerStrategyHost::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
@@ -189,6 +186,13 @@ TFuture<void> TSchedulerStrategyHost::SetOperationAlert(
     std::optional<TDuration> timeout)
 {
     return VoidFuture;
+}
+
+void TSchedulerStrategyHost::CloseEventLogger() {
+    if (RemoteEventLogWriter_) {
+        WaitFor(RemoteEventLogWriter_->Close())
+            .ThrowOnError();
+    }
 }
 
 } // namespace NYT::NSchedulerSimulator

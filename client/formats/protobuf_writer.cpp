@@ -756,10 +756,6 @@ public:
 private:
     virtual void DoWrite(TRange<TUnversionedRow> rows) override
     {
-        if (!StreamWriter_) {
-            StreamWriter_.emplace(GetOutputStream());
-        }
-
         int rowCount = static_cast<int>(rows.Size());
         for (int index = 0; index < rowCount; ++index) {
             auto row = rows[index];
@@ -795,13 +791,24 @@ private:
                 }
             }
             WriterImpl_.OnEndRow();
-            TryFlushBuffer(false);
+            TryFlushBufferAndUpdateWriter(false);
         }
-        TryFlushBuffer(true);
+        TryFlushBufferAndUpdateWriter(true);
+    }
+
+    void TryFlushBufferAndUpdateWriter(bool force)
+    {
+        TryFlushBuffer(force);
+        // |StreamWriter_| could have been reset in |FlushWriter()|.
+        if (!StreamWriter_) {
+            StreamWriter_.emplace(GetOutputStream());
+        }
     }
 
     virtual void FlushWriter() override
     {
+        // Reset |StreamWriter_| to ensure it will never touch the
+        // underlying |TBlobOutput| as it will be |Flush()|-ed soon.
         StreamWriter_.reset();
         TSchemalessFormatWriterBase::FlushWriter();
     }

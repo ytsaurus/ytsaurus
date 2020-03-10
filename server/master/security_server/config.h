@@ -20,6 +20,7 @@ public:
     bool EnableAccessLog;
     TDuration MembershipClosureRecomputePeriod;
     bool EnableMasterMemoryUsageValidation;
+    bool EnableMasterMemoryUsageAccountOvercommitValidation;
 
     TDynamicSecurityManagerConfig()
     {
@@ -37,6 +38,8 @@ public:
         RegisterParameter("enable_access_log", EnableAccessLog)
             .Default(true);
         RegisterParameter("enable_master_memory_usage_validation", EnableMasterMemoryUsageValidation)
+            .Default(false);
+        RegisterParameter("enable_master_memory_usage_account_overcommit_validation", EnableMasterMemoryUsageAccountOvercommitValidation)
             .Default(false);
     }
 };

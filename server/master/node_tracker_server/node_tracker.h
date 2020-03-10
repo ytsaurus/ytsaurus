@@ -8,11 +8,14 @@
 
 #include <yt/server/master/node_tracker_server/proto/node_tracker.pb.h>
 
+#include <yt/server/master/node_tracker_server/public.h>
+
 #include <yt/ytlib/hive/cell_directory.h>
 
 #include <yt/ytlib/hydra/public.h>
 
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
+#include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/core/actions/signal.h>
 
@@ -29,6 +32,8 @@ public:
     TNodeTracker(
         TNodeTrackerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
+
+    ~TNodeTracker();
 
     void Initialize();
 
@@ -201,13 +206,11 @@ public:
     //! Returns the number of nodes with ENodeState::Online aggregated state.
     int GetOnlineNodeCount();
 
-    //! Returns the list of master cache nodes.
-    const std::vector<TNode*>& GetMasterCacheNodes();
+    //! Returns the list of nodes with the given role.
+    const std::vector<TNode*>& GetNodesForRole(NNodeTrackerClient::ENodeRole nodeRole);
 
-    //! Returns the list of master cache node default addresses.
-    const std::vector<TString>& GetMasterCacheNodeAddresses();
-
-    NYTree::IYPathServicePtr GetOrchidService();
+    //! Returns the list of default addresses of nodes with the given role.
+    const std::vector<TString>& GetNodeAddressesForRole(NNodeTrackerClient::ENodeRole nodeRole);
 
     void RequestNodeHeartbeat(TNodeId nodeId);
 

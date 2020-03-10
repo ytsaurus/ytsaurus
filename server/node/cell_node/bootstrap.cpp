@@ -38,7 +38,7 @@
 
 #include <yt/server/node/job_agent/gpu_manager.h>
 #include <yt/server/node/job_agent/job_controller.h>
-#include <yt/server/node/job_agent/statistics_reporter.h>
+#include <yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/server/lib/misc/address_helpers.h>
 
@@ -100,7 +100,9 @@
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/client/transaction_client/config.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
+#include <yt/client/transaction_client/remote_timestamp_provider.h>
 
 #include <yt/client/object_client/helpers.h>
 
@@ -307,7 +309,7 @@ void TBootstrap::DoInitialize()
 
     ChunkBlockManager_ = New<TChunkBlockManager>(Config_->DataNode, this);
 
-    NetworkStatistics_ = New<TNetworkStatistics>(Config_->DataNode);
+    NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
 
     BlockCache_ = CreateServerBlockCache(Config_->DataNode, this);
 
@@ -558,9 +560,10 @@ void TBootstrap::DoInitialize()
     JobController_->RegisterJobFactory(NJobAgent::EJobType::RepairChunk, createChunkJob);
     JobController_->RegisterJobFactory(NJobAgent::EJobType::SealChunk, createChunkJob);
 
-    StatisticsReporter_ = New<TStatisticsReporter>(
-        Config_->ExecAgent->StatisticsReporter,
-        this);
+    JobReporter_ = New<TJobReporter>(
+        Config_->ExecAgent->JobReporter,
+        this->GetMasterConnection(),
+        this->GetMasterConnector()->GetLocalDescriptor().GetDefaultAddress());
 
     RpcServer_->RegisterService(CreateJobProberService(this));
 
@@ -584,8 +587,11 @@ void TBootstrap::DoInitialize()
 
     RpcServer_->RegisterService(CreateQueryService(Config_->QueryAgent, this));
 
-    RpcServer_->RegisterService(CreateTimestampProxyService(
-        MasterConnection_->GetTimestampProvider()));
+    auto timestampProviderConfig = CreateTimestampProviderConfig(Config_->ClusterConnection->PrimaryMaster);
+    auto timestampProvider = CreateRemoteTimestampProvider(
+        timestampProviderConfig,
+        CreateTimestampProviderChannel(timestampProviderConfig, MasterConnection_->GetChannelFactory()));
+    RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider));
 
     auto cache = New<TObjectServiceCache>(
         Config_->MasterCacheService,
@@ -836,9 +842,9 @@ const TJobControllerPtr& TBootstrap::GetJobController() const
     return JobController_;
 }
 
-const TStatisticsReporterPtr& TBootstrap::GetStatisticsReporter() const
+const TJobReporterPtr& TBootstrap::GetJobReporter() const
 {
-    return StatisticsReporter_;
+    return JobReporter_;
 }
 
 const NTabletNode::TSlotManagerPtr& TBootstrap::GetTabletSlotManager() const
@@ -901,9 +907,9 @@ const TChunkBlockManagerPtr& TBootstrap::GetChunkBlockManager() const
     return ChunkBlockManager_;
 }
 
-const TNetworkStatisticsPtr& TBootstrap::GetNetworkStatistics() const
+TNetworkStatistics& TBootstrap::GetNetworkStatistics() const
 {
-    return NetworkStatistics_;
+    return *NetworkStatistics_;
 }
 
 const TChunkMetaManagerPtr& TBootstrap::GetChunkMetaManager() const

@@ -138,7 +138,7 @@ StoragePtr TDatabase::GetTable(
             .Run())
         .ThrowOnError();
 
-    return CreateStorageDistributor({std::move(table)});
+    return CreateStorageDistributor(queryContext, {std::move(table)});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,12 +215,12 @@ void TDatabase::createTable(
 }
 
 void TDatabase::removeTable(
-    const Context& /* context */,
-    const std::string& /* name */)
+    const Context&  context,
+    const std::string& name)
 {
-    throw Exception(
-        "TDatabase: removeTable() is not supported",
-        ErrorCodes::NOT_IMPLEMENTED);
+    auto* queryContext = GetQueryContext(context);
+    WaitFor(queryContext->Client()->RemoveNode(TYPath(name)))
+        .ThrowOnError();
 }
 
 void TDatabase::attachTable(

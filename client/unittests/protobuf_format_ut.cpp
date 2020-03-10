@@ -1289,23 +1289,36 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(ECo
     return {schema, config};
 }
 
+using TProtobufFormatStructuredMessageParameter = std::tuple<EComplexTypeMode, int>;
+
 class TProtobufFormatStructuredMessage
-    : public ::testing::TestWithParam<EComplexTypeMode>
+    : public ::testing::TestWithParam<TProtobufFormatStructuredMessageParameter>
 { };
 
 INSTANTIATE_TEST_SUITE_P(
     Positional,
     TProtobufFormatStructuredMessage,
-    ::testing::Values(EComplexTypeMode::Positional));
+    ::testing::Values(TProtobufFormatStructuredMessageParameter{
+        EComplexTypeMode::Positional,
+        1}));
 
 INSTANTIATE_TEST_SUITE_P(
     Named,
     TProtobufFormatStructuredMessage,
-    ::testing::Values(EComplexTypeMode::Named));
+    ::testing::Values(TProtobufFormatStructuredMessageParameter{
+        EComplexTypeMode::Named,
+        1}));
+
+INSTANTIATE_TEST_SUITE_P(
+    ManyRows,
+    TProtobufFormatStructuredMessage,
+    ::testing::Values(TProtobufFormatStructuredMessageParameter{
+        EComplexTypeMode::Named,
+        30000}));
 
 TEST_P(TProtobufFormatStructuredMessage, Write)
 {
-    auto complexTypeMode = GetParam();
+    auto [complexTypeMode, rowCount] = GetParam();
 
     auto nameTable = New<TNameTable>();
     auto firstId = nameTable->RegisterName("first");
@@ -1455,7 +1468,8 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
 
     builder.AddValue(MakeUnversionedAnyValue(otherComplexFieldYson.GetData(), otherComplexFieldId));
 
-    writer->Write({builder.GetRow()});
+    auto rows = std::vector<TUnversionedRow>(rowCount, builder.GetRow());
+    writer->Write(rows);
 
     writer->Close()
         .Get()
@@ -1464,114 +1478,117 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     TStringInput input(result);
     TLenvalParser lenvalParser(&input);
 
-    auto entry = lenvalParser.Next();
-    ASSERT_TRUE(entry);
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        auto entry = lenvalParser.Next();
+        ASSERT_TRUE(entry);
 
-    NYT::NProtobufFormatTest::TMessageWithStructuredEmbedded message;
-    ASSERT_TRUE(message.ParseFromString(entry->RowData));
+        NYT::NProtobufFormatTest::TMessageWithStructuredEmbedded message;
+        ASSERT_TRUE(message.ParseFromString(entry->RowData));
 
-    const auto& first = message.first();
-    EXPECT_EQ(first.enum_field(), NProtobufFormatTest::EEnum::two);
-    EXPECT_EQ(first.int64_field(), 44);
-    std::vector<i64> firstRepeatedInt64Field(
-        first.repeated_int64_field().begin(),
-        first.repeated_int64_field().end());
-    EXPECT_EQ(firstRepeatedInt64Field, (std::vector<i64>{55, 56, 57}));
-    std::vector<i64> firstAnotherRepeatedInt64Field(
-        first.another_repeated_int64_field().begin(),
-        first.another_repeated_int64_field().end());
-    EXPECT_EQ(firstAnotherRepeatedInt64Field, (std::vector<i64>{}));
-    EXPECT_EQ(first.message_field().key(), "key");
-    EXPECT_EQ(first.message_field().value(), "value");
-    ASSERT_EQ(first.repeated_message_field_size(), 2);
-    EXPECT_EQ(first.repeated_message_field(0).key(), "key1");
-    EXPECT_EQ(first.repeated_message_field(0).value(), "value1");
-    EXPECT_EQ(first.repeated_message_field(1).key(), "key2");
-    EXPECT_EQ(first.repeated_message_field(1).value(), "value2");
+        const auto& first = message.first();
+        EXPECT_EQ(first.enum_field(), NProtobufFormatTest::EEnum::two);
+        EXPECT_EQ(first.int64_field(), 44);
+        std::vector<i64> firstRepeatedInt64Field(
+            first.repeated_int64_field().begin(),
+            first.repeated_int64_field().end());
+        EXPECT_EQ(firstRepeatedInt64Field, (std::vector<i64>{55, 56, 57}));
+        std::vector<i64> firstAnotherRepeatedInt64Field(
+            first.another_repeated_int64_field().begin(),
+            first.another_repeated_int64_field().end());
+        EXPECT_EQ(firstAnotherRepeatedInt64Field, (std::vector<i64>{}));
+        EXPECT_EQ(first.message_field().key(), "key");
+        EXPECT_EQ(first.message_field().value(), "value");
+        ASSERT_EQ(first.repeated_message_field_size(), 2);
+        EXPECT_EQ(first.repeated_message_field(0).key(), "key1");
+        EXPECT_EQ(first.repeated_message_field(0).value(), "value1");
+        EXPECT_EQ(first.repeated_message_field(1).key(), "key2");
+        EXPECT_EQ(first.repeated_message_field(1).value(), "value2");
 
-    EXPECT_TRUE(AreNodesEqual(
-        ConvertToNode(TYsonString(first.any_int64_field())),
-        BuildYsonNodeFluently().Value(45)));
+        EXPECT_TRUE(AreNodesEqual(
+            ConvertToNode(TYsonString(first.any_int64_field())),
+            BuildYsonNodeFluently().Value(45)));
 
-    EXPECT_TRUE(AreNodesEqual(
-        ConvertToNode(TYsonString(first.any_map_field())),
-        BuildYsonNodeFluently().BeginMap()
-            .Item("key").Value("value")
-        .EndMap()));
+        EXPECT_TRUE(AreNodesEqual(
+            ConvertToNode(TYsonString(first.any_map_field())),
+            BuildYsonNodeFluently().BeginMap()
+                .Item("key").Value("value")
+            .EndMap()));
 
-    std::vector<TYsonString> firstRepeatedOptionalAnyField(
-        first.repeated_optional_any_field().begin(),
-        first.repeated_optional_any_field().end());
+        std::vector<TYsonString> firstRepeatedOptionalAnyField(
+            first.repeated_optional_any_field().begin(),
+            first.repeated_optional_any_field().end());
 
-    EXPECT_TRUE(AreNodesEqual(
-        ConvertToNode(firstRepeatedOptionalAnyField),
-        BuildYsonNodeFluently()
-            .BeginList()
-                .Item().Value(2)
-                .Item().Entity()
-                .Item().Value("foo")
-            .EndList()));
+        EXPECT_TRUE(AreNodesEqual(
+            ConvertToNode(firstRepeatedOptionalAnyField),
+            BuildYsonNodeFluently()
+                .BeginList()
+                    .Item().Value(2)
+                    .Item().Entity()
+                    .Item().Value("foo")
+                .EndList()));
 
-    EXPECT_FALSE(first.has_optional_int64_field());
+        EXPECT_FALSE(first.has_optional_int64_field());
 
-    const auto& second = message.second();
-    EXPECT_EQ(second.one(), 101);
-    EXPECT_EQ(second.two(), 102);
-    EXPECT_EQ(second.three(), 103);
+        const auto& second = message.second();
+        EXPECT_EQ(second.one(), 101);
+        EXPECT_EQ(second.two(), 102);
+        EXPECT_EQ(second.three(), 103);
 
-    ASSERT_EQ(message.repeated_message_field_size(), 2);
-    EXPECT_EQ(message.repeated_message_field(0).key(), "key11");
-    EXPECT_EQ(message.repeated_message_field(0).value(), "value11");
-    EXPECT_EQ(message.repeated_message_field(1).key(), "key21");
-    EXPECT_EQ(message.repeated_message_field(1).value(), "value21");
+        ASSERT_EQ(message.repeated_message_field_size(), 2);
+        EXPECT_EQ(message.repeated_message_field(0).key(), "key11");
+        EXPECT_EQ(message.repeated_message_field(0).value(), "value11");
+        EXPECT_EQ(message.repeated_message_field(1).key(), "key21");
+        EXPECT_EQ(message.repeated_message_field(1).value(), "value21");
 
-    std::vector<i64> repeatedInt64Field(
-        message.repeated_int64_field().begin(),
-        message.repeated_int64_field().end());
-    EXPECT_EQ(repeatedInt64Field, (std::vector<i64>{31, 32, 33}));
+        std::vector<i64> repeatedInt64Field(
+            message.repeated_int64_field().begin(),
+            message.repeated_int64_field().end());
+        EXPECT_EQ(repeatedInt64Field, (std::vector<i64>{31, 32, 33}));
 
-    std::vector<i64> anotherRepeatedInt64Field(
-        message.another_repeated_int64_field().begin(),
-        message.another_repeated_int64_field().end());
-    EXPECT_EQ(anotherRepeatedInt64Field, (std::vector<i64>{}));
+        std::vector<i64> anotherRepeatedInt64Field(
+            message.another_repeated_int64_field().begin(),
+            message.another_repeated_int64_field().end());
+        EXPECT_EQ(anotherRepeatedInt64Field, (std::vector<i64>{}));
 
-    EXPECT_EQ(message.int64_any_field(), 4321);
+        EXPECT_EQ(message.int64_any_field(), 4321);
 
-    // Note the reversal of 32 <-> 64.
-    EXPECT_EQ(message.int32_field(), -64);
-    EXPECT_EQ(message.uint32_field(), 64);
-    EXPECT_EQ(message.int64_field(), -32);
-    EXPECT_EQ(message.uint64_field(), 32);
+        // Note the reversal of 32 <-> 64.
+        EXPECT_EQ(message.int32_field(), -64);
+        EXPECT_EQ(message.uint32_field(), 64);
+        EXPECT_EQ(message.int64_field(), -32);
+        EXPECT_EQ(message.uint64_field(), 32);
 
-    EXPECT_EQ(message.enum_int_field(), NProtobufFormatTest::EEnum::minus_forty_two);
-    EXPECT_EQ(message.enum_string_string_field(), NProtobufFormatTest::EEnum::three);
-    EXPECT_EQ(message.enum_string_int64_field(), NProtobufFormatTest::EEnum::one);
+        EXPECT_EQ(message.enum_int_field(), NProtobufFormatTest::EEnum::minus_forty_two);
+        EXPECT_EQ(message.enum_string_string_field(), NProtobufFormatTest::EEnum::three);
+        EXPECT_EQ(message.enum_string_int64_field(), NProtobufFormatTest::EEnum::one);
 
-    EXPECT_EQ(message.utf8_field(), HelloWorldInRussian);
+        EXPECT_EQ(message.utf8_field(), HelloWorldInRussian);
 
-    std::vector<TYsonString> repeatedOptionalAnyField(
-        message.repeated_optional_any_field().begin(),
-        message.repeated_optional_any_field().end());
-    EXPECT_NODES_EQUAL(ConvertToNode(repeatedOptionalAnyField), ConvertToNode(repeatedOptionalAnyYson));
+        std::vector<TYsonString> repeatedOptionalAnyField(
+            message.repeated_optional_any_field().begin(),
+            message.repeated_optional_any_field().end());
+        EXPECT_NODES_EQUAL(ConvertToNode(repeatedOptionalAnyField), ConvertToNode(repeatedOptionalAnyYson));
 
-    {
-        auto otherColumns = ConvertToNode(TYsonString(message.other_columns_field()))->AsMap();
-        auto expected = ([&] {
-            switch (complexTypeMode) {
-                case EComplexTypeMode::Named:
-                    return BuildYsonNodeFluently()
-                        .BeginMap()
-                            .Item("one").Value(22)
-                            .Item("two").Value(23)
-                            .Item("three").Value(24)
-                        .EndMap();
-                case EComplexTypeMode::Positional:
-                    return ConvertToNode(otherComplexFieldYson);
-            }
-            YT_ABORT();
-        })();
+        {
+            auto otherColumns = ConvertToNode(TYsonString(message.other_columns_field()))->AsMap();
+            auto mode = complexTypeMode;
+            auto expected = ([&] {
+                switch (mode) {
+                    case EComplexTypeMode::Named:
+                        return BuildYsonNodeFluently()
+                            .BeginMap()
+                                .Item("one").Value(22)
+                                .Item("two").Value(23)
+                                .Item("three").Value(24)
+                            .EndMap();
+                    case EComplexTypeMode::Positional:
+                        return ConvertToNode(otherComplexFieldYson);
+                }
+                YT_ABORT();
+            })();
 
-        EXPECT_NODES_EQUAL(expected, otherColumns->GetChild("other_complex_field"));
+            EXPECT_NODES_EQUAL(expected, otherColumns->GetChild("other_complex_field"));
+        }
     }
 
     ASSERT_FALSE(lenvalParser.Next());
@@ -1579,7 +1596,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
 
 TEST_P(TProtobufFormatStructuredMessage, Parse)
 {
-    auto complexTypeMode = GetParam();
+    auto [complexTypeMode, rowCount] = GetParam();
 
     auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage(complexTypeMode);
 
@@ -1668,8 +1685,9 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
             .Item().Value(303)
         .EndList();
 
+    auto mode = complexTypeMode;
     auto otherComplexField = ([&] {
-        switch (complexTypeMode) {
+        switch (mode) {
             case EComplexTypeMode::Named:
                 return BuildYsonNodeFluently()
                     .BeginMap()
@@ -1692,125 +1710,129 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
     {
         TStringOutput out(lenvalBytes);
         auto messageSize = static_cast<ui32>(message.ByteSize());
-        out.Write(&messageSize, sizeof(messageSize));
-        ASSERT_TRUE(message.SerializeToStream(&out));
+        for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+            out.Write(&messageSize, sizeof(messageSize));
+            ASSERT_TRUE(message.SerializeToStream(&out));
+        }
     }
 
     parser->Read(lenvalBytes);
     parser->Finish();
 
-    ASSERT_EQ(rowCollector.Size(), 1);
+    ASSERT_EQ(rowCollector.Size(), rowCount);
 
-    auto firstNode = GetAny(rowCollector.GetRowValue(0, "first"));
-    ASSERT_EQ(firstNode->GetType(), ENodeType::List);
-    const auto& firstList = firstNode->AsList();
-    ASSERT_EQ(firstList->GetChildCount(), 12);
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        auto firstNode = GetAny(rowCollector.GetRowValue(rowIndex, "first"));
+        ASSERT_EQ(firstNode->GetType(), ENodeType::List);
+        const auto& firstList = firstNode->AsList();
+        ASSERT_EQ(firstList->GetChildCount(), 12);
 
-    EXPECT_EQ(firstList->GetChild(0)->GetType(), ENodeType::Entity);
-    EXPECT_EQ(firstList->GetChild(1)->GetValue<TString>(), "Two");
-    EXPECT_EQ(firstList->GetChild(2)->GetValue<i64>(), 44);
+        EXPECT_EQ(firstList->GetChild(0)->GetType(), ENodeType::Entity);
+        EXPECT_EQ(firstList->GetChild(1)->GetValue<TString>(), "Two");
+        EXPECT_EQ(firstList->GetChild(2)->GetValue<i64>(), 44);
 
-    ASSERT_EQ(firstList->GetChild(3)->GetType(), ENodeType::List);
-    EXPECT_EQ(ConvertTo<std::vector<i64>>(firstList->GetChild(3)), (std::vector<i64>{55, 56, 57}));
+        ASSERT_EQ(firstList->GetChild(3)->GetType(), ENodeType::List);
+        EXPECT_EQ(ConvertTo<std::vector<i64>>(firstList->GetChild(3)), (std::vector<i64>{55, 56, 57}));
 
-    ASSERT_EQ(firstList->GetChild(4)->GetType(), ENodeType::List);
-    EXPECT_EQ(ConvertTo<std::vector<i64>>(firstList->GetChild(4)), (std::vector<i64>{}));
+        ASSERT_EQ(firstList->GetChild(4)->GetType(), ENodeType::List);
+        EXPECT_EQ(ConvertTo<std::vector<i64>>(firstList->GetChild(4)), (std::vector<i64>{}));
 
-    ASSERT_EQ(firstList->GetChild(5)->GetType(), ENodeType::List);
-    EXPECT_EQ(firstList->GetChild(5)->AsList()->GetChild(0)->GetValue<TString>(), "key");
-    EXPECT_EQ(firstList->GetChild(5)->AsList()->GetChild(1)->GetValue<TString>(), "value");
+        ASSERT_EQ(firstList->GetChild(5)->GetType(), ENodeType::List);
+        EXPECT_EQ(firstList->GetChild(5)->AsList()->GetChild(0)->GetValue<TString>(), "key");
+        EXPECT_EQ(firstList->GetChild(5)->AsList()->GetChild(1)->GetValue<TString>(), "value");
 
-    ASSERT_EQ(firstList->GetChild(6)->GetType(), ENodeType::List);
-    ASSERT_EQ(firstList->GetChild(6)->AsList()->GetChildCount(), 2);
+        ASSERT_EQ(firstList->GetChild(6)->GetType(), ENodeType::List);
+        ASSERT_EQ(firstList->GetChild(6)->AsList()->GetChildCount(), 2);
 
-    const auto& firstSubNode1 = firstList->GetChild(6)->AsList()->GetChild(0);
-    ASSERT_EQ(firstSubNode1->GetType(), ENodeType::List);
-    ASSERT_EQ(firstSubNode1->AsList()->GetChildCount(), 2);
-    EXPECT_EQ(firstSubNode1->AsList()->GetChild(0)->GetValue<TString>(), "key1");
-    EXPECT_EQ(firstSubNode1->AsList()->GetChild(1)->GetValue<TString>(), "value1");
+        const auto& firstSubNode1 = firstList->GetChild(6)->AsList()->GetChild(0);
+        ASSERT_EQ(firstSubNode1->GetType(), ENodeType::List);
+        ASSERT_EQ(firstSubNode1->AsList()->GetChildCount(), 2);
+        EXPECT_EQ(firstSubNode1->AsList()->GetChild(0)->GetValue<TString>(), "key1");
+        EXPECT_EQ(firstSubNode1->AsList()->GetChild(1)->GetValue<TString>(), "value1");
 
-    const auto& firstSubNode2 = firstList->GetChild(6)->AsList()->GetChild(1);
-    ASSERT_EQ(firstSubNode2->GetType(), ENodeType::List);
-    ASSERT_EQ(firstSubNode2->AsList()->GetChildCount(), 2);
-    EXPECT_EQ(firstSubNode2->AsList()->GetChild(0)->GetValue<TString>(), "key2");
-    EXPECT_EQ(firstSubNode2->AsList()->GetChild(1)->GetValue<TString>(), "value2");
+        const auto& firstSubNode2 = firstList->GetChild(6)->AsList()->GetChild(1);
+        ASSERT_EQ(firstSubNode2->GetType(), ENodeType::List);
+        ASSERT_EQ(firstSubNode2->AsList()->GetChildCount(), 2);
+        EXPECT_EQ(firstSubNode2->AsList()->GetChild(0)->GetValue<TString>(), "key2");
+        EXPECT_EQ(firstSubNode2->AsList()->GetChild(1)->GetValue<TString>(), "value2");
 
-    ASSERT_EQ(firstList->GetChild(7)->GetType(), ENodeType::Int64);
-    EXPECT_EQ(firstList->GetChild(7)->GetValue<i64>(), 4422);
+        ASSERT_EQ(firstList->GetChild(7)->GetType(), ENodeType::Int64);
+        EXPECT_EQ(firstList->GetChild(7)->GetValue<i64>(), 4422);
 
-    ASSERT_EQ(firstList->GetChild(8)->GetType(), ENodeType::Map);
-    EXPECT_TRUE(AreNodesEqual(
-        firstList->GetChild(8),
-        BuildYsonNodeFluently()
-            .BeginMap()
-                .Item("key").Value("value")
-            .EndMap()));
+        ASSERT_EQ(firstList->GetChild(8)->GetType(), ENodeType::Map);
+        EXPECT_TRUE(AreNodesEqual(
+            firstList->GetChild(8),
+            BuildYsonNodeFluently()
+                .BeginMap()
+                    .Item("key").Value("value")
+                .EndMap()));
 
-    ASSERT_EQ(firstList->GetChild(9)->GetType(), ENodeType::Entity);
+        ASSERT_EQ(firstList->GetChild(9)->GetType(), ENodeType::Entity);
 
-    ASSERT_TRUE(AreNodesEqual(
-        firstList->GetChild(10),
-        BuildYsonNodeFluently()
+        ASSERT_TRUE(AreNodesEqual(
+            firstList->GetChild(10),
+            BuildYsonNodeFluently()
+                .BeginList()
+                    .Item().Value(false)
+                    .Item().Value(42)
+                    .Item().Entity()
+                .EndList()));
+
+        ASSERT_EQ(firstList->GetChild(11)->GetType(), ENodeType::Entity);
+
+        auto secondNode = GetAny(rowCollector.GetRowValue(rowIndex, "second"));
+        ASSERT_EQ(secondNode->GetType(), ENodeType::List);
+        EXPECT_EQ(ConvertTo<std::vector<i64>>(secondNode), (std::vector<i64>{101, 102, 103}));
+
+        auto repeatedMessageNode = GetAny(rowCollector.GetRowValue(rowIndex, "repeated_message_field"));
+        ASSERT_EQ(repeatedMessageNode->GetType(), ENodeType::List);
+        ASSERT_EQ(repeatedMessageNode->AsList()->GetChildCount(), 2);
+
+        const auto& subNode1 = repeatedMessageNode->AsList()->GetChild(0);
+        ASSERT_EQ(subNode1->GetType(), ENodeType::List);
+        ASSERT_EQ(subNode1->AsList()->GetChildCount(), 2);
+        EXPECT_EQ(subNode1->AsList()->GetChild(0)->GetValue<TString>(), "key11");
+        EXPECT_EQ(subNode1->AsList()->GetChild(1)->GetValue<TString>(), "value11");
+
+        const auto& subNode2 = repeatedMessageNode->AsList()->GetChild(1);
+        ASSERT_EQ(subNode2->GetType(), ENodeType::List);
+        ASSERT_EQ(subNode2->AsList()->GetChildCount(), 2);
+        EXPECT_EQ(subNode2->AsList()->GetChild(0)->GetValue<TString>(), "key21");
+        EXPECT_EQ(subNode2->AsList()->GetChild(1)->GetValue<TString>(), "value21");
+
+        auto repeatedInt64Node = GetAny(rowCollector.GetRowValue(rowIndex, "repeated_int64_field"));
+        EXPECT_EQ(ConvertTo<std::vector<i64>>(repeatedInt64Node), (std::vector<i64>{31, 32, 33}));
+
+        auto anotherRepeatedInt64Node = GetAny(rowCollector.GetRowValue(rowIndex, "another_repeated_int64_field"));
+        EXPECT_EQ(ConvertTo<std::vector<i64>>(anotherRepeatedInt64Node), (std::vector<i64>{}));
+
+        auto anyValue = rowCollector.GetRowValue(rowIndex, "any_field");
+        ASSERT_EQ(anyValue.Type, EValueType::Int64);
+        EXPECT_EQ(anyValue.Data.Int64, 4321);
+
+        EXPECT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "int64_field")), -64);
+        EXPECT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "uint64_field")), 64);
+        EXPECT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "int32_field")), -32);
+        EXPECT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "uint32_field")), 32);
+
+        EXPECT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "enum_int_field")), -42);
+        EXPECT_EQ(GetString(rowCollector.GetRowValue(rowIndex, "enum_string_string_field")), "Three");
+
+        EXPECT_EQ(GetString(rowCollector.GetRowValue(rowIndex, "utf8_field")), HelloWorldInChinese);
+
+        auto repeatedRepeatedOptionalAnyNode = GetAny(rowCollector.GetRowValue(rowIndex, "repeated_optional_any_field"));
+        auto expectedRepeatedOptionalAnyNode = BuildYsonNodeFluently()
             .BeginList()
-                .Item().Value(false)
-                .Item().Value(42)
                 .Item().Entity()
-            .EndList()));
+                .Item().Value(1)
+                .Item().Value("qwe")
+                .Item().Value(true)
+            .EndList();
+        EXPECT_NODES_EQUAL(repeatedRepeatedOptionalAnyNode, expectedRepeatedOptionalAnyNode);
 
-    ASSERT_EQ(firstList->GetChild(11)->GetType(), ENodeType::Entity);
-
-    auto secondNode = GetAny(rowCollector.GetRowValue(0, "second"));
-    ASSERT_EQ(secondNode->GetType(), ENodeType::List);
-    EXPECT_EQ(ConvertTo<std::vector<i64>>(secondNode), (std::vector<i64>{101, 102, 103}));
-
-    auto repeatedMessageNode = GetAny(rowCollector.GetRowValue(0, "repeated_message_field"));
-    ASSERT_EQ(repeatedMessageNode->GetType(), ENodeType::List);
-    ASSERT_EQ(repeatedMessageNode->AsList()->GetChildCount(), 2);
-
-    const auto& subNode1 = repeatedMessageNode->AsList()->GetChild(0);
-    ASSERT_EQ(subNode1->GetType(), ENodeType::List);
-    ASSERT_EQ(subNode1->AsList()->GetChildCount(), 2);
-    EXPECT_EQ(subNode1->AsList()->GetChild(0)->GetValue<TString>(), "key11");
-    EXPECT_EQ(subNode1->AsList()->GetChild(1)->GetValue<TString>(), "value11");
-
-    const auto& subNode2 = repeatedMessageNode->AsList()->GetChild(1);
-    ASSERT_EQ(subNode2->GetType(), ENodeType::List);
-    ASSERT_EQ(subNode2->AsList()->GetChildCount(), 2);
-    EXPECT_EQ(subNode2->AsList()->GetChild(0)->GetValue<TString>(), "key21");
-    EXPECT_EQ(subNode2->AsList()->GetChild(1)->GetValue<TString>(), "value21");
-
-    auto repeatedInt64Node = GetAny(rowCollector.GetRowValue(0, "repeated_int64_field"));
-    EXPECT_EQ(ConvertTo<std::vector<i64>>(repeatedInt64Node), (std::vector<i64>{31, 32, 33}));
-
-    auto anotherRepeatedInt64Node = GetAny(rowCollector.GetRowValue(0, "another_repeated_int64_field"));
-    EXPECT_EQ(ConvertTo<std::vector<i64>>(anotherRepeatedInt64Node), (std::vector<i64>{}));
-
-    auto anyValue = rowCollector.GetRowValue(0, "any_field");
-    ASSERT_EQ(anyValue.Type, EValueType::Int64);
-    EXPECT_EQ(anyValue.Data.Int64, 4321);
-
-    EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "int64_field")), -64);
-    EXPECT_EQ(GetUint64(rowCollector.GetRowValue(0, "uint64_field")), 64);
-    EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "int32_field")), -32);
-    EXPECT_EQ(GetUint64(rowCollector.GetRowValue(0, "uint32_field")), 32);
-
-    EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "enum_int_field")), -42);
-    EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "enum_string_string_field")), "Three");
-
-    EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "utf8_field")), HelloWorldInChinese);
-
-    auto repeatedRepeatedOptionalAnyNode = GetAny(rowCollector.GetRowValue(0, "repeated_optional_any_field"));
-    auto expectedRepeatedOptionalAnyNode = BuildYsonNodeFluently()
-        .BeginList()
-            .Item().Entity()
-            .Item().Value(1)
-            .Item().Value("qwe")
-            .Item().Value(true)
-        .EndList();
-    EXPECT_NODES_EQUAL(repeatedRepeatedOptionalAnyNode, expectedRepeatedOptionalAnyNode);
-
-    auto actualOtherComplexField = GetAny(rowCollector.GetRowValue(0, "other_complex_field"));
-    EXPECT_NODES_EQUAL(actualOtherComplexField, otherComplexFieldPositional);
+        auto actualOtherComplexField = GetAny(rowCollector.GetRowValue(rowIndex, "other_complex_field"));
+        EXPECT_NODES_EQUAL(actualOtherComplexField, otherComplexFieldPositional);
+    }
 }
 
 std::pair<std::vector<TTableSchema>, INodePtr> CreateSeveralTablesSchemasAndConfig()
@@ -2465,29 +2487,36 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TProtobufFormatAllFieldsParameter = std::tuple<INodePtr, int>;
 class TProtobufFormatAllFields
-    : public ::testing::TestWithParam<INodePtr>
+    : public ::testing::TestWithParam<TProtobufFormatAllFieldsParameter>
 {
 public:
     bool IsNewFormat() const
     {
-        return GetParam()->Attributes().Contains("tables");
+        auto [config, rowCount] = GetParam();
+        return config->Attributes().Contains("tables");
     }
 };
 
 INSTANTIATE_TEST_SUITE_P(
     Specification,
     TProtobufFormatAllFields,
-    ::testing::Values(CreateAllFieldsSchemaConfig()));
+    ::testing::Values(TProtobufFormatAllFieldsParameter{CreateAllFieldsSchemaConfig(), 1}));
 
 INSTANTIATE_TEST_SUITE_P(
     FileDescriptor,
     TProtobufFormatAllFields,
-    ::testing::Values(CreateAllFieldsFileDescriptorConfig()));
+    ::testing::Values(TProtobufFormatAllFieldsParameter{CreateAllFieldsFileDescriptorConfig(), 1}));
+
+INSTANTIATE_TEST_SUITE_P(
+    ManyRows,
+    TProtobufFormatAllFields,
+    ::testing::Values(TProtobufFormatAllFieldsParameter{CreateAllFieldsSchemaConfig(), 50000}));
 
 TEST_P(TProtobufFormatAllFields, Writer)
 {
-    auto config = GetParam();
+    auto [config, rowCount] = GetParam();
 
     auto nameTable = New<TNameTable>();
 
@@ -2606,7 +2635,9 @@ TEST_P(TProtobufFormatAllFields, Writer)
         builder.AddValue(MakeUnversionedNullValue(otherNullColumnId));
     }
 
-    writer->Write({builder.GetRow()});
+    auto row = builder.GetRow();
+    std::vector<TUnversionedRow> rows(rowCount, row);
+    writer->Write(rows);
 
     writer->Close()
         .Get()
@@ -2615,63 +2646,65 @@ TEST_P(TProtobufFormatAllFields, Writer)
     TStringInput input(result);
     TLenvalParser lenvalParser(&input);
 
-    auto entry = lenvalParser.Next();
-    ASSERT_TRUE(entry);
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        auto entry = lenvalParser.Next();
+        ASSERT_TRUE(entry);
 
-    NYT::NProtobufFormatTest::TMessage message;
-    ASSERT_TRUE(message.ParseFromString(entry->RowData));
+        NYT::NProtobufFormatTest::TMessage message;
+        ASSERT_TRUE(message.ParseFromString(entry->RowData));
 
-    EXPECT_DOUBLE_EQ(message.double_field(), 3.14159);
-    EXPECT_FLOAT_EQ(message.float_field(), 2.71828);
-    EXPECT_EQ(message.int64_field(), -1);
-    EXPECT_EQ(message.uint64_field(), 2);
-    EXPECT_EQ(message.sint64_field(), -3);
-    EXPECT_EQ(message.fixed64_field(), 4);
-    EXPECT_EQ(message.sfixed64_field(), -5);
+        EXPECT_DOUBLE_EQ(message.double_field(), 3.14159);
+        EXPECT_FLOAT_EQ(message.float_field(), 2.71828);
+        EXPECT_EQ(message.int64_field(), -1);
+        EXPECT_EQ(message.uint64_field(), 2);
+        EXPECT_EQ(message.sint64_field(), -3);
+        EXPECT_EQ(message.fixed64_field(), 4);
+        EXPECT_EQ(message.sfixed64_field(), -5);
 
-    EXPECT_EQ(message.int32_field(), -6);
-    EXPECT_EQ(message.uint32_field(), 7);
-    EXPECT_EQ(message.sint32_field(), -8);
-    EXPECT_EQ(message.fixed32_field(), 9);
-    EXPECT_EQ(message.sfixed32_field(), -10);
+        EXPECT_EQ(message.int32_field(), -6);
+        EXPECT_EQ(message.uint32_field(), 7);
+        EXPECT_EQ(message.sint32_field(), -8);
+        EXPECT_EQ(message.fixed32_field(), 9);
+        EXPECT_EQ(message.sfixed32_field(), -10);
 
-    EXPECT_EQ(message.bool_field(), true);
-    EXPECT_EQ(message.string_field(), "this_is_string");
-    EXPECT_EQ(message.bytes_field(), "this_is_bytes");
+        EXPECT_EQ(message.bool_field(), true);
+        EXPECT_EQ(message.string_field(), "this_is_string");
+        EXPECT_EQ(message.bytes_field(), "this_is_bytes");
 
-    EXPECT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::two);
+        EXPECT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::two);
 
-    EXPECT_EQ(message.message_field().key(), "embedded_key");
-    EXPECT_EQ(message.message_field().value(), "embedded_value");
+        EXPECT_EQ(message.message_field().key(), "embedded_key");
+        EXPECT_EQ(message.message_field().value(), "embedded_value");
 
-    if (IsNewFormat()) {
-        EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonString(message.any_field_with_map())), mapNode));
-        EXPECT_TRUE(AreNodesEqual(
-            ConvertToNode(TYsonString(message.any_field_with_int64())),
-            BuildYsonNodeFluently().Value(22)));
-        EXPECT_TRUE(AreNodesEqual(
-            ConvertToNode(TYsonString(message.any_field_with_string())),
-            BuildYsonNodeFluently().Value("some_string")));
+        if (IsNewFormat()) {
+            EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonString(message.any_field_with_map())), mapNode));
+            EXPECT_TRUE(AreNodesEqual(
+                ConvertToNode(TYsonString(message.any_field_with_int64())),
+                BuildYsonNodeFluently().Value(22)));
+            EXPECT_TRUE(AreNodesEqual(
+                ConvertToNode(TYsonString(message.any_field_with_string())),
+                BuildYsonNodeFluently().Value("some_string")));
 
-        auto otherColumnsMap = ConvertToNode(TYsonString(message.other_columns_field()))->AsMap();
-        EXPECT_EQ(otherColumnsMap->GetChild("OtherInt64Column")->GetValue<i64>(), -123);
-        EXPECT_DOUBLE_EQ(otherColumnsMap->GetChild("OtherDoubleColumn")->GetValue<double>(), -123.456);
-        EXPECT_EQ(otherColumnsMap->GetChild("OtherStringColumn")->GetValue<TString>(), "some_string");
-        EXPECT_EQ(otherColumnsMap->GetChild("OtherBooleanColumn")->GetValue<bool>(), true);
-        EXPECT_TRUE(AreNodesEqual(otherColumnsMap->GetChild("OtherAnyColumn"), mapNode));
-        EXPECT_EQ(otherColumnsMap->GetChild("OtherNullColumn")->GetType(), ENodeType::Entity);
+            auto otherColumnsMap = ConvertToNode(TYsonString(message.other_columns_field()))->AsMap();
+            EXPECT_EQ(otherColumnsMap->GetChild("OtherInt64Column")->GetValue<i64>(), -123);
+            EXPECT_DOUBLE_EQ(otherColumnsMap->GetChild("OtherDoubleColumn")->GetValue<double>(), -123.456);
+            EXPECT_EQ(otherColumnsMap->GetChild("OtherStringColumn")->GetValue<TString>(), "some_string");
+            EXPECT_EQ(otherColumnsMap->GetChild("OtherBooleanColumn")->GetValue<bool>(), true);
+            EXPECT_TRUE(AreNodesEqual(otherColumnsMap->GetChild("OtherAnyColumn"), mapNode));
+            EXPECT_EQ(otherColumnsMap->GetChild("OtherNullColumn")->GetType(), ENodeType::Entity);
 
-        auto keys = otherColumnsMap->GetKeys();
-        std::sort(keys.begin(), keys.end());
-        std::vector<TString> expectedKeys = {
-            "OtherInt64Column",
-            "OtherDoubleColumn",
-            "OtherStringColumn",
-            "OtherBooleanColumn",
-            "OtherAnyColumn",
-            "OtherNullColumn"};
-        std::sort(expectedKeys.begin(), expectedKeys.end());
-        EXPECT_EQ(expectedKeys, keys);
+            auto keys = otherColumnsMap->GetKeys();
+            std::sort(keys.begin(), keys.end());
+            std::vector<TString> expectedKeys = {
+                "OtherInt64Column",
+                "OtherDoubleColumn",
+                "OtherStringColumn",
+                "OtherBooleanColumn",
+                "OtherAnyColumn",
+                "OtherNullColumn"};
+            std::sort(expectedKeys.begin(), expectedKeys.end());
+            EXPECT_EQ(expectedKeys, keys);
+        }
     }
 
     ASSERT_FALSE(lenvalParser.Next());
@@ -2679,11 +2712,13 @@ TEST_P(TProtobufFormatAllFields, Writer)
 
 TEST_P(TProtobufFormatAllFields, Parser)
 {
+    auto [config, rowCount] = GetParam();
+
     TCollectingValueConsumer rowCollector;
 
     auto parser = CreateParserForProtobuf(
         &rowCollector,
-        ParseFormatConfigFromNode(GetParam()->Attributes().ToMap()),
+        ParseFormatConfigFromNode(config->Attributes().ToMap()),
         0);
 
     NProtobufFormatTest::TMessage message;
@@ -2741,59 +2776,63 @@ TEST_P(TProtobufFormatAllFields, Parser)
     {
         TStringOutput out(lenvalBytes);
         ui32 messageSize = message.ByteSize();
-        out.Write(&messageSize, sizeof(messageSize));
-        ASSERT_TRUE(message.SerializeToStream(&out));
+        for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+            out.Write(&messageSize, sizeof(messageSize));
+            ASSERT_TRUE(message.SerializeToStream(&out));
+        }
     }
 
     parser->Read(lenvalBytes);
     parser->Finish();
 
-    ASSERT_EQ(rowCollector.Size(), 1);
+    ASSERT_EQ(rowCollector.Size(), rowCount);
 
-    int expectedSize = IsNewFormat() ? 26 : 17;
-    ASSERT_EQ(rowCollector.GetRow(0).GetCount(), expectedSize);
+    for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
+        int expectedSize = IsNewFormat() ? 26 : 17;
+        ASSERT_EQ(rowCollector.GetRow(rowIndex).GetCount(), expectedSize);
 
-    ASSERT_DOUBLE_EQ(GetDouble(rowCollector.GetRowValue(0, "Double")), 3.14159);
-    ASSERT_NEAR(GetDouble(rowCollector.GetRowValue(0, "Float")), 2.71828, 1e-5);
+        ASSERT_DOUBLE_EQ(GetDouble(rowCollector.GetRowValue(rowIndex, "Double")), 3.14159);
+        ASSERT_NEAR(GetDouble(rowCollector.GetRowValue(rowIndex, "Float")), 2.71828, 1e-5);
 
-    ASSERT_EQ(GetInt64(rowCollector.GetRowValue(0, "Int64")), -1);
-    ASSERT_EQ(GetUint64(rowCollector.GetRowValue(0, "UInt64")), 2);
-    ASSERT_EQ(GetInt64(rowCollector.GetRowValue(0, "SInt64")), -3);
-    ASSERT_EQ(GetUint64(rowCollector.GetRowValue(0, "Fixed64")), 4);
-    ASSERT_EQ(GetInt64(rowCollector.GetRowValue(0, "SFixed64")), -5);
+        ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "Int64")), -1);
+        ASSERT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "UInt64")), 2);
+        ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "SInt64")), -3);
+        ASSERT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "Fixed64")), 4);
+        ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "SFixed64")), -5);
 
-    ASSERT_EQ(GetInt64(rowCollector.GetRowValue(0, "Int32")), -6);
-    ASSERT_EQ(GetUint64(rowCollector.GetRowValue(0, "UInt32")), 7);
-    ASSERT_EQ(GetInt64(rowCollector.GetRowValue(0, "SInt32")), -8);
-    ASSERT_EQ(GetUint64(rowCollector.GetRowValue(0, "Fixed32")), 9);
-    ASSERT_EQ(GetInt64(rowCollector.GetRowValue(0, "SFixed32")), -10);
+        ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "Int32")), -6);
+        ASSERT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "UInt32")), 7);
+        ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "SInt32")), -8);
+        ASSERT_EQ(GetUint64(rowCollector.GetRowValue(rowIndex, "Fixed32")), 9);
+        ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "SFixed32")), -10);
 
-    ASSERT_EQ(GetBoolean(rowCollector.GetRowValue(0, "Bool")), true);
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "String")), "this_is_string");
-    ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "Bytes")), "this_is_bytes");
+        ASSERT_EQ(GetBoolean(rowCollector.GetRowValue(rowIndex, "Bool")), true);
+        ASSERT_EQ(GetString(rowCollector.GetRowValue(rowIndex, "String")), "this_is_string");
+        ASSERT_EQ(GetString(rowCollector.GetRowValue(rowIndex, "Bytes")), "this_is_bytes");
 
-    if (IsNewFormat()) {
-        ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "Enum")), "Three");
-    } else {
-        ASSERT_EQ(GetInt64(rowCollector.GetRowValue(0, "Enum")), 3);
-    }
+        if (IsNewFormat()) {
+            ASSERT_EQ(GetString(rowCollector.GetRowValue(rowIndex, "Enum")), "Three");
+        } else {
+            ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "Enum")), 3);
+        }
 
-    NProtobufFormatTest::TEmbeddedMessage embededMessage;
-    ASSERT_TRUE(embededMessage.ParseFromString(GetString(rowCollector.GetRowValue(0, "Message"))));
-    ASSERT_EQ(embededMessage.key(), "embedded_key");
-    ASSERT_EQ(embededMessage.value(), "embedded_value");
+        NProtobufFormatTest::TEmbeddedMessage embededMessage;
+        ASSERT_TRUE(embededMessage.ParseFromString(GetString(rowCollector.GetRowValue(rowIndex, "Message"))));
+        ASSERT_EQ(embededMessage.key(), "embedded_key");
+        ASSERT_EQ(embededMessage.value(), "embedded_value");
 
-    if (IsNewFormat()) {
-        ASSERT_TRUE(AreNodesEqual(GetAny(rowCollector.GetRowValue(0, "AnyWithMap")), mapNode));
-        ASSERT_EQ(GetInt64(rowCollector.GetRowValue(0, "AnyWithInt64")), 22);
-        ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "AnyWithString")), "some_string");
+        if (IsNewFormat()) {
+            ASSERT_TRUE(AreNodesEqual(GetAny(rowCollector.GetRowValue(rowIndex, "AnyWithMap")), mapNode));
+            ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "AnyWithInt64")), 22);
+            ASSERT_EQ(GetString(rowCollector.GetRowValue(rowIndex, "AnyWithString")), "some_string");
 
-        ASSERT_EQ(GetInt64(rowCollector.GetRowValue(0, "OtherInt64Column")), -123);
-        ASSERT_DOUBLE_EQ(GetDouble(rowCollector.GetRowValue(0, "OtherDoubleColumn")), -123.456);
-        ASSERT_EQ(GetString(rowCollector.GetRowValue(0, "OtherStringColumn")), "some_string");
-        ASSERT_EQ(GetBoolean(rowCollector.GetRowValue(0, "OtherBooleanColumn")), true);
-        ASSERT_TRUE(AreNodesEqual(GetAny(rowCollector.GetRowValue(0, "OtherAnyColumn")), mapNode));
-        ASSERT_EQ(rowCollector.GetRowValue(0, "OtherNullColumn").Type, EValueType::Null);
+            ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "OtherInt64Column")), -123);
+            ASSERT_DOUBLE_EQ(GetDouble(rowCollector.GetRowValue(rowIndex, "OtherDoubleColumn")), -123.456);
+            ASSERT_EQ(GetString(rowCollector.GetRowValue(rowIndex, "OtherStringColumn")), "some_string");
+            ASSERT_EQ(GetBoolean(rowCollector.GetRowValue(rowIndex, "OtherBooleanColumn")), true);
+            ASSERT_TRUE(AreNodesEqual(GetAny(rowCollector.GetRowValue(rowIndex, "OtherAnyColumn")), mapNode));
+            ASSERT_EQ(rowCollector.GetRowValue(rowIndex, "OtherNullColumn").Type, EValueType::Null);
+        }
     }
 }
 

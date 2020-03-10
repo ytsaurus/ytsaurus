@@ -24,6 +24,8 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 
+using std::placeholders::_1;
+
 static const auto& Logger = SchedulerSimulatorLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,9 +77,12 @@ TSimulatorControlThread::TSimulatorControlThread(
     , Config_(config)
     , ExecNodes_(execNodes)
     , ActionQueue_(New<TActionQueue>(Format("ControlThread")))
-    , StrategyHost_(execNodes, eventLogOutputStream)
+    , StrategyHost_(execNodes, eventLogOutputStream, config->RemoteEventLog)
     , SchedulerStrategy_(
-        CreateFairShareStrategy<TVectorFairShareImpl>(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
+        Config_->UseClassicScheduler
+        ? CreateFairShareStrategy<TClassicFairShareImpl>(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()})
+        : CreateFairShareStrategy<TVectorFairShareImpl>(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()})
+    )
     , SchedulerStrategyForNodeShards_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())
     , NodeShardEventQueue_(
         *execNodes,
@@ -172,7 +177,7 @@ void TSimulatorControlThread::Run()
                 JobAndOperationCounter_.GetTotalOperationCount(),
                 JobAndOperationCounter_.GetRunningJobCount());
 
-            RunningOperationsMap_.ApplyRead([this](const auto& pair) {
+            RunningOperationsMap_.ApplyRead([this] (const auto& pair) {
                 const auto& operation = pair.second;
                 YT_LOG_INFO("%v, (OperationId: %v)",
                     operation->GetController()->GetLoggingProgress(),
@@ -188,6 +193,7 @@ void TSimulatorControlThread::Run()
         .ThrowOnError();
 
     SchedulerStrategy_->OnMasterDisconnected();
+    StrategyHost_.CloseEventLogger();
 
     YT_LOG_INFO("Simulation finished");
 }
@@ -238,6 +244,12 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
 
     // Notify scheduler.
     SchedulerStrategy_->RegisterOperation(operation.Get());
+    StrategyHost_.LogEventFluently(ELogEventType::OperationStarted)
+        .Item("operation_id").Value(operation->GetId())
+        .Item("operation_type").Value(operation->GetType())
+        .Item("spec").Value(operation->GetSpecString())
+        .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
+        .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, SchedulerStrategy_, operation.Get(), _1));
     SchedulerStrategy_->EnableOperation(operation.Get());
 
     JobAndOperationCounter_.OnOperationStarted();
@@ -270,13 +282,13 @@ void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
     std::vector<TFuture<TYsonString>> nodeListFutures;
     for (const auto& nodeShard : NodeShards_) {
         nodeListFutures.push_back(
-            BIND([nodeShard]() {
+            BIND([nodeShard] () {
                 return BuildYsonStringFluently<EYsonType::MapFragment>()
                     .Do(BIND(&TSimulatorNodeShard::BuildNodesYson, nodeShard))
                     .Finish();
             })
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run());
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run());
     }
 
     auto nodeLists = WaitFor(Combine(nodeListFutures))

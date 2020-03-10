@@ -16,6 +16,8 @@ public:
         NTabletServer::TReplicatedTableTrackerConfigPtr config,
         NCellMaster::TBootstrap* bootstrap);
 
+    ~TReplicatedTableTracker();
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

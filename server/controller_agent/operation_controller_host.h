@@ -71,6 +71,7 @@ public:
     virtual const ICoreDumperPtr& GetCoreDumper() override;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() override;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
+    virtual const NJobAgent::TJobReporterPtr& GetJobReporter() override;
     virtual TMemoryTagQueue* GetMemoryTagQueue() override;
 
     virtual int GetOnlineExecNodeCount() override;

@@ -19,11 +19,47 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+IChannelPtr CreateTimestampProviderChannel(
+    TRemoteTimestampProviderConfigPtr config,
+    IChannelFactoryPtr channelFactory)
+{
+    auto endpointDescription = TString("TimestampProvider@");
+    auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("timestamp_provider").Value(true)
+        .EndMap());
+    auto channel = CreateBalancingChannel(
+        config,
+        channelFactory,
+        endpointDescription,
+        *endpointAttributes);
+    channel = CreateRetryingChannel(
+        config,
+        channel);
+    return channel;
+}
+
+IChannelPtr CreateTimestampProviderChannelFromAddresses(
+    TRemoteTimestampProviderConfigPtr config,
+    IChannelFactoryPtr channelFactory,
+    const std::vector<TString>& discoveredAddresses)
+{
+    auto channelConfig = CloneYsonSerializable(config);
+    if (!discoveredAddresses.empty()) {
+        channelConfig->Addresses = discoveredAddresses;
+    }
+    return CreateTimestampProviderChannel(channelConfig, channelFactory);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRemoteTimestampProvider
     : public TTimestampProviderBase
 {
 public:
-    TRemoteTimestampProvider(NRpc::IChannelPtr channel, TDuration defaultTimeout)
+    TRemoteTimestampProvider(
+        IChannelPtr channel,
+        TDuration defaultTimeout)
         : Proxy_(std::move(channel))
     {
         Proxy_.SetDefaultTimeout(defaultTimeout);
@@ -46,22 +82,8 @@ private:
 
 ITimestampProviderPtr CreateRemoteTimestampProvider(
     TRemoteTimestampProviderConfigPtr config,
-    IChannelFactoryPtr channelFactory)
+    IChannelPtr channel)
 {
-    auto endpointDescription = TString("TimestampProvider@");
-    auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
-        .BeginMap()
-            .Item("timestamp_provider").Value(true)
-        .EndMap());
-    auto channel = CreateBalancingChannel(
-        config,
-        channelFactory,
-        endpointDescription,
-        *endpointAttributes);
-    channel = CreateRetryingChannel(
-        config,
-        channel);
-
     auto underlying = New<TRemoteTimestampProvider>(std::move(channel), config->RpcTimeout);
     auto wrapped = CreateBatchingTimestampProvider(std::move(underlying), config->UpdatePeriod, config->BatchPeriod);
 

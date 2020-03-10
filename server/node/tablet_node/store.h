@@ -26,14 +26,30 @@ namespace NYT::NTabletNode {
 struct IStore
     : public virtual TRefCounted
 {
+    virtual EStoreType GetType() const = 0;
+
+    virtual bool IsDynamic() const;
+    virtual IDynamicStorePtr AsDynamic();
+
+    virtual bool IsChunk() const;
+    virtual IChunkStorePtr AsChunk();
+
+    virtual bool IsSorted() const;
+    virtual ISortedStorePtr AsSorted();
+    virtual TSortedDynamicStorePtr AsSortedDynamic();
+    virtual TSortedChunkStorePtr AsSortedChunk();
+
+    virtual bool IsOrdered() const;
+    virtual IOrderedStorePtr AsOrdered();
+    virtual TOrderedDynamicStorePtr AsOrderedDynamic();
+    virtual TOrderedChunkStorePtr AsOrderedChunk();
+
     virtual TStoreId GetId() const = 0;
     virtual TTablet* GetTablet() const = 0;
 
     virtual i64 GetCompressedDataSize() const = 0;
     virtual i64 GetUncompressedDataSize() const = 0;
     virtual i64 GetRowCount() const = 0;
-
-    virtual EStoreType GetType() const = 0;
 
     //! Returns the minimum timestamp of changes recorded in the store.
     virtual TTimestamp GetMinTimestamp() const = 0;
@@ -58,22 +74,6 @@ struct IStore
     virtual void AsyncLoad(TLoadContext& context) = 0;
 
     virtual void BuildOrchidYson(NYTree::TFluentMap fluent) = 0;
-
-    virtual bool IsDynamic() const = 0;
-    virtual IDynamicStorePtr AsDynamic() = 0;
-
-    virtual bool IsChunk() const = 0;
-    virtual IChunkStorePtr AsChunk() = 0;
-
-    virtual bool IsSorted() const = 0;
-    virtual ISortedStorePtr AsSorted() = 0;
-    virtual TSortedDynamicStorePtr AsSortedDynamic() = 0;
-    virtual TSortedChunkStorePtr AsSortedChunk() = 0;
-
-    virtual bool IsOrdered() const = 0;
-    virtual IOrderedStorePtr AsOrdered() = 0;
-    virtual TOrderedDynamicStorePtr AsOrderedDynamic() = 0;
-    virtual TOrderedChunkStorePtr AsOrderedChunk() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IStore)

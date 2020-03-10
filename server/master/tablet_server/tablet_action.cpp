@@ -59,19 +59,9 @@ void TTabletAction::Load(NCellMaster::TLoadContext& context)
     Load(context, SkipFreezing_);
     Load(context, Freeze_);
     Load(context, Error_);
-
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::SynchronousHandlesForTabletBalancer) {
-        Load(context, CorrelationId_);
-        Load(context, ExpirationTime_);
-        Load(context, TabletCellBundle_);
-    } else {
-        if (Load<bool>(context) /* keepFinished */) {
-            ExpirationTime_ = TInstant::Max();
-        } else {
-            ExpirationTime_ = TInstant::Zero();
-        }
-    }
+    Load(context, CorrelationId_);
+    Load(context, ExpirationTime_);
+    Load(context, TabletCellBundle_);
 }
 
 bool TTabletAction::IsFinished() const

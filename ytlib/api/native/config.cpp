@@ -14,9 +14,12 @@
 
 #include <yt/client/object_client/helpers.h>
 
+#include <yt/client/transaction_client/config.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NObjectClient;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,6 +165,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("name", Name)
         .Default("default");
 
+    RegisterParameter("permission_cache", PermissionCache)
+        .DefaultNew();
+
     RegisterParameter("job_node_descriptor_cache", JobNodeDescriptorCache)
         .DefaultNew();
 
@@ -183,6 +189,23 @@ TConnectionConfig::TConnectionConfig()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TRemoteTimestampProviderWithDiscoveryConfigPtr CreateTimestampProviderConfig(TMasterConnectionConfigPtr config)
+{
+    // Use masters for timestamp generation.
+    auto timestampProviderConfig = New<TRemoteTimestampProviderWithDiscoveryConfig>();
+    timestampProviderConfig->Addresses = config->Addresses;
+    timestampProviderConfig->RpcTimeout = config->RpcTimeout;
+
+    // TRetryingChannelConfig
+    timestampProviderConfig->RetryBackoffTime = config->RetryBackoffTime;
+    timestampProviderConfig->RetryAttempts = config->RetryAttempts;
+    timestampProviderConfig->RetryTimeout = config->RetryTimeout;
+
+    return timestampProviderConfig;
+}
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative
 

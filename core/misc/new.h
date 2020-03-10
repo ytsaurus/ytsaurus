@@ -100,7 +100,9 @@ inline TIntrusivePtr<T> NewWithLocation(
     friend ::NYT::TIntrusivePtr<DECLARE_NEW_FRIEND_T> NYT::NDetail::NewEpilogue( \
         void* ptr, \
         ::NYT::TRefCountedTypeCookie cookie, \
-        DECLARE_NEW_FRIEND_As&& ... args)
+        DECLARE_NEW_FRIEND_As&& ... args); \
+    template <class DECLARE_NEW_FRIEND_T> \
+    friend struct NYT::TRefCountedWrapper;
 
 ////////////////////////////////////////////////////////////////////////////////
 
