@@ -56,7 +56,7 @@ object YtClientUtils {
   }
 
   def createHttpClient(config: YtClientConfiguration): Yt = {
-    InsideYtUtils.http(config.fullProxy, config.token)
+    InsideYtUtils.http(s"${config.fullProxy}:${config.port}", config.token)
   }
 
   def javaDuration(timeout: Duration): JavaDuration = {
