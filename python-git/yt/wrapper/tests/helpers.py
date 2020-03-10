@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from yt.packages.six import iteritems, integer_types, text_type, binary_type, b
+from yt.packages.six import iteritems, integer_types, text_type, binary_type, b, PY3
 from yt.packages.six.moves import map as imap
 
 from yt.test_helpers import wait, get_tests_sandbox as get_tests_sandbox_impl, get_tmpfs_path
@@ -77,7 +77,10 @@ def get_python():
     if yatest_common is None:
         return sys.executable
     else:
-        return yatest_common.binary_path("yt-python")
+        if PY3:
+            return yatest_common.binary_path("yt-python3")
+        else:
+            return yatest_common.binary_path("yt-python")
 
 @contextmanager
 def set_config_option(name, value, final_action=None):
