@@ -72,7 +72,6 @@ typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCac
             if (entry->Promise.IsSet() && entry->IsExpired(now)) {
                 NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
                 Map_.erase(it);
-                OnEvicted(key);
             } else {
                 Profiler_.Increment(HitCounter_);
                 entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
