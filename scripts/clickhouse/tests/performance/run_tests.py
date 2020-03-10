@@ -71,9 +71,13 @@ def execute_tests(tests, query_executor):
                     test_trace_ids.append(-1)
                     break
                 try:
-                    execution_time, trace_id = query_executor.measure_execution_time(query)
-                    test_execution_times.append(execution_time)
-                    test_trace_ids.append(trace_id)
+                    query_execution_times = []
+                    for i in range(3):
+                        execution_time, trace_id = query_executor.measure_execution_time(query)
+                        query_execution_times.append((execution_time, trace_id))
+                    min_execution_time, min_trace_id = min(query_execution_times)
+                    test_execution_times.append(min_execution_time)
+                    test_trace_ids.append(min_trace_id)
                 except ValueError:
                     print 'EXCEPTION'
                     logging.critical('raised exception on query: {}'.format(query_executor.patch_paths(query)))
