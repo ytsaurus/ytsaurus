@@ -28,7 +28,6 @@ def get_modules():
 
     return [
         data_model_pb2,
-
         daemon_set_pb2,
         deploy_patch_pb2,
         deploy_pb2,

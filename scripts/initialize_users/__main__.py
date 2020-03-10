@@ -534,9 +534,7 @@ def configure_common_public_object_creators(client):
 
 # Public objects of Y.Deploy (see YP-1769).
 def configure_deploy_public_object_creators(client):
-    deploy_public_object_types = (
-        "stage",
-    )
+    deploy_public_object_types = ("stage",)
     deploy_public_object_creators = Group("deploy-public-object-creators")
     members = (Group("staff:department:1"),)
     add_group_members(client, deploy_public_object_creators, members)
