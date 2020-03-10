@@ -19,6 +19,7 @@ class TObjectManager
 {
 public:
     TObjectManager(NServer::NMaster::TBootstrap* bootstrap, TObjectManagerConfigPtr config);
+    ~TObjectManager();
 
     void Initialize();
 

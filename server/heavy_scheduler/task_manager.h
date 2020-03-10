@@ -11,6 +11,7 @@ class TTaskManager
 {
 public:
     explicit TTaskManager(TTaskManagerConfigPtr config);
+    ~TTaskManager();
 
     void RemoveFinishedTasks();
 

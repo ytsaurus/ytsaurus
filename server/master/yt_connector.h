@@ -34,6 +34,7 @@ class TYTConnector
 {
 public:
     TYTConnector(TBootstrap* bootstrap, TYTConnectorConfigPtr config);
+    ~TYTConnector();
 
     void Initialize();
 

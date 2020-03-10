@@ -187,6 +187,9 @@ TDisruptionThrottler::TDisruptionThrottler(
     : Impl_(New<TImpl>(heavyScheduler, std::move(config)))
 { }
 
+TDisruptionThrottler::~TDisruptionThrottler()
+{ }
+
 void TDisruptionThrottler::ReconcileState(const TClusterPtr& cluster)
 {
     Impl_->ReconcileState(cluster);

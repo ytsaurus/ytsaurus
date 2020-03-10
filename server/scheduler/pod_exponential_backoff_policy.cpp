@@ -65,6 +65,9 @@ TPodExponentialBackoffPolicy::TPodExponentialBackoffPolicy(TPodExponentialBackof
     : Impl_(New<TPodExponentialBackoffPolicy::TImpl>(std::move(config)))
 { }
 
+TPodExponentialBackoffPolicy::~TPodExponentialBackoffPolicy()
+{ }
+
 TDuration TPodExponentialBackoffPolicy::GetNextBackoffDuration(const NCluster::TPod* pod)
 {
     return Impl_->GetNextBackoffDuration(pod);

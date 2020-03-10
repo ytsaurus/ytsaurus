@@ -15,6 +15,7 @@ public:
     TAntiaffinityHealer(
         THeavyScheduler* heavyScheduler,
         TAntiaffinityHealerConfigPtr config);
+    ~TAntiaffinityHealer();
 
     void Run(const NCluster::TClusterPtr& cluster);
 

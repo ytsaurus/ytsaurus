@@ -11,6 +11,7 @@ class TPodMaintenanceController
 {
 public:
     explicit TPodMaintenanceController(NMaster::TBootstrap* bootstrap);
+    ~TPodMaintenanceController();
 
     void AbortEviction(const NCluster::TClusterPtr& cluster);
     void RequestEviction(const NCluster::TClusterPtr& cluster);

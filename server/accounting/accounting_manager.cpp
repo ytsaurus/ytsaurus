@@ -431,6 +431,9 @@ TAccountingManager::TAccountingManager(
     : Impl_(New<TImpl>(bootstrap, std::move(config)))
 { }
 
+TAccountingManager::~TAccountingManager()
+{ }
+
 void TAccountingManager::Initialize()
 {
     Impl_->Initialize();

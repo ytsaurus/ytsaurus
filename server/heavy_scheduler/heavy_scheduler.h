@@ -11,6 +11,7 @@ class THeavyScheduler
 {
 public:
     THeavyScheduler(TBootstrap* bootstrap, THeavySchedulerConfigPtr config);
+    ~THeavyScheduler();
 
     void Initialize();
 

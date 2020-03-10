@@ -82,6 +82,7 @@ public:
     TAccessControlManager(
         NMaster::TBootstrap* bootstrap,
         TAccessControlManagerConfigPtr config);
+    ~TAccessControlManager();
 
     void Initialize();
 

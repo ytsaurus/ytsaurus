@@ -13,6 +13,7 @@ public:
     explicit TEvictionGarbageCollector(
         THeavyScheduler* heavyScheduler,
         TEvictionGarbageCollectorConfigPtr config);
+    ~TEvictionGarbageCollector();
 
     void Run(const NCluster::TClusterPtr& cluster);
 

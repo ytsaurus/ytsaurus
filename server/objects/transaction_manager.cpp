@@ -272,6 +272,9 @@ TTransactionManager::TTransactionManager(TBootstrap* bootstrap, TTransactionMana
     : Impl_(New<TImpl>(bootstrap, std::move(config)))
 { }
 
+TTransactionManager::~TTransactionManager()
+{ }
+
 void TTransactionManager::Initialize()
 {
     Impl_->Initialize();

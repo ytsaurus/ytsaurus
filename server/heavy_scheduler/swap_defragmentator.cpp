@@ -375,6 +375,9 @@ TSwapDefragmentator::TSwapDefragmentator(
     : Impl_(New<TImpl>(heavyScheduler, std::move(config)))
 { }
 
+TSwapDefragmentator::~TSwapDefragmentator()
+{ }
+
 void TSwapDefragmentator::Run(const TClusterPtr& cluster)
 {
     Impl_->Run(cluster);

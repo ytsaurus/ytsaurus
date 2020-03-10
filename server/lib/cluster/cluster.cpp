@@ -798,6 +798,9 @@ TCluster::TCluster(
         std::move(nodeFilterEvaluator)))
 { }
 
+TCluster::~TCluster()
+{ }
+
 std::vector<TNode*> TCluster::GetNodes()
 {
     return Impl_->GetNodes();

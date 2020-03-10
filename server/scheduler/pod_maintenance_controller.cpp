@@ -406,6 +406,9 @@ TPodMaintenanceController::TPodMaintenanceController(TBootstrap* bootstrap)
     : Impl_(New<TPodMaintenanceController::TImpl>(bootstrap))
 { }
 
+TPodMaintenanceController::~TPodMaintenanceController()
+{ }
+
 void TPodMaintenanceController::AbortEviction(const NCluster::TClusterPtr& cluster)
 {
     Impl_->AbortEviction(cluster);

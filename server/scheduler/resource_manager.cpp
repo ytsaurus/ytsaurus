@@ -311,6 +311,9 @@ TResourceManager::TResourceManager(TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
 
+TResourceManager::~TResourceManager()
+{ }
+
 void TResourceManager::AssignPodToNode(
     const TTransactionPtr& transaction,
     TResourceManagerContext* context,

@@ -242,6 +242,8 @@ public:
         NYT::NApi::IClientPtr client,
         NYT::NApi::ITransactionPtr underlyingTransaction);
 
+    ~TTransaction();
+
     ETransactionState GetState() const;
 
     const TTransactionId& GetId() const;

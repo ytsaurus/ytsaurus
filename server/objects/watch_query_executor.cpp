@@ -389,6 +389,9 @@ TWatchQueryExecutor::TWatchQueryExecutor(NMaster::TBootstrap* bootstrap, ISessio
     : Impl_(New<TImpl>(bootstrap, session))
 { }
 
+TWatchQueryExecutor::~TWatchQueryExecutor()
+{ }
+
 TWatchQueryResult TWatchQueryExecutor::ExecuteWatchQuery(
     EObjectType type,
     const TWatchQueryOptions& options) const

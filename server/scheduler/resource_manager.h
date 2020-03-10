@@ -21,6 +21,7 @@ class TResourceManager
 {
 public:
     explicit TResourceManager(NServer::NMaster::TBootstrap* bootstrap);
+    ~TResourceManager();
 
     void AssignPodToNode(
         const NObjects::TTransactionPtr& transaction,

@@ -13,6 +13,7 @@ public:
     TScheduler(
         NServer::NMaster::TBootstrap* bootstrap,
         TSchedulerConfigPtr config);
+    ~TScheduler();
 
     void Initialize();
 

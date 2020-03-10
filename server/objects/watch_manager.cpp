@@ -188,6 +188,9 @@ TWatchManager::TWatchManager(
     : Impl_(New<TImpl>(bootstrap, std::move(config)))
 { }
 
+TWatchManager::~TWatchManager()
+{ }
+
 void TWatchManager::Initialize()
 {
     Impl_->Initialize();

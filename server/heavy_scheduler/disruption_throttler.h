@@ -15,6 +15,7 @@ public:
     TDisruptionThrottler(
         THeavyScheduler* heavyScheduler,
         TDisruptionThrottlerConfigPtr config);
+    ~TDisruptionThrottler();
 
     void ReconcileState(const NCluster::TClusterPtr& cluster);
 

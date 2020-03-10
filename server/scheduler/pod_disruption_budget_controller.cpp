@@ -375,6 +375,9 @@ TPodDisruptionBudgetController::TPodDisruptionBudgetController(
         std::move(profiler)))
 { }
 
+TPodDisruptionBudgetController::~TPodDisruptionBudgetController()
+{ }
+
 void TPodDisruptionBudgetController::Run(const NCluster::TClusterPtr& cluster)
 {
     Impl_->Run(cluster);

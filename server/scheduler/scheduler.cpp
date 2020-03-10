@@ -704,6 +704,9 @@ TScheduler::TScheduler(
     : Impl_(New<TImpl>(bootstrap, std::move(config)))
 { }
 
+TScheduler::~TScheduler()
+{ }
+
 void TScheduler::Initialize()
 {
     Impl_->Initialize();

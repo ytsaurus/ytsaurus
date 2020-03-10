@@ -16,6 +16,7 @@ public:
     TSwapDefragmentator(
         THeavyScheduler* heavyScheduler,
         TSwapDefragmentatorConfigPtr config);
+    ~TSwapDefragmentator();
 
     void Run(const NCluster::TClusterPtr& cluster);
 

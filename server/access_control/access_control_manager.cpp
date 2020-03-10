@@ -1472,6 +1472,9 @@ TAccessControlManager::TAccessControlManager(
     : Impl_(New<TImpl>(bootstrap, std::move(config)))
 { }
 
+TAccessControlManager::~TAccessControlManager()
+{ }
+
 void TAccessControlManager::Initialize()
 {
     Impl_->Initialize();

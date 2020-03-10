@@ -222,6 +222,9 @@ TYTConnector::TYTConnector(TBootstrap* bootstrap, TYTConnectorConfigPtr config)
     : Impl_(New<TImpl>(bootstrap, std::move(config)))
 { }
 
+TYTConnector::~TYTConnector()
+{ }
+
 void TYTConnector::Initialize()
 {
     Impl_->Initialize();

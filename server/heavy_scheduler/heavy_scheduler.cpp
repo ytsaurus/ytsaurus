@@ -180,6 +180,9 @@ THeavyScheduler::THeavyScheduler(TBootstrap* bootstrap, THeavySchedulerConfigPtr
     : Impl_(New<TImpl>(bootstrap, this, std::move(config)))
 { }
 
+THeavyScheduler::~THeavyScheduler()
+{ }
+
 void THeavyScheduler::Initialize()
 {
     Impl_->Initialize();

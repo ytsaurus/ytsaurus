@@ -11,6 +11,7 @@ class TPodExponentialBackoffPolicy
 {
 public:
     explicit TPodExponentialBackoffPolicy(TPodExponentialBackoffPolicyConfigPtr config);
+    ~TPodExponentialBackoffPolicy();
 
     TDuration GetNextBackoffDuration(const NCluster::TPod* pod);
 

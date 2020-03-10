@@ -755,6 +755,9 @@ TNodeTracker::TNodeTracker(TBootstrap* bootstrap, TNodeTrackerConfigPtr config)
     : Impl_(New<TImpl>(bootstrap, std::move(config)))
 { }
 
+TNodeTracker::~TNodeTracker()
+{ }
+
 TNode* TNodeTracker::ProcessHandshake(
     const TTransactionPtr& transaction,
     const TObjectId& nodeId,

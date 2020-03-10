@@ -17,6 +17,7 @@ public:
     TNodeTracker(
         NServer::NMaster::TBootstrap* bootstrap,
         TNodeTrackerConfigPtr config);
+    ~TNodeTracker();
 
     NObjects::TNode* ProcessHandshake(
         const NObjects::TTransactionPtr& transaction,

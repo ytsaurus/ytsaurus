@@ -21,6 +21,7 @@ public:
     TNetManager(
         NMaster::TBootstrap* bootstrap,
         TNetManagerConfigPtr config);
+    ~TNetManager();
 
     //! Constructs the FQDN for a given pod.
     //! This is supposed to never change.

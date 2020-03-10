@@ -131,6 +131,9 @@ TNodeMaintenanceController::TNodeMaintenanceController(TBootstrap* bootstrap)
     : Impl_(New<TNodeMaintenanceController::TImpl>(bootstrap))
 { }
 
+TNodeMaintenanceController::~TNodeMaintenanceController()
+{ }
+
 void TNodeMaintenanceController::Acknowledge(const NCluster::TClusterPtr& cluster)
 {
     Impl_->Acknowledge(cluster);

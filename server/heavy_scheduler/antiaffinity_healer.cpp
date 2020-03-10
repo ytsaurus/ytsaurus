@@ -241,6 +241,9 @@ TAntiaffinityHealer::TAntiaffinityHealer(
     : Impl_(New<TImpl>(heavyScheduler, std::move(config)))
 { }
 
+TAntiaffinityHealer::~TAntiaffinityHealer()
+{ }
+
 void TAntiaffinityHealer::Run(const TClusterPtr& cluster)
 {
     Impl_->Run(cluster);

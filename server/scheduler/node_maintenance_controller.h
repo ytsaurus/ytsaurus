@@ -11,6 +11,7 @@ class TNodeMaintenanceController
 {
 public:
     explicit TNodeMaintenanceController(NMaster::TBootstrap* bootstrap);
+    ~TNodeMaintenanceController();
 
     void Acknowledge(const NCluster::TClusterPtr& cluster);
 

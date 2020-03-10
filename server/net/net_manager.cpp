@@ -690,6 +690,9 @@ TNetManager::TNetManager(TBootstrap* bootstrap, TNetManagerConfigPtr config)
     : Impl_(New<TImpl>(bootstrap, std::move(config)))
 { }
 
+TNetManager::~TNetManager()
+{ }
+
 TString TNetManager::BuildPersistentPodFqdn(TPod* pod)
 {
     return Impl_->BuildPersistentPodFqdn(pod);

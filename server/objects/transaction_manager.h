@@ -15,6 +15,7 @@ public:
     TTransactionManager(
         NServer::NMaster::TBootstrap* bootstrap,
         TTransactionManagerConfigPtr config);
+    ~TTransactionManager();
 
     void Initialize();
 

@@ -349,6 +349,9 @@ TObjectManager::TObjectManager(TBootstrap* bootstrap, TObjectManagerConfigPtr co
     : Impl_(New<TImpl>(bootstrap, std::move(config)))
 { }
 
+TObjectManager::~TObjectManager()
+{ }
+
 void TObjectManager::Initialize()
 {
     Impl_->Initialize();

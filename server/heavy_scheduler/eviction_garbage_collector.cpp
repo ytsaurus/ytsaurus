@@ -155,6 +155,9 @@ TEvictionGarbageCollector::TEvictionGarbageCollector(
     : Impl_(New<TEvictionGarbageCollector::TImpl>(heavyScheduler, std::move(config)))
 { }
 
+TEvictionGarbageCollector::~TEvictionGarbageCollector()
+{ }
+
 void TEvictionGarbageCollector::Run(const TClusterPtr& cluster)
 {
     Impl_->Run(cluster);

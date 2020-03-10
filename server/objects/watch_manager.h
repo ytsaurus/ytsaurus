@@ -16,6 +16,7 @@ public:
     TWatchManager(
         NMaster::TBootstrap* bootstrap,
         TWatchManagerConfigPtr config);
+    ~TWatchManager();
 
     void Initialize();
 

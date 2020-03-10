@@ -18,6 +18,7 @@ public:
         NProfiling::TProfiler profiler,
         IClusterReaderPtr reader,
         IObjectFilterEvaluatorPtr nodeFilterEvaluator);
+    ~TCluster();
 
     std::vector<TNode*> GetNodes();
     TNode* FindNode(const TObjectId& id);

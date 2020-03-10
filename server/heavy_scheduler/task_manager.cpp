@@ -151,6 +151,8 @@ TTaskManager::TTaskManager(TTaskManagerConfigPtr config)
     : Impl_(New<TImpl>(std::move(config)))
 { }
 
+TTaskManager::~TTaskManager()
+{ }
 
 void TTaskManager::RemoveFinishedTasks()
 {

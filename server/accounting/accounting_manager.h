@@ -21,6 +21,7 @@ public:
     TAccountingManager(
         NMaster::TBootstrap* bootstrap,
         TAccountingManagerConfigPtr config);
+    ~TAccountingManager();
 
     void Initialize();
 

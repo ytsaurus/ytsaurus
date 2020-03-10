@@ -86,6 +86,7 @@ public:
     TWatchQueryExecutor(
         NMaster::TBootstrap* bootstrap,
         ISession* session);
+    ~TWatchQueryExecutor();
 
     TWatchQueryResult ExecuteWatchQuery(
         EObjectType type,

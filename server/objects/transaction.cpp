@@ -3427,6 +3427,9 @@ TTransaction::TTransaction(
         std::move(underlyingTransaction)))
 { }
 
+TTransaction::~TTransaction()
+{ }
+
 ETransactionState TTransaction::GetState() const
 {
     return Impl_->GetState();

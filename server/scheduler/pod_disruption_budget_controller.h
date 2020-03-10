@@ -16,6 +16,7 @@ public:
         NMaster::TBootstrap* bootstrap,
         TPodDisruptionBudgetControllerConfigPtr config,
         NProfiling::TProfiler profiler);
+    ~TPodDisruptionBudgetController();
 
     void Run(const NCluster::TClusterPtr& cluster);
 
