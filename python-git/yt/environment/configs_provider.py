@@ -120,6 +120,7 @@ _default_provision = {
     "enable_structured_scheduler_logging": False,
     "fqdn": socket.getfqdn(),
     "enable_master_cache": False,
+    "enable_permission_cache": True,
     "enable_logging_compression": True,
 }
 
@@ -168,7 +169,7 @@ class ConfigsProvider(object):
         rpc_client_config = None
         rpc_proxy_addresses = None
         if provision["rpc_proxy"]["count"] > 0:
-            rpc_proxy_configs = self._build_rpc_proxy_configs(provision, logs_dir, deepcopy(connection_configs), ports_generator)
+            rpc_proxy_configs = self._build_rpc_proxy_configs(provision, logs_dir, deepcopy(connection_configs), node_addresses, ports_generator)
             rpc_proxy_addresses = ["{0}:{1}".format(provision["fqdn"], rpc_proxy_config["rpc_port"])
                 for rpc_proxy_config in rpc_proxy_configs]
             rpc_client_config = {
@@ -229,7 +230,7 @@ class ConfigsProvider(object):
         pass
 
     @abc.abstractmethod
-    def _build_rpc_proxy_configs(self, provision, master_connection_configs, ports_generator):
+    def _build_rpc_proxy_configs(self, provision, master_connection_configs, master_cache_nodes, ports_generator):
         pass
 
 def init_logging(node, path, name, log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging=False):
@@ -477,7 +478,7 @@ class ConfigsProvider_19(ConfigsProvider):
         return configs, connection_configs
 
     def _build_cluster_connection_config(self, master_connection_configs, master_cache_nodes=None,
-                                         config_template=None, enable_master_cache=False):
+                                         config_template=None, enable_master_cache=False, enable_permission_cache=True):
         primary_cell_tag = master_connection_configs["primary_cell_tag"]
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
 
@@ -506,6 +507,8 @@ class ConfigsProvider_19(ConfigsProvider):
                 "expire_after_failed_update_time": 0,
                 "expire_after_access_time": 0,
                 "refresh_time": 0
+            },
+            "permission_cache": {
             },
             "master_cell_directory_synchronizer": {
                 "sync_period": 500,
@@ -545,6 +548,14 @@ class ConfigsProvider_19(ConfigsProvider):
         else:
             if "master_cache" in cluster_connection:
                 del cluster_connection["master_cache"]
+
+        if not enable_permission_cache:
+            cluster_connection["permission_cache"] = {
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "expire_after_access_time": 0,
+                "refresh_time": 0
+            }
 
         return cluster_connection
 
@@ -586,7 +597,8 @@ class ConfigsProvider_19(ConfigsProvider):
         update_inplace(driver_config, self._build_cluster_connection_config(
             master_connection_configs,
             master_cache_nodes=master_cache_nodes,
-            enable_master_cache=provision["enable_master_cache"]))
+            enable_master_cache=provision["enable_master_cache"],
+            enable_permission_cache=provision["enable_permission_cache"]))
 
         proxy_configs = []
 
@@ -734,7 +746,8 @@ class ConfigsProvider_19(ConfigsProvider):
                     update_inplace(config, self._build_cluster_connection_config(
                         master_connection_configs,
                         master_cache_nodes=master_cache_nodes,
-                        enable_master_cache=provision["enable_master_cache"]))
+                        enable_master_cache=provision["enable_master_cache"],
+                        enable_permission_cache=provision["enable_permission_cache"]))
                 else:
                     tag = secondary_cell_tags[cell_index - 1]
                     cell_connection_config = {
@@ -769,7 +782,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
         return configs, rpc_configs
 
-    def _build_rpc_proxy_configs(self, provision, proxy_logs_dir, master_connection_configs, ports_generator):
+    def _build_rpc_proxy_configs(self, provision, proxy_logs_dir, master_connection_configs, master_cache_nodes, ports_generator):
         configs = []
 
         for rpc_proxy_index in xrange(provision["rpc_proxy"]["count"]):
@@ -803,7 +816,11 @@ class ConfigsProvider_19(ConfigsProvider):
                     }
                 }
             }
-            config["cluster_connection"] = self._build_cluster_connection_config(master_connection_configs)
+            config["cluster_connection"] = self._build_cluster_connection_config(
+                master_connection_configs,
+                master_cache_nodes=master_cache_nodes,
+                enable_master_cache=provision["enable_master_cache"],
+                enable_permission_cache=provision["enable_permission_cache"])
             config["logging"] = init_logging(
                 config.get("logging"),
                 proxy_logs_dir,
