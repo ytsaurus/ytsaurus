@@ -189,7 +189,7 @@ public:
                         pod->ResourceRequests(),
                         pod->DiskVolumeRequests(),
                         pod->GpuRequests(),
-                        pod->IP6AddressRequests(),
+                        pod->IP6AddressRequests().ProtoRequests(),
                         nodeSegment->GetId());
                 }
                 accountToImmediateUsage[account] = std::move(usage);

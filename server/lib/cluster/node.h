@@ -1,6 +1,7 @@
 #pragma once
 
 #include "object.h"
+#include "pod.h"
 
 #include <yp/client/api/proto/data_model.pb.h>
 
@@ -130,7 +131,6 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TTopologyZone*>, TopologyZones);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TPod*>, Pods);
-    DEFINE_BYVAL_RW_PROPERTY(TNetworkModule*, NetworkModule);
 
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, CpuResource);
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, MemoryResource);

@@ -43,7 +43,7 @@ public:
 
     std::vector<TAccount*> GetAccounts();
 
-    TNetworkModule* FindNetworkModule(const TObjectId& id);
+    TIP4AddressPool* FindIP4AddressPool(const TObjectId& id);
 
     std::vector<TPodSet*> GetPodSets();
 

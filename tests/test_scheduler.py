@@ -1483,18 +1483,18 @@ class TestSchedulerEveryNodeSelectionStrategyBase(object):
 class TestSchedulerEveryNodeSelectionStrategyNetworkErrors(
     TestSchedulerEveryNodeSelectionStrategyBase
 ):
-    def test_ip6_address_internet_scheduling_unknown_module_error(self, yp_env_configurable):
+    def test_ip6_address_internet_scheduling_unknown_pool_error(self, yp_env_configurable):
         pod_spec = dict(
             enable_scheduling=True,
             ip6_address_requests=[
                 dict(
                     vlan_id=self._get_default_node_configuration()["vlan_id"],
                     network_id="somenet",
-                    enable_internet=True,
+                    ip4_address_pool_id="somepool",
                 ),
             ],
         )
-        status_check = partial(self._error_status_check, "IP6AddressIP4TunnelUnknownNetworkModule")
+        status_check = partial(self._error_status_check, "IP6AddressIP4TunnelUnknownIP4AddressPool")
         self._test_scheduling_error(yp_env_configurable, pod_spec, status_check)
 
     def test_ip6_address_internet_scheduling_capacity_error(self, yp_env_configurable):

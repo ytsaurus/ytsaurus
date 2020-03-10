@@ -25,6 +25,8 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TIP4AddressPoolSpec, Spec);
     DEFINE_BYREF_RO_PROPERTY(NClient::NApi::NProto::TIP4AddressPoolStatus, Status);
+    DEFINE_BYREF_RW_PROPERTY(int, AllocatedInternetAddressCount);
+    DEFINE_BYREF_RW_PROPERTY(int, InternetAddressCount);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

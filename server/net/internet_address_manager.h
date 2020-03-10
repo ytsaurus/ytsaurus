@@ -10,19 +10,18 @@ namespace NYP::NServer::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TIP4AddressesPerPoolAndNetworkModule = THashMap<
-    std::pair<NObjects::TObjectId, NObjects::TObjectId>,
+using TIP4AddressesPerPool = THashMap<
+    NObjects::TObjectId,
     TQueue<NObjects::TObjectId>
 >;
 
 class TInternetAddressManager
 {
 public:
-    void ReconcileState(TIP4AddressesPerPoolAndNetworkModule freeAddresses);
+    void ReconcileState(TIP4AddressesPerPool freeAddresses);
 
     void AssignInternetAddressesToPod(
         const NObjects::TTransactionPtr& transaction,
-        const NObjects::TNode* node,
         NObjects::TPod* pod);
 
     void RevokeInternetAddressesFromPod(
@@ -31,10 +30,9 @@ public:
 
 private:
     std::optional<NObjects::TObjectId> TakeInternetAddress(
-        const NObjects::TObjectId& ip4AddressPoolId,
-        const NObjects::TObjectId& networkModuleId);
+        const NObjects::TObjectId& ip4AddressPoolId);
 
-    TIP4AddressesPerPoolAndNetworkModule FreeAddresses_;
+    TIP4AddressesPerPool FreeAddresses_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

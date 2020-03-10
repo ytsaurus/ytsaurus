@@ -280,12 +280,11 @@ private:
             const NCluster::TClusterPtr& cluster,
             NNet::TInternetAddressManager* internetAddressManager)
         {
-            NNet::TIP4AddressesPerPoolAndNetworkModule freeAddresses;
+            NNet::TIP4AddressesPerPool freeAddresses;
             for (auto* address : cluster->GetInternetAddresses()) {
                 if (!address->Status().has_pod_id()) {
                     const auto& ip4AddressPoolId = address->ParentId();
-                    const auto& networkModuleId = address->Spec().network_module_id();
-                    freeAddresses[std::make_pair(ip4AddressPoolId, networkModuleId)].push(address->GetId());
+                    freeAddresses[ip4AddressPoolId].push(address->GetId());
                 }
             }
 

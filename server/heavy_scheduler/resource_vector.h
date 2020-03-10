@@ -12,7 +12,7 @@ class TResourceVector
 {
 public:
     using TValue = ui64;
-    static constexpr size_t DimensionCount = 7;
+    static constexpr size_t DimensionCount = 6;
 
     explicit TResourceVector(std::array<TValue, DimensionCount> values);
 

@@ -52,6 +52,24 @@ TErrorOr<TString> ParseAntiaffinityGroupIdPathLabelsKey(const NYPath::TYPath& gr
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TExtendedIP6AddressRequests::TExtendedIP6AddressRequests(
+    NObjects::TPodIP6AddressRequests ip6AddressRequests)
+    : ProtoRequests_(std::move(ip6AddressRequests))
+    , IP4AddressPools_(ProtoRequests_.size(), nullptr)
+{ }
+
+size_t TExtendedIP6AddressRequests::GetSize() const
+{
+    return ProtoRequests_.size();
+}
+
+void TExtendedIP6AddressRequests::SetPool(size_t pos, TIP4AddressPool* pool) {
+    YT_VERIFY(pos < GetSize());
+    IP4AddressPools_.at(pos) = pool;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPod::TPod(
     TObjectId id,
     NYT::NYson::TYsonString labels,
@@ -111,7 +129,7 @@ TError TPod::ParseSchedulingError() const
 ui64 TPod::GetInternetAddressRequestCount() const
 {
     ui64 result = 0;
-    for (const auto& addressRequest : IP6AddressRequests_) {
+    for (const auto& addressRequest : IP6AddressRequests_.ProtoRequests()) {
         if (addressRequest.enable_internet() || !addressRequest.ip4_address_pool_id().empty()) {
             ++result;
         }

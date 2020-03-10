@@ -6,7 +6,6 @@
 #include "config.h"
 #include "internet_address.h"
 #include "ip4_address_pool.h"
-#include "network_module.h"
 #include "node.h"
 #include "node_segment.h"
 #include "object_filter_cache.h"
@@ -19,6 +18,7 @@
 #include "topology_zone.h"
 
 #include <yp/server/lib/objects/object_filter.h>
+#include <yp/server/lib/objects/public.h>
 #include <yp/server/lib/objects/type_info.h>
 
 #include <yt/core/ytree/convert.h>
@@ -95,7 +95,6 @@ public:
     IMPLEMENT_ACCESSORS(InternetAddress, InternetAddresses)
     IMPLEMENT_ACCESSORS(IP4AddressPool, IP4AddressPools)
     IMPLEMENT_ACCESSORS(Account, Accounts)
-    IMPLEMENT_ACCESSORS(NetworkModule, NetworkModules)
     IMPLEMENT_ACCESSORS(Resource, Resources)
 
     #undef IMPLEMENT_ACCESSORS
@@ -227,8 +226,8 @@ public:
             InitializePodSetPods();
             InitializeAccountPods();
             InitializeAntiaffinityVacancies();
-            InitializeNetworkModules();
-            InitializeNodeNetworkModules();
+            InitializeIP4AddressPools();
+            InitializePodIP4AddressPools();
 
             YT_LOG_INFO(
                 "Finished loading cluster snapshot ("
@@ -240,7 +239,6 @@ public:
                 "AccountCount: %v, "
                 "InternetAddressCount: %v, "
                 "IP4AddressPoolCount: %v, "
-                "NetworkModuleCount: %v, "
                 "ResourceCount: %v, "
                 "TopologyZoneCount: %v)",
                 NodeMap_.size(),
@@ -251,7 +249,6 @@ public:
                 AccountMap_.size(),
                 InternetAddressMap_.size(),
                 IP4AddressPoolMap_.size(),
-                NetworkModuleMap_.size(),
                 ResourceMap_.size(),
                 TopologyZoneMap_.size());
         } catch (const std::exception& ex) {
@@ -278,7 +275,6 @@ private:
     THashMap<TObjectId, std::unique_ptr<TAccount>> AccountMap_;
     THashMap<TObjectId, std::unique_ptr<TInternetAddress>> InternetAddressMap_;
     THashMap<TObjectId, std::unique_ptr<TIP4AddressPool>> IP4AddressPoolMap_;
-    THashMap<TObjectId, std::unique_ptr<TNetworkModule>> NetworkModuleMap_;
     THashMap<TObjectId, std::unique_ptr<TResource>> ResourceMap_;
 
     THashMap<std::pair<TString, TString>, std::unique_ptr<TTopologyZone>> TopologyZoneMap_;
@@ -652,27 +648,32 @@ private:
         }
     }
 
-    void InitializeNetworkModules()
+    void InitializeIP4AddressPools()
     {
         for (const auto& [internetAddressId, internetAddress] : InternetAddressMap_) {
-            const auto& networkModuleId = internetAddress->Spec().network_module_id();
-            auto* networkModule = GetOrCreateNetworkModule(networkModuleId);
-            ++networkModule->InternetAddressCount();
+            const auto& poolId = internetAddress->ParentId();
+            auto* pool = FindIP4AddressPool(poolId);
+            ++pool->InternetAddressCount();
             if (internetAddress->Status().has_pod_id()) {
-                ++networkModule->AllocatedInternetAddressCount();
+                ++pool->AllocatedInternetAddressCount();
             }
         }
     }
 
-    void InitializeNodeNetworkModules()
+    void InitializePodIP4AddressPools()
     {
-        for (const auto& [nodeId, node] : NodeMap_) {
-            const auto& networkModuleId = node->Spec().network_module_id();
-            TNetworkModule* networkModule = nullptr;
-            if (networkModuleId) {
-                networkModule = FindNetworkModule(networkModuleId);
+        for (auto& [podId, pod] : PodMap_) {
+            auto& ip6AddressRequests = pod->IP6AddressRequests();
+            for (size_t i = 0; i < ip6AddressRequests.GetSize(); ++i) {
+                const auto& request = ip6AddressRequests.ProtoRequests()[i];
+                TObjectId poolId = request.ip4_address_pool_id();
+                if (poolId.empty() && request.enable_internet()) {
+                    poolId = DefaultIP4AddressPoolId;
+                }
+                if (poolId) {
+                    ip6AddressRequests.SetPool(i, FindIP4AddressPool(poolId));
+                }
             }
-            node->SetNetworkModule(networkModule);
         }
     }
 
@@ -739,19 +740,6 @@ private:
         return zones;
     }
 
-
-    TNetworkModule* GetOrCreateNetworkModule(const TObjectId& id)
-    {
-        if (!id) {
-            THROW_ERROR_EXCEPTION("Network module id cannot be null");
-        }
-        auto it = NetworkModuleMap_.find(id);
-        if (it == NetworkModuleMap_.end()) {
-            it = NetworkModuleMap_.emplace(id, std::make_unique<TNetworkModule>()).first;
-        }
-        return it->second.get();
-    }
-
     int GetAntiaffinityConstraintsUniqueBucketCount(const std::vector<NClient::NApi::NProto::TAntiaffinityConstraint>& constraints)
     {
         using TAntiaffinityConstraintsBucket = std::tuple<TString, TString>;
@@ -774,7 +762,6 @@ private:
         AccountMap_.clear();
         InternetAddressMap_.clear();
         IP4AddressPoolMap_.clear();
-        NetworkModuleMap_.clear();
         TopologyZoneMap_.clear();
         TopologyKeyZoneMap_.clear();
         NodeSegmentMap_.clear();
@@ -881,9 +868,9 @@ std::vector<TAccount*> TCluster::GetAccounts()
     return Impl_->GetAccounts();
 }
 
-TNetworkModule* TCluster::FindNetworkModule(const TObjectId& id)
+TIP4AddressPool* TCluster::FindIP4AddressPool(const TObjectId& id)
 {
-    return Impl_->FindNetworkModule(id);
+    return Impl_->FindIP4AddressPool(id);
 }
 
 std::vector<TPodSet*> TCluster::GetPodSets()

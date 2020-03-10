@@ -209,9 +209,6 @@ extern const TObjectId DefaultNodeSegmentId;
 // Pseudo-subjects.
 extern const TObjectId EveryoneSubjectId;
 
-// Built-in pool of ip4 addresses .
-extern const TObjectId DefaultIP4AddressPoolId;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TGenericClearUpdate

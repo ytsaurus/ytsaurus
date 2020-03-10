@@ -167,17 +167,10 @@ class TestInternetAddresses(object):
         self._wait_scheduled_state(yp_client, [pod_id1, pod_id2], "assigned")
         self._wait_scheduled_error(yp_client, [pod_id1, pod_id2])
 
-        assert not isinstance(
-            yp_client.get_object("pod", pod_id1, selectors=["/status/scheduling/error"])[0],
-            YsonEntity,
-        ) or not isinstance(
-            yp_client.get_object("pod", pod_id2, selectors=["/status/scheduling/error"])[0],
-            YsonEntity,
-        )
         assert isinstance(
             yp_client.get_object("pod", pod_id1, selectors=["/status/scheduling/error"])[0],
             YsonEntity,
-        ) or isinstance(
+        ) != isinstance(
             yp_client.get_object("pod", pod_id2, selectors=["/status/scheduling/error"])[0],
             YsonEntity,
         )
@@ -200,11 +193,9 @@ class TestInternetAddresses(object):
         pod_set_id = self._prepare_objects(yp_client)
 
         for i in xrange(1, 256):
-            self._create_inet_addr(yp_client, "netmodule1", "1.2.3.{}".format(i))
-        for i in xrange(1, 20):
-            self._create_node(yp_client, "netmodule2")
+            self._create_inet_addr(yp_client, "some.module", "1.2.3.{}".format(i))
 
-        node_ids = set([self._create_node(yp_client, "netmodule1") for i in range(2)])
+        node_ids = set([self._create_node(yp_client, "other.module") for i in range(2)])
         pod_ids = [self._create_pod(yp_client, pod_set_id, enable_internet=True) for i in range(10)]
 
         for pod_id in pod_ids:

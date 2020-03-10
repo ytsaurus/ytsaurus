@@ -83,7 +83,7 @@ class TestIP4AddressPools(object):
 
         network_module_id = "VLA-100.500"
 
-        create_nodes(yp_client, node_count=1, vlan_id=vlan_id, network_module_id=network_module_id)
+        create_nodes(yp_client, node_count=1, vlan_id=vlan_id)
 
         yp_client.create_object(
             "internet_address",

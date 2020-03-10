@@ -13,7 +13,7 @@ DEFINE_ENUM(EAllocatorConstraintKind,
     (Network)
     (Disk)
     (IP6AddressIP4TunnelCapacity)
-    (IP6AddressIP4TunnelUnknownNetworkModule)
+    (IP6AddressIP4TunnelUnknownIP4AddressPool)
     (IP6AddressVlan)
     (IP6Subnet)
     (Slot)

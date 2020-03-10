@@ -15,7 +15,6 @@ DECLARE_REFCOUNTED_CLASS(TCluster)
 class TAccount;
 class TIP4AddressPool;
 class TInternetAddress;
-class TNetworkModule;
 class TNode;
 class TNodeSegment;
 class TObject;

@@ -1,7 +1,6 @@
 #include "allocator.h"
 
 #include "cluster.h"
-#include "network_module.h"
 #include "node.h"
 #include "pod.h"
 #include "resource_capacities.h"
@@ -14,68 +13,87 @@ namespace NYP::NServer::NCluster {
 
 namespace {
 
-class TInternetAddressAllocationContext
+class TSingleInternetAddressAllocationContext
 {
 public:
-    explicit TInternetAddressAllocationContext(TNetworkModule* networkModule)
-        : NetworkModule_(networkModule)
+    TSingleInternetAddressAllocationContext(
+        const NClient::NApi::NProto::TPodSpec_TIP6AddressRequest* request,
+        TIP4AddressPool* pool)
+        : Request_(request)
+        , IP4AddressPool_(pool)
     { }
 
-    bool TryAllocate(int allocationSize, TAllocatorDiagnostics* diagnostics)
+    bool TryAllocate(TAllocatorDiagnostics* diagnostics)
     {
-        ReleaseAddresses();
-        return TryAcquireAddresses(allocationSize, diagnostics);
+        if (Request_->enable_internet() || !Request_->ip4_address_pool_id().empty()) {
+            if (!IP4AddressPool_) {
+                diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::IP6AddressIP4TunnelUnknownIP4AddressPool);
+                return false;
+            }
+            if (IP4AddressPool_->AllocatedInternetAddressCount() + 1 > IP4AddressPool_->InternetAddressCount()) {
+                diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::IP6AddressIP4TunnelCapacity);
+                return false;
+            } else {
+                IP4AddressPool_->AllocatedInternetAddressCount() += 1;
+                TemporarilyAllocated_ = true;
+            }
+        }
+        return true;
     }
 
     void Commit()
     {
-        AllocationSize_ = 0;
+        // Unset flag to indicate permanent allocation.
+        TemporarilyAllocated_ = false;
     }
 
-    ~TInternetAddressAllocationContext()
+    ~TSingleInternetAddressAllocationContext()
     {
-        ReleaseAddresses();
+        if (TemporarilyAllocated_) {
+            IP4AddressPool_->AllocatedInternetAddressCount() -= 1;
+            TemporarilyAllocated_ = false;
+        }
     }
 
 private:
-    TNetworkModule* const NetworkModule_;
+    const NClient::NApi::NProto::TPodSpec_TIP6AddressRequest* const Request_;
+    TIP4AddressPool* const IP4AddressPool_;
+    bool TemporarilyAllocated_ = false;
+};
 
-    int AllocationSize_ = 0;
+class TInternetAddressesAllocationContext
+{
+public:
+    explicit TInternetAddressesAllocationContext(TPod* pod)
+    {
+        auto& ip6AddressRequests = pod->IP6AddressRequests();
+        for (size_t i = 0; i < ip6AddressRequests.GetSize(); ++i) {
+            const auto& request = ip6AddressRequests.ProtoRequests()[i];
+            auto* pool = ip6AddressRequests.IP4AddressPools().at(i);
+            SingleAddressContexts_.emplace_back(&request, pool);
+        }
+    }
+
+    bool TryAllocate(TAllocatorDiagnostics* diagnostics)
+    {
+        bool result = true;
+        for (TSingleInternetAddressAllocationContext& context : SingleAddressContexts_) {
+            if (!context.TryAllocate(diagnostics)) {
+                result = false;
+            }
+        }
+        return result;
+    }
+
+    void Commit()
+    {
+        for (TSingleInternetAddressAllocationContext& context : SingleAddressContexts_) {
+            context.Commit();
+        }
+    }
 
 private:
-    void ReleaseAddresses()
-    {
-        if (AllocationSize_ > 0) {
-            YT_VERIFY(NetworkModule_);
-            YT_VERIFY(NetworkModule_->AllocatedInternetAddressCount() >= AllocationSize_);
-            NetworkModule_->AllocatedInternetAddressCount() -= AllocationSize_;
-            AllocationSize_ = 0;
-        }
-    }
-
-    bool TryAcquireAddresses(int allocationSize, TAllocatorDiagnostics* diagnostics)
-    {
-        YT_VERIFY(allocationSize >= 0);
-
-        if (allocationSize == 0) {
-            return true;
-        }
-
-        if (!NetworkModule_) {
-            diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::IP6AddressIP4TunnelUnknownNetworkModule);
-            return false;
-        }
-
-        if (NetworkModule_->AllocatedInternetAddressCount() + allocationSize > NetworkModule_->InternetAddressCount()) {
-            diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::IP6AddressIP4TunnelCapacity);
-            return false;
-        }
-
-        NetworkModule_->AllocatedInternetAddressCount() += allocationSize;
-        AllocationSize_ = allocationSize;
-
-        return true;
-    }
+    std::vector<TSingleInternetAddressAllocationContext> SingleAddressContexts_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,23 +110,17 @@ public:
         , GpuResources_(node->GpuResources())
         , Node_(node)
         , Pod_(pod)
-        , InternetAddressAllocationContext_(Node_->GetNetworkModule())
     { }
 
     bool TryAcquireIP6Addresses(TAllocatorDiagnostics* diagnostics)
     {
-        bool result = true;
-        for (const auto& addressRequest : Pod_->IP6AddressRequests()) {
-            if (!Node_->HasIP6SubnetInVlan(addressRequest.vlan_id()) && result) {
+        for (const auto& addressRequest : Pod_->IP6AddressRequests().ProtoRequests()) {
+            if (!Node_->HasIP6SubnetInVlan(addressRequest.vlan_id())) {
                 diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::IP6AddressVlan);
-                result = false;
+                return false;
             }
         }
-        auto internetAddressCount = Pod_->GetInternetAddressRequestCount();
-        if (!InternetAddressAllocationContext_.TryAllocate(internetAddressCount, diagnostics)) {
-            result = false;
-        }
-        return result;
+        return true;
     }
 
     bool TryAcquireIP6Subnets()
@@ -138,8 +150,6 @@ public:
         Node_->SlotResource() = SlotResource_;
         Node_->DiskResources() = DiskResources_;
         Node_->GpuResources() = GpuResources_;
-
-        InternetAddressAllocationContext_.Commit();
     }
 
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, CpuResource);
@@ -152,13 +162,11 @@ public:
 private:
     TNode* const Node_;
     TPod* const Pod_;
-
-    TInternetAddressAllocationContext InternetAddressAllocationContext_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TryAllocate(
+bool TryAllocateNodeResourses(
     TNodeAllocationContext* nodeAllocationContext,
     TPod* pod,
     TAllocatorDiagnostics* diagnostics)
@@ -271,6 +279,25 @@ bool TryAllocate(
     return result;
 }
 
+bool TryAllocate(
+    TInternetAddressesAllocationContext* internetAllocationContext,
+    TNodeAllocationContext* nodeAllocationContext,
+    TPod* pod,
+    TAllocatorDiagnostics* diagnostics)
+{
+    bool result = true;
+
+    if (!internetAllocationContext->TryAllocate(diagnostics)) {
+        result = false;
+    }
+
+    if (!TryAllocateNodeResourses(nodeAllocationContext, pod, diagnostics)) {
+        result = false;
+    }
+
+    return result;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,19 +316,22 @@ const TAllocatorConstraintCounters& TAllocatorDiagnostics::GetUnsatisfiedConstra
 
 void TAllocator::Allocate(TNode* node, TPod* pod)
 {
-    TNodeAllocationContext allocationContext(node, pod);
-    if (!TryAllocate(&allocationContext, pod, &Diagnostics_)) {
+    TInternetAddressesAllocationContext internetAllocationContext(pod);
+    TNodeAllocationContext nodeAllocationContext(node, pod);
+    if (!TryAllocate(&internetAllocationContext, &nodeAllocationContext, pod, &Diagnostics_)) {
         THROW_ERROR_EXCEPTION("Could not allocate resources for pod %Qv on node %Qv",
             pod->GetId(),
             node->GetId());
     }
-    allocationContext.Commit();
+    internetAllocationContext.Commit();
+    nodeAllocationContext.Commit();
 }
 
 bool TAllocator::CanAllocate(TNode* node, TPod* pod)
 {
-    TNodeAllocationContext allocationContext(node, pod);
-    return TryAllocate(&allocationContext, pod, &Diagnostics_);
+    TInternetAddressesAllocationContext internetAllocationContext(pod);
+    TNodeAllocationContext nodeAllocationContext(node, pod);
+    return TryAllocate(&internetAllocationContext, &nodeAllocationContext, pod, &Diagnostics_);
 }
 
 const TAllocatorDiagnostics& TAllocator::GetDiagnostics() const

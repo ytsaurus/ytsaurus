@@ -510,7 +510,7 @@ private:
             RegisterIP6Nonce(transaction, node, nonce, pod);
         }
 
-        internetAddressManager->AssignInternetAddressesToPod(transaction, node, pod);
+        internetAddressManager->AssignInternetAddressesToPod(transaction, pod);
     }
 
     void UpdateVirtualServiceTunnel(const TTransactionPtr& transaction, TPod* pod)

@@ -1,6 +1,5 @@
 #include "resource_vector.h"
 
-#include <yp/server/lib/cluster/network_module.h>
 #include <yp/server/lib/cluster/node.h>
 #include <yp/server/lib/cluster/pod.h>
 #include <yp/server/lib/cluster/resource_capacities.h>
@@ -76,7 +75,6 @@ TResourceVector GetResourceRequestVector(TPod* pod)
 {
     const auto& resourceRequests = pod->ResourceRequests();
     return TResourceVector({
-        pod->GetInternetAddressRequestCount(),
         resourceRequests.vcpu_guarantee(),
         resourceRequests.memory_limit(),
         resourceRequests.network_bandwidth_guarantee(),
@@ -87,14 +85,7 @@ TResourceVector GetResourceRequestVector(TPod* pod)
 
 TResourceVector GetFreeResourceVector(TNode* node)
 {
-    ui64 internetAddressCount = 0;
-    if (auto* module = node->GetNetworkModule()) {
-        if (module->InternetAddressCount() >= module->AllocatedInternetAddressCount()) {
-            internetAddressCount = module->InternetAddressCount() - module->AllocatedInternetAddressCount();
-        }
-    }
     return TResourceVector({
-        internetAddressCount,
         GetCpuCapacity(node->CpuResource().GetFreeCapacities()),
         GetMemoryCapacity(node->MemoryResource().GetFreeCapacities()),
         GetNetworkBandwidth(node->NetworkResource().GetFreeCapacities()),
