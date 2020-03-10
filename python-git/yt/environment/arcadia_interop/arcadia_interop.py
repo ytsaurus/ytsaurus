@@ -50,7 +50,7 @@ exec sudo -En {} {} {} {} "$@"
 
 def insert_sudo_wrapper(bin_dir):
     sudofixup = yatest_common.binary_path("yt-sudo-fixup")
-    
+
     for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
         bin_path = os.path.join(bin_dir, binary)
         orig_path = os.path.join(bin_dir, binary + ".orig")
@@ -186,7 +186,9 @@ def save_sandbox(sandbox_path, output_subpath):
         return
 
     # Do not copy sandbox if it stored in output ram drive and consistent with output_subpath.
-    if sandbox_path.startswith(yatest_common.output_ram_drive_path()) and sandbox_path.strip("/").endswith(output_subpath.strip("/")):
+    if yatest_common.output_ram_drive_path() is not None and \
+        sandbox_path.startswith(yatest_common.output_ram_drive_path()) and \
+        sandbox_path.strip("/").endswith(output_subpath.strip("/")):
         return
 
     shutil.move(sandbox_path, output_path)
