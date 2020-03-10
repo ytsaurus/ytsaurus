@@ -4,7 +4,7 @@ import yt.yson as yson
 from yt.wrapper import YtClient, TablePath, config, ypath_join
 from yt.tools.dynamic_tables import make_dynamic_table_attributes, unmount_table_new, mount_table_new
 
-from .init_cluster import get_default_resource_limits
+from yt.environment.init_cluster import get_default_resource_limits
 
 from yt.packages.six.moves import xrange
 
@@ -631,7 +631,9 @@ def transform_archive(client, transform_begin, transform_end, force, archive_pat
         client.set_attribute(archive_path, "version", version)
 
     for table in table_infos.keys():
-        mount_table(client, ypath_join(archive_path, table))
+        path = ypath_join(archive_path, table)
+        if client.get(path + "/@tablet_state") != "mounted":
+            mount_table(client, path)
 
 def create_tables(client, target_version, override_tablet_cell_bundle="default", shards=1, archive_path=DEFAULT_ARCHIVE_PATH):
     """ Creates operation archive tables of given version """
@@ -676,6 +678,7 @@ def main():
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--archive-path", type=str, default=DEFAULT_ARCHIVE_PATH)
     parser.add_argument("--shard-count", type=int, default=DEFAULT_SHARD_COUNT)
+    parser.add_argument("--proxy", type=str, default=config["proxy"]["url"])
 
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--target-version", type=int)
@@ -687,7 +690,7 @@ def main():
 
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 
-    client = YtClient(proxy=config["proxy"]["url"], token=config["token"])
+    client = YtClient(proxy=args.proxy, token=config["token"])
 
     client.config['pickling']['module_filter'] = lambda module: 'hashlib' not in getattr(module, '__name__', '')
 
