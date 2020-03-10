@@ -7,6 +7,8 @@
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/ypath_client.h>
 
+#include <yt/core/net/public.h>
+
 #include <yt/client/api/public.h>
 
 namespace NYT::NAuth {
@@ -28,6 +30,7 @@ TErrorOr<T> GetByYPath(const NYTree::INodePtr& node, const NYPath::TYPath& path)
 }
 
 TString GetCryptoHash(TStringBuf secret);
+TString FormatUserIP(const NNet::TNetworkAddress& address);
 
 ////////////////////////////////////////////////////////////////////////////////
 
