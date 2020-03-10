@@ -19,7 +19,7 @@ case class YtTableSparkSettings(configuration: Configuration) extends YtTableSet
 
   override def options: Map[String, String] = {
     val optionsKeys = configuration.ytConf(Options)
-    optionsKeys.collect { case key if Options.available.contains(key) =>
+    optionsKeys.collect { case key if Options.ytOptions.contains(key) =>
       key.drop(prefix.length + 1) -> configuration.getYtConf(key).get
     }.toMap
   }
@@ -36,6 +36,8 @@ object YtTableSparkSettings {
 
   case object Options extends StringListConfigEntry(s"$prefix.options") {
     val available: Set[String] = Set(SortColumns, Schema, OptimizeFor).map(_.name)
+
+    val ytOptions: Set[String] = Set(OptimizeFor).map(_.name)
   }
 
   def isTableSorted(configuration: Configuration): Boolean = {
@@ -55,6 +57,4 @@ object YtTableSparkSettings {
     configuration.setYtConf(Schema, schema)
     configuration.setYtConf(Options, options.keys.toSeq)
   }
-
-
 }
