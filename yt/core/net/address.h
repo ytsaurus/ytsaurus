@@ -67,12 +67,11 @@ public:
     static TNetworkAddress CreateAbstractUnixDomainSocketAddress(const TString& socketName);
 
     bool IsUnix() const;
+    bool IsIP() const;
     bool IsIP4() const;
     bool IsIP6() const;
 
     TIP6Address ToIP6Address() const;
-
-    TString FormatIP(bool withPort = false) const;
 
 private:
     sockaddr_storage Storage;
@@ -83,7 +82,13 @@ private:
 
 extern const TNetworkAddress NullNetworkAddress;
 
-TString ToString(const TNetworkAddress& address, bool withPort = true);
+struct TNetworkAddressFormatOptions
+{
+    bool IncludePort = true;
+    bool IncludeTcpProtocol = true;
+};
+
+TString ToString(const TNetworkAddress& address, const TNetworkAddressFormatOptions& options = {});
 
 bool operator == (const TNetworkAddress& lhs, const TNetworkAddress& rhs);
 bool operator != (const TNetworkAddress& lhs, const TNetworkAddress& rhs);
