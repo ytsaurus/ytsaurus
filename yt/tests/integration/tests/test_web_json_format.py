@@ -147,7 +147,7 @@ COLUMN_LIST = [
         "optional_list_int64_column",
         optional_type(list_type("int64")),
         [
-            [11, 12, 13],
+            [11, 12, 13, 14],
             yson.YsonEntity(),
         ],
         [
@@ -277,7 +277,7 @@ def get_output_yql_rows():
                 ["OptionalType", ["DataType", "Boolean"]]
             ],
             "optional_list_int64_column": [
-                [{"val": ["11", "12"], "inc": True}],
+                [{"val": ["11", "12", "13"], "inc": True}],
                 optional_list_int64_type
             ],
             "variant_tuple_column": [
@@ -303,7 +303,7 @@ def get_output_yql_rows():
                 ["OptionalType", ["DataType", "String"]]
             ],
             "yson32_column": [
-                ['"just a string"'],
+                [{"val": {"$type": "string", "$value": "just a string"}}],
                 ["OptionalType", ["DataType", "Yson"]]
             ],
             "int64_column": [
@@ -600,6 +600,6 @@ class TestWebJsonFormat(YTEnvSetup):
         for actual_row, expected_row in zip(output["rows"], expected_output_rows):
             _assert_yql_row_match(actual_row, expected_row, type_registry)
 
-        assert not output["incomplete_columns"]
-        assert not output["incomplete_all_column_names"]
+        assert output["incomplete_columns"] == "false"
+        assert output["incomplete_all_column_names"] == "false"
         assert output["all_column_names"] == get_expected_all_column_names()

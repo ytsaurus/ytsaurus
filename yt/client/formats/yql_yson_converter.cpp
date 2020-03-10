@@ -2,10 +2,12 @@
 
 #include <yt/client/table_client/logical_type.h>
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/helpers.h>
 
 #include <yt/core/json/json_writer.h>
 
 #include <yt/core/yson/pull_parser.h>
+#include <yt/core/yson/token_writer.h>
 
 #include <library/string_utils/base64/base64.h>
 
@@ -39,80 +41,120 @@ static TStringBuf TruncateUtf8(TStringBuf string, i64 limit)
     return string.Trunc(it - begin);
 }
 
-TYqlJsonConsumer::TYqlJsonConsumer(IJsonConsumer* underlying)
+////////////////////////////////////////////////////////////////////////////////
+
+class TYqlJsonWriter
+    : public TIntrinsicRefCounted
+{
+public:
+    explicit TYqlJsonWriter(NJson::IJsonWriter* underlying);
+
+    void OnInt64Scalar(i64 value);
+    void OnUint64Scalar(ui64 value);
+    void OnDoubleScalar(double value);
+    void OnBooleanScalar(bool value);
+    void OnEntity();
+
+    void OnBeginList();
+    void OnListItem();
+    void OnEndList();
+
+    void OnBeginMap();
+    void OnKeyedItem(TStringBuf key);
+    void OnEndMap();
+
+    void OnStringScalarWeightLimited(TStringBuf value, i64 limit);
+    void TransferYsonWeightLimited(const std::function<void(NYson::TCheckedInDebugYsonTokenWriter*)>& callback, i64 limit);
+
+    ui64 GetWrittenByteCount() const;
+
+private:
+    NJson::IJsonWriter* const Underlying_;
+    TBuffer Buffer_;
+    std::unique_ptr<NJson::IJsonConsumer> AnyWriter_;
+
+public:
+    static constexpr auto KeyValue = AsStringBuf("val");
+    static constexpr auto KeyIncomplete = AsStringBuf("inc");
+    static constexpr auto KeyBase64 = AsStringBuf("b64");
+
+private:
+    void OnStringScalarImpl(TStringBuf value, bool incomplete = false, bool base64 = false);
+    template <typename TFun>
+    void WriteWithWrapping(TFun fun, bool incomplete, bool base64, bool forceMap = false);
+};
+
+DECLARE_REFCOUNTED_CLASS(TYqlJsonWriter)
+DEFINE_REFCOUNTED_TYPE(TYqlJsonWriter)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYqlJsonWriter::TYqlJsonWriter(IJsonWriter* underlying)
     : Underlying_(underlying)
-{ }
-
-i64 TYqlJsonConsumer::OnInt64Scalar(i64 value)
 {
-    auto s = ToString(value);
-    Underlying_->OnStringScalar(s);
-    return GetStringWeight(s);
+    auto config = New<TJsonFormatConfig>();
+    config->Stringify = true;
+    config->AnnotateWithTypes = true;
+    config->EncodeUtf8 = true;
+    AnyWriter_ = CreateJsonConsumer(Underlying_, EYsonType::Node, std::move(config));
 }
 
-i64 TYqlJsonConsumer::OnUint64Scalar(ui64 value)
+void TYqlJsonWriter::OnInt64Scalar(i64 value)
 {
-    auto s = ToString(value);
-    Underlying_->OnStringScalar(s);
-    return GetStringWeight(s);
+    Underlying_->OnStringScalar(ToString(value));
 }
 
-i64 TYqlJsonConsumer::OnDoubleScalar(double value)
+void TYqlJsonWriter::OnUint64Scalar(ui64 value)
 {
-    auto s = ::FloatToString(value);
-    Underlying_->OnStringScalar(s);
-    return GetStringWeight(s);
+    Underlying_->OnStringScalar(ToString(value));
 }
 
-i64 TYqlJsonConsumer::OnBooleanScalar(bool value)
+void TYqlJsonWriter::OnDoubleScalar(double value)
+{
+    Underlying_->OnStringScalar(::FloatToString(value));
+}
+
+void TYqlJsonWriter::OnBooleanScalar(bool value)
 {
     Underlying_->OnBooleanScalar(value);
-    return BooleanScalarWeight;
 }
 
-i64 TYqlJsonConsumer::TYqlJsonConsumer::OnEntity()
+void TYqlJsonWriter::TYqlJsonWriter::OnEntity()
 {
     Underlying_->OnEntity();
-    return EntityWeight;
 }
 
-i64 TYqlJsonConsumer::OnBeginList()
+void TYqlJsonWriter::OnBeginList()
 {
     Underlying_->OnBeginList();
-    return BeginListWeight;
 }
 
-i64 TYqlJsonConsumer::OnListItem()
+void TYqlJsonWriter::OnListItem()
 {
     Underlying_->OnListItem();
-    return ListItemWeight;
 }
 
-i64 TYqlJsonConsumer::OnEndList()
+void TYqlJsonWriter::OnEndList()
 {
     Underlying_->OnEndList();
-    return EndListWeight;
 }
 
-i64 TYqlJsonConsumer::OnBeginMap()
+void TYqlJsonWriter::OnBeginMap()
 {
     Underlying_->OnBeginMap();
-    return BeginMapWeight;
 }
 
-i64 TYqlJsonConsumer::OnKeyedItem(TStringBuf key)
+void TYqlJsonWriter::OnKeyedItem(TStringBuf key)
 {
     Underlying_->OnKeyedItem(key);
-    return GetKeyedItemWeight(key);
 }
 
-i64 TYqlJsonConsumer::OnEndMap()
+void TYqlJsonWriter::OnEndMap()
 {
     Underlying_->OnEndMap();
-    return EndMapWeight;
 }
 
-i64 TYqlJsonConsumer::OnStringScalarWeightLimited(TStringBuf value, i64 limit)
+void TYqlJsonWriter::OnStringScalarWeightLimited(TStringBuf value, i64 limit)
 {
     TStringBuf valueToWrite = value;
     auto incomplete = false;
@@ -130,70 +172,90 @@ i64 TYqlJsonConsumer::OnStringScalarWeightLimited(TStringBuf value, i64 limit)
             incomplete = (truncatedLen < static_cast<i64>(valueToWrite.Size()));
             valueToWrite.Trunc(truncatedLen);
         }
-        Buffer_.Clear();
         Buffer_.Resize(Base64EncodeBufSize(valueToWrite.Size()));
         valueToWrite = Base64Encode(valueToWrite, Buffer_.Begin());
     }
-    return OnStringScalarImpl(valueToWrite, incomplete, base64);
+    OnStringScalarImpl(valueToWrite, incomplete, base64);
 }
 
-i64 TYqlJsonConsumer::TransferYsonWeightLimited(
-    const std::function<void(NYson::IYsonConsumer*)>& callback,
+void TYqlJsonWriter::TransferYsonWeightLimited(
+    const std::function<void(TCheckedInDebugYsonTokenWriter*)>& callback,
     i64 limit)
 {
     Buffer_.Clear();
-    TBufferOutput output(Buffer_);
-    TYsonWriter writer(&output, EYsonFormat::Text);
-    callback(&writer);
-    auto valueToWrite = TStringBuf(Buffer_.Begin(), Buffer_.End());
-    auto incomplete = false;
-    if (static_cast<i64>(Buffer_.Size()) > limit) {
-        incomplete = true;
-        valueToWrite = {};
+    {
+        TBufferOutput output(Buffer_);
+        TCheckedInDebugYsonTokenWriter writer(&output);
+        callback(&writer);
     }
-    return OnStringScalarImpl(valueToWrite, incomplete);
+    auto yson = TStringBuf(Buffer_.Begin(), Buffer_.End());
+    if (static_cast<i64>(yson.Size()) > limit) {
+        OnStringScalarImpl("", /* incomplete */ true, /* base64 */ false);
+    } else {
+        WriteWithWrapping(
+            [&] {
+                AnyWriter_->OnRaw(yson, EYsonType::Node);
+            },
+            /* incomplete */ false,
+            /* base64 */ false,
+            /* forceMap */ true);
+    }
 }
 
-i64 TYqlJsonConsumer::OnStringScalarImpl(
+void TYqlJsonWriter::OnStringScalarImpl(
     TStringBuf value,
     bool incomplete,
     bool base64)
 {
-    i64 weight = 0;
-    auto needMap = (incomplete || base64);
+    WriteWithWrapping(
+        [&] {
+            Underlying_->OnStringScalar(value);
+        },
+        incomplete,
+        base64);
+}
+
+template <typename TFun>
+void TYqlJsonWriter::WriteWithWrapping(
+    TFun fun,
+    bool incomplete,
+    bool base64,
+    bool forceMap)
+{
+    auto needMap = (incomplete || base64 || forceMap);
     if (needMap) {
         Underlying_->OnBeginMap();
-        weight += BeginMapWeight;
     }
     if (incomplete) {
         Underlying_->OnKeyedItem(KeyIncomplete);
         Underlying_->OnBooleanScalar(incomplete);
-        weight += GetKeyedItemWeight(KeyIncomplete) + BooleanScalarWeight;
     }
     if (base64) {
         Underlying_->OnKeyedItem(KeyBase64);
         Underlying_->OnBooleanScalar(base64);
-        weight += GetKeyedItemWeight(KeyBase64) + BooleanScalarWeight;
     }
+
     if (needMap) {
         Underlying_->OnKeyedItem(KeyValue);
-        weight += GetKeyedItemWeight(KeyValue);
     }
-    Underlying_->OnStringScalar(value);
-    weight += GetStringWeight(value);
+    fun();
+
     if (needMap) {
         Underlying_->OnEndMap();
-        weight += EndMapWeight;
     }
-    return weight;
+}
+
+ui64 TYqlJsonWriter::GetWrittenByteCount() const
+{
+    return Underlying_->GetWrittenByteCount();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using TWeightLimitedYsonToYqlConverter = std::function<
-    i64(NYson::TYsonPullParserCursor* cursor, TYqlJsonConsumer* consumer, i64 weightLimit)>;
+    void(NYson::TYsonPullParserCursor* cursor, TYqlJsonWriter* consumer, i64 totalLimit)>;
 using TWeightLimitedUnversionedValueToYqlConverter = std::function<
-    i64(TUnversionedValue value, TYqlJsonConsumer* consumer, i64 weightLimit)>;
+    void(TUnversionedValue value, TYqlJsonWriter* consumer, i64 totalLimit)>;
 
 static TWeightLimitedYsonToYqlConverter CreateWeightLimitedYsonToYqlConverter(
     const TLogicalTypePtr& logicalType,
@@ -224,50 +286,53 @@ public:
         : Config_(std::move(config))
     { }
 
-    i64 operator () (TYsonPullParserCursor* cursor, TYqlJsonConsumer* consumer, i64 weightLimit)
+    void operator () (TYsonPullParserCursor* cursor, TYqlJsonWriter* consumer, i64 totalLimit)
     {
-        i64 stringWeightLimit = std::min(weightLimit, Config_->StringWeightLimit);
+        auto getStringWeightLimit = [&] {
+            auto bytesLeft = totalLimit - static_cast<i64>(consumer->GetWrittenByteCount());
+            if (Config_->StringWeightLimit) {
+                bytesLeft = std::min(bytesLeft, *Config_->StringWeightLimit);
+            }
+            return bytesLeft;
+        };
+
         const auto& item = cursor->GetCurrent();
-        i64 weight;
         if constexpr (PhysicalType == EValueType::Int64) {
             EnsureYsonItemTypeEqual(item, EYsonItemType::Int64Value);
-            weight = consumer->OnInt64Scalar(item.UncheckedAsInt64());
+            consumer->OnInt64Scalar(item.UncheckedAsInt64());
             cursor->Next();
         } else if constexpr (PhysicalType == EValueType::Uint64) {
             EnsureYsonItemTypeEqual(item, EYsonItemType::Uint64Value);
-            weight = consumer->OnUint64Scalar(item.UncheckedAsUint64());
+            consumer->OnUint64Scalar(item.UncheckedAsUint64());
             cursor->Next();
         } else if constexpr (PhysicalType == EValueType::String) {
             EnsureYsonItemTypeEqual(item, EYsonItemType::StringValue);
-            weight = consumer->OnStringScalarWeightLimited(
+            consumer->OnStringScalarWeightLimited(
                 item.UncheckedAsString(),
-                stringWeightLimit);
+                getStringWeightLimit());
             cursor->Next();
         } else if constexpr (PhysicalType == EValueType::Double) {
             EnsureYsonItemTypeEqual(item, EYsonItemType::DoubleValue);
-            weight = consumer->OnDoubleScalar(item.UncheckedAsDouble());
+            consumer->OnDoubleScalar(item.UncheckedAsDouble());
             cursor->Next();
         } else if constexpr (PhysicalType == EValueType::Boolean) {
             EnsureYsonItemTypeEqual(item, EYsonItemType::BooleanValue);
-            weight = consumer->OnBooleanScalar(item.UncheckedAsBoolean());
+            consumer->OnBooleanScalar(item.UncheckedAsBoolean());
             cursor->Next();
         } else if constexpr (PhysicalType == EValueType::Null) {
             EnsureYsonItemTypeEqual(item, EYsonItemType::EntityValue);
-            weight = consumer->OnEntity();
+            consumer->OnEntity();
             cursor->Next();
         } else if constexpr (PhysicalType == EValueType::Any) {
-            weight = consumer->TransferYsonWeightLimited(
-                [cursor] (IYsonConsumer* ysonConsumer) {
-                    cursor->TransferComplexValue(ysonConsumer);
+            consumer->TransferYsonWeightLimited(
+                [cursor] (TCheckedInDebugYsonTokenWriter* writer) {
+                    cursor->TransferComplexValue(writer);
                 },
-                stringWeightLimit);
+                getStringWeightLimit());
         } else {
             // Silly assert instead of forbidden |static_assert(false)|.
             static_assert(PhysicalType == EValueType::Int64, "Unexpected physical type");
-            // Just to placate the compiler.
-            weight = 0;
         }
-        return weight;
     }
 
 private:
@@ -302,88 +367,80 @@ class TListYsonToYqlConverter
 {
 public:
     TListYsonToYqlConverter(const TListLogicalType& type, TYqlConverterConfigPtr config)
-        : Config_(std::move(config))
-        , ElementConverter_(CreateWeightLimitedYsonToYqlConverter(type.GetElement(), Config_))
+        : ElementConverter_(CreateWeightLimitedYsonToYqlConverter(type.GetElement(), std::move(config)))
     { }
 
-    i64 operator() (TYsonPullParserCursor* cursor, TYqlJsonConsumer* consumer, i64 weightLimit)
+    void operator() (TYsonPullParserCursor* cursor, TYqlJsonWriter* consumer, i64 totalLimit)
     {
         EnsureYsonItemTypeEqual(cursor->GetCurrent(), EYsonItemType::BeginList);
         cursor->Next();
 
-        i64 weight = 0;
-        weight += consumer->OnBeginMap();
-        weight += consumer->OnKeyedItem(TYqlJsonConsumer::KeyValue);
-        weight += consumer->OnBeginList();
+        consumer->OnBeginMap();
+        consumer->OnKeyedItem(TYqlJsonWriter::KeyValue);
+        consumer->OnBeginList();
         auto incomplete = false;
         while (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
-            if (weight >= weightLimit) {
+            if (static_cast<i64>(consumer->GetWrittenByteCount()) >= totalLimit) {
                 incomplete = true;
                 break;
             }
-            weight += consumer->OnListItem();
-            weight += ElementConverter_(cursor, consumer, weightLimit - weight);
+            consumer->OnListItem();
+            ElementConverter_(cursor, consumer, totalLimit);
         }
         if (incomplete) {
             while (cursor->GetCurrent().GetType() != EYsonItemType::EndList) {
                 cursor->SkipComplexValue();
             }
         }
-        weight += consumer->OnEndList();
+        consumer->OnEndList();
         if (incomplete) {
-            weight += consumer->OnKeyedItem(TYqlJsonConsumer::KeyIncomplete);
-            weight += consumer->OnBooleanScalar(true);
+            consumer->OnKeyedItem(TYqlJsonWriter::KeyIncomplete);
+            consumer->OnBooleanScalar(true);
         }
-        weight += consumer->OnEndMap();
+        consumer->OnEndMap();
         cursor->Next();
-        return weight;
     }
 
 private:
-    TYqlConverterConfigPtr Config_;
-    TWeightLimitedYsonToYqlConverter ElementConverter_;
+    const TWeightLimitedYsonToYqlConverter ElementConverter_;
 };
 
-i64 ConvertSequence(
+void ConvertSequence(
     TYsonPullParserCursor* cursor,
-    TYqlJsonConsumer* consumer,
+    TYqlJsonWriter* consumer,
     const std::vector<TWeightLimitedYsonToYqlConverter>& converters,
-    i64 weightLimit)
+    i64 totalLimit)
 {
     EnsureYsonItemTypeEqual(cursor->GetCurrent(), EYsonItemType::BeginList);
     cursor->Next();
 
-    i64 weight = 0;
-    weight += consumer->OnBeginList();
+    consumer->OnBeginList();
     for (const auto& converter : converters) {
         EnsureYsonItemTypeNotEqual(cursor->GetCurrent(), EYsonItemType::EndList);
-        weight += converter(cursor, consumer, weightLimit - weight);
+        converter(cursor, consumer, totalLimit);
     }
     EnsureYsonItemTypeEqual(cursor->GetCurrent(), EYsonItemType::EndList);
-    weight += consumer->OnEndList();
+    consumer->OnEndList();
 
     cursor->Next();
-    return weight;
 }
 
 class TStructYsonToYqlConverter
 {
 public:
     explicit TStructYsonToYqlConverter(const TStructLogicalType& type, TYqlConverterConfigPtr config)
-        : Config_(std::move(config))
     {
         for (const auto& field : type.GetFields()) {
-            FieldConverters_.push_back(CreateWeightLimitedYsonToYqlConverter(field.Type, Config_));
+            FieldConverters_.push_back(CreateWeightLimitedYsonToYqlConverter(field.Type, config));
         }
     }
 
-    i64 operator() (TYsonPullParserCursor* cursor, TYqlJsonConsumer* consumer, i64 weightLimit)
+    void operator() (TYsonPullParserCursor* cursor, TYqlJsonWriter* consumer, i64 totalLimit)
     {
-        return ConvertSequence(cursor, consumer, FieldConverters_, weightLimit);
+        ConvertSequence(cursor, consumer, FieldConverters_, totalLimit);
     }
 
 private:
-    TYqlConverterConfigPtr Config_;
     std::vector<TWeightLimitedYsonToYqlConverter> FieldConverters_;
 };
 
@@ -391,20 +448,18 @@ class TTupleYsonToYqlConverter
 {
 public:
     TTupleYsonToYqlConverter(const TTupleLogicalType& type, TYqlConverterConfigPtr config)
-        : Config_(std::move(config))
     {
         for (const auto& element : type.GetElements()) {
-            ElementConverters_.push_back(CreateWeightLimitedYsonToYqlConverter(element, Config_));
+            ElementConverters_.push_back(CreateWeightLimitedYsonToYqlConverter(element, config));
         }
     }
 
-    i64 operator() (TYsonPullParserCursor* cursor, TYqlJsonConsumer* consumer, i64 weightLimit)
+    void operator() (TYsonPullParserCursor* cursor, TYqlJsonWriter* consumer, i64 totalLimit)
     {
-        return ConvertSequence(cursor, consumer, ElementConverters_, weightLimit);
+        ConvertSequence(cursor, consumer, ElementConverters_, totalLimit);
     }
 
 private:
-    TYqlConverterConfigPtr Config_;
     std::vector<TWeightLimitedYsonToYqlConverter> ElementConverters_;
 };
 
@@ -412,38 +467,34 @@ class TOptionalYsonToYqlConverter
 {
 public:
     TOptionalYsonToYqlConverter(const TOptionalLogicalType& type, TYqlConverterConfigPtr config)
-        : Config_(std::move(config))
-        , IsElementNullable_(type.GetElement()->IsNullable())
-        , ElementConverter_(CreateWeightLimitedYsonToYqlConverter(type.GetElement(), Config_))
+        : IsElementNullable_(type.GetElement()->IsNullable())
+        , ElementConverter_(CreateWeightLimitedYsonToYqlConverter(type.GetElement(), std::move(config)))
     { }
 
-    i64 operator() (TYsonPullParserCursor* cursor, TYqlJsonConsumer* consumer, i64 weightLimit)
+    void operator() (TYsonPullParserCursor* cursor, TYqlJsonWriter* consumer, i64 totalLimit)
     {
-        i64 weight = 0;
         if (cursor->GetCurrent().GetType() == EYsonItemType::EntityValue) {
-            weight += consumer->OnEntity();
+            consumer->OnEntity();
             cursor->Next();
-            return weight;
+            return;
         }
 
-        weight += consumer->OnBeginList();
-        weight += consumer->OnListItem();
+        consumer->OnBeginList();
+        consumer->OnListItem();
         if (IsElementNullable_) {
             EnsureYsonItemTypeEqual(cursor->GetCurrent(), EYsonItemType::BeginList);
             cursor->Next();
             EnsureYsonItemTypeNotEqual(cursor->GetCurrent(), EYsonItemType::EndList);
-            weight += ElementConverter_(cursor, consumer, weightLimit - weight);
+            ElementConverter_(cursor, consumer, totalLimit);
             EnsureYsonItemTypeEqual(cursor->GetCurrent(), EYsonItemType::EndList);
             cursor->Next();
         } else {
-            weight += ElementConverter_(cursor, consumer, weightLimit - weight);
+            ElementConverter_(cursor, consumer, totalLimit);
         }
-        weight += consumer->OnEndList();
-        return weight;
+        consumer->OnEndList();
     }
 
 private:
-    TYqlConverterConfigPtr Config_;
     const bool IsElementNullable_;
     const TWeightLimitedYsonToYqlConverter ElementConverter_;
 };
@@ -452,24 +503,21 @@ class TVariantYsonToYqlConverter
 {
 public:
     TVariantYsonToYqlConverter(const TVariantTupleLogicalType& type, TYqlConverterConfigPtr config)
-        : Config_(std::move(config))
     {
         for (const auto& element : type.GetElements()) {
-            ElementConverters_.push_back(CreateWeightLimitedYsonToYqlConverter(element, Config_));
+            ElementConverters_.push_back(CreateWeightLimitedYsonToYqlConverter(element, config));
         }
     }
 
     TVariantYsonToYqlConverter(const TVariantStructLogicalType& type, TYqlConverterConfigPtr config)
-        : Config_(std::move(config))
     {
         for (const auto& field : type.GetFields()) {
-            ElementConverters_.push_back(CreateWeightLimitedYsonToYqlConverter(field.Type, Config_));
+            ElementConverters_.push_back(CreateWeightLimitedYsonToYqlConverter(field.Type, config));
         }
     }
 
-    i64 operator() (TYsonPullParserCursor* cursor, TYqlJsonConsumer* consumer, i64 weightLimit)
+    void operator() (TYsonPullParserCursor* cursor, TYqlJsonWriter* consumer, i64 totalLimit)
     {
-        i64 weight = 0;
         EnsureYsonItemTypeEqual(cursor->GetCurrent(), EYsonItemType::BeginList);
         cursor->Next();
         EnsureYsonItemTypeEqual(cursor->GetCurrent(), EYsonItemType::Int64Value);
@@ -481,23 +529,21 @@ public:
                 alternativeIndex);
         }
         cursor->Next();
-        weight += consumer->OnBeginList();
+        consumer->OnBeginList();
 
-        weight += consumer->OnListItem();
-        weight += consumer->OnInt64Scalar(alternativeIndex);
+        consumer->OnListItem();
+        consumer->OnInt64Scalar(alternativeIndex);
 
-        weight += consumer->OnListItem();
-        weight += ElementConverters_[alternativeIndex](cursor, consumer, weightLimit - weight);
+        consumer->OnListItem();
+        ElementConverters_[alternativeIndex](cursor, consumer, totalLimit);
 
         EnsureYsonItemTypeEqual(cursor->GetCurrent(), EYsonItemType::EndList);
-        weight += consumer->OnEndList();
+        consumer->OnEndList();
 
         cursor->Next();
-        return weight;
     }
 
 private:
-    TYqlConverterConfigPtr Config_;
     std::vector<TWeightLimitedYsonToYqlConverter> ElementConverters_;
 };
 
@@ -546,19 +592,14 @@ template <EValueType Type, bool Required>
 class TSimpleUnversionedValueToYqlConverter
 {
 public:
-    explicit TSimpleUnversionedValueToYqlConverter(TYqlConverterConfigPtr config)
-        : Config_(std::move(config))
-    { }
-
-    i64 operator () (TUnversionedValue value, TYqlJsonConsumer* consumer, i64 weightLimit)
+    void operator () (TUnversionedValue value, TYqlJsonWriter* consumer, i64 totalLimit)
     {
-        i64 weight = 0;
         if constexpr (!Required) {
             if (value.Type == EValueType::Null) {
-                weight += consumer->OnEntity();
-                return weight;
+                consumer->OnEntity();
+                return;
             }
-            weight += consumer->OnBeginList();
+            consumer->OnBeginList();
         }
 
         if (Y_UNLIKELY(Type != EValueType::Any && value.Type != Type)) {
@@ -567,38 +608,36 @@ public:
                 value.Type);
         }
         if constexpr (Type == EValueType::Int64) {
-            weight += consumer->OnInt64Scalar(value.Data.Int64);
+            consumer->OnInt64Scalar(value.Data.Int64);
         } else if constexpr (Type == EValueType::Uint64) {
-            weight += consumer->OnUint64Scalar(value.Data.Uint64);
+            consumer->OnUint64Scalar(value.Data.Uint64);
         } else if constexpr (Type == EValueType::String) {
-            weight += consumer->OnStringScalarWeightLimited(
+            auto bytesLeft = totalLimit - static_cast<i64>(consumer->GetWrittenByteCount());
+            consumer->OnStringScalarWeightLimited(
                 TStringBuf(value.Data.String, value.Length),
-                weightLimit);
+                bytesLeft);
         } else if constexpr (Type == EValueType::Double) {
-            weight += consumer->OnDoubleScalar(value.Data.Double);
+            consumer->OnDoubleScalar(value.Data.Double);
         } else if constexpr (Type == EValueType::Boolean) {
-            weight += consumer->OnBooleanScalar(value.Data.Boolean);
+            consumer->OnBooleanScalar(value.Data.Boolean);
         } else if constexpr (Type == EValueType::Any) {
-            weight += consumer->TransferYsonWeightLimited(
-                [value] (IYsonConsumer* ysonConsumer) {
-                    Serialize(value, ysonConsumer);
+            auto bytesLeft = totalLimit - static_cast<i64>(consumer->GetWrittenByteCount());
+            consumer->TransferYsonWeightLimited(
+                [value] (TCheckedInDebugYsonTokenWriter* tokenWriter) {
+                    UnversionedValueToYson(value, tokenWriter);
                 },
-                weightLimit);
+                bytesLeft);
         } else if constexpr (Type == EValueType::Null) {
-            weight += consumer->OnEntity();
+            consumer->OnEntity();
         } else {
             // Silly assert instead of uncompilable |static_assert(false)|.
             static_assert(Type == EValueType::Int64, "Unexpected value type");
         }
 
         if constexpr (!Required) {
-            weight += consumer->OnEndList();
+            consumer->OnEndList();
         }
-        return weight;
     }
-
-private:
-    const TYqlConverterConfigPtr Config_;
 };
 
 class TComplexUnversionedValueToYqlConverter
@@ -610,17 +649,16 @@ public:
         , IsNullable_(logicalType->IsNullable())
     { }
 
-    i64 operator () (TUnversionedValue value, TYqlJsonConsumer* consumer, i64 weightLimit)
+    void operator () (TUnversionedValue value, TYqlJsonWriter* consumer, i64 totalLimit)
     {
-        i64 weight = 0;
         if (value.Type == EValueType::Null) {
             if (Y_UNLIKELY(!IsNullable_)) {
                 THROW_ERROR_EXCEPTION("Unexpected value type %Qlv for non-nullable type %Qv",
                     EValueType::Null,
                     NTableClient::ToString(*Type_));
             }
-            weight += consumer->OnEntity();
-            return weight;
+            consumer->OnEntity();
+            return;
         }
         if (Y_UNLIKELY(value.Type != EValueType::Any)) {
             THROW_ERROR_EXCEPTION("Bad value type: expected %Qlv, got %Qlv",
@@ -630,8 +668,7 @@ public:
         TMemoryInput input(value.Data.String, value.Length);
         TYsonPullParser parser(&input, EYsonType::Node);
         TYsonPullParserCursor cursor(&parser);
-        weight += Converter_(&cursor, consumer, weightLimit - weight);
-        return weight;
+        Converter_(&cursor, consumer, totalLimit);
     }
 
 private:
@@ -649,9 +686,9 @@ static TWeightLimitedUnversionedValueToYqlConverter CreateSimpleUnversionedValue
 #define CASE(type) \
         case type: \
             if (isRequired) { \
-                return TSimpleUnversionedValueToYqlConverter<type, true>(std::move(config)); \
+                return TSimpleUnversionedValueToYqlConverter<type, true>{}; \
             } else { \
-                return TSimpleUnversionedValueToYqlConverter<type, false>(std::move(config)); \
+                return TSimpleUnversionedValueToYqlConverter<type, false>{}; \
             }
 
         CASE(EValueType::Int64)
@@ -688,21 +725,29 @@ static TWeightLimitedUnversionedValueToYqlConverter CreateWeightLimitedUnversion
 
 TYsonToYqlConverter CreateYsonToYqlConverter(
     const TLogicalTypePtr& logicalType,
-    TYqlConverterConfigPtr config)
+    TYqlConverterConfigPtr config,
+    IJsonWriter* consumer)
 {
     auto weightLimitedConverter = CreateWeightLimitedYsonToYqlConverter(logicalType, config);
-    return [=, config = std::move(config)] (TYsonPullParserCursor* cursor, TYqlJsonConsumer* consumer) {
-        weightLimitedConverter(cursor, consumer, config->FieldWeightLimit);
+    return [=, consumer = New<TYqlJsonWriter>(consumer)] (TYsonPullParserCursor* cursor) mutable {
+        auto totalLimit = config->FieldWeightLimit
+            ? static_cast<i64>(consumer->GetWrittenByteCount()) + *config->FieldWeightLimit
+            : std::numeric_limits<i64>::max();
+        weightLimitedConverter(cursor, consumer.Get(), totalLimit);
     };
 }
 
 TUnversionedValueToYqlConverter CreateUnversionedValueToYqlConverter(
     const TLogicalTypePtr& logicalType,
-    TYqlConverterConfigPtr config)
+    TYqlConverterConfigPtr config,
+    IJsonWriter* consumer)
 {
     auto weightLimitedConverter = CreateWeightLimitedUnversionedValueToYqlConverter(logicalType, config);
-    return [=, config = std::move(config)] (TUnversionedValue value, TYqlJsonConsumer* consumer) {
-        weightLimitedConverter(value, consumer, config->FieldWeightLimit);
+    return [=, consumer = New<TYqlJsonWriter>(consumer)] (TUnversionedValue value) mutable {
+        auto totalLimit = config->FieldWeightLimit
+            ? static_cast<i64>(consumer->GetWrittenByteCount()) + *config->FieldWeightLimit
+            : std::numeric_limits<i64>::max();
+        weightLimitedConverter(value, consumer.Get(), totalLimit);
     };
 }
 

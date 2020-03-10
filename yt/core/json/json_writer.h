@@ -23,8 +23,11 @@ namespace NYT::NJson {
 struct IJsonWriter
     : public NYson::IFlushableYsonConsumer
 {
-    // Finish writing top-level value and start the next one.
+    // Finish writing top-level value and start the next one from new line.
+    // No check for value completeness are guaranteed.
     virtual void StartNextValue() = 0;
+
+    virtual ui64 GetWrittenByteCount() const = 0;
 };
 
 std::unique_ptr<IJsonWriter> CreateJsonWriter(
@@ -57,7 +60,7 @@ std::unique_ptr<IJsonWriter> CreateJsonWriter(
 //        '$type': (type name, if type annotation is enabled)
 //    }
 
-//! Translates YSON events into a series of calls to underlying |IYsonConsumer|
+//! Translates YSON events into a series of calls to underlying |IJsonWriter|
 //! thus enabling to transform YSON into JSON.
 /*!
  *  \note
@@ -77,11 +80,13 @@ struct IJsonConsumer
     virtual void OnNodeWeightLimited(TStringBuf yson, std::optional<i64> weightLimit) = 0;
 };
 
+// If |type == ListFragment|, additionally call |underlying->StartNextValue| after each complete value.
 std::unique_ptr<IJsonConsumer> CreateJsonConsumer(
     IOutputStream* output,
     NYson::EYsonType type = NYson::EYsonType::Node,
     TJsonFormatConfigPtr config = New<TJsonFormatConfig>());
 
+// If |type == ListFragment|, additionally call |underlying->StartNextValue| after each complete value.
 std::unique_ptr<IJsonConsumer> CreateJsonConsumer(
     IJsonWriter* underlying,
     NYson::EYsonType type = NYson::EYsonType::Node,

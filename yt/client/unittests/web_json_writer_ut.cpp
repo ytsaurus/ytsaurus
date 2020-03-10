@@ -109,7 +109,7 @@ TEST_F(TWriterForWebJson, Simple)
     std::vector<TUnversionedRow> rows = {row1.GetRow(), row2.GetRow()};
 
     EXPECT_EQ(true, Writer_->Write(rows));
-    Writer_->Close();
+    WaitFor(Writer_->Close()).ThrowOnError();
 
     TString expectedOutput =
         "{"
@@ -516,15 +516,8 @@ void CheckYqlValue(
         ASSERT_EQ(valueNode->GetType(), ENodeType::Boolean);
         EXPECT_EQ(valueNode->GetValue<bool>(), expectedValue);
     } else if constexpr (std::is_same_v<TDecayedValue, INodePtr>) {
-        INodePtr actualValueNode;
-        if (valueNode->GetType() == ENodeType::String) {
-            // It is ["DataType", "Yson"], so we must interpret the string as YSON.
-            actualValueNode = ConvertToNode(TYsonString(valueNode->GetValue<TString>()));
-        } else {
-            actualValueNode = valueNode;
-        }
-        EXPECT_TRUE(AreNodesEqual(actualValueNode, expectedValue))
-            << "actualValueNode is " << ConvertToYsonString(actualValueNode, EYsonFormat::Pretty).GetData()
+        EXPECT_TRUE(AreNodesEqual(valueNode, expectedValue))
+            << "actualValueNode is " << ConvertToYsonString(valueNode, EYsonFormat::Pretty).GetData()
             << "\nexpectedValue is " << ConvertToYsonString(expectedValue, EYsonFormat::Pretty).GetData();
     } else {
         static_assert(TDependentFalse<TDecayedValue>::value, "Type not allowed");
@@ -579,6 +572,12 @@ void CheckYqlTypeAndValue(
     CheckYqlType(typeNode, expectedType, yqlTypes);
 }
 
+#define CHECK_YQL_TYPE_AND_VALUE(row, name, expectedType, expectedValue, yqlTypes) \
+    { \
+        SCOPED_TRACE(name); \
+        CheckYqlTypeAndValue(row, name, expectedType, expectedValue, yqlTypes); \
+    }
+
 TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
 {
     Config_->MaxAllColumnNamesCount = 2;
@@ -631,11 +630,11 @@ TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
     auto yqlTypeRegistry = result->AsMap()->FindChild("yql_type_registry");
     ASSERT_TRUE(yqlTypeRegistry);
 
-    ASSERT_EQ(incompleteColumns->GetType(), ENodeType::Boolean);
-    EXPECT_EQ(incompleteColumns->GetValue<bool>(), false);
+    ASSERT_EQ(incompleteColumns->GetType(), ENodeType::String);
+    EXPECT_EQ(incompleteColumns->GetValue<TString>(), "false");
 
-    ASSERT_EQ(incompleteAllColumnNames->GetType(), ENodeType::Boolean);
-    EXPECT_EQ(incompleteAllColumnNames->GetValue<bool>(), true);
+    ASSERT_EQ(incompleteAllColumnNames->GetType(), ENodeType::String);
+    EXPECT_EQ(incompleteAllColumnNames->GetValue<TString>(), "true");
 
     ASSERT_EQ(allColumnNames->GetType(), ENodeType::List);
     std::vector<TString> allColumnNamesVector;
@@ -654,20 +653,32 @@ TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
 
     ASSERT_EQ(row1->GetType(), ENodeType::Map);
     EXPECT_EQ(row1->AsMap()->GetChildCount(), 3);
-    CheckYqlTypeAndValue(row1, "column_a", R"(["DataType"; "Uint64"])", "100500", yqlTypes);
-    CheckYqlTypeAndValue(row1, "column_b", R"(["DataType"; "Boolean"])", true, yqlTypes);
-    CheckYqlTypeAndValue(row1, "column_c", R"(["DataType"; "String"])", "row1_c", yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row1, "column_a", R"(["DataType"; "Uint64"])", "100500", yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row1, "column_b", R"(["DataType"; "Boolean"])", true, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row1, "column_c", R"(["DataType"; "String"])", "row1_c", yqlTypes);
 
     ASSERT_EQ(row2->GetType(), ENodeType::Map);
     EXPECT_EQ(row2->AsMap()->GetChildCount(), 2);
-    CheckYqlTypeAndValue(row2, "column_b", R"(["DataType"; "String"])", "row2_b", yqlTypes);
-    CheckYqlTypeAndValue(row2, "column_c", R"(["DataType"; "String"])", "row2_c", yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row2, "column_b", R"(["DataType"; "String"])", "row2_b", yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row2, "column_c", R"(["DataType"; "String"])", "row2_c", yqlTypes);
 
     ASSERT_EQ(row3->GetType(), ENodeType::Map);
     EXPECT_EQ(row3->AsMap()->GetChildCount(), 3);
-    CheckYqlTypeAndValue(row3, "column_a", R"(["DataType"; "Int64"])", "-100500", yqlTypes);
-    CheckYqlTypeAndValue(row3, "column_b", R"(["DataType"; "Yson"])", ConvertToNode(TYsonString("{x=2;y=3}")), yqlTypes);
-    CheckYqlTypeAndValue(row3, "column_c", R"(["DataType"; "Double"])", 2.71828, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row3, "column_a", R"(["DataType"; "Int64"])", "-100500", yqlTypes);
+    auto row3BValue = ConvertToNode(TYsonString(R"({
+        val = {
+            x = {
+                "$type" = "int64";
+                "$value" = "2";
+            };
+            y = {
+                "$type" = "int64";
+                "$value" = "3";
+            }
+        }
+    })"));
+    CHECK_YQL_TYPE_AND_VALUE(row3, "column_b", R"(["DataType"; "Yson"])", row3BValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row3, "column_c", R"(["DataType"; "Double"])", 2.71828, yqlTypes);
 }
 
 TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
@@ -724,7 +735,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             ["DataType"; "Int64"]
         ]
     ])"));
-    auto fristColumnBType = ConvertToNode(TYsonString(R"([
+    auto firstColumnBType = ConvertToNode(TYsonString(R"([
         "StructType";
         [
             [
@@ -983,11 +994,11 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
     auto yqlTypeRegistry = result->AsMap()->FindChild("yql_type_registry");
     ASSERT_TRUE(yqlTypeRegistry);
 
-    ASSERT_EQ(incompleteColumns->GetType(), ENodeType::Boolean);
-    EXPECT_EQ(incompleteColumns->GetValue<bool>(), false);
+    ASSERT_EQ(incompleteColumns->GetType(), ENodeType::String);
+    EXPECT_EQ(incompleteColumns->GetValue<TString>(), "false");
 
-    ASSERT_EQ(incompleteAllColumnNames->GetType(), ENodeType::Boolean);
-    EXPECT_EQ(incompleteAllColumnNames->GetValue<bool>(), false);
+    ASSERT_EQ(incompleteAllColumnNames->GetType(), ENodeType::String);
+    EXPECT_EQ(incompleteAllColumnNames->GetValue<TString>(), "false");
 
     ASSERT_EQ(allColumnNames->GetType(), ENodeType::List);
     std::vector<TString> allColumnNamesVector;
@@ -1010,7 +1021,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
     ASSERT_EQ(row1->GetType(), ENodeType::Map);
     EXPECT_EQ(row1->AsMap()->GetChildCount(), 4);
     auto row1AValue = ConvertToNode(TYsonString(R"([{"val"=["-1"; "-2"; "-5"]}])"));
-    CheckYqlTypeAndValue(row1, "column_a", firstColumnAType, row1AValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row1, "column_a", firstColumnAType, row1AValue, yqlTypes);
     auto row1BValue = ConvertToNode(TYsonString(
         R"([
             "key";
@@ -1024,20 +1035,20 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             "102";
             "103"
         ])"));
-    CheckYqlTypeAndValue(row1, "column_b", fristColumnBType, row1BValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row1, "column_b", firstColumnBType, row1BValue, yqlTypes);
     auto row1CValue = ConvertToNode(TYsonString(R"({
         "val"=[
             [[#]; ["value"]];
             [[["key"]]; #]
         ]
     })"));
-    CheckYqlTypeAndValue(row1, "column_c", firstColumnCType, row1CValue, yqlTypes);
-    CheckYqlTypeAndValue(row1, "column_d", R"(["DataType"; "Int64"])", "-49", yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row1, "column_c", firstColumnCType, row1CValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row1, "column_d", R"(["DataType"; "Int64"])", "-49", yqlTypes);
 
     ASSERT_EQ(row2->GetType(), ENodeType::Map);
     EXPECT_EQ(row2->AsMap()->GetChildCount(), 4);
     auto row2AValue = ConvertToNode(TYsonString(R"([{"val"=["0"; "-2"; "-5"; "177"]}])"));
-    CheckYqlTypeAndValue(row2, "column_a", firstColumnAType, row2AValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row2, "column_a", firstColumnAType, row2AValue, yqlTypes);
     auto row2BValue = ConvertToNode(TYsonString(
         R"([
             "key1";
@@ -1051,20 +1062,20 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             "1102";
             "1103"
         ])"));
-    CheckYqlTypeAndValue(row2, "column_b", fristColumnBType, row2BValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row2, "column_b", firstColumnBType, row2BValue, yqlTypes);
     auto row2CValue = ConvertToNode(TYsonString(R"({
         "val"=[
             [#; #];
             [[["key1"]]; #]
         ]
     })"));
-    CheckYqlTypeAndValue(row2, "column_c", firstColumnCType, row2CValue, yqlTypes);
-    CheckYqlTypeAndValue(row2, "column_d", R"(["DataType"; "Uint64"])", "49", yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row2, "column_c", firstColumnCType, row2CValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row2, "column_d", R"(["DataType"; "Uint64"])", "49", yqlTypes);
 
     ASSERT_EQ(row3->GetType(), ENodeType::Map);
     EXPECT_EQ(row3->AsMap()->GetChildCount(), 4);
     auto row3AValue = ConvertToNode(TYsonString(R"([{"val"=[]}])"));
-    CheckYqlTypeAndValue(row3, "column_a", firstColumnAType, row3AValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row3, "column_a", firstColumnAType, row3AValue, yqlTypes);
     auto row3BValue = ConvertToNode(TYsonString(
         R"([
             "key2";
@@ -1078,19 +1089,19 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             "3202";
             "3103"
         ])"));
-    CheckYqlTypeAndValue(row3, "column_b", fristColumnBType, row3BValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row3, "column_b", firstColumnBType, row3BValue, yqlTypes);
     auto row3CValue = ConvertToNode(TYsonString(R"({
         "val"=[
             [[["key"]]; #]
         ]
     })"));
-    CheckYqlTypeAndValue(row3, "column_c", firstColumnCType, row3CValue, yqlTypes);
-    CheckYqlTypeAndValue(row3, "column_d", R"(["DataType"; "String"])", "49", yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row3, "column_c", firstColumnCType, row3CValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row3, "column_d", R"(["DataType"; "String"])", "49", yqlTypes);
 
     ASSERT_EQ(row4->GetType(), ENodeType::Map);
     EXPECT_EQ(row4->AsMap()->GetChildCount(), 4);
     auto row4AValue = ConvertToNode(TYsonString(R"(#)"));
-    CheckYqlTypeAndValue(row4, "column_a", firstColumnAType, row4AValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row4, "column_a", firstColumnAType, row4AValue, yqlTypes);
 
     auto row4BValue = ConvertToNode(TYsonString(
         "["
@@ -1106,51 +1117,53 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             "4202";
             "4103"
         ])"));
-    CheckYqlTypeAndValue(row4, "column_b", fristColumnBType, row4BValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row4, "column_b", firstColumnBType, row4BValue, yqlTypes);
 
     auto row4CValue = ConvertToNode(TYsonString(R"({"val"=[]})"));
-    CheckYqlTypeAndValue(row4, "column_c", firstColumnCType, row4CValue, yqlTypes);
-    auto row4DValue = ConvertToNode(TYsonString("{x=49}"));
-    CheckYqlTypeAndValue(row4, "column_d", R"(["DataType"; "Yson"])", row4DValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row4, "column_c", firstColumnCType, row4CValue, yqlTypes);
+    auto row4DValue = ConvertToNode(TYsonString(R"({
+        val = {
+            x = {
+                "$type" = "int64";
+                "$value" = "49";
+            }
+        }
+    })"));
+    CHECK_YQL_TYPE_AND_VALUE(row4, "column_d", R"(["DataType"; "Yson"])", row4DValue, yqlTypes);
 
     // Here must come rows from the second table.
 
     ASSERT_EQ(row5->GetType(), ENodeType::Map);
     EXPECT_EQ(row5->AsMap()->GetChildCount(), 4);
     auto row5AValue = ConvertToNode(TYsonString(R"(["0"; #])"));
-    CheckYqlTypeAndValue(row5, "column_a", secondColumnAType, row5AValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row5, "column_a", secondColumnAType, row5AValue, yqlTypes);
     auto row5BValue = ConvertToNode(TYsonString(R"(#)"));
-    CheckYqlTypeAndValue(row5, "column_b", secondColumnBType, row5BValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row5, "column_b", secondColumnBType, row5BValue, yqlTypes);
     auto row5CValue = ConvertToNode(TYsonString(R"(#)"));
-    CheckYqlTypeAndValue(row5, "column_c", secondColumnCType, row5CValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row5, "column_c", secondColumnCType, row5CValue, yqlTypes);
     auto row5DValue = ConvertToNode(TYsonString(R"(["-49"])"));
-    CheckYqlTypeAndValue(row5, "column_d", secondColumnDType, row5DValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row5, "column_d", secondColumnDType, row5DValue, yqlTypes);
 
     ASSERT_EQ(row6->GetType(), ENodeType::Map);
     EXPECT_EQ(row6->AsMap()->GetChildCount(), 4);
-    {
-        auto entry = row6->AsMap()->FindChild("column_a");
-        ASSERT_TRUE(entry);
-        ASSERT_EQ(entry->GetType(), ENodeType::List);
-        ASSERT_EQ(entry->AsList()->GetChildCount(), 2);
-        auto valueNode = entry->AsList()->GetChild(0);
-        ASSERT_EQ(valueNode->GetType(), ENodeType::List);
-        ASSERT_EQ(valueNode->AsList()->GetChildCount(), 2);
-        ASSERT_EQ(valueNode->AsList()->GetChild(0)->GetType(), ENodeType::String);
-        EXPECT_EQ(valueNode->AsList()->GetChild(0)->GetValue<TString>(), "1");
-        ASSERT_EQ(valueNode->AsList()->GetChild(1)->GetType(), ENodeType::String);
-        EXPECT_TRUE(AreNodesEqual(
-            ConvertToNode(TYsonString(valueNode->AsList()->GetChild(1)->GetValue<TString>())),
-            ConvertToNode(TYsonString("{z=z}"))));
-        auto typeNode = entry->AsList()->GetChild(1);
-        CheckYqlType(typeNode, secondColumnAType, yqlTypes);
-    }
+    auto row6AValue = ConvertToNode(TYsonString(R"([
+        "1";
+        {
+            val = {
+                z = {
+                    "$type" = "string";
+                    "$value" = "z";
+                }
+            }
+        };
+    ])"));
+    CHECK_YQL_TYPE_AND_VALUE(row6, "column_a", secondColumnAType, row6AValue, yqlTypes);
     auto row6BValue = ConvertToNode(TYsonString(R"(#)"));
-    CheckYqlTypeAndValue(row6, "column_b", secondColumnBType, row6BValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row6, "column_b", secondColumnBType, row6BValue, yqlTypes);
     auto row6CValue = ConvertToNode(TYsonString(R"([#])"));
-    CheckYqlTypeAndValue(row6, "column_c", secondColumnCType, row6CValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row6, "column_c", secondColumnCType, row6CValue, yqlTypes);
     auto row6DValue = ConvertToNode(TYsonString(R"(#)"));
-    CheckYqlTypeAndValue(row6, "column_d", secondColumnDType, row6DValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row6, "column_d", secondColumnDType, row6DValue, yqlTypes);
 }
 
 TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
@@ -1313,7 +1326,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
                         "inc" = %true;
                         "val" = [
                             ["0"; {"val"="One more q"; "inc"=%true}];
-                            ["1"; {"val"="One more"; "inc"=%true}];
+                            ["1"; {"val"="One more "; "inc"=%true}];
                         ];
                     }
                 ];
@@ -1325,13 +1338,20 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
         };
         ["424242238133245"];
     ])"));
-    CheckYqlTypeAndValue(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
 
     // Simple values are not truncated to |StringWeightLimit|
-    auto rowBValue = ConvertToNode(TYsonString(R"({kinda_long_key = kinda_even_longer_value})"));
-    CheckYqlTypeAndValue(row, "column_b", yqlTypeB, rowBValue, yqlTypes);
+    auto rowBValue = ConvertToNode(TYsonString(R"({
+        val = {
+            kinda_long_key = {
+                "$type" = "string";
+                "$value" = kinda_even_longer_value;
+            }
+        }
+    })"));
+    CHECK_YQL_TYPE_AND_VALUE(row, "column_b", yqlTypeB, rowBValue, yqlTypes);
     auto rowCValue = ConvertToNode(TYsonString(R"(["One more quite long string"])"));
-    CheckYqlTypeAndValue(row, "column_c", yqlTypeC, rowCValue, yqlTypes);
+    CHECK_YQL_TYPE_AND_VALUE(row, "column_c", yqlTypeC, rowCValue, yqlTypes);
 }
 
 
@@ -1380,26 +1400,60 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Any)
     {
         auto row = rows->AsList()->GetChild(0);
         ASSERT_EQ(row->GetType(), ENodeType::Map);
-        auto rowAValue = ConvertToNode(TYsonString(R"(["{\"x\"=\"y\";\"z\"=2;}"])"));
-        CheckYqlTypeAndValue(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
+        auto rowAValue = ConvertToNode(TYsonString(R"([
+            {
+                val = {
+                        x = {
+                            "$type" = "string";
+                            "$value" = "y";
+                        };
+                        z = {
+                            "$type" = "int64";
+                            "$value" = "2";
+                        }
+                }
+            }
+        ])"));
+        CHECK_YQL_TYPE_AND_VALUE(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
     }
     {
         auto row = rows->AsList()->GetChild(1);
         ASSERT_EQ(row->GetType(), ENodeType::Map);
-        auto rowAValue = ConvertToNode(TYsonString(R"(["%true"])"));
-        CheckYqlTypeAndValue(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
+        auto rowAValue = ConvertToNode(TYsonString(R"([
+            {
+                val = {
+                        "$type" = "boolean";
+                        "$value" = "true";
+                }
+            }
+        ])"));
+        CHECK_YQL_TYPE_AND_VALUE(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
     }
     {
         auto row = rows->AsList()->GetChild(2);
         ASSERT_EQ(row->GetType(), ENodeType::Map);
-        auto rowAValue = ConvertToNode(TYsonString(R"(["-42"])"));
-        CheckYqlTypeAndValue(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
+        auto rowAValue = ConvertToNode(TYsonString(R"([
+            {
+                val = {
+                    "$type" = "int64";
+                    "$value" = "-42";
+                }
+            }
+        ])"));
+        CHECK_YQL_TYPE_AND_VALUE(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
     }
     {
         auto row = rows->AsList()->GetChild(3);
         ASSERT_EQ(row->GetType(), ENodeType::Map);
-        auto rowAValue = ConvertToNode(TYsonString(R"(["42u"])"));
-        CheckYqlTypeAndValue(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
+        auto rowAValue = ConvertToNode(TYsonString(R"([
+            {
+                val = {
+                    "$type" = "uint64";
+                    "$value" = "42";
+                }
+            }
+        ])"));
+        CHECK_YQL_TYPE_AND_VALUE(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
     }
 }
 

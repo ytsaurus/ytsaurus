@@ -9,6 +9,7 @@ namespace NYT::NJson {
 DECLARE_REFCOUNTED_CLASS(TJsonFormatConfig)
 
 struct IJsonConsumer;
+struct IJsonWriter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
