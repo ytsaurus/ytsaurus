@@ -95,10 +95,10 @@ void TTraceContext::SetSpanName(const TString& spanName)
     SpanName_ = spanName;
 }
 
-void TTraceContext::SetSampled()
+void TTraceContext::SetSampled(bool value)
 {
     auto guard = Guard(Lock_);
-    SpanContext_.Sampled = true;
+    SpanContext_.Sampled = value;
 }
 
 void TTraceContext::AddTag(const TString& tagKey, const TString& tagValue)

@@ -31,6 +31,15 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EQueryPhase,
+    ((Start)        (0))
+    ((Preparation)  (1))
+    ((Execution)    (2))
+    ((Finish)       (3))
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TQueryContext
     : public DB::IHostContext
 {
@@ -52,7 +61,7 @@ public:
     EInterface Interface;
     TString ClientHostName;
     std::optional<TString> HttpUserAgent;
-    std::optional<TString> DataLensRequestId_;
+    std::optional<TString> DataLensRequestId;
 
     NTableClient::TRowBufferPtr RowBuffer;
 
@@ -68,9 +77,19 @@ public:
 
     const NApi::NNative::IClientPtr& Client() const;
 
+    void MoveToPhase(EQueryPhase phase);
+
 private:
     TClickHouseHostPtr Host_;
     NTracing::TTraceContextGuard TraceContextGuard_;
+
+
+    TInstant StartTime_;
+
+    mutable TSpinLock PhaseLock_;
+    std::atomic<EQueryPhase> CurrentPhase_ {EQueryPhase::Start};
+    TInstant LastPhaseTime_;
+    TString PhaseDebugString_ = ToString(EQueryPhase::Start);
 
     //! Spinlock controlling lazy client creation.
     mutable TReaderWriterSpinLock ClientLock_;

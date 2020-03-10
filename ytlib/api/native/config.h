@@ -22,6 +22,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/ytlib/security_client/config.h>
+
 #include <yt/core/bus/tcp/config.h>
 
 #include <yt/core/compression/public.h>
@@ -62,7 +64,7 @@ class TConnectionConfig
 public:
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
 
-    NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
+    NTransactionClient::TRemoteTimestampProviderWithDiscoveryConfigPtr TimestampProvider;
     NHiveClient::TCellDirectoryConfigPtr CellDirectory;
     NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
 
@@ -125,6 +127,8 @@ public:
 
     TAsyncExpiringCacheConfigPtr JobNodeDescriptorCache;
 
+    NSecurityClient::TPermissionCacheConfigPtr PermissionCache;
+
     int MaxChunksPerFetch;
     int MaxChunksPerLocateRequest;
 
@@ -132,6 +136,10 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+NTransactionClient::TRemoteTimestampProviderWithDiscoveryConfigPtr CreateTimestampProviderConfig(TMasterConnectionConfigPtr connectionConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

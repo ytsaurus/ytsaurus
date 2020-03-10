@@ -83,7 +83,7 @@ bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleJobCallsPerNo
 }
 
 bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(
-    NYT::NProfiling::TCpuInstant now,
+    NProfiling::TCpuInstant now,
     TDuration scheduleJobFailBackoffTime) const
 {
     return LastScheduleJobFailTime_ + NProfiling::DurationToCpuDuration(scheduleJobFailBackoffTime) > now;

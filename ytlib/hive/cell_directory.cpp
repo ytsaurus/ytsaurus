@@ -388,6 +388,9 @@ TCellDirectory::TCellDirectory(
         std::move(logger)))
 { }
 
+TCellDirectory::~TCellDirectory()
+{ }
+
 IChannelPtr TCellDirectory::FindChannel(TCellId cellId, EPeerKind peerKind)
 {
     return Impl_->FindChannel(cellId, peerKind);

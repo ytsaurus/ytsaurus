@@ -61,30 +61,14 @@ TJobResources GetNodeResourceLimit(const TNodeResourcesConfigPtr& config)
     return resourceLimits;
 }
 
-TSchedulerSimulatorConfigPtr LoadConfig(const TString& configFilename)
-{
-    INodePtr configNode;
-    try {
-        TIFStream configStream(configFilename);
-        configNode = ConvertToNode(&configStream);
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading scheduler simulator configuration") << ex;
-    }
-
-    auto config = New<TSchedulerSimulatorConfig>();
-    config->Load(configNode);
-
-    return config;
-}
-
 std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>& nodeGroups)
 {
     std::vector<TExecNodePtr> execNodes;
 
     NNodeTrackerClient::NProto::TDiskResources diskResources;
-    auto* diskReport = diskResources.add_disk_reports();
-    diskReport->set_limit(100_GB);
-    diskReport->set_usage(0);
+    auto* locationResources = diskResources.add_disk_location_resources();
+    locationResources->set_limit(100_GB);
+    locationResources->set_usage(0);
 
     for (const auto& nodeGroupConfig : nodeGroups) {
         for (int i = 0; i < nodeGroupConfig->Count; ++i) {
@@ -95,7 +79,7 @@ std::vector<TExecNodePtr> CreateExecNodes(const std::vector<TNodeGroupConfigPtr>
             auto node = New<TExecNode>(nodeId, descriptor, NScheduler::ENodeState::Online);
             node->Tags() = nodeGroupConfig->Tags;
             node->SetResourceLimits(GetNodeResourceLimit(nodeGroupConfig->ResourceLimits));
-            node->SetDiskInfo(diskResources);
+            node->SetDiskResources(diskResources);
             node->SetMasterState(NNodeTrackerClient::ENodeState::Online);
             node->SetSchedulerState(NScheduler::ENodeState::Online);
             execNodes.push_back(node);
@@ -257,7 +241,7 @@ protected:
             return;
         }
 
-        auto config = LoadConfig(/* configFilename */ parseResult.GetFreeArgs()[0]);
+        auto config = LoadConfig<TSchedulerSimulatorConfig>(/* configFilename */ parseResult.GetFreeArgs()[0]);
         ConfigureSingletons(config);
 
         {

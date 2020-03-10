@@ -316,7 +316,11 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
     void Ref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
     void Ref(const type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
     void Unref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
-    void Unref(const type* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
+    void Unref(const type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
+    void WeakRef(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
+    void WeakRef(const type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
+    void WeakUnref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
+    void WeakUnref(const type* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
 
 //! Forward-declares a class type, defines an intrusive pointer for it, and finally
 //! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
@@ -351,6 +355,25 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
     Y_FORCE_INLINE void Unref(const type* obj) \
     { \
         obj->Unref(); \
+    } \
+    Y_FORCE_INLINE void WeakRef(type* obj) \
+    { \
+        obj->WeakRef(); \
+    } \
+    \
+    Y_FORCE_INLINE void WeakRef(const type* obj) \
+    { \
+        obj->WeakRef(); \
+    } \
+    \
+    Y_FORCE_INLINE void WeakUnref(type* obj) \
+    { \
+        obj->WeakUnref(); \
+    } \
+    \
+    Y_FORCE_INLINE void WeakUnref(const type* obj) \
+    { \
+        obj->WeakUnref(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

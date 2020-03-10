@@ -4,6 +4,7 @@
 #include <yt/core/misc/new.h>
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/atomic_ptr.h>
+#include <yt/core/misc/allocator_traits.h>
 
 namespace NYT {
 namespace {
@@ -35,10 +36,12 @@ private:
 };
 
 class TTestAllocator
+    : public TDeleterBase
 {
 public:
     explicit TTestAllocator(IOutputStream* output)
-        : Output_(output)
+        : TDeleterBase(&Deallocate)
+        , Output_(output)
     { }
 
     void* Allocate(size_t size)
@@ -51,6 +54,16 @@ public:
         auto* header = static_cast<TTestAllocator**>(ptr);
         *header = this;
         return header + 1;
+    }
+
+    TDeleterBase* GetDeleter(size_t size)
+    {
+        return this;
+    }
+
+    static void Deallocate(TDeleterBase* deleter, void* ptr)
+    {
+        static_cast<TTestAllocator*>(deleter)->Free(ptr);
     }
 
     static void Free(void* ptr)
@@ -146,7 +159,7 @@ TEST(TLockFreePtrTest, CombinedLogic)
     EXPECT_STREQ("AC!", output.Str().c_str());
 
     ScheduleObjectDeletion(rawPtr, [] (void* ptr) {
-        ReleaseRef<TTestAllocator>(reinterpret_cast<TSampleObject*>(ptr));
+        ReleaseRef(reinterpret_cast<TSampleObject*>(ptr));
     });
 
     ScanDeleteList();

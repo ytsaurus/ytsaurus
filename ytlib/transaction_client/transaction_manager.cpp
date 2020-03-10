@@ -895,7 +895,9 @@ private:
                     if (!downedParticipantIds.empty()) {
                         YT_LOG_DEBUG("Some transaction participants are known to be down (CellIds: %v)",
                             downedParticipantIds);
-                        return TError("Some transaction participants are known to be down")
+                        return TError(
+                            NTransactionClient::EErrorCode::SomeParticipantsAreDown,
+                            "Some transaction participants are known to be down")
                             << TErrorAttribute("downed_participants", downedParticipantIds);
                     }
                 } else if (rspOrError.GetCode() == NYT::NRpc::EErrorCode::NoSuchMethod) {
@@ -1327,6 +1329,9 @@ TTransactionManager::TTransactionManager(
     : Impl_(New<TImpl>(
         std::move(connection),
         user))
+{ }
+
+TTransactionManager::~TTransactionManager()
 { }
 
 TFuture<TTransactionPtr> TTransactionManager::Start(

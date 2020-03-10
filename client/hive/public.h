@@ -31,6 +31,11 @@ struct TTimestampMap;
 
 DECLARE_REFCOUNTED_STRUCT(ITransactionParticipant)
 
+DEFINE_ENUM(EErrorCode,
+    ((MailboxNotCreatedYet)    (2200))
+    ((ParticipantUnregistered) (2201))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHiveClient

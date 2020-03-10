@@ -34,6 +34,8 @@ DEFINE_ENUM(EErrorCode,
     ((NestedExternalTransactionExists)  (11001))
     ((TransactionDepthLimitReached)     (11002))
     ((InvalidTransactionState)          (11003))
+    ((ParticipantFailedToPrepare)       (11004))
+    ((SomeParticipantsAreDown)          (11005))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,6 +88,7 @@ constexpr TTimestamp NotPreparedTimestamp         = 0x3fffffffffffffffULL;
 DECLARE_REFCOUNTED_STRUCT(ITimestampProvider)
 
 DECLARE_REFCOUNTED_CLASS(TRemoteTimestampProviderConfig)
+DECLARE_REFCOUNTED_CLASS(TRemoteTimestampProviderWithDiscoveryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

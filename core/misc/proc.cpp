@@ -655,8 +655,8 @@ bool TrySetUid(int uid)
 void SafeSetUid(int uid)
 {
     if (!TrySetUid(uid)) {
-        THROW_ERROR_EXCEPTION("failed to set uid to %v", uid)
-                << TError::FromSystem();
+        THROW_ERROR_EXCEPTION("Failed to set uid to %v", uid)
+            << TError::FromSystem();
     }
 }
 

@@ -4,6 +4,8 @@
 
 #include <yt/server/lib/exec_agent/config.h>
 
+#include <yt/server/lib/job_agent/job_reporter.h>
+
 #include <yt/server/node/cell_node/bootstrap.h>
 
 #include <yt/server/node/data_node/master_connector.h>
@@ -91,7 +93,7 @@ void TSchedulerConnector::SendHeartbeat()
         req.Get());
 
     YT_LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
-        FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_info()));
+        FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_resources()));
 
     auto profileInterval = [&] (TInstant lastTime, NProfiling::TAggregateGauge& counter) {
         if (lastTime != TInstant::Zero()) {
@@ -133,7 +135,7 @@ void TSchedulerConnector::SendHeartbeat()
         LastFullyProcessedHeartbeatTime_ = TInstant::Now();
     }
 
-    const auto& reporter = Bootstrap_->GetStatisticsReporter();
+    const auto& reporter = Bootstrap_->GetJobReporter();
     if (rsp->has_enable_job_reporter()) {
         reporter->SetEnabled(rsp->enable_job_reporter());
     }

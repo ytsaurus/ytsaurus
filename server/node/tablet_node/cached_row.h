@@ -26,7 +26,7 @@ struct TCachedRow
     }
 };
 
-using TCachedRowPtr = TRefCountedPtr<TCachedRow, TSlabAllocator>;
+using TCachedRowPtr = TRefCountedPtr<TCachedRow>;
 
 template <class TAlloc>
 TCachedRowPtr CachedRowFromVersionedRow(TAlloc* allocator, NTableClient::TVersionedRow row)

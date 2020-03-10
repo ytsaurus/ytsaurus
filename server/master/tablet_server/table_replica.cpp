@@ -57,14 +57,9 @@ void TTableReplica::Load(NCellMaster::TLoadContext& context)
     Load(context, State_);
     Load(context, Mode_);
     Load(context, TransitioningTablets_);
-    // COMPAT(aozeritsky)
-    if (context.GetVersion() >= EMasterReign::AddReplicatedTableOptions) {
-        Load(context, EnableReplicatedTableTracker_);
-    }
-    if (context.GetVersion() >= EMasterReign::AddReplicaOptions) {
-        Load(context, PreserveTimestamps_);
-        Load(context, Atomicity_);
-    }
+    Load(context, EnableReplicatedTableTracker_);
+    Load(context, PreserveTimestamps_);
+    Load(context, Atomicity_);
 }
 
 void TTableReplica::ThrowInvalidState()

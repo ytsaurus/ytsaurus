@@ -125,17 +125,6 @@ struct TQueryOptions
     std::optional<TString> ExecutionPool;
 };
 
-struct TBaseColumn
-{
-    TBaseColumn(const TString& name, EValueType type)
-        : Name(name)
-        , Type(type)
-    { }
-
-    TString Name;
-    EValueType Type;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

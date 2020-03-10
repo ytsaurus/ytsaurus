@@ -30,7 +30,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageDistributor(std::vector<TClickHouseTablePtr> tables);
+DB::StoragePtr CreateStorageDistributor(TQueryContext* queryContext, std::vector<TClickHouseTablePtr> tables);
 
 void RegisterStorageDistributor();
 

@@ -432,6 +432,7 @@ public:
 
     std::optional<TDuration> DelayInsideOperationCommit;
     std::optional<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
+    bool NoDelayOnSecondEntranceToCommit;
 
     std::optional<TDuration> DelayInsidePrepare;
 
@@ -533,6 +534,9 @@ public:
 
     //! Maximum number of saved stderr per job type.
     int MaxStderrCount;
+
+    //! Maximum number of saved coredumps info per job type.
+    int MaxCoreInfoCount;
 
     std::optional<i64> JobProxyMemoryOvercommitLimit;
 
@@ -649,6 +653,8 @@ public:
     //! Should match the atomicity of output dynamic tables. If present, output dynamic tables are not locked.
     NTransactionClient::EAtomicity Atomicity;
 
+    TJobCpuMonitorConfigPtr JobCpuMonitor;
+
     TOperationSpecBase();
 
 private:
@@ -741,7 +747,12 @@ public:
     //! Name of the network project to use in job.
     std::optional<TString> NetworkProject;
 
-    EEnablePorto EnablePorto;
+    //! Configures |enable_porto| setting for user job containers.
+    //! If not given, then the global default from controller agent's config is used.
+    std::optional<EEnablePorto> EnablePorto;
+
+    //! If true, then a job is considered failed once is produces a core dump.
+    bool FailJobOnCoreDump;
 
     TUserJobSpec();
 
@@ -821,8 +832,6 @@ public:
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriter;
     bool WriteSparseCoreDumps;
 
-    TJobCpuMonitorConfigPtr JobCpuMonitor;
-
     TOperationWithUserJobSpec();
 };
 
@@ -852,7 +861,6 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationSpecBase, 0x7819ae12);
 };
 
-
 DEFINE_REFCOUNTED_TYPE(TSimpleOperationSpecBase);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -869,7 +877,6 @@ public:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase, 0x79aafe77);
 };
-
 
 DEFINE_REFCOUNTED_TYPE(TUnorderedOperationSpecBase)
 

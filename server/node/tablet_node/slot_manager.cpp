@@ -213,15 +213,8 @@ public:
         return snapshot;
     }
 
-    void ValidateTabletAccess(
-        const TTabletSnapshotPtr& tabletSnapshot,
-        EPermission permission,
-        TTimestamp timestamp)
+    void ValidateTabletAccess(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
     {
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-
-        securityManager->ValidatePermission(NObjectClient::FromObjectId(tabletSnapshot->TableId), permission);
-
         if (timestamp != AsyncLastCommittedTimestamp) {
             const auto& hydraManager = tabletSnapshot->HydraManager;
             if (!hydraManager->IsActiveLeader()) {
@@ -348,17 +341,18 @@ public:
             THROW_ERROR_EXCEPTION("No tablet slots in node config");
         }
 
+        // WTF???
         // We create fake tablet slot here populating descriptors with the least amount
         // of data such that configuration succeeds.
         {
-            TTabletCellOptions options;
-            options.SnapshotAccount = "a";
-            options.ChangelogAccount = "a";
+            auto options = New<TTabletCellOptions>();
+            options->SnapshotAccount = "a";
+            options->ChangelogAccount = "a";
 
             NTabletClient::NProto::TCreateTabletSlotInfo protoInfo;
             ToProto(protoInfo.mutable_cell_id(), TGuid{});
             protoInfo.set_peer_id(0);
-            protoInfo.set_options(ConvertToYsonString(options).GetData());
+            protoInfo.set_options(ConvertToYsonString(*options).GetData());
             protoInfo.set_tablet_cell_bundle("b");
 
             CreateSlot(protoInfo);
@@ -598,12 +592,9 @@ TTabletSnapshotPtr TSlotManager::GetTabletSnapshotOrThrow(TTabletId tabletId)
     return Impl_->GetTabletSnapshotOrThrow(tabletId);
 }
 
-void TSlotManager::ValidateTabletAccess(
-    const TTabletSnapshotPtr& tabletSnapshot,
-    EPermission permission,
-    TTimestamp timestamp)
+void TSlotManager::ValidateTabletAccess(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
 {
-    Impl_->ValidateTabletAccess(tabletSnapshot, permission, timestamp);
+    Impl_->ValidateTabletAccess(tabletSnapshot, timestamp);
 }
 
 void TSlotManager::RegisterTabletSnapshot(TTabletSlotPtr slot, TTablet* tablet, std::optional<TLockManagerEpoch> epoch)

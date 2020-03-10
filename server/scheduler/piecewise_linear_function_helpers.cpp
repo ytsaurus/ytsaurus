@@ -111,12 +111,6 @@ TVectorPiecewiseLinearFunction CompressFunction(const TVectorPiecewiseLinearFunc
                 canExtendAccumulatedInterval = false;
                 break;
             }
-
-            // TODO(FOOBAR): This is the old condition which can produce infeasible results. Remove when sure that current condition works OK.
-            // if (CompareSegments(accumulatedBounds.Bottom[r], accumulatedBounds.Top[r]) <= 0) {
-            //     canExtendAccumulatedInterval = false;
-            //     break;
-            // }
         }
 
         // If we can greedily extend the interval, do so, otherwise merge the accumulated interval and start a new one.

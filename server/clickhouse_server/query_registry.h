@@ -15,7 +15,7 @@ class TQueryRegistry
 {
 public:
     TQueryRegistry(TBootstrap* bootstrap);
-    ~TQueryRegistry() = default;
+    ~TQueryRegistry();
 
     void Register(TQueryContext* queryContext);
     void Unregister(TQueryContext* queryContext);

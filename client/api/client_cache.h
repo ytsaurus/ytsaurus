@@ -34,13 +34,16 @@ class TClientCache
     : public TSyncSlruCacheBase<TString, TCachedClient>
 {
 public:
-    TClientCache(TSlruCacheConfigPtr config, IConnectionPtr connection, std::optional<TString> token = std::nullopt);
+    TClientCache(
+        TSlruCacheConfigPtr config,
+        IConnectionPtr connection);
 
-    IClientPtr GetClient(const TString& user, const std::optional<TString>& userToken = std::nullopt);
+    IClientPtr GetClient(
+        const TString& user,
+        const std::optional<TString>& userToken = std::nullopt);
 
 private:
-    IConnectionPtr Connection_;
-    std::optional<TString> Token_;
+    const IConnectionPtr Connection_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientCache);

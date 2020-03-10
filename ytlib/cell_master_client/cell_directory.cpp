@@ -10,7 +10,7 @@
 
 #include <yt/ytlib/hydra/peer_channel.h>
 
-#include <yt/ytlib/node_tracker_client/master_cache_synchronizer.h>
+#include <yt/ytlib/node_tracker_client/node_addresses_provider.h>
 
 #include <yt/client/cell_master_client/proto/cell_directory.pb.h>
 
@@ -21,7 +21,6 @@
 
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/retrying_channel.h>
-#include <yt/core/rpc/reconfigurable_roaming_channel_provider.h>
 
 namespace NYT::NCellMasterClient {
 
@@ -41,15 +40,14 @@ class TCellDirectory::TImpl
 public:
     TImpl(
         TCellDirectoryConfigPtr config,
+        const TWeakPtr<TCellDirectory>& owner,
         const TConnectionOptions& options,
         IChannelFactoryPtr channelFactory,
-        TMasterCacheSynchronizerPtr masterCacheSynchronizer,
         NLogging::TLogger logger)
         : Config_(std::move(config))
         , PrimaryMasterCellId_(Config_->PrimaryMaster->CellId)
         , PrimaryMasterCellTag_(CellTagFromId(PrimaryMasterCellId_))
         , ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
-        , MasterCacheSynchronizer_(std::move(masterCacheSynchronizer))
         , Logger(std::move(logger))
         , RandomGenerator_(TInstant::Now().GetValue())
     {
@@ -61,9 +59,9 @@ public:
 
         // NB: unlike channels, roles will be filled on first sync.
 
-        InitMasterChannels(Config_->PrimaryMaster, options);
+        InitMasterChannels(Config_->PrimaryMaster, owner, options);
         for (const auto& masterConfig : Config_->SecondaryMasters) {
-            InitMasterChannels(masterConfig, options);
+            InitMasterChannels(masterConfig, owner, options);
         }
     }
 
@@ -240,8 +238,7 @@ private:
     const TCellDirectoryConfigPtr Config_;
     const TCellId PrimaryMasterCellId_;
     const TCellTag PrimaryMasterCellTag_;
-    const ICachingChannelFactoryPtr  ChannelFactory_;
-    const TMasterCacheSynchronizerPtr MasterCacheSynchronizer_;
+    const ICachingChannelFactoryPtr ChannelFactory_;
     const NLogging::TLogger Logger;
 
     /*const*/ TCellTagList SecondaryMasterCellTags_;
@@ -283,7 +280,6 @@ private:
         THROW_ERROR_EXCEPTION("Unknown master cell tag %v", cellTag);
     }
 
-
     TMasterConnectionConfigPtr BuildMasterCacheConfig(const TMasterConnectionConfigPtr& config)
     {
         if (!Config_->MasterCache) {
@@ -300,12 +296,24 @@ private:
 
     void InitMasterChannels(
         const TMasterConnectionConfigPtr& config,
+        const TWeakPtr<TCellDirectory>& owner,
         const TConnectionOptions& options)
     {
         InitMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader, options);
         InitMasterChannel(EMasterChannelKind::Follower, config, EPeerKind::Follower, options);
-        InitMasterChannel(EMasterChannelKind::Cache, BuildMasterCacheConfig(config), EPeerKind::Follower, options);
         InitMasterChannel(EMasterChannelKind::SecondLevelCache, config, EPeerKind::Follower, options);
+
+        auto masterCacheConfig = BuildMasterCacheConfig(config);
+        if (masterCacheConfig->EnableMasterCacheDiscovery) {
+            auto channel = CreateNodeAddressesChannel(
+                masterCacheConfig->MasterCacheDiscoveryPeriod,
+                owner,
+                ENodeRole::MasterCache,
+                BIND(&TImpl::CreatePeerChannelFromAddresses, MakeStrong(this), masterCacheConfig, EPeerKind::Follower, options));
+            CellChannelMap_[CellTagFromId(masterCacheConfig->CellId)][EMasterChannelKind::Cache] = channel;
+        } else {
+            InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower, options);
+        }
     }
 
     void InitMasterChannel(
@@ -317,39 +325,23 @@ private:
         auto cellTag = CellTagFromId(config->CellId);
         auto peerChannel = CreatePeerChannel(config, peerKind, options);
 
-        if (channelKind == EMasterChannelKind::Cache && MasterCacheSynchronizer_) {
-            auto provider = CreateReconfigurableRoamingChannelProvider(
-                peerChannel,
-                peerChannel->GetEndpointDescription(),
-                peerChannel->GetEndpointAttributes(),
-                peerChannel->GetNetworkId());
-            peerChannel = CreateRoamingChannel(provider);
-            MasterCacheSynchronizer_->SubscribeMasterCacheNodeAddressesUpdated(BIND(
-                &TImpl::OnMasterCacheNodeAddressesUpdated,
-                MakeWeak(this),
-                provider,
-                config,
-                peerKind,
-                options));
-        }
-
         CellChannelMap_[cellTag][channelKind] = peerChannel;
     }
 
-    void OnMasterCacheNodeAddressesUpdated(
-        const IReconfigurableRoamingChannelProviderPtr& provider,
+    IChannelPtr CreatePeerChannelFromAddresses(
         const TMasterConnectionConfigPtr& config,
         EPeerKind peerKind,
         const TConnectionOptions& options,
         const std::vector<TString>& discoveredAddresses)
     {
-        YT_LOG_WARNING_IF(discoveredAddresses.empty(), "Received master cache node list is empty; falling back to masters");
+        auto peerChannelConfig = CloneYsonSerializable(config);
+        if (!discoveredAddresses.empty()) {
+            peerChannelConfig->Addresses = discoveredAddresses;
+        } else {
+            YT_LOG_WARNING("Received master cache node list is empty; falling back to masters");
+        }
 
-        auto peerChannelConfig = CloneYsonSerializable(Config_->MasterCache);
-        peerChannelConfig->Addresses = discoveredAddresses.empty() ? config->Addresses : discoveredAddresses;
-        peerChannelConfig->CellId = config->CellId;
-
-        provider->SetUnderlyingChannel(CreatePeerChannel(peerChannelConfig, peerKind, options));
+        return CreatePeerChannel(peerChannelConfig, peerKind, options);
     }
 
     IChannelPtr CreatePeerChannel(
@@ -384,14 +376,16 @@ TCellDirectory::TCellDirectory(
     TCellDirectoryConfigPtr config,
     const NApi::NNative::TConnectionOptions& options,
     IChannelFactoryPtr channelFactory,
-    NNodeTrackerClient::TMasterCacheSynchronizerPtr masterCacheSynchronizer,
     NLogging::TLogger logger)
     : Impl_(New<TCellDirectory::TImpl>(
         std::move(config),
+        MakeWeak(this),
         options,
         std::move(channelFactory),
-        std::move(masterCacheSynchronizer),
         std::move(logger)))
+{ }
+
+TCellDirectory::~TCellDirectory()
 { }
 
 void TCellDirectory::Update(const NCellMasterClient::NProto::TCellDirectory& protoDirectory)

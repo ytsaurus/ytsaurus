@@ -40,6 +40,18 @@ public:
     virtual EStoreType GetType() const override;
     virtual i64 GetRowCount() const override;
 
+    virtual void Save(TSaveContext& context) const override
+    {
+        TStoreBase::Save(context);
+        TOrderedStoreBase::Save(context);
+    }
+
+    virtual void Load(TLoadContext& context) override
+    {
+        TStoreBase::Load(context);
+        TOrderedStoreBase::Load(context);
+    }
+
     virtual TCallback<void(TSaveContext&)> AsyncSave() override;
     virtual void AsyncLoad(TLoadContext& context) override;
 

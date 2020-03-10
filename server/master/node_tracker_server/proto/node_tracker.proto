@@ -59,9 +59,10 @@ message TReqUpdateNodeResources
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqUpdateMasterCacheNodes
+message TReqUpdateNodesForRole
 {
-    repeated int32 node_ids = 1;
+    required int32 node_role = 1; // ENodeRole
+    repeated int32 node_ids = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

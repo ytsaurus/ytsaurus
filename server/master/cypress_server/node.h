@@ -18,13 +18,13 @@
 
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
-#include <yt/core/misc/variant.h>
 
 #include <yt/core/compression/public.h>
 
 #include <yt/library/erasure/public.h>
 
 #include <queue>
+#include <variant>
 
 namespace NYT::NCypressServer {
 

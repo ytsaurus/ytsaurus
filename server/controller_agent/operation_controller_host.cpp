@@ -220,6 +220,11 @@ const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpe
     return Bootstrap_->GetControllerAgent()->GetJobSpecSliceThrottler();
 }
 
+const NJobAgent::TJobReporterPtr& TOperationControllerHost::GetJobReporter()
+{
+    return Bootstrap_->GetControllerAgent()->GetJobReporter();
+}
+
 void TOperationControllerHost::OnOperationCompleted()
 {
     OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{

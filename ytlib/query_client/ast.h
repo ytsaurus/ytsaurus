@@ -6,8 +6,9 @@
 
 #include <yt/client/ypath/rich.h>
 
-#include <yt/core/misc/variant.h>
 #include <yt/core/misc/hash.h>
+
+#include <variant>
 
 namespace NYT::NQueryClient::NAst {
 

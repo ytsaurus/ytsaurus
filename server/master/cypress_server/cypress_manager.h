@@ -52,6 +52,8 @@ class TCypressManager
 public:
     explicit TCypressManager(NCellMaster::TBootstrap* bootstrap);
 
+    ~TCypressManager();
+
     void Initialize();
 
     void RegisterHandler(INodeTypeHandlerPtr handler);

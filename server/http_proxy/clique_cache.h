@@ -11,8 +11,8 @@ namespace NYT::NHttpProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedDiscovery
-    : public virtual TDiscovery
-    , public virtual TAsyncCacheValueBase<TString, TCachedDiscovery>
+    : public TDiscovery
+    , public TAsyncCacheValueBase<TString, TCachedDiscovery>
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TString, CliqueId);

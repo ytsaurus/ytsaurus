@@ -4,9 +4,20 @@
 
 #include <yt/core/rpc/public.h>
 
+#include <yt/ytlib/node_tracker_client/public.h>
+
 namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+NRpc::IChannelPtr CreateTimestampProviderChannel(
+    TRemoteTimestampProviderConfigPtr config,
+    NRpc::IChannelFactoryPtr channelFactory);
+
+NRpc::IChannelPtr CreateTimestampProviderChannelFromAddresses(
+    TRemoteTimestampProviderConfigPtr config,
+    NRpc::IChannelFactoryPtr channelFactory,
+    const std::vector<TString>& addresses);
 
 ITimestampProviderPtr CreateBatchingTimestampProvider(
     ITimestampProviderPtr underlying,
@@ -15,7 +26,7 @@ ITimestampProviderPtr CreateBatchingTimestampProvider(
 
 ITimestampProviderPtr CreateRemoteTimestampProvider(
     TRemoteTimestampProviderConfigPtr config,
-    NRpc::IChannelFactoryPtr channelFactory);
+    NRpc::IChannelPtr channel);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -3,11 +3,12 @@
 #include "config.h"
 #include "node.h"
 #include "rack.h"
-#include "master_cache_manager.h"
+#include "node_discovery_manager.h"
 
 #include <yt/server/master/cell_master/config.h>
 #include <yt/server/master/cell_master/config_manager.h>
 #include <yt/server/master/cell_master/public.h>
+#include <yt/server/master/cell_master/serialize.h>
 
 #include <yt/server/master/object_server/object_manager.h>
 
@@ -20,43 +21,90 @@ namespace NYT::NNodeTrackerServer {
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCellMaster;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = NodeTrackerServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TMasterCacheManager::TMasterCacheManager(
-    NCellMaster::TBootstrap* bootstrap)
-    : Bootstrap_(bootstrap)
+void TNodeListForRole::UpdateAddresses()
 {
-    Bootstrap_->GetConfigManager()->SubscribeConfigChanged(
-        BIND(&TMasterCacheManager::OnDynamicConfigChanged, MakeWeak(this)));
-    Bootstrap_->GetHydraFacade()->GetHydraManager()->SubscribeLeaderActive(
-        BIND(&TMasterCacheManager::OnLeaderActive, MakeWeak(this)));
-    Bootstrap_->GetHydraFacade()->GetHydraManager()->SubscribeStopLeading(
-        BIND(&TMasterCacheManager::OnStopLeading, MakeWeak(this)));
+    Addresses_.clear();
+    for (const auto* node : Nodes_) {
+        Addresses_.push_back(node->GetDefaultAddress());
+    }
 }
 
-void TMasterCacheManager::OnDynamicConfigChanged()
+void TNodeListForRole::Clear()
 {
-    Config_ = Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker->MasterCacheManager;
+    Nodes_.clear();
+    Addresses_.clear();
+}
+
+void TNodeListForRole::Save(NCellMaster::TSaveContext& context) const
+{
+    using NYT::Save;
+    Save(context, Nodes_);
+}
+
+void TNodeListForRole::Load(NCellMaster::TLoadContext& context)
+{
+    using NYT::Load;
+    Load(context, Nodes_);
+    UpdateAddresses();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNodeDiscoveryManagerConfigPtr GetConfigByNodeRole(
+    const TDynamicNodeTrackerConfigPtr& config,
+    ENodeRole nodeRole)
+{
+    switch (nodeRole) {
+        case ENodeRole::MasterCache:
+            return config->MasterCacheManager;
+        case ENodeRole::TimestampProvider:
+            return config->TimestampProviderManager;
+        default:
+            YT_ABORT();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNodeDiscoveryManager::TNodeDiscoveryManager(
+    NCellMaster::TBootstrap* bootstrap,
+    ENodeRole nodeRole)
+    : Bootstrap_(bootstrap)
+    , NodeRole_(nodeRole)
+    , Logger(NYT::NLogging::TLogger(NodeTrackerServerLogger)
+        .AddTag("NodeRole: %v", NodeRole_))
+{
+    Bootstrap_->GetConfigManager()->SubscribeConfigChanged(
+        BIND(&TNodeDiscoveryManager::OnDynamicConfigChanged, MakeWeak(this)));
+    Bootstrap_->GetHydraFacade()->GetHydraManager()->SubscribeLeaderActive(
+        BIND(&TNodeDiscoveryManager::OnLeaderActive, MakeWeak(this)));
+    Bootstrap_->GetHydraFacade()->GetHydraManager()->SubscribeStopLeading(
+        BIND(&TNodeDiscoveryManager::OnStopLeading, MakeWeak(this)));
+}
+
+void TNodeDiscoveryManager::OnDynamicConfigChanged()
+{
+    Config_ = GetConfigByNodeRole(Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker, NodeRole_);
+
     if (PeriodicExecutor_) {
         PeriodicExecutor_->SetPeriod(Config_->UpdatePeriod);
     }
 }
 
-void TMasterCacheManager::OnLeaderActive()
+void TNodeDiscoveryManager::OnLeaderActive()
 {
     PeriodicExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic),
-        BIND(&TMasterCacheManager::UpdateMasterCacheNodes, MakeWeak(this)));
+        BIND(&TNodeDiscoveryManager::UpdateNodeList, MakeWeak(this)));
     PeriodicExecutor_->Start();
     OnDynamicConfigChanged();
 }
 
-void TMasterCacheManager::OnStopLeading()
+void TNodeDiscoveryManager::OnStopLeading()
 {
     if (PeriodicExecutor_) {
         PeriodicExecutor_->Stop();
@@ -64,14 +112,14 @@ void TMasterCacheManager::OnStopLeading()
     }
 }
 
-bool TMasterCacheManager::IsGoodNode(const TNode* node) const
+bool TNodeDiscoveryManager::IsGoodNode(const TNode* node) const
 {
     return node->GetAggregatedState() == ENodeState::Online &&
         IsObjectAlive(node) &&
         Config_->NodeTagFilter.IsSatisfiedBy(node->Tags());
 }
 
-THashMap<TRack*, int> TMasterCacheManager::CountNodesPerRack(const std::vector<TNode*>& nodes)
+THashMap<TRack*, int> TNodeDiscoveryManager::CountNodesPerRack(const std::vector<TNode*>& nodes)
 {
     THashMap<TRack*, int> result;
     for (auto* node : nodes) {
@@ -82,7 +130,7 @@ THashMap<TRack*, int> TMasterCacheManager::CountNodesPerRack(const std::vector<T
     return result;
 }
 
-std::vector<TNode*> TMasterCacheManager::FindAppropriateNodes(const std::vector<TNode*>& selectedNodes, int count)
+std::vector<TNode*> TNodeDiscoveryManager::FindAppropriateNodes(const std::vector<TNode*>& selectedNodes, int count)
 {
     auto nodeCountPerRack = CountNodesPerRack(selectedNodes);
 
@@ -111,11 +159,11 @@ std::vector<TNode*> TMasterCacheManager::FindAppropriateNodes(const std::vector<
     return result;
 }
 
-void TMasterCacheManager::UpdateMasterCacheNodes()
+void TNodeDiscoveryManager::UpdateNodeList()
 {
-    auto nodes = Bootstrap_->GetNodeTracker()->GetMasterCacheNodes();
+    auto nodes = Bootstrap_->GetNodeTracker()->GetNodesForRole(NodeRole_);
 
-    YT_LOG_INFO("Started updating master cache nodes (OldNodes: %v)",
+    YT_LOG_INFO("Started updating nodes (OldNodes: %v)",
         MakeFormattableView(nodes, TNodePtrAddressFormatter()));
 
     nodes.erase(std::remove_if(nodes.begin(), nodes.end(), [&] (auto* node) {
@@ -124,28 +172,29 @@ void TMasterCacheManager::UpdateMasterCacheNodes()
 
     int nodesToReplaceCount = Config_->PeerCount - static_cast<int>(nodes.size());
     if (nodesToReplaceCount == 0) {
-        YT_LOG_INFO("No new master cache nodes needed");
+        YT_LOG_INFO("No new nodes needed");
     } else {
-        YT_LOG_INFO("New master cache nodes needed (NodesToReplaceCount: %v)", nodesToReplaceCount);
+        YT_LOG_INFO("New nodes needed (NodesToReplaceCount: %v)", nodesToReplaceCount);
     }
 
     auto newNodes = FindAppropriateNodes(nodes, nodesToReplaceCount);
     if (static_cast<int>(newNodes.size()) < nodesToReplaceCount) {
-        YT_LOG_WARNING("Failed to find enough alive master cache nodes satisfying node tag filter (Filter: %v)",
+        YT_LOG_WARNING("Failed to find enough alive nodes satisfying node tag filter (Filter: %v)",
             Config_->NodeTagFilter.GetFormula());
     }
-    YT_LOG_INFO("Found new master cache nodes (FoundCount: %v, NewNodes: %v)",
-         newNodes.size(),
-         MakeFormattableView(newNodes, TNodePtrAddressFormatter()));
+    YT_LOG_INFO("Found new nodes (FoundCount: %v, NewNodes: %v)",
+        newNodes.size(),
+        MakeFormattableView(newNodes, TNodePtrAddressFormatter()));
 
     nodes.insert(nodes.end(), newNodes.begin(), newNodes.end());
 
-    CommitMasterCacheNodes(nodes);
+    CommitNewNodes(nodes);
 }
 
-void TMasterCacheManager::CommitMasterCacheNodes(const std::vector<TNode*>& nodes)
+void TNodeDiscoveryManager::CommitNewNodes(const std::vector<TNode*>& nodes)
 {
-    NProto::TReqUpdateMasterCacheNodes request;
+    NProto::TReqUpdateNodesForRole request;
+    request.set_node_role(static_cast<int>(NodeRole_));
     for (auto* node : nodes) {
         request.add_node_ids(node->GetId());
     }

@@ -3,9 +3,10 @@ import pytest
 from yt_commands import *
 from yt_helpers import *
 
-from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, require_ytserver_root_privileges
+from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, require_ytserver_root_privileges, get_porto_delta_node_config
 from yt.test_helpers import are_almost_equal
 from yt.common import date_string_to_timestamp
+import yt.common
 
 from flaky import flaky
 
@@ -33,12 +34,12 @@ def get_from_tree_orchid(tree, path, **kwargs):
 
 ##################################################################
 
-class TestResourceUsage(YTEnvSetup, PrepareTables):
+class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
+    BASE_DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "connect_retry_backoff_time": 100,
             "fair_share_update_period": 100,
@@ -54,7 +55,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
     }
 
     def setup_method(self, method):
-        super(TestResourceUsage, self).setup_method(method)
+        super(BaseTestResourceUsage, self).setup_method(method)
         set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
         set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
         time.sleep(0.5)
@@ -238,6 +239,8 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         get_pool_fair_share_ratio = lambda pool: \
             get("{0}/pools/{1}/fair_share_ratio".format(scheduler_orchid_default_pool_tree_path(), pool))
+        get_pool_max_possible_resource_usage = lambda pool: \
+            get("{0}/pools/{1}/max_possible_usage_ratio".format(scheduler_orchid_default_pool_tree_path(), pool))
 
         command_with_breakpoint = with_breakpoint("cat ; BREAKPOINT")
         op1 = map(
@@ -270,10 +273,14 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         time.sleep(1)
 
-        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 3.0))
-        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_2"), 0))
-        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 3.0))
-        wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 2.0 / 3.0))
+        if self.DELTA_SCHEDULER_CONFIG["scheduler"].get("use_classic_scheduler", True):
+	    wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0))
+	    wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0))
+        else:
+            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 3.0))
+            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_2"), 0))
+            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 3.0))
+            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 2.0 / 3.0))
 
         release_breakpoint()
         op1.track()
@@ -317,6 +324,16 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         release_breakpoint()
         op.track()
+
+
+class TestResourceUsageClassic(BaseTestResourceUsage):
+    DELTA_SCHEDULER_CONFIG = BaseTestResourceUsage.BASE_DELTA_SCHEDULER_CONFIG
+
+class TestResourceUsageVector(BaseTestResourceUsage):
+    DELTA_SCHEDULER_CONFIG = yt.common.update(
+        BaseTestResourceUsage.BASE_DELTA_SCHEDULER_CONFIG,
+        {"use_classic_scheduler": True}
+    )
 
 ##################################################################
 
@@ -865,12 +882,12 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
 ##################################################################
 
-class TestSchedulerPreemption(YTEnvSetup):
+class BaseTestSchedulerPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
+    BASE_DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
             "graceful_preemption_job_interrupt_timeout": 2000,
@@ -891,7 +908,7 @@ class TestSchedulerPreemption(YTEnvSetup):
     }
 
     def setup_method(self, method):
-        super(TestSchedulerPreemption, self).setup_method(method)
+        super(BaseTestSchedulerPreemption, self).setup_method(method)
         set("//sys/pool_trees/default/@preemption_satisfaction_threshold", 0.99)
         set("//sys/pool_trees/default/@fair_share_starvation_tolerance", 0.7)
         set("//sys/pool_trees/default/@fair_share_starvation_tolerance_limit", 0.9)
@@ -1260,13 +1277,23 @@ class TestSchedulerPreemption(YTEnvSetup):
 
         op0.abort()
 
+class TestSchedulerPreemptionClassic(BaseTestSchedulerPreemption):
+    DELTA_SCHEDULER_CONFIG = BaseTestSchedulerPreemption.BASE_DELTA_SCHEDULER_CONFIG
 
-class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
+class TestSchedulerPreemptionVector(BaseTestSchedulerPreemption):
+    DELTA_SCHEDULER_CONFIG = yt.common.update(
+        BaseTestSchedulerPreemption.BASE_DELTA_SCHEDULER_CONFIG,
+        {"use_classic_scheduler": True}
+    )
+
+##################################################################
+
+class BaseTestResourceLimitsOverdraftPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
+    BASE_DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
             "graceful_preemption_job_interrupt_timeout": 2000,
@@ -1382,6 +1409,17 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
         wait(lambda: op1.get_job_count("running") == 1)
         wait(lambda: op2.get_job_count("running") == 1)
 
+class TestResourceLimitsOverdraftPreemptionClassic(BaseTestResourceLimitsOverdraftPreemption):
+    DELTA_SCHEDULER_CONFIG = BaseTestResourceLimitsOverdraftPreemption.BASE_DELTA_SCHEDULER_CONFIG
+
+class TestResourceLimitsOverdraftPreemptionVector(BaseTestResourceLimitsOverdraftPreemption):
+    DELTA_SCHEDULER_CONFIG = yt.common.update(
+        BaseTestResourceLimitsOverdraftPreemption.BASE_DELTA_SCHEDULER_CONFIG,
+        {"use_classic_scheduler": True}
+    )
+
+##################################################################
+
 class TestSchedulerUnschedulableOperations(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1429,19 +1467,19 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
 
 ##################################################################
 
-class TestSchedulerAggressivePreemption(YTEnvSetup):
+class BaseTestSchedulerAggressivePreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
+    BASE_DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100
         }
     }
 
     def setup_method(self, method):
-        super(TestSchedulerAggressivePreemption, self).setup_method(method)
+        super(BaseTestSchedulerAggressivePreemption, self).setup_method(method)
         set("//sys/pool_trees/default/@aggressive_preemption_satisfaction_threshold", 0.2)
         set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
         set("//sys/pool_trees/default/@fair_share_preemption_timeout", 100)
@@ -1494,21 +1532,30 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
         wait(lambda: are_almost_equal(get_usage_ratio(op.id), 1.0 / 3.0))
         wait(lambda: len(op.get_running_jobs()) == 1)
 
+class TestSchedulerAggressivePreemptionClassic(BaseTestSchedulerAggressivePreemption):
+    DELTA_SCHEDULER_CONFIG = BaseTestSchedulerAggressivePreemption.BASE_DELTA_SCHEDULER_CONFIG
+
+class TestSchedulerAggressivePreemptionVector(BaseTestSchedulerAggressivePreemption):
+    DELTA_SCHEDULER_CONFIG = yt.common.update(
+        BaseTestSchedulerAggressivePreemption.BASE_DELTA_SCHEDULER_CONFIG,
+        {"use_classic_scheduler": True}
+    )
+
 ##################################################################
 
-class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
+class BaseTestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 6
     NUM_SCHEDULERS = 1
 
-    DELTA_SCHEDULER_CONFIG = {
+    BASE_DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100
         }
     }
 
     def setup_method(self, method):
-        super(TestSchedulerAggressiveStarvationPreemption, self).setup_method(method)
+        super(BaseTestSchedulerAggressiveStarvationPreemption, self).setup_method(method)
         set("//sys/pool_trees/default/@aggressive_preemption_satisfaction_threshold", 0.35)
         set("//sys/pool_trees/default/@preemption_satisfaction_threshold", 0.75)
         set("//sys/pool_trees/default/@min_share_preemption_timeout", 100)
@@ -1598,6 +1645,15 @@ class TestSchedulerAggressiveStarvationPreemption(YTEnvSetup):
         assert special_op_running_job_count >= 2
         #if special_op_running_job_count == 2:
         #    assert preemtable_job_id not in special_op.get_running_jobs()
+
+class TestSchedulerAggressiveStarvationPreemptionClassic(BaseTestSchedulerAggressiveStarvationPreemption):
+    DELTA_SCHEDULER_CONFIG = BaseTestSchedulerAggressiveStarvationPreemption.BASE_DELTA_SCHEDULER_CONFIG
+
+class TestSchedulerAggressiveStarvationPreemptionVector(BaseTestSchedulerAggressiveStarvationPreemption):
+    DELTA_SCHEDULER_CONFIG = yt.common.update(
+        BaseTestSchedulerAggressiveStarvationPreemption.BASE_DELTA_SCHEDULER_CONFIG,
+        {"use_classic_scheduler": True}
+    )
 
 ##################################################################
 
@@ -2213,37 +2269,30 @@ class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
 
 ##################################################################
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerSuspiciousJobs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    USE_PORTO_FOR_SERVERS = True
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "memory_watchdog_period": 100,
-                    "supported_cgroups": [
-                        "cpuacct",
-                        "blkio",
-                        "cpu",
-                    ],
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        {
+            "exec_agent": {
+                "scheduler_connector": {
+                    "heartbeat_period": 100  # 100 msec
                 },
-            },
-            "scheduler_connector": {
-                "heartbeat_period": 100  # 100 msec
-            },
-            "job_proxy_heartbeat_period": 100,  # 100 msec
-            "job_controller": {
-                "resource_limits": {
-                    "user_slots": 2,
-                    "cpu": 2
+                "job_proxy_heartbeat_period": 100,  # 100 msec
+                "job_controller": {
+                    "resource_limits": {
+                        "user_slots": 2,
+                        "cpu": 2
+                    }
                 }
             }
-        }
-    }
+        })
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -2520,7 +2569,6 @@ class TestMinNeededResources(YTEnvSetup):
         op2.track()
 
 ##################################################################
-
 
 class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
     NUM_CPUS_PER_NODE = 10

@@ -146,9 +146,9 @@ TString FormatResourceUsage(
 TString FormatResourceUsage(
     const TJobResources& usage,
     const TJobResources& limits,
-    const NNodeTrackerClient::NProto::TDiskResources& diskInfo)
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources)
 {
-    return Format("{%v, DiskInfo: %v}", FormatResource(usage, limits), NNodeTrackerClient::ToString(diskInfo));
+    return Format("{%v, DiskResources: %v}", FormatResource(usage, limits), NNodeTrackerClient::ToString(diskResources));
 }
 
 TString FormatResources(const TJobResources& resources)
@@ -486,10 +486,10 @@ const TJobResources& MinSpareNodeResources()
 }
 
 bool CanSatisfyDiskRequest(
-    const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources,
     i64 diskRequest)
 {
-    auto info = diskInfo.disk_reports();
+    auto info = diskResources.disk_location_resources();
     auto it = info.begin();
     while (it != info.end()) {
         if (diskRequest < it->limit() - it->usage()) {
@@ -501,12 +501,12 @@ bool CanSatisfyDiskRequest(
 }
 
 bool CanSatisfyDiskRequests(
-    const NNodeTrackerClient::NProto::TDiskResources& diskInfo,
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources,
     const std::vector<i64>& diskRequests)
 {
     std::vector<i64> availableSpacePerDisk;
-    for (auto diskReport : diskInfo.disk_reports()) {
-        availableSpacePerDisk.push_back(diskReport.limit() - diskReport.usage());
+    for (auto diskLocationResources : diskResources.disk_location_resources()) {
+        availableSpacePerDisk.push_back(diskLocationResources.limit() - diskLocationResources.usage());
     }
 
     std::vector<i64> sortedDiskRequests(diskRequests);
@@ -528,11 +528,11 @@ bool CanSatisfyDiskRequests(
 }
 
 i64 GetMaxAvailableDiskSpace(
-    const NNodeTrackerClient::NProto::TDiskResources& diskInfo)
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources)
 {
     i64 result = 0;
-    for (const auto& diskReport : diskInfo.disk_reports()) {
-        result = std::max(result, diskReport.limit() - diskReport.usage());
+    for (const auto& diskLocationResources: diskResources.disk_location_resources()) {
+        result = std::max(result, diskLocationResources.limit() - diskLocationResources.usage());
     }
     return result;
 }

@@ -241,7 +241,7 @@ void TSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& 
     TreeConfig_ = config;
 }
 
-void TSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* , TUpdateFairShareContext* context)
+void TSchedulerElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -326,6 +326,7 @@ void TSchedulerElement::UpdateAttributes()
     Attributes_.DemandShare = TResourceVector::FromJobResources(ResourceDemand_, TotalResourceLimits_, 0, 1);
     YT_VERIFY(Dominates(Attributes_.DemandShare, Attributes_.UsageShare));
 
+    // TODO(HDRFV): Rethink how and why MaxPossibleUsageShare is computed and used.
     auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage);
     Attributes_.MaxPossibleUsageShare = TResourceVector::Min(
         TResourceVector::FromJobResources(possibleUsage, TotalResourceLimits_, 0, 1),
@@ -714,7 +715,7 @@ TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
 
 TResourceVector TSchedulerElement::GetVectorSuggestion(double suggestion) const
 {
-    // TODO(FOOBAR): move this YT_VERIFY to another place.
+    // TODO(ignat): move this YT_VERIFY to another place.
     YT_VERIFY(Dominates(LimitsShare_, Attributes().RecursiveMinShare));
     TResourceVector vectorSuggestion = TResourceVector::FromDouble(suggestion);
     vectorSuggestion = TResourceVector::Max(vectorSuggestion, Attributes().RecursiveMinShare);
@@ -759,6 +760,7 @@ void TSchedulerElement::PrepareUpdateFairShare(TUpdateFairShareContext* context)
 
     {
         TWallTimer timer;
+        // TODO(HDRFV, eshcherbin): Extract 1e-15 as a non-magic constant.
         *FairShareBySuggestion_ = NDetail::CompressFunction(*FairShareBySuggestion_, 1e-15);
         context->CompressFunctionTotalTime += timer.GetElapsedCpuTime();
     }
@@ -782,8 +784,8 @@ void TSchedulerElement::PrepareUpdateFairShare(TUpdateFairShareContext* context)
         return FairShareByFitFactor_->ValueAt(maxFitFactor);
     };
 
-    // TODO(FOOBAR): Fix randomized checks.
-    // TODO(FOOBAR): This function is not continuous
+    // TODO(ignat): Fix randomized checks.
+    // TODO(ignat): This function is not continuous
     // FairShareBySuggestion_->DoRandomizedCheckContinuous(sampleFairShareBySuggestion, Logger, 20, NLogging::ELogLevel::Fatal);
     std::ignore = sampleFairShareBySuggestion;
 }
@@ -855,7 +857,7 @@ void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext*
         auto actualFairShare = FairShareByFitFactor_->ValueAt(actualFitFactor);
 
         YT_LOG_FATAL(
-            "Invalid MaxFitFactorBySuggestion_. "
+            "Invalid MaxFitFactorBySuggestio: "
             "Arg: %.16v, "
             "FitFactorDiff: %.16v,"
             "ExpectedFitFactor: %.16v, "
@@ -876,7 +878,7 @@ void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext*
             mffSegment.LeftValue(), mffSegment.RightValue());
     };
 
-    // TODO(FOOBAR): Fix randomized checks.
+    // TODO(ignat): Fix randomized checks.
     // MaxFitFactorBySuggestion_->DoRandomizedCheckContinuous(sampleMaxFitFactor, 20, errorHandler);
     std::ignore = sampleMaxFitFactor;
     std::ignore = errorHandler;
@@ -984,7 +986,7 @@ void TCompositeSchedulerElement::UpdateTreeConfig(const TFairShareStrategyTreeCo
     updateChildrenConfig(DisabledChildren_);
 }
 
-void TCompositeSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TCompositeSchedulerElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -992,13 +994,13 @@ void TCompositeSchedulerElement::PreUpdateBottomUp(TDynamicAttributesList* dynam
     ResourceDemand_ = {};
 
     for (const auto& child : EnabledChildren_) {
-        child->PreUpdateBottomUp(dynamicAttributesList, context);
+        child->PreUpdateBottomUp(context);
 
         ResourceUsageAtUpdate_ += child->ResourceUsageAtUpdate();
         ResourceDemand_ += child->ResourceDemand();
     }
 
-    TSchedulerElement::PreUpdateBottomUp(dynamicAttributesList, context);
+    TSchedulerElement::PreUpdateBottomUp(context);
 }
 
 void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
@@ -1425,8 +1427,8 @@ void TCompositeSchedulerElement::UpdateMinShareNormal(TUpdateFairShareContext* c
         auto& childAttributes = child->Attributes();
         double minShareRatio = child->GetMinShareRatio();
         double minShareRatioByResources = GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_);
-        // TODO(FOOBAR): New type of MinShare.
 
+        // NB: Semantics of this MinShare differs from the original one.
         childAttributes.RecursiveMinShare = Attributes_.RecursiveMinShare * minShareRatio;
         childAttributes.RecursiveMinShare = TResourceVector::Max(
             childAttributes.RecursiveMinShare,
@@ -1625,8 +1627,8 @@ void TCompositeSchedulerElement::PrepareFairShareByFitFactorNormal(TUpdateFairSh
         FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Sum(childrenFunctions);
     }
 
-    // TODO(FOOBAR): Fix randomized checks.
-    // TODO(FOOBAR): This function is not continuous
+    // TODO(ignat): Fix randomized checks.
+    // TODO(ignat): This function is not continuous
     // FairShareByFitFactor_->DoRandomizedCheckContinuous(
     //     [&] (double fitFactor) {
     //         return std::accumulate(
@@ -2787,7 +2789,7 @@ TDuration TOperationElement::GetFairSharePreemptionTimeout() const
 void TOperationElement::DisableNonAliveElements()
 { }
 
-void TOperationElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
+void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
@@ -2798,7 +2800,7 @@ void TOperationElement::PreUpdateBottomUp(TDynamicAttributesList* dynamicAttribu
     ResourceTreeElement_->SetResourceLimits(GetSpecifiedResourceLimits());
     StartTime_ = Operation_->GetStartTime();
 
-    TSchedulerElement::PreUpdateBottomUp(dynamicAttributesList, context);
+    TSchedulerElement::PreUpdateBottomUp(context);
 }
 
 void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)
@@ -3505,7 +3507,7 @@ bool TOperationElement::IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
         ControllerConfig_->MaxConcurrentControllerScheduleJobCallsPerNodeShard);
 }
 
-bool TOperationElement::HasRecentScheduleJobFailure(NYT::NProfiling::TCpuInstant now) const
+bool TOperationElement::HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const
 {
     return Controller_->HasRecentScheduleJobFailure(now, ControllerConfig_->ScheduleJobFailBackoffTime);
 }
@@ -3788,7 +3790,7 @@ void TRootElement::PreUpdate(TDynamicAttributesList* dynamicAttributesList, TUpd
     dynamicAttributesList->assign(TreeSize_, TDynamicAttributes());
     context->TotalResourceLimits = GetHost()->GetResourceLimits(TreeConfig_->NodesFilter);
 
-    PreUpdateBottomUp(dynamicAttributesList, context);
+    PreUpdateBottomUp(context);
 }
 
 void TRootElement::Update(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context)

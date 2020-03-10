@@ -1,11 +1,7 @@
-#include "statistics_reporter.h"
-#include "private.h"
+#include "job_reporter.h"
 
 #include <yt/server/lib/job_agent/config.h>
-
-#include <yt/server/node/data_node/master_connector.h>
-
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/lib/job_agent/job_report.h>
 
 #include <yt/client/api/connection.h>
 #include <yt/client/api/transaction.h>
@@ -35,7 +31,6 @@ using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
-using namespace NCellNode;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NTableClient;
@@ -74,7 +69,7 @@ static const TLogger ReporterLogger("JobReporter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsSpecEntry(const TJobStatistics& stat)
+bool IsSpecEntry(const TJobReport& stat)
 {
     return stat.Spec().operator bool();
 }
@@ -128,7 +123,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TBatch = std::vector<TJobStatistics>;
+using TBatch = std::vector<TJobReport>;
 
 class TSharedData
     : public TRefCounted
@@ -159,33 +154,33 @@ class THandlerBase
 public:
     THandlerBase(
         TSharedDataPtr data,
-        const TStatisticsReporterConfigPtr& config,
+        TJobReporterConfigPtr config,
         const TString& reporterName,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
         const TProfiler& profiler,
         ui64 maxInProgressDataSize)
         : Data_(std::move(data))
-        , Config_(config)
+        , Config_(std::move(config))
         , Client_(std::move(client))
         , Profiler_(profiler)
         , Limiter_(maxInProgressDataSize)
-        , Batcher_(Config_->MaxItemsInBatch, Config_->ReportingPeriod)
+        , Batcher_(New<TNonblockingBatch<TJobReport>>(Config_->MaxItemsInBatch, Config_->ReportingPeriod))
     {
         BIND(&THandlerBase::Loop, MakeWeak(this))
             .Via(invoker)
             .Run();
-        EnableSemaphore_.Acquire();
+        EnableSemaphore_->Acquire();
         Logger.AddTag("Reporter: %v", reporterName);
     }
 
-    void Enqueue(TJobStatistics&& statistics)
+    void Enqueue(TJobReport&& statistics)
     {
         if (!IsEnabled()) {
             return;
         }
         if (Limiter_.TryIncrease(statistics.EstimateSize())) {
-            Batcher_.Enqueue(std::move(statistics));
+            Batcher_->Enqueue(std::move(statistics));
             Profiler_.Increment(PendingCounter_);
             Profiler_.Increment(EnqueuedCounter_);
             Profiler_.Update(QueueIsTooLargeCounter_,
@@ -235,13 +230,13 @@ private:
     TMonotonicCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
     const TSharedDataPtr Data_;
-    const TStatisticsReporterConfigPtr Config_;
+    const TJobReporterConfigPtr Config_;
     const NNative::IClientPtr Client_;
     const TProfiler& Profiler_;
     TLimiter Limiter_;
-    TNonblockingBatch<TJobStatistics> Batcher_;
+    TNonblockingBatchPtr<TJobReport> Batcher_;
 
-    TAsyncSemaphore EnableSemaphore_ {1};
+    TAsyncSemaphorePtr EnableSemaphore_ = New<TAsyncSemaphore>(1);
     std::atomic<bool> Enabled_ = {false};
     std::atomic<ui64> DroppedCount_ = {0};
     std::atomic<ui64> WriteFailuresCount_ = {0};
@@ -253,7 +248,7 @@ private:
     {
         while (true) {
             WaitForEnabled();
-            auto asyncBatch = Batcher_.DequeueBatch();
+            auto asyncBatch = Batcher_->DequeueBatch();
             auto batchOrError = WaitFor(asyncBatch);
             auto batch = batchOrError.ValueOrThrow();
 
@@ -335,14 +330,14 @@ private:
 
     void DoEnable()
     {
-        EnableSemaphore_.Release();
+        EnableSemaphore_->Release();
         YT_LOG_INFO("Job statistics reporter enabled");
     }
 
     void DoDisable()
     {
-        EnableSemaphore_.Acquire();
-        Batcher_.Drop();
+        EnableSemaphore_->Acquire();
+        Batcher_->Drop();
         Limiter_.Reset();
         DroppedCount_.store(0, std::memory_order_relaxed);
         Profiler_.Update(PendingCounter_, 0);
@@ -352,7 +347,7 @@ private:
 
     bool IsEnabled()
     {
-        return EnableSemaphore_.IsReady();
+        return EnableSemaphore_->IsReady();
     }
 
     void WaitForEnabled()
@@ -361,7 +356,7 @@ private:
             return;
         }
         YT_LOG_INFO("Waiting for job statistics reporter to become enabled");
-        auto event = EnableSemaphore_.GetReadyEvent();
+        auto event = EnableSemaphore_->GetReadyEvent();
         WaitFor(event).ThrowOnError();
         YT_LOG_INFO("Job statistics reporter became enabled, resuming statistics writing");
     }
@@ -377,11 +372,11 @@ class TJobHandler
 {
 public:
     TJobHandler(
-        const TString& localAddress,
+        std::optional<TString> localAddress,
         TSharedDataPtr data,
-        const TStatisticsReporterConfigPtr& config,
+        const TJobReporterConfigPtr& config,
         NNative::IClientPtr client,
-        IInvokerPtr invoker)
+        const IInvokerPtr& invoker)
         : THandlerBase(
             std::move(data),
             config,
@@ -390,12 +385,12 @@ public:
             invoker,
             JobProfiler,
             config->MaxInProgressJobDataSize)
-        , DefaultLocalAddress_(localAddress)
+        , DefaultLocalAddress_(std::move(localAddress))
     { }
 
 private:
     const TJobTableDescriptor Table_;
-    const TString DefaultLocalAddress_;
+    const std::optional<TString> DefaultLocalAddress_;
 
     virtual size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch) override
     {
@@ -427,7 +422,9 @@ private:
             if (statistics.FinishTime()) {
                 builder.AddValue(MakeUnversionedInt64Value(*statistics.FinishTime(), Table_.Index.FinishTime));
             }
-            builder.AddValue(MakeUnversionedStringValue(DefaultLocalAddress_, Table_.Index.Address));
+            if (DefaultLocalAddress_) {
+                builder.AddValue(MakeUnversionedStringValue(*DefaultLocalAddress_, Table_.Index.Address));
+            }
             if (statistics.Error()) {
                 builder.AddValue(MakeUnversionedAnyValue(*statistics.Error(), Table_.Index.Error));
             }
@@ -486,7 +483,7 @@ class TJobSpecHandler
 public:
     TJobSpecHandler(
         TSharedDataPtr data,
-        const TStatisticsReporterConfigPtr& config,
+        const TJobReporterConfigPtr& config,
         NNative::IClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
@@ -540,7 +537,7 @@ class TJobStderrHandler
 public:
     TJobStderrHandler(
         TSharedDataPtr data,
-        const TStatisticsReporterConfigPtr& config,
+        const TJobReporterConfigPtr& config,
         NNative::IClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
@@ -590,7 +587,7 @@ class TJobProfileHandler
 public:
     TJobProfileHandler(
         TSharedDataPtr data,
-        const TStatisticsReporterConfigPtr& config,
+        const TJobReporterConfigPtr& config,
         NNative::IClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
@@ -647,7 +644,7 @@ class TJobFailContextHandler
 public:
     TJobFailContextHandler(
         TSharedDataPtr data,
-        const TStatisticsReporterConfigPtr& config,
+        const TJobReporterConfigPtr& config,
         NNative::IClientPtr client,
         IInvokerPtr invoker)
         : THandlerBase(
@@ -699,18 +696,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStatisticsReporter::TImpl
+class TJobReporter::TImpl
     : public TRefCounted
 {
 public:
     TImpl(
-        TStatisticsReporterConfigPtr reporterConfig,
-        TBootstrap* bootstrap)
+        TJobReporterConfigPtr reporterConfig,
+        const NApi::NNative::IConnectionPtr& masterConnection,
+        std::optional<TString> localAddress)
         : Client_(
-            bootstrap->GetMasterConnection()->CreateNativeClient(TClientOptions(reporterConfig->User)))
+            masterConnection->CreateNativeClient(TClientOptions(reporterConfig->User)))
         , JobHandler_(
             New<TJobHandler>(
-                bootstrap->GetMasterConnector()->GetLocalDescriptor().GetDefaultAddress(),
+                std::move(localAddress),
                 Data_,
                 reporterConfig,
                 Client_,
@@ -741,7 +739,7 @@ public:
                 Reporter_->GetInvoker()))
     { }
 
-    void ReportStatistics(TJobStatistics&& statistics)
+    void ReportStatistics(TJobReport&& statistics)
     {
         if (IsSpecEntry(statistics)) {
             JobSpecHandler_->Enqueue(statistics.ExtractSpec());
@@ -828,65 +826,69 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStatisticsReporter::TStatisticsReporter(
-    TStatisticsReporterConfigPtr reporterConfig,
-    TBootstrap* bootstrap)
+TJobReporter::TJobReporter(
+    TJobReporterConfigPtr reporterConfig,
+    const NApi::NNative::IConnectionPtr& masterConnection,
+    std::optional<TString> localAddress)
     : Impl_(
         reporterConfig->Enabled
-            ? New<TImpl>(std::move(reporterConfig), bootstrap)
+            ? New<TImpl>(std::move(reporterConfig), masterConnection, std::move(localAddress))
             : nullptr)
 { }
 
-void TStatisticsReporter::ReportStatistics(TJobStatistics&& statistics)
+TJobReporter::~TJobReporter()
+{ }
+
+void TJobReporter::ReportStatistics(TJobReport&& statistics)
 {
     if (Impl_) {
         Impl_->ReportStatistics(std::move(statistics));
     }
 }
 
-void TStatisticsReporter::SetEnabled(bool enable)
+void TJobReporter::SetEnabled(bool enable)
 {
     if (Impl_) {
         Impl_->SetEnabled(enable);
     }
 }
 
-void TStatisticsReporter::SetSpecEnabled(bool enable)
+void TJobReporter::SetSpecEnabled(bool enable)
 {
     if (Impl_) {
         Impl_->SetSpecEnabled(enable);
     }
 }
 
-void TStatisticsReporter::SetStderrEnabled(bool enable)
+void TJobReporter::SetStderrEnabled(bool enable)
 {
     if (Impl_) {
         Impl_->SetStderrEnabled(enable);
     }
 }
 
-void TStatisticsReporter::SetProfileEnabled(bool enable)
+void TJobReporter::SetProfileEnabled(bool enable)
 {
     if (Impl_) {
         Impl_->SetProfileEnabled(enable);
     }
 }
 
-void TStatisticsReporter::SetFailContextEnabled(bool enable)
+void TJobReporter::SetFailContextEnabled(bool enable)
 {
     if (Impl_) {
         Impl_->SetFailContextEnabled(enable);
     }
 }
 
-void TStatisticsReporter::SetOperationArchiveVersion(int version)
+void TJobReporter::SetOperationArchiveVersion(int version)
 {
     if (Impl_) {
         Impl_->SetOperationArchiveVersion(version);
     }
 }
 
-int TStatisticsReporter::ExtractWriteFailuresCount()
+int TJobReporter::ExtractWriteFailuresCount()
 {
     if (Impl_) {
         return Impl_->ExtractWriteFailuresCount();
@@ -894,7 +896,7 @@ int TStatisticsReporter::ExtractWriteFailuresCount()
     return 0;
 }
 
-bool TStatisticsReporter::GetQueueIsTooLarge()
+bool TJobReporter::GetQueueIsTooLarge()
 {
     if (Impl_) {
         return Impl_->GetQueueIsTooLarge();

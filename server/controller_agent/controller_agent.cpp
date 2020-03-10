@@ -9,8 +9,9 @@
 #include "memory_tag_queue.h"
 #include "bootstrap.h"
 
-#include <yt/server/lib/scheduler/message_queue.h>
+#include <yt/server/lib/job_agent/job_reporter.h>
 
+#include <yt/server/lib/scheduler/message_queue.h>
 #include <yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 #include <yt/server/lib/scheduler/exec_node_descriptor.h>
 #include <yt/server/lib/scheduler/helpers.h>
@@ -85,7 +86,7 @@ public:
         const NScheduler::NProto::TScheduleJobRequest* request,
         const TExecNodeDescriptor& nodeDescriptor)
         : ResourceLimits_(FromProto<TJobResources>(request->node_resource_limits()))
-        , DiskInfo_(request->node_disk_info())
+        , DiskResources_(request->node_disk_resources())
         , JobId_(FromProto<TJobId>(request->job_id()))
         , NodeDescriptor_(nodeDescriptor)
     { }
@@ -100,9 +101,9 @@ public:
         return ResourceLimits_;
     }
 
-    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskInfo() const override
+    virtual const NNodeTrackerClient::NProto::TDiskResources& DiskResources() const override
     {
-        return DiskInfo_;
+        return DiskResources_;
     }
 
     virtual TJobId GetJobId() const override
@@ -117,7 +118,7 @@ public:
 
 private:
     const TJobResources ResourceLimits_;
-    const NNodeTrackerClient::NProto::TDiskResources& DiskInfo_;
+    const NNodeTrackerClient::NProto::TDiskResources& DiskResources_;
     const TJobId JobId_;
     const TExecNodeDescriptor& NodeDescriptor_;
 };
@@ -223,6 +224,9 @@ public:
             Config_->EventLog,
             Bootstrap_->GetMasterClient(),
             Bootstrap_->GetControlInvoker()))
+        , JobReporter_(New<NJobAgent::TJobReporter>(
+            Config_->JobReporter,
+            Bootstrap_->GetMasterClient()->GetNativeConnection()))
         , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
             Bootstrap_))
@@ -411,6 +415,11 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return EventLogWriter_;
+    }
+
+    const NJobAgent::TJobReporterPtr& GetJobReporter() const
+    {
+        return JobReporter_;
     }
 
     TOperationPtr FindOperation(TOperationId operationId) const
@@ -821,6 +830,7 @@ private:
     const IThroughputThrottlerPtr JobSpecSliceThrottler_;
     const TAsyncSemaphorePtr CoreSemaphore_;
     const IEventLogWriterPtr EventLogWriter_;
+    const NJobAgent::TJobReporterPtr JobReporter_;
     const std::unique_ptr<TMasterConnector> MasterConnector_;
 
     bool Connected_= false;
@@ -1292,6 +1302,8 @@ private:
             UnregisterOperation(operation->GetId());
         }
 
+        JobReporter_->SetOperationArchiveVersion(rsp->operation_archive_version());
+        JobReporter_->SetEnabled(rsp->enable_job_reporter());
         ConfirmHeartbeatRequest(preparedRequest);
     }
 
@@ -1446,7 +1458,7 @@ private:
                         TSchedulingContext context(protoRequest, descriptorIt->second);
 
                         TJobResourcesWithQuota jobLimitsWithQuota(jobLimits);
-                        jobLimitsWithQuota.SetDiskQuota(GetMaxAvailableDiskSpace(context.DiskInfo()));
+                        jobLimitsWithQuota.SetDiskQuota(GetMaxAvailableDiskSpace(context.DiskResources()));
 
                         response.OperationId = operationId;
                         response.JobId = jobId;
@@ -1682,6 +1694,11 @@ const TAsyncSemaphorePtr& TControllerAgent::GetCoreSemaphore() const
 const IEventLogWriterPtr& TControllerAgent::GetEventLogWriter() const
 {
     return Impl_->GetEventLogWriter();
+}
+
+const NJobAgent::TJobReporterPtr& TControllerAgent::GetJobReporter() const
+{
+    return Impl_->GetJobReporter();
 }
 
 TMemoryTagQueue* TControllerAgent::GetMemoryTagQueue()

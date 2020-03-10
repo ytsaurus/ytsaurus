@@ -162,66 +162,6 @@ void TStoreBase::BuildOrchidYson(TFluentMap fluent)
         .Item("max_timestamp").Value(GetMaxTimestamp());
 }
 
-bool TStoreBase::IsDynamic() const
-{
-    return false;
-}
-
-IDynamicStorePtr TStoreBase::AsDynamic()
-{
-    YT_ABORT();
-}
-
-bool TStoreBase::IsChunk() const
-{
-    return false;
-}
-
-IChunkStorePtr TStoreBase::AsChunk()
-{
-    YT_ABORT();
-}
-
-bool TStoreBase::IsSorted() const
-{
-    return false;
-}
-
-ISortedStorePtr TStoreBase::AsSorted()
-{
-    YT_ABORT();
-}
-
-TSortedDynamicStorePtr TStoreBase::AsSortedDynamic()
-{
-    YT_ABORT();
-}
-
-TSortedChunkStorePtr TStoreBase::AsSortedChunk()
-{
-    YT_ABORT();
-}
-
-bool TStoreBase::IsOrdered() const
-{
-    return false;
-}
-
-IOrderedStorePtr TStoreBase::AsOrdered()
-{
-    YT_ABORT();
-}
-
-TOrderedDynamicStorePtr TStoreBase::AsOrderedDynamic()
-{
-    YT_ABORT();
-}
-
-TOrderedChunkStorePtr TStoreBase::AsOrderedChunk()
-{
-    YT_ABORT();
-}
-
 void TStoreBase::SetDynamicMemoryUsage(i64 value)
 {
     RuntimeData_->DynamicMemoryUsagePerType[DynamicMemoryTypeFromState(StoreState_)] +=
@@ -918,13 +858,6 @@ TInstant TChunkStoreBase::GetCreationTime() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSortedStoreBase::TSortedStoreBase(
-    TTabletManagerConfigPtr config,
-    TStoreId id,
-    TTablet* tablet)
-    : TStoreBase(std::move(config), id, tablet)
-{ }
-
 TPartition* TSortedStoreBase::GetPartition() const
 {
     return Partition_;
@@ -946,13 +879,6 @@ ISortedStorePtr TSortedStoreBase::AsSorted()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TOrderedStoreBase::TOrderedStoreBase(
-    TTabletManagerConfigPtr config,
-    TStoreId id,
-    TTablet* tablet)
-    : TStoreBase(std::move(config), id, tablet)
-{ }
 
 bool TOrderedStoreBase::IsOrdered() const
 {
@@ -977,16 +903,12 @@ void TOrderedStoreBase::SetStartingRowIndex(i64 value)
 
 void TOrderedStoreBase::Save(TSaveContext& context) const
 {
-    TStoreBase::Save(context);
-
     using NYT::Save;
     Save(context, StartingRowIndex_);
 }
 
 void TOrderedStoreBase::Load(TLoadContext& context)
 {
-    TStoreBase::Load(context);
-
     using NYT::Load;
     Load(context, StartingRowIndex_);
 }

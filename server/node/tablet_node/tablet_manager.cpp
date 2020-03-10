@@ -141,11 +141,7 @@ public:
         TTabletManagerConfigPtr config,
         TTabletSlotPtr slot,
         TBootstrap* bootstrap)
-        : TCompositeAutomatonPart(
-            slot->GetHydraManager(),
-            slot->GetAutomaton(),
-            slot->GetAutomatonInvoker())
-        , TTabletAutomatonPart(
+        : TTabletAutomatonPart(
             slot,
             bootstrap)
         , Config_(config)
@@ -210,7 +206,6 @@ public:
         RegisterMethod(BIND(&TImpl::HydraAddTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemoveTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTableReplicaEnabled, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraSetTableReplicaMode, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraAlterTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraDecommissionTabletCell, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraOnTabetCellDecommissioned, Unretained(this)));
@@ -683,11 +678,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // COMPAT(savrus)
-        if (context.GetVersion() < ETabletReign::SafeReplicatedLogSchema) {
-            Automaton_->RememberReign(static_cast<int>(context.GetVersion()));
-        }
-
         TabletMap_.LoadKeys(context);
     }
 
@@ -697,12 +687,7 @@ private:
 
         TabletMap_.LoadValues(context);
 
-        // COMPAT(savrus)
-        if (context.GetVersion() >= ETabletReign::AddTabletCellLifeState) {
-            Load(context, CellLifeStage_);
-        } else {
-            CellLifeStage_ = ETabletCellLifeStage::Running;
-        }
+        Load(context, CellLifeStage_);
     }
 
     void LoadAsync(TLoadContext& context)
@@ -919,8 +904,7 @@ private:
             atomicity,
             commitOrdering,
             upstreamReplicaId,
-            retainedTimestamp,
-            GetCurrentMutationContext()->Request().Reign < static_cast<TReign>(ETabletReign::SafeReplicatedLogSchema));
+            retainedTimestamp);
 
         tabletHolder->FillProfilerTags(Slot_->GetCellId());
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
@@ -1968,31 +1952,6 @@ private:
         } else {
             DisableTableReplica(tablet, replicaInfo);
         }
-    }
-
-    // COMPAT(aozeritsky)
-    void HydraSetTableReplicaMode(TReqSetTableReplicaMode* request)
-    {
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet) {
-            return;
-        }
-
-        auto replicaId = FromProto<TTableReplicaId>(request->replica_id());
-        auto* replicaInfo = tablet->FindReplicaInfo(replicaId);
-        if (!replicaInfo) {
-            return;
-        }
-
-        auto mode = ETableReplicaMode(request->mode());
-
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Table replica mode updated (%v, ReplicaId: %v, Mode: %v)",
-            tablet->GetLoggingId(),
-            replicaInfo->GetId(),
-            mode);
-
-        replicaInfo->SetMode(mode);
     }
 
     void HydraAlterTableReplica(TReqAlterTableReplica* request)

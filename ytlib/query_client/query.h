@@ -19,7 +19,10 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const TString& colum
 
 struct TColumnDescriptor
 {
+    // Renamed column.
+    // TODO: Do not keep name but restore name from table alias and column name from original schema.
     TString Name;
+    // Index in schema.
     int Index;
 };
 
@@ -276,11 +279,47 @@ typedef std::vector<TAggregateItem> TAggregateItemList;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMappedSchema
+{
+    TTableSchema Original;
+    std::vector<TColumnDescriptor> Mapping;
+
+    std::vector<TColumnDescriptor> GetOrderedSchemaMapping() const
+    {
+        auto orderedSchemaMapping = Mapping;
+        std::sort(orderedSchemaMapping.begin(), orderedSchemaMapping.end(),
+            [] (const TColumnDescriptor& lhs, const TColumnDescriptor& rhs) {
+                return lhs.Index < rhs.Index;
+            });
+        return orderedSchemaMapping;
+    }
+
+    TKeyColumns GetKeyColumns() const
+    {
+        TKeyColumns result(Original.GetKeyColumnCount());
+        for (const auto& item : Mapping) {
+            if (item.Index < Original.GetKeyColumnCount()) {
+                result[item.Index] = item.Name;
+            }
+        }
+        return result;
+    }
+
+    TTableSchema GetRenamedSchema() const
+    {
+        TSchemaColumns result;
+        for (const auto& item : GetOrderedSchemaMapping()) {
+            result.emplace_back(item.Name, Original.Columns()[item.Index].LogicalType());
+        }
+        return TTableSchema(std::move(result));
+    }
+
+};
+
 struct TJoinClause
     : public TIntrinsicRefCounted
 {
-    TTableSchema OriginalSchema;
-    std::vector<TColumnDescriptor> SchemaMapping;
+    TMappedSchema Schema;
     std::vector<TString> SelfJoinedColumns;
     std::vector<TString> ForeignJoinedColumns;
 
@@ -296,35 +335,14 @@ struct TJoinClause
 
     TGuid ForeignDataId;
 
-    std::vector<TColumnDescriptor> GetOrderedSchemaMapping() const
+    TTableSchema GetRenamedSchema() const
     {
-        auto orderedSchemaMapping = SchemaMapping;
-        std::sort(orderedSchemaMapping.begin(), orderedSchemaMapping.end(),
-            [] (const TColumnDescriptor& lhs, const TColumnDescriptor& rhs) {
-                return lhs.Index < rhs.Index;
-            });
-        return orderedSchemaMapping;
+        return Schema.GetRenamedSchema();
     }
 
     TKeyColumns GetKeyColumns() const
     {
-        TKeyColumns result(OriginalSchema.GetKeyColumnCount());
-        for (const auto& item : SchemaMapping) {
-            if (item.Index < OriginalSchema.GetKeyColumnCount()) {
-                result[item.Index] = item.Name;
-            }
-        }
-        return result;
-    }
-
-    TTableSchema GetRenamedSchema() const
-    {
-        TSchemaColumns result;
-        for (const auto& item : GetOrderedSchemaMapping()) {
-            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].LogicalType());
-        }
-
-        return TTableSchema(result);
+        return Schema.GetKeyColumns();
     }
 
     TTableSchema GetTableSchema(const TTableSchema& source) const
@@ -341,14 +359,14 @@ struct TJoinClause
 
         auto foreignColumnNames = ForeignJoinedColumns;
         std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
-        auto renamedSchema = GetRenamedSchema();
+        auto renamedSchema = Schema.GetRenamedSchema();
         for (const auto& column : renamedSchema.Columns()) {
             if (std::binary_search(foreignColumnNames.begin(), foreignColumnNames.end(), column.Name())) {
                 result.push_back(column);
             }
         }
 
-        return TTableSchema(result);
+        return TTableSchema(std::move(result));
     }
 };
 
@@ -494,14 +512,12 @@ struct TQuery
 
     TQuery(const TQuery& other)
         : TBaseQuery(other)
-        , OriginalSchema(other.OriginalSchema)
-        , SchemaMapping(other.SchemaMapping)
+        , Schema(other.Schema)
         , JoinClauses(other.JoinClauses)
         , WhereClause(other.WhereClause)
     { }
 
-    TTableSchema OriginalSchema;
-    std::vector<TColumnDescriptor> SchemaMapping;
+    TMappedSchema Schema;
 
     // Bottom
     std::vector<TConstJoinClausePtr> JoinClauses;
@@ -509,45 +525,23 @@ struct TQuery
 
     TKeyColumns GetKeyColumns() const
     {
-        TKeyColumns result(OriginalSchema.GetKeyColumnCount());
-        for (const auto& item : SchemaMapping) {
-            if (item.Index < OriginalSchema.GetKeyColumnCount()) {
-                result[item.Index] = item.Name;
-            }
-        }
-        return result;
-    }
-
-    std::vector<TColumnDescriptor> GetOrderedSchemaMapping() const
-    {
-        auto orderedSchemaMapping = SchemaMapping;
-        std::sort(orderedSchemaMapping.begin(), orderedSchemaMapping.end(),
-            [] (const TColumnDescriptor& lhs, const TColumnDescriptor& rhs) {
-                return lhs.Index < rhs.Index;
-            });
-        return orderedSchemaMapping;
+        return Schema.GetKeyColumns();
     }
 
     virtual TTableSchema GetReadSchema() const override
     {
         TSchemaColumns result;
-        for (const auto& item : GetOrderedSchemaMapping()) {
+        for (const auto& item : Schema.GetOrderedSchemaMapping()) {
             result.emplace_back(
-                OriginalSchema.Columns()[item.Index].Name(),
-                OriginalSchema.Columns()[item.Index].LogicalType());
+                Schema.Original.Columns()[item.Index].Name(),
+                Schema.Original.Columns()[item.Index].LogicalType());
         }
-
-        return TTableSchema(result);
+        return TTableSchema(std::move(result));
     }
 
     TTableSchema GetRenamedSchema() const
     {
-        TSchemaColumns result;
-        for (const auto& item : GetOrderedSchemaMapping()) {
-            result.emplace_back(item.Name, OriginalSchema.Columns()[item.Index].LogicalType());
-        }
-
-        return TTableSchema(result);
+        return Schema.GetRenamedSchema();
     }
 
     virtual TTableSchema GetTableSchema() const override
@@ -560,15 +554,14 @@ struct TQuery
             return GroupClause->GetTableSchema(IsFinal);
         }
 
-        TTableSchema result = GetRenamedSchema();
+        auto result = GetRenamedSchema();
 
         for (const auto& joinClause : JoinClauses) {
             result = joinClause->GetTableSchema(result);
         }
 
-        return TTableSchema(result);
+        return result;
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
@@ -586,7 +579,7 @@ struct TFrontQuery
 
     TTableSchema Schema;
 
-    TTableSchema GetReadSchema() const
+    TTableSchema GetReadSchema() const override
     {
         return Schema;
     }
@@ -596,7 +589,7 @@ struct TFrontQuery
         return Schema;
     }
 
-    TTableSchema GetTableSchema() const
+    TTableSchema GetTableSchema() const override
     {
         if (ProjectClause) {
             return ProjectClause->GetTableSchema();

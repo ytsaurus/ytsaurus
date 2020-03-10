@@ -72,7 +72,7 @@ public:
 private:
     TJobProberServiceProxy JobProberProxy_;
 
-    virtual TFuture<TNodeDescriptor> DoGet(const TJobNodeDescriptorKey& key) override
+    virtual TFuture<TNodeDescriptor> DoGet(const TJobNodeDescriptorKey& key, bool /*isPeriodicUpdate*/) override
     {
         YT_LOG_DEBUG("Requesting job node descriptor from scheduler (Key: %v)",
             key);
@@ -112,6 +112,9 @@ TJobNodeDescriptorCache::TJobNodeDescriptorCache(
     : Impl_(New<TImpl>(
         std::move(config),
         std::move(schedulerChannel)))
+{ }
+
+TJobNodeDescriptorCache::~TJobNodeDescriptorCache()
 { }
 
 TFuture<TNodeDescriptor> TJobNodeDescriptorCache::Get(const TJobNodeDescriptorKey& key)

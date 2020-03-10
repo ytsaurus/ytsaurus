@@ -31,6 +31,8 @@ class TObjectManager
 public:
     explicit TObjectManager(NCellMaster::TBootstrap* bootstrap);
 
+    ~TObjectManager();
+
     void Initialize();
 
     //! Registers a new type handler.

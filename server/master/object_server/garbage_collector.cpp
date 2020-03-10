@@ -104,13 +104,6 @@ void TGarbageCollector::SaveValues(NCellMaster::TSaveContext& context) const
 
 void TGarbageCollector::LoadKeys(NCellMaster::TLoadContext& context)
 {
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::WeakGhostsSaveLoad ||
-        (EMasterReign::MulticellForDynamicTables <= context.GetVersion() && context.GetVersion() < EMasterReign::SameAsVer718ButIn19_4))
-    {
-        return;
-    }
-
     auto size = TSizeSerializer::LoadSuspended(context);
     SERIALIZATION_DUMP_WRITE(context, "map[%v]", size);
     WeakGhosts_.clear();
@@ -149,17 +142,6 @@ void TGarbageCollector::LoadValues(NCellMaster::TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= EMasterReign::SyncCellsBeforeRemoval) {
         Load(context, RemovalAwaitingCellsSyncObjects_);
-    }
-
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::WeakGhostsSaveLoad ||
-        (EMasterReign::MulticellForDynamicTables <= context.GetVersion() && context.GetVersion() < EMasterReign::SameAsVer718ButIn19_4))
-    {
-        THashSet<TObject*> weakGhosts;
-        for (const auto& pair : WeakGhosts_) {
-            weakGhosts.insert(pair.second);
-        }
-        NYT::Load(context, WeakGhosts_);
     }
 
     YT_VERIFY(EphemeralGhosts_.empty());

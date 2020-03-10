@@ -657,10 +657,9 @@ private:
                     asyncResults.push_back(asyncRsp);
                 }
 
-                auto result = WaitFor(AnyNOf(
+                auto result = WaitFor(AnyNSucceeded(
                     asyncResults,
                     minReplicaCount,
-                    TSkipErrorPolicy{},
                     TFutureCombinerOptions{.CancelInputOnShortcut = false}));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {

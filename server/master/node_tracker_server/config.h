@@ -10,7 +10,7 @@ namespace NYT::NNodeTrackerServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterCacheManagerConfig
+class TNodeDiscoveryManagerConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -19,7 +19,7 @@ public:
     int MaxPeersPerRack;
     TBooleanFormula NodeTagFilter;
 
-    TMasterCacheManagerConfig()
+    TNodeDiscoveryManagerConfig()
     {
         RegisterParameter("update_period", UpdatePeriod)
             .Default(TDuration::Seconds(30));
@@ -34,7 +34,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TMasterCacheManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TNodeDiscoveryManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,7 +99,8 @@ public:
 
     TDuration ForceNodeHeartbeatRequestTimeout;
 
-    TMasterCacheManagerConfigPtr MasterCacheManager;
+    TNodeDiscoveryManagerConfigPtr MasterCacheManager;
+    TNodeDiscoveryManagerConfigPtr TimestampProviderManager;
 
     TDynamicNodeTrackerConfig()
     {
@@ -135,6 +136,8 @@ public:
             .Default(TDuration::Seconds(1));
 
         RegisterParameter("master_cache_manager", MasterCacheManager)
+            .DefaultNew();
+        RegisterParameter("timestamp_provider_manager", TimestampProviderManager)
             .DefaultNew();
     }
 };

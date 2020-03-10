@@ -710,11 +710,6 @@ public:
         return header ? static_cast<int>(header->Count) : 0;
     }
 
-    size_t GetByteSize() const
-    {
-        return StringData_.length() + RowData_.Size();
-    }
-
     size_t GetSpaceUsed() const
     {
         return StringData_.capacity() + RowData_.Size();

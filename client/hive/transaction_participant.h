@@ -9,8 +9,13 @@ namespace NYT::NHiveClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETransactionParticipantState,
+    // Participant is available for interaction; this does not imply any partcular health status.
     (Valid)
-    (Invalid)
+    // Cluster connection was terminated, participant is no longer usable.
+    (Invalidated)
+    // Participant is not known; e.g. cluster is not registered.
+    (NotRegistered)
+    // Participant is known to be unregistered and will never be resurrected.
     (Unregistered)
 );
 
@@ -27,8 +32,6 @@ struct ITransactionParticipant
     virtual TFuture<void> AbortTransaction(TTransactionId transactionId) = 0;
 
     virtual TFuture<void> CheckAvailability() = 0;
-    // COMPAT(savrus) Compatibility with pre 19.6 participants.
-    virtual TFuture<void> CheckAvailabilityPre196() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionParticipant)

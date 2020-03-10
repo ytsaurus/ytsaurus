@@ -18,6 +18,8 @@ public:
         TLocalHydraJanitorConfigPtr config,
         IInvokerPtr invoker);
 
+    ~TLocalHydraJanitor();
+
     void Start();
 
 private:

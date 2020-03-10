@@ -62,6 +62,8 @@ public:
         const NYPath::TYPath& stateTablePath,
         const std::vector<int>& tabletIndexes);
 
+    ~TPersistentQueuePoller();
+
     //! Polls the tablets of the queue.
     /*!
      *  When unconsumed rows become available, the returned future gets

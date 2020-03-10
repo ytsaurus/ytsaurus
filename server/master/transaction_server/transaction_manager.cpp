@@ -1230,6 +1230,9 @@ TTransactionManager::TTransactionManager(TBootstrap* bootstrap)
     : Impl_(New<TImpl>(bootstrap))
 { }
 
+TTransactionManager::~TTransactionManager()
+{ }
+
 void TTransactionManager::Initialize()
 {
     Impl_->Initialize();

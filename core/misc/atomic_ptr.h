@@ -1,6 +1,7 @@
 #pragma once
 
 #include "hazard_ptr.h"
+#include "allocator_traits.h"
 
 namespace NYT {
 
@@ -9,6 +10,11 @@ namespace NYT {
 struct TAtomicRefCounter
 {
     mutable std::atomic<int> Count = {1};
+    TDeleterBase* Deleter;
+
+    explicit TAtomicRefCounter(TDeleterBase* deleter) noexcept
+        : Deleter(deleter)
+    { }
 };
 
 template <class T>
@@ -20,20 +26,7 @@ T* AcquireRef(const THazardPtr<T>& ptr);
 template <class TTraits, class T>
 void ReleaseRef(T* ptr);
 
-struct TDefaultAllocator
-{
-    static void* Allocate(size_t size)
-    {
-        return NYTAlloc::Allocate(size);
-    }
-
-    static void Free(void* ptr)
-    {
-        NYTAlloc::Free(ptr);
-    }
-};
-
-template <class T, class TTraits = TDefaultAllocator>
+template <class T>
 class TRefCountedPtr
 {
 public:
@@ -71,9 +64,11 @@ private:
     T* Ptr_ = nullptr;
 };
 
-template <class T, class TTraits, class... As>
-TRefCountedPtr<T, TTraits> CreateObjectWithExtraSpace(
-    TTraits* traits,
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, class TAllocator, class... As>
+TRefCountedPtr<T> CreateObjectWithExtraSpace(
+    TAllocator* allocator,
     size_t extraSpaceSize,
     As&&... args);
 
@@ -85,7 +80,7 @@ TRefCountedPtr<T> CreateObject(As&&... args);
 // Operators * and -> for TAtomicPtr are useless because it is not safe to work with atomic ptr such way
 // Safe usage is to convert to TRefCountedPtr. Not HazardPtr. HazardPtr can only be used to try ref count.
 
-template <class T, class TTraits = TDefaultAllocator>
+template <class T>
 class TAtomicPtr
 {
 public:
@@ -93,46 +88,46 @@ public:
 
     TAtomicPtr(std::nullptr_t);
 
-    explicit TAtomicPtr(TRefCountedPtr<T, TTraits> other);
+    explicit TAtomicPtr(TRefCountedPtr<T> other);
 
     TAtomicPtr(TAtomicPtr&& other);
 
     ~TAtomicPtr();
 
-    TAtomicPtr& operator=(TRefCountedPtr<T, TTraits> other);
+    TAtomicPtr& operator=(TRefCountedPtr<T> other);
 
     TAtomicPtr& operator=(std::nullptr_t);
 
-    TRefCountedPtr<T, TTraits> Release();
+    TRefCountedPtr<T> Release();
 
-    TRefCountedPtr<T, TTraits> AcquireWeak() const;
+    TRefCountedPtr<T> AcquireWeak() const;
 
-    TRefCountedPtr<T, TTraits> Acquire() const;
+    TRefCountedPtr<T> Acquire() const;
 
-    TRefCountedPtr<T, TTraits> Exchange(TRefCountedPtr<T, TTraits>&& other);
+    TRefCountedPtr<T> Exchange(TRefCountedPtr<T>&& other);
 
-    TRefCountedPtr<T, TTraits> SwapIfCompare(THazardPtr<T>& compare, TRefCountedPtr<T, TTraits> target);
+    TRefCountedPtr<T> SwapIfCompare(THazardPtr<T>& compare, TRefCountedPtr<T> target);
 
-    TRefCountedPtr<T, TTraits> SwapIfCompare(T* comparePtr, TRefCountedPtr<T, TTraits> target);
+    TRefCountedPtr<T> SwapIfCompare(T* comparePtr, TRefCountedPtr<T> target);
 
-    TRefCountedPtr<T, TTraits> SwapIfCompare(const TRefCountedPtr<T, TTraits>& compare, TRefCountedPtr<T, TTraits> target);
+    TRefCountedPtr<T> SwapIfCompare(const TRefCountedPtr<T>& compare, TRefCountedPtr<T> target);
 
-    bool SwapIfCompare(const TRefCountedPtr<T>& compare, TRefCountedPtr<T, TTraits>* target);
+    bool SwapIfCompare(const TRefCountedPtr<T>& compare, TRefCountedPtr<T>* target);
 
     explicit operator bool() const;
 
 private:
-    template <class U, class UAlloc>
-    friend bool operator==(const TAtomicPtr<U, UAlloc>& lhs, const TRefCountedPtr<U, UAlloc>& rhs);
+    template <class U>
+    friend bool operator==(const TAtomicPtr<U>& lhs, const TRefCountedPtr<U>& rhs);
 
-    template <class U, class UAlloc>
-    friend bool operator==(const TRefCountedPtr<U, UAlloc>& lhs, const TAtomicPtr<U, UAlloc>& rhs);
+    template <class U>
+    friend bool operator==(const TRefCountedPtr<U>& lhs, const TAtomicPtr<U>& rhs);
 
-    template <class U, class UAlloc>
-    friend bool operator!=(const TAtomicPtr<U, UAlloc>& lhs, const TRefCountedPtr<U, UAlloc>& rhs);
+    template <class U>
+    friend bool operator!=(const TAtomicPtr<U>& lhs, const TRefCountedPtr<U>& rhs);
 
-    template <class U, class UAlloc>
-    friend bool operator!=(const TRefCountedPtr<U, UAlloc>& lhs, const TAtomicPtr<U, UAlloc>& rhs);
+    template <class U>
+    friend bool operator!=(const TRefCountedPtr<U>& lhs, const TAtomicPtr<U>& rhs);
 
     std::atomic<T*> Ptr_ = {nullptr};
 };

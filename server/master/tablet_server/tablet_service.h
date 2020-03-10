@@ -14,6 +14,8 @@ class TTabletService
 public:
     explicit TTabletService(NCellMaster::TBootstrap* bootstrap);
 
+    ~TTabletService();
+
     void Initialize();
 
 private:

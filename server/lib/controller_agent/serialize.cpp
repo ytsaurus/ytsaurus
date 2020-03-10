@@ -13,7 +13,7 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::JobHasCompetitorsFlag) &&
+    return version >= ToUnderlying(ESnapshotVersion::ControllerWritesJobArchive) &&
            version <= GetCurrentSnapshotVersion();
 }
 

@@ -64,9 +64,9 @@ TString FormatResourceUsage(
 TString FormatResourceUsage(
     const NProto::TNodeResources& usage,
     const NProto::TNodeResources& limits,
-    const NProto::TDiskResources& diskInfo);
+    const NProto::TDiskResources& diskResources);
 TString FormatResources(const NProto::TNodeResources& resources);
-TString ToString(const NProto::TDiskResources& diskInfo);
+TString ToString(const NProto::TDiskResources& diskResources);
 
 void ProfileResources(NProfiling::TProfiler& profiler, const NProto::TNodeResources& resources);
 

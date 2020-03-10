@@ -72,6 +72,7 @@ protected:
 
     TFuture<void> ReadyEvent_;
     TPromise<void> CompletionError_ = NewPromise<void>();
+    TFuture<void> UncancelableCompletionError_;
 
     IInvokerPtr ReaderInvoker_;
 

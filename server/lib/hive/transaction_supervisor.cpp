@@ -55,7 +55,8 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto ParticipantCleanupPeriod = TDuration::Seconds(15);
+static const auto ParticipantCleanupPeriod = TDuration::Minutes(5);
+static const auto ParticipantTtl = TDuration::Minutes(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -232,9 +233,25 @@ private:
             auto guard = Guard(SpinLock_);
             auto underlying = GetUnderlying();
             if (!underlying) {
-                return ETransactionParticipantState::Invalid;
+                return ETransactionParticipantState::NotRegistered;
             }
             return underlying->GetState();
+        }
+
+        void Touch()
+        {
+            LastTouched_ = NProfiling::GetInstant();
+        }
+
+        bool IsExpired()
+        {
+            if (GetState() == ETransactionParticipantState::Unregistered) {
+                return true;
+            }
+            if (LastTouched_ + ParticipantTtl < NProfiling::GetInstant() && PendingSenders_.empty()) {
+                return true;
+            }
+            return false;
         }
 
         bool IsUp()
@@ -348,6 +365,8 @@ private:
         std::vector<TClosure> PendingSenders_;
         bool Up_ = true;
 
+        TInstant LastTouched_;
+
 
         ITransactionParticipantPtr GetUnderlying()
         {
@@ -371,6 +390,7 @@ private:
             return nullptr;
         }
 
+
         template <class F>
         TFuture<void> EnqueueRequest(
             bool succeedOnUnregistered,
@@ -387,7 +407,13 @@ private:
                 return MakeFuture<void>(MakeUnavailableError());
             }
 
-            auto sender = [=, underlying = std::move(underlying)] () mutable {
+            // Fast path.
+            if (Up_ && underlying->GetState() == ETransactionParticipantState::Valid) {
+                return func(underlying);
+            }
+
+            // Slow path.
+            auto sender = [=, underlying = std::move(underlying)] {
                 switch (underlying->GetState()) {
                     case ETransactionParticipantState::Valid:
                         promise.SetFrom(func(underlying));
@@ -395,15 +421,15 @@ private:
 
                     case ETransactionParticipantState::Unregistered:
                         if (succeedOnUnregistered) {
-                            YT_LOG_DEBUG("Transaction participant unregistered; assuming success");
+                            YT_LOG_DEBUG("Participant unregistered; assuming success");
                             promise.Set(TError());
                         } else {
-                            promise.Set(TError("Participant cell %v is no longer registered", CellId_));
+                            promise.Set(MakeUnregisteredError());
                         }
                         break;
 
-                    case ETransactionParticipantState::Invalid:
-                        promise.Set(TError("Participant cell %v is no longer valid", CellId_));
+                    case ETransactionParticipantState::Invalidated:
+                        promise.Set(MakeInvalidatedError());
                         break;
 
                     default:
@@ -418,11 +444,12 @@ private:
                 if (mustSendImmediately) {
                     return MakeFuture<void>(MakeDownError());
                 }
-                PendingSenders_.emplace_back(BIND(std::move(sender)));
+                PendingSenders_.push_back(BIND(std::move(sender)));
             }
 
             return promise;
         }
+
 
         void OnProbation()
         {
@@ -434,7 +461,7 @@ private:
 
             if (PendingSenders_.empty()) {
                 guard.Release();
-                CheckParticipantAvailability();
+                CheckAvailability();
             } else {
                 auto sender = std::move(PendingSenders_.back());
                 PendingSenders_.pop_back();
@@ -445,46 +472,37 @@ private:
             }
         }
 
-        void CheckParticipantAvailability()
+        void CheckAvailability()
         {
             auto guard = Guard(SpinLock_);
-            auto underlying = GetUnderlying();
 
+            auto underlying = GetUnderlying();
             if (!underlying) {
                 return;
             }
 
             guard.Release();
 
-            switch (underlying->GetState()) {
-                case ETransactionParticipantState::Valid: {
-                    auto error = WaitFor(underlying->CheckAvailability());
-
-                    // COMPAT(savrus) Compatibility with pre 19.6 participants.
-                    if (error.GetCode() == NRpc::EErrorCode::NoSuchMethod) {
-                        error = WaitFor(underlying->CheckAvailabilityPre196());
-                    }
-
-                    if (error.IsOK()) {
-                        SetUp();
-                    } else {
-                        YT_LOG_DEBUG(error, "Transaction participant availability check failed");
-                    }
-                    break;
-                }
-
-                case ETransactionParticipantState::Unregistered:
-                    YT_LOG_DEBUG("Transaction participant is unregistered");
-                    break;
-
-                case ETransactionParticipantState::Invalid:
-                    YT_LOG_DEBUG("Transaction participant is not valid");
-                    break;
-
-                default:
-                    YT_ABORT();
+            auto state = underlying->GetState();
+            if (state != ETransactionParticipantState::Valid) {
+                return;
             }
+
+            YT_LOG_DEBUG("Checking participant availablitity");
+            underlying->CheckAvailability().Subscribe(
+                BIND(&TWrappedParticipant::OnAvailabilityCheckResult, MakeWeak(this)));
         }
+
+        void OnAvailabilityCheckResult(const TError& error)
+        {
+            if (!error.IsOK()) {
+                YT_LOG_DEBUG(error, "Participant availability check failed");
+                return;
+            }
+
+            SetUp();
+        }
+
 
         TError MakeUnavailableError() const
         {
@@ -502,6 +520,23 @@ private:
                 CellId_);
         }
 
+        TError MakeUnregisteredError() const
+        {
+            return TError(
+                NHiveClient::EErrorCode::ParticipantUnregistered,
+                "Participant cell %v is unregistered",
+                CellId_);
+        }
+
+        TError MakeInvalidatedError() const
+        {
+            return TError(
+                NRpc::EErrorCode::Unavailable,
+                "Participant cell %v was invalidated",
+                CellId_);
+        }
+
+
         TTimestamp GeneratePrepareTimestamp(
             const ITransactionParticipantPtr& participant,
             bool generatePrepareTimestamp,
@@ -518,10 +553,8 @@ private:
     };
 
     using TWrappedParticipantPtr = TIntrusivePtr<TWrappedParticipant>;
-    using TWrappedParticipantWeakPtr = TWeakPtr<TWrappedParticipant>;
 
-    THashMap<TCellId, TWrappedParticipantPtr> StrongParticipantMap_;
-    THashMap<TCellId, TWrappedParticipantWeakPtr> WeakParticipantMap_;
+    THashMap<TCellId, TWrappedParticipantPtr> ParticipantMap_;
     TPeriodicExecutorPtr ParticipantCleanupExecutor_;
 
 
@@ -902,25 +935,20 @@ private:
     {
         std::vector<TCellId> result;
 
-        auto considerParticipant = [&] (const auto& weakParticipant) {
-            if (auto participant = weakParticipant.Lock()) {
-                if (participant->GetCellId() == SelfCellId_) {
-                    return;
-                }
-                if (!participant->IsUp()) {
-                    result.push_back(participant->GetCellId());
-                }
+        auto considerParticipant = [&] (const TWrappedParticipantPtr& participant) {
+            if (participant->GetCellId() != SelfCellId_ && !participant->IsUp()) {
+                result.push_back(participant->GetCellId());
             }
         };
 
         if (cellIds.empty()) {
-            for (const auto& pair : WeakParticipantMap_) {
-                considerParticipant(pair.second);
+            for (const auto& [cellId, participant] : ParticipantMap_) {
+                considerParticipant(participant);
             }
         } else {
             for (auto cellId : cellIds) {
-                auto it = WeakParticipantMap_.find(cellId);
-                if (it != WeakParticipantMap_.end()) {
+                auto it = ParticipantMap_.find(cellId);
+                if (it != ParticipantMap_.end()) {
                     considerParticipant(it->second);
                 }
             }
@@ -1604,54 +1632,44 @@ private:
 
     TWrappedParticipantPtr GetParticipant(TCellId cellId)
     {
-        auto it = WeakParticipantMap_.find(cellId);
-        if (it != WeakParticipantMap_.end()) {
-            auto participant = it->second.Lock();
-            if (participant) {
-                auto state = participant->GetState();
-                if (state == ETransactionParticipantState::Valid) {
-                    return participant;
-                }
-                if (StrongParticipantMap_.erase(cellId) == 1) {
-                    YT_LOG_DEBUG("Participant is not valid; invalidated (ParticipantCellId: %v, State: %v)",
-                        cellId,
-                        state);
-                }
+        TWrappedParticipantPtr participant;
+        if (auto it = ParticipantMap_.find(cellId)) {
+            participant = it->second;
+            if (participant->GetState() == ETransactionParticipantState::Invalidated) {
+                YT_LOG_DEBUG("Invalidated participant unregistered (ParticipantCellId: %v)",
+                    cellId);
+                ParticipantMap_.erase(it);
+                participant.Reset();
             }
-            WeakParticipantMap_.erase(it);
         }
 
-        auto wrappedParticipant = New<TWrappedParticipant>(
-            cellId,
-            Config_,
-            TimestampProvider_,
-            ParticipantProviders_,
-            Logger);
+        if (!participant) {
+            participant = New<TWrappedParticipant>(
+                cellId,
+                Config_,
+                TimestampProvider_,
+                ParticipantProviders_,
+                Logger);
+            YT_VERIFY(ParticipantMap_.emplace(cellId, participant).second);
+            YT_LOG_DEBUG("Participant registered (ParticipantCellId: %v)",
+                cellId);
+        }
 
-        YT_VERIFY(StrongParticipantMap_.emplace(cellId, wrappedParticipant).second);
-        YT_VERIFY(WeakParticipantMap_.emplace(cellId, wrappedParticipant).second);
+        participant->Touch();
 
-        YT_LOG_DEBUG("Participant cell registered (ParticipantCellId: %v)",
-            cellId);
-
-        return wrappedParticipant;
+        return participant;
     }
 
     void OnParticipantCleanup()
     {
-        for (auto it = StrongParticipantMap_.begin(); it != StrongParticipantMap_.end(); ) {
+        for (auto it = ParticipantMap_.begin(); it != ParticipantMap_.end(); ) {
             auto jt = it++;
-            if (jt->second->GetState() != ETransactionParticipantState::Valid) {
-                YT_LOG_DEBUG("Participant invalidated (ParticipantCellId: %v)",
-                    jt->first);
-                StrongParticipantMap_.erase(jt);
-            }
-        }
-
-        for (auto it = WeakParticipantMap_.begin(); it != WeakParticipantMap_.end(); ) {
-            auto jt = it++;
-            if (jt->second.IsExpired()) {
-                WeakParticipantMap_.erase(jt);
+            const auto& participant = jt->second;
+            if (participant->IsExpired()) {
+                YT_LOG_DEBUG("Participant expired (ParticipantCellId: %v, State: %v)",
+                    participant->GetCellId(),
+                    participant->GetState());
+                ParticipantMap_.erase(jt);
             }
         }
     }
@@ -1835,7 +1853,10 @@ private:
                         commit->GetTransactionId(),
                         participantCellId,
                         state);
-                    auto wrappedError = TError("Participant %v has failed to prepare", participantCellId)
+                    auto wrappedError = TError(
+                        NTransactionClient::EErrorCode::ParticipantFailedToPrepare,
+                        "Participant %v has failed to prepare",
+                        participantCellId)
                         << error;
                     ChangeCommitTransientState(commit, ECommitState::Aborting, wrappedError);
                     break;
@@ -1946,8 +1967,7 @@ private:
         TransientAbortMap_.clear();
 
         TransientCommitMap_.Clear();
-        StrongParticipantMap_.clear();
-        WeakParticipantMap_.clear();
+        ParticipantMap_.clear();
     }
 
 

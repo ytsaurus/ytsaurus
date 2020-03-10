@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait,\
     Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE,\
-    get_porto_delta_node_config, get_cgroup_delta_node_config
+    get_porto_delta_node_config, porto_avaliable
 from yt_commands import *
 from yt_helpers import *
 
@@ -32,6 +32,7 @@ SCHEDULER_COMMON_NODE_CONFIG_PATCH = {
     }
 }
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerCommon(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -64,9 +65,10 @@ class TestSchedulerCommon(YTEnvSetup):
     }
 
     DELTA_NODE_CONFIG = update(
-        get_cgroup_delta_node_config(),
+        get_porto_delta_node_config(),
         SCHEDULER_COMMON_NODE_CONFIG_PATCH
     )
+    USE_PORTO_FOR_SERVERS = True
 
     @authors("ignat")
     def test_failed_jobs_twice(self):
@@ -707,13 +709,13 @@ class TestSchedulerCommon(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
         assert get(op.get_path() + "/@nested_input_transaction_ids") == [nested_tx]
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             abort_transaction(nested_tx)
 
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
         new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
         assert len(new_nested_input_transaction_ids) == 1
         assert new_nested_input_transaction_ids[0] != nested_tx
@@ -748,13 +750,13 @@ class TestSchedulerCommon(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
         assert get(op.get_path() + "/@nested_input_transaction_ids") == [nested_tx, nested_tx]
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             abort_transaction(nested_tx)
 
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
         new_nested_input_transaction_ids = get(op.get_path() + "/@nested_input_transaction_ids")
         assert len(new_nested_input_transaction_ids) == 2
         assert new_nested_input_transaction_ids[0] == new_nested_input_transaction_ids[1]
@@ -769,14 +771,6 @@ class TestSchedulerCommon(YTEnvSetup):
 
 class TestSchedulerCommonMulticell(TestSchedulerCommon):
     NUM_SECONDARY_MASTER_CELLS = 2
-
-@patch_porto_env_only(TestSchedulerCommon)
-class TestSchedulerCommonPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = update(
-        get_porto_delta_node_config(),
-        SCHEDULER_COMMON_NODE_CONFIG_PATCH
-    )
-    USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
 
@@ -1047,9 +1041,9 @@ class TestSchedulerConfig(YTEnvSetup):
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
-        time.sleep(1)
 
-        wait(lambda: op.get_state() == "running")
+        op.ensure_running()
+
         # XXX(ignat)
         for spec_type in ("full_spec",):
             assert get(op.get_path() + "/@{}/data_weight_per_job".format(spec_type)) == 1000
@@ -1773,6 +1767,7 @@ class TestEventLog(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    USE_PORTO_FOR_SERVERS = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -1790,7 +1785,7 @@ class TestEventLog(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = get_cgroup_delta_node_config()
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
 
     @authors("ignat")
     def test_scheduler_event_log(self):

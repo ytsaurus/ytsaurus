@@ -11,9 +11,7 @@
 #include <yt/core/net/local_address.h>
 
 #include <yt/core/misc/async_expiring_cache.h>
-#include <yt/core/misc/lazy_ptr.h>
 #include <yt/core/misc/fs.h>
-#include <yt/core/misc/singleton.h>
 #include <yt/core/misc/shutdown.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -951,7 +949,7 @@ private:
 
     TDnsResolver DnsResolver_;
 
-    virtual TFuture<TNetworkAddress> DoGet(const TString& hostName) override;
+    virtual TFuture<TNetworkAddress> DoGet(const TString& hostName, bool isPeriodicUpdate) override;
 
     const std::vector<TNetworkAddress>& GetLocalAddresses();
 };
@@ -991,7 +989,7 @@ TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const TString& hostNam
     return Get(hostName);
 }
 
-TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const TString& hostname)
+TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const TString& hostname, bool /*isPeriodicUpdate*/)
 {
     return DnsResolver_
         .ResolveName(hostname, Config_->EnableIPv4, Config_->EnableIPv6)
@@ -1077,7 +1075,7 @@ void TAddressResolver::TImpl::Configure(TAddressResolverConfigPtr config)
     Config_ = std::move(config);
 
     if (Config_->LocalHostFqdn) {
-        SetLocalHostName(*Config_->LocalHostFqdn);
+        WriteLocalHostName(*Config_->LocalHostFqdn);
     } else {
         UpdateLocalHostName([&] (const char* message, const char* details) {
             YT_LOG_INFO("Localhost FQDN resolution failed: %v: %v", message, details);
@@ -1093,11 +1091,9 @@ TAddressResolver::TAddressResolver()
     : Impl_(New<TImpl>(New<TAddressResolverConfig>()))
 { }
 
-TAddressResolver::~TAddressResolver() = default;
-
 TAddressResolver* TAddressResolver::Get()
 {
-    return Singleton<TAddressResolver>();
+    return LeakySingleton<TAddressResolver>();
 }
 
 void TAddressResolver::StaticShutdown()

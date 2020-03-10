@@ -337,7 +337,7 @@ public:
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
-    TFairShareTreeHostMock FairShareTreeHostMock_;
+    TIntrusivePtr<TFairShareTreeHostMock> FairShareTreeHostMock_ = New<TFairShareTreeHostMock>();
     TFairShareSchedulingStage SchedulingStageMock_ = TFairShareSchedulingStage(
         /* nameInLogs */ "Test scheduling stage",
         TScheduleJobsProfilingCounters("/test_scheduling_stage", /* treeIdProfilingTags */ {}));
@@ -346,7 +346,7 @@ protected:
     {
         return New<TRootElement>(
             host,
-            &FairShareTreeHostMock_,
+            FairShareTreeHostMock_.Get(),
             TreeConfig_,
             // TODO(ignat): eliminate profiling from test.
             NProfiling::TProfileManager::Get()->RegisterTag("pool", RootPoolName),
@@ -358,7 +358,7 @@ protected:
     {
         return New<TPool>(
             host,
-            &FairShareTreeHostMock_,
+            FairShareTreeHostMock_.Get(),
             name,
             New<TPoolConfig>(),
             /* defaultConfigured */ true,
@@ -382,7 +382,7 @@ protected:
             operationController,
             SchedulerConfig_,
             host,
-            &FairShareTreeHostMock_,
+            FairShareTreeHostMock_.Get(),
             operation,
             "default",
             SchedulerLogger);
@@ -391,12 +391,12 @@ protected:
     TExecNodePtr CreateTestExecNode(NNodeTrackerClient::TNodeId id, const TJobResourcesWithQuota& nodeResources)
     {
         NNodeTrackerClient::NProto::TDiskResources diskResources;
-        diskResources.mutable_disk_reports()->Add();
-        diskResources.mutable_disk_reports(0)->set_limit(nodeResources.GetDiskQuota());
+        diskResources.mutable_disk_location_resources()->Add();
+        diskResources.mutable_disk_location_resources(0)->set_limit(nodeResources.GetDiskQuota());
 
         auto execNode = New<TExecNode>(id, NNodeTrackerClient::TNodeDescriptor(), ENodeState::Online);
         execNode->SetResourceLimits(nodeResources.ToJobResources());
-        execNode->SetDiskInfo(diskResources);
+        execNode->SetDiskResources(diskResources);
 
         return execNode;
     }
@@ -753,11 +753,11 @@ TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
         }));
 
     std::vector<TFuture<void>> futures;
-    NConcurrency::TActionQueue actionQueue;
+    auto actionQueue = New<NConcurrency::TActionQueue>();
     for (int i = 0; i < 2; ++i) {
         auto future = BIND([&, i]() {
             DoTestSchedule(rootElement, operationElement, execNodes[i]);
-        }).AsyncVia(actionQueue.GetInvoker()).Run();
+        }).AsyncVia(actionQueue->GetInvoker()).Run();
         futures.push_back(std::move(future));
     }
 

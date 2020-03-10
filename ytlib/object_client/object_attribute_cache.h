@@ -33,9 +33,12 @@ public:
         const NApi::NNative::IClientPtr& client) const;
 
 protected:
-    virtual TFuture<NYTree::TAttributeMap> DoGet(const NYPath::TYPath& path) override;
+    virtual TFuture<NYTree::TAttributeMap> DoGet(
+        const NYPath::TYPath& path,
+        bool isPeriodicUpdate) override;
     virtual TFuture<std::vector<TErrorOr<NYTree::TAttributeMap>>> DoGetMany(
-        const std::vector<NYPath::TYPath>& paths) override;
+        const std::vector<NYPath::TYPath>& paths,
+        bool isPeriodicUpdate) override;
 
 private:
     const TObjectAttributeCacheConfigPtr Config_;

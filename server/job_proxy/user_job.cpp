@@ -348,8 +348,10 @@ public:
                         coreInfo.executable_name(),
                         coreInfo.size());
                 }
-                innerErrors.push_back(TError("User job produced core files")
+                if (UserJobSpec_.fail_job_on_core_dump()) {
+                    innerErrors.push_back(TError("User job produced core files")
                         << TErrorAttribute("core_infos", coreResult.CoreInfos));
+                }
             }
 
             CoreInfos_ = coreResult.CoreInfos;

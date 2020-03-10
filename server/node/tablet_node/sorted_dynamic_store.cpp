@@ -816,9 +816,7 @@ TSortedDynamicStore::TSortedDynamicStore(
     TTabletManagerConfigPtr config,
     TStoreId id,
     TTablet* tablet)
-    : TStoreBase(config, id, tablet)
-    , TDynamicStoreBase(config, id, tablet)
-    , TSortedStoreBase(config, id, tablet)
+    : TDynamicStoreBase(config, id, tablet)
     , RowKeyComparer_(Tablet_->GetRowKeyComparer())
     , Rows_(new TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>(
         RowBuffer_->GetPool(),
@@ -840,6 +838,9 @@ TSortedDynamicStore::TSortedDynamicStore(
     YT_LOG_DEBUG("Sorted dynamic store created (LookupHashTable: %v)",
         static_cast<bool>(LookupHashTable_));
 }
+
+TSortedDynamicStore::~TSortedDynamicStore()
+{ }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
 {
@@ -904,8 +905,8 @@ void TSortedDynamicStore::WaitOnBlockedRow(
             break;
         }
 
-        auto throwError = [&] (const TString& message) {
-            THROW_ERROR_EXCEPTION(message)
+        auto throwError = [&] (NTabletClient::EErrorCode errorCode, const TString& message) {
+            THROW_ERROR_EXCEPTION(errorCode, message)
                 << TErrorAttribute("lock", LockIndexToName_[lockIndex])
                 << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("table_path", TablePath_)
@@ -915,13 +916,13 @@ void TSortedDynamicStore::WaitOnBlockedRow(
 
         auto handler = GetRowBlockedHandler();
         if (!handler) {
-            throwError("Row is blocked");
+            throwError(NTabletClient::EErrorCode::RowIsBlocked, "Row is blocked");
         }
 
         handler.Run(row, lockIndex);
 
         if (NProfiling::GetCpuInstant() > deadline) {
-            throwError("Timed out waiting on blocked row");
+            throwError(NTabletClient::EErrorCode::BlockedRowWaitTimeout, "Timed out waiting on blocked row");
         }
     }
 }

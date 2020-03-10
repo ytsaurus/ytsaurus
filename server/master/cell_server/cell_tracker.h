@@ -22,6 +22,8 @@ class TCellTracker
 public:
     explicit TCellTracker(NCellMaster::TBootstrap* bootstrap);
 
+    ~TCellTracker();
+
     void Start();
     void Stop();
 

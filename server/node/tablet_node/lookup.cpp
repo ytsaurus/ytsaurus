@@ -35,7 +35,6 @@
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/small_vector.h>
-#include <yt/core/misc/variant.h>
 #include <yt/core/misc/tls_cache.h>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -377,7 +376,7 @@ private:
             }
         };
 
-        std::optional<TConcurrentCache<TCachedRow, TSlabAllocator>::TInsertAccessor> accessor;
+        std::optional<TConcurrentCache<TCachedRow>::TInsertAccessor> accessor;
 
         bool populateCache = static_cast<bool>(TabletSnapshot_->RowCache);
 

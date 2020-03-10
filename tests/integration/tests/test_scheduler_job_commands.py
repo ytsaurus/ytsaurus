@@ -1,6 +1,6 @@
 from yt_env_setup import (
-    YTEnvSetup, unix_only, patch_porto_env_only, wait,
-    get_porto_delta_node_config, get_cgroup_delta_node_config
+    YTEnvSetup, unix_only, porto_avaliable, wait,
+    get_porto_delta_node_config
 )
 from yt_commands import *
 
@@ -11,12 +11,14 @@ import time
 
 ##################################################################
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestJobProber(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = get_cgroup_delta_node_config()
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    USE_PORTO_FOR_SERVERS = True
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat")
@@ -359,13 +361,6 @@ class TestJobProber(YTEnvSetup):
                     return False
             return True
         wait(check)
-
-##################################################################
-
-@patch_porto_env_only(TestJobProber)
-class TestJobProberPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
 

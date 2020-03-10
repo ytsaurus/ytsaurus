@@ -144,6 +144,9 @@ public:
 
     NSecurityClient::TSerializableAccessControlList GetOperationBaseAcl() const;
 
+    int GetOperationArchiveVersion() const;
+    bool IsJobReporterEnabled() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

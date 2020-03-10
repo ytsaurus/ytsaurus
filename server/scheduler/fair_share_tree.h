@@ -443,8 +443,6 @@ private:
     void ReactivateBadPackingOperations(TFairShareContext* context);
 };
 
-//DEFINE_REFCOUNTED_TYPE(TFairShareTree)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

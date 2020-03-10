@@ -37,14 +37,14 @@ bool TPackingHeartbeatSnapshot::CanSchedule(const TJobResourcesWithQuota& jobRes
 
 TPackingHeartbeatSnapshot CreateHeartbeatSnapshot(const ISchedulingContextPtr& schedulingContext)
 {
-    const auto& diskReports = schedulingContext->DiskInfo().disk_reports();
-    auto bestDisk = std::max_element(diskReports.begin(), diskReports.end(), [](const auto& lhs, const auto& rhs) {
+    const auto& perLocationResources = schedulingContext->DiskResources().disk_location_resources();
+    auto bestLocation = std::max_element(perLocationResources.begin(), perLocationResources.end(), [](const auto& lhs, const auto& rhs) {
         return (lhs.limit() - lhs.usage()) < (rhs.limit() - rhs.usage());
     });
 
     i64 freeSpaceOnBestDisk;
-    if (bestDisk != diskReports.end()) {
-        freeSpaceOnBestDisk = bestDisk->limit() - bestDisk->usage();
+    if (bestLocation != perLocationResources.end()) {
+        freeSpaceOnBestDisk = bestLocation->limit() - bestLocation->usage();
     } else {
         freeSpaceOnBestDisk = 0;
     }

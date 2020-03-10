@@ -2,8 +2,6 @@
 #include "private.h"
 #include "gpu_manager.h"
 
-#include <yt/server/lib/controller_agent/helpers.h>
-
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
 
@@ -13,6 +11,10 @@
 #include <yt/server/node/exec_agent/slot_manager.h>
 
 #include <yt/server/node/tablet_node/slot_manager.h>
+
+#include <yt/server/lib/controller_agent/helpers.h>
+
+#include <yt/server/lib/job_agent/job_reporter.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
@@ -93,7 +95,7 @@ public:
 
     TNodeResources GetResourceLimits() const;
     TNodeResources GetResourceUsage(bool includeWaiting = false) const;
-    TDiskResources GetDiskInfo() const;
+    TDiskResources GetDiskResources() const;
     void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits);
 
     void SetDisableSchedulerJobs(bool value);
@@ -566,9 +568,9 @@ void TJobController::TImpl::CheckReservedMappedMemory()
     }
 }
 
-TDiskResources TJobController::TImpl::GetDiskInfo() const
+TDiskResources TJobController::TImpl::GetDiskResources() const
 {
-    return Bootstrap_->GetExecSlotManager()->GetDiskInfo();
+    return Bootstrap_->GetExecSlotManager()->GetDiskResources();
 }
 
 void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits)
@@ -864,11 +866,6 @@ void TJobController::TImpl::RemoveJob(
         job->ReportProfile();
     }
 
-    if (releaseFlags.HasCompetitors) {
-        YT_LOG_INFO("Archiving has_competitors flag (JobId: %v)", job->GetId());
-        job->ReportStatistics(TJobStatistics().HasCompetitors(true));
-    }
-
     bool shouldSave = releaseFlags.ArchiveJobSpec || releaseFlags.ArchiveStderr;
     if (shouldSave) {
         YT_LOG_INFO("Job saved to recently finished jobs (JobId: %v)", job->GetId());
@@ -983,10 +980,10 @@ void TJobController::TImpl::PrepareHeartbeatRequest(
     *request->mutable_resource_limits() = GetResourceLimits();
     *request->mutable_resource_usage() = GetResourceUsage(/* includeWaiting */ true);
 
-    *request->mutable_disk_info() = GetDiskInfo();
+    *request->mutable_disk_resources() = GetDiskResources();
 
-    request->set_job_reporter_write_failures_count(Bootstrap_->GetStatisticsReporter()->ExtractWriteFailuresCount());
-    request->set_job_reporter_queue_is_too_large(Bootstrap_->GetStatisticsReporter()->GetQueueIsTooLarge());
+    request->set_job_reporter_write_failures_count(Bootstrap_->GetJobReporter()->ExtractWriteFailuresCount());
+    request->set_job_reporter_queue_is_too_large(Bootstrap_->GetJobReporter()->GetQueueIsTooLarge());
 
     // A container for all scheduler jobs that are candidate to send statistics. This set contains
     // only the running jobs since all completed/aborted/failed jobs always send their statistics.
@@ -1451,6 +1448,9 @@ TJobController::TJobController(
     : Impl_(New<TImpl>(
         config,
         bootstrap))
+{ }
+
+TJobController::~TJobController()
 { }
 
 void TJobController::Initialize()

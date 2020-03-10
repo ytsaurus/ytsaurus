@@ -95,7 +95,7 @@ public:
 
 private:
     const NTabletServer::TReplicatedTableTrackerConfigPtr Config_;
-    
+
     bool Enabled_ = false;
 
     class TBundleHealthCache
@@ -107,7 +107,7 @@ private:
         { }
 
     protected:
-        virtual TFuture<ETabletCellHealth> DoGet(const std::pair<NApi::IClientPtr, TString>& key) override
+        virtual TFuture<ETabletCellHealth> DoGet(const std::pair<NApi::IClientPtr, TString>& key, bool /*isPeriodicUpdate*/) override
         {
             const auto& [client, bundleName] = key;
             return client->GetNode("//sys/tablet_cell_bundles/" + bundleName + "/@health").ToUncancelable()
@@ -803,6 +803,9 @@ TReplicatedTableTracker::TReplicatedTableTracker(
     TReplicatedTableTrackerConfigPtr config,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(std::move(config), bootstrap))
+{ }
+
+TReplicatedTableTracker::~TReplicatedTableTracker()
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

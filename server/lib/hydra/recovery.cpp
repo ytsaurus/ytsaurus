@@ -18,6 +18,8 @@
 
 #include <yt/core/rpc/response_keeper.h>
 
+#include <yt/core/misc/variant.h>
+
 namespace NYT::NHydra {
 
 using namespace NRpc;

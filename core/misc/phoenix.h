@@ -56,22 +56,14 @@ struct TPolymorphicTraits<
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRefCountedFactory
+struct TNullFactory
 {
     template <class T>
     static T* Instantiate()
     {
-        return New<T>().Release();
+        YT_ABORT();
     }
 };
-
-template <class T, class = void>
-struct TFactoryTraits
-{
-    using TFactory = TRefCountedFactory;
-};
-
-////////////////////////////////////////////////////////////////////////////////
 
 struct TSimpleFactory
 {
@@ -82,41 +74,67 @@ struct TSimpleFactory
     }
 };
 
-template <class T>
-struct TFactoryTraits<
-    T,
-    typename NMpl::TEnableIf<
-        NMpl::TOr<
-            NMpl::TIsConvertible<T&, TFactoryTag<TSimpleFactory>&>,
-            NMpl::TIsConvertible<T&, ::google::protobuf::Message&>
-        >
-    >::TType
->
-{
-    using TFactory = TSimpleFactory;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TNullFactory
+struct TRefCountedFactory
 {
     template <class T>
     static T* Instantiate()
     {
-        YT_ABORT();
+        return New<T>().Release();
     }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, class = void>
+struct TFactoryTraits
+{
+    using TFactory = TSimpleFactory;
 };
 
 template <class T>
 struct TFactoryTraits<
     T,
     typename NMpl::TEnableIf<
-        NMpl::TIsConvertible<T&, TFactoryTag<TNullFactory>&>
+        NMpl::TAnd<
+            NMpl::TIsConvertible<T*, NYT::TRefCountedBase*>,
+            NMpl::TNot<NMpl::TIsConvertible<T*, TFactoryTag<TNullFactory>*>>
+        >
+    >::TType
+>
+{
+    using TFactory = TRefCountedFactory;
+};
+
+template <class T>
+struct TFactoryTraits<
+    T,
+    typename NMpl::TEnableIf<
+        NMpl::TIsConvertible<T*, TFactoryTag<TNullFactory>*>
     >::TType
 >
 {
     using TFactory = TNullFactory;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, class = void>
+struct TIdClass
+{
+    using TType = T;
+};
+
+template <class T>
+struct TIdClass<
+    T,
+    typename NMpl::TEnableIf<
+        NMpl::TIsConvertible<T*, NYT::TRefCountedBase*>
+    >::TType
+>
+{
+    using TType = NYT::TRefCountedWrapper<T>;
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,9 +178,21 @@ private:
 template <
     class TType,
     ui32 tag,
-    class TFactory = TRefCountedFactory
+    class TFactory = typename TFactoryTraits<TType>::TFactory
 >
 struct TDynamicInitializer
+{
+    TDynamicInitializer()
+    {
+        TRegistry::Get()->Register<TType>(tag);
+    }
+};
+
+template <
+    class TType,
+    ui32 tag
+>
+struct TDynamicInitializer<TType, tag, TRefCountedFactory>
 {
     TDynamicInitializer()
     {

@@ -307,6 +307,9 @@ TCompositeMapService::TCompositeMapService()
     : Impl_(New<TImpl>())
 { }
 
+TCompositeMapService::~TCompositeMapService()
+{ }
+
 std::vector<TString> TCompositeMapService::GetKeys(i64 limit) const
 {
     return Impl_->GetKeys(limit);

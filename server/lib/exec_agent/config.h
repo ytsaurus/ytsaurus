@@ -176,7 +176,7 @@ public:
     //! and its job proxy RPC Unix Domain Socket name.
     std::optional<TString> JobProxySocketNameDirectory;
 
-    TDuration DiskInfoUpdatePeriod;
+    TDuration DiskResourcesUpdatePeriod;
 
     int MaxConsecutiveAborts;
 
@@ -200,7 +200,8 @@ public:
         RegisterParameter("job_proxy_socket_name_directory", JobProxySocketNameDirectory)
             .Default();
 
-        RegisterParameter("disk_info_update_period", DiskInfoUpdatePeriod)
+        RegisterParameter("disk_resources_update_period", DiskResourcesUpdatePeriod)
+            .Alias("disk_info_update_period")
             .Default(TDuration::Seconds(5));
 
         RegisterParameter("max_consecutive_aborts", MaxConsecutiveAborts)
@@ -283,7 +284,7 @@ class TExecAgentConfig
 public:
     TSlotManagerConfigPtr SlotManager;
     NJobAgent::TJobControllerConfigPtr JobController;
-    NJobAgent::TStatisticsReporterConfigPtr StatisticsReporter;
+    NJobAgent::TJobReporterConfigPtr JobReporter;
     TSchedulerConnectorConfigPtr SchedulerConnector;
 
     NLogging::TLogManagerConfigPtr JobProxyLogging;
@@ -321,7 +322,8 @@ public:
             .DefaultNew();
         RegisterParameter("job_controller", JobController)
             .DefaultNew();
-        RegisterParameter("statistics_reporter", StatisticsReporter)
+        RegisterParameter("job_reporter", JobReporter)
+            .Alias("statistics_reporter")
             .DefaultNew();
         RegisterParameter("scheduler_connector", SchedulerConnector)
             .DefaultNew();

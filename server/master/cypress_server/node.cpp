@@ -201,28 +201,11 @@ void TCypressNode::Load(TLoadContext& context)
     }
     TNonversionedObjectRefSerializer::Load(context, Parent_);
     Load(context, LockMode_);
-    // COMPAT(shakurov)
-    if (context.GetVersion() < EMasterReign::VersionedExpirationTime) {
-        auto oldExpirationTime = Load<std::optional<TInstant>>(context);
-        if (oldExpirationTime) {
-            ExpirationTime_.Set(*oldExpirationTime);
-        } else {
-            ExpirationTime_.Reset();
-        }
-    } else {
-        Load(context, ExpirationTime_);
-    }
+    Load(context, ExpirationTime_);
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
-    // COMPAT(aozeritsky)
-    if (context.GetVersion() < EMasterReign::AddAttributesRevisionContentRevision) {
-        auto revision = Load<NHydra::TRevision>(context);
-        AttributesRevision_ = revision;
-        ContentRevision_ = revision;
-    } else {
-        Load(context, AttributesRevision_);
-        Load(context, ContentRevision_);
-    }
+    Load(context, AttributesRevision_);
+    Load(context, ContentRevision_);
     Load(context, Account_);
     Load(context, Acd_);
     Load(context, Opaque_);

@@ -5,6 +5,7 @@
 #include "ypath_proxy.h"
 
 #include <yt/core/misc/serialize.h>
+#include <yt/core/misc/variant.h>
 
 #include <yt/core/net/address.h>
 

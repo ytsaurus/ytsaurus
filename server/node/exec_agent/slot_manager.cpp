@@ -134,8 +134,8 @@ ISlotPtr TSlotManager::AcquireSlot(i64 diskSpaceRequest)
     int feasibleSlotCount = 0;
     TSlotLocationPtr bestLocation;
     for (const auto& location : AliveLocations_) {
-        auto diskInfo = location->GetDiskInfo();
-        if (diskInfo.usage() + diskSpaceRequest > diskInfo.limit()) {
+        auto diskResources = location->GetDiskResources();
+        if (diskResources.usage() + diskSpaceRequest > diskResources.limit()) {
             continue;
         }
         ++feasibleSlotCount;
@@ -272,21 +272,21 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
        });
 }
 
-NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskInfo()
+NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     UpdateAliveLocations();
     NNodeTrackerClient::NProto::TDiskResources result;
-    // Make a copy, since GetDiskInfo is async and iterator over AliveLocations_
+    // Make a copy, since GetDiskResources is async and iterator over AliveLocations_
     // may have been invalidated between iterations.
     auto locations = AliveLocations_;
     for (auto& location : locations) {
         try {
-            auto info = location->GetDiskInfo();
-            auto *pair = result.add_disk_reports();
-            pair->set_usage(info.usage());
-            pair->set_limit(info.limit());
+            auto info = location->GetDiskResources();
+            auto* locationResources = result.add_disk_location_resources();
+            locationResources->set_usage(info.usage());
+            locationResources->set_limit(info.limit());
         } catch (const std::exception& ex) {
             auto alert = TError("Failed to get disk info of location")
                 << ex;

@@ -101,11 +101,11 @@ TSlotLocation::TSlotLocation(
         .Via(LocationQueue_->GetInvoker()));
     HealthChecker_->Start();
 
-    DiskInfoUpdateExecutor_ = New<TPeriodicExecutor>(
+    DiskResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
         LocationQueue_->GetInvoker(),
-        BIND(&TSlotLocation::UpdateDiskInfo, MakeWeak(this)),
-        Bootstrap_->GetConfig()->ExecAgent->SlotManager->DiskInfoUpdatePeriod);
-    DiskInfoUpdateExecutor_->Start();
+        BIND(&TSlotLocation::UpdateDiskResources, MakeWeak(this)),
+        Bootstrap_->GetConfig()->ExecAgent->SlotManager->DiskResourcesUpdatePeriod);
+    DiskResourcesUpdateExecutor_->Start();
 }
 
 TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIndex, TUserSandboxOptions options, int userId)
@@ -601,12 +601,12 @@ void TSlotLocation::Disable(const TError& error)
     auto masterConnector = Bootstrap_->GetMasterConnector();
     masterConnector->RegisterAlert(alert);
 
-    if (DiskInfoUpdateExecutor_) {
-        DiskInfoUpdateExecutor_->Stop();
+    if (DiskResourcesUpdateExecutor_) {
+        DiskResourcesUpdateExecutor_->Stop();
     }
 }
 
-void TSlotLocation::UpdateDiskInfo()
+void TSlotLocation::UpdateDiskResources()
 {
     if (!IsEnabled()) {
         return;
@@ -659,9 +659,9 @@ void TSlotLocation::UpdateDiskInfo()
             diskLimit);
 
         {
-            auto guard = TWriterGuard(DiskInfoLock_);
-            DiskInfo_.set_usage(diskUsage);
-            DiskInfo_.set_limit(diskLimit);
+            auto guard = TWriterGuard(DiskResourcesLock_);
+            DiskResources_.set_usage(diskUsage);
+            DiskResources_.set_limit(diskLimit);
         }
     } catch (const std::exception& ex) {
         auto error = TError("Failed to get disk info") << ex;
@@ -670,10 +670,10 @@ void TSlotLocation::UpdateDiskInfo()
     }
 }
 
-NNodeTrackerClient::NProto::TDiskResourcesInfo TSlotLocation::GetDiskInfo() const
+NNodeTrackerClient::NProto::TDiskLocationResources TSlotLocation::GetDiskResources() const
 {
-    auto guard = TReaderGuard(DiskInfoLock_);
-    return DiskInfo_;
+    auto guard = TReaderGuard(DiskResourcesLock_);
+    return DiskResources_;
 }
 
 bool TSlotLocation::ShouldCleanSandboxes() const

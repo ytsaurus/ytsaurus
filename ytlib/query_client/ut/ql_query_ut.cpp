@@ -291,14 +291,14 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(sum(a)) from [//t] group by k",
-        ContainsRegex("Misuse of aggregate function .*"));
+        ContainsRegex("Misuse of aggregate .*"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(a) from [//t]",
-        ContainsRegex("Misuse of aggregate function .*"));
+        ContainsRegex("Misuse of aggregate .*"));
 }
 
 TEST_F(TQueryPrepareTest, FailedTypeInference)
@@ -321,7 +321,7 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
 
     ExpectPrepareThrowsWithDiagnostics(
         "a, b from [//t] join [//s] using b",
-        ContainsRegex("Column \"a\" occurs both in main and joined tables"));
+        ContainsRegex("Ambiguous resolution"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
         .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
@@ -331,7 +331,66 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] join [//s] using b",
-        ContainsRegex("Column .* occurs both in main and joined tables"));
+        ContainsRegex("Ambiguous resolution"));
+}
+
+TEST_F(TQueryPrepareTest, SelectColumns)
+{
+    {
+        TDataSplit dataSplit;
+
+        ToProto(
+            dataSplit.mutable_chunk_id(),
+            MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
+
+        TTableSchema tableSchema({
+            TColumnSchema("h", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending)
+                .SetExpression(TString("a")),
+            TColumnSchema("a", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending),
+            TColumnSchema("c", EValueType::Int64),
+            TColumnSchema("d", EValueType::Int64)
+        });
+
+        SetTableSchema(&dataSplit, tableSchema);
+
+        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
+            .WillRepeatedly(Return(MakeFuture(dataSplit)));
+    }
+
+
+    {
+        TString queryString = "* from [//t]";
+
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+
+        auto schema = query->GetReadSchema();
+
+        EXPECT_EQ(schema.Columns().size(), 5);
+
+        EXPECT_EQ(schema.Columns()[0].Name(), "h");
+        EXPECT_EQ(schema.Columns()[1].Name(), "a");
+        EXPECT_EQ(schema.Columns()[2].Name(), "b");
+        EXPECT_EQ(schema.Columns()[3].Name(), "c");
+        EXPECT_EQ(schema.Columns()[4].Name(), "d");
+    }
+
+    {
+        TString queryString = "d, c, a from [//t]";
+
+        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+
+        auto schema = query->GetReadSchema();
+
+        EXPECT_EQ(schema.Columns().size(), 3);
+
+        EXPECT_EQ(schema.Columns()[0].Name(), "a");
+        EXPECT_EQ(schema.Columns()[1].Name(), "c");
+        EXPECT_EQ(schema.Columns()[2].Name(), "d");
+    }
 }
 
 TEST_F(TQueryPrepareTest, SortMergeJoin)
@@ -705,7 +764,7 @@ TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
 
     EXPECT_THROW_THAT({
         PreparePlanFragment(&PrepareMock_, "avg(a) from [//t] group by 1");
-    }, HasSubstr("Type mismatch in function \"avg\""));
+    }, HasSubstr("Type mismatch (Function: \"avg\""));
 }
 
 TEST_F(TQueryPrepareTest, OrderByWithoutLimit)

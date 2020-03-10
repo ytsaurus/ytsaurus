@@ -84,7 +84,7 @@ protected:
 
         auto prunedSplits = GetPrunedRanges(
             query->WhereClause,
-            query->JoinClauses[0]->OriginalSchema,
+            query->JoinClauses[0]->Schema.Original,
             query->JoinClauses[0]->GetKeyColumns(),
             query->JoinClauses[0]->ForeignDataId,
             MakeSharedRange(foreignSplits),

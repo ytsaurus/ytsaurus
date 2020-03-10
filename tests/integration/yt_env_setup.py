@@ -358,12 +358,12 @@ unix_only = pytest.mark.skipif('not sys.platform.startswith("linux") and not sys
 patch_porto_env_only = lambda parent: patch_subclass(parent, not porto_avaliable(), reason="you need configured porto to run it")
 
 def skip_if_porto(func):
-    def wrapped_func(self, *args, **kwargs):
+    def wrapper(func, self, *args, **kwargs):
         if hasattr(self, "USE_PORTO_FOR_SERVERS") and self.USE_PORTO_FOR_SERVERS:
             pytest.skip("This test does not support porto isolation")
-        func(self, *args, **kwargs)
-    return wrapped_func
+        return func(self, *args, **kwargs)
 
+    return decorator.decorate(func, wrapper)
 
 def is_asan_build():
     if arcadia_interop.yatest_common is not None:
@@ -503,6 +503,7 @@ class YTEnvSetup(object):
     USE_PORTO_FOR_SERVERS = False
     USE_DYNAMIC_TABLES = False
     USE_MASTER_CACHE = False
+    USE_PERMISSION_CACHE = True
     ENABLE_BULK_INSERT = False
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
@@ -588,6 +589,7 @@ class YTEnvSetup(object):
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
+            enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
             modify_configs_func=modify_configs_func,
             cell_tag=index * 10,
             driver_backend=cls.get_param("DRIVER_BACKEND", index),
@@ -702,6 +704,7 @@ class YTEnvSetup(object):
                     "timestamp_provider": instance.configs["master"][0]["timestamp_provider"],
                     "transaction_manager": instance.configs["master"][0]["transaction_manager"],
                     "table_mount_cache": instance.configs["driver"]["table_mount_cache"],
+                    "permission_cache": instance.configs["driver"]["permission_cache"],
                     "cell_directory_synchronizer": instance.configs["driver"]["cell_directory_synchronizer"],
                     "cluster_directory_synchronizer": instance.configs["driver"]["cluster_directory_synchronizer"]
                 }
@@ -942,21 +945,6 @@ def get_porto_delta_node_config():
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
-                },
-            }
-        }
-    }
-
-def get_cgroup_delta_node_config(cgroups=None):
-    if cgroups is None:
-        cgroups = ["cpuacct", "cpu", "blkio"]
-
-    return {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "supported_cgroups": cgroups,
                 },
             }
         }

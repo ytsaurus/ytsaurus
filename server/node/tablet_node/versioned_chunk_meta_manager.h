@@ -16,6 +16,8 @@ public:
         TTabletNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
+    ~TVersionedChunkMetaManager();
+
     TFuture<NTableClient::TCachedVersionedChunkMetaPtr> GetMeta(
         NChunkClient::IChunkReaderPtr chunkReader,
         const NTableClient::TTableSchema& schema,

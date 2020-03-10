@@ -32,54 +32,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMasterReign,
-    ((OldVersion711)                                                 (711))  // shakurov
-    ((OldVersion712)                                                 (712))  // aozeritsky
-    ((AddTabletCellDecommission)                                     (713))  // savrus
-    ((ChangeTReqKickOrphanedTabletActions)                           (714))  // savrus
-    ((FixTabletErrorCountLag)                                        (715))  // ifsmirnov
-    ((AddDynamicTabletCellOptions)                                   (716))  // savrus
-    ((AddReplicatedTableOptions)                                     (717))  // aozeritsky
-    ((WeakGhostsSaveLoad)                                            (718))  // shakurov
-    ((MulticellForDynamicTables)                                     (800))  // savrus
-    ((MakeTabletStateBackwardCompatible)                             (801))  // savrus
-    ((AddReplicaOptions)                                             (802))  // aozeritsky
-    ((AddPrimaryLastMountTransactionId)                              (803))  // savrus
-    ((RemoveTTransactionSystem)                                      (804))  // shakurov
-    ((AddCypressAnnotations)                                         (805))  // psushin
-    ((SameAsVer718ButIn19_4)                                         (806))  // shakurov
-    ((AddTabletCellHealthToTabletCellStatistics)                     (807))  // savrus
-    ((ForwardStartPrerequisiteTransactionToSecondaryMaster)          (808))  // savrus
-    ((PersistRequisitionUpdateRequests)                              (809))  // shakurov
-    ((PersistTransactionDeadline)                                    (810))  // ignat
-    ((AddAttributesRevisionContentRevision)                          (811))  // aozeritsky
-    ((AddReassignPeerMutation)                                       (812))  // savrus
-    ((YT_9775_MasterMasterProtocolChange)                            (813))  // aozeritsky
-    ((OldVersion814)                                                 (814))  // aozeritsky
-    ((AddReadRequestRateLimitAndWriteRequestRateLimit)               (815))  // aozeritsky
-    ((InitializeMediumSpecificMaxReplicationFactor)                  (816))  // shakurov
-    ((PersistTNodeResourceUsageLimits)                               (817))  // shakurov
-    ((IntToI64ForNSecurityServerTClusterResourcesNodeAndChunkCount)  (818))  // shakurov
-    ((AddTabletCellLifeStage)                                        (819))  // savrus
-    ((FixSnapshot)                                                   (820))  // savrus
-    ((PerTableTabletBalancerConfig)                                  (821))  // ifsmirnov
-    ((UseCurrentMountTransactionIdToLockTableNodeDuringMount)        (822))  // savrus
-    ((SynchronousHandlesForTabletBalancer)                           (823))  // ifsmirnov
-    ((RemoveDynamicTableAttrsFromStaticTables)                       (824))  // savrus
-    ((InTChunkReplicationReplaceArrayWithSmallVector)                (825))  // shakurov
-    ((ColumnarAcls)                                                  (826))  // babenko
-    ((SecurityTags)                                                  (827))  // babenko
-    ((TCumulativeStatisticsInChunkLists)                             (828))  // ifsmirnov
-    ((MultiplyTUserReadRequestRateLimitByTheNumberOfFollowers)       (829))  // shakurov
-    ((ChunkView)                                                     (830))  // ifsmirnov
-    ((VersionedExpirationTime)                                       (831))  // shakurov
-    ((TClusterResourcesDiskSpaceSerialization)                       (832))  // aozeritsky
-    ((YT_10852)                                                      (833))  // shakurov
-    ((TTabletCellBundleHealthAdded)                                  (834))  // aozeritsky
-    ((SnapshotLockableMapNodes)                                      (835))  // shakurov
-    ((YT_10952_DelayedMembershipClosureRecomputation)                (836))  // babenko
-    ((YT_10726_StagedChunkExpiration)                                (837))  // shakurov
-    ((ChunkViewToParentsArray)                                       (838))  // ifsmirnov
-    ((FixTableStatistics)                                            (839))  // savrus
     ((BranchedAndLockedNodeCountMismatchFix_19_6)                    (840))  // shakurov
     ((YT_10639_CumulativeStatisticsInDynamicTables)                  (899))  // ifsmirnov
     ((PortalsInitial)                                                (900))  // babenko
@@ -131,6 +83,11 @@ DEFINE_ENUM(EMasterReign,
     ((InitializeAccountMasterMemoryUsage)                           (1207))  // aleksandra-zh
     ((YT_11279_UnmountForceOnlySuperuser)                           (1208))  // lexolordan
     ((FixNetworkProjectSerialization)                               (1209))  // gritukan
+    ((DisableMasterMemoryUsageAccountOvercommitValidation)          (1300))  // aleksandra-zh
+    ((FasterTError)                                                 (1301))  // babenko
+    ((FixRootAccountLimits)                                         (1302))  // aleksandra-zh
+    ((SwitchToAlterTableReplica)                                    (1303))  // babenko
+    ((DynamicTimestampProviderDiscovery)                            (1304))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

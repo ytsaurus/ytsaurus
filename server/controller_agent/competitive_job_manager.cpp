@@ -8,12 +8,12 @@ namespace NYT::NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompetitiveJobManager::TCompetitiveJobManager(
-    std::function<void(TJobId)> markJobHasCompetitorsCallback,
+    std::function<void(const TJobletPtr&)> onSpeculativeJobScheduled,
     std::function<void(TJobId, EAbortReason)> abortJobCallback,
     const NLogging::TLogger& logger,
     int maxSpeculativeJobCount)
     : AbortJobCallback_(std::move(abortJobCallback))
-    , MarkJobHasCompetitorsCallback_(std::move(markJobHasCompetitorsCallback))
+    , OnSpeculativeJobScheduled_(std::move(onSpeculativeJobScheduled))
     , JobCounter_(New<TProgressCounter>(0))
     , Logger(logger)
     , MaxSpeculativeJobCount_(maxSpeculativeJobCount)
@@ -83,8 +83,7 @@ void TCompetitiveJobManager::OnJobScheduled(const TJobletPtr& joblet)
         SpeculativeCandidates_.erase(joblet->OutputCookie);
         JobCounter_->Start(1);
         joblet->JobCompetitionId = competition.JobCompetitionId;
-        joblet->HasCompetitors = true;
-        MarkJobHasCompetitorsCallback_(joblet->JobCompetitionId);
+        OnSpeculativeJobScheduled_(joblet);
     } else {
         auto [it, inserted] = CookieToCompetition_.emplace(joblet->OutputCookie, TCompetition{ .JobCompetitionId = joblet->JobId });
         YT_VERIFY(inserted);

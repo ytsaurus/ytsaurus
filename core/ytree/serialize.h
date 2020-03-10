@@ -18,6 +18,7 @@ namespace NYT::NYTree {
 template <class T>
 NYson::EYsonType GetYsonType(const T&);
 NYson::EYsonType GetYsonType(const NYson::TYsonString& yson);
+NYson::EYsonType GetYsonType(const NYson::TYsonStringBuf& yson);
 NYson::EYsonType GetYsonType(const NYson::TYsonInput& input);
 NYson::EYsonType GetYsonType(const NYson::TYsonProducer& producer);
 

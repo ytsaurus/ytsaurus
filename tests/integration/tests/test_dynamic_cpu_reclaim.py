@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait, get_cgroup_delta_node_config
+from yt_env_setup import YTEnvSetup, wait, get_porto_delta_node_config, porto_avaliable
 from yt_commands import *
 from yt_helpers import *
 
@@ -12,22 +12,26 @@ import copy
 SPEC_WITH_CPU_MONITOR = {
     "job_cpu_monitor": {
         "check_period": 10,
+        "increase_coefficient": 1.15,
+        "decrease_coefficient": 0.85,
         "smoothing_factor": 0.2,
-        "vote_window_size": 10,
+        "vote_window_size": 5,
         "vote_decision_threshold": 3,
         "min_cpu_limit": 0.1,
-        "enable_cpu_reclaim": True
+        "enable_cpu_reclaim": True,
     }
 }
 
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestAggregatedCpuMetrics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
+    USE_PORTO_FOR_SERVERS = True
     DELTA_NODE_CONFIG = yt.common.update(
-        get_cgroup_delta_node_config(),
+        get_porto_delta_node_config(),
         {
             "exec_agent": {
                 "scheduler_connector": {
@@ -51,8 +55,6 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
             "job_metrics_report_period": 100,
         }
     }
-
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("renadeen")
     def test_sleeping(self):
@@ -99,6 +101,7 @@ class TestAggregatedCpuMetrics(YTEnvSetup):
         wait(lambda: preemptable_cpu_delta.update().get(verbose=True) == 0)
 
 
+@pytest.mark.skip_if('not porto_avaliable()')
 class TestDynamicCpuReclaim(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -110,26 +113,41 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "supported_cgroups": ["cpu", "cpuacct"]
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        {
+            "exec_agent": {
+                "job_controller": {
+                    "resource_limits": {
+                        "cpu": 1.5,
+                        "user_slots": 2
+                    },
+                    "cpu_overdraft_timeout": 1000,
+                    "resource_adjustment_period": 1000
                 }
-            },
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 1.5,
-                    "user_slots": 2
-                },
-                "cpu_overdraft_timeout": 1000,
-                "resource_adjustment_period": 1000
             }
-        }
-    }
+        })
 
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    USE_PORTO_FOR_SERVERS = True
+
+    @authors("renadeen")
+    @pytest.mark.skip(reason="Broken after move to porto")
+    def test_dynamic_cpu_statistics_of_sort_operation(self):
+        create("table", "//tmp/t_in", attributes={"replication_factor": 1})
+        create("table", "//tmp/t_out", attributes={"replication_factor": 1})
+        n = 1000000
+        write_table("//tmp/t_in", [{"a": (42 * x) % n} for x in range(n)])
+
+        op = sort(in_="//tmp/t_in",
+                  out="//tmp/t_out",
+                  sort_by="a",
+                  spec=SPEC_WITH_CPU_MONITOR,
+                  track=False)
+        wait(lambda: len(list(op.get_running_jobs())) > 0, sleep_backoff=0.1)
+        stats_path = self.wait_and_get_stats_path(list(op.get_running_jobs())[0])
+        wait(lambda: exists(stats_path + "/preemptable_cpu_x100"), sleep_backoff=0.1)
+        # Sort is more io bound than cpu bound.
+        wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] > 50, sleep_backoff=0.1)
 
     @authors("renadeen")
     def test_dynamic_cpu_statistics(self):
@@ -174,7 +192,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
     def wait_and_get_stats_path(self, job_id):
         node = ls("//sys/cluster_nodes")[0]
         result = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/statistics/job_proxy".format(node, job_id)
-        wait(lambda: exists(result))
+        wait(lambda: exists(result), sleep_backoff=0.1)
         return result
 
 
@@ -183,22 +201,18 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
-    DELTA_NODE_CONFIG = {
-        "exec_agent": {
-            "slot_manager": {
-                "job_environment": {
-                    "type": "cgroups",
-                    "supported_cgroups": ["cpu", "cpuacct"]
-                }
-            },
-            "job_controller": {
-                "resource_limits": {
-                    "cpu": 2.5,
-                    "user_slots": 3
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        {
+            "exec_agent": {
+                "job_controller": {
+                    "resource_limits": {
+                        "cpu": 2.5,
+                        "user_slots": 3
+                    }
                 }
             }
-        }
-    }
+        })
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -206,7 +220,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    USE_PORTO_FOR_SERVERS = True
 
     @authors("renadeen")
     def test_scheduler_aborts_job_on_lack_of_cpu(self):
@@ -244,8 +258,6 @@ class TestNodeAbortsJobOnLackOfMemory(YTEnvSetup):
             }
         }
     }
-
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("renadeen")
     @pytest.mark.skip(reason = "Currently broken")

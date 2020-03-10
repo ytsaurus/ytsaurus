@@ -166,6 +166,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
         .Default();
+    RegisterParameter("no_delay_on_second_entrance_to_commit", NoDelayOnSecondEntranceToCommit)
+        .Default(false);
     RegisterParameter("controller_failure", ControllerFailure)
         .Default();
     RegisterParameter("get_job_spec_delay", GetJobSpecDelay)
@@ -339,6 +341,10 @@ TOperationSpecBase::TOperationSpecBase()
         .Default(10)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(150);
+    RegisterParameter("max_core_info_count", MaxCoreInfoCount)
+        .Default(10)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(150);
 
     RegisterParameter("job_proxy_memory_overcommit_limit", JobProxyMemoryOvercommitLimit)
         .Default()
@@ -450,6 +456,9 @@ TOperationSpecBase::TOperationSpecBase()
 
     RegisterParameter("atomicity", Atomicity)
         .Default(EAtomicity::Full);
+
+    RegisterParameter("job_cpu_monitor", JobCpuMonitor)
+        .DefaultNew();
 
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -597,7 +606,9 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("network_project", NetworkProject)
         .Default();
     RegisterParameter("enable_porto", EnablePorto)
-        .Default(EEnablePorto::Isolate);
+        .Default();
+    RegisterParameter("fail_job_on_core_dump", FailJobOnCoreDump)
+        .Default(true);
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {
@@ -757,9 +768,6 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
         .DefaultNew();
     RegisterParameter("write_sparse_core_dumps", WriteSparseCoreDumps)
         .Default(true);
-
-    RegisterParameter("job_cpu_monitor", JobCpuMonitor)
-        .DefaultNew();
 
     RegisterPostprocessor([&] {
         if (StderrTablePath) {
@@ -1689,7 +1697,7 @@ TJobCpuMonitorConfig::TJobCpuMonitorConfig()
 
     RegisterParameter("smoothing_factor", SmoothingFactor)
         .InRange(0, 1)
-        .Default(0.05);
+        .Default(0.1);
 
     RegisterParameter("relative_upper_bound", RelativeUpperBound)
         .InRange(0, 1)
@@ -1701,19 +1709,19 @@ TJobCpuMonitorConfig::TJobCpuMonitorConfig()
 
     RegisterParameter("increase_coefficient", IncreaseCoefficient)
         .InRange(1, 2)
-        .Default(1.15);
+        .Default(1.45);
 
     RegisterParameter("decrease_coefficient", DecreaseCoefficient)
         .InRange(0, 1)
-        .Default(0.85);
+        .Default(0.97);
 
     RegisterParameter("vote_window_size", VoteWindowSize)
         .GreaterThan(0)
-        .Default(30);
+        .Default(5);
 
     RegisterParameter("vote_decision_threshold", VoteDecisionThreshold)
         .GreaterThan(0)
-        .Default(15);
+        .Default(3);
 
     RegisterParameter("min_cpu_limit", MinCpuLimit)
         .InRange(0, 1)

@@ -656,7 +656,7 @@ void TBootstrap::DoInitialize()
 
     TimestampProvider_ = CreateRemoteTimestampProvider(
         Config_->TimestampProvider,
-        channelFactory);
+        CreateTimestampProviderChannel(Config_->TimestampProvider, channelFactory));
 
     // Initialize periodic latest timestamp update.
     TimestampProvider_->GetLatestTimestamp();
@@ -796,10 +796,6 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/hive",
         CreateVirtualNode(HiveManager_->GetOrchidService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/node_tracker",
-        CreateVirtualNode(NodeTracker_->GetOrchidService()));
 
     SetBuildAttributes(orchidRoot, "master");
 

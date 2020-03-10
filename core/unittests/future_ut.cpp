@@ -592,7 +592,9 @@ TEST_F(TFutureTest, TestCancelDelayed)
     EXPECT_FALSE(future.Get().IsOK());
 }
 
-TEST_F(TFutureTest, AnyOf)
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TFutureTest, AnyCombiner)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -600,7 +602,7 @@ TEST_F(TFutureTest, AnyOf)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnyOf(futures);
+    auto f = AnySucceded(futures);
     EXPECT_FALSE(f.IsSet());
     p2.Set(2);
     EXPECT_TRUE(f.IsSet());
@@ -610,7 +612,7 @@ TEST_F(TFutureTest, AnyOf)
     EXPECT_EQ(2, result);
 }
 
-TEST_F(TFutureTest, AnyOfRetainError)
+TEST_F(TFutureTest, AnyCombinerRetainError)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -618,7 +620,7 @@ TEST_F(TFutureTest, AnyOfRetainError)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnyOf(futures, TRetainErrorPolicy{});
+    auto f = AnySet(futures);
     EXPECT_FALSE(f.IsSet());
     p2.Set(TError("oops"));
     EXPECT_TRUE(f.IsSet());
@@ -626,14 +628,14 @@ TEST_F(TFutureTest, AnyOfRetainError)
     EXPECT_FALSE(resultOrError.IsOK());
 }
 
-TEST_F(TFutureTest, AnyOfEmpty)
+TEST_F(TFutureTest, AnyCombinerEmpty)
 {
     std::vector<TFuture<int>> futures;
-    auto error = AnyOf(futures).Get();
+    auto error = AnySucceded(futures).Get();
     EXPECT_EQ(NYT::EErrorCode::FutureCombinerFailure, error.GetCode());
 }
 
-TEST_F(TFutureTest, AnyOfSkipError)
+TEST_F(TFutureTest, AnyCombinerSkipError)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -643,7 +645,7 @@ TEST_F(TFutureTest, AnyOfSkipError)
         p2.ToFuture(),
         p3.ToFuture()
     };
-    auto f = AnyOf(futures);
+    auto f = AnySucceded(futures);
     EXPECT_FALSE(f.IsSet());
     EXPECT_FALSE(p2.IsCanceled());
     p1.Set(TError("oops"));
@@ -656,7 +658,7 @@ TEST_F(TFutureTest, AnyOfSkipError)
     EXPECT_TRUE(p3.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyOfSuccessShortcut)
+TEST_F(TFutureTest, AnyCombinerSuccessShortcut)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -664,7 +666,7 @@ TEST_F(TFutureTest, AnyOfSuccessShortcut)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnyOf(futures);
+    auto f = AnySucceded(futures);
     EXPECT_FALSE(f.IsSet());
     EXPECT_FALSE(p2.IsCanceled());
     p1.Set(1);
@@ -675,7 +677,7 @@ TEST_F(TFutureTest, AnyOfSuccessShortcut)
     EXPECT_TRUE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyOfDontCancelOnShortcut)
+TEST_F(TFutureTest, AnyCombinerDontCancelOnShortcut)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -683,15 +685,14 @@ TEST_F(TFutureTest, AnyOfDontCancelOnShortcut)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnyOf(
+    auto f = AnySucceded(
         futures,
-        TSkipErrorPolicy{},
         TFutureCombinerOptions{.CancelInputOnShortcut = false});
     p1.Set(1);
     EXPECT_FALSE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyOfPropagateCancelation)
+TEST_F(TFutureTest, AnyCombinerPropagateCancelation)
 {
     auto p1 = NewPromise<void>();
     auto p2 = NewPromise<void>();
@@ -699,7 +700,7 @@ TEST_F(TFutureTest, AnyOfPropagateCancelation)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnyOf(futures);
+    auto f = AnySucceded(futures);
     EXPECT_FALSE(p1.IsCanceled());
     EXPECT_FALSE(p2.IsCanceled());
     f.Cancel(TError("oops"));
@@ -707,7 +708,7 @@ TEST_F(TFutureTest, AnyOfPropagateCancelation)
     EXPECT_TRUE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyOfDontPropagateCancelation)
+TEST_F(TFutureTest, AnyCombinerDontPropagateCancelation)
 {
     auto p1 = NewPromise<void>();
     auto p2 = NewPromise<void>();
@@ -715,9 +716,8 @@ TEST_F(TFutureTest, AnyOfDontPropagateCancelation)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnyOf(
+    auto f = AnySucceded(
         futures,
-        TSkipErrorPolicy{},
         TFutureCombinerOptions{.PropagateCancelationToInput = false});
     EXPECT_FALSE(p1.IsCanceled());
     EXPECT_FALSE(p2.IsCanceled());
@@ -726,26 +726,28 @@ TEST_F(TFutureTest, AnyOfDontPropagateCancelation)
     EXPECT_FALSE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyOf1)
+TEST_F(TFutureTest, AnyCombiner1)
 {
     auto promise = NewPromise<int>();
     auto future = promise.ToFuture();
     std::vector<TFuture<int>> futures{
         future
     };
-    EXPECT_EQ(future, AnyOf(futures));
+    EXPECT_EQ(future, AnySucceded(futures));
 }
 
-TEST_F(TFutureTest, AllOfEmpty)
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TFutureTest, AllCombinerEmpty)
 {
     std::vector<TFuture<int>> futures{};
-    auto resultOrError = AllOf(futures).Get();
+    auto resultOrError = AllSucceeded(futures).Get();
     EXPECT_TRUE(resultOrError.IsOK());
     const auto& result = resultOrError.Value();
     EXPECT_TRUE(result.empty());
 }
 
-TEST_F(TFutureTest, AllOf)
+TEST_F(TFutureTest, AllCombiner)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -753,7 +755,7 @@ TEST_F(TFutureTest, AllOf)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AllOf(futures);
+    auto f = AllSucceeded(futures);
     EXPECT_FALSE(f.IsSet());
     p1.Set(2);
     EXPECT_FALSE(f.IsSet());
@@ -767,7 +769,7 @@ TEST_F(TFutureTest, AllOf)
     EXPECT_EQ(10, result[1]);
 }
 
-TEST_F(TFutureTest, AllOfError)
+TEST_F(TFutureTest, AllCombinerError)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -775,7 +777,7 @@ TEST_F(TFutureTest, AllOfError)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AllOf(futures);
+    auto f = AllSucceeded(futures);
     EXPECT_FALSE(f.IsSet());
     p1.Set(2);
     EXPECT_FALSE(f.IsSet());
@@ -785,7 +787,7 @@ TEST_F(TFutureTest, AllOfError)
     EXPECT_FALSE(resultOrError.IsOK());
 }
 
-TEST_F(TFutureTest, AllOfFailureShortcut)
+TEST_F(TFutureTest, AllCombinerFailureShortcut)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -793,7 +795,7 @@ TEST_F(TFutureTest, AllOfFailureShortcut)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AllOf(futures);
+    auto f = AllSucceeded(futures);
     EXPECT_FALSE(f.IsSet());
     EXPECT_FALSE(p2.IsCanceled());
     p1.Set(TError("oops"));
@@ -803,7 +805,7 @@ TEST_F(TFutureTest, AllOfFailureShortcut)
     EXPECT_TRUE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, AllOfDontCancelOnShortcut)
+TEST_F(TFutureTest, AllCombinerDontCancelOnShortcut)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -811,15 +813,14 @@ TEST_F(TFutureTest, AllOfDontCancelOnShortcut)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AllOf(
+    auto f = AllSucceeded(
         futures,
-        TPropagateErrorPolicy{},
         TFutureCombinerOptions{.CancelInputOnShortcut = false});
     p1.Set(TError("oops"));
     EXPECT_FALSE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, AllOfCancel)
+TEST_F(TFutureTest, AllCombinerCancel)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -829,7 +830,7 @@ TEST_F(TFutureTest, AllOfCancel)
         p2.ToFuture(),
         p3.ToFuture()
     };
-    auto f = AllOf(futures);
+    auto f = AllSucceeded(futures);
     EXPECT_FALSE(f.IsSet());
     f.Cancel(TError("oops"));
     EXPECT_TRUE(f.IsSet());
@@ -837,23 +838,23 @@ TEST_F(TFutureTest, AllOfCancel)
     EXPECT_EQ(NYT::EErrorCode::Canceled, result.GetCode());
 }
 
-TEST_F(TFutureTest, AllOfVoid0)
+TEST_F(TFutureTest, AllCombinerVoid0)
 {
     std::vector<TFuture<void>> futures;
-    EXPECT_EQ(VoidFuture, AllOf(futures));
+    EXPECT_EQ(VoidFuture, AllSucceeded(futures));
 }
 
-TEST_F(TFutureTest, AllOfVoid1)
+TEST_F(TFutureTest, AllCombinerVoid1)
 {
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
     std::vector<TFuture<void>> futures{
         future
     };
-    EXPECT_EQ(future, AllOf(futures));
+    EXPECT_EQ(future, AllSucceeded(futures));
 }
 
-TEST_F(TFutureTest, AllOfRetainError)
+TEST_F(TFutureTest, AllCombinerRetainError)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -861,7 +862,7 @@ TEST_F(TFutureTest, AllOfRetainError)
         p1.ToFuture(),
         p2.ToFuture(),
     };
-    auto f = AllOf(futures, TRetainErrorPolicy{});
+    auto f = AllSet(futures);
     EXPECT_FALSE(f.IsSet());
     p1.Set(2);
     EXPECT_FALSE(f.IsSet());
@@ -876,7 +877,7 @@ TEST_F(TFutureTest, AllOfRetainError)
     EXPECT_FALSE(result[1].IsOK());
 }
 
-TEST_F(TFutureTest, AllOfPropagateCancelation)
+TEST_F(TFutureTest, AllCombinerPropagateCancelation)
 {
     auto p1 = NewPromise<void>();
     auto p2 = NewPromise<void>();
@@ -884,7 +885,7 @@ TEST_F(TFutureTest, AllOfPropagateCancelation)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AllOf(futures);
+    auto f = AllSucceeded(futures);
     EXPECT_FALSE(p1.IsCanceled());
     EXPECT_FALSE(p2.IsCanceled());
     f.Cancel(TError("oops"));
@@ -892,7 +893,7 @@ TEST_F(TFutureTest, AllOfPropagateCancelation)
     EXPECT_TRUE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, AllOfDontPropagateCancelation)
+TEST_F(TFutureTest, AllCombinerDontPropagateCancelation)
 {
     auto p1 = NewPromise<void>();
     auto p2 = NewPromise<void>();
@@ -900,9 +901,8 @@ TEST_F(TFutureTest, AllOfDontPropagateCancelation)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AllOf(
+    auto f = AllSucceeded(
         futures,
-        TPropagateErrorPolicy{},
         TFutureCombinerOptions{.PropagateCancelationToInput = false});
     EXPECT_FALSE(p1.IsCanceled());
     EXPECT_FALSE(p2.IsCanceled());
@@ -911,7 +911,9 @@ TEST_F(TFutureTest, AllOfDontPropagateCancelation)
     EXPECT_FALSE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyNOfEmpty)
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TFutureTest, AnyNCombinerEmpty)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -919,7 +921,7 @@ TEST_F(TFutureTest, AnyNOfEmpty)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnyNOf(futures, 0);
+    auto f = AnyNSucceeded(futures, 0);
     EXPECT_TRUE(f.IsSet());
     const auto& resultOrError = f.Get();
     EXPECT_TRUE(resultOrError.IsOK());
@@ -929,7 +931,7 @@ TEST_F(TFutureTest, AnyNOfEmpty)
     EXPECT_TRUE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyNOfDontCancelOnEmptyShortcut)
+TEST_F(TFutureTest, AnyNCombinerDontCancelOnEmptyShortcut)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -937,43 +939,41 @@ TEST_F(TFutureTest, AnyNOfDontCancelOnEmptyShortcut)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnyNOf(
+    auto f = AnyNSucceeded(
         futures,
         0,
-        TSkipErrorPolicy{},
         TFutureCombinerOptions{.CancelInputOnShortcut = false});
     EXPECT_FALSE(p1.IsCanceled());
     EXPECT_FALSE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyNOfInsufficientInputs)
+TEST_F(TFutureTest, AnyNCombinerInsufficientInputs)
 {
     auto p1 = NewPromise<int>();
     std::vector<TFuture<int>> futures{
         p1.ToFuture()
     };
-    auto f = AnyNOf(futures, 2);
+    auto f = AnyNSucceeded(futures, 2);
     EXPECT_TRUE(f.IsSet());
     const auto& resultOrError = f.Get();
     EXPECT_EQ(NYT::EErrorCode::FutureCombinerFailure, resultOrError.GetCode());
     EXPECT_TRUE(p1.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyNOfDontCancelOnInsufficientInputsShortcut)
+TEST_F(TFutureTest, AnyNCombinerDontCancelOnInsufficientInputsShortcut)
 {
     auto p1 = NewPromise<int>();
     std::vector<TFuture<int>> futures{
         p1.ToFuture()
     };
-    auto f = AnyNOf(
+    auto f = AnyNSucceeded(
         futures,
         2,
-        TSkipErrorPolicy{},
         TFutureCombinerOptions{.CancelInputOnShortcut = false});
     EXPECT_FALSE(p1.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyNOfTooManyFailures)
+TEST_F(TFutureTest, AnyNCombinerTooManyFailures)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -983,10 +983,7 @@ TEST_F(TFutureTest, AnyNOfTooManyFailures)
         p2.ToFuture(),
         p3.ToFuture()
     };
-    auto f = AnyNOf(
-        futures,
-        2,
-        TSkipErrorPolicy{});
+    auto f = AnyNSucceeded(futures, 2);
     EXPECT_FALSE(f.IsSet());
     EXPECT_FALSE(p3.IsCanceled());
     p1.Set(TError("oops1"));
@@ -997,7 +994,7 @@ TEST_F(TFutureTest, AnyNOfTooManyFailures)
     EXPECT_TRUE(p3.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyNOfDontCancelOnTooManyFailuresShortcut)
+TEST_F(TFutureTest, AnyNCombinerDontCancelOnTooManyFailuresShortcut)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -1007,17 +1004,16 @@ TEST_F(TFutureTest, AnyNOfDontCancelOnTooManyFailuresShortcut)
         p2.ToFuture(),
         p3.ToFuture()
     };
-    auto f = AnyNOf(
+    auto f = AnyNSucceeded(
         futures,
         2,
-        TSkipErrorPolicy{},
         TFutureCombinerOptions{.CancelInputOnShortcut = false});
     p1.Set(TError("oops1"));
     p2.Set(TError("oops2"));
     EXPECT_FALSE(p3.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyNOf)
+TEST_F(TFutureTest, AnyNCombiner)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -1027,7 +1023,7 @@ TEST_F(TFutureTest, AnyNOf)
         p2.ToFuture(),
         p3.ToFuture()
     };
-    auto f = AnyNOf(futures, 2);
+    auto f = AnyNSucceeded(futures, 2);
     EXPECT_FALSE(f.IsSet());
     EXPECT_FALSE(p1.IsCanceled());
     p2.Set(1);
@@ -1043,7 +1039,7 @@ TEST_F(TFutureTest, AnyNOf)
     EXPECT_TRUE(p1.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyNOfDontCancelOnShortcut)
+TEST_F(TFutureTest, AnyNCombinerDontCancelOnShortcut)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -1053,17 +1049,16 @@ TEST_F(TFutureTest, AnyNOfDontCancelOnShortcut)
         p2.ToFuture(),
         p3.ToFuture()
     };
-    auto f = AnyNOf(
+    auto f = AnyNSucceeded(
         futures,
         2,
-        TSkipErrorPolicy{},
         TFutureCombinerOptions{.CancelInputOnShortcut = false});
     p2.Set(1);
     p3.Set(2);
     EXPECT_FALSE(p1.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyNOfDontCancelOnPropagateErrorShortcut)
+TEST_F(TFutureTest, AnyNCombinerDontCancelOnPropagateErrorShortcut)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -1073,27 +1068,26 @@ TEST_F(TFutureTest, AnyNOfDontCancelOnPropagateErrorShortcut)
         p2.ToFuture(),
         p3.ToFuture()
     };
-    auto f = AnyNOf(
+    auto f = AnyNSucceeded(
         futures,
         2,
-        TSkipErrorPolicy{},
         TFutureCombinerOptions{.CancelInputOnShortcut = false});
     p3.Set(TError("oops"));
     EXPECT_FALSE(p1.IsCanceled());
     EXPECT_FALSE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyNOfVoid1)
+TEST_F(TFutureTest, AnyNCombinerVoid1)
 {
     auto promise = NewPromise<void>();
     auto future = promise.ToFuture();
     std::vector<TFuture<void>> futures{
         future
     };
-    EXPECT_EQ(future, AnyNOf(futures, 1));
+    EXPECT_EQ(future, AnyNSucceeded(futures, 1));
 }
 
-TEST_F(TFutureTest, AnyNOfRetainError)
+TEST_F(TFutureTest, AnyNCombinerRetainError)
 {
     auto p1 = NewPromise<int>();
     auto p2 = NewPromise<int>();
@@ -1103,7 +1097,7 @@ TEST_F(TFutureTest, AnyNOfRetainError)
         p2.ToFuture(),
         p3.ToFuture()
     };
-    auto f = AnyNOf(futures, 2, TRetainErrorPolicy{});
+    auto f = AnyNSet(futures, 2);
     EXPECT_FALSE(f.IsSet());
     p1.Set(2);
     EXPECT_FALSE(f.IsSet());
@@ -1118,7 +1112,7 @@ TEST_F(TFutureTest, AnyNOfRetainError)
     EXPECT_FALSE(result[1].IsOK());
 }
 
-TEST_F(TFutureTest, AnyNOfPropagateCancelation)
+TEST_F(TFutureTest, AnyNCombinerPropagateCancelation)
 {
     auto p1 = NewPromise<void>();
     auto p2 = NewPromise<void>();
@@ -1126,7 +1120,7 @@ TEST_F(TFutureTest, AnyNOfPropagateCancelation)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnyNOf(futures, 1);
+    auto f = AnyNSucceeded(futures, 1);
     EXPECT_FALSE(p1.IsCanceled());
     EXPECT_FALSE(p2.IsCanceled());
     f.Cancel(TError("oops"));
@@ -1134,7 +1128,7 @@ TEST_F(TFutureTest, AnyNOfPropagateCancelation)
     EXPECT_TRUE(p2.IsCanceled());
 }
 
-TEST_F(TFutureTest, AnyNOfDontPropagateCancelation)
+TEST_F(TFutureTest, AnyNCombinerDontPropagateCancelation)
 {
     auto p1 = NewPromise<void>();
     auto p2 = NewPromise<void>();
@@ -1142,10 +1136,9 @@ TEST_F(TFutureTest, AnyNOfDontPropagateCancelation)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnyNOf(
+    auto f = AnyNSucceeded(
         futures,
         1,
-        TSkipErrorPolicy{},
         TFutureCombinerOptions{.PropagateCancelationToInput = false});
     EXPECT_FALSE(p1.IsCanceled());
     EXPECT_FALSE(p2.IsCanceled());
@@ -1164,6 +1157,7 @@ TEST_F(TFutureTest, AsyncViaCanceledInvoker)
     auto error = future.Get();
     ASSERT_EQ(NYT::EErrorCode::Canceled, error.GetCode());
 }
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TFutureTest, LastPromiseDied)
 {

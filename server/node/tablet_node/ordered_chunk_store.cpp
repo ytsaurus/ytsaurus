@@ -140,8 +140,7 @@ TOrderedChunkStore::TOrderedChunkStore(
     TVersionedChunkMetaManagerPtr chunkMetaManager,
     NNative::IClientPtr client,
     const TNodeDescriptor& localDescriptor)
-    : TStoreBase(config, id, tablet)
-    , TChunkStoreBase(
+    : TChunkStoreBase(
         config,
         id /*storeId*/,
         id /*chunkId*/,
@@ -153,7 +152,6 @@ TOrderedChunkStore::TOrderedChunkStore(
         chunkMetaManager,
         client,
         localDescriptor)
-    , TOrderedStoreBase(std::move(config), id, tablet)
 { }
 
 void TOrderedChunkStore::Initialize(const TAddStoreDescriptor* descriptor)

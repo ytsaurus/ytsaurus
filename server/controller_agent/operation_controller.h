@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/lib/job_agent/public.h>
+
 #include <yt/server/lib/scheduler/structs.h>
 #include <yt/server/lib/scheduler/job_metrics.h>
 
@@ -157,6 +159,7 @@ struct IOperationControllerHost
     virtual const ICoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
+    virtual const NJobAgent::TJobReporterPtr& GetJobReporter() = 0;
     virtual TMemoryTagQueue* GetMemoryTagQueue() = 0;
 
     virtual int GetOnlineExecNodeCount() = 0;

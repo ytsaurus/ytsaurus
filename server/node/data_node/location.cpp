@@ -63,11 +63,13 @@ TLocation::TLocation(
     , WritePoolInvoker_(WriteThreadPool_->GetInvoker())
 {
     auto* profileManager = NProfiling::TProfileManager::Get();
-    Profiler_ = DataNodeProfiler.AddTags({
-        profileManager->RegisterTag("location_id", Id_),
-        profileManager->RegisterTag("location_type", Type_),
-        profileManager->RegisterTag("medium", GetMediumName())
-    });
+    Profiler_ = DataNodeProfiler
+        .AppendPath("/location")
+        .AddTags({
+            profileManager->RegisterTag("location_id", Id_),
+            profileManager->RegisterTag("location_type", Type_),
+            profileManager->RegisterTag("medium", GetMediumName())
+        });
 
     PerformanceCounters_.ThrottledReads = {"/throttled_reads", {}, config->ThrottleCounterInterval};
     PerformanceCounters_.ThrottledWrites = {"/throttled_writes", {}, config->ThrottleCounterInterval};
@@ -121,10 +123,8 @@ TLocation::TLocation(
         Profiler_,
         NLogging::TLogger(DataNodeLogger).AddTag("LocationId: %v", id));
 
-    auto throttlersProfiler = Profiler_.AppendPath("/location");
-
     auto createThrottler = [&] (const auto& config, const auto& name) {
-        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, throttlersProfiler);
+        return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, Profiler_);
     };
 
     ReplicationOutThrottler_ = createThrottler(config->ReplicationOutThrottler, "ReplicationOutThrottler");
@@ -134,7 +134,7 @@ TLocation::TLocation(
     TabletLoggingOutThrottler_ = createThrottler(config->TabletLoggingOutThrottler, "TabletLoggingOutThrottler");
     TabletPreloadOutThrottler_ = createThrottler(config->TabletPreloadOutThrottler, "TabletPreloadOutThrottler");
     TabletRecoveryOutThrottler_ = createThrottler(config->TabletRecoveryOutThrottler, "TabletRecoveryOutThrottler");
-    UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedOutThrottler", throttlersProfiler);
+    UnlimitedOutThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedOutThrottler", Profiler_);
 
     HealthChecker_ = New<TDiskHealthChecker>(
         Bootstrap_->GetConfig()->DataNode->DiskHealthChecker,

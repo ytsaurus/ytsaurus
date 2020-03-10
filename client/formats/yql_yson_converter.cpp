@@ -522,13 +522,16 @@ static TWeightLimitedYsonToYqlConverter CreateWeightLimitedYsonToYqlConverter(
             return TVariantYsonToYqlConverter(logicalType->AsVariantStructTypeRef(), std::move(config));
         case ELogicalMetatype::VariantTuple:
             return TVariantYsonToYqlConverter(logicalType->AsVariantTupleTypeRef(), std::move(config));
-        case ELogicalMetatype::Dict:
+        case ELogicalMetatype::Dict: {
             // Converter is identical to list<tuple<Key, Value>>.
-            return TListYsonToYqlConverter(
-                TListLogicalType(TupleLogicalType({
+            auto listOfTuples = ListLogicalType(
+                TupleLogicalType({
                     logicalType->AsDictTypeRef().GetKey(),
-                    logicalType->AsDictTypeRef().GetValue()})),
+                    logicalType->AsDictTypeRef().GetValue()}));
+            return TListYsonToYqlConverter(
+                listOfTuples->AsListTypeRef(),
                 std::move(config));
+        }
         case ELogicalMetatype::Tagged:
             return CreateWeightLimitedYsonToYqlConverter(
                 logicalType->AsTaggedTypeRef().GetElement(),

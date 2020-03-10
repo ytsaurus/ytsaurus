@@ -167,23 +167,12 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     SetErasureCodec(Load<NErasure::ECodec>(context));
     SetMovable(Load<bool>(context));
 
-    if (context.GetVersion() < EMasterReign::ChunkViewToParentsArray) {
-        auto parents = Load<std::vector<TChunkList*>>(context);
-        for (auto* parent : parents) {
-            ++Parents_[parent];
-        }
-    } else {
-        // COMPAT(shakurov)
-        auto parents = Load<SmallVector<TChunkTree*, TypicalChunkParentCount>>(context);
-        for (auto* parent : parents) {
-            ++Parents_[parent];
-        }
+    auto parents = Load<SmallVector<TChunkTree*, TypicalChunkParentCount>>(context);
+    for (auto* parent : parents) {
+        ++Parents_[parent];
     }
 
-    // COMPAT(shakurov)
-    if (context.GetVersion() >= EMasterReign::YT_10726_StagedChunkExpiration) {
-        ExpirationTime_ = Load<TInstant>(context);
-    }
+    ExpirationTime_ = Load<TInstant>(context);
 
     if (Load<bool>(context)) {
         auto* data = MutableReplicasData();

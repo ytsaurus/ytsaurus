@@ -73,6 +73,8 @@ public:
         IOperationsCleanerHost* host,
         TBootstrap* bootstrap);
 
+    ~TOperationsCleaner();
+
     void Start();
     void Stop();
 

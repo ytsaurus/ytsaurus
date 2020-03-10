@@ -108,6 +108,10 @@ public:
 
     void WaitForDuration(TDuration duration)
     {
+        if (duration == TDuration::Zero()) {
+            return;
+        }
+
         auto error = WaitFor(MakeDelayed(duration));
         if (error.GetCode() == NYT::EErrorCode::Canceled) {
             throw TFiberCanceledException();

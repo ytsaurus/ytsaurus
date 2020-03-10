@@ -20,7 +20,6 @@ DECLARE_REFCOUNTED_CLASS(TGpuManager)
 DECLARE_REFCOUNTED_CLASS(TGpuManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TMappedMemoryControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TJobController)
-DECLARE_REFCOUNTED_CLASS(TStatisticsReporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

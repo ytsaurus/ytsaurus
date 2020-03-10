@@ -13,6 +13,8 @@ extern const NProfiling::TProfiler ServerProfiler;
 
 constexpr int MemoryLimitExceededExitCode = 42;
 
+extern const TString CacheUserName;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
@@ -82,6 +84,10 @@ DECLARE_SHARED_STRUCT(ITableReader);
 DECLARE_SHARED_STRUCT(TClickHouseTable);
 
 #undef DELCARE_SHARED_STRUCT
+
+DEFINE_ENUM(EErrorCode,
+    ((SubqueryDataWeightLimitExceeded) (2200))
+);
 
 } // namespace NYT::NClickHouseServer
 

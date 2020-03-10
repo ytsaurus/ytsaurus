@@ -284,7 +284,10 @@ struct TCheckPermissionOptions
 
 struct TCheckPermissionResult
 {
-    TError ToError(const TString& user, NYTree::EPermission permission) const;
+    TError ToError(
+        const TString& user,
+        NYTree::EPermission permission,
+        const std::optional<TString>& columns = {}) const;
 
     NSecurityClient::ESecurityAction Action;
     NObjectClient::TObjectId ObjectId;
@@ -955,6 +958,7 @@ struct TGetClusterMetaOptions
     bool PopulateMediumDirectory = false;
     bool PopulateCellDirectory = false;
     bool PopulateMasterCacheNodeAddresses = false;
+    bool PopulateTimestampProviderAddresses = false;
 };
 
 struct TClusterMeta
@@ -963,6 +967,7 @@ struct TClusterMeta
     std::shared_ptr<NHiveClient::NProto::TClusterDirectory> ClusterDirectory;
     std::shared_ptr<NChunkClient::NProto::TMediumDirectory> MediumDirectory;
     std::vector<TString> MasterCacheNodeAddresses;
+    std::vector<TString> TimestampProviderAddresses;
 };
 
 struct TOperation

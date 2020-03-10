@@ -9,6 +9,9 @@
 #include "scheduling_context.h"
 #include "config.h"
 
+#include <yt/server/lib/job_agent/job_report.h>
+#include <yt/server/lib/job_agent/job_reporter.h>
+
 #include <yt/server/lib/misc/job_table_schema.h>
 
 #include <yt/server/lib/scheduler/helpers.h>
@@ -296,6 +299,14 @@ void TOperationControllerBase::BuildStateYson(TFluentAny fluent) const
 {
     fluent
         .Value(State.load());
+}
+
+void TOperationControllerBase::BuildTestingState(TFluentAny fluent) const
+{
+    fluent
+        .BeginMap()
+            .Item("commit_sleep_started").Value(CommitSleepStarted_)
+        .EndMap();
 }
 
 // Resource management.
@@ -723,7 +734,8 @@ void TOperationControllerBase::InitializeOrchid()
         ->AddChild("memory_usage", createService(BIND(&TOperationControllerBase::BuildMemoryUsageYson, Unretained(this))))
         ->AddChild("state", createService(BIND(&TOperationControllerBase::BuildStateYson, Unretained(this))))
         ->AddChild("data_flow_graph", DataFlowGraph_->GetService()
-            ->WithPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this))));
+            ->WithPermissionValidator(BIND(&TOperationControllerBase::ValidateIntermediateDataAccess, MakeWeak(this))))
+        ->AddChild("testing", createService(BIND(&TOperationControllerBase::BuildTestingState, Unretained(this))));
     service->SetOpaque(false);
     Orchid_ = service
         ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
@@ -1621,8 +1633,24 @@ void TOperationControllerBase::SleepInCommitStage(EDelayInsideOperationCommitSta
 {
     auto delay = Spec_->TestingOperationOptions->DelayInsideOperationCommit;
     auto stage = Spec_->TestingOperationOptions->DelayInsideOperationCommitStage;
+    auto skipOnSecondEntrance = Spec_->TestingOperationOptions->NoDelayOnSecondEntranceToCommit;
 
-    if (delay && stage && *stage == desiredStage) {
+    {
+        const auto& client = Host->GetClient();
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        auto path = GetOperationPath(OperationId) + "/@testing";
+        auto req = TYPathProxy::Get(path);
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        if (rspOrError.IsOK()) {
+            auto rspNode = ConvertToNode(NYson::TYsonString(rspOrError.ValueOrThrow()->value()));
+            CommitSleepStarted_ = rspNode->AsMap()->GetChild("commit_sleep_started")->GetValue<bool>();
+        }
+    }
+
+    if (delay && stage && *stage == desiredStage && (!CommitSleepStarted_ || !skipOnSecondEntrance)) {
+        CommitSleepStarted_ = true;
         TDelayedExecutor::WaitForDuration(*delay);
     }
 }
@@ -2515,8 +2543,11 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
     int failedJobCount = GetDataFlowGraph()->GetTotalJobCounter()->GetFailed();
     int maxFailedJobCount = Spec_->MaxFailedJobCount;
     if (failedJobCount >= maxFailedJobCount) {
-        OnOperationFailed(TError("Failed jobs limit exceeded")
-            << TErrorAttribute("max_failed_job_count", maxFailedJobCount));
+        OnOperationFailed(
+            TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
+                << TErrorAttribute("max_failed_job_count", maxFailedJobCount)
+                << error
+        );
         return;
     }
 
@@ -4604,6 +4635,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
 
     auto hasStderr = static_cast<bool>(stderrChunkId);
     auto hasFailContext = static_cast<bool>(failContextChunkId);
+    auto coreInfoCount = schedulerResultExt.core_infos().size();
 
     auto joblet = GetJoblet(jobId);
     // Job is not actually started.
@@ -4613,7 +4645,8 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
 
     bool shouldRetainJob =
         (requestJobNodeCreation && RetainedJobCount_ < Config->MaxJobNodesPerOperation) ||
-        (hasStderr && RetainedJobWithStderrCount_ < Spec_->MaxStderrCount);
+        (hasStderr && RetainedJobWithStderrCount_ < Spec_->MaxStderrCount) ||
+        (coreInfoCount > 0 && RetainedJobsCoreInfoCount_ + coreInfoCount <= Spec_->MaxCoreInfoCount);
 
     if (hasStderr && shouldRetainJob) {
         summary->ReleaseFlags.ArchiveStderr = true;
@@ -4627,7 +4660,6 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     }
 
     summary->ReleaseFlags.ArchiveProfile = true;
-    summary->ReleaseFlags.HasCompetitors = joblet->HasCompetitors;
 
     auto finishedJob = New<TFinishedJobInfo>(joblet, std::move(*summary));
 
@@ -4678,6 +4710,7 @@ void TOperationControllerBase::ProcessFinishedJobResult(std::unique_ptr<TJobSumm
     if (hasStderr) {
         ++RetainedJobWithStderrCount_;
     }
+    RetainedJobsCoreInfoCount_ += coreInfoCount;
     ++RetainedJobCount_;
 }
 
@@ -7826,7 +7859,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     if (config->NetworkProject) {
         const auto& client = Host->GetClient();
-        const auto networkProjectPath = "//sys/network_projects/" + *config->NetworkProject;
+        const auto networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(*config->NetworkProject);
         auto checkPermissionRspOrError = WaitFor(client->CheckPermission(AuthenticatedUser,
             networkProjectPath,
             EPermission::Use));
@@ -7841,7 +7874,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     }
 
     jobSpec->set_write_sparse_core_dumps(GetWriteSparseCoreDumps());
-    jobSpec->set_enable_porto(static_cast<int>(config->EnablePorto));
+    jobSpec->set_enable_porto(static_cast<int>(config->EnablePorto.value_or(Config->DefaultEnablePorto)));
+    jobSpec->set_fail_job_on_core_dump(config->FailJobOnCoreDump);
 
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {
@@ -8228,6 +8262,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, EstimatedInputDataSizeHistogram_);
     Persist(context, InputDataSizeHistogram_);
     Persist(context, RetainedJobWithStderrCount_);
+    Persist(context, RetainedJobsCoreInfoCount_);
     Persist(context, RetainedJobCount_);
     Persist(context, FinishedJobs_);
     Persist(context, JobSpecCompletedArchiveCount_);
@@ -8526,9 +8561,22 @@ void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason a
         TError("Job is aborted by controller") << TErrorAttribute("abort_reason", abortReason));
 }
 
-void TOperationControllerBase::MarkJobHasCompetitors(TJobId jobId)
+void TOperationControllerBase::OnSpeculativeJobScheduled(const TJobletPtr& joblet)
 {
-    GetJoblet(jobId)->HasCompetitors = true;
+    MarkJobHasCompetitors(joblet);
+    MarkJobHasCompetitors(GetJoblet(joblet->JobCompetitionId));
+}
+
+void TOperationControllerBase::MarkJobHasCompetitors(const TJobletPtr& joblet)
+{
+    if (!joblet->HasCompetitors) {
+        joblet->HasCompetitors = true;
+        auto statistics = NJobAgent::TControllerJobReport()
+            .OperationId(OperationId)
+            .JobId(joblet->JobId)
+            .HasCompetitors(true);
+        Host->GetJobReporter()->ReportStatistics(std::move(statistics));
+    }
 }
 
 void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId)

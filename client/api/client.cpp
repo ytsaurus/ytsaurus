@@ -73,7 +73,10 @@ NRpc::TMutationId TMutatingOptions::GetOrGenerateMutationId() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TError TCheckPermissionResult::ToError(const TString& user, EPermission permission) const
+TError TCheckPermissionResult::ToError(
+    const TString& user,
+    EPermission permission,
+    const std::optional<TString>& column) const
 {
     switch (Action) {
         case NSecurityClient::ESecurityAction::Allow:
@@ -103,6 +106,9 @@ TError TCheckPermissionResult::ToError(const TString& user, EPermission permissi
             }
             if (SubjectId) {
                 error.Attributes().Set("denied_for", SubjectId);
+            }
+            if (column) {
+                error.Attributes().Set("column", *column);
             }
             return error;
         }

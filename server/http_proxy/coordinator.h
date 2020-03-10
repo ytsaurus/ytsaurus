@@ -2,6 +2,7 @@
 
 #include "public.h"
 
+#include "config.h"
 #include "helpers.h"
 
 #include <yt/ytlib/api/public.h>
@@ -55,28 +56,6 @@ DEFINE_REFCOUNTED_TYPE(TProxyEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TDynamicConfig is part of proxy configuration stored in cypress.
-//
-// NOTE: config might me unavalable. Users must handle such cases
-// gracefully.
-class TDynamicConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    NTracing::TSamplingConfigPtr Tracing;
-
-    TString FitnessFunction;
-    double CpuWeight, CpuWaitWeight, ConcurrentRequestsWeight;
-
-    bool RelaxCsrfCheck;
-
-    TDynamicConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(TDynamicConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TCoordinator
     : public TRefCounted
 {
@@ -104,7 +83,7 @@ public:
 
     //! Raised when proxy role changes.
     DEFINE_SIGNAL(void(const TString), OnSelfRoleChanged);
-    
+
 private:
     const TCoordinatorConfigPtr Config_;
     TBootstrap* const Bootstrap_;

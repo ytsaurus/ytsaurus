@@ -24,7 +24,7 @@ TSchedulingContextBase::TSchedulingContextBase(
     : NodeShardId_(nodeShardId)
     , ResourceUsage_(node->GetResourceUsage())
     , ResourceLimits_(node->GetResourceLimits())
-    , DiskInfo_(node->GetDiskInfo())
+    , DiskResources_(node->GetDiskResources())
     , RunningJobs_(runningJobs)
     , Config_(std::move(config))
     , Node_(std::move(node))
@@ -50,7 +50,7 @@ bool TSchedulingContextBase::CanStartJob(const TJobResourcesWithQuota& jobResour
     diskRequests.push_back(jobResourcesWithQuota.GetDiskQuota());
     return
         CanSatisfyResourceRequest(jobResourcesWithQuota.ToJobResources()) &&
-        CanSatisfyDiskRequests(DiskInfo_, diskRequests);
+        CanSatisfyDiskRequests(DiskResources_, diskRequests);
 }
 
 bool TSchedulingContextBase::CanStartMoreJobs() const

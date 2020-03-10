@@ -91,6 +91,8 @@ class TPartWriter
 public:
     TPartWriter(IChunkWriterPtr writer, const std::vector<i64>& blockSizes, bool computeChecksum);
 
+    ~TPartWriter();
+
     virtual TFuture<void> Consume(const TPartRange& range, const TSharedRef& block) override;
 
     TChecksum GetPartChecksum() const;
@@ -110,6 +112,8 @@ class TPartReader
 {
 public:
     TPartReader(IBlocksReaderPtr reader, const std::vector<i64>& blockSizes);
+
+    ~TPartReader();
 
     virtual TFuture<TSharedRef> Produce(const TPartRange& range) override;
 
@@ -137,6 +141,8 @@ public:
         const std::vector<TPartRange>& encodeRanges,
         const std::vector<IPartBlockProducerPtr>& producers,
         const std::vector<IPartBlockConsumerPtr>& consumers);
+
+    ~TPartEncoder();
 
     void Run();
 

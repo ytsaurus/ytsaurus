@@ -38,4 +38,24 @@ DEFINE_REFCOUNTED_TYPE(TRemoteTimestampProviderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRemoteTimestampProviderWithDiscoveryConfig
+    : public TRemoteTimestampProviderConfig
+{
+public:
+    bool EnableTimestampProviderDiscovery;
+    TDuration TimestampProviderDiscoveryPeriod;
+
+    TRemoteTimestampProviderWithDiscoveryConfig()
+    {
+        RegisterParameter("enable_timestamp_provider_discovery", EnableTimestampProviderDiscovery)
+            .Default(false);
+        RegisterParameter("timestamp_provider_discovery_period", TimestampProviderDiscoveryPeriod)
+            .Default(TDuration::Minutes(1));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRemoteTimestampProviderWithDiscoveryConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTransactionClient
