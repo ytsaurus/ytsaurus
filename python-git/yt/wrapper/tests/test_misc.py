@@ -26,6 +26,8 @@ from yt.packages.six.moves import xrange, filter as ifilter
 
 import yt.wrapper as yt
 
+from flaky import flaky
+
 from copy import deepcopy
 import collections
 import gc
@@ -560,6 +562,7 @@ class TestRetries(object):
         finally:
             yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
 
+    @flaky(max_runs=5)
     @pytest.mark.parametrize("total_timeout", [3000, 20000])
     def test_retries_total_timeout(self, total_timeout):
         class FailingRetrier(Retrier):
