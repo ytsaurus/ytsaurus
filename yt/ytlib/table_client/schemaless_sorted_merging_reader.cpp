@@ -379,27 +379,39 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
 TInterruptDescriptor TSchemalessSortedMergingReader::GetInterruptDescriptor(
     TRange<TUnversionedRow> unreadRows) const
 {
+    YT_LOG_DEBUG("Creating interrupt descriptor for sorted merging reader (UnreadRowCount: %v)",
+        unreadRows.Size());
+
     TInterruptDescriptor result;
 
-    auto firstUnreadKey = !unreadRows.Empty()
-        ? GetKeyPrefix(unreadRows[0], ReduceKeyColumnCount_)
-        : MaxKey();
+    THashMap<int, int> tableIndexToSessionIndex;
+    for (int sessionIndex = 0; sessionIndex < SessionHolder_.size(); ++sessionIndex) {
+        YT_VERIFY(tableIndexToSessionIndex.emplace(SessionHolder_[sessionIndex].TableIndex, sessionIndex).second);
+    }
 
-    YT_LOG_DEBUG("Creating interrupt descriptor for sorted merging reader (UnreadRowCount: %v, FirstUnreadKey: %v)",
-        unreadRows.Size(),
-        firstUnreadKey);
+    auto tableIndexColumnId = GetNameTable()->GetIdOrThrow(TableIndexColumnName);
 
-    for (const auto& session : SessionHolder_) {
-        auto it = std::lower_bound(
-            session.Rows.begin(),
-            session.Rows.begin() + session.CurrentRowIndex,
-            firstUnreadKey,
-            [&] (const TUnversionedRow& row, const TOwningKey& key) -> bool {
-                return CompareRows(row, key, ReduceKeyColumnCount_) < 0;
-            });
+    std::vector<i64> unreadRowCounts(SessionHolder_.size(), 0);
+    for (const auto& unreadRow : unreadRows) {
+        int sessionIndex = 0;
+        for (const auto& value : unreadRow) {
+            if (value.Id == tableIndexColumnId) {
+                sessionIndex = GetOrCrash(tableIndexToSessionIndex, value.Data.Int64);
+                break;
+            }
+        }
+        ++unreadRowCounts[sessionIndex];
+    }
+
+    for (int sessionIndex = 0; sessionIndex < SessionHolder_.size(); ++sessionIndex) {
+        const auto& session = SessionHolder_[sessionIndex];
+
+        auto unreadRowCount = unreadRowCounts[sessionIndex];
+        YT_VERIFY(unreadRowCount <= session.CurrentRowIndex);
+
         auto interruptDescriptor = session.Reader->GetInterruptDescriptor(
             MakeRange(
-                session.Rows.data() + std::distance(session.Rows.begin(), it),
+                session.Rows.data() + session.CurrentRowIndex - unreadRowCount,
                 session.Rows.data() + session.Rows.size()));
 
         result.MergeFrom(std::move(interruptDescriptor));

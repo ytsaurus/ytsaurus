@@ -192,12 +192,12 @@ protected:
 
     void ReadAndCheckResult(
         TReaderFactory createReader,
-        std::vector<TResultStorage> *resultStorage,
+        std::vector<TResultStorage>* resultStorage,
         int rowsPerRead,
         int interruptRowCount,
         int expectedReadRowCount,
         TString expectedLastReadRow,
-        std::vector<std::pair<int,TString>> expectedResult)
+        std::vector<std::pair<int, TString>> expectedResult)
     {
         auto reader = createReader(resultStorage);
         std::vector<TUnversionedRow> rows;
@@ -305,6 +305,28 @@ const TTableData tableData2 {
         "c0=ca; c1=14; c2=14u",
         "c0=cb; c1=16; c2=16u",
         "c0=cc; c1=18; c2=18u",
+    }
+};
+
+const TTableData tableData3 {
+    "<strict=%false>["
+        "{name = c0; type = string; sort_order = ascending};"
+        "{name = c1; type = int64}; ]",
+    {
+        "c0=a; c1=1",
+        "c0=a; c1=3",
+        "c0=a; c1=5",
+    }
+};
+
+const TTableData tableData4 {
+    "<strict=%false>["
+        "{name = c0; type = string; sort_order = ascending};"
+        "{name = c1; type = int64}; ]",
+    {
+        "c0=a; c1=2",
+        "c0=a; c1=4",
+        "c0=a; c1=6",
     }
 };
 
@@ -985,9 +1007,55 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         });
 }
 
+TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceEqualKeys)
+{
+    auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
+        resultStorage->clear();
+        resultStorage->resize(2);
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData3, 0, &(*resultStorage)[0]));
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData4, 1, &(*resultStorage)[1]));
+
+        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
+        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0));
+
+        return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 1, 1, foreignReaders, 1);
+    };
+
+    std::vector<TResultStorage> resultStorage;
+    auto rows = ReadAll(createReader, &resultStorage);
+
+    int interruptRowCount = 2;
+    int rowsPerRead = 1;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        interruptRowCount,
+        rows[interruptRowCount - 1],
+        {
+            {1, rows[2]},
+            {3, rows[3]},
+        });
+
+    interruptRowCount = 5;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        interruptRowCount,
+        rows[interruptRowCount - 1],
+        {
+            {0, ""},
+            {1, rows[5]},
+        });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-const TTableData tableData3 {
+const TTableData tableData5 {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending}; ]",
     {
@@ -1000,7 +1068,7 @@ const TTableData tableData3 {
     }
 };
 
-const TTableData tableData4 {
+const TTableData tableData6 {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending}; ]",
     {
@@ -1017,10 +1085,10 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderCheckLastRows)
         resultStorage->clear();
         resultStorage->resize(1);
         std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
-        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData4, 1, &(*resultStorage)[0]));
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData5, 1, &(*resultStorage)[0]));
 
         std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
-        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData3, 0));
+        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData6, 0));
 
         return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 1, 1, foreignReaders, 1);
     };
