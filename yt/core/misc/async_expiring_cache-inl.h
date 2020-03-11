@@ -142,7 +142,6 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
                 if (entry->Promise.IsSet() && entry->IsExpired(now)) {
                     NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
                     Map_.erase(it);
-                    OnEvicted(key);
                 } else {
                     Profiler_.Increment(HitCounter_);
                     results[index] = entry->Promise;
