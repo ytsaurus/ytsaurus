@@ -5,7 +5,7 @@ import yt.local as yt_local
 from yt.common import remove_file, is_process_alive, which
 from yt.wrapper import YtClient
 from yt.wrapper.common import generate_uuid
-from yt.environment.helpers import is_dead_or_zombie
+from yt.environment.helpers import is_dead_or_zombie, OpenPortIterator
 from yt.test_helpers import get_tests_sandbox
 import yt.subprocess_wrapper as subprocess
 import yt.environment.arcadia_interop as arcadia_interop
@@ -164,12 +164,18 @@ class TestLocalMode(object):
         os.environ["YT_LOCAL_PORT_LOCKS_PATH"] = os.path.join(_get_tests_sandbox(), "ports")
         cls.yt_local = YtLocalBinary(os.environ["YT_LOCAL_ROOT_PATH"],
                                      os.environ["YT_LOCAL_PORT_LOCKS_PATH"])
+        cls.env_path = os.environ.get("PATH")
 
     @classmethod
     def teardown_class(cls):
         if cls.old_yt_local_root_path is not None:
             os.environ["YT_LOCAL_ROOT_PATH"] = cls.old_yt_local_root_path
         del os.environ["YT_LOCAL_PORT_LOCKS_PATH"]
+        if cls.env_path is None:
+            if "PATH" in os.environ:
+                del os.environ["PATH"]
+        else:
+            os.environ["PATH"] = cls.env_path
 
     def test_logging(self):
         master_count = 3
@@ -577,3 +583,15 @@ class TestLocalMode(object):
         with local_yt(id=_get_id("ytserver_all"), ytserver_all_path=ytserver_all_paths[0]) as environment:
             client = environment.create_client()
             client.get("/")
+            client.write_table("//tmp/test_table", [{"a": "b"}])
+            client.run_map("cat", "//tmp/test_table", "//tmp/test_table", format=yt.JsonFormat())
+
+    def test_ports(self):
+        if not os.path.exists(os.environ.get("YT_LOCAL_PORT_LOCKS_PATH")):
+            os.mkdir(os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"))
+        open_port_iterator = OpenPortIterator(os.environ.get("YT_LOCAL_PORT_LOCKS_PATH"), (20000, 30000))
+        http_proxy_port = next(open_port_iterator)
+        rpc_proxy_port = next(open_port_iterator)
+        with local_yt(id=_get_id("test_ports"), rpc_proxy_count=1, http_proxy_ports=[http_proxy_port], rpc_proxy_ports=[rpc_proxy_port]) as environment:
+            assert environment.configs["http_proxy"][0]["port"] == http_proxy_port
+            assert environment.configs["rpc_proxy"][0]["rpc_port"] == rpc_proxy_port

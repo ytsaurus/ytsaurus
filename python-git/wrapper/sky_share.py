@@ -24,7 +24,7 @@ def sky_share(path, cluster=None, key_columns=[], client=None):
 
     make_request = lambda: make_request_with_retries(
         method="POST",
-        url=get_config(client)["skynet_manager_url"] + "/share",
+        url=get_config(client)["skynet_manager_url"].format(cluster_name=cluster) + "/share",
         headers=headers,
         response_format=None,
         error_format="json",

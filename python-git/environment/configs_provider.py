@@ -110,7 +110,8 @@ _default_provision = {
         "http_ports": None
     },
     "rpc_proxy": {
-        "count": 0
+        "count": 0,
+        "rpc_ports": None,
     },
     "driver": {
         "backend": "native",
@@ -800,7 +801,6 @@ class ConfigsProvider_19(ConfigsProvider):
                     "liveness_update_period": 500,
                     "proxy_update_period": 500
                 },
-                "rpc_port": next(ports_generator),
                 "grpc_server": grpc_server_config,
                 "monitoring_port": next(ports_generator),
                 "enable_authentication": False,
@@ -828,6 +828,8 @@ class ConfigsProvider_19(ConfigsProvider):
                 log_errors_to_stderr=False,
                 enable_debug_logging=provision["enable_debug_logging"],
                 enable_compression=provision["enable_logging_compression"])
+
+            config["rpc_port"] = provision["rpc_proxy"]["rpc_ports"][rpc_proxy_index] if provision["rpc_proxy"]["rpc_ports"] else next(ports_generator)
 
             configs.append(config)
 

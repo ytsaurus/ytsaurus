@@ -34,7 +34,7 @@ def test_convert_json_to_yson():
     assert x.attributes == "abc"
 
     assert json_to_yson("abc") == "abc"
-
+    assert json_to_yson({"$type": "string", "$value": "abc"}) == "abc"
 
 def test_convert_yson_to_json():
     x = yson_to_json({

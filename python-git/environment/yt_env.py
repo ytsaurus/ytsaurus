@@ -35,6 +35,7 @@ import shutil
 import sys
 import getpass
 import random
+import traceback
 from collections import defaultdict, namedtuple
 from threading import RLock
 from itertools import count
@@ -151,7 +152,7 @@ class YTInstance(object):
                  node_count=1, defer_node_start=False,
                  scheduler_count=1, defer_scheduler_start=False,
                  controller_agent_count=None, defer_controller_agent_start=False,
-                 http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, cell_tag=0,
+                 http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, rpc_proxy_ports=None, cell_tag=0,
                  enable_debug_logging=True, enable_logging_compression=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, local_port_range=None, port_range_start=None, node_port_set_size=None,
                  fqdn=None, jobs_resource_limits=None, jobs_memory_limit=None,
@@ -198,6 +199,7 @@ class YTInstance(object):
                             "proxy", "http-proxy", "tools", "scheduler", "controller-agent"]
                 for program in programs:
                     os.symlink(os.path.abspath(ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
+                os.environ["PATH"] = self.bin_path + ":" + os.environ["PATH"]
 
         if os.path.exists(self.bin_path):
             self.custom_paths = [self.bin_path]
@@ -299,6 +301,7 @@ class YTInstance(object):
         self.http_proxy_ports = http_proxy_ports
         self.has_rpc_proxy = rpc_proxy_count > 0
         self.rpc_proxy_count = rpc_proxy_count
+        self.rpc_proxy_ports = rpc_proxy_ports
         self._enable_debug_logging = enable_debug_logging
         self._enable_logging_compression = enable_logging_compression
         self._cell_tag = cell_tag
@@ -455,6 +458,7 @@ class YTInstance(object):
         provision["http_proxy"]["count"] = self.http_proxy_count
         provision["http_proxy"]["http_ports"] = self.http_proxy_ports
         provision["rpc_proxy"]["count"] = self.rpc_proxy_count
+        provision["rpc_proxy"]["rpc_ports"] = self.rpc_proxy_ports
         provision["driver"]["backend"] = self.driver_backend
         provision["fqdn"] = self._hostname
         provision["enable_debug_logging"] = self._enable_debug_logging
@@ -571,7 +575,9 @@ class YTInstance(object):
 
             self._write_environment_info_to_file()
         except (YtError, KeyboardInterrupt) as err:
-            logger.exception("Failed to start environment")
+            logger.exception("Failed to start environment, dumping GDB backtraces")
+            for name in self._service_processes:
+                self._dump_backtraces(name)
             self.stop(force=True)
             raise YtError("Failed to start environment", inner_errors=[err])
 
@@ -1432,7 +1438,7 @@ class YTInstance(object):
                     resp = requests.get("http://{0}/api".format(address))
                     resp.raise_for_status()
             except (requests.exceptions.RequestException, socket.error):
-                return False
+                return False, traceback.format_exc()
 
             return True
 
@@ -1488,17 +1494,7 @@ class YTInstance(object):
 
         self._process_stderrs(name)
 
-        for index, process in enumerate(self._service_processes[name]):
-            if process is None:
-                continue
-            if get_gdb_path is not None and process.poll() is None:
-                subprocess.check_call(
-                    "{} -p {} -ex 'set confirm off' -ex 'set pagination off' -ex 'thread apply all bt' -ex 'quit'".format(get_gdb_path(), process.pid),
-                    stdout=open(os.path.join(self.backtraces_path, "gdb.{}-{}".format(name, index)), "w"),
-                    stderr=sys.stderr,
-                    shell=True
-                )
-
+        self._dump_backtraces(name)
 
         error = YtError("{0} still not ready after {1} seconds. See logs in working dir for details."
                         .format(name.capitalize(), max_wait_time))
@@ -1508,6 +1504,23 @@ class YTInstance(object):
             error.inner_errors = [condition_error]
 
         raise error
+
+    def _dump_backtraces(self, name):
+        for index, process in enumerate(self._service_processes[name]):
+            if process is None:
+                continue
+            if get_gdb_path is not None and process.poll() is None:
+                backtrace_path = os.path.join(self.backtraces_path, "gdb.{}-{}".format(name, index))
+                logger.info("Dumping backtrace for process {} to {}".format(process.pid, backtrace_path))
+                subprocess.check_call(
+                    "{gdb} -p {pid} -ex 'set confirm off' -ex 'set pagination off' -ex 'thread apply all bt' -ex 'quit'".format(
+                        gdb=get_gdb_path(),
+                        pid=process.pid,
+                    ),
+                    stdout=open(backtrace_path, "w"),
+                    stderr=sys.stderr,
+                    shell=True,
+                )
 
     def _start_watcher(self):
         log_paths = []

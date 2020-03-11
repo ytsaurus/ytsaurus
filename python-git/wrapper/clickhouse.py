@@ -263,7 +263,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                 .memory_limit(memory_limit + memory_footprint + uncompressed_block_cache_size) \
                 .cpu_limit(cpu_limit) \
                 .max_stderr_size(1024 * 1024 * 1024) \
-                .port_count(4) \
+                .port_count(5) \
             .end_task() \
             .max_failed_job_count(max_failed_job_count) \
             .description(description) \
