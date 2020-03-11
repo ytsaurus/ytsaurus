@@ -1,18 +1,19 @@
 #include "storage_subquery.h"
 
+#include "block_input_stream.h"
 #include "db_helpers.h"
+#include "query_context.h"
 #include "subquery_spec.h"
 #include "type_helpers.h"
-#include "query_context.h"
-#include "block_input_stream.h"
 
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/table_client/config.h>
 
+#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 
@@ -21,7 +22,9 @@
 #include <yt/core/concurrency/throughput_throttler.h>
 
 #include <Interpreters/Context.h>
+#include <Interpreters/ExpressionActions.h>
 #include <Storages/IStorage.h>
+#include <Storages/MergeTree/MergeTreeBaseSelectBlockInputStream.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -32,15 +35,168 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStorageSubquery
-    : public DB::IStorage
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+Names ExtractColumnsFromPrewhereInfo(PrewhereInfoPtr prewhereInfo)
+{
+    Names prewhereColumns;
+    if (prewhereInfo->alias_actions) {
+        prewhereColumns = prewhereInfo->alias_actions->getRequiredColumns();
+    } else {
+        prewhereColumns = prewhereInfo->prewhere_actions->getRequiredColumns();
+    }
+    return prewhereColumns;
+}
+
+TTableReaderConfigPtr CreateTableReaderConfig()
+{
+    auto config = New<TTableReaderConfig>();
+    config->GroupSize = 150_MB;
+    config->WindowSize = 200_MB;
+    return config;
+}
+
+TClientBlockReadOptions CreateBlockReadOptions(const TString& user)
+{
+    TClientBlockReadOptions blockReadOptions;
+    blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+    blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
+    blockReadOptions.WorkloadDescriptor.CompressionFairShareTag = user;
+    blockReadOptions.ReadSessionId = NChunkClient::TReadSessionId::Create();
+    return blockReadOptions;
+}
+
+NTableClient::TTableSchema FilterColumnsInSchema(
+    const NTableClient::TTableSchema& schema,
+    Names columnNames)
+{
+    std::vector<TString> columnNamesInString;
+    for (const auto& columnName : columnNames) {
+        if (!schema.FindColumn(columnName)) {
+            THROW_ERROR_EXCEPTION("Column not found")
+                << TErrorAttribute("column", columnName);
+        }
+        columnNamesInString.emplace_back(columnName);
+    }
+    return schema.Filter(columnNamesInString);
+}
+
+std::pair<BlockInputStreamPtr, ISchemalessMultiChunkReaderPtr> CreateBlockInputStreamAndReader(
+    TQueryContext* queryContext,
+    const TSubquerySpec& subquerySpec,
+    const Names& columnNames,
+    const NTracing::TTraceContextPtr& traceContext,
+    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
+    PrewhereInfoPtr prewhereInfo)
+{
+    auto schema = FilterColumnsInSchema(subquerySpec.ReadSchema, columnNames);
+    auto blockReadOptions = CreateBlockReadOptions(queryContext->User);
+
+    auto reader = CreateSchemalessParallelMultiReader(
+        CreateTableReaderConfig(),
+        New<NTableClient::TTableReaderOptions>(),
+        queryContext->Client(),
+        /*localDescriptor =*/{},
+        std::nullopt,
+        queryContext->Client()->GetNativeConnection()->GetBlockCache(),
+        queryContext->Client()->GetNativeConnection()->GetNodeDirectory(),
+        subquerySpec.DataSourceDirectory,
+        dataSliceDescriptors,
+        TNameTable::FromSchema(schema),
+        blockReadOptions,
+        TColumnFilter(schema.Columns().size()),
+        /* keyColumns =*/{},
+        /* partitionTag =*/std::nullopt,
+        /* trafficMeter =*/nullptr,
+        /* bandwidthThrottler =*/GetUnlimitedThrottler(),
+        /* rpsThrottler =*/GetUnlimitedThrottler());
+
+    auto blockInputStream = CreateBlockInputStream(
+        reader,
+        schema,
+        traceContext,
+        queryContext->Bootstrap,
+        TLogger(queryContext->Logger).AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId),
+        prewhereInfo);
+    return {blockInputStream, reader};
+}
+
+std::vector<TDataSliceDescriptor> GetFilteredDataSliceDescriptors(
+    BlockInputStreamPtr blockInputStream,
+    ISchemalessMultiChunkReaderPtr reader)
+{
+    std::vector<TDataSliceDescriptor> filteredDataSliceDescriptors;
+    while (auto block = blockInputStream->read()) {
+        if (block.rows() > 0) {
+            filteredDataSliceDescriptors.emplace_back(reader->GetCurrentReaderDescriptor());
+            reader->SkipCurrentReader();
+        }
+    }
+    return filteredDataSliceDescriptors;
+}
+
+std::vector<std::vector<TDataSliceDescriptor>> FilterDataSliceDescriptorsByPrewhereInfo(
+    std::vector<std::vector<TDataSliceDescriptor>>&& perThreadDataSliceDescriptors,
+    PrewhereInfoPtr prewhereInfo,
+    TQueryContext* queryContext,
+    const TSubquerySpec& subquerySpec,
+    const NTracing::TTraceContextPtr& traceContext)
+{
+    std::vector<NYT::TFuture<std::vector<TDataSliceDescriptor>>> asyncFilterResults;
+    auto prewhereColumns = ExtractColumnsFromPrewhereInfo(prewhereInfo);
+
+    auto Logger = queryContext->Logger;
+    YT_LOG_DEBUG(
+        "Started executing PREWHERE data slice filtering (PrewhereColumnName: %v, PrewhereColumns: %v)",
+        prewhereInfo->prewhere_column_name,
+        prewhereColumns);
+
+    for (const auto& threadDataSliceDescriptors : perThreadDataSliceDescriptors) {
+        auto [blockInputStream, reader] = CreateBlockInputStreamAndReader(
+            queryContext,
+            subquerySpec,
+            prewhereColumns,
+            traceContext,
+            threadDataSliceDescriptors,
+            prewhereInfo);
+
+        asyncFilterResults.emplace_back(
+            BIND(&GetFilteredDataSliceDescriptors, blockInputStream, reader)
+                .AsyncVia(queryContext->Bootstrap->GetWorkerInvoker())
+                .Run());
+    }
+
+    std::vector<std::vector<TDataSliceDescriptor>> filteredDataSliceDescriptorsPerThread;
+
+    size_t droppedDataSliceCount = 0;
+    for (auto& asyncFilterResult : asyncFilterResults) {
+        auto filteredDataSliceDescriptors = WaitFor(asyncFilterResult)
+            .ValueOrThrow();
+        if (!filteredDataSliceDescriptors.empty()) {
+            filteredDataSliceDescriptorsPerThread.emplace_back(
+                std::move(filteredDataSliceDescriptors));
+        } else {
+            droppedDataSliceCount++;
+        }
+    }
+    YT_LOG_DEBUG("Finished executing PREWHERE data slice filtration (DroppedDataSliceCount: %v)", droppedDataSliceCount);
+
+    return filteredDataSliceDescriptorsPerThread;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TStorageSubquery : public DB::IStorage
 {
 public:
-    TStorageSubquery(
-        TQueryContext* queryContext,
-        TSubquerySpec subquerySpec)
-        : QueryContext_(queryContext)
-        , SubquerySpec_(std::move(subquerySpec))
+    TStorageSubquery(TQueryContext* queryContext, TSubquerySpec subquerySpec)
+        : QueryContext_(queryContext), SubquerySpec_(std::move(subquerySpec))
     {
         if (SubquerySpec_.InitialQueryId != queryContext->QueryId) {
             queryContext->Logger.AddTag("InitialQueryId: %v", SubquerySpec_.InitialQueryId);
@@ -51,18 +207,35 @@ public:
             }
         }
         Logger = queryContext->Logger;
-        Logger.AddTag("SubqueryIndex: %v, SubqueryTableIndex: %v", SubquerySpec_.SubqueryIndex, SubquerySpec_.TableIndex);
+        Logger.AddTag(
+            "SubqueryIndex: %v, SubqueryTableIndex: %v",
+            SubquerySpec_.SubqueryIndex,
+            SubquerySpec_.TableIndex);
 
         setColumns(ColumnsDescription(SubquerySpec_.Columns));
 
         queryContext->MoveToPhase(EQueryPhase::Preparation);
     }
 
-    std::string getName() const override { return "YT"; }
+    std::string getName() const override
+    {
+        return "YT";
+    }
 
-    std::string getTableName() const override { return "Subquery"; }
+    std::string getTableName() const override
+    {
+        return "Subquery";
+    }
 
-    std::string getDatabaseName() const override { return ""; }
+    std::string getDatabaseName() const override
+    {
+        return "";
+    }
+
+    bool supportsPrewhere() const override
+    {
+        return true;
+    }
 
     bool isRemote() const override
     {
@@ -73,72 +246,77 @@ public:
 
     BlockInputStreams read(
         const Names& columnNames,
-        const SelectQueryInfo& /* queryInfo */,
+        const SelectQueryInfo& queryInfo,
         const Context& context,
         QueryProcessingStage::Enum /* processedStage */,
         size_t /* maxBlockSize */,
         unsigned maxStreamCount) override
     {
-        auto* queryContext = GetQueryContext(context);
+        QueryContext_->MoveToPhase(EQueryPhase::Execution);
 
-        queryContext->MoveToPhase(EQueryPhase::Execution);
+        const auto& traceContext = GetQueryContext(context)->TraceContext;
+        const auto& prewhereInfo = queryInfo.prewhere_info;
 
-        // TODO(max42): ?
-        auto columns = ToString(columnNames);
+        auto perThreadDataSliceDescriptors = SubquerySpec_.DataSliceDescriptors;
 
         i64 totalRowCount = 0;
         i64 totalDataWeight = 0;
         i64 totalDataSliceCount = 0;
-        for (const auto& threadDataSliceDescriptors : SubquerySpec_.DataSliceDescriptors) {
+        for (const auto& threadDataSliceDescriptors : perThreadDataSliceDescriptors) {
             for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {
                 totalRowCount += dataSliceDescriptor.ChunkSpecs[0].row_count_override();
                 totalDataWeight += dataSliceDescriptor.ChunkSpecs[0].data_weight_override();
                 ++totalDataSliceCount;
             }
         }
-        YT_LOG_DEBUG("Deserialized subquery spec (RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
+        YT_LOG_DEBUG(
+            "Deserialized subquery spec (RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
             totalRowCount,
             totalDataWeight,
             totalDataSliceCount);
 
-        YT_LOG_DEBUG("Creating table readers (MaxStreamCount: %v, StripeCount: %v, Columns: %v)",
-            maxStreamCount,
-            SubquerySpec_.DataSliceDescriptors.size(),
-            columns);
+        if (prewhereInfo) {
+            perThreadDataSliceDescriptors = NDetail::FilterDataSliceDescriptorsByPrewhereInfo(
+                std::move(perThreadDataSliceDescriptors),
+                prewhereInfo,
+                QueryContext_,
+                SubquerySpec_,
+                traceContext);
 
-        auto schema = SubquerySpec_.ReadSchema;
-
-        // TODO(max42): do we still need this?
-        std::vector<TString> dataColumns;
-        for (const auto& columnName : columns) {
-            if (!schema.FindColumn(columnName)) {
-                THROW_ERROR_EXCEPTION("Column not found")
-                    << TErrorAttribute("column", columnName);
+            i64 filteredDataWeight = 0;
+            for (const auto& threadDataSliceDescriptors : perThreadDataSliceDescriptors) {
+                for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {
+                    filteredDataWeight += dataSliceDescriptor.ChunkSpecs[0].data_weight_override();
+                }
             }
-            dataColumns.emplace_back(columnName);
+            double droppedRate  = 1.0 - static_cast<double>(filteredDataWeight) / static_cast<double>(totalDataWeight);
+            YT_LOG_DEBUG("PREWHERE filtration finished (DroppedRate: %v)", droppedRate);
         }
 
-        auto readSchema = schema.Filter(dataColumns);
+        YT_LOG_DEBUG(
+            "Creating table readers (MaxStreamCount: %v, StripeCount: %v, Columns: %v)",
+            maxStreamCount,
+            SubquerySpec_.DataSliceDescriptors.size(),
+            columnNames);
 
-        YT_LOG_DEBUG("Narrowing schema to %v columns", readSchema.GetColumnCount());
-
-        // TODO(max42): put something here :) And move to config.
-        auto config = New<TTableReaderConfig>();
-        config->GroupSize = 150_MB;
-        config->WindowSize = 200_MB;
-        auto options = New<NTableClient::TTableReaderOptions>();
+        auto schema = SubquerySpec_.ReadSchema;
 
         YT_LOG_INFO("Creating table readers");
         BlockInputStreams streams;
 
-        for (int threadIndex = 0; threadIndex < static_cast<int>(SubquerySpec_.DataSliceDescriptors.size()); ++threadIndex) {
-            const auto& threadDataSliceDescriptors = SubquerySpec_.DataSliceDescriptors[threadIndex];
-            // TODO(max42): fill properly.
-            TClientBlockReadOptions blockReadOptions;
-            blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-            blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserRealtime);
-            blockReadOptions.WorkloadDescriptor.CompressionFairShareTag = QueryContext_->User;
-            blockReadOptions.ReadSessionId = NChunkClient::TReadSessionId::Create();
+        for (int threadIndex = 0;
+             threadIndex < static_cast<int>(perThreadDataSliceDescriptors.size());
+             ++threadIndex)
+        {
+            const auto& threadDataSliceDescriptors = perThreadDataSliceDescriptors[threadIndex];
+            streams.emplace_back(NDetail::CreateBlockInputStreamAndReader(
+                QueryContext_,
+                SubquerySpec_,
+                columnNames,
+                traceContext,
+                threadDataSliceDescriptors,
+                prewhereInfo)
+                .first);
 
             i64 rowCount = 0;
             i64 dataWeight = 0;
@@ -149,30 +327,12 @@ public:
                 ++dataSliceCount;
                 for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
                     // It is crucial for better memory estimation.
-                    YT_VERIFY(FindProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions()));
+                    YT_VERIFY(FindProtoExtension<NChunkClient::NProto::TMiscExt>(
+                        chunkSpec.chunk_meta().extensions()));
                 }
             }
-
-            auto reader = CreateSchemalessParallelMultiReader(
-                config,
-                options,
-                QueryContext_->Client(),
-                {} /* localDescriptor */,
-                std::nullopt,
-                QueryContext_->Client()->GetNativeConnection()->GetBlockCache(),
-                QueryContext_->Client()->GetNativeConnection()->GetNodeDirectory(),
-                SubquerySpec_.DataSourceDirectory,
-                threadDataSliceDescriptors,
-                TNameTable::FromSchema(readSchema),
-                blockReadOptions,
-                TColumnFilter(readSchema.Columns().size()),
-                {}, /* keyColumns */
-                std::nullopt /* partitionTag */,
-                nullptr /* trafficMeter */,
-                GetUnlimitedThrottler() /* bandwidthThrottler */,
-                GetUnlimitedThrottler() /* rpsThrottler */);
-
-            YT_LOG_DEBUG("Thread table reader created (ThreadIndex: %v, RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
+            YT_LOG_DEBUG(
+                "Thread table reader stream created (ThreadIndex: %v, RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
                 threadIndex,
                 rowCount,
                 dataWeight,
@@ -183,15 +343,11 @@ public:
                 debugString.AppendString(ToString(dataSliceDescriptor));
                 debugString.AppendString("\n");
             }
-            YT_LOG_DEBUG("Thread debug string (ThreadIndex: %v, DebugString: %v)", threadIndex, debugString.Flush());
 
-            streams.emplace_back(CreateBlockInputStream(
-                std::move(reader),
-                readSchema,
-                queryContext->TraceContext,
-                QueryContext_->Bootstrap,
-                TLogger(Logger)
-                    .AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId)));
+            YT_LOG_DEBUG(
+                "Thread debug string (ThreadIndex: %v, DebugString: %v)",
+                threadIndex,
+                debugString.Flush());
         }
 
         return streams;
@@ -210,13 +366,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-StoragePtr CreateStorageSubquery(
-    TQueryContext* queryContext,
-    TSubquerySpec subquerySpec)
+StoragePtr CreateStorageSubquery(TQueryContext* queryContext, TSubquerySpec subquerySpec)
 {
-    return std::make_shared<TStorageSubquery>(
-        queryContext,
-        std::move(subquerySpec));
+    return std::make_shared<TStorageSubquery>(queryContext, std::move(subquerySpec));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

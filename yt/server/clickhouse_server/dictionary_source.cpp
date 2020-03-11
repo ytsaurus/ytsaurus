@@ -71,7 +71,7 @@ public:
                 NTableClient::TColumnFilter(table->TableSchema.Columns().size())))
             .ValueOrThrow();
 
-        return CreateBlockInputStream(result.Reader, table->TableSchema, nullptr /* traceContext */, Bootstrap_, Logger);
+        return CreateBlockInputStream(result.Reader, table->TableSchema, nullptr /* traceContext */, Bootstrap_, Logger, nullptr /* prewhereInfo */);
     }
 
     virtual DB::BlockInputStreamPtr loadIds(const std::vector<UInt64>& /* ids */) override

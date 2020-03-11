@@ -158,6 +158,16 @@ public:
         Interrupted_ = true;
     }
 
+    virtual void SkipCurrentReader() override
+    {
+        YT_ABORT();
+    }
+
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
 private:
     const TTableData& TableData_;
     const TTableSchema TableSchema_;

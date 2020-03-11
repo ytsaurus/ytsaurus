@@ -170,6 +170,11 @@ public:
         return true;
     }
 
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    {
+        YT_ABORT();
+    }
+
     virtual TFuture<void> GetReadyEvent() override
     {
         return ReadyEvent_;
@@ -229,6 +234,11 @@ public:
     }
 
     virtual void Interrupt() override
+    {
+        YT_ABORT();
+    }
+
+    virtual void SkipCurrentReader() override
     {
         YT_ABORT();
     }

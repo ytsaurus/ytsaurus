@@ -55,6 +55,10 @@ public:
 
     virtual void Interrupt() override;
 
+    virtual void SkipCurrentReader() override;
+
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
+
 protected:
     struct TSession
     {
@@ -161,6 +165,11 @@ TFuture<void> TSchemalessSortedMergingReaderBase::GetReadyEvent()
     return ReadyEvent_;
 }
 
+const TDataSliceDescriptor& TSchemalessSortedMergingReaderBase::GetCurrentReaderDescriptor() const
+{
+    YT_ABORT();
+}
+
 TDataStatistics TSchemalessSortedMergingReaderBase::GetDataStatistics() const
 {
     TDataStatistics dataStatistics;
@@ -206,6 +215,11 @@ std::vector<TChunkId> TSchemalessSortedMergingReaderBase::GetFailedChunkIds() co
 void TSchemalessSortedMergingReaderBase::Interrupt()
 {
     Interrupting_ = true;
+}
+
+void TSchemalessSortedMergingReaderBase::SkipCurrentReader()
+{
+    // Sorted merging reader doesn't support sub-reader skipping.
 }
 
 const TNameTablePtr& TSchemalessSortedMergingReaderBase::GetNameTable() const
@@ -415,6 +429,8 @@ public:
 
     virtual void Interrupt() override;
 
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
+
 private:
     bool InterruptAtKeyEdge_ = true;
 
@@ -591,6 +607,11 @@ void TSchemalessJoiningReader::Interrupt()
     if (!InterruptAtKeyEdge_) {
         CompletionError_.TrySet();
     }
+}
+
+const TDataSliceDescriptor& TSchemalessJoiningReader::GetCurrentReaderDescriptor() const
+{
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
