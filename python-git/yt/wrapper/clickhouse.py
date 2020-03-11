@@ -33,10 +33,9 @@ BUNDLED_DEFAULTS = {
     "cypress_log_tailer_config_path": "//sys/clickhouse/log_tailer_config",
     "dump_tables": True,
     "cpu_limit": 8,
-    "enable_monitoring": False,
+    "enable_monitoring": True,
     "clickhouse_config": {},
     "max_failed_job_count": 10 * 1000,
-    "use_exact_thread_count": True,
     "uncompressed_block_cache_size": 20 * 1000*3,
 }
 
@@ -109,6 +108,7 @@ def _get_user_attributes(path, client=None):
     return get(path + "/@", attributes=attr_keys, client=client)
 
 
+@_patch_defaults
 def _build_description(cypress_ytserver_clickhouse_path=None,
                        cypress_ytserver_log_tailer_path=None,
                        cypress_clickhouse_trampoline_path=None,
@@ -288,7 +288,6 @@ def prepare_configs(instance_count,
                     cpu_limit=None,
                     memory_limit=None,
                     memory_footprint=None,
-                    use_exact_thread_count=None,
                     operation_alias=None,
                     uncompressed_block_cache_size=None,
                     client=None):
@@ -308,15 +307,13 @@ def prepare_configs(instance_count,
     require(cpu_limit is not None, lambda: YtError("Cpu limit should be set to prepare the ClickHouse config"))
     require(memory_limit is not None, lambda: YtError("Memory limit should be set to prepare the ClickHouse config"))
 
-    thread_count = cpu_limit if use_exact_thread_count else 2 * max(cpu_limit, instance_count) + 1
-
     clickhouse_config_base = {
         "engine": {
             "settings": {
-                "max_threads": thread_count,
-                "max_distributed_connections": thread_count,
+                "max_threads": cpu_limit,
                 "max_memory_usage_for_all_queries": memory_limit,
                 "log_queries": 1,
+                "queue_max_wait_ms": 30 * 1000,
             },
         },
         "memory_watchdog": {
