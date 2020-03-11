@@ -102,7 +102,9 @@ def start(argv):
             set_env("YP_MASTER_GRPC_INSECURE_ADDR", yp_master.yp_client_grpc_address)
             set_env("YT_HTTP_PROXY_ADDR", yp_master.yt_instance.get_proxy_address())
 
-        set_env("YP_MASTER_GRPC_SECURE_ADDR_{}".format(index), yp_master.yp_client_secure_grpc_address)
+        set_env(
+            "YP_MASTER_GRPC_SECURE_ADDR_{}".format(index), yp_master.yp_client_secure_grpc_address
+        )
         set_env("YP_MASTER_GRPC_INSECURE_ADDR_{}".format(index), yp_master.yp_client_grpc_address)
         set_env("YT_HTTP_PROXY_ADDR_{}".format(index), yp_master.yt_instance.get_proxy_address())
 
