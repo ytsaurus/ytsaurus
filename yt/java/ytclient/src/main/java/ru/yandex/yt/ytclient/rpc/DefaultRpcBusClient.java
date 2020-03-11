@@ -393,7 +393,7 @@ public class DefaultRpcBusClient implements RpcClient {
             try {
                 cancel();
             } catch (Throwable ex) {
-                logger.warn("Error on cancel {}", ex);
+                logger.warn("Error on cancel", ex);
             }
 
             error(new TimeoutException("Request timed out"));
@@ -635,6 +635,7 @@ public class DefaultRpcBusClient implements RpcClient {
 
         @Override
         void handleError(Throwable cause) {
+            logger.info("Error in RPC protocol: `{}`", cause.getMessage(), cause);
             lock.lock();
             try {
                 consumer.onError(sender, cause);
@@ -794,7 +795,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 ((Stash) this.consumer).unstash(sender, consumer);
                 this.consumer = consumer;
             } catch (Throwable e) {
-                logger.error("Error", e);
+                handleError(e);
             } finally {
                 lock.unlock();
             }
