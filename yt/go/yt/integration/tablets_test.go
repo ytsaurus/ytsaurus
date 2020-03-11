@@ -2,13 +2,18 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
+	logzap "a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/migrate"
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/yt"
@@ -24,7 +29,7 @@ type testRow struct {
 	Value string `yson:"value"`
 }
 
-func TestTablets(t *testing.T) {
+func TestTabletTx(t *testing.T) {
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
@@ -104,4 +109,34 @@ func TestTablets(t *testing.T) {
 
 	require.False(t, r.Next())
 	require.NoError(t, r.Err())
+}
+
+func TestAbortCommittedTx(t *testing.T) {
+	core, recorded := observer.New(zapcore.ErrorLevel)
+	l := logzap.Logger{L: zap.New(core)}
+
+	env, cancel := yttest.NewEnv(t, yttest.WithLogger(l.Structured()))
+	defer cancel()
+
+	tx, err := env.YT.BeginTabletTx(env.Ctx, nil)
+	require.NoError(t, err)
+	require.NoError(t, tx.Commit())
+
+	err = tx.Abort()
+	require.Truef(t, errors.Is(err, yt.ErrTxCommitted), "%+v", err)
+
+	err = tx.InsertRows(env.Ctx, "//tmp", []interface{}{}, nil)
+	require.Truef(t, errors.Is(err, yt.ErrTxCommitted), "%+v", err)
+
+	tx, err = env.YT.BeginTabletTx(env.Ctx, nil)
+	require.NoError(t, err)
+	require.NoError(t, tx.Abort())
+
+	err = tx.Commit()
+	require.Truef(t, errors.Is(err, yt.ErrTxAborted), "%+v", err)
+
+	err = tx.InsertRows(env.Ctx, "//tmp", []interface{}{}, nil)
+	require.Truef(t, errors.Is(err, yt.ErrTxAborted), "%+v", err)
+
+	require.Empty(t, recorded.All())
 }
