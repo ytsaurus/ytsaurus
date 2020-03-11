@@ -84,11 +84,11 @@ TColumnarChunkMetaPtr DownloadChunkMeta(
         TProtoExtensionTag<NProto::TKeyColumnsExt>::Value
     };
 
-    auto asynChunkMeta = chunkReader->GetMeta(
+    auto asyncChunkMeta = chunkReader->GetMeta(
         blockReadOptions,
         partitionTag,
         extensionTags);
-    auto chunkMeta = WaitFor(asynChunkMeta)
+    auto chunkMeta = WaitFor(asyncChunkMeta)
         .ValueOrThrow();
 
     return New<TColumnarChunkMeta>(*chunkMeta);
