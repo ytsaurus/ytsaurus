@@ -23,11 +23,8 @@ YT_PYTHON_PACKAGE_LIST = [
     "certifi",
     "dill",
     "requests",
-    "six",
     "distro",
     "urllib3",
-    "chardet",
-    "idna",
 ]
 
 CONTRIB_PYTHON_PACKAGE_LIST = [
@@ -37,6 +34,9 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     "singledispatch",
     ("tornado", "tornado/tornado-4"),
     "tqdm",
+    "chardet",
+    "idna",
+    "six",
 ]
 
 PY23_BINARIES = [
