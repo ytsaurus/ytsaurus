@@ -214,12 +214,14 @@ private:
     {
         Pollable_ = New<TPollable>(this, Id_, Socket_);
         Poller_->Register(Pollable_);
-        Poller_->Arm(Socket_, Pollable_, EPollControl::Read|EPollControl::Write);
+        Poller_->Arm(Socket_, Pollable_, EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered);
     }
 
     void UnregisterPollable()
     {
-        Poller_->Unarm(Socket_);
+        if (Socket_ != INVALID_SOCKET) {
+            Poller_->Unarm(Socket_);
+        }
         Poller_->Unregister(Pollable_);
         Pollable_.Reset();
     }
