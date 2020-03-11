@@ -1,3 +1,5 @@
+import "mapreduce/yt/interface/protos/extension.proto";
+
 package NYT.NTesting;
 
 enum EEnum
@@ -36,5 +38,6 @@ message TAllTypesMessage
     optional bytes BytesField = 15;
 
     optional EEnum EnumField = 16;
-    optional TEmbeddedMessage MessageField = 17;
+    optional EEnum EnumIntField = 17 [(NYT.flags) = ENUM_INT];
+    optional TEmbeddedMessage MessageField = 18;
 }

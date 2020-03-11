@@ -13,6 +13,7 @@ namespace NYT {
 
 using ::google::protobuf::Descriptor;
 using ::google::protobuf::FieldDescriptor;
+using ::google::protobuf::EnumValueDescriptor;
 
 void ReadMessageFromNode(const TNode& node, Message* row)
 {
@@ -87,14 +88,35 @@ void ReadMessageFromNode(const TNode& node, Message* row)
                 reflection->SetBool(row, fieldDesc, it->second.AsBool());
                 break;
             case FieldDescriptor::TYPE_ENUM: {
-                checkType(TNode::String, actualType);
-                const auto& v = it->second.AsString();
-                if (const auto* const p = fieldDesc->enum_type()->FindValueByName(v)) {
-                    reflection->SetEnum(row, fieldDesc, p);
-                } else {
-                    ythrow yexception() << "Failed to parse \"" << EscapeC(v)
-                                        << "\" as " << fieldDesc->enum_type()->full_name();
+                TNode::EType columnType = TNode::String;
+                for (const auto& flag : fieldDesc->options().GetRepeatedExtension(flags)) {
+                    if (flag == EWrapperFieldFlag::ENUM_INT) {
+                        columnType = TNode::Int64;
+                        break;
+                    }
                 }
+                checkType(columnType, actualType);
+
+                const EnumValueDescriptor* valueDesc = nullptr;
+                TString stringValue = "";
+                if (columnType == TNode::String) {
+                    const auto& value = it->second.AsString();
+                    valueDesc = fieldDesc->enum_type()->FindValueByName(value);
+                    stringValue = value;
+                } else if (columnType == TNode::Int64) {
+                    const auto& value = it->second.AsInt64();
+                    valueDesc = fieldDesc->enum_type()->FindValueByNumber(value);
+                    stringValue = ToString(value);
+                } else {
+                    Y_FAIL();
+                }
+
+                if (valueDesc == nullptr) {
+                    ythrow yexception() << "Failed to parse value '" << EscapeC(stringValue) << "' as " << fieldDesc->enum_type()->full_name();
+                }
+
+                reflection->SetEnum(row, fieldDesc, valueDesc);
+
                 break;
             }
             case FieldDescriptor::TYPE_MESSAGE: {
