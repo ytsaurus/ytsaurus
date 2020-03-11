@@ -454,6 +454,30 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
     .Run();
 }
 
+TFuture<void> TSlotLocation::CreateJobProxySocketNameFile(
+    const TString& jobProxySocketNameDirectory,
+    int userId,
+    const TString& jobProxyUnixDomainSocketPath)
+{
+    return BIND([=, this_ = MakeStrong(this)] () {
+        auto filePath = Format("%v/%v", jobProxySocketNameDirectory, userId);
+        try {
+            TFile file(filePath, CreateAlways | WrOnly | Seq | CloseOnExec);
+            TUnbufferedFileOutput fileOutput(file);
+            fileOutput << jobProxyUnixDomainSocketPath << Endl;
+        } catch (const std::exception& ex) {
+            // Job will be aborted.
+            auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to write job proxy socket name into %v",
+                filePath)
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    })
+    .AsyncVia(LocationQueue_->GetInvoker())
+    .Run();
+}
+
 TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
 {
     return BIND([=, this_ = MakeStrong(this)] () {

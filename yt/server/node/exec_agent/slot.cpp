@@ -43,22 +43,16 @@ public:
         IJobEnvironmentPtr environment,
         IVolumeManagerPtr volumeManager,
         const TString& nodeTag,
-        const std::optional<TString>& jobProxySocketNameDirectory)
+        std::optional<TString> jobProxySocketNameDirectory)
         : SlotIndex_(slotIndex)
         , JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
         , VolumeManager_(std::move(volumeManager))
         , NodeTag_(nodeTag)
+        , JobProxySocketNameDirectory_(std::move(jobProxySocketNameDirectory))
         , JobProxyUnixDomainSocketPath_(GetJobProxyUnixDomainSocketPath())
     {
         Location_->IncreaseSessionCount();
-
-        if (jobProxySocketNameDirectory) {
-            auto filePath = Format("%v/%v", *jobProxySocketNameDirectory, JobEnvironment_->GetUserId(slotIndex));
-            TFile file(filePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-            TUnbufferedFileOutput fileOutput(file);
-            fileOutput << JobProxyUnixDomainSocketPath_ << Endl;
-        }
     }
 
     virtual void CleanProcesses() override
@@ -90,8 +84,18 @@ public:
         TOperationId operationId) override
     {
         return RunPrepareAction<void>([&] {
-                auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
-                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config")
+                {
+                    auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
+                    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config");
+                }
+
+                if (JobProxySocketNameDirectory_) {
+                    auto error = WaitFor(Location_->CreateJobProxySocketNameFile(
+                        *JobProxySocketNameDirectory_,
+                        JobEnvironment_->GetUserId(SlotIndex_),
+                        JobProxyUnixDomainSocketPath_));
+                    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy socket name file");
+                }
 
                 return JobEnvironment_->RunJobProxy(
                     SlotIndex_,
@@ -226,6 +230,7 @@ private:
     std::vector<TFuture<void>> PreparationFutures_;
     bool PreparationCanceled_ = false;
 
+    std::optional<TString> JobProxySocketNameDirectory_;
     const TString JobProxyUnixDomainSocketPath_;
 
     template <class T>
@@ -261,7 +266,7 @@ ISlotPtr CreateSlot(
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
     const TString& nodeTag,
-    const std::optional<TString>& jobProxySocketNameDirectory)
+    std::optional<TString> jobProxySocketNameDirectory)
 {
     auto slot = New<TSlot>(
         slotIndex,
@@ -269,7 +274,7 @@ ISlotPtr CreateSlot(
         std::move(environment),
         std::move(volumeManager),
         nodeTag,
-        jobProxySocketNameDirectory);
+        std::move(jobProxySocketNameDirectory));
 
     return slot;
 }
