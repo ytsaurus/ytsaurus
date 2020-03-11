@@ -160,29 +160,24 @@ private:
     TString NetworkName_;
     TTcpDispatcherCountersPtr Counters_;
     bool GenerateChecksums_ = true;
-    bool ConnectionCounterIncremented_ = false;
 
     // Only used by client sockets.
     int Port_ = 0;
 
     std::atomic<EState> State_ = {EState::None};
 
-    TSpinLock EventHandlerSpinLock_;
-    NConcurrency::TReaderWriterSpinLock ControlSpinLock_;
+    NConcurrency::EPollControl Pending_ = NConcurrency::EPollControl::None;
+
+    TSpinLock Lock_;
 
     TError TerminateError_;
-    bool TerminateRequested_ = false;
     SOCKET Socket_ = INVALID_SOCKET;
 
-    bool Unregistered_ = false;
     TError CloseError_;
 
     NNet::IAsyncDialerSessionPtr DialerSession_;
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
-
-    std::atomic<bool> ArmedForQueuedMessages_ = {false};
-    std::atomic<bool> HasUnsentData_ = {false};
 
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
     std::atomic<size_t> PendingOutPayloadBytes_ = {0};
@@ -209,9 +204,9 @@ private:
     std::atomic<TTosLevel> TosLevel_ = {DefaultTosLevel};
 
 
-    void Cleanup();
-
     void Open();
+    void Close();
+
     void ResolveAddress();
     void Abort(const TError& error);
 
@@ -221,7 +216,6 @@ private:
 
     void ConnectSocket(const NNet::TNetworkAddress& address);
     void OnDialerFinished(const TErrorOr<SOCKET>& socketOrError);
-    void CloseSocket();
 
     void OnAddressResolveFinished(const TErrorOr<NNet::TNetworkAddress>& result);
     void OnAddressResolved(const NNet::TNetworkAddress& address);
@@ -258,18 +252,12 @@ private:
     void OnPacketSent();
     void OnAckPacketSent(const TPacket& packet);
     void OnMessagePacketSent(const TPacket& packet);
-    void OnTerminated();
+    void OnTerminate();
     void ProcessQueuedMessages();
     void DiscardOutcomingMessages(const TError& error);
     void DiscardUnackedMessages(const TError& error);
 
-    void UnregisterFromPoller();
-
-    void ArmPollerForWrite();
-    void DoArmPoller();
-    void RearmPoller();
-
-    void UpdateConnectionCount(bool increment);
+    void UpdateConnectionCount(int delta);
     void UpdatePendingOut(int countDelta, i64 sizeDelta);
 
     void InitSocketTosLevel(int tosLevel);
