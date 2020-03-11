@@ -60,6 +60,8 @@ using NNative::IConnectionPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TTableMountCache)
+
 class TTableMountCache
     : public TTableMountCacheBase
 {
@@ -72,6 +74,7 @@ public:
         : TTableMountCacheBase(std::move(config), logger)
         , Connection_(std::move(connection))
         , CellDirectory_(std::move(cellDirectory))
+        , Invoker_(connection->GetInvoker())
     { }
 
 private:
@@ -79,50 +82,41 @@ private:
         const TTableMountCacheKey& key,
         bool isPeriodicUpdate) noexcept override
     {
-        auto connection = Connection_.Lock();
-        if (!connection) {
-            auto error = TError(NYT::EErrorCode::Canceled, "Connection destroyed")
-                << TErrorAttribute("table_path", key.Path);
-            return MakeFuture<TTableMountInfoPtr>(error);
-        }
-
-        auto invoker = connection->GetInvoker();
-        auto session = New<TGetSession>(this, std::move(connection), key, Logger);
-
+        auto session = New<TGetSession>(this, Connection_, key, Logger);
         return BIND(&TGetSession::Run, std::move(session))
-            .AsyncVia(std::move(invoker))
+            .AsyncVia(Invoker_)
             .Run();
     }
 
 private:
     const TWeakPtr<IConnection> Connection_;
     const TCellDirectoryPtr CellDirectory_;
+    const IInvokerPtr Invoker_;
 
     class TGetSession
         : public TRefCounted
     {
     public:
         TGetSession(
-            TTableMountCache* owner,
-            IConnectionPtr connection,
+            TTableMountCachePtr owner,
+            TWeakPtr<IConnection> connection,
             const TTableMountCacheKey& key,
             const NLogging::TLogger& logger)
-            : Owner_(owner)
+            : Owner_(std::move(owner))
             , Connection_(std::move(connection))
             , Key_(key)
-            , Logger(logger)
-        {
-            Logger.AddTag("Path: %v, CacheSessionId: %v",
-                Key_.Path,
-                TGuid::Create());
-        }
+            , Logger(NLogging::TLogger(logger)
+                .AddTag("Path: %v, CacheSessionId: %v",
+                    Key_.Path,
+                    TGuid::Create()))
+        { }
 
         TTableMountInfoPtr Run()
         {
             WaitFor(RequestTableAttributes(Key_.RefreshPrimaryRevision))
                 .ThrowOnError();
-            auto mountInfoOrError = WaitFor(RequestMountInfo(Key_.RefreshSecondaryRevision));
 
+            auto mountInfoOrError = WaitFor(RequestMountInfo(Key_.RefreshSecondaryRevision));
             if (!mountInfoOrError.IsOK() && PrimaryRevision_) {
                 WaitFor(RequestTableAttributes(PrimaryRevision_))
                     .ThrowOnError();
@@ -145,8 +139,8 @@ private:
         }
 
     private:
-        const TIntrusivePtr<TTableMountCache> Owner_;
-        const IConnectionPtr Connection_;
+        const TTableMountCachePtr Owner_;
+        const TWeakPtr<IConnection> Connection_;
         const TTableMountCacheKey Key_;
 
         TTableId TableId_;
@@ -168,19 +162,24 @@ private:
 
         TFuture<void> RequestTableAttributes(NHydra::TRevision refreshPrimaryRevision)
         {
+            auto connection = Connection_.Lock();
+            if (!connection) {
+                return MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
+            }
+
             YT_LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %v)",
                 refreshPrimaryRevision);
 
             auto options = GetMasterReadOptions();
 
             auto channel = CreateAuthenticatedChannel(
-                Connection_->GetMasterChannelOrThrow(options.ReadFrom),
+                connection->GetMasterChannelOrThrow(options.ReadFrom),
                 NSecurityClient::TableMountInformerUserName);
 
             auto primaryProxy = TObjectServiceProxy(channel);
             auto batchReq = primaryProxy.ExecuteBatch();
 
-            SetBalancingHeader(batchReq, Connection_->GetConfig(), options);
+            SetBalancingHeader(batchReq, connection->GetConfig(), options);
             {
                 auto req = TTableYPathProxy::Get(Key_.Path + "/@");
                 std::vector<TString> attributeKeys{
@@ -190,7 +189,7 @@ private:
                 };
                 ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
-                SetCachingHeader(req, Connection_->GetConfig(), options, refreshPrimaryRevision);
+                SetCachingHeader(req, connection->GetConfig(), options, refreshPrimaryRevision);
 
                 size_t hash = 0;
                 HashCombine(hash, FarmHash(Key_.Path.begin(), Key_.Path.size()));
@@ -223,6 +222,11 @@ private:
 
         TFuture<TTableMountInfoPtr> RequestMountInfo(NHydra::TRevision refreshSecondaryRevision)
         {
+            auto connection = Connection_.Lock();
+            if (!connection) {
+                return MakeFuture<TTableMountInfoPtr>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
+            }
+
             YT_LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %v)",
                 TableId_,
                 CellTag_,
@@ -231,17 +235,17 @@ private:
             auto options = GetMasterReadOptions();
 
             auto channel = CreateAuthenticatedChannel(
-                Connection_->GetMasterChannelOrThrow(options.ReadFrom, CellTag_),
+                connection->GetMasterChannelOrThrow(options.ReadFrom, CellTag_),
                 NSecurityClient::TableMountInformerUserName);
 
             auto secondaryProxy = TObjectServiceProxy(channel);
             auto batchReq = secondaryProxy.ExecuteBatch();
 
-            SetBalancingHeader(batchReq, Connection_->GetConfig(), options);
+            SetBalancingHeader(batchReq, connection->GetConfig(), options);
             {
                 auto req = TTableYPathProxy::GetMountInfo(FromObjectId(TableId_));
 
-                SetCachingHeader(req, Connection_->GetConfig(), options, refreshSecondaryRevision);
+                SetCachingHeader(req, connection->GetConfig(), options, refreshSecondaryRevision);
 
                 size_t hash = 0;
                 HashCombine(hash, FarmHash(TableId_.Parts64[0]));
@@ -376,6 +380,8 @@ private:
             key.RefreshSecondaryRevision);
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TTableMountCache)
 
 ITableMountCachePtr CreateNativeTableMountCache(
     TTableMountCacheConfigPtr config,
