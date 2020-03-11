@@ -536,7 +536,7 @@ def configure_common_public_object_creators(client):
 def configure_deploy_public_object_creators(client):
     deploy_public_object_types = ("stage",)
     deploy_public_object_creators = Group("deploy-public-object-creators")
-    members = (Group("staff:department:1"),)
+    members = (Group("staff:department:1"), User("robot-metrika-test"))
     add_group_members(client, deploy_public_object_creators, members)
     create(client, deploy_public_object_creators)
     for object_type in deploy_public_object_types:
