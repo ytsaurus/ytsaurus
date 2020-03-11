@@ -10,6 +10,8 @@
 
 #include <DataStreams/IBlockInputStream.h>
 
+#include <Storages/SelectQueryInfo.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,7 +21,8 @@ DB::BlockInputStreamPtr CreateBlockInputStream(
     NTableClient::TTableSchema readSchema,
     NTracing::TTraceContextPtr traceContext,
     TBootstrap* bootstrap,
-    NLogging::TLogger logger);
+    NLogging::TLogger logger,
+    DB::PrewhereInfoPtr prewhereInfo);
 
 DB::BlockInputStreamPtr CreateBlockInputStreamLoggingAdapter(
     DB::BlockInputStreamPtr blockInputStream,

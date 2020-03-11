@@ -112,6 +112,7 @@ public:
         const std::vector<TString>& omittedInaccessibleColumns)
         : ChunkState_(chunkState)
         , ChunkSpec_(ChunkState_->ChunkSpec)
+        , DataSliceDescriptor_(ChunkState_->ChunkSpec)
         , Config_(config)
         , Options_(options)
         , NameTable_(nameTable)
@@ -135,6 +136,11 @@ public:
                 *Config_->SamplingRate,
                 Config_->SamplingSeed.value_or(std::random_device()()));
         }
+    }
+
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    {
+        return DataSliceDescriptor_;
     }
 
     virtual const TNameTablePtr& GetNameTable() const override
@@ -161,6 +167,7 @@ public:
 protected:
     const TChunkStatePtr ChunkState_;
     const TChunkSpec ChunkSpec_;
+    const TDataSliceDescriptor DataSliceDescriptor_;
 
     TChunkReaderConfigPtr Config_;
     TChunkReaderOptionsPtr Options_;
@@ -1980,8 +1987,12 @@ public:
 
     virtual void Interrupt() override;
 
+    virtual void SkipCurrentReader() override;
+
     virtual TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> unreadRows) const override;
+
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
 
 private:
     const TNameTablePtr NameTable_;
@@ -2131,6 +2142,19 @@ void TSchemalessMultiChunkReader<TBase>::Interrupt()
 }
 
 template <class TBase>
+void TSchemalessMultiChunkReader<TBase>::SkipCurrentReader()
+{
+    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        return;
+    }
+
+     // Pretend that current reader already finished.
+    if (!TBase::OnEmptyRead(/* readerFinished */ true)) {
+        Finished_ = true;
+    }
+}
+
+template <class TBase>
 TInterruptDescriptor TSchemalessMultiChunkReader<TBase>::GetInterruptDescriptor(
     TRange<TUnversionedRow> unreadRows) const
 {
@@ -2153,6 +2177,12 @@ TInterruptDescriptor TSchemalessMultiChunkReader<TBase>::GetInterruptDescriptor(
         result.UnreadDataSliceDescriptors.emplace_back(factory->GetDataSliceDescriptor());
     }
     return result;
+}
+
+template <class TBase>
+const TDataSliceDescriptor& TSchemalessMultiChunkReader<TBase>::GetCurrentReaderDescriptor() const
+{
+    return CurrentReader_->GetCurrentReaderDescriptor();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2403,6 +2433,11 @@ public:
         ErrorPromise_.TrySet(TError());
     }
 
+    virtual void SkipCurrentReader() override
+    {
+        // Merging reader doesn't support sub-reader skipping.
+    }
+
     virtual bool IsFetchingCompleted() const override
     {
         return false;
@@ -2432,6 +2467,11 @@ public:
     {
         // Not supported for versioned data.
         return -1;
+    }
+
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    {
+        YT_ABORT();
     }
 
 private:

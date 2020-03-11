@@ -191,6 +191,11 @@ public:
         return "";
     }
 
+    bool supportsPrewhere() const override
+    {
+        return true;
+    }
+
     bool isRemote() const override
     {
         return true;

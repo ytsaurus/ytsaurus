@@ -137,6 +137,11 @@ public:
         YT_ABORT();
     }
 
+    virtual void SkipCurrentReader() override
+    {
+        YT_ABORT();
+    }
+
     virtual const TNameTablePtr& GetNameTable() const override
     {
         return UnderlyingReader_->GetNameTable();
@@ -161,6 +166,11 @@ public:
     {
         // Not supported.
         return -1;
+    }
+
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const
+    {
+        YT_ABORT();
     }
 
 private:

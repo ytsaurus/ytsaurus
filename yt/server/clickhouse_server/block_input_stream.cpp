@@ -15,6 +15,8 @@
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnsNumber.h>
 
+#include <Storages/MergeTree/MergeTreeBaseSelectBlockInputStream.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
@@ -88,6 +90,40 @@ DB::Block ConvertRowsToBlock(
     return block;
 }
 
+DB::Block FilterRowsByPrewhereInfo(
+    DB::Block&& blockToFilter,
+    std::vector<TUnversionedRow>&& rowsToFilter,
+    const DB::PrewhereInfoPtr& prewhereInfo,
+    const TTableSchema& schema,
+    const std::vector<int>& idToColumnIndex,
+    const TRowBufferPtr& rowBuffer,
+    const DB::Block& headerBlock,
+    IInvokerPtr invoker)
+{
+    prewhereInfo->remove_prewhere_column = false;
+    DB::MergeTreeBaseSelectBlockInputStream::executePrewhereActions(
+        blockToFilter, prewhereInfo);
+    const auto& prewhereColumn = blockToFilter.getByName(prewhereInfo->prewhere_column_name).column;
+
+    std::vector<TUnversionedRow> filteredRows;
+    for (size_t index = 0; index < prewhereColumn->size(); ++index) {
+        if (prewhereColumn->getBool(index)) {
+            filteredRows.emplace_back(rowsToFilter[index]);
+        }
+    }
+
+    return WaitFor(BIND(
+        &NDetail::ConvertRowsToBlock,
+        filteredRows,
+        schema,
+        idToColumnIndex,
+        rowBuffer,
+        headerBlock.cloneEmpty())
+        .AsyncVia(invoker)
+        .Run())
+        .ValueOrThrow();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 }  //  namespace NDetail
@@ -96,12 +132,19 @@ class TBlockInputStream
     : public DB::IBlockInputStream
 {
 public:
-    TBlockInputStream(ISchemalessReaderPtr reader, TTableSchema readSchema, TTraceContextPtr traceContext, TBootstrap* bootstrap, TLogger logger)
+    TBlockInputStream(
+        ISchemalessReaderPtr reader,
+        TTableSchema readSchema,
+        TTraceContextPtr traceContext,
+        TBootstrap* bootstrap,
+        TLogger logger,
+        DB::PrewhereInfoPtr prewhereInfo)
         : Reader_(std::move(reader))
         , ReadSchema_(std::move(readSchema))
         , TraceContext_(std::move(traceContext))
         , Bootstrap_(bootstrap)
         , Logger(std::move(logger))
+        , PrewhereInfo_(std::move(prewhereInfo))
     {
         PrepareHeader();
     }
@@ -135,6 +178,7 @@ private:
     DB::Block HeaderBlock_;
     std::vector<int> IdToColumnIndex_;
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+    DB::PrewhereInfoPtr PrewhereInfo_;
 
     DB::Block readImpl() override
     {
@@ -143,30 +187,29 @@ private:
         NProfiling::TWallTimer totalWallTimer;
         YT_LOG_TRACE("Started reading one CH block");
 
-        // TODO(max42): consult with psushin@ about contract here.
-        std::vector<TUnversionedRow> rows;
-        // TODO(max42): make customizable.
-        constexpr int rowsPerRead = 10 * 1024;
-        rows.reserve(rowsPerRead);
-        while (true) {
-            if (!Reader_->Read(&rows)) {
-                return {};
-            } else if (rows.empty()) {
-                NProfiling::TWallTimer wallTimer;
-                WaitFor(Reader_->GetReadyEvent())
-                    .ThrowOnError();
-                auto elapsed = wallTimer.GetElapsedTime();
-                if (elapsed > TDuration::Seconds(1)) {
-                    YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
-                }
-            } else {
-                break;
-            }
-        }
-
         DB::Block block;
-        {
-            NProfiling::TWallTimer wallTimer;
+        while (block.rows() == 0) {
+            // TODO(max42): consult with psushin@ about contract here.
+            std::vector<TUnversionedRow> rows;
+            // TODO(max42): make customizable.
+            constexpr int rowsPerRead = 10 * 1024;
+            rows.reserve(rowsPerRead);
+            while (true) {
+                if (!Reader_->Read(&rows)) {
+                    return {};
+                } else if (rows.empty()) {
+                    NProfiling::TWallTimer wallTimer;
+                    WaitFor(Reader_->GetReadyEvent())
+                        .ThrowOnError();
+                    auto elapsed = wallTimer.GetElapsedTime();
+                    if (elapsed > TDuration::Seconds(1)) {
+                        YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
+                    }
+                } else {
+                    break;
+                }
+            }
+
             block = WaitFor(BIND(
                 &NDetail::ConvertRowsToBlock,
                 rows,
@@ -177,14 +220,22 @@ private:
                 .AsyncVia(Bootstrap_->GetWorkerInvoker())
                 .Run())
                 .ValueOrThrow();
-            auto elapsed = wallTimer.GetElapsedTime();
-            if (elapsed > TDuration::Seconds(1)) {
-                YT_LOG_DEBUG("Converting to block took significant time (WallTime: %v)", elapsed);
-            }
-        }
 
-        // NB: ConvertToField copies all strings, so clearing row buffer is safe here.
-        RowBuffer_->Clear();
+            if (PrewhereInfo_) {
+                block = NDetail::FilterRowsByPrewhereInfo(
+                    std::move(block),
+                    std::move(rows),
+                    PrewhereInfo_,
+                    ReadSchema_,
+                    IdToColumnIndex_,
+                    RowBuffer_,
+                    HeaderBlock_,
+                    Bootstrap_->GetWorkerInvoker());
+            }
+
+            // NB: ConvertToField copies all strings, so clearing row buffer is safe here.
+            RowBuffer_->Clear();
+        }
 
         auto totalElapsed = totalWallTimer.GetElapsedTime();
         YT_LOG_TRACE("Finished reading one CH block (WallTime: %v)", totalElapsed);
@@ -222,9 +273,16 @@ DB::BlockInputStreamPtr CreateBlockInputStream(
     TTableSchema readSchema,
     TTraceContextPtr traceContext,
     TBootstrap* bootstrap,
-    TLogger logger)
+    TLogger logger,
+    DB::PrewhereInfoPtr prewhereInfo)
 {
-    return std::make_shared<TBlockInputStream>(std::move(reader), std::move(readSchema), std::move(traceContext), bootstrap, logger);
+    return std::make_shared<TBlockInputStream>(
+        std::move(reader),
+        std::move(readSchema),
+        std::move(traceContext),
+        bootstrap,
+        logger,
+        std::move(prewhereInfo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
