@@ -1,6 +1,7 @@
 #include "scheduler_base.h"
 #include "fiber.h"
 #include "private.h"
+#include "profiling_helpers.h"
 
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/shutdown.h>
@@ -140,12 +141,28 @@ void TSchedulerThreadBase::ThreadMain()
 
 thread_local TFiberReusingAdapter* CurrentThread = nullptr;
 
+
+DECLARE_REFCOUNTED_STRUCT(TRefCountedGauge)
+
+struct TRefCountedGauge
+    : public TIntrinsicRefCounted
+    , public NProfiling::TSimpleGauge
+{
+    TRefCountedGauge(const NYPath::TYPath& path, const NProfiling::TTagIdList& tagIds)
+        : NProfiling::TSimpleGauge(path, tagIds)
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRefCountedGauge)
+
 struct TFiberContext
 {
     TExceptionSafeContext ThreadContext;
     TClosure AfterSwitch;
     TFiberPtr ResumerFiber;
     TFiberPtr CurrentFiber;
+
+    TRefCountedGaugePtr WaitingFibersCounter;
 };
 
 thread_local TFiberContext* FiberContext = nullptr;
@@ -165,11 +182,16 @@ TFiberPtr& ResumerFiber()
     return FiberContext->ResumerFiber;
 }
 
-TFiberPtr NullFiberPtr;
+static TFiberPtr NullFiberPtr;
 
 TFiberPtr& CurrentFiber()
 {
     return FiberContext ? FiberContext->CurrentFiber : NullFiberPtr;
+}
+
+TRefCountedGaugePtr WaitingFibersCounter()
+{
+    return FiberContext->WaitingFibersCounter;
 }
 
 void SetAfterSwitch(TClosure&& closure)
@@ -232,11 +254,10 @@ void SwitchFromFiber(TFiberPtr target)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NProfiling::TProfiler Profiler("/action_queue");
-NProfiling::TMonotonicCounter CreatedFibersCounter("/created_fibers");
-NProfiling::TSimpleGauge AliveFibersCounter("/alive_fibers");
-NProfiling::TSimpleGauge WaitingFibersCounter("/waiting_fibers");
-NProfiling::TSimpleGauge IdleFibersCounter("/idle_fibers");
+static NProfiling::TProfiler Profiler("/action_queue");
+static NProfiling::TMonotonicCounter CreatedFibersCounter("/created_fibers");
+static NProfiling::TSimpleGauge AliveFibersCounter("/alive_fibers");
+static NProfiling::TSimpleGauge IdleFibersCounter("/idle_fibers");
 
 void TFiberReusingAdapter::CancelWait()
 {
@@ -438,6 +459,10 @@ bool TFiberReusingAdapter::OnLoop(TEventCount::TCookie* cookie)
 
     TFiberContext fiberContext;
 
+    fiberContext.WaitingFibersCounter = New<TRefCountedGauge>(
+        "/waiting_fibers",
+        GetThreadTagIds(true, ThreadName_));
+
     CurrentThread = this;
     FiberContext = &fiberContext;
     auto finally = Finally([] {
@@ -587,9 +612,11 @@ void WaitFor(TAwaitable awaitable, IInvokerPtr invoker)
 
         currentFiber->InvokeContextOutHandlers();
 
-        Profiler.Increment(WaitingFibersCounter, 1);
+        auto waitingFibersCounter = WaitingFibersCounter();
+
+        Profiler.Increment(*waitingFibersCounter, 1);
         SwitchFromFiber(std::move(switchTarget));
-        Profiler.Increment(WaitingFibersCounter, -1);
+        Profiler.Increment(*waitingFibersCounter, -1);
 
         // ContextInHandlers should be invoked before unwinding during cancelation.
         currentFiber->InvokeContextInHandlers();
