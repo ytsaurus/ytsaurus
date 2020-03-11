@@ -972,7 +972,7 @@ def run_ya_tests(options, suite_name, test_paths, dist=True):
 @build_step
 @only_for_projects("yt")
 def run_ya_integration_tests(options, build_context):
-    run_ya_tests(options, "ya_integration", [os.path.join(get_relative_yt_root(options), "yt/tests")])
+    run_ya_tests(options, "ya_integration_dist", [os.path.join(get_relative_yt_root(options), "yt/tests")])
 
 @build_step
 @only_for_projects("yt")
