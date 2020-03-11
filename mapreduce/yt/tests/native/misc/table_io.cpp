@@ -16,6 +16,8 @@
 
 #include <mapreduce/yt/http/abortable_http_response.h>
 
+#include <mapreduce/yt/io/proto_table_reader.h>
+
 #include <library/yson/node/node_io.h>
 
 #include <library/unittest/registar.h>
@@ -1835,6 +1837,50 @@ Y_UNIT_TEST_SUITE(TableIo) {
     Y_UNIT_TEST(ProtobufSchemaInferring_Options)
     {
         TestProtobufSchemaInferring(true);
+    }
+
+    Y_UNIT_TEST(ProtobufWriteRead_Enum)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TConfig::Get()->UseClientProtobuf = false;
+
+        auto table = TRichYPath(workingDir + "/table");
+
+        const TVector<EEnum> expected{EEnum::One, EEnum::Two, EEnum::Three, EEnum::MinusFortyTwo};
+        {
+            auto writer = client->CreateTableWriter<TAllTypesMessage>(table);
+
+            for (const EEnum& enumField : expected) {
+                TAllTypesMessage row;
+                row.SetEnumField(enumField);
+                row.SetEnumIntField(enumField);
+                writer->AddRow(row);
+            }
+
+            writer->Finish();
+        }
+
+        TVector<EEnum> actual;
+        {
+            auto reader = client->CreateTableReader<TNode>(table);
+
+            for (; reader->IsValid(); reader->Next()) {
+                TAllTypesMessage row;
+                ReadMessageFromNode(reader->GetRow(), &row);
+
+                UNIT_ASSERT_EQUAL(row.GetEnumField(), row.GetEnumIntField());
+
+                actual.push_back(row.GetEnumField());
+            }
+        }
+
+        UNIT_ASSERT_EQUAL(expected.size(), actual.size());
+        for (size_t i = 0; i < actual.size(); ++i) {
+            UNIT_ASSERT_EQUAL(expected[i], actual[i]);
+        }
     }
 }
 
