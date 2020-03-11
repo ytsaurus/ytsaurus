@@ -327,7 +327,7 @@ def run_python_ya_tests(options):
         # "yt/wrapper/system_python_tests/py3",
     ]
 
-    archive_dir = os.path.join(options.archive_path, "ya_python")
+    archive_dir = os.path.join(options.archive_path, "ya_python_dist")
     mkdirp(archive_dir)
 
     junit_output = os.path.join(options.working_directory, "junit_yatest.xml")
