@@ -70,9 +70,10 @@ def add_acl(path, new_acl, client):
 
 # By default, accounts have empty resource limits upon creation.
 def get_default_resource_limits(client):
+    GB = 1024 ** 3
     TB = 1024 ** 4
 
-    result = {"node_count": 500000, "chunk_count": 1000000, "master_memory_usage": 1000000}
+    result = {"node_count": 500000, "chunk_count": 1000000, "master_memory": 100 * GB}
     # Backwards compatibility.
     if client.exists("//sys/media"):
         result["disk_space_per_medium"] = {"default": 10 * TB}

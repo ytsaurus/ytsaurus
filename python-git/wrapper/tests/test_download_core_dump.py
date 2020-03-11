@@ -5,8 +5,11 @@ import yt.wrapper as yt
 
 from yt.packages.six.moves import xrange
 
-import os
 import pytest
+
+import os
+import random
+import string
 import subprocess
 import time
 
@@ -28,7 +31,8 @@ class TestDownloadCoreDump(object):
 
         test_core_dumps_dir = os.path.join(get_tests_sandbox(), "test_core_dumps")
         makedirp(test_core_dumps_dir)
-        core_output_dir = os.path.join(test_core_dumps_dir, "core")
+        core_output_dir = os.path.join(test_core_dumps_dir, "core" + "".join(random.sample(string.ascii_lowercase, 10)))
+
         makedirp(core_output_dir)
 
         cpp_file = get_test_file_path("bin_core_crash.cpp")

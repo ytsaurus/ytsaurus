@@ -81,7 +81,7 @@ def json_to_yson(json_tree, encode_key=False, encoding=None):
     else:
         raise YsonError("Unknown type:", type(value))
 
-    if has_attrs and json_tree["$attributes"]:
+    if has_attrs and json_tree.get("$attributes", {}):
         result.attributes = json_to_yson(json_tree["$attributes"], encoding=encoding)
     return result
 
