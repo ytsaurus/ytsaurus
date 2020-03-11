@@ -985,7 +985,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
 
         YT_VERIFY(loggedVersion.RecordId == Changelog_->GetRecordCount());
 
-        if (NextChangelogFuture_.IsSet() && !NextChangelogFuture_.Get().IsOK()) {
+        if (NextChangelogFuture_ && NextChangelogFuture_.IsSet() && !NextChangelogFuture_.Get().IsOK()) {
             YT_LOG_INFO("Changelog preallocation failed, trying to open it once again (ChangelogId: %v)",
                 nextChangelogId);
             NextChangelogFuture_.Reset();
