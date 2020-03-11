@@ -8,7 +8,6 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/xerrors"
-
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/mapreduce"
 	"a.yandex-team.ru/yt/go/schema"
@@ -24,7 +23,7 @@ type Env struct {
 	L   log.Structured
 }
 
-func NewEnv(t testing.TB) (env *Env, cancel func()) {
+func NewEnv(t testing.TB, opts ...Option) (env *Env, cancel func()) {
 	config, err := yt.NewConfigFromEnv()
 	if err != nil {
 		t.Fatalf("failed to get YT config from env: %+v", err)
@@ -32,6 +31,13 @@ func NewEnv(t testing.TB) (env *Env, cancel func()) {
 
 	var stopLogger func()
 	config.Logger, stopLogger = NewLogger(t)
+
+	for _, o := range opts {
+		switch v := o.(type) {
+		case loggerOption:
+			config.Logger = v.l
+		}
+	}
 
 	var cancelCtx func()
 	env = &Env{}
