@@ -1589,6 +1589,32 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         self._create_sorted_table("//tmp/t2", account="test_account", pivot_keys=[[], [1]])
         self._verify_resource_usage("test_account", "tablet_count", 4)
 
+    @authors("lexolordan")
+    @pytest.mark.parametrize("mode", ["uncompressed"])
+    def test_mount_mounted_table(self, mode):
+        create_account("test_account")
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 2)
+        sync_create_cells(1)
+
+        def _create_table(table_name):
+            self._create_sorted_table(table_name, account="test_account", in_memory_mode=mode)
+
+            sync_mount_table(table_name)
+            insert_rows(table_name, [{"key": 0, "value": "0"}])
+            sync_unmount_table(table_name)
+
+        _create_table("//tmp/t0")
+        _create_table("//tmp/t1")
+
+        data_size = get("//tmp/t0/@{0}_data_size".format(mode))
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", data_size)
+
+        sync_mount_table("//tmp/t0")
+        with pytest.raises(YtError):
+            sync_mount_table("//tmp/t1")
+
+        remount_table("//tmp/t0")
+
     @authors("savrus")
     def test_tablet_count_limit_reshard(self):
         create_account("test_account")

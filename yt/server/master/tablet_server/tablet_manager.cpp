@@ -866,8 +866,7 @@ public:
             table,
             firstTabletIndex,
             lastTabletIndex,
-            mountConfig,
-            false);
+            mountConfig);
 
         if (mountConfig->InMemoryMode != EInMemoryMode::None &&
             writerOptions->ErasureCodec != NErasure::ECodec::None)
@@ -1088,12 +1087,6 @@ public:
         NTabletNode::TTabletWriterOptionsPtr writerOptions;
         GetTableSettings(table, &mountConfig, &readerConfig, &writerConfig, &writerOptions);
         ValidateTableMountConfig(table, mountConfig);
-        ValidateTabletStaticMemoryUpdate(
-            table,
-            firstTabletIndex,
-            lastTabletIndex,
-            mountConfig,
-            true);
 
         if (mountConfig->InMemoryMode != EInMemoryMode::None &&
             writerOptions->ErasureCodec != NErasure::ECodec::None)
@@ -5487,24 +5480,18 @@ private:
         const TTableNode* table,
         int firstTabletIndex,
         int lastTabletIndex,
-        const TTableMountConfigPtr& mountConfig,
-        bool remount)
+        const TTableMountConfigPtr& mountConfig)
     {
-        i64 oldMemorySize = 0;
-        i64 newMemorySize = 0;
+        i64 memorySize = 0;
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             const auto* tablet = table->Tablets()[index];
-            if (remount && !tablet->IsActive()) {
+            if (tablet->GetState() != ETabletState::Unmounted) {
                 continue;
             }
-            if (remount) {
-                oldMemorySize += tablet->GetTabletStaticMemorySize();
-            }
-            newMemorySize += tablet->GetTabletStaticMemorySize(mountConfig->InMemoryMode);
+            memorySize += tablet->GetTabletStaticMemorySize(mountConfig->InMemoryMode);
         }
 
-        auto memorySize = newMemorySize - oldMemorySize;
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidateResourceUsageIncrease(
             table->GetAccount(),
