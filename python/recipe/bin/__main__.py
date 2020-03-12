@@ -13,6 +13,7 @@ from library.python.testing.recipe import (
 import yatest.common
 
 import argparse
+import concurrent.futures
 import json
 import logging
 import os
@@ -67,6 +68,7 @@ def parse_args(argv):
     parser.add_argument("--master-config", help="YP Master config file")
     parser.add_argument("--yt-config", help="YT local config file")
     parser.add_argument("--count", help="Count of YP instances", type=int, default=1)
+    parser.add_argument("--startup-threads", help="Number of concurrently launched YP instances", type=int, default=1)
     return parser.parse_args(argv)
 
 
@@ -86,15 +88,23 @@ def start(argv):
     yp_master_config = update(DEFAULT_YP_MASTER_OPTIONS, config_from_file(args.master_config))
     local_yt_options = update(DEFAULT_LOCAL_YT_OPTIONS, config_from_file(args.yt_config))
 
-    for index in range(1, args.count + 1):
-        logger.info("Starting YP #{}".format(index))
+    pool = concurrent.futures.ThreadPoolExecutor(args.startup_threads)
+    futures = []
 
-        yp_master_path, yp_master = start_yp(
+    for index in range(args.count):
+        logger.info("Starting YP #{}".format(index + 1))
+
+        futures.append(pool.submit(
+            start_yp,
             inside_arcadia=not args.outside_arcadia,
             yp_master_config=yp_master_config,
             local_yt_options=local_yt_options,
             port_locks_path="ports",  # Common port locks path for all instances.
-        )
+        ))
+
+    for index, future in enumerate(futures):
+        index += 1
+        yp_master_path, yp_master = future.result()
 
         # Backward compatibility.
         if index == 1:
