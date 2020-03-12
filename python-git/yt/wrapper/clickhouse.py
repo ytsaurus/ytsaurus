@@ -60,15 +60,16 @@ def _patch_defaults(fn):
     kwargs_names = _get_kwargs_names(fn)
 
     def wrapped_fn(*args, **kwargs):
-        defaults_dict = kwargs.pop("defaults")
+        kwargs_copy = deepcopy(kwargs)
+        defaults_dict = kwargs_copy.pop("defaults")
         logger.debug("Applying following argument defaults: %s", defaults_dict)
         for key, default_value in iteritems(defaults_dict):
             if key in kwargs_names:
-                current_value = kwargs.get(key)
+                current_value = kwargs_copy.get(key)
                 if current_value is None:
-                    kwargs[key] = default_value
-        logger.debug("Resulting arguments: %s", kwargs)
-        return fn(*args, **kwargs)
+                    kwargs_copy[key] = default_value
+        logger.debug("Resulting arguments: %s", kwargs_copy)
+        return fn(*args, **kwargs_copy)
 
     wrapped_fn.__doc__ = fn.__doc__
 
@@ -700,6 +701,7 @@ def start_clickhouse_clique(instance_count,
                                                          operation_alias=operation_alias,
                                                          prev_operation_id=prev_operation_id,
                                                          enable_monitoring=enable_monitoring,
+                                                         defaults=defaults,
                                                          client=client))
 
     op = run_operation(get_clickhouse_clique_spec_builder(instance_count,
