@@ -55,9 +55,12 @@ YT_PREFIX_BINARIES = [
 ]
 
 
-def prepare_python_source_tree(python_root, yt_root, prepare_binary_symlinks=True, prepare_bindings=True):
+def prepare_python_source_tree(python_root, yt_root, arcadia_root=None, prepare_binary_symlinks=True, prepare_bindings=True):
     def python_contrib_path(path):
         return os.path.join(python_root, "contrib", path)
+
+    if arcadia_root is None:
+        arcadia_root = yt_root
 
     packages_dir = os.path.join(python_root, "yt", "packages")
 
@@ -90,16 +93,19 @@ def prepare_python_source_tree(python_root, yt_root, prepare_binary_symlinks=Tru
         files_to_copy = []
         if package_name != "tqdm":
             files_to_copy += glob.glob(
-                "{yt_root}/contrib/python/{package_name}/{package_name}*.py".format(
-                    yt_root=yt_root,
+                "{arcadia_root}/contrib/python/{package_name}/{package_name}*.py".format(
+                    arcadia_root=arcadia_root,
                     package_name=package_name))
         files_to_copy += glob.glob(
-            "{yt_root}/contrib/python/{package_relative_path}/{package_name}".format(
-                yt_root=yt_root,
+            "{arcadia_root}/contrib/python/{package_relative_path}/{package_name}".format(
+                arcadia_root=arcadia_root,
                 package_relative_path=package_relative_path,
                 package_name=package_name))
         for path in files_to_copy:
             cp_r(path, packages_dir)
+
+    # Replace certificate.
+    cp_r(os.path.join(arcadia_root, "certs", "cacert.pem"), os.path.join(packages_dir, "certifi"))
 
     replace(python_contrib_path("python-decorator/src/decorator.py"), packages_dir)
     replace(python_contrib_path("python-fusepy/fuse.py"), packages_dir)
