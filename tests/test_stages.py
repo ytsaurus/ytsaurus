@@ -122,9 +122,27 @@ class TestStages(object):
             yp_env, "stage", project_id, spec, {}, user_id
         )
 
-    def test_template_network_project_permissions(self, yp_env):
+    def test_template_network_project_permissions_in_addresses(self, yp_env):
         project_id = "project_id"
+        pod_spec = {
+            "ip6_address_requests": [
+                {"network_id": project_id, "vlan_id": "backbone"}
+            ]
+        }
 
+        self._test_network_project_permissions_template(yp_env, project_id, pod_spec)
+
+    def test_template_network_project_permissions_in_subnets(self, yp_env):
+        project_id = "project_id"
+        pod_spec = {
+            "ip6_subnet_requests": [
+                {"network_id": project_id, "vlan_id": "backbone"}
+            ]
+        }
+
+        self._test_network_project_permissions_template(yp_env, project_id, pod_spec)
+
+    def _test_network_project_permissions_template(self, yp_env, project_id, pod_spec):
         spec = {
             "account_id": "tmp",
             "deploy_units": {
@@ -132,11 +150,7 @@ class TestStages(object):
                     "replica_set": {
                         "replica_set_template": {
                             "pod_template_spec": {
-                                "spec": {
-                                    "ip6_address_requests": [
-                                        {"network_id": project_id, "vlan_id": "backbone"}
-                                    ]
-                                }
+                                "spec": pod_spec
                             }
                         }
                     }

@@ -933,7 +933,8 @@ void ValidateNetworkRequests(
     TTransaction* transaction,
     const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6AddressRequest>& oldIp6AddressRequests,
     const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6AddressRequest>& newIp6AddressRequests,
-    const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6SubnetRequest>& ip6SubnetRequests)
+    const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6SubnetRequest>& oldIp6SubnetRequests,
+    const RepeatedPtrField<NClient::NApi::NProto::TPodSpec_TIP6SubnetRequest>& newIp6SubnetRequests)
 {
     auto validateUsePermission = [&] (TObject* object) {
         accessControlManager->ValidatePermission(object, NAccessControl::EAccessControlPermission::Use);
@@ -951,6 +952,9 @@ void ValidateNetworkRequests(
         for (const auto& virtualServiceId : request.virtual_service_ids()) {
             oldVirtualServiceIds.insert(virtualServiceId);
         }
+    }
+    for (const auto& request : oldIp6SubnetRequests) {
+        oldNetworkProjectIds.insert(request.network_id());
     }
 
     for (const auto& request : newIp6AddressRequests) {
@@ -976,9 +980,11 @@ void ValidateNetworkRequests(
         }
     }
 
-    for (const auto& request : ip6SubnetRequests) {
+    for (const auto& request : newIp6SubnetRequests) {
         if (request.has_network_id()) {
-            validateNetworkProject(request.network_id());
+            if (oldNetworkProjectIds.find(request.network_id()) == oldNetworkProjectIds.end()) {
+                validateNetworkProject(request.network_id());
+            }
         } else {
             accessControlManager->ValidateSuperuser("configure IP6 subnet request without network id");
         }
@@ -1057,7 +1063,7 @@ void ValidatePodSpecEtc(
     ValidateDiskVolumeRequests(podSpecEtcNew.disk_volume_requests());
 
     ValidateNetworkRequests(std::move(accessControlManager), transaction, podSpecEtcOld.ip6_address_requests(),
-        podSpecEtcNew.ip6_address_requests(), podSpecEtcNew.ip6_subnet_requests());
+        podSpecEtcNew.ip6_address_requests(), podSpecEtcOld.ip6_subnet_requests(), podSpecEtcNew.ip6_subnet_requests());
 
     ValidateResourceRequests(podSpecEtcNew.resource_requests(), config->MinVcpuGuarantee);
 

@@ -1622,16 +1622,28 @@ class TestPods(object):
         assert initial_pod_dump_nonschedulable == updated_pod_dump_nonschedulable
         assert initial_pod_dump == updated_pod_dump
 
-    def test_network_project_permissions(self, yp_env):
-        yp_client = yp_env.yp_client
-
+    def test_network_project_permissions_in_address_requests(self, yp_env):
         project_id = "project_id"
-        pod_set_id = yp_client.create_object("pod_set")
-
         spec = {
             "ip6_address_requests": [{"network_id": project_id, "vlan_id": "backbone"}],
             "resource_requests": ZERO_RESOURCE_REQUESTS,
         }
+
+        self._test_network_project_permissions_template(yp_env, project_id, spec)
+
+    def test_network_project_permissions_in_subnet_requests(self, yp_env):
+        project_id = "project_id"
+        spec = {
+            "ip6_subnet_requests": [{"network_id": project_id, "vlan_id": "backbone"}],
+            "resource_requests": ZERO_RESOURCE_REQUESTS,
+        }
+
+        self._test_network_project_permissions_template(yp_env, project_id, spec)
+
+    def _test_network_project_permissions_template(self, yp_env, project_id, spec):
+        yp_client = yp_env.yp_client
+
+        pod_set_id = yp_client.create_object("pod_set")
 
         meta = {"pod_set_id": pod_set_id}
 
