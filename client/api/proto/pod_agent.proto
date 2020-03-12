@@ -583,8 +583,6 @@ message TBox {
 
     // TODO: Валидировать что mount_point не пересекается со static_resource
     // NOTE: Валидация - все mount_point различны
-    // NOTE: Валидация - все id volume в списке уникальны
-    // NOTE: Валидация - все rbind_volume_ref в списке уникальны
     repeated TMountedVolume volumes = 8;
 
     // Процессы, запускаемые при подготовке Box после создания вольюмов
@@ -592,7 +590,6 @@ message TBox {
 
     // TODO: Валидировать что mount_point не пересекается с volume
     // NOTE: Валидация - все mount_point различны
-    // NOTE: Валидация - все id static_resource в списке различны
     repeated TMountedStaticResource static_resources = 10;
 
     // Если указано true
