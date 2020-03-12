@@ -650,17 +650,8 @@ public:
         const auto& controller = operation->GetControllerOrThrow();
 
         auto getOrchidAndCommit = BIND(
-            [controller, this_ = MakeStrong(this)] () -> IYPathServicePtr {
-                IYPathServicePtr orchid;
-                if (controller->GetOrchid()) {
-                    auto yson = WaitFor(AsyncYPathGet(controller->GetOrchid(), ""))
-                        .ValueOrThrow();
-                    auto producer = TYsonProducer(BIND([yson = std::move(yson)] (IYsonConsumer* consumer) {
-                        consumer->OnRaw(yson);
-                    }));
-                    orchid = IYPathService::FromProducer(std::move(producer))
-                        ->Via(this_->GetControllerThreadPoolInvoker());
-                }
+            [controller, this, this_ = MakeStrong(this)] () -> IYPathServicePtr {
+                auto orchid = BuildZombieOrchid(controller);
                 controller->Commit();
                 return orchid;
             })
@@ -703,6 +694,12 @@ public:
             YT_LOG_DEBUG("No controller to abort (OperationId: %v)",
                 operation->GetId());
             return VoidFuture;
+        }
+
+        if (!controller->GetCancelableContext()->IsCanceled()) {
+            if (auto orchid = BuildZombieOrchid(controller)) {
+                ZombieOperationOrchids_->AddOrchid(operation->GetId(), orchid);
+            }
         }
 
         controller->Cancel();
@@ -1533,6 +1530,27 @@ private:
                         MemoryTagQueue_.BuildTaggedMemoryStatistics(fluent);
                     })
             .EndMap();
+    }
+
+    IYPathServicePtr BuildZombieOrchid(const IOperationControllerPtr& controller)
+    {
+        IYPathServicePtr orchid;
+        if (auto controllerOrchid = controller->GetOrchid()) {
+            auto ysonOrError = WaitFor(AsyncYPathGet(controllerOrchid, ""));
+            if (!ysonOrError.IsOK()) {
+                return nullptr;
+            }
+            auto yson = ysonOrError.Value();
+            if (!yson) {
+                return nullptr;
+            }
+            auto producer = TYsonProducer(BIND([yson = std::move(yson)] (IYsonConsumer* consumer) {
+                consumer->OnRaw(yson);
+            }));
+            orchid = IYPathService::FromProducer(std::move(producer))
+                ->Via(GetControllerThreadPoolInvoker());
+        }
+        return orchid;
     }
 
     IYPathServicePtr GetDynamicOrchidService()
