@@ -494,7 +494,7 @@ def setup_dev_segment(cluster, accounts, client):
 
 
 # YPADMIN-287
-def configure_pod_eviction_requesters_group(client):
+def configure_pod_eviction_requesters_group(client, **kwargs):
     pod_eviction_requesters = Group("pod-eviction-requesters")
     members = (
         User("robot-yp-heavy-sched"),
@@ -512,8 +512,22 @@ def configure_pod_eviction_requesters_group(client):
         )
 
 
+# YPADMIN-324
+def configure_pod_resource_reallocators_group(client, **kwargs):
+    pod_resource_reallocators = Group("pod-resource-reallocators")
+    for attribute in ("/control/reallocate_resources",):
+        add_permission(
+            client,
+            object_type="schema",
+            object_id="pod",
+            subject=pod_resource_reallocators,
+            permission="write",
+            attribute=attribute,
+        )
+
+
 # Public objects common to all deploy systems (see YP-1769).
-def configure_common_public_object_creators(client):
+def configure_common_public_object_creators(client, **kwargs):
     common_public_object_types = (
         "endpoint",
         "endpoint_set",
@@ -533,10 +547,12 @@ def configure_common_public_object_creators(client):
 
 
 # Public objects of Y.Deploy (see YP-1769).
-def configure_deploy_public_object_creators(client):
+def configure_deploy_public_object_creators(client, cluster, **kwargs):
     deploy_public_object_types = ("stage",)
     deploy_public_object_creators = Group("deploy-public-object-creators")
-    members = (Group("staff:department:1"), User("robot-metrika-test"))
+    members = [Group("staff:department:1")]
+    if cluster in ("sas-test", "man-pre", "xdc"):
+        members.append(User("robot-metrika-test"))
     add_group_members(client, deploy_public_object_creators, members)
     create(client, deploy_public_object_creators)
     for object_type in deploy_public_object_types:
@@ -551,7 +567,7 @@ def configure_deploy_public_object_creators(client):
 
 
 # YPADMIN-286
-def configure_admins_group(client):
+def configure_admins_group(client, **kwargs):
     admins = Group("admins")
     members = (
         User("babenko"),
@@ -562,11 +578,12 @@ def configure_admins_group(client):
         User("slonnn"),
     )
     add_group_members(client, admins, members)
-    for group_name in [
+    for group_name in (
+        "pod-eviction-requesters",
+        "pod-resource-reallocators",
         "common-public-object-creators",
         "deploy-public-object-creators",
-        "pod-eviction-requesters",
-    ]:
+    ):
         add_permission(
             client,
             object_type="group",
@@ -594,6 +611,7 @@ def initialize_users(cluster, dry_run):
 
         configurators = (
             configure_pod_eviction_requesters_group,
+            configure_pod_resource_reallocators_group,
             configure_common_public_object_creators,
             configure_deploy_public_object_creators,
             configure_admins_group,
@@ -601,7 +619,7 @@ def initialize_users(cluster, dry_run):
 
         for configurator in configurators:
             try:
-                configurator(client)
+                configurator(client, cluster=cluster)
             except Exception:
                 logger.exception("Error running %s", configurator.__name__)
 
