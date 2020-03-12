@@ -384,11 +384,6 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_vers
 
 
 def set_log_tailer_table_dynamic_attributes(table_kind, table_path, client=None):
-    if table_kind == "ordered_normally":
-        logger.debug("Resharding %s", table_path)
-        pivot_keys = [[]] + [[YsonUint64(i), None, None, None] for i in xrange(1, 100)]
-        reshard_table(table_path, pivot_keys=pivot_keys, sync=True, client=client)
-
     attributes = {
         "tablet_balancer_config/min_tablet_size": 0,
         "tablet_balancer_config/desired_tablet_size": 10 * 1024**3,
@@ -398,6 +393,13 @@ def set_log_tailer_table_dynamic_attributes(table_kind, table_path, client=None)
         attribute_path = table_path + "/@" + attribute
         logger.debug("Setting %s to %s", attribute_path, value)
         set(attribute_path, value, client=client)
+
+
+def reshard_log_tailer_table(table_kind, table_path, sync=True, client=None):
+    if table_kind == "ordered_normally":
+        logger.debug("Resharding %s", table_path)
+    pivot_keys = [[]] + [[YsonUint64(i), None, None, None] for i in xrange(1, 100)]
+    reshard_table(table_path, pivot_keys=pivot_keys, sync=sync, client=client)
 
 
 def create_log_tailer_table(table_kind, table_path, client=None):
@@ -467,6 +469,7 @@ def prepare_log_tailer_tables(log_file,
             unmount_table(path, sync=True)
         set_log_tailer_table_attributes(kind, path, ttl, log_tailer_version=log_tailer_version, client=client)
         set_log_tailer_table_dynamic_attributes(kind, path, client=client)
+        reshard_log_tailer_table(kind, path, client=client)
         mount_table(path, sync=True)
 
 
