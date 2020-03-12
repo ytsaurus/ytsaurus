@@ -522,7 +522,6 @@ def package(options, build_context):
 #            "yandex-yt-perl.json",
 #            "yandex-yt-perl-abi.json",
             "yandex-yt-scheduler.json",
-            "yandex-yt-src.json",
         ]
         artifacts_dir = get_artifacts_dir(options)
         with cwd(artifacts_dir):
