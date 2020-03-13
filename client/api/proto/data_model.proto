@@ -1966,8 +1966,14 @@ message TDnsRecordSetSpec
             A = 1
             [(NYT.NYson.NProto.enum_value_name) = "A"];
 
+            CNAME = 5
+            [(NYT.NYson.NProto.enum_value_name) = "CNAME"];
+
             PTR = 12
             [(NYT.NYson.NProto.enum_value_name) = "PTR"];
+
+            TXT = 16
+            [(NYT.NYson.NProto.enum_value_name) = "TXT"];
 
             AAAA = 28
             [(NYT.NYson.NProto.enum_value_name) = "AAAA"];
