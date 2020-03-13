@@ -378,7 +378,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     }
 
     const auto& descriptor = *optionalDescriptor;
-    if (!descriptor.External) {
+    if (!descriptor.External || !descriptor.Present) {
         return std::nullopt;
     }
 
