@@ -568,3 +568,79 @@ func TestUnmarshalEmbeddedUnexportedNonStruct(t *testing.T) {
 		require.NoError(t, err)
 	}
 }
+
+func TestJSONNumberConversion(t *testing.T) {
+	type S struct {
+		I int64
+		U uint64
+		F float64
+	}
+
+	for _, testCase := range []struct {
+		JSON string
+		Err  bool
+	}{
+		{JSON: `{"I":10}`},
+		{JSON: `{"I":18446744073709551616}`, Err: true},
+		{JSON: `{"U":18446744073709551616}`, Err: true},
+		{JSON: `{"U":-1}`, Err: true},
+		{JSON: `{"U":18446744073709551615}`},
+		{JSON: `{"U":0.5}`, Err: true},
+		{JSON: `{"I":0.5}`, Err: true},
+		{JSON: `{"U":1.0}`, Err: true},
+		{JSON: `{"I":1.0}`, Err: true},
+		{JSON: `{"I":1e2}`, Err: true},
+		{JSON: `{"U":1e2}`, Err: true},
+		{JSON: `{"F":18446744073709551615}`},
+		{JSON: `{"F":1e-3000}`},
+	} {
+		t.Run(testCase.JSON, func(t *testing.T) {
+			var v S
+			if testCase.Err {
+				require.Error(t, json.Unmarshal([]byte(testCase.JSON), &v))
+			} else {
+				require.NoError(t, json.Unmarshal([]byte(testCase.JSON), &v))
+			}
+		})
+	}
+}
+
+func TestYSONNumberConversion(t *testing.T) {
+	type S struct {
+		I int64
+		U uint64
+		F float64
+	}
+
+	for _, testCase := range []struct {
+		YSON string
+		Err  bool
+	}{
+		{YSON: `{I=10}`},
+		{YSON: `{I=10u}`},
+		{YSON: `{U=10}`},
+		{YSON: `{I=18446744073709551616}`, Err: true},
+		{YSON: `{U=18446744073709551616u}`, Err: true},
+		{YSON: `{U=-1}`, Err: true},
+		{YSON: `{U=18446744073709551615u}`},
+		{YSON: `{U=0.5}`, Err: true},
+		{YSON: `{I=0.5}`, Err: true},
+		{YSON: `{U=1.0}`, Err: true},
+		{YSON: `{I=1.0}`, Err: true},
+		{YSON: `{I=1e2}`, Err: true},
+		{YSON: `{U=1e2}`, Err: true},
+		{YSON: `{F=18446744073709551615u}`},
+		{YSON: `{F=-1}`},
+		{YSON: `{F=1e-3000}`},
+		{YSON: `{F=1e2}`},
+	} {
+		t.Run(testCase.YSON, func(t *testing.T) {
+			var v S
+			if testCase.Err {
+				require.Error(t, yson.Unmarshal([]byte(testCase.YSON), &v))
+			} else {
+				require.NoError(t, yson.Unmarshal([]byte(testCase.YSON), &v))
+			}
+		})
+	}
+}
