@@ -343,6 +343,9 @@ message TNodeSpec
     // If true then YP Master instructs node agents to drop all unknown pods.
     optional bool force_remove_unknown_pods = 7;
 
+    // If true then YP Master instructs node agents to drop all unknown persistent volumes.
+    optional bool force_remove_unknown_persistent_volumes = 9;
+
     // Currently this is an opaque data; cf. YP-809.
     optional google.protobuf.Any host_manager = 8;
 }
@@ -508,8 +511,16 @@ message TNodeStatus
     repeated string unknown_pod_ids = 7
     [(NYP.NClient.NApi.NProto.etc) = true];
 
+    // Contains ids of persistent volumes that are reported to be present at the disks
+    // attached to the node but are neither known to exist nor were recently removed.
+    repeated string unknown_persistent_volume_ids = 13
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
     // Currently this is an opaque data; cf. YP-809.
     optional google.protobuf.Any host_manager = 9;
+
+    // Ids of pods assigned to this node.
+    repeated string pod_ids = 14;
 }
 
 message TNodeControl
@@ -526,18 +537,8 @@ message TNodeControl
         // Can be passed only if state is equal to HS_PREPARE_MAINTENANCE.
         optional TMaintenanceInfo maintenance_info = 3;
     }
-
     // Enables updating HFSM state.
     optional TUpdateHfsmState update_hfsm_state = 1;
-
-    message TRemoveAlert
-    {
-        // Uuid of the alert to remove (see TNodeAlert).
-        optional string uuid = 1;
-
-        // Comment for debug purposes.
-        optional string message = 2;
-    }
 
     message TAddAlert
     {
@@ -547,12 +548,35 @@ message TNodeControl
         // Human-readable description of the alert to add (see TNodeAlert).
         optional string description = 2;
     }
+    // Adds node alert.
+    optional TAddAlert add_alert = 3;
 
+    message TRemoveAlert
+    {
+        // UUID of the alert to remove (see TNodeAlert).
+        optional string uuid = 1;
+
+        // Comment for debug purposes.
+        optional string message = 2;
+    }
     // Removes node alert.
     optional TRemoveAlert remove_alert = 2;
 
-    // Adds node alert.
-    optional TAddAlert add_alert = 3;
+    message TAttachPersistentDisk
+    {
+        // Id of disk to attach.
+        required string disk_id = 1;
+    }
+    // Attaches disk to node. For debug use only.
+    optional TAttachPersistentDisk attach_persistent_disk = 4;
+
+    message TDetachPersistentDisk
+    {
+        // Id of disk to detach.
+        required string disk_id = 1;
+    }
+    // Detaches disk from node. For debug use only.
+    optional TDetachPersistentDisk detach_persistent_disk = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -615,6 +639,7 @@ message TResourceSpec
         required uint64 total_bandwidth = 1;
     }
 
+    // Cf. TPersistentDiskSpec.TManagedPolicy.
     message TDiskSpec
     {
         reserved 9, 10;
@@ -1067,6 +1092,7 @@ message TPodSpec
     message TDiskVolumeRequest
     {
         // Pod-wise unique id.
+        // TODO(babenko): rename to "name"
         required string id = 1;
 
         // These labels get propagated to /pod/status/disk_volume_allocations/*/labels
@@ -1108,13 +1134,20 @@ message TPodSpec
     repeated TDiskVolumeRequest disk_volume_requests = 13
     [(NYP.NClient.NApi.NProto.etc) = true];
 
-    message TDiskVolumeMount
+    message TDiskVolumeClaim
     {
+        // Altogether, TDiskVolumeRequest.id and TDiskVolumeClaim.name are pod-wise unique
+        // and enable addressing volumes (both transient and persistent) within a pod.
+        required string name = 1;
+
+        // These labels get propagated to /pod/status/disk_volume_mounts/*/labels
+        optional NYT.NYTree.NProto.TAttributeDictionary labels = 2;
+
         // Persistent volume claim whose associated volume must be mounted into the pod.
-        required string claim_id = 1;
+        required string claim_id = 3;
     }
-    // Persistent disk volumes to mount into this pod upon assignment.
-    repeated TDiskVolumeMount disk_volume_mounts = 25
+    // Persistent disk volumes (indirectly represented by claims) to mount into this pod upon assignment.
+    repeated TDiskVolumeClaim disk_volume_claims = 25
     [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TGpuRequest
@@ -1410,7 +1443,7 @@ message TPodStatus
     message TDiskVolumeAllocation
     {
         // Copied from /pod/spec/disk_volume_requests/*/id.
-        // TODO(babenko): to be removed to name
+        // TODO(babenko): rename to "name"
         optional string id = 1;
 
         // Copied from /pod/spec/disk_volume_requests/*/labels.
@@ -1455,6 +1488,20 @@ message TPodStatus
         optional uint64 write_operation_rate_limit = 15;
     }
     repeated TDiskVolumeAllocation disk_volume_allocations = 14
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
+    message TDiskVolumeMount
+    {
+        // Copied from /pod/spec/disk_volume_claims/*/name.
+        optional string name = 1;
+
+        // Copied from /pod/spec/disk_volume_claims/*/labels.
+        optional NYT.NYTree.NProto.TAttributeDictionary labels = 2;
+
+        // Id of persistent volume satisfying the claim.
+        optional string volume_id = 3;
+    }
+    repeated TDiskVolumeMount disk_volume_mounts = 19
     [(NYP.NClient.NApi.NProto.etc) = true];
 
     message TGpuAllocation

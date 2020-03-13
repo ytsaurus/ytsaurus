@@ -9,7 +9,9 @@ namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IObjectTypeHandler> CreatePodTypeHandler(NMaster::TBootstrap* bootstrap, TPodTypeHandlerConfigPtr config);
+std::unique_ptr<IObjectTypeHandler> CreatePodTypeHandler(
+    NMaster::TBootstrap* bootstrap,
+    TPodTypeHandlerConfigPtr config);
 
 void ValidateDeployPodSpecTemplate(
     const NAccessControl::TAccessControlManagerPtr& accessControlManager,

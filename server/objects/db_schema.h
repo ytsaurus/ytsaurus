@@ -1026,6 +1026,127 @@ extern const struct THorizontalPodAutoscalersTable
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern const struct TPersistentDisksTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TPersistentDisksTable()
+        : TDBTable("persistent_disks")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Meta_Kind{"meta.kind", NTableClient::EValueType::Int64};
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
+        TDBField Status_AttachedToNodeId{"status.attached_to_node_id", NTableClient::EValueType::String};
+        TDBField Status_Etc{"status.etc", NTableClient::EValueType::Any};
+    } Fields;
+} PersistentDisksTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TPersistentVolumesTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TPersistentVolumesTable()
+        : TDBTable("persistent_volumes")
+    {
+        Key = {&Fields.Meta_DiskId, &TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Meta_DiskId{"meta.disk_id", NTableClient::EValueType::String};
+        TDBField Meta_Kind{"meta.kind", NTableClient::EValueType::Int64};
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
+        TDBField Status_BoundClaimId{"status.bound_claim_id", NTableClient::EValueType::String};
+        TDBField Status_MountedToPodId{"status.mounted_to_pod_id", NTableClient::EValueType::String};
+        TDBField Status_Etc{"status.etc", NTableClient::EValueType::Any};
+    } Fields;
+} PersistentVolumesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TNodeToPersistentDisksTable
+    : public TDBTable
+{
+    TNodeToPersistentDisksTable()
+        : TDBTable("node_to_persistent_disks")
+    {
+        Key = {&Fields.NodeId, &Fields.DiskId};
+    }
+
+    struct TFields
+    {
+        TDBField NodeId{"node_id", NTableClient::EValueType::String};
+        TDBField DiskId{"disk_id", NTableClient::EValueType::String};
+    } Fields;
+} NodeToPersistentDisksTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TPersistentDiskToVolumesTable
+    : public TDBTable
+{
+    TPersistentDiskToVolumesTable()
+        : TDBTable("persistent_disk_to_volumes")
+    {
+        Key = {&Fields.DiskId, &Fields.VolumeId};
+    }
+
+    struct TFields
+    {
+        TDBField DiskId{"disk_id", NTableClient::EValueType::String};
+        TDBField VolumeId{"volume_id", NTableClient::EValueType::String};
+    } Fields;
+} PersistentDiskToVolumesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TPersistentVolumeClaimsTable
+    : public TDBTable
+    , public TObjectTableBase
+{
+    TPersistentVolumeClaimsTable()
+        : TDBTable("persistent_volume_claims")
+    {
+        Key = {&TObjectTableBase::Fields.Meta_Id};
+    }
+
+    struct TFields
+        : public TObjectTableBase::TFields
+    {
+        TDBField Meta_Kind{"meta.kind", NTableClient::EValueType::Int64};
+        TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
+        TDBField Status_BoundVolumeId{"status.bound_volume_id", NTableClient::EValueType::String};
+    } Fields;
+} PersistentVolumeClaimsTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const struct TPodToMountedPersistentVolumesTable
+    : public TDBTable
+{
+    TPodToMountedPersistentVolumesTable()
+        : TDBTable("pod_to_mounted_persistent_volumes")
+    {
+        Key = {&Fields.PodId, &Fields.VolumeId};
+    }
+
+    struct TFields
+    {
+        TDBField PodId{"pod_id", NTableClient::EValueType::String};
+        TDBField VolumeId{"volume_id", NTableClient::EValueType::String};
+    } Fields;
+} PodToMountedPersistentVolumesTable;
+
+////////////////////////////////////////////////////////////////////////////////
+
 extern const std::vector<const TDBTable*> Tables;
 
 ////////////////////////////////////////////////////////////////////////////////

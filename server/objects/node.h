@@ -55,6 +55,14 @@ public:
         static const TScalarAttributeSchema<TNode, THostManager> HostManagerSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<THostManager>, HostManager);
 
+        using TPodsAttribute = TOneToManyAttribute<TNode, TPod>;
+        static const TPodsAttribute::TSchema PodsSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodsAttribute, Pods);
+
+        using TAttachedPersistentDisksAttribute = TOneToManyAttribute<TNode, TPersistentDisk>;
+        static const TAttachedPersistentDisksAttribute::TSchema AttachedPersistentDisksSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAttachedPersistentDisksAttribute, AttachedPersistentDisks);
+
         using TEtc = NProto::TNodeStatusEtc;
         static const TScalarAttributeSchema<TNode, TEtc> EtcSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
@@ -65,10 +73,6 @@ public:
     using TSpec = NClient::NApi::NProto::TNodeSpec;
     static const TScalarAttributeSchema<TNode, TSpec> SpecSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TSpec>, Spec);
-
-    static const TOneToManyAttributeSchema<TNode, TPod> PodsSchema;
-    using TPods = TOneToManyAttribute<TNode, TPod>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPods, Pods);
 
     // Hfsm.
     void UpdateHfsmStatus(

@@ -1,15 +1,14 @@
 #pragma once
 
-#include <yp/server/lib/objects/private.h>
+#include "public.h"
 
-#include <yt/core/logging/log.h>
+#include <yp/server/master/public.h>
 
 namespace NYP::NServer::NObjects {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int DBVersion = 53;
-extern const NYT::NLogging::TLogger Logger;
+std::unique_ptr<IObjectTypeHandler> CreatePersistentDiskTypeHandler(NMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

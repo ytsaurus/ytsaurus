@@ -198,10 +198,107 @@ void TScalarAttribute<T>::StoreNewValue(NTableClient::TUnversionedValue* dbValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TThis, class TThat>
+TOneToOneAttribute<TThis, TThat>::TOneToOneAttribute(
+    TObject* owner,
+    const TSchema* schema)
+    : TAttributeBase(owner)
+    , Schema_(schema)
+    , UnderlyingSchema_(Schema_->Field, nullptr)
+    , Underlying_(owner, &UnderlyingSchema_)
+{ }
+
+template <class TThis, class TThat>
+TThat* TOneToOneAttribute<TThis, TThat>::Load() const
+{
+    return IdToThat(Underlying_.Load());
+}
+
+template <class TThis, class TThat>
+TOneToOneAttribute<TThis, TThat>::operator TThat*() const
+{
+    return Load();
+}
+
+template <class TThis, class TThat>
+TThat* TOneToOneAttribute<TThis, TThat>::LoadOld() const
+{
+    return IdToThat(Underlying_.LoadOld());
+}
+
+template <class TThis, class TThat>
+void TOneToOneAttribute<TThis, TThat>::Store(TThat* value)
+{
+    auto* currentValue = Load();
+    if (currentValue == value) {
+        return;
+    }
+
+    if (currentValue) {
+        Underlying_.Store(TObjectId());
+        Schema_->InverseAttributeGetter(currentValue)->Underlying_.Store(Owner_->GetId());
+    }
+
+    if (value) {
+        Underlying_.Store(value->GetId());
+        Schema_->InverseAttributeGetter(value)->Underlying_.Store(Owner_->GetId());
+    }
+}
+
+template <class TThis, class TThat>
+TOneToOneAttribute<TThis, TThat>& TOneToOneAttribute<TThis, TThat>::operator=(TThat* value)
+{
+    Store(value);
+    return *this;
+}
+
+template <class TThis, class TThat>
+void TOneToOneAttribute<TThis, TThat>::ScheduleLoadTimestamp() const
+{
+    Underlying_.ScheduleLoadTimestamp();
+}
+
+template <class TThis, class TThat>
+TTimestamp TOneToOneAttribute<TThis, TThat>::LoadTimestamp() const
+{
+    return Underlying_.LoadTimestamp();
+}
+
+template <class TThis, class TThat>
+bool TOneToOneAttribute<TThis, TThat>::IsChanged() const
+{
+    return Underlying_.IsChanged();
+}
+
+template <class TThis, class TThat>
+void TOneToOneAttribute<TThis, TThat>::ScheduleLoad() const
+{
+    Underlying_.ScheduleLoad();
+}
+
+template <class TThis, class TThat>
+TThat* TOneToOneAttribute<TThis, TThat>::IdToThat(const TObjectId& id) const
+{
+    return id
+        ? Underlying_.GetOwner()->GetSession()->GetObject(TThat::Type, id)->template As<TThat>()
+        : nullptr;
+}
+
+template <class TThis, class TThat>
+void TOneToOneAttribute<TThis, TThat>::OnObjectRemoved()
+{
+    // TODO(babenko): consider using preload
+    if (auto* value = Load()) {
+        Schema_->InverseAttributeGetter(value)->Underlying_.Store(TObjectId());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TMany, class TOne>
 TManyToOneAttribute<TMany, TOne>::TManyToOneAttribute(
     TObject* owner,
-    const TManyToOneAttributeSchema<TMany, TOne>* schema)
+    const TSchema* schema)
     : TAttributeBase(owner)
     , Schema_(schema)
     , UnderlyingSchema_(Schema_->Field, nullptr)
@@ -268,10 +365,8 @@ template <class TMany, class TOne>
 void TManyToOneAttribute<TMany, TOne>::OnObjectRemoved()
 {
     // TODO(babenko): consider using preload
-    auto* one = Load();
-    if (one) {
-        auto* inverseAttribute = Schema_->InverseAttributeGetter(one);
-        inverseAttribute->Remove(Owner_->As<TMany>());
+    if (auto* one = Load()) {
+        Schema_->InverseAttributeGetter(one)->Remove(Owner_->As<TMany>());
     }
 }
 
@@ -280,7 +375,7 @@ void TManyToOneAttribute<TMany, TOne>::OnObjectRemoved()
 template <class TOne, class TMany>
 TOneToManyAttribute<TOne, TMany>::TOneToManyAttribute(
     TOne* owner,
-    const TOneToManyAttributeSchema<TOne, TMany>* schema)
+    const TSchema* schema)
     : TOneToManyAttributeBase(owner, schema)
     , TypedOwner_(owner)
     , TypedSchema_(schema)
@@ -323,6 +418,14 @@ void TOneToManyAttribute<TOne, TMany>::Remove(TMany* many)
     YT_VERIFY(inverseAttribute->Load() == TypedOwner_);
     inverseAttribute->Store(nullptr);
     DoRemove(many);
+}
+
+template <class TOne, class TMany>
+void TOneToManyAttribute<TOne, TMany>::Clear()
+{
+    for (auto* many : Load()) {
+        Remove(many);
+    }
 }
 
 template <class TOne, class TMany>

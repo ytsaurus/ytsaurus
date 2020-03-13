@@ -28,6 +28,7 @@ import "yt/core/ytree/proto/attributes.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 import "yp/client/api/proto/enums.proto";
 import "yp/client/api/proto/conditions.proto";
+import "google/protobuf/timestamp.proto";
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,6 +42,7 @@ message TNodeStatusEtc
     NYP.NClient.NApi.NProto.TNodeStatus.TMaintenance maintenance = 6;
     repeated NYP.NClient.NApi.NProto.TNodeAlert alerts = 12;
     repeated string unknown_pod_ids = 7;
+    repeated string unknown_persistent_volume_ids = 13;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,7 +54,7 @@ message TPodSpecEtc
     repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6AddressRequest ip6_address_requests = 5;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TIP6SubnetRequest ip6_subnet_requests = 6;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TDiskVolumeRequest disk_volume_requests = 13;
-    repeated NYP.NClient.NApi.NProto.TPodSpec.TDiskVolumeMount disk_volume_mounts = 25;
+    repeated NYP.NClient.NApi.NProto.TPodSpec.TDiskVolumeClaim disk_volume_claims = 25;
     repeated NYP.NClient.NApi.NProto.TPodSpec.TGpuRequest gpu_requests = 23;
     string node_filter = 8;
     repeated NYP.NClient.NApi.NProto.TPodSpec.THostDevice host_devices = 10;
@@ -72,6 +74,7 @@ message TPodStatusEtc
     repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6AddressAllocation ip6_address_allocations = 5;
     repeated NYP.NClient.NApi.NProto.TPodStatus.TIP6SubnetAllocation ip6_subnet_allocations = 6;
     repeated NYP.NClient.NApi.NProto.TPodStatus.TDiskVolumeAllocation disk_volume_allocations = 14;
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TDiskVolumeMount disk_volume_mounts = 19;
     repeated NYP.NClient.NApi.NProto.TPodStatus.TGpuAllocation gpu_allocations = 16;
     NYP.NClient.NApi.NProto.TPodStatus.TDns dns = 7;
     NYP.NClient.NApi.NProto.TPodStatus.TEviction eviction = 8;
@@ -149,16 +152,24 @@ message TMultiClusterReplicaSetSpecEtc
 message TPersistentDiskSpecEtc
 {
     string storage_class = 1;
+    NYP.NClient.NApi.NProto.TPersistentDiskSpec.TManagedPolicy managed_policy = 4;
+    NYP.NClient.NApi.NProto.TPersistentDiskSpec.TRbindPolicy rbind_policy = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TManagedPolicyEtc
+{
     uint64 total_capacity = 2;
-    uint64 total_bandwidth = 3;
-    NYP.NClient.NApi.NProto.EPersistentDiskKind kind = 4;
+    uint64 total_volume_slots = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 message TPersistentDiskStatusEtc
 {
-    string mount_path = 1;
+    string last_seen_node_id = 2;
+    google.protobuf.Timestamp last_seen_time = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -168,13 +179,6 @@ message TPersistentVolumeClaimSpecEtc
     NYP.NClient.NApi.NProto.TPersistentVolumeClaimSpec.TQuotaPolicy quota_policy = 1;
     NYP.NClient.NApi.NProto.TPersistentVolumeClaimSpec.TExclusivePolicy exclusive_policy = 2;
     NYP.NClient.NApi.NProto.TPersistentVolumeClaimSpec.TExistingVolumePolicy existing_volume_policy = 3;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TPersistentVolumeClaimStatusEtc
-{
-    bool bound = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,6 +194,9 @@ message TPersistentVolumeSpecEtc
 message TPersistentVolumeStatusEtc
 {
     NYP.NClient.NApi.NProto.EPersistentVolumeState state = 1;
+    uint64 agent_spec_timestamp = 4;
+    NYT.NProto.TError execution_error = 5;
+    repeated string validation_failures = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

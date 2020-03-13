@@ -7,6 +7,8 @@ import "yt/core/yson/proto/protobuf_interop.proto";
 import "yp/client/api/proto/data_model.proto";
 import "yp/client/api/proto/enums.proto";
 
+import "google/protobuf/timestamp.proto";
+
 option python_package = "yp_proto.yp.client.api.proto";
 
 option go_package = "a.yandex-team.ru/yp/go/proto/ypapi";
@@ -17,32 +19,80 @@ option java_multiple_files = true;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
 option (NYP.NClient.NApi.NProto.object_type) = {
     camel_case_name: "PersistentDisk"
     snake_case_name: "persistent_disk"
     type_value: 30
 };
-*/
+
+message TPersistentDiskSpecMetaBase
+{
+    EPersistentDiskKind kind = 4;
+}
 
 message TPersistentDiskSpec
 {
+    // For informative use only.
     string storage_class = 1
     [(NYP.NClient.NApi.NProto.etc) = true];
 
-    uint64 total_capacity = 2
-    [(NYP.NClient.NApi.NProto.etc) = true];
+    // Cf. TResourceSpec.TDiskSpec.
+    message TManagedPolicy
+    {
+        // In bytes.
+        uint64 total_capacity = 2
+        [(NYP.NClient.NApi.NProto.etc) = true];
 
-    uint64 total_bandwidth = 3
-    [(NYP.NClient.NApi.NProto.etc) = true];
+        // Each volume occupies a virtual "slot".
+        // This prevents assigning too many volumes to a single physical disk.
+        uint64 total_volume_slots = 3
+        [(NYP.NClient.NApi.NProto.etc) = true];
 
-    EPersistentDiskKind kind = 4
-    [(NYP.NClient.NApi.NProto.etc) = true];
+        // Total provided bandwidth in bytes per second.
+        uint64 total_bandwidth = 6;
+
+        // Total provided read bandwidth is estimated
+        // using total_bandwidth and the following factor.
+        double read_bandwidth_factor = 7;
+
+        // Total provided write bandwidth is estimated
+        // using total_bandwidth and the following factor.
+        double write_bandwidth_factor = 8;
+
+        // Total provided read operations per second is estimated
+        // using total_bandwidth and the following divisor.
+        double read_operation_rate_divisor = 11;
+
+        // Total provided write operations per second is estimated
+        // using total_bandwidth and the following divisor.
+        double write_operation_rate_divisor = 12;
+    }
+
+    message TRbindPolicy
+    {
+    }
+
+    oneof concrete_policy
+    {
+        TManagedPolicy managed_policy = 4
+        [(NYP.NClient.NApi.NProto.etc) = true];
+
+        TRbindPolicy rbind_policy = 5
+        [(NYP.NClient.NApi.NProto.etc) = true];
+    }
 }
 
 message TPersistentDiskStatus
 {
-    string mount_path = 1
+    // The id of the node this disk is currently attached to, if any.
+    string attached_to_node_id = 1;
+
+    // The id of the node last reported the presence of this disk.
+    string last_seen_node_id = 2
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
+    // The time this disk was last reported by the node.
+    google.protobuf.Timestamp last_seen_time = 3
     [(NYP.NClient.NApi.NProto.etc) = true];
 }
 

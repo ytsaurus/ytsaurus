@@ -388,6 +388,70 @@ private:
     virtual void StoreNewValue(NTableClient::TUnversionedValue* dbValue, IStoreContext* context) override;
 };
 
+template <class TThis, class TThat>
+struct TOneToOneAttributeSchema
+{
+    TOneToOneAttributeSchema(
+        const TDBField* field,
+        std::function<TOneToOneAttribute<TThis, TThat>*(TThis*)> forwardAttributeGetter,
+        std::function<TOneToOneAttribute<TThat, TThis>*(TThat*)> inverseAttributeGetter)
+        : Field(field)
+        , ForwardAttributeGetter(std::move(forwardAttributeGetter))
+        , InverseAttributeGetter(std::move(inverseAttributeGetter))
+    { }
+
+    const TDBField* Field;
+    std::function<TOneToOneAttribute<TThis, TThat>*(TThis*)> ForwardAttributeGetter;
+    std::function<TOneToOneAttribute<TThat, TThis>*(TThat*)> InverseAttributeGetter;
+    bool Nullable = true;
+
+    TOneToOneAttributeSchema SetNullable(bool value) const
+    {
+        auto result = *this;
+        result.Nullable = value;
+        return result;
+    }
+};
+
+template <class TThis, class TThat>
+class TOneToOneAttribute
+    : public TAttributeBase
+{
+public:
+    using TSchema = TOneToOneAttributeSchema<TThis, TThat>;
+
+    TOneToOneAttribute(
+        TObject* owner,
+        const TSchema* schema);
+
+    void ScheduleLoad() const;
+
+    TThat* Load() const;
+    operator TThat*() const;
+    TThat* LoadOld() const;
+
+    void Store(TThat* value);
+    TOneToOneAttribute& operator = (TThat* value);
+
+    void ScheduleLoadTimestamp() const;
+    TTimestamp LoadTimestamp() const;
+
+    bool IsChanged() const;
+
+private:
+    template <class TThis_, class TThat_>
+    friend class TOneToOneAttribute;
+
+    const TSchema* const Schema_;
+    const TScalarAttributeSchema<TThis, TObjectId> UnderlyingSchema_;
+
+    TScalarAttribute<TObjectId> Underlying_;
+
+    TThat* IdToThat(const TObjectId& id) const;
+
+    virtual void OnObjectRemoved() override;
+};
+
 template <class TMany, class TOne>
 struct TManyToOneAttributeSchema
 {
@@ -418,9 +482,11 @@ class TManyToOneAttribute
     : public TAttributeBase
 {
 public:
+    using TSchema = TManyToOneAttributeSchema<TMany, TOne>;
+
     TManyToOneAttribute(
         TObject* owner,
-        const TManyToOneAttributeSchema<TMany, TOne>* schema);
+        const TSchema* schema);
 
     void ScheduleLoad() const;
 
@@ -437,7 +503,7 @@ private:
     template <class TOne_, class TMany_>
     friend class TOneToManyAttribute;
 
-    const TManyToOneAttributeSchema<TMany, TOne>* const Schema_;
+    const TSchema* const Schema_;
     const TScalarAttributeSchema<TMany, TObjectId> UnderlyingSchema_;
 
     TScalarAttribute<TObjectId> Underlying_;
@@ -517,18 +583,21 @@ class TOneToManyAttribute
     : public TOneToManyAttributeBase
 {
 public:
+    using TSchema = TOneToManyAttributeSchema<TOne, TMany>;
+
     TOneToManyAttribute(
         TOne* owner,
-        const TOneToManyAttributeSchema<TOne, TMany>* schema);
+        const TSchema* schema);
 
     std::vector<TMany*> Load() const;
 
     void Add(TMany* many);
     void Remove(TMany* many);
+    void Clear();
 
 private:
     TOne* const TypedOwner_;
-    const TOneToManyAttributeSchema<TOne, TMany>* const TypedSchema_;
+    const TSchema* const TypedSchema_;
 
     virtual EObjectType GetForeignObjectType() const;
     virtual void OnObjectRemoved() override;

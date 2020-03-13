@@ -340,6 +340,12 @@ public:
     void AllocateNonce(NNet::TNonce nonce);
     bool HasAllocatedNonce(NNet::TNonce nonce);
 
+    TPersistentDisk* GetPersistentDisk(const TObjectId& id);
+
+    TPersistentVolume* GetPersistentVolume(const TObjectId& id);
+
+    TPersistentVolumeClaim* GetPersistentVolumeClaim(const TObjectId& id);
+
     TFuture<TTransactionCommitResult> Commit();
     void Abort();
 

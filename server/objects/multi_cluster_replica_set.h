@@ -33,12 +33,12 @@ public:
     public:
         explicit TSpec(TMultiClusterReplicaSet* replicaSet);
 
-        static const TManyToOneAttributeSchema<TMultiClusterReplicaSet, TAccount> AccountSchema;
         using TAccountAttribute = TManyToOneAttribute<TMultiClusterReplicaSet, TAccount>;
+        static const TAccountAttribute::TSchema AccountSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
 
-        static const TManyToOneAttributeSchema<TMultiClusterReplicaSet, TNodeSegment> NodeSegmentSchema;
         using TNodeSegmentAttribute = TManyToOneAttribute<TMultiClusterReplicaSet, TNodeSegment>;
+        static const TNodeSegmentAttribute::TSchema NodeSegmentSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TNodeSegmentAttribute, NodeSegment);
 
         using TEtc = NProto::TMultiClusterReplicaSetSpecEtc;

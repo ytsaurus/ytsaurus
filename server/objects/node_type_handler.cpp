@@ -2,6 +2,7 @@
 #include "type_handler_detail.h"
 #include "node.h"
 #include "pod.h"
+#include "persistent_disk.h"
 #include "db_schema.h"
 
 #include <yp/server/net/helpers.h>
@@ -56,6 +57,12 @@ public:
                 MakeAttributeSchema("host_manager")
                     ->SetAttribute(TNode::TStatus::HostManagerSchema),
 
+                MakeAttributeSchema("pod_ids")
+                    ->SetAttribute(TNode::TStatus::PodsSchema),
+
+                MakeAttributeSchema("attached_persistent_disk_ids")
+                    ->SetAttribute(TNode::TStatus::AttachedPersistentDisksSchema),
+
                 MakeEtcAttributeSchema()
                     ->SetUpdatable()
                     ->SetAttribute(TNode::TStatus::EtcSchema)
@@ -66,11 +73,17 @@ public:
                 MakeAttributeSchema("update_hfsm_state")
                     ->SetControl<TNode, NClient::NApi::NProto::TNodeControl_TUpdateHfsmState>(std::bind(&TNodeTypeHandler::UpdateHfsmState, _1, _2, _3)),
 
+                MakeAttributeSchema("add_alert")
+                    ->SetControl<TNode, NClient::NApi::NProto::TNodeControl_TAddAlert>(std::bind(&TNodeTypeHandler::AddAlert, _1, _2, _3)),
+
                 MakeAttributeSchema("remove_alert")
                     ->SetControl<TNode, NClient::NApi::NProto::TNodeControl_TRemoveAlert>(std::bind(&TNodeTypeHandler::RemoveAlert, _1, _2, _3)),
 
-                MakeAttributeSchema("add_alert")
-                    ->SetControl<TNode, NClient::NApi::NProto::TNodeControl_TAddAlert>(std::bind(&TNodeTypeHandler::AddAlert, _1, _2, _3))
+                MakeAttributeSchema("attach_persistent_disk")
+                    ->SetControl<TNode, NClient::NApi::NProto::TNodeControl_TAttachPersistentDisk>(std::bind(&TNodeTypeHandler::AttachPersistentDisk, _1, _2, _3)),
+
+                MakeAttributeSchema("detach_persistent_disk")
+                    ->SetControl<TNode, NClient::NApi::NProto::TNodeControl_TDetachPersistentDisk>(std::bind(&TNodeTypeHandler::DetachPersistentDisk, _1, _2, _3))
             });
     }
 
@@ -122,7 +135,7 @@ public:
         TObjectTypeHandlerBase::BeforeObjectRemoved(transaction, object);
 
         auto* node = object->As<TNode>();
-        const auto& pods = node->Pods().Load();
+        const auto& pods = node->Status().Pods().Load();
         if (!pods.empty()) {
             THROW_ERROR_EXCEPTION("Cannot remove node %Qv since it has %v pod(s) assigned",
                 node->GetId(),
@@ -178,7 +191,7 @@ private:
             maintenanceInfo.emplace().CopyFrom(control.maintenance_info());
         }
 
-        YT_LOG_DEBUG("Updating node HFSM state (NodeId: %v, State: %v, Message: %Qv, MaintenanceInfo: %v)",
+        YT_LOG_DEBUG("Updating node HFSM state (NodeId: %v, State: %v, Message: %v, MaintenanceInfo: %v)",
             node->GetId(),
             state,
             message,
@@ -190,28 +203,64 @@ private:
             std::move(maintenanceInfo));
     }
 
+    static void AddAlert(
+        TTransaction* /*transaction*/,
+        TNode* node,
+        const NClient::NApi::NProto::TNodeControl_TAddAlert& control)
+    {
+        YT_LOG_DEBUG("Adding node alert (NodeId: %v, Type: %v, Description: %v)",
+            node->GetId(),
+            control.type(),
+            control.description());
+        node->AddAlert(control.type(), control.description());
+    }
+
     static void RemoveAlert(
         TTransaction* /*transaction*/,
         TNode* node,
         const NClient::NApi::NProto::TNodeControl_TRemoveAlert& control)
     {
-        YT_LOG_DEBUG("Removing node alert (NodeId: %v, Uuid: %v, Message: %Qv)",
+        YT_LOG_DEBUG("Removing node alert (NodeId: %v, Uuid: %v, Message: %v)",
             node->GetId(),
             control.uuid(),
             control.message());
         node->RemoveAlert(control.uuid());
     }
 
-    static void AddAlert(
-        TTransaction* /*transaction*/,
+    static void AttachPersistentDisk(
+        TTransaction* transaction,
         TNode* node,
-        const NClient::NApi::NProto::TNodeControl_TAddAlert& control)
+        const NClient::NApi::NProto::TNodeControl_TAttachPersistentDisk& control)
     {
-        YT_LOG_DEBUG("Adding node alert (NodeId: %v, Type: %v, Description: %Qv)",
+        YT_LOG_DEBUG("Attaching persistent disk to node (NodeId: %v, DiskId: %v)",
             node->GetId(),
-            control.type(),
-            control.description());
-        node->AddAlert(control.type(), control.description());
+            control.disk_id());
+
+        auto* disk = transaction->GetPersistentDisk(control.disk_id());
+        if (auto* currentNode = disk->Status().AttachedToNode().Load()) {
+            THROW_ERROR_EXCEPTION("Persistent disk %Qv is already attached to node %Qv",
+                disk->GetId(),
+                currentNode->GetId());
+        }
+        node->Status().AttachedPersistentDisks().Add(disk);
+    }
+
+    static void DetachPersistentDisk(
+        TTransaction* transaction,
+        TNode* node,
+        const NClient::NApi::NProto::TNodeControl_TDetachPersistentDisk& control)
+    {
+        YT_LOG_DEBUG("Detaching persistent disk from node (NodeId: %v, DiskId: %v)",
+            node->GetId(),
+            control.disk_id());
+
+        auto* disk = transaction->GetPersistentDisk(control.disk_id());
+        if (disk->Status().AttachedToNode().Load() != node) {
+            THROW_ERROR_EXCEPTION("Persistent disk %Qv is not attached to node %Qv",
+                disk->GetId(),
+                node->GetId());
+        }
+        node->Status().AttachedPersistentDisks().Remove(disk);
     }
 };
 

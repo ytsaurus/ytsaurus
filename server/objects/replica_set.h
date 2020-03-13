@@ -35,12 +35,12 @@ public:
     public:
         explicit TSpec(TReplicaSet* replicaSet);
 
-        static const TManyToOneAttributeSchema<TReplicaSet, TAccount> AccountSchema;
         using TAccountAttribute = TManyToOneAttribute<TReplicaSet, TAccount>;
+        static const TAccountAttribute::TSchema AccountSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
 
-        static const TManyToOneAttributeSchema<TReplicaSet, TNodeSegment> NodeSegmentSchema;
         using TNodeSegmentAttribute = TManyToOneAttribute<TReplicaSet, TNodeSegment>;
+        static const TNodeSegmentAttribute::TSchema NodeSegmentSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TNodeSegmentAttribute, NodeSegment);
 
         using TEtc = NProto::TReplicaSetSpecEtc;

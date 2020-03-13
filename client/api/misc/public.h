@@ -108,6 +108,9 @@ DEFINE_ENUM(EObjectType,
     ((DeployTicket)           (25))
     ((HorizontalPodAutoscaler)(26))
     ((DaemonSet)              (27))
+    ((PersistentDisk)         (30))
+    ((PersistentVolume)       (31))
+    ((PersistentVolumeClaim)  (32))
     ((NetworkModule)         (100)) // internal, not present in data_model.proto
     ((Schema)                (256))
 );

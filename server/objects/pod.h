@@ -83,6 +83,10 @@ public:
         static const TScalarAttributeSchema<TPod, TDynamicResourceStatus> DynamicResourcesSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TDynamicResourceStatus>, DynamicResources);
 
+        using TMountedPersistentVolumesAttribute = TOneToManyAttribute<TPod, TPersistentVolume>;
+        static const TMountedPersistentVolumesAttribute::TSchema MountedPersistentVolumesSchema;
+        DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMountedPersistentVolumesAttribute, MountedPersistentVolumes);
+
         using TEtc = NProto::TPodStatusEtc;
         static const TScalarAttributeSchema<TPod, TEtc> EtcSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TEtc>, Etc);
@@ -95,8 +99,8 @@ public:
     public:
         explicit TSpec(TPod* pod);
 
-        static const TManyToOneAttributeSchema<TPod, TNode> NodeSchema;
         using TNodeAttribute = TManyToOneAttribute<TPod, TNode>;
+        static const TNodeAttribute::TSchema NodeSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TNodeAttribute, Node);
 
         static const TScalarAttributeSchema<TPod, TString> IssPayloadSchema;
@@ -124,8 +128,8 @@ public:
         static const TScalarAttributeSchema<TPod, TResourceCache> ResourceCacheSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TResourceCache>, ResourceCache);
 
-        static const TManyToOneAttributeSchema<TPod, TAccount> AccountSchema;
         using TAccountAttribute = TManyToOneAttribute<TPod, TAccount>;
+        static const TAccountAttribute::TSchema AccountSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
 
         using TDynamicAttributes = NClient::NApi::NProto::TPodSpec_TDynamicAttributes;

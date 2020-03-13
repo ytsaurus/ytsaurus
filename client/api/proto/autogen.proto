@@ -107,6 +107,15 @@ enum EObjectType
     OT_MULTI_CLUSTER_REPLICA_SET = 16
     [(NYT.NYson.NProto.enum_value_name) = "multi_cluster_replica_set"];
 
+    OT_PERSISTENT_DISK = 30
+    [(NYT.NYson.NProto.enum_value_name) = "persistent_disk"];
+
+    OT_PERSISTENT_VOLUME_CLAIM = 32
+    [(NYT.NYson.NProto.enum_value_name) = "persistent_volume_claim"];
+
+    OT_PERSISTENT_VOLUME = 31
+    [(NYT.NYson.NProto.enum_value_name) = "persistent_volume"];
+
     OT_PROJECT = 22
     [(NYT.NYson.NProto.enum_value_name) = "project"];
 
@@ -631,6 +640,74 @@ message TMultiClusterReplicaSet
     TMultiClusterReplicaSetMeta meta = 1;
     TMultiClusterReplicaSetSpec spec = 2;
     TMultiClusterReplicaSetStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPersistentDiskMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TPersistentDisk
+{
+    TPersistentDiskMeta meta = 1;
+    TPersistentDiskSpec spec = 2;
+    TPersistentDiskStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPersistentVolumeClaimMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+}
+
+message TPersistentVolumeClaim
+{
+    TPersistentVolumeClaimMeta meta = 1;
+    TPersistentVolumeClaimSpec spec = 2;
+    TPersistentVolumeClaimStatus status = 3;
+    NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TPersistentVolumeMeta
+{
+    string id = 1;
+    string uuid = 12;
+    string name = 13;
+    EObjectType type = 2;
+    uint64 creation_time = 3;
+    bool inherit_acl = 10;
+    repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string disk_id = 4;
+}
+
+message TPersistentVolume
+{
+    TPersistentVolumeMeta meta = 1;
+    TPersistentVolumeSpec spec = 2;
+    TPersistentVolumeStatus status = 3;
     NYT.NYTree.NProto.TAttributeDictionary labels = 4;
     NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
 }

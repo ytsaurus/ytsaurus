@@ -8,6 +8,8 @@
 #include <yp/server/objects/pod.h>
 #include <yp/server/objects/pod_set.h>
 #include <yp/server/objects/resource.h>
+#include <yp/server/objects/persistent_disk.h>
+#include <yp/server/objects/persistent_volume.h>
 
 #include <yp/server/master/config.h>
 #include <yp/server/master/bootstrap.h>
@@ -27,6 +29,8 @@
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <queue>
+
+#include <contrib/libs/protobuf/util/time_util.h>
 
 namespace NYP::NServer::NNodes {
 
@@ -120,7 +124,7 @@ public:
 
         void Run()
         {
-            SchedulePreload();
+            SchedulePreloadNode();
 
             ValidateSequencing();
 
@@ -130,17 +134,21 @@ public:
 
             UpdateNode();
 
-            CheckUnknownPods();
+            if (!CheckUnknownPods()) {
+                return;
+            }
 
-            if (Node_->Status().Etc()->unknown_pod_ids_size() > 0 &&
-                !Node_->Spec().Load().force_remove_unknown_pods())
-            {
+            if (!CheckUnknownPersistentVolumes()) {
                 return;
             }
 
             ProcessReportedPods();
 
             SchedulePodInstall();
+
+            ProcessReportedPersistentDisks();
+
+            ProcessReportedPersistentVolumes();
 
             AnalyzePodInstallErrors();
 
@@ -152,7 +160,7 @@ public:
 
             for (auto& [pod, podSpec] : PodsToUpdate_) {
                 PopulateBasicAgentSpec(&podSpec, pod);
-                PopulateDynamicAttributes(&podSpec, pod);
+                PopulateDynamicPodAttributes(&podSpec, pod);
             }
 
             FillResponse();
@@ -174,22 +182,24 @@ public:
         THashMap<TPod*, NClient::NNodes::NProto::TPodSpec> PodsToUpdate_;
         std::vector<TPod*> PodsToKeep_;
         std::vector<TObjectId> PodIdsToRemove_;
-
         THashSet<TObjectId> ReportedPodIds_;
         THashSet<TObjectId> UpToDatePodIds_;
-
         THashMap<TObjectId, TPod*> ExpectedPods_;
 
+        THashSet<TPersistentVolume*> PersistentVolumesToCreate_;
+        THashSet<TPersistentVolume*> PersistentVolumesToUpdate_;
+        std::vector<TObjectId> PersistentVolumeIdsToRemove_;
 
         void ScheduleUpdatePod(TPod* pod)
         {
             YT_VERIFY(PodsToUpdate_.emplace(pod, NClient::NNodes::NProto::TPodSpec()).second);
-            PreparePodUpdate(pod);
+            SchedulePreloadPodSpec(pod);
         }
 
         void ScheduleKeepPod(TPod* pod)
         {
             PodsToKeep_.push_back(pod);
+            SchedulePreloadPodSpec(pod);
         }
 
         void ScheduleRemovePod(TObjectId podId)
@@ -197,7 +207,7 @@ public:
             PodIdsToRemove_.push_back(std::move(podId));
         }
 
-        void PreparePodUpdate(TPod* pod)
+        void SchedulePreloadPodSpec(TPod* pod)
         {
             pod->Spec().IssPayload().ScheduleLoad();
             pod->Spec().PodAgentPayload().ScheduleLoad();
@@ -223,12 +233,12 @@ public:
             }
         }
 
-        void SchedulePreload()
+        void SchedulePreloadNode()
         {
             Node_->Resources().ScheduleLoad();
             Node_->Status().EpochId().ScheduleLoad();
             Node_->Status().HeartbeatSequenceNumber().ScheduleLoad();
-            Node_->Pods().ScheduleLoad();
+            Node_->Status().Pods().ScheduleLoad();
             Node_->Resources().ScheduleLoad();
 
             for (auto* resource : Node_->Resources().Load()) {
@@ -239,6 +249,10 @@ public:
                 const auto& podId = podEntry.pod_id();
                 auto* pod = Transaction_->GetPod(podId);
                 pod->ScheduleTombstoneCheck();
+            }
+
+            for (auto* disk : Node_->Status().AttachedPersistentDisks().Load()) {
+                disk->Volumes().ScheduleLoad();
             }
         }
 
@@ -267,7 +281,7 @@ public:
             Node_->Status().LastSeenTime() = Now();
         }
 
-        void CheckUnknownPods()
+        bool CheckUnknownPods()
         {
             Node_->Status().Etc()->clear_unknown_pod_ids();
             for (const auto& podEntry : Request_->pods()) {
@@ -279,11 +293,30 @@ public:
                     Node_->Status().Etc()->add_unknown_pod_ids(podId);
                 }
             }
+            return
+                Node_->Status().Etc()->unknown_pod_ids_size() == 0 ||
+                Node_->Spec().Load().force_remove_unknown_pods();
+        }
+
+        bool CheckUnknownPersistentVolumes()
+        {
+            Node_->Status().Etc()->clear_unknown_persistent_volume_ids();
+            for (const auto& [volumeId, volumeEntry] : Request_->persistent_volumes()) {
+                auto* volume = Transaction_->GetPersistentVolume(volumeId);
+                if (!volume->DoesExist() && !volume->IsTombstone()) {
+                    YT_LOG_DEBUG("Unknown persistent volume reported by agent (VolumeId: %v)",
+                        volumeId);
+                    Node_->Status().Etc()->add_unknown_persistent_volume_ids(volumeId);
+                }
+            }
+            return
+                Node_->Status().Etc()->unknown_persistent_volume_ids_size() == 0 ||
+                Node_->Spec().Load().force_remove_unknown_persistent_volumes();
         }
 
         void ProcessReportedPods()
         {
-            for (auto* pod : Node_->Pods().Load()) {
+            for (auto* pod : Node_->Status().Pods().Load()) {
                 YT_VERIFY(ExpectedPods_.emplace(pod->GetId(), pod).second);
                 pod->Spec().UpdateTimestamp().ScheduleLoad();
             }
@@ -379,15 +412,159 @@ public:
 
         void SchedulePodInstall()
         {
-            for (const auto& pair : ExpectedPods_) {
-                const auto& podId = pair.first;
-                auto* pod = pair.second;
+            for (const auto& [podId, pod] : ExpectedPods_) {
                 if (ReportedPodIds_.find(podId) == ReportedPodIds_.end()) {
                     YT_LOG_DEBUG("Requesting pod install (PodId: %v, SpecTimestamp: %llx)",
                         podId,
                         pod->Spec().UpdateTimestamp().Load());
                     ScheduleUpdatePod(pod);
                 }
+            }
+        }
+
+        void ProcessReportedPersistentDisks()
+        {
+            THashMap<TObjectId, TPersistentDisk*> expectedDisks;
+            for (auto* disk : Node_->Status().AttachedPersistentDisks().Load()) {
+                YT_VERIFY(expectedDisks.emplace(disk->GetId(), disk).second);
+            }
+
+            // Examine disks from the heartbeat.
+            THashSet<TObjectId> reportedDiskIds;
+            for (const auto& [diskId, diskEntry] : Request_->persistent_disks()) {
+                YT_VERIFY(reportedDiskIds.insert(diskId).second);
+                TPersistentDisk* disk = nullptr;
+                if (auto it = expectedDisks.find(diskId)) {
+                    disk = it->second;
+                } else {
+                    disk = Transaction_->GetPersistentDisk(diskId);
+                    if (disk->DoesExist()) {
+                        YT_LOG_DEBUG("Persistent disk is attached to node (DiskId: %v, OldAttachedNodeId: %v)",
+                            diskId,
+                            GetObjectId(disk->Status().AttachedToNode().Load()));
+                        Node_->Status().AttachedPersistentDisks().Add(disk);
+                    } else {
+                        YT_LOG_DEBUG("Unknown persistent disk is reported by node, ignored (DiskId: %v)",
+                            diskId);
+                    }
+                }
+                if (disk) {
+                    auto* statusEtc = disk->Status().Etc().Get();
+                    statusEtc->set_last_seen_node_id(Node_->GetId());
+                    *statusEtc->mutable_last_seen_time() = google::protobuf::util::TimeUtil::GetCurrentTime();
+                }
+            }
+
+            // Check for disks that are expected to be present but are in fact missing.
+            for (const auto& [diskId, disk]: expectedDisks) {
+                if (!reportedDiskIds.contains(diskId)) {
+                    YT_LOG_DEBUG("Persistent disk is detached from node (DiskId: %v)",
+                        diskId);
+                    Node_->Status().AttachedPersistentDisks().Remove(disk);
+                }
+            }
+        }
+
+        void ScheduleCreatePersistentVolume(TPersistentVolume* volume)
+        {
+            YT_VERIFY(PersistentVolumesToCreate_.insert(volume).second);
+            SchedulePreloadPersistentVolumeSpec(volume);
+        }
+
+        void ScheduleUpdatePersistentVolume(TPersistentVolume* volume)
+        {
+            YT_VERIFY(PersistentVolumesToCreate_.insert(volume).second);
+            SchedulePreloadPersistentVolumeSpec(volume);
+        }
+
+        void SchedulePreloadPersistentVolumeSpec(TPersistentVolume* volume)
+        {
+            volume->Spec().Etc().ScheduleLoad();
+        }
+
+        void ScheduleRemovePersistentVolume(TObjectId volumeId)
+        {
+            PersistentVolumeIdsToRemove_.push_back(std::move(volumeId));
+        }
+
+        void ProcessReportedPersistentVolumes()
+        {
+            THashMap<TObjectId, TPersistentVolume*> expectedVolumes;
+            for (auto* disk : Node_->Status().AttachedPersistentDisks().Load()) {
+                for (auto* volume : disk->Volumes().Load()) {
+                    YT_VERIFY(expectedVolumes.emplace(volume->GetId(), volume).second);
+                }
+            }
+
+            // Examine volumes from the heartbeat.
+            THashSet<TObjectId> reportedVolumeIds;
+            for (const auto& [volumeId, volumeEntry] : Request_->persistent_volumes()) {
+                YT_VERIFY(reportedVolumeIds.insert(volumeId).second);
+                const auto& diskId = volumeEntry.disk_id();
+                auto it = expectedVolumes.find(volumeId);
+                if (it == expectedVolumes.end()) {
+                    YT_LOG_DEBUG("Unknown persistent volume is reported by node, scheduling removal (DiskId: %v, VolumeId: %v)",
+                        diskId,
+                        volumeId);
+                    ScheduleRemovePersistentVolume(volumeId);
+                    continue;
+                }
+
+                auto* volume = it->second;
+                const auto& expectedDiskId = volume->Disk().Load()->GetId();
+                if (diskId != expectedDiskId) {
+                    THROW_ERROR_EXCEPTION("Node reported persistent volume %Qv present at disk %Qv while disk %Qv was expected",
+                        volumeId,
+                        diskId,
+                        expectedDiskId);
+                }
+
+                auto agentTimestamp = volumeEntry.current_spec_timestamp();
+                auto masterTimestamp = volume->Spec().LoadTimestamp();
+
+                auto* etc = volume->Status().Etc().Get();
+                etc->set_agent_spec_timestamp(volumeEntry.current_spec_timestamp());
+
+                if (agentTimestamp > masterTimestamp) {
+                    THROW_ERROR_EXCEPTION("Node %Qv has persistent volume %Qv with spec timestamp %llx while only timestamp %llx is available at master",
+                        Node_->GetId(),
+                        volumeId,
+                        agentTimestamp,
+                        masterTimestamp);
+                }
+
+                if (volumeEntry.has_status()) {
+                    etc->set_state(volumeEntry.status().state());
+                    if (volumeEntry.status().has_execution_error()) {
+                        etc->mutable_execution_error()->CopyFrom(volumeEntry.status().execution_error());
+                    } else {
+                        etc->clear_execution_error();
+                    }
+                    etc->mutable_validation_failures()->CopyFrom(volumeEntry.status().validation_failures());
+                }
+
+                if (agentTimestamp == masterTimestamp) {
+                    continue;
+                }
+
+                YT_LOG_DEBUG("Sending persistent volume spec update (VolumeId: %v, SpecTimestamp: %llx -> %llx)",
+                    volumeId,
+                    agentTimestamp,
+                    masterTimestamp);
+                ScheduleUpdatePersistentVolume(volume);
+            }
+
+            // Check for volumes that are expected to be present but are in fact missing.
+            for (const auto& [volumeId, volume]: expectedVolumes) {
+                if (reportedVolumeIds.contains(volumeId)) {
+                    continue;
+                }
+
+                auto* disk = volume->Disk().Load();
+                YT_LOG_DEBUG("Persistent volume is missing at node, creation scheduled (DiskId: %v, VolumeId: %v)",
+                    disk->GetId(),
+                    volumeId);
+                ScheduleCreatePersistentVolume(volume);
             }
         }
 
@@ -443,12 +620,10 @@ public:
             std::vector<ISecretVaultService::TSecretSubrequest> secretSubrequests;
             std::vector<TString> secretKeys;
             std::vector<TPod*> podsRequestingSecrets;
-            for (const auto& pair : PodsToUpdate_) {
-                auto* pod = pair.first;
+            for (const auto& [pod, podSpec] : PodsToUpdate_) {
                 const auto& secrets = pod->Spec().Secrets().Load();
-                for (const auto& pair : secrets) {
-                    secretKeys.push_back(pair.first);
-                    const auto& secret = pair.second;
+                for (const auto& [secretKey, secret] : secrets) {
+                    secretKeys.push_back(secretKey);
                     secretSubrequests.push_back({
                         secret.secret_id(),
                         secret.secret_version(),
@@ -480,8 +655,8 @@ public:
                             auto& secretSubresponse = secretSubresponseOrError.Value();
                             auto* protoSecret = podSpec.add_secrets();
                             protoSecret->set_id(secretKeys[index]);
-                            for (auto& pair : secretSubresponse.Payload) {
-                                (*protoSecret->mutable_payload())[pair.first] = std::move(pair.second);
+                            for (auto& [key, value] : secretSubresponse.Payload) {
+                                (*protoSecret->mutable_payload())[key] = std::move(value);
                             }
                         } else if (IsPersistentSecretVaultError(secretSubresponseOrError)) {
                             auto error = TError("Error retrieving secrets from Vault")
@@ -516,14 +691,14 @@ public:
                 cpuResource->Spec().Load().cpu(),
                 pod->Spec().Etc().Load(),
                 pod->Status().Etc().Load());
-            for (const auto& pair : properties) {
+            for (const auto& [key, value] : properties) {
                 auto* protoProperty = protoSpec->add_porto_properties();
-                protoProperty->set_key(pair.first);
-                protoProperty->set_value(pair.second);
+                protoProperty->set_key(key);
+                protoProperty->set_value(value);
                 YT_LOG_DEBUG("Setting Porto property (PodId: %v, Name: %v, Value: %v)",
                     pod->GetId(),
-                    pair.first,
-                    pair.second);
+                    key,
+                    value);
             };
 
             // Payload
@@ -547,6 +722,7 @@ public:
             protoSpec->mutable_ip6_subnet_allocations()->CopyFrom(statusEtc.ip6_subnet_allocations());
             protoSpec->mutable_dns()->CopyFrom(statusEtc.dns());
             protoSpec->mutable_disk_volume_allocations()->CopyFrom(statusEtc.disk_volume_allocations());
+            protoSpec->mutable_disk_volume_mounts()->CopyFrom(statusEtc.disk_volume_mounts());
             protoSpec->mutable_gpu_allocations()->CopyFrom(statusEtc.gpu_allocations());
             protoSpec->mutable_host_infra()->CopyFrom(specEtc.host_infra());
 
@@ -566,23 +742,69 @@ public:
             }
         }
 
-        void PopulateDynamicAttributes(
-            NClient::NNodes::NProto::TPodSpec* protoSpec,
+        void PopulateDynamicPodAttributes(
+            NClient::NNodes::NProto::TPodSpec* agentSpec,
             TPod* pod)
         {
-            *protoSpec->mutable_pod_dynamic_attributes() = BuildPodDynamicAttributes(pod);
+            *agentSpec->mutable_pod_dynamic_attributes() = BuildPodDynamicAttributes(pod);
+        }
+
+        void PopulatePersistentVolumeSpec(
+            TPersistentVolume* volume,
+            NClient::NNodes::NProto::TPersistentVolumeSpec* agentSpec)
+        {
+            auto* disk = volume->Disk().Load();
+            const auto& volumeSpecEtc = volume->Spec().Etc().Load();
+            if (volumeSpecEtc.has_managed_policy()) {
+                const auto& masterVolumePolicy = volumeSpecEtc.managed_policy();
+                if (!disk->Spec().Etc().Load().has_managed_policy()) {
+                    THROW_ERROR_EXCEPTION("Persistent %Qv disk and its volume %Qv have mismatching kinds",
+                        disk->GetId(),
+                        volume->GetId());
+                }
+                const auto& masterDiskPolicy = disk->Spec().Etc().Load().managed_policy();
+                auto* agentPolicy = agentSpec->mutable_managed_policy();
+
+                agentPolicy->set_capacity(masterVolumePolicy.capacity());
+
+                agentPolicy->set_read_bandwidth_guarantee(masterVolumePolicy.bandwidth_guarantee() * masterDiskPolicy.read_bandwidth_factor());
+                agentPolicy->set_write_bandwidth_guarantee(masterVolumePolicy.bandwidth_guarantee() * masterDiskPolicy.write_bandwidth_factor());
+                agentPolicy->set_read_bandwidth_limit(masterVolumePolicy.bandwidth_limit() * masterDiskPolicy.read_bandwidth_factor());
+                agentPolicy->set_write_bandwidth_limit(masterVolumePolicy.bandwidth_limit() * masterDiskPolicy.write_bandwidth_factor());
+
+                auto getReadOperationRateFactor = [&] {
+                    return masterDiskPolicy.read_operation_rate_divisor() != 0.0
+                        ? 1.0 / masterDiskPolicy.read_operation_rate_divisor()
+                        : 0.0;
+                };
+                auto getWriteOperationRateFactor = [&] {
+                    return masterDiskPolicy.write_operation_rate_divisor() != 0.0
+                        ? 1.0 / masterDiskPolicy.write_operation_rate_divisor()
+                        : 0.0;
+                };
+                agentPolicy->set_read_operation_rate_guarantee(masterVolumePolicy.operation_rate_guarantee() * getReadOperationRateFactor());
+                agentPolicy->set_write_operation_rate_guarantee(masterVolumePolicy.operation_rate_guarantee() * getWriteOperationRateFactor());
+                agentPolicy->set_read_operation_rate_limit(masterVolumePolicy.operation_rate_limit() * getReadOperationRateFactor());
+                agentPolicy->set_write_operation_rate_limit(masterVolumePolicy.operation_rate_limit() * getWriteOperationRateFactor());
+            } else if (volumeSpecEtc.has_rbind_policy()) {
+                const auto& masterPolicy = volumeSpecEtc.rbind_policy();
+                auto* agentPolicy = agentSpec->mutable_rbind_policy();
+                agentPolicy->set_mount_path(masterPolicy.mount_path());
+            } else {
+                THROW_ERROR_EXCEPTION("Persistent volume %Qv has spec of unknown kind",
+                    volume->GetId());
+            }
         }
 
         void FillResponse()
         {
-            for (auto& pair : PodsToUpdate_) {
-                auto* pod = pair.first;
+            for (auto& [pod, podSpec] : PodsToUpdate_) {
                 auto* podEntry = Response_->add_pods();
                 ToProto(podEntry->mutable_pod_id(), pod->GetId());
                 podEntry->set_spec_timestamp(pod->Spec().UpdateTimestamp().Load());
                 podEntry->mutable_spec()->set_target_state(NClient::NApi::NProto::PTS_ACTIVE);
                 podEntry->set_target_state(NClient::NApi::NProto::PTS_ACTIVE);
-                podEntry->mutable_spec()->Swap(&pair.second);
+                podEntry->mutable_spec()->Swap(&podSpec);
             }
 
             for (auto* pod : PodsToKeep_) {
@@ -597,6 +819,23 @@ public:
                 ToProto(podEntry->mutable_pod_id(), podId);
                 podEntry->mutable_spec()->set_target_state(NClient::NApi::NProto::PTS_REMOVED);
                 podEntry->set_target_state(NClient::NApi::NProto::PTS_REMOVED);
+            }
+
+            for (auto* volume : PersistentVolumesToCreate_) {
+                auto& request = Response_->mutable_persistent_volume_creation_requests()->at(volume->GetId());
+                request.set_disk_id(volume->Disk().Load()->GetId());
+                request.set_spec_timestamp(volume->Spec().LoadTimestamp());
+                PopulatePersistentVolumeSpec(volume, request.mutable_spec());
+            }
+
+            for (auto* volume : PersistentVolumesToUpdate_) {
+                auto& request = Response_->mutable_persistent_volume_update_requests()->at(volume->GetId());
+                request.set_spec_timestamp(volume->Spec().LoadTimestamp());
+                PopulatePersistentVolumeSpec(volume, request.mutable_spec());
+            }
+
+            for (const auto& volumeId : PersistentVolumeIdsToRemove_) {
+                Response_->mutable_persistent_volume_removal_requests()->at(volumeId);
             }
 
             Response_->mutable_node()->mutable_cpu()->CopyFrom(Node_->GetCpuResourceOrThrow()->Spec().Load().cpu());
@@ -773,7 +1012,7 @@ TNode* TNodeTracker::ProcessHandshake(
 
 void TNodeTracker::ProcessHeartbeat(
     const TTransactionPtr& transaction,
-    TNode* Node_,
+    TNode* node,
     const TEpochId& epochId,
     ui64 sequenceNumber,
     const TReqHeartbeat* request,
@@ -781,7 +1020,7 @@ void TNodeTracker::ProcessHeartbeat(
 {
     Impl_->ProcessHeartbeat(
         transaction,
-        Node_,
+        node,
         epochId,
         sequenceNumber,
         request,

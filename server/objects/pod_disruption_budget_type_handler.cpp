@@ -73,7 +73,7 @@ public:
         TObjectTypeHandlerBase::BeforeObjectRemoved(transaction, object);
 
         auto* podDisruptionBudget = object->As<TPodDisruptionBudget>();
-        const auto& podSets = podDisruptionBudget->PodSets().Load();
+        auto podSets = podDisruptionBudget->PodSets().Load();
         if (!podSets.empty()) {
             THROW_ERROR_EXCEPTION("Cannot remove pod disruption budget %Qv since it is used in %v pod set(s)",
                 podDisruptionBudget->GetId(),

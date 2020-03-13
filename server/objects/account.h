@@ -35,8 +35,8 @@ public:
     public:
         explicit TSpec(TAccount* account);
 
-        static const TManyToOneAttributeSchema<TAccount, TAccount> ParentSchema;
         using TParentAttribute = TManyToOneAttribute<TAccount, TAccount>;
+        static const TParentAttribute::TSchema ParentSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TParentAttribute, Parent);
 
         using TEtc = NProto::TAccountSpecEtc;
@@ -46,34 +46,34 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TSpec, Spec);
 
-    static const TOneToManyAttributeSchema<TAccount, TPodSet> PodSetsSchema;
-    using TPodSets = TOneToManyAttribute<TAccount, TPodSet>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodSets, PodSets);
+    using TPodSetsAttribute = TOneToManyAttribute<TAccount, TPodSet>;
+    static const TPodSetsAttribute::TSchema PodSetsSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodSetsAttribute, PodSets);
 
     // NB: Only pods explicitly overriding their podsets' account are present here.
-    static const TOneToManyAttributeSchema<TAccount, TPod> PodsSchema;
-    using TPods = TOneToManyAttribute<TAccount, TPod>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPods, Pods);
+    using TPodsAttribute = TOneToManyAttribute<TAccount, TPod>;
+    static const TPodsAttribute::TSchema PodsSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodsAttribute, Pods);
 
-    static const TOneToManyAttributeSchema<TAccount, TReplicaSet> ReplicaSetsSchema;
-    using TReplicaSets = TOneToManyAttribute<TAccount, TReplicaSet>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TReplicaSets, ReplicaSets);
+    using TReplicaSetsAttribute = TOneToManyAttribute<TAccount, TReplicaSet>;
+    static const TReplicaSetsAttribute::TSchema ReplicaSetsSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TReplicaSetsAttribute, ReplicaSets);
 
-    static const TOneToManyAttributeSchema<TAccount, TMultiClusterReplicaSet> MultiClusterReplicaSetsSchema;
-    using TMultiClusterReplicaSets = TOneToManyAttribute<TAccount, TMultiClusterReplicaSet>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMultiClusterReplicaSets, MultiClusterReplicaSets);
+    using TMultiClusterReplicaSetsAttribute = TOneToManyAttribute<TAccount, TMultiClusterReplicaSet>;
+    static const TMultiClusterReplicaSetsAttribute::TSchema MultiClusterReplicaSetsSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMultiClusterReplicaSetsAttribute, MultiClusterReplicaSets);
 
-    static const TOneToManyAttributeSchema<TAccount, TStage> StagesSchema;
-    using TStages = TOneToManyAttribute<TAccount, TStage>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TStages, Stages);
+    using TStagesAttribute = TOneToManyAttribute<TAccount, TStage>;
+    static const TStagesAttribute::TSchema StagesSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TStagesAttribute, Stages);
 
-    static const TOneToManyAttributeSchema<TAccount, TAccount> ChildrenSchema;
     using TChildrenAttribute = TOneToManyAttribute<TAccount, TAccount>;
+    static const TChildrenAttribute::TSchema ChildrenSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TChildrenAttribute, Children);
 
-    static const TOneToManyAttributeSchema<TAccount, TProject> ProjectsSchema;
-    using TProjects = TOneToManyAttribute<TAccount, TProject>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TProjects, Projects);
+    using TProjectsAttribute = TOneToManyAttribute<TAccount, TProject>;
+    static const TProjectsAttribute::TSchema ProjectsSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TProjectsAttribute, Projects);
 
     virtual bool IsBuiltin() const override;
 };

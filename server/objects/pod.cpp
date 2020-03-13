@@ -7,6 +7,8 @@
 #include "node_segment.h"
 #include "pod_disruption_budget.h"
 #include "pod_set.h"
+#include "persistent_volume.h"
+#include "db_schema.h"
 
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -78,6 +80,14 @@ const TScalarAttributeSchema<TPod, NTransactionClient::TTimestamp> TPod::TStatus
     [] (TPod* pod) { return &pod->Status().AgentSpecTimestamp(); }
 };
 
+const TOneToManyAttributeSchema<TPod, TPersistentVolume> TPod::TStatus::MountedPersistentVolumesSchema{
+    &PodToMountedPersistentVolumesTable,
+    &PodToMountedPersistentVolumesTable.Fields.PodId,
+    &PodToMountedPersistentVolumesTable.Fields.VolumeId,
+    [] (TPod* pod) { return &pod->Status().MountedPersistentVolumes(); },
+    [] (TPersistentVolume* volume) { return &volume->Status().MountedToPod(); },
+};
+
 const TScalarAttributeSchema<TPod, TPod::TStatus::TEtc> TPod::TStatus::EtcSchema{
     &PodsTable.Fields.Status_Etc,
     [] (TPod* pod) { return &pod->Status().Etc(); }
@@ -89,6 +99,7 @@ TPod::TStatus::TStatus(TPod* pod)
     , GenerationNumber_(pod, &GenerationNumberSchema)
     , AgentSpecTimestamp_(pod, &AgentSpecTimestampSchema)
     , DynamicResources_(pod, &DynamicResourcesSchema)
+    , MountedPersistentVolumes_(pod, &MountedPersistentVolumesSchema)
     , Etc_(pod, &EtcSchema)
 { }
 
@@ -97,7 +108,7 @@ TPod::TStatus::TStatus(TPod* pod)
 const TManyToOneAttributeSchema<TPod, TNode> TPod::TSpec::NodeSchema{
     &PodsTable.Fields.Spec_NodeId,
     [] (TPod* pod) { return &pod->Spec().Node(); },
-    [] (TNode* node) { return &node->Pods(); }
+    [] (TNode* node) { return &node->Status().Pods(); }
 };
 
 const TScalarAttributeSchema<TPod, TString> TPod::TSpec::IssPayloadSchema{

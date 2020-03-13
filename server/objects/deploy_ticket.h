@@ -37,12 +37,12 @@ public:
     public:
         explicit TSpec(TDeployTicket* deployTicket);
 
-        static const TManyToOneAttributeSchema<TDeployTicket, TRelease> ReleaseSchema;
         using TReleaseAttribute = TManyToOneAttribute<TDeployTicket, TRelease>;
+        static const TReleaseAttribute::TSchema ReleaseSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TReleaseAttribute, Release);
 
-        static const TManyToOneAttributeSchema<TDeployTicket, TReleaseRule> ReleaseRuleSchema;
         using TReleaseRuleAttribute = TManyToOneAttribute<TDeployTicket, TReleaseRule>;
+        static const TReleaseRuleAttribute::TSchema ReleaseRuleSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TReleaseRuleAttribute, ReleaseRule);
 
         using TEtc = NProto::TDeployTicketSpecEtc;

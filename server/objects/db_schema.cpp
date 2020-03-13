@@ -53,6 +53,12 @@ const TDeployTicketsTable DeployTicketsTable;
 const TReleaseToDeployTicketsTable ReleaseToDeployTicketsTable;
 const TReleaseRuleToDeployTicketsTable ReleaseRuleToDeployTicketsTable;
 const THorizontalPodAutoscalersTable HorizontalPodAutoscalersTable;
+const TPersistentDisksTable PersistentDisksTable;
+const TPersistentVolumesTable PersistentVolumesTable;
+const TNodeToPersistentDisksTable NodeToPersistentDisksTable;
+const TPersistentDiskToVolumesTable PersistentDiskToVolumesTable;
+const TPersistentVolumeClaimsTable PersistentVolumeClaimsTable;
+const TPodToMountedPersistentVolumesTable PodToMountedPersistentVolumesTable;
 
 const TWatchLogSchema WatchLogSchema;
 
@@ -105,6 +111,12 @@ const std::vector<const TDBTable*> Tables = {
     &ReleaseToDeployTicketsTable,
     &ReleaseRuleToDeployTicketsTable,
     &HorizontalPodAutoscalersTable,
+    &PersistentDisksTable,
+    &PersistentVolumesTable,
+    &NodeToPersistentDisksTable,
+    &PersistentDiskToVolumesTable,
+    &PersistentVolumeClaimsTable,
+    &PodToMountedPersistentVolumesTable,
 };
 
 ////////////////////////////////////////////////////////////////////////////////

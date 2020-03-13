@@ -61,6 +61,9 @@ class TScalarAttribute;
 
 class TTimestampAttribute;
 
+template <class TThis, class TThat>
+class TOneToOneAttribute;
+
 template <class TMany, class TOne>
 class TManyToOneAttribute;
 
@@ -84,6 +87,9 @@ class TNetworkProject;
 class TNode;
 class TNodeSegment;
 class TObject;
+class TPersistentDisk;
+class TPersistentVolume;
+class TPersistentVolumeClaim;
 class TPod;
 class TPodDisruptionBudget;
 class TPodSet;
@@ -108,6 +114,9 @@ template <class T>
 class TScalarAttribute;
 
 class TTimestampAttribute;
+
+template <class TThis, class TThat>
+struct TOneToOneAttributeSchema;
 
 template <class TMany, class TOne>
 struct TManyToOneAttributeSchema;
@@ -184,6 +193,25 @@ DEFINE_ENUM(EDeployTicketPatchSelectorType,
     ((None)    (0))
     ((Full)    (1))
     ((Partial) (2))
+);
+
+DEFINE_ENUM(EPersistentVolumeClaimKind,
+    ((Unknown)        (0))
+    ((Quota)          (1))
+    ((Exclusive)      (2))
+    ((ExistingVolume) (3))
+);
+
+DEFINE_ENUM(EPersistentDiskKind,
+    ((Unknown)        (0))
+    ((Rbind)          (1))
+    ((Managed)        (2))
+);
+
+DEFINE_ENUM(EPersistentVolumeKind,
+    ((Unknown)        (0))
+    ((Rbind)          (1))
+    ((Managed)        (2))
 );
 
 constexpr int TypicalColumnCountPerDBTable = 16;

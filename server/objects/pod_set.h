@@ -44,16 +44,16 @@ public:
         static const TScalarAttributeSchema<TPodSet, TAntiaffinityConstraints> AntiaffinityConstraintsSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TAntiaffinityConstraints>, AntiaffinityConstraints);
 
-        static const TManyToOneAttributeSchema<TPodSet, TNodeSegment> NodeSegmentSchema;
         using TNodeSegmentAttribute = TManyToOneAttribute<TPodSet, TNodeSegment>;
+        static const TNodeSegmentAttribute::TSchema NodeSegmentSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TNodeSegmentAttribute, NodeSegment);
 
-        static const TManyToOneAttributeSchema<TPodSet, TAccount> AccountSchema;
         using TAccountAttribute = TManyToOneAttribute<TPodSet, TAccount>;
+        static const TAccountAttribute::TSchema AccountSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
 
-        static const TManyToOneAttributeSchema<TPodSet, TPodDisruptionBudget> PodDisruptionBudgetSchema;
         using TPodDisruptionBudgetAttribute = TManyToOneAttribute<TPodSet, TPodDisruptionBudget>;
+        static const TPodDisruptionBudgetAttribute::TSchema PodDisruptionBudgetSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodDisruptionBudgetAttribute, PodDisruptionBudget);
 
         static const TScalarAttributeSchema<TPodSet, TString> NodeFilterSchema;

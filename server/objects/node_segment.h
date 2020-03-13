@@ -34,17 +34,17 @@ public:
     static const TScalarAttributeSchema<TNodeSegment, TStatus> StatusSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TStatus>, Status);
 
-    static const TOneToManyAttributeSchema<TNodeSegment, TPodSet> PodSetsSchema;
-    using TPodSets = TOneToManyAttribute<TNodeSegment, TPodSet>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodSets, PodSets);
+    using TPodSetsAttribute = TOneToManyAttribute<TNodeSegment, TPodSet>;
+    static const TPodSetsAttribute::TSchema PodSetsSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodSetsAttribute, PodSets);
 
-    static const TOneToManyAttributeSchema<TNodeSegment, TReplicaSet> ReplicaSetsSchema;
-    using TReplicaSets = TOneToManyAttribute<TNodeSegment, TReplicaSet>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TReplicaSets, ReplicaSets);
+    using TReplicaSetsAttribute = TOneToManyAttribute<TNodeSegment, TReplicaSet>;
+    static const TReplicaSetsAttribute::TSchema ReplicaSetsSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TReplicaSetsAttribute, ReplicaSets);
 
-    static const TOneToManyAttributeSchema<TNodeSegment, TMultiClusterReplicaSet> MultiClusterReplicaSetsSchema;
-    using TMultiClusterReplicaSets = TOneToManyAttribute<TNodeSegment, TMultiClusterReplicaSet>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMultiClusterReplicaSets, MultiClusterReplicaSets);
+    using TMultiClusterReplicaSetsAttribute = TOneToManyAttribute<TNodeSegment, TMultiClusterReplicaSet>;
+    static const TMultiClusterReplicaSetsAttribute::TSchema MultiClusterReplicaSetsSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TMultiClusterReplicaSetsAttribute, MultiClusterReplicaSets);
 
     virtual bool IsBuiltin() const override;
 };

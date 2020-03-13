@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package NYP.NClient.NApi.NProto;
 
+import "yt/core/misc/proto/error.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 
 import "yp/client/api/proto/data_model.proto";
@@ -16,13 +17,11 @@ option go_package = "a.yandex-team.ru/yp/go/proto/ypapi";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
 option (NYP.NClient.NApi.NProto.object_type) = {
     camel_case_name: "PersistentVolume"
     snake_case_name: "persistent_volume"
     type_value: 31
 };
-*/
 
 message TPersistentVolumeMetaBase
 {
@@ -33,9 +32,13 @@ message TPersistentVolumeSpec
 {
     message TManagedPolicy
     {
-        uint64 bandwidth_guarantee = 1;
-        uint64 bandwidth_limit = 2;
-        uint64 capacity = 3;
+        uint64 capacity = 1;
+
+        uint64 bandwidth_guarantee = 2;
+        uint64 bandwidth_limit = 3;
+
+        uint64 operation_rate_guarantee = 4;
+        uint64 operation_rate_limit = 5;
     }
 
     message TRbindPolicy
@@ -55,7 +58,20 @@ message TPersistentVolumeSpec
 
 message TPersistentVolumeStatus
 {
+    // Current volume state, as reported by agent.
     EPersistentVolumeState state = 1
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
+    // Spec timestamp, as reported by agent.
+    uint64 agent_spec_timestamp = 4
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
+    // If given, contains the error occurred during volume lifecycle at agent.
+    NYT.NProto.TError execution_error = 5
+    [(NYP.NClient.NApi.NProto.etc) = true];
+
+    // List of validation errors for latest volume spec.
+    repeated string validation_failures = 6
     [(NYP.NClient.NApi.NProto.etc) = true];
 
     // The id of the claim bound to this volume, if any.

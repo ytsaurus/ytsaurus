@@ -5,7 +5,9 @@
 #include <yp/server/objects/node.h>
 #include <yp/server/objects/pod.h>
 #include <yp/server/objects/resource.h>
-#include <yp/server/objects/resource_helpers.h>
+#include <yp/server/objects/persistent_disk.h>
+#include <yp/server/objects/persistent_volume_claim.h>
+#include <yp/server/objects/persistent_volume.h>
 #include <yp/server/objects/transaction.h>
 
 #include <yp/server/net/internet_address_manager.h>
@@ -42,7 +44,7 @@ public:
         NObjects::TNode* node,
         NObjects::TPod* pod)
     {
-        node->Pods().Add(pod);
+        node->Status().Pods().Add(pod);
         UpdatePodSpec(transaction, pod, false);
         ReallocatePodResources(transaction, context, pod);
     }
@@ -57,7 +59,7 @@ public:
             return;
         }
 
-        node->Pods().Remove(pod);
+        node->Status().Pods().Remove(pod);
         UpdatePodSpec(transaction, pod, false);
         ReallocatePodResources(transaction, context, pod);
     }
@@ -147,7 +149,7 @@ public:
             pod);
 
         if (newNode) {
-            AllocatePodResources(pod);
+            AllocatePodResources(transaction, pod);
         }
     }
 
@@ -226,12 +228,15 @@ private:
         }
     }
 
-    void AllocatePodResources(NObjects::TPod* pod)
+    void AllocatePodResources(
+        const TTransactionPtr& transaction,
+        NObjects::TPod* pod)
     {
-        auto* node = pod->Spec().Node().Load();
+        ValidatePodVolumeClaims(transaction, pod);
 
         TLocalResourceAllocator allocator;
 
+        auto* node = pod->Spec().Node().Load();
         auto nativeResources = node->Resources().Load();
         for (auto* resource : nativeResources) {
             resource->Spec().ScheduleLoad();
@@ -256,9 +261,6 @@ private:
             pod->Spec().Etc().Load(),
             pod->Status().Etc().Load(),
             allocatorResources);
-        if (allocatorRequests.empty()) {
-            return;
-        }
 
         std::vector<TError> errors;
         std::vector<TLocalResourceAllocator::TResponse> allocatorResponses;
@@ -282,6 +284,10 @@ private:
             allocatorRequests,
             allocatorResponses);
 
+        UpdatePodDiskVolumeMounts(
+            transaction,
+            pod);
+
         UpdatePodGpuAllocations(
             pod->Status().Etc()->mutable_gpu_allocations(),
             allocatorRequests,
@@ -297,11 +303,103 @@ private:
             allocatorResponses);
     }
 
+    void ValidatePodVolumeClaims(
+        const TTransactionPtr& transaction,
+        NObjects::TPod* pod)
+    {
+        const auto& podSpecEtc = pod->Spec().Etc().Load();
+        TNode* persistentVolumeNode = nullptr;
+        for (const auto& protoClaim : podSpecEtc.disk_volume_claims()) {
+            const auto& claimId = protoClaim.claim_id();
+            auto* claim = transaction->GetPersistentVolumeClaim(claimId);
+            if (!claim->DoesExist()) {
+                THROW_ERROR_EXCEPTION(
+                    NClient::NApi::EErrorCode::PodSchedulingFailure,
+                    "Pod %Qv refers to non-existing persistent volume claim %Qv",
+                    pod->GetId(),
+                    claimId);
+            }
+
+            if (!claim->Spec().Etc().Load().has_existing_volume_policy()) {
+                // TODO(babenko)
+                THROW_ERROR_EXCEPTION(
+                    NClient::NApi::EErrorCode::PodSchedulingFailure,
+                    "Pod %Qv refers to persistent volume claim %Qv of unsupported policy",
+                    pod->GetId(),
+                    claimId);
+            }
+
+            auto* volume = claim->Status().BoundVolume().Load();
+            if (!volume) {
+                // TODO(babenko)
+                THROW_ERROR_EXCEPTION(
+                    NClient::NApi::EErrorCode::PodSchedulingFailure,
+                    "Pod %Qv refers to persistent volume claim %Qv not bound to any volume",
+                    pod->GetId(),
+                    claimId);
+            }
+
+            auto* disk = volume->Disk().Load();
+            auto* diskNode = disk->Status().AttachedToNode().Load();
+            if (!diskNode) {
+                THROW_ERROR_EXCEPTION(
+                    NClient::NApi::EErrorCode::PodSchedulingFailure,
+                    "Pod %Qv refers to persistent volume claim %Qv that is bound to volume %Qv belonging to disk %Qv not attached to any node",
+                    pod->GetId(),
+                    claimId,
+                    volume->GetId(),
+                    disk->GetId());
+            }
+
+            if (persistentVolumeNode && persistentVolumeNode != diskNode) {
+                THROW_ERROR_EXCEPTION(
+                    NClient::NApi::EErrorCode::PodSchedulingFailure,
+                    "Pod %Qv refers to persistent volumes belonging to distinct nodes %Qv and %Qv",
+                    pod->GetId(),
+                    persistentVolumeNode->GetId(),
+                    diskNode->GetId());
+            }
+
+            persistentVolumeNode = diskNode;
+        }
+
+        auto* node = pod->Spec().Node().Load();
+        if (persistentVolumeNode && node != persistentVolumeNode) {
+            THROW_ERROR_EXCEPTION(
+                NClient::NApi::EErrorCode::PodSchedulingFailure,
+                "Pod %Qv cannot be placed at node %Qv since it refers to persistent volume claims bound to volume(s) at node %Qv",
+                pod->GetId(),
+                node->GetId(),
+                persistentVolumeNode->GetId());
+        }
+    }
+
+    void UpdatePodDiskVolumeMounts(
+        const TTransactionPtr& transaction,
+        NObjects::TPod* pod)
+    {
+        const auto& podSpecEtc = pod->Spec().Etc().Load();
+        auto* podStatusEtc = pod->Status().Etc().Get();
+        podStatusEtc->mutable_disk_volume_mounts()->Clear();
+        for (const auto& protoClaim : podSpecEtc.disk_volume_claims()) {
+            auto* claim = transaction->GetPersistentVolumeClaim(protoClaim.claim_id());
+            auto* volume = claim->Status().BoundVolume().Load();
+            auto* protoMount = podStatusEtc->add_disk_volume_mounts();
+            protoMount->set_volume_id(volume->GetId());
+            protoMount->set_name(protoClaim.name());
+            protoMount->mutable_labels()->CopyFrom(protoClaim.labels());
+            YT_VERIFY(volume);
+            pod->Status().MountedPersistentVolumes().Add(volume);
+        }
+    }
+
     void FreePodResources(NObjects::TPod* pod)
     {
         pod->Status().Etc()->mutable_scheduled_resource_allocations()->Clear();
         pod->Status().Etc()->mutable_disk_volume_allocations()->Clear();
+        pod->Status().Etc()->mutable_disk_volume_mounts()->Clear();
         pod->Status().Etc()->mutable_gpu_allocations()->Clear();
+        pod->Status().MountedPersistentVolumes().Clear();
     }
 };
 

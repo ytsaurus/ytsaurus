@@ -33,8 +33,8 @@ public:
     public:
         explicit TSpec(TProject* project);
 
-        static const TManyToOneAttributeSchema<TProject, TAccount> AccountSchema;
         using TAccountAttribute = TManyToOneAttribute<TProject, TAccount>;
+        static const TAccountAttribute::TSchema AccountSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
 
         using TEtc = NProto::TProjectSpecEtc;

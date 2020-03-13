@@ -534,6 +534,15 @@ void UpdateScheduledResourceAllocations(
     }
 }
 
+bool IsSingletonResource(EResourceKind kind)
+{
+    return
+        kind == EResourceKind::Cpu ||
+        kind == EResourceKind::Memory ||
+        kind == EResourceKind::Network ||
+        kind == EResourceKind::Slot;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Accumulate(

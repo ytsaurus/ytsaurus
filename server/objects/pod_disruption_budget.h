@@ -34,8 +34,8 @@ public:
     static const TScalarAttributeSchema<TPodDisruptionBudget, TSpec> SpecSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TSpec>, Spec);
 
-    static const TOneToManyAttributeSchema<TPodDisruptionBudget, TPodSet> PodSetsSchema;
     using TPodSetsAttribute = TOneToManyAttribute<TPodDisruptionBudget, TPodSet>;
+    static const TPodSetsAttribute::TSchema PodSetsSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TPodSetsAttribute, PodSets);
 
     // TODO(bidzilya): Remove in favor of the CAS.

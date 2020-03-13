@@ -101,6 +101,8 @@ def print_field(field):
         field_type = "uint64"
     elif field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_BOOL:
         field_type = "bool"
+    elif field.type == protobuf_descriptor_pb2.FieldDescriptorProto.TYPE_DOUBLE:
+        field_type = "double"
     else:
         raise Exception("Unknown type {}".format(field.type))
 
@@ -126,6 +128,7 @@ import "yt/core/ytree/proto/attributes.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 import "yp/client/api/proto/enums.proto";
 import "yp/client/api/proto/conditions.proto";
+import "google/protobuf/timestamp.proto";
 """
 
 

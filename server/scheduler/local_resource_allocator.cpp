@@ -2,8 +2,6 @@
 
 #include "helpers.h"
 
-#include <yp/server/objects/resource_helpers.h>
-
 #include <yt/core/ytree/convert.h>
 
 namespace NYP::NServer::NScheduler {

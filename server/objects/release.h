@@ -25,9 +25,9 @@ public:
 
     virtual EObjectType GetType() const override;
 
-    static const TOneToManyAttributeSchema<TRelease, TDeployTicket> DeployTicketsSchema;
-    using TDeployTickets = TOneToManyAttribute<TRelease, TDeployTicket>;
-    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TDeployTickets, DeployTickets);
+    using TDeployTicketsAttribute = TOneToManyAttribute<TRelease, TDeployTicket>;
+    static const TDeployTicketsAttribute::TSchema DeployTicketsSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TDeployTicketsAttribute, DeployTickets);
 
     class TSpec
     {

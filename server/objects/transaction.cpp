@@ -18,6 +18,9 @@
 #include "pod.h"
 #include "pod_disruption_budget.h"
 #include "pod_set.h"
+#include "persistent_disk.h"
+#include "persistent_volume.h"
+#include "persistent_volume_claim.h"
 #include "private.h"
 #include "resource.h"
 #include "schema.h"
@@ -1106,6 +1109,21 @@ public:
     TIP4AddressPool* GetIP4AddressPool(const TObjectId& id)
     {
         return GetTypedObject<TIP4AddressPool>(id);
+    }
+
+    TPersistentDisk* GetPersistentDisk(const TObjectId& id)
+    {
+        return GetTypedObject<TPersistentDisk>(id);
+    }
+
+    TPersistentVolume* GetPersistentVolume(const TObjectId& id)
+    {
+        return GetTypedObject<TPersistentVolume>(id);
+    }
+
+    TPersistentVolumeClaim* GetPersistentVolumeClaim(const TObjectId& id)
+    {
+        return GetTypedObject<TPersistentVolumeClaim>(id);
     }
 
 
@@ -3656,6 +3674,21 @@ void TTransaction::AllocateNonce(NNet::TNonce nonce)
 bool TTransaction::HasAllocatedNonce(NNet::TNonce nonce)
 {
     return Impl_->HasAllocatedNonce(nonce);
+}
+
+TPersistentDisk* TTransaction::GetPersistentDisk(const TObjectId& id)
+{
+    return Impl_->GetPersistentDisk(id);
+}
+
+TPersistentVolume* TTransaction::GetPersistentVolume(const TObjectId& id)
+{
+    return Impl_->GetPersistentVolume(id);
+}
+
+TPersistentVolumeClaim* TTransaction::GetPersistentVolumeClaim(const TObjectId& id)
+{
+    return Impl_->GetPersistentVolumeClaim(id);
 }
 
 TFuture<TTransactionCommitResult> TTransaction::Commit()

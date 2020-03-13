@@ -68,7 +68,12 @@ def parse_args(argv):
     parser.add_argument("--master-config", help="YP Master config file")
     parser.add_argument("--yt-config", help="YT local config file")
     parser.add_argument("--count", help="Count of YP instances", type=int, default=1)
-    parser.add_argument("--startup-threads", help="Number of concurrently launched YP instances", type=int, default=1)
+    parser.add_argument(
+        "--startup-threads",
+        help="Number of concurrently launched YP instances",
+        type=int,
+        default=1,
+    )
     return parser.parse_args(argv)
 
 
@@ -94,13 +99,15 @@ def start(argv):
     for index in range(args.count):
         logger.info("Starting YP #{}".format(index + 1))
 
-        futures.append(pool.submit(
-            start_yp,
-            inside_arcadia=not args.outside_arcadia,
-            yp_master_config=yp_master_config,
-            local_yt_options=local_yt_options,
-            port_locks_path="ports",  # Common port locks path for all instances.
-        ))
+        futures.append(
+            pool.submit(
+                start_yp,
+                inside_arcadia=not args.outside_arcadia,
+                yp_master_config=yp_master_config,
+                local_yt_options=local_yt_options,
+                port_locks_path="ports",  # Common port locks path for all instances.
+            )
+        )
 
     for index, future in enumerate(futures):
         index += 1

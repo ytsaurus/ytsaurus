@@ -15,6 +15,7 @@
 #include <yt/core/ytree/ypath_client.h>
 #include <yt/core/ytree/tree_visitor.h>
 #include <yt/core/ytree/tree_builder.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <yt/core/yson/protobuf_interop.h>
 
@@ -273,7 +274,7 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
 
             TObjectId id;
             try {
-                id = NYTree::ConvertTo<TObjectId>(value);
+                id = NYT::NYTree::ConvertTo<TObjectId>(value);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION(
                     NClient::NApi::EErrorCode::InvalidObjectId,
@@ -353,6 +354,134 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
             auto* typedMany = many->template As<TMany>();
             auto* forwardAttribute = schema.ForwardAttributeGetter(typedMany);
             auto* attributeValue = forwardAttribute->Load();
+            if (!attributeValue) {
+                static const auto Result = NYT::NYTree::INodePtr(NYT::NYTree::GetEphemeralNodeFactory()->CreateEntity());
+                return Result;
+            }
+            return NYT::NYTree::ConvertToNode(attributeValue->GetId());
+        };
+
+    StoreScheduledGetter_  =
+        [=] (TObject* many) {
+            auto* typedMany = many->template As<TMany>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedMany);
+            return forwardAttribute->IsChanged();
+        };
+
+    InitExpressionBuilder(
+        schema.Field,
+        TEmptyPathValidator::Run);
+
+    return this;
+}
+
+template <class TOne, class TMany>
+TAttributeSchema* TAttributeSchema::SetAttribute(const TOneToManyAttributeSchema<TOne, TMany>& schema)
+{
+    SetOpaque();
+
+    ValueGetter_ =
+        [=] (TObject* many) {
+            auto* typedOne = many->template As<TOne>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedOne);
+            auto attributeValue = forwardAttribute->Load();
+            return NYT::NYTree::BuildYsonNodeFluently()
+                .DoListFor(attributeValue, [&] (auto list, auto* many) {
+                    list.Item().Value(many->GetId());
+                });
+        };
+
+    return this;
+}
+
+template <class TThis, class TThat>
+TAttributeSchema* TAttributeSchema::SetAttribute(const TOneToOneAttributeSchema<TThis, TThat>& schema)
+{
+    ValueSetter_ =
+        [=] (
+            TTransaction* transaction,
+            TObject* this_,
+            const NYT::NYPath::TYPath& path,
+            const NYT::NYTree::INodePtr& value,
+            bool /*recursive*/)
+        {
+            if (!path.empty()) {
+                THROW_ERROR_EXCEPTION("Partial updates are not supported");
+            }
+
+            TObjectId id;
+            try {
+                id = NYT::NYTree::ConvertTo<TObjectId>(value);
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION(
+                    NClient::NApi::EErrorCode::InvalidObjectId,
+                    "Error parsing object id %Qv")
+                    << ex;
+            }
+
+            auto* typedThis = this_->As<TThis>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedThis);
+            if (id) {
+                auto* that = transaction->GetObject(TThat::Type, id);
+                that->ValidateExists();
+                auto* typedThat = that->template As<TThat>();
+                forwardAttribute->Store(typedThat);
+            } else {
+                if (!schema.Nullable) {
+                    THROW_ERROR_EXCEPTION("Cannot set null %v",
+                        GetHumanReadableTypeName(TThat::Type));
+                }
+                forwardAttribute->Store(nullptr);
+            }
+        };
+
+    Remover_ =
+        [=] (
+            TTransaction* /*transaction*/,
+            TObject* this_,
+            const NYT::NYPath::TYPath& path)
+        {
+            if (!path.empty()) {
+                THROW_ERROR_EXCEPTION("Partial removes are not supported");
+            }
+
+            if (!schema.Nullable) {
+                THROW_ERROR_EXCEPTION("Cannot set null %v",
+                    GetHumanReadableTypeName(TThat::Type));
+            }
+
+            auto* typedThis = this_->As<TThis>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedThis);
+            forwardAttribute->Store(nullptr);
+        };
+
+    TimestampPregetter_ =
+        [=] (
+            TTransaction* /*transaction*/,
+            TObject* this_,
+            const NYT::NYPath::TYPath& /*path*/)
+        {
+            auto* typedThis = this_->As<TThis>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedThis);
+            forwardAttribute->ScheduleLoadTimestamp();
+        };
+
+    TimestampGetter_ =
+        [=] (
+            TTransaction* /*transaction*/,
+            TObject* this_,
+            const NYT::NYPath::TYPath& /*path*/)
+        {
+            auto* typedThis = this_->As<TThis>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedThis);
+            return forwardAttribute->LoadTimestamp();
+        };
+
+    ValueGetter_ =
+        [=] (TObject* this_) {
+            auto* typedThis = this_->template As<TThis>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedThis);
+            auto* attributeValue = forwardAttribute->Load();
             if (attributeValue) {
                 return NYT::NYTree::ConvertToNode(attributeValue->GetId());
             } else {
@@ -361,9 +490,9 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
         };
 
     StoreScheduledGetter_  =
-        [=] (TObject* many) {
-            auto* typedMany = many->template As<TMany>();
-            auto* forwardAttribute = schema.ForwardAttributeGetter(typedMany);
+        [=] (TObject* this_) {
+            auto* typedThis = this_->template As<TThis>();
+            auto* forwardAttribute = schema.ForwardAttributeGetter(typedThis);
             return forwardAttribute->IsChanged();
         };
 
@@ -423,12 +552,12 @@ TAttributeSchema* TAttributeSchema::SetProtobufSetter(const TScalarAttributeSche
                     &outputStream,
                     NYson::ReflectProtobufMessageType<TTypedValue>(),
                     options);
-                NYTree::VisitTree(value, protobufWriter.get(), true);
+                NYT::NYTree::VisitTree(value, protobufWriter.get(), true);
             } else {
                 // TODO(babenko): optimize
                 auto oldProtobuf = attribute->Load();
                 google::protobuf::io::ArrayInputStream inputStream(oldProtobuf.data(), oldProtobuf.length());
-                auto treeBuilder = NYTree::CreateBuilderFromFactory(NYTree::GetEphemeralNodeFactory());
+                auto treeBuilder = NYT::NYTree::CreateBuilderFromFactory(NYT::NYTree::GetEphemeralNodeFactory());
                 NYson::ParseProtobuf(
                     treeBuilder.get(),
                     &inputStream,

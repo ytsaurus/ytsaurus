@@ -10,6 +10,7 @@
 #include "pod.h"
 #include "pod_disruption_budget.h"
 #include "pod_set.h"
+#include "persistent_volume.h"
 #include "virtual_service.h"
 #include "type_handler_detail.h"
 

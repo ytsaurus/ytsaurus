@@ -55,6 +55,9 @@ void UpdateScheduledResourceAllocations(
     const std::vector<TLocalResourceAllocator::TRequest>& allocatorRequests,
     const std::vector<TLocalResourceAllocator::TResponse>& allocatorResponses);
 
+// At most one resource object of one singleton kind is configured for any node.
+bool IsSingletonResource(EResourceKind kind);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Accumulate(

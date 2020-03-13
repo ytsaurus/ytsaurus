@@ -97,6 +97,10 @@ public:
     TAttributeSchema* SetAttribute(const TScalarAttributeSchema<TTypedObject, TTypedValue>& schema);
     template <class TOne, class TMany>
     TAttributeSchema* SetAttribute(const TManyToOneAttributeSchema<TMany, TOne>& schema);
+    template <class TOne, class TMany>
+    TAttributeSchema* SetAttribute(const TOneToManyAttributeSchema<TOne, TMany>& schema);
+    template <class TThis, class TThat>
+    TAttributeSchema* SetAttribute(const TOneToOneAttributeSchema<TThis, TThat>& schema);
 
     template <class TTypedObject, class TTypedValue>
     TAttributeSchema* SetProtobufEvaluator(const TScalarAttributeSchema<TTypedObject, TString>& schema);

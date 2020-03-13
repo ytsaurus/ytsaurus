@@ -4,6 +4,7 @@
 #include "helpers.h"
 #include "pod.h"
 #include "resource.h"
+#include "persistent_disk.h"
 
 namespace NYP::NServer::NObjects {
 
@@ -36,6 +37,22 @@ const TScalarAttributeSchema<TNode, TNode::TStatus::THostManager> TNode::TStatus
     [] (TNode* node) { return &node->Status().HostManager(); }
 };
 
+const TOneToManyAttributeSchema<TNode, TPod> TNode::TStatus::PodsSchema{
+    &NodeToPodsTable,
+    &NodeToPodsTable.Fields.NodeId,
+    &NodeToPodsTable.Fields.PodId,
+    [] (TNode* node) { return &node->Status().Pods(); },
+    [] (TPod* pod) { return &pod->Spec().Node(); },
+};
+
+const TOneToManyAttributeSchema<TNode, TPersistentDisk> TNode::TStatus::AttachedPersistentDisksSchema{
+    &NodeToPersistentDisksTable,
+    &NodeToPersistentDisksTable.Fields.NodeId,
+    &NodeToPersistentDisksTable.Fields.DiskId,
+    [] (TNode* node) { return &node->Status().AttachedPersistentDisks(); },
+    [] (TPersistentDisk* disk) { return &disk->Status().AttachedToNode(); },
+};
+
 const TScalarAttributeSchema<TNode, TNode::TStatus::TEtc> TNode::TStatus::EtcSchema{
     &NodesTable.Fields.Status_Etc,
     [] (TNode* node) { return &node->Status().Etc(); }
@@ -47,6 +64,8 @@ TNode::TStatus::TStatus(TNode* node)
     , LastSeenTime_(node, &LastSeenTimeSchema)
     , HeartbeatSequenceNumber_(node, &HeartbeatSequenceNumberSchema)
     , HostManager_(node, &HostManagerSchema)
+    , Pods_(node, &PodsSchema)
+    , AttachedPersistentDisks_(node, &AttachedPersistentDisksSchema)
     , Etc_(node, &EtcSchema)
 { }
 
@@ -57,14 +76,6 @@ const TScalarAttributeSchema<TNode, TNode::TSpec> TNode::SpecSchema{
     [] (TNode* node) { return &node->Spec(); }
 };
 
-const TOneToManyAttributeSchema<TNode, TPod> TNode::PodsSchema{
-    &NodeToPodsTable,
-    &NodeToPodsTable.Fields.NodeId,
-    &NodeToPodsTable.Fields.PodId,
-    [] (TNode* node) { return &node->Pods(); },
-    [] (TPod* pod) { return &pod->Spec().Node(); },
-};
-
 TNode::TNode(
     const TObjectId& id,
     IObjectTypeHandler* typeHandler,
@@ -73,7 +84,6 @@ TNode::TNode(
     , Resources_(this)
     , Status_(this)
     , Spec_(this, &SpecSchema)
-    , Pods_(this, &PodsSchema)
 { }
 
 EObjectType TNode::GetType() const

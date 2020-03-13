@@ -15,13 +15,11 @@ option go_package = "a.yandex-team.ru/yp/go/proto/ypapi";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
 option (NYP.NClient.NApi.NProto.object_type) = {
     camel_case_name: "PersistentVolumeClaim"
     snake_case_name: "persistent_volume_claim"
     type_value: 32
 };
-*/
 
 message TPersistentVolumeClaimSpec
 {
@@ -79,12 +77,8 @@ message TPersistentVolumeClaimSpec
 
 message TPersistentVolumeClaimStatus
 {
-    // True if the claim has been satisfied, i.e. assigned a persistent volume.
-    bool bound = 1
-    [(NYP.NClient.NApi.NProto.etc) = true];
-
     // The id of the persistent volume bound to this claim, if any.
-    string bound_volume_id = 2;
+    string bound_volume_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

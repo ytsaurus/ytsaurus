@@ -6,7 +6,6 @@ import "yp/client/api/proto/secrets.proto";
 import "yp/client/api/proto/dynamic_attributes.proto";
 import "yp/client/api/proto/host_infra.proto";
 import "yp/client/api/proto/conditions.proto";
-import "yp/client/api/proto/persistent_volume.proto";
 
 import "yt/core/misc/proto/error.proto";
 
@@ -94,21 +93,8 @@ message TPodSpec
 
     optional NYP.NClient.NApi.NProto.TPodStatus.TDns dns = 8;
 
-    // TODO(babenko): rename to transient_volume_allocations
     repeated NYP.NClient.NApi.NProto.TPodStatus.TDiskVolumeAllocation disk_volume_allocations = 10;
-
-    message TPersistentVolumeMount
-    {
-        // UUID of the volume; this either refers to the existing volume reported by the node
-        // or to the volume whose creation is requested in the same heartbeat.
-        required string volume_uuid = 1;
-
-        // TODO(babenko): rename TDiskVolumeAllocation.id to name.
-        // Altogether, TDiskVolumeAllocation.id and TPersistentVolumeMount.name are pod-wise unique
-        // and enable addressing volumes (both transient and persistent) within a pod.
-        required string name = 2;
-    }
-    repeated TPersistentVolumeMount persistent_volume_mounts = 19;
+    repeated NYP.NClient.NApi.NProto.TPodStatus.TDiskVolumeMount disk_volume_mounts = 19;
 
     repeated NYP.NClient.NApi.NProto.TPodStatus.TGpuAllocation gpu_allocations = 16;
 
@@ -267,7 +253,7 @@ message TReqHeartbeat
     map<string, TPersistentDiskEntry> persistent_disks = 5;
 
     // All persistent volumes found on disks currently attached to this node.
-    // Keys are volume UUIDs.
+    // Keys are volume ids.
     map<string, TPersistentVolumeEntry> persistent_volumes = 6;
 }
 
@@ -342,7 +328,7 @@ message TRspHeartbeat
     optional TNodeEntry node = 2;
 
     // Instructs the node to create certain persistent volumes.
-    // Keys are volume UUIDs.
+    // Keys are volume ids.
     // Upon receiving the request, node must start reporting this volume in "creating" state.
     // Once creation is complete, the volume state must change to "active".
     // Master continues sending these requests for all to-be-created volumes until
@@ -350,7 +336,7 @@ message TRspHeartbeat
     map<string, TPersistentVolumeCreationRequest> persistent_volume_creation_requests = 3;
 
     // Instructs the node to remove certain persistent volumes.
-    // Keys are volume UUIDs.
+    // Keys are volume ids.
     // Upon receiving the request, node must change the volume state to "removing".
     // Once removal is complete, the volume must vanish from TReqHeartbeat.persistent_volumes.
     // Master continues sending these requests for all to-be-removed volumes until
@@ -358,7 +344,7 @@ message TRspHeartbeat
     map<string, TPersistentVolumeRemovalRequest> persistent_volume_removal_requests = 4;
 
     // Instructs the node to update certain persistent volumes.
-    // Keys are volume UUIDs.
+    // Keys are volume ids.
     // Upon receiving the request, node must change the volume state to "updating".
     // Once update is complete, the state must change to "active".
     // Master continues sending these requests for all to-be-updated volumes until

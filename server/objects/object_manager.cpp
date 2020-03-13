@@ -36,6 +36,9 @@
 #include "type_handler.h"
 #include "user_type_handler.h"
 #include "virtual_service_type_handler.h"
+#include "persistent_disk_type_handler.h"
+#include "persistent_volume_type_handler.h"
+#include "persistent_volume_claim_type_handler.h"
 #include "watch_manager.h"
 
 #include <yp/server/master/bootstrap.h>
@@ -115,6 +118,9 @@ public:
         RegisterTypeHandler(CreateReleaseTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateDeployTicketTypeHandler(Bootstrap_));
         RegisterTypeHandler(CreateHorizontalPodAutoscalerTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreatePersistentDiskTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreatePersistentVolumeTypeHandler(Bootstrap_));
+        RegisterTypeHandler(CreatePersistentVolumeClaimTypeHandler(Bootstrap_));
 
         for (auto type : TEnumTraits<EObjectType>::GetDomainValues()) {
             if (auto typeHandler = FindTypeHandler(type)) {

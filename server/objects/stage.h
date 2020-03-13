@@ -39,8 +39,8 @@ public:
     public:
         explicit TSpec(TStage* stage);
 
-        static const TManyToOneAttributeSchema<TStage, TAccount> AccountSchema;
         using TAccountAttribute = TManyToOneAttribute<TStage, TAccount>;
+        static const TAccountAttribute::TSchema AccountSchema;
         DEFINE_BYREF_RW_PROPERTY_NO_INIT(TAccountAttribute, Account);
 
         using TEtc = NProto::TStageSpecEtc;
