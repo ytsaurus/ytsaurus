@@ -10,6 +10,7 @@
 #include <yt/client/api/client.h>
 
 #include <yt/core/http/client.h>
+#include <yt/core/http/helpers.h>
 
 #include <yt/core/logging/log.h>
 
@@ -325,7 +326,9 @@ private:
     void ReplyWithError(EStatusCode statusCode, const TError& error) const
     {
         YT_LOG_DEBUG(error, "Request failed (StatusCode: %v)", statusCode);
-        ReplyError(Response_, error);
+        FillYTErrorHeaders(Response_, error);
+        WaitFor(Response_->WriteBody(TSharedRef::FromString(ToString(error))))
+            .ThrowOnError();
     }
 
     bool TryResolveAlias()
