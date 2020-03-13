@@ -688,6 +688,7 @@ private:
 
         auto timestamp = request->timestamp();
         auto columnFilter = FromProto<NTableClient::TColumnFilter>(request->column_filter());
+        auto codecId = CheckedEnumCast<NCompression::ECodec>(request->compression_codec());
         auto produceAllVersions = FromProto<bool>(request->produce_all_versions());
 
         TLookupSession lookupSession(
@@ -699,7 +700,8 @@ private:
             timestamp,
             produceAllVersions,
             tableSchema,
-            request->lookup_keys());
+            request->lookup_keys(),
+            codecId);
         response->Attachments().push_back(lookupSession.Run());
 
         response->set_fetched_rows(true);

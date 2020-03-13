@@ -11,14 +11,19 @@
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/wire_protocol.h>
 
+#include <yt/core/compression/codec.h>
+#include <yt/core/profiling/timing.h>
+
 namespace NYT::NTableClient {
 
 using namespace NChunkClient;
+using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(akozhikhov): Consider keeping dynamic statistic for this parameter instead.
 static constexpr i64 ExpectedStringSize = 256;
+static constexpr auto CompressionCodecId = NCompression::ECodec::Lz4;
 
 struct TDataBufferTag { };
 
@@ -100,8 +105,10 @@ public:
 
     virtual TCodecStatistics GetDecompressionStatistics() const override
     {
-        // TODO(akozhikhov): Add encoder and decoder for this lookup protocol.
-        return {};
+        TCodecDuration decompressionTime{
+            CompressionCodecId,
+            NProfiling::ValueToDuration(DecompressionTime_.load())};
+        return TCodecStatistics().Append(decompressionTime);
     }
 
     virtual bool IsFetchingCompleted() const override
@@ -126,6 +133,7 @@ private:
     const TColumnFilter ColumnFilter_;
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
+    NCompression::ICodec* const Codec_ = NCompression::GetCodec(CompressionCodecId);
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TDataBufferTag());
 
@@ -133,6 +141,7 @@ private:
     int RowCount_ = 0;
     i64 DataWeight_ = 0;
     std::atomic<i64> UncompressedDataSize_ = {0};
+    std::atomic<NProfiling::TCpuDuration> DecompressionTime_ = {0};
 
     TFuture<TSharedRef> FetchedRowset_;
     std::vector<TVersionedRow> FetchedRows_;
@@ -153,6 +162,7 @@ private:
             &UncompressedDataSize_,
             ColumnFilter_,
             Timestamp_,
+            CompressionCodecId,
             ProduceAllVersions_).Apply(BIND([=, this_ = MakeStrong(this)] (const TSharedRef& fetchedRowset) {
                 ProcessFetchedRowset(fetchedRowset);
                 return fetchedRowset;
@@ -181,8 +191,12 @@ private:
 
     void ProcessFetchedRowset(const TSharedRef& fetchedRowset)
     {
+        TWallTimer timer;
+        auto uncompressedFetchedRowset = Codec_->Decompress(fetchedRowset);
+        DecompressionTime_ += timer.GetElapsedValue();
+
         auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->TableSchema, TColumnFilter());
-        TWireProtocolReader reader(fetchedRowset, RowBuffer_);
+        TWireProtocolReader reader(uncompressedFetchedRowset, RowBuffer_);
 
         FetchedRows_.reserve(LookupKeys_.Size());
         for (int i = 0; i < LookupKeys_.Size(); ++i) {
