@@ -448,6 +448,12 @@ private:
             context,
             QueryContext_->Bootstrap->GetConfig()->Engine->Subquery);
 
+        size_t totalInputDataWeight = 0;
+
+        for (const auto& subquery : Subqueries_) {
+            totalInputDataWeight += subquery.StripeList->TotalDataWeight;
+        }
+
         for (const auto& subquery : Subqueries_) {
             if (static_cast<ui64>(subquery.StripeList->TotalDataWeight) >
                 QueryContext_->Bootstrap->GetConfig()->Engine->Subquery->MaxDataWeightPerSubquery)
@@ -456,7 +462,8 @@ private:
                     NClickHouseServer::EErrorCode::SubqueryDataWeightLimitExceeded,
                     "Subquery exceeds data weight limit: %v > %v",
                     subquery.StripeList->TotalDataWeight,
-                    QueryContext_->Bootstrap->GetConfig()->Engine->Subquery->MaxDataWeightPerSubquery);
+                    QueryContext_->Bootstrap->GetConfig()->Engine->Subquery->MaxDataWeightPerSubquery)
+                    << TErrorAttribute("total_input_data_weight", totalInputDataWeight);
             }
         }
     }
