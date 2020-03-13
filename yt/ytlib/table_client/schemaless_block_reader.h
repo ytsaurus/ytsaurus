@@ -12,7 +12,7 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THorizontalSchemalessBlockReader
+class THorizontalBlockReader
     : public TNonCopyable
 {
 public:
@@ -22,9 +22,10 @@ public:
      *  If ReadSchemaIndex < 0, a column must be omitted.
      */
 
-    THorizontalSchemalessBlockReader(
+    THorizontalBlockReader(
         const TSharedRef& block,
         const NProto::TBlockMeta& meta,
+        const TTableSchema& schema,
         const std::vector<TColumnIdMapping>& idMapping,
         int chunkKeyColumnCount,
         int keyColumnCount,
@@ -49,6 +50,8 @@ private:
 
     // Maps chunk name table ids to client name table ids.
     std::vector<TColumnIdMapping> IdMapping_;
+
+    std::vector<bool> IsCompositeColumn_;
 
     // If chunk key column count is smaller than key column count, key is extended with Nulls.
     // If chunk key column count is larger than key column count, key is trimmed.

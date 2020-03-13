@@ -15,6 +15,26 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableSchema GetTableSchema(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+{
+    TTableSchema schema;
+    auto keyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
+    auto tableSchemaExt = FindProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
+    if (tableSchemaExt && keyColumnsExt) {
+        FromProto(&schema, *tableSchemaExt, *keyColumnsExt);
+    } else if (tableSchemaExt) {
+        FromProto(&schema, *tableSchemaExt);
+    } else if (keyColumnsExt) {
+        // COMPAT(savrus) No table schema is allowed only for old chunks.
+        YT_VERIFY(static_cast<ETableChunkFormat>(chunkMeta.version()) == ETableChunkFormat::SchemalessHorizontal);
+        const auto keyColumns = NYT::FromProto<TKeyColumns>(*keyColumnsExt);
+        schema = TTableSchema::FromKeyColumns(keyColumns);
+    }
+    return schema;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
 {
     InitExtensions(chunkMeta);
@@ -33,18 +53,7 @@ void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
         ColumnMeta_ = New<TRefCountedColumnMeta>(std::move(*columnMeta));
     }
 
-    auto keyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
-    auto tableSchemaExt = FindProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
-    if (tableSchemaExt && keyColumnsExt) {
-        FromProto(&ChunkSchema_, *tableSchemaExt, *keyColumnsExt);
-    } else if (tableSchemaExt) {
-        FromProto(&ChunkSchema_, *tableSchemaExt);
-    } else if (keyColumnsExt) {
-        // COMPAT(savrus) No table schema is allowed only for old chunks.
-        YT_VERIFY(ChunkFormat_ == ETableChunkFormat::SchemalessHorizontal);
-        TKeyColumns keyColumns = NYT::FromProto<TKeyColumns>(*keyColumnsExt);
-        ChunkSchema_ = TTableSchema::FromKeyColumns(keyColumns);
-    }
+    ChunkSchema_ = GetTableSchema(chunkMeta);
 
     if (auto nameTableExt = FindProtoExtension<TNameTableExt>(chunkMeta.extensions())) {
         ChunkNameTable_ = New<TNameTable>();

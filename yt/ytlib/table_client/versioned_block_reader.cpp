@@ -386,7 +386,11 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
             ReadStringLike(value, ptr);
             break;
 
-        default:
+        case EValueType::Null:
+        case EValueType::Composite:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
             YT_ABORT();
     }
 }
@@ -423,7 +427,11 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
             ReadStringLike(value, ptr);
             break;
 
-        default:
+        case EValueType::Null:
+        case EValueType::Composite:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
             YT_ABORT();
     }
 }
@@ -467,13 +475,15 @@ i64 TSimpleVersionedBlockReader::GetRowIndex() const
 THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockReader(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,
+    const TTableSchema& schema,
     const std::vector<TColumnIdMapping>& idMapping,
     int chunkKeyColumnCount,
     int keyColumnCount,
     TTimestamp timestamp)
-    : UnderlyingReader_(std::make_unique<THorizontalSchemalessBlockReader>(
+    : UnderlyingReader_(std::make_unique<THorizontalBlockReader>(
         block,
         meta,
+        schema,
         idMapping,
         chunkKeyColumnCount,
         keyColumnCount))

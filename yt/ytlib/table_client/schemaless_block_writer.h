@@ -12,11 +12,11 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THorizontalSchemalessBlockWriter
+class THorizontalBlockWriter
     : public IBlockWriter
 {
 public:
-    THorizontalSchemalessBlockWriter(i64 reserveSize = 2 * 64 * 1024);
+    THorizontalBlockWriter(i64 reserveSize = 2 * 64 * 1024);
 
     void WriteRow(TUnversionedRow row);
 
@@ -31,14 +31,13 @@ public:
     static const i64 MaxReserveSize;
 
 private:
-    i64 RowCount_;
-    bool Closed_;
-
     const i64 ReserveSize_;
 
     TChunkedOutputStream Offsets_;
     TChunkedOutputStream Data_;
 
+    i64 RowCount_ = 0;
+    bool Closed_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

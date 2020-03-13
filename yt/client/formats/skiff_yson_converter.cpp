@@ -20,7 +20,8 @@ using namespace NTableClient;
 
 EWireType GetSkiffTypeForSimpleLogicalType(ESimpleLogicalValueType logicalType)
 {
-    switch (GetPhysicalType(logicalType)) {
+    const auto valueType = GetPhysicalType(logicalType);
+    switch (valueType) {
         case EValueType::Int64:
             return EWireType::Int64;
         case EValueType::Uint64:
@@ -35,12 +36,14 @@ EWireType GetSkiffTypeForSimpleLogicalType(ESimpleLogicalValueType logicalType)
             return EWireType::Double;
         case EValueType::Null:
             return EWireType::Nothing;
+        case EValueType::Composite:
+            // NB. GetPhysicalType never returns EValueType::Composite
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
             break;
     }
-    YT_ABORT();
+    ThrowUnexpectedValueType(valueType);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

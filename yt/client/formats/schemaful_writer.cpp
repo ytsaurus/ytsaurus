@@ -66,8 +66,13 @@ bool TSchemafulWriter::Write(TRange<TUnversionedRow> rows)
                 case EValueType::Any:
                     Consumer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
                     break;
-                default:
-                    YT_ABORT();
+
+                case EValueType::Composite:
+
+                case EValueType::Min:
+                case EValueType::Max:
+                case EValueType::TheBottom:
+                    ThrowUnexpectedValueType(value.Type);
             }
         }
         Consumer_->OnEndMap();

@@ -570,21 +570,22 @@ public:
             case EValueType::String:
                 return 1 + MaxVarInt32Size + value.Length;
             case EValueType::Any:
+            case EValueType::Composite:
                 return value.Length;
             case EValueType::Null:
                 return 1;
             case EValueType::Min:
             case EValueType::Max:
             case EValueType::TheBottom:
-                YT_ABORT();
+                break;
         }
-        YT_ABORT();
+        ThrowUnexpectedValueType(value.Type);
     }
 
     Y_FORCE_INLINE void OnValue(TUnversionedValue value, const TProtobufFieldDescription& fieldDescription)
     {
         if (fieldDescription.Repeated || fieldDescription.Type == EProtobufType::StructuredMessage) {
-            ValidateUnversionedValueType(value, EValueType::Any);
+            ValidateUnversionedValueType(value, EValueType::Composite);
             TMemoryInput input(value.Data.String, value.Length);
             TYsonPullParser parser(&input, EYsonType::Node);
             auto maxVarIntSize = GetMaxVarIntSizeOfProtobufSizeOfComplexType(value.Length);

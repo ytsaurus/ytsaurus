@@ -2,15 +2,18 @@
 #include "private.h"
 #include "helpers.h"
 
+#include <yt/client/table_client/schema.h>
+
 #include <yt/core/misc/algorithm_helpers.h>
 
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
+THorizontalBlockReader::THorizontalBlockReader(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,
+    const TTableSchema& schema,
     const std::vector<TColumnIdMapping>& idMapping,
     int chunkKeyColumnCount,
     int keyColumnCount,
@@ -39,20 +42,29 @@ THorizontalSchemalessBlockReader::THorizontalSchemalessBlockReader(
     Data_ = TRef(Offsets_.End(), Block_.End());
 
     JumpToRowIndex(0);
+
+    const auto& schemaColumns = schema.Columns();
+    IsCompositeColumn_.assign(schemaColumns.size(), false);
+    for (int i = 0; i < schemaColumns.size(); ++i) {
+        auto isSimpleType = schemaColumns[i].SimplifiedLogicalType().has_value();
+        if (!isSimpleType) {
+            IsCompositeColumn_[i] = true;
+        }
+    }
 }
 
-bool THorizontalSchemalessBlockReader::NextRow()
+bool THorizontalBlockReader::NextRow()
 {
     return JumpToRowIndex(RowIndex_ + 1);
 }
 
-bool THorizontalSchemalessBlockReader::SkipToRowIndex(i64 rowIndex)
+bool THorizontalBlockReader::SkipToRowIndex(i64 rowIndex)
 {
     YT_VERIFY(rowIndex >= RowIndex_);
     return JumpToRowIndex(rowIndex);
 }
 
-bool THorizontalSchemalessBlockReader::SkipToKey(const TKey key)
+bool THorizontalBlockReader::SkipToKey(const TKey key)
 {
     if (GetKey() >= key) {
         // We are already further than pivot key.
@@ -70,28 +82,32 @@ bool THorizontalSchemalessBlockReader::SkipToKey(const TKey key)
     return JumpToRowIndex(index);
 }
 
-TKey THorizontalSchemalessBlockReader::GetKey() const
+TKey THorizontalBlockReader::GetKey() const
 {
     return Key_;
 }
 
-TMutableUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
+TMutableUnversionedRow THorizontalBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
 {
     auto row = TMutableUnversionedRow::Allocate(memoryPool, ValueCount_ + ExtraColumnCount_);
     int valueCount = 0;
+
     for (int i = 0; i < ValueCount_; ++i) {
         TUnversionedValue value;
         CurrentPointer_ += ReadValue(CurrentPointer_, &value);
 
-        if (IdMapping_[value.Id].ReaderSchemaIndex >= 0) {
-            value.Id = IdMapping_[value.Id].ReaderSchemaIndex;
+        const auto remappedId = IdMapping_[value.Id].ReaderSchemaIndex;
+        if (remappedId >= 0) {
             if (value.Type == EValueType::Any) {
+                auto data = TStringBuf(value.Data.String, value.Length);
                 // Try to unpack any value.
-                value = MakeUnversionedValue(
-                    TStringBuf(value.Data.String, value.Length),
-                    value.Id,
-                    Lexer_);
+                if (value.Id < IsCompositeColumn_.size() && IsCompositeColumn_[value.Id]) {
+                    value.Type = EValueType::Composite;
+                } else {
+                    value = MakeUnversionedValue(data, value.Id, Lexer_);
+                }
             }
+            value.Id = remappedId;
             row[valueCount] = value;
             ++valueCount;
         }
@@ -100,7 +116,7 @@ TMutableUnversionedRow THorizontalSchemalessBlockReader::GetRow(TChunkedMemoryPo
     return row;
 }
 
-TMutableVersionedRow THorizontalSchemalessBlockReader::GetVersionedRow(
+TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
     TChunkedMemoryPool* memoryPool,
     TTimestamp timestamp)
 {
@@ -135,11 +151,13 @@ TMutableVersionedRow THorizontalSchemalessBlockReader::GetVersionedRow(
         if (id >= KeyColumnCount_) {
             value.Id = id;
             if (value.Type == EValueType::Any) {
+                auto data = TStringBuf(value.Data.String, value.Length);
                 // Try to unpack any value.
-                value = MakeUnversionedValue(
-                    TStringBuf(value.Data.String, value.Length),
-                    value.Id,
-                    Lexer_);
+                if (value.Id < IsCompositeColumn_.size() && IsCompositeColumn_[value.Id]) {
+                    value.Type = EValueType::Composite;
+                } else {
+                    value = MakeUnversionedValue(data, value.Id, Lexer_);
+                }
             }
             *currentValue = MakeVersionedValue(value, timestamp);
             ++currentValue;
@@ -154,12 +172,12 @@ TMutableVersionedRow THorizontalSchemalessBlockReader::GetVersionedRow(
 }
 
 
-i64 THorizontalSchemalessBlockReader::GetRowIndex() const
+i64 THorizontalBlockReader::GetRowIndex() const
 {
     return RowIndex_;
 }
 
-bool THorizontalSchemalessBlockReader::JumpToRowIndex(i64 rowIndex)
+bool THorizontalBlockReader::JumpToRowIndex(i64 rowIndex)
 {
     if (rowIndex >= Meta_.row_count()) {
         return false;

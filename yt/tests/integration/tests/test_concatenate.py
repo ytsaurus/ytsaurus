@@ -291,6 +291,25 @@ class TestConcatenate(YTEnvSetup):
         assert get("//tmp/union/@schema_mode") == "weak"
         assert get("//tmp/union/@schema") == orig_schema
 
+    @authors("ermolovd")
+    def test_lost_complex_column(self):
+        create("table", "//tmp/t1",
+           attributes = {
+               "schema": make_schema([
+                   {"name": "list_column", "type_v3": list_type("int64")},
+                   {"name": "int_column", "type_v3": "int64"},
+               ])
+           })
+
+        create("table", "//tmp/union",
+           attributes = {
+               "schema": make_schema([
+                   {"name": "int_column", "type_v3": "int64"},
+               ], strict=False)
+           })
+        with raises_yt_error("is missing in strict part of output schema"):
+            concatenate(["//tmp/t1"], "//tmp/union")
+
     @authors("gritukan")
     def test_sorted_concatenation(self):
         def make_rows(values):

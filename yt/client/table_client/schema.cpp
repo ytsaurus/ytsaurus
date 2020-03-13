@@ -1061,6 +1061,11 @@ void ValidateColumnSchema(
             ValidateLogicalType(descriptor);
         }
 
+        if (!columnSchema.SimplifiedLogicalType() && columnSchema.SortOrder()) {
+            THROW_ERROR_EXCEPTION("Key column cannot be of %Qv type",
+                    *columnSchema.LogicalType());
+        }
+
         if (columnSchema.SimplifiedLogicalType() == ESimpleLogicalValueType::Any && columnSchema.Required()) {
             THROW_ERROR_EXCEPTION("Column of type %Qlv cannot be required",
                 ESimpleLogicalValueType::Any);

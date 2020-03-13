@@ -421,6 +421,16 @@ TError ValidateTableSchemaCompatibility(
             << TErrorAttribute("output_table_schema", outputSchema);
     };
 
+    auto createSchemaIndex = [] (const TTableSchema& schema) {
+        THashMap<TString, const TColumnSchema*> result;
+        for (const auto& column : schema.Columns()) {
+            result[column.Name()] = &column;
+        }
+        return result;
+    };
+    auto inputSchemaIndex = createSchemaIndex(inputSchema);
+    auto outputSchemaIndex = createSchemaIndex(outputSchema);
+
     // If output schema is strict, check that input columns are subset of output columns.
     if (outputSchema.GetStrict()) {
         if (!inputSchema.GetStrict()) {
@@ -428,7 +438,7 @@ TError ValidateTableSchemaCompatibility(
         }
 
         for (const auto& inputColumn : inputSchema.Columns()) {
-            if (!outputSchema.FindColumn(inputColumn.Name())) {
+            if (!outputSchemaIndex.contains(inputColumn.Name())) {
                 return addAttributes(TError("Column %Qv is found in input schema but is missing in output schema",
                     inputColumn.Name()));
             }
@@ -437,7 +447,9 @@ TError ValidateTableSchemaCompatibility(
 
     // Check that columns are the same.
     for (const auto& outputColumn : outputSchema.Columns()) {
-        if (auto inputColumn = inputSchema.FindColumn(outputColumn.Name())) {
+        auto it = inputSchemaIndex.find(outputColumn.Name());
+        if (it != inputSchemaIndex.end()) {
+            auto inputColumn = it->second;
             bool typeIsOk = IsSubtypeOf(inputColumn->LogicalType(), outputColumn.LogicalType());
             if (allowSimpleTypeDeoptionalize &&
                 !typeIsOk &&
@@ -471,6 +483,22 @@ TError ValidateTableSchemaCompatibility(
         } else if (outputColumn.Required()) {
             return addAttributes(TError("Required column %Qv is present in output schema and is missing in input schema",
                     outputColumn.Name()));
+        }
+    }
+
+    // Check that we don't lose complex types.
+    // We never want to teleport complex types to schemaless part of the chunk because we want to change their type from
+    // EValueType::Composite to EValueType::Any.
+    if (!outputSchema.GetStrict()) {
+        for (const auto& inputColumn : inputSchema.Columns()) {
+            if (inputColumn.SimplifiedLogicalType()) {
+                continue;
+            }
+            if (!outputSchemaIndex.contains(inputColumn.Name())) {
+                return TError("Column %Qv of input schema with complex type %Qv is missing in strict part of output schema",
+                    inputColumn.Name(),
+                    *inputColumn.LogicalType());
+            }
         }
     }
 

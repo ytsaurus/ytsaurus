@@ -165,6 +165,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                 blockReader = std::make_unique<THorizontalSchemalessVersionedBlockReader>(
                     uncompressedBlock.Data,
                     blockMeta,
+                    chunkMeta->ChunkSchema(),
                     BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter(), chunkMeta),
                     chunkMeta->GetChunkKeyColumnCount(),
                     chunkMeta->GetKeyColumnCount(),

@@ -1568,25 +1568,33 @@ ui64 SimpleHash(const TUnversionedValue* begin, const TUnversionedValue* end)
         switch(value->Type) {
             case EValueType::Int64:
                 result = hash64(value->Data.Int64, result);
-                break;
+                continue;
             case EValueType::Uint64:
                 result = hash64(value->Data.Uint64, result);
-                break;
+                continue;
             case EValueType::Boolean:
                 result = hash64(value->Data.Boolean, result);
-                break;
+                continue;
             case EValueType::String:
                 result = hash(
                     value->Data.String,
                     value->Length,
                     result);
-                break;
+                continue;
             case EValueType::Null:
                 result = hash64(0, result);
+                continue;
+
+            case EValueType::Double:
+            case EValueType::Any:
+            case EValueType::Composite:
+
+            case EValueType::Min:
+            case EValueType::Max:
+            case EValueType::TheBottom:
                 break;
-            default:
-                YT_ABORT();
         }
+        YT_ABORT();
     }
 
     return result;
@@ -2025,30 +2033,36 @@ extern "C" void MakeMap(
         switch (valueArg.Type) {
             case EValueType::Int64:
                 writer.OnInt64Scalar(valueArg.Data.Int64);
-                break;
+                continue;
             case EValueType::Uint64:
                 writer.OnUint64Scalar(valueArg.Data.Uint64);
-                break;
+                continue;
             case EValueType::Double:
                 writer.OnDoubleScalar(valueArg.Data.Double);
-                break;
+                continue;
             case EValueType::Boolean:
                 writer.OnBooleanScalar(valueArg.Data.Boolean);
-                break;
+                continue;
             case EValueType::String:
                 writer.OnStringScalar(TStringBuf(valueArg.Data.String, valueArg.Length));
-                break;
+                continue;
             case EValueType::Any:
                 writer.OnRaw(TStringBuf(valueArg.Data.String, valueArg.Length));
-                break;
+                continue;
             case EValueType::Null:
                 writer.OnEntity();
+                continue;
+
+            case EValueType::Composite:
+
+            case EValueType::Min:
+            case EValueType::Max:
+            case EValueType::TheBottom:
                 break;
-            default:
-                THROW_ERROR_EXCEPTION("Unexpected type %Qlv of value in key-value pair #%v",
-                    valueArg.Type,
-                    index);
         }
+        THROW_ERROR_EXCEPTION("Unexpected type %Qlv of value in key-value pair #%v",
+            valueArg.Type,
+            index);
     }
     writer.OnEndMap();
 

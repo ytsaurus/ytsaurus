@@ -59,7 +59,13 @@ private:
     TBlobOutput ValueBuffer_;
     NYson::TBufferedBinaryYsonWriter ValueWriter_;
 
-    THashMap<std::pair<int,int>, NComplexTypes::TYsonConverter> Converters_;
+    // Key of ComplexTypeConverters_ map is <TableIndex;ColumnId>.
+    // All complex columns are present in this map.
+    //
+    // If EComplexTypeMode::Positional is chosen then values are empty functions.
+    // If EComplexTypeMode::Named is chosen values are converter functions.
+    THashMap<std::pair<int,int>, NComplexTypes::TYsonConverter> ComplexTypeConverters_;
+
     TBlobOutput ConvertedBuffer_;
     NYson::TBufferedBinaryYsonWriter ConvertedWriter_;
 

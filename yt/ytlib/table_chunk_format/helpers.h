@@ -105,7 +105,7 @@ int CompareValues(const NTableClient::TUnversionedValue& lhs, const NTableClient
         return CompareTypedValues<TStringBuf>(lhs, rhs);
     } else if constexpr (valueType == EValueType::Boolean) {
         return CompareTypedValues<bool>(lhs, rhs);
-    } else if constexpr (valueType == EValueType::Any) {
+    } else if constexpr (valueType == EValueType::Any || valueType == EValueType::Composite) {
         return CompareRowValues(lhs, rhs);
     } else if constexpr (valueType == EValueType::Null) {
         // Nulls are always equal

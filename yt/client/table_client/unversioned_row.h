@@ -74,7 +74,7 @@ public:
 
     void Clear()
     {
-        if (Value_.Type == EValueType::Any || Value_.Type == EValueType::String) {
+        if (IsStringLikeType(Value_.Type)) {
             delete [] Value_.Data.String;
         }
         Value_.Type = EValueType::TheBottom;
@@ -87,7 +87,7 @@ private:
     void Assign(const TUnversionedValue& other)
     {
         Value_ = other;
-        if (Value_.Type == EValueType::Any || Value_.Type == EValueType::String) {
+        if (IsStringLikeType(Value_.Type)) {
             auto newString = new char[Value_.Length];
             ::memcpy(newString, Value_.Data.String, Value_.Length);
             Value_.Data.String = newString;
@@ -128,6 +128,11 @@ inline TUnversionedValue MakeUnversionedBooleanValue(bool value, int id = 0, boo
     return MakeBooleanValue<TUnversionedValue>(value, id, aggregate);
 }
 
+inline TUnversionedValue MakeUnversionedStringLikeValue(EValueType valueType, TStringBuf value, int id = 0, bool aggregate = false)
+{
+    return MakeStringLikeValue<TUnversionedValue>(valueType, value, id, aggregate);
+}
+
 inline TUnversionedValue MakeUnversionedStringValue(TStringBuf value, int id = 0, bool aggregate = false)
 {
     return MakeStringValue<TUnversionedValue>(value, id, aggregate);
@@ -136,6 +141,11 @@ inline TUnversionedValue MakeUnversionedStringValue(TStringBuf value, int id = 0
 inline TUnversionedValue MakeUnversionedAnyValue(TStringBuf value, int id = 0, bool aggregate = false)
 {
     return MakeAnyValue<TUnversionedValue>(value, id, aggregate);
+}
+
+inline TUnversionedValue MakeUnversionedCompositeValue(TStringBuf value, int id = 0, bool aggregate = false)
+{
+    return MakeCompositeValue<TUnversionedValue>(value, id, aggregate);
 }
 
 inline TUnversionedValue MakeUnversionedValueHeader(EValueType type, int id = 0, bool aggregate = false)
@@ -178,9 +188,12 @@ inline size_t GetDataWeight(const EValueType type)
         case EValueType::Boolean:
             return 1;
 
-        default:
-            YT_ABORT();
+        case EValueType::Any:
+        case EValueType::Composite:
+        case EValueType::String:
+            break;
     }
+    YT_ABORT();
 }
 
 inline size_t GetDataWeight(const TUnversionedValue& value)

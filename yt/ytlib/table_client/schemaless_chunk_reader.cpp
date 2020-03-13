@@ -335,7 +335,7 @@ protected:
     // For filtered out columns maps id to -1.
     std::vector<TColumnIdMapping> IdMapping_;
 
-    std::unique_ptr<THorizontalSchemalessBlockReader> BlockReader_;
+    std::unique_ptr<THorizontalBlockReader> BlockReader_;
 
     TRefCountedBlockMetaPtr BlockMetaExt_;
 
@@ -621,9 +621,10 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     const auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
 
     YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
-    BlockReader_.reset(new THorizontalSchemalessBlockReader(
+    BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
+        ChunkMeta_->ChunkSchema(),
         IdMapping_,
         ChunkKeyColumnCount_,
         KeyColumns_.size(),
@@ -946,9 +947,10 @@ void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
     const auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
 
-    BlockReader_.reset(new THorizontalSchemalessBlockReader(
+    BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
+        ChunkMeta_->ChunkSchema(),
         IdMapping_,
         ChunkKeyColumnCount_,
         KeyColumns_.size(),

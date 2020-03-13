@@ -53,27 +53,33 @@ void WriteUnversionedValue(const TUnversionedValue& value, IOutputStream* output
 {
     switch (value.Type) {
         case EValueType::Null:
-            break;
+            return;
         case EValueType::Int64:
             WriteInt(value.Data.Int64, output);
-            break;
+            return;
         case EValueType::Uint64:
             WriteInt(value.Data.Uint64, output);
-            break;
+            return;
         case EValueType::Double:
             WriteDouble(value.Data.Double, output);
-            break;
+            return;
         case EValueType::Boolean:
             output->Write(FormatBool(value.Data.Boolean));
-            break;
+            return;
         case EValueType::String:
             EscapeAndWrite(TStringBuf(value.Data.String, value.Length), output, escapeTable);
-            break;
-        default:
-            THROW_ERROR_EXCEPTION("Values of type %Qlv are not supported by the chosen format", value.Type)
-                << TErrorAttribute("value", ToString(value));
+            return;
+
+        case EValueType::Any:
+        case EValueType::Composite:
+
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
             break;
     }
+    THROW_ERROR_EXCEPTION("Values of type %Qlv are not supported by the chosen format", value.Type)
+        << TErrorAttribute("value", ToString(value));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
