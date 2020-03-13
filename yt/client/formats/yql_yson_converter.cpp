@@ -323,7 +323,7 @@ public:
             EnsureYsonItemTypeEqual(item, EYsonItemType::EntityValue);
             consumer->OnEntity();
             cursor->Next();
-        } else if constexpr (PhysicalType == EValueType::Any) {
+        } else if constexpr (PhysicalType == EValueType::Any || PhysicalType == EValueType::Composite) {
             consumer->TransferYsonWeightLimited(
                 [cursor] (TCheckedInDebugYsonTokenWriter* writer) {
                     cursor->TransferComplexValue(writer);
@@ -358,9 +358,15 @@ TWeightLimitedYsonToYqlConverter CreateSimpleTypeYsonToYqlConverter(
             return TSimpleYsonToYqlConverter<EValueType::Null>(std::move(config));
         case EValueType::Any:
             return TSimpleYsonToYqlConverter<EValueType::Any>(std::move(config));
-        default:
-            YT_ABORT();
+        case EValueType::Composite:
+            return TSimpleYsonToYqlConverter<EValueType::Composite>(std::move(config));
+
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            break;
     }
+    ThrowUnexpectedValueType(physicalType);
 }
 
 class TListYsonToYqlConverter
@@ -620,7 +626,7 @@ public:
             consumer->OnDoubleScalar(value.Data.Double);
         } else if constexpr (Type == EValueType::Boolean) {
             consumer->OnBooleanScalar(value.Data.Boolean);
-        } else if constexpr (Type == EValueType::Any) {
+        } else if constexpr (Type == EValueType::Any || Type == EValueType::Composite) {
             auto bytesLeft = totalLimit - static_cast<i64>(consumer->GetWrittenByteCount());
             consumer->TransferYsonWeightLimited(
                 [value] (TCheckedInDebugYsonTokenWriter* tokenWriter) {
@@ -660,9 +666,9 @@ public:
             consumer->OnEntity();
             return;
         }
-        if (Y_UNLIKELY(value.Type != EValueType::Any)) {
+        if (Y_UNLIKELY(value.Type != EValueType::Composite)) {
             THROW_ERROR_EXCEPTION("Bad value type: expected %Qlv, got %Qlv",
-                EValueType::Any,
+                EValueType::Composite,
                 value.Type);
         }
         TMemoryInput input(value.Data.String, value.Length);
@@ -697,6 +703,7 @@ static TWeightLimitedUnversionedValueToYqlConverter CreateSimpleUnversionedValue
         CASE(EValueType::Double)
         CASE(EValueType::Boolean)
         CASE(EValueType::Any)
+        CASE(EValueType::Composite)
         CASE(EValueType::Null)
 #undef CASE
 
@@ -705,7 +712,7 @@ static TWeightLimitedUnversionedValueToYqlConverter CreateSimpleUnversionedValue
         case EValueType::TheBottom:
             break;
     }
-    YT_ABORT();
+    ThrowUnexpectedValueType(type);
 }
 
 static TWeightLimitedUnversionedValueToYqlConverter CreateWeightLimitedUnversionedValueToYqlConverter(

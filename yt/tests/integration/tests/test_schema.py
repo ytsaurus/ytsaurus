@@ -487,12 +487,12 @@ class TestComplexTypesMisc(YTEnvSetup):
                 "schema": make_schema([
                     {
                         "name": "key",
-                        "type_v3": optional_type(optional_type("string")),
+                        "type_v3": "string",
                         "sort_order": "ascending",
                     },
                     {
                         "name": "value",
-                        "type_v3": "string",
+                        "type_v3": optional_type(optional_type("string")),
                     },
                 ], unique_keys=True),
                 "dynamic": True})

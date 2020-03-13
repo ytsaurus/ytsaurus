@@ -340,6 +340,11 @@ TEST(TTableSchemaTest, ColumnSchemaValidation)
         TColumnSchema("Column", StructLogicalType({
             {"\255", SimpleLogicalType(ESimpleLogicalValueType::Int8)}
         })));
+
+    // Key column cannot be of complex type
+    expectBad(
+        TColumnSchema("Column", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int8)), ESortOrder::Ascending)
+    );
 }
 
 TEST(TTableSchemaTest, ValidateTableSchemaTest)

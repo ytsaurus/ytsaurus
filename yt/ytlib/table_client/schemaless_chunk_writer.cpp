@@ -460,9 +460,8 @@ public:
             blockCache,
             schema,
             chunkTimestamps)
-    {
-        BlockWriter_.reset(new THorizontalSchemalessBlockWriter);
-    }
+        , BlockWriter_(std::make_unique<THorizontalBlockWriter>())
+    { }
 
     virtual i64 GetCompressedDataSize() const override
     {
@@ -484,7 +483,7 @@ public:
                 auto block = BlockWriter_->FlushBlock();
                 block.Meta.set_chunk_row_count(RowCount_);
                 RegisterBlock(block, row);
-                BlockWriter_.reset(new THorizontalSchemalessBlockWriter);
+                BlockWriter_ = std::make_unique<THorizontalBlockWriter>();
             }
         }
 
@@ -493,7 +492,7 @@ public:
     }
 
 private:
-    std::unique_ptr<THorizontalSchemalessBlockWriter> BlockWriter_;
+    std::unique_ptr<THorizontalBlockWriter> BlockWriter_;
 
     virtual ETableChunkFormat GetTableChunkFormat() const override
     {
@@ -1170,7 +1169,7 @@ public:
         BlockWriters_.reserve(partitionCount);
 
         for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
-            BlockWriters_.emplace_back(new THorizontalSchemalessBlockWriter(BlockReserveSize_));
+            BlockWriters_.emplace_back(new THorizontalBlockWriter(BlockReserveSize_));
             CurrentBufferCapacity_ += BlockWriters_.back()->GetCapacity();
         }
 
@@ -1226,7 +1225,7 @@ private:
     std::function<TPartitionChunkWriterPtr(IChunkWriterPtr)> ChunkWriterFactory_;
 
     THashSet<int> LargePartitons_;
-    std::vector<std::unique_ptr<THorizontalSchemalessBlockWriter>> BlockWriters_;
+    std::vector<std::unique_ptr<THorizontalBlockWriter>> BlockWriters_;
 
     TNameTablePtr ChunkNameTable_;
 
@@ -1330,7 +1329,7 @@ private:
 
         auto block = blockWriter->FlushBlock();
         block.Meta.set_partition_index(partitionIndex);
-        blockWriter.reset(new THorizontalSchemalessBlockWriter(BlockReserveSize_));
+        blockWriter.reset(new THorizontalBlockWriter(BlockReserveSize_));
         CurrentBufferCapacity_ += blockWriter->GetCapacity();
 
         YT_LOG_DEBUG("Flushing partition block (PartitonIndex: %v, BlockSize: %v, BlockRowCount: %v, CurrentBufferCapacity: %v)",

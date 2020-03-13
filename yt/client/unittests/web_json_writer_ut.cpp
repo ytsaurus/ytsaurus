@@ -874,8 +874,8 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
         TUnversionedOwningRowBuilder builder;
         std::vector<TUnversionedOwningRow> rows;
 
-        builder.AddValue(MakeUnversionedAnyValue(R"([-1; -2; -5])", KeyAId_));
-        builder.AddValue(MakeUnversionedAnyValue(
+        builder.AddValue(MakeUnversionedCompositeValue(R"([-1; -2; -5])", KeyAId_));
+        builder.AddValue(MakeUnversionedCompositeValue(
             R"([
                 "key";
                 "value";
@@ -889,14 +889,14 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 103
             ])",
             KeyBId_));
-        builder.AddValue(MakeUnversionedAnyValue(R"([[[#]; "value"]; [["key"]; #]])", KeyCId_));
+        builder.AddValue(MakeUnversionedCompositeValue(R"([[[#]; "value"]; [["key"]; #]])", KeyCId_));
         builder.AddValue(MakeUnversionedInt64Value(-49, KeyDId_));
         builder.AddValue(MakeUnversionedInt64Value(0, TableIndexColumnId_));
         builder.AddValue(MakeUnversionedInt64Value(0, RowIndexColumnId_));
         rows.push_back(builder.FinishRow());
 
-        builder.AddValue(MakeUnversionedAnyValue(R"([0; -2; -5; 177])", KeyAId_));
-        builder.AddValue(MakeUnversionedAnyValue(
+        builder.AddValue(MakeUnversionedCompositeValue(R"([0; -2; -5; 177])", KeyAId_));
+        builder.AddValue(MakeUnversionedCompositeValue(
             R"([
                 "key1";
                 "value1";
@@ -910,13 +910,13 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 1103
             ])",
             KeyBId_));
-        builder.AddValue(MakeUnversionedAnyValue(R"([[#; #]; [["key1"]; #]])", KeyCId_));
+        builder.AddValue(MakeUnversionedCompositeValue(R"([[#; #]; [["key1"]; #]])", KeyCId_));
         builder.AddValue(MakeUnversionedUint64Value(49, KeyDId_));
         builder.AddValue(MakeUnversionedInt64Value(1, RowIndexColumnId_));
         rows.push_back(builder.FinishRow());
 
-        builder.AddValue(MakeUnversionedAnyValue(R"([])", KeyAId_));
-        builder.AddValue(MakeUnversionedAnyValue(
+        builder.AddValue(MakeUnversionedCompositeValue(R"([])", KeyAId_));
+        builder.AddValue(MakeUnversionedCompositeValue(
             R"([
                 "key2";
                 "value2";
@@ -930,14 +930,14 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 3103
             ])",
             KeyBId_));
-        builder.AddValue(MakeUnversionedAnyValue(R"([[["key"]; #]])", KeyCId_));
+        builder.AddValue(MakeUnversionedCompositeValue(R"([[["key"]; #]])", KeyCId_));
         builder.AddValue(MakeUnversionedStringValue("49", KeyDId_));
         builder.AddValue(MakeUnversionedInt64Value(2, RowIndexColumnId_));
         rows.push_back(builder.FinishRow());
 
         builder.AddValue(MakeUnversionedNullValue(KeyAId_));
         // First string is valid UTF-8, the second one should be Base64 encoded.
-        builder.AddValue(MakeUnversionedAnyValue(
+        builder.AddValue(MakeUnversionedCompositeValue(
             "["
                 "\"\xC3\xBF\";"
                 "\"\xFA\xFB\xFC\xFD\";"
@@ -952,14 +952,14 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 4103
             ])",
             KeyBId_));
-        builder.AddValue(MakeUnversionedAnyValue(R"([])", KeyCId_));
+        builder.AddValue(MakeUnversionedCompositeValue(R"([])", KeyCId_));
         builder.AddValue(MakeUnversionedAnyValue("{x=49}", KeyDId_));
         builder.AddValue(MakeUnversionedInt64Value(3, RowIndexColumnId_));
         rows.push_back(builder.FinishRow());
 
         // Here come rows from the second table.
 
-        builder.AddValue(MakeUnversionedAnyValue(R"([0; #])", KeyAId_));
+        builder.AddValue(MakeUnversionedCompositeValue(R"([0; #])", KeyAId_));
         builder.AddValue(MakeUnversionedNullValue(KeyBId_));
         builder.AddValue(MakeUnversionedNullValue(KeyCId_));
         builder.AddValue(MakeUnversionedInt64Value(-49, KeyDId_));
@@ -967,9 +967,9 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
         builder.AddValue(MakeUnversionedInt64Value(0, RowIndexColumnId_));
         rows.push_back(builder.FinishRow());
 
-        builder.AddValue(MakeUnversionedAnyValue(R"([1; {z=z}])", KeyAId_));
+        builder.AddValue(MakeUnversionedCompositeValue(R"([1; {z=z}])", KeyAId_));
         builder.AddValue(MakeUnversionedNullValue(KeyBId_));
-        builder.AddValue(MakeUnversionedAnyValue(R"([#])", KeyCId_));
+        builder.AddValue(MakeUnversionedCompositeValue(R"([#])", KeyCId_));
         builder.AddValue(MakeUnversionedNullValue(KeyDId_));
         builder.AddValue(MakeUnversionedInt64Value(1, TableIndexColumnId_));
         builder.AddValue(MakeUnversionedInt64Value(1, RowIndexColumnId_));
@@ -1242,7 +1242,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
     auto yqlTypeC = ConvertToNode(TYsonString(R"(["OptionalType"; ["DataType"; "String"]])"));
     {
         TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedAnyValue(R"([
+        builder.AddValue(MakeUnversionedCompositeValue(R"([
             -1;
             [
                 [

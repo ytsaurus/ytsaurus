@@ -3,6 +3,8 @@
 
 #include <yt/ytlib/table_client/schemaless_block_reader.h>
 #include <yt/ytlib/table_client/schemaless_block_writer.h>
+#include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/logical_type.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -16,33 +18,32 @@ class TSchemalessBlocksTestBase
     : public ::testing::Test
 {
 protected:
-    void CheckResult(THorizontalSchemalessBlockReader& reader, const std::vector<TUnversionedRow>& rows)
+    void CheckResult(THorizontalBlockReader& reader, const std::vector<TUnversionedRow>& rows)
     {
-        int i = 0;
+        std::vector<TUnversionedRow> actual;
         do {
-            EXPECT_LT(i, rows.size());
             auto row = reader.GetRow(&MemoryPool);
-            ExpectSchemafulRowsEqual(rows[i], row);
-            ++i;
+            actual.push_back(row);
         } while (reader.NextRow());
+        CheckSchemafulResult(actual, rows);
     }
 
+protected:
     TSharedRef Data;
     NProto::TBlockMeta Meta;
 
     TChunkedMemoryPool MemoryPool;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessBlocksTestOneRow
-    :public TSchemalessBlocksTestBase
+    : public TSchemalessBlocksTestBase
 {
 protected:
     virtual void SetUp() override
     {
-        THorizontalSchemalessBlockWriter blockWriter;
+        THorizontalBlockWriter blockWriter;
 
         auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 5);
         row[0] = MakeUnversionedStringValue("a", 0);
@@ -60,7 +61,54 @@ protected:
         Meta = block.Meta;
     }
 
+    template <EValueType WriterType, EValueType ReaderType>
+    void TestComplexAnyCompatibility()
+    {
+        std::vector<TColumnIdMapping> idMapping = {
+            {0, 0},
+        };
+
+        auto row = TMutableUnversionedRow::Allocate(&MemoryPool, 1);
+        row[0] = MakeUnversionedStringLikeValue(WriterType, "[]", 0);
+
+        THorizontalBlockWriter blockWriter;
+        blockWriter.WriteRow(row);
+        auto block = blockWriter.FlushBlock();
+
+        auto* codec = GetCodec(ECodec::None);
+        Data = codec->Compress(block.Data);
+        Meta = block.Meta;
+
+
+        auto expectedRow = TMutableUnversionedRow::Allocate(&MemoryPool, 1);
+        expectedRow[0] = MakeUnversionedStringLikeValue(ReaderType, "[]", 0);
+
+        std::vector<TColumnSchema> columns;
+        if constexpr (ReaderType == EValueType::Composite) {
+            columns.push_back(TColumnSchema("foo", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))));
+        }
+
+        THorizontalBlockReader blockReader(
+                Data,
+                Meta,
+                TTableSchema(columns),
+                idMapping,
+                0,
+                0);
+
+        CheckResult(blockReader, std::vector<TUnversionedRow>{expectedRow});
+    }
 };
+
+TEST_F(TSchemalessBlocksTestOneRow, ComplexWriter_AnyReader_Compatibility)
+{
+    TestComplexAnyCompatibility<EValueType::Composite, EValueType::Any>();
+}
+
+TEST_F(TSchemalessBlocksTestOneRow, AnyWriter_ComplexReader_Compatibility)
+{
+    TestComplexAnyCompatibility<EValueType::Any, EValueType::Composite>();
+}
 
 TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
 {
@@ -82,9 +130,10 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
     std::vector<TUnversionedRow> rows;
     rows.push_back(row);
 
-    THorizontalSchemalessBlockReader blockReader(
+    THorizontalBlockReader blockReader(
         Data,
         Meta,
+        TTableSchema{},
         idMapping,
         0,
         0);
@@ -105,9 +154,10 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
         {6, 6},
         {7, 7}};
 
-    THorizontalSchemalessBlockReader blockReader(
+    THorizontalBlockReader blockReader(
         Data,
         Meta,
+        TTableSchema{},
         idMapping,
         2,
         2);
@@ -136,12 +186,12 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessBlocksTestManyRows
-    :public TSchemalessBlocksTestBase
+    : public TSchemalessBlocksTestBase
 {
 protected:
     virtual void SetUp() override
     {
-        THorizontalSchemalessBlockWriter blockWriter;
+        THorizontalBlockWriter blockWriter;
 
         for (auto row : MakeRows(0, 1000)) {
             blockWriter.WriteRow(row);
@@ -172,9 +222,10 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
     // Reorder value columns in reading schema.
     std::vector<TColumnIdMapping> idMapping = {{0, 0}, {1, 1}};
 
-    THorizontalSchemalessBlockReader blockReader(
+    THorizontalBlockReader blockReader(
         Data,
         Meta,
+        TTableSchema{},
         idMapping,
         2,
         2);
@@ -191,9 +242,10 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToWiderKey)
     // Reorder value columns in reading schema.
     std::vector<TColumnIdMapping> idMapping = {{0, 0}, {1, 1}};
 
-    THorizontalSchemalessBlockReader blockReader(
+    THorizontalBlockReader blockReader(
         Data,
         Meta,
+        TTableSchema{},
         idMapping,
         1,
         2);

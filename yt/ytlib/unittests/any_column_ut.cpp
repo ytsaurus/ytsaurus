@@ -83,7 +83,7 @@ TEST(TAnyColumnTest, Simple)
 
     reader->ReadValues(TMutableRange<TMutableUnversionedRow>(actual.data(), actual.size()));
     CheckSchemafulResult(expected, actual);
- }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -95,6 +95,7 @@ double GetDouble(const NTableClient::TUnversionedValue& row);
 bool GetBoolean(const NTableClient::TUnversionedValue& row);
 TString GetString(const NTableClient::TUnversionedValue& row);
 NYTree::INodePtr GetAny(const NTableClient::TUnversionedValue& row);
+NYTree::INodePtr GetComposite(const NTableClient::TUnversionedValue& row);
 bool IsNull(const NTableClient::TUnversionedValue& row);
 
 ////////////////////////////////////////////////////////////////////////////////

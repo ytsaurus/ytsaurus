@@ -146,7 +146,7 @@ public:
         if (value == entity) {
             valueConsumer->OnValue(MakeUnversionedNullValue(ColumnId_));
         } else {
-            valueConsumer->OnValue(MakeUnversionedAnyValue(value, ColumnId_));
+            valueConsumer->OnValue(MakeUnversionedCompositeValue(value, ColumnId_));
         }
     }
 

@@ -63,6 +63,7 @@ DB::Block ConvertRowsToBlock(
                 // correspond to shorter integer columns.
                 case EValueType::String:
                 case EValueType::Any:
+                case EValueType::Composite:
                 case EValueType::Int64:
                 case EValueType::Uint64:
                 case EValueType::Double:

@@ -21,7 +21,12 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
     int columnIndex,
     int columnId)
 {
-    switch (schema.GetPhysicalType()) {
+    auto simplifiedLogicalType = schema.SimplifiedLogicalType();
+    if (!simplifiedLogicalType) {
+        return CreateUnversionedComplexColumnReader(meta, columnIndex, columnId);
+    }
+
+    switch (GetPhysicalType(*simplifiedLogicalType)) {
         case EValueType::Int64:
             return CreateUnversionedInt64ColumnReader(meta, columnIndex, columnId);
 
@@ -43,6 +48,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
         case EValueType::Null:
             return CreateUnversionedNullColumnReader(meta, columnIndex, columnId);
 
+        case EValueType::Composite:
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
@@ -95,9 +101,14 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
                 columnId,
                 static_cast<bool>(schema.Aggregate()));
 
-        default:
-            YT_ABORT();
+        case EValueType::Null:
+        case EValueType::Composite:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            break;
     }
+    ThrowUnexpectedValueType(schema.GetPhysicalType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

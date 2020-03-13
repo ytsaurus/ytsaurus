@@ -87,7 +87,12 @@ TUnversionedOwningRow YsonToSchemafulRow(
             case EValueType::Any:
                 rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id));
                 break;
-            default:
+            case EValueType::Null:
+            case EValueType::Composite:
+
+            case EValueType::Min:
+            case EValueType::Max:
+            case EValueType::TheBottom:
                 YT_ABORT();
         }
     };
@@ -1039,30 +1044,32 @@ void UnversionedValueToYson(TUnversionedValue unversionedValue, TCheckedInDebugY
     switch (unversionedValue.Type) {
         case EValueType::Int64:
             tokenWriter->WriteBinaryInt64(unversionedValue.Data.Int64);
-            break;
+            return;
         case EValueType::Uint64:
             tokenWriter->WriteBinaryUint64(unversionedValue.Data.Uint64);
-            break;
+            return;
         case EValueType::Double:
             tokenWriter->WriteBinaryDouble(unversionedValue.Data.Double);
-            break;
+            return;
         case EValueType::String:
             tokenWriter->WriteBinaryString(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
-            break;
+            return;
         case EValueType::Any:
+        case EValueType::Composite:
             tokenWriter->WriteRawNodeUnchecked(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
-            break;
+            return;
         case EValueType::Boolean:
             tokenWriter->WriteBinaryBoolean(unversionedValue.Data.Boolean);
-            break;
+            return;
         case EValueType::Null:
             tokenWriter->WriteEntity();
-            break;
+            return;
         case EValueType::TheBottom:
         case EValueType::Min:
         case EValueType::Max:
             YT_ABORT();
     }
+    ThrowUnexpectedValueType(unversionedValue.Type);
 }
 
 void UnversionedValueToYson(TUnversionedValue unversionedValue, IYsonConsumer* consumer)
@@ -1070,28 +1077,32 @@ void UnversionedValueToYson(TUnversionedValue unversionedValue, IYsonConsumer* c
     switch (unversionedValue.Type) {
         case EValueType::Int64:
             consumer->OnInt64Scalar(unversionedValue.Data.Int64);
-            break;
+            return;
         case EValueType::Uint64:
             consumer->OnUint64Scalar(unversionedValue.Data.Uint64);
-            break;
+            return;
         case EValueType::Double:
             consumer->OnDoubleScalar(unversionedValue.Data.Double);
-            break;
+            return;
         case EValueType::String:
             consumer->OnStringScalar(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
-            break;
+            return;
         case EValueType::Any:
+        case EValueType::Composite:
             consumer->OnRaw(TStringBuf(unversionedValue.Data.String, unversionedValue.Length), EYsonType::Node);
-            break;
+            return;
         case EValueType::Boolean:
             consumer->OnBooleanScalar(unversionedValue.Data.Boolean);
-            break;
+            return;
         case EValueType::Null:
             consumer->OnEntity();
-            break;
-        default:
+            return;
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
             YT_ABORT();
     }
+    ThrowUnexpectedValueType(unversionedValue.Type);
 }
 
 TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enableRaw)
@@ -1116,7 +1127,8 @@ void ToAny(TRowBuffer* rowBuffer, TUnversionedValue* result, TUnversionedValue* 
             result->Type = EValueType::Null;
             return;
         }
-        case EValueType::Any: {
+        case EValueType::Any:
+        case EValueType::Composite: {
             *result = *value;
             return;
         }
@@ -1140,7 +1152,9 @@ void ToAny(TRowBuffer* rowBuffer, TUnversionedValue* result, TUnversionedValue* 
             writer.OnBooleanScalar(value->Data.Boolean);
             break;
         }
-        default:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
             YT_ABORT();
     }
 

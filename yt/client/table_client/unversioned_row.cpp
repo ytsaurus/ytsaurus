@@ -1,4 +1,6 @@
 #include "unversioned_row.h"
+
+#include "composite_compare.h"
 #include "unversioned_value.h"
 #include "serialize.h"
 #include "validate_logical_type.h"
@@ -49,28 +51,27 @@ size_t GetByteSize(const TUnversionedValue& value)
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
-            break;
+            return result;
 
         case EValueType::Int64:
         case EValueType::Uint64:
             result += MaxVarInt64Size;
-            break;
+            return result;
 
         case EValueType::Double:
             result += sizeof(double);
-            break;
+            return result;
+
 
         case EValueType::Boolean:
             result += 1;
-            break;
+            return result;
 
         case EValueType::String:
         case EValueType::Any:
+        case EValueType::Composite:
             result += MaxVarUint32Size + value.Length;
-            break;
-
-        default:
-            YT_ABORT();
+            return result;
     }
 
     return result;
@@ -109,6 +110,7 @@ size_t WriteValue(char* output, const TUnversionedValue& value)
 
         case EValueType::String:
         case EValueType::Any:
+        case EValueType::Composite:
             current += WriteVarUint32(current, value.Length);
             ::memcpy(current, value.Data.String, value.Length);
             current += value.Length;
@@ -169,21 +171,19 @@ size_t ReadValue(const char* input, TUnversionedValue* value)
             break;
         }
 
-        case EValueType::String:
-        case EValueType::Any: {
+        case EValueType::Any:
+        case EValueType::Composite:
+        case EValueType::String: {
             ui32 length;
             current += ReadVarUint32(current, &length);
             TStringBuf data(current, current + length);
             current += length;
-
-            *value = type == EValueType::String
-                ? MakeUnversionedStringValue(data, id)
-                : MakeUnversionedAnyValue(data, id);
+            *value = MakeUnversionedStringLikeValue(type, data, id);
             break;
         }
 
         default:
-            YT_ABORT();
+            ThrowUnexpectedValueType(type);
     }
 
     return current - input;
@@ -223,6 +223,7 @@ size_t GetYsonSize(const TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::Any:
+        case EValueType::Composite:
             return value.Length;
 
         case EValueType::Null:
@@ -327,8 +328,12 @@ TString ToString(const TUnversionedValue& value)
                 EYsonFormat::Text).GetData());
             break;
 
-        default:
-            YT_ABORT();
+        case EValueType::Composite:
+            builder.AppendString(ConvertToYsonString(
+                TYsonString(TString(value.Data.String, value.Length)),
+                EYsonFormat::Text).GetData());
+            builder.AppendFormat("@%v", value.Type);
+            break;
     }
     return builder.Flush();
 }
@@ -340,22 +345,49 @@ static inline void ValidateDoubleValueIsComparable(double value)
     }
 }
 
+[[noreturn]] static void ThrowIncomparable(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
+{
+    THROW_ERROR_EXCEPTION(
+        EErrorCode::IncomparableType,
+        "Cannot compare values of types %Qlv and %Qlv; only scalar types are allowed for key columns",
+        lhs.Type,
+        rhs.Type)
+        << TErrorAttribute("lhs_value", lhs)
+        << TErrorAttribute("rhs_value", rhs);
+}
+
+Y_FORCE_INLINE bool IsSentinel(EValueType valueType)
+{
+    return valueType == EValueType::Min || valueType == EValueType::Max;
+}
+
 int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
 {
     if (lhs.Type == EValueType::Any || rhs.Type == EValueType::Any) {
-        if (lhs.Type != EValueType::Min &&
-            lhs.Type != EValueType::Max &&
-            rhs.Type != EValueType::Min &&
-            rhs.Type != EValueType::Max)
-        {
+        if (!IsSentinel(lhs.Type) && !IsSentinel(rhs.Type)) {
             // Never compare composite values with non-sentinels.
-            THROW_ERROR_EXCEPTION(
-                EErrorCode::IncomparableType,
-                "Cannot compare values of types %Qlv and %Qlv; only scalar types are allowed for key columns",
-                lhs.Type,
-                rhs.Type)
+            ThrowIncomparable(lhs, rhs);
+        }
+    }
+
+    if (lhs.Type == EValueType::Composite || rhs.Type == EValueType::Composite) {
+        if (lhs.Type != rhs.Type) {
+            if (!IsSentinel(lhs.Type) && lhs.Type != EValueType::Null &&
+                !IsSentinel(rhs.Type) && rhs.Type != EValueType::Null)
+            {
+                ThrowIncomparable(lhs, rhs);
+            }
+            return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
+        }
+        auto lhsData = TStringBuf(lhs.Data.String, lhs.Length);
+        auto rhsData = TStringBuf(rhs.Data.String, rhs.Length);
+        try {
+            return CompareCompositeValues(lhsData, rhsData);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Cannot compare complex values")
                 << TErrorAttribute("lhs_value", lhs)
-                << TErrorAttribute("rhs_value", rhs);
+                << TErrorAttribute("rhs_value", rhs)
+                << ex;
         }
     }
 
@@ -1012,7 +1044,7 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
     }
 
     if (!columnSchema.SimplifiedLogicalType()) {
-        if (value.Type != EValueType::Any) {
+        if (value.Type != EValueType::Composite) {
             THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation,
                 "Invalid type of column %Qv: expected complex value but got %Qlv",
                 columnSchema.Name(),
@@ -1082,17 +1114,12 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
 void ValidateStaticValue(const TUnversionedValue& value)
 {
     ValidateDataValueType(value.Type);
-    switch (value.Type) {
-        case EValueType::String:
-        case EValueType::Any:
-            if (value.Length > MaxRowWeightLimit) {
-                THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
+    if (IsStringLikeType(value.Type)) {
+        if (value.Length > MaxRowWeightLimit) {
+            THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
                     value.Length,
                     MaxRowWeightLimit);
-            }
-            break;
-        default:
-            break;
+        }
     }
 }
 
@@ -1721,7 +1748,7 @@ int TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
     auto* newValue = GetValue(header->Count);
     *newValue = value;
 
-    if (value.Type == EValueType::String || value.Type == EValueType::Any) {
+    if (IsStringLikeType(value.Type)) {
         if (StringData_.length() + value.Length > StringData_.capacity()) {
             char* oldStringData = const_cast<char*>(StringData_.begin());
             StringData_.reserve(std::max(
@@ -1730,7 +1757,7 @@ int TUnversionedOwningRowBuilder::AddValue(const TUnversionedValue& value)
             char* newStringData = const_cast<char*>(StringData_.begin());
             for (int index = 0; index < header->Count; ++index) {
                 auto* existingValue = GetValue(index);
-                if (existingValue->Type == EValueType::String || existingValue->Type == EValueType::Any) {
+                if (IsStringLikeType(existingValue->Type)) {
                     existingValue->Data.String = newStringData + (existingValue->Data.String - oldStringData);
                 }
             }
