@@ -168,12 +168,17 @@ func decodeFloat(r *Reader) (f float64, err error) {
 		return
 	}
 
-	if r.currentType != TypeFloat64 {
+	switch r.currentType {
+	case TypeFloat64:
+		f = r.currentFloat
+	case TypeInt64:
+		f = float64(r.currentInt)
+	case TypeUint64:
+		f = float64(r.currentUint)
+	default:
 		err = &TypeError{UserType: reflect.TypeOf(f), YSONType: r.currentType}
-		return
 	}
 
-	f = r.currentFloat
 	return
 }
 
