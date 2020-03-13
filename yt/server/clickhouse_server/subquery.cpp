@@ -473,10 +473,10 @@ std::vector<TSubquery> BuildSubqueries(
         true /* isExplicitJobCount */,
         jobCount,
         dataWeightPerJob,
-        1_TB /* primaryDataWeightPerJob */,
+        1024 * 1024 * 1_TB /* primaryDataWeightPerJob */,
         1'000'000'000'000ll /* maxDataSlicesPerJob */,
-        1_TB /* maxDataWeightPerJob */,
-        1_TB /* primaryMaxDataWeightPerJob */,
+        1024 * 1024 * 1_TB /* maxDataWeightPerJob */,
+        1024 * 1024 * 1_TB /* primaryMaxDataWeightPerJob */,
         inputSliceDataWeight /* inputSliceDataWeight */,
         std::max<i64>(1, inputStripeList->TotalRowCount / jobCount) /* inputSliceRowCount */,
         std::nullopt /* samplingRate */);
