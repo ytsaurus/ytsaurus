@@ -599,6 +599,7 @@ def configure_admins_group(client, **kwargs):
 
 def initialize_users(cluster, dry_run):
     right_c = ["create"]
+    right_w = ["write"]
     right_crw = ["create", "read", "write"]
     right_ro = ["read"]
     right_rw = ["read", "write"]
@@ -711,9 +712,11 @@ def initialize_users(cluster, dry_run):
             add_schema_permissions(client, "network_project", User("robot-deploy-test"), right_u)
         add_schema_permissions(client, "network_project", User("robot-drug-deploy"), right_u)
 
-        # YPADMIN-282
         if cluster == "sas-test":
+            # YPADMIN-282
             add_schema_permissions(client, "group", User("robot-deploy-auth-t"), right_c)
+            # YPSUPPORT-69
+            add_schema_permissions(client, "dns_record_set", User("robot-dns"), right_w)
 
         # YPSUPPORT-49
         if cluster in ("sas-test", "man-pre"):
