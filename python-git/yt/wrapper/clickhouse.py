@@ -60,16 +60,15 @@ def _patch_defaults(fn):
     kwargs_names = _get_kwargs_names(fn)
 
     def wrapped_fn(*args, **kwargs):
-        kwargs_copy = deepcopy(kwargs)
-        defaults_dict = kwargs_copy.pop("defaults")
+        defaults_dict = kwargs.pop("defaults")
         logger.debug("Applying following argument defaults: %s", defaults_dict)
         for key, default_value in iteritems(defaults_dict):
             if key in kwargs_names:
-                current_value = kwargs_copy.get(key)
+                current_value = kwargs.get(key)
                 if current_value is None:
-                    kwargs_copy[key] = default_value
-        logger.debug("Resulting arguments: %s", kwargs_copy)
-        return fn(*args, **kwargs_copy)
+                    kwargs[key] = default_value
+        logger.debug("Resulting arguments: %s", kwargs)
+        return fn(*args, **kwargs)
 
     wrapped_fn.__doc__ = fn.__doc__
 
