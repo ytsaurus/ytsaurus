@@ -209,6 +209,7 @@ public:
         std::atomic<i64>* uncompressedDataSize,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
+        NCompression::ECodec codecId,
         bool produceAllVersions) override;
 
     virtual bool IsLookupSupported() const override
@@ -2020,6 +2021,7 @@ public:
         std::atomic<i64>* uncompressedDataSize,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
+        NCompression::ECodec codecId,
         bool produceAllVersions)
         : TSessionBase(reader, options)
         , LookupKeys_(std::move(lookupKeys))
@@ -2031,6 +2033,7 @@ public:
         , ReadSessionId_(options.ReadSessionId)
         , ColumnFilter_(columnFilter)
         , Timestamp_(timestamp)
+        , CodecId_(codecId)
         , ProduceAllVersions_(produceAllVersions)
     {
         Logger.AddTag("TableId: %v, Revision: %llx",
@@ -2064,6 +2067,7 @@ private:
     const TReadSessionId ReadSessionId_;
     const TColumnFilter ColumnFilter_;
     TTimestamp Timestamp_;
+    const NCompression::ECodec CodecId_;
     const bool ProduceAllVersions_;
     const TPromise<TSharedRef> Promise_ = NewPromise<TSharedRef>();
 
@@ -2267,6 +2271,7 @@ private:
 
         ToProto(req->mutable_read_session_id(), ReadSessionId_);
         req->set_timestamp(Timestamp_);
+        req->set_compression_codec(static_cast<int>(CodecId_));
         ToProto(req->mutable_column_filter(), ColumnFilter_);
         req->set_produce_all_versions(ProduceAllVersions_);
 
@@ -2404,6 +2409,7 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
     std::atomic<i64>* uncompressedDataSize,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
+    NCompression::ECodec codecId,
     bool produceAllVersions)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -2419,6 +2425,7 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
         uncompressedDataSize,
         columnFilter,
         timestamp,
+        codecId,
         produceAllVersions);
     return session->Run();
 }
