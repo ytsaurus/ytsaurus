@@ -45,6 +45,33 @@ TTagId TProfileManager::RegisterTag(const TString& key, const T& value)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+TTagCache<T>::TTagCache(const TString& key)
+    : Key_(key)
+{ }
+
+template <class T>
+TTagId TTagCache<T>::GetTag(const T& value) const
+{
+    {
+        NConcurrency::TReaderGuard guard(SpinLock_);
+        if (auto it = ValueToTagId_.find(value)) {
+            return it->second;
+        }
+    }
+
+    auto tagId = TProfileManager::Get()->RegisterTag(Key_, value);
+
+    {
+        NConcurrency::TWriterGuard guard(SpinLock_);
+        ValueToTagId_[value] = tagId;
+    }
+
+    return tagId;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
 TEnumMemberTagCache<T>::TEnumMemberTagCache(const TString& key)
 {
     for (auto value : TEnumTraits<T>::GetDomainValues()) {
