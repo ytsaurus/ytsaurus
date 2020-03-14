@@ -40,7 +40,7 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerAllocatesDesiredMemorySiz
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100'000, 0),
+        TParallelReaderMemoryManagerOptions(100'000, 0, 0),
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -52,6 +52,10 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerAllocatesDesiredMemorySiz
 
     reader1->SetPrefetchMemorySize(234);
     WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 357; });
+
+    EXPECT_EQ(memoryManager->GetRequiredMemorySize(), 123);
+    EXPECT_EQ(memoryManager->GetDesiredMemorySize(), 357);
+    EXPECT_EQ(memoryManager->GetReservedMemorySize(), 100'000);
 }
 
 TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerGetsMemory)
@@ -59,7 +63,7 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerGetsMemory)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100'000, 0),
+        TParallelReaderMemoryManagerOptions(100'000, 0, 0),
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -83,7 +87,7 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerRevokesMemory)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0),
+        TParallelReaderMemoryManagerOptions(100, 0, 0),
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -113,7 +117,7 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerUnregister)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0),
+        TParallelReaderMemoryManagerOptions(100, 0, 0),
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -141,7 +145,7 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerAllocatesAsMuchAsPossible
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(120, 0),
+        TParallelReaderMemoryManagerOptions(120, 0, 0),
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -153,6 +157,10 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerAllocatesAsMuchAsPossible
 
     reader1->SetPrefetchMemorySize(234);
     WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 120; });
+
+    EXPECT_EQ(memoryManager->GetRequiredMemorySize(), 100);
+    EXPECT_EQ(memoryManager->GetDesiredMemorySize(), 334);
+    EXPECT_EQ(memoryManager->GetReservedMemorySize(), 120);
 }
 
 TEST(TestParallelReaderMemoryManager, TestMemoryManagerFreesMemoryAfterUnregister)
@@ -160,7 +168,7 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerFreesMemoryAfterUnregiste
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0),
+        TParallelReaderMemoryManagerOptions(100, 0, 0),
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -183,7 +191,7 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerBalancing1)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0),
+        TParallelReaderMemoryManagerOptions(100, 0, 0),
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -206,7 +214,7 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerBalancing2)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0),
+        TParallelReaderMemoryManagerOptions(100, 0, 0),
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -244,7 +252,7 @@ TEST(TestParallelReaderMemoryManager, TestInitialMemorySize)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 60),
+        TParallelReaderMemoryManagerOptions(100, 60, 0),
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager(1);
@@ -264,7 +272,7 @@ TEST(TestParallelReaderMemoryManager, TestTotalSize)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0),
+        TParallelReaderMemoryManagerOptions(100, 0, 0),
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -284,7 +292,7 @@ TEST(TestParallelReaderMemoryManager, TestRequiredMemorySizeNeverDecreases)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0),
+        TParallelReaderMemoryManagerOptions(100, 0, 0),
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -308,7 +316,7 @@ TEST(TestParallelReaderMemoryManager, PerformanceAndStressTest)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(10'000'000, 10'000'000),
+        TParallelReaderMemoryManagerOptions(10'000'000, 10'000'000, 0),
         actionQueue->GetInvoker());
 
     std::vector<TChunkReaderMemoryManagerPtr> readers;
@@ -340,7 +348,7 @@ TEST(TestParallelReaderMemoryManager, TestManyHeavyRebalancings)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(200'000, 200'000),
+        TParallelReaderMemoryManagerOptions(200'000, 200'000, 0),
         actionQueue->GetInvoker());
 
     std::vector<TChunkReaderMemoryManagerPtr> readers;
@@ -368,6 +376,179 @@ TEST(TestParallelReaderMemoryManager, TestManyHeavyRebalancings)
         readers.back()->Finalize();
         readers.pop_back();
     }
+}
+
+TEST(TestParallelReaderMemoryManager, TestDynamicReservedMemory)
+{
+    auto actionQueue = New<NConcurrency::TActionQueue>();
+
+    auto memoryManager = CreateParallelReaderMemoryManager(
+        TParallelReaderMemoryManagerOptions(200, 0, 0),
+        actionQueue->GetInvoker());
+
+    auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
+    reader1->SetRequiredMemorySize(100);
+    reader1->SetPrefetchMemorySize(100);
+    WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 200; });
+
+    auto reader2 = memoryManager->CreateChunkReaderMemoryManager();
+    reader2->SetRequiredMemorySize(100);
+    reader2->SetPrefetchMemorySize(100);
+    WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 100; });
+    WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 100; });
+
+    memoryManager->SetReservedMemorySize(456);
+    WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 200; });
+    WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 200; });
+
+    memoryManager->SetReservedMemorySize(200);
+    WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 100; });
+    WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 100; });
+}
+
+TEST(TestParallelReaderMemoryManager, TestMemoryManagersTree)
+{
+    /*
+     *          mm11
+     *          / \
+     *         /   \
+     *        /     \
+     *      mm21    mm22
+     *      / \     / \
+     *     r1 r2   r3 r4
+     *
+     */
+
+    auto actionQueue = New<NConcurrency::TActionQueue>();
+
+    auto mm11 = CreateParallelReaderMemoryManager(
+        TParallelReaderMemoryManagerOptions(6, 0, 0),
+        actionQueue->GetInvoker());
+
+    auto mm21 = mm11->CreateMultiReaderMemoryManager();
+    auto mm22 = mm11->CreateMultiReaderMemoryManager();
+
+    auto r1 = mm21->CreateChunkReaderMemoryManager();
+    auto r2 = mm21->CreateChunkReaderMemoryManager();
+    auto r3 = mm22->CreateChunkReaderMemoryManager();
+    auto r4 = mm22->CreateChunkReaderMemoryManager();
+
+    auto memoryRequirementsSatisfied = [&] () {
+        for (const auto& reader : {r1, r2, r3, r4}) {
+            if (reader->GetReservedMemorySize() < reader->GetRequiredMemorySize()) {
+                return false;
+            }
+        }
+
+        return true;
+    };
+
+    r1->SetRequiredMemorySize(1);
+    r1->SetPrefetchMemorySize(1);
+    WaitTestPredicate([&] () { return memoryRequirementsSatisfied(); });
+
+    r2->SetRequiredMemorySize(1);
+    r2->SetPrefetchMemorySize(1);
+    WaitTestPredicate([&] () { return memoryRequirementsSatisfied(); });
+
+    r3->SetRequiredMemorySize(1);
+    r3->SetPrefetchMemorySize(1);
+    WaitTestPredicate([&] () { return memoryRequirementsSatisfied(); });
+
+    r4->SetRequiredMemorySize(1);
+    r4->SetPrefetchMemorySize(1);
+    WaitTestPredicate([&] () { return memoryRequirementsSatisfied(); });
+    EXPECT_EQ(r1->GetReservedMemorySize() + r2->GetReservedMemorySize() + r3->GetReservedMemorySize() + r4->GetReservedMemorySize(), 6);
+
+    mm11->SetReservedMemorySize(10);
+    WaitTestPredicate([&] () { return r1->GetReservedMemorySize() == 2; });
+    WaitTestPredicate([&] () { return r2->GetReservedMemorySize() == 2; });
+    WaitTestPredicate([&] () { return r3->GetReservedMemorySize() == 2; });
+    WaitTestPredicate([&] () { return r4->GetReservedMemorySize() == 2; });
+
+    mm11->SetReservedMemorySize(4);
+    WaitTestPredicate([&] () { return r1->GetReservedMemorySize() == 1; });
+    WaitTestPredicate([&] () { return r2->GetReservedMemorySize() == 1; });
+    WaitTestPredicate([&] () { return r3->GetReservedMemorySize() == 1; });
+    WaitTestPredicate([&] () { return r4->GetReservedMemorySize() == 1; });
+}
+
+TEST(TestParallelReaderMemoryManager, TestMinRequiredMemorySize)
+{
+    /*
+     *          mm11
+     *          / \
+     *         /   \
+     *        /     \
+     *      mm21    mm22
+     *               |
+     *               r1
+     *
+     */
+
+    auto actionQueue = New<NConcurrency::TActionQueue>();
+
+    auto mm11 = CreateParallelReaderMemoryManager(
+       TParallelReaderMemoryManagerOptions(10, 0, 0),
+       actionQueue->GetInvoker());
+
+    auto mm21 = mm11->CreateMultiReaderMemoryManager(5);
+    auto mm22 = mm11->CreateMultiReaderMemoryManager();
+
+    auto r1 = mm22->CreateChunkReaderMemoryManager();
+    r1->SetRequiredMemorySize(10);
+
+    WaitTestPredicate([&] () { return r1->GetReservedMemorySize() == 5; });
+
+    EXPECT_EQ(mm21->GetRequiredMemorySize(), 5);
+    EXPECT_EQ(mm21->GetDesiredMemorySize(), 5);
+    EXPECT_EQ(mm21->GetReservedMemorySize(), 5);
+    EXPECT_EQ(mm22->GetRequiredMemorySize(), 10);
+    EXPECT_EQ(mm22->GetDesiredMemorySize(), 10);
+    EXPECT_EQ(mm22->GetReservedMemorySize(), 5);
+    EXPECT_EQ(mm11->GetRequiredMemorySize(), 15);
+    EXPECT_EQ(mm11->GetDesiredMemorySize(), 15);
+    EXPECT_EQ(mm11->GetReservedMemorySize(), 10);
+}
+
+TEST(TestParallelReaderMemoryManager, TestParallelReaderMemoryManagerFinalize)
+{
+    /*
+     *          mm11
+     *          / \
+     *         /   \
+     *        /     \
+     *      mm21    mm22
+     *       |       |
+     *       r1      r2
+     *
+     */
+
+    auto actionQueue = New<NConcurrency::TActionQueue>();
+
+    auto mm11 = CreateParallelReaderMemoryManager(
+       TParallelReaderMemoryManagerOptions(10, 0, 0),
+       actionQueue->GetInvoker());
+
+    auto mm21 = mm11->CreateMultiReaderMemoryManager(5);
+    auto mm22 = mm11->CreateMultiReaderMemoryManager();
+
+    auto r1 = mm21->CreateChunkReaderMemoryManager();
+    r1->SetRequiredMemorySize(5);
+    auto r2 = mm22->CreateChunkReaderMemoryManager();
+    r2->SetRequiredMemorySize(5);
+    r2->SetPrefetchMemorySize(5);
+
+    WaitTestPredicate([&] () { return r1->GetReservedMemorySize() == 5; });
+    WaitTestPredicate([&] () { return r2->GetReservedMemorySize() == 5; });
+
+    r1->Finalize();
+
+    Sleep(TDuration::MilliSeconds(50));
+    EXPECT_EQ(r2->GetReservedMemorySize(), 5);
+
+    mm21->Finalize();
+    WaitTestPredicate([&] () { return r2->GetReservedMemorySize() == 10; });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
