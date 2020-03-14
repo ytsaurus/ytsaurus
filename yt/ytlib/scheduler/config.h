@@ -219,6 +219,8 @@ public:
 
     THashSet<TString> AllowedProfilingTags;
 
+    std::optional<bool> EnableByUserProfiling;
+
     TPoolConfig();
 
     void Validate();

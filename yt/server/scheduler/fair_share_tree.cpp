@@ -2219,6 +2219,18 @@ auto TFairShareTree<TFairShareImpl>::ProfileOperationElement(TMetricsAccumulator
 
     auto parent = element->GetParent();
     while (parent != nullptr) {
+        bool enableProfiling = false;
+        if (!parent->IsRoot()) {
+            const auto* pool = static_cast<const TPool*>(parent);
+            if (pool->GetConfig()->EnableByUserProfiling) {
+                enableProfiling = *pool->GetConfig()->EnableByUserProfiling;
+            } else {
+                enableProfiling = Config_->EnableByUserProfiling;
+            }
+        } else {
+            enableProfiling = Config_->EnableByUserProfiling;
+        }
+
         auto poolTag = parent->GetProfilingTag();
         auto userNameTag = GetUserNameProfilingTag(element->GetUserName());
         TTagIdList byUserTags = {poolTag, userNameTag, TreeIdProfilingTag_};

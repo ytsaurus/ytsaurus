@@ -95,6 +95,7 @@
     XX(Eden, eden) \
     XX(EffectiveAcl, effective_acl) \
     XX(EnableAggressiveStarvation, enable_aggressive_starvation) \
+    XX(EnableByUserProfiling, enable_by_user_profiling) \
     XX(EnableOperationsProfiling, enable_operations_profiling) \
     XX(EnablePoolStarvation, enable_pool_starvation) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \

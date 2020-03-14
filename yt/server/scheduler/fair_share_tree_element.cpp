@@ -1955,7 +1955,7 @@ const std::optional<TString>& TPool::GetUserName() const
     return UserName_;
 }
 
-TPoolConfigPtr TPool::GetConfig()
+TPoolConfigPtr TPool::GetConfig() const
 {
     return Config_;
 }

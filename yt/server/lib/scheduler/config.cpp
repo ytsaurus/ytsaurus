@@ -140,6 +140,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         // Effectively disabled.
         .Default(1.0);
 
+    RegisterParameter("enable_by_user_profiling", EnableByUserProfiling)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
