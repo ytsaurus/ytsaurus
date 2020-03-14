@@ -1611,6 +1611,8 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         set("//tmp/t0/@in_memory_mode", "uncompressed")
         sync_mount_table("//tmp/t0")
 
+        self._verify_resource_usage("test_account", "tablet_static_memory", data_size)
+
         set("//tmp/t1/@in_memory_mode", "uncompressed")
         with pytest.raises(YtError):
             sync_mount_table("//tmp/t1")
