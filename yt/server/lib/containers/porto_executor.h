@@ -9,6 +9,8 @@
 #include <yt/core/actions/future.h>
 #include <yt/core/actions/signal.h>
 
+#include <yt/core/profiling/profiler.h>
+
 #include <infra/porto/api/libporto.hpp>
 #include <infra/porto/proto/rpc.pb.h>
 
@@ -108,7 +110,8 @@ DEFINE_REFCOUNTED_TYPE(IPortoExecutor)
 
 IPortoExecutorPtr CreatePortoExecutor(
     TPortoExecutorConfigPtr config,
-    const TString& threadNameSuffix);
+    const TString& threadNameSuffix,
+    const NProfiling::TProfiler& profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

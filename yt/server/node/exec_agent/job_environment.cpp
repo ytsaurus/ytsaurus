@@ -429,7 +429,10 @@ public:
     TPortoJobEnvironment(TPortoJobEnvironmentConfigPtr config, TBootstrap* bootstrap)
         : TProcessJobEnvironmentBase(config, bootstrap)
         , Config_(std::move(config))
-        , PortoExecutor_(CreatePortoExecutor(Config_->PortoExecutor, "environ"))
+        , PortoExecutor_(CreatePortoExecutor(
+            Config_->PortoExecutor,
+            "environ",
+            ExecAgentProfiler.AppendPath("/job_environement/porto")))
     {  }
 
     virtual void CleanProcesses(int slotIndex) override
