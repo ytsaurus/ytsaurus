@@ -2694,7 +2694,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     auto parallelReaderMemoryManager = CreateParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions(
             config->MaxBufferSize,
-            config->WindowSize),
+            config->WindowSize,
+            0),
         NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
 
     auto createVersionedReader = [

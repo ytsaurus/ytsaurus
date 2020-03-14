@@ -21,7 +21,7 @@ struct TChunkReaderMemoryManagerOptions
 
 //! This interface is used by MultiReaderMemoryManager to track children memory managers.
 class IReaderMemoryManager
-    : public TRefCounted
+    : public virtual TRefCounted
 {
 public:
     //! Minimum amount of memory required by reader to perform reads.
@@ -35,6 +35,9 @@ public:
 
     //! Change reserved amount of memory reserved for this reader.
     virtual void SetReservedMemorySize(i64 size) = 0;
+
+    //! Indicates that memory requirements of this manager will not increase anymore.
+    virtual void Finalize() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReaderMemoryManager)
@@ -57,6 +60,9 @@ public:
 
     virtual void SetReservedMemorySize(i64 size) override;
 
+    //! Called by fetcher when all blocks were fetched.
+    virtual void Finalize() override;
+
     //! Always succeeds, possibly with overcommit.
     TMemoryUsageGuardPtr Acquire(i64 size);
 
@@ -77,9 +83,6 @@ public:
     void SetRequiredMemorySize(i64 size);
 
     void SetPrefetchMemorySize(i64 size);
-
-    //! Called by fetcher when all blocks were fetched.
-    void Finalize();
 
 private:
     void OnSemaphoreAcquired(TPromise<TMemoryUsageGuardPtr> promise, NConcurrency::TAsyncSemaphoreGuard semaphoreGuard);
