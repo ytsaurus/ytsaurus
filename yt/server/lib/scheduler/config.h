@@ -165,6 +165,8 @@ public:
 
     double LogFairShareRatioDisagreementThreshold;
 
+    bool EnableByUserProfiling;
+
     TFairShareStrategyTreeConfig();
 };
 

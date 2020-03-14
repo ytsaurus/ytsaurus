@@ -1438,6 +1438,9 @@ TPoolConfig::TPoolConfig()
 
     RegisterParameter("allowed_profiling_tags", AllowedProfilingTags)
         .Default();
+
+    RegisterParameter("enable_by_user_profiling", EnableByUserProfiling)
+        .Default();
 }
 
 void TPoolConfig::Validate()

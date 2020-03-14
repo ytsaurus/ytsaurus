@@ -656,7 +656,7 @@ public:
     void SetUserName(const std::optional<TString>& userName);
     const std::optional<TString>& GetUserName() const;
 
-    TPoolConfigPtr GetConfig();
+    TPoolConfigPtr GetConfig() const;
     void SetConfig(TPoolConfigPtr config);
     void SetDefaultConfig();
     void SetEphemeralInDefaultParentPool();
