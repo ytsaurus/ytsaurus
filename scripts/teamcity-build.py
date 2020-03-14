@@ -137,7 +137,7 @@ def process_core_dumps(options, suite_name, suite_path):
         archive_dir=sandbox_archive)
 
 def python_package_path(options):
-    return os.path.join(options.checkout_directory, "scripts/teamcity-build/python/python_packaging/package.py")
+    return os.path.join(options.checkout_directory, get_relative_yt_root(options), "scripts/teamcity-build/python/python_packaging/package.py")
 
 def only_for_projects(*projects):
     def decorator(func):
@@ -190,7 +190,7 @@ def reset_debian_changelog():
         os.remove("debian/changelog")
 
 def get_python_packages_config(options):
-    config_generator = os.path.join(get_lib_dir_for_python(options, "2.7"), "build_python_packages_config_generator")
+    config_generator = os.path.join(get_bin_dir(options), "build_python_packages_config_generator")
     return json.loads(run_captured([config_generator]))
 
 def get_lib_dir_for_python(options, python_version):
@@ -289,7 +289,21 @@ def prepare(options, build_context):
     options.branch = re.sub(r"^refs/heads/", "", options.branch)
     options.branch = options.branch.split("/")[0]
 
-    options.patch_number = run_captured([os.path.join(options.checkout_directory, "git-depth.py")], cwd=options.checkout_directory)
+    if options.arc:
+        branch_commit = run_captured(
+            ["arc", "merge-base", "HEAD", "arcadia/trunk"],
+            cwd=options.checkout_directory
+        ).strip()
+        log = run_captured(
+            ["arc", "log", branch_commit + "..HEAD", "--oneline"],
+            cwd=options.checkout_directory
+        )
+        options.patch_number = len(log.split("\n"))
+    else:
+        options.patch_number = run_captured(
+            [os.path.join(options.checkout_directory, "git-depth.py")],
+            cwd=options.checkout_directory
+        )
 
     codename = run_captured(["lsb_release", "-c"])
     codename = re.sub(r"^Codename:\s*", "", codename)
@@ -445,6 +459,13 @@ def import_yt_wrapper(options, build_context):
     for pythonpath in pythonpaths:
         sys.path.insert(0, pythonpath)
 
+    try:
+        import yt.wrapper
+    except ImportError as err:
+        raise RuntimeError("Failed to import yt wrapper: {0}".format(err))
+    yt.wrapper.config["token"] = os.environ["TEAMCITY_YT_TOKEN"]
+    build_context["yt.wrapper"] = yt.wrapper
+
 def sky_get(resource):
     run(
         ["sky", "get", resource],
@@ -477,7 +498,7 @@ def package_python_proto(options, build_context):
         python_src_copy = os.path.realpath("python_src_copy")
 
         shutil.copytree(
-            os.path.join(options.checkout_directory, "python"),
+            os.path.join(options.checkout_directory, get_relative_python_root(options), "python"),
             python_src_copy,
             symlinks=True)
 
@@ -613,13 +634,13 @@ def package_yson_bindings(options, build_context):
         teamcity_message("Skipping packaging yson_bindings")
         return
 
-    yson_packages_path = os.path.join(options.checkout_directory, "yt/python/yson-debian")
+    yson_packages_path = os.path.join(options.checkout_directory, get_relative_yt_root(options), "yt/python/yson-debian")
     args = [
         python_package_path(options),
         "--working-directory", options.working_directory,
         "--debian-repositories", ",".join(options.bindings_repositories),
         "--changelog-path", os.path.join(yson_packages_path, "debian/changelog"),
-        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_yson_bindings"),
+        "--source-python-module-path", os.path.join(options.checkout_directory, get_relative_yt_root(options), "yt/python/yt_yson_bindings"),
     ]
 
     configurations = [
@@ -666,13 +687,13 @@ def package_rpc_bindings(options, build_context):
             message="Rpc driver release",
             create_package="package-name")
 
-    rpc_packages_path = os.path.join(options.checkout_directory, "yt/python/driver-rpc-debian")
+    rpc_packages_path = os.path.join(options.checkout_directory, get_relative_yt_root(options), "yt/python/driver-rpc-debian")
     args = [
         python_package_path(options),
         "--working-directory", options.working_directory,
         "--debian-repositories", ",".join(options.bindings_repositories),
         "--changelog-path", os.path.join(changelog_dir, "debian/changelog"),
-        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_driver_rpc_bindings"),
+        "--source-python-module-path", os.path.join(options.checkout_directory, get_relative_yt_root(options), "yt/python/yt_driver_rpc_bindings"),
     ]
 
     configurations = [
@@ -715,7 +736,7 @@ def package_driver_bindings(options, build_context):
         "yandex-yt-python-driver")
     mkdirp(os.path.join(changelog_dir, "debian"))
     with cwd(changelog_dir):
-        shutil.copy(os.path.join(options.checkout_directory, "debian/changelog"), "debian/changelog")
+        shutil.copy(os.path.join(options.checkout_directory, get_relative_yt_root(options), "debian/changelog"), "debian/changelog")
         dch(version=config["yt_version"],
             message="Package version bump; no source changes.")
         with open("debian/changelog") as fin:
@@ -723,13 +744,13 @@ def package_driver_bindings(options, build_context):
         with open("debian/changelog", "w") as fout:
             fout.write(text.replace("yandex-yt", "package-name"))
 
-    driver_packages_path = os.path.join(options.checkout_directory, "yt/python/driver-debian")
+    driver_packages_path = os.path.join(options.checkout_directory, get_relative_yt_root(options), "yt/python/driver-debian")
     args = [
         python_package_path(options),
         "--working-directory", options.working_directory,
         "--debian-repositories", "yt-common",
         "--changelog-path", os.path.join(changelog_dir, "debian/changelog"),
-        "--source-python-module-path", os.path.join(options.checkout_directory, "yt/python/yt_driver_bindings"),
+        "--source-python-module-path", os.path.join(options.checkout_directory, get_relative_yt_root(options), "yt/python/yt_driver_bindings"),
         "--destination", os.path.join(options.working_directory, "./ARTIFACTS"),
     ]
 
@@ -933,9 +954,7 @@ def run_ya_tests(options, suite_name, test_paths, dist=True):
         "--build-results-report", os.path.join(sandbox_storage, "ya_make_results_report.txt"),
     ]
     if not options.arc:
-        args += [
-            "--test-param", "inside_arcadia=0",
-        ]
+        args += ["--test-param", "inside_arcadia=0"]
     if dist:
         args += ["--dist", "-E"]
     else:
