@@ -577,7 +577,7 @@ class TestRaceBetweenShardAndStrategy(YTEnvSetup):
             with_breakpoint("BREAKPOINT"),
             job_count=2,
             spec={
-                "testing": {"delay_inside_materialize": 1000},
+                "testing": {"delay_after_materialize": 1000},
                 "resource_limits": {"user_slots": 1}
             })
         wait_breakpoint()

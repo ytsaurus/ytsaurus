@@ -15,6 +15,11 @@ class TTreeTaggedJobMetrics;
 class TPoolTreeSchedulingTagFilter;
 class TPoolTreeSchedulingTagFilters;
 class TOperationDescriptor;
+class TInitializeOperationResult;
+class TPrepareOperationResult;
+class TMaterializeOperationResult;
+class TReviveOperationResult;
+class TCommitOperationResult;
 
 } // namespace NProto
 

@@ -404,6 +404,7 @@ DEFINE_REFCOUNTED_TYPE(TJobIOConfig::TTestingOptions)
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EDelayInsideOperationCommitStage,
+    (Start)
     (Stage1)
     (Stage2)
     (Stage3)
@@ -430,9 +431,13 @@ public:
     std::optional<TDuration> SchedulingDelay;
     ESchedulingDelayType SchedulingDelayType;
 
+    //! The following delays are used inside the operation controller.
+
     std::optional<TDuration> DelayInsideOperationCommit;
     std::optional<EDelayInsideOperationCommitStage> DelayInsideOperationCommitStage;
     bool NoDelayOnSecondEntranceToCommit;
+
+    std::optional<TDuration> DelayInsideInitialize;
 
     std::optional<TDuration> DelayInsidePrepare;
 
@@ -441,6 +446,10 @@ public:
     std::optional<TDuration> DelayInsideSuspend;
 
     std::optional<TDuration> DelayInsideMaterialize;
+
+    //! The following delays are used inside the scheduler.
+
+    std::optional<TDuration> DelayAfterMaterialize;
 
     std::optional<TDuration> DelayInsideAbort;
 

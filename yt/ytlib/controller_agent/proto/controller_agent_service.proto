@@ -110,6 +110,15 @@ message TControllerTransactionIds
     repeated NYT.NProto.TGuid nested_input_ids = 7;
 }
 
+message TInitializeOperationResult
+{
+    required bytes mutable_attributes = 1; // YSON
+    required bytes brief_spec = 2; // YSON
+    required bytes unrecognized_spec = 3; // YSON
+    required bytes full_spec = 4; // YSON
+    required TControllerTransactionIds transaction_ids = 5;
+}
+
 message TReqInitializeOperation
 {
     required NYT.NProto.TGuid incarnation_id = 1;
@@ -120,14 +129,16 @@ message TReqInitializeOperation
 
 message TRspInitializeOperation
 {
-    required bytes mutable_attributes = 1; // YSON
-    required bytes brief_spec = 2; // YSON
-    required bytes unrecognized_spec = 3; // YSON
-    required bytes full_spec = 4; // YSON
-    required TControllerTransactionIds transaction_ids = 5;
+    // If the result is missing, it will be sent later in a heartbeat.
+    optional TInitializeOperationResult result = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TPrepareOperationResult
+{
+    optional bytes attributes = 1; // YSON
+}
 
 message TReqPrepareOperation
 {
@@ -137,10 +148,18 @@ message TReqPrepareOperation
 
 message TRspPrepareOperation
 {
-    optional bytes attributes = 1; // YSON
+    // If the result is missing, it will be sent later in a heartbeat.
+    optional TPrepareOperationResult result = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TMaterializeOperationResult
+{
+    // Set to true if suspend_operation_after_materialization is set.
+    required bool suspend = 1;
+    required NScheduler.NProto.TJobResources initial_needed_resources = 2;
+}
 
 message TReqMaterializeOperation
 {
@@ -150,20 +169,13 @@ message TReqMaterializeOperation
 
 message TRspMaterializeOperation
 {
-    // Set to true if suspend_operation_after_materialization is set.
-    optional bool suspend = 1;
-    optional NScheduler.NProto.TJobResources initial_needed_resources = 2;
+    // If the result is missing, it will be sent later in a heartbeat.
+    optional TMaterializeOperationResult result = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqReviveOperation
-{
-    required NYT.NProto.TGuid incarnation_id = 1;
-    required NYT.NProto.TGuid operation_id = 2;
-}
-
-message TRspReviveOperation
+message TReviveOperationResult
 {
     message TRevivedJob
     {
@@ -181,10 +193,25 @@ message TRspReviveOperation
     required bool revived_from_snapshot = 2;
     repeated TRevivedJob revived_jobs = 3;
     repeated string revived_banned_tree_ids = 4;
-    optional NScheduler.NProto.TJobResources needed_resources = 5;
+    required NScheduler.NProto.TJobResources needed_resources = 5;
+}
+
+message TReqReviveOperation
+{
+    required NYT.NProto.TGuid incarnation_id = 1;
+    required NYT.NProto.TGuid operation_id = 2;
+}
+
+message TRspReviveOperation
+{
+    // If the result is missing, it will be sent later in a heartbeat.
+    optional TReviveOperationResult result = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TCommitOperationResult
+{ }
 
 message TReqCommitOperation
 {
@@ -193,7 +220,10 @@ message TReqCommitOperation
 }
 
 message TRspCommitOperation
-{ }
+{
+    // If the result is missing, it will be sent later in a heartbeat.
+    optional TCommitOperationResult result = 1;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

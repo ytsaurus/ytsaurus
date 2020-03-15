@@ -1169,8 +1169,8 @@ public:
             }
         }
 
-        if (operation->Spec()->TestingOperationOptions->DelayInsideMaterialize) {
-            TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayInsideMaterialize);
+        if (operation->Spec()->TestingOperationOptions->DelayAfterMaterialize) {
+            TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayAfterMaterialize);
         }
         operation->SetStateAndEnqueueEvent(EOperationState::Running);
         Strategy_->EnableOperation(operation.Get());

@@ -783,6 +783,12 @@ public:
 
     NJobAgent::TJobReporterConfigPtr JobReporter;
 
+    //! Timeout for the response to a heavy request to the operation controller,
+    //! such as Initialize, Prepare, Materialize, Revive or Commit.
+    //! If such an action's execution time does not exceed this timeout, its result is sent in the corresponding response.
+    //! Otherwise, the immediate response is empty, and the result is sent in one of the following heartbeats.
+    TDuration HeavyRequestImmediateResponseTimeout;
+
     TControllerAgentConfig();
 
 private:
