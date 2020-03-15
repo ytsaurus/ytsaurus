@@ -13,12 +13,12 @@ class TElectionCallbacksMock
 {
 public:
     MOCK_METHOD1(OnStartLeading, void(TEpochContextPtr epochContext));
-    MOCK_METHOD0(OnStopLeading, void());
+    MOCK_METHOD1(OnStopLeading, void(const TError&));
 
     MOCK_METHOD1(OnStartFollowing, void(TEpochContextPtr epochContext));
-    MOCK_METHOD0(OnStopFollowing, void());
+    MOCK_METHOD1(OnStopFollowing, void(const TError&));
 
-    MOCK_METHOD0(OnStopVoting, void());
+    MOCK_METHOD1(OnStopVoting, void(const TError&));
 
     MOCK_METHOD0(GetPriority, TPeerPriority());
     MOCK_METHOD1(FormatPriority, TString(TPeerPriority priority));
@@ -36,7 +36,7 @@ public:
     MOCK_METHOD0(Finalize, void());
 
     MOCK_METHOD0(Participate, void());
-    MOCK_METHOD0(Abandon, void());
+    MOCK_METHOD1(Abandon, void(const TError&));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

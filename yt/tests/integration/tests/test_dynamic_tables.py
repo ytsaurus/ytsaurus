@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup, wait, parametrize_external,\
     Restarter, NODES_SERVICE, MASTERS_SERVICE
 from yt_commands import *
+from yt_helpers import *
 
 from yt.environment.helpers import assert_items_equal
 
@@ -190,6 +191,13 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         wait(check)
 
+    def _check_cell_stable(self, cell_id):
+        addresses = [peer["address"] for peer in get("#" + cell_id + "/@peers")]
+        metrics = [Metric.at_node(address, "hydra/restart_count", with_tags={"cell_id": cell_id}) for address in addresses]
+        sleep(10.0)
+        for metric in metrics:
+            assert metric.update().get(verbose=True) == 0
+
     @authors("kiselyovp")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_follower_catchup(self, decommission_through_extra_peers):
@@ -362,39 +370,38 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         def get_peers():
             return get("#" + cell_id + "/@peers")
 
-        def get_peer_state(peer_address):
-            for peer in get_peers():
-                if peer["address"] == peer_address:
-                    return peer["state"]
-            return None
-
         assert len(get_peers()) == 1
         first_peer_address = get_peers()[0]["address"]
-        assert get_peer_state(first_peer_address) == "leading"
+
+        self._wait_cell_good(cell_id)
 
         set("//sys/tablet_cells/{}/@peer_count".format(cell_id), 2)
+
         with pytest.raises(YtError):
             set("//sys/tablet_cells/{}/@peer_count".format(cell_id), 1)
 
+        self._wait_cell_good(cell_id)
+
         assert len(get_peers()) == 2
-        wait(lambda: get_peers()[1]["state"] == "following")
         second_peer_address = get_peers()[1]["address"]
         assert first_peer_address != second_peer_address
-        wait(lambda: get_peer_state(first_peer_address) == "leading")
+
+        self._check_cell_stable(cell_id)
 
         set_node_decommissioned(first_peer_address, True)
         self._wait_cell_good(cell_id, [first_peer_address])
 
-        wait(lambda: get_peer_state(second_peer_address) == "leading")
         assert len(get_peers()) == 2
         assert get_peers()[1]["address"] == second_peer_address
 
         remove("//sys/tablet_cells/{}/@peer_count".format(cell_id))
+
+        self._wait_cell_good(cell_id)
+
         assert len(get_peers()) == 1
         assert get_peers()[0]["address"] == second_peer_address
-        wait(lambda: get_peer_state(second_peer_address) == "leading")
-        sleep(1)
-        assert get_peer_state(second_peer_address) == "leading"
+
+        self._check_cell_stable(cell_id)
 
     @authors("savrus")
     def test_tablet_cell_health_statistics(self):

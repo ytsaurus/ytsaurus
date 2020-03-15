@@ -75,11 +75,12 @@ public:
                 epochContext));
         }
 
-        virtual void OnStopLeading() override
+        virtual void OnStopLeading(const TError& error) override
         {
             CancelableControlInvoker_->Invoke(BIND(
                 &TDistributedHydraManager::OnElectionStopLeading,
-                Owner_));
+                Owner_,
+                error));
         }
 
         virtual void OnStartFollowing(NElection::TEpochContextPtr epochContext) override
@@ -90,18 +91,20 @@ public:
                 epochContext));
         }
 
-        virtual void OnStopFollowing() override
+        virtual void OnStopFollowing(const TError& error) override
         {
             CancelableControlInvoker_->Invoke(BIND(
                 &TDistributedHydraManager::OnElectionStopFollowing,
-                Owner_));
+                Owner_,
+                error));
         }
 
-        virtual void OnStopVoting() override
+        virtual void OnStopVoting(const TError& error) override
         {
             CancelableControlInvoker_->Invoke(BIND(
                 &TDistributedHydraManager::OnElectionStopVoting,
-                Owner_));
+                Owner_,
+                error));
         }
 
         virtual TPeerPriority GetPriority() override
@@ -215,8 +218,6 @@ public:
 
         ControlState_ = EPeerState::Elections;
 
-        ProfileRestart("Initialization");
-
         Participate();
     }
 
@@ -230,9 +231,11 @@ public:
 
         YT_LOG_INFO("Hydra instance is finalizing");
 
-        CancelableContext_->Cancel(TError("Hydra instance is finalizing"));
+        auto error = TError("Hydra instance is finalizing");
 
-        ElectionManager_->Abandon();
+        CancelableContext_->Cancel(error);
+
+        ElectionManager_->Abandon(error);
 
         if (ControlState_ != EPeerState::None) {
             RpcServer_->UnregisterService(this);
@@ -527,6 +530,7 @@ private:
     const IElectionCallbacksPtr ElectionCallbacks_;
 
     const NProfiling::TProfiler Profiler;
+    int RestartCounter_ = 0;
     NProfiling::TAggregateGauge LeaderSyncTimeGauge_{"/leader_sync_time"};
 
     std::atomic<bool> ReadOnly_ = {false};
@@ -999,18 +1003,15 @@ private:
         auto currentSegmentId = DecoratedAutomaton_->GetAutomatonVersion().SegmentId;
         auto lastLeadingSegmentId = DecoratedAutomaton_->GetLastLeadingSegmentId();
 
-        bool isLeading = false;
         auto controlState = GetControlState();
-        if (controlState == EPeerState::Leading || controlState == EPeerState::LeaderRecovery) {
-            isLeading = true;
-        }
+        bool isLeading = (controlState == EPeerState::Leading || controlState == EPeerState::LeaderRecovery);
 
         if (isLeading && senderSegmentId == currentSegmentId + 1) {
-            YT_LOG_INFO("Stopping leading (SenderSegmentId: %v, CurrentSegmentId: %v)",
+            YT_LOG_INFO("Abandoning leader lease (SenderSegmentId: %v, CurrentSegmentId: %v)",
                 senderSegmentId,
                 currentSegmentId);
 
-            ElectionManager_->Abandon();
+            ElectionManager_->Abandon(TError("Requested to abandon leader lease"));
         }
 
         context->SetResponseInfo("SegmentId: %v, LastLeadingSegmentId: %v",
@@ -1045,16 +1046,20 @@ private:
             BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
     }
 
-    void ProfileRestart(const TString& message)
+    void ProfileRestart(const TString& reason)
     {
-        auto tagIds = Options_.ProfilingTagIds;
-        tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("reason", message));
-
         Profiler.Enqueue(
             "/restart_count",
-            1,
+            ++RestartCounter_,
             NProfiling::EMetricType::Gauge,
-            tagIds);
+            {
+                NProfiling::TProfileManager::Get()->RegisterTag("reason", reason)
+            });
+    }
+
+    void ProfileRestart(const TError& error)
+    {
+        ProfileRestart(error.GetMessage());
     }
 
     void ScheduleRestart(const TEpochContextPtr& epochContext, const TError& error)
@@ -1092,10 +1097,7 @@ private:
         }
 
         YT_LOG_WARNING(error, "Restarting Hydra instance");
-
-        ProfileRestart(error.GetMessage());
-
-        ElectionManager_->Abandon();
+        ElectionManager_->Abandon(error);
     }
 
     void DoParticipate()
@@ -1436,11 +1438,13 @@ private:
         AlivePeerSetChanged_.Fire(alivePeers);
     }
 
-    void OnElectionStopLeading()
+    void OnElectionStopLeading(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Stopped leading");
+        YT_LOG_INFO(error, "Stopped leading");
+
+        ProfileRestart(error);
 
         // Save for later to respect the thread affinity.
         auto leaderCommitter = ControlEpochContext_->LeaderCommitter;
@@ -1542,11 +1546,13 @@ private:
         }
     }
 
-    void OnElectionStopFollowing()
+    void OnElectionStopFollowing(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Stopped following");
+        YT_LOG_INFO(error, "Stopped following");
+
+        ProfileRestart(error);
 
         // Save for later to respect the thread affinity.
         auto followerCommitter = ControlEpochContext_->FollowerCommitter;
@@ -1572,11 +1578,11 @@ private:
         SystemLockGuard_.Release();
     }
 
-    void OnElectionStopVoting()
+    void OnElectionStopVoting(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Stopped voting");
+        YT_LOG_INFO(error, "Stopped voting");
 
         StopEpoch();
 

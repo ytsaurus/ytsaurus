@@ -123,14 +123,14 @@ public:
             Format("TabletSnap:%v", SlotIndex_)))
         , PeerId_(createInfo.peer_id())
         , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
-        , TabletCellBundle(createInfo.tablet_cell_bundle())
+        , TabletCellBundle_(createInfo.tablet_cell_bundle())
         , ProfilingTagIds_{
             NProfiling::TProfileManager::Get()->RegisterTag(
                 "cell_id",
                 CellDescriptor_.CellId),
             NProfiling::TProfileManager::Get()->RegisterTag(
                 "tablet_cell_bundle",
-                TabletCellBundle ? TabletCellBundle : UnknownProfilingTag)
+                TabletCellBundle_ ? TabletCellBundle_ : UnknownProfilingTag)
         }
         , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
         , Logger(GetLogger())
@@ -339,7 +339,7 @@ public:
 
             DynamicConfigVersion_ = updateInfo.dynamic_config_version();
             {
-                TGuard<TSpinLock> guard(DynamicOptionsLock);
+                TGuard<TSpinLock> guard(DynamicOptionsLock_);
                 DynamicOptions_ = std::move(dynamicOptions);
             }
 
@@ -385,7 +385,7 @@ public:
                 newPrerequisiteTransactionId);
             PrerequisiteTransactionId_ = newPrerequisiteTransactionId;
             if (ElectionManager_) {
-                ElectionManager_->Abandon();
+                ElectionManager_->Abandon(TError("Tablet slot reconfigured"));
             }
         }
 
@@ -449,7 +449,7 @@ public:
                 Config_->HydraManager->ResponseKeeper,
                 GetAutomatonInvoker(),
                 Logger,
-                TabletNodeProfiler);
+                TabletNodeProfiler.AppendPath("/response_keeper"));
 
             TDistributedHydraManagerOptions hydraManagerOptions;
             hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
@@ -618,7 +618,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(DynamicOptionsLock);
+        TGuard<TSpinLock> guard(DynamicOptionsLock_);
         auto options = DynamicOptions_;
         guard.Release();
         return options;
@@ -647,13 +647,13 @@ private:
     TPeerId PeerId_;
     TCellDescriptor CellDescriptor_;
 
-    const TString TabletCellBundle;
+    const TString TabletCellBundle_;
 
     const NProfiling::TTagIdList ProfilingTagIds_;
 
     const TTabletCellOptionsPtr Options_;
 
-    TSpinLock DynamicOptionsLock;
+    TSpinLock DynamicOptionsLock_;
     TDynamicTabletCellOptionsPtr DynamicOptions_ = New<TDynamicTabletCellOptions>();
 
     int DynamicConfigVersion_ = -1;
