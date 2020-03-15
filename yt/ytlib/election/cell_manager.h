@@ -8,15 +8,10 @@
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/core/concurrency/thread_affinity.h>
-
 namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*!
- * Thread affinity: single-threaded
- */
 class TCellManager
     : public TRefCounted
 {
@@ -37,7 +32,7 @@ public:
     const TCellPeerConfig& GetPeerConfig(TPeerId id) const;
     NRpc::IChannelPtr GetPeerChannel(TPeerId id) const;
 
-    void Reconfigure(const TCellConfigPtr& newConfig, TPeerId newSelfId);
+    void Reconfigure(TCellConfigPtr newConfig, TPeerId selfId);
 
     DEFINE_SIGNAL(void(TPeerId peerId), PeerReconfigured);
 
@@ -46,7 +41,7 @@ private:
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     TPeerId SelfId_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     int VotingPeerCount_;
     int QuorumPeerCount_;
@@ -54,9 +49,6 @@ private:
 
     std::vector<NRpc::IChannelPtr> PeerChannels_;
 
-    DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
-
-    void InitializeLogger();
     NRpc::IChannelPtr CreatePeerChannel(const TCellPeerConfig& peerConfig);
 };
 
