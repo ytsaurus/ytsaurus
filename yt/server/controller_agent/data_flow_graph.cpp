@@ -174,10 +174,10 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(EJobType, JobType);
 
     using TLivePreviewList = std::vector<TLivePreviewPtr>;
-    DEFINE_BYVAL_RO_PROPERTY(TLivePreviewList, LivePreviews);
+    DEFINE_BYVAL_RO_PROPERTY(std::shared_ptr<TLivePreviewList>, LivePreviews, std::make_shared<TLivePreviewList>());
 
     using TEdgeMap = THashMap<TVertexDescriptor, TEdgePtr>;
-    DEFINE_BYREF_RO_PROPERTY(TEdgeMap, Edges);
+    DEFINE_BYREF_RO_PROPERTY(std::shared_ptr<TEdgeMap>, Edges, std::make_shared<TEdgeMap>());
 
 public:
     TVertex() = default;
@@ -190,9 +190,9 @@ public:
 
     const TEdgePtr& GetOrRegisterEdge(const TVertexDescriptor& to)
     {
-        auto it = Edges_.find(to);
-        if (it == Edges_.end()) {
-            auto& edge = Edges_[to];
+        auto it = Edges_->find(to);
+        if (it == Edges_->end()) {
+            auto& edge = (*Edges_)[to];
             edge = New<TEdge>();
             return edge;
         } else {
@@ -206,7 +206,7 @@ public:
 
         Persist(context, JobCounter_);
         Persist(context, JobType_);
-        Persist(context, LivePreviews_);
+        Persist(context, *LivePreviews_);
         Persist(context, NodeDirectory_);
 
         if (context.IsLoad()) {
@@ -216,22 +216,22 @@ public:
 
     void RegisterLivePreviewChunk(int index, TInputChunkPtr chunk)
     {
-        if (index >= LivePreviews_.size()) {
-            LivePreviews_.resize(index + 1);
+        if (index >= LivePreviews_->size()) {
+            LivePreviews_->resize(index + 1);
         }
-        if (!LivePreviews_[index]) {
-            LivePreviews_[index] = New<TLivePreview>(NodeDirectory_);
+        if (!(*LivePreviews_)[index]) {
+            (*LivePreviews_)[index] = New<TLivePreview>(NodeDirectory_);
         }
 
-        YT_VERIFY(LivePreviews_[index]->Chunks().insert(std::move(chunk)).second);
+        YT_VERIFY((*LivePreviews_)[index]->Chunks().insert(std::move(chunk)).second);
     }
 
     void UnregisterLivePreviewChunk(int index, TInputChunkPtr chunk)
     {
-        YT_VERIFY(0 <= index && index < LivePreviews_.size());
-        YT_VERIFY(LivePreviews_[index]);
+        YT_VERIFY(0 <= index && index < LivePreviews_->size());
+        YT_VERIFY((*LivePreviews_)[index]);
 
-        YT_VERIFY(LivePreviews_[index]->Chunks().erase(std::move(chunk)));
+        YT_VERIFY((*LivePreviews_)[index]->Chunks().erase(std::move(chunk)));
     }
 
 private:
@@ -240,11 +240,11 @@ private:
     void Initialize()
     {
         using TEdgeMapService = NYTree::TCollectionBoundMapService<TEdgeMap>;
-        auto edgeMapService = New<TEdgeMapService>(Edges_);
+        auto edgeMapService = New<TEdgeMapService>(std::weak_ptr<TEdgeMap>(Edges_));
         edgeMapService->SetOpaque(false);
 
         using TLivePreviewListService = NYTree::TCollectionBoundListService<TLivePreviewList>;
-        auto livePreviewService = New<TLivePreviewListService>(LivePreviews_);
+        auto livePreviewService = New<TLivePreviewListService>(std::weak_ptr<TLivePreviewList>(LivePreviews_));
 
         auto service = New<TCompositeMapService>();
         service->AddChild("edges", edgeMapService);
@@ -291,7 +291,7 @@ public:
         using NYT::Persist;
 
         Persist(context, TotalJobCounter_);
-        Persist(context, Vertices_);
+        Persist(context, *Vertices_);
         Persist(context, TopologicalOrdering_);
         Persist(context, NodeDirectory_);
 
@@ -338,8 +338,8 @@ public:
         fluent
             .Item("vertices").BeginMap()
                 .DoFor(topologicalOrdering, [&] (TFluentMap fluent, const TVertexDescriptor& vertexDescriptor) {
-                    auto it = Vertices_.find(vertexDescriptor);
-                    if (it != Vertices_.end()) {
+                    auto it = Vertices_->find(vertexDescriptor);
+                    if (it != Vertices_->end()) {
                         fluent
                             .Item(vertexDescriptor).BeginMap()
                                 .Item("job_counter").Value(it->second->JobCounter())
@@ -353,10 +353,10 @@ public:
             .EndMap()
             .Item("edges")
                 .DoMapFor(topologicalOrdering, [&] (TFluentMap fluent, const TVertexDescriptor& from) {
-                    auto it = Vertices_.find(from);
-                    if (it != Vertices_.end()) {
+                    auto it = Vertices_->find(from);
+                    if (it != Vertices_->end()) {
                         fluent.Item(from)
-                            .DoMapFor(it->second->Edges(), [&] (TFluentMap fluent, const auto& pair) {
+                            .DoMapFor(*(it->second->Edges()), [&] (TFluentMap fluent, const auto& pair) {
                                 auto to = pair.first;
                                 const auto& edge = pair.second;
                                 fluent
@@ -371,7 +371,7 @@ public:
 
 private:
     using TVertexMap = THashMap<TVertexDescriptor, TVertexPtr>;
-    TVertexMap Vertices_;
+    std::shared_ptr<TVertexMap> Vertices_ = std::make_shared<TVertexMap>();
 
     TProgressCounterPtr TotalJobCounter_ = New<TProgressCounter>(0);
 
@@ -385,7 +385,7 @@ private:
     {
         using TVertexMapService = TCollectionBoundMapService<TVertexMap>;
 
-        auto vertexMapService = New<TVertexMapService>(Vertices_);
+        auto vertexMapService = New<TVertexMapService>(std::weak_ptr<TVertexMap>(Vertices_));
         vertexMapService->SetOpaque(false);
         auto service = New<TCompositeMapService>()
             ->AddChild("vertices", std::move(vertexMapService))
@@ -401,9 +401,9 @@ private:
 
     const TVertexPtr& GetOrRegisterVertex(const TVertexDescriptor& descriptor)
     {
-        auto it = Vertices_.find(descriptor);
-        if (it == Vertices_.end()) {
-            auto& vertex = Vertices_[descriptor];
+        auto it = Vertices_->find(descriptor);
+        if (it == Vertices_->end()) {
+            auto& vertex = (*Vertices_)[descriptor];
             vertex = New<TVertex>(NodeDirectory_);
             vertex->JobCounter()->SetParent(TotalJobCounter_);
             return vertex;
