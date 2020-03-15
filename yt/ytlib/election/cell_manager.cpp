@@ -40,6 +40,8 @@ TCellManager::TCellManager(
         PeerChannels_[id] = CreatePeerChannel(Config_->Peers[id]);
     }
 
+    InitializeLogger();
+
     YT_LOG_INFO("Cell initialized (SelfId: %v, Peers: %v, VotingPeers: %v)",
         SelfId_,
         Config_->Peers,
@@ -48,46 +50,64 @@ TCellManager::TCellManager(
 
 TCellId TCellManager::GetCellId() const
 {
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
     return Config_->CellId;
 }
 
 TPeerId TCellManager::GetSelfPeerId() const
 {
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
     return SelfId_;
 }
 
 const TCellPeerConfig& TCellManager::GetSelfConfig() const
 {
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
     return GetPeerConfig(GetSelfPeerId());
 }
 
 int TCellManager::GetVotingPeerCount() const
 {
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
     return VotingPeerCount_;
 }
 
 int TCellManager::GetQuorumPeerCount() const
 {
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
     return QuorumPeerCount_;
 }
 
 int TCellManager::GetTotalPeerCount() const
 {
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
     return TotalPeerCount_;
 }
 
 const TCellPeerConfig& TCellManager::GetPeerConfig(TPeerId id) const
 {
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
     return Config_->Peers[id];
 }
 
 IChannelPtr TCellManager::GetPeerChannel(TPeerId id) const
 {
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
     return PeerChannels_[id];
 }
 
-void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
+void TCellManager::Reconfigure(const TCellConfigPtr& newConfig, TPeerId newSelfId)
 {
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
     if (Config_->CellId != newConfig->CellId) {
         THROW_ERROR_EXCEPTION("Cannot change cell id from %v to %v",
             Config_->CellId,
@@ -101,10 +121,10 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
     }
 
     if (VotingPeerCount_ > 1) {
-        if (selfId != SelfId_) {
+        if (newSelfId != SelfId_) {
             THROW_ERROR_EXCEPTION("Cannot change self id from %v to %v since there are %v voting peers",
                 SelfId_,
-                selfId,
+                newSelfId,
                 VotingPeerCount_);
         }
         if (newConfig->Peers.size() != Config_->Peers.size()) {
@@ -123,13 +143,16 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
 
     THashSet<TPeerId> reconfiguredPeerIds;
 
-    if (selfId != SelfId_) {
+    if (newSelfId != SelfId_) {
         reconfiguredPeerIds.insert(SelfId_);
-        YT_LOG_DEBUG("Peer self id changed (Address: %v, SelfId: %v -> %v)",
+        const auto& Logger = ElectionLogger;
+        YT_LOG_DEBUG("Peer self id changed (Address: %v, CellId: %v, SelfId: %v -> %v)",
             oldPeers[SelfId_].Address,
+            Config_->CellId,
             SelfId_,
-            selfId);
-        SelfId_ = selfId;
+            newSelfId);
+        SelfId_ = newSelfId;
+        InitializeLogger();
     }
 
     TotalPeerCount_ = static_cast<int>(newPeers.size());
@@ -180,11 +203,22 @@ void TCellManager::Reconfigure(TCellConfigPtr newConfig, TPeerId selfId)
     }
 }
 
+void TCellManager::InitializeLogger()
+{
+     Logger = NLogging::TLogger(ElectionLogger)
+        .AddTag("CellId: %v, SelfPeerId: %v",
+            Config_->CellId,
+            SelfId_);
+}
+
 IChannelPtr TCellManager::CreatePeerChannel(const TCellPeerConfig& config)
 {
+    VERIFY_THREAD_AFFINITY(HomeThread);
+
     if (!config.Address) {
         return nullptr;
     }
+
     return CreateRealmChannel(
         ChannelFactory_->CreateChannel(*config.Address),
         Config_->CellId);
