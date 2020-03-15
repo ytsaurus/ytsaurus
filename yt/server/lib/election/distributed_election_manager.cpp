@@ -152,9 +152,6 @@ private:
 
         const auto& cellManager = Owner_->CellManager_;
         for (auto id = TotalPeerCount_; id < cellManager->GetTotalPeerCount(); ++id) {
-            if (id == cellManager->GetSelfPeerId()) {
-                continue;
-            }
             SendPing(id);
         }
         TotalPeerCount_ = cellManager->GetTotalPeerCount();
@@ -163,6 +160,14 @@ private:
     void SendPing(TPeerId peerId)
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+
+        if (peerId >= Owner_->CellManager_->GetTotalPeerCount()) {
+            return;
+        }
+
+        if (peerId == Owner_->CellManager_->GetSelfPeerId()) {
+            return;
+        }
 
         auto channel = Owner_->CellManager_->GetPeerChannel(peerId);
         if (!channel) {
@@ -349,15 +354,18 @@ public:
 
         std::vector<TFuture<void>> asyncResults;
         for (TPeerId id = 0; id < cellManager->GetTotalPeerCount(); ++id) {
-            if (id == cellManager->GetSelfPeerId())
+            if (id == cellManager->GetSelfPeerId()) {
                 continue;
+            }
 
             auto channel = Owner_->CellManager_->GetPeerChannel(id);
-            if (!channel)
+            if (!channel) {
                 continue;
+            }
 
-            if (!Owner_->IsVotingPeer(id))
+            if (!Owner_->IsVotingPeer(id)) {
                 continue;
+            }
 
             TElectionServiceProxy proxy(channel);
             proxy.SetDefaultTimeout(Owner_->Config_->ControlRpcTimeout);
