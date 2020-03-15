@@ -96,7 +96,7 @@ public:
         BIND([&] {
             ElectionManager->Participate();
             Sleep();
-            ElectionManager->Abandon();
+            ElectionManager->Abandon(TError("oops"));
             Sleep();
         })
             .AsyncVia(ActionQueue->GetInvoker())
@@ -109,7 +109,7 @@ protected:
     const TIntrusivePtr<TElectionCallbacksMock> CallbacksMock = New<TElectionCallbacksMock>();
     const TStaticChannelFactoryPtr ChannelFactory = New<TStaticChannelFactory>();
     const TDuration RpcTimeout = TDuration::MilliSeconds(400);
-    
+
     IElectionManagerPtr ElectionManager;
     std::vector<TIntrusivePtr<TElectionServiceMock>> PeerMocks;
 
@@ -151,7 +151,7 @@ TEST_F(TElectionTest, SinglePeer)
     {
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
-        EXPECT_CALL(*CallbacksMock, OnStopLeading());
+        EXPECT_CALL(*CallbacksMock, OnStopLeading(_));
     }
 
     RunElections();
@@ -180,7 +180,7 @@ TEST_F(TElectionTest, JoinActiveQuorumNoResponseThenResponse)
     {
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartFollowing(_));
-        EXPECT_CALL(*CallbacksMock, OnStopFollowing());
+        EXPECT_CALL(*CallbacksMock, OnStopFollowing(_));
     }
 
     RunElections();
@@ -227,7 +227,7 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
     {
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
-        EXPECT_CALL(*CallbacksMock, OnStopLeading());
+        EXPECT_CALL(*CallbacksMock, OnStopLeading(_));
     }
 
     RunElections();
@@ -267,7 +267,7 @@ TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
     {
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
-        EXPECT_CALL(*CallbacksMock, OnStopLeading());
+        EXPECT_CALL(*CallbacksMock, OnStopLeading(_));
     }
 
     RunElections();
@@ -313,15 +313,15 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
             .WillOnce(::testing::Invoke([&] (TEpochContextPtr /*epochContext*/) {
                 ++startLeadingCounter;
             }));
-        EXPECT_CALL(*CallbacksMock, OnStopLeading())
-            .WillOnce(::testing::Invoke([&] {
+        EXPECT_CALL(*CallbacksMock, OnStopLeading(_))
+            .WillOnce(::testing::Invoke([&] (const TError&) {
                 ElectionManager->Participate();
             }));
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
             .WillOnce(::testing::Invoke([&] (TEpochContextPtr /*epochContext*/) {
                 ++startLeadingCounter;
             }));
-        EXPECT_CALL(*CallbacksMock, OnStopLeading());
+        EXPECT_CALL(*CallbacksMock, OnStopLeading(_));
     }
 
     RunElections();
@@ -361,12 +361,12 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
     {
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
-        EXPECT_CALL(*CallbacksMock, OnStopLeading())
-            .WillOnce(::testing::Invoke([&] {
+        EXPECT_CALL(*CallbacksMock, OnStopLeading(_))
+            .WillOnce(::testing::Invoke([&] (const TError&) {
                 ElectionManager->Participate();
             }));
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
-        EXPECT_CALL(*CallbacksMock, OnStopLeading());
+        EXPECT_CALL(*CallbacksMock, OnStopLeading(_));
     }
 
     RunElections();
@@ -440,16 +440,16 @@ TEST_P(TElectionGenericTest, Basic)
     if (data.ExpectedLeader >= 0) {
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartFollowing(_));
-        EXPECT_CALL(*CallbacksMock, OnStopFollowing());
+        EXPECT_CALL(*CallbacksMock, OnStopFollowing(_));
     } else {
         EXPECT_CALL(*CallbacksMock, OnStartFollowing(_))
             .Times(0);
-        EXPECT_CALL(*CallbacksMock, OnStopFollowing())
+        EXPECT_CALL(*CallbacksMock, OnStopFollowing(_))
             .Times(0);
     }
     EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
         .Times(0);
-    EXPECT_CALL(*CallbacksMock, OnStopLeading())
+    EXPECT_CALL(*CallbacksMock, OnStopLeading(_))
         .Times(0);
 
     RunElections();
@@ -527,16 +527,16 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
     if (delay < RpcTimeout) {
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartFollowing(_));
-        EXPECT_CALL(*CallbacksMock, OnStopFollowing());
+        EXPECT_CALL(*CallbacksMock, OnStopFollowing(_));
     } else {
         EXPECT_CALL(*CallbacksMock, OnStartFollowing(_))
             .Times(0);
-        EXPECT_CALL(*CallbacksMock, OnStopFollowing())
+        EXPECT_CALL(*CallbacksMock, OnStopFollowing(_))
             .Times(0);
     }
     EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
         .Times(0);
-    EXPECT_CALL(*CallbacksMock, OnStopLeading())
+    EXPECT_CALL(*CallbacksMock, OnStopLeading(_))
         .Times(0);
 
     RunElections();

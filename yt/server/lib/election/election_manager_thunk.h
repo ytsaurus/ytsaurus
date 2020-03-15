@@ -14,7 +14,7 @@ public:
     virtual void Finalize() override;
 
     virtual void Participate() override;
-    virtual void Abandon() override;
+    virtual void Abandon(const TError& error) override;
 
     virtual NYson::TYsonProducer GetMonitoringProducer();
 
