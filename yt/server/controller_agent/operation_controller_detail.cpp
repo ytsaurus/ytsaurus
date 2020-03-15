@@ -327,6 +327,13 @@ const TJobSpec& TOperationControllerBase::GetAutoMergeJobSpecTemplate(int tableI
     return AutoMergeJobSpecTemplates_[tableIndex];
 }
 
+void TOperationControllerBase::SleepInInitialize()
+{
+    if (auto delay = Spec_->TestingOperationOptions->DelayInsideInitialize) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+}
+
 void TOperationControllerBase::InitializeClients()
 {
     TClientOptions options;
@@ -497,6 +504,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     WaitFor(Host->UpdateInitializedOperationNode())
         .ThrowOnError();
 
+    SleepInInitialize();
+
     YT_LOG_INFO("Operation initialized");
 
     TOperationControllerInitializeResult result;
@@ -528,6 +537,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 
     WaitFor(Host->UpdateInitializedOperationNode())
         .ThrowOnError();
+
+    SleepInInitialize();
 
     YT_LOG_INFO("Operation initialized");
 
@@ -847,6 +858,8 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     InitializeStandardEdgeDescriptors();
 
+    YT_LOG_INFO("Operation prepared");
+
     TOperationControllerPrepareResult result;
     FillPrepareResult(&result);
     return result;
@@ -934,6 +947,10 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             YT_LOG_DEBUG("Job splitter created");
         }
 
+        if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
+            TDelayedExecutor::WaitForDuration(*maybeDelay);
+        }
+
         if (State != EControllerState::Preparing) {
             return result;
         }
@@ -969,8 +986,7 @@ void TOperationControllerBase::SaveSnapshot(IOutputStream* output)
 
 void TOperationControllerBase::SleepInRevive()
 {
-    auto delay = Spec_->TestingOperationOptions->DelayInsideRevive;
-    if (delay) {
+    if (auto delay = Spec_->TestingOperationOptions->DelayInsideRevive) {
         TDelayedExecutor::WaitForDuration(*delay);
     }
 }
@@ -1058,6 +1074,8 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
             joblet->NodeDescriptor.Address
         });
     }
+
+    YT_LOG_INFO("Operation revived");
 
     State = EControllerState::Running;
 
@@ -1669,6 +1687,8 @@ i64 TOperationControllerBase::GetPartSize(EOutputTableType tableType)
 
 void TOperationControllerBase::SafeCommit()
 {
+    SleepInCommitStage(EDelayInsideOperationCommitStage::Start);
+
     StartOutputCompletionTransaction();
     StartDebugCompletionTransaction();
 

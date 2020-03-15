@@ -62,4 +62,40 @@ void TAvgSummary<T>::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+TFuture<std::optional<T>> WithSoftTimeout(
+    TFuture<T> future,
+    TDuration timeout,
+    TCallback<void(const TErrorOr<T>&)> onFinishedAfterTimeout)
+{
+    auto timeoutFuture = NConcurrency::TDelayedExecutor::MakeDelayed(timeout);
+
+    return AnySet(
+        /* futures */ std::vector{future.template As<void>(), timeoutFuture},
+        /* options */ {/* PropagateCancelationToInput */ false, /* CancelInputOnShortcut */ false})
+        .Apply(BIND([
+                future = std::move(future),
+                onFinishedAfterTimeout = std::move(onFinishedAfterTimeout)
+            ] (const TErrorOr<void>& combinedResultOrError) -> std::optional<T> {
+                if (auto maybeResultOrError = future.TryGet()) {
+                    if constexpr(std::is_same_v<T, void>) {
+                        maybeResultOrError->ThrowOnError();
+                        return true;
+                    } else {
+                        return maybeResultOrError->ValueOrThrow();
+                    }
+                }
+
+                if (onFinishedAfterTimeout) {
+                    future.Subscribe(std::move(onFinishedAfterTimeout));
+                }
+
+                // Handle very very unlikely errors from timeout future.
+                YT_ASSERT(combinedResultOrError.IsOK());
+                return std::nullopt;
+            }));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent

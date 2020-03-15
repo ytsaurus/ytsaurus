@@ -1158,6 +1158,7 @@ private:
     void SleepInCommitStage(NScheduler::EDelayInsideOperationCommitStage desiredStage);
     void SleepInRevive();
     void SleepInPrepare();
+    void SleepInInitialize();
 
     //! An internal helper for invoking OnOperationFailed with an error
     //! built by data from `ex`.

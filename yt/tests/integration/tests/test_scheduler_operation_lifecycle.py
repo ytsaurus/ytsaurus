@@ -1,6 +1,6 @@
 from yt_env_setup import (
     YTEnvSetup, wait, Restarter, require_ytserver_root_privileges, unix_only, is_asan_build,
-    SCHEDULERS_SERVICE, MASTERS_SERVICE,
+    SCHEDULERS_SERVICE, MASTERS_SERVICE, CONTROLLER_AGENTS_SERVICE,
     get_porto_delta_node_config, porto_avaliable,
 )
 
@@ -1255,3 +1255,263 @@ class TestSafeAssertionsMode(YTEnvSetup):
             op.track()
         print_debug(op.get_error())
         assert op.get_error().contains_code(213)  # NScheduler::EErrorCode::TestingError
+
+##################################################################
+
+class TestAsyncControllerActions(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2  # snapshot upload replication factor is 2; unable to configure
+    NUM_SCHEDULERS = 1
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "heavy_request_immediate_response_timeout": 250,
+        },
+    }
+
+    # NB(eshcherbin): These first two tests are probably meaningless, but let them be.
+    @authors("eshcherbin")
+    def test_fast_operation_flow(self):
+        op = run_test_vanilla("sleep 1")
+        op.track()
+
+    @authors("eshcherbin")
+    def test_fast_operation_flow_revive(self):
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"))
+
+        wait_breakpoint()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("eshcherbin")
+    def test_slow_initialization(self):
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_initialize": 500}})
+        op.track()
+
+    @authors("eshcherbin")
+    def test_slow_initialization_two_operations(self):
+        op1 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_initialize": 600}})
+        op2 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_initialize": 500}})
+        op1.track()
+        op2.track()
+
+    @authors("eshcherbin")
+    def test_slow_initialization_revive(self):
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_initialize": 500}})
+        op.wait_for_state("initializing")
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        op.track()
+
+    @authors("eshcherbin")
+    def test_slow_preparation(self):
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_prepare": 500}})
+        op.track()
+
+    @authors("eshcherbin")
+    def test_slow_preparation_two_operations(self):
+        op1 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_prepare": 600}})
+        op2 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_prepare": 500}})
+        op1.track()
+        op2.track()
+
+    @authors("eshcherbin")
+    def test_slow_materialization(self):
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_materialize": 500}})
+        op.track()
+
+    @authors("eshcherbin")
+    def test_slow_materialization_two_operations(self):
+        op1 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_materialize": 600}})
+        op2 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_materialize": 500}})
+        op1.track()
+        op2.track()
+
+    @authors("eshcherbin")
+    def test_slow_materialization_revive(self):
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_materialize": 500}})
+        op.wait_for_state("materializing")
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        op.track()
+
+    @authors("eshcherbin")
+    def test_slow_revival_from_scratch(self):
+        # Use "delay_inside_prepare" here because revival from scratch is basically preparation.
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_prepare": 500}})
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        op.track()
+
+    @authors("eshcherbin")
+    def test_slow_revival_from_snapshot(self):
+        controller_agents = ls("//sys/controller_agents/instances")
+        assert len(controller_agents) == 1
+        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(controller_agents[0])
+
+        set("//sys/controller_agents/config/snapshot_period", 300)
+        wait(lambda: get(controller_agent_orchid + "/config/snapshot_period") == 300)
+
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_revive": 500}})
+
+        op.wait_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        op.track()
+
+    @authors("eshcherbin")
+    def test_slow_revival_from_scratch_two_operations(self):
+        # Use "delay_inside_prepare" here because revival from scratch is basically preparation.
+        op1 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_prepare": 500}})
+        op2 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_prepare": 500}})
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        op1.track()
+        op2.track()
+
+    @authors("eshcherbin")
+    def test_slow_revival_from_snapshot_two_operations(self):
+        controller_agents = ls("//sys/controller_agents/instances")
+        assert len(controller_agents) == 1
+        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(controller_agents[0])
+
+        set("//sys/controller_agents/config/snapshot_period", 300)
+        wait(lambda: get(controller_agent_orchid + "/config/snapshot_period") == 300)
+
+        op1 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_revive": 500}})
+        op2 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_revive": 500}})
+
+        op1.wait_fresh_snapshot()
+        op2.wait_fresh_snapshot()
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        op1.track()
+        op2.track()
+
+    @authors("eshcherbin")
+    def test_slow_commit(self):
+        op = run_test_vanilla(
+            "sleep 1",
+            spec={
+                "testing": {
+                    "delay_inside_operation_commit": 500,
+                    "delay_inside_operation_commit_stage": "start",
+                }
+            })
+        op.track()
+
+    @authors("eshcherbin")
+    def test_slow_commit_two_operations(self):
+        op1 = run_test_vanilla(
+            "sleep 1",
+            spec={
+                "testing": {
+                    "delay_inside_operation_commit": 600,
+                    "delay_inside_operation_commit_stage": "start",
+                }
+            })
+        op2 = run_test_vanilla(
+            "sleep 1",
+            spec={
+                "testing": {
+                    "delay_inside_operation_commit": 500,
+                    "delay_inside_operation_commit_stage": "start",
+                }
+            })
+        op1.track()
+        op2.track()
+
+    @authors("eshcherbin")
+    def test_slow_commit_revive(self):
+        op = run_test_vanilla(
+            "sleep 1",
+            spec={
+                "testing": {
+                    "delay_inside_operation_commit": 500,
+                    "delay_inside_operation_commit_stage": "start",
+                }
+            })
+        op.wait_for_state("completing")
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        op.track()
+
+    @authors("eshcherbin")
+    def test_slow_everything(self):
+        op = run_test_vanilla(
+            "sleep 1",
+            spec={
+                "testing": {
+                    "delay_inside_initialize": 500,
+                    "delay_inside_prepare": 500,
+                    "delay_inside_materialize": 500,
+                    "delay_inside_operation_commit": 500,
+                    "delay_inside_operation_commit_stage": "start",
+                }
+            })
+        op.track()
+
+    @authors("eshcherbin")
+    def test_slow_everything_two_operations(self):
+        op1 = run_test_vanilla(
+            "sleep 1",
+            spec={
+                "testing": {
+                    "delay_inside_initialize": 600,
+                    "delay_inside_prepare": 600,
+                    "delay_inside_materialize": 600,
+                    "delay_inside_operation_commit": 600,
+                    "delay_inside_operation_commit_stage": "start",
+                }
+            })
+        op2 = run_test_vanilla(
+            "sleep 1",
+            spec={
+                "testing": {
+                    "delay_inside_initialize": 500,
+                    "delay_inside_prepare": 500,
+                    "delay_inside_materialize": 500,
+                    "delay_inside_operation_commit": 500,
+                    "delay_inside_operation_commit_stage": "start",
+                }
+            })
+        op1.track()
+        op2.track()
+
+    @authors("eshcherbin")
+    def test_slow_everything_revive(self):
+        op = run_test_vanilla(
+            "sleep 1",
+            spec={
+                "testing": {
+                    "delay_inside_initialize": 500,
+                    "delay_inside_prepare": 500,
+                    "delay_inside_materialize": 500,
+                    "delay_inside_operation_commit": 500,
+                    "delay_inside_operation_commit_stage": "start",
+                }
+            })
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        op.track()

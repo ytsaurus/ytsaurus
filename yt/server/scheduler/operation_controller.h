@@ -54,10 +54,33 @@ struct TOperationControllerInitializeResult
     TOperationTransactions Transactions;
 };
 
+void FromProto(
+    TOperationControllerInitializeResult* result,
+    const NControllerAgent::NProto::TInitializeOperationResult& resultProto,
+    TOperationId operationId,
+    TBootstrap* bootstrap,
+    TDuration operationTransactionPingPeriod);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TOperationControllerPrepareResult
 {
     NYson::TYsonString Attributes;
 };
+
+void FromProto(TOperationControllerPrepareResult* result, const NControllerAgent::NProto::TPrepareOperationResult& resultProto);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOperationControllerMaterializeResult
+{
+    bool Suspend = false;
+    TJobResources InitialNeededResources;
+};
+
+void FromProto(TOperationControllerMaterializeResult* result, const NControllerAgent::NProto::TMaterializeOperationResult& resultProto);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationControllerReviveResult
     : public TOperationControllerPrepareResult
@@ -68,11 +91,22 @@ struct TOperationControllerReviveResult
     TJobResources NeededResources;
 };
 
-struct TOperationControllerMaterializeResult
+void FromProto(
+    TOperationControllerReviveResult* result,
+    const NControllerAgent::NProto::TReviveOperationResult& resultProto,
+    TOperationId operationId,
+    TIncarnationId incarnationId,
+    EPreemptionMode preemptionMode);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOperationControllerCommitResult
 {
-    bool Suspend = false;
-    TJobResources InitialNeededResources;
 };
+
+void FromProto(TOperationControllerCommitResult* result, const NControllerAgent::NProto::TCommitOperationResult& resultProto);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationControllerUnregisterResult
 {
@@ -116,7 +150,7 @@ struct IOperationController
     virtual TFuture<TOperationControllerReviveResult> Revive() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Commit asynchronously.
-    virtual TFuture<void> Commit() = 0;
+    virtual TFuture<TOperationControllerCommitResult> Commit() = 0;
 
     //! Invokes IOperationControllerSchedulerHost::Terminate asynchronously.
     virtual TFuture<void> Terminate(EOperationState finalState) = 0;
@@ -173,6 +207,21 @@ struct IOperationController
         const TJobPtr& job,
         NJobTrackerClient::NProto::TJobStatus* status,
         bool shouldLogJob) = 0;
+
+    //! Called to notify the controller that the operation initialization has finished.
+    virtual void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) = 0;
+
+    //! Called to notify the controller that the operation preparation has finished.
+    virtual void OnPreparationFinished(const TErrorOr<TOperationControllerPrepareResult>& resultOrError) = 0;
+
+    //! Called to notify the controller that the operation materialization has finished.
+    virtual void OnMaterializationFinished(const TErrorOr<TOperationControllerMaterializeResult>& resultOrError) = 0;
+
+    //! Called to notify the controller that the operation revival has finished.
+    virtual void OnRevivalFinished(const TErrorOr<TOperationControllerReviveResult>& resultOrError) = 0;
+
+    //! Called to notify the controller that the operation commit has finished.
+    virtual void OnCommitFinished(const TErrorOr<TOperationControllerCommitResult>& resultOrError) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

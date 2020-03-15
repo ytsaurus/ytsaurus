@@ -154,15 +154,19 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(ESchedulingDelayType::Sync);
     RegisterParameter("delay_inside_revive", DelayInsideRevive)
         .Default();
+    RegisterParameter("delay_inside_initialize", DelayInsideInitialize)
+        .Default();
     RegisterParameter("delay_inside_prepare", DelayInsidePrepare)
         .Default();
     RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
         .Default();
     RegisterParameter("delay_inside_materialize", DelayInsideMaterialize)
         .Default();
-    RegisterParameter("delay_inside_abort", DelayInsideAbort)
-        .Default();
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
+        .Default();
+    RegisterParameter("delay_after_materialize", DelayAfterMaterialize)
+        .Default();
+    RegisterParameter("delay_inside_abort", DelayInsideAbort)
         .Default();
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
         .Default();

@@ -61,6 +61,61 @@ void FromProto(NControllerAgent::TControllerTransactionIds* transactionIds, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::TInitializeOperationResult* resultProto, const TOperationControllerInitializeResult& result)
+{
+    resultProto->set_mutable_attributes(result.Attributes.Mutable.GetData());
+    resultProto->set_brief_spec(result.Attributes.BriefSpec.GetData());
+    resultProto->set_full_spec(result.Attributes.FullSpec.GetData());
+    resultProto->set_unrecognized_spec(result.Attributes.UnrecognizedSpec.GetData());
+    ToProto(resultProto->mutable_transaction_ids(), result.TransactionIds);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TPrepareOperationResult* resultProto, const TOperationControllerPrepareResult& result)
+{
+    if (result.Attributes) {
+        resultProto->set_attributes(result.Attributes.GetData());
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TMaterializeOperationResult* resultProto, const TOperationControllerMaterializeResult& result)
+{
+    resultProto->set_suspend(result.Suspend);
+    ToProto(resultProto->mutable_initial_needed_resources(), result.InitialNeededResources);
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationControllerReviveResult& result)
+{
+    resultProto->set_attributes(result.Attributes.GetData());
+    resultProto->set_revived_from_snapshot(result.RevivedFromSnapshot);
+    for (const auto& job : result.RevivedJobs) {
+        auto* jobProto = resultProto->add_revived_jobs();
+        ToProto(jobProto->mutable_job_id(), job.JobId);
+        jobProto->set_job_type(static_cast<int>(job.JobType));
+        jobProto->set_start_time(ToProto<ui64>(job.StartTime));
+        ToProto(jobProto->mutable_resource_limits(), job.ResourceLimits);
+        jobProto->set_interruptible(job.Interruptible);
+        jobProto->set_tree_id(job.TreeId);
+        jobProto->set_node_id(job.NodeId);
+        jobProto->set_node_address(job.NodeAddress);
+    }
+    ToProto(resultProto->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
+    ToProto(resultProto->mutable_needed_resources(), result.NeededResources);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToProto(NProto::TCommitOperationResult* /* resultProto */, const TOperationControllerCommitResult& /* result */)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Ensures that operation controllers are being destroyed in a
 //! dedicated invoker and releases memory tag when controller is destroyed.
 class TOperationControllerWrapper
