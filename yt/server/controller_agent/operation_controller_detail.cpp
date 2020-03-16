@@ -7823,11 +7823,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_use_porto_memory_tracking(config->UsePortoMemoryTracking);
 
     if (Config->EnableTmpfs) {
-        // COMPAT(ignat): remove after node update.
-        if (config->TmpfsVolumes.size() == 1) {
-            jobSpec->set_tmpfs_size(config->TmpfsVolumes[0]->Size);
-            jobSpec->set_tmpfs_path(config->TmpfsVolumes[0]->Path);
-        }
         for (const auto& volume : config->TmpfsVolumes) {
             ToProto(jobSpec->add_tmpfs_volumes(), *volume);
         }
