@@ -1,10 +1,13 @@
-from yt_env_setup import wait
+from yt_env_setup import wait, get_porto_delta_node_config, patch_porto_env_only, YTEnvSetup
 from yt_commands import *
 
 from quota_mixin import QuotaMixin
 
+import yt.common
+
 import pytest
 
+##################################################################
 
 class TestDiskQuota(QuotaMixin):
     NUM_SCHEDULERS = 1
@@ -54,12 +57,13 @@ class TestDiskQuota(QuotaMixin):
         else:
             assert False, "Operation expected to fail, but completed successfully"
 
+##################################################################
 
-class TestDiskUsage(QuotaMixin):
+class TestDiskUsageBase(object):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
     NUM_NODES = 1
-    DELTA_NODE_CONFIG = {
+    DELTA_NODE_CONFIG_BASE = {
         "exec_agent": {
             "slot_manager": {
                 "locations": [
@@ -200,3 +204,17 @@ class TestDiskUsage(QuotaMixin):
         wait(lambda: op2.get_job_count("running") == 1)
         op2.abort()
 
+@patch_porto_env_only(TestDiskUsageBase)
+class TestDiskUsageQuota(TestDiskUsageBase, QuotaMixin):
+    DELTA_NODE_CONFIG = TestDiskUsageBase.DELTA_NODE_CONFIG_BASE
+
+@patch_porto_env_only(TestDiskUsageBase)
+class TestDiskUsagePorto(TestDiskUsageBase, YTEnvSetup):
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        TestDiskUsageBase.DELTA_NODE_CONFIG_BASE
+    )
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    USE_PORTO_FOR_SERVERS = True
+
+##################################################################
