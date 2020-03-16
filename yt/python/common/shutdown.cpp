@@ -31,12 +31,19 @@ void RegisterShutdownCallback(TCallback<void()> additionalCallback, int index)
     AdditionalShutdownCallbacks[index] = additionalCallback;
 }
 
-void RegisterShutdown()
+void RegisterShutdown(const Py::Object& beforePythonFinalizeCallback)
 {
     static bool registered = false;
 
     if (!registered) {
         registered = true;
+
+        if (!beforePythonFinalizeCallback.isNone()) {
+            auto atexitModule = Py::Module(PyImport_ImportModule("atexit"), /* owned */ true);
+            auto registerFunc = Py::Callable(PyObject_GetAttrString(atexitModule.ptr(), "register"), /* owned */ true);
+            registerFunc.apply(Py::TupleN(beforePythonFinalizeCallback), Py::Dict());
+        }
+
         Py_AtExit(NPython::Shutdown);
     }
 }
