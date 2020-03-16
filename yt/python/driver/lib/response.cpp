@@ -16,25 +16,16 @@ std::atomic<bool> TDriverResponseHolder::ShuttingDown_ = {};
 TSpinLock TDriverResponseHolder::DesctructionSpinLock_;
 
 TDriverResponseHolder::TDriverResponseHolder()
-{ }
-
-void TDriverResponseHolder::Initialize()
-{
-    Initialized_.store(true);
-    ResponseParametersYsonWriter_ = CreateYsonWriter(
+    : ResponseParametersYsonWriter_(CreateYsonWriter(
         &ResponseParametersBlobOutput_,
         EYsonFormat::Binary,
         EYsonType::MapFragment,
         /* enableRaw */ false,
-        /* booleanAsString */ false);
-}
+        /* booleanAsString */ false))
+{ }
 
 TDriverResponseHolder::~TDriverResponseHolder()
 {
-    if (!Initialized_) {
-        return;
-    }
-
     if (!Py_IsInitialized()) {
         return;
     }
@@ -108,9 +99,7 @@ TString TDriverResponse::TypeName_;
 TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TDriverResponse>::PythonClass(self, args, kwargs)
     , Holder_(New<TDriverResponseHolder>())
-{
-    Holder_->Initialize();
-}
+{ }
 
 void TDriverResponse::SetResponse(TFuture<void> response)
 {
