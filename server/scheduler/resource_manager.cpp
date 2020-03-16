@@ -1,6 +1,7 @@
 #include "resource_manager.h"
 
 #include "helpers.h"
+#include "resource_traits.h"
 
 #include <yp/server/objects/node.h>
 #include <yp/server/objects/pod.h>
@@ -123,7 +124,7 @@ public:
         }
 
         for (auto kind : TEnumTraits<EResourceKind>::GetDomainValues()) {
-            if (IsSingletonResource(kind) && counts[kind] > 1) {
+            if (kind != EResourceKind::Undefined && IsSingletonResource(kind) && counts[kind] > 1) {
                 THROW_ERROR_EXCEPTION("More than one %Qlv resources assigned to node %Qv",
                     kind,
                     node->GetId());

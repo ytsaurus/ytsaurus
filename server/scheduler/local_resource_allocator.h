@@ -52,10 +52,10 @@ public:
         // Null for anonymous allocations.
         TObjectId Id;
 
-        // Identifier of the existing allocation matching this request
+        // Identifies an existing allocation matching this request
         // or null if there is no such allocation.
-        // Always null for anonymous allocations (e.g. cpu, memory).
-        TObjectId AllocationId;
+        // Always null for anonymous resources.
+        TObjectId ExistingAllocationId;
 
         EResourceKind Kind;
         bool Exclusive = false;
@@ -71,8 +71,12 @@ public:
     {
         // Always non-null after successful call to #TryAllocate.
         const TResource* Resource = nullptr;
+
         // Non-null if the request must be served with an existing allocation.
         const TAllocation* ExistingAllocation = nullptr;
+
+        // Non-null if the request must be served with a new allocation.
+        TObjectId AllocationId;
     };
 
     //! Attempts to make allocations.

@@ -65,6 +65,10 @@ bool GetDiskVolumeRequestExclusive(
 NClient::NApi::NProto::EDiskVolumePolicy GetDiskVolumeRequestPolicy(
     const NClient::NApi::NProto::TPodSpec_TDiskVolumeRequest& request);
 
+bool IsDiskVolumeReallocationAllowed(
+    const TResourceCapacities& oldCapacities,
+    const TResourceCapacities& newCapacities);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TResourceCapacities GetGpuRequestCapacities(

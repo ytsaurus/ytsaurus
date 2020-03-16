@@ -1456,7 +1456,7 @@ message TPodStatus
         optional string resource_id = 5;
 
         // Globally-unique volume id.
-        // This is generated each time a "new" volume is assigned to the pod.
+        // This is generated each time a "new" volume is assigned to the pod or an "old" volume is reallocated.
         // "New" volumes are recognized based on /pod/spec/disk_volume_allocations/*/id.
         optional string volume_id = 6;
 

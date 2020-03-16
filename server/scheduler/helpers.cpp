@@ -186,6 +186,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
     try {
         std::vector<TLocalResourceAllocator::TRequest> requests;
 
+        // Find singleton resources.
         const TLocalResourceAllocator::TResource* cpuResource = nullptr;
         const TLocalResourceAllocator::TResource* memoryResource = nullptr;
         const TLocalResourceAllocator::TResource* networkResource = nullptr;
@@ -213,7 +214,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
             }
         }
 
-        // Cpu
+        // Cpu.
         const auto& resourceRequests = spec.resource_requests();
         if (resourceRequests.vcpu_guarantee() > 0) {
             TLocalResourceAllocator::TRequest request;
@@ -225,7 +226,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
             requests.push_back(request);
         }
 
-        // Memory
+        // Memory.
         if (resourceRequests.memory_limit() > 0) {
             TLocalResourceAllocator::TRequest request;
             request.Kind = EResourceKind::Memory;
@@ -236,7 +237,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
             requests.push_back(request);
         }
 
-        // Network
+        // Network.
         if (resourceRequests.network_bandwidth_guarantee() > 0) {
             TLocalResourceAllocator::TRequest request;
             request.Kind = EResourceKind::Network;
@@ -247,7 +248,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
             requests.push_back(request);
         }
 
-        // Slot
+        // Slot.
         if (resourceRequests.slot() > 0) {
             TLocalResourceAllocator::TRequest request;
             request.Kind = EResourceKind::Slot;
@@ -258,7 +259,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
             requests.push_back(request);
         }
 
-        // Disk
+        // Disk.
         auto requestIdToDiskAllocation = GetDiskVolumeRequestIdToAllocationMapping(status.disk_volume_allocations());
         for (int index = 0; index < spec.disk_volume_requests_size(); ++index) {
             const auto& volumeRequest = spec.disk_volume_requests(index);
@@ -270,11 +271,9 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
             request.Capacities = NCluster::GetDiskVolumeRequestCapacities(volumeRequest);
             request.Exclusive = NCluster::GetDiskVolumeRequestExclusive(volumeRequest);
             auto it = requestIdToDiskAllocation.find(request.Id);
-            if (it == requestIdToDiskAllocation.end()) {
-                request.AllocationId = GenerateUuid();
-            } else {
+            if (it != requestIdToDiskAllocation.end()) {
                 const auto* allocation = it->second;
-                request.AllocationId = allocation->volume_id();
+                request.ExistingAllocationId = allocation->volume_id();
             }
             for (const auto& resource : resources) {
                 if (resource.Kind != EResourceKind::Disk) {
@@ -292,7 +291,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
             requests.push_back(request);
         }
 
-        // Gpu
+        // Gpu.
         auto requestIdToGpuAllocation = GetGpuRequestIdToAllocationMapping(status.gpu_allocations());
         for (int index = 0; index < spec.gpu_requests_size(); ++index) {
             const auto& gpuRequest = spec.gpu_requests(index);
@@ -302,11 +301,9 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
             request.Kind = EResourceKind::Gpu;
             request.Capacities = NCluster::GetGpuRequestCapacities(gpuRequest);
             auto it = requestIdToGpuAllocation.find(request.Id);
-            if (it == requestIdToGpuAllocation.end()) {
-                request.AllocationId = GenerateUuid();
-            } else {
+            if (it != requestIdToGpuAllocation.end()) {
                 const auto* allocation = it->second;
-                request.AllocationId = allocation->id();
+                request.ExistingAllocationId = allocation->id();
             }
             for (const auto& resource : resources) {
                 if (resource.Kind != EResourceKind::Gpu) {
@@ -327,8 +324,7 @@ std::vector<TLocalResourceAllocator::TRequest> BuildAllocatorResourceRequests(
                 }
                 request.MatchingResources.push_back(&resource);
             }
-            // NB: we sort GPUs to ensure that greedy allocation
-            // that is done in TryAllocate() is optimal.
+            // Sort GPUs to ensure that greedy allocation (see TryAllocate) is optimal.
             std::sort(
                 request.MatchingResources.begin(),
                 request.MatchingResources.end(),
@@ -382,10 +378,12 @@ void UpdatePodDiskVolumeAllocations(
             YT_VERIFY(it != requestIdToAllocation.end());
             volumeAllocation->CopyFrom(*it->second);
         } else {
+            YT_VERIFY(response.AllocationId);
+
             volumeAllocation->set_id(volumeRequest.id());
             volumeAllocation->set_capacity(NCluster::GetDiskCapacity(request.Capacities));
             volumeAllocation->set_resource_id(response.Resource->Id);
-            volumeAllocation->set_volume_id(request.AllocationId);
+            volumeAllocation->set_volume_id(response.AllocationId);
             volumeAllocation->set_device(diskSpec.device());
 
             auto volumeBandwidthGuarantee = NCluster::GetDiskVolumeRequestBandwidthGuarantee(volumeRequest);
@@ -446,7 +444,9 @@ void UpdatePodGpuAllocations(
             YT_VERIFY(it != requestIdToAllocation.end());
             gpuAllocation->CopyFrom(*it->second);
         } else {
-            gpuAllocation->set_id(request.AllocationId);
+            YT_VERIFY(response.AllocationId);
+
+            gpuAllocation->set_id(response.AllocationId);
             gpuAllocation->set_request_id(gpuRequest.id());
             gpuAllocation->set_resource_id(response.Resource->Id);
             gpuAllocation->set_device_uuid(gpuSpec.uuid());
@@ -509,16 +509,20 @@ void UpdateScheduledResourceAllocations(
                     allocation.mutable_slot()->set_capacity(NCluster::GetSlotCapacity(request.Capacities));
                     break;
                 case EResourceKind::Disk: {
+                    YT_VERIFY(response.AllocationId);
+
                     auto* protoDisk = allocation.mutable_disk();
                     protoDisk->set_capacity(NCluster::GetDiskCapacity(request.Capacities));
                     protoDisk->set_exclusive(request.Exclusive);
-                    protoDisk->set_volume_id(request.AllocationId);
+                    protoDisk->set_volume_id(response.AllocationId);
                     protoDisk->set_bandwidth(NCluster::GetDiskBandwidth(request.Capacities));
                     break;
                 }
                 case EResourceKind::Gpu: {
+                    YT_VERIFY(response.AllocationId);
+
                     auto* protoGpu = allocation.mutable_gpu();
-                    protoGpu->set_allocation_id(request.AllocationId);
+                    protoGpu->set_allocation_id(response.AllocationId);
                     protoGpu->set_capacity(NCluster::GetGpuCapacity(request.Capacities));
                     break;
                 }
@@ -532,15 +536,6 @@ void UpdateScheduledResourceAllocations(
         auto* resource = nativeResources[resourceIndex];
         resource->Status().ScheduledAllocations()->swap(newScheduledAllocationsPerResource[resourceIndex]);
     }
-}
-
-bool IsSingletonResource(EResourceKind kind)
-{
-    return
-        kind == EResourceKind::Cpu ||
-        kind == EResourceKind::Memory ||
-        kind == EResourceKind::Network ||
-        kind == EResourceKind::Slot;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

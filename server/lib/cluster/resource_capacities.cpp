@@ -198,6 +198,19 @@ NClient::NApi::NProto::EDiskVolumePolicy GetDiskVolumeRequestPolicy(
     }
 }
 
+bool IsDiskVolumeReallocationAllowed(
+    const TResourceCapacities& oldCapacities,
+    const TResourceCapacities& newCapacities)
+{
+    static constexpr size_t BandwidthIndex = 2;
+    for (size_t i = 0; i < oldCapacities.size(); ++i) {
+        if (i != BandwidthIndex && oldCapacities[i] != newCapacities[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TResourceCapacities GetGpuRequestCapacities(

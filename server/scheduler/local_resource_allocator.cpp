@@ -1,12 +1,39 @@
 #include "local_resource_allocator.h"
 
 #include "helpers.h"
+#include "resource_traits.h"
 
 #include <yt/core/ytree/convert.h>
 
 namespace NYP::NServer::NScheduler {
 
 using namespace NCluster;
+
+using NObjects::GenerateUuid;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+bool IsReallocationAllowed(
+    EResourceKind resourceKind,
+    const TResourceCapacities& oldCapacities,
+    const TResourceCapacities& newCapacities)
+{
+    if (IsAnonymousResource(resourceKind)) {
+        return true;
+    }
+    switch (resourceKind) {
+        case EResourceKind::Disk:
+            return IsDiskVolumeReallocationAllowed(oldCapacities, newCapacities);
+        case EResourceKind::Gpu:
+            return false;
+        default:
+            YT_UNIMPLEMENTED();
+    }
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,56 +88,122 @@ bool TLocalResourceAllocator::TryAllocate(
         }
     }
 
+    const auto canAllocateWithoutOvercommit = [] (
+        const TResource& resource,
+        const NCluster::TAllocationStatistics& statistics,
+        const TRequest& request,
+        std::vector<TError>* errors)
+    {
+        if (statistics.UsedExclusively) {
+            return false;
+        }
+
+        if (statistics.Used && request.Exclusive) {
+            return false;
+        }
+
+        if (!Dominates(resource.Capacities, statistics.Capacities + request.Capacities)) {
+            // For simplicity provide an error for homogeneous resources only.
+            if (IsHomogeneousResource(request.Kind)) {
+                if (errors) {
+                    errors->push_back(TError(
+                        "%Qlv resource %Qv limit exceeded: allocated %v, requested %v, total %v",
+                        request.Kind,
+                        resource.Id,
+                        GetHomogeneousCapacity(statistics.Capacities),
+                        GetHomogeneousCapacity(request.Capacities),
+                        GetHomogeneousCapacity(resource.Capacities)));
+                }
+            }
+            return false;
+        }
+
+        return true;
+    };
+
     responses->clear();
+    responses->resize(requests.size());
 
-    // Initialize responses and reuse existing allocations.
-    for (const auto& request : requests) {
-        responses->emplace_back();
+    // Handle relationship between non-anonymous resources and existing allocations.
+    for (size_t requestIndex = 0; requestIndex < requests.size(); ++requestIndex) {
+        const auto& request = requests[requestIndex];
+        auto& response = (*responses)[requestIndex];
 
-        if (!request.AllocationId) {
-            // Anonymous resource allocation cannot be reused.
+        if (IsAnonymousResource(request.Kind)) {
+            YT_VERIFY(!request.ExistingAllocationId);
             continue;
         }
 
-        auto it = existingAllocations.find(request.AllocationId);
-        if (it == existingAllocations.end()) {
-            // There is no allocation to reuse.
+        // No existing allocation found, allocate a new one.
+        if (!request.ExistingAllocationId) {
+            response.AllocationId = GenerateUuid();
             continue;
         }
 
-        auto* resource = it->second.first;
-        auto* allocation = it->second.second;
-        if (request.Capacities != allocation->Capacities) {
-            THROW_ERROR_EXCEPTION("Mismatching capacities in resource request %Qv and scheduled allocation of resource %Qv",
-                request.AllocationId,
-                resource->Id)
-                << TErrorAttribute("request_capacities", request.Capacities)
-                << TErrorAttribute("allocation_capacities", allocation->Capacities);
-        }
+        auto it = existingAllocations.find(request.ExistingAllocationId);
+        YT_VERIFY(it != existingAllocations.end());
+        const auto* resource = it->second.first;
+        const auto* allocation = it->second.second;
+        auto resourceIndex = resource - resources.data();
+        auto& resourceStatistics = ResourceStatistics_[resourceIndex];
+
+        YT_VERIFY(allocation->PodId == podId);
 
         if (request.Exclusive != allocation->Exclusive) {
-            if (request.Exclusive && !allocation->Exclusive) {
-                THROW_ERROR_EXCEPTION("Found an exclusive request %Qv satisfied by a non-exclusive scheduled allocation of resource %Qv",
-                    request.AllocationId,
-                    resource->Id);
+            if (errors) {
+                errors->push_back(TError(
+                    "Reallocation within resource %Qv is forbidden "
+                    "due to mismatched exclusiveness of request %v and allocation %Qv",
+                    resource->Id,
+                    FormatRequest(request),
+                    allocation->Id));
             }
-            YT_VERIFY(!request.Exclusive);
+            return false;
         }
 
-        if (allocation->PodId != podId) {
-            THROW_ERROR_EXCEPTION("Allocation %Qv of resource %Qv belongs to a different pod: expected %Qv, found %Qv",
-                allocation->Id,
-                resource->Id,
-                podId,
-                allocation->PodId);
+        // Reuse allocation.
+        if (request.Capacities == allocation->Capacities) {
+            response.Resource = resource;
+            response.ExistingAllocation = allocation;
+            // Resource overcommit check is skipped intentionally to allow
+            // pod updates in case of already existing overcommit.
+            Accumulate(resourceStatistics, request);
+            continue;
         }
 
-        responses->back().Resource = resource;
-        responses->back().ExistingAllocation = allocation;
+        if (!IsReallocationAllowed(
+            request.Kind,
+            /* oldCapacities */ allocation->Capacities,
+            /* newCapacities */ request.Capacities))
+        {
+            if (errors) {
+                errors->push_back(TError(
+                    "Reallocation within resource %Qv is forbidden "
+                    "due to mismatched capacities of request %v and allocation %Qv",
+                    resource->Id,
+                    FormatRequest(request),
+                    allocation->Id)
+                    << TErrorAttribute("allocation_capacities", allocation->Capacities)
+                    << TErrorAttribute("request_capacities", request.Capacities));
+            }
+            return false;
+        }
 
-        auto resourceIndex = resource - resources.data();
-        auto& resourceStatus = ResourceStatistics_[resourceIndex];
-        Accumulate(resourceStatus, request);
+        std::vector<TError> innerErrors;
+        if (canAllocateWithoutOvercommit(*resource, resourceStatistics, request, &innerErrors)) {
+            response.Resource = resource;
+            response.AllocationId = GenerateUuid();
+            Accumulate(resourceStatistics, request);
+        } else {
+            if (errors) {
+                errors->push_back(TError(
+                    "Reallocation of request %v within resource %Qv is forbidden due to resource overcommit",
+                    FormatRequest(request),
+                    resource->Id)
+                    << std::move(innerErrors));
+            }
+            return false;
+        }
     }
 
     // Building new allocations.
@@ -119,8 +212,8 @@ bool TLocalResourceAllocator::TryAllocate(
         const auto& request = requests[requestIndex];
         auto& response = (*responses)[requestIndex];
 
+        // Request is already satisfied by an existing allocation or reallocated near it.
         if (response.Resource) {
-            // Request is already satisfied by an existing allocation.
             continue;
         }
 
@@ -130,47 +223,30 @@ bool TLocalResourceAllocator::TryAllocate(
                     FormatRequest(request)));
             }
             allSatisfied = false;
-            break;
+            continue;
         }
+
+        std::vector<TError> innerErrors;
 
         bool satisified = false;
         for (const auto* resource : request.MatchingResources) {
             auto resourceIndex = resource - resources.data();
             auto& statistics = ResourceStatistics_[resourceIndex];
 
-            if (statistics.UsedExclusively) {
-                continue;
+            if (canAllocateWithoutOvercommit(*resource, statistics, request, &innerErrors)) {
+                response.Resource = resource;
+                Accumulate(statistics, request);
+                satisified = true;
+                break;
             }
-
-            if (statistics.Used && request.Exclusive) {
-                continue;
-            }
-
-            if (!Dominates(resource->Capacities, statistics.Capacities + request.Capacities)) {
-                if (IsSingletonResource(request.Kind)) {
-                    if (errors) {
-                        errors->push_back(TError(
-                            "%Qlv capacity limit exceeded at node: allocated %v, requested %v, total %v",
-                            request.Kind,
-                            GetHomogeneousCapacity(statistics.Capacities),
-                            GetHomogeneousCapacity(request.Capacities),
-                            GetHomogeneousCapacity(resource->Capacities)));
-                    }
-                }
-                continue;
-            }
-
-            response.Resource = resource;
-            Accumulate(statistics, request);
-            satisified = true;
-            break;
         }
 
         if (!satisified) {
             allSatisfied = false;
             if (errors) {
                 errors->push_back(TError("Cannot satisfy %v",
-                    FormatRequest(request)));
+                    FormatRequest(request))
+                    << std::move(innerErrors));
             }
         }
     }

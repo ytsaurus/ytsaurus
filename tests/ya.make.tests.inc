@@ -25,6 +25,7 @@ SET(YP_TEST_SRCS
     test_deploy_ticket_control.py
     test_deploy_tickets.py
     test_disk_bandwidth_resource.py
+    test_disk_reallocation.py
     test_dns_record_set.py
     test_dynamic_resource.py
     test_endpoint_sets.py
