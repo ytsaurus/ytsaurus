@@ -2,8 +2,6 @@
 
 #include <yt/python/common/helpers.h>
 
-#include <yt/core/rpc/dispatcher.h>
-
 #include <yt/core/ytree/convert.h>
 
 namespace NYT::NPython {
@@ -173,11 +171,6 @@ TDriverResponse::~TDriverResponse()
     } catch (...) {
         // intentionally doing nothing
     }
-
-    // Holder destructor must not be called from python context.
-    TIntrusivePtr<TDriverResponseHolder> holder;
-    std::swap(holder, Holder_);
-    NYT::NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(BIND([holder=std::move(holder)] () {}));
 }
 
 void TDriverResponse::InitType(const TString& moduleName)
