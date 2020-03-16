@@ -10,9 +10,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::atomic<bool> TDriverResponseHolder::ShuttingDown_ = {};
-TSpinLock TDriverResponseHolder::DesctructionSpinLock_;
-
 TDriverResponseHolder::TDriverResponseHolder()
     : ResponseParametersYsonWriter_(CreateYsonWriter(
         &ResponseParametersBlobOutput_,
@@ -24,37 +21,16 @@ TDriverResponseHolder::TDriverResponseHolder()
 
 TDriverResponseHolder::~TDriverResponseHolder()
 {
+    // TODO(ignat): fix possible race here.
     if (!Py_IsInitialized()) {
         return;
     }
 
-    if (ShuttingDown_) {
-        return;
-    }
-
-    {
-        auto guard = Guard(DesctructionSpinLock_);
-        if (ShuttingDown_) {
-            return;
-        }
-
-        TGilGuard gilGuard;
-        // Releasing Python objects under GIL.
-        InputStream_.reset(nullptr);
-        OutputStream_.reset(nullptr);
-        ResponseParametersYsonWriter_.reset(nullptr);
-    }
-}
-
-void TDriverResponseHolder::OnBeforePythonFinalize()
-{
-    ShuttingDown_.store(true);
-    DesctructionSpinLock_.Acquire();
-}
-
-void TDriverResponseHolder::OnAfterPythonFinalize()
-{
-    DesctructionSpinLock_.Release();
+    TGilGuard guard;
+    // Releasing Python objects under GIL.
+    InputStream_.reset(nullptr);
+    OutputStream_.reset(nullptr);
+    ResponseParametersYsonWriter_.reset(nullptr);
 }
 
 IFlushableYsonConsumer* TDriverResponseHolder::GetResponseParametersConsumer() const
