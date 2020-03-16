@@ -101,6 +101,8 @@ public:
     //! IP addresses to bind into container.
     std::vector<NNet::TIP6Address> NetworkAddresses;
 
+    bool AbortOnUnrecognizedOptions;
+
     TJobProxyConfig()
     {
         RegisterParameter("slot_index", SlotIndex);
@@ -158,6 +160,9 @@ public:
 
         RegisterParameter("network_addresses", NetworkAddresses)
             .Default();
+
+        RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+            .Default(false);
     }
 };
 

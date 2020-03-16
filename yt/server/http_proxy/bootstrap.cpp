@@ -74,7 +74,11 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
 {
-    WarnForUnrecognizedOptions(Logger, Config_);
+    if (Config_->AbortOnUnrecognizedOptions) {
+        AbortOnUnrecognizedOptions(Logger, Config_);
+    } else {
+        WarnForUnrecognizedOptions(Logger, Config_);
+    }
 
     Control_ = New<TActionQueue>("Control");
     Poller_ = CreateThreadPoolPoller(Config_->ThreadCount, "Poller");

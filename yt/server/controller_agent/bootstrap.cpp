@@ -90,7 +90,11 @@ TBootstrap::TBootstrap(TControllerAgentBootstrapConfigPtr config, INodePtr confi
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
 {
-    WarnForUnrecognizedOptions(Logger, Config_);
+    if (Config_->AbortOnUnrecognizedOptions) {
+        AbortOnUnrecognizedOptions(Logger, Config_);
+    } else {
+        WarnForUnrecognizedOptions(Logger, Config_);
+    }
 }
 
 TBootstrap::~TBootstrap() = default;

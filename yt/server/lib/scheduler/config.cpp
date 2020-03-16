@@ -521,6 +521,9 @@ TSchedulerBootstrapConfig::TSchedulerBootstrapConfig()
             .EndMap()
             ->AsMap());
 
+    RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+        .Default(false);
+
     RegisterPreprocessor([&] () {
         ResponseKeeper->EnableWarmup = false;
     });

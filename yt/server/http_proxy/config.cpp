@@ -249,6 +249,9 @@ TProxyConfig::TProxyConfig()
             .BeginMap()
             .EndMap()
         ->AsMap());
+
+    RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

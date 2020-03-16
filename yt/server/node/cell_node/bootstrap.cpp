@@ -505,6 +505,8 @@ void TBootstrap::DoInitialize()
 
     JobProxyConfigTemplate_->CoreForwarderTimeout = Config_->ExecAgent->CoreForwarderTimeout;
 
+    JobProxyConfigTemplate_->AbortOnUnrecognizedOptions = Config_->AbortOnUnrecognizedOptions;
+
     ExecSlotManager_ = New<NExecAgent::TSlotManager>(Config_->ExecAgent->SlotManager, this);
     GpuManager_ = New<TGpuManager>(this, Config_->ExecAgent->JobController->GpuManager);
 
@@ -739,11 +741,17 @@ void TBootstrap::DoValidateConfig()
 {
     auto unrecognized = Config_->GetUnrecognizedRecursively();
     if (unrecognized && unrecognized->GetChildCount() > 0) {
-        YT_LOG_WARNING("Node config contains unrecognized options (Unrecognized: %v)",
-            ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
         if (Config_->EnableUnrecognizedOptionsAlert) {
             MasterConnector_->RegisterAlert(TError(EErrorCode::UnrecognizedConfigOption, "Node config contains unrecognized options")
                 << TErrorAttribute("unrecognized", unrecognized));
+        }
+        if (Config_->AbortOnUnrecognizedOptions) {
+            YT_LOG_ERROR("Node config contains unrecognized options, aborting (Unrecognized: %v)",
+                ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
+            YT_ABORT();
+        } else {
+            YT_LOG_WARNING("Node config contains unrecognized options (Unrecognized: %v)",
+                ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
         }
     }
 }

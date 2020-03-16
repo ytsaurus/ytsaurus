@@ -61,6 +61,8 @@ TCellMasterConfig::TCellMasterConfig()
             .BeginMap()
             .EndMap()
         ->AsMap());
+    RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if (SecondaryMasters.size() > MaxSecondaryMasterCells) {

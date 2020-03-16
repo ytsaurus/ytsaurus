@@ -46,7 +46,7 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class   TBatchingChunkServiceConfig
+class TBatchingChunkServiceConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -123,6 +123,8 @@ public:
 
     bool EnableUnrecognizedOptionsAlert;
 
+    bool AbortOnUnrecognizedOptions;
+
     TCellNodeConfig()
     {
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
@@ -166,6 +168,9 @@ public:
             ->AsMap());
 
         RegisterParameter("enable_unrecognized_options_alert", EnableUnrecognizedOptionsAlert)
+            .Default(false);
+
+        RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
             .Default(false);
 
         RegisterPostprocessor([&] () {

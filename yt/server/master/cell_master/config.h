@@ -177,6 +177,8 @@ public:
     TDuration AnnotationSetterPeriod;
     NYTree::IMapNodePtr CypressAnnotations;
 
+    bool AbortOnUnrecognizedOptions;
+
     TCellMasterConfig();
 };
 
