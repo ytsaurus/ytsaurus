@@ -119,6 +119,8 @@ public:
 
     NYTree::IMapNodePtr CypressAnnotations;
 
+    bool AbortOnUnrecognizedOptions;
+
     TProxyConfig();
 };
 

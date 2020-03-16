@@ -814,6 +814,8 @@ public:
 
     NYTree::IMapNodePtr CypressAnnotations;
 
+    bool AbortOnUnrecognizedOptions;
+
     TControllerAgentBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -826,6 +828,8 @@ public:
                 .BeginMap()
                 .EndMap()
             ->AsMap());
+        RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+            .Default(false);
     }
 };
 

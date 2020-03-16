@@ -110,7 +110,13 @@ TJobProxy::TJobProxy(
         .AddTag("OperationId: %v, JobId: %v",
             OperationId_,
             JobId_))
-{ }
+{
+    if (Config_->AbortOnUnrecognizedOptions) {
+        AbortOnUnrecognizedOptions(Logger, Config_);
+    } else {
+        WarnForUnrecognizedOptions(Logger, Config_);
+    }
+}
 
 TString TJobProxy::GetPreparationPath() const
 {
