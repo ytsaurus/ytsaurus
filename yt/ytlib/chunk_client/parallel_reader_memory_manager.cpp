@@ -28,7 +28,7 @@ class TParallelReaderMemoryManager
 public:
     TParallelReaderMemoryManager(
         TParallelReaderMemoryManagerOptions options,
-        IReaderMemoryManagerHostPtr host,
+        TWeakPtr<IReaderMemoryManagerHost> host,
         IInvokerPtr invoker)
         : Options_(std::move(options))
         , Host_(std::move(host))
@@ -71,7 +71,7 @@ public:
 
         FreeMemory_ -= minRequiredMemorySize;
 
-        auto memoryManager = New<TParallelReaderMemoryManager>(options, MakeStrong(this), Invoker_);
+        auto memoryManager = New<TParallelReaderMemoryManager>(options, MakeWeak(this), Invoker_);
 
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeWeak(this), memoryManager, true));
         ScheduleRebalancing();
@@ -258,8 +258,10 @@ private:
 
         TotalRequiredMemory_ += requiredMemory;
         TotalDesiredMemory_ += desiredMemory;
-        if (updateMemoryRequirements && Host_) {
-            Host_->UpdateMemoryRequirements(MakeStrong(this));
+        if (updateMemoryRequirements) {
+            if (auto host = Host_.Lock()) {
+                host->UpdateMemoryRequirements(MakeStrong(this));
+            }
         }
 
         YT_VERIFY(RequiredMemory_.emplace(reader, requiredMemory).second);
@@ -288,8 +290,10 @@ private:
 
         TotalRequiredMemory_ -= requiredMemory;
         TotalDesiredMemory_ -= desiredMemory;
-        if (updateMemoryRequirements && Host_) {
-            Host_->UpdateMemoryRequirements(MakeStrong(this));
+        if (updateMemoryRequirements) {
+            if (auto host = Host_.Lock()) {
+                host->UpdateMemoryRequirements(MakeStrong(this));
+            }
         }
 
         YT_VERIFY(RequiredMemory_.erase(reader));
@@ -314,14 +318,14 @@ private:
 
         if (Finalized_ && RequiredMemory_.empty() && !Unregistered_) {
             Unregistered_ = true;
-            if (Host_) {
-                Host_->Unregister(MakeStrong(this));
+            if (auto host = Host_.Lock()) {
+                host->Unregister(MakeStrong(this));
             }
         }
     }
 
     const TParallelReaderMemoryManagerOptions Options_;
-    const IReaderMemoryManagerHostPtr Host_;
+    const TWeakPtr<IReaderMemoryManagerHost> Host_;
     const IInvokerPtr Invoker_;
 
     std::atomic<int> RebalancingsScheduled_ = 0;
