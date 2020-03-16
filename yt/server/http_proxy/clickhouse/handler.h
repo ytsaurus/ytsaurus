@@ -1,10 +1,14 @@
-#include "public.h"
+#include <yt/server/http_proxy/public.h>
 
 #include <yt/core/http/server.h>
 
 #include <yt/core/concurrency/public.h>
 
-namespace NYT::NHttpProxy {
+#include <yt/client/api/public.h>
+
+#include "private.h"
+
+namespace NYT::NHttpProxy::NClickHouse {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,6 +44,9 @@ private:
     const TCoordinatorPtr Coordinator_;
     const TClickHouseConfigPtr Config_;
     const NHttp::IClientPtr HttpClient_;
+    const NApi::IClientPtr Client_;
+
+
     NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
     IInvokerPtr ControlInvoker_;
 
@@ -62,4 +69,4 @@ DEFINE_REFCOUNTED_TYPE(TClickHouseHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHttpProxy
+} // namespace NYT::NHttpProxy::NClickHouse

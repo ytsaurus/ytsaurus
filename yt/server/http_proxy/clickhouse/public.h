@@ -1,0 +1,13 @@
+#include <yt/core/misc/common.h>
+
+namespace NYT::NHttpProxy::NClickHouse {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TClickHouseHandler)
+
+DECLARE_REFCOUNTED_CLASS(TClickHouseConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NHttpProxy::NClickHouse

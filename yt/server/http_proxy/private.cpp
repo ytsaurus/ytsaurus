@@ -9,8 +9,6 @@ const NProfiling::TProfiler HttpProxyProfiler("/http_proxy");
 
 const NLogging::TLogger HttpStructuredProxyLogger("HttpStructuredProxy");
 
-const TString ClickHouseUserName = "yt-clickhouse";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHttpProxy

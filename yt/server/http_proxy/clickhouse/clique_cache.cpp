@@ -1,7 +1,8 @@
 #include "clique_cache.h"
+
 #include "config.h"
 
-namespace NYT::NHttpProxy {
+namespace NYT::NHttpProxy::NClickHouse {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,4 +32,4 @@ TCliqueCache::TCliqueCache(TCliqueCacheConfigPtr config, const NProfiling::TProf
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHttpProxy
+} // namespace NYT::NHttpProxy::NClickHouse

@@ -1,12 +1,12 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/client/misc/discovery.h>
 
 #include <yt/core/misc/async_cache.h>
 
-namespace NYT::NHttpProxy {
+namespace NYT::NHttpProxy::NClickHouse {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,4 +43,4 @@ DEFINE_REFCOUNTED_TYPE(TCliqueCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHttpProxy
+} // namespace NYT::NHttpProxy::NClickHouse
