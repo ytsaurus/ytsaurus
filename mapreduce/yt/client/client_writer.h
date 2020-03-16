@@ -32,7 +32,7 @@ public:
 private:
     ::TIntrusivePtr<TRawTableWriter> RawWriter_;
 
-    static const size_t BUFFER_SIZE = 64 << 20;
+    const size_t BUFFER_SIZE = 64 << 20;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

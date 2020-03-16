@@ -349,6 +349,11 @@ struct TTableWriterOptions
     // before it reads the whole input so it just drops the connection).
     FLUENT_FIELD_DEFAULT(bool, SingleHttpRequest, false);
 
+    // Allows to change the size of locally buffered rows before flushing to yt
+    // Measured in bytes
+    // Default value is 64Mb
+    FLUENT_FIELD_DEFAULT(size_t, BufferSize, 64 << 20);
+
     // Allows to fine tune format that is used for writing tables.
     //
     // Has no effect when used with raw-writer.
