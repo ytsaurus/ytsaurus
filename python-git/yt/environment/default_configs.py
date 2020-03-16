@@ -490,9 +490,11 @@ def get_proxy_config():
 b"""
 {
     port = -1;
-    address = "::";
 
-    disable_cors_check = %true;
+    api = {
+        disable_cors_check = %true;
+    };
+
     auth = {
         enable_authentication = %false;
         blackbox_service = {};
@@ -501,9 +503,7 @@ b"""
             scope = "";
             enable_scope_check = %false;
         };
-        blackbox_cookie_authenticator = {
-            csrf_token = "";
-        };
+        blackbox_cookie_authenticator = {};
     };
 
     coordinator = {
