@@ -1,4 +1,4 @@
-#include "security_manager.h"
+#include "users_manager.h"
 
 #include "private.h"
 #include "bootstrap.h"
@@ -11,6 +11,8 @@
 #include <yt/client/security_client/acl.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
+#include <yt/core/concurrency/action_queue.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/ytree/permission.h>
 
@@ -34,7 +36,7 @@ using namespace NYTree;
 using namespace NSecurityClient;
 using namespace NYson;
 
-static const auto& Logger = ServerLogger;
+TLogger Logger("UsersManager");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +50,10 @@ public:
 
     void loadFromConfig(const Poco::Util::AbstractConfiguration& config) override
     {
-        Impl_->loadFromConfig(config);
+        WaitFor(BIND(&TImpl::LoadFromConfig, Impl_, ConstRef(config))
+            .AsyncVia(Impl_->GetInvoker())
+            .Run())
+            .ThrowOnError();
     }
 
     UserPtr authorizeAndGetUser(
@@ -56,39 +61,60 @@ public:
         const std::string& password,
         const Poco::Net::IPAddress& address) const override
     {
-        return Impl_->authorizeAndGetUser(userName, password, address);
+        return WaitFor(BIND(&TImpl::AuthorizeAndGetUser, Impl_)
+            .AsyncVia(Impl_->GetInvoker())
+            .Run(userName, password, address))
+            .ValueOrThrow();
     }
 
     UserPtr getUser(const std::string& userName) const override
     {
-        return Impl_->getUser(userName);
+        return WaitFor(BIND(&TImpl::GetUser, Impl_)
+            .AsyncVia(Impl_->GetInvoker())
+            .Run(userName))
+            .ValueOrThrow();
     }
 
     bool hasAccessToDatabase(const std::string& userName, const std::string& databaseName) const override
     {
-        return Impl_->hasAccessToDatabase(userName, databaseName);
+        return WaitFor(BIND(&TImpl::HasAccessToDatabase, Impl_)
+            .AsyncVia(Impl_->GetInvoker())
+            .Run(userName, databaseName))
+            .ValueOrThrow();
     }
 
 private:
+    //! A single-threaded implementation of CH users (duh!) manager.
+    //! Fetches current operation ACL in background.
     class TImpl
         : public TRefCounted
     {
     public:
         TImpl(TBootstrap* bootstrap, TString cliqueId)
-            : Bootstrap_(bootstrap)
+            : ActionQueue_(New<TActionQueue>("SecurityManager"))
+            , Invoker_(ActionQueue_->GetInvoker())
+            , UpdateExecutor_(New<TPeriodicExecutor>(
+                Invoker_,
+                BIND(&TImpl::DoUpdateCurrentAcl, MakeWeak(this)),
+                bootstrap->GetConfig()->OperationAclUpdatePeriod))
+            , Bootstrap_(bootstrap)
             , CliqueId_(std::move(cliqueId))
         {
+            VERIFY_THREAD_AFFINITY_ANY();
+
             if (Bootstrap_->GetConfig()->ValidateOperationAccess) {
                 YT_LOG_INFO("Updating ACL for the first time");
-                DoUpdateCurrentAcl();
+                UpdateExecutor_->Start();
             } else {
                 YT_LOG_INFO("Operation access validation is disabled");
             }
         }
 
-        void loadFromConfig(const Poco::Util::AbstractConfiguration& config)
+        void LoadFromConfig(const Poco::Util::AbstractConfiguration& config)
         {
-            auto guard = TWriterGuard(SpinLock_);
+            VERIFY_INVOKER_AFFINITY(Invoker_);
+
+            YT_LOG_DEBUG("Loading from config");
 
             Users_.clear();
             UserTemplate_ = std::nullopt;
@@ -98,76 +124,85 @@ private:
             }
         }
 
-        UserPtr authorizeAndGetUser(
+        UserPtr AuthorizeAndGetUser(
             const std::string& userName,
             const std::string& /* password */,
-            const Poco::Net::IPAddress& /* address */) const
+            const Poco::Net::IPAddress& /* address */)
         {
-            auto that = const_cast<TImpl*>(this);
-            return that->GetOrRegisterUser(userName);
+            VERIFY_INVOKER_AFFINITY(Invoker_);
+
+            YT_LOG_DEBUG("Authorizing and getting user (UserName: %v)", userName);
+
+            return GetOrRegisterUser(userName);
         }
 
-        UserPtr getUser(const std::string& userName) const
+        UserPtr GetUser(const std::string& userName)
         {
-            auto that = const_cast<TImpl*>(this);
-            return that->GetOrRegisterUser(userName);
+            VERIFY_INVOKER_AFFINITY(Invoker_);
+
+            YT_LOG_DEBUG("Getting user (UserName: %v)", userName);
+
+            return GetOrRegisterUser(userName);
         }
 
-        bool hasAccessToDatabase(const std::string& userName, const std::string& databaseName) const
+        bool HasAccessToDatabase(const std::string& userName, const std::string& databaseName)
         {
+            VERIFY_INVOKER_AFFINITY(Invoker_);
+
+            YT_LOG_DEBUG("Checking user access to database (UserName: %v, DatabaseName: %v)", userName, databaseName);
+
             try {
-                const_cast<TImpl*>(this)->GetOrRegisterUser(TString(userName));
+                GetOrRegisterUser(TString(userName));
                 return true;
             } catch (const std::exception& ex) {
-                YT_LOG_INFO(ex, "Error while registering user (UserName: %v, DatabaseName: %v)", userName, databaseName);
+                YT_LOG_DEBUG(ex, "Error while checking user access to database (UserName: %v, DatabaseName: %v)", userName, databaseName);
                 return false;
             }
         }
 
+        IInvokerPtr GetInvoker() const
+        {
+            VERIFY_THREAD_AFFINITY_ANY();
+
+            return Invoker_;
+        }
+
     private:
+        TActionQueuePtr ActionQueue_;
+        IInvokerPtr Invoker_;
+        TPeriodicExecutorPtr UpdateExecutor_;
+
         THashMap<TString, DB::IUsersManager::UserPtr> Users_;
         std::optional<DB::User> UserTemplate_;
-        TReaderWriterSpinLock SpinLock_;
 
         TBootstrap* Bootstrap_;
         TString CliqueId_;
 
         std::optional<TSerializableAccessControlList> CurrentAcl_;
-        NProfiling::TCpuInstant LastCurrentAclUpdateTime_ = 0;
 
         DB::IUsersManager::UserPtr GetOrRegisterUser(TStringBuf userName)
         {
-            MaybeUpdateCurrentAcl();
+            VERIFY_INVOKER_AFFINITY(Invoker_);
 
-            {
-                auto guard = TReaderGuard(SpinLock_);
-
-                auto found = Users_.find(userName);
-                if (found != Users_.end()) {
-                    return found->second;
-                }
+            auto found = Users_.find(userName);
+            if (found != Users_.end()) {
+                YT_LOG_DEBUG("User found (UserName: %v)", userName);
+                return found->second;
             }
 
-            {
-                auto guard = TWriterGuard(SpinLock_);
+            YT_LOG_INFO("Registering new user (UserName: %v)", userName);
+            ValidateUserAccess(TString(userName));
 
-                auto found = Users_.find(userName);
-                if (found != Users_.end()) {
-                    return found->second;
-                }
-
-                YT_LOG_INFO("Registering new user (UserName: %v)", userName);
-                ValidateUserAccess(TString(userName));
-
-                auto user = CreateNewUserFromTemplate(userName);
-                auto result = Users_.emplace(userName, user);
-                YT_VERIFY(result.second);
-                return user;
-            }
+            auto user = CreateNewUserFromTemplate(userName);
+            auto result = Users_.emplace(userName, user);
+            YT_VERIFY(result.second);
+            return user;
         }
 
         void ValidateUserAccess(const TString& userName)
         {
+            VERIFY_INVOKER_AFFINITY(Invoker_);
+
             // At this point we only check if the user has access to current clique.
             // Storage layer is responsible for access control for specific tables.
             if (!Bootstrap_->GetConfig()->ValidateOperationAccess) {
@@ -196,66 +231,30 @@ private:
             YT_LOG_DEBUG("User access validated using master, allowing access to user (User: %v)", userName);
         }
 
-        //! Try to update current acl if it is not fresh enough, and clear users map if it has actually changed.
-        void MaybeUpdateCurrentAcl()
-        {
-            if (!Bootstrap_->GetConfig()->ValidateOperationAccess) {
-                return;
-            }
-
-            auto currentTime = NProfiling::GetCpuInstant();
-            auto updatePeriod = NProfiling::DurationToCpuDuration(Bootstrap_->GetConfig()->OperationAclUpdatePeriod);
-            {
-                auto guard = TReaderGuard(SpinLock_);
-                if (LastCurrentAclUpdateTime_ + updatePeriod >= currentTime) {
-                    return;
-                }
-            }
-
-            Bootstrap_->GetControlInvoker()->Invoke(BIND(&TImpl::DoUpdateCurrentAcl, MakeWeak(this)));
-        }
-
         void DoUpdateCurrentAcl()
         {
-            auto currentTime = NProfiling::GetCpuInstant();
-            auto updatePeriod = NProfiling::DurationToCpuDuration(Bootstrap_->GetConfig()->OperationAclUpdatePeriod);
+            VERIFY_INVOKER_AFFINITY(Invoker_);
 
-            {
-                auto guard = TReaderGuard(SpinLock_);
-                // Somebody has updated acl before us.
-                if (LastCurrentAclUpdateTime_ + updatePeriod >= currentTime) {
-                    return;
-                }
-            }
-
-            {
+            try {
                 auto newCurrentAcl = FetchCurrentAcl();
 
-                auto guard = TWriterGuard(SpinLock_);
-
-                if (LastCurrentAclUpdateTime_ + updatePeriod >= currentTime) {
-                    // And still somebody could have updated acl before us.
-                    return;
+                YT_LOG_DEBUG("Current operation ACL fetched (Acl: %v)", ConvertToYsonString(newCurrentAcl, EYsonFormat::Text));
+                if (CurrentAcl_ != newCurrentAcl) {
+                    YT_LOG_INFO("Operation ACL has changed (OldAcl: %v, NewAcl: %v)",
+                        ConvertToYsonString(CurrentAcl_, EYsonFormat::Text),
+                        ConvertToYsonString(newCurrentAcl, EYsonFormat::Text));
+                    Users_.clear();
+                    CurrentAcl_ = newCurrentAcl;
                 }
-
-                try {
-                    YT_LOG_DEBUG("Current operation ACL fetched (Acl: %v)", ConvertToYsonString(newCurrentAcl, EYsonFormat::Text));
-                    LastCurrentAclUpdateTime_ = NProfiling::GetCpuInstant();
-                    if (CurrentAcl_ != newCurrentAcl) {
-                        YT_LOG_INFO("Operation ACL has changed (OldAcl: %v, NewAcl: %v)",
-                            ConvertToYsonString(CurrentAcl_, EYsonFormat::Text),
-                            ConvertToYsonString(newCurrentAcl, EYsonFormat::Text));
-                        Users_.clear();
-                        CurrentAcl_ = newCurrentAcl;
-                    }
-                } catch (const std::exception& ex) {
-                    YT_LOG_ERROR(ex, "Error fetching operation ACL");
-                }
+            } catch (const std::exception& ex) {
+                YT_LOG_ERROR(ex, "Error updating operation ACL");
             }
         }
 
         std::optional<TSerializableAccessControlList> FetchCurrentAcl()
         {
+            VERIFY_INVOKER_AFFINITY(Invoker_);
+
             NApi::TGetOperationOptions options;
             options.IncludeRuntime = true;
             options.Attributes = THashSet<TString>{"runtime_parameters"};
@@ -279,10 +278,10 @@ private:
 
         DB::IUsersManager::UserPtr CreateNewUserFromTemplate(TStringBuf userName)
         {
+            VERIFY_INVOKER_AFFINITY(Invoker_);
+
             if (!UserTemplate_) {
-                throw DB::Exception(
-                    "Cannot automatically register new user: user template not provided",
-                    DB::ErrorCodes::UNKNOWN_USER);
+                THROW_ERROR_EXCEPTION("Cannot automatically register new user: user template not provided");
             };
 
             auto newUser = std::make_shared<DB::User>(*UserTemplate_);

@@ -1951,33 +1951,46 @@ class TestClickHouseAccess(ClickHouseTestBase):
         self._setup()
 
     @authors("max42")
-    def DISABLED_test_clique_access(self):
-        # TODO(max42): CHYT-300.
-        create_user("u")
+    def test_clique_access(self):
+        create_group("g")
+        create_user("u1")
+        create_user("u2")
+        add_member("u1", "g")
+        add_member("u2", "g")
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 1}])
 
         with Clique(1, config_patch={"validate_operation_access": False}) as clique:
-            assert len(clique.make_query("select * from \"//tmp/t\"", user="u")) == 1
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
 
         with Clique(1, config_patch={"validate_operation_access": True}) as clique:
             with pytest.raises(YtError):
-                clique.make_query("select * from \"//tmp/t\"", user="u")
+                clique.make_query("select * from \"//tmp/t\"", user="u1")
+
+        allow_g = {"subjects": ["g"], "action": "allow", "permissions": ["read"]}
+        deny_u2 = {"subjects": ["u2"], "action": "deny", "permissions": ["read"]}
 
         with Clique(1,
                     config_patch={"validate_operation_access": True, "operation_acl_update_period": 100},
                     spec={
-                        "acl": [{
-                            "subjects": ["u"],
-                            "action": "allow",
-                            "permissions": ["read"]
-                        }]
+                        "acl": [allow_g]
                     }) as clique:
-            assert len(clique.make_query("select * from \"//tmp/t\"", user="u")) == 1
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u2")) == 1
+
+            update_op_parameters(clique.op.id, parameters={"acl": [allow_g, deny_u2]})
+            time.sleep(1)
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"", user="u2")
+
             update_op_parameters(clique.op.id, parameters={"acl": []})
             time.sleep(1)
             with pytest.raises(YtError):
-                clique.make_query("select * from \"//tmp/t\"", user="u")
+                clique.make_query("select * from \"//tmp/t\"", user="u1")
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"", user="u2")
+
 
 
 class TestQueryLog(ClickHouseTestBase):
