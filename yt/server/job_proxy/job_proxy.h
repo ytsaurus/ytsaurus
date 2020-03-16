@@ -67,7 +67,7 @@ public:
 
     TDuration GetSpentCpuTime() const;
 
-    void SetCpuShare(double cpuShare);
+    bool TrySetCpuShare(double cpuShare);
 
 private:
     const TJobProxyConfigPtr Config_;
