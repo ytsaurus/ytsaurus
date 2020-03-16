@@ -4,13 +4,12 @@ package migrate
 import (
 	"context"
 
-	"a.yandex-team.ru/yt/go/yterrors"
-
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 type retrySentinel struct{}
@@ -69,6 +68,19 @@ func ensureTabletState(ctx context.Context, yc yt.Client, path ypath.Path, state
 
 		if currentState == yt.TabletTransient {
 			return
+		}
+
+		// TODO(prime@): remove this, once YT-12497 is fixed.
+		switch state {
+		case yt.TabletMounted:
+			if currentState == yt.TabletUnmounted {
+				return
+			}
+
+		case yt.TabletUnmounted:
+			if currentState == yt.TabletMounted {
+				return
+			}
 		}
 
 		if currentState != inProgressState {
