@@ -113,23 +113,26 @@ message TPodAgentStatus {
 
 //============================== SPEC ==========================
 
-enum ECPUPolicy {
+enum ECpuPolicy {
     // "rt" cpu policy is forbidden: DEPLOY-2046
 
+    // Use porto default cpu policy
+    ECpuPolicy_UNKNOWN = 0 [(NYT.NYson.NProto.enum_value_name) = "unknown"];
+
     // SCHED_OTHER (default)
-    ECPUPolicy_NORMAL = 0 [(NYT.NYson.NProto.enum_value_name) = "normal"];
+    ECpuPolicy_NORMAL = 1 [(NYT.NYson.NProto.enum_value_name) = "normal"];
 
     // SCHED_OTHER (nice = -10, increases cpu.shares by 16 times)
-    ECPUPolicy_HIGH = 1 [(NYT.NYson.NProto.enum_value_name) = "high"];
+    ECpuPolicy_HIGH = 2 [(NYT.NYson.NProto.enum_value_name) = "high"];
 
     // SCHED_BATCH
-    ECPUPolicy_BATCH = 2 [(NYT.NYson.NProto.enum_value_name) = "batch"];
+    ECpuPolicy_BATCH = 3 [(NYT.NYson.NProto.enum_value_name) = "batch"];
 
     // SCHED_IDLE (also decreases cpu.shares by 16 times)
-    ECPUPolicy_IDLE = 3 [(NYT.NYson.NProto.enum_value_name) = "idle"];
+    ECpuPolicy_IDLE = 4 [(NYT.NYson.NProto.enum_value_name) = "idle"];
 
     // SCHED_ISO (offstream kernel feature)
-    ECPUPolicy_ISO = 4 [(NYT.NYson.NProto.enum_value_name) = "iso"];
+    ECpuPolicy_ISO = 5 [(NYT.NYson.NProto.enum_value_name) = "iso"];
 }
 
 message TComputeResources {
@@ -141,7 +144,7 @@ message TComputeResources {
     uint64 vcpu_limit = 3;
 
     // Параметры CPU scheduler
-    ECPUPolicy cpu_policy = 9;
+    ECpuPolicy cpu_policy = 9;
     double cpu_weight = 10;
 
     // Ограничения по памяти, в байтах
