@@ -230,7 +230,28 @@ void TDriverModuleBase::Initialize(
 {
     PyEval_InitThreads();
 
-    RegisterShutdown();
+    TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
+    TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
+
+    TBufferedStreamWrap::InitType(moduleName);
+    TDriverResponse::InitType(moduleName);
+    TCommandDescriptor::InitType(moduleName);
+    initType();
+
+    addPycxxMethod("configure_logging", &TDriverModuleBase::ConfigureLogging, "Configures YT driver logging");
+    addPycxxMethod("configure_address_resolver", &TDriverModuleBase::ConfigureAddressResolver, "Configures YT address resolver");
+    addPycxxMethod("configure_tracing", &TDriverModuleBase::ConfigureTracing, "Configures YT driver tracing");
+    addPycxxMethod("reopen_logs", &TDriverModuleBase::ReopenLogs, "Reopen driver logs");
+    addPycxxMethod("shutdown", &TDriverModuleBase::Shutdown, "Shutdown YT subsystem");
+    addPycxxMethod("_internal_shutdown", &TDriverModuleBase::InternalShutdown, "Internal shutdown");
+
+    initModule();
+
+    auto moduleDict = getModuleDictionary();
+    moduleDict.setItem("BufferedStream", TBufferedStreamWrap::type());
+    moduleDict.setItem("Response", TDriverResponse::type());
+
+    RegisterShutdown(moduleDict.getItem("_internal_shutdown"));
     RegisterShutdownCallback(
         BIND([] () {
             YT_LOG_INFO("Module shutdown started");
@@ -248,25 +269,6 @@ void TDriverModuleBase::Initialize(
         /*index*/ 0
     );
 
-    TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
-    TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
-
-    TBufferedStreamWrap::InitType(moduleName);
-    TDriverResponse::InitType(moduleName);
-    TCommandDescriptor::InitType(moduleName);
-    initType();
-
-    addPycxxMethod("configure_logging", &TDriverModuleBase::ConfigureLogging, "Configures YT driver logging");
-    addPycxxMethod("configure_address_resolver", &TDriverModuleBase::ConfigureAddressResolver, "Configures YT address resolver");
-    addPycxxMethod("configure_tracing", &TDriverModuleBase::ConfigureTracing, "Configures YT driver tracing");
-    addPycxxMethod("reopen_logs", &TDriverModuleBase::ReopenLogs, "Reopen driver logs");
-    addPycxxMethod("shutdown", &TDriverModuleBase::Shutdown, "Shutdown YT subsystem");
-
-    initModule();
-
-    auto moduleDict = getModuleDictionary();
-    moduleDict.setItem("BufferedStream", TBufferedStreamWrap::type());
-    moduleDict.setItem("Response", TDriverResponse::type());
 }
 
 Py::Object TDriverModuleBase::ConfigureLogging(const Py::Tuple& args_, const Py::Dict& kwargs_)
@@ -325,6 +327,17 @@ Py::Object TDriverModuleBase::Shutdown(const Py::Tuple& args_, const Py::Dict& k
     ValidateArgumentsEmpty(args, kwargs);
 
     NYT::Shutdown();
+
+    return Py::None();
+}
+
+Py::Object TDriverModuleBase::InternalShutdown(const Py::Tuple& args_, const Py::Dict& kwargs_)
+{
+    auto args = args_;
+    auto kwargs = kwargs_;
+    ValidateArgumentsEmpty(args, kwargs);
+
+    TDriverResponseHolder::OnBeforePythonFinalize();
 
     return Py::None();
 }
