@@ -34,7 +34,7 @@ class TCollectionBoundMapService
 {
 public:
     explicit TCollectionBoundMapService(std::weak_ptr<T> collection)
-        : Collection_(collection)
+        : Collection_(std::move(collection))
     { }
 
     virtual i64 GetSize() const override
@@ -73,7 +73,7 @@ public:
     }
 
 private:
-    std::weak_ptr<T> Collection_;
+    const std::weak_ptr<T> Collection_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -84,7 +84,7 @@ class TCollectionBoundListService
 {
 public:
     explicit TCollectionBoundListService(std::weak_ptr<T> collection)
-        : Collection_(collection)
+        : Collection_(std::move(collection))
     { }
 
     virtual i64 GetSize() const override
@@ -105,7 +105,7 @@ public:
     }
 
 private:
-    std::weak_ptr<T> Collection_;
+    const std::weak_ptr<T> Collection_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

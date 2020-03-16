@@ -371,7 +371,7 @@ public:
 
 private:
     using TVertexMap = THashMap<TVertexDescriptor, TVertexPtr>;
-    std::shared_ptr<TVertexMap> Vertices_ = std::make_shared<TVertexMap>();
+    const std::shared_ptr<TVertexMap> Vertices_ = std::make_shared<TVertexMap>();
 
     TProgressCounterPtr TotalJobCounter_ = New<TProgressCounter>(0);
 
