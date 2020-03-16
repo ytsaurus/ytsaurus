@@ -3202,7 +3202,7 @@ private:
 
         auto* sourceTrunkNode = FindNode(TVersionedObjectId(sourceNodeId));
         if (!IsObjectAlive(sourceTrunkNode)) {
-            YT_LOG_DEBUG("Attempted to clone non-existing foreign node (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Attempted to clone non-existing foreign node (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
                 sourceNodeId,
                 clonedNodeId,
                 sourceTransactionId,
