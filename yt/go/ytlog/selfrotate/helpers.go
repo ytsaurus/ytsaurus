@@ -157,7 +157,7 @@ func planRotation(current *os.File, files []logFile, options Options) (remove []
 		files = files[1:]
 
 		totalSize -= removedFile.Size
-		stat.Bfree += uint64(removedFile.Size / stat.Bsize)
+		stat.Bfree += uint64(removedFile.Size) / uint64(stat.Bsize)
 
 		remove = append(remove, removedFile.Name)
 	}
