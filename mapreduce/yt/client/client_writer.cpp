@@ -17,6 +17,7 @@ TClientWriter::TClientWriter(
     const TTransactionId& transactionId,
     const TMaybe<TFormat>& format,
     const TTableWriterOptions& options)
+    : BUFFER_SIZE(options.BufferSize_)
 {
     if (options.SingleHttpRequest_) {
         RawWriter_.Reset(new TRetrylessWriter(
