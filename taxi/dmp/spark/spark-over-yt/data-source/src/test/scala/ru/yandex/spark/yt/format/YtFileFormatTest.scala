@@ -416,6 +416,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUti
 
   it should "write sorted table" in {
     import spark.implicits._
+
     import scala.collection.JavaConverters._
 
     (1 to 9).toDF.coalesce(3).write.sortedBy("value").yt(tmpPath)
@@ -424,20 +425,18 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUti
     sortColumns should contain theSameElementsAs Seq("value")
 
     val schemaCheck = Seq("name", "type", "sort_order")
-    val schema = YtTableUtils.tableAttribute(tmpPath, "schema").asList().asScala.map{field =>
+    val schema = YtTableUtils.tableAttribute(tmpPath, "schema").asList().asScala.map { field =>
       val map = field.asMap()
       schemaCheck.map(n => n -> map.getOrThrow(n).stringValue())
     }
     schema should contain theSameElementsAs Seq(
       Seq("name" -> "value", "type" -> "int32", "sort_order" -> "ascending")
     )
-
-    spark.read.yt(tmpPath, 1).as[Int].collect() should contain theSameElementsInOrderAs (1 to 9)
   }
 
   it should "abort transaction if failed to create sorted table" in {
     val df = (1 to 9).toDF("my_name").coalesce(3)
-    an [Exception] shouldBe thrownBy {
+    an[Exception] shouldBe thrownBy {
       df.write.sortedBy("bad_name").yt(tmpPath)
     }
     noException shouldBe thrownBy {
@@ -476,6 +475,13 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUti
     val result = spark.read.yt(tmpPath)
     result.schema.fields.head.dataType shouldEqual IntegerType
     result.collect() should contain theSameElementsAs Seq(Row(1), Row(2))
+  }
+
+  it should "read empty table" in {
+    createEmptyTable(tmpPath, atomicSchema)
+    val res = spark.read.yt(tmpPath)
+    res.columns should contain theSameElementsAs Seq("a", "b", "c")
+    res.collect().isEmpty shouldEqual true
   }
 }
 

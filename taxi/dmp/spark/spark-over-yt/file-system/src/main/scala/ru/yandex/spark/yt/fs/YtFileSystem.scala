@@ -100,12 +100,18 @@ class YtFileSystem extends FileSystem {
       YtTableUtils.tableAttribute(path, "chunk_count", transaction).longValue().toInt
     )
     GlobalTableSettings.removeFilesCount(path)
-    val result = new Array[FileStatus](chunksCount)
+    val filesCount = if (chunksCount > 0) chunksCount else 1
+    val result = new Array[FileStatus](filesCount)
     for (chunkIndex <- 0 until chunksCount) {
       val chunkStart = chunkIndex * rowCount / chunksCount
       val chunkRowCount = (chunkIndex + 1) * rowCount / chunksCount - chunkStart
       val chunkPath = new YtPath(f, chunkStart, chunkRowCount)
       result(chunkIndex) = new YtFileStatus(chunkPath, rowCount, chunksCount)
+    }
+    if (chunksCount == 0) {
+      // add path for schema resolving
+      val chunkPath = new YtPath(f, 0, 0)
+      result(0) = new YtFileStatus(chunkPath, rowCount, chunksCount)
     }
     result
   }
