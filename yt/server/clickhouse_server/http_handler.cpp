@@ -2,6 +2,8 @@
 
 #include "query_context.h"
 
+#include <yt/core/misc/string.h>
+
 #include <server/HTTPHandler.h>
 #include <server/NotFoundHandler.h>
 #include <server/PingRequestHandler.h>
@@ -11,31 +13,39 @@
 #include <Poco/Net/HTTPServerResponse.h>
 #include <Poco/URI.h>
 
-#include <yt/core/misc/string.h>
+#include <Common/getFQDNOrHostName.h>
 
 #include <util/string/cast.h>
 
 namespace NYT::NClickHouseServer {
 
-using namespace DB;
 using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class MovedPermanentlyRequestHandler : public Poco::Net::HTTPRequestHandler
+class TMovedPermanentlyRequestHandler
+    : public Poco::Net::HTTPRequestHandler
 {
 public:
+    TMovedPermanentlyRequestHandler(DB::IServer& server)
+        : Server_(server)
+    { }
+
     void handleRequest(
         Poco::Net::HTTPServerRequest & /* request */,
         Poco::Net::HTTPServerResponse & response) override
     {
         try {
+            response.set("X-ClickHouse-Server-Display-Name", Server_.config().getString("display_name", getFQDNOrHostName()));
             response.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_MOVED_PERMANENTLY);
             response.send() << "Instance moved or is moving from this address.\n";
         } catch (...) {
-            tryLogCurrentException("MovedPermanentlyHandler");
+            DB::tryLogCurrentException("MovedPermanentlyHandler");
         }
     }
+
+private:
+    DB::IServer& Server_;
 };
 
 class THttpHandler
@@ -133,10 +143,10 @@ class THttpHandlerFactory
 {
 private:
     TBootstrap* Bootstrap_;
-    IServer& Server;
+    DB::IServer& Server;
 
 public:
-    THttpHandlerFactory(TBootstrap* bootstrap, IServer& server)
+    THttpHandlerFactory(TBootstrap* bootstrap, DB::IServer& server)
         : Bootstrap_(bootstrap)
         , Server(server)
     { }
@@ -157,10 +167,10 @@ public:
             request.getMethod() == Poco::Net::HTTPServerRequest::HTTP_GET)
         {
             if (uri == "/") {
-                return new RootRequestHandler(Server);
+                return new DB::RootRequestHandler(Server);
             }
             if (uri == "/ping") {
-                return new PingRequestHandler(Server);
+                return new DB::PingRequestHandler(Server);
             }
         }
 
@@ -168,7 +178,7 @@ public:
         if (Bootstrap_->GetState() == EInstanceState::Stopped ||
             (cliqueId != request.end() && TString(cliqueId->second) != Bootstrap_->GetCliqueId()))
         {
-            return new MovedPermanentlyRequestHandler();
+            return new TMovedPermanentlyRequestHandler(Server);
         }
 
         if (request.getMethod() == Poco::Net::HTTPServerRequest::HTTP_GET ||
@@ -181,13 +191,13 @@ public:
             }
         }
 
-        return new NotFoundHandler();
+        return new DB::NotFoundHandler();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::HTTPRequestHandlerFactory::Ptr CreateHttpHandlerFactory(TBootstrap* bootstrap, IServer& server)
+Poco::Net::HTTPRequestHandlerFactory::Ptr CreateHttpHandlerFactory(TBootstrap* bootstrap, DB::IServer& server)
 {
     return new THttpHandlerFactory(bootstrap, server);
 }
