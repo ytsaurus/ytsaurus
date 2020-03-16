@@ -51,7 +51,6 @@ def main():
             "preemption_mode": "graceful" if args.graceful_preemption else "normal",
         },
         clickhouse_config={
-            "validate_operation_access": False,
             "engine": {
                 "settings": {
                     "max_execution_time": 600 if args.type == "datalens" else 1800,

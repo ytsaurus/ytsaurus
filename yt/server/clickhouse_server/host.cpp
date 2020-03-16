@@ -14,7 +14,7 @@
 #include "private.h"
 #include "query_context.h"
 #include "query_registry.h"
-#include "security_manager.h"
+#include "users_manager.h"
 #include "poco_config.h"
 #include "config.h"
 #include "storage_distributor.h"
