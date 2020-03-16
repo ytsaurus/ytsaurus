@@ -101,7 +101,7 @@ THeavySchedulerConfig::THeavySchedulerConfig()
 
     RegisterParameter("safe_cluster_pod_eviction_count", SafeClusterPodEvictionCount)
         .GreaterThanOrEqual(0)
-        .Default(0);
+        .Default(10);
 
     RegisterParameter("task_manager", TaskManager)
         .DefaultNew();
