@@ -47,13 +47,19 @@ class TestSchedulerAcls(YTEnvSetup):
     no_rights_user = "no_rights_user"
     read_only_user = "read_only_user"
     manage_only_user = "manage_only_user"
+    manage_and_read_group = "manage_and_read_group"
     manage_and_read_user = "manage_and_read_user"
+    banned_from_managing_user = "banned_from_managing_user"
+    group_membership = {
+        manage_and_read_group: [manage_and_read_user, banned_from_managing_user]
+    }
 
     spec = {
         "acl": [
             make_ace("allow", read_only_user, "read"),
             make_ace("allow", manage_only_user, "manage"),
-            make_ace("allow", manage_and_read_user, ["manage", "read"]),
+            make_ace("allow", manage_and_read_group, ["manage", "read"]),
+            make_ace("deny", banned_from_managing_user, ["manage"])
         ],
     }
 
@@ -71,8 +77,18 @@ class TestSchedulerAcls(YTEnvSetup):
             cls.read_only_user,
             cls.manage_only_user,
             cls.manage_and_read_user,
+            cls.banned_from_managing_user
         ]:
             create_user(user)
+
+        for group in [
+            cls.manage_and_read_group
+        ]:
+            create_group(group)
+
+        for group, members in cls.group_membership.iteritems():
+            for member in members:
+                add_member(member, group)
 
     @staticmethod
     def _random_string(length):
@@ -192,6 +208,8 @@ class TestSchedulerAcls(YTEnvSetup):
                 self._validate_access(self.read_only_user, True, action, operation_id=op.id, job_id=job_id)
                 self._validate_access(self.manage_only_user, False, action, operation_id=op.id, job_id=job_id)
                 self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id, job_id=job_id)
+                self._validate_access(self.banned_from_managing_user, True, action, operation_id=op.id, job_id=job_id)
+
 
     @authors("levysotsky")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
@@ -207,6 +225,7 @@ class TestSchedulerAcls(YTEnvSetup):
             self._validate_access(self.read_only_user, True, action, operation_id=op.id, job_id=job_id)
             self._validate_access(self.manage_only_user, False, action, operation_id=op.id, job_id=job_id)
             self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id, job_id=job_id)
+            self._validate_access(self.banned_from_managing_user, True, action, operation_id=op.id, job_id=job_id)
 
     @authors("levysotsky")
     def test_read_job_from_archive_actions(self):
@@ -223,6 +242,7 @@ class TestSchedulerAcls(YTEnvSetup):
             self._validate_access(self.read_only_user, True, action, operation_id=op.id, job_id=job_id)
             self._validate_access(self.manage_only_user, False, action, operation_id=op.id, job_id=job_id)
             self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id, job_id=job_id)
+            self._validate_access(self.banned_from_managing_user, True, action, operation_id=op.id, job_id=job_id)
 
     @authors("levysotsky")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
@@ -265,6 +285,7 @@ class TestSchedulerAcls(YTEnvSetup):
                 self._validate_access(self.read_only_user, False, action, operation_id=op.id, job_id=job_id)
                 self._validate_access(self.manage_only_user, False, action, operation_id=op.id, job_id=job_id)
                 self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id, job_id=job_id)
+                self._validate_access(self.banned_from_managing_user, False, action, operation_id=op.id, job_id=job_id)
 
     @authors("levysotsky")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
@@ -290,6 +311,7 @@ class TestSchedulerAcls(YTEnvSetup):
             with self._run_op_context_manager(should_update_operation_parameters) as (op, _):
                 self._validate_access(self.no_rights_user, False, action, operation_id=op.id)
                 self._validate_access(self.read_only_user, False, action, operation_id=op.id)
+                self._validate_access(self.banned_from_managing_user, False, action, operation_id=op.id)
                 self._validate_access(self.manage_only_user, True, action, operation_id=op.id)
             with self._run_op_context_manager(should_update_operation_parameters) as (op, _):
                 self._validate_access(self.manage_and_read_user, True, action, operation_id=op.id)
@@ -301,6 +323,7 @@ class TestSchedulerAcls(YTEnvSetup):
             self._validate_access(self.no_rights_user, False, _abort_op, operation_id=op.id)
             self._validate_access(self.read_only_user, False, _abort_op, operation_id=op.id)
             self._validate_access(self.manage_only_user, False, _abort_op, operation_id=op.id)
+            self._validate_access(self.banned_from_managing_user, False, _abort_op, operation_id=op.id)
             self._validate_access(self.manage_and_read_user, True, _abort_op, operation_id=op.id)
 
     @authors("levysotsky")
@@ -314,17 +337,11 @@ class TestSchedulerAcls(YTEnvSetup):
             self._validate_access(self.no_rights_user, False, _abort_op, operation_id=op.id)
             self._validate_access(self.read_only_user, False, _abort_op, operation_id=op.id)
             self._validate_access(self.manage_only_user, False, _abort_op, operation_id=op.id)
+            self._validate_access(self.banned_from_managing_user, False, _abort_op, operation_id=op.id)
             self._validate_access(self.manage_and_read_user, True, _abort_op, operation_id=op.id)
 
     @authors("levysotsky")
     def test_acl_errors(self):
-        # "deny" action.
-        with pytest.raises(YtError):
-            with self._run_op_context_manager(spec={
-                "acl": [make_ace("deny", self.manage_and_read_user, "read")],
-            }):
-                pass
-
         # Wrong permissions.
         with pytest.raises(YtError):
             with self._run_op_context_manager(spec={
@@ -335,10 +352,6 @@ class TestSchedulerAcls(YTEnvSetup):
     @authors("levysotsky")
     def test_acl_update_errors(self):
         with self._run_op_context_manager() as (op, job_id):
-            # "deny" action.
-            with pytest.raises(YtError):
-                update_op_parameters(op.id, parameters={"acl": [make_ace("deny", self.manage_and_read_user, "read")]})
-
             # Wrong permissions.
             with pytest.raises(YtError):
                 update_op_parameters(op.id, parameters={"acl": [make_ace("allow", self.manage_and_read_user, ["read", "write"])]})
