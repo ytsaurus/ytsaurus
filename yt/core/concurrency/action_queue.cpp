@@ -259,7 +259,7 @@ public:
             TEntry entry;
             entry.Callback = std::move(callback);
             entry.Priority = priority;
-            Heap_.emplace_back(std::move(entry));
+            Heap_.push_back(std::move(entry));
             std::push_heap(Heap_.begin(), Heap_.end());
         }
         UnderlyingInvoker_->Invoke(BIND(&TPrioritizedInvoker::DoExecute, MakeStrong(this)));
