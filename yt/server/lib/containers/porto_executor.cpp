@@ -474,7 +474,7 @@ private:
             command,
             errorMessage);
 
-        if (error != EPortoErrorCode::Unknown || NProfiling::GetInstant() - startTime < Config_->RetriesTimeout) {
+        if (error != EPortoErrorCode::Unknown || NProfiling::GetInstant() - startTime > Config_->RetriesTimeout) {
             THROW_ERROR CreatePortoError(error, errorMessage);
         }
     }
