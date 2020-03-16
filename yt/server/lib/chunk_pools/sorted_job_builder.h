@@ -16,6 +16,7 @@ struct TSortedJobOptions
     int PrimaryPrefixLength = 0;
     int ForeignPrefixLength = 0;
     bool EnablePeriodicYielder = true;
+    bool ShouldSlicePrimaryTableByKeys = false;
 
     std::vector<NTableClient::TKey> PivotKeys;
 

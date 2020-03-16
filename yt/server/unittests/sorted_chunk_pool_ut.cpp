@@ -102,7 +102,7 @@ protected:
         void RegisterSliceableUnversionedChunk(const TInputChunkPtr& chunk, std::vector<TInputChunkSlicePtr> slices)
         {
             ChunkSlices.insert(ChunkSlices.end(), slices.begin(), slices.end());
-            AllChunksAreAdded += EXPECT_CALL(*ChunkSliceFetcher, AddChunk(chunk));
+            AllChunksAreAdded += EXPECT_CALL(*ChunkSliceFetcher, AddChunkForSlicing(chunk, _, _));
         }
 
         void RegisterTriviallySliceableUnversionedChunk(const TInputChunkPtr& chunk)
@@ -1652,6 +1652,8 @@ TEST_F(TSortedChunkPoolTest, SortedReduceWithJoin)
     auto chunkB = CreateChunk(BuildRow({2, 62}), BuildRow({4, 64}), 1);
     auto chunkC = CreateChunk(BuildRow({1, 101, 11}), BuildRow({4, 402, 18}), 2);
     auto chunkD = CreateChunk(BuildRow({1, 102, 42}), BuildRow({4, 402, 48}), 3);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkD);
 
@@ -1690,6 +1692,8 @@ TEST_F(TSortedChunkPoolTest, JoinReduce)
     auto chunkB = CreateChunk(BuildRow({2, 62}), BuildRow({4, 64}), 1);
     auto chunkC = CreateChunk(BuildRow({1, 101, 11}), BuildRow({4, 402, 18}), 2);
     auto chunkD = CreateChunk(BuildRow({1, 102, 42}), BuildRow({4, 402, 48}), 3);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkD);
 
@@ -1817,6 +1821,7 @@ TEST_F(TSortedChunkPoolTest, TestJobInterruption)
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkD);
 
     CreateChunkPool();
 
@@ -1925,6 +1930,7 @@ TEST_F(TSortedChunkPoolTest, TestJobSplitWithForeign)
 
     for (int index = 0; index < foreignChunkCount; ++index) {
         auto chunk = CreateChunk(BuildRow({index * 40}), BuildRow({index * 40 + 39}), 1);
+        CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunk);
         allChunks.emplace_back(std::move(chunk));
     }
 
@@ -1990,6 +1996,7 @@ TEST_F(TSortedChunkPoolTest, TestJobSplitStripeSuspension)
 
     for (int index = 0; index < foreignChunkCount; ++index) {
         auto chunk = CreateChunk(BuildRow({index * 40}), BuildRow({index * 40 + 39}), 1);
+        CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunk);
         allChunks.emplace_back(std::move(chunk));
     }
 
@@ -2906,6 +2913,45 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder2)
     EXPECT_EQ(2, stripeList->Stripes[0]->DataSlices.size());
     EXPECT_EQ(BuildRow({0xB}), stripeList->Stripes[0]->DataSlices[0]->LowerLimit().Key);
     EXPECT_EQ(5, stripeList->Stripes[0]->DataSlices[0]->LowerLimit().RowIndex);
+}
+
+TEST_F(TSortedChunkPoolTest, JoinReduceForeignChunkSlicing)
+{
+    Options_.SortedJobOptions.EnableKeyGuarantee = false;
+    InitTables(
+        {true, false, false} /* isForeign */,
+        {false, false, false} /* isTeleportable */,
+        {false, false, false} /* isVersioned */
+    );
+    Options_.SortedJobOptions.PrimaryPrefixLength = 2;
+    Options_.MinTeleportChunkSize = 0;
+    InitJobConstraints();
+    PrepareNewMock();
+
+    auto chunkA = CreateChunk(BuildRow({1, 21}), BuildRow({4, 24}), 0);
+    auto chunkASlices = SliceUnversionedChunk(chunkA, {BuildRow({3, 22})}, {1_KB / 2, 1_KB / 2});
+    CurrentMock().RegisterSliceableUnversionedChunk(chunkA, chunkASlices);
+    auto chunkB = CreateChunk(BuildRow({1, 101, 11}), BuildRow({4, 402, 18}), 1);
+    auto chunkC = CreateChunk(BuildRow({1, 102, 42}), BuildRow({4, 402, 48}), 2);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkB);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+    AddChunk(chunkC);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
+
+    EXPECT_THAT(teleportChunks, IsEmpty());
+
+    CheckEverything(stripeLists, teleportChunks);
+    EXPECT_EQ(2, stripeLists[0]->Stripes[0]->DataSlices.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
