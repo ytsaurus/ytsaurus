@@ -368,7 +368,7 @@ void LogSubqueryDebugInfo(const std::vector<TSubquery>& subqueries, TStringBuf p
     i64 totalDataWeight = 0;
     i64 totalRowCount = 0;
     i64 maxDataWeight = -1;
-    i64 minDataWeight = 1_TB;
+    i64 minDataWeight = 1024 * 1024 * 1_TB;
     int maxChunkCount = -1;
     int minChunkCount = 1'000'000'000;
 
