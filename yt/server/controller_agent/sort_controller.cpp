@@ -2145,7 +2145,9 @@ protected:
         TSortedJobOptions jobOptions;
         jobOptions.EnableKeyGuarantee = GetSortedMergeJobType() == EJobType::SortedReduce;
         jobOptions.PrimaryPrefixLength = GetSortedMergeKeyColumnCount();
+        jobOptions.ShouldSlicePrimaryTableByKeys = GetSortedMergeJobType() == EJobType::SortedReduce;
         jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
+
         // NB: otherwise we could easily be persisted during preparing the jobs. Sorted chunk pool
         // can't handle this.
         jobOptions.EnablePeriodicYielder = false;

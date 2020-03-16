@@ -56,8 +56,8 @@
 #include <yt/client/security_client/acl.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
-#include <yt/ytlib/table_client/data_slice_fetcher.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
 
@@ -6356,21 +6356,21 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
     };
 
     std::vector<TFuture<void>> asyncResults;
-    std::vector<TDataSliceFetcherPtr> fetchers;
+    std::vector<IChunkSliceFetcherPtr> fetchers;
 
     for (const auto& table : InputTables_) {
         if (!table->IsForeign() && table->Dynamic && table->Schema.IsSorted()) {
-            auto fetcher = New<TDataSliceFetcher>(
+            auto fetcher = CreateChunkSliceFetcher(
                 Config->Fetcher,
                 sliceSize,
-                table->Schema.GetKeyColumns().size(),
-                true,
                 InputNodeDirectory_,
                 GetCancelableInvoker(),
                 createScraperForFetcher(),
                 Host->GetClient(),
                 RowBuffer,
                 Logger);
+
+            auto keyColumnCount = table->Schema.GetKeyColumns().size();
 
             for (const auto& chunk : table->Chunks) {
                 if (IsUnavailable(chunk, CheckParityReplicas()) &&
@@ -6379,7 +6379,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                     continue;
                 }
 
-                fetcher->AddChunk(chunk);
+                fetcher->AddChunkForSlicing(chunk, keyColumnCount, true);
             }
 
             fetcher->SetCancelableContext(GetCancelableContext());
@@ -6393,7 +6393,8 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
 
     std::vector<TInputDataSlicePtr> result;
     for (const auto& fetcher : fetchers) {
-        for (auto& dataSlice : fetcher->GetDataSlices()) {
+        auto dataSlices = CombineVersionedChunkSlices(fetcher->GetChunkSlices());
+        for (auto& dataSlice : dataSlices) {
             YT_LOG_TRACE("Added dynamic table slice (TablePath: %v, Range: %v..%v, ChunkIds: %v)",
                 InputTables_[dataSlice->GetTableIndex()]->GetPath(),
                 dataSlice->LowerLimit(),

@@ -552,6 +552,7 @@ protected:
         jobOptions.EnableKeyGuarantee = IsKeyGuaranteeEnabled();
         jobOptions.PrimaryPrefixLength = PrimaryKeyColumns_.size();
         jobOptions.ForeignPrefixLength = ForeignKeyColumns_.size();
+        jobOptions.ShouldSlicePrimaryTableByKeys = ShouldSlicePrimaryTableByKeys();
         jobOptions.MaxTotalSliceCount = Config->MaxTotalSliceCount;
         jobOptions.EnablePeriodicYielder = true;
 
@@ -622,8 +623,6 @@ private:
         auto fetcher = NTableClient::CreateChunkSliceFetcher(
             Config->Fetcher,
             InputSliceDataWeight_,
-            PrimaryKeyColumns_.size(),
-            ShouldSlicePrimaryTableByKeys(),
             InputNodeDirectory_,
             GetCancelableInvoker(),
             FetcherChunkScraper_,

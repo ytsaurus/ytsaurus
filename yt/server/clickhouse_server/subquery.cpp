@@ -495,6 +495,7 @@ std::vector<TSubquery> BuildSubqueries(
                 .SortedJobOptions = TSortedJobOptions{
                     .EnableKeyGuarantee = true,
                     .PrimaryPrefixLength = *keyColumnCount,
+                    .ShouldSlicePrimaryTableByKeys = true,
                     .MaxTotalSliceCount = std::numeric_limits<int>::max() / 2,
                 },
                 .MinTeleportChunkSize = std::numeric_limits<i64>::max() / 2,
