@@ -2401,7 +2401,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert banned_count.update().get(verbose=True) == 1
 
     @authors("dakovalkov")
-    @pytest.mark.skipif(True, reason="temporarily broken")
     def test_ban_stopped_instance_in_proxy(self):
         patch = {
             "interruption_graceful_timeout": 100000,
@@ -2446,7 +2445,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert banned_count.update().get(verbose=True) == 1
 
     @authors("dakovalkov")
-    @pytest.mark.skipif(True, reason="temporarily broken")
     def test_clique_availability(self):
         create("table", "//tmp/table", attributes={"schema": [{"name": "i", "type": "int64"}]})
         write_table("//tmp/table", [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}])
