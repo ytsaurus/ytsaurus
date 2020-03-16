@@ -24,7 +24,7 @@ using namespace NTransactionClient;
 static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
 {
     for (const auto& ace : acl.Entries) {
-        if (ace.Action != ESecurityAction::Allow) {
+        if (ace.Action != ESecurityAction::Allow && ace.Action != ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION("Action %Qlv is forbidden to specify in operation ACE",
                 ace.Action)
                 << TErrorAttribute("ace", ace);

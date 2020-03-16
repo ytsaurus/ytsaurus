@@ -27,19 +27,25 @@ ESecurityAction CheckPermissionsByAclAndSubjectClosure(
     const THashSet<TString>& subjectClosure,
     NYTree::EPermissionSet permissions)
 {
-    NYTree::EPermissionSet actualPermissions = {};
+    NYTree::EPermissionSet allowedPermissions = {};
+    NYTree::EPermissionSet deniedPermissions = {};
+
     for (const auto& ace : acl.Entries) {
-        if (ace.Action != NSecurityClient::ESecurityAction::Allow) {
+        if (ace.Action != NSecurityClient::ESecurityAction::Allow && ace.Action != NSecurityClient::ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION("Action %Qv is not supported", FormatEnum(ace.Action));
         }
         for (const auto& aceSubject : ace.Subjects) {
             if (subjectClosure.contains(aceSubject)) {
-                actualPermissions |= ace.Permissions;
-                break;
+                if (ace.Action == NSecurityClient::ESecurityAction::Allow) {
+                    allowedPermissions |= ace.Permissions;
+                } else {
+                    deniedPermissions |= ace.Permissions;
+                }
             }
         }
     }
-    return (actualPermissions & permissions) == permissions
+
+    return (allowedPermissions & ~deniedPermissions & permissions) == permissions
         ? ESecurityAction::Allow
         : ESecurityAction::Deny;
 }
