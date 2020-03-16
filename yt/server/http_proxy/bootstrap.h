@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/http_proxy/clickhouse/public.h>
+
 #include <yt/ytlib/auth/public.h>
 
 #include <yt/ytlib/api/public.h>
@@ -86,8 +88,7 @@ private:
     NHttp::IServerPtr ApiHttpsServer_;
     TApiPtr Api_;
 
-    NApi::IClientPtr ClickHouseClient_;
-    TClickHouseHandlerPtr ClickHouseHandler_;
+    NClickHouse::TClickHouseHandlerPtr ClickHouseHandler_;
 
     TCoordinatorPtr Coordinator_;
     THostsHandlerPtr HostsHandler_;

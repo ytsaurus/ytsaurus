@@ -1,11 +1,13 @@
-#include "clickhouse.h"
+#include "handler.h"
 
-#include "bootstrap.h"
 #include "clique_cache.h"
 #include "config.h"
-#include "coordinator.h"
+
+#include <yt/server/http_proxy/bootstrap.h>
+#include <yt/server/http_proxy/coordinator.h>
 
 #include <yt/ytlib/auth/token_authenticator.h>
+#include <yt/ytlib/auth/config.h>
 
 #include <yt/client/api/client.h>
 
@@ -25,7 +27,7 @@
 
 #include <util/random/random.h>
 
-namespace NYT::NHttpProxy {
+namespace NYT::NHttpProxy::NClickHouse {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -56,6 +58,7 @@ public:
         const TClickHouseConfigPtr& config,
         TBootstrap* bootstrap,
         const NHttp::IClientPtr& httpClient,
+        const NApi::IClientPtr& client,
         const TCliqueCachePtr cliqueCache,
         IInvokerPtr controlInvoker,
         TClickHouseHandler::TClickHouseProxyMetrics& metrics)
@@ -64,7 +67,7 @@ public:
         , Response_(rsp)
         , Config_(config)
         , Bootstrap_(bootstrap)
-        , Client_(Bootstrap_->GetClickHouseClient())
+        , Client_(client)
         , HttpClient_(httpClient)
         , CliqueCache_(cliqueCache)
         , ControlInvoker_(controlInvoker)
@@ -216,15 +219,15 @@ public:
         }
 
         if (responseOrError.IsOK()) {
-            if (!responseOrError.Value()->GetHeaders()->Find("X-ClickHouse-Server-Display-Name")) {
+            if (responseOrError.Value()->GetStatusCode() == EStatusCode::MovedPermanently) {
+                // Special status code which means that the instance is stopped by signal or clique-id in header isn't correct.
+                // It is guaranteed that this instance didn't start to invoke the request, so we can retry it.
+                responseOrError = TError("Instance moved, request rejected");
+            } else if (!responseOrError.Value()->GetHeaders()->Find("X-ClickHouse-Server-Display-Name")) {
                 // We got the response, but not from clickhouse instance.
                 // Probably the instance had died and another service was started at the same host:port.
                 // We can safely retry such requests.
                 responseOrError = TError("The requested server is not a clickhouse instance");
-            } else if (responseOrError.Value()->GetStatusCode() == EStatusCode::MovedPermanently) {
-                // Special status code which means that the instance is stopped by signal or clique-id in header isn't correct.
-                // It is guaranteed that this instance didn't start to invoke the request, so we can retry it.
-                responseOrError = TError("Instance moved, request rejected");
             }
         }
 
@@ -235,7 +238,10 @@ public:
                 retryIndex);
             return true;
         } else {
-            RequestErrors_.push_back(responseOrError);
+            RequestErrors_.push_back(responseOrError
+                << TErrorAttribute("instance_host", InstanceHost_)
+                << TErrorAttribute("instance_http_port", InstanceHttpPort_)
+                << TErrorAttribute("proxy_retry_index", retryIndex));
             YT_LOG_DEBUG(responseOrError, "Proxied request failed (RetryIndex: %v)", retryIndex);
             Discovery_->Ban(InstanceId_);
             ClickHouseProfiler.Increment(Metrics_.BannedCount);
@@ -286,7 +292,7 @@ private:
     const IResponseWriterPtr& Response_;
     const TClickHouseConfigPtr& Config_;
     TBootstrap* const Bootstrap_;
-    const NApi::IClientPtr Client_;
+    const NApi::IClientPtr& Client_;
     const NHttp::IClientPtr& HttpClient_;
     const TCliqueCachePtr CliqueCache_;
     IInvokerPtr ControlInvoker_;
@@ -366,7 +372,8 @@ private:
         }
     }
 
-    void ParseTokenFromAuthorizationHeader(const TString& authorization) {
+    void ParseTokenFromAuthorizationHeader(const TString& authorization)
+    {
         YT_LOG_DEBUG("Parsing token from Authorization header");
         // Two supported Authorization kinds are "Basic <base64(clique-id:oauth-token)>" and "OAuth <oauth-token>".
         auto authorizationTypeAndCredentials = SplitString(authorization, " ", 2);
@@ -514,6 +521,7 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     , Coordinator_(bootstrap->GetCoordinator())
     , Config_(Bootstrap_->GetConfig()->ClickHouse)
     , HttpClient_(CreateClient(Config_->HttpClient, Bootstrap_->GetPoller()))
+    , Client_(Bootstrap_->GetRootClient()->GetConnection()->CreateClient(NApi::TClientOptions(ClickHouseUserName)))
     , ControlInvoker_(Bootstrap_->GetControlInvoker())
 {
     if (!Bootstrap_->GetConfig()->Auth->RequireAuthentication) {
@@ -557,6 +565,7 @@ void TClickHouseHandler::HandleRequest(
             Config_,
             Bootstrap_,
             HttpClient_,
+            Client_,
             CliqueCache_,
             ControlInvoker_,
             Metrics_);
