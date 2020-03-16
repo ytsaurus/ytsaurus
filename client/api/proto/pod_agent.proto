@@ -112,6 +112,26 @@ message TPodAgentStatus {
 }
 
 //============================== SPEC ==========================
+
+enum ECPUPolicy {
+    // "rt" cpu policy is forbidden: DEPLOY-2046
+
+    // SCHED_OTHER (default)
+    ECPUPolicy_NORMAL = 0 [(NYT.NYson.NProto.enum_value_name) = "normal"];
+
+    // SCHED_OTHER (nice = -10, increases cpu.shares by 16 times)
+    ECPUPolicy_HIGH = 1 [(NYT.NYson.NProto.enum_value_name) = "high"];
+
+    // SCHED_BATCH
+    ECPUPolicy_BATCH = 2 [(NYT.NYson.NProto.enum_value_name) = "batch"];
+
+    // SCHED_IDLE (also decreases cpu.shares by 16 times)
+    ECPUPolicy_IDLE = 3 [(NYT.NYson.NProto.enum_value_name) = "idle"];
+
+    // SCHED_ISO (offstream kernel feature)
+    ECPUPolicy_ISO = 4 [(NYT.NYson.NProto.enum_value_name) = "iso"];
+}
+
 message TComputeResources {
     reserved 1;
 
@@ -119,6 +139,10 @@ message TComputeResources {
     // Тем самым, заказав vcpu = 1000, мы получим одно виртуальное ядро.
     uint64 vcpu_guarantee = 2;
     uint64 vcpu_limit = 3;
+
+    // Параметры CPU scheduler
+    ECPUPolicy cpu_policy = 9;
+    double cpu_weight = 10;
 
     // Ограничения по памяти, в байтах
     uint64 memory_guarantee = 4;
