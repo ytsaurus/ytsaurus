@@ -67,10 +67,7 @@ TString ToString(const TChunkSlice& slice);
 
 std::vector<TChunkSlice> SliceChunk(
     const NProto::TSliceRequest& sliceReq,
-    const NProto::TChunkMeta& meta,
-    i64 sliceDataWeight,
-    int keyColumnCount,
-    bool sliceByKeys);
+    const NProto::TChunkMeta& meta);
 
 void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice);
 void ToProto(
