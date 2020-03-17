@@ -432,27 +432,25 @@ public:
             // Examine disks from the heartbeat.
             THashSet<TObjectId> reportedDiskIds;
             for (const auto& [diskId, diskEntry] : Request_->persistent_disks()) {
+                auto* disk = Transaction_->GetPersistentDisk(diskId);
+                if (!disk->DoesExist()) {
+                    YT_LOG_DEBUG("Unknown persistent disk is reported by node, ignored (DiskId: %v)",
+                        diskId);
+                    continue;
+                }
+
                 YT_VERIFY(reportedDiskIds.insert(diskId).second);
-                TPersistentDisk* disk = nullptr;
-                if (auto it = expectedDisks.find(diskId)) {
-                    disk = it->second;
-                } else {
-                    disk = Transaction_->GetPersistentDisk(diskId);
-                    if (disk->DoesExist()) {
-                        YT_LOG_DEBUG("Persistent disk is attached to node (DiskId: %v, OldAttachedNodeId: %v)",
-                            diskId,
-                            GetObjectId(disk->Status().AttachedToNode().Load()));
-                        Node_->Status().AttachedPersistentDisks().Add(disk);
-                    } else {
-                        YT_LOG_DEBUG("Unknown persistent disk is reported by node, ignored (DiskId: %v)",
-                            diskId);
-                    }
+
+                if (!expectedDisks.contains(diskId)) {
+                    YT_LOG_DEBUG("Persistent disk is attached to node (DiskId: %v, OldAttachedNodeId: %v)",
+                        diskId,
+                        GetObjectId(disk->Status().AttachedToNode().Load()));
+                    Node_->Status().AttachedPersistentDisks().Add(disk);
                 }
-                if (disk) {
-                    auto* statusEtc = disk->Status().Etc().Get();
-                    statusEtc->set_last_seen_node_id(Node_->GetId());
-                    *statusEtc->mutable_last_seen_time() = google::protobuf::util::TimeUtil::GetCurrentTime();
-                }
+
+                auto* statusEtc = disk->Status().Etc().Get();
+                statusEtc->set_last_seen_node_id(Node_->GetId());
+                *statusEtc->mutable_last_seen_time() = google::protobuf::util::TimeUtil::GetCurrentTime();
             }
 
             // Check for disks that are expected to be present but are in fact missing.
@@ -822,20 +820,20 @@ public:
             }
 
             for (auto* volume : PersistentVolumesToCreate_) {
-                auto& request = Response_->mutable_persistent_volume_creation_requests()->at(volume->GetId());
+                auto& request = (*Response_->mutable_persistent_volume_creation_requests())[volume->GetId()];
                 request.set_disk_id(volume->Disk().Load()->GetId());
                 request.set_spec_timestamp(volume->Spec().LoadTimestamp());
                 PopulatePersistentVolumeSpec(volume, request.mutable_spec());
             }
 
             for (auto* volume : PersistentVolumesToUpdate_) {
-                auto& request = Response_->mutable_persistent_volume_update_requests()->at(volume->GetId());
+                auto& request = (*Response_->mutable_persistent_volume_update_requests())[volume->GetId()];
                 request.set_spec_timestamp(volume->Spec().LoadTimestamp());
                 PopulatePersistentVolumeSpec(volume, request.mutable_spec());
             }
 
             for (const auto& volumeId : PersistentVolumeIdsToRemove_) {
-                Response_->mutable_persistent_volume_removal_requests()->at(volumeId);
+                (*Response_->mutable_persistent_volume_removal_requests())[volumeId];
             }
 
             Response_->mutable_node()->mutable_cpu()->CopyFrom(Node_->GetCpuResourceOrThrow()->Spec().Load().cpu());

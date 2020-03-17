@@ -207,21 +207,33 @@ void ValidateObjectId(EObjectType type, const TObjectId& id)
             NClient::NApi::MaxObjectIdLength);
     }
 
-    static const char ValidGenericChars[] =
-        "0123456789"
-        "abcdefghijklmnopqrstuvwxyz"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "-_.:";
-    static const char ValidDnsChars[] =
-        "0123456789"
-        "abcdefghijklmnopqrstuvwxyz"
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-        "-";
 
-    const auto* validChars =
-        type == EObjectType::Pod
-        ? ValidDnsChars
-        : ValidGenericChars;
+    const auto* validChars = [&] {
+        static const char DefaultChars[] =
+            "0123456789"
+            "abcdefghijklmnopqrstuvwxyz"
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "-_.:";
+        static const char PodChars[] =
+            "0123456789"
+            "abcdefghijklmnopqrstuvwxyz"
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "-";
+        static const char PersistentDiskChars[] =
+            "0123456789"
+            "abcdefghijklmnopqrstuvwxyz"
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+            "-_.:/";
+        switch (type) {
+            case EObjectType::Pod:
+                return PodChars;
+            case EObjectType::PersistentDisk:
+                return PersistentDiskChars;
+            default:
+                return DefaultChars;
+        }
+    }();
+
     for (char ch : id) {
         if (!strchr(validChars, ch)) {
             THROW_ERROR_EXCEPTION(
