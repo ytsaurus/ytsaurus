@@ -12,7 +12,7 @@ def transform(src_cluster, src_path, dst_cluster, dst_path):
     attribute_keys = {"acl", "inherit_acl"}
     collect(node, attribute_keys)
 
-    full_node = src_yt.get(src_path, attributes=attribute_keys)
+    full_node = src_yt.get(src_path, attributes=list(attribute_keys))
     dst_yt.create("scheduler_pool_tree_map", dst_path, attributes=full_node.attributes)
 
     i = 0
