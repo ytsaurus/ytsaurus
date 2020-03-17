@@ -805,25 +805,11 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
     {
         auto requestCount = request->slice_requests_size();
-        auto sliceDataSize = request->slice_data_size();
-        auto sliceByKeys = request->slice_by_keys();
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
 
-        // COMPAT(gritukan): drop key_column_count in 19.9.
-        int keyColumnCount;
-        if (request->has_key_column_count()) {
-            keyColumnCount = request->key_column_count();
-        } else {
-            keyColumnCount = request->key_columns().size();
-        }
-
         context->SetRequestInfo(
-            "KeyColumnCount: %v, RequestCount: %v, "
-            "SliceDataSize: %v, SliceByKeys: %v, Workload: %v",
-            keyColumnCount,
+            "RequestCount: %v, Workload: %v",
             requestCount,
-            sliceDataSize,
-            sliceByKeys,
             workloadDescriptor);
 
         ValidateConnected();
@@ -845,18 +831,25 @@ private:
                 auto keySetWriter = New<TKeySetWriter>();
 
                 for (int requestIndex = 0; requestIndex < requestCount; ++requestIndex) {
+                    // COMPAT(gritukan)
+                    auto sliceRequest = request->slice_requests(requestIndex);
+                    if (request->has_slice_data_weight()) {
+                        sliceRequest.set_slice_data_weight(request->slice_data_weight());
+                    }
+                    if (request->has_key_column_count()) {
+                        sliceRequest.set_key_column_count(request->key_column_count());
+                    }
+                    if (request->has_slice_by_keys()) {
+                        sliceRequest.set_slice_by_keys(request->slice_by_keys());
+                    }
+
                     ProcessSlice(
-                        request->slice_requests(requestIndex),
+                        sliceRequest,
                         response->add_slice_responses(),
-                        keyColumnCount,
-                        sliceDataSize,
-                        sliceByKeys,
                         keySetWriter,
                         results[requestIndex]);
                 }
 
-                // COMPAT(babenko)
-                response->set_keys_in_attachment(true);
                 response->Attachments().push_back(keySetWriter->Finish());
                 context->Reply();
             }).Via(Bootstrap_->GetStorageHeavyInvoker()));
@@ -865,9 +858,6 @@ private:
     void ProcessSlice(
         const TSliceRequest& sliceRequest,
         TRspGetChunkSlices::TSliceResponse* sliceResponse,
-        int keyColumnCount,
-        i64 sliceDataSize,
-        bool sliceByKeys,
         const TKeySetWriterPtr& keySetWriter,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
@@ -907,16 +897,13 @@ private:
 
             // NB(psushin): we don't validate key names, because possible column renaming could have happened.
             ValidateKeyColumnCount(
-                keyColumnCount,
+                sliceRequest.key_column_count(),
                 chunkKeyColumns.size(),
                 versioned);
 
             auto slices = SliceChunk(
                 sliceRequest,
-                *chunkMeta,
-                sliceDataSize,
-                keyColumnCount,
-                sliceByKeys);
+                *chunkMeta);
 
             for (const auto& slice : slices) {
                 ToProto(keySetWriter, sliceResponse->add_chunk_slices(), slice);
@@ -972,8 +959,6 @@ private:
                         results[requestIndex]);
                 }
 
-                // COMPAT(babenko)
-                response->set_keys_in_attachment(true);
                 response->Attachments().push_back(keySetWriter->Finish());
                 context->Reply();
             }).Via(Bootstrap_->GetStorageHeavyInvoker()));

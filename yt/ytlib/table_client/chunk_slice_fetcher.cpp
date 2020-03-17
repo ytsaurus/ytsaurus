@@ -145,13 +145,11 @@ private:
             auto req = proxy.GetChunkSlices();
             req->SetHeavy(true);
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-            req->set_slice_data_size(ChunkSliceSize_);
+            req->set_slice_data_weight(ChunkSliceSize_);
             req->set_slice_by_keys(sliceByKeys);
             req->set_key_column_count(keyColumnCount);
             // TODO(babenko): make configurable
             ToProto(req->mutable_workload_descriptor(), TWorkloadDescriptor(EWorkloadCategory::UserBatch));
-            // COMPAT(babenko)
-            req->set_keys_in_attachment(true);
 
             std::vector<int> requestedChunkIndexes;
 
