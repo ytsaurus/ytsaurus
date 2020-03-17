@@ -30,7 +30,7 @@ func TestRunningOperationInsideTx(t *testing.T) {
 
 	mr := env.MR.WithTx(tx)
 
-	op, err := mr.MapReduce(&MapJob{"test-map"}, &ReduceJob{"test-reduce"},
+	op, err := mr.MapReduce(&MapJob{"test-map"}, &ReduceJob{Field: "test-reduce"},
 		spec.MapReduce().
 			ReduceByColumns("a").
 			AddInput(inputPath).
