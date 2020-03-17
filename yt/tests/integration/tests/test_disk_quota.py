@@ -59,7 +59,7 @@ class TestDiskQuota(QuotaMixin):
 
 ##################################################################
 
-class TestDiskUsageBase(object):
+class BaseTestDiskUsage(object):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -204,15 +204,15 @@ class TestDiskUsageBase(object):
         wait(lambda: op2.get_job_count("running") == 1)
         op2.abort()
 
-@patch_porto_env_only(TestDiskUsageBase)
-class TestDiskUsageQuota(TestDiskUsageBase, QuotaMixin):
-    DELTA_NODE_CONFIG = TestDiskUsageBase.DELTA_NODE_CONFIG_BASE
+@patch_porto_env_only(BaseTestDiskUsage)
+class TestDiskUsageQuota(BaseTestDiskUsage, QuotaMixin):
+    DELTA_NODE_CONFIG = BaseTestDiskUsage.DELTA_NODE_CONFIG_BASE
 
-@patch_porto_env_only(TestDiskUsageBase)
-class TestDiskUsagePorto(TestDiskUsageBase, YTEnvSetup):
+@patch_porto_env_only(BaseTestDiskUsage)
+class TestDiskUsagePorto(BaseTestDiskUsage, YTEnvSetup):
     DELTA_NODE_CONFIG = yt.common.update(
         get_porto_delta_node_config(),
-        TestDiskUsageBase.DELTA_NODE_CONFIG_BASE
+        BaseTestDiskUsage.DELTA_NODE_CONFIG_BASE
     )
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
