@@ -209,7 +209,7 @@ class TestDiskUsageQuota(BaseTestDiskUsage, QuotaMixin):
     DELTA_NODE_CONFIG = BaseTestDiskUsage.DELTA_NODE_CONFIG_BASE
 
 @patch_porto_env_only(BaseTestDiskUsage)
-class TestDiskUsagePorto(BaseTestDiskUsage, YTEnvSetup):
+class DISABLED_TestDiskUsagePorto(BaseTestDiskUsage, YTEnvSetup):
     DELTA_NODE_CONFIG = yt.common.update(
         get_porto_delta_node_config(),
         BaseTestDiskUsage.DELTA_NODE_CONFIG_BASE
