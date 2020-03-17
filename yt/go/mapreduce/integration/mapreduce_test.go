@@ -23,7 +23,7 @@ func TestOutputTableCreation(t *testing.T) {
 	}
 	require.NoError(t, env.UploadSlice(inputPath, input))
 
-	op, err := env.MR.MapReduce(&MapJob{"test-map"}, &ReduceJob{"test-reduce"},
+	op, err := env.MR.MapReduce(&MapJob{"test-map"}, &ReduceJob{Field: "test-reduce"},
 		spec.MapReduce().
 			ReduceByColumns("a").
 			AddInput(inputPath).

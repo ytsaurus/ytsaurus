@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -9,6 +10,7 @@ import (
 	"a.yandex-team.ru/yt/go/mapreduce"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 	"a.yandex-team.ru/yt/go/yttest"
 )
 
@@ -25,6 +27,7 @@ func (m *MapJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapredu
 	if m.Field != "test-map" {
 		panic("map job failed")
 	}
+
 	for in.Next() {
 		var row TestRow
 		in.MustScan(&row)
@@ -43,31 +46,27 @@ func (m *MapJob) OutputTypes() []interface{} {
 
 type ReduceJob struct {
 	Field string
+
+	mapreduce.Untyped
 }
 
 type ErrorRow struct {
-	Error string
-}
-
-func (r *ReduceJob) InputTypes() []interface{} {
-	return []interface{}{&ErrorRow{}}
-}
-
-func (r *ReduceJob) OutputTypes() []interface{} {
-	return []interface{}{&ErrorRow{}}
+	Error *yterrors.Error
 }
 
 func (r *ReduceJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {
-	if r.Field != "test-reduce" {
-		out[0].MustWrite(ErrorRow{"job field is not set"})
-	}
+	return saveError(out[0], func() error {
+		if r.Field != "test-reduce" {
+			return fmt.Errorf("reducer field is not set")
+		}
 
-	value, ok := ctx.LookupVault("TEST")
-	if !ok || value != "FOO" {
-		out[0].MustWrite(ErrorRow{"secure vault variable is missing"})
-	}
+		value, ok := ctx.LookupVault("TEST")
+		if !ok || value != "FOO" {
+			return fmt.Errorf("secure vault variable is missing")
+		}
 
-	return nil
+		return nil
+	})
 }
 
 func TestJobState(t *testing.T) {
@@ -87,7 +86,7 @@ func TestJobState(t *testing.T) {
 	_, err := yt.CreateTable(env.Ctx, env.YT, outputPath)
 	require.NoError(t, err)
 
-	op, err := env.MR.Reduce(&ReduceJob{"test-reduce"},
+	op, err := env.MR.Reduce(&ReduceJob{Field: "test-reduce"},
 		spec.Reduce().
 			ReduceByColumns("a").
 			AddInput(inputPath).
@@ -119,7 +118,7 @@ func TestMapReduceJobState(t *testing.T) {
 	_, err := yt.CreateTable(env.Ctx, env.YT, outputPath)
 	require.NoError(t, err)
 
-	op, err := env.MR.MapReduce(&MapJob{"test-map"}, &ReduceJob{"test-reduce"},
+	op, err := env.MR.MapReduce(&MapJob{"test-map"}, &ReduceJob{Field: "test-reduce"},
 		spec.MapReduce().
 			ReduceByColumns("a").
 			AddInput(inputPath).

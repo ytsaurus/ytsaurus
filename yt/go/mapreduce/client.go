@@ -8,32 +8,32 @@ import (
 	"sync"
 
 	"a.yandex-team.ru/yt/go/guid"
-	"a.yandex-team.ru/yt/go/ypath"
-
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 )
 
 type Client interface {
-	Map(mapper Job, spec *spec.Spec) (Operation, error)
+	Map(mapper Job, spec *spec.Spec, opts ...OperationOption) (Operation, error)
 
-	Reduce(reducer Job, spec *spec.Spec) (Operation, error)
+	Reduce(reducer Job, spec *spec.Spec, opts ...OperationOption) (Operation, error)
 
-	JoinReduce(reducer Job, spec *spec.Spec) (Operation, error)
+	JoinReduce(reducer Job, spec *spec.Spec, opts ...OperationOption) (Operation, error)
 
-	MapReduce(mapper Job, reducer Job, spec *spec.Spec) (Operation, error)
+	MapReduce(mapper Job, reducer Job, spec *spec.Spec, opts ...OperationOption) (Operation, error)
 
-	MapCombineReduce(mapper Job, combiner Job, reducer Job, spec *spec.Spec) (Operation, error)
+	MapCombineReduce(mapper Job, combiner Job, reducer Job, spec *spec.Spec, opts ...OperationOption) (Operation, error)
 
-	Sort(spec *spec.Spec) (Operation, error)
+	Sort(spec *spec.Spec, opts ...OperationOption) (Operation, error)
 
-	Merge(spec *spec.Spec) (Operation, error)
+	Merge(spec *spec.Spec, opts ...OperationOption) (Operation, error)
 
-	Erase(spec *spec.Spec) (Operation, error)
+	Erase(spec *spec.Spec, opts ...OperationOption) (Operation, error)
 
-	RemoteCopy(spec *spec.Spec) (Operation, error)
+	RemoteCopy(spec *spec.Spec, opts ...OperationOption) (Operation, error)
 
-	Vanilla(spec *spec.Spec, jobs map[string]Job) (Operation, error)
+	// TODO(prime@): switch order of spec and jobs.
+	Vanilla(spec *spec.Spec, jobs map[string]Job, opts ...OperationOption) (Operation, error)
 
 	// WithTx returns Client, that starts all operations inside transaction tx.
 	WithTx(tx yt.Tx) Client

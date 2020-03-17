@@ -2,6 +2,7 @@ package mapreduce
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strconv"
 
@@ -16,7 +17,7 @@ import (
 	"a.yandex-team.ru/yt/go/yterrors"
 )
 
-type prepareAction func(ctx context.Context) error
+type prepareAction func(ctx context.Context, p *prepare) error
 
 // prepare holds state for all actions required to start operation.
 type prepare struct {
@@ -33,7 +34,7 @@ type prepare struct {
 }
 
 func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) prepareAction {
-	return func(ctx context.Context) error {
+	return func(ctx context.Context, p *prepare) error {
 		b, err := encodeJob(state)
 		if err != nil {
 			return err
@@ -94,19 +95,31 @@ func (p *prepare) setGoMaxProc(spec *spec.UserScript) {
 	}
 }
 
-func (p *prepare) prepare() error {
+func (p *prepare) prepare(opts []OperationOption) error {
 	if err := p.mr.uploadSelf(p.ctx); err != nil {
 		return err
 	}
+
 	p.spec.PatchUserBinary(p.mr.binaryPath)
 
 	if len(p.spec.ACL) == 0 || len(p.mr.defaultACL) != 0 {
 		p.spec.ACL = p.mr.defaultACL
 	}
+
 	var cypress yt.CypressClient = p.mr.yc
 	if p.mr.tx != nil {
 		cypress = p.mr.tx
 	}
+
+	for _, opt := range opts {
+		switch opt := opt.(type) {
+		case *localFilesOption:
+			p.actions = append(p.actions, opt.uploadLocalFiles)
+		default:
+			panic(fmt.Sprintf("unsupported option type %T", opt))
+		}
+	}
+
 	for _, inputTablePath := range p.spec.InputTablePaths {
 		var tableAttrs struct {
 			Typ    yt.NodeType   `yson:"type"`
@@ -153,7 +166,7 @@ func (p *prepare) prepare() error {
 	}
 
 	for _, action := range p.actions {
-		err := action(p.ctx)
+		err := action(p.ctx, p)
 		if err != nil {
 			return err
 		}
@@ -162,8 +175,8 @@ func (p *prepare) prepare() error {
 	return nil
 }
 
-func (p *prepare) start() (*operation, error) {
-	if err := p.prepare(); err != nil {
+func (p *prepare) start(opts []OperationOption) (*operation, error) {
+	if err := p.prepare(opts); err != nil {
 		return nil, err
 	}
 

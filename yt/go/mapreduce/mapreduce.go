@@ -37,28 +37,28 @@ func (mr *client) prepare(spec *spec.Spec) *prepare {
 	}
 }
 
-func (mr *client) Map(mapper Job, s *spec.Spec) (Operation, error) {
+func (mr *client) Map(mapper Job, s *spec.Spec, opts ...OperationOption) (Operation, error) {
 	p := mr.prepare(s)
 	p.mapperState = new(jobState)
 	p.addJobCommand(mapper, &p.spec.Mapper, p.mapperState, len(p.spec.OutputTablePaths))
-	return p.start()
+	return p.start(opts)
 }
 
-func (mr *client) Reduce(reducer Job, s *spec.Spec) (Operation, error) {
+func (mr *client) Reduce(reducer Job, s *spec.Spec, opts ...OperationOption) (Operation, error) {
 	p := mr.prepare(s)
 	p.reducerState = new(jobState)
 	p.addJobCommand(reducer, &p.spec.Reducer, p.reducerState, len(p.spec.OutputTablePaths))
-	return p.start()
+	return p.start(opts)
 }
 
-func (mr *client) JoinReduce(reducer Job, s *spec.Spec) (Operation, error) {
+func (mr *client) JoinReduce(reducer Job, s *spec.Spec, opts ...OperationOption) (Operation, error) {
 	p := mr.prepare(s)
 	p.reducerState = new(jobState)
 	p.addJobCommand(reducer, &p.spec.Reducer, p.reducerState, len(p.spec.OutputTablePaths))
-	return p.start()
+	return p.start(opts)
 }
 
-func (mr *client) MapReduce(mapper, reducer Job, s *spec.Spec) (Operation, error) {
+func (mr *client) MapReduce(mapper, reducer Job, s *spec.Spec, opts ...OperationOption) (Operation, error) {
 	p := mr.prepare(s)
 	if mapper != nil {
 		p.mapperState = new(jobState)
@@ -67,10 +67,10 @@ func (mr *client) MapReduce(mapper, reducer Job, s *spec.Spec) (Operation, error
 
 	p.reducerState = new(jobState)
 	p.addJobCommand(reducer, &p.spec.Reducer, p.reducerState, len(p.spec.OutputTablePaths)-p.spec.MapperOutputTableCount)
-	return p.start()
+	return p.start(opts)
 }
 
-func (mr *client) MapCombineReduce(mapper, combiner, reducer Job, s *spec.Spec) (Operation, error) {
+func (mr *client) MapCombineReduce(mapper, combiner, reducer Job, s *spec.Spec, opts ...OperationOption) (Operation, error) {
 	p := mr.prepare(s)
 
 	p.mapperState = new(jobState)
@@ -81,26 +81,26 @@ func (mr *client) MapCombineReduce(mapper, combiner, reducer Job, s *spec.Spec) 
 
 	p.reducerState = new(jobState)
 	p.addJobCommand(reducer, &p.spec.Reducer, p.reducerState, len(p.spec.OutputTablePaths)-p.spec.MapperOutputTableCount)
-	return p.start()
+	return p.start(opts)
 }
 
-func (mr *client) Sort(s *spec.Spec) (Operation, error) {
-	return mr.prepare(s).start()
+func (mr *client) Sort(s *spec.Spec, opts ...OperationOption) (Operation, error) {
+	return mr.prepare(s).start(opts)
 }
 
-func (mr *client) Merge(s *spec.Spec) (Operation, error) {
-	return mr.prepare(s).start()
+func (mr *client) Merge(s *spec.Spec, opts ...OperationOption) (Operation, error) {
+	return mr.prepare(s).start(opts)
 }
 
-func (mr *client) Erase(s *spec.Spec) (Operation, error) {
-	return mr.prepare(s).start()
+func (mr *client) Erase(s *spec.Spec, opts ...OperationOption) (Operation, error) {
+	return mr.prepare(s).start(opts)
 }
 
-func (mr *client) RemoteCopy(s *spec.Spec) (Operation, error) {
-	return mr.prepare(s).start()
+func (mr *client) RemoteCopy(s *spec.Spec, opts ...OperationOption) (Operation, error) {
+	return mr.prepare(s).start(opts)
 }
 
-func (mr *client) Vanilla(s *spec.Spec, jobs map[string]Job) (Operation, error) {
+func (mr *client) Vanilla(s *spec.Spec, jobs map[string]Job, opts ...OperationOption) (Operation, error) {
 	p := mr.prepare(s)
 	p.tasksState = map[string]*jobState{}
 
@@ -116,7 +116,7 @@ func (mr *client) Vanilla(s *spec.Spec, jobs map[string]Job) (Operation, error) 
 		p.addJobCommand(job, &us, state, len(us.OutputTablePaths))
 	}
 
-	return p.start()
+	return p.start(opts)
 }
 
 func (mr *client) WithTx(tx yt.Tx) Client {
