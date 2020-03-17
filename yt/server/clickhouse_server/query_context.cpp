@@ -25,8 +25,11 @@ using namespace NYson;
 using namespace DB;
 using namespace NTracing;
 
-
 ////////////////////////////////////////////////////////////////////////////////
+
+TLogger QueryLogger("Query");
+
+/////////////////////////////////////////////////////////////////////////////
 
 TQueryContext::TQueryContext(
     TBootstrap* bootstrap,
@@ -34,7 +37,7 @@ TQueryContext::TQueryContext(
     TQueryId queryId,
     TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId)
-    : Logger(ServerLogger)
+    : Logger(QueryLogger)
     , User(TString(context.getClientInfo().initial_user))
     , TraceContext(std::move(traceContext))
     , QueryId(queryId)

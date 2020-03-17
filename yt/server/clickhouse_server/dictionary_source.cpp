@@ -45,7 +45,7 @@ public:
         , Path_(std::move(path))
         , Columns_(std::move(columns))
         , RevisionTracker_(path.GetPath(), bootstrap->GetRootClient())
-        , Logger(TLogger(ServerLogger)
+        , Logger(TLogger(ClickHouseYtLogger)
             .AddTag("Path: %v", Path_))
     { }
 

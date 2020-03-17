@@ -23,7 +23,7 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ServerLogger;
+static const auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,7 +151,7 @@ void THealthChecker::ExecuteAndProfileQueries()
                 query);
         }
 
-        ServerProfiler.Enqueue(
+        ClickHouseYtProfiler.Enqueue(
             "/health_checker/success",
             error.IsOK(),
             NProfiling::EMetricType::Gauge,

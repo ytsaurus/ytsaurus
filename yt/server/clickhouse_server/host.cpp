@@ -101,7 +101,7 @@ using namespace NSecurityClient;
 using namespace NObjectClient;
 using namespace NTracing;
 
-static const auto& Logger = ServerLogger;
+static const auto& Logger = ClickHouseYtLogger;
 
 namespace {
 
@@ -205,14 +205,14 @@ public:
         , PermissionCache_(New<TPermissionCache>(
             Config_->PermissionCache,
             Bootstrap_->GetConnection(),
-            ServerProfiler.AppendPath("/permission_cache")))
+            ClickHouseYtProfiler.AppendPath("/permission_cache")))
         , TableAttributeCache_(New<NObjectClient::TObjectAttributeCache>(
             Config_->TableAttributeCache,
             AttributesToCache,
             Bootstrap_->GetCacheClient(),
             Bootstrap_->GetControlInvoker(),
             Logger,
-            ServerProfiler.AppendPath("/object_attribute_cache")))
+            ClickHouseYtProfiler.AppendPath("/object_attribute_cache")))
         , HealthChecker_(New<THealthChecker>(
             Config_->Engine->HealthChecker,
             Config_->User,
@@ -428,8 +428,8 @@ public:
         for (int index = 0; index < static_cast<int>(CurrentMetrics::end()); ++index) {
             const auto* name = CurrentMetrics::getName(index);
             auto value = CurrentMetrics::values[index].load();
-            ServerProfiler.Enqueue(
-                "/ch_metrics/" + CamelCaseToUnderscoreCase(TString(name)),
+            ClickHouseNativeProfiler.Enqueue(
+                "/current_metrics/" + CamelCaseToUnderscoreCase(TString(name)),
                 value,
                 EMetricType::Gauge);
         }
@@ -447,7 +447,7 @@ private:
 
     void SetupLogger()
     {
-        LogChannel = CreateLogChannel(EngineLogger);
+        LogChannel = CreateLogChannel(ClickHouseNativeLogger);
 
         auto& rootLogger = Poco::Logger::root();
         rootLogger.close();

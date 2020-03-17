@@ -126,7 +126,7 @@ public:
 private:
     const TBootstrap* Bootstrap_;
 
-    const NLogging::TLogger& Logger = ServerLogger;
+    const NLogging::TLogger& Logger = ClickHouseYtLogger;
 
     NApi::NNative::IClientPtr Client_;
 
