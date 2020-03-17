@@ -8,6 +8,8 @@ import yt
 from texttable import Texttable
 from tqdm import tqdm
 from yt import wrapper
+from flush_results import flush_results
+from print_comparison_report import print_comparison_report
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s\t%(levelname).1s\t%(module)s:%(lineno)d\t%(message)s')
 
@@ -28,9 +30,8 @@ def load_tests(tests_path):
 
 
 class QueryExecutor:
-    def __init__(self, hits_path, cluster, clique_id):
+    def __init__(self, hits_path, clique_id):
         self.hits_path = hits_path
-        self.cluster = cluster
         self.clique_id = clique_id
         self.timeout = 600
 
@@ -40,8 +41,8 @@ class QueryExecutor:
     def measure_execution_time(self, query):
         query = self.patch_paths(query)
         session = requests.Session()
-        url = 'http://{cluster}.yt.yandex.net/query?database={clique_id}&password={token}'.format(
-                cluster=self.cluster, clique_id=self.clique_id, token=yt.wrapper._get_token())
+        url = 'http://{proxy_url}/query?database={clique_id}&password={token}'.format(
+                proxy_url=wrapper._get_proxy_url(), clique_id=self.clique_id, token=yt.wrapper._get_token())
         start_time = time.time()
         response = session.post(url, data=query, timeout=self.timeout)
         if response.status_code != 200:
@@ -53,38 +54,34 @@ class QueryExecutor:
         return finish_time - start_time, response.headers['X-YT-Trace-Id']
 
 
-def execute_tests(tests, query_executor):
-    execution_times = {}
-    trace_ids = {}
-    for test in tests:
-        skipped = test['name'] in unsupported_tests
-        if not skipped:
-            print 'executing test "' + test['name'] + '" with', len(test['queries']), 'queries:',
-            test_execution_times = []
-            test_trace_ids = []
-            for query_index in range(len(test['queries'])):
-                print query_index,
-                query = test['queries'][query_index]
-                if not is_query_supported(query):
-                    skipped = True
-                    test_execution_times.append(-1)
-                    test_trace_ids.append(-1)
-                    break
-                try:
-                    query_execution_times = []
-                    for i in range(3):
-                        execution_time, trace_id = query_executor.measure_execution_time(query)
-                        query_execution_times.append((execution_time, trace_id))
-                    min_execution_time, min_trace_id = min(query_execution_times)
-                    test_execution_times.append(min_execution_time)
-                    test_trace_ids.append(min_trace_id)
-                except ValueError:
-                    print 'EXCEPTION'
-                    logging.critical('raised exception on query: {}'.format(query_executor.patch_paths(query)))
-                    exit()
-            execution_times[test['name']] = test_execution_times
-            trace_ids[test['name']] = test_trace_ids
-            print ' done with total time:', sum(test_execution_times)
+def execute_queries(queries, query_repetitions, query_executor):
+    execution_times = []
+    trace_ids = []
+    print 'executing', len(queries), 'queries:',
+    for query_index in range(len(queries)):
+        query = queries[query_index]
+        if not is_query_supported(query):
+            skipped = True
+            execution_times.append(None)
+            trace_ids.append(None)
+            break
+        try:
+            query_execution_times_and_trace_ids = []
+            for i in range(query_repetitions):
+                if query_repetitions > 1:
+                    print str(query_index) + '.' + str(i),
+                else:
+                    print query_index,
+                execution_time, trace_id = query_executor.measure_execution_time(query)
+                query_execution_times_and_trace_ids.append((execution_time, trace_id))
+            min_execution_time, min_trace_id = min(query_execution_times_and_trace_ids)
+            execution_times.append(min_execution_time)
+            trace_ids.append(min_trace_id)
+        except ValueError:
+            print 'EXCEPTION'
+            logging.critical('raised exception on query: {}'.format(query_executor.patch_paths(query)))
+            exit()
+    print ' done with total time:', sum(execution_times)
     return execution_times, trace_ids
 
 
@@ -109,33 +106,24 @@ def print_report(tests, execution_times, trace_ids):
             test_report.add_row(report_row)
         print(test_report.draw())
 
-def override_reference(tests_path, tests, execution_times):
-    test_table_schema = [
-            {'name': 'name', 'type': 'string', 'required': 'true'},
-            {'name': 'queries', 'type_v3': { 'type_name': 'list', 'item': 'string' }, 'required': 'true'},
-            {'name': 'reference_execution_times', 'type_v3': { 'type_name': 'list', 'item': 'double' }, 'required': 'true'},
-    ]
-    test_table = [{'name': test['name'], 'queries': test['queries'], 'reference_execution_times': execution_times[test['name']]} for test in tests]
-    yt.wrapper.write_table(tests_path, test_table)
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--tests', help='Cypress test table path', required=True)
     parser.add_argument('--hits', help='Cypress hits table path', required=True)
-    parser.add_argument('--cluster', help='Cluster name', required=True)
     parser.add_argument('--clique-id', help='ClickHouse clique id', required=True)
-    parser.add_argument('--override-reference', help='Override reference exection time', action='store_true')
+    parser.add_argument('--results-directory', help='Cypress results directory path', required=False, default='//sys/clickhouse/tests/performance/results')
+    parser.add_argument('--query-repetitions', help='Query repetitions to get min time', required=False, default=1, type=int)
 
     args=parser.parse_args()
 
-    print 'start perf tests on operation:', yt.wrapper.clickhouse._resolve_alias(args.clique_id)['id']
+    operation_id = yt.wrapper.clickhouse._resolve_alias(args.clique_id)['id']
+    print 'start perf tests on operation:', operation_id
 
-    tests = load_tests(args.tests)
-    execution_times, trace_ids = execute_tests(tests, QueryExecutor(args.hits, args.cluster, args.clique_id))
+    reference_tests = load_tests(args.tests)
+    queries = [test['query'] for test in reference_tests]
 
-    print_report(tests, execution_times, trace_ids)
+    execution_times, trace_ids = execute_queries(queries, args.query_repetitions, QueryExecutor(args.hits, args.clique_id))
 
-    if args.override_reference:
-        override_reference(args.tests, tests, execution_times)
+    result_tests = flush_results(args.results_directory, operation_id, queries, execution_times, trace_ids)
+    print_comparison_report(result_tests, reference_tests)
