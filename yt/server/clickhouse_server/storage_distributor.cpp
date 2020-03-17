@@ -171,7 +171,7 @@ public:
 
     virtual void startup() override
     {
-        const auto& Logger = ServerLogger;
+        const auto& Logger = ClickHouseYtLogger;
 
         YT_LOG_TRACE("StorageDistributor instantiated (Address: %v)", static_cast<void*>(this));
         if (ClickHouseSchema_.Columns.empty()) {

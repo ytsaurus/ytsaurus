@@ -56,7 +56,7 @@ public:
         : DB::HTTPHandler(server)
         , Bootstrap_(bootstrap)
     {
-        TraceContext_ = SetupTraceContext(ServerLogger, request);
+        TraceContext_ = SetupTraceContext(ClickHouseYtLogger, request);
     }
 
     virtual void customizeContext(DB::Context& context) override
@@ -155,7 +155,7 @@ public:
     {
         Poco::URI uri(request.getURI());
 
-        const auto& Logger = ServerLogger;
+        const auto& Logger = ClickHouseYtLogger;
         YT_LOG_INFO("HTTP request received (Method: %v, URI: %v, Address: %v, UserAgent: %v)",
             request.getMethod(),
             uri.toString(),

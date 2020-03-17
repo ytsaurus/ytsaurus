@@ -22,7 +22,7 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 
-static const auto& Logger = ServerLogger;
+static const auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -211,6 +211,7 @@ public:
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::UpdateProcessListSnapshot, MakeWeak(this)),
             Bootstrap_->GetConfig()->ProcessListSnapshotUpdatePeriod))
+        , QueryRegistryProfiler_(ClickHouseYtProfiler.AppendPath("/query_registry"))
     {
         for (const auto& queryPhase : TEnumTraits<EQueryPhase>::GetDomainValues()) {
             QueryPhaseToProfilingTagId_[queryPhase] = NProfiling::TProfileManager::Get()->RegisterTag("query_phase", FormatEnum(queryPhase));
@@ -334,13 +335,13 @@ public:
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         for (const auto& [user, userProfilingInfo] : UserToUserProfilingEntry_) {
-            ServerProfiler.Enqueue(
+            QueryRegistryProfiler_.Enqueue(
                 "/running_initial_query_count",
                 userProfilingInfo.RunningInitialQueryCount,
                 EMetricType::Gauge,
                 {userProfilingInfo.TagId});
 
-            ServerProfiler.Enqueue(
+            QueryRegistryProfiler_.Enqueue(
                 "/running_secondary_query_count",
                 userProfilingInfo.RunningSecondaryQueryCount,
                 EMetricType::Gauge,
@@ -352,26 +353,26 @@ public:
                     continue;
                 }
 
-                ServerProfiler.Enqueue(
+                QueryRegistryProfiler_.Enqueue(
                     "/running_initial_query_count_per_phase",
                     userProfilingInfo.PerPhaseRunningInitialQueryCount[queryPhase],
                     EMetricType::Gauge,
                     {userProfilingInfo.TagId, QueryPhaseToProfilingTagId_[queryPhase]});
 
-                ServerProfiler.Enqueue(
+                QueryRegistryProfiler_.Enqueue(
                     "/running_secondary_query_count_per_phase",
                     userProfilingInfo.PerPhaseRunningSecondaryQueryCount[queryPhase],
                     EMetricType::Gauge,
                     {userProfilingInfo.TagId, QueryPhaseToProfilingTagId_[queryPhase]});
             }
 
-            ServerProfiler.Enqueue(
+            QueryRegistryProfiler_.Enqueue(
                 "/historical_initial_query_count",
                 userProfilingInfo.HistoricalInitialQueryCount,
                 EMetricType::Counter,
                 {userProfilingInfo.TagId});
 
-            ServerProfiler.Enqueue(
+            QueryRegistryProfiler_.Enqueue(
                 "/historical_secondary_query_count",
                 userProfilingInfo.HistoricalSecondaryQueryCount,
                 EMetricType::Counter,
@@ -382,7 +383,7 @@ public:
                 memoryUsage = userStatusSnapshot->TotalMemoryUsage;
             }
 
-            ServerProfiler.Enqueue(
+            QueryRegistryProfiler_.Enqueue(
                 "/memory_usage",
                 memoryUsage,
                 EMetricType::Gauge,
@@ -427,6 +428,8 @@ private:
     TPeriodicExecutorPtr ProcessListSnapshotExecutor_;
 
     TEnumIndexedVector<EQueryPhase, NProfiling::TTagId> QueryPhaseToProfilingTagId_;
+
+    TProfiler QueryRegistryProfiler_;
 
     void BuildYson(IYsonConsumer* consumer) const
     {

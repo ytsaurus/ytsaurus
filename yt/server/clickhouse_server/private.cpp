@@ -4,9 +4,11 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger ServerLogger("Server");
-const NLogging::TLogger EngineLogger("Engine");
-const NProfiling::TProfiler ServerProfiler("/server");
+const NLogging::TLogger ClickHouseYtLogger("ClickHouseYT");
+const NProfiling::TProfiler ClickHouseYtProfiler("/clickhouse/yt");
+
+const NLogging::TLogger ClickHouseNativeLogger("ClickHouseNative");
+const NProfiling::TProfiler ClickHouseNativeProfiler("/clickhouse/native");
 
 const TString CacheUserName("yt-clickhouse-cache");
 

@@ -22,7 +22,7 @@ public:
         : TServiceBase(
             bootstrap->GetControlInvoker(),
             TClickHouseServiceProxy::GetDescriptor(),
-            ServerLogger)
+            ClickHouseYtLogger)
         , InstanceId_(std::move(instanceId))
         , Bootstrap_(bootstrap)
     {

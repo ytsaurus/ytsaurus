@@ -7,9 +7,10 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger ServerLogger;
-extern const NLogging::TLogger EngineLogger;
-extern const NProfiling::TProfiler ServerProfiler;
+extern const NLogging::TLogger ClickHouseYtLogger;
+extern const NLogging::TLogger ClickHouseNativeLogger;
+extern const NProfiling::TProfiler ClickHouseYtProfiler;
+extern const NProfiling::TProfiler ClickHouseNativeProfiler;
 
 constexpr int MemoryLimitExceededExitCode = 42;
 
