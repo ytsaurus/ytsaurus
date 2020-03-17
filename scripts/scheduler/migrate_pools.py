@@ -19,7 +19,7 @@ def get_schema_id(root_id, object_id):
     return "-".join(schema_id)
 
 
-def migrate(cluster, current_pool_trees_path, backup_path, tmp_path):
+def migrate(cluster, current_pool_trees_path, backup_path, tmp_path, migrate_idm):
     client = yt.YtClient(cluster)
 
     if not client.exists(current_pool_trees_path):
@@ -35,14 +35,13 @@ def migrate(cluster, current_pool_trees_path, backup_path, tmp_path):
     if client.exists(tmp_path):
         raise Exception("Path {} already exists".format(tmp_path))
 
-    should_migrate_idm = client.exists(IDM_POOLS_TABLE_PATH)
-    if should_migrate_idm:
+    if migrate_idm:
         logging.info("Disabling IDM")
         client.set("//sys/idm/@disabled", True)
 
-        if yt.exists("//sys/idm/lock/@locks/0/transaction_id"):
+        if client.exists("//sys/idm/lock/@locks/0/transaction_id"):
             idm_tx = client.get("//sys/idm/lock/@locks/0/transaction_id")
-            yt.abort_transaction(idm_tx)
+            client.abort_transaction(idm_tx)
     else:
         logging.info("Skipping IDM pool table migration")
 
@@ -50,7 +49,7 @@ def migrate(cluster, current_pool_trees_path, backup_path, tmp_path):
     transform(cluster, current_pool_trees_path, cluster, tmp_path)
     logging.info("Transformation successful!")
 
-    if should_migrate_idm:
+    if migrate_idm:
         logging.info("Migrating IDM pools table.")
         recode_idm(cluster, current_pool_trees_path, tmp_path, IDM_POOLS_TABLE_PATH)
 
@@ -79,7 +78,7 @@ def migrate(cluster, current_pool_trees_path, backup_path, tmp_path):
     logging.info("Moving forward transformed config: %s to %s", tmp_path, current_pool_trees_path)
     client.move(tmp_path, current_pool_trees_path)
 
-    if should_migrate_idm:
+    if migrate_idm:
         logging.info("Enabling IDM")
         client.set("//sys/idm/@disabled", False)
 
@@ -91,8 +90,9 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Migrate cluster to new pool layout")
     parser.add_argument("--proxy", type=str, required=True)
+    parser.add_argument("--migrate-idm", type=str, required=True)
     parser.add_argument("--current-pool-trees-path", type=str, default="//sys/pool_trees")
     parser.add_argument("--backup-path", type=str, default="//sys/pool_trees_bak")
     parser.add_argument("--tmp-path", type=str, default="//sys/pool_trees_tmp")
     args = parser.parse_args()
-    migrate(args.proxy, args.current_pool_trees_path, args.backup_path, args.tmp_path)
+    migrate(args.proxy, args.current_pool_trees_path, args.backup_path, args.tmp_path, args.migrate_idm == "true")
