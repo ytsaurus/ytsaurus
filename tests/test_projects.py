@@ -135,6 +135,17 @@ class TestProjects(object):
                     },
                 },
             )
+        with pytest.raises(YtResponseError):
+            yp_client.create_object(
+                "project",
+                attributes={
+                    "meta": {"id": "project", "owner_id": "new_owner"},
+                    "spec": {
+                        "account_id": "tmp",
+                        "user_specific_box_types": ["my_box", "front_box", "__box__"],
+                    },
+                },
+            )
 
     def test_update_user_specific_boxes_id(self, yp_env):
         yp_client = yp_env.yp_client
@@ -163,6 +174,12 @@ class TestProjects(object):
                 "project",
                 project_id,
                 set_updates=[{"path": "/spec/user_specific_box_types", "value": ["new.box"]}],
+            )
+        with pytest.raises(YtResponseError):
+            yp_client.update_object(
+                "project",
+                project_id,
+                set_updates=[{"path": "/spec/user_specific_box_types", "value": ["__system_box__"]}],
             )
 
         result = yp_client.get_object(
