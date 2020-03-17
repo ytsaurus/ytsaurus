@@ -13,11 +13,11 @@ const TFuture<bool> FalseFuture = MakeWellKnownFuture(TErrorOr<bool>(false));
 
 namespace NDetail {
 
-void TFutureStateBase::Subscribe(TVoidResultHandler handler)
+void TFutureState<void>::Subscribe(TVoidResultHandler handler)
 {
     // Fast path.
     if (Set_) {
-        RunNoExcept(handler);
+        RunNoExcept(handler, ResultError_);
         return;
     }
 
@@ -27,7 +27,7 @@ void TFutureStateBase::Subscribe(TVoidResultHandler handler)
         InstallAbandonedError();
         if (Set_) {
             guard.Release();
-            RunNoExcept(handler);
+            RunNoExcept(handler, ResultError_);
         } else {
             VoidResultHandlers_.push_back(std::move(handler));
             HasHandlers_ = true;
@@ -35,7 +35,7 @@ void TFutureStateBase::Subscribe(TVoidResultHandler handler)
     }
 }
 
-bool TFutureStateBase::Cancel(const TError& error) noexcept
+bool TFutureState<void>::Cancel(const TError& error) noexcept
 {
     // NB: Cancel() could have been invoked when the last future reference
     // is already released.
@@ -44,7 +44,7 @@ bool TFutureStateBase::Cancel(const TError& error) noexcept
         return false;
     }
     // The reference is acquired above.
-    TIntrusivePtr<TFutureStateBase> this_(this, /* addReference */ false);
+    TIntrusivePtr<TFutureState<void>> this_(this, /* addReference */ false);
 
     {
         auto guard = Guard(SpinLock_);
@@ -56,7 +56,7 @@ bool TFutureStateBase::Cancel(const TError& error) noexcept
     }
 
     if (CancelHandlers_.empty()) {
-        if (!DoTrySetCanceledError(error)) {
+        if (!TrySetError(NDetail::MakeCanceledError(error))) {
             return false;
         }
     } else {
@@ -69,7 +69,7 @@ bool TFutureStateBase::Cancel(const TError& error) noexcept
     return true;
 }
 
-void TFutureStateBase::OnCanceled(TCancelHandler handler)
+void TFutureState<void>::OnCanceled(TCancelHandler handler)
 {
     // Fast path.
     if (Set_) {
@@ -94,12 +94,12 @@ void TFutureStateBase::OnCanceled(TCancelHandler handler)
     }
 }
 
-bool TFutureStateBase::TimedWait(TDuration timeout) const
+bool TFutureState<void>::TimedWait(TDuration timeout) const
 {
     return TimedWait(timeout.ToDeadLine());
 }
 
-bool TFutureStateBase::TimedWait(TInstant deadline) const
+bool TFutureState<void>::TimedWait(TInstant deadline) const
 {
     // Fast path.
     if (Set_ || AbandonedUnset_) {
@@ -121,27 +121,81 @@ bool TFutureStateBase::TimedWait(TInstant deadline) const
     return ReadyEvent_->Wait(deadline);
 }
 
-void TFutureStateBase::InstallAbandonedError() const
+void TFutureState<void>::InstallAbandonedError() const
 {
-    const_cast<TFutureStateBase*>(this)->InstallAbandonedError();
+    const_cast<TFutureState<void>*>(this)->InstallAbandonedError();
 }
 
-void TFutureStateBase::InstallAbandonedError()
+void TFutureState<void>::InstallAbandonedError()
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
     if (AbandonedUnset_ && !Set_) {
-        DoInstallAbandonedError();
+        SetResultError(NDetail::MakeAbandonedError());
+        Set_ = true;
     }
 }
 
-void TFutureStateBase::OnLastFutureRefLost()
+void TFutureState<void>::ResetResult()
+{ }
+
+bool TFutureState<void>::TrySetError(const TError& error)
 {
-    ResetValue();
+    return TrySet(error);
+}
+
+void TFutureState<void>::SetResultError(const TError& error)
+{
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    ResultError_ = error;
+}
+
+void TFutureState<void>::WaitUntilSet() const
+{
+    // Fast path.
+    if (Set_) {
+        return;
+    }
+
+    // Slow path.
+    {
+        auto guard = Guard(SpinLock_);
+        InstallAbandonedError();
+        if (Set_) {
+            return ;
+        }
+        if (!ReadyEvent_) {
+            ReadyEvent_ = std::make_unique<NConcurrency::TEvent>();
+        }
+    }
+
+    ReadyEvent_->Wait();
+}
+
+bool TFutureState<void>::CheckIfSet() const
+{
+    // Fast path.
+    if (Set_) {
+        return true;
+    } else if (!AbandonedUnset_) {
+        return false;
+    }
+
+    // Slow path.
+    {
+        auto guard = Guard(SpinLock_);
+        InstallAbandonedError();
+        return Set_;
+    }
+}
+
+void TFutureState<void>::OnLastFutureRefLost()
+{
+    ResetResult();
     UnrefCancelable();
 }
 
-void TFutureStateBase::OnLastPromiseRefLost()
+void TFutureState<void>::OnLastPromiseRefLost()
 {
     // Check for fast path.
     if (Set_) {
@@ -166,9 +220,7 @@ void TFutureStateBase::OnLastPromiseRefLost()
     // Slow path: notify the subscribers in a dedicated thread.
     GetFinalizerInvoker()->Invoke(BIND([=] () {
         // Set the promise if the value is still missing.
-        if (!Set_) {
-            DoTrySetAbandonedError();
-        }
+        TrySetError(NDetail::MakeAbandonedError());
         // Kill the fake weak reference.
         UnrefFuture();
     }));

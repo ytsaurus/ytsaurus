@@ -47,10 +47,6 @@ class TCancelableStateBase;
 void Ref(TCancelableStateBase* state);
 void Unref(TCancelableStateBase* state);
 
-class TFutureStateBase;
-void Ref(TFutureStateBase* state);
-void Unref(TFutureStateBase* state);
-
 template <class T>
 class TFutureState;
 template <class T>
@@ -85,10 +81,6 @@ TFuture<T> MakeWellKnownFuture(TErrorOr<T> value);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Comparison and swap.
-
-bool operator==(const TAwaitable& lhs, const TAwaitable& rhs);
-bool operator!=(const TAwaitable& lhs, const TAwaitable& rhs);
-void swap(TAwaitable& lhs, TAwaitable& rhs);
 
 template <class T>
 bool operator==(const TFuture<T>& lhs, const TFuture<T>& rhs);
@@ -130,13 +122,13 @@ class TPromiseBase;
 class TCancelable
 {
 public:
-    //! Creates a null awaitable.
+    //! Creates a null cancelable.
     TCancelable() = default;
 
-    //! Checks if the awaitable is null.
+    //! Checks if the cancelable is null.
     explicit operator bool() const;
 
-    //! Drops underlying associated state resetting the awaitable to null.
+    //! Drops underlying associated state resetting the cancelable to null.
     void Reset();
 
     //! Notifies the producer that the promised value is no longer needed.
@@ -151,43 +143,6 @@ private:
     friend bool operator==(const TCancelable& lhs, const TCancelable& rhs);
     friend bool operator!=(const TCancelable& lhs, const TCancelable& rhs);
     friend void swap(TCancelable& lhs, TCancelable& rhs);
-    template <class U>
-    friend struct ::THash;
-    template <class U>
-    friend class TFutureBase;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! A distilled version of TFuture able of notifying the subscribers of completion
-//! but not providing any means to extract the computation result.
-class TAwaitable
-{
-public:
-    //! Creates a null awaitable.
-    TAwaitable() = default;
-
-    //! Checks if the awaitable is null.
-    explicit operator bool() const;
-
-    //! Drops underlying associated state resetting the awaitable to null.
-    void Reset();
-
-    //! Attaches a handler invoked when the awaitable is set.
-    void Subscribe(TClosure handler) const;
-
-    //! Notifies the producer that the promised value is no longer needed.
-    //! Returns |true| if succeeded, |false| is the promise was already set or canceled.
-    bool Cancel(const TError& error) const;
-
-private:
-    explicit TAwaitable(TIntrusivePtr<NYT::NDetail::TFutureStateBase> impl);
-
-    TIntrusivePtr<NYT::NDetail::TFutureStateBase> Impl_;
-
-    friend bool operator==(const TAwaitable& lhs, const TAwaitable& rhs);
-    friend bool operator!=(const TAwaitable& lhs, const TAwaitable& rhs);
-    friend void swap(TAwaitable& lhs, TAwaitable& rhs);
     template <class U>
     friend struct ::THash;
     template <class U>
@@ -317,11 +272,11 @@ public:
     template <class U>
     TFuture<U> As() const;
 
+    //! Converts to TFuture<void> by dicarding the value; propagates errors as is.
+    TFuture<void> AsVoid() const;
+
     //! Converts to TCancelable interface.
     TCancelable AsCancelable() const;
-
-    //! Converts to TAwaitable interface.
-    TAwaitable AsAwaitable() const;
 
 protected:
     explicit TFutureBase(TIntrusivePtr<NYT::NDetail::TFutureState<T>> impl);
