@@ -94,8 +94,8 @@ public:
     TError GetCancelationError() const;
     const TFiberCanceler& GetCanceler();
 
-    void SetAwaitable(TAwaitable awaitable);
-    void ResetAwaitable();
+    void SetFuture(TFuture<void> future);
+    void ResetFuture();
 
 private:
     std::atomic<bool> Canceled_ = {false};
@@ -104,7 +104,7 @@ private:
     mutable TSpinLock SpinLock_;
     TError CancelationError_;
     TFiberCanceler Canceler_;
-    TAwaitable Awaitable_;
+    TFuture<void> Future_;
 
     void CancelEpoch(size_t epoch, const TError& error);
 };

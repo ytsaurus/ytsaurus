@@ -551,41 +551,39 @@ void SetCurrentScheduler(IScheduler* scheduler)
     CurrentScheduler = scheduler;
 }
 
-void WaitFor(TAwaitable awaitable, IInvokerPtr invoker)
+void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
 {
-    YT_ASSERT(awaitable);
+    YT_ASSERT(future);
     YT_ASSERT(invoker);
 
     if (CurrentScheduler) {
-        CurrentScheduler->WaitFor(std::move(awaitable), std::move(invoker));
+        CurrentScheduler->WaitUntilSet(std::move(future), std::move(invoker));
         return;
     }
 
-    auto* currentFiber = CurrentFiber().Get();
-
-    if (currentFiber) {
+    if (auto* currentFiber = CurrentFiber().Get()) {
         if (currentFiber->IsCanceled()) {
-            awaitable.Cancel(currentFiber->GetCancelationError());
+            future.Cancel(currentFiber->GetCancelationError());
             YT_LOG_DEBUG("Throwing fiber cancelation exception");
             throw TFiberCanceledException();
         }
 
-        currentFiber->SetAwaitable(awaitable);
+        currentFiber->SetFuture(future);
         auto finally = Finally([&] {
-            currentFiber->ResetAwaitable();
+            currentFiber->ResetFuture();
         });
 
         NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
         SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([
             invoker = std::move(invoker),
-            awaitable = std::move(awaitable),
+            future = std::move(future),
             fiber = MakeStrong(currentFiber)
         ] () mutable {
-            if (awaitable) {
-                awaitable.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([
+            if (future) {
+                future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([
                     invoker = std::move(invoker),
                     fiber = std::move(fiber)
-                ] () mutable {
+                ] (const TError&) mutable {
                     YT_LOG_DEBUG("Waking up fiber (TargetFiberId: %llx)",
                         fiber->GetId());
                     invoker->Invoke(BIND(TResumeGuard{std::move(fiber)}));

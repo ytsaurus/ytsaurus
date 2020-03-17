@@ -16,19 +16,19 @@ template <class T>
     YT_ASSERT(future);
     YT_ASSERT(invoker);
 
-    WaitFor(future.AsAwaitable(), std::move(invoker));
+    WaitUntilSet(future.AsVoid(), std::move(invoker));
 
     return future.Get();
 }
 
 inline void Yield()
 {
-    Y_UNUSED(WaitFor(VoidFuture));
+    WaitUntilSet(VoidFuture);
 }
 
 inline void SwitchTo(IInvokerPtr invoker)
 {
-    Y_UNUSED(WaitFor(VoidFuture, invoker));
+    WaitUntilSet(VoidFuture, invoker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
