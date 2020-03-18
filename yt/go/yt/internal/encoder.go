@@ -586,6 +586,14 @@ func (e *Encoder) UnfreezeTable(
 	return e.do(ctx, e.newCall(NewUnfreezeTableParams(path, options)), func(res *CallResult) error { return nil })
 }
 
+func (e *Encoder) AlterTableReplica(
+	ctx context.Context,
+	id yt.NodeID,
+	options *yt.AlterTableReplicaOptions,
+) (err error) {
+	return e.do(ctx, e.newCall(NewAlterTableReplicaParams(id, options)), func(res *CallResult) error { return nil })
+}
+
 func (e *Encoder) LocateSkynetShare(
 	ctx context.Context,
 	path ypath.YPath,

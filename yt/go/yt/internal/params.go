@@ -681,6 +681,20 @@ func writeAlterTableOptions(w *yson.Writer, o *yt.AlterTableOptions) {
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
+func writeAlterTableReplicaOptions(w *yson.Writer, o *yt.AlterTableReplicaOptions) {
+	if o == nil {
+		return
+	}
+	if o.Enabled != nil {
+		w.MapKeyString("enabled")
+		w.Any(o.Enabled)
+	}
+	if o.Mode != nil {
+		w.MapKeyString("mode")
+		w.Any(o.Mode)
+	}
+}
+
 func writeLookupRowsOptions(w *yson.Writer, o *yt.LookupRowsOptions) {
 	if o == nil {
 		return
@@ -2739,6 +2753,41 @@ func (p *UnfreezeTableParams) TabletRangeOptions() **yt.TabletRangeOptions {
 
 func (p *UnfreezeTableParams) MutatingOptions() **yt.MutatingOptions {
 	return &p.options.MutatingOptions
+}
+
+type AlterTableReplicaParams struct {
+	verb    Verb
+	id      yt.NodeID
+	options *yt.AlterTableReplicaOptions
+}
+
+func NewAlterTableReplicaParams(
+	id yt.NodeID,
+	options *yt.AlterTableReplicaOptions,
+) *AlterTableReplicaParams {
+	if options == nil {
+		options = &yt.AlterTableReplicaOptions{}
+	}
+	return &AlterTableReplicaParams{
+		Verb("alter_table_replica"),
+		id,
+		options,
+	}
+}
+
+func (p *AlterTableReplicaParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *AlterTableReplicaParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("id", p.id),
+	}
+}
+
+func (p *AlterTableReplicaParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("replica_id")
+	w.Any(p.id)
+	writeAlterTableReplicaOptions(w, p.options)
 }
 
 type LocateSkynetShareParams struct {

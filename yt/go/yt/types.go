@@ -17,6 +17,8 @@ const (
 	NodeFile NodeType = "file"
 	// NodeTable is table.
 	NodeTable             NodeType = "table"
+	NodeTableReplica      NodeType = "table_replica"
+	NodeReplicatedTable   NodeType = "replicated_table"
 	NodeUser              NodeType = "user"
 	NodeGroup             NodeType = "group"
 	NodeAccount           NodeType = "account"
@@ -286,5 +288,21 @@ func (m JobSortOrder) MarshalText() ([]byte, error) {
 
 func (m *JobSortOrder) UnmarshalText(b []byte) error {
 	*m = JobSortOrder(b)
+	return nil
+}
+
+type TableReplicaMode string
+
+var (
+	SyncMode  TableReplicaMode = "sync"
+	AsyncMode TableReplicaMode = "async"
+)
+
+func (m TableReplicaMode) MarshalText() ([]byte, error) {
+	return []byte(m), nil
+}
+
+func (m *TableReplicaMode) UnmarshalText(b []byte) error {
+	*m = TableReplicaMode(b)
 	return nil
 }

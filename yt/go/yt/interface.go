@@ -788,6 +788,11 @@ type AlterTableOptions struct {
 	UpstreamReplicaID *guid.GUID     `http:"upstream_replica_id,omitnil"`
 }
 
+type AlterTableReplicaOptions struct {
+	Enabled *bool             `http:"enabled,omitnil"`
+	Mode    *TableReplicaMode `http:"mode,omitnil"`
+}
+
 // Tx is high level API for master transactions.
 //
 // Create new tx by calling BeginTx() method on Client or other Tx.
@@ -945,6 +950,14 @@ type MountClient interface {
 		ctx context.Context,
 		path ypath.Path,
 		options *UnfreezeTableOptions,
+	) (err error)
+
+	// http:verb:"alter_table_replica"
+	// http:params:"replica_id"
+	AlterTableReplica(
+		ctx context.Context,
+		id NodeID,
+		options *AlterTableReplicaOptions,
 	) (err error)
 }
 
