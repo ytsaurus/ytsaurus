@@ -428,12 +428,13 @@ def parametrize_external(func):
         decorator.decorate(func, wrapper))
 
 def require_enabled_core_dump(func):
-    def wrapped_func(self, *args, **kwargs):
+    def wrapper(func, self, *args, **kwargs):
         rlimit_core = resource.getrlimit(resource.RLIMIT_CORE)
         if rlimit_core[0] == 0:
             pytest.skip('This test requires enabled core dump (how about "ulimit -c unlimited"?)')
-        func(self, *args, **kwargs)
-    return wrapped_func
+        return func(self, *args, **kwargs)
+
+    return decorator.decorate(func, wrapper)
 
 def resolve_test_paths(name):
     path_to_sandbox = os.path.join(SANDBOX_ROOTDIR, name)

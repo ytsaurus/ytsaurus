@@ -978,11 +978,6 @@ public:
         return Spec_->CoreTableWriter;
     }
 
-    virtual bool GetWriteSparseCoreDumps() const override
-    {
-        return Spec_->WriteSparseCoreDumps;
-    }
-
     virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
     {
         return ToLegacyLivePreviewMode(Spec_->EnableLegacyLivePreview);

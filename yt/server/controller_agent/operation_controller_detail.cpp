@@ -2176,7 +2176,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
                     batchReq->AddRequest(req);
                 }
-                if (table->OutputType == EOutputTableType::Core && GetWriteSparseCoreDumps()) {
+                if (table->OutputType == EOutputTableType::Core) {
                     auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@sparse");
                     SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
                     req->set_value(ConvertToYsonString(true).GetData());
@@ -7889,7 +7889,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_network_project_id(ConvertTo<ui32>(getRspOrError.ValueOrThrow()));
     }
 
-    jobSpec->set_write_sparse_core_dumps(GetWriteSparseCoreDumps());
+    // COMPAT(gritukan): Drop it when nodes will be fresh enough.
+    jobSpec->set_write_sparse_core_dumps(true);
+
     jobSpec->set_enable_porto(static_cast<int>(config->EnablePorto.value_or(Config->DefaultEnablePorto)));
     jobSpec->set_fail_job_on_core_dump(config->FailJobOnCoreDump);
 
@@ -8380,11 +8382,6 @@ TBlobTableWriterConfigPtr TOperationControllerBase::GetCoreTableWriterConfig() c
 std::optional<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
 {
     return std::nullopt;
-}
-
-bool TOperationControllerBase::GetWriteSparseCoreDumps() const
-{
-    return false;
 }
 
 void TOperationControllerBase::OnChunksReleased(int /* chunkCount */)

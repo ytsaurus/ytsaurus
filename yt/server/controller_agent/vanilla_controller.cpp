@@ -287,11 +287,6 @@ public:
         return Spec_->CoreTableWriter;
     }
 
-    virtual bool GetWriteSparseCoreDumps() const override
-    {
-        return Spec_->WriteSparseCoreDumps;
-    }
-
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const
     {
         return TStringBuf();

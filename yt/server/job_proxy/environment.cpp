@@ -504,24 +504,25 @@ public:
         int uid,
         const TUserJobProcessOptions& options) override
     {
-        if (options.CoreHandlerSocketPath) {
-            // We do not want to rely on passing PATH environment to core handler container.
-            auto binaryPathOrError = Instance_->HasRoot()
-                ? TErrorOr<TString>(RootFSBinaryDirectory + CoreForwarderProgramName)
-                : ResolveBinaryPath(CoreForwarderProgramName);
-
-            if (binaryPathOrError.IsOK()) {
-                auto coreHandler = binaryPathOrError.Value() + " \"${CORE_PID}\" 0 \"${CORE_TASK_NAME}\""
-                    " 1 /dev/null /dev/null " + *options.CoreHandlerSocketPath;
-
-                YT_LOG_DEBUG("Enable core forwarding for Porto container (CoreHandler: %v)",
-                    coreHandler);
-                Instance_->SetCoreDumpHandler(coreHandler);
-            } else {
-                YT_LOG_ERROR(binaryPathOrError,
-                    "Failed to resolve path for %Qv",
-                    CoreForwarderProgramName);
-            }
+        if (options.CoreWatcherDirectory) {
+            // NB: Core watcher expects core info file to be created before
+            // core pipe file.
+            auto coreDirectory = *options.CoreWatcherDirectory;
+            auto coreInfoFile = coreDirectory + "/core_\"${CORE_PID}\".info";
+            auto corePipeFile = coreDirectory + "/core_\"${CORE_PID}\".pipe";
+            auto bashCoreHandler =
+                "echo \"${CORE_TASK_NAME}\" >" + coreInfoFile + " && " +
+                "echo \"${CORE_PID}\" >>" + coreInfoFile + " && " +
+                "echo \"${CORE_TID}\" >>" + coreInfoFile + " && " +
+                "echo \"${CORE_SIG}\" >>" + coreInfoFile + " && " +
+                "echo \"${CORE_CONTAINER}\" >>" + coreInfoFile + " && " +
+                "echo \"${CORE_DATETIME}\" >>" + coreInfoFile + " && " +
+                "mkfifo " + corePipeFile + " && " +
+                "cat >" + corePipeFile;
+            auto coreHandler = "bash -c \'" + bashCoreHandler + "\'";
+            YT_LOG_DEBUG("Enabling core forwarding for Porto container (CoreHandler: %v)",
+                coreHandler);
+            Instance_->SetCoreDumpHandler(coreHandler);
         }
 
         Instance_->SetEnablePorto(options.EnablePorto);
@@ -622,11 +623,6 @@ public:
 
             auto volumePath = WaitFor(PortoExecutor_->CreateVolume(newPath, parameters))
                 .ValueOrThrow();
-
-            RootFS_->Binds.emplace_back(TBind {
-                ResolveBinaryPath(CoreForwarderProgramName).ValueOrThrow(),
-                RootFSBinaryDirectory + CoreForwarderProgramName,
-                true});
 
             RootFS_->Binds.emplace_back(TBind {
                 ResolveBinaryPath(ExecProgramName).ValueOrThrow(),

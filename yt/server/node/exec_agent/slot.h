@@ -89,8 +89,7 @@ ISlotPtr CreateSlot(
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
     NDataNode::IVolumeManagerPtr volumeManager,
-    const TString& nodeTag,
-    std::optional<TString> jobProxySocketNameDirectory);
+    const TString& nodeTag);
 
 ////////////////////////////////////////////////////////////////////////////////
 

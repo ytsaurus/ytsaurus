@@ -1350,6 +1350,7 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                                     .Item("job_state").Value(job->GetState())
                                     .Item("job_phase").Value(job->GetPhase())
                                     .Item("job_type").Value(job->GetType())
+                                    .Item("slot_index").Value(job->GetSlotIndex())
                                     .Item("start_time").Value(job->GetStartTime())
                                     .Item("duration").Value(TInstant::Now() - job->GetStartTime())
                                     .OptionalItem("statistics", job->GetStatistics())

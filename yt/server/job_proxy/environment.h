@@ -48,7 +48,7 @@ struct IUserJobEnvironment
 
     struct TUserJobProcessOptions
     {
-        std::optional<TString> CoreHandlerSocketPath;
+        std::optional<TString> CoreWatcherDirectory;
         NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
     };
 
