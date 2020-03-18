@@ -219,6 +219,8 @@ public:
 
     bool IsBeingRemoved();
 
+    int GetOperationCount() const;
+
 private:
     TFairShareStrategyTreeConfigPtr Config_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;

@@ -2337,6 +2337,12 @@ auto TFairShareTree<TFairShareImpl>::IsBeingRemoved() -> bool
     return IsBeingRemoved_;
 }
 
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::GetOperationCount() const -> int
+{
+    return OperationIdToElement_.size();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template class TFairShareTree<TVectorFairShareImpl>;
