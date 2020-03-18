@@ -117,9 +117,12 @@ type Spec struct {
 	ReduceCombiner *UserScript            `yson:"reduce_combiner,omitempty"`
 	Tasks          map[string]*UserScript `yson:"tasks,omitempty"`
 
-	JobIO       *JobIO `yson:"job_io,omitempty"`
-	MapJobIO    *JobIO `yson:"map_job_io,omitempty"`
-	ReduceJobIO *JobIO `yson:"reduce_job_io,omitempty"`
+	JobIO          *JobIO `yson:"job_io,omitempty"`
+	MapJobIO       *JobIO `yson:"map_job_io,omitempty"`
+	ReduceJobIO    *JobIO `yson:"reduce_job_io,omitempty"`
+	PartitionJobIO *JobIO `yson:"partition_job_io,omitempty"`
+	MergeJobIO     *JobIO `yson:"merge_job_io,omitempty"`
+	SortJobIO      *JobIO `yson:"sort_job_io,omitempty"`
 
 	AutoMerge *AutoMerge `yson:"auto_merge,omitempty"`
 
