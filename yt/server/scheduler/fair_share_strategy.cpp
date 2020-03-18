@@ -665,8 +665,16 @@ public:
 
         YT_LOG_INFO("Starting fair share update");
 
+        std::vector<std::pair<TString, TTreePtr>> idToTree(IdToTree_.begin(), IdToTree_.end());
+        std::sort(
+            idToTree.begin(),
+            idToTree.end(),
+            [] (const auto& lhs, const auto& rhs) {
+                return lhs.second->GetOperationCount() > rhs.second->GetOperationCount();
+            });
+
         std::vector<TFuture<std::tuple<TString, TError, IFairShareTreeSnapshotPtr>>> futures;
-        for (const auto& [treeId, tree] : IdToTree_) {
+        for (const auto& [treeId, tree] : idToTree) {
             futures.push_back(tree->OnFairShareUpdateAt(now).Apply(BIND([treeId = treeId] (const std::pair<IFairShareTreeSnapshotPtr, TError>& pair) {
                 const auto& [snapshot, error] = pair;
                 return std::make_tuple(treeId, error, snapshot);
