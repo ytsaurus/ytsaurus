@@ -42,6 +42,7 @@ type httpClient struct {
 	requestLogger   *internal.LoggingInterceptor
 	mutationRetrier *internal.MutationRetrier
 	readRetrier     *internal.ReadRetrier
+	errorWrapper    *internal.ErrorWrapper
 
 	clusterURL yt.ClusterURL
 	httpClient *http.Client
@@ -190,7 +191,7 @@ func (c *httpClient) writeParams(req *http.Request, call *internal.Call) error {
 	return nil
 }
 
-func (c *httpClient) writeHTTPRequest(ctx context.Context, call *internal.Call, body io.Reader) (req *http.Request, err error) {
+func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, body io.Reader) (req *http.Request, err error) {
 	var url string
 	if call.ProxyURL != "" {
 		url = call.ProxyURL
@@ -281,7 +282,7 @@ func (c *httpClient) readResult(rsp *http.Response) (res *internal.CallResult, e
 
 func (c *httpClient) do(ctx context.Context, call *internal.Call) (res *internal.CallResult, err error) {
 	var req *http.Request
-	req, err = c.writeHTTPRequest(ctx, call, nil)
+	req, err = c.newHTTPRequest(ctx, call, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -308,7 +309,7 @@ func (c *httpClient) doWrite(ctx context.Context, call *internal.Call) (w io.Wri
 	pr, pw := io.Pipe()
 	errChan := make(chan error, 1)
 
-	req, err := c.writeHTTPRequest(ctx, call, ioutil.NopCloser(pr))
+	req, err := c.newHTTPRequest(ctx, call, ioutil.NopCloser(pr))
 	if err != nil {
 		return nil, err
 	}
@@ -367,6 +368,16 @@ func (c *httpClient) doWriteRow(ctx context.Context, call *internal.Call) (w yt.
 }
 
 func (c *httpClient) doReadRow(ctx context.Context, call *internal.Call) (r yt.TableReader, err error) {
+	if call.OnRspParams != nil {
+		panic("call.OnRspParams is already set")
+	}
+
+	var rspParams *tableReaderRspParams
+	call.OnRspParams = func(ys []byte) (err error) {
+		rspParams, err = decodeRspParams(ys)
+		return
+	}
+
 	var rr io.ReadCloser
 	rr, err = c.InvokeRead(ctx, call)
 	if err != nil {
@@ -375,20 +386,19 @@ func (c *httpClient) doReadRow(ctx context.Context, call *internal.Call) (r yt.T
 
 	tr := newTableReader(rr)
 
-	if rsp, ok := rr.(interface{ RspParams() ([]byte, bool) }); ok {
-		if rspParams, ok := rsp.RspParams(); ok {
-			if err = tr.decodeRspParams(rspParams); err != nil {
-				err = xerrors.Errorf("error decoding rsp params: %v", err)
-			}
+	if rspParams != nil {
+		if err := tr.setRspParams(rspParams); err != nil {
+			return nil, xerrors.Errorf("invalid rsp params: %w", err)
 		}
 	}
+
 	r = tr
 	return
 }
 
 func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.ReadCloser, err error) {
 	var req *http.Request
-	req, err = c.writeHTTPRequest(ctx, call, nil)
+	req, err = c.newHTTPRequest(ctx, call, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -412,7 +422,14 @@ func (c *httpClient) doRead(ctx context.Context, call *internal.Call) (r io.Read
 		}
 	}
 
+	if err == nil && call.OnRspParams != nil {
+		if p := rsp.Header.Get("X-YT-Response-Parameters"); p != "" {
+			err = call.OnRspParams([]byte(p))
+		}
+	}
+
 	if err == nil {
+
 		r = &httpReader{
 			body: rsp.Body,
 			rsp:  rsp,
@@ -459,14 +476,21 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		Log:     client.log,
 	}
 	client.requestLogger = &internal.LoggingInterceptor{Structured: client.log}
+	client.errorWrapper = &internal.ErrorWrapper{}
 
 	client.Encoder.Invoke = client.Encoder.Invoke.
 		Wrap(client.requestLogger.Intercept).
 		Wrap(client.mutationRetrier.Intercept).
-		Wrap(client.readRetrier.Intercept)
+		Wrap(client.readRetrier.Intercept).
+		Wrap(client.errorWrapper.Intercept)
 
-	client.Encoder.InvokeRead = client.Encoder.InvokeRead.Wrap(client.requestLogger.Read)
-	client.Encoder.InvokeWrite = client.Encoder.InvokeWrite.Wrap(client.requestLogger.Write)
+	client.Encoder.InvokeRead = client.Encoder.InvokeRead.
+		Wrap(client.requestLogger.Read).
+		Wrap(client.errorWrapper.Read)
+
+	client.Encoder.InvokeWrite = client.Encoder.InvokeWrite.
+		Wrap(client.requestLogger.Write).
+		Wrap(client.errorWrapper.Write)
 
 	if c.Token != "" {
 		client.credentials = &yt.TokenCredentials{Token: c.Token}
