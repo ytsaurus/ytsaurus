@@ -238,6 +238,36 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             assert store_values["min_key"] == expected[partition_idx]["min_key"]
             assert store_values["upper_bound_key"] == expected[partition_idx]["upper_bound_key"]
 
+    @authors("ifsmirnov")
+    def test_mount_chunk_view_YT_12532(self):
+        sync_create_cells(1)
+        schema = make_schema([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}],
+            unique_keys=True)
+        self._create_simple_table("//tmp/t", dynamic=False, schema=schema)
+
+        # Chunks:     [0 1 2] [3 4 5] [6 7 8]
+        # Tablet #1:     [       |       )
+
+        write_table("<append=%true>//tmp/t", [{"key": i} for i in range(0, 3)])
+        write_table("<append=%true>//tmp/t", [{"key": i} for i in range(3, 6)])
+        write_table("<append=%true>//tmp/t", [{"key": i} for i in range(6, 9)])
+
+        alter_table("//tmp/t", dynamic=True)
+        set("//tmp/t/@min_partition_data_size", 1)
+        sync_reshard_table("//tmp/t", [[], [1], [4], [7]])
+        sync_reshard_table("//tmp/t", [[1]], first_tablet_index=1, last_tablet_index=2)
+        sync_mount_table("//tmp/t")
+
+        tablet_id = get("//tmp/t/@tablets/1/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+        orchid = self._find_tablet_orchid(address, tablet_id)
+        partitions = orchid["partitions"]
+        assert len(partitions) == 3
+        assert partitions[0]["pivot_key"] == [1]
+        assert partitions[1]["pivot_key"] == [3]
+        assert partitions[2]["pivot_key"] == [6]
 
 ################################################################################
 
