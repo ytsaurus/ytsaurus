@@ -1100,7 +1100,7 @@ def run_yt_integration_tests(options, build_context):
         return
 
     # Run small portion of tests using pytest. Make sure it is still working.
-    pytest_args = ["-k", "TestSchedulerCommon"]
+    pytest_args = ["tests/test_scheduler_common.py", "tests/test_disk_quota.py"]
     if options.enable_parallel_testing:
         build_type = options.ya_build_type + ("-asan" if options.use_asan else "")
         pytest_args.extend(["--process-count", str(INTEGRATION_TESTS_PARALLELISM[build_type])])
