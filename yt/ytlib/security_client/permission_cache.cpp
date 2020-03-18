@@ -2,11 +2,11 @@
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
+#include <yt/ytlib/api/native/rpc_helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/object_ypath_proxy.h>
 
 namespace NYT::NSecurityClient {
 
@@ -50,9 +50,76 @@ TString ToString(const TPermissionKey& key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
+TPermissionCache::TPermissionCache(
+    TPermissionCacheConfigPtr config,
+    NApi::NNative::IConnectionPtr connection,
+    NProfiling::TProfiler profiler)
+    : TAsyncExpiringCache(config, std::move(profiler))
+    , Config_(std::move(config))
+    , Connection_(connection)
+{ }
 
-TObjectYPathProxy::TReqCheckPermissionPtr MakeCheckPermissionRequest(const TPermissionKey& key)
+TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodicUpdate) noexcept
+{
+    auto connection = Connection_.Lock();
+    if (!connection) {
+        return MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
+    }
+
+    TObjectServiceProxy proxy(connection->GetMasterChannelOrThrow(Config_->ReadFrom));
+    auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetUser(isPeriodicUpdate || Config_->AlwaysUseRefreshUser ? Config_->RefreshUser : key.User);
+    batchReq->AddRequest(MakeCheckPermissionRequest(connection, key));
+
+    return batchReq->Invoke()
+        .Apply(BIND([=] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
+            auto rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(0);
+            ParseCheckPermissionResponse(key, rspOrError)
+                .ThrowOnError();
+        }));
+}
+
+TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
+    const std::vector<TPermissionKey>& keys,
+    bool isPeriodicUpdate) noexcept
+{
+    if (keys.empty()) {
+        return MakeFuture(std::vector<TError>());
+    }
+
+    if (!isPeriodicUpdate) {
+        return TAsyncExpiringCache::DoGetMany(keys, false);
+    }
+
+    auto connection = Connection_.Lock();
+    if (!connection) {
+        return MakeFuture<std::vector<TError>>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
+    }
+
+    TObjectServiceProxy proxy(connection->GetMasterChannelOrThrow(Config_->ReadFrom));
+    auto batchReq = proxy.ExecuteBatch();
+    batchReq->SetUser(Config_->RefreshUser);
+    for (const auto& key : keys) {
+        batchReq->AddRequest(MakeCheckPermissionRequest(connection, key));
+    }
+
+    return batchReq->Invoke()
+        .Apply(BIND([=] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
+            auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspCheckPermission>();
+            std::vector<TError> results;
+            results.reserve(keys.size());
+            for (int index = 0; index < rspsOrError.size(); ++index) {
+                const auto& rspOrError = rspsOrError[index];
+                const auto& key = keys[index];
+                results.push_back(ParseCheckPermissionResponse(key, rspOrError));
+            }
+            return results;
+        }));
+}
+
+TObjectYPathProxy::TReqCheckPermissionPtr TPermissionCache::MakeCheckPermissionRequest(
+    const IConnectionPtr& connection,
+    const TPermissionKey& key)
 {
     auto req = TObjectYPathProxy::CheckPermission(key.Object);
     req->set_user(key.User);
@@ -60,11 +127,20 @@ TObjectYPathProxy::TReqCheckPermissionPtr MakeCheckPermissionRequest(const TPerm
     if (key.Columns) {
         ToProto(req->mutable_columns()->mutable_items(), *key.Columns);
     }
+    SetCachingHeader(
+        req,
+        connection->GetConfig(),
+        NApi::TMasterReadOptions{
+            NApi::EMasterChannelKind::Cache,
+            Config_->ExpireAfterSuccessfulUpdateTime,
+            Config_->ExpireAfterFailedUpdateTime,
+            1
+        });
     NCypressClient::SetSuppressAccessTracking(req, true);
     return req;
 }
 
-TError ParseCheckPermissionResponse(
+TError TPermissionCache::ParseCheckPermissionResponse(
     const TPermissionKey& key,
     const TObjectYPathProxy::TErrorOrRspCheckPermissionPtr& rspOrError)
 {
@@ -105,73 +181,6 @@ TError ParseCheckPermissionResponse(
     }
 
     return error;
-}
-
-} // namespace
-
-TPermissionCache::TPermissionCache(
-    TPermissionCacheConfigPtr config,
-    NApi::NNative::IConnectionPtr connection,
-    NProfiling::TProfiler profiler)
-    : TAsyncExpiringCache(config, std::move(profiler))
-    , Config_(std::move(config))
-    , Connection_(connection)
-{ }
-
-TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodicUpdate)
-{
-    auto connection = Connection_.Lock();
-    if (!connection) {
-        return MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
-    }
-
-    TObjectServiceProxy proxy(connection->GetMasterChannelOrThrow(Config_->ReadFrom));
-    auto batchReq = proxy.ExecuteBatch();
-    batchReq->SetUser(isPeriodicUpdate || Config_->AlwaysUseRefreshUser ? Config_->RefreshUser : key.User);
-    batchReq->AddRequest(MakeCheckPermissionRequest(key));
-
-    return batchReq->Invoke()
-        .Apply(BIND([=] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
-            auto rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(0);
-            ParseCheckPermissionResponse(key, rspOrError)
-                .ThrowOnError();
-        }));
-}
-
-TFuture<std::vector<TError>> TPermissionCache::DoGetMany(const std::vector<TPermissionKey>& keys, bool isPeriodicUpdate)
-{
-    if (keys.empty()) {
-        return MakeFuture(std::vector<TError>());
-    }
-
-    if (!isPeriodicUpdate) {
-        return TAsyncExpiringCache::DoGetMany(keys, false);
-    }
-
-    auto connection = Connection_.Lock();
-    if (!connection) {
-        return MakeFuture<std::vector<TError>>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
-    }
-
-    TObjectServiceProxy proxy(connection->GetMasterChannelOrThrow(Config_->ReadFrom));
-    auto batchReq = proxy.ExecuteBatch();
-    batchReq->SetUser(Config_->RefreshUser);
-    for (const auto& key : keys) {
-        batchReq->AddRequest(MakeCheckPermissionRequest(key));
-    }
-
-    return batchReq->Invoke()
-        .Apply(BIND([=] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
-            auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspCheckPermission>();
-            std::vector<TError> results;
-            results.reserve(keys.size());
-            for (int index = 0; index < rspsOrError.size(); ++index) {
-                const auto& rspOrError = rspsOrError[index];
-                const auto& key = keys[index];
-                results.push_back(ParseCheckPermissionResponse(key, rspOrError));
-            }
-            return results;
-        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

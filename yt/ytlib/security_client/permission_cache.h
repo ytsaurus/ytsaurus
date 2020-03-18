@@ -5,6 +5,8 @@
 
 #include <yt/ytlib/api/native/public.h>
 
+#include <yt/ytlib/object_client/object_ypath_proxy.h>
+
 #include <yt/core/misc/async_expiring_cache.h>
 
 namespace NYT::NSecurityClient {
@@ -45,10 +47,17 @@ private:
 
     virtual TFuture<void> DoGet(
         const TPermissionKey& key,
-        bool isPeriodicUpdate) override;
+        bool isPeriodicUpdate) noexcept override;
     virtual TFuture<std::vector<TError>> DoGetMany(
         const std::vector<TPermissionKey>& keys,
-        bool isPeriodicUpdate) override;
+        bool isPeriodicUpdate) noexcept override;
+
+    NObjectClient::TObjectYPathProxy::TReqCheckPermissionPtr MakeCheckPermissionRequest(
+        const NApi::NNative::IConnectionPtr& connection,
+        const TPermissionKey& key);
+    TError ParseCheckPermissionResponse(
+        const TPermissionKey& key,
+        const NObjectClient::TObjectYPathProxy::TErrorOrRspCheckPermissionPtr& rspOrError);
 };
 
 DEFINE_REFCOUNTED_TYPE(TPermissionCache)

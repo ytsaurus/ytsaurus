@@ -222,9 +222,10 @@ public:
             descriptor->enum_type()) : nullptr)
         , YsonString_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_string))
         , YsonMap_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_map))
+        , Required_(descriptor->options().GetExtension(NYT::NYson::NProto::required))
     {
         if (YsonMap_ && !descriptor->is_map()) {
-            THROW_ERROR_EXCEPTION("Field %v is not a map and cannot be annotated with \"yson_\" option",
+            THROW_ERROR_EXCEPTION("Field %v is not a map and cannot be annotated with \"yson_map\" option",
                 GetFullName());
         }
 
@@ -274,12 +275,12 @@ public:
 
     bool IsRequired() const
     {
-        return Underlying_->is_required();
+        return Underlying_->is_required() || Required_;
     }
 
     bool IsOptional() const
     {
-        return Underlying_->is_optional();
+        return Underlying_->is_optional() && !Required_;
     }
 
     bool IsMessage() const
@@ -320,6 +321,7 @@ private:
     const TProtobufEnumType* EnumType_;
     const bool YsonString_;
     const bool YsonMap_;
+    const bool Required_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
