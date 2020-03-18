@@ -77,16 +77,12 @@ func (r *tableReader) Close() error {
 	return r.err
 }
 
-func (r *tableReader) decodeRspParams(ys []byte) error {
-	var params struct {
-		StartRowIndex       *int64 `yson:"start_row_index"`
-		ApproximateRowCount *int64 `yson:"approximate_row_count"`
-	}
+type tableReaderRspParams struct {
+	StartRowIndex       *int64 `yson:"start_row_index"`
+	ApproximateRowCount *int64 `yson:"approximate_row_count"`
+}
 
-	if err := yson.Unmarshal(ys, &params); err != nil {
-		return err
-	}
-
+func (r *tableReader) setRspParams(params *tableReaderRspParams) error {
 	if params.StartRowIndex != nil {
 		r.startRowIndex = *params.StartRowIndex
 	}
@@ -96,6 +92,14 @@ func (r *tableReader) decodeRspParams(ys []byte) error {
 	}
 	r.approximateRowCount = *params.ApproximateRowCount
 	return nil
+}
+
+func decodeRspParams(ys []byte) (*tableReaderRspParams, error) {
+	var params tableReaderRspParams
+	if err := yson.Unmarshal(ys, &params); err != nil {
+		return nil, err
+	}
+	return &params, nil
 }
 
 func (r *tableReader) StartRowIndex() int64 {

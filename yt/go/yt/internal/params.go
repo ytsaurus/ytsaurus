@@ -795,6 +795,9 @@ func NewCreateNodeParams(
 func (p *CreateNodeParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *CreateNodeParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *CreateNodeParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -849,6 +852,9 @@ func NewCreateObjectParams(
 func (p *CreateObjectParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *CreateObjectParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *CreateObjectParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("typ", p.typ),
@@ -895,6 +901,9 @@ func NewNodeExistsParams(
 
 func (p *NodeExistsParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *NodeExistsParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
 }
 func (p *NodeExistsParams) Log() []log.Field {
 	return []log.Field{
@@ -947,6 +956,9 @@ func NewRemoveNodeParams(
 func (p *RemoveNodeParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *RemoveNodeParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *RemoveNodeParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -997,6 +1009,9 @@ func NewGetNodeParams(
 
 func (p *GetNodeParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *GetNodeParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
 }
 func (p *GetNodeParams) Log() []log.Field {
 	return []log.Field{
@@ -1053,6 +1068,9 @@ func NewSetNodeParams(
 func (p *SetNodeParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *SetNodeParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *SetNodeParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -1103,6 +1121,9 @@ func NewListNodeParams(
 
 func (p *ListNodeParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *ListNodeParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
 }
 func (p *ListNodeParams) Log() []log.Field {
 	return []log.Field{
@@ -1162,6 +1183,9 @@ func NewCopyNodeParams(
 func (p *CopyNodeParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *CopyNodeParams) YPath() (ypath.YPath, bool) {
+	return p.src, true
+}
 func (p *CopyNodeParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("src", p.src),
@@ -1214,6 +1238,9 @@ func NewMoveNodeParams(
 
 func (p *MoveNodeParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *MoveNodeParams) YPath() (ypath.YPath, bool) {
+	return p.src, true
 }
 func (p *MoveNodeParams) Log() []log.Field {
 	return []log.Field{
@@ -1268,6 +1295,9 @@ func NewLinkNodeParams(
 func (p *LinkNodeParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *LinkNodeParams) YPath() (ypath.YPath, bool) {
+	return p.target, true
+}
 func (p *LinkNodeParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("target", p.target),
@@ -1315,6 +1345,9 @@ func NewStartTxParams(
 func (p *StartTxParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *StartTxParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *StartTxParams) Log() []log.Field {
 	return []log.Field{}
 }
@@ -1349,6 +1382,9 @@ func NewPingTxParams(
 
 func (p *PingTxParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *PingTxParams) YPath() (ypath.YPath, bool) {
+	return nil, false
 }
 func (p *PingTxParams) Log() []log.Field {
 	return []log.Field{
@@ -1388,6 +1424,9 @@ func NewAbortTxParams(
 
 func (p *AbortTxParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *AbortTxParams) YPath() (ypath.YPath, bool) {
+	return nil, false
 }
 func (p *AbortTxParams) Log() []log.Field {
 	return []log.Field{
@@ -1436,6 +1475,9 @@ func NewCommitTxParams(
 func (p *CommitTxParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *CommitTxParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *CommitTxParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("id", p.id),
@@ -1483,6 +1525,9 @@ func NewWriteFileParams(
 func (p *WriteFileParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *WriteFileParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *WriteFileParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -1525,6 +1570,9 @@ func NewReadFileParams(
 
 func (p *ReadFileParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *ReadFileParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
 }
 func (p *ReadFileParams) Log() []log.Field {
 	return []log.Field{
@@ -1571,6 +1619,9 @@ func NewPutFileToCacheParams(
 
 func (p *PutFileToCacheParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *PutFileToCacheParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
 }
 func (p *PutFileToCacheParams) Log() []log.Field {
 	return []log.Field{
@@ -1622,6 +1673,9 @@ func NewGetFileFromCacheParams(
 func (p *GetFileFromCacheParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *GetFileFromCacheParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *GetFileFromCacheParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("md5", p.md5),
@@ -1665,6 +1719,9 @@ func NewWriteTableParams(
 func (p *WriteTableParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *WriteTableParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *WriteTableParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -1707,6 +1764,9 @@ func NewReadTableParams(
 
 func (p *ReadTableParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *ReadTableParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
 }
 func (p *ReadTableParams) Log() []log.Field {
 	return []log.Field{
@@ -1754,6 +1814,9 @@ func NewStartOperationParams(
 func (p *StartOperationParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *StartOperationParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *StartOperationParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("opType", p.opType),
@@ -1799,6 +1862,9 @@ func NewAbortOperationParams(
 func (p *AbortOperationParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *AbortOperationParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *AbortOperationParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("opID", p.opID),
@@ -1833,6 +1899,9 @@ func NewSuspendOperationParams(
 
 func (p *SuspendOperationParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *SuspendOperationParams) YPath() (ypath.YPath, bool) {
+	return nil, false
 }
 func (p *SuspendOperationParams) Log() []log.Field {
 	return []log.Field{
@@ -1869,6 +1938,9 @@ func NewResumeOperationParams(
 func (p *ResumeOperationParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *ResumeOperationParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *ResumeOperationParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("opID", p.opID),
@@ -1903,6 +1975,9 @@ func NewCompleteOperationParams(
 
 func (p *CompleteOperationParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *CompleteOperationParams) YPath() (ypath.YPath, bool) {
+	return nil, false
 }
 func (p *CompleteOperationParams) Log() []log.Field {
 	return []log.Field{
@@ -1942,6 +2017,9 @@ func NewUpdateOperationParametersParams(
 func (p *UpdateOperationParametersParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *UpdateOperationParametersParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *UpdateOperationParametersParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("opID", p.opID),
@@ -1979,6 +2057,9 @@ func NewGetOperationParams(
 
 func (p *GetOperationParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *GetOperationParams) YPath() (ypath.YPath, bool) {
+	return nil, false
 }
 func (p *GetOperationParams) Log() []log.Field {
 	return []log.Field{
@@ -2020,6 +2101,9 @@ func NewListOperationsParams(
 func (p *ListOperationsParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *ListOperationsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *ListOperationsParams) Log() []log.Field {
 	return []log.Field{}
 }
@@ -2059,6 +2143,9 @@ func NewListJobsParams(
 func (p *ListJobsParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *ListJobsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *ListJobsParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("opID", p.opID),
@@ -2096,6 +2183,9 @@ func NewGetJobStderrParams(
 
 func (p *GetJobStderrParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *GetJobStderrParams) YPath() (ypath.YPath, bool) {
+	return nil, false
 }
 func (p *GetJobStderrParams) Log() []log.Field {
 	return []log.Field{
@@ -2137,6 +2227,9 @@ func NewAddMemberParams(
 
 func (p *AddMemberParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *AddMemberParams) YPath() (ypath.YPath, bool) {
+	return nil, false
 }
 func (p *AddMemberParams) Log() []log.Field {
 	return []log.Field{
@@ -2187,6 +2280,9 @@ func NewRemoveMemberParams(
 func (p *RemoveMemberParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *RemoveMemberParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *RemoveMemberParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("group", p.group),
@@ -2236,6 +2332,9 @@ func NewLockNodeParams(
 func (p *LockNodeParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *LockNodeParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *LockNodeParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -2282,6 +2381,9 @@ func NewUnlockNodeParams(
 func (p *UnlockNodeParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *UnlockNodeParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *UnlockNodeParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -2325,6 +2427,9 @@ func NewSelectRowsParams(
 func (p *SelectRowsParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *SelectRowsParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *SelectRowsParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("query", p.query),
@@ -2363,6 +2468,9 @@ func NewLookupRowsParams(
 
 func (p *LookupRowsParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *LookupRowsParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
 }
 func (p *LookupRowsParams) Log() []log.Field {
 	return []log.Field{
@@ -2403,6 +2511,9 @@ func NewInsertRowsParams(
 func (p *InsertRowsParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *InsertRowsParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *InsertRowsParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -2442,6 +2553,9 @@ func NewDeleteRowsParams(
 func (p *DeleteRowsParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *DeleteRowsParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *DeleteRowsParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -2480,6 +2594,9 @@ func NewMountTableParams(
 
 func (p *MountTableParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *MountTableParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
 }
 func (p *MountTableParams) Log() []log.Field {
 	return []log.Field{
@@ -2524,6 +2641,9 @@ func NewUnmountTableParams(
 func (p *UnmountTableParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *UnmountTableParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *UnmountTableParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -2566,6 +2686,9 @@ func NewRemountTableParams(
 
 func (p *RemountTableParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *RemountTableParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
 }
 func (p *RemountTableParams) Log() []log.Field {
 	return []log.Field{
@@ -2610,6 +2733,9 @@ func NewReshardTableParams(
 func (p *ReshardTableParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *ReshardTableParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *ReshardTableParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -2653,6 +2779,9 @@ func NewAlterTableParams(
 func (p *AlterTableParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *AlterTableParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *AlterTableParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -2691,6 +2820,9 @@ func NewFreezeTableParams(
 
 func (p *FreezeTableParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *FreezeTableParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
 }
 func (p *FreezeTableParams) Log() []log.Field {
 	return []log.Field{
@@ -2735,6 +2867,9 @@ func NewUnfreezeTableParams(
 func (p *UnfreezeTableParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *UnfreezeTableParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
 func (p *UnfreezeTableParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("path", p.path),
@@ -2778,6 +2913,9 @@ func NewAlterTableReplicaParams(
 func (p *AlterTableReplicaParams) HTTPVerb() Verb {
 	return p.verb
 }
+func (p *AlterTableReplicaParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
 func (p *AlterTableReplicaParams) Log() []log.Field {
 	return []log.Field{
 		log.Any("id", p.id),
@@ -2812,6 +2950,9 @@ func NewLocateSkynetShareParams(
 
 func (p *LocateSkynetShareParams) HTTPVerb() Verb {
 	return p.verb
+}
+func (p *LocateSkynetShareParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
 }
 func (p *LocateSkynetShareParams) Log() []log.Field {
 	return []log.Field{

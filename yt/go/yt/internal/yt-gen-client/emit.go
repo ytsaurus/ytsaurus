@@ -87,6 +87,22 @@ func emit(f file, out io.Writer) error {
 			write("return p.verb")
 			write("}")
 
+			pathArgName := ""
+			for _, p := range m.params {
+				switch p.name {
+				case "path", "src", "target":
+					pathArgName = p.name
+				}
+			}
+
+			write("func (p *%sParams) YPath() (ypath.YPath, bool) {", m.name)
+			if pathArgName != "" {
+				write("return p.%s, true", pathArgName)
+			} else {
+				write("return nil, false")
+			}
+			write("}")
+
 			write("func (p *%sParams) Log() []log.Field {", m.name)
 			write("return []log.Field{")
 			for i := 0; i < len(m.httpParams); i++ {

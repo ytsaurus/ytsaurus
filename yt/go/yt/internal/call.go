@@ -4,16 +4,19 @@ import (
 	"context"
 	"io"
 
+	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/guid"
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
-
-	"a.yandex-team.ru/library/go/core/log"
 )
 
 type Params interface {
 	HTTPVerb() Verb
+
+	YPath() (ypath.YPath, bool)
 	Log() []log.Field
+
 	MarshalHTTP(w *yson.Writer)
 }
 
@@ -23,6 +26,8 @@ type Call struct {
 
 	YSONValue []byte
 	ProxyURL  string
+
+	OnRspParams func(b []byte) error
 }
 
 type CallResult struct {
