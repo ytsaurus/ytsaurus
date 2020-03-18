@@ -35,6 +35,8 @@ private:
     THashSet<TString> UpAddresses_;
     THashSet<TString> ProbationAddresses_;
     THashSet<TString> DownAddresses_;
+
+    void OnBanTimeoutExpired(const TString& address);
 };
 
 DEFINE_REFCOUNTED_TYPE(TServerAddressPool)
@@ -71,12 +73,12 @@ private:
     std::vector<TString> ProbationAddresses_;
     int CurrentProbationAddressIndex_ = 0;
 
-    std::vector<TError> Errors_;
     TSpinLock ErrorsLock_;
+    std::vector<TError> Errors_;
 
     void AddError(const TError& error);
     TError CreateError();
-    void TryMakeNextRequest();
+    void TryMakeNextRequest(bool forceProbation);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
