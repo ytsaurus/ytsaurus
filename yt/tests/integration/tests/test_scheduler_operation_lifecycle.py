@@ -1302,7 +1302,7 @@ class TestAsyncControllerActions(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_slow_initialization_revive(self):
-        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_initialize": 500}})
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_initialize": 1500}})
         op.wait_for_state("initializing")
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -1336,7 +1336,7 @@ class TestAsyncControllerActions(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_slow_materialization_revive(self):
-        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_materialize": 500}})
+        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_materialize": 1500}})
         op.wait_for_state("materializing")
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
@@ -1444,7 +1444,7 @@ class TestAsyncControllerActions(YTEnvSetup):
             "sleep 1",
             spec={
                 "testing": {
-                    "delay_inside_operation_commit": 500,
+                    "delay_inside_operation_commit": 1500,
                     "delay_inside_operation_commit_stage": "start",
                 }
             })
