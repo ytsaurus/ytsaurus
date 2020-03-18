@@ -1,3 +1,4 @@
+#include <util/generic/string.h> // should be before #include "ypath_join.h"
 #include "ypath_join.h"
 
 #include <util/generic/yexception.h>
