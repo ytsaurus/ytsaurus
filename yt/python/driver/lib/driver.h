@@ -85,7 +85,6 @@ public:
     Py::Object ConfigureTracing(const Py::Tuple& args_, const Py::Dict& kwargs_);
     Py::Object ReopenLogs(const Py::Tuple& args_, const Py::Dict& kwargs_);
     Py::Object Shutdown(const Py::Tuple& args_, const Py::Dict& kwargs_);
-    Py::Object InternalShutdown(const Py::Tuple& args_, const Py::Dict& kwargs_);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

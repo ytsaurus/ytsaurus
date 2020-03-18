@@ -216,6 +216,7 @@ public:
     {
         PyEval_InitThreads();
 
+        RegisterShutdown();
         TSignalRegistry::Get()->PushCallback(SIGSEGV, CrashSignalHandler);
         TSignalRegistry::Get()->PushDefaultSignalHandler(SIGSEGV);
 
@@ -260,8 +261,6 @@ public:
         moduleDict.setItem("SkiffRecord", skiffRecordClass);
         moduleDict.setItem("SkiffSchema", skiffSchemaClass);
         moduleDict.setItem("SkiffTableSwitch", skiffTableSwitchClass);
-
-        RegisterShutdown(Py::None());
     }
 
     Py::Object IsDebugBuild(const Py::Tuple& /*args_*/, const Py::Dict& /*kwargs_*/)
