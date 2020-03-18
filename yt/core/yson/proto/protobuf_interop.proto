@@ -12,6 +12,7 @@ extend google.protobuf.FieldOptions
     repeated string field_name_alias = 3003;
     optional bool yson_string = 3001;
     optional bool yson_map = 3002;
+    optional bool required = 3004;
 }
 
 extend google.protobuf.EnumValueOptions
