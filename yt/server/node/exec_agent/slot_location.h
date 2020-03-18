@@ -67,11 +67,6 @@ public:
 
     TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 
-    TFuture<void> CreateJobProxySocketNameFile(
-        const TString& jobProxySocketNameDirectory,
-        int userId,
-        const TString& jobProxyUnixDomainSocketPath);
-
     TFuture<void> CleanSandboxes(int slotIndex);
 
     TString GetSlotPath(int slotIndex) const;

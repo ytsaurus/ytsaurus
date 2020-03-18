@@ -503,9 +503,7 @@ void TBootstrap::DoInitialize()
     JobProxyConfigTemplate_->Tracing = Config_->ExecAgent->JobProxyTracing;
     JobProxyConfigTemplate_->TestRootFS = Config_->ExecAgent->TestRootFS;
 
-    JobProxyConfigTemplate_->CoreForwarderTimeout = Config_->ExecAgent->CoreForwarderTimeout;
-
-    JobProxyConfigTemplate_->AbortOnUnrecognizedOptions = Config_->AbortOnUnrecognizedOptions;
+    JobProxyConfigTemplate_->CoreWatcher = Config_->ExecAgent->CoreWatcher;
 
     ExecSlotManager_ = New<NExecAgent::TSlotManager>(Config_->ExecAgent->SlotManager, this);
     GpuManager_ = New<TGpuManager>(this, Config_->ExecAgent->JobController->GpuManager);

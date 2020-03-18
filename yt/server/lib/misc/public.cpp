@@ -11,7 +11,6 @@ const TString ClusterNodeProgramName("ytserver-node");
 const TString ClusterSchedulerProgramName("ytserver-scheduler");
 const TString ExecProgramName("ytserver-exec");
 const TString JobProxyProgramName("ytserver-job-proxy");
-const TString CoreForwarderProgramName("ytserver-core-forwarder");
 
 ////////////////////////////////////////////////////////////////////////////////
 

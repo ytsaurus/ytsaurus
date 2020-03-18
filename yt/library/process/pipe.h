@@ -16,6 +16,7 @@ class TNamedPipe
 public:
     ~TNamedPipe();
     static TNamedPipePtr Create(const TString& path);
+    static TNamedPipePtr FromPath(const TString& path);
 
     NNet::IConnectionReaderPtr CreateAsyncReader();
     NNet::IConnectionWriterPtr CreateAsyncWriter();
@@ -25,7 +26,11 @@ public:
 private:
     const TString Path_;
 
-    explicit TNamedPipe(const TString& path);
+    //! Whether pipe was created by this class
+    //! and should be removed in destructor.
+    const bool Owning_;
+
+    explicit TNamedPipe(const TString& path, bool owning);
     void Open();
     DECLARE_NEW_FRIEND();
 };

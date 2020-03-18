@@ -154,7 +154,7 @@ ISlotPtr TSlotManager::AcquireSlot(i64 diskSpaceRequest)
     int slotIndex = *FreeSlots_.begin();
     FreeSlots_.erase(slotIndex);
 
-    return CreateSlot(slotIndex,std::move(bestLocation), JobEnvironment_, RootVolumeManager_, NodeTag_, Config_->JobProxySocketNameDirectory);
+    return CreateSlot(slotIndex, std::move(bestLocation), JobEnvironment_, RootVolumeManager_, NodeTag_);
 }
 
 void TSlotManager::ReleaseSlot(int slotIndex)

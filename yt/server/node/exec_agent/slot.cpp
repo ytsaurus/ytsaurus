@@ -42,14 +42,12 @@ public:
         TSlotLocationPtr location,
         IJobEnvironmentPtr environment,
         IVolumeManagerPtr volumeManager,
-        const TString& nodeTag,
-        std::optional<TString> jobProxySocketNameDirectory)
+        const TString& nodeTag)
         : SlotIndex_(slotIndex)
         , JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
         , VolumeManager_(std::move(volumeManager))
         , NodeTag_(nodeTag)
-        , JobProxySocketNameDirectory_(std::move(jobProxySocketNameDirectory))
         , JobProxyUnixDomainSocketPath_(GetJobProxyUnixDomainSocketPath())
     {
         Location_->IncreaseSessionCount();
@@ -87,14 +85,6 @@ public:
                 {
                     auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
                     THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config");
-                }
-
-                if (JobProxySocketNameDirectory_) {
-                    auto error = WaitFor(Location_->CreateJobProxySocketNameFile(
-                        *JobProxySocketNameDirectory_,
-                        JobEnvironment_->GetUserId(SlotIndex_),
-                        JobProxyUnixDomainSocketPath_));
-                    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy socket name file");
                 }
 
                 return JobEnvironment_->RunJobProxy(
@@ -230,7 +220,6 @@ private:
     std::vector<TFuture<void>> PreparationFutures_;
     bool PreparationCanceled_ = false;
 
-    std::optional<TString> JobProxySocketNameDirectory_;
     const TString JobProxyUnixDomainSocketPath_;
 
     template <class T>
@@ -265,16 +254,14 @@ ISlotPtr CreateSlot(
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
-    const TString& nodeTag,
-    std::optional<TString> jobProxySocketNameDirectory)
+    const TString& nodeTag)
 {
     auto slot = New<TSlot>(
         slotIndex,
         std::move(location),
         std::move(environment),
         std::move(volumeManager),
-        nodeTag,
-        std::move(jobProxySocketNameDirectory));
+        nodeTag);
 
     return slot;
 }

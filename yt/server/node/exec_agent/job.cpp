@@ -382,6 +382,17 @@ public:
         return JobPhase_;
     }
 
+    virtual int GetSlotIndex() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!Slot_) {
+            return -1;
+        }
+
+        return Slot_->GetSlotIndex();
+    }
+
     virtual TNodeResources GetResourceUsage() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);

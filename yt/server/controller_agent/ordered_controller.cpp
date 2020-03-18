@@ -750,12 +750,7 @@ private:
         return Spec_->CoreTableWriter;
     }
 
-    virtual bool GetWriteSparseCoreDumps() const override
-    {
-        return Spec_->WriteSparseCoreDumps;
-    }
-
-    virtual void InitJobSpecTemplate() override
+    void InitJobSpecTemplate() override
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMap));
         auto* schedulerJobSpecExt = JobSpecTemplate_.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);

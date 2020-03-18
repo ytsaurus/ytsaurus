@@ -20,12 +20,17 @@ static const auto& Logger = PipesLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNamedPipe::TNamedPipe(const TString& path)
+TNamedPipe::TNamedPipe(const TString& path, bool owning)
     : Path_(path)
+    , Owning_(owning)
 { }
 
 TNamedPipe::~TNamedPipe()
 {
+    if (!Owning_) {
+        return;
+    }
+
     if (unlink(Path_.c_str()) == -1) {
         YT_LOG_INFO(TError::FromSystem(), "Failed to unlink pipe %v", Path_);
     }
@@ -33,10 +38,15 @@ TNamedPipe::~TNamedPipe()
 
 TNamedPipePtr TNamedPipe::Create(const TString& path)
 {
-    auto pipe = New<TNamedPipe>(path);
+    auto pipe = New<TNamedPipe>(path, /* owning */ true);
     pipe->Open();
     YT_LOG_DEBUG("Named pipe created (Path: %v)", path);
     return pipe;
+}
+
+TNamedPipePtr TNamedPipe::FromPath(const TString& path)
+{
+    return New<TNamedPipe>(path, /* owning */ false);
 }
 
 void TNamedPipe::Open()

@@ -841,7 +841,6 @@ public:
 
     std::optional<NYPath::TRichYPath> CoreTablePath;
     NTableClient::TBlobTableWriterConfigPtr CoreTableWriter;
-    bool WriteSparseCoreDumps;
 
     TOperationWithUserJobSpec();
 };

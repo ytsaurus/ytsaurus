@@ -11,7 +11,6 @@
     },
     "build": {
         "targets": [
-            "@YT_ROOT@/yt/server/core_forwarder",
             "@YT_ROOT@/yt/server/exec/bin",
             "@YT_ROOT@/yt/server/tools/bin",
             "@YT_ROOT@/yt/server/node/bin",
@@ -33,20 +32,6 @@
         ]
     },
     "data": [
-        {
-            "source": {
-                "type": "BUILD_OUTPUT",
-                "path": "@YT_ROOT@/yt/server/core_forwarder/ytserver-core-forwarder"
-            },
-            "destination": {
-                "path": "/usr/bin/ytserver-core-forwarder",
-                "attributes": {
-                    "mode": {
-                        "value": "4755"
-                    }
-                }
-            }
-        },
         {
             "source": {
                 "type": "BUILD_OUTPUT",
