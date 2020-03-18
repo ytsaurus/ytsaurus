@@ -309,7 +309,7 @@ private:
                 masterCacheConfig->MasterCacheDiscoveryPeriod,
                 owner,
                 ENodeRole::MasterCache,
-                BIND(&TImpl::CreatePeerChannelFromAddresses, MakeStrong(this), masterCacheConfig, EPeerKind::Follower, options));
+                BIND(&TImpl::CreatePeerChannelFromAddresses, ChannelFactory_, masterCacheConfig, EPeerKind::Follower, options));
             CellChannelMap_[CellTagFromId(masterCacheConfig->CellId)][EMasterChannelKind::Cache] = channel;
         } else {
             InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower, options);
@@ -323,12 +323,13 @@ private:
         const TConnectionOptions& options)
     {
         auto cellTag = CellTagFromId(config->CellId);
-        auto peerChannel = CreatePeerChannel(config, peerKind, options);
+        auto peerChannel = CreatePeerChannel(ChannelFactory_, config, peerKind, options);
 
         CellChannelMap_[cellTag][channelKind] = peerChannel;
     }
 
-    IChannelPtr CreatePeerChannelFromAddresses(
+    static IChannelPtr CreatePeerChannelFromAddresses(
+        ICachingChannelFactoryPtr channelFactory,
         const TMasterConnectionConfigPtr& config,
         EPeerKind peerKind,
         const TConnectionOptions& options,
@@ -337,14 +338,13 @@ private:
         auto peerChannelConfig = CloneYsonSerializable(config);
         if (!discoveredAddresses.empty()) {
             peerChannelConfig->Addresses = discoveredAddresses;
-        } else {
-            YT_LOG_WARNING("Received master cache node list is empty; falling back to masters");
         }
 
-        return CreatePeerChannel(peerChannelConfig, peerKind, options);
+        return CreatePeerChannel(channelFactory, peerChannelConfig, peerKind, options);
     }
 
-    IChannelPtr CreatePeerChannel(
+    static IChannelPtr CreatePeerChannel(
+        ICachingChannelFactoryPtr channelFactory,
         const TMasterConnectionConfigPtr& config,
         EPeerKind kind,
         const TConnectionOptions& options)
@@ -363,7 +363,7 @@ private:
             return IsRetriableError(error);
         });
 
-        auto channel = NHydra::CreatePeerChannel(config, ChannelFactory_, kind);
+        auto channel = NHydra::CreatePeerChannel(config, channelFactory, kind);
         channel = CreateRetryingChannel(config, channel, isRetryableError);
         channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
         return channel;

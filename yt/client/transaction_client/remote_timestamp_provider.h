@@ -4,8 +4,6 @@
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/ytlib/node_tracker_client/public.h>
-
 namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
