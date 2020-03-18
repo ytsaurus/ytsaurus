@@ -36,20 +36,22 @@ TRequestSession<TResponse>::TRequestSession(
 template <class TResponse>
 TFuture<TResponse> TRequestSession<TResponse>::Run()
 {
-    // This line is intentionally here to avoid race.
-    auto upAddresses = AddressPool_->GetUpAddresses();
+    UpAddresses_ = AddressPool_->GetUpAddresses();
     ProbationAddresses_ = AddressPool_->GetProbationAddresses();
+
+    YT_LOG_DEBUG("Request session started (UpAddresses: %v, ProbationAddresses: %v)",
+        UpAddresses_,
+        ProbationAddresses_);
+
+    Shuffle(UpAddresses_.begin(), UpAddresses_.end());
     Shuffle(ProbationAddresses_.begin(), ProbationAddresses_.end());
 
     if (!ProbationAddresses_.empty()) {
-        TryMakeNextRequest();
+        TryMakeNextRequest(true);
     }
 
-    UpAddresses_ = std::move(upAddresses);
-    Shuffle(UpAddresses_.begin(), UpAddresses_.end());
-
     for (int i = 0; i < RequiredSuccessCount_; ++i) {
-        TryMakeNextRequest();
+        TryMakeNextRequest(false);
     }
 
     return Promise_;
@@ -70,13 +72,13 @@ TError TRequestSession<TResponse>::CreateError()
 }
 
 template <class TResponse>
-void TRequestSession<TResponse>::TryMakeNextRequest()
+void TRequestSession<TResponse>::TryMakeNextRequest(bool forceProbation)
 {
     TString address;
 
     {
         TGuard addressesGuard(AddressesLock_);
-        if (CurrentUpAddressIndex_ < UpAddresses_.size()) {
+        if (CurrentUpAddressIndex_ < UpAddresses_.size() && !forceProbation) {
             address = UpAddresses_[CurrentUpAddressIndex_++];
             YT_LOG_DEBUG("Sending request to up address (Address: %v)", address);
         } else if (CurrentProbationAddressIndex_ < ProbationAddresses_.size()) {
@@ -94,7 +96,7 @@ void TRequestSession<TResponse>::TryMakeNextRequest()
     MakeRequest(address).Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<void>& errorOrValue) {
         if (!errorOrValue.IsOK()) {
             AddError(errorOrValue);
-            TryMakeNextRequest();
+            TryMakeNextRequest(false);
             AddressPool_->BanAddress(address);
         } else {
             AddressPool_->UnbanAddress(address);

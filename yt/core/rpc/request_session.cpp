@@ -44,18 +44,9 @@ void TServerAddressPool::BanAddress(const TString& address)
         DownAddresses_.insert(address);
     }
 
-    TDelayedExecutor::Submit(BIND([=, this_ = MakeWeak(this)] {
-        TGuard guard(Lock_);
-
-        auto it = DownAddresses_.find(address);
-        if (it == DownAddresses_.end()) {
-            return;
-        }
-
-        YT_LOG_DEBUG("Server moved to probation list (Address: %v)", address);
-        DownAddresses_.erase(it);
-        ProbationAddresses_.insert(address);
-    }), BanTimeout_);
+    TDelayedExecutor::Submit(
+        BIND(&TServerAddressPool::OnBanTimeoutExpired, MakeWeak(this), address),
+        BanTimeout_);
 
     YT_LOG_DEBUG("Server banned (Address: %v)", address);
 }
@@ -66,12 +57,26 @@ void TServerAddressPool::UnbanAddress(const TString& address)
 
     auto it = ProbationAddresses_.find(address);
     if (it == ProbationAddresses_.end()) {
-        YT_LOG_WARNING("Cannot unban server: server is not in probation list (Address: %v)", address);
+        YT_LOG_DEBUG("Cannot unban server: server is not in probation list (Address: %v)", address);
         return;
     }
     YT_LOG_DEBUG("Server unbanned (Address: %v)", address);
     ProbationAddresses_.erase(it);
     UpAddresses_.insert(address);
+}
+
+void TServerAddressPool::OnBanTimeoutExpired(const TString& address)
+{
+    TGuard guard(Lock_);
+
+    auto it = DownAddresses_.find(address);
+    if (it == DownAddresses_.end()) {
+        return;
+    }
+
+    YT_LOG_DEBUG("Server moved to probation list (Address: %v)", address);
+    DownAddresses_.erase(it);
+    ProbationAddresses_.insert(address);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
