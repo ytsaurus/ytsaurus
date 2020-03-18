@@ -36,13 +36,6 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInstant ParseErrorDatetime(const TError& error)
-{
-    return TInstant::ParseIso8601(error.Attributes().Get<TString>("datetime"));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TSwapTask
     : public TTaskBase
 {
@@ -114,7 +107,7 @@ private:
                 return;
             }
 
-            auto errorDatetime = ParseErrorDatetime(error);
+            auto errorDatetime = error.GetDatetime();
             if (errorDatetime > LastErrorDatetime) {
                 ++ErrorIterationCount;
             }
