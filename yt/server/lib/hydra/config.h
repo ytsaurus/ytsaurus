@@ -274,6 +274,9 @@ public:
     //! Maximum time interval between consequent snapshots.
     TDuration SnapshotBuildPeriod;
 
+    //! Random splay for snapshot building.
+    TDuration SnapshotBuildSplay;
+
     //! Generic timeout for RPC calls during changelog download.
     TDuration ChangelogDownloadRpcTimeout;
 
@@ -377,6 +380,8 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("snapshot_build_period", SnapshotBuildPeriod)
             .Default(TDuration::Minutes(60));
+        RegisterParameter("snapshot_build_splay", SnapshotBuildSplay)
+            .Default(TDuration::Minutes(5));
 
         RegisterParameter("changelog_download_rpc_timeout", ChangelogDownloadRpcTimeout)
             .Default(TDuration::Seconds(10));

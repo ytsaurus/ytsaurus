@@ -153,7 +153,7 @@ public:
 
     int GetRecordCountSinceLastCheckpoint() const;
     i64 GetDataSizeSinceLastCheckpoint() const;
-    TInstant GetLastSnapshotTime() const;
+    TInstant GetSnapshotBuildDeadline() const;
 
     TVersion GetAutomatonVersion() const;
     void RotateAutomatonVersion(int segmentId);
@@ -282,7 +282,7 @@ private:
     TVersion SnapshotVersion_;
     TPromise<TRemoteSnapshotParams> SnapshotParamsPromise_;
     std::atomic<bool> BuildingSnapshot_ = false;
-    TInstant LastSnapshotTime_;
+    TInstant SnapshotBuildDeadline_ = TInstant::Max();
     std::atomic<int> LastSuccessfulSnapshotId_ = -1;
 
     int LastLeadingSegmentId_ = -1;
@@ -321,6 +321,7 @@ private:
     bool IsRecovery();
 
     void UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError);
+    void UpdateSnapshotBuildDeadline();
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
