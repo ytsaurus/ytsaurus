@@ -1,3 +1,4 @@
+import yt_env_setup
 from yt_env_setup import wait, get_porto_delta_node_config, patch_porto_env_only, YTEnvSetup
 from yt_commands import *
 
@@ -6,6 +7,9 @@ from quota_mixin import QuotaMixin
 import yt.common
 
 import pytest
+
+import os
+import shutil
 
 ##################################################################
 
@@ -209,12 +213,29 @@ class TestDiskUsageQuota(BaseTestDiskUsage, QuotaMixin):
     DELTA_NODE_CONFIG = BaseTestDiskUsage.DELTA_NODE_CONFIG_BASE
 
 @patch_porto_env_only(BaseTestDiskUsage)
-class DISABLED_TestDiskUsagePorto(BaseTestDiskUsage, YTEnvSetup):
+class TestDiskUsagePorto(BaseTestDiskUsage, YTEnvSetup):
     DELTA_NODE_CONFIG = yt.common.update(
         get_porto_delta_node_config(),
         BaseTestDiskUsage.DELTA_NODE_CONFIG_BASE
     )
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
+
+    @classmethod
+    def modify_node_config(cls, config):
+        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is None:
+            pytest.skip("SANDBOX_STORAGE_ROOTDIR should be specified for tests with disk quotas in porto")
+
+        cls.run_name = os.path.basename(cls.path_to_run)
+        cls.disk_path = os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name, "disk_default")
+        os.makedirs(cls.disk_path)
+
+        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.disk_path
+
+    @classmethod
+    def teardown_class(cls):
+        super(TestDiskUsagePorto, cls).teardown_class()
+        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
+            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
 
 ##################################################################
