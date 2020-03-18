@@ -85,3 +85,8 @@ message TExtensibleMessage
     repeated TSubmessage known_submessages = 2;
     optional TSubmessage known_submessage = 3;
 }
+
+message TMessageWithRequiredAnnotation
+{
+    optional string required_string = 1 [(NYT.NYson.NProto.required) = true];
+}

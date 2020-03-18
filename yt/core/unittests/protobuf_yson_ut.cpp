@@ -659,6 +659,12 @@ TEST(TYsonToProtobufTest, Failure)
                 .EndMap()
             .EndMap();
     }, "/nested_message_map/a/nested_message_map");
+
+    EXPECT_YPATH({
+        TEST_PROLOGUE(TMessageWithRequiredAnnotation)
+            .BeginMap()
+            .EndMap();
+    }, "/required_string");
 }
 
 TEST(TYsonToProtobufTest, ErrorProto)
