@@ -153,7 +153,7 @@ bool TLocalResourceAllocator::TryAllocate(
             if (errors) {
                 errors->push_back(TError(
                     "Reallocation within resource %Qv is forbidden "
-                    "due to mismatched exclusiveness of request %v and allocation %Qv",
+                    "due to mismatched exclusiveness of %v and allocation %Qv",
                     resource->Id,
                     FormatRequest(request),
                     allocation->Id));
@@ -179,7 +179,7 @@ bool TLocalResourceAllocator::TryAllocate(
             if (errors) {
                 errors->push_back(TError(
                     "Reallocation within resource %Qv is forbidden "
-                    "due to mismatched capacities of request %v and allocation %Qv",
+                    "due to mismatched capacities of %v and allocation %Qv",
                     resource->Id,
                     FormatRequest(request),
                     allocation->Id)
@@ -197,7 +197,7 @@ bool TLocalResourceAllocator::TryAllocate(
         } else {
             if (errors) {
                 errors->push_back(TError(
-                    "Reallocation of request %v within resource %Qv is forbidden due to resource overcommit",
+                    "Reallocation of %v within resource %Qv is forbidden due to resource overcommit",
                     FormatRequest(request),
                     resource->Id)
                     << std::move(innerErrors));
