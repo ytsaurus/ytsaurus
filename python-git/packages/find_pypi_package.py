@@ -3,7 +3,7 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build/python/python_packaging"))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../teamcity-build/python/python_packaging"))
 
 from helpers import get_version
 
