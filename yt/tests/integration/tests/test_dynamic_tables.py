@@ -1603,7 +1603,7 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         sync_create_cells(1)
 
         def _create_table(table_name):
-            self._create_sorted_table(table_name, account="test_account")
+            self._create_sorted_table(table_name, account="test_account", external_cell_tag=1)
 
             sync_mount_table(table_name)
             insert_rows(table_name, [{"key": 0, "value": "0"}])
