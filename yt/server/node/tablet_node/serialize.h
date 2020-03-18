@@ -18,6 +18,7 @@ DEFINE_ENUM(ETabletReign,
     ((GiantTabletProblem)            (100014)) // akozhikhov
     ((ChunkViewsForPivots)           (100015)) // akozhikhov
     ((BulkInsertOverwrite)           (100016)) // ifsmirnov
+    ((ChunkViewWideRange_YT_12532)   (100017)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
