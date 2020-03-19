@@ -16,14 +16,16 @@
 
 #include <yt/core/yson/lexer.h>
 #include <yt/core/yson/parser.h>
-#include <yt/core/yson/writer.h>
+#include <yt/core/yson/pull_parser.h>
 #include <yt/core/yson/token.h>
+#include <yt/core/yson/writer.h>
 
 #include <yt/core/ytree/ypath_resolver.h>
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/misc/chunked_memory_pool_output.h>
 #include <yt/core/misc/farm_hash.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/hyperloglog.h>
@@ -59,6 +61,7 @@ namespace NRoutines {
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NProfiling;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2101,6 +2104,40 @@ void ListContains(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void AnyToYsonString(
+    TExpressionContext* context,
+    char** result,
+    int* resultLength,
+    char* any,
+    int anyLength)
+{
+    YT_VERIFY(anyLength >= 0);
+    auto textYsonLengthEstimate = static_cast<size_t>(anyLength) * 3;
+    TChunkedMemoryPoolOutput output(context->GetPool(), textYsonLengthEstimate);
+    {
+        TYsonWriter writer(&output, EYsonFormat::Text);
+        TMemoryInput input(any, anyLength);
+        TYsonPullParser parser(&input, EYsonType::Node);
+        TYsonPullParserCursor cursor(&parser);
+        cursor.TransferComplexValue(&writer);
+    }
+    auto refs = output.FinishAndGetRefs();
+    if (refs.size() == 1) {
+        *result = refs.front().Begin();
+        *resultLength = refs.front().Size();
+    } else {
+        *resultLength = GetByteSize(refs);
+        *result = AllocateBytes(context, *resultLength);
+        size_t offset = 0;
+        for (const auto& ref : refs) {
+            ::memcpy(*result + offset, ref.Begin(), ref.Size());
+            offset += ref.Size();
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void HyperLogLogAllocate(TExpressionContext* context, TUnversionedValue* result)
 {
     auto hll = AllocateBytes(context, sizeof(THLL));
@@ -2218,6 +2255,7 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(AnyToBoolean);
     REGISTER_ROUTINE(AnyToString);
     REGISTER_ROUTINE(ListContains);
+    REGISTER_ROUTINE(AnyToYsonString);
     REGISTER_ROUTINE(HyperLogLogAllocate);
     REGISTER_ROUTINE(HyperLogLogAdd);
     REGISTER_ROUTINE(HyperLogLogMerge);
