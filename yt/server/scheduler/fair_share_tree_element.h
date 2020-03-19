@@ -362,7 +362,7 @@ public:
     virtual void SetStarving(bool starving);
     virtual void CheckForStarvation(TInstant now) = 0;
 
-    TJobResources GetLocalResourceUsage() const;
+    TJobResources GetInstantResourceUsage() const;
     TJobMetrics GetJobMetrics() const;
     TResourceVector GetResourceUsageShare() const;
     TResourceVector GetResourceUsageShareWithPrecommit() const;
