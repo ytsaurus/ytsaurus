@@ -25,7 +25,7 @@ public:
 
     int GetTaskSlotCount(ETaskSource source) const
     {
-        return Config_->TaskSlotsPerSource[source] - static_cast<int>(Tasks_[source].size());
+        return Config_->GetTaskSlots(source) - static_cast<int>(Tasks_[source].size());
     }
 
     void ReconcileState(const TClusterPtr& cluster)

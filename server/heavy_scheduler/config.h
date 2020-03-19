@@ -53,9 +53,13 @@ class TTaskManagerConfig
 {
 public:
     TDuration TaskTimeLimit;
-    TEnumIndexedVector<ETaskSource, int> TaskSlotsPerSource;
+
+    int GetTaskSlots(ETaskSource source) const;
 
     TTaskManagerConfig();
+
+private:
+    TEnumIndexedVector<ETaskSource, std::optional<int>> TaskSlotsPerSource_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTaskManagerConfig);

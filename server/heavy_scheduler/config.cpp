@@ -37,8 +37,15 @@ TTaskManagerConfig::TTaskManagerConfig()
 {
     RegisterParameter("task_time_limit", TaskTimeLimit)
         .Default(TDuration::Minutes(30));
-    RegisterParameter("task_slots_per_source", TaskSlotsPerSource)
-        .Default({10, 10});
+    RegisterParameter("task_slots_per_source", TaskSlotsPerSource_)
+        .Default();
+}
+
+int TTaskManagerConfig::GetTaskSlots(ETaskSource source) const
+{
+    return TaskSlotsPerSource_[source]
+        ? *TaskSlotsPerSource_[source]
+        : 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
