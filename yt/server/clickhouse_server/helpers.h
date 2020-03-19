@@ -86,6 +86,7 @@ namespace DB {
 TString ToString(const IAST& ast);
 
 void Serialize(const QueryStatusInfo& queryStatusInfo, NYT::NYson::IYsonConsumer* consumer);
+void Serialize(const ProcessListForUserInfo& processListForUserInfo, NYT::NYson::IYsonConsumer* consumer);
 
 TString ToString(const Block& block);
 

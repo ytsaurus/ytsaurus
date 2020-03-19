@@ -2,6 +2,7 @@
 
 #include <yt/core/logging/log.h>
 #include <yt/core/profiling/profiler.h>
+#include <Common/ProfileEvents.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -143,7 +144,7 @@ class StorageFactory;
 class IUsersManager;
 class IExternalLoaderConfigRepository;
 class IRuntimeComponentsFactory;
-struct ProcessListForUser;
+struct ProcessListForUserInfo;
 struct QueryStatusInfo;
 class IAST;
 struct ASTTableExpression;
@@ -156,6 +157,37 @@ void registerStorageMemory(StorageFactory & factory);
 } // namespace DB
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace ProfileEvents {
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const Event Query;
+extern const Event SelectQuery;
+extern const Event InsertQuery;
+extern const Event InsertedRows;
+extern const Event InsertedBytes;
+extern const Event ContextLock;
+extern const Event NetworkErrors;
+extern const Event RealTimeMicroseconds;
+extern const Event UserTimeMicroseconds;
+extern const Event SystemTimeMicroseconds;
+extern const Event SoftPageFaults;
+extern const Event HardPageFaults;
+extern const Event OSIOWaitMicroseconds;
+extern const Event OSCPUWaitMicroseconds;
+extern const Event OSCPUVirtualTimeMicroseconds;
+extern const Event OSReadChars;
+extern const Event OSWriteChars;
+extern const Event OSReadBytes;
+extern const Event OSWriteBytes;
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace ProfileEvents
+
+
 
 // Why this class is outside of namespace DB? 0_o
 class IGeoDictionariesLoader;

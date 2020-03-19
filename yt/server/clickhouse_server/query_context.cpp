@@ -177,7 +177,7 @@ EQueryPhase TQueryContext::GetQueryPhase() const
     return QueryPhase_.load();
 }
 
-void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const DB::QueryStatusInfo* queryStatus)
+void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const DB::QueryStatusInfo* queryStatusInfo)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -199,7 +199,7 @@ void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const
                     .Item("initial_user").Value(queryContext.InitialUser)
                     .Item("initial_query").Value(queryContext.InitialQuery);
             })
-            .Item("query_status").Value(queryStatus)
+            .Item("query_status").Value(queryStatusInfo)
             .OptionalItem("datalens_request_id", queryContext.DataLensRequestId)
         .EndMap();
 }

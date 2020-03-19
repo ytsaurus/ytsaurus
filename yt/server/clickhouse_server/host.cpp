@@ -155,7 +155,7 @@ private:
 
     std::unique_ptr<DB::Context> DatabaseContext_;
 
-    std::unique_ptr<DB::AsynchronousMetrics> AsynchronousMetrics;
+    std::unique_ptr<DB::AsynchronousMetrics> AsynchronousMetrics_;
     std::unique_ptr<DB::SessionCleaner> SessionCleaner;
 
     std::unique_ptr<Poco::ThreadPool> ServerPool;
@@ -427,11 +427,27 @@ public:
 
         for (int index = 0; index < static_cast<int>(CurrentMetrics::end()); ++index) {
             const auto* name = CurrentMetrics::getName(index);
-            auto value = CurrentMetrics::values[index].load();
+            auto value = CurrentMetrics::values[index].load(std::memory_order_relaxed);
             ClickHouseNativeProfiler.Enqueue(
                 "/current_metrics/" + CamelCaseToUnderscoreCase(TString(name)),
                 value,
                 EMetricType::Gauge);
+        }
+
+        for (const auto& [name, value] : AsynchronousMetrics_->getValues()) {
+            ClickHouseNativeProfiler.Enqueue(
+                "/asynchronous_metrics/" + CamelCaseToUnderscoreCase(TString(name)),
+                value,
+                EMetricType::Gauge);
+        }
+
+        for (int index = 0; index < static_cast<int>(ProfileEvents::end()); ++index) {
+            const auto* name = ProfileEvents::getName(index);
+            auto value = ProfileEvents::global_counters[index].load(std::memory_order_relaxed);
+            ClickHouseNativeProfiler.Enqueue(
+                "/global_profile_events/" + CamelCaseToUnderscoreCase(TString(name)),
+                value,
+                EMetricType::Counter);
         }
 
         YT_LOG_DEBUG("Profiling flushed");
@@ -519,10 +535,8 @@ private:
             }
         }
 
-#if defined(COLLECT_ASYNCHRONUS_METRICS)
-        // This object will periodically calculate some metrics.
-        AsynchronousMetrics.reset(new DB::AsynchronousMetrics(*DatabaseContext_));
-#endif
+        // This object will periodically calculate asynchronous metrics.
+        AsynchronousMetrics_ = std::make_unique<DB::AsynchronousMetrics>(*DatabaseContext_);
 
         // This object will periodically cleanup sessions.
         SessionCleaner.reset(new DB::SessionCleaner(*DatabaseContext_));
@@ -535,8 +549,8 @@ private:
 
             AttachSystemTables(*systemDatabase, Discovery_, InstanceId_);
 
-            if (AsynchronousMetrics) {
-                attachSystemTablesAsync(*systemDatabase, *AsynchronousMetrics);
+            if (AsynchronousMetrics_) {
+                attachSystemTablesAsync(*systemDatabase, *AsynchronousMetrics_);
             }
 
             DatabaseContext_->addDatabase("system", systemDatabase);
