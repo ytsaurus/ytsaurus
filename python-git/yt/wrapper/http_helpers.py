@@ -533,3 +533,11 @@ def get_user_name(token=None, headers=None, client=None):
     if not login:
         return None
     return login
+
+
+def get_cluster_name(client=None):
+    proxy_url = get_proxy_url(required=False, client=client)
+    default_suffix = get_config(client)["proxy"]["default_suffix"]
+    if proxy_url is not None and proxy_url.endswith(default_suffix):
+        return proxy_url[:-len(default_suffix)]
+    return None

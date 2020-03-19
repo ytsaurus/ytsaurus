@@ -22,5 +22,6 @@ from .ypath import TablePath
 from .http_helpers import get_user_name
 from .batch_api import *
 from .sky_share import sky_share
+from .spark import start_spark_cluster, find_spark_cluster
 
 all_names = [key for key in locals().keys() if not key.startswith("_")]
