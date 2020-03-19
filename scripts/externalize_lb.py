@@ -50,8 +50,10 @@ def log(*args):
     _log_color(None, *args)
 
 def log_warn(*args):
-    # 91?
-    _log_color(91, *args)
+    _log_color(31, *args)
+
+def log_note(*args):
+    _log_color(32, *args)
 
 ################################################################################
 
@@ -161,9 +163,52 @@ def find_non_externalizable_tables(path, cell_tag):
 
     return non_external_tables, cell_conflict_tables
 
-def externalize(path, cell_tag):
-    log("Externalizing '", path, "' to cell ", cell_tag)
+def piecewise_temp_dir_path(path):
+    return path + "_e13n_tmp"
+
+def piecewise_externalize(path, cell_tag):
+    temp_path = piecewise_temp_dir_path(path)
+    log("Creating temporary directory \"", temp_path, "\"")
+    yt.create("map_node",
+              temp_path,
+              attributes={
+                  "inherit_acl": False,
+                  "acl": [{
+                      "permissions": ["read", "write", "administer", "remove", "mount"],
+                      "action": "allow",
+                      "subjects": ["admins"],
+                      "inheritance_mode": "object_and_descendants"
+                  }]
+              })
+
+    contents = yt.list(path)
+
+    log("Moving ", len(contents), " node(s) to the temporary directory")
+    with log_indent():
+        for node in contents:
+            log(node)
+            yt.move(path + "/" + node, temp_path + "/" + node)
+
+    log("Actually externalizing original directory")
     yt.externalize(path, cell_tag=cell_tag)
+
+    log("Moving ", len(contents), " node(s) back from the temporary directory")
+    with log_indent():
+        for node in contents:
+            log(node)
+            yt.move(temp_path + "/" + node, path + "/" + node)
+
+    log("Removing the temporary directory")
+    yt.remove(temp_path)
+
+def externalize(path, cell_tag, piecewise):
+    if piecewise:
+        log("Piecewise-externalizing '", path, "' to cell ", cell_tag)
+        with log_indent():
+            piecewise_externalize(path, cell_tag)
+    else:
+        log("Externalizing '", path, "' to cell ", cell_tag)
+        yt.externalize(path, cell_tag=cell_tag)
 
 def main():
     if not hasattr(yt, "externalize"):
@@ -176,42 +221,56 @@ def main():
     parser.add_argument("path", type=str)
     parser.add_argument("cell_tag", type=int)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--piecewise", action="store_true")
+    parser.add_argument("--skip-validation", action="store_true")
     args = parser.parse_args()
+    if args.dry_run and args.skip_validation:
+        log("Both --dry-run and --skip-validation have been specified, which makes no sense.")
+        return 2
+
     p = args.path
     c = args.cell_tag
 
-    log_warn("Going to externalize '", p, "' to cell ", c, ". This usually takes several minutes and the directory will be inaccessible for the duration of this process")
-    if not ask_user_confirmation("Do you wish to continue? [y,N] ", False):
-        return 0
+    if not args.dry_run:
+        log_warn("Going to externalize '", p, "' to cell ", c, ". This usually takes several minutes and the directory will be inaccessible for the duration of this process")
+        if not ask_user_confirmation("Do you wish to continue? [y,N] ", False):
+            return 0
 
-    if p.endswith("/") or p.endswith("&") or p.endswith("@") or p.endswith("]"):
-        log("The path provided has an unexpected suffix")
-        return 2
+    if not args.skip_validation:
 
-    # NB: this also check p's existence.
-    if yt.get(p + "&/@type") == "link":
-        log("Node '", p, "' is a symlink")
-        log("Exiting...")
-        return 3
+        if p.endswith("/") or p.endswith("&") or p.endswith("@") or p.endswith("]"):
+            log("The path provided has an unexpected suffix")
+            return 3
 
-    if not yt.exists("//sys/secondary_masters/" + str(c)):
-        log("Cell tag '", c, "' is unknown")
-        log("Exiting...")
-        return 4
+        # NB: this also check p's existence.
+        p_type = yt.get(p + "&/@type")
+        if p_type != "map_node":
+            log("Node '", p, "' is a '", p_type, "', not a directory")
+            log("Exiting...")
+            return 4
 
-    non_external_tables, cell_conflict_tables = find_non_externalizable_tables(p, c)
-    if len(non_external_tables) > 0 or len(cell_conflict_tables) > 0:
-        log("Found non-externalizable tables in the directory; externalization is not possible")
-        if len(non_external_tables) > 0:
-            log("Tables that are not external:\n  ", "\n  ".join(non_external_tables))
-        if len(cell_conflict_tables) > 0:
-            log("Tables that are externalized to cell ", c, ":\n  ", "\n  ".join(cell_conflict_tables))
-        return 5
+        if not yt.exists("//sys/secondary_masters/" + str(c)):
+            log("Cell tag '", c, "' is unknown")
+            log("Exiting...")
+            return 5
 
-    cross_cell_symlinks = find_cross_cell_symlinks(p, c)
-    if len(cross_cell_symlinks) > 0:
-        log("Found would-be cross-cell symlinks in the directory; externalization is not possible")
-        log("Would-be cross-cell symlinks:\n  ", "\n  ".join([link_path + " -> " + target_path for link_path, target_path in cross_cell_symlinks]))
+        non_external_tables, cell_conflict_tables = find_non_externalizable_tables(p, c)
+        if len(non_external_tables) > 0 or len(cell_conflict_tables) > 0:
+            log("Found non-externalizable tables in the directory; externalization is not possible")
+            if len(non_external_tables) > 0:
+                log("Tables that are not external:\n  ", "\n  ".join(non_external_tables))
+            if len(cell_conflict_tables) > 0:
+                log("Tables that are externalized to cell ", c, ":\n  ", "\n  ".join(cell_conflict_tables))
+            return 6
+
+        cross_cell_symlinks = find_cross_cell_symlinks(p, c)
+        if len(cross_cell_symlinks) > 0:
+            log("Found would-be cross-cell symlinks in the directory; externalization is not possible")
+            log("Would-be cross-cell symlinks:\n  ", "\n  ".join([link_path + " -> " + target_path for link_path, target_path in cross_cell_symlinks]))
+
+        if args.piecewise and yt.exists(piecewise_temp_dir_path(p)):
+            # Being lazy here...
+            log("The would-be temporary directory \"", piecewise_temp_dir_path(p), "\" already exists, piecewise externalization is not possible")
 
     inherit_acl = yt.get(p + "/@inherit_acl")
     acl = yt.get(p + "/@acl")
@@ -219,6 +278,12 @@ def main():
 
     if args.dry_run:
         return 0
+
+    log("Original values of ACL-related attributes:")
+    with log_indent():
+        log_note("inherit_acl: ", str(inherit_acl))
+        log_note("acl: ", str(acl))
+        log_note("effective_acl: ", str(effective_acl))
 
     try:
         acl_modified = False
@@ -229,15 +294,20 @@ def main():
         pause()
 
         abort_txs(p)
-        externalize(p, c)
+        externalize(p, c, args.piecewise)
     except BaseException as e:
         with log_indent():
             log("Failed: {}".format(e))
-            undo_inherit_acl(p, inherit_acl)
-            if acl_modified:
-                undo_acl(p, acl, effective_acl)
+
+            if args.piecewise:
+                log_warn("Check both \"", path, "\" and \"", piecewise_temp_dir_path(p), "\" and make sure to move everything for the latter to the former, then restore @acl and @inherit_acl to their original values (see above).")
+            else:
+                undo_inherit_acl(p, inherit_acl)
+                if acl_modified:
+                    undo_acl(p, acl, effective_acl)
+
             log("Exiting...")
-            return 7 if acl_modified else 6
+            return 8 if acl_modified else 7
 
     do_acl_post_externalization(p, acl, effective_acl)
 
