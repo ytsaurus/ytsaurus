@@ -204,6 +204,7 @@ private:
 class TSchedulerElementFixedState
 {
 public:
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsageAtUpdate);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceDemand);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits, TJobResources::Infinite());
     DEFINE_BYREF_RO_PROPERTY(TJobResources, MaxPossibleResourceUsage);
@@ -334,7 +335,7 @@ public:
     virtual void SetStarving(bool starving);
     virtual void CheckForStarvation(TInstant now) = 0;
 
-    TJobResources GetLocalResourceUsage() const;
+    TJobResources GetInstantResourceUsage() const;
     TJobMetrics GetJobMetrics() const;
     double GetResourceUsageRatio() const;
     double GetResourceUsageRatioWithPrecommit() const;
