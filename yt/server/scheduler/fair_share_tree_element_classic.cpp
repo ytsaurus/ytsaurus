@@ -283,7 +283,7 @@ void TSchedulerElement::UpdateAttributes()
 
     // Choose dominant resource types, compute max share ratios, compute demand ratios.
     const auto& demand = ResourceDemand();
-    auto usage = GetLocalResourceUsage();
+    auto usage = ResourceUsageAtUpdate();
 
     auto maxPossibleResourceUsage = Min(TotalResourceLimits_, MaxPossibleResourceUsage_);
 
@@ -427,7 +427,7 @@ void TSchedulerElement::SetStarving(bool starving)
     PersistentAttributes_.Starving = starving;
 }
 
-TJobResources TSchedulerElement::GetLocalResourceUsage() const
+TJobResources TSchedulerElement::GetInstantResourceUsage() const
 {
     auto resourceUsage = ResourceTreeElement_->GetResourceUsage();
     if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
@@ -650,7 +650,7 @@ void TSchedulerElement::LogDetailedInfo() const
     YT_LOG_DEBUG("XXX Detailed information (TotalResourceLimits: %v, Demand: %v, Usage: %v, MaxPossibleResourceUsage: %v, RecursiveMaxPossibleResourceUsage: %v)",
         FormatResources(TotalResourceLimits_),
         FormatResources(ResourceDemand()),
-        FormatResources(GetLocalResourceUsage()),
+        FormatResources(ResourceUsageAtUpdate()),
         FormatResources(maxPossibleResourceUsage),
         FormatResources(possibleUsage));
 }
@@ -748,11 +748,13 @@ void TCompositeSchedulerElement::PreUpdateBottomUp(TUpdateFairShareContext* cont
 {
     YT_VERIFY(Mutable_);
 
+    ResourceUsageAtUpdate_ = {};
     ResourceDemand_ = {};
 
     for (const auto& child : EnabledChildren_) {
         child->PreUpdateBottomUp(context);
 
+        ResourceUsageAtUpdate_ += child->ResourceUsageAtUpdate();
         ResourceDemand_ += child->ResourceDemand();
     }
 
@@ -2387,7 +2389,8 @@ void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 
     UnschedulableReason_ = ComputeUnschedulableReason();
     SlotIndex_ = Operation_->FindSlotIndex(GetTreeId());
-    ResourceDemand_ = ComputeResourceDemand();
+    ResourceUsageAtUpdate_ = GetInstantResourceUsage();
+    ResourceDemand_ = Max(ComputeResourceDemand(), ResourceUsageAtUpdate_);
     StartTime_ = Operation_->GetStartTime();
 
     TSchedulerElement::PreUpdateBottomUp(context);
@@ -2442,15 +2445,14 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesL
 
 TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit, bool logDetailedInfo) const
 {
-    auto usage = GetLocalResourceUsage();
+    auto usage = ResourceUsageAtUpdate();
     if (!Dominates(limit, usage)) {
         if (logDetailedInfo) {
             YT_LOG_DEBUG("XXX Scale usage (Limit: %v, Usage: %v, Scale: %v)", FormatResources(limit), FormatResources(usage), GetMinResourceRatio(limit, usage));
         }
         return usage * GetMinResourceRatio(limit, usage);
     } else {
-        // Hotfix while YT-12329 is not done.
-        auto remainingDemand = Max(TJobResources(), ResourceDemand() - usage);
+        auto remainingDemand = ResourceDemand() - usage;
         if (remainingDemand == TJobResources()) {
             if (logDetailedInfo) {
                 YT_LOG_DEBUG("XXX Zero additional demand");
@@ -3096,7 +3098,7 @@ TJobResources TOperationElement::ComputeResourceDemand() const
     if (maybeUnschedulableReason == EUnschedulableReason::IsNotRunning || maybeUnschedulableReason == EUnschedulableReason::Suspended) {
         return {};
     }
-    return GetLocalResourceUsage() + Controller_->GetNeededResources();
+    return GetInstantResourceUsage() + Controller_->GetNeededResources();
 }
 
 TJobResources TOperationElement::GetSpecifiedResourceLimits() const

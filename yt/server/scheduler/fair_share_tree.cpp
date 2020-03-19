@@ -1002,7 +1002,7 @@ auto TFairShareTree<TFairShareImpl>::BuildOrchid(TFluentMap fluent) -> void
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     fluent
-        .Item("resource_usage").Value(GetRecentRootSnapshot()->GetLocalResourceUsage());
+        .Item("resource_usage").Value(GetRecentRootSnapshot()->ResourceUsageAtUpdate());
 }
 
 template <class TFairShareImpl>
@@ -1432,7 +1432,7 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemption(
 
         auto* parent = operationElement->GetParent();
         while (parent) {
-            if (!Dominates(parent->ResourceLimits(), parent->GetLocalResourceUsage())) {
+            if (!Dominates(parent->ResourceLimits(), parent->GetInstantResourceUsage())) {
                 return parent;
             }
             parent = parent->GetParent();
@@ -1490,7 +1490,7 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemption(
             continue;
         }
 
-        if (!Dominates(operationElement->ResourceLimits(), operationElement->GetLocalResourceUsage())) {
+        if (!Dominates(operationElement->ResourceLimits(), operationElement->GetInstantResourceUsage())) {
             job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
                 operationElement->GetId()));
             PreemptJob(job, operationElement, context->SchedulingContext);
@@ -2059,7 +2059,7 @@ auto TFairShareTree<TFairShareImpl>::BuildElementYson(const TSchedulerElement* e
         .Item("adjusted_min_share_preemption_timeout").Value(attributes.AdjustedMinSharePreemptionTimeout)
         .Item("adjusted_fair_share_preemption_timeout").Value(attributes.AdjustedFairSharePreemptionTimeout)
         .Item("resource_demand").Value(element->ResourceDemand())
-        .Item("resource_usage").Value(element->GetLocalResourceUsage())
+        .Item("resource_usage").Value(element->ResourceUsageAtUpdate())
         .Item("resource_limits").Value(element->ResourceLimits())
         .Item("dominant_resource").Value(attributes.DominantResource)
         .Item("weight").Value(element->GetWeight())
@@ -2092,7 +2092,7 @@ auto TFairShareTree<TFairShareImpl>::BuildEssentialElementYson(const TSchedulerE
         .Item("dominant_resource").Value(attributes.DominantResource)
         .DoIf(shouldPrintResourceUsage, [&] (TFluentMap fluent) {
             fluent
-                .Item("resource_usage").Value(element->GetLocalResourceUsage());
+                .Item("resource_usage").Value(element->ResourceUsageAtUpdate());
         });
 }
 
@@ -2314,7 +2314,7 @@ auto TFairShareTree<TFairShareImpl>::ProfileSchedulerElement(
         EMetricType::Gauge,
         tags);
 
-    ProfileResources(accumulator, element->GetLocalResourceUsage(), profilingPrefix + "/resource_usage", tags);
+    ProfileResources(accumulator, element->ResourceUsageAtUpdate(), profilingPrefix + "/resource_usage", tags);
     ProfileResources(accumulator, element->ResourceLimits(), profilingPrefix + "/resource_limits", tags);
     ProfileResources(accumulator, element->ResourceDemand(), profilingPrefix + "/resource_demand", tags);
 
