@@ -1192,7 +1192,39 @@ class TestQuery(YTEnvSetup):
         actual = select_rows('''* from [//tmp/t] offset 8 limit 1''')
         assert actual == expected
 
+    @authors("levysotsky")
+    # TODO(levysotsky): Test more builtin functions?
+    def test_any_to_yson_string(self):
+        sync_create_cells(1)
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "any"}]
+            })
+        sync_mount_table("//tmp/t")
+
+        data = [{"a": i, "b": {"x": i}} for i in xrange(0, 11)]
+        insert_rows("//tmp/t", data)
+
+        expected = [{"a": 7, "b_str": "{\"x\"=7;}"}]
+        actual = select_rows(r'a, any_to_yson_string(b) as b_str from [//tmp/t] where a = 7')
+        assert expected == actual
+
+        length = 100000
+        long_binary_string = "\xFF" * length
+        escaped_string = r"\xFF" * length
+        long_yson_rows = [{"a": 13, "b": {"x": long_binary_string}}]
+        expected = [{"a": 13, "b_str": "{\"x\"=\"" + escaped_string + "\";}"}]
+        insert_rows("//tmp/t", long_yson_rows)
+        actual = select_rows(r'a, any_to_yson_string(b) as b_str from [//tmp/t] where a = 13')
+        assert expected == actual
+
+
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
-

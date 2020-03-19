@@ -17,7 +17,7 @@ public:
 public:
     explicit TChunkedMemoryPoolOutput(TChunkedMemoryPool* pool, size_t chunkSize = DefaultChunkSize);
 
-    std::vector<TRef> FinishAndGetRefs();
+    std::vector<TMutableRef> FinishAndGetRefs();
 
 private:
     virtual size_t DoNext(void** ptr) override;
@@ -28,7 +28,7 @@ private:
     const size_t ChunkSize_;
     char* Begin_ = nullptr;
     char* End_ = nullptr;
-    std::vector<TRef> Refs_;
+    std::vector<TMutableRef> Refs_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

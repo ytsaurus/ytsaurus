@@ -31,7 +31,7 @@ void TChunkedMemoryPoolOutput::DoUndo(size_t size)
     End_ -= size;
 }
 
-std::vector<TRef> TChunkedMemoryPoolOutput::FinishAndGetRefs()
+std::vector<TMutableRef> TChunkedMemoryPoolOutput::FinishAndGetRefs()
 {
     if (Begin_ != nullptr) {
         Refs_.emplace_back(Begin_, End_);

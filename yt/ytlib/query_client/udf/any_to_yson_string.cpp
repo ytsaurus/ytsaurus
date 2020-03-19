@@ -2,6 +2,13 @@
 
 #include <string.h>
 
+extern "C" void AnyToYsonString(
+    TExpressionContext* context,
+    char** result,
+    int* resultLength,
+    char* any,
+    int anyLength);
+
 extern "C" void any_to_yson_string(
     TExpressionContext* context,
     char** result,
@@ -9,7 +16,5 @@ extern "C" void any_to_yson_string(
     char* any,
     int anyLength)
 {
-    *resultLength = anyLength;
-    *result = AllocateBytes(context, *resultLength);
-    memcpy(*result, any, anyLength);
+    AnyToYsonString(context, result, resultLength, any, anyLength);
 }
