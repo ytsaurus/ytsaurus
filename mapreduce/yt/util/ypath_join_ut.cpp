@@ -1,3 +1,4 @@
+#include <util/generic/string.h> // should be before #include "ypath_join.h"
 #include "ypath_join.h"
 
 #include <library/unittest/registar.h>
@@ -13,7 +14,7 @@ Y_UNIT_TEST_SUITE(JoinYPathsTestSuit)
 
     Y_UNIT_TEST(JoinOneArg)
     {
-        UNIT_ASSERT_STRINGS_EQUAL(JoinYPaths("/"), "/");
+        UNIT_ASSERT_STRINGS_EQUAL(JoinYPaths(TString{"/"}), "/");
         UNIT_ASSERT_STRINGS_EQUAL(JoinYPaths("///"), "///");
 
         UNIT_ASSERT_STRINGS_EQUAL(JoinYPaths("aa"), "aa");
