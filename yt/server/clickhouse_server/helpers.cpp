@@ -273,6 +273,42 @@ TTableSchema GetCommonSchema(const std::vector<TTableSchema>& schemas)
 
 /////////////////////////////////////////////////////////////////////////////
 
+//! Leaves only some of the "significant" profile counters.
+THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters& profileCounters)
+{
+    static const std::vector<ProfileEvents::Event> SignificantEvents = {
+        ProfileEvents::Query,
+        ProfileEvents::SelectQuery,
+        ProfileEvents::InsertQuery,
+        ProfileEvents::InsertedRows,
+        ProfileEvents::InsertedBytes,
+        ProfileEvents::ContextLock,
+        ProfileEvents::NetworkErrors,
+        ProfileEvents::RealTimeMicroseconds,
+        ProfileEvents::UserTimeMicroseconds,
+        ProfileEvents::SystemTimeMicroseconds,
+        ProfileEvents::SoftPageFaults,
+        ProfileEvents::HardPageFaults,
+        ProfileEvents::OSIOWaitMicroseconds,
+        ProfileEvents::OSCPUWaitMicroseconds,
+        ProfileEvents::OSCPUVirtualTimeMicroseconds,
+        ProfileEvents::OSReadChars,
+        ProfileEvents::OSWriteChars,
+        ProfileEvents::OSReadBytes,
+        ProfileEvents::OSWriteBytes,
+    };
+
+    THashMap<TString, size_t> result;
+
+    for (const auto& event : SignificantEvents) {
+        result[CamelCaseToUnderscoreCase(ProfileEvents::getName(event))] = profileCounters[event].load(std::memory_order::memory_order_relaxed);
+    }
+
+    return result;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NClickHouseServer
 
 namespace DB {
@@ -302,6 +338,16 @@ void Serialize(const QueryStatusInfo& query, NYT::NYson::IYsonConsumer* consumer
             .Item("written_bytes").Value(query.written_bytes)
             .Item("memory_usage").Value(query.memory_usage)
             .Item("peak_memory_usage").Value(query.peak_memory_usage)
+        .EndMap();
+}
+
+void Serialize(const ProcessListForUserInfo& processListForUserInfo, NYT::NYson::IYsonConsumer* consumer)
+{
+    NYT::NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("memory_usage").Value(processListForUserInfo.memory_usage)
+            .Item("peak_memory_usage").Value(processListForUserInfo.peak_memory_usage)
+            .Item("brief_profile_counters").Value(NYT::NClickHouseServer::GetBriefProfileCounters(*processListForUserInfo.profile_counters))
         .EndMap();
 }
 
