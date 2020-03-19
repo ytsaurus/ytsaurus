@@ -62,12 +62,14 @@ public:
 protected:
     struct TSession
     {
-        TSession(const ISchemalessMultiChunkReaderPtr& reader, int rowCount)
-            : Reader(reader)
+        TSession(const ISchemalessMultiChunkReaderPtr& reader, int rowCount, int sessionIndex)
+            : SessionIndex(sessionIndex)
+            , Reader(reader)
         {
             Rows.reserve(rowCount);
         }
 
+        const int SessionIndex;
         ISchemalessMultiChunkReaderPtr Reader;
         std::vector<TUnversionedRow> Rows;
         int CurrentRowIndex = 0;
@@ -274,6 +276,8 @@ public:
 
 private:
     TOwningKey LastKey_;
+
+    std::vector<int> LastReadRowSessionIndexes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,7 +295,8 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
     SessionHeap_.reserve(readers.size());
 
     for (const auto& reader : readers) {
-        SessionHolder_.emplace_back(reader, rowsPerSession);
+        int nextSessionIndex = SessionHolder_.size();
+        SessionHolder_.emplace_back(reader, rowsPerSession, nextSessionIndex);
         RowCount_ += reader->GetTotalRowCount();
     }
 
@@ -312,6 +317,7 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
     YT_VERIFY(rows->capacity() > 0);
 
     rows->clear();
+    LastReadRowSessionIndexes_.clear();
 
     if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
@@ -352,6 +358,7 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
             return !rows->empty();
         }
         rows->push_back(row);
+        LastReadRowSessionIndexes_.push_back(session->SessionIndex);
         dataWeight += GetDataWeight(rows->back());
         ++session->CurrentRowIndex;
         ++TableRowIndex_;
@@ -384,29 +391,15 @@ TInterruptDescriptor TSchemalessSortedMergingReader::GetInterruptDescriptor(
 
     TInterruptDescriptor result;
 
-    THashMap<int, int> tableIndexToSessionIndex;
-    for (int sessionIndex = 0; sessionIndex < SessionHolder_.size(); ++sessionIndex) {
-        YT_VERIFY(tableIndexToSessionIndex.emplace(SessionHolder_[sessionIndex].TableIndex, sessionIndex).second);
-    }
-
-    auto tableIndexColumnId = GetNameTable()->GetIdOrThrow(TableIndexColumnName);
-
     std::vector<i64> unreadRowCounts(SessionHolder_.size(), 0);
-    for (const auto& unreadRow : unreadRows) {
-        int sessionIndex = 0;
-        for (const auto& value : unreadRow) {
-            if (value.Id == tableIndexColumnId) {
-                sessionIndex = GetOrCrash(tableIndexToSessionIndex, value.Data.Int64);
-                break;
-            }
-        }
-        ++unreadRowCounts[sessionIndex];
+
+    YT_VERIFY(unreadRows.size() <= LastReadRowSessionIndexes_.size());
+    for (int index = LastReadRowSessionIndexes_.size() - unreadRows.size(); index < LastReadRowSessionIndexes_.size(); ++index) {
+        ++unreadRowCounts[LastReadRowSessionIndexes_[index]];
     }
 
-    for (int sessionIndex = 0; sessionIndex < SessionHolder_.size(); ++sessionIndex) {
-        const auto& session = SessionHolder_[sessionIndex];
-
-        auto unreadRowCount = unreadRowCounts[sessionIndex];
+    for (const auto& session : SessionHolder_) {
+        auto unreadRowCount = unreadRowCounts[session.SessionIndex];
         YT_VERIFY(unreadRowCount <= session.CurrentRowIndex);
 
         auto interruptDescriptor = session.Reader->GetInterruptDescriptor(
@@ -472,10 +465,15 @@ TSchemalessJoiningReader::TSchemalessJoiningReader(
     SessionHolder_.reserve(foreignReaders.size() + 1);
     SessionHeap_.reserve(foreignReaders.size() + 1);
 
-    SessionHolder_.emplace_back(mergingReader, primaryRowsPerSession);
+    {
+        int nextSessionIndex = SessionHolder_.size();
+        SessionHolder_.emplace_back(mergingReader, primaryRowsPerSession, nextSessionIndex);
+    }
+
     RowCount_ = mergingReader->GetTotalRowCount();
     for (const auto& reader : foreignReaders) {
-        SessionHolder_.emplace_back(reader, foreignRowsPerSession);
+        int nextSessionIndex = SessionHolder_.size();
+        SessionHolder_.emplace_back(reader, foreignRowsPerSession, nextSessionIndex);
         RowCount_ += reader->GetTotalRowCount();
     }
     PrimarySession_ = &SessionHolder_[0];

@@ -366,8 +366,9 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderMultipleTables)
         resultStorage->clear();
         resultStorage->resize(2);
         std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
+        // NB: Table indexes are not passed to readers.
         primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0, &(*resultStorage)[0]));
-        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 1, &(*resultStorage)[1]));
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 0, &(*resultStorage)[1]));
 
         return CreateSchemalessSortedMergingReader(primaryReaders, 3, 2);
     };
