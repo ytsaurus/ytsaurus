@@ -1395,15 +1395,15 @@ def add_acl_parser(root_subparsers):
         choices=["path", "account", "pool", "bundle", "group"], help="Type of object")
     parser.add_argument("name", action="store", help="Cypress directory path or full scheduler pool path, or account, bundle, group name")
     acl_subparsers = parser.add_subparsers(metavar="acl_command")
-    add_acl_show_parser(acl_subparsers)
-    add_acl_request_parser(acl_subparsers)
+    add_acl_subparser = add_subparser(acl_subparsers, params_argument=False)
+    add_acl_show_parser(add_acl_subparser)
+    add_acl_request_parser(add_acl_subparser)
 
-def add_acl_show_parser(acl_subparsers):
-    parser = fix_parser(acl_subparsers.add_parser("show", description="Show ACL information"))
-    parser.set_defaults(func=acl_show)
+def add_acl_show_parser(add_parser):
+    parser = add_parser("show", function=acl_show, help="Show ACL information")
 
-def add_acl_request_parser(acl_subparsers):
-    parser = fix_parser(acl_subparsers.add_parser("request", description="Show ACL information"))
+def add_acl_request_parser(add_parser):
+    parser = add_parser("request", function=acl_request, help="Show ACL information")
 
     # Approvers definition
     parser.add_argument("--responsibles", "-r", action="store", dest="responsibles",
@@ -1450,8 +1450,70 @@ def add_acl_request_parser(acl_subparsers):
     parser.add_argument("--dry-run", action = "store_true", dest = "dry_run",
         help = "Do not make real changes", default = False)
 
-    parser.set_defaults(func=acl_request)
+def add_spark_parser(root_subparsers):
+    parser = fix_parser(root_subparsers.add_parser("spark", description="Spark over YT commands"))
+    spark_subparsers = parser.add_subparsers(metavar="spark_command")
+    add_spark_subparser = add_subparser(spark_subparsers, params_argument=False)
+    add_start_spark_cluster_parser(add_spark_subparser)
+    add_find_spark_cluster_parser(add_spark_subparser)
 
+@copy_docstring_from(yt.start_spark_cluster)
+def start_spark_cluster_handler(*args, **kwargs):
+    yt.start_spark_cluster(*args, **kwargs)
+
+def add_start_spark_cluster_parser(add_parser):
+    parser = add_parser("start-cluster", start_spark_cluster_handler,
+                        help="Start Spark Standalone cluster in YT Vanilla Operation")
+    parser.add_argument("--spark-worker-core-count", required=True, type=int,
+                        help="Number of cores that will be available on Spark worker")
+    parser.add_argument("--spark-worker-memory-limit", required=True,
+                        help="Amount of memory that will be available on Spark worker")
+    parser.add_argument("--spark-worker-count", required=True, type=int, help="Number of Spark workers")
+    parser.add_argument("--operation-alias", help="Alias for the underlying YT operation")
+    parser.add_argument("--discovery-path", help="Cypress path for discovery files and logs, "
+                                                 "the same path must be used in find-spark-cluster. "
+                                                 "SPARK_YT_DISCOVERY_PATH env variable is used by default")
+    parser.add_argument("--pool", help="Pool for the underlying YT operation")
+    parser.add_argument("--spark-worker-tmpfs-limit", default="150G", help="Limit of tmpfs usage per Spark worker")
+    parser.add_argument("--spark-master-memory-limit", default="2G", help="Memory limit on Spark master")
+    parser.add_argument("--spark-history-server-memory-limit", default="8G",
+                        help="Memory limit on Spark History Server")
+    parser.add_argument("--dynamic-config-path", help="YT path of dynamic config")
+
+@copy_docstring_from(yt.find_spark_cluster)
+def find_spark_cluster_handler(*args, **kwargs):
+    spark_cluster = yt.find_spark_cluster(*args, **kwargs)
+    print("Master: {}".format(spark_cluster.master_endpoint))
+    print("Master Web UI: http://{}/".format(spark_cluster.master_web_ui_url))
+    print("Master REST API Endpoint: {}".format(spark_cluster.master_rest_endpoint))
+    print("Operation: {}".format(spark_cluster.operation_url()))
+    print("Spark History Server: http://{}/".format(spark_cluster.shs_url))
+
+def add_find_spark_cluster_parser(add_parser):
+    parser = add_parser("find-cluster", find_spark_cluster_handler, help="Print URLs of running Spark cluster")
+    parser.add_argument("--discovery-path", help="Cypress path for discovery files and logs, "
+                                                 "the same path must be used in start-spark-cluster. "
+                                                 "SPARK_YT_DISCOVERY_PATH env variable is used by default")
+
+def add_subparser(subparsers, params_argument=True):
+    def extract_help(help, function):
+        if not help:
+            help = function.__doc__.split("\n")[0]
+        pythonic_help = help.strip(" .")
+        pythonic_help = pythonic_help[0].lower() + pythonic_help[1:]
+        return pythonic_help
+
+    def add_parser(command_name, function=None, help=None, pythonic_help=None, *args, **kwargs):
+        if pythonic_help is None:
+            pythonic_help = extract_help(help, function)
+        parser = fix_parser(subparsers.add_parser(command_name, *args, description=help, help=pythonic_help, **kwargs))
+        parser.set_defaults(func=function)
+
+        if params_argument:
+            add_structured_argument(parser, "--params", "specify additional params")
+        return parser
+
+    return add_parser
 
 def main():
     config_parser = ArgumentParser(add_help=False)
@@ -1480,22 +1542,7 @@ def main():
     subparsers = parser.add_subparsers(metavar="command")
     subparsers.required = True
 
-    def extract_help(help, function):
-        if not help:
-            help = function.__doc__.split("\n")[0]
-        pythonic_help = help.strip(" .")
-        pythonic_help = pythonic_help[0].lower() + pythonic_help[1:]
-        return pythonic_help
-
-    def add_parser(command_name, function=None, help=None, pythonic_help=None, *args, **kwargs):
-        if pythonic_help is None:
-            pythonic_help = extract_help(help, function)
-        parser = fix_parser(subparsers.add_parser(command_name, *args, description=help,
-                                                  help=pythonic_help, **kwargs))
-        parser.set_defaults(func=function)
-
-        add_structured_argument(parser, "--params", "specify additional params")
-        return parser
+    add_parser = add_subparser(subparsers)
 
     add_exists_parser(add_parser)
     add_list_parser(add_parser)
@@ -1596,6 +1643,7 @@ def main():
     add_download_core_dump_parser(add_parser)
 
     add_acl_parser(subparsers)
+    add_spark_parser(subparsers)
 
     if "_ARGCOMPLETE" in os.environ:
         completers.autocomplete(parser, enable_bash_fallback=False,

@@ -6,7 +6,7 @@ from .dynamic_table_commands import mount_table, unmount_table, reshard_table
 from .cypress_commands import get, exists, copy, create, set
 from .transaction_commands import _make_transactional_request
 from .operation_commands import get_operation_url, abort_operation
-from .http_helpers import get_proxy_url
+from .http_helpers import get_cluster_name
 from .ypath import FilePath
 from .file_commands import smart_upload_file
 from .config import get_config
@@ -89,14 +89,6 @@ def _resolve_alias(operation_alias, client=None):
         return None
 
 
-def _determine_cluster(client=None):
-    proxy_url = get_proxy_url(required=False, client=client)
-    default_suffix = get_config(client)["proxy"]["default_suffix"]
-    if proxy_url is not None and proxy_url.endswith(default_suffix):
-        return proxy_url[:-len(default_suffix)]
-    return None
-
-
 def _format_url(url):
     return to_yson_type(url, attributes={"_type_tag": "url"})
 
@@ -136,7 +128,7 @@ def _build_description(cypress_ytserver_clickhouse_path=None,
         description["previous_operation_id"] = prev_operation_id
         description["previous_operation_url"] = _format_url(get_operation_url(prev_operation_id, client=client))
 
-    cluster = _determine_cluster(client=client)
+    cluster = get_cluster_name(client=client)
 
     # Put link to yql query. It is currently possible to add it only when alias is specified, otherwise we do not have access to operation id.
     # TODO(max42): YT-11115.
