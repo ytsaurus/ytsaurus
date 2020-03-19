@@ -300,7 +300,7 @@ def main():
             log("Failed: {}".format(e))
 
             if args.piecewise:
-                log_warn("Check both \"", path, "\" and \"", piecewise_temp_dir_path(p), "\" and make sure to move everything for the latter to the former, then restore @acl and @inherit_acl to their original values (see above).")
+                log_warn("Check both \"", path, "\" and \"", piecewise_temp_dir_path(p), "\" and make sure to move everything from the latter to the former, then restore @acl and @inherit_acl to their original values (see above).")
             else:
                 undo_inherit_acl(p, inherit_acl)
                 if acl_modified:
