@@ -24,6 +24,10 @@ public:
     //! Aborts for blocked allocator.
     int GetVacancyCount(const TPod* pod) const;
 
+    //! Checks how many overcommitted vacancies are there.
+    //! Aborts for blocked allocator.
+    int GetOvercommittedVacancyCount() const;
+
     //! Allocates vacancies for pod.
     //! Ignores pod validation errors, does not perform overcommit check.
     void Allocate(const TPod* pod);

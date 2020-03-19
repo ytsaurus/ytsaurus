@@ -114,6 +114,62 @@ class TestHeavyScheduler(object):
 
         wait(are_task_counters_initialized, ignore_exceptions=True)
 
+    def test_antiaffinity_healer_profiling(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        create_nodes(
+            yp_client,
+            node_count=1,
+            cpu_total_capacity=1000,
+            memory_total_capacity=2 ** 30,
+            labels=dict(node="node", rack="rack", dc="dc")
+        )
+
+        pod_set_id = create_pod_set(yp_client)
+        pod_ids = [
+            create_pod_with_boilerplate(
+                yp_client,
+                pod_set_id,
+                spec=dict(
+                    enable_scheduling=True,
+                    resource_requests=dict(vcpu_guarantee=100, memory_limit=2 ** 20),
+                ),
+            )
+            for i in range(3)
+        ]
+
+        wait_pods_are_assigned(yp_client, pod_ids)
+
+        yp_client.update_object(
+            "pod_set",
+            pod_set_id,
+            set_updates=[
+                dict(path="/spec/antiaffinity_constraints", value=[
+                    dict(key="node", max_pods=1),
+                    dict(key="rack", max_pods=1),
+                    dict(key="dc", max_pods=1),
+                ])
+            ],
+        )
+
+        monitoring_client = (
+            yp_env_configurable.yp_heavy_scheduler_instance.create_monitoring_client()
+        )
+
+        def are_metrics_initialized():
+            metrics = ("antiaffinity_vacancy_overcommit", "antiaffinity_overcommitted_zones")
+            for metric in metrics:
+                samples = json.loads(
+                    monitoring_client.get("/profiling/heavy_scheduler/{}".format(metric))
+                )
+                expected_value = 2 if metric == "antiaffinity_vacancy_overcommit" else 1
+                for zone_key in ("node", "rack", "dc"):
+                    zone_samples = [s for s in samples if s["tags"]["zone_key"] == zone_key]
+                    assert len(zone_samples) > 0 and zone_samples[-1]["value"] == expected_value
+            return True
+
+        wait(are_metrics_initialized, ignore_exceptions=True)
+
     def _prepare_strategy_test_segment(self, yp_client, node_segment_id):
         def create_pods(count, cpu, memory):
             pod_ids = []

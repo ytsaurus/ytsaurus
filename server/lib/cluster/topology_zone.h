@@ -30,6 +30,11 @@ public:
     //! Returns nullopt if result cannot be determined (e.g. in case of previous errors).
     std::optional<int> TryEstimateAntiaffinityVacancyCount(const TPod* pod) const;
 
+    //! Returns a lower bound for overcommitted antiaffinity vacancy count.
+    //! For some vacancy allocators result could be impossible to determine
+    //! (e.g. in case of previous errors), so they are not counted.
+    int EstimateOvercommittedVacancyCount() const;
+
 private:
     const TString Key_;
     const TString Value_;

@@ -16,6 +16,7 @@
 
 #include <yp/client/api/native/helpers.h>
 
+#include <yt/core/profiling/profile_manager.h>
 #include <yt/core/misc/finally.h>
 
 #include <util/random/shuffle.h>
@@ -122,14 +123,13 @@ private:
     THeavyScheduler* const HeavyScheduler_;
     const TAntiaffinityHealerConfigPtr Config_;
 
-    int AntiaffinityOvercommitCount_;
-
     struct TProfiling
     {
-        NProfiling::TSimpleGauge AntiaffinityOvercommitCount{"/antiaffinity_overcommit_count"};
+        NProfiling::TSimpleGauge AntiaffinityVacancyOvercommit;
+        NProfiling::TSimpleGauge AntiaffinityOvercommittedZones;
     };
 
-    TProfiling Profiling_;
+    THashMap<TString, TProfiling> ProfilingPerZoneKey_;
 
     void GuardedRun(const TClusterPtr& cluster)
     {
@@ -137,19 +137,68 @@ private:
         Shuffle(podSets.begin(), podSets.end());
         int podsLeft = Config_->PodsPerIterationSoftLimit;
 
-        AntiaffinityOvercommitCount_ = 0;
-        auto finally = Finally([this] () {
-            Profiler.Update(Profiling_.AntiaffinityOvercommitCount, AntiaffinityOvercommitCount_);
-        });
+        CollectProfiling(cluster);
 
         for (const auto& podSet : podSets) {
-            bool dryRun = podsLeft <= 0;
+            if (podsLeft <= 0) {
+                break;
+            }
             podsLeft -= static_cast<int>(podSet->SchedulablePods().size());
-            CreatePodSetTasks(podSet, dryRun);
+            CreatePodSetTasks(podSet);
         }
     }
 
-    void CreatePodSetTasks(TPodSet* podSet, bool dryRun)
+    void CollectProfiling(const TClusterPtr& cluster)
+    {
+        struct TAntiaffinityOvercommitCounts
+        {
+            ui64 VacancyOvercommit;
+            ui64 OvecommittedZones;
+        };
+
+        THashMap<TString, TAntiaffinityOvercommitCounts> countsPerZoneKey;
+
+        for (auto* node : cluster->GetNodes()) {
+            for (auto* zone : node->TopologyZones()) {
+                auto countsIt = countsPerZoneKey.find(zone->GetKey());
+                if (countsIt == countsPerZoneKey.end()) {
+                    countsIt = countsPerZoneKey.insert({zone->GetKey(), {0, 0}}).first;
+                }
+                int vacancyOvercommit = zone->EstimateOvercommittedVacancyCount();
+                if (vacancyOvercommit > 0) {
+                    auto& counts = countsIt->second;
+                    ++counts.OvecommittedZones;
+                    counts.VacancyOvercommit += vacancyOvercommit;
+                }
+            }
+        }
+
+        for (const auto& [zoneKey, counts] : countsPerZoneKey) {
+            auto profilingIt = ProfilingPerZoneKey_.find(zoneKey);
+            if (profilingIt == ProfilingPerZoneKey_.end()) {
+                auto tagId = NProfiling::TProfileManager::Get()->RegisterTag("zone_key", zoneKey);
+                TProfiling zoneKeyProfiling = {
+                    NProfiling::TSimpleGauge("/antiaffinity_vacancy_overcommit", {tagId}),
+                    NProfiling::TSimpleGauge("/antiaffinity_overcommitted_zones", {tagId})};
+                profilingIt = ProfilingPerZoneKey_.insert({zoneKey, zoneKeyProfiling}).first;
+            }
+            auto& profiling = profilingIt->second;
+            Profiler.Update(profiling.AntiaffinityVacancyOvercommit, counts.VacancyOvercommit);
+            Profiler.Update(profiling.AntiaffinityOvercommittedZones, counts.OvecommittedZones);
+        }
+
+        std::vector<TString> savedZoneKeys;
+        for (const auto& [zoneKey, _] : ProfilingPerZoneKey_) {
+            savedZoneKeys.push_back(zoneKey);
+        }
+        for (const auto& zoneKey : savedZoneKeys) {
+            if (countsPerZoneKey.find(zoneKey) == countsPerZoneKey.end()) {
+                ProfilingPerZoneKey_.erase(zoneKey);
+            }
+        }
+    }
+
+    void CreatePodSetTasks(TPodSet* podSet)
     {
         auto topologyZonePods = GetTopologyZonePods(podSet);
 
@@ -197,8 +246,7 @@ private:
                         pod->GetId(),
                         podSet->GetId(),
                         *zone);
-                    ++AntiaffinityOvercommitCount_;
-                    if (!dryRun && !disruptionThrottler->ThrottleEviction(pod))
+                    if (!disruptionThrottler->ThrottleEviction(pod))
                     {
                         if (taskManager->GetTaskSlotCount(ETaskSource::AntiaffinityHealer) > 0) {
                             auto task = CreateEvictionTask(HeavyScheduler_->GetClient(),

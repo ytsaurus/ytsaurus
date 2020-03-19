@@ -101,6 +101,23 @@ int TAntiaffinityVacancyAllocator::GetVacancyCount(const TPod* pod) const
     return vacancyCount;
 }
 
+int TAntiaffinityVacancyAllocator::GetOvercommittedVacancyCount() const
+{
+    // Result for the blocked antiaffinity allocator cannot be properly defined.
+    YT_VERIFY(!Blocked_);
+
+    int commonOvercommittedVacancyCount = std::max(0, CommonVacancyCount_ - CommonVacancyLimit_);
+
+    int shardedOvercommittedVacancyCount = 0;
+    for (const auto& [groupId, vacancyCount] : GroupVacancyCount_) {
+        auto vacancyLimitIt = GroupIdPathVacancyLimit_.find(groupId.first);
+        YT_VERIFY(vacancyLimitIt != GroupIdPathVacancyLimit_.end());
+        shardedOvercommittedVacancyCount += std::max(0, vacancyCount - vacancyLimitIt->second);
+    }
+
+    return std::max(commonOvercommittedVacancyCount, shardedOvercommittedVacancyCount);
+}
+
 void TAntiaffinityVacancyAllocator::Allocate(const TPod* pod)
 {
     CommonVacancyCount_ += 1;

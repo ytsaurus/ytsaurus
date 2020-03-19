@@ -67,6 +67,17 @@ std::optional<int> TTopologyZone::TryEstimateAntiaffinityVacancyCount(const TPod
     return allocator.GetVacancyCount(pod);
 }
 
+int TTopologyZone::EstimateOvercommittedVacancyCount() const
+{
+    int result = 0;
+    for (const auto& [podSet, allocator] : PodSetVacancyAllocators_) {
+        if (!allocator.IsBlocked()) {
+            result += allocator.GetOvercommittedVacancyCount();
+        }
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void FormatValue(TStringBuilderBase* builder, const TTopologyZone& zone, TStringBuf /*format*/)
