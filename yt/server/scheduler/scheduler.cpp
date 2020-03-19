@@ -2622,28 +2622,34 @@ private:
         return Combine(asyncResults);
     }
 
+    void BuildOperationOrchid(const TOperationPtr& operation, IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto agent = operation->FindAgent();
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation))
+                .DoIf(static_cast<bool>(agent), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("agent_id").Value(agent->GetId());
+                })
+                .OptionalItem("alias", operation->Alias())
+                .Item("progress").BeginMap()
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_, operation->GetId()))
+                .EndMap()
+                .Item("brief_progress").BeginMap()
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_, operation->GetId()))
+                .EndMap()
+            .EndMap();
+    }
+
     IYPathServicePtr CreateOperationOrchidService(const TOperationPtr& operation)
     {
-        auto createProducer = [&] (void (ISchedulerStrategy::*method)(TOperationId operationId, TFluentMap fluent)) {
-            return IYPathService::FromProducer(BIND([this, operation, method] (IYsonConsumer* consumer) {
-                BuildYsonFluently(consumer)
-                    .BeginMap()
-                        .Do(BIND(method, Strategy_, operation->GetId()))
-                    .EndMap();
-            }));
-        };
-
-        auto attributesService = IYPathService::FromProducer(BIND(&TImpl::BuildOperationAttributes, Unretained(this), operation))
+        auto operationOrchidProducer = BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation);
+        return IYPathService::FromProducer(operationOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::Orchid));
-
-        auto progressAttributesService = New<TCompositeMapService>()
-            ->AddChild("progress", createProducer(&ISchedulerStrategy::BuildOperationProgress))
-            ->AddChild("brief_progress", createProducer(&ISchedulerStrategy::BuildBriefOperationProgress))
-            ->Via(GetControlInvoker(EControlQueue::Orchid));
-
-        return New<TServiceCombiner>(
-            std::vector<IYPathServicePtr>{attributesService, progressAttributesService},
-            Config_->OrchidKeysUpdatePeriod);
     }
 
     void RegisterOperationAlias(const TOperationPtr& operation)
@@ -3304,23 +3310,6 @@ private:
             builder.AppendString(operation->GetSuspiciousJobs().GetData());
         }
         return TYsonString(builder.Flush(), EYsonType::MapFragment);
-    }
-
-    void BuildOperationAttributes(const TOperationPtr& operation, IYsonConsumer* consumer)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto agent = operation->FindAgent();
-
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation))
-                .DoIf(static_cast<bool>(agent), [&] (TFluentMap fluent) {
-                    fluent
-                        .Item("agent_id").Value(agent->GetId());
-                })
-                .OptionalItem("alias", operation->Alias())
-            .EndMap();
     }
 
     void BuildStaticOrchid(IYsonConsumer* consumer)
