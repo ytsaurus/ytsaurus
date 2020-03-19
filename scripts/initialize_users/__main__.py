@@ -717,18 +717,42 @@ def initialize_users(cluster, dry_run):
             # YPSUPPORT-69
             add_schema_permissions(client, "dns_record_set", User("robot-dns"), right_c)
 
-        # YPSUPPORT-49
         if cluster in ("sas-test", "man-pre"):
+            # YPSUPPORT-49
             add_schema_permissions(client, "stage", User("robot-deploy-auth-t"), right_rw)
             add_schema_permissions(client, "account", User("robot-deploy-auth-t"), right_u)
+
+            # YPSUPPORT-74
+            add_schema_permissions(client, "project", User("robot-deploy-auth-t"), right_rw)
+
         if cluster == "xdc":
+            # YPSUPPORT-49
             add_schema_permissions(client, "stage", User("robot-deploy-auth"), right_rw)
             add_schema_permissions(client, "account", User("robot-deploy-auth"), right_u)
+
+            # YPSUPPORT-74
+            add_schema_permissions(client, "project", User("robot-deploy-auth"), right_rw)
 
         # YPSUPPORT-48
         if cluster in ("sas-test", "man-pre"):
             add_schema_permissions(
                 client, "resource_cache", Group("abc:service-scope:3494:5"), right_crw,
+            )
+
+        # YPSUPPORT-70
+        add_schema_permissions(
+            client, "resource_cache", User("robot-rcc"), right_rw,
+        )
+
+        # YPSUPPORT-71
+        add_schema_permissions(
+            client, "horizontal_pod_autoscaler", User("robot-yd-hpa-ctl"), right_rw,
+        )
+
+        # YPSUPPORT-72
+        if cluster == "xdc":
+            add_schema_permissions(
+                client, "dns_record_set", User("mcden"), right_crw,
             )
 
         create_accounts(client, cluster, accounts)
