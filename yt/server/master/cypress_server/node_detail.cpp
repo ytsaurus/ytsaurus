@@ -159,7 +159,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
     if (node->GetExternalCellTag() != NotReplicatedCellTag) {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->LockNode(
-            node,
+            node->GetTrunkNode(),
             context->GetTransaction(),
             context->GetMode() == ENodeCloneMode::Copy ? ELockMode::Snapshot : ELockMode::Exclusive);
     }
