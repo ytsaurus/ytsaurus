@@ -836,6 +836,16 @@ private:
                 return;
             }
         }
+        if (Config_->TestJobErrorTruncation) {
+            auto error = FromProto<TError>(jobResult.error());
+            if (!error.IsOK()) {
+                for (int index = 0; index < 10; ++index) {
+                    error.InnerErrors().push_back(TError("Test error " + ToString(index)));
+                }
+                ToProto(jobResult.mutable_error(), error);
+                YT_LOG_DEBUG(error, "TestJobErrorTruncation");
+            }
+        }
 
         {
             auto error = FromProto<TError>(jobResult.error());
@@ -1158,12 +1168,6 @@ private:
 
         auto error = FromProto<TError>(JobResult_->error());
 
-        if (!error.IsOK()) {
-            // NB: it is required to report error that occurred in some place different
-            // from OnJobFinished method.
-            ReportStatistics(TNodeJobReport().Error(error));
-        }
-
         if (error.IsOK()) {
             SetJobState(EJobState::Completed);
         } else if (IsFatalError(error)) {
@@ -1179,6 +1183,12 @@ private:
             } else {
                 SetJobState(EJobState::Failed);
             }
+        }
+
+        if (!error.IsOK()) {
+            // NB: it is required to report error that occurred in some place different
+            // from OnJobFinished method.
+            ReportStatistics(TNodeJobReport().Error(error));
         }
 
         YT_LOG_INFO(error, "Setting final job state (JobState: %v)", GetState());
