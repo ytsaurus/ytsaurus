@@ -57,6 +57,29 @@ default_action = {"type": "on_hold", "reason": "ON_HOLD", "message": "hold"}
 default_docker_resource = {"name": "default", "tag": "default"}
 
 
+def get_default_stage_spec():
+    return {
+        "revision": 1,
+        "deploy_units": {
+            deploy_unit: {
+                "replica_set": {
+                    "replica_set_template": {
+                        "pod_template_spec": {
+                            "spec": {
+                                "pod_agent_payload": {
+                                    "spec": {
+                                        "resources": {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    }
+
+
 def create_deploy_ticket_object(yp_client, stage_id, release_id, release_rule_id, patches):
     return yp_client.create_object(
         "deploy_ticket",
@@ -70,23 +93,32 @@ def create_deploy_ticket_object(yp_client, stage_id, release_id, release_rule_id
             "status": {
                 "action": default_action,
                 "patches": {
-                    deploy_patch1: {"action": default_action},
-                    deploy_patch2: {"action": default_action},
-                    deploy_patch3: {"action": default_action},
+                    patch_id: {"action": default_action} for patch_id in patches.keys()
                 },
             },
         },
     )
 
 
-def prepare_sandbox_resources_objects(yp_client):
-    def create_release_static_resource(resource_id, resource_type, file_md5, skynet_id):
-        return {
-            "resource_id": resource_id,
-            "type": resource_type,
-            "file_md5": file_md5,
-            "skynet_id": skynet_id,
+def create_release_static_resource(resource_id, resource_type, file_md5, skynet_id):
+    return {
+        "resource_id": resource_id,
+        "type": resource_type,
+        "file_md5": file_md5,
+        "skynet_id": skynet_id,
+    }
+
+
+def create_sandbox_deploy_patch(resource_type, resource_key, resource_ref):
+    return {
+        "sandbox": {
+            "sandbox_resource_type": resource_type,
+            "static": {"deploy_unit_id": deploy_unit, resource_key: resource_ref},
         }
+    }
+
+
+def prepare_sandbox_resources_objects(yp_client):
 
     release_id = yp_client.create_object(
         "release",
@@ -128,54 +160,30 @@ def prepare_sandbox_resources_objects(yp_client):
             "meta": {"sandbox_resource": {}},
         }
 
+    spec_with_resources = get_default_stage_spec()
+    spec_with_resources["deploy_units"][deploy_unit]["replica_set"]["replica_set_template"]["pod_template_spec"]["spec"]["pod_agent_payload"]["spec"]["resources"] = {
+        "static_resources": [
+            create_static_resource_default_info(
+                resource_ref1
+            ),
+            create_static_resource_default_info(
+                resource_ref2
+            ),
+        ],
+        "layers": [
+            create_layer_resource_default_info(
+                layer_ref1
+            )
+        ],
+    }
+
     stage_id = yp_client.create_object(
         "stage",
         attributes={
             "meta": {"id": "stage-id"},
-            "spec": {
-                "revision": 1,
-                "deploy_units": {
-                    deploy_unit: {
-                        "replica_set": {
-                            "replica_set_template": {
-                                "pod_template_spec": {
-                                    "spec": {
-                                        "pod_agent_payload": {
-                                            "spec": {
-                                                "resources": {
-                                                    "static_resources": [
-                                                        create_static_resource_default_info(
-                                                            resource_ref1
-                                                        ),
-                                                        create_static_resource_default_info(
-                                                            resource_ref2
-                                                        ),
-                                                    ],
-                                                    "layers": [
-                                                        create_layer_resource_default_info(
-                                                            layer_ref1
-                                                        )
-                                                    ],
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-            },
+            "spec": spec_with_resources,
         },
     )
-
-    def create_sandbox_deploy_patch(resource_type, resource_key, resource_ref):
-        return {
-            "sandbox": {
-                "sandbox_resource_type": resource_type,
-                "static": {"deploy_unit_id": deploy_unit, resource_key: resource_ref},
-            }
-        }
 
     patches = {
         deploy_patch1: create_sandbox_deploy_patch(
@@ -1153,3 +1161,64 @@ class TestCommitDeployTicket(object):
             patch_action_state2=default_action,
             stage_revision=1,
         )
+
+    def test_error_when_empty_resources_in_deploy_unit(
+        self, yp_env_configurable
+    ):
+        yp_client = yp_env_configurable.yp_client
+
+        release_id = yp_client.create_object(
+            "release",
+            attributes={
+                "spec": {
+                    "sandbox": {
+                        "task_id": sandbox_task_id,
+                        "task_type": sandbox_task_type,
+                        "release_type": "test-release-type",
+                        "resources": [
+                            create_release_static_resource(
+                                sandbox_resource_id1, resource_type1, new_md5, new_skynet_id
+                            ),
+                        ],
+                    }
+                }
+            },
+        )
+
+        stage_id = yp_client.create_object(
+            "stage",
+            attributes={
+                "meta": {"id": "stage-id"},
+                "spec": get_default_stage_spec(),
+            },
+        )
+
+        patches = {
+            deploy_patch1: create_sandbox_deploy_patch(
+                resource_type1, "static_resource_ref", resource_ref1
+            ),
+        }
+
+        release_rule_id = yp_client.create_object(
+            "release_rule",
+            attributes={
+                "meta": {"id": "release-rule", "stage_id": stage_id},
+                "spec": {"sandbox": {"task_type": sandbox_task_type}, "patches": patches},
+            },
+        )
+
+        ticket_id = create_deploy_ticket_object(
+            yp_client, stage_id, release_id, release_rule_id, patches
+        )
+
+        with pytest.raises(YtResponseError) as e:
+            yp_client.commit_deploy_ticket(
+                ticket_id=ticket_id,
+                type="full",
+                message="commit ticket",
+                reason="COMMITTED",
+            )
+
+            assert 'Static resource id "{}" does not exist in deploy unit "{}", stage "{}"'.format(
+                resource_ref1, deploy_unit, stage_id
+            ) in str(e)

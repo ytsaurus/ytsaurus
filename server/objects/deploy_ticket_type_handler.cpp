@@ -250,7 +250,7 @@ private:
     {
         auto staticResourceIt = resourceIdToResource.find(resourceRef);
         if (staticResourceIt == resourceIdToResource.end()) {
-            THROW_ERROR_EXCEPTION("%Qv id %Qv does not exist in deploy unit %Qv, stage %Qv",
+            THROW_ERROR_EXCEPTION("%v id %Qv does not exist in deploy unit %Qv, stage %Qv",
                 resourceDescription,
                 resourceRef,
                 deployUnitId,
@@ -362,6 +362,8 @@ private:
         for (auto& deployUnitIdToSpec : *stage->Spec().Etc()->mutable_deploy_units()) {
 
             const auto& deployUnitId = deployUnitIdToSpec.first;
+            staticResources[deployUnitId] = {};
+
             auto& deployUnitSpec = deployUnitIdToSpec.second;
 
             auto* podTemplateSpec = deployUnitSpec.has_replica_set()
