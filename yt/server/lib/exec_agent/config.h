@@ -303,9 +303,13 @@ public:
 
     TDuration JobAbortionTimeout;
 
-    //! Do not create L3 virtual interface in porto container.
     //! This option is used for testing purposes only.
+    //! Do not create L3 virtual interface in porto container.
     bool TestNetwork;
+
+    //! This option is used for testing purposes only.
+    //! Adds inner errors for failed jobs.
+    bool TestJobErrorTruncation;
 
     NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
 
@@ -354,6 +358,9 @@ public:
             .Default(TDuration::Minutes(15));
 
         RegisterParameter("test_network", TestNetwork)
+            .Default(false);
+
+        RegisterParameter("test_job_error_truncation", TestJobErrorTruncation)
             .Default(false);
 
         RegisterParameter("core_watcher", CoreWatcher)

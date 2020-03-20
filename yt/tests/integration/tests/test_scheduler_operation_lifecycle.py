@@ -1081,7 +1081,8 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
                 "reporting_period": 10,
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
-            }
+            },
+            "test_job_error_truncation": True
         },
     }
 
@@ -1114,34 +1115,19 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
         write_table("//tmp/t_in", {"foo": "bar"})
 
         op = map(
-            command=with_breakpoint("BREAKPOINT; echo '{foo=bar}'"),
+            command=with_breakpoint("BREAKPOINT; echo '{foo=bar}'; exit 1"),
             in_=["//tmp/t_in"],
             out="//tmp/t_out",
             spec={
-                "testing": {
-                    "delay_inside_revive": 10000,
-                }
+                "max_failed_job_count": 1
             },
             track=False)
 
         wait(lambda: op.get_running_jobs())
         running_job = op.get_running_jobs().keys()[0]
 
-        time.sleep(5)
-
-        with Restarter(self.Env, MASTERS_SERVICE):
-            time.sleep(10)
-            release_breakpoint()
-            time.sleep(50)
-
-        def is_job_aborted():
-            try:
-                job_info = get_job(job_id=running_job, operation_id=op.id)
-                return job_info["state"] == "aborted"
-            except YtError:
-                return False
-
-        wait(is_job_aborted)
+        release_breakpoint()
+        op.track(raise_on_failed=False)
 
         def find_truncated_errors(error):
             assert len(error.get("inner_errors", [])) <= 2
