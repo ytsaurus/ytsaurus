@@ -61,8 +61,11 @@ class SchedulerCluster(SchedulerClusterBase):
     def get_by_type(self, type_):
         return getattr(self, self._get_attribute_name_by_type(type_))
 
-    def replace_by_type(self, type_, objects):
-        return self._replace(**{self._get_attribute_name_by_type(type_): objects})
+    def replace(self, **kwargs):
+        # TODO: Figure out, why we cannot use namedtuple._replace.
+        fields = {field: getattr(self, field) for field in self._fields}
+        fields.update(kwargs)
+        return self.__class__(**fields)
 
     @staticmethod
     def _get_attribute_name_by_type(type_):

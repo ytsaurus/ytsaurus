@@ -105,9 +105,7 @@ class SchedulerObjectsHistory(SchedulerCluster):
         if lost > limit:
             raise RuntimeError("Dropped pods limit exceeded: {}".format(lost))
 
-        fields = {field: getattr(self, field) for field in self._fields}
-        fields.update(dict(pods=pods))
-        return self.__class__(**fields)
+        return self.replace(pods=pods)
 
     def drop_internet_address_requests(self):
         logging.info("Dropping pods internet address requests")
@@ -136,9 +134,50 @@ class SchedulerObjectsHistory(SchedulerCluster):
         if lost > limit:
             raise RuntimeError("Dropped pods limit exceeded: {}".format(lost))
 
-        fields = {field: getattr(self, field) for field in self._fields}
-        fields.update(dict(pods=pods))
-        return self.__class__(**fields)
+        return self.replace(pods=pods)
+
+    def drop_non_up_nodes(self):
+        logging.info("Dropping non-up nodes")
+
+        remained_nodes = []
+        for node in self.nodes:
+            if node["status"].get("hfsm", {}).get("state", "unknown") == "up":
+                remained_nodes.append(node)
+
+        dropped_node_count = len(self.nodes) - len(remained_nodes)
+        if dropped_node_count <= 0:
+            logging.info("No non-up nodes found")
+            return
+        logging.warn("Dropping %d non-up nodes", dropped_node_count)
+
+        node_ids = set()
+        for node in remained_nodes:
+            node_ids.add(node["meta"]["id"])
+
+        remained_resources = []
+        for resource in self.resources:
+            if resource["meta"]["node_id"] in node_ids:
+                remained_resources.append(resource)
+
+        dropped_resource_count = len(self.resources) - len(remained_resources)
+        if dropped_resource_count > 0:
+            logging.warn("Dropping %d resources of non-up nodes", dropped_resource_count)
+
+        remained_pods = []
+        for pod in self.pods:
+            node_id = pod["spec"].get("node_id")
+            if not node_id or node_id in node_ids:
+                remained_pods.append(pod)
+
+        dropped_pod_count = len(self.pods) - len(remained_pods)
+        if dropped_pod_count > 0:
+            logging.warn("Dropping %d pods of non-up nodes", dropped_pod_count)
+
+        return self.replace(
+            nodes=remained_nodes,
+            resources=remained_resources,
+            pods=remained_pods
+        )
 
 
 def extract_attributes(obj, attrs):
