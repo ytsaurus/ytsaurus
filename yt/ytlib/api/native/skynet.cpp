@@ -48,6 +48,9 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     auto Logger = NLogging::TLogger(ApiLogger)
         .AddTag("Path: %v", richPath.GetPath());
 
+    TGetUserObjectBasicAttributesOptions getAttributesOptions;
+    getAttributesOptions.ChannelKind = EMasterChannelKind::Cache;
+
     TUserObject userObject(richPath);
 
     GetUserObjectBasicAttributes(
@@ -55,7 +58,8 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         {&userObject},
         NullTransactionId,
         ChunkClientLogger,
-        EPermission::Read);
+        EPermission::Read,
+        getAttributesOptions);
 
     if (userObject.Type != EObjectType::Table) {
         THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
@@ -71,7 +75,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     {
         YT_LOG_INFO("Requesting chunk count");
 
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
         TObjectServiceProxy proxy(channel);
 
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
