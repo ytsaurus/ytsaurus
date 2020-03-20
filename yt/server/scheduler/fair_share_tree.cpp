@@ -129,6 +129,14 @@ auto TFairShareTree<TFairShareImpl>::TRootElementSnapshot::FindOperationElement(
 }
 
 template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TRootElementSnapshot::FindDisabledOperationElement(
+    TOperationId operationId) const -> TOperationElement*
+{
+    auto it = DisabledOperationIdToElement.find(operationId);
+    return it != DisabledOperationIdToElement.end() ? it->second : nullptr;
+}
+
+template <class TFairShareImpl>
 auto TFairShareTree<TFairShareImpl>::TRootElementSnapshot::FindPool(const TString& poolName) const -> TPool*
 {
     auto it = PoolNameToElement.find(poolName);
@@ -215,16 +223,32 @@ auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::ProfileFairShare() 
 }
 
 template <class TFairShareImpl>
-bool TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::HasOperation(TOperationId operationId) const
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::HasOperation(TOperationId operationId) const -> bool
 {
     auto* operationElement = RootElementSnapshot_->FindOperationElement(operationId);
     return operationElement != nullptr;
 }
 
 template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::IsOperationRunningInTree(TOperationId operationId) const -> bool
+{
+    if (auto* element = RootElementSnapshot_->FindOperationElement(operationId)) {
+        auto res = element->IsOperationRunningInPool();
+        return res;
+    }
+
+    if (auto* element = RootElementSnapshot_->FindDisabledOperationElement(operationId)) {
+        auto res = element->IsOperationRunningInPool();
+        return res;
+    }
+
+    return false;
+}
+
+template <class TFairShareImpl>
 auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::IsOperationDisabled(TOperationId operationId) const -> bool
 {
-    return RootElementSnapshot_->DisabledOperations.contains(operationId);
+    return RootElementSnapshot_->DisabledOperationIdToElement.contains(operationId);
 }
 
 template <class TFairShareImpl>
@@ -246,7 +270,7 @@ auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::GetMaybeStateSnapsh
     if (auto* element = RootElementSnapshot_->FindPool(poolId)) {
         return TSchedulerElementStateSnapshot{
             element->ResourceDemand(),
-            element->GetMinShareResources()};
+            element->Attributes().GetGuaranteedResourcesRatio()};
     }
 
     return std::nullopt;
@@ -1176,8 +1200,8 @@ auto TFairShareTree<TFairShareImpl>::DoFairShareUpdateAt(TInstant now) -> std::p
     auto rootElementSnapshot = New<TRootElementSnapshot>();
     rootElement->BuildElementMapping(
         &rootElementSnapshot->OperationIdToElement,
-        &rootElementSnapshot->PoolNameToElement,
-        &rootElementSnapshot->DisabledOperations);
+        &rootElementSnapshot->DisabledOperationIdToElement,
+        &rootElementSnapshot->PoolNameToElement);
 
     // Update starvation flags for operations and pools.
     for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {

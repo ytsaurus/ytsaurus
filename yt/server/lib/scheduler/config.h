@@ -207,8 +207,8 @@ public:
     //! Tentative pool trees used by default for operations that specified 'UseDefaultTentativePoolTrees' options.
     THashSet<TString> DefaultTentativePoolTrees;
 
-    //! Strength of min share ratio regularization in heuristic value computation in TFairShareStrategy::ChooseBestSingleTreeForOperation.
-    double BestTreeHeuristicRegularizationValue;
+    //! Enables the "schedule_in_single_tree" operation spec option cluster-wide.
+    bool EnableScheduleInSingleTree;
 
     TFairShareStrategyConfig();
 };

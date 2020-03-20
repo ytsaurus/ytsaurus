@@ -277,11 +277,12 @@ private:
     {
         TRootElementPtr RootElement;
         TRawOperationElementMap OperationIdToElement;
+        TRawOperationElementMap DisabledOperationIdToElement;
         TRawPoolMap PoolNameToElement;
         TFairShareStrategyTreeConfigPtr Config;
-        THashSet<TOperationId> DisabledOperations;
 
         TOperationElement* FindOperationElement(TOperationId operationId) const;
+        TOperationElement* FindDisabledOperationElement(TOperationId operationId) const;
         TPool* FindPool(const TString& poolName) const;
     };
 
@@ -311,6 +312,8 @@ private:
         virtual void ProfileFairShare() const override;
 
         virtual bool HasOperation(TOperationId operationId) const override;
+
+        virtual bool IsOperationRunningInTree(TOperationId operationId) const override;
 
         virtual bool IsOperationDisabled(TOperationId operationId) const override;
 

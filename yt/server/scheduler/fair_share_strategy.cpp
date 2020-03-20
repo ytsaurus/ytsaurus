@@ -864,60 +864,62 @@ public:
         auto snapshots = TreeIdToSnapshot_.Load();
 
         // NB(eshcherbin):
-        // 1) currentDemand and minShareResources are the current resource demand and guarantee in the given pool.
-        // 2) newDemand is the demand of the given operation.
-        // 3) fullDemandRatio and minShareRatio are the dominant resource ratios of (currentDemand + newDemand) and minShareResources correspondingly.
-        // 4) regularizedDemandToMinShareRatio := fullDemandRatio / (regularizationValue + minShareRatio).
-        // We search for the tree with the minimal regularizedDemandToMinShareRatio.
+        // First, we ignore all trees in which the new operation is not marked running.
+        // Then for every candidate pool we model the case if the new operation is assigned to it:
+        // 1) We add the pool's current demand and the operation's demand to get the model demand.
+        // 2) We calculate reserveRatio, defined as (guaranteedResourcesRatio - modelDemandRatio).
+        // Finally, we choose the pool with the maximum reserveRatio.
         TString bestTree;
-        auto bestRegularizedDemandToMinShareRatio = std::numeric_limits<double>::max();
+        auto bestReserveRatio = std::numeric_limits<double>::lowest();
         for (const auto& [treeId, poolName] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
             YT_VERIFY(snapshots.contains(treeId));
             auto snapshot = snapshots[treeId];
 
-            auto totalResourceLimits = snapshot->GetTotalResourceLimits();
-            TJobResources currentDemand;
-            TJobResources minShareResources;
-
-            // If pool is not present in the snapshot (e.g. due to poor timings or if it is an ephemeral pool),
-            // then its demand and min share resources are considered to be zero.
-            if (auto poolStateSnapshot = snapshot->GetMaybeStateSnapshotForPool(poolName.GetPool()))
-            {
-                currentDemand = poolStateSnapshot->ResourceDemand;
-                minShareResources = poolStateSnapshot->MinShareResources;
+            if (!snapshot->IsOperationRunningInTree(operationId)) {
+                continue;
             }
 
-            auto fullDemandRatio = GetMaxResourceRatio(newDemand + currentDemand, totalResourceLimits);
-            auto minShareRatio = GetMaxResourceRatio(minShareResources, totalResourceLimits);
-            auto regularizedDemandToMinShareRatio = fullDemandRatio / (Config->BestTreeHeuristicRegularizationValue + minShareRatio);
+            auto totalResourceLimits = snapshot->GetTotalResourceLimits();
+            TJobResources currentDemand;
+            double guaranteedResourcesRatio = 0;
+
+            // If pool is not present in the snapshot (e.g. due to poor timings or if it is an ephemeral pool),
+            // then its demand and guaranteed resources ratio are considered to be zero.
+            if (auto poolStateSnapshot = snapshot->GetMaybeStateSnapshotForPool(poolName.GetPool())) {
+                currentDemand = poolStateSnapshot->ResourceDemand;
+                guaranteedResourcesRatio = poolStateSnapshot->GuaranteedResourcesRatio;
+            }
+
+            auto modelDemand = newDemand + currentDemand;
+            auto modelDemandRatio = GetMaxResourceRatio(modelDemand, totalResourceLimits);
+            auto reserveRatio = guaranteedResourcesRatio - modelDemandRatio;
 
             // TODO(eshcherbin): This is rather verbose. Consider removing when well tested in production.
             YT_LOG_DEBUG(
                 "Considering candidate single tree for operation (OperationId: %v, Tree: %v, "
-                "NewDemand: %v, CurrentDemand: %v, MinShareResources: %v, TotalResourceLimits: %v, "
-                "FullDemandRatio: %v, MinShareRatio: %v, RegularizedDemandToMinShareRatio: %v)",
+                "NewDemand: %v, CurrentDemand: %v, ModelDemand: %v, TotalResourceLimits: %v, "
+                "ModelDemandRatio: %v, GuaranteedResourcesRatio: %v, ReserveRatio: %v)",
                 operationId,
                 treeId,
                 FormatResources(newDemand),
                 FormatResources(currentDemand),
-                FormatResources(minShareResources),
+                FormatResources(modelDemand),
                 FormatResources(totalResourceLimits),
-                fullDemandRatio,
-                minShareRatio,
-                regularizedDemandToMinShareRatio);
+                modelDemandRatio,
+                guaranteedResourcesRatio,
+                reserveRatio);
 
-            if (regularizedDemandToMinShareRatio < bestRegularizedDemandToMinShareRatio)
-            {
+            if (reserveRatio > bestReserveRatio) {
                 bestTree = treeId;
-                bestRegularizedDemandToMinShareRatio = regularizedDemandToMinShareRatio;
+                bestReserveRatio = reserveRatio;
             }
         }
 
         YT_VERIFY(bestTree);
-        YT_LOG_DEBUG("Chose best single tree for operation (OperationId: %v, BestTree: %v, BestRegularizedDemandToMinShareRatio: %v)",
+        YT_LOG_DEBUG("Chose best single tree for operation (OperationId: %v, BestTree: %v, BestReserveRatio: %v)",
             operationId,
             bestTree,
-            bestRegularizedDemandToMinShareRatio);
+            bestReserveRatio);
 
         return bestTree;
     }
@@ -936,18 +938,6 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         return FairShareUpdateExecutor_->GetExecutedEvent();
-    }
-
-    virtual bool IsOperationTreeSetConsistentWithSnapshots(TOperationId operationId) override
-    {
-        auto snapshots = TreeIdToSnapshot_.Load();
-        for (const auto& [treeId, _] : GetOperationState(operationId)->TreeIdToPoolNameMap()) {
-            if (!snapshots.contains(treeId)) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
 private:

@@ -1138,14 +1138,14 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList*
     }
 }
 
-void TCompositeSchedulerElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
+void TCompositeSchedulerElement::BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap)
 {
     for (const auto& child : EnabledChildren_) {
-        child->BuildElementMapping(operationMap, poolMap, disabledOperations);
+        child->BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
     }
     for (const auto& child : DisabledChildren_) {
         if (child->IsOperation()) {
-            child->BuildElementMapping(operationMap, poolMap, disabledOperations);
+            child->BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
         }
     }
 }
@@ -2198,10 +2198,10 @@ TJobResources TPool::GetSpecifiedResourceLimits() const
     return ToJobResources(Config_->ResourceLimits, TJobResources::Infinite());
 }
 
-void TPool::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
+void TPool::BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap)
 {
     poolMap->emplace(GetId(), this);
-    TCompositeSchedulerElement::BuildElementMapping(operationMap, poolMap, disabledOperations);
+    TCompositeSchedulerElement::BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2768,6 +2768,7 @@ TOperationElement::TOperationElement(
     , Spec_(other.Spec_)
     , OperationElementSharedState_(other.OperationElementSharedState_)
     , Controller_(other.Controller_)
+    , RunningInThisPoolTree_(other.RunningInThisPoolTree_)
     , SchedulingTagFilter_(other.SchedulingTagFilter_)
 { }
 
@@ -3460,12 +3461,12 @@ void TOperationElement::OnJobFinished(TJobId jobId)
     }
 }
 
-void TOperationElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
+void TOperationElement::BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap)
 {
     if (OperationElementSharedState_->Enabled()) {
-        operationMap->emplace(OperationId_, this);
+        enabledOperationMap->emplace(OperationId_, this);
     } else {
-        disabledOperations->insert(OperationId_);
+        disabledOperationMap->emplace(OperationId_, this);
     }
 }
 
