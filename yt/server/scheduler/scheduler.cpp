@@ -1022,13 +1022,22 @@ public:
             NodeAddressToNodeShardId_[address] = nodeId;
         }
 
-        if (unregisterFuture) {
-            WaitFor(unregisterFuture)
-                .ThrowOnError();
-        }
+        auto callProcessHeartbeat = [=] () {
+            const auto& nodeShard = GetNodeShard(nodeId);
+            nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
+        };
 
-        const auto& nodeShard = GetNodeShard(nodeId);
-        nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
+        if (unregisterFuture) {
+            unregisterFuture.Apply(BIND([&] (const TError& error) {
+                if (!error.IsOK()) {
+                    context->Reply(error);
+                    return;
+                }
+                callProcessHeartbeat();
+            }));
+        } else {
+            callProcessHeartbeat();
+        }
     }
 
     // ISchedulerStrategyHost implementation
