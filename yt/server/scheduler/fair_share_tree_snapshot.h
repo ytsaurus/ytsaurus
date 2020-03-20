@@ -9,7 +9,7 @@ namespace NYT::NScheduler {
 struct TSchedulerElementStateSnapshot
 {
     TJobResources ResourceDemand;
-    TJobResources MinShareResources;
+    double GuaranteedResourcesRatio;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,6 +23,7 @@ struct IFairShareTreeSnapshot
     virtual void ProcessUpdatedJob(TOperationId operationId, TJobId jobId, const TJobResources& delta) = 0;
     virtual void ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
     virtual bool HasOperation(TOperationId operationId) const = 0;
+    virtual bool IsOperationRunningInTree(TOperationId operationId) const = 0;
     virtual bool IsOperationDisabled(TOperationId operationId) const = 0;
     virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) = 0;
     virtual void ProfileFairShare() const = 0;

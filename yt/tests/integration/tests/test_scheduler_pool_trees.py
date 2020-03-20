@@ -751,15 +751,11 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         },
     }
 
-    @classmethod
-    def setup_class(cls, test_name=None, run_id=None):
-        super(TestSchedulerScheduleInSingleTree, cls).setup_class()
-
-        sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(cls.Env.create_native_client(), override_tablet_cell_bundle="default")
-
     def setup_method(self, method):
         super(TestSchedulerScheduleInSingleTree, self).setup_method(method)
+
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
         nodes = ls("//sys/cluster_nodes")
         for node, tag in zip(nodes, ["default_tag", "nirvana_tag", "cloud_tag"]):
@@ -767,26 +763,18 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         set("//sys/pool_trees/default/@nodes_filter", "default_tag")
         set("//sys/pool_trees/default/@total_resource_limits_consider_delay", 1000)
-        set("//sys/pool_trees/default/@max_running_operation_count_per_pool", 1)
-        pool_orchid = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info/pools/research"
+        pool_orchid = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info/pools/{}"
         for tree in ["default", "nirvana", "cloud"]:
             if tree != "default":
                 create_pool_tree(tree, attributes={"nodes_filter": tree + "_tag",
                                                    "total_resource_limits_consider_delay": 1000})
             create_pool("research", pool_tree=tree)
-            wait(lambda: exists(pool_orchid.format(tree), verbose_error=True))
-
-    def teardown_method(self, method):
-        super(TestSchedulerScheduleInSingleTree, self).setup_method(method)
-
-        for tree in ["nirvana", "cloud"]:
-            remove_pool_tree(tree, recursive=True)
-        remove("//sys/pool_trees/default/research")
-        set("//sys/pool_trees/default/@nodes_filter", "")
-        set("//sys/pool_trees/default/@max_running_operation_count_per_pool", 50)
-
-        for node in ls("//sys/cluster_nodes"):
-            set("//sys/cluster_nodes/{}/@user_tags".format(node), [])
+            # Create "prodX" pools to spread guaranteed resources ratio.
+            for i in range(9):
+                create_pool("prod" + str(i), pool_tree=tree)
+            wait(lambda: exists(pool_orchid.format(tree, "research"), verbose_error=True))
+            for i in range(9):
+                wait(lambda: exists(pool_orchid.format(tree, "prod" + str(i)), verbose_error=True))
 
     def _get_tree_for_job(self, job):
         node = job["address"]
@@ -912,7 +900,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             set("//sys/cluster_nodes/{}/@user_tags".format(spare_node), [])
 
     @authors("eshcherbin")
-    def test_two_trees_prefer_tree_with_guaranteed_resources(self):
+    def test_prefer_tree_with_min_share_resources(self):
         set("//sys/pool_trees/nirvana/research/@min_share_resources", {"cpu": 3})
         wait(lambda: get_from_tree_orchid("nirvana", "fair_share_info/pools/research/min_share_resources/cpu") == 3.0)
         other_op = run_sleeping_vanilla(spec={"pool_trees": ["nirvana"], "pool": "research"}, job_count=2)
@@ -947,7 +935,6 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         op.wait_fresh_snapshot()
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             erased_trees = get(op.get_path() + "/@erased_trees")
-            assert len(possible_trees) == len(erased_trees) + 1
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id), verbose_error=False) == "running")
         op.wait_for_state("running")
@@ -995,7 +982,59 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         for tree in erased_trees:
             set("//sys/pool_trees/{}/research/@min_share_resources".format(tree), {"cpu": 0})
-    
+
+    @authors("eshcherbin")
+    def test_ignore_trees_where_operation_is_not_running(self):
+        for tree in ["default", "nirvana"]:
+            set("//sys/pool_trees/{}/research/@max_running_operation_count".format(tree), 1)
+            wait(lambda: get_from_tree_orchid(tree, "fair_share_info/pools/research/max_running_operation_count") == 1)
+
+        for busy_tree, expected_tree in [("default", "nirvana"), ("nirvana", "default")]:
+            wait(lambda: get_from_tree_orchid(expected_tree, "fair_share_info/pools/research/resource_demand/cpu") == 0.0)
+            # TODO(eshcherbin): Remove sleep here and above.
+            time.sleep(0.5)
+            other_op = run_sleeping_vanilla(spec={"pool_trees": [busy_tree], "pool": "research"})
+            wait(lambda: get_from_tree_orchid(busy_tree, "fair_share_info/pools/research/resource_demand/cpu") > 0.0)
+            time.sleep(0.5)
+
+            set("//sys/pool_trees/{}/research/@min_share_resources".format(busy_tree), {"cpu": 3})
+            wait(lambda: get_from_tree_orchid(busy_tree, "fair_share_info/pools/research/min_share_resources/cpu") == 3.0)
+
+            spec = {
+                "pool_trees": ["default", "nirvana"],
+                "pool": "research",
+                "schedule_in_single_tree": True
+            }
+            possible_trees = [
+                expected_tree
+            ]
+            self._run_vanilla_and_check_tree(spec, possible_trees)
+
+            other_op.abort()
+            other_op.wait_for_state("aborted")
+            set("//sys/pool_trees/{}/research/@min_share_resources".format(busy_tree), {"cpu": 0})
+
+        for tree in ["default", "nirvana"]:
+            set("//sys/pool_trees/{}/research/@max_running_operation_count".format(tree), 8)
+            wait(lambda: get_from_tree_orchid(tree, "fair_share_info/pools/research/max_running_operation_count") == 8)
+
+    @authors("eshcherbin")
+    def test_global_disable(self):
+        set("//sys/scheduler/config/enable_schedule_in_single_tree", False)
+        wait(lambda: not get(scheduler_orchid_path() + "/scheduler/config/enable_schedule_in_single_tree"))
+
+        job_count = 10
+        possible_trees = ["default", "nirvana", "cloud"]
+        spec = {
+            "pool_trees": possible_trees,
+            "pool": "research",
+            "schedule_in_single_tree": True
+        }
+
+        op = run_test_vanilla("sleep 0.6", job_count=job_count, spec=spec, track=True)
+        wait(lambda: len(list_jobs(op.id)["jobs"]) >= job_count)
+        wait(lambda: get(op.get_path() + "/@erased_trees") == [])
+
 ##################################################################
     
 class TestPoolTreeOperationLimits(YTEnvSetup):

@@ -1098,9 +1098,8 @@ public:
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
             asyncMaterializeResult = operation->GetController()->Materialize();
 
-            bool shouldWaitForFullFairShareUpdate = operation->Spec()->ScheduleInSingleTree &&
-                !Strategy_->IsOperationTreeSetConsistentWithSnapshots(operation->GetId());
-            auto maybeFullFairShareUpdateFinished = shouldWaitForFullFairShareUpdate
+            bool willScheduleInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
+            auto maybeFullFairShareUpdateFinished = willScheduleInSingleTree
                 ? Strategy_->GetFullFairShareUpdateFinished()
                 : VoidFuture;
 
@@ -1156,7 +1155,8 @@ public:
         // (a) only one tree was specified for operation, or
         // (b) scheduler failed/disconnected before persisting ErasedTrees to master,
         //     in which case it's safe to choose the tree once again.
-        if (operation->Spec()->ScheduleInSingleTree && operation->ErasedTrees().empty()) {
+        bool willScheduleInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
+        if (willScheduleInSingleTree && operation->ErasedTrees().empty()) {
             auto chosenTree = Strategy_->ChooseBestSingleTreeForOperation(operation->GetId(), neededResources);
 
             std::vector<TString> treeIdsToUnregister;
