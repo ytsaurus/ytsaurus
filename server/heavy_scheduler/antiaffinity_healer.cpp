@@ -188,7 +188,7 @@ private:
         }
 
         std::vector<TString> savedZoneKeys;
-        for (const auto& [zoneKey, _] : ProfilingPerZoneKey_) {
+        for (const auto& [zoneKey, counts] : ProfilingPerZoneKey_) {
             savedZoneKeys.push_back(zoneKey);
         }
         for (const auto& zoneKey : savedZoneKeys) {
