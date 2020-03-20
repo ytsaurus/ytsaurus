@@ -51,7 +51,7 @@ public:
     Py::Object Shutdown(const Py::Tuple& /*args_*/, const Py::Dict& /*kwargs_*/)
     {
         for (int index = 0; index < MaxAdditionalShutdownCallbackCount; ++index) {
-            auto& callback = BeforeFinalizeShutdownCallbacks[index];
+            const auto& callback = BeforeFinalizeShutdownCallbacks[index];
             if (callback) {
                 callback.Run();
             }
@@ -65,7 +65,7 @@ public:
 void Shutdown()
 {
     for (int index = 0; index < MaxAdditionalShutdownCallbackCount; ++index) {
-        auto& callback = AfterFinalizeShutdownCallbacks[index];
+        const auto& callback = AfterFinalizeShutdownCallbacks[index];
         if (callback) {
             callback.Run();
         }
@@ -74,7 +74,7 @@ void Shutdown()
     NYT::Shutdown();
 
     for (int index = 0; index < MaxAdditionalShutdownCallbackCount; ++index) {
-        auto& callback = AfterShutdownCallbacks[index];
+        const auto& callback = AfterShutdownCallbacks[index];
         if (callback) {
             callback.Run();
         }
@@ -102,7 +102,7 @@ void RegisterAfterShutdownCallback(TCallback<void()> callback, int index)
 void RegisterShutdown()
 {
     static TShutdownModule* shutdown = new NYT::NPython::TShutdownModule;
-    (void*)shutdown;
+    Y_UNUSED(shutdown);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
