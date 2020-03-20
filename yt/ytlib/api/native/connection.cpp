@@ -127,7 +127,7 @@ public:
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
-            timestampProviderConfig = CreateTimestampProviderConfig(Config_->PrimaryMaster);
+            timestampProviderConfig = CreateRemoteTimestampProviderWithDiscoveryConfig(Config_->PrimaryMaster);
         }
 
         TimestampProviderChannel_ = timestampProviderConfig->EnableTimestampProviderDiscovery ?
