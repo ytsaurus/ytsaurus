@@ -806,7 +806,6 @@ def run_sandbox_upload(options, build_context):
             "ytserver-clickhouse",
             "ytserver-master",
             "ytserver-clock",
-            "ytserver-core-forwarder",
             "ytserver-exec",
             "ytserver-node",
             "ytserver-proxy",
