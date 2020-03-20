@@ -190,10 +190,11 @@ TConnectionConfig::TConnectionConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRemoteTimestampProviderWithDiscoveryConfigPtr CreateTimestampProviderConfig(TMasterConnectionConfigPtr config)
+void InitTimestampProviderConfig(
+    TRemoteTimestampProviderConfigPtr timestampProviderConfig,
+    TMasterConnectionConfigPtr config)
 {
     // Use masters for timestamp generation.
-    auto timestampProviderConfig = New<TRemoteTimestampProviderWithDiscoveryConfig>();
     timestampProviderConfig->Addresses = config->Addresses;
     timestampProviderConfig->RpcTimeout = config->RpcTimeout;
 
@@ -201,7 +202,19 @@ TRemoteTimestampProviderWithDiscoveryConfigPtr CreateTimestampProviderConfig(TMa
     timestampProviderConfig->RetryBackoffTime = config->RetryBackoffTime;
     timestampProviderConfig->RetryAttempts = config->RetryAttempts;
     timestampProviderConfig->RetryTimeout = config->RetryTimeout;
+}
 
+TRemoteTimestampProviderWithDiscoveryConfigPtr CreateRemoteTimestampProviderWithDiscoveryConfig(TMasterConnectionConfigPtr config)
+{
+    auto timestampProviderConfig = New<TRemoteTimestampProviderWithDiscoveryConfig>();
+    InitTimestampProviderConfig(timestampProviderConfig, config);
+    return timestampProviderConfig;
+}
+
+TBatchingRemoteTimestampProviderConfigPtr CreateBatchingRemoteTimestampProviderConfig(TMasterConnectionConfigPtr config)
+{
+    auto timestampProviderConfig = New<TBatchingRemoteTimestampProviderConfig>();
+    InitTimestampProviderConfig(timestampProviderConfig, config);
     return timestampProviderConfig;
 }
 

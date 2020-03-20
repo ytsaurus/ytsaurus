@@ -84,7 +84,14 @@ ITimestampProviderPtr CreateRemoteTimestampProvider(
     TRemoteTimestampProviderConfigPtr config,
     IChannelPtr channel)
 {
-    auto underlying = New<TRemoteTimestampProvider>(std::move(channel), config->RpcTimeout);
+    return New<TRemoteTimestampProvider>(std::move(channel), config->RpcTimeout);
+}
+
+ITimestampProviderPtr CreateBatchingRemoteTimestampProvider(
+    TBatchingRemoteTimestampProviderConfigPtr config,
+    IChannelPtr channel)
+{
+    auto underlying = CreateRemoteTimestampProvider(config, std::move(channel));
     auto wrapped = CreateBatchingTimestampProvider(std::move(underlying), config->UpdatePeriod, config->BatchPeriod);
 
     return wrapped;
