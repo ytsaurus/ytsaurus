@@ -894,6 +894,14 @@ public:
             }
         }
 
+        auto state = operation->GetState();
+        if (state == EOperationState::Materializing ||
+            state == EOperationState::Reviving ||
+            state == EOperationState::RevivingJobs)
+        {
+            THROW_ERROR_EXCEPTION("Operation runtime parameters update is forbidden during the operation's materialization and revival");
+        }
+
         auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
 
         Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams, /* validatePools */ update->ContainsPool());
@@ -1151,21 +1159,45 @@ public:
         if (operation->Spec()->ScheduleInSingleTree && operation->ErasedTrees().empty()) {
             auto chosenTree = Strategy_->ChooseBestSingleTreeForOperation(operation->GetId(), neededResources);
 
+            std::vector<TString> treeIdsToUnregister;
             for (const auto& [treeId, treeRuntimeParameters] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
                 YT_VERIFY(!treeRuntimeParameters->Tentative);
                 if (treeId != chosenTree) {
-                    Strategy_->UnregisterOperationFromTree(operation->GetId(), treeId);
+                    treeIdsToUnregister.emplace_back(treeId);
                 }
             }
 
-            auto expectedState = operation->GetState();
-            // NB(eshcherbin): Persist info about erased trees to master. This flush is safe because nothing should
-            // happen to |operation| until its state is set to EOperationState::Running. The only possible exception
-            // would be the case when materialization fails and the operation is terminated, but we've already checked for any fail beforehand.
-            // Result is ignored since failure causes scheduler disconnection.
-            Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
-            if (operation->GetState() != expectedState) {
-                return;
+            // If any tree was erased, we should:
+            // (1) Unregister operation from each tree.
+            // (2) Remove each tree from operation's runtime parameters.
+            // (3) Flush all these changes to master.
+            if (!treeIdsToUnregister.empty()) {
+                auto updatedRuntimeParameters = CloneYsonSerializable(operation->GetRuntimeParameters());
+                for (const auto& treeId : treeIdsToUnregister) {
+                    Strategy_->UnregisterOperationFromTree(operation->GetId(), treeId);
+                    YT_VERIFY(updatedRuntimeParameters->SchedulingOptionsPerPoolTree.erase(treeId));
+                }
+
+                // NB(eshcherbin): Normally the runtime parameters should be updated in |DoUpdateOperationParameters|, however,
+                // here we perform very custom changes (removing erased trees) and we can omit all validations and updates
+                // in strategy and controller agent.
+                // Flushes to master are performed below.
+                operation->SetRuntimeParameters(updatedRuntimeParameters);
+
+                // NB(eshcherbin): Persist info about erased trees to master. This flush is safe because nothing should
+                // happen to |operation| until its state is set to EOperationState::Running. The only possible exception
+                // would be the case when materialization fails and the operation is terminated, but we've already checked for any fail beforehand.
+                // Result is ignored since failure causes scheduler disconnection.
+                auto expectedState = operation->GetState();
+                Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
+                if (operation->GetState() != expectedState) {
+                    return;
+                }
+
+                Y_UNUSED(MasterConnector_->FlushOperationRuntimeParameters(operation, updatedRuntimeParameters));
+                if (operation->GetState() != expectedState) {
+                    return;
+                }
             }
         }
 

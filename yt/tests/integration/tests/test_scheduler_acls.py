@@ -364,6 +364,7 @@ class TestSchedulerAcls(YTEnvSetup):
             with Restarter(self.Env, SCHEDULERS_SERVICE):
                 pass
             time.sleep(0.1)
+            op.wait_for_state("running")
 
             assert op.get_alerts().keys() == ["invalid_acl"]
 
