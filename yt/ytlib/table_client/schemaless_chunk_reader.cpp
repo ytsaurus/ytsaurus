@@ -2635,6 +2635,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     YT_VERIFY(dataSource.Schema());
     const auto& tableSchema = *dataSource.Schema();
     auto timestamp = dataSource.GetTimestamp();
+    auto retentionTimestamp = dataSource.GetRetentionTimestamp();
     const auto& renameDescriptors = dataSource.ColumnRenameDescriptors();
 
     if (!columnFilter.IsUniversal()) {
@@ -2815,7 +2816,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         versionedReadSchema.Columns().size(),
         versionedReadSchema.GetKeyColumnCount(),
         TColumnFilter(),
-        client->GetNativeConnection()->GetColumnEvaluatorCache()->Find(versionedReadSchema));
+        client->GetNativeConnection()->GetColumnEvaluatorCache()->Find(versionedReadSchema),
+        retentionTimestamp);
 
     auto schemafulReader = CreateSchemafulOverlappingRangeReader(
         std::move(boundaries),

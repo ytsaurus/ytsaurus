@@ -135,6 +135,7 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
                 file.Path.GetColumns(),
                 file.OmittedInaccessibleColumns,
                 file.Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
+                file.Path.GetRetentionTimestamp().value_or(NullTimestamp),
                 file.Path.GetColumnRenameDescriptors().value_or(TColumnRenameDescriptors()));
 
             ToProto(descriptor->mutable_data_source(), dataSource);
@@ -181,6 +182,7 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
                 inputTable->Path.GetColumns(),
                 inputTable->OmittedInaccessibleColumns,
                 inputTable->Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
+                inputTable->Path.GetRetentionTimestamp().value_or(NullTimestamp),
                 inputTable->ColumnRenameDescriptors)
             : MakeUnversionedDataSource(
                 inputTable->GetPath(),
