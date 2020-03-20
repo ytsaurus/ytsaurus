@@ -401,7 +401,8 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
             schema,
             richPath.GetColumns(),
             userObject->OmittedInaccessibleColumns,
-            richPath.GetTimestamp().value_or(AsyncLastCommittedTimestamp)));
+            richPath.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
+            richPath.GetRetentionTimestamp().value_or(NullTimestamp)));
 
         TDataSliceDescriptor dataSliceDescriptor(std::move(chunkSpecs));
 

@@ -20,11 +20,13 @@ TSchemafulRowMerger::TSchemafulRowMerger(
     int columnCount,
     int keyColumnCount,
     const TColumnFilter& columnFilter,
-    TColumnEvaluatorPtr columnEvaluator)
+    TColumnEvaluatorPtr columnEvaluator,
+    TTimestamp retentionTimestamp)
     : RowBuffer_(rowBuffer)
     , ColumnCount_(columnCount)
     , KeyColumnCount_(keyColumnCount)
     , ColumnEvaluator_(std::move(columnEvaluator))
+    , RetentionTimestamp_(retentionTimestamp)
 {
     if (columnFilter.IsUniversal()) {
         for (int id = 0; id < ColumnCount_; ++id) {
@@ -87,21 +89,24 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
 
     if (row.GetDeleteTimestampCount() > 0) {
         auto deleteTimestamp = row.BeginDeleteTimestamps()[0];
-        LatestDelete_ = std::max(LatestDelete_, deleteTimestamp);
+        if (deleteTimestamp >= RetentionTimestamp_) {
+            LatestDelete_ = std::max(LatestDelete_, deleteTimestamp);
+        }
     }
 
     if (row.GetWriteTimestampCount() > 0) {
         auto writeTimestamp = row.BeginWriteTimestamps()[0];
-        LatestWrite_ = std::max(LatestWrite_, writeTimestamp);
 
-        if (writeTimestamp < LatestDelete_) {
+        if (writeTimestamp < LatestDelete_ || writeTimestamp < RetentionTimestamp_) {
             return;
         }
+
+        LatestWrite_ = std::max(LatestWrite_, writeTimestamp);
 
         const auto* partialValuesBegin = row.BeginValues();
         for (int partialIndex = 0; partialIndex < row.GetValueCount(); ++partialIndex) {
             const auto& partialValue = partialValuesBegin[partialIndex];
-            if (partialValue.Timestamp > LatestDelete_) {
+            if (partialValue.Timestamp > LatestDelete_ && partialValue.Timestamp >= RetentionTimestamp_) {
                 int id = partialValue.Id;
                 int mergedIndex = ColumnIdToIndex_[id];
                 if (mergedIndex >= 0) {
@@ -120,6 +125,10 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
 void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp timestamp)
 {
     if (!row) {
+        return;
+    }
+
+    if (timestamp < RetentionTimestamp_) {
         return;
     }
 
@@ -149,14 +158,14 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp timestamp)
     }
 
     for (auto it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
-        if (*it <= timestamp) {
+        if (*it <= timestamp && *it >= RetentionTimestamp_) {
             LatestDelete_ = std::max(LatestDelete_, *it);
             break;
         }
     }
 
     for (auto it = row.BeginWriteTimestamps(); it != row.EndWriteTimestamps(); ++it) {
-        if (*it <= timestamp) {
+        if (*it <= timestamp && *it >= RetentionTimestamp_) {
             LatestWrite_ = std::max(LatestWrite_, *it);
             break;
         }
@@ -164,7 +173,7 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp timestamp)
 
     for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
         const auto& partialValue = *it;
-        if (partialValue.Timestamp > LatestDelete_) {
+        if (partialValue.Timestamp > LatestDelete_ && partialValue.Timestamp >= RetentionTimestamp_) {
             int id = partialValue.Id;
             int mergedIndex = ColumnIdToIndex_[id];
             if (mergedIndex >= 0) {

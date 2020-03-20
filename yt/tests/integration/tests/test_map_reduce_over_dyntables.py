@@ -216,6 +216,73 @@ class TestMapOnDynamicTables(YTEnvSetup):
                 out="//tmp/t_out",
                 command="cat")
 
+    @authors("ifsmirnov")
+    def test_retention_timestamp(self):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t", schema=make_schema([
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "u", "type": "string"},
+                {"name": "v", "type": "string"}
+            ],
+            unique_keys=True))
+
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"k": 1, "u": "u1", "v": "v1"}])
+        ts2 = generate_timestamp()
+        insert_rows("//tmp/t", [{"k": 1, "u": "u2"}], update=True)
+        insert_rows("//tmp/t", [{"k": 2, "v": "v3"}])
+        ts3 = generate_timestamp()
+
+        sync_unmount_table("//tmp/t")
+
+        expected1 = [{"k": 1, "u": "u2", "v": "v1"}, {"k": 2, "u": YsonEntity(), "v": "v3"}]
+        expected2 = [{"k": 1, "u": "u2", "v": YsonEntity()}, {"k": 2, "u": YsonEntity(), "v": "v3"}]
+
+        assert read_table("//tmp/t") == expected1
+        assert read_table("<retention_timestamp={}>//tmp/t".format(ts2)) == expected2
+        assert read_table("<retention_timestamp={}>//tmp/t".format(ts3)) == []
+
+        create("table", "//tmp/t_out")
+        map(
+            in_="<retention_timestamp={}>//tmp/t".format(ts2),
+            out="//tmp/t_out",
+            command="cat")
+
+        assert read_table("//tmp/t_out") == expected2
+
+    @authors("ifsmirnov")
+    def test_retention_timestamp_bounds(self):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        sync_unmount_table("//tmp/t")
+        ts1 = generate_timestamp()
+        ts2 = generate_timestamp()
+        with pytest.raises(YtError):
+            read_table("<timestamp={};retention_timestamp={}>//tmp/t".format(ts1, ts2))
+        with pytest.raises(YtError):
+            read_table("<timestamp={};retention_timestamp={}>//tmp/t".format(ts1, ts1))
+
+    @authors("ifsmirnov")
+    def test_retention_timestamp_with_timestamp(self):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+        insert_rows("//tmp/t", [{"key": 2, "value": "2"}])
+        delete_rows("//tmp/t", [{"key": 2}])
+        ts1 = generate_timestamp()
+        insert_rows("//tmp/t", [{"key": 2, "value": "2"}])
+        ts2 = generate_timestamp()
+        insert_rows("//tmp/t", [{"key": 3, "value": "3"}])
+
+        sync_unmount_table("//tmp/t")
+
+        actual = read_table("<timestamp={};retention_timestamp={}>//tmp/t".format(ts2, ts1))
+        assert actual == [{"key": 2, "value": "2"}]
+
     @authors("savrus")
     @parametrize_external
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
