@@ -458,7 +458,7 @@ def get_dynamic_node_config():
 b"""
 {
     "%true" = {
-        config_annotation = "default_config";
+        config_annotation = "default";
         exec_agent = {
             node_directory_prepare_backoff_time = 100;
         };
