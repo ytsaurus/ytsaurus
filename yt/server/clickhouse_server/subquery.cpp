@@ -3,8 +3,7 @@
 #include "query_context.h"
 #include "config.h"
 #include "subquery_spec.h"
-#include "table_schema.h"
-#include "table.h"
+#include "schema.h"
 #include "helpers.h"
 #include "query_analyzer.h"
 
@@ -162,7 +161,7 @@ private:
                 commonSchemaPart.resize(*KeyColumnCount_);
             }
             // TODO(max42): rewrite this!
-            KeyColumnDataTypes_ = TClickHouseTableSchema::From(TClickHouseTable("", TTableSchema(commonSchemaPart))).GetKeyDataTypes();
+            KeyColumnDataTypes_ = ToDataTypes(TTableSchema(commonSchemaPart));
         }
 
         FetchChunks();
@@ -230,7 +229,7 @@ private:
                         attrs.at("external_cell_tag")->GetValue<ui64>() : CellTagFromId(table.ObjectId);
                     table.ChunkCount = attrs.at("chunk_count")->GetValue<i64>();
                     table.IsDynamic = attrs.at("dynamic")->GetValue<bool>();
-                    table.Schema = AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attrs.at("schema")));
+                    table.Schema = ConvertTo<TTableSchema>(attrs.at("schema"));
                 } else {
                     errors.emplace_back("Object %v has invalid type: expected %Qlv, actual %Qlv",
                         table.Path.GetPath(),

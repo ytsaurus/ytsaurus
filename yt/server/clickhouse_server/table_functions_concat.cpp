@@ -1,9 +1,7 @@
 #include "table_functions_concat.h"
 
-#include "table.h"
 #include "query_context.h"
 #include "storage_distributor.h"
-#include "type_helpers.h"
 #include "helpers.h"
 #include "query_context.h"
 
@@ -101,45 +99,6 @@ T EvaluateArgument(ASTPtr& argument, const Context& context)
     return static_cast<const ASTLiteral &>(*argument).value.safeGet<T>();
 }
 
-// TODO(max42): unify with remaining functions.
-std::vector<TClickHouseTablePtr> FetchClickHouseTables(TQueryContext* queryContext, const std::vector<NYPath::TRichYPath>& richPaths)
-{
-    std::vector<TYPath> paths;
-    paths.reserve(richPaths.size());
-    for (const auto& path: richPaths) {
-        paths.emplace_back(path.GetPath());
-    }
-
-    auto attributeOrErrors = queryContext->Bootstrap->GetHost()->CheckPermissionsAndGetCachedObjectAttributes(paths, queryContext->Client());
-
-    std::vector<TClickHouseTablePtr> tables;
-    std::vector<TError> errors;
-    for (int index = 0; index < static_cast<int>(richPaths.size()); ++index) {
-        const auto& path = richPaths[index];
-        const auto& attrOrError = attributeOrErrors[index];
-
-        if (attrOrError.IsOK()) {
-            if (ConvertTo<NObjectClient::EObjectType>(attrOrError.Value().at("type")) == NObjectClient::EObjectType::Table &&
-                ConvertTo<bool>(attrOrError.Value().at("dynamic")) == false)
-            {
-                tables.emplace_back(std::make_shared<TClickHouseTable>(path,
-                    AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attrOrError.Value().at("schema")))));
-            }
-        } else {
-            // We intentionally skip missing tables.
-            if (!attrOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                errors.emplace_back(attrOrError
-                    << TErrorAttribute("path", path));
-            }
-        }
-    }
-    if (!errors.empty()) {
-        THROW_ERROR_EXCEPTION("Failed to fetch some of the tables")
-            << errors;
-    }
-    return tables;
-}
-
 // TODO(max42): move to core.
 TString BaseName(const TYPath& path) {
     return TString(path.begin() + path.rfind('/') + 1, path.end());
@@ -180,9 +139,9 @@ public:
         auto& functionNode = typeid_cast<ASTFunction &>(*functionAst);
         auto& arguments = GetAllArguments(functionNode);
 
-        auto tableNames = EvaluateArguments(arguments, context);
+        auto tablePaths = EvaluateArguments(arguments, context);
 
-        return Execute(tableNames, queryContext);
+        return CreateStorageDistributor(queryContext, tablePaths);;
     }
 
 private:
@@ -196,13 +155,6 @@ private:
             tableNames.push_back(TRichYPath::Parse(ToString(EvaluateIdentifierArgument(argument, context))));
         }
         return tableNames;
-    }
-
-    StoragePtr Execute(const std::vector<TRichYPath>& tablePaths, TQueryContext* queryContext) const
-    {
-        auto tables = FetchClickHouseTables(queryContext, tablePaths);
-
-        return CreateStorageDistributor(queryContext, std::move(tables));
     }
 };
 
@@ -236,10 +188,7 @@ public:
 
         TListNodeOptions options;
         options.Attributes = {
-            "type",
             "path",
-            "target_path",
-            "dynamic",
         };
         options.SuppressAccessTracking = true;
 
@@ -247,23 +196,40 @@ public:
             .ValueOrThrow();
         auto itemList = ConvertTo<IListNodePtr>(items);
 
-        std::vector<TRichYPath> tablePaths;
+        std::vector<TYPath> itemPaths;
         for (const auto& child : itemList->GetChildren()) {
             const auto& attributes = child->Attributes();
             auto path = attributes.Get<TYPath>("path");
             if (IsPathAllowed(path, arguments, context)) {
-                if (attributes.Get<NObjectClient::EObjectType>("type") == NObjectClient::EObjectType::Link) {
-                    path = attributes.Get<TYPath>("target_path");
-                }
-                tablePaths.emplace_back(path, directory.Attributes());
+                itemPaths.emplace_back(path);
             }
+        }
+
+        // Leave only tables.
+        auto attributesOrError = queryContext->Bootstrap->GetHost()->CheckPermissionsAndGetCachedObjectAttributes(itemPaths, queryContext->Client());
+        std::vector<TRichYPath> tablePaths;
+        for (size_t index = 0; index < itemPaths.size(); ++index) {
+            // Silently ignore non-tables and items which result in error.
+            // Such behaviour is better than any other in this situtation.
+            if (attributesOrError[index].IsOK()) {
+                auto attributes = attributesOrError[index].Value();
+                if (ConvertTo<NObjectClient::EObjectType>(attributes["type"]) == NObjectClient::EObjectType::Table &&
+                    ConvertTo<bool>(attributes["dynamic"]) == false)
+                {
+                    tablePaths.emplace_back(itemPaths[index], directory.Attributes());
+                }
+            }
+        }
+
+        if (tablePaths.empty()) {
+            THROW_ERROR_EXCEPTION("No tables to concatenate");
         }
 
         std::sort(tablePaths.begin(), tablePaths.end(), [] (const auto& lhs, const auto& rhs) {
             return lhs.GetPath() < rhs.GetPath();
         });
 
-        return CreateStorage(FetchClickHouseTables(queryContext, std::move(tablePaths)), context);
+        return CreateStorageDistributor(queryContext, std::move(tablePaths));
     }
 
 protected:
@@ -284,19 +250,6 @@ private:
         }
 
         return EvaluateIdentifierArgument(arguments[0], context);
-    }
-
-    StoragePtr CreateStorage(
-        const std::vector<TClickHouseTablePtr>& tables,
-        const Context& context) const
-    {
-        auto* queryContext = GetQueryContext(context);
-
-        if (tables.empty()) {
-            throw Exception("No tables found by " + getName(), ErrorCodes::CANNOT_SELECT);
-        }
-
-        return CreateStorageDistributor(queryContext, tables);
     }
 };
 

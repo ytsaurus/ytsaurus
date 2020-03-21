@@ -1,6 +1,5 @@
 #include "dictionary_source.h"
 
-#include "db_helpers.h"
 #include "bootstrap.h"
 #include "helpers.h"
 #include "private.h"
@@ -25,8 +24,7 @@
 
 namespace NYT::NClickHouseServer {
 
-using DB::Exception;
-
+using namespace NTableClient;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,11 +37,11 @@ public:
         TBootstrap* bootstrap,
         DB::DictionaryStructure dictionaryStructure,
         TRichYPath path,
-        DB::NamesAndTypesList columns)
+        DB::NamesAndTypesList namesAndTypesList)
         : Bootstrap_(bootstrap)
         , DictionaryStructure_(std::move(dictionaryStructure))
         , Path_(std::move(path))
-        , Columns_(std::move(columns))
+        , NamesAndTypesList_(std::move(namesAndTypesList))
         , RevisionTracker_(path.GetPath(), bootstrap->GetRootClient())
         , Logger(TLogger(ClickHouseYtLogger)
             .AddTag("Path: %v", Path_))
@@ -55,30 +53,25 @@ public:
 
         YT_LOG_INFO("Reloading dictionary (Revision: %v)", RevisionTracker_.GetRevision());
 
-        auto table = FetchClickHouseTableFromCache(Bootstrap_, Bootstrap_->GetRootClient(), Path_, Logger);
-        if (!table) {
-            THROW_ERROR_EXCEPTION("Underlying dictionary table %v does not exist", Path_);
-        }
+        auto schema = FetchSchemas(Bootstrap_->GetRootClient(), Bootstrap_->GetHost(), {Path_}).front();
 
-        ValidateStructure(*table);
+        ValidateSchema(schema);
 
         auto result = WaitFor(
             NApi::NNative::CreateSchemalessMultiChunkReader(
                 Bootstrap_->GetRootClient(),
                 Path_,
                 NApi::TTableReaderOptions(),
-                NTableClient::TNameTable::FromSchema(table->TableSchema),
-                NTableClient::TColumnFilter(table->TableSchema.Columns().size())))
+                NTableClient::TNameTable::FromSchema(schema),
+                NTableClient::TColumnFilter(schema.GetColumnCount())))
             .ValueOrThrow();
 
-        return CreateBlockInputStream(result.Reader, table->TableSchema, nullptr /* traceContext */, Bootstrap_, Logger, nullptr /* prewhereInfo */);
+        return CreateBlockInputStream(result.Reader, schema, nullptr /* traceContext */, Bootstrap_, Logger, nullptr /* prewhereInfo */);
     }
 
     virtual DB::BlockInputStreamPtr loadIds(const std::vector<UInt64>& /* ids */) override
     {
-        throw Exception(
-            "Method loadIds is not supported for TableDictionarySource",
-            DB::ErrorCodes::NOT_IMPLEMENTED);
+        THROW_ERROR_EXCEPTION("Method loadIds not supported");
     }
 
     virtual bool supportsSelectiveLoad() const override
@@ -90,9 +83,7 @@ public:
         const DB::Columns& /* keyColumns */,
         const std::vector<size_t>& /* requestedRows */) override
     {
-        throw Exception(
-            "Method loadKeys is not supported for TableDictionarySource",
-            DB::ErrorCodes::NOT_IMPLEMENTED);
+        THROW_ERROR_EXCEPTION("Method loadKeys not supported");
     }
 
     virtual bool isModified() const override
@@ -107,7 +98,7 @@ public:
             Bootstrap_,
             DictionaryStructure_,
             Path_,
-            Columns_);
+            NamesAndTypesList_);
     }
 
     std::string toString() const override
@@ -117,7 +108,7 @@ public:
 
     DB::BlockInputStreamPtr loadUpdatedAll() override
     {
-        throw Exception{"Method loadUpdatedAll is unsupported for TTableDictionarySource", DB::ErrorCodes::NOT_IMPLEMENTED};
+        THROW_ERROR_EXCEPTION("Method loadUpdatedAll not supported");
     }
 
     bool hasUpdateField() const override
@@ -129,19 +120,17 @@ private:
     TBootstrap* Bootstrap_;
     DB::DictionaryStructure DictionaryStructure_;
     TRichYPath Path_;
-    DB::NamesAndTypesList Columns_;
+    DB::NamesAndTypesList NamesAndTypesList_;
     TRevisionTracker RevisionTracker_;
     TLogger Logger;
 
-    void ValidateStructure(const TClickHouseTable& table)
+    void ValidateSchema(const TTableSchema& schema)
     {
-        const auto tableColumns = GetTableColumns(table);
-
-        if (tableColumns != Columns_) {
-            throw Exception(
-                "table schema does not match dictionary structure: "
-                "expected " + Columns_.toString() + ", found " + tableColumns.toString(),
-                DB::ErrorCodes::INCOMPATIBLE_COLUMNS);
+        auto namesAndTypesList = ToNamesAndTypesList(schema);
+        if (namesAndTypesList != NamesAndTypesList_) {
+            THROW_ERROR_EXCEPTION("Dictionary table schema does not match schema from config")
+                << TErrorAttribute("config_schema", NamesAndTypesList_.toString())
+                << TErrorAttribute("actual_schema", namesAndTypesList.toString());
         }
     }
 };

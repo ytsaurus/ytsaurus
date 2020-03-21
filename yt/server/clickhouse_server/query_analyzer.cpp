@@ -260,10 +260,14 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
             continue;
         }
         result.TablePaths.emplace_back(storage->GetTablePaths());
-        auto clickHouseSchema = storage->GetClickHouseSchema();
+        auto schema = storage->GetSchema();
         std::optional<DB::KeyCondition> keyCondition;
-        if (clickHouseSchema.HasPrimaryKey()) {
-            keyCondition = CreateKeyCondition(Context_, QueryInfo_, clickHouseSchema);
+        if (schema.IsSorted()) {
+            auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(
+                ToNamesAndTypesList(schema),
+                Context_);
+
+            keyCondition = DB::KeyCondition(QueryInfo_, Context_, ToNames(schema.GetKeyColumns()), std::move(primaryKeyExpression));
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
         result.TableSchemas.emplace_back(storage->GetSchema());
@@ -322,8 +326,6 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
 
         auto spec = specTemplate;
         spec.TableIndex = index;
-        auto clickHouseSchema = Storages_[index]->GetClickHouseSchema();
-        spec.Columns = clickHouseSchema.Columns;
         spec.ReadSchema = Storages_[index]->GetSchema();
 
         FillDataSliceDescriptors(spec, miscExtMap, MakeRange(stripes));

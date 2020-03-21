@@ -974,7 +974,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Table doesn't exist.
             assert clique.make_query('exists table "//tmp/t123456"') == [{"result": 0}]
             # Not a table.
-            assert clique.make_query('exists table "//sys"') == [{"result": 0}]
+            with pytest.raises(Exception):
+                clique.make_query('exists table "//sys"')
+
 
     @authors("dakovalkov")
     def test_date_types(self):
@@ -1806,8 +1808,8 @@ class TestYtDictionaries(ClickHouseTestBase):
             time.sleep(7)
             assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")[0]["value"] == "y"
 
-            create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64"},
-                                                                 {"name": "value", "type": "string"}]})
+            create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64", "required": True},
+                                                                 {"name": "value", "type": "string", "required": True}]})
             write_table("//tmp/dict", [{"key": 42, "value": "z"}])
             time.sleep(7)
             assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")[0]["value"] == "z"

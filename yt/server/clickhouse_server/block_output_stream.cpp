@@ -1,8 +1,7 @@
 #include "block_output_stream.h"
 
-#include "table.h"
-#include "db_helpers.h"
 #include "helpers.h"
+#include "schema.h"
 
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
@@ -23,18 +22,6 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsScalarType(EValueType valueType)
-{
-    return
-        valueType == EValueType::Int64 ||
-        valueType == EValueType::Uint64 ||
-        valueType == EValueType::Double ||
-        valueType == EValueType::Boolean ||
-        valueType == EValueType::String;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TBlockOutputStream
     : public DB::IBlockOutputStream
 {
@@ -46,30 +33,12 @@ public:
         , NameTable_(Writer_->GetNameTable())
         , Logger(logger)
     {
-        for (const auto& column : Schema_.Columns()) {
-            if (!IsScalarType(column.GetPhysicalType())) {
-                if (column.Required()) {
-                    THROW_ERROR_EXCEPTION(
-                        "Column %v is not of primitive type and is required; CHYT currently is not able to deal with "
-                        "non-primitive columns",
-                        column.Name())
-                            << TErrorAttribute("type", column.GetPhysicalType());
-                }
-                continue;
-            } else {
-                auto clickHouseColumn = TClickHouseColumn::FromColumnSchema(column);
-                const auto& dataType = DB::DataTypeFactory::instance().get(GetTypeName(*clickHouseColumn));
-                YT_VERIFY(clickHouseColumn);
-                Header_.insert({ dataType->createColumn(), dataType, column.Name() });
-                PositionToId_.emplace_back(NameTable_->GetIdOrRegisterName(column.Name()));
-            }
-        }
-        YT_LOG_INFO("Output stream header formed (ColumnCount: %v)", Header_.columns());
+        Prepare();
     }
 
     virtual DB::Block getHeader() const override
     {
-        return Header_;
+        return HeaderBlock_;
     }
 
     virtual void write(const DB::Block& block) override
@@ -121,7 +90,16 @@ private:
     TNameTablePtr NameTable_;
     TLogger Logger;
     std::vector<int> PositionToId_;
-    DB::Block Header_;
+    DB::Block HeaderBlock_;
+
+    void Prepare()
+    {
+        HeaderBlock_ = ToHeaderBlock(Schema_);
+
+        for (const auto& column : Schema_.Columns()) {
+            PositionToId_.emplace_back(NameTable_->GetIdOrRegisterName(column.Name()));
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
