@@ -1,6 +1,8 @@
 #include "skynet.h"
 #include "client.h"
 #include "private.h"
+#include "connection.h"
+#include "rpc_helpers.h"
 
 #include <yt/client/api/skynet.h>
 
@@ -49,7 +51,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         .AddTag("Path: %v", richPath.GetPath());
 
     TGetUserObjectBasicAttributesOptions getAttributesOptions;
-    getAttributesOptions.ChannelKind = EMasterChannelKind::Cache;
+    getAttributesOptions.ReadFrom = EMasterChannelKind::Cache;
 
     TUserObject userObject(richPath);
 
@@ -78,7 +80,11 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
         TObjectServiceProxy proxy(channel);
 
+        TMasterReadOptions masterReadOptions;
+        masterReadOptions.ReadFrom = EMasterChannelKind::Cache;
+
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
+        SetCachingHeader(req, client->GetNativeConnection()->GetConfig(), masterReadOptions);
         SetSuppressAccessTracking(req, false);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count",
