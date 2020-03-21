@@ -183,6 +183,12 @@ bool TContext::TryParseUser()
 
     Auth_ = authResult.Value();
 
+    if (DriverRequest_.CommandName == "discover_proxies") {
+        // Optimize master cache hit rate.
+        DriverRequest_.AuthenticatedUser = "root";
+        return true;
+    }
+
     if (DriverRequest_.CommandName == "ping_tx" || DriverRequest_.CommandName == "parse_ypath") {
         DriverRequest_.AuthenticatedUser = Auth_->Result.Login;
         return true;
