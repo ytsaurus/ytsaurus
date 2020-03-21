@@ -1,6 +1,5 @@
 #include "revision_tracker.h"
 
-#include "objects.h"
 #include "query_context.h"
 
 #include <yt/client/api/client.h>

@@ -42,8 +42,6 @@ DECLARE_REFCOUNTED_CLASS(TQueryRegistry);
 DECLARE_REFCOUNTED_CLASS(THealthChecker);
 DECLARE_REFCOUNTED_STRUCT(ISubscriptionManager);
 
-class TClickHouseTableSchema;
-struct TClickHouseColumn;
 struct TValue;
 struct TQueryContext;
 class TBootstrap;
@@ -95,7 +93,6 @@ DECLARE_SHARED_STRUCT(IColumnBuilder);
 DECLARE_SHARED_STRUCT(IDocument);
 DECLARE_SHARED_STRUCT(IQueryContext);
 DECLARE_SHARED_STRUCT(ITableReader);
-DECLARE_SHARED_STRUCT(TClickHouseTable);
 
 #undef DELCARE_SHARED_STRUCT
 
@@ -140,6 +137,7 @@ class Context;
 class KeyCondition;
 struct SelectQueryInfo;
 class Field;
+class ColumnsDescription;
 class StorageFactory;
 class IUsersManager;
 class IExternalLoaderConfigRepository;

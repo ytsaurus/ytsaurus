@@ -7,18 +7,11 @@ import "yt/client/table_client/proto/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TNameAndTypePair
-{
-    required string name = 1;
-    required string type = 2;
-}
-
 message TSubquerySpec
 {
     required NChunkClient.NProto.TDataSourceDirectoryExt data_source_directory = 1;
     repeated NScheduler.NProto.TTableInputSpec input_specs = 2;
     optional NYT.NProto.TGuid initial_query_id = 4;
-    repeated TNameAndTypePair columns = 5;
     optional NYT.NTableClient.NProto.TTableSchemaExt read_schema = 6;
     // TODO(max42): CHYT-154.
     optional string membership_hint = 7;

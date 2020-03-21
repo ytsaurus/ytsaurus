@@ -1,9 +1,7 @@
 #include "helpers.h"
 
 #include "bootstrap.h"
-#include "table.h"
-#include "table_schema.h"
-#include "type_translation.h"
+#include "schema.h"
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -53,18 +51,6 @@ using namespace NRe2;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-KeyCondition CreateKeyCondition(
-    const Context& context,
-    const SelectQueryInfo& queryInfo,
-    const TClickHouseTableSchema& schema)
-{
-    auto pkExpression = std::make_shared<ExpressionActions>(
-        schema.KeyColumns,
-        context);
-
-    return KeyCondition(queryInfo, context, schema.PrimarySortColumns, std::move(pkExpression));
-}
 
 void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, DB::Field* field)
 {
@@ -133,65 +119,42 @@ void ConvertToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClickHouseTablePtr FetchClickHouseTableFromCache(
-    TBootstrap* bootstrap,
-    const NNative::IClientPtr& client,
-    const TRichYPath& path,
-    const TLogger& Logger)
+std::vector<TTableSchema> FetchSchemas(
+    const NApi::NNative::IClientPtr& client,
+    const TClickHouseHostPtr& host,
+    const std::vector<TRichYPath>& richPaths)
 {
-    try {
-        YT_LOG_DEBUG("Fetching clickhouse table");
-
-        auto attributes = bootstrap->GetHost()->CheckPermissionsAndGetCachedObjectAttributes({path.GetPath()}, client)[0]
-            .ValueOrThrow();
-
-        if (ConvertTo<NObjectClient::EObjectType>(attributes.at("type")) != NObjectClient::EObjectType::Table) {
-            return nullptr;
-        }
-
-        return std::make_shared<TClickHouseTable>(path, AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attributes.at("schema"))));
-    } catch (TErrorException& ex) {
-        if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return nullptr;
-        }
-        throw;
-    }
-}
-
-TTableSchema ConvertToTableSchema(const ColumnsDescription& columns, const TKeyColumns& keyColumns)
-{
-    std::vector<TString> columnOrder;
-    THashSet<TString> usedColumns;
-
-    for (const auto& keyColumnName : keyColumns) {
-        if (!columns.has(keyColumnName)) {
-            THROW_ERROR_EXCEPTION("Column %Qv is specified as key column but is missing",
-                keyColumnName);
-        }
-        columnOrder.emplace_back(keyColumnName);
-        usedColumns.emplace(keyColumnName);
+    std::vector<TYPath> paths;
+    paths.reserve(richPaths.size());
+    for (const auto& path: richPaths) {
+        paths.emplace_back(path.GetPath());
     }
 
-    for (const auto& column : columns) {
-        if (usedColumns.emplace(column.name).second) {
-            columnOrder.emplace_back(column.name);
+    auto attributeOrErrors = host->CheckPermissionsAndGetCachedObjectAttributes(paths, client);
+
+    std::vector<TTableSchema> schemas;
+    std::vector<TError> errors;
+    for (int index = 0; index < static_cast<int>(richPaths.size()); ++index) {
+        const auto& path = richPaths[index];
+        const auto& attrOrError = attributeOrErrors[index];
+
+        if (attrOrError.IsOK()) {
+            if (ConvertTo<NObjectClient::EObjectType>(attrOrError.Value().at("type")) == NObjectClient::EObjectType::Table &&
+                ConvertTo<bool>(attrOrError.Value().at("dynamic")) == false)
+            {
+                schemas.emplace_back(ConvertTo<TTableSchema>(attrOrError.Value().at("schema")));
+            }
+        } else {
+            errors.emplace_back(attrOrError
+                << TErrorAttribute("path", path));
         }
     }
-
-    std::vector<TColumnSchema> columnSchemas;
-    columnSchemas.reserve(columnOrder.size());
-    for (int index = 0; index < static_cast<int>(columnOrder.size()); ++index) {
-        const auto& name = columnOrder[index];
-        const auto& column = columns.get(name);
-        const auto& type = RepresentClickHouseType(column.type);
-        std::optional<ESortOrder> sortOrder;
-        if (index < static_cast<int>(keyColumns.size())) {
-            sortOrder = ESortOrder::Ascending;
-        }
-        columnSchemas.emplace_back(name, type, sortOrder);
+    if (!errors.empty()) {
+        THROW_ERROR_EXCEPTION("Failed to fetch some of the tables")
+            << errors;
     }
 
-    return TTableSchema(columnSchemas);
+    return schemas;
 }
 
 TString MaybeTruncateSubquery(TString query)
@@ -202,26 +165,18 @@ TString MaybeTruncateSubquery(TString query)
     return query;
 }
 
-TTableSchema AdaptSchemaToClickHouse(const TTableSchema& schema)
-{
-    std::vector<TColumnSchema> columns;
-    columns.reserve(schema.Columns().size());
-    for (const auto& column : schema.Columns()) {
-        columns.emplace_back(column.Name(), AdaptTypeToClickHouse(column.LogicalType()), column.SortOrder());
-    }
-    return TTableSchema(std::move(columns), schema.GetStrict(), schema.GetUniqueKeys());
-}
-
-TTableSchema GetCommonSchema(const std::vector<TTableSchema>& schemas)
+TTableSchema GetCommonSchema(const THashSet<TTableSchema>& schemas)
 {
     if (schemas.empty()) {
         return TTableSchema();
     }
 
+    const auto& firstSchema = *schemas.begin();
+
     THashMap<TString, TColumnSchema> nameToColumn;
     THashMap<TString, size_t> nameCounter;
 
-    for (const auto& column : schemas[0].Columns()) {
+    for (const auto& column : firstSchema.Columns()) {
         auto [it, _] = nameToColumn.emplace(column.Name(), column);
         // We will set sorted order for key columns later.
         it->second.SetSortOrder(std::nullopt);
@@ -242,8 +197,8 @@ TTableSchema GetCommonSchema(const std::vector<TTableSchema>& schemas)
     }
 
     std::vector<TColumnSchema> resultColumns;
-    resultColumns.reserve(schemas[0].Columns().size());
-    for (const auto& column : schemas[0].Columns()) {
+    resultColumns.reserve(firstSchema.Columns().size());
+    for (const auto& column : firstSchema.Columns()) {
         if (nameCounter[column.Name()] == schemas.size()) {
             resultColumns.push_back(nameToColumn[column.Name()]);
         }

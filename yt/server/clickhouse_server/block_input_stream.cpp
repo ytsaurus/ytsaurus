@@ -1,9 +1,7 @@
 #include "block_input_stream.h"
 
 #include "bootstrap.h"
-#include "db_helpers.h"
 #include "helpers.h"
-#include "type_translation.h"
 
 #include <yt/client/table_client/schemaless_reader.h>
 #include <yt/client/table_client/name_table.h>
@@ -146,7 +144,7 @@ public:
         , Logger(std::move(logger))
         , PrewhereInfo_(std::move(prewhereInfo))
     {
-        PrepareHeader();
+        Prepare();
     }
 
     virtual std::string getName() const override
@@ -243,20 +241,12 @@ private:
         return block;
     }
 
-    void PrepareHeader()
+    void Prepare()
     {
-        const auto& dataTypes = DB::DataTypeFactory::instance();
+        HeaderBlock_ = ToHeaderBlock(ReadSchema_);
 
         for (int index = 0; index < static_cast<int>(ReadSchema_.Columns().size()); ++index) {
             const auto& columnSchema = ReadSchema_.Columns()[index];
-            auto type = RepresentYtType(columnSchema.LogicalType());
-            auto dataType = dataTypes.get(GetTypeName(type));
-            auto column = dataType->createColumn();
-            if (!columnSchema.Required()) {
-                column = DB::ColumnNullable::create(std::move(column), DB::ColumnVector<UInt8>::create());
-                dataType = DB::makeNullable(dataType);
-            }
-            HeaderBlock_.insert({ std::move(column), dataType, columnSchema.Name() });
             auto id = Reader_->GetNameTable()->GetIdOrRegisterName(columnSchema.Name());
             if (static_cast<int>(IdToColumnIndex_.size()) <= id) {
                 IdToColumnIndex_.resize(id + 1, -1);

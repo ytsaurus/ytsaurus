@@ -4,13 +4,11 @@
 #include "bootstrap.h"
 #include "block_input_stream.h"
 #include "block_output_stream.h"
-#include "type_helpers.h"
 #include "helpers.h"
 #include "query_context.h"
 #include "subquery.h"
 #include "join_workaround.h"
-#include "db_helpers.h"
-#include "query_helpers.h"
+#include "query_registry.h"
 #include "query_analyzer.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
@@ -160,13 +158,11 @@ public:
 
     TStorageDistributor(
         TQueryContext* queryContext,
-        NTableClient::TTableSchema schema,
-        TClickHouseTableSchema clickHouseSchema,
-        std::vector<TRichYPath> tablePaths)
+        std::vector<TRichYPath> tablePaths,
+        TTableSchema schema)
         : QueryContext_(queryContext)
-        , ClickHouseSchema_(std::move(clickHouseSchema))
-        , Schema_(std::move(schema))
         , TablePaths_(std::move(tablePaths))
+        , Schema_(std::move(schema))
     { }
 
     virtual void startup() override
@@ -174,11 +170,11 @@ public:
         const auto& Logger = ClickHouseYtLogger;
 
         YT_LOG_TRACE("StorageDistributor instantiated (Address: %v)", static_cast<void*>(this));
-        if (ClickHouseSchema_.Columns.empty()) {
+        if (Schema_.GetColumnCount() == 0) {
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
                 << TErrorAttribute("path", getTableName());
         }
-        setColumns(DB::ColumnsDescription(ClickHouseSchema_.Columns));
+        setColumns(DB::ColumnsDescription(ToNamesAndTypesList(Schema_)));
     }
 
     std::string getName() const override
@@ -203,7 +199,7 @@ public:
 
     virtual bool supportsIndexForIn() const override
     {
-        return ClickHouseSchema_.HasPrimaryKey();
+        return Schema_.IsSorted();
     }
 
     virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* queryAst */, const DB::Context& /* context */) const override
@@ -385,11 +381,6 @@ public:
         return TablePaths_;
     }
 
-    virtual TClickHouseTableSchema GetClickHouseSchema() const override
-    {
-        return ClickHouseSchema_;
-    }
-
     virtual TTableSchema GetSchema() const override
     {
         return Schema_;
@@ -397,11 +388,10 @@ public:
 
 private:
     TQueryContext* QueryContext_;
-    TClickHouseTableSchema ClickHouseSchema_;
-    NTableClient::TTableSchema Schema_;
+    std::vector<TRichYPath> TablePaths_;
+    TTableSchema Schema_;
     TSubquerySpec SpecTemplate_;
     std::vector<TSubquery> Subqueries_;
-    std::vector<TRichYPath> TablePaths_;
     std::optional<TQueryAnalyzer> QueryAnalyzer_;
     // TODO(max42): YT-11778.
     // TMiscExt is used for better memory estimation in readers, but it is dropped when using
@@ -538,46 +528,53 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
     return std::make_shared<TStorageDistributor>(
         queryContext,
-        schema,
-        TClickHouseTableSchema::From(TClickHouseTable(path, schema)),
-        std::vector<TRichYPath>{path});
+        std::vector<TRichYPath>{path},
+        schema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageDistributor(TQueryContext* queryContext, std::vector<TClickHouseTablePtr> tables)
+DB::StoragePtr CreateStorageDistributor(
+    TQueryContext* queryContext,
+    std::vector<TRichYPath> tablePaths)
 {
-    if (tables.empty()) {
-        THROW_ERROR_EXCEPTION("Cannot concatenate empty list of tables");
-    }
+    const auto& Logger = queryContext->Logger;
 
-    TTableSchema schema;
-    TClickHouseTableSchema clickHouseSchema;
-    if (tables.size() > 1) {
-        std::vector<TTableSchema> schemas;
-        schemas.reserve(tables.size());
-        for (const auto& table : tables) {
-            schemas.push_back(table->TableSchema);
-        }
-        schema = GetCommonSchema(schemas);
-        if (schema.Columns().empty()) {
-            THROW_ERROR_EXCEPTION("Requested tables do not have any common column");
-        }
-    } else {
-        schema = tables.front()->TableSchema;
-    }
-    clickHouseSchema = TClickHouseTableSchema::From(schema);
+    // Here goes the dirty-ass hack. When query context is created, query AST is not parsed yet,
+    // so it is not present in client info for query. That's why if we crash somewhere during coordination
+    // phase, dumped query registry in crash handler will lack crashing query itself. As a workaround,
+    // we forcefully rebuild query registry state when creating TStorageDistributor.
+    WaitFor(
+        BIND(&TQueryRegistry::SaveState, queryContext->Bootstrap->GetQueryRegistry())
+            .AsyncVia(queryContext->Bootstrap->GetControlInvoker())
+            .Run())
+        .ThrowOnError();
 
-    std::vector<TRichYPath> paths;
-    for (const auto& table : tables) {
-        paths.emplace_back(table->Path);
+    auto schemas = FetchSchemas(
+        queryContext->Client(),
+        queryContext->Bootstrap->GetHost(),
+        tablePaths);
+
+    THashSet<TTableSchema> schemaSet(schemas.begin(), schemas.end());
+
+    auto schema = schemas.front();
+
+    if (schemaSet.size() >= 2) {
+        auto commonSchema = GetCommonSchema(schemaSet);
+
+        YT_LOG_INFO("Common schema fetched (TableCount: %v, Schemas: %v, CommonSchema: %v)",
+            tablePaths.size(),
+            MakeFormattableView(schemaSet, TDefaultFormatter()),
+            commonSchema);
+
+        schema = commonSchema;
     }
 
     auto storage = std::make_shared<TStorageDistributor>(
         queryContext,
-        std::move(schema),
-        std::move(clickHouseSchema),
-        std::move(paths));
+        std::move(tablePaths),
+        std::move(schema));
+
     storage->startup();
 
     return storage;

@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include "table_schema.h"
+#include "schema.h"
 #include "subquery_spec.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
@@ -23,14 +23,14 @@ struct IStorageDistributor
 public:
     virtual std::vector<NYPath::TRichYPath> GetTablePaths() const = 0;
 
-    virtual TClickHouseTableSchema GetClickHouseSchema() const = 0;
-
     virtual NTableClient::TTableSchema GetSchema() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageDistributor(TQueryContext* queryContext, std::vector<TClickHouseTablePtr> tables);
+DB::StoragePtr CreateStorageDistributor(
+    TQueryContext* queryContext,
+    std::vector<NYPath::TRichYPath> tablePaths);
 
 void RegisterStorageDistributor();
 

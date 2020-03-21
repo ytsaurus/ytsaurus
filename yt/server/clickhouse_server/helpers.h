@@ -20,21 +20,6 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTableObject
-    : public NChunkClient::TUserObject
-{
-    int ChunkCount = 0;
-    bool Dynamic = false;
-    NTableClient::TTableSchema Schema;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-DB::KeyCondition CreateKeyCondition(
-    const DB::Context& context,
-    const DB::SelectQueryInfo& queryInfo,
-    const TClickHouseTableSchema& schema);
-
 DB::Field ConvertToField(const NTableClient::TUnversionedValue& value);
 
 //! `value` should have Type field filled.
@@ -45,30 +30,17 @@ void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, int count, DB::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClickHouseTablePtr FetchClickHouseTableFromCache(
-    TBootstrap* bootstrap,
-    const NApi::NNative::IClientPtr& client,
-    const NYPath::TRichYPath& path,
-    const NLogging::TLogger& logger);
-
-////////////////////////////////////////////////////////////////////////////////
-
-NTableClient::TTableSchema ConvertToTableSchema(
-    const DB::ColumnsDescription& columns,
-    const NTableClient::TKeyColumns& keyColumns);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Converts unsupported types to compatible, e.g. int8 -> int64, etc.
-NTableClient::TTableSchema AdaptSchemaToClickHouse(const NTableClient::TTableSchema& schema);
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Returns the schema with all common collumns.
+// Returns the schema with all common columns.
 // If the column is missed in any tables or the type of the column mismatch in different schemas, the column will be ommited.
 // If at least in one schema the column doesn't have "required" flag, the column will be not required.
 // Key columns are maximum prefix of key collumns in all schemas.
-NTableClient::TTableSchema GetCommonSchema(const std::vector<NTableClient::TTableSchema>& schemas);
+NTableClient::TTableSchema GetCommonSchema(const THashSet<NTableClient::TTableSchema>& schemas);
+
+// Fetches schemas for given paths.
+std::vector<NTableClient::TTableSchema> FetchSchemas(
+    const NApi::NNative::IClientPtr& client,
+    const TClickHouseHostPtr& host,
+    const std::vector<NYPath::TRichYPath>& richPaths);
 
 ////////////////////////////////////////////////////////////////////////////////
 

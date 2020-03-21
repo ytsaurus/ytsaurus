@@ -4,8 +4,7 @@
 #include "bootstrap.h"
 #include "host.h"
 
-#include "objects.h"
-#include "table_schema.h"
+#include "schema.h"
 
 #include <yt/client/table_client/schema.h>
 

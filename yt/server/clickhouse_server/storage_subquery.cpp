@@ -1,10 +1,8 @@
 #include "storage_subquery.h"
 
 #include "block_input_stream.h"
-#include "db_helpers.h"
 #include "query_context.h"
 #include "subquery_spec.h"
-#include "type_helpers.h"
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -212,7 +210,7 @@ public:
             SubquerySpec_.SubqueryIndex,
             SubquerySpec_.TableIndex);
 
-        setColumns(ColumnsDescription(SubquerySpec_.Columns));
+        setColumns(ColumnsDescription(ToNamesAndTypesList(SubquerySpec_.ReadSchema)));
 
         queryContext->MoveToPhase(EQueryPhase::Preparation);
     }
