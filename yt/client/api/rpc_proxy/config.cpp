@@ -36,7 +36,7 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(30));
     RegisterParameter("rpc_acknowledgement_timeout", RpcAcknowledgementTimeout)
         .Default(TDuration::Seconds(15));
-    RegisterParameter("timestamp_provider_update_period", TimestampProviderUpdatePeriod)
+    RegisterParameter("timestamp_provider_latest_timestamp_update_period", TimestampProviderLatestTimestampUpdatePeriod)
         .Default(TDuration::Seconds(3));
     RegisterParameter("timestamp_provider_batch_period", TimestampProviderBatchPeriod)
         .Default(TDuration::MilliSeconds(10));

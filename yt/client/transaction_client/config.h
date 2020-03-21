@@ -18,9 +18,16 @@ public:
     //! Timeout for RPC requests to timestamp provider.
     TDuration RpcTimeout;
 
+    //! Interval between consecutive updates of latest timestamp.
+    TDuration LatestTimestampUpdatePeriod;
+
     TRemoteTimestampProviderConfig()
     {
         RegisterParameter("rpc_timeout", RpcTimeout)
+            .Default(TDuration::Seconds(3));
+        RegisterParameter("latest_timestamp_update_period", LatestTimestampUpdatePeriod)
+            // COMPAT(babenko)
+            .Alias("update_period")
             .Default(TDuration::Seconds(3));
     }
 };
@@ -33,15 +40,12 @@ class TBatchingRemoteTimestampProviderConfig
     : public TRemoteTimestampProviderConfig
 {
 public:
-    //! Interval between consecutive current timestamp updates.
-    TDuration UpdatePeriod;
-
+    //! All generation requests coming within this period are batched
+    //! together.
     TDuration BatchPeriod;
 
     TBatchingRemoteTimestampProviderConfig()
     {
-        RegisterParameter("update_period", UpdatePeriod)
-            .Default(TDuration::Seconds(3));
         RegisterParameter("batch_period", BatchPeriod)
             .Default(TDuration::MilliSeconds(10));
     }

@@ -35,7 +35,7 @@ public:
     int MaxProxyListUpdateAttempts;
     TDuration RpcTimeout;
     std::optional<TDuration> RpcAcknowledgementTimeout;
-    TDuration TimestampProviderUpdatePeriod;
+    TDuration TimestampProviderLatestTimestampUpdatePeriod;
     TDuration TimestampProviderBatchPeriod;
     TDuration DefaultTransactionTimeout;
     TDuration DefaultSelectRowsTimeout;

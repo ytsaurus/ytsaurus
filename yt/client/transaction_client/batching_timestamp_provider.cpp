@@ -11,20 +11,14 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = TransactionClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TBatchingTimestampProvider
     : public ITimestampProvider
 {
 public:
     TBatchingTimestampProvider(
         ITimestampProviderPtr underlying,
-        TDuration updatePeriod,
         TDuration batchPeriod)
         : Underlying_(std::move(underlying))
-        , UpdatePeriod_(updatePeriod)
         , BatchPeriod_(batchPeriod)
     { }
 
@@ -50,26 +44,11 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TGuard<TSpinLock> guard(SpinLock_);
-
-        auto result = Underlying_->GetLatestTimestamp();
-
-        if (!LatestTimestampExecutor_) {
-            LatestTimestampExecutor_ = New<TPeriodicExecutor>(
-                GetSyncInvoker(),
-                BIND(&TBatchingTimestampProvider::UpdateLatestTimestamp, MakeWeak(this)),
-                UpdatePeriod_,
-                EPeriodicExecutorMode::Automatic);
-            guard.Release();
-            LatestTimestampExecutor_->Start();
-        }
-
-        return result;
+        return Underlying_->GetLatestTimestamp();
     }
 
-private:
+ private:
     const ITimestampProviderPtr Underlying_;
-    const TDuration UpdatePeriod_;
     const TDuration BatchPeriod_;
 
     struct TRequest
@@ -82,8 +61,6 @@ private:
     bool GenerateInProgress_ = false;
     bool FlushScheduled_ = false;
     std::vector<TRequest> PendingRequests_;
-
-    TPeriodicExecutorPtr LatestTimestampExecutor_;
 
     TInstant LastRequestTime_;
 
@@ -155,43 +132,25 @@ private:
 
         if (firstTimestampOrError.IsOK()) {
             auto timestamp = firstTimestampOrError.Value();
-            for (auto& request : requests) {
+            for (const auto& request : requests) {
                 request.Promise.Set(timestamp);
                 timestamp += request.Count;
             }
         } else {
-            for (auto& request : requests) {
+            for (const auto& request : requests) {
                 request.Promise.Set(TError(firstTimestampOrError));
             }
         }
     }
-
-    void UpdateLatestTimestamp()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        YT_LOG_DEBUG("Updating latest timestamp");
-
-        auto timestampOrError = WaitFor(GenerateTimestamps(1));
-        if (timestampOrError.IsOK()) {
-            YT_LOG_DEBUG("Latest timestamp updated (Timestamp: %llx)",
-                timestampOrError.Value());
-        } else {
-            YT_LOG_WARNING(timestampOrError, "Error updating latest timestamp");
-            return;
-        }
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ITimestampProviderPtr CreateBatchingTimestampProvider(
     ITimestampProviderPtr underlying,
-    TDuration updatePeriod,
     TDuration batchPeriod)
 {
-    return New<TBatchingTimestampProvider>(std::move(underlying), updatePeriod, batchPeriod);
+    return New<TBatchingTimestampProvider>(std::move(underlying), batchPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
