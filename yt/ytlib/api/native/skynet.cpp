@@ -77,7 +77,7 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     {
         YT_LOG_INFO("Requesting chunk count");
 
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Cache, userObject.ExternalCellTag);
         TObjectServiceProxy proxy(channel);
 
         TMasterReadOptions masterReadOptions;
