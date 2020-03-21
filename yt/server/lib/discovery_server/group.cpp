@@ -61,8 +61,8 @@ TMemberPtr TGroup::AddMember(const TMemberInfo& memberInfo, TDuration leaseTimeo
             return;
         }
 
-        IdToMember_.erase(it);
         YT_VERIFY(Members_.erase(it->second) > 0);
+        IdToMember_.erase(it);
 
         if (Members_.empty()) {
             guard.Release();
