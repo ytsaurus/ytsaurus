@@ -53,17 +53,16 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
             path,
             contentRevision);
 
+        TGetUserObjectBasicAttributesOptions options;
+        options.SuppressAccessTracking = true;
+        options.ReadFrom = masterChannelKind;
         GetUserObjectBasicAttributes(
             bootstrap->GetMasterClient(),
             {&userObject},
             NullTransactionId,
             Logger,
             EPermission::Read,
-            TGetUserObjectBasicAttributesOptions{
-                .SuppressAccessTracking = true,
-                .ChannelKind = masterChannelKind,
-            }
-        );
+            options);
 
         if (userObject.Type != EObjectType::File) {
             THROW_ERROR_EXCEPTION("Invalid type of layer object %v: expected %Qlv, actual %Qlv",

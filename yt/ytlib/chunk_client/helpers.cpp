@@ -8,6 +8,7 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/config.h>
+#include <yt/ytlib/api/native/rpc_helpers.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -98,10 +99,11 @@ void GetUserObjectBasicAttributes(
 
     YT_LOG_DEBUG("Getting basic attributes of user objects");
 
-    auto channel = client->GetMasterChannelOrThrow(options.ChannelKind);
+    auto channel = client->GetMasterChannelOrThrow(options.ReadFrom);
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
+    NNative::SetCachingHeader(batchReq, client->GetNativeConnection()->GetConfig(), options);
 
     for (auto* userObject : objects) {
         auto req = TObjectYPathProxy::GetBasicAttributes(userObject->GetObjectIdPathIfAvailable());
