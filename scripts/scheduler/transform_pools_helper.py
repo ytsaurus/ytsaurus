@@ -46,8 +46,6 @@ def transform(src_cluster, src_path, dst_cluster, dst_path):
 
 
 def collect(yson_map, result):
-    if not yson_map:
-        return
     if "user_attribute_keys" in yson_map.attributes:
         for k in yson_map.attributes["user_attribute_keys"]:
             result.add(k)
