@@ -33,7 +33,6 @@ struct TQueryInput
 
 //! Fetch data slices for given input tables and fill given subquery spec template.
 TQueryInput FetchInput(
-    TBootstrap* bootstrap,
     NApi::NNative::IClientPtr client,
     const IInvokerPtr& invoker,
     const TQueryAnalysisResult& queryAnalysisResult,

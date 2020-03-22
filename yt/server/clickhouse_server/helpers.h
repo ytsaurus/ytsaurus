@@ -34,13 +34,7 @@ void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, int count, DB::
 // If the column is missed in any tables or the type of the column mismatch in different schemas, the column will be ommited.
 // If at least in one schema the column doesn't have "required" flag, the column will be not required.
 // Key columns are maximum prefix of key collumns in all schemas.
-NTableClient::TTableSchema GetCommonSchema(const THashSet<NTableClient::TTableSchema>& schemas);
-
-// Fetches schemas for given paths.
-std::vector<NTableClient::TTableSchema> FetchSchemas(
-    const NApi::NNative::IClientPtr& client,
-    const TClickHouseHostPtr& host,
-    const std::vector<NYPath::TRichYPath>& richPaths);
+NTableClient::TTableSchema InferCommonSchema(const std::vector<TTablePtr>& tables, const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

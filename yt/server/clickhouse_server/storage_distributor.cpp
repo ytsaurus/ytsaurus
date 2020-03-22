@@ -10,6 +10,7 @@
 #include "join_workaround.h"
 #include "query_registry.h"
 #include "query_analyzer.h"
+#include "table.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
@@ -158,10 +159,10 @@ public:
 
     TStorageDistributor(
         TQueryContext* queryContext,
-        std::vector<TRichYPath> tablePaths,
+        std::vector<TTablePtr> tables,
         TTableSchema schema)
         : QueryContext_(queryContext)
-        , TablePaths_(std::move(tablePaths))
+        , Tables_(std::move(tables))
         , Schema_(std::move(schema))
     { }
 
@@ -210,11 +211,11 @@ public:
     virtual std::string getTableName() const
     {
         std::string result = "";
-        for (size_t index = 0; index < TablePaths_.size(); ++index) {
+        for (size_t index = 0; index < Tables_.size(); ++index) {
             if (index > 0) {
                 result += ", ";
             }
-            result += std::string(TablePaths_[index].GetPath().data());
+            result += std::string(Tables_[index]->Path.GetPath().data());
         }
         return result;
     }
@@ -356,12 +357,12 @@ public:
     {
         // Set append if it is not set.
 
-        if (TablePaths_.size() != 1) {
+        if (Tables_.size() != 1) {
             THROW_ERROR_EXCEPTION("Cannot write to many tables simultaneously")
-                << TErrorAttribute("paths", TablePaths_);
+                << TErrorAttribute("paths", getTableName());
         }
 
-        auto path = TablePaths_.front();
+        auto path = Tables_.front()->Path;
         path.SetAppend(path.GetAppend(true /* defaultValue */));
         auto writer = WaitFor(CreateSchemalessTableWriter(
             QueryContext_->Bootstrap->GetConfig()->TableWriterConfig,
@@ -376,9 +377,9 @@ public:
 
     // IStorageDistributor overrides.
 
-    virtual std::vector<TRichYPath> GetTablePaths() const override
+    virtual std::vector<TTablePtr> GetTables() const override
     {
-        return TablePaths_;
+        return Tables_;
     }
 
     virtual TTableSchema GetSchema() const override
@@ -388,7 +389,7 @@ public:
 
 private:
     TQueryContext* QueryContext_;
-    std::vector<TRichYPath> TablePaths_;
+    std::vector<TTablePtr> Tables_;
     TTableSchema Schema_;
     TSubquerySpec SpecTemplate_;
     std::vector<TSubquery> Subqueries_;
@@ -407,7 +408,6 @@ private:
         auto queryAnalysisResult = QueryAnalyzer_->Analyze();
 
         auto input = FetchInput(
-            QueryContext_->Bootstrap,
             QueryContext_->Client(),
             QueryContext_->Bootstrap->GetSerializedWorkerInvoker(),
             queryAnalysisResult,
@@ -526,9 +526,11 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         .ValueOrThrow();
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
 
+    auto table = FetchTables(queryContext->Client(), queryContext->Bootstrap->GetHost(), {path}, /* skipUnsuitableNodes */ false, queryContext->Logger);
+
     return std::make_shared<TStorageDistributor>(
         queryContext,
-        std::vector<TRichYPath>{path},
+        std::vector<TTablePtr>{table},
         schema);
 }
 
@@ -536,44 +538,18 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
 DB::StoragePtr CreateStorageDistributor(
     TQueryContext* queryContext,
-    std::vector<TRichYPath> tablePaths)
+    std::vector<TTablePtr> tables)
 {
-    const auto& Logger = queryContext->Logger;
-
-    // Here goes the dirty-ass hack. When query context is created, query AST is not parsed yet,
-    // so it is not present in client info for query. That's why if we crash somewhere during coordination
-    // phase, dumped query registry in crash handler will lack crashing query itself. As a workaround,
-    // we forcefully rebuild query registry state when creating TStorageDistributor.
-    WaitFor(
-        BIND(&TQueryRegistry::SaveState, queryContext->Bootstrap->GetQueryRegistry())
-            .AsyncVia(queryContext->Bootstrap->GetControlInvoker())
-            .Run())
-        .ThrowOnError();
-
-    auto schemas = FetchSchemas(
-        queryContext->Client(),
-        queryContext->Bootstrap->GetHost(),
-        tablePaths);
-
-    THashSet<TTableSchema> schemaSet(schemas.begin(), schemas.end());
-
-    auto schema = schemas.front();
-
-    if (schemaSet.size() >= 2) {
-        auto commonSchema = GetCommonSchema(schemaSet);
-
-        YT_LOG_INFO("Common schema fetched (TableCount: %v, Schemas: %v, CommonSchema: %v)",
-            tablePaths.size(),
-            MakeFormattableView(schemaSet, TDefaultFormatter()),
-            commonSchema);
-
-        schema = commonSchema;
+    if (tables.empty()) {
+        THROW_ERROR_EXCEPTION("No tables to read from");
     }
+
+    auto commonSchema = InferCommonSchema(tables, queryContext->Logger);
 
     auto storage = std::make_shared<TStorageDistributor>(
         queryContext,
-        std::move(tablePaths),
-        std::move(schema));
+        std::move(tables),
+        std::move(commonSchema));
 
     storage->startup();
 

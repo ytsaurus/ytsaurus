@@ -40,7 +40,7 @@ DECLARE_REFCOUNTED_CLASS(THealthCheckerConfig);
 DECLARE_REFCOUNTED_CLASS(TClickHouseHost);
 DECLARE_REFCOUNTED_CLASS(TQueryRegistry);
 DECLARE_REFCOUNTED_CLASS(THealthChecker);
-DECLARE_REFCOUNTED_STRUCT(ISubscriptionManager);
+DECLARE_REFCOUNTED_STRUCT(TTable);
 
 struct TValue;
 struct TQueryContext;
@@ -48,6 +48,7 @@ class TBootstrap;
 class TSubquerySpec;
 struct TSubquery;
 struct TQueryAnalysisResult;
+struct IQueryContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -82,19 +83,6 @@ DEFINE_ENUM(EQueryPhase,
 using TQueryId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-#define DECLARE_SHARED_STRUCT(TStruct) \
-    struct TStruct; \
-    using TStruct ## Ptr = std::shared_ptr<TStruct>
-
-DECLARE_SHARED_STRUCT(IAuthorizationToken);
-DECLARE_SHARED_STRUCT(ICliqueAuthorizationManager);
-DECLARE_SHARED_STRUCT(IColumnBuilder);
-DECLARE_SHARED_STRUCT(IDocument);
-DECLARE_SHARED_STRUCT(IQueryContext);
-DECLARE_SHARED_STRUCT(ITableReader);
-
-#undef DELCARE_SHARED_STRUCT
 
 DEFINE_ENUM(EErrorCode,
     ((SubqueryDataWeightLimitExceeded) (2200))
@@ -184,8 +172,6 @@ extern const Event OSWriteBytes;
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace ProfileEvents
-
-
 
 // Why this class is outside of namespace DB? 0_o
 class IGeoDictionariesLoader;
