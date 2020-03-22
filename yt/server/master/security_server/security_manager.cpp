@@ -1424,8 +1424,9 @@ public:
         if (Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode) {
             error = TError(
                 NSecurityClient::EErrorCode::AuthorizationError,
-                "Access denied: cluster is in safe mode. "
-                "Check for the announces before reporting any issues");
+                "Access denied for user %Qv: cluster is in safe mode; "
+                "check for announces at https://infra.yandex-team.ru before reporting any issues",
+                user->GetName());
         } else {
             auto event = LogStructuredEventFluently(Logger, ELogLevel::Info)
                 .Item("event").Value(EAccessControlEvent::AccessDenied)
@@ -1444,7 +1445,8 @@ public:
 
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: %Qlv permission for %v is denied for %Qv by ACE at %v",
+                    "Access denied for user %Qv: %Qlv permission for %v is denied for %Qv by ACE at %v",
+                    user->GetName(),
                     permission,
                     objectName,
                     result.Subject->GetName(),
@@ -1459,7 +1461,8 @@ public:
             } else {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied: %Qlv permission for %v is not allowed by any matching ACE",
+                    "Access denied for user %Qv: %Qlv permission for %v is not allowed by any matching ACE",
+                    user->GetName(),
                     permission,
                     objectName);
 
