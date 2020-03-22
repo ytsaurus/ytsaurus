@@ -2,6 +2,7 @@
 
 #include "bootstrap.h"
 #include "schema.h"
+#include "table.h"
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -119,44 +120,6 @@ void ConvertToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TTableSchema> FetchSchemas(
-    const NApi::NNative::IClientPtr& client,
-    const TClickHouseHostPtr& host,
-    const std::vector<TRichYPath>& richPaths)
-{
-    std::vector<TYPath> paths;
-    paths.reserve(richPaths.size());
-    for (const auto& path: richPaths) {
-        paths.emplace_back(path.GetPath());
-    }
-
-    auto attributeOrErrors = host->CheckPermissionsAndGetCachedObjectAttributes(paths, client);
-
-    std::vector<TTableSchema> schemas;
-    std::vector<TError> errors;
-    for (int index = 0; index < static_cast<int>(richPaths.size()); ++index) {
-        const auto& path = richPaths[index];
-        const auto& attrOrError = attributeOrErrors[index];
-
-        if (attrOrError.IsOK()) {
-            if (ConvertTo<NObjectClient::EObjectType>(attrOrError.Value().at("type")) == NObjectClient::EObjectType::Table &&
-                ConvertTo<bool>(attrOrError.Value().at("dynamic")) == false)
-            {
-                schemas.emplace_back(ConvertTo<TTableSchema>(attrOrError.Value().at("schema")));
-            }
-        } else {
-            errors.emplace_back(attrOrError
-                << TErrorAttribute("path", path));
-        }
-    }
-    if (!errors.empty()) {
-        THROW_ERROR_EXCEPTION("Failed to fetch some of the tables")
-            << errors;
-    }
-
-    return schemas;
-}
-
 TString MaybeTruncateSubquery(TString query)
 {
     static const auto ytSubqueryRegex = New<TRe2>("ytSubquery\\([^()]*\\)");
@@ -165,11 +128,22 @@ TString MaybeTruncateSubquery(TString query)
     return query;
 }
 
-TTableSchema GetCommonSchema(const THashSet<TTableSchema>& schemas)
+TTableSchema InferCommonSchema(const std::vector<TTablePtr>& tables, const TLogger& logger)
 {
+    THashSet<TTableSchema> schemas;
+    for (const auto& table : tables) {
+        schemas.emplace(table->Schema);
+    }
+
     if (schemas.empty()) {
         return TTableSchema();
     }
+
+    if (schemas.size() == 1) {
+        return *schemas.begin();
+    }
+
+    const auto& Logger = logger;
 
     const auto& firstSchema = *schemas.begin();
 
@@ -223,7 +197,14 @@ TTableSchema GetCommonSchema(const THashSet<TTableSchema>& schemas)
         }
         resultColumns[index].SetSortOrder(ESortOrder::Ascending);
     }
-    return TTableSchema(resultColumns);
+
+    TTableSchema commonSchema(resultColumns);
+
+    YT_LOG_INFO("Common schema inferred (Schemas: %v, CommonSchema: %v)",
+        schemas,
+        commonSchema);
+
+    return commonSchema;
 }
 
 /////////////////////////////////////////////////////////////////////////////

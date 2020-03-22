@@ -4,6 +4,7 @@
 #include "storage_distributor.h"
 #include "helpers.h"
 #include "query_context.h"
+#include "table.h"
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -141,7 +142,14 @@ public:
 
         auto tablePaths = EvaluateArguments(arguments, context);
 
-        return CreateStorageDistributor(queryContext, tablePaths);;
+        auto tables = FetchTables(
+            queryContext->Client(),
+            queryContext->Bootstrap->GetHost(),
+            std::move(tablePaths),
+            /* skipUnsuitableNodes */ false,
+            queryContext->Logger);
+
+        return CreateStorageDistributor(queryContext, std::move(tables));
     }
 
 private:
@@ -196,40 +204,28 @@ public:
             .ValueOrThrow();
         auto itemList = ConvertTo<IListNodePtr>(items);
 
-        std::vector<TYPath> itemPaths;
+        std::vector<TRichYPath> itemPaths;
         for (const auto& child : itemList->GetChildren()) {
             const auto& attributes = child->Attributes();
             auto path = attributes.Get<TYPath>("path");
             if (IsPathAllowed(path, arguments, context)) {
-                itemPaths.emplace_back(path);
+                itemPaths.emplace_back(path, directory.Attributes());
             }
         }
 
-        // Leave only tables.
-        auto attributesOrError = queryContext->Bootstrap->GetHost()->CheckPermissionsAndGetCachedObjectAttributes(itemPaths, queryContext->Client());
-        std::vector<TRichYPath> tablePaths;
-        for (size_t index = 0; index < itemPaths.size(); ++index) {
-            // Silently ignore non-tables and items which result in error.
-            // Such behaviour is better than any other in this situtation.
-            if (attributesOrError[index].IsOK()) {
-                auto attributes = attributesOrError[index].Value();
-                if (ConvertTo<NObjectClient::EObjectType>(attributes["type"]) == NObjectClient::EObjectType::Table &&
-                    ConvertTo<bool>(attributes["dynamic"]) == false)
-                {
-                    tablePaths.emplace_back(itemPaths[index], directory.Attributes());
-                }
-            }
-        }
+        // We intentionally skip all non-table items for better user experience.
+        auto tables = FetchTables(
+            queryContext->Client(),
+            queryContext->Bootstrap->GetHost(),
+            std::move(itemPaths),
+            /* skipUnsuitableItems */ true,
+            queryContext->Logger);
 
-        if (tablePaths.empty()) {
-            THROW_ERROR_EXCEPTION("No tables to concatenate");
-        }
-
-        std::sort(tablePaths.begin(), tablePaths.end(), [] (const auto& lhs, const auto& rhs) {
-            return lhs.GetPath() < rhs.GetPath();
+        std::sort(tables.begin(), tables.end(), [] (const TTablePtr& lhs, const TTablePtr& rhs) {
+            return lhs->Path.GetPath() < rhs->Path.GetPath();
         });
 
-        return CreateStorageDistributor(queryContext, std::move(tablePaths));
+        return CreateStorageDistributor(queryContext, std::move(tables));
     }
 
 protected:

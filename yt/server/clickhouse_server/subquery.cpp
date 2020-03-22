@@ -5,6 +5,7 @@
 #include "subquery_spec.h"
 #include "schema.h"
 #include "helpers.h"
+#include "table.h"
 #include "query_analyzer.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
@@ -75,17 +76,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TInputTable
-    : public TUserObject
-{
-    int ChunkCount = 0;
-    bool IsDynamic = false;
-    TTableSchema Schema;
-    int TableIndex = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 // TODO(max42): rename
 class TDataSliceFetcher
     : public TRefCounted
@@ -98,22 +88,27 @@ public:
 
 public:
     TDataSliceFetcher(
-        TBootstrap* bootstrap,
         NNative::IClientPtr client,
         IInvokerPtr invoker,
         const TQueryAnalysisResult& queryAnalysisResult,
         TRowBufferPtr rowBuffer,
         TSubqueryConfigPtr config)
-        : Bootstrap_(bootstrap)
-        , Client_(std::move(client))
+        : Client_(std::move(client))
         , Invoker_(std::move(invoker))
         , TableSchemas_(queryAnalysisResult.TableSchemas)
-        , InputTablePaths_(queryAnalysisResult.TablePaths)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
         , KeyColumnCount_(queryAnalysisResult.KeyColumnCount)
         , RowBuffer_(std::move(rowBuffer))
         , Config_(std::move(config))
-    { }
+    {
+        OperandCount_ = queryAnalysisResult.Tables.size();
+        for (int operandIndex = 0; operandIndex < static_cast<int>(queryAnalysisResult.Tables.size()); ++operandIndex) {
+            for (auto& table : queryAnalysisResult.Tables[operandIndex]) {
+                table->TableIndex = operandIndex;
+                InputTables_.emplace_back(std::move(table));
+            }
+        }
+    }
 
     TFuture<void> Fetch()
     {
@@ -123,8 +118,6 @@ public:
     }
 
 private:
-    const TBootstrap* Bootstrap_;
-
     const NLogging::TLogger& Logger = ClickHouseYtLogger;
 
     NApi::NNative::IClientPtr Client_;
@@ -132,13 +125,15 @@ private:
     IInvokerPtr Invoker_;
 
     std::vector<TTableSchema> TableSchemas_;
-    std::vector<std::vector<TRichYPath>> InputTablePaths_;
     std::vector<std::optional<KeyCondition>> KeyConditions_;
 
     std::optional<int> KeyColumnCount_ = 0;
     DataTypes KeyColumnDataTypes_;
 
-    std::vector<TInputTable> InputTables_;
+    //! Number of operands to join. May be either 1 (if no JOIN present or joinee is not a YT table) or 2 (otherwise).
+    int OperandCount_ = 0;
+
+    std::vector<TTablePtr> InputTables_;
 
     TRowBufferPtr RowBuffer_;
 
@@ -148,8 +143,6 @@ private:
 
     void DoFetch()
     {
-        CollectTablesAttributes();
-
         // TODO(max42): do we need this check?
         if (!TableSchemas_.empty()) {
             // TODO(max42): it's better for query analyzer to do this substitution...
@@ -160,14 +153,13 @@ private:
             if (KeyColumnCount_) {
                 commonSchemaPart.resize(*KeyColumnCount_);
             }
-            // TODO(max42): rewrite this!
             KeyColumnDataTypes_ = ToDataTypes(TTableSchema(commonSchemaPart));
         }
 
         FetchChunks();
 
         std::vector<TChunkStripePtr> stripes;
-        for (int index = 0; index < static_cast<int>(InputTablePaths_.size()); ++index) {
+        for (int index = 0; index < OperandCount_; ++index) {
             stripes.emplace_back(New<TChunkStripe>());
         }
         for (const auto& chunk : InputChunks_) {
@@ -187,69 +179,11 @@ private:
             ResultStripeList_->TotalRowCount);
     }
 
-    void CollectTablesAttributes()
-    {
-        YT_LOG_INFO("Collecting input table attributes");
-
-        std::vector<TYPath> paths;
-
-        for (
-            int logicalTableIndex = 0;
-            logicalTableIndex < static_cast<int>(InputTablePaths_.size());
-            ++logicalTableIndex)
-        {
-            auto tablePaths = InputTablePaths_[logicalTableIndex];
-            for (const auto& tablePath : tablePaths) {
-                auto& table = InputTables_.emplace_back();
-                table.Path = tablePath;
-                table.TableIndex = logicalTableIndex;
-                paths.emplace_back(tablePath.GetPath());
-            }
-        }
-
-        auto attributeOrErrors = Bootstrap_->GetHost()->CheckPermissionsAndGetCachedObjectAttributes(paths, Client_);
-
-        std::vector<TError> errors;
-
-        for (const auto& attribute : attributeOrErrors) {
-            if (!attribute.IsOK()) {
-                errors.push_back(attribute);
-            }
-        }
-
-        if (errors.empty()) {
-            for (size_t index = 0; index < InputTables_.size(); ++index) {
-                auto& table = InputTables_[index];
-                const auto& attrs = attributeOrErrors[index].Value();
-
-                table.ObjectId = TObjectId::FromString(attrs.at("id")->GetValue<TString>());
-                table.Type = TypeFromId(table.ObjectId);
-                if (table.Type ==  NObjectClient::EObjectType::Table) {
-                    table.ExternalCellTag = attrs.at("external")->GetValue<bool>() ?
-                        attrs.at("external_cell_tag")->GetValue<ui64>() : CellTagFromId(table.ObjectId);
-                    table.ChunkCount = attrs.at("chunk_count")->GetValue<i64>();
-                    table.IsDynamic = attrs.at("dynamic")->GetValue<bool>();
-                    table.Schema = ConvertTo<TTableSchema>(attrs.at("schema"));
-                } else {
-                    errors.emplace_back("Object %v has invalid type: expected %Qlv, actual %Qlv",
-                        table.Path.GetPath(),
-                        NObjectClient::EObjectType::Table,
-                        table.Type);
-                }
-            }
-        }
-
-        if (!errors.empty()) {
-            THROW_ERROR_EXCEPTION(TError("Failed to collect table attributes")
-                << errors);
-        }
-    }
-
     void FetchChunks()
     {
         i64 totalChunkCount = 0;
         for (const auto& inputTable : InputTables_) {
-            totalChunkCount += inputTable.ChunkCount;
+            totalChunkCount += inputTable->ChunkCount;
         }
         YT_LOG_INFO("Fetching input chunks (InputTableCount: %v, TotalChunkCount: %v)",
             InputTables_.size(),
@@ -271,16 +205,11 @@ private:
             Logger);
 
         for (const auto& table : InputTables_) {
-            auto logicalTableIndex = table.TableIndex;
-
-            if (table.IsDynamic) {
-                THROW_ERROR_EXCEPTION("Dynamic tables are not supported yet (YT-9404)")
-                    << TErrorAttribute("table", table.Path.GetPath());
-            }
+            auto logicalTableIndex = table->TableIndex;
 
             auto dataSource = MakeUnversionedDataSource(
                 std::nullopt /* path */,
-                table.Schema,
+                table->Schema,
                 std::nullopt /* columns */,
                 // TODO(max42): YT-10402, omitted inaccessible columns
                 {});
@@ -288,11 +217,11 @@ private:
             DataSourceDirectory_->DataSources().push_back(std::move(dataSource));
 
             chunkSpecFetcher->Add(
-                table.ObjectId,
-                table.ExternalCellTag,
-                table.ChunkCount,
+                table->ObjectId,
+                table->ExternalCellTag,
+                table->ChunkCount,
                 logicalTableIndex,
-                table.Path.GetRanges());
+                table->Path.GetRanges());
         }
 
         WaitFor(chunkSpecFetcher->Fetch())
@@ -335,7 +264,6 @@ DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher);
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueryInput FetchInput(
-    TBootstrap* bootstrap,
     NNative::IClientPtr client,
     const IInvokerPtr& invoker,
     const TQueryAnalysisResult& queryAnalysisResult,
@@ -344,7 +272,6 @@ TQueryInput FetchInput(
     TSubquerySpec& specTemplate)
 {
     auto dataSliceFetcher = New<TDataSliceFetcher>(
-        bootstrap,
         std::move(client),
         invoker,
         queryAnalysisResult,

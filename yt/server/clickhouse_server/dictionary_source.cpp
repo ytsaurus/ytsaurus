@@ -2,6 +2,7 @@
 
 #include "bootstrap.h"
 #include "helpers.h"
+#include "table.h"
 #include "private.h"
 #include "revision_tracker.h"
 #include "block_input_stream.h"
@@ -53,20 +54,25 @@ public:
 
         YT_LOG_INFO("Reloading dictionary (Revision: %v)", RevisionTracker_.GetRevision());
 
-        auto schema = FetchSchemas(Bootstrap_->GetRootClient(), Bootstrap_->GetHost(), {Path_}).front();
+        auto table = FetchTables(
+            Bootstrap_->GetRootClient(),
+            Bootstrap_->GetHost(),
+            {Path_},
+            /* skipUnsuitableNodes */ false,
+            Logger).front();
 
-        ValidateSchema(schema);
+        ValidateSchema(table->Schema);
 
         auto result = WaitFor(
             NApi::NNative::CreateSchemalessMultiChunkReader(
                 Bootstrap_->GetRootClient(),
                 Path_,
                 NApi::TTableReaderOptions(),
-                NTableClient::TNameTable::FromSchema(schema),
-                NTableClient::TColumnFilter(schema.GetColumnCount())))
+                NTableClient::TNameTable::FromSchema(table->Schema),
+                NTableClient::TColumnFilter(table->Schema.GetColumnCount())))
             .ValueOrThrow();
 
-        return CreateBlockInputStream(result.Reader, schema, nullptr /* traceContext */, Bootstrap_, Logger, nullptr /* prewhereInfo */);
+        return CreateBlockInputStream(result.Reader, table->Schema, nullptr /* traceContext */, Bootstrap_, Logger, nullptr /* prewhereInfo */);
     }
 
     virtual DB::BlockInputStreamPtr loadIds(const std::vector<UInt64>& /* ids */) override

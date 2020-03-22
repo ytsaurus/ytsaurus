@@ -3,6 +3,7 @@
 #include "helpers.h"
 #include "query_context.h"
 #include "subquery.h"
+#include "table.h"
 
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -89,9 +90,11 @@ void TQueryAnalyzer::ValidateKeyColumns()
                 joinArgument.KeyColumnToIndex[column] = columnIndex;
             }
 
-            joinArgument.Paths = storage->GetTablePaths();
-            if (joinArgument.Paths.size() != 1) {
-                THROW_ERROR_EXCEPTION("Invalid JOIN: only single table may currently be joined")
+            auto tables = storage->GetTables();
+            if (tables.size() == 1) {
+                joinArgument.Paths = {tables.front()->Path};
+            } else {
+                THROW_ERROR_EXCEPTION("Invalid sorted JOIN: only single table may currently be joined")
                     << TErrorAttribute("table_index", index)
                     << TErrorAttribute("table_paths", joinArgument.Paths);
             }
@@ -259,7 +262,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
         if (!storage) {
             continue;
         }
-        result.TablePaths.emplace_back(storage->GetTablePaths());
+        result.Tables.emplace_back(storage->GetTables());
         auto schema = storage->GetSchema();
         std::optional<DB::KeyCondition> keyCondition;
         if (schema.IsSorted()) {

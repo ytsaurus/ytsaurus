@@ -21,7 +21,7 @@ namespace NYT::NClickHouseServer {
 struct IStorageDistributor
 {
 public:
-    virtual std::vector<NYPath::TRichYPath> GetTablePaths() const = 0;
+    virtual std::vector<TTablePtr> GetTables() const = 0;
 
     virtual NTableClient::TTableSchema GetSchema() const = 0;
 };
@@ -30,7 +30,7 @@ public:
 
 DB::StoragePtr CreateStorageDistributor(
     TQueryContext* queryContext,
-    std::vector<NYPath::TRichYPath> tablePaths);
+    std::vector<TTablePtr> tables);
 
 void RegisterStorageDistributor();
 
