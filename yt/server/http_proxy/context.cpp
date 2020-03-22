@@ -26,6 +26,8 @@
 
 #include <yt/core/rpc/authenticator.h>
 
+#include <yt/client/security_client/public.h>
+
 #include <util/string/ascii.h>
 #include <util/string/strip.h>
 #include <util/random/random.h>
@@ -185,7 +187,7 @@ bool TContext::TryParseUser()
 
     if (DriverRequest_.CommandName == "discover_proxies") {
         // Optimize master cache hit rate.
-        DriverRequest_.AuthenticatedUser = "root";
+        DriverRequest_.AuthenticatedUser = NSecurityClient::RootUserName;
         return true;
     }
 
