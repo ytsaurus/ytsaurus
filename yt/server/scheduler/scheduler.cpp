@@ -1000,10 +1000,8 @@ public:
         auto* request = &context->Request();
         auto nodeId = request->node_id();
 
-        TFuture<void> unregisterFuture;
-
-        if (HandleNodeIdChangesStrictly_)
-        {
+        auto unregisterFuture = VoidFuture;
+        if (HandleNodeIdChangesStrictly_) {
             auto guard = Guard(NodeAddressToNodeShardIdLock_);
 
             auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
@@ -1022,22 +1020,15 @@ public:
             NodeAddressToNodeShardId_[address] = nodeId;
         }
 
-        auto callProcessHeartbeat = [=] () {
+        unregisterFuture.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            if (!error.IsOK()) {
+                context->Reply(error);
+                return;
+            }
+
             const auto& nodeShard = GetNodeShard(nodeId);
             nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
-        };
-
-        if (unregisterFuture) {
-            unregisterFuture.Apply(BIND([&] (const TError& error) {
-                if (!error.IsOK()) {
-                    context->Reply(error);
-                    return;
-                }
-                callProcessHeartbeat();
-            }));
-        } else {
-            callProcessHeartbeat();
-        }
+        }));
     }
 
     // ISchedulerStrategyHost implementation
