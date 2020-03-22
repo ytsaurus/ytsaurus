@@ -36,14 +36,7 @@ Y_FORCE_INLINE void TRefCountedImpl::Unref() const
         //
         StrongCount_.load(std::memory_order_acquire);
 
-        // Save pointer to derived to the place of vtable pointer.
-        const void* derived = this->GetDerived();
-        const void** vTablePtr = reinterpret_cast<const void**>(const_cast<TRefCountedImpl*>(this));
-        // Dtor is virtual.
-        this->~TRefCountedImpl();
-        *vTablePtr = derived;
-
-        WeakUnref();
+        const_cast<TRefCountedImpl*>(this)->DestroyRefCounted();
     }
 }
 

@@ -71,8 +71,6 @@ public:
 
     void operator delete(void* ptr) noexcept;
 
-    virtual const void* GetDerived() const = 0;
-
 private:
     TRefCountedBase(const TRefCountedBase&) = delete;
     TRefCountedBase(TRefCountedBase&&) = delete;
@@ -142,6 +140,8 @@ private:
 
     //! Number of weak references plus one if there is at least one strong reference.
     mutable std::atomic<int> WeakCount_ = {1};
+
+    virtual void DestroyRefCounted() = 0;
 
 };
 
