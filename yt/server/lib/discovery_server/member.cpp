@@ -123,6 +123,16 @@ TInstant TMember::GetLastAttributesUpdateTime() const
     return LastAttributesUpdateTime_;
 }
 
+TInstant TMember::GetLastGossipAttributesUpdateTime() const
+{
+    return LastGossipAttributesUpdateTime_;
+}
+
+void TMember::SetLastGossipAttributesUpdateTime(const TInstant& lastGossipAttributesUpdateTime)
+{
+    LastGossipAttributesUpdateTime_ = lastGossipAttributesUpdateTime;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TMemberPtrComparer::operator()(const TMemberPtr& lhs, const TMemberPtr& rhs) const

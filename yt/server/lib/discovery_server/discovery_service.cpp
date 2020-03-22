@@ -277,6 +277,8 @@ private:
         auto modifiedMembers = GroupManager_->GetModifiedMembers();
         YT_LOG_DEBUG("Gossip started (ModifiedMemberCount: %v)", modifiedMembers.size());
 
+        auto gossipStartTime = TInstant::Now();
+
         for (const auto& address : Config_->ServerAddresses) {
             if (address == SelfAddress_) {
                 continue;
@@ -296,7 +298,8 @@ private:
 
                 {
                     auto reader = member->CreateReader();
-                    if (TInstant::Now() - member->GetLastAttributesUpdateTime() > Config_->AttributesUpdatePeriod) {
+                    if (gossipStartTime - member->GetLastGossipAttributesUpdateTime() > Config_->AttributesUpdatePeriod) {
+                        YT_LOG_DEBUG("Sending attributes (Address: %v)", address);
                         ToProto(memberInfo->mutable_attributes(), *reader.GetAttributes());
                     }
                     memberInfo->set_revision(reader.GetRevision());
@@ -313,6 +316,12 @@ private:
                         YT_LOG_INFO(rspOrError, "Gossip failed (Address: %v)", address);
                     }
                 }));
+        }
+
+        for (const auto& member : modifiedMembers) {
+            if (gossipStartTime - member->GetLastGossipAttributesUpdateTime() > Config_->AttributesUpdatePeriod) {
+                member->SetLastGossipAttributesUpdateTime(gossipStartTime);
+            }
         }
     }
 };

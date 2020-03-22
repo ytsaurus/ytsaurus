@@ -65,6 +65,9 @@ public:
 
     TDiscoveryServerPtr CreateDiscoveryServer(const TDiscoveryServerConfigPtr& serverConfig, int index)
     {
+        serverConfig->GossipPeriod = TDuration::MilliSeconds(500);
+        serverConfig->AttributesUpdatePeriod = TDuration::Seconds(1);
+
         auto serverActionQueue = New<TActionQueue>("DiscoveryServer" + ToString(index));
         auto gossipActionQueue = New<TActionQueue>("Gossip" + ToString(index));
 
@@ -107,7 +110,8 @@ public:
         if (memberClientConfig->ServerAddresses.empty()) {
             memberClientConfig->ServerAddresses = Addresses_;
         }
-        memberClientConfig->AttributeUpdatePeriod = TDuration::Seconds(2);
+        memberClientConfig->HeartbeatPeriod = TDuration::MilliSeconds(500);
+        memberClientConfig->AttributeUpdatePeriod = TDuration::Seconds(1);
         const auto& actionQueue = New<TActionQueue>("MemberClient");
         ActionQueues_.push_back(actionQueue);
         return New<TMemberClient>(
@@ -224,12 +228,19 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
     TString key = "key";
     TString value = "value";
 
-    auto memberClient = CreateMemberClient(groupId, memberId);
+    const auto& addresses = GetDiscoveryServersAddresses();
+
+    auto memberClientConfig = New<TMemberClientConfig>();
+    memberClientConfig->ServerAddresses = {addresses[0], addresses[1], addresses[2]};
+    auto memberClient = CreateMemberClient(groupId, memberId, memberClientConfig);
     memberClient->Start();
 
     Sleep(TDuration::Seconds(5));
 
-    auto discoveryClient = CreateDiscoveryClient();
+    auto discoveryClientConfig = New<TDiscoveryClientConfig>();
+    discoveryClientConfig->ServerAddresses = {addresses[3], addresses[4]};
+
+    auto discoveryClient = CreateDiscoveryClient(discoveryClientConfig);
 
     TListMembersOptions options;
     options.AttributeKeys.push_back(key);
@@ -250,7 +261,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
         const auto& members = membersFuture.Get().ValueOrThrow();
         EXPECT_EQ(members.size(), 1);
-        EXPECT_TRUE(members[0].Attributes->Get<TString>(key) == value);
+        EXPECT_TRUE(members[0].Attributes->Find<TString>(key) == value);
     }
 }
 

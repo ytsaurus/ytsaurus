@@ -60,6 +60,8 @@ public:
     TInstant GetLeaseDeadline() const;
     TInstant GetLastHeartbeatTime() const;
     TInstant GetLastAttributesUpdateTime() const;
+    TInstant GetLastGossipAttributesUpdateTime() const;
+    void SetLastGossipAttributesUpdateTime(const TInstant& lastGossipAttributesUpdateTime);
 
 private:
     const TMemberId Id_;
@@ -74,6 +76,8 @@ private:
 
     TInstant LastHeartbeatTime_;
     TInstant LastAttributesUpdateTime_;
+
+    TInstant LastGossipAttributesUpdateTime_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMember)
