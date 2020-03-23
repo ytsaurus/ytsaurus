@@ -3,6 +3,7 @@ from yp.common import GrpcResourceExhaustedError
 import yt.yson as yson
 from yt.yson.convert import yson_to_json
 
+from six import iteritems
 from six.moves import range
 
 import json
@@ -66,6 +67,11 @@ class SchedulerCluster(SchedulerClusterBase):
         fields = {field: getattr(self, field) for field in self._fields}
         fields.update(kwargs)
         return self.__class__(**fields)
+
+    def replace_by_type(self, **kwargs):
+        kwargs = {self._get_attribute_name_by_type(type_): objects
+                  for type_, objects in iteritems(kwargs)}
+        return self.replace(**kwargs)
 
     @staticmethod
     def _get_attribute_name_by_type(type_):
