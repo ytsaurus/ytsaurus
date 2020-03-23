@@ -304,6 +304,8 @@ protected:
                     DstNodeId_ = FromProto<TNodeId>(rsp->node_id());
                 }
             }
+
+            inplace = true;
         }
 
         YT_LOG_DEBUG("Serialized subtrees materialized (RootNodeId: %v)",
