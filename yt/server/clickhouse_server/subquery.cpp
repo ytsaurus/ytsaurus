@@ -88,18 +88,15 @@ public:
 
 public:
     TDataSliceFetcher(
-        NNative::IClientPtr client,
-        IInvokerPtr invoker,
-        const TQueryAnalysisResult& queryAnalysisResult,
-        TRowBufferPtr rowBuffer,
-        TSubqueryConfigPtr config)
-        : Client_(std::move(client))
-        , Invoker_(std::move(invoker))
+        TQueryContext* queryContext,
+        const TQueryAnalysisResult& queryAnalysisResult)
+        : Client_(queryContext->Client())
+        , Invoker_(queryContext->Bootstrap->GetSerializedWorkerInvoker())
         , TableSchemas_(queryAnalysisResult.TableSchemas)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
         , KeyColumnCount_(queryAnalysisResult.KeyColumnCount)
-        , RowBuffer_(std::move(rowBuffer))
-        , Config_(std::move(config))
+        , Config_(queryContext->Bootstrap->GetConfig()->Engine->Subquery)
+        , Logger(queryContext->Logger)
     {
         OperandCount_ = queryAnalysisResult.Tables.size();
         for (int operandIndex = 0; operandIndex < static_cast<int>(queryAnalysisResult.Tables.size()); ++operandIndex) {
@@ -118,8 +115,6 @@ public:
     }
 
 private:
-    const NLogging::TLogger& Logger = ClickHouseYtLogger;
-
     NApi::NNative::IClientPtr Client_;
 
     IInvokerPtr Invoker_;
@@ -135,11 +130,11 @@ private:
 
     std::vector<TTablePtr> InputTables_;
 
-    TRowBufferPtr RowBuffer_;
-
     TSubqueryConfigPtr Config_;
 
     std::vector<TInputChunkPtr> InputChunks_;
+
+    TLogger Logger;
 
     void DoFetch()
     {
@@ -264,19 +259,11 @@ DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher);
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueryInput FetchInput(
-    NNative::IClientPtr client,
-    const IInvokerPtr& invoker,
+    TQueryContext* queryContext,
     const TQueryAnalysisResult& queryAnalysisResult,
-    TRowBufferPtr rowBuffer,
-    TSubqueryConfigPtr config,
     TSubquerySpec& specTemplate)
 {
-    auto dataSliceFetcher = New<TDataSliceFetcher>(
-        std::move(client),
-        invoker,
-        queryAnalysisResult,
-        std::move(rowBuffer),
-        std::move(config));
+    auto dataSliceFetcher = New<TDataSliceFetcher>(queryContext, queryAnalysisResult);
     WaitFor(dataSliceFetcher->Fetch())
         .ThrowOnError();
 
