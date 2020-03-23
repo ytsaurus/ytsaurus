@@ -69,6 +69,35 @@ DEFINE_REFCOUNTED_TYPE(TBatchingChunkServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicConfigManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Whether dynamic config manager is enabled.
+    bool Enabled;
+
+    //! Period of config fetching from Cypress.
+    TDuration ConfigFetchPeriod;
+
+    //! Whether alert for unrecognized dynamic config options
+    //! should be enabled.
+    bool EnableUnrecognizedOptionsAlert;
+
+    TDynamicConfigManagerConfig()
+    {
+        RegisterParameter("enabled", Enabled)
+            .Default(true);
+        RegisterParameter("config_fetch_period", ConfigFetchPeriod)
+            .Default(TDuration::Seconds(30));
+        RegisterParameter("enable_unrecognized_options_alert", EnableUnrecognizedOptionsAlert)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicConfigManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCellNodeConfig
     : public TServerConfig
 {
@@ -125,6 +154,9 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
+    //! Dynamic config manager config.
+    TDynamicConfigManagerConfigPtr DynamicConfigManager;
+
     TCellNodeConfig()
     {
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
@@ -173,6 +205,9 @@ public:
         RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
             .Default(false);
 
+        RegisterParameter("dynamic_config_manager", DynamicConfigManager)
+            .DefaultNew();
+
         RegisterPostprocessor([&] () {
             NNodeTrackerClient::ValidateNodeTags(Tags);
         });
@@ -180,6 +215,24 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellNodeConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCellNodeDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Dynamic config annotation.
+    TString ConfigAnnotation;
+
+    TCellNodeDynamicConfig()
+    {
+        RegisterParameter("config_annotation", ConfigAnnotation)
+            .Default("");
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellNodeDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
