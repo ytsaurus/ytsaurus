@@ -1092,6 +1092,16 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(5):
             pass
 
+    @authors("max42")
+    def test_any_empty_result(self):
+        # CHYT-338, CHYT-246.
+        create("table", "//tmp/t", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"},
+                                                          {"name": "value", "type": "string"}]})
+        write_table("//tmp/t", [{"key": 1, "value": "a"}])
+
+        with Clique(1) as clique:
+            assert clique.make_query("select any(value) from `//tmp/t` where key = 2") == [{"any(value)": None}]
+
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):

@@ -8,6 +8,7 @@
 #include "query_context.h"
 #include "subquery.h"
 #include "join_workaround.h"
+#include "schema.h"
 #include "query_registry.h"
 #include "query_analyzer.h"
 #include "table.h"
@@ -291,6 +292,18 @@ public:
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
 
         int subqueryCount = std::min(Subqueries_.size(), cliqueNodes.size());
+
+        if (subqueryCount == 0) {
+            // NB: if we make no subqueries, there will be a tricky issue around schemas.
+            // Namely, we return an empty vector of streams, so the resulting schema will
+            // be taken from columns of this storage (which are set via setColumns).
+            // Such schema will be incorrect as it will lack aggregates in mergeable state
+            // which should normally return from our distributed storage.
+            // In order to overcome this, we forcefully make at least one stream, even though it
+            // will return empty result for sure.
+            subqueryCount = 1;
+        }
+
         for (int index = 0; index < subqueryCount; ++index) {
             int firstSubqueryIndex = index * Subqueries_.size() / subqueryCount;
             int lastSubqueryIndex = (index + 1) * Subqueries_.size() / subqueryCount;
@@ -309,6 +322,8 @@ public:
                     threadSubquery.StripeList->TotalRowCount,
                     threadSubquery.StripeList->TotalChunkCount);
             }
+
+            YT_VERIFY(!threadSubqueries.Empty() || Subqueries_.empty());
 
             const auto& cliqueNode = cliqueNodes[index];
             auto subqueryAst = QueryAnalyzer_->RewriteQuery(
