@@ -2,7 +2,7 @@
 
 #include "fwd.h"
 
-#include <library/type_info/type_info.h>
+#include <library/cpp/type_info/type_info.h>
 #include <library/yson/node/node.h>
 
 #include <util/generic/guid.h>
