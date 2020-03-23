@@ -6,10 +6,6 @@
 
 #include <yt/server/master/cypress_server/public.h>
 
-#include <yt/server/lib/hive/public.h>
-
-#include <yt/server/lib/hydra/public.h>
-
 #include <yt/server/master/cell_server/public.h>
 
 #include <yt/server/master/journal_server/public.h>
@@ -29,6 +25,12 @@
 #include <yt/server/master/journal_server/public.h>
 
 #include <yt/server/master/transaction_server/public.h>
+
+#include <yt/server/lib/hive/public.h>
+
+#include <yt/server/lib/hydra/public.h>
+
+#include <yt/server/lib/timestamp_server/public.h>
 
 #include <yt/ytlib/api/native/public.h>
 
@@ -133,6 +135,7 @@ private:
     NHydra::ISnapshotStorePtr SnapshotStore_;
     NNodeTrackerServer::TNodeTrackerPtr NodeTracker_;
     NTransactionServer::TTransactionManagerPtr TransactionManager_;
+    NTimestampServer::TTimestampManagerPtr TimestampManager_;
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;
     NHiveServer::TTransactionSupervisorPtr TransactionSupervisor_;
     NCypressServer::TCypressManagerPtr CypressManager_;
