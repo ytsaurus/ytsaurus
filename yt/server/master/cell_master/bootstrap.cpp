@@ -652,11 +652,13 @@ void TBootstrap::DoInitialize()
 
     SchedulerPoolManager_ = New<TSchedulerPoolManager>(this);
 
-    auto timestampManager = New<TTimestampManager>(
-        Config_->TimestampManager,
-        HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
-        HydraFacade_->GetHydraManager(),
-        HydraFacade_->GetAutomaton());
+    if (Config_->EnableTimestampManager && MulticellManager_->IsPrimaryMaster()) {
+        TimestampManager_ = New<TTimestampManager>(
+            Config_->TimestampManager,
+            HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
+            HydraFacade_->GetHydraManager(),
+            HydraFacade_->GetAutomaton());
+    }
 
     TimestampProvider_ = CreateRemoteTimestampProvider(
         Config_->TimestampProvider,
@@ -705,7 +707,9 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::CellDirectorySynchronizer));
     CellDirectorySynchronizer_->Start();
 
-    RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
+    if (TimestampManager_) {
+        RpcServer_->RegisterService(TimestampManager_->GetRpcService()); // null realm
+    }
     RpcServer_->RegisterService(HiveManager_->GetRpcService()); // cell realm
     for (const auto& service : TransactionSupervisor_->GetRpcServices()) {
         RpcServer_->RegisterService(service); // cell realm

@@ -161,6 +161,7 @@ public:
 
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
 
+    bool EnableTimestampManager;
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
 
     NTransactionClient::TRemoteTimestampProviderWithDiscoveryConfigPtr TimestampProvider;

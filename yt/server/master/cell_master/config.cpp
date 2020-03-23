@@ -43,6 +43,8 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("replicated_table_tracker", ReplicatedTableTracker)
         .DefaultNew();
+    RegisterParameter("enable_timestamp_manager", EnableTimestampManager)
+        .Default(true);
     RegisterParameter("timestamp_manager", TimestampManager)
         .DefaultNew();
     RegisterParameter("timestamp_provider", TimestampProvider);

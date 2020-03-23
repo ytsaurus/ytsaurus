@@ -9,24 +9,29 @@ from yt_commands import *
 
 ##################################################################
 
-class TestClock(YTEnvSetup):
+class TestClockServer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_CLOCKS = 1
-    NUM_NODES = 0
-    NUM_SCHEDULERS = 0
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
 
     @authors("savrus")
-    def test_clock(self):
+    def test_generate_timestamp(self):
         config = deepcopy(self.Env.configs["clock_driver"])
         config["api_version"] = 4
         driver = Driver(config=config)
         t1 = generate_timestamp()
         t2 = generate_timestamp(driver=driver)
         assert abs((t1 >> 30) - (t2 >> 30)) < 2
-        pass
+
+    @authors("babenko")
+    def test_tx(self):
+        tx = start_transaction()
+        commit_transaction(tx)
 
 ##################################################################
 
-class TestClockMulticell(TestClock):
+class TestClockServerMulticell(TestClockServer):
     NUM_SECONDARY_MASTER_CELLS = 1
 
