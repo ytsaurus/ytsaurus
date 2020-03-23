@@ -30,6 +30,13 @@ DB::Names ToNames(const std::vector<TString>& columnNames)
 
 DB::DataTypePtr RepresentYtType(const TLogicalTypePtr& valueType)
 {
+    // TODO(max42): CHYT-140.
+    if (!SimplifyLogicalType(valueType).first) {
+        // This is an ultimately rich type (like optional<optional<...>> or list<...> etc).
+        // It is physically represented as Any, so we currently treat it as string.
+        return std::make_shared<DB::DataTypeString>();
+    }
+
     switch (valueType->GetMetatype()) {
         case ELogicalMetatype::Optional:
             return std::make_shared<DB::DataTypeNullable>(RepresentYtType(valueType->GetElement()));

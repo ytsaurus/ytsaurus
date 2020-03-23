@@ -1697,6 +1697,22 @@ class TestCompositeTypes(ClickHouseTestBase):
             result = clique.make_query("select YPathExtract(a, '/a', 'Array(Array(UInt64))') as i from \"//tmp/s1\"")
             assert result == [{"i": object["a"]}]
 
+    @authors("max42")
+    def test_rich_types_v3_are_strings(self):
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type_v3": {"type_name": "list", "item": "int64"}}]})
+        lst = [42, 23]
+        write_table("//tmp/t2", [{"a": lst}])
+
+
+        with Clique(1) as clique:
+            result = clique.make_query("describe `//tmp/t2`")
+            assert len(result) == 1
+            assert result[0]["type"] == "String"
+
+            assert clique.make_query("select a from `//tmp/t2`")[0] == {"a": yson.dumps(lst, yson_format="binary")}
+
+
+
 class TestYtDictionaries(ClickHouseTestBase):
     def setup(self):
         self._setup()
