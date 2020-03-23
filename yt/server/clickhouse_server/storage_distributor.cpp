@@ -423,11 +423,8 @@ private:
         auto queryAnalysisResult = QueryAnalyzer_->Analyze();
 
         auto input = FetchInput(
-            QueryContext_->Client(),
-            QueryContext_->Bootstrap->GetSerializedWorkerInvoker(),
+            QueryContext_,
             queryAnalysisResult,
-            QueryContext_->RowBuffer,
-            QueryContext_->Bootstrap->GetConfig()->Engine->Subquery,
             SpecTemplate_);
 
         MiscExtMap_ = std::move(input.MiscExtMap);
