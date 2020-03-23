@@ -52,6 +52,7 @@ private:
         const std::vector<TPermissionKey>& keys,
         bool isPeriodicUpdate) noexcept override;
 
+    NApi::TMasterReadOptions GetMasterReadOptions();
     NObjectClient::TObjectYPathProxy::TReqCheckPermissionPtr MakeCheckPermissionRequest(
         const NApi::NNative::IConnectionPtr& connection,
         const TPermissionKey& key);

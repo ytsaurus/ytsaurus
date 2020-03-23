@@ -80,8 +80,12 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Cache, userObject.ExternalCellTag);
         TObjectServiceProxy proxy(channel);
 
-        TMasterReadOptions masterReadOptions;
-        masterReadOptions.ReadFrom = EMasterChannelKind::Cache;
+        auto masterReadOptions = TMasterReadOptions{
+            .ReadFrom = EMasterChannelKind::Cache
+        };
+
+        auto batchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(batchReq, client->GetNativeConnection()->GetConfig(), masterReadOptions);
 
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
         SetCachingHeader(req, client->GetNativeConnection()->GetConfig(), masterReadOptions);
@@ -92,11 +96,12 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
             "sorted"
         });
 
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting table chunk count %v",
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting table chunk count %v",
             richPath);
 
-        const auto& rsp = rspOrError.Value();
+        const auto& batchRsp = batchRspOrError.Value();
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0).Value();
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
         chunkCount = attributes->Get<int>("chunk_count");
