@@ -385,7 +385,7 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
     TNodeResources result;
 
     // If chunk cache is disabled, we disable all scheduler jobs.
-    result.set_user_slots(Bootstrap_->GetChunkCache()->IsEnabled() && !DisableSchedulerJobs_
+    result.set_user_slots(Bootstrap_->GetChunkCache()->IsEnabled() && !DisableSchedulerJobs_ && !Bootstrap_->IsReadOnly()
         ? Bootstrap_->GetExecSlotManager()->GetSlotCount()
         : 0);
 

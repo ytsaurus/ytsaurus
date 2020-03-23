@@ -3,7 +3,7 @@ import yt_commands
 from yt.environment import YTInstance, init_operation_archive, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
-from yt.environment.default_configs import get_dynamic_master_config
+from yt.environment.default_configs import get_dynamic_master_config, get_dynamic_node_config
 
 try:
     from yt.environment.helpers import (
@@ -839,6 +839,12 @@ class YTEnvSetup(object):
             driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
             if driver is None:
                 continue
+
+            if cls.get_param("NUM_NODES", cluster_index) > 0:
+                dynamic_node_config = get_dynamic_node_config()
+                yt_commands.set("//sys/cluster_nodes/@config", dynamic_node_config)
+                for node in yt_commands.ls("//sys/cluster_nodes"):
+                    wait(lambda: yt_commands.get_applied_node_dynamic_config(node) == dynamic_node_config["%true"])
 
             if cls.USE_DYNAMIC_TABLES:
                 yt_commands.set("//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule", "1", driver=driver)
