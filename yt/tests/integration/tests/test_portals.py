@@ -940,7 +940,7 @@ class TestPortals(YTEnvSetup):
 
         copy("//tmp/p1/m1", "//tmp/p2/m1")
 
-        for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
+        for document_dir in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
             document_path = "//tmp/p1/m1" + document_dir + "/doc"
             assert get(document_path) == document_dir
 
