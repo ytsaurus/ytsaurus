@@ -13,7 +13,7 @@
 #include "job_statistics.h"
 
 #include <library/threading/future/future.h>
-#include <library/type_info/type_info.h>
+#include <library/cpp/type_info/type_info.h>
 
 #include <util/datetime/base.h>
 #include <util/generic/variant.h>
