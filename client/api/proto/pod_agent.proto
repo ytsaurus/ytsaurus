@@ -816,6 +816,10 @@ message TBoxStatus {
 
     // Список вольюмов box
     repeated string volume_refs = 15;
+
+    // Тип бокса
+    // Имеет значение "box", "system-box" или одно из значений в списке TProjectSpec.user_specific_box_types
+    string specific_type = 17;
 }
 
 enum EBoxState {
