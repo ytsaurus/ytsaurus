@@ -337,11 +337,11 @@ def _get_node_resource_limits_config(provision):
     return {"memory": memory}
 
 class ConfigsProvider_19(ConfigsProvider):
-    def _get_timestamp_provider_addresses(self, master_connection_configs, clock_connection_configs):
-        if clock_connection_configs:
-            return clock_connection_configs[clock_connection_configs["cell_tag"]]["addresses"]
-        else:
+    def _get_timestamp_provider_addresses(self, provision, master_connection_configs, clock_connection_configs):
+        if provision["clock"]["cell_size"] == 0:
             return master_connection_configs[master_connection_configs["primary_cell_tag"]]["addresses"]
+        else:
+            return clock_connection_configs[clock_connection_configs["cell_tag"]]["addresses"]
 
     def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, clock_connection_configs, ports_generator, master_logs_dir):
         ports = []
@@ -395,10 +395,10 @@ class ConfigsProvider_19(ConfigsProvider):
                 config["secondary_masters"] = [connection_configs[tag]
                                                for tag in connection_configs["secondary_cell_tags"]]
 
-                config["enable_timestamp_manager"] = (clock_connection_configs is None)
+                config["enable_timestamp_manager"] = (provision["clock"]["cell_size"] == 0)
 
                 set_at(config, "timestamp_provider/addresses",
-                       self._get_timestamp_provider_addresses(connection_configs, clock_connection_configs))
+                       self._get_timestamp_provider_addresses(provision, connection_configs, clock_connection_configs))
 
                 set_at(config, "snapshots/path",
                        os.path.join(master_dirs[cell_index][master_index], "snapshots"))
@@ -429,9 +429,6 @@ class ConfigsProvider_19(ConfigsProvider):
         return configs, connection_configs
 
     def _build_clock_configs(self, provision, clock_dirs, clock_tmpfs_dirs, ports_generator, clock_logs_dir):
-        if provision["clock"]["cell_size"] == 0:
-            return None, None
-
         cell_tag = str(provision["clock"]["cell_tag"])
         random_part = random.randint(0, 2 ** 32 - 1)
         cell_id = canonize_uuid("%x-ffffffff-%x0259-ffffffff" % (random_part, int(cell_tag)))
@@ -496,7 +493,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
         return configs, connection_configs
 
-    def _build_cluster_connection_config(self, master_connection_configs, clock_connection_configs, master_cache_nodes=None,
+    def _build_cluster_connection_config(self, provision, master_connection_configs, clock_connection_configs, master_cache_nodes=None,
                                          config_template=None, enable_master_cache=False, enable_permission_cache=True):
         primary_cell_tag = master_connection_configs["primary_cell_tag"]
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
@@ -508,7 +505,7 @@ class ConfigsProvider_19(ConfigsProvider):
                 "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
             },
             "timestamp_provider": {
-                "addresses": self._get_timestamp_provider_addresses(master_connection_configs, clock_connection_configs),
+                "addresses": self._get_timestamp_provider_addresses(provision, master_connection_configs, clock_connection_configs),
                 "update_period": 500,
                 "soft_backoff_time": 100,
                 "hard_backoff_time": 100
@@ -588,6 +585,7 @@ class ConfigsProvider_19(ConfigsProvider):
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
             config["cluster_connection"] = \
                 self._build_cluster_connection_config(
+                    provision,
                     master_connection_configs,
                     clock_connection_configs,
                     config_template=config["cluster_connection"])
@@ -615,6 +613,7 @@ class ConfigsProvider_19(ConfigsProvider):
     def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, clock_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes):
         driver_config = default_configs.get_driver_config()
         update_inplace(driver_config, self._build_cluster_connection_config(
+            provision,
             master_connection_configs,
             clock_connection_configs,
             master_cache_nodes=master_cache_nodes,
@@ -673,7 +672,8 @@ class ConfigsProvider_19(ConfigsProvider):
             addresses.append("{0}:{1}".format(provision["fqdn"], config["rpc_port"]))
 
             config["cluster_connection"] = \
-               self._build_cluster_connection_config(
+                self._build_cluster_connection_config(
+                    provision,
                     master_connection_configs,
                     clock_connection_configs,
                     config_template=config["cluster_connection"])
@@ -772,6 +772,7 @@ class ConfigsProvider_19(ConfigsProvider):
                 if cell_index == 0:
                     tag = primary_cell_tag
                     update_inplace(config, self._build_cluster_connection_config(
+                        provision,
                         master_connection_configs,
                         clock_connection_configs,
                         master_cache_nodes=master_cache_nodes,
@@ -783,7 +784,7 @@ class ConfigsProvider_19(ConfigsProvider):
                         "primary_master": master_connection_configs[secondary_cell_tags[cell_index - 1]],
                         "master_cell_directory_synchronizer": {"sync_period": None},
                         "timestamp_provider": {
-                            "addresses": self._get_timestamp_provider_addresses(master_connection_configs, clock_connection_configs),
+                            "addresses": self._get_timestamp_provider_addresses(provision, master_connection_configs, clock_connection_configs),
                         },
                         "transaction_manager": {
                             "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
@@ -796,7 +797,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
                 _set_config(tag, config)
 
-            if clock_connection_configs:
+            if provision["clock"]["cell_size"] > 0:
                 tag = clock_connection_configs["cell_tag"]
                 config = deepcopy(configs[primary_cell_tag])
                 update_inplace(config["timestamp_provider"], clock_connection_configs[tag])
@@ -838,6 +839,7 @@ class ConfigsProvider_19(ConfigsProvider):
                 }
             }
             config["cluster_connection"] = self._build_cluster_connection_config(
+                provision,
                 master_connection_configs,
                 clock_connection_configs,
                 master_cache_nodes=master_cache_nodes,
@@ -911,6 +913,7 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
             config["cluster_connection"] = \
                 self._build_cluster_connection_config(
+                    provision,
                     master_connection_configs,
                     clock_connection_configs,
                     config_template=config["cluster_connection"])
