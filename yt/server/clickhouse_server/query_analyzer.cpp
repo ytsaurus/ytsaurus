@@ -296,8 +296,6 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
     auto Logger = this->Logger;
     Logger.AddTag("SubqueryIndex: %v", subqueryIndex);
 
-    YT_VERIFY(!threadSubqueries.Empty());
-
     i64 totalRowCount = 0;
     i64 totalDataWeight = 0;
     i64 totalChunkCount = 0;
