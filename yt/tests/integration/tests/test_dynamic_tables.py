@@ -1525,10 +1525,10 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
     }
 
     def _verify_resource_usage(self, account, resource, expected):
-        def resource_usage_matches():
-            return (get("//sys/accounts/{0}/@resource_usage/{1}".format(account, resource)) == expected and
-                    get("//sys/accounts/{0}/@committed_resource_usage/{1}".format(account, resource)) == expected)
-        wait(resource_usage_matches)
+        def resource_usage_matches(driver):
+            return lambda: (get("//sys/accounts/{0}/@resource_usage/{1}".format(account, resource), driver=driver) == expected and
+                    get("//sys/accounts/{0}/@committed_resource_usage/{1}".format(account, resource), driver=driver) == expected)
+        self._multicell_wait(resource_usage_matches)
 
     def _multicell_set(self, path, value):
         set(path, value)
