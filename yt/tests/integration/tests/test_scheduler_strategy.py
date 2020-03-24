@@ -377,12 +377,14 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
 
         # Run operations
         op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=20)
-        enable_op_detailed_logs(op1)
         op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=20, spec=slow_spec)
-        enable_op_detailed_logs(op2)
 
         wait(lambda: op1.get_state() == "running")
         wait(lambda: op2.get_state() == "running")
+
+        enable_op_detailed_logs(op1)
+        enable_op_detailed_logs(op2)
+
         assert op1.get_job_count("running") == 0
         assert op2.get_job_count("running") == 0
 
