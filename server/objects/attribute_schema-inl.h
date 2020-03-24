@@ -354,11 +354,11 @@ TAttributeSchema* TAttributeSchema::SetAttribute(const TManyToOneAttributeSchema
             auto* typedMany = many->template As<TMany>();
             auto* forwardAttribute = schema.ForwardAttributeGetter(typedMany);
             auto* attributeValue = forwardAttribute->Load();
-            if (!attributeValue) {
-                static const auto Result = NYT::NYTree::INodePtr(NYT::NYTree::GetEphemeralNodeFactory()->CreateEntity());
-                return Result;
+            if (attributeValue) {
+                return NYT::NYTree::ConvertToNode(attributeValue->GetId());
+            } else {
+                return static_cast<NYT::NYTree::INodePtr>(NYT::NYTree::GetEphemeralNodeFactory()->CreateEntity());
             }
-            return NYT::NYTree::ConvertToNode(attributeValue->GetId());
         };
 
     StoreScheduledGetter_  =

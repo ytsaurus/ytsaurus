@@ -12,6 +12,9 @@ from yp.common import wait
 
 from yt.yson import YsonEntity
 
+from yt.packages.six.moves import xrange
+
+import concurrent.futures
 import pytest
 
 
@@ -577,3 +580,61 @@ class TestHistoryApi(object):
 
         event_times = list(map(lambda event: event["time"], events))
         assert event_times == list(sorted(event_times))
+
+    def test_yp1935(self, yp_env):
+        def create_replica_set(yp_client, account_id, replica_count):
+            yp_client.create_object(
+                "account",
+                attributes=dict(meta=dict(id=account_id)),
+            )
+
+            return yp_client.create_object(
+                "replica_set",
+                attributes=dict(spec=dict(replica_count=replica_count, account_id=account_id)),
+            )
+
+        def prepare(yp_client, count):
+            replica_sets = []
+            for i in xrange(count):
+                replica_sets.append(
+                    create_replica_set(
+                        yp_client,
+                        account_id="account_id" + str(i),
+                        replica_count=i,
+                    ),
+                )
+
+            transactions = []
+            for _ in xrange(count):
+                transactions.append(yp_client.start_transaction())
+
+            for i in xrange(count):
+                yp_client.update_object(
+                    "replica_set",
+                    replica_sets[i],
+                    set_updates=[{"path": "/spec/replica_count", "value": count + i}],
+                    transaction_id=transactions[i],
+                )
+
+            return replica_sets, transactions
+
+        count = 5
+
+        replica_sets, transactions = prepare(yp_env.yp_client, count)
+
+        # YP client is not thread-safe yet.
+        clients = []
+        for _ in xrange(count):
+            clients.append(yp_env.yp_instance.create_client())
+
+            # Initialize.
+            clients[-1].generate_timestamp()
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=count) as executor:
+            results = []
+
+            for i in xrange(count):
+                results.append(executor.submit(lambda id: clients[i].commit_transaction(id), transactions[i]))
+
+            for i in xrange(count):
+                results[i].result()
