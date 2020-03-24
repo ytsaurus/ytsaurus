@@ -222,11 +222,6 @@ void TBootstrap::ValidateSnapshot(const TString& fileName)
         .ThrowOnError();
 }
 
-void TBootstrap::OnDynamicConfigChanged(const TCellNodeDynamicConfigPtr& newConfig)
-{
-    Y_UNUSED(newConfig);
-}
-
 bool TBootstrap::IsReadOnly() const
 {
     return !DynamicConfigManager_->IsDynamicConfigLoaded();
@@ -344,6 +339,7 @@ void TBootstrap::DoInitialize()
     MasterConnector_->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
 
     DynamicConfigManager_ = New<TDynamicConfigManager>(Config_->DynamicConfigManager, this);
+    DynamicConfigManager_->SubscribeConfigUpdated(BIND(&TBootstrap::OnDynamicConfigUpdated, this));
     DynamicConfigManager_->Start();
 
     if (Config_->CoreDumper) {
@@ -1225,6 +1221,11 @@ void TBootstrap::OnMasterDisconnected()
     for (const auto& masterCacheService : MasterCacheServices_) {
         RpcServer_->UnregisterService(masterCacheService);
     }
+}
+
+void TBootstrap::OnDynamicConfigUpdated(TCellNodeDynamicConfigPtr newConfig)
+{
+    Y_UNUSED(newConfig);
 }
 
 void TBootstrap::UpdateFootprintMemoryUsage()
