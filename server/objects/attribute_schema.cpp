@@ -757,6 +757,9 @@ INodePtr TAttributeSchema::GetHistoryEnabledAttributesImpl(
             }
             return GetEphemeralNodeFactory()->CreateEntity();
         }};
+
+    // Implicitly destroys the previous value of the #value variable, and so
+    // detaches found node from its parent and allows to reuse it.
     value = WalkNodeByYPath(value, path, WalkOptions);
 
     SetNodeByYPath(result, path, value);
