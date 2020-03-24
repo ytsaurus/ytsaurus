@@ -452,7 +452,8 @@ public:
 
         ClickHouseYtProfiler.Enqueue(
             "/cpu_limit",
-            Config_->CpuLimit);
+            Config_->CpuLimit,
+            EMetricType::Gauge);
 
         YT_LOG_DEBUG("Profiling flushed");
     }
