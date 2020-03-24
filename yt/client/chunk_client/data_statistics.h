@@ -67,6 +67,8 @@ private:
     TCodecStatistics& Append(const std::pair<NCompression::ECodec, TDuration>& codecTime);
 };
 
+void FormatValue(TStringBuilderBase* builder, const TCodecStatistics& statistics, TStringBuf spec);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

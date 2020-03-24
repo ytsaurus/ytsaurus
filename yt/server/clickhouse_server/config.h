@@ -423,7 +423,7 @@ public:
 
     int WorkerThreadCount;
 
-    int CpuLimit;
+    std::optional<int> CpuLimit;
 
     TClickHouseServerBootstrapConfig()
     {
@@ -475,7 +475,8 @@ public:
         RegisterParameter("worker_thread_count", WorkerThreadCount)
             .Default(8);
 
-        RegisterParameter("cpu_limit", CpuLimit);
+        RegisterParameter("cpu_limit", CpuLimit)
+            .Default();
 
         RegisterPreprocessor([&] {
             PermissionCache->ExpireAfterAccessTime = TDuration::Minutes(2);

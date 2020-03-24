@@ -1976,6 +1976,8 @@ public:
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler);
 
+    ~TSchemalessMultiChunkReader();
+
     virtual bool Read(std::vector<TUnversionedRow>* rows) override;
 
     virtual i64 GetSessionRowIndex() const override;
@@ -2064,6 +2066,15 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
 }
 
 template <class TBase>
+TSchemalessMultiChunkReader<TBase>::~TSchemalessMultiChunkReader()
+{
+    const auto& Logger = TMultiReaderBase::Logger;
+    // Log all statistics. NB:
+    YT_LOG_DEBUG("Reader data statistics (DataStatistics: %v)", TMultiReaderBase::GetDataStatistics());
+    YT_LOG_DEBUG("Reader decompression codec statistics (CodecStatistics: %v)", TMultiReaderBase::GetDecompressionStatistics());
+}
+
+template <class TBase>
 bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows)
 {
     rows->clear();
@@ -2074,6 +2085,9 @@ bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows
 
     if (Finished_) {
         RowCount_ = RowIndex_.load();
+
+
+
         return false;
     }
 
