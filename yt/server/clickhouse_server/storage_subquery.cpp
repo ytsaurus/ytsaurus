@@ -92,6 +92,11 @@ std::pair<BlockInputStreamPtr, ISchemalessMultiChunkReaderPtr> CreateBlockInputS
     auto schema = FilterColumnsInSchema(subquerySpec.ReadSchema, columnNames);
     auto blockReadOptions = CreateBlockReadOptions(queryContext->User);
 
+    auto blockInputStreamTraceContext = NTracing::CreateChildTraceContext(
+        traceContext,
+        "ClickHouseYt.BlockInputStream");
+    NTracing::TTraceContextGuard guard(blockInputStreamTraceContext);
+
     auto reader = CreateSchemalessParallelMultiReader(
         CreateTableReaderConfig(),
         New<NTableClient::TTableReaderOptions>(),
@@ -114,7 +119,7 @@ std::pair<BlockInputStreamPtr, ISchemalessMultiChunkReaderPtr> CreateBlockInputS
     auto blockInputStream = CreateBlockInputStream(
         reader,
         schema,
-        traceContext,
+        blockInputStreamTraceContext,
         queryContext->Bootstrap,
         TLogger(queryContext->Logger).AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId),
         prewhereInfo);
@@ -272,6 +277,15 @@ public:
             totalRowCount,
             totalDataWeight,
             totalDataSliceCount);
+
+
+        auto tableIndexSuffix = Format(".%v", SubquerySpec_.TableIndex);
+        traceContext->AddTag("chyt.row_count" + tableIndexSuffix, ToString(totalRowCount));
+        traceContext->AddTag("chyt.data_weight" + tableIndexSuffix, ToString(totalDataWeight));
+        traceContext->AddTag("chyt.data_slice_count" + tableIndexSuffix, ToString(totalDataSliceCount));
+        if (SubquerySpec_.TableIndex == 0) {
+            traceContext->AddTag("chyt.subquery_index", ToString(SubquerySpec_.SubqueryIndex));
+        }
 
         if (prewhereInfo) {
             perThreadDataSliceDescriptors = NDetail::FilterDataSliceDescriptorsByPrewhereInfo(
