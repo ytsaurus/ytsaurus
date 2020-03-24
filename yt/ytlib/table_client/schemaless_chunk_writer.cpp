@@ -2164,6 +2164,10 @@ private:
 
         UploadTransaction_->Detach();
 
+        // Log all statistics.
+        YT_LOG_DEBUG("Writer data statistics (DataStatistics: %v)", UnderlyingWriter_->GetDataStatistics());
+        YT_LOG_DEBUG("Writer compression codec statistics (CodecStatistics: %v)", UnderlyingWriter_->GetCompressionStatistics());
+
         YT_LOG_DEBUG("Table closed");
     }
 };
