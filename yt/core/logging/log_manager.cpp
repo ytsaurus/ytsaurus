@@ -10,6 +10,7 @@
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/invoker_queue.h>
 
+#include <yt/core/misc/fs.h>
 #include <yt/core/misc/hash.h>
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/pattern_formatter.h>
@@ -55,6 +56,7 @@ namespace NYT::NLogging {
 
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NFS;
 using namespace NProfiling;
 using namespace NTracing;
 
@@ -64,6 +66,7 @@ static const TLogger Logger(SystemLoggingCategoryName);
 static const auto& Profiler = LoggingProfiler;
 
 static constexpr auto ProfilingPeriod = TDuration::Seconds(10);
+static constexpr auto DiskProfilingPeriod = TDuration::Minutes(5);
 static constexpr auto DequeuePeriod = TDuration::MilliSeconds(30);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -705,6 +708,12 @@ private:
                 ProfilingPeriod);
             ProfilingExecutor_->Start();
 
+            DiskProfilingExecutor_ = New<TPeriodicExecutor>(
+                EventQueue_,
+                BIND(&TImpl::OnDiskProfiling, MakeStrong(this)),
+                DiskProfilingPeriod);
+            DiskProfilingExecutor_->Start();
+
             DequeueExecutor_ = New<TPeriodicExecutor>(
                 EventQueue_,
                 BIND(&TImpl::OnDequeue, MakeStrong(this)),
@@ -1004,6 +1013,29 @@ private:
         Profiler.Enqueue("/message_buffers_size", messageBuffersSize, EMetricType::Gauge);
     }
 
+    void OnDiskProfiling()
+    {
+        try {
+            auto minLogStorageAvailableSpace = std::numeric_limits<i64>::max();
+            auto minLogStorageFreeSpace = std::numeric_limits<i64>::max();
+
+            for (const auto& [name, writerConfig] : Config_->WriterConfigs) {
+                auto logStorageDiskSpaceStatistics = GetDiskSpaceStatistics(GetDirectoryName(writerConfig->FileName));
+                minLogStorageAvailableSpace = std::min<i64>(minLogStorageAvailableSpace, logStorageDiskSpaceStatistics.AvailableSpace);
+                minLogStorageFreeSpace = std::min<i64>(minLogStorageFreeSpace, logStorageDiskSpaceStatistics.FreeSpace);
+            }
+
+            if (minLogStorageAvailableSpace != std::numeric_limits<i64>::max()) {
+                Profiler.Enqueue("/min_log_storage_available_space", minLogStorageAvailableSpace, EMetricType::Gauge);
+            }
+            if (minLogStorageFreeSpace != std::numeric_limits<i64>::max()) {
+                Profiler.Enqueue("/min_log_storage_free_space", minLogStorageFreeSpace, EMetricType::Gauge);
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Failed to get log storage disk statistics");
+        }
+    }
+
     void OnDequeue()
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
@@ -1270,6 +1302,7 @@ private:
     TPeriodicExecutorPtr WatchExecutor_;
     TPeriodicExecutorPtr CheckSpaceExecutor_;
     TPeriodicExecutorPtr ProfilingExecutor_;
+    TPeriodicExecutorPtr DiskProfilingExecutor_;
     TPeriodicExecutorPtr DequeueExecutor_;
 
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
