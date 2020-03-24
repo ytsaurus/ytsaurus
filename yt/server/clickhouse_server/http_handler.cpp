@@ -75,6 +75,12 @@ public:
         SetupHostContext(Bootstrap_, context, queryId, TraceContext_, DataLensRequestId_);
     }
 
+    virtual void handleRequest(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response) override
+    {
+        response.set("X-Yt-Trace-Id", ToString(TraceContext_->GetTraceId()));
+        DB::HTTPHandler::handleRequest(request, response);
+    }
+
 private:
     TBootstrap* const Bootstrap_;
     TTraceContextPtr TraceContext_;

@@ -159,18 +159,26 @@ public:
 
     virtual void readPrefixImpl() override
     {
+        TTraceContextGuard guard(TraceContext_);
+        TraceContext_ = GetCurrentTraceContext();
         YT_LOG_DEBUG("readPrefixImpl() is called");
     }
 
     virtual void readSuffixImpl() override
     {
+        TTraceContextGuard guard(TraceContext_);
         YT_LOG_DEBUG("readSuffixImpl() is called");
+
+        NTracing::GetCurrentTraceContext()->AddTag("chyt.reader.data_statistics", ToString(Reader_->GetDataStatistics()));
+        NTracing::GetCurrentTraceContext()->AddTag("chyt.reader.codec_statistics", ToString(Reader_->GetDecompressionStatistics()));
+        TraceContext_->Finish();
     }
 
 private:
     ISchemalessReaderPtr Reader_;
     TTableSchema ReadSchema_;
     TTraceContextPtr TraceContext_;
+
     TBootstrap* Bootstrap_;
     TLogger Logger;
     DB::Block HeaderBlock_;

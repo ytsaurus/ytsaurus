@@ -5,6 +5,7 @@
 #include <server/TCPHandler.h>
 
 #include <util/string/cast.h>
+#include <util/string/split.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -55,7 +56,7 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
 
             TTraceContextPtr traceContext;
 
-            // For secondary queries, query id looks like <query_id>@<parent_span_id><parent_sampled>.
+            // For secondary queries, query id looks like <query_id>@<parent_trace_id>@<parent_span_id>@<parent_sampled>.
             // Parent trace id is the same as client info initial_query_id.
             if (static_cast<int>(context.getClientInfo().query_kind) == 2 /* secondary query */) {
                 auto requestCompositeQueryId = clientInfo.current_query_id;
@@ -63,40 +64,30 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
                 YT_LOG_DEBUG("Parsing composite query id and initial query id (RequestCompositeQueryId: %v, RequestInitialQueryId: %v)",
                     requestCompositeQueryId,
                     requestInitialQueryId);
-                auto pos = requestCompositeQueryId.find('@');
-                YT_VERIFY(pos != TString::npos);
-                auto requestQueryId = requestCompositeQueryId.substr(0, pos);
-                auto requestParentSpanId = requestCompositeQueryId.substr(pos + 1, requestCompositeQueryId.size() - pos - 2);
-                auto requestParentSampled = requestCompositeQueryId.back();
-                YT_VERIFY(TQueryId::FromString(requestQueryId, &queryId));
-                YT_VERIFY(TryIntFromString<16>(requestParentSpanId, parentSpan.SpanId));
-                YT_VERIFY(TTraceId::FromString(requestInitialQueryId, &parentSpan.TraceId));
-                YT_VERIFY(requestParentSampled == 'T' || requestParentSampled == 'F');
-                context.getClientInfo().current_query_id = ToString(requestQueryId);
+                std::vector<TString> parts;
+                StringSplitter(requestCompositeQueryId).Split('@').AddTo(&parts);
+                YT_VERIFY(parts.size() == 4);
+                YT_VERIFY(TQueryId::FromString(parts[0], &queryId));
+                YT_VERIFY(TTraceId::FromString(parts[1], &parentSpan.TraceId));
+                YT_VERIFY(TryIntFromString<16>(parts[2], parentSpan.SpanId));
+                auto requestSampled = parts[3];
+                YT_VERIFY(requestSampled == "T" || requestSampled == "F");
+                context.getClientInfo().current_query_id = parts[0];
                 YT_LOG_INFO(
                     "Query is secondary; composite query id successfully decomposed, actual query id substituted into the context "
-                    "(CompositeQueryId: %v, QueryId: %v, ParentSpanId: %v, ParentSampled: %v, ParentTraceIdAkaInitialQueryId: %v)",
+                    "(CompositeQueryId: %v, QueryId: %v, ParentTraceId: %v, ParentSpanId: %" PRIx64 ", ParentSampled: %v)",
                     requestCompositeQueryId,
-                    requestQueryId,
-                    requestParentSpanId,
-                    requestParentSampled,
-                    requestInitialQueryId);
+                    queryId,
+                    parentSpan.TraceId,
+                    parentSpan.SpanId,
+                    requestSampled);
                 traceContext = New<TTraceContext>(parentSpan, "TcpHandler");
-                if (requestParentSampled == 'T') {
+                if (requestSampled == "T") {
                     traceContext->SetSampled();
                 }
             } else {
-                auto requestQueryId = clientInfo.current_query_id;
-                parentSpan = TSpanContext{TTraceId::Create(), InvalidSpanId, false, false};
-                if (!TQueryId::FromString(requestQueryId, &queryId)) {
-                    YT_LOG_INFO(
-                        "Query is initial; query id from TCP handler is not a valid YT query id, "
-                        "generating our own query id (RequestQueryId: %Qv, QueryId: %v)",
-                        requestQueryId,
-                        queryId);
-                } else {
-                    YT_LOG_INFO("Query is initial; query id from TCP handler is a valid YT query id (RequestQueryId: %Qv)", requestQueryId);
-                }
+                // TODO(max42): support.
+                THROW_ERROR_EXCEPTION("Queries via native TCP protocol are not supported (CHYT-342)");
             }
 
             SetupHostContext(Bootstrap_, context, queryId, std::move(traceContext));

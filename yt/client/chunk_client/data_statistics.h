@@ -68,6 +68,7 @@ private:
 };
 
 void FormatValue(TStringBuilderBase* builder, const TCodecStatistics& statistics, TStringBuf spec);
+TString ToString(const TCodecStatistics& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
