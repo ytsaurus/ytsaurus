@@ -96,6 +96,8 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
             "sorted"
         });
 
+        batchReq->AddRequest(req);
+
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting table chunk count %v",
             richPath);
