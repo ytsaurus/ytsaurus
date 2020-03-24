@@ -84,15 +84,12 @@ thread_local TFsdHolder* CurrentFsdHolder = &TsdHolder;
 
 void SetCurrentFsdHolder(TFsdHolder* currentFsd)
 {
-    CurrentFsdHolder = currentFsd;
+    CurrentFsdHolder = currentFsd ? currentFsd : &TsdHolder;
 }
 
 uintptr_t& FlsAt(int index)
 {
-    if (!CurrentFsdHolder) {
-        CurrentFsdHolder = &TsdHolder;
-    }
-
+    YT_VERIFY(CurrentFsdHolder);
     return CurrentFsdHolder->FsdAt(index);
 }
 
