@@ -892,11 +892,14 @@ private:
 
                 int pendingCount = ArchivePendingCounter_.GetCurrent();
                 if (pendingCount >= Config_->MinOperationCountEnqueuedForAlert) {
+                    auto alertError = TError("Too many operations in archivation queue")
+                        << TErrorAttribute("pending_count", pendingCount);
+                    if (!error.IsOK()) {
+                        alertError.InnerErrors().push_back(error);
+                    }
                     Host_->SetSchedulerAlert(
                         ESchedulerAlertType::OperationsArchivation,
-                        TError("Too many operations in archivation queue")
-                            << TErrorAttribute("pending_count", pendingCount)
-                            << error);
+                        alertError);
                 } else {
                     Host_->SetSchedulerAlert(
                         ESchedulerAlertType::OperationsArchivation,
