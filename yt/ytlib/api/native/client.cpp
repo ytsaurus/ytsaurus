@@ -2936,7 +2936,7 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
             jobsInProgressFuture.As<void>(),
             finishedJobsFuture.As<void>(),
             finishedJobsStatisticsFuture.As<void>()})
-        .Apply(BIND([jobsInProgressFuture, finishedJobsFuture, finishedJobsStatisticsFuture] (const std::vector<TError>&) {
+        .Apply(BIND([jobsInProgressFuture, finishedJobsFuture, finishedJobsStatisticsFuture, this, this_=MakeStrong(this)] (const std::vector<TError>&) {
             const auto& jobsInProgressOrError = jobsInProgressFuture.Get();
             const auto& finishedJobsOrError = finishedJobsFuture.Get();
             const auto& statisticsOrError = finishedJobsStatisticsFuture.Get();
@@ -2954,7 +2954,8 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
                     << statisticsOrError;
             }
 
-            auto difference = [] (std::vector<TJob> origin, const std::vector<TJob>& blacklist) {
+            int filteredOutAsFinished = 0;
+            auto difference = [&filteredOutAsFinished] (std::vector<TJob> origin, const std::vector<TJob>& blacklist) {
                 THashSet<TJobId> idBlacklist;
                 for (const auto& job : blacklist) {
                     YT_VERIFY(job.Id);
@@ -2964,9 +2965,14 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
                     std::remove_if(
                         origin.begin(),
                         origin.end(),
-                        [&idBlacklist] (const TJob& job) {
+                        [&idBlacklist, &filteredOutAsFinished] (const TJob& job) {
                             YT_VERIFY(job.Id);
-                            return idBlacklist.contains(job.Id);
+
+                            if (idBlacklist.contains(job.Id)) {
+                                ++filteredOutAsFinished;
+                                return true;
+                            }
+                            return false;
                         }),
                     origin.end());
                 return origin;
@@ -2978,6 +2984,10 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
             // to |FinishedJobs| and remove it from |InProgressJobs|.
             result.InProgressJobs = difference(jobsInProgressOrError.Value(), result.FinishedJobs);
             result.FinishedJobsStatistics = statisticsOrError.Value();
+
+            YT_LOG_DEBUG("Received finished jobs from archive (Count: %v)", result.FinishedJobs.size());
+            YT_LOG_DEBUG("Received in-progress jobs from archive (Count: %v, FilteredOutAsFinished: %v)", result.InProgressJobs.size(), filteredOutAsFinished);
+
             return result;
         }));
 }
@@ -3013,7 +3023,7 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
         batchReq->AddRequest(getReq, "get_jobs");
     }
 
-    return batchReq->Invoke().Apply(BIND([&options] (
+    return batchReq->Invoke().Apply(BIND([&options, this, this_=MakeStrong(this)] (
         const TErrorOr<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRspOrError)
     {
         const auto& batchRsp = batchRspOrError.ValueOrThrow();
@@ -3026,6 +3036,8 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
 
         auto items = ConvertToNode(NYson::TYsonString(rsp->value()))->AsMap();
         result.second = items->GetChildren().size();
+
+        YT_LOG_DEBUG("Received jobs from cypress (Count: %v)", items->GetChildren().size());
 
         for (const auto& item : items->GetChildren()) {
             const auto& attributes = item.second->Attributes();
@@ -3125,6 +3137,7 @@ static void ParseJobsFromControllerAgentResponse(
     auto needBriefStatistics = attributes.contains("brief_statistics");
     auto needJobCompetitionId = attributes.contains("job_competition_id");
     auto needHasCompetitors = attributes.contains("has_competitors");
+    auto needError = attributes.contains("error");
 
     for (const auto& [jobIdString, jobNode] : jobNodes) {
         if (!filter(jobNode)) {
@@ -3184,6 +3197,11 @@ static void ParseJobsFromControllerAgentResponse(
                 job.HasCompetitors = ConvertTo<bool>(child);
             }
         }
+        if (needError) {
+            if (auto child = jobMapNode->FindChild("error")) {
+                job.Error = ConvertToYsonString(ConvertTo<TError>(child));
+            }
+        }
     }
 }
 
@@ -3194,7 +3212,8 @@ static void ParseJobsFromControllerAgentResponse(
     const THashSet<TString>& attributes,
     const TListJobsOptions& options,
     std::vector<TJob>* jobs,
-    int* totalCount)
+    int* totalCount,
+    NLogging::TLogger Logger)
 {
     auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(key);
     if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
@@ -3204,9 +3223,12 @@ static void ParseJobsFromControllerAgentResponse(
         THROW_ERROR_EXCEPTION("Cannot get %Qv from controller agent", key)
             << rspOrError;
     }
+
     auto rsp = rspOrError.Value();
     auto items = ConvertToNode(NYson::TYsonString(rsp->value()))->AsMap();
     *totalCount += items->GetChildren().size();
+
+    YT_LOG_DEBUG("Received %v jobs from controller agent (Count: %v)", key, items->GetChildren().size());
 
     auto filter = [&] (const INodePtr& jobNode) -> bool {
         auto stderrSize = jobNode->AsMap()->GetChild("stderr_size")->GetValue<i64>();
@@ -3247,6 +3269,7 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
         return MakeFuture(TListJobsFromControllerAgentResult{});
     }
 
+    // TODO(levysotskiy): extract this list to some common place.
     static const THashSet<TString> DefaultAttributes = {
         "job_id",
         "type",
@@ -3257,6 +3280,7 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
         "has_spec",
         "progress",
         "stderr_size",
+        "error",
         "brief_statistics",
         "job_competition_id",
         "has_competitors"
@@ -3274,7 +3298,7 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
         TYPathProxy::Get(GetControllerAgentOrchidRetainedFinishedJobsPath(*controllerAgentAddress, operationId)),
         "retained_finished_jobs");
 
-    return batchReq->Invoke().Apply(BIND([operationId, options] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
+    return batchReq->Invoke().Apply(BIND([operationId, options, this, this_=MakeStrong(this)] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
         TListJobsFromControllerAgentResult result;
         ParseJobsFromControllerAgentResponse(
             operationId,
@@ -3283,7 +3307,8 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
             DefaultAttributes,
             options,
             &result.InProgressJobs,
-            &result.TotalInProgressJobCount);
+            &result.TotalInProgressJobCount,
+            Logger);
         ParseJobsFromControllerAgentResponse(
             operationId,
             batchRsp,
@@ -3291,7 +3316,8 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
             DefaultAttributes,
             options,
             &result.FinishedJobs,
-            &result.TotalFinishedJobCount);
+            &result.TotalFinishedJobCount,
+            Logger);
         return result;
     }));
 }
@@ -3622,19 +3648,28 @@ TListJobsResult TClient::DoListJobs(
             YT_VERIFY(job.Id);
             archiveJobIds.insert(job.Id);
         }
+        THashSet<TJobId> archiveFinishedJobIds;
         for (const auto& job : archiveResult.FinishedJobs) {
             YT_VERIFY(job.Id);
             archiveJobIds.insert(job.Id);
         }
 
+        int filteredOutAsReceivedFromArchive = 0;
         controllerAgentResult.FinishedJobs.erase(
             std::remove_if(
                 controllerAgentResult.FinishedJobs.begin(),
                 controllerAgentResult.FinishedJobs.end(),
                 [&] (const TJob& job) {
-                    return archiveJobIds.contains(job.Id);
+                    if (archiveJobIds.contains(job.Id)) {
+                        ++filteredOutAsReceivedFromArchive;
+                        return true;
+                    }
+                    return false;
                 }),
             controllerAgentResult.FinishedJobs.end());
+
+        YT_LOG_DEBUG("Finished jobs from controller agent filtered (FilteredOutAsReceivedFromArchive: %v)",
+            filteredOutAsReceivedFromArchive);
 
         auto jobComparator = GetJobsComparator(options.SortField, options.SortOrder);
         auto countFilterSort = [&] (std::vector<TJob>& jobs) {
