@@ -4,19 +4,36 @@
 
 #include <yt/core/actions/invoker.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+
 #include <yt/core/misc/collection_helpers.h>
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT::NChunkClient {
+
+using namespace NConcurrency;
+using namespace NProfiling;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TProfiler MultiReaderMemoryManagerProfiler("/chunk_reader/memory");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TParallelReaderMemoryManagerOptions::TParallelReaderMemoryManagerOptions(
     i64 totalReservedMemorySize,
     i64 maxInitialReaderReservedMemory,
-    i64 minRequiredMemorySize)
+    i64 minRequiredMemorySize,
+    TTagIdList profilingTagList,
+    bool enableProfiling,
+    TDuration profilingPeriod)
     : TotalReservedMemorySize(totalReservedMemorySize)
     , MaxInitialReaderReservedMemory(maxInitialReaderReservedMemory)
     , MinRequiredMemorySize(minRequiredMemorySize)
+    , ProfilingTagList(std::move(profilingTagList))
+    , EnableProfiling(enableProfiling)
+    , ProfilingPeriod(profilingPeriod)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -35,9 +52,20 @@ public:
         , Invoker_(std::move(invoker))
         , TotalReservedMemory_(options.TotalReservedMemorySize)
         , FreeMemory_(Options_.TotalReservedMemorySize)
-    { }
+        , ProfilingTagList_(std::move(options.ProfilingTagList))
+        , ProfilingExecutor_(New<TPeriodicExecutor>(
+            Invoker_,
+            BIND(&TParallelReaderMemoryManager::OnProfiling, MakeWeak(this)),
+            Options_.ProfilingPeriod))
+    {
+        if (Options_.EnableProfiling) {
+            ProfilingExecutor_->Start();
+        }
+    }
 
-    virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(std::optional<i64> reservedMemorySize) override
+    virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
+        std::optional<i64> reservedMemorySize,
+        TTagIdList profilingTagList) override
     {
         YT_VERIFY(!Finalized_);
 
@@ -46,7 +74,7 @@ public:
         initialReaderMemory = std::max<i64>(initialReaderMemory, 0);
 
         auto memoryManager = New<TChunkReaderMemoryManager>(
-            TChunkReaderMemoryManagerOptions(initialReaderMemory),
+            TChunkReaderMemoryManagerOptions(initialReaderMemory, std::move(profilingTagList)),
             MakeWeak(this));
         FreeMemory_ -= initialReaderMemory;
 
@@ -56,7 +84,9 @@ public:
         return memoryManager;
     }
 
-    virtual IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(std::optional<i64> requiredMemorySize) override
+    virtual IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(
+        std::optional<i64> requiredMemorySize,
+        TTagIdList profilingTagList) override
     {
         YT_VERIFY(!Finalized_);
 
@@ -66,7 +96,8 @@ public:
         TParallelReaderMemoryManagerOptions options{
             minRequiredMemorySize,
             Options_.MaxInitialReaderReservedMemory,
-            minRequiredMemorySize
+            minRequiredMemorySize,
+            std::move(profilingTagList)
         };
 
         FreeMemory_ -= minRequiredMemorySize;
@@ -116,6 +147,11 @@ public:
     {
         Finalized_ = true;
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::TryUnregister, MakeWeak(this)));
+    }
+
+    virtual const TTagIdList& GetProfilingTagList() const override
+    {
+        return ProfilingTagList_;
     }
 
 private:
@@ -267,6 +303,7 @@ private:
         YT_VERIFY(RequiredMemory_.emplace(reader, requiredMemory).second);
         YT_VERIFY(DesiredMemory_.emplace(reader, desiredMemory).second);
         YT_VERIFY(ReservedMemory_.emplace(reader, reservedMemory).second);
+        ReservedMemoryByProfilingTags_[reader->GetProfilingTagList()] += reservedMemory;
 
         if (reservedMemory < requiredMemory) {
             YT_VERIFY(ReadersWithUnsatisfiedMemoryRequirement_.emplace(requiredMemory - reservedMemory, reader).second);
@@ -299,6 +336,7 @@ private:
         YT_VERIFY(RequiredMemory_.erase(reader));
         YT_VERIFY(DesiredMemory_.erase(reader));
         YT_VERIFY(ReservedMemory_.erase(reader));
+        ReservedMemoryByProfilingTags_[reader->GetProfilingTagList()] -= reservedMemory;
 
         if (reservedMemory < requiredMemory) {
             YT_VERIFY(ReadersWithUnsatisfiedMemoryRequirement_.erase({requiredMemory - reservedMemory, reader}));
@@ -324,6 +362,13 @@ private:
         }
     }
 
+    void OnProfiling() const
+    {
+        for (const auto& [tagIdList, memoryUsage] : ReservedMemoryByProfilingTags_) {
+            MultiReaderMemoryManagerProfiler.Enqueue("/usage", memoryUsage, EMetricType::Gauge, tagIdList);
+        }
+    }
+
     const TParallelReaderMemoryManagerOptions Options_;
     const TWeakPtr<IReaderMemoryManagerHost> Host_;
     const IInvokerPtr Invoker_;
@@ -345,6 +390,8 @@ private:
     THashMap<IReaderMemoryManagerPtr, i64> DesiredMemory_;
     THashMap<IReaderMemoryManagerPtr, i64> ReservedMemory_;
 
+    THashMap<TTagIdList, i64> ReservedMemoryByProfilingTags_;
+
     std::atomic<bool> Finalized_ = false;
 
     bool Unregistered_ = false;
@@ -361,6 +408,10 @@ private:
     //! Memory managers with reserved_memory >= required_memory and reserved_memory < desired_memory
     //! ordered by desired_memory - reserved_memory.
     std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithoutDesiredMemoryAmount_;
+
+    const TTagIdList ProfilingTagList_;
+
+    const TPeriodicExecutorPtr ProfilingExecutor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
