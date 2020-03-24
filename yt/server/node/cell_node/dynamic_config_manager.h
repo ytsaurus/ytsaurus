@@ -2,8 +2,14 @@
 
 #include "public.h"
 
-#include <yt/core/concurrency/periodic_executor.h>
-#include <yt/core/ytree/ypath_service.h>
+#include <yt/core/actions/future.h>
+#include <yt/core/actions/signal.h>
+
+#include <yt/core/concurrency/public.h>
+
+#include <yt/core/misc/error.h>
+
+#include <yt/core/ytree/public.h>
 
 namespace NYT::NCellNode {
 
@@ -12,6 +18,10 @@ namespace NYT::NCellNode {
 class TDynamicConfigManager
     : public TRefCounted
 {
+public:
+    //! Raises when dynamic config was updated.
+    DEFINE_SIGNAL(void(TCellNodeDynamicConfigPtr), ConfigUpdated);
+
 public:
     TDynamicConfigManager(
         TDynamicConfigManagerConfigPtr config,
@@ -43,12 +53,12 @@ private:
     NYTree::INodePtr CurrentConfig_;
     std::vector<TString> CurrentNodeTagList_;
 
-    std::optional<TError> LastError_ = std::nullopt;
-    std::optional<TError> LastUnrecognizedOptionError_ = std::nullopt;
+    TError LastError_;
+    TError LastUnrecognizedOptionError_;
 
     TInstant LastConfigUpdateTime_;
 
-    std::atomic<bool> ConfigLoaded_ = {false};
+    bool ConfigLoaded_ = false;
 };
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)

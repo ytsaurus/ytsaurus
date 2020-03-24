@@ -130,8 +130,6 @@ public:
     void Run();
     void ValidateSnapshot(const TString& fileName);
 
-    void OnDynamicConfigChanged(const TCellNodeDynamicConfigPtr& newConfig);
-
     bool IsReadOnly() const;
 
 private:
@@ -230,6 +228,8 @@ private:
 
     void OnMasterConnected();
     void OnMasterDisconnected();
+
+    void OnDynamicConfigUpdated(TCellNodeDynamicConfigPtr newConfig);
 
     void UpdateFootprintMemoryUsage();
 

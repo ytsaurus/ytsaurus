@@ -28,7 +28,7 @@ using NNodeTrackerClient::TNodeMemoryTrackerGuard;
 DEFINE_ENUM(EErrorCode,
     ((UnrecognizedConfigOption)              (1400))
     ((FailedToFetchDynamicConfig)            (1401))
-    ((DuplicateSuitableDynamicConfigs)       (1402))
+    ((DuplicateMatchingDynamicConfigs)       (1402))
     ((UnrecognizedDynamicConfigOption)       (1403))
     ((FailedToApplyDynamicConfig)            (1404))
     ((InvalidDynamicConfig)                  (1405))

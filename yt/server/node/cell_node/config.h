@@ -77,7 +77,7 @@ public:
     bool Enabled;
 
     //! Period of config fetching from Cypress.
-    TDuration ConfigFetchPeriod;
+    TDuration UpdatePeriod;
 
     //! Whether alert for unrecognized dynamic config options
     //! should be enabled.
@@ -87,7 +87,7 @@ public:
     {
         RegisterParameter("enabled", Enabled)
             .Default(true);
-        RegisterParameter("config_fetch_period", ConfigFetchPeriod)
+        RegisterParameter("update_period", UpdatePeriod)
             .Default(TDuration::Seconds(30));
         RegisterParameter("enable_unrecognized_options_alert", EnableUnrecognizedOptionsAlert)
             .Default(false);
@@ -228,7 +228,7 @@ public:
     TCellNodeDynamicConfig()
     {
         RegisterParameter("config_annotation", ConfigAnnotation)
-            .Default("");
+            .Optional();
     }
 };
 

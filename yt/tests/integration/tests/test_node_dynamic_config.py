@@ -14,7 +14,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "dynamic_config_manager": {
             "enabled": True,
-            "config_fetch_period": 50,
+            "update_period": 50,
             "enable_unrecognized_options_alert": True,
         },
     }
@@ -38,7 +38,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
             assert self.get_dynamic_config_annotation(node) == "default"
 
         config = {
-            "": {
+            "%true": {
                 "config_annotation": "foo",
             },
         }
@@ -218,7 +218,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
         def check_alert():
             alerts = get("//sys/cluster_nodes/{0}/@alerts".format(nodes[2]))
-            return len(alerts) == 1 and alerts[0]["code"] == DuplicateSuitableDynamicConfigs
+            return len(alerts) == 1 and alerts[0]["code"] == DuplicateMatchingDynamicConfigs
         wait(check_alert)
         wait(lambda: self.get_dynamic_config_annotation(nodes[2]) == "foo")
 
@@ -308,26 +308,34 @@ class TestNodeDynamicConfig(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE):
             remove("//sys/cluster_nodes/@config")
 
-        assert read_table("//tmp/t") == [{"x": "y"}]
+        def check_reads():
+            return read_table("//tmp/t") == [{"x": "y"}]
 
-        with pytest.raises(YtError):
-            write_table("//tmp/t", [{"x": "z"}])
+        def check_writes():
+            try:
+                write_table("//tmp/t", [{"x": "y"}])
+                return True
+            except:
+                return False
 
-        with pytest.raises(YtError):
-            op = run_test_vanilla("sleep 0.1")
-            op.track()
+        def check_jobs():
+            try:
+                op = run_test_vanilla("sleep 0.1")
+                op.track()
+                return True
+            except:
+                return False
 
-        assert get("#{0}/@health".format(cell_id)) == "failed"
+        def check_tablet_cells():
+            return get("#{0}/@health".format(cell_id)) == "good"
 
-        set("//sys/cluster_nodes/@config", {"": {}})
+        assert check_reads()
+        assert not check_writes()
+        assert not check_jobs()
+        assert not check_tablet_cells()
 
-        # Wait for heartbeat.
-        time.sleep(0.5)
-        assert read_table("//tmp/t") == [{"x": "y"}]
+        set("//sys/cluster_nodes/@config", {"%true": {}})
 
-        write_table("//tmp/t", [{"x": "z"}])
-
-        op = run_test_vanilla("sleep 0.1")
-        op.track()
-
-        wait(lambda: get("#{0}/@health".format(cell_id)) == "good")
+        wait(lambda: check_writes())
+        wait(lambda: check_jobs())
+        wait(lambda: check_tablet_cells())
