@@ -469,7 +469,8 @@ TConnectionPtr TConnectionPool::Connect(
         Connections_.insert({hostName, connection});
     }
 
-    LOG_DEBUG("Connection #%u opened",
+    LOG_DEBUG("New connection to %s #%u opened",
+        hostName.c_str(),
         connection->Id);
 
     return connection;
@@ -537,7 +538,7 @@ void TConnectionPool::Refresh()
 
         if (removeCount > 0) {
             Connections_.erase(mapIterator);
-            LOG_DEBUG("Connection #%u closed",
+            LOG_DEBUG("Closing connection #%u (too many opened connections)",
                 connection->Id);
             --removeCount;
             continue;
@@ -545,7 +546,7 @@ void TConnectionPool::Refresh()
 
         if (connection->DeadLine < now) {
             Connections_.erase(mapIterator);
-            LOG_DEBUG("Connection #%u closed (timeout)",
+            LOG_DEBUG("Closing connection #%u (timeout)",
                 connection->Id);
         }
     }
@@ -684,6 +685,11 @@ int THttpResponse::GetHttpCode() const
     return HttpCode_;
 }
 
+bool THttpResponse::IsKeepAlive() const
+{
+    return HttpInput_.IsKeepAlive();
+}
+
 TMaybe<TErrorResponse> THttpResponse::ParseError(const THttpHeaders& headers)
 {
     for (const auto& header : headers) {
@@ -750,17 +756,7 @@ THttpRequest::~THttpRequest()
         return;
     }
 
-    bool keepAlive = false;
-    if (Input) {
-        for (const auto& header : Input->Headers()) {
-            if (header.Name() == "Connection" && to_lower(header.Value()) == "keep-alive") {
-                keepAlive = true;
-                break;
-            }
-        }
-    }
-
-    if (keepAlive && Input && Input->IsExhausted()) {
+    if (Input && Input->IsKeepAlive() && Input->IsExhausted()) {
         // We should return to the pool only connections where HTTP response was fully read.
         // Otherwise next reader might read our remaining data and misinterpret them (YT-6510).
         TConnectionPool::Get()->Release(Connection);
@@ -777,7 +773,7 @@ TString THttpRequest::GetRequestId() const
 void THttpRequest::Connect(TString hostName, TDuration socketTimeout)
 {
     HostName = std::move(hostName);
-    LOG_DEBUG("REQ %s - connect to %s",
+    LOG_DEBUG("REQ %s - requesting connection to %s from connection pool",
         RequestId.data(),
         HostName.data());
 

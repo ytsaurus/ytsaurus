@@ -140,6 +140,7 @@ public:
     void CheckErrorResponse() const;
     bool IsExhausted() const;
     int GetHttpCode() const;
+    bool IsKeepAlive() const;
 
 protected:
     size_t DoRead(void* buf, size_t len) override;
