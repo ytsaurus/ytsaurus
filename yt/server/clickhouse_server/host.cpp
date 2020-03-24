@@ -450,6 +450,10 @@ public:
                 EMetricType::Counter);
         }
 
+        ClickHouseYtProfiler.Enqueue(
+            "/cpu_limit",
+            Config_->CpuLimit);
+
         YT_LOG_DEBUG("Profiling flushed");
     }
 
