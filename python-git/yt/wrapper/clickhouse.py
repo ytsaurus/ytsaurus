@@ -325,6 +325,7 @@ def prepare_configs(instance_count,
             },
         },
         "worker_thread_count": cpu_limit,
+        "cpu_limit", cpu_limit,
     }
 
     clickhouse_config_cypress_base = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else None
