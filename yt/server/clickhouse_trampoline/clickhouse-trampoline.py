@@ -61,12 +61,18 @@ def extract_geodata():
     logger.info("Geodata extracted")
 
 
+def substitute_env(content):
+    content = content.replace("$YT_JOB_INDEX", os.environ["YT_JOB_INDEX"])
+    content = content.replace("$YT_JOB_COOKIE", os.environ["YT_JOB_COOKIE"])
+    return content
+
+
 def patch_ytserver_clickhouse_config(prepare_geodata):
     logger.info("Patching config")
     assert os.path.exists("./config.yson")
     with open("./config.yson", "r") as f:
         content = f.read()
-    content = content.replace("$YT_JOB_INDEX", os.environ["YT_JOB_INDEX"])
+    content = substitute_env(content)
     if not prepare_geodata:
         content = "\n".join(filter(lambda line: "./geodata" not in line, content.split("\n")))
     with open("./config_patched.yson", "w") as f:
@@ -79,7 +85,7 @@ def patch_log_tailer_config():
     assert os.path.exists("./log_tailer_config.yson")
     with open("./log_tailer_config.yson", "r") as f:
         content = f.read()
-    content = content.replace("$YT_JOB_INDEX", os.environ["YT_JOB_INDEX"])
+    content = substitute_env(content)
     with open("./log_tailer_config_patched.yson", "w") as f:
         f.write(content)
     logger.info("Config patched")
