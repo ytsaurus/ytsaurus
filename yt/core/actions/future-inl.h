@@ -420,7 +420,7 @@ protected:
 
     TFutureState(bool wellKnown, int promiseRefCount, int futureRefCount, int cancelableRefCount, T&& value)
         : TFutureState<void>(wellKnown, promiseRefCount, futureRefCount, cancelableRefCount, TError())
-        , Result_(value)
+        , Result_(std::move(value))
     { }
 
 public:
