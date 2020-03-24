@@ -987,6 +987,22 @@ def run_ya_tests(options, suite_name, test_paths, dist=True):
             sudo_rmtree(sandbox_storage)
 
 @build_step
+@only_for_projects("yt_fast")
+def run_ya_all_tests_dist(options, build_context):
+    run_ya_tests(options, "ya_all_dist",
+                 [
+                     os.path.join(get_relative_yt_root(options), "yt/tests"),
+                     "yp/tests/py2",
+                     "yp/tests/py3",
+                     "python/yt/local/tests",
+                     "python/yt/skiff/tests",
+                     "python/yt/yson/tests/py2",
+                     "python/yt/yson/tests/py3",
+                     "python/yt/wrapper/tests/py2",
+                     "python/yt/wrapper/tests/py3",
+                 ])
+
+@build_step
 @only_for_projects("yt")
 def run_ya_integration_tests_dist(options, build_context):
     run_ya_tests(options, "ya_integration_dist", [os.path.join(get_relative_yt_root(options), "yt/tests")])
@@ -1116,6 +1132,7 @@ def run_yt_cpp_integration_tests(options, build_context):
     run_pytest(options, "cpp_integration", "{0}/yt/tests/cpp".format(options.checkout_directory))
 
 @build_step
+@only_for_projects("yt", "yp")
 def run_ya_yp_tests(options, build_context):
     targets = [
         "yp/tests/py2",
