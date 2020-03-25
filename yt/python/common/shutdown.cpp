@@ -3,8 +3,7 @@
 #include <yt/core/misc/shutdown.h>
 
 #include <Objects.hxx> // pycxx
-
-#include <yt/python/driver/lib/response.h>
+#include <Extensions.hxx> // pycxx
 
 #include <array>
 
