@@ -169,9 +169,11 @@ public:
         TTraceContextGuard guard(TraceContext_);
         YT_LOG_DEBUG("readSuffixImpl() is called");
 
-        NTracing::GetCurrentTraceContext()->AddTag("chyt.reader.data_statistics", ToString(Reader_->GetDataStatistics()));
-        NTracing::GetCurrentTraceContext()->AddTag("chyt.reader.codec_statistics", ToString(Reader_->GetDecompressionStatistics()));
-        TraceContext_->Finish();
+        if (TraceContext_) {
+            NTracing::GetCurrentTraceContext()->AddTag("chyt.reader.data_statistics", ToString(Reader_->GetDataStatistics()));
+            NTracing::GetCurrentTraceContext()->AddTag("chyt.reader.codec_statistics", ToString(Reader_->GetDecompressionStatistics()));
+            TraceContext_->Finish();
+        }
     }
 
 private:
