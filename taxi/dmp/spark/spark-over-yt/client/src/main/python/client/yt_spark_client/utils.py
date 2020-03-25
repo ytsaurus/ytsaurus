@@ -6,7 +6,18 @@ from yt.wrapper.config import get_config
 from yt.wrapper.cypress_commands import list as yt_list, create
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.http_helpers import get_proxy_url, get_user_name
+from yt.wrapper.operation_commands import get_operation_url
 
+class SparkCluster(object):
+    def __init__(self, master_endpoint, master_web_ui_url, master_rest_endpoint, operation_id, shs_url):
+        self.master_endpoint = master_endpoint
+        self.master_web_ui_url = master_web_ui_url
+        self.master_rest_endpoint = master_rest_endpoint
+        self.operation_id = operation_id
+        self.shs_url = shs_url
+
+    def operation_url(self, client=None):
+        return get_operation_url(self.operation_id, client=client)
 
 class SparkDiscovery(object):
     def __init__(self, discovery_path=None, spark_id=None):

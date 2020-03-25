@@ -1,32 +1,35 @@
 package ru.yandex.spark.yt;
 
-import java.io.IOException;
-
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
 import org.apache.spark.SparkConf;
-import org.apache.spark.deploy.SparkHadoopUtil;
 import org.apache.spark.sql.SparkSession;
 
+import ru.yandex.spark.yt.fs.YtClientConfigurationConverter;
 import ru.yandex.spark.yt.fs.YtClientProvider;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 
-public interface SparkAppJava {
-    default void run(String[] args) {
+public abstract class SparkAppJava {
+    public void run(String[] args) {
+        SparkConf sparkConf = getSparkConf();
+        YtClient yt = YtClientProvider.ytClient(YtClientConfigurationConverter.apply(sparkConf));
         try {
-            SparkConf sparkConf = new SparkConf();
-            Configuration hadoopConf = SparkHadoopUtil.get().newConfiguration(sparkConf);
             SparkSession spark = SparkSession.builder().config(sparkConf).getOrCreate();
             try {
-                doRun(args, spark, YtClientProvider.ytClient());
+                doRun(args, spark, yt);
             } finally {
                 spark.stop();
             }
         } finally {
             YtClientProvider.close();
         }
-
     }
 
-    void doRun(String[] args, SparkSession spark, YtClient yt);
+    protected abstract void doRun(String[] args, SparkSession spark, YtClient yt);
+
+    protected String getRemoteConfigPath() {
+        return SessionUtils.remoteConfigPath();
+    }
+
+    protected SparkConf getSparkConf() {
+        return SessionUtils.prepareSparkConf(getRemoteConfigPath());
+    }
 }

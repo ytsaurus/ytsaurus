@@ -10,26 +10,22 @@ object HistoryServerLauncher extends App with SparkLauncher {
   val launcherArgs = HistoryServerLauncherArgs(args)
 
   run(launcherArgs.ytConfig, launcherArgs.discoveryPath) { discoveryService =>
-    val address = startHistoryServer(launcherArgs.port, launcherArgs.logPath, launcherArgs.opts)
+    val address = startHistoryServer(launcherArgs.logPath)
     discoveryService.registerSHS(address)
     checkPeriodically(sparkThreadIsAlive)
     log.warn("Spark History Server is not alive")
   }
 }
 
-case class HistoryServerLauncherArgs(port: Int,
-                                     logPath: String,
+case class HistoryServerLauncherArgs(logPath: String,
                                      ytConfig: YtClientConfiguration,
-                                     discoveryPath: String,
-                                     opts: Option[String])
+                                     discoveryPath: String)
 
 object HistoryServerLauncherArgs {
   def apply(args: Args): HistoryServerLauncherArgs = HistoryServerLauncherArgs(
-    args.required("port").toInt,
     args.required("log-path"),
     YtClientConfiguration(args.optional),
-    args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
-    args.optional("opts").map(_.drop(1).dropRight(1))
+    args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH"))
   )
 
   def apply(args: Array[String]): HistoryServerLauncherArgs = HistoryServerLauncherArgs(Args(args))

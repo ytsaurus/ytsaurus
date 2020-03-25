@@ -15,6 +15,14 @@ libraryDependencies ++= Seq(
   "io.circe" %% "circe-parser"
 ).map(_ % circeVersion)
 
+val yandexIcebergVersion = "6453303"
+
+libraryDependencies ++= Seq(
+  "ru.yandex" % "iceberg-inside-yt" % yandexIcebergVersion excludeAll (
+    ExclusionRule(organization = "com.fasterxml.jackson.core")
+    )
+)
+
 resolvers += Resolver.url("SparkSnapshots", url("http://artifactory.yandex.net/artifactory/yandex_spark_snapshots"))(
     Patterns()
       .withIvyPatterns(Vector("[organisation]/[module]_2.12_1.0/[revision]/[artifact]-[revision].[ext]"))
@@ -27,4 +35,4 @@ resolvers += Resolver.url("SparkReleases", url("http://artifactory.yandex.net/ar
       .withArtifactPatterns(Vector("[organisation]/[module]_2.12_1.0/[revision]/[artifact]-[revision].[ext]"))
   )
 
-addSbtPlugin("ru.yandex" % "sbt-yandex" % "0.0.3-SNAPSHOT")
+addSbtPlugin("ru.yandex" % "sbt-yandex" % "0.0.3-1-SNAPSHOT")

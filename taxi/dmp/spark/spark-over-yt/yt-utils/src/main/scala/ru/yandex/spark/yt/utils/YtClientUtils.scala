@@ -17,7 +17,7 @@ object YtClientUtils {
   private val log = Logger.getLogger(getClass)
 
   def createRpcClient(config: YtClientConfiguration): YtRpcClient = {
-    log.info("Create yt client")
+    log.info(s"Create RPC YT Client, configuration ${config.copy(token = "*****")}")
     val connector = new DefaultBusConnector(new NioEventLoopGroup(1), true)
       .setReadTimeout(javaDuration(config.timeout))
       .setWriteTimeout(javaDuration(config.timeout))

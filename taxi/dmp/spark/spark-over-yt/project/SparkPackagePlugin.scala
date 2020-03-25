@@ -1,8 +1,9 @@
-import java.io.File
+import java.io.{File, FileInputStream, InputStreamReader}
+import java.util.Properties
 
-import _root_.io.circe.generic.auto._
-import _root_.io.circe.syntax._
 import com.typesafe.sbt.packager.linux.LinuxPackageMapping
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.sbt.YtPublishPlugin
 import sbt.Keys._
 import sbt.PluginTrigger.NoTrigger
@@ -17,23 +18,63 @@ object SparkPackagePlugin extends AutoPlugin {
   override def trigger = NoTrigger
 
   case class SparkLaunchConfig(spark_yt_base_path: String,
-                               spark_launcher_name: String,
-                               spark_name: String,
-                               shuffle_service_port: Int = 27000,
-                               start_port: Int = 27001,
-                               port_max_retries: Int = 200)
+                               spark_conf: Map[String, String],
+                               file_paths: Seq[String],
+                               layer_paths: Seq[String] = Seq(
+                                 "//home/sashbel/delta/jdk/layer_with_jdk_lastest.tar.gz",
+                                 "//home/sashbel/delta/python/layer_with_python37.tar.gz",
+                                 "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"
+                               ),
+                               environment: Map[String, String] = Map(
+                                 "JAVA_HOME" -> "/opt/jdk8",
+                                 "IS_SPARK_CLUSTER" -> "true"
+                               )) {
 
+    private def toYson(value: Any, builder: YTreeBuilder): YTreeBuilder = {
+      value match {
+        case s: String => builder.value(s)
+        case m: Map[String, String] => m.foldLeft(builder.beginMap()){case (res, (k, v)) => res.key(k).value(v)}.endMap()
+        case ss: Seq[String] => ss.foldLeft(builder.beginList()){case (res, next) => res.value(next)}.endList()
+        case i: Int => builder.value(i)
+      }
+    }
+
+    def toYson: String = {
+      val node = this.getClass.getDeclaredFields.foldLeft(new YTreeBuilder().beginMap()){
+        case (res, nextField) => toYson(nextField.get(this), res.key(nextField.getName))
+      }.endMap().build()
+      YTreeTextSerializer.serialize(node)
+    }
+  }
+
+  object SparkLaunchConfig {
+    def apply(spark_yt_base_path: String, spark_conf: Map[String, String]): SparkLaunchConfig = {
+      new SparkLaunchConfig(
+        spark_yt_base_path = spark_yt_base_path,
+        spark_conf = spark_conf,
+        file_paths = Seq(
+        s"$spark_yt_base_path/spark.tgz",
+        s"$spark_yt_base_path/spark-yt-launcher.jar"
+      ))
+    }
+  }
+
+  import YtPublishPlugin.autoImport._
+  import autoImport._
   object autoImport {
     val sparkPackage = taskKey[File]("Build spark and add custom files")
 
-    val sparkAdditionalJars = taskKey[Seq[File]]("Additional spark jars")
-    val sparkDefaults = settingKey[File]("spark-defaults.conf")
-    val sparkEnv = settingKey[File]("spark-env.sh")
+    val sparkAdditionalJars = taskKey[Seq[File]]("Jars to copy in SPARK_HOME/jars")
     val sparkAdditionalBin = settingKey[Seq[File]]("Scripts to copy in SPARK_HOME/bin")
     val sparkAdditionalPython = settingKey[Seq[File]]("Files to copy in SPARK_HOME/python")
-    val sparkName = settingKey[String]("Spark name, for example spark-2.4.4-0.0.1-SNAPSHOT")
-    val sparkLaunchConfig = taskKey[Seq[File]]("Spark launch config")
-    val sparkLauncherName = settingKey[String]("Name of spark-launcher jar")
+    val sparkLocalConfigs = taskKey[Seq[File]]("Configs to copy in SPARK_HOME/conf")
+
+    val sparkYtProxies = settingKey[Seq[String]]("YT proxies to create configs")
+    val sparkYtConfigs = taskKey[Seq[YtPublishArtifact]]("Configs to copy in YT conf dir")
+    val sparkYtBasePath = settingKey[String]("YT base path for spark")
+    val sparkYtBinBasePath = taskKey[String]("YT base path for spark binaries")
+    val sparkYtConfBasePath = taskKey[String]("YT base path for spark configs")
+    val sparkYtSubdir = taskKey[String]("Snapshots or releases")
 
     def createPackageMapping(src: File, dst: String): LinuxPackageMapping = {
 
@@ -52,32 +93,53 @@ object SparkPackagePlugin extends AutoPlugin {
     }
   }
 
-  import YtPublishPlugin.autoImport._
-  import autoImport._
+  private def readSparkDefaults(file: File): Map[String, String] = {
+    import scala.collection.JavaConverters._
+    val reader = new InputStreamReader(new FileInputStream(file))
+    val properties = new Properties()
+    try {
+      properties.load(reader)
+    } finally {
+      reader.close()
+    }
+    properties.stringPropertyNames().asScala.map{name =>
+      name -> properties.getProperty(name)
+    }.toMap
+  }
 
   override def projectSettings: Seq[Def.Setting[_]] = super.projectSettings ++ Seq(
-    sparkName := s"spark-${version.value}",
-    sparkDefaults := {
-      (resourceDirectory in Compile).value / "spark-defaults.conf"
-    },
-    sparkEnv := {
-      (resourceDirectory in Compile).value / "spark-env.sh"
+    sparkLocalConfigs := {
+      Seq(
+        (resourceDirectory in Compile).value / "spark-defaults.conf",
+        (resourceDirectory in Compile).value / "spark-env.sh"
+      )
     },
     sparkAdditionalBin := {
       val pythonDir = sourceDirectory.value / "main" / "python" / "bin"
       pythonDir.listFiles()
     },
-    sparkLaunchConfig := {
-      val conf = SparkLaunchConfig(
-        spark_yt_base_path = publishYtDir.value,
-        spark_launcher_name = s"${sparkLauncherName.value}-${(version in ThisBuild).value}.jar",
-        spark_name = sparkName.value
-      )
+    sparkYtBasePath := "//sys/spark",
+    sparkYtSubdir := {
+      if (isSnapshot.value || version.value.contains("beta")) {
+        "snapshots"
+      } else {
+        "releases"
+      }
+    },
+    sparkYtBinBasePath := s"${sparkYtBasePath.value}/bin/${sparkYtSubdir.value}/${version.value}",
+    sparkYtConfBasePath := s"${sparkYtBasePath.value}/conf/${sparkYtSubdir.value}",
+    sparkYtConfigs := {
+      val binBasePath = sparkYtBinBasePath.value
+      val confBasePath = sparkYtConfBasePath.value
 
-      val file = target.value / "spark-launch.json"
-      IO.write(file, conf.asJson.spaces4SortKeys)
+      sparkYtProxies.value.map { proxy =>
+        val proxyShort = proxy.split("\\.").head
+        val proxyDefaultsFile = (resourceDirectory in Compile).value / s"spark-defaults-$proxyShort.conf"
+        val proxyDefaults = readSparkDefaults(proxyDefaultsFile)
+        val launchConfig = SparkLaunchConfig(binBasePath, proxyDefaults)
 
-      Seq(file)
+        YtPublishDocument(launchConfig.toYson, confBasePath, Some(proxy), "spark-launch-conf")
+      }
     },
     sparkPackage := {
       val sparkHome = baseDirectory.value.getParentFile.getParentFile / "spark"
@@ -91,11 +153,13 @@ object SparkPackagePlugin extends AutoPlugin {
       sparkAdditionalJars.value.foreach { file =>
         IO.copyFile(file, sparkDist / "jars" / file.name)
       }
-      IO.copyFile(sparkDefaults.value, sparkDist / "conf" / "spark-defaults.conf")
-      IO.copyFile(sparkEnv.value, sparkDist / "conf" / "spark-env.sh")
+      sparkLocalConfigs.value.foreach { file =>
+        IO.copyFile(file, sparkDist / "conf" / file.name)
+      }
       sparkAdditionalBin.value.foreach { file =>
         IO.copyFile(file, sparkDist / "bin" / file.name, preserveExecutable = true)
       }
+
       val pythonDir = sparkDist / "bin" / "python"
       if (!pythonDir.exists()) {
         IO.createDirectory(sparkDist / "bin" / "python")
