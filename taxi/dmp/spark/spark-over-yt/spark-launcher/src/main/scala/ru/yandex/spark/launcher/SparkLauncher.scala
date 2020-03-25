@@ -96,6 +96,11 @@ trait SparkLauncher {
     thread
   }
 
+  private def env(name: String, default: => String): String = {
+    val home = new File(sys.env.getOrElse("HOME", ".")).getAbsolutePath
+    sys.env.getOrElse(name, default).replaceAll("\\$HOME", home)
+  }
+
   private def runSparkClass(className: String,
                             systemProperties: Map[String, String],
                             namedArgs: Map[String, String],
@@ -108,7 +113,9 @@ trait SparkLauncher {
         case name if name.startsWith("spark.") => name -> System.getProperty(name)
       }
     val fullSystemProperties = systemProperties ++ sparkSystemProperties
-    val command = s"./spark/bin/spark-class " +
+
+    val sparkHome = env("SPARK_HOME", "./spark")
+    val command = s"$sparkHome/bin/spark-class " +
       s"${fullSystemProperties.map { case (k, v) => s"-D$k=$v" }.mkString(" ")} " +
       s"$className " +
       s"${namedArgs.map { case (k, v) => s"--$k $v" }.mkString(" ")} " +
@@ -116,7 +123,13 @@ trait SparkLauncher {
 
     log.info(s"Run command: $command")
 
-    Process(command).run(ProcessLogger(log.info(_)))
+    val javaHome = env("JAVA_HOME", "/opt/jdk8")
+    Process(
+      command,
+      new File("."),
+      "JAVA_HOME" -> javaHome,
+      "SPARK_HOME" -> sparkHome
+    ).run(ProcessLogger(log.info(_)))
   }
 
   def sparkThreadIsAlive: Boolean = sparkThread.isAlive
