@@ -139,15 +139,16 @@ def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
                                tmpfs_limit, master_memory_limit, history_server_memory_limit,
                                pool, operation_spec, client):
     def _launcher_command(component):
-        unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz"
-        run_launcher = "/opt/jdk8/bin/java -Xmx512m -cp spark-yt-launcher.jar"
+        unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C ./tmpfs"
+        move_java = "cp -r /opt/jdk8 ./tmpfs/jdk8"
+        run_launcher = "./tmpfs/jdk8/bin/java -Xmx512m -cp spark-yt-launcher.jar"
         spark_conf = []
         for key, value in dynamic_config["spark_conf"].items():
             spark_conf.append("-D{}={}".format(key, value))
         spark_conf = " ".join(spark_conf)
 
-        return "{0} && {1} {2} ru.yandex.spark.launcher.{3}Launcher ".format(unpack_tar, run_launcher,
-                                                                             spark_conf, component)
+        return "{0} && {1} && {2} {3} ru.yandex.spark.launcher.{4}Launcher ".format(unpack_tar, move_java, run_launcher,
+                                                                                    spark_conf, component)
 
     master_command = _launcher_command("Master")
     worker_command = _launcher_command("Worker") + \
@@ -157,6 +158,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
     environment = dynamic_config["environment"]
     environment["YT_PROXY"] = get_proxy_url(required=True, client=client)
     environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())
+    environment["JAVA_HOME"] = "$HOME/tmpfs/jdk8"
+    environment["SPARK_HOME"] = "$HOME/tmpfs/spark"
 
     user = get_user_name(client=client)
 
@@ -171,7 +174,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
         "file_paths": dynamic_config["file_paths"],
         "layer_paths": dynamic_config["layer_paths"],
         "environment": environment,
-        "memory_reserve_factor": 1.0
+        "memory_reserve_factor": 1.0,
+        "tmpfs_path": "tmpfs"
     }
 
     secure_vault = {"YT_USER": user, "YT_TOKEN": get_token(client=client)}
@@ -197,7 +201,6 @@ def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
         .memory_limit(_parse_memory(worker_memory) + _parse_memory(tmpfs_limit)) \
         .cpu_limit(worker_cores + 2) \
         .spec(common_task_spec) \
-        .tmpfs_path("tmpfs") \
         .end_task() \
         .secure_vault(secure_vault) \
         .spec(operation_spec)
