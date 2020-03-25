@@ -95,7 +95,6 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
             "dynamic",
             "sorted"
         });
-
         batchReq->AddRequest(req);
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());

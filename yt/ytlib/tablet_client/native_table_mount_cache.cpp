@@ -240,18 +240,15 @@ private:
 
             auto secondaryProxy = TObjectServiceProxy(channel);
             auto batchReq = secondaryProxy.ExecuteBatch();
-
             SetBalancingHeader(batchReq, connection->GetConfig(), options);
-            {
-                auto req = TTableYPathProxy::GetMountInfo(FromObjectId(TableId_));
 
-                SetCachingHeader(req, connection->GetConfig(), options, refreshSecondaryRevision);
+            auto req = TTableYPathProxy::GetMountInfo(FromObjectId(TableId_));
+            SetCachingHeader(req, connection->GetConfig(), options, refreshSecondaryRevision);
 
-                size_t hash = 0;
-                HashCombine(hash, FarmHash(TableId_.Parts64[0]));
-                HashCombine(hash, FarmHash(TableId_.Parts64[1]));
-                batchReq->AddRequest(req, "get_mount_info", hash);
-            }
+            size_t hash = 0;
+            HashCombine(hash, FarmHash(TableId_.Parts64[0]));
+            HashCombine(hash, FarmHash(TableId_.Parts64[1]));
+            batchReq->AddRequest(req, std::nullopt, hash);
 
             return batchReq->Invoke()
                 .Apply(BIND(&TGetSession::OnTableMountInfoReceived, MakeStrong(this)));
