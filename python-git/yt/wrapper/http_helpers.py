@@ -493,7 +493,7 @@ def get_token(token=None, client=None):
                 token_path = os.path.join(token_dir, "token")
                 with open(token_path, "w") as fout:
                     fout.write(token)
-                os.chmod(token_path, 0o700)
+                os.chmod(token_path, 0o600)
 
     # Empty token considered as missing.
     if not token:
