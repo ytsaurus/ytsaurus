@@ -117,6 +117,13 @@ private:
     }
 
 
+    void ValidateUsePermissionOnCellBundle(TTableNode* table) {
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto* cellBundle = table->GetTabletCellBundle();
+        securityManager->ValidatePermission(cellBundle, EPermission::Use);
+    }
+
+
     void HydraPrepareMountTable(TTransaction* transaction, NTabletClient::NProto::TReqMount* request, bool persist)
     {
         int firstTabletIndex = request->first_tablet_index();
@@ -155,9 +162,7 @@ private:
                     << TErrorAttribute("resolved_path", currentPath);
             }
 
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            auto* cellBundle = table->GetTabletCellBundle();
-            securityManager->ValidatePermission(cellBundle, EPermission::Use);
+            ValidateUsePermissionOnCellBundle(table);
 
             cypressManager->LockNode(table, transaction, ELockMode::Exclusive, false, true);
         }
@@ -292,6 +297,8 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
+        ValidateUsePermissionOnCellBundle(table);
+
         if (force) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto* cellBundle = table->GetTabletCellBundle();
@@ -400,6 +407,8 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
+        ValidateUsePermissionOnCellBundle(table);
+
         table->ValidateNoCurrentMountTransaction("Cannot freeze table");
 
         if (table->IsNative()) {
@@ -495,6 +504,8 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
+
+        ValidateUsePermissionOnCellBundle(table);
 
         table->ValidateNoCurrentMountTransaction("Cannot unfreeze table");
 
@@ -593,6 +604,8 @@ private:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
 
+        ValidateUsePermissionOnCellBundle(table);
+
         table->ValidateNoCurrentMountTransaction("Cannot remount table");
 
         if (table->IsNative()) {
@@ -690,6 +703,8 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* table = AsTableNodeSafe(cypressManager->GetNodeOrThrow(TVersionedNodeId(tableId)));
+
+        ValidateUsePermissionOnCellBundle(table);
 
         table->ValidateNoCurrentMountTransaction("Cannot reshard table");
 
