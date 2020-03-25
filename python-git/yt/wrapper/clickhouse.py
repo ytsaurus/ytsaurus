@@ -233,7 +233,8 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     args = [clickhouse_trampoline_path, ytserver_clickhouse_path]
     if enable_monitoring:
-        args += ["--monitoring-port", "10142"]
+        args += ["--monitoring-port", "10142", "--log-tailer-monitoring-port", "10242"]
+
     if cypress_geodata_path is not None:
         file_paths.append(FilePath(cypress_geodata_path, file_name="geodata.tgz"))
         args += ["--prepare-geodata"]
