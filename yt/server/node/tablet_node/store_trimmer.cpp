@@ -120,10 +120,13 @@ private:
             ? config->MinDataTtl
             : std::max(config->MinDataTtl, config->MaxDataTtl);
 
+        auto minRowCount = config->RowCountToKeep;
+
         auto now = TimestampToInstant(Bootstrap_->GetLatestTimestamp()).first;
         auto deathTimestamp = InstantToTimestamp(now - dataTtl).first;
 
         i64 trimmedRowCount = 0;
+        i64 remainingRowCount = tablet->GetTotalRowCount() - tablet->GetTrimmedRowCount();
         std::vector<TOrderedChunkStorePtr> result;
         for (const auto& pair : tablet->StoreRowIndexMap()) {
             const auto& store = pair.second;
@@ -134,6 +137,12 @@ private:
             if (chunkStore->GetMaxTimestamp() >= deathTimestamp) {
                 break;
             }
+
+            remainingRowCount -= chunkStore->GetRowCount();
+            if (remainingRowCount < minRowCount) {
+                break;
+            }
+
             trimmedRowCount = chunkStore->GetStartingRowIndex() + chunkStore->GetRowCount();
         }
 

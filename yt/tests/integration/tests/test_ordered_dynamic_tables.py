@@ -926,6 +926,23 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_flush_table("//tmp/t")
         wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 1)
 
+    @authors("lexolordan")
+    def test_row_count_to_keep(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", min_data_ttl=0, max_data_ttl=0, min_data_versions=0, row_count_to_keep=2)
+        sync_mount_table("//tmp/t")
+
+        def _create_chunk(rows):
+            insert_rows("//tmp/t", rows)
+            sync_flush_table("//tmp/t")
+
+        _create_chunk([{"a": 0}, {"a": 1}])
+        _create_chunk([{"a": 2}])
+        _create_chunk([{"a": 3}])
+        _create_chunk([{"a": 4}])
+
+        wait(lambda: get("//tmp/t/@tablets/0/trimmed_row_count") == 3)
+
     @authors("ifsmirnov")
     def test_required_columns(self):
         schema = [

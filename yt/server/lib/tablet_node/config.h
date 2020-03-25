@@ -111,6 +111,8 @@ public:
 
     int LookupCacheRowsPerTablet;
 
+    int RowCountToKeep;
+
     TDuration ReplicationTickPeriod;
     TDuration MinReplicationLogTtl;
     int MaxTimestampsPerReplicationCommit;
@@ -264,6 +266,9 @@ public:
             .Default(false);
 
         RegisterParameter("lookup_cache_rows_per_tablet", LookupCacheRowsPerTablet)
+            .Default(0);
+
+        RegisterParameter("row_count_to_keep", RowCountToKeep)
             .Default(0);
 
         RegisterParameter("replication_tick_period", ReplicationTickPeriod)
