@@ -2,6 +2,8 @@
 
 #include "timestamp_provider.h"
 
+#include <yt/core/concurrency/public.h>
+
 namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -12,6 +14,8 @@ class TTimestampProviderBase
     : public ITimestampProvider
 {
 protected:
+    explicit TTimestampProviderBase(std::optional<TDuration> latestTimestampUpdatePeriod);
+
     virtual TFuture<TTimestamp> DoGenerateTimestamps(int count) = 0;
 
 public:
@@ -19,11 +23,16 @@ public:
     virtual TTimestamp GetLatestTimestamp() override;
 
 private:
-    std::atomic<TTimestamp> LatestTimestamp_ = {MinTimestamp};
+    const std::optional<TDuration> LatestTimestampUpdatePeriod_;
+
+    std::atomic<i64> GetLatestTimestampCallCounter_ = 0;
+    NConcurrency::TPeriodicExecutorPtr LatestTimestampExecutor_;
+    std::atomic<TTimestamp> LatestTimestamp_ = MinTimestamp;
 
     TFuture<TTimestamp> OnGenerateTimestamps(
         int count,
         const TErrorOr<TTimestamp>& timestampOrError);
+    void UpdateLatestTimestamp();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

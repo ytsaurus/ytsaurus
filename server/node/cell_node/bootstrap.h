@@ -98,6 +98,7 @@ public:
     const NQueryClient::TColumnEvaluatorCachePtr& GetColumnEvaluatorCache() const;
     const NQueryAgent::IQuerySubexecutorPtr& GetQueryExecutor() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
+    const TDynamicConfigManagerPtr& GetDynamicConfigManager() const;
 
     const NConcurrency::IThroughputThrottlerPtr& GetReplicationInThrottler() const;
     const NConcurrency::IThroughputThrottlerPtr& GetReplicationOutThrottler() const;
@@ -128,6 +129,8 @@ public:
     void Initialize();
     void Run();
     void ValidateSnapshot(const TString& fileName);
+
+    bool IsReadOnly() const;
 
 private:
     const TCellNodeConfigPtr Config_;
@@ -178,6 +181,7 @@ private:
     NDataNode::TJournalDispatcherPtr JournalDispatcher_;
     NDataNode::TMasterConnectorPtr MasterConnector_;
     ICoreDumperPtr CoreDumper_;
+    TDynamicConfigManagerPtr DynamicConfigManager_;
 
     NConcurrency::IThroughputThrottlerPtr TotalInThrottler_;
     NConcurrency::IThroughputThrottlerPtr TotalOutThrottler_;
@@ -224,6 +228,8 @@ private:
 
     void OnMasterConnected();
     void OnMasterDisconnected();
+
+    void OnDynamicConfigUpdated(TCellNodeDynamicConfigPtr newConfig);
 
     void UpdateFootprintMemoryUsage();
 

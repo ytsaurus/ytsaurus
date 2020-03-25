@@ -372,16 +372,13 @@ private:
 
 std::vector<TChunkSlice> SliceChunk(
     const NProto::TSliceRequest& sliceReq,
-    const NProto::TChunkMeta& meta,
-    i64 sliceDataWeight,
-    int keyColumnCount,
-    bool sliceByKeys)
+    const NProto::TChunkMeta& meta)
 {
     TSortedChunkSlicer slicer(sliceReq, meta);
-    if (sliceByKeys) {
-        return slicer.SliceByKeys(sliceDataWeight, keyColumnCount);
+    if (sliceReq.slice_by_keys()) {
+        return slicer.SliceByKeys(sliceReq.slice_data_weight(), sliceReq.key_column_count());
     } else {
-        return slicer.SliceByRows(sliceDataWeight, keyColumnCount);
+        return slicer.SliceByRows(sliceReq.slice_data_weight(), sliceReq.key_column_count());
     }
 }
 

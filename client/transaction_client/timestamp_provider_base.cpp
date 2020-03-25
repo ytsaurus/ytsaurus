@@ -1,7 +1,12 @@
 #include "timestamp_provider_base.h"
 #include "private.h"
 
+#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/periodic_executor.h>
+
 namespace NYT::NTransactionClient {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,8 +14,14 @@ static const auto& Logger = TransactionClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTimestampProviderBase::TTimestampProviderBase(std::optional<TDuration> latestTimestampUpdatePeriod)
+    : LatestTimestampUpdatePeriod_(latestTimestampUpdatePeriod)
+{ }
+
 TFuture<TTimestamp> TTimestampProviderBase::GenerateTimestamps(int count)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     YT_LOG_DEBUG("Generating fresh timestamps (Count: %v)", count);
 
     return DoGenerateTimestamps(count).Apply(BIND(
@@ -21,7 +32,21 @@ TFuture<TTimestamp> TTimestampProviderBase::GenerateTimestamps(int count)
 
 TTimestamp TTimestampProviderBase::GetLatestTimestamp()
 {
-    return LatestTimestamp_.load(std::memory_order_relaxed);
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto result = LatestTimestamp_.load(std::memory_order_relaxed);
+
+    if (LatestTimestampUpdatePeriod_ && ++GetLatestTimestampCallCounter_ == 1) {
+        LatestTimestampExecutor_ = New<TPeriodicExecutor>(
+            GetSyncInvoker(),
+            BIND(&TTimestampProviderBase::UpdateLatestTimestamp, MakeWeak(this)),
+            *LatestTimestampUpdatePeriod_,
+            EPeriodicExecutorMode::Automatic);
+        LatestTimestampExecutor_->Start();
+    }
+
+    return result;
+
 }
 
 TFuture<TTimestamp> TTimestampProviderBase::OnGenerateTimestamps(
@@ -52,6 +77,22 @@ TFuture<TTimestamp> TTimestampProviderBase::OnGenerateTimestamps(
     }
 
     return MakeFuture<TTimestamp>(firstTimestamp);
+}
+
+void TTimestampProviderBase::UpdateLatestTimestamp()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    YT_LOG_DEBUG("Updating latest timestamp");
+    GenerateTimestamps(1).Subscribe(
+        BIND([] (const TErrorOr<TTimestamp>& timestampOrError) {
+            if (timestampOrError.IsOK()) {
+                YT_LOG_DEBUG("Latest timestamp updated (Timestamp: %llx)",
+                    timestampOrError.Value());
+            } else {
+                YT_LOG_WARNING(timestampOrError, "Error updating latest timestamp");
+            }
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

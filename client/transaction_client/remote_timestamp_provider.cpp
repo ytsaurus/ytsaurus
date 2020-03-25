@@ -8,6 +8,8 @@
 #include <yt/core/rpc/balancing_channel.h>
 #include <yt/core/rpc/retrying_channel.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
@@ -16,6 +18,7 @@ namespace NYT::NTransactionClient {
 using namespace NRpc;
 using namespace NYTree;
 using namespace NObjectClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,13 +62,17 @@ class TRemoteTimestampProvider
 public:
     TRemoteTimestampProvider(
         IChannelPtr channel,
-        TDuration defaultTimeout)
-        : Proxy_(std::move(channel))
+        TRemoteTimestampProviderConfigPtr config)
+        : TTimestampProviderBase(config->LatestTimestampUpdatePeriod)
+        , Config_(std::move(config))
+        , Proxy_(std::move(channel))
     {
-        Proxy_.SetDefaultTimeout(defaultTimeout);
+        Proxy_.SetDefaultTimeout(Config_->RpcTimeout);
     }
 
 private:
+    const TRemoteTimestampProviderConfigPtr Config_;
+
     TTimestampServiceProxy Proxy_;
 
     virtual TFuture<TTimestamp> DoGenerateTimestamps(int count) override
@@ -84,10 +91,17 @@ ITimestampProviderPtr CreateRemoteTimestampProvider(
     TRemoteTimestampProviderConfigPtr config,
     IChannelPtr channel)
 {
-    auto underlying = New<TRemoteTimestampProvider>(std::move(channel), config->RpcTimeout);
-    auto wrapped = CreateBatchingTimestampProvider(std::move(underlying), config->UpdatePeriod, config->BatchPeriod);
+    return New<TRemoteTimestampProvider>(std::move(channel), std::move(config));
+}
 
-    return wrapped;
+ITimestampProviderPtr CreateBatchingRemoteTimestampProvider(
+    TBatchingRemoteTimestampProviderConfigPtr config,
+    IChannelPtr channel)
+{
+    auto underlying = CreateRemoteTimestampProvider(config, std::move(channel));
+    return CreateBatchingTimestampProvider(
+        std::move(underlying),
+        config->BatchPeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

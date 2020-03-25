@@ -41,7 +41,10 @@ class TPortoJobDirectoryManager
 public:
     TPortoJobDirectoryManager(const TVolumeManagerConfigPtr& config, const TString& path)
         : Path_(path)
-        , Executor_(CreatePortoExecutor(config->PortoExecutor, "job_dir"))
+        , Executor_(CreatePortoExecutor(
+            config->PortoExecutor,
+            "job_dir",
+            ExecAgentProfiler.AppendPath("/job_directory/porto")))
     {
         // Collect and drop all existing volumes.
         auto volumePaths = WaitFor(Executor_->ListVolumePaths())

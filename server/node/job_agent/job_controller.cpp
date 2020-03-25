@@ -385,7 +385,7 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
     TNodeResources result;
 
     // If chunk cache is disabled, we disable all scheduler jobs.
-    result.set_user_slots(Bootstrap_->GetChunkCache()->IsEnabled() && !DisableSchedulerJobs_
+    result.set_user_slots(Bootstrap_->GetChunkCache()->IsEnabled() && !DisableSchedulerJobs_ && !Bootstrap_->IsReadOnly()
         ? Bootstrap_->GetExecSlotManager()->GetSlotCount()
         : 0);
 
@@ -1350,6 +1350,7 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                                     .Item("job_state").Value(job->GetState())
                                     .Item("job_phase").Value(job->GetPhase())
                                     .Item("job_type").Value(job->GetType())
+                                    .Item("slot_index").Value(job->GetSlotIndex())
                                     .Item("start_time").Value(job->GetStartTime())
                                     .Item("duration").Value(TInstant::Now() - job->GetStartTime())
                                     .OptionalItem("statistics", job->GetStatistics())

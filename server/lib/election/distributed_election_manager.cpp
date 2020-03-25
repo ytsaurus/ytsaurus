@@ -7,6 +7,7 @@
 #include <yt/ytlib/election/election_service_proxy.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
+#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/lease_manager.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -41,7 +42,7 @@ public:
     virtual void Finalize() override;
 
     virtual void Participate() override;
-    virtual void Abandon() override;
+    virtual void Abandon(const TError& error) override;
 
     virtual TYsonProducer GetMonitoringProducer() override;
 
@@ -49,33 +50,33 @@ private:
     class TVotingRound;
 
     class TFollowerPinger;
-    typedef TIntrusivePtr<TFollowerPinger> TFollowerPingerPtr;
+    using TFollowerPingerPtr = TIntrusivePtr<TFollowerPinger>;
 
-    const TDistributedElectionManagerConfigPtr Config;
-    const TCellManagerPtr CellManager;
-    const IInvokerPtr ControlInvoker;
-    const IElectionCallbacksPtr ElectionCallbacks;
+    const TDistributedElectionManagerConfigPtr Config_;
+    const TCellManagerPtr CellManager_;
+    const IInvokerPtr ControlInvoker_;
+    const IElectionCallbacksPtr ElectionCallbacks_;
     const IServerPtr RpcServer_;
 
-    EPeerState State = EPeerState::Stopped;
+    EPeerState State_ = EPeerState::Stopped;
 
     // Voting parameters.
-    TPeerId VoteId = InvalidPeerId;
-    TEpochId VoteEpochId;
+    TPeerId VoteId_ = InvalidPeerId;
+    TEpochId VoteEpochId_;
 
     // Epoch parameters.
-    TEpochContextPtr EpochContext;
-    IInvokerPtr ControlEpochInvoker;
+    TEpochContextPtr EpochContext_;
+    IInvokerPtr EpochControlInvoker_;
 
-    TPeerIdSet AliveFollowers; // actually, includes the leader, too
-    TPeerIdSet AlivePeers; // additionally includes non-voting peers
-    TPeerIdSet PotentialPeers;
+    TPeerIdSet AliveFollowers_; // actually, includes the leader, too
+    TPeerIdSet AlivePeers_; // additionally includes non-voting peers
+    TPeerIdSet PotentialPeers_;
 
-    TLease LeaderPingLease;
-    TFollowerPingerPtr FollowerPinger;
+    TLease LeaderPingLease_;
+    TFollowerPingerPtr FollowerPinger_;
 
 
-    // Corresponds to #ControlInvoker.
+    // Corresponds to #ControlInvoker_.
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     DECLARE_RPC_SERVICE_METHOD(NElection::NProto, PingFollower);
@@ -100,9 +101,9 @@ private:
     void StartLeading();
     void StartFollowing(TPeerId leaderId, TEpochId epoch);
 
-    void StopLeading();
-    void StopFollowing();
-    void StopVoting();
+    void StopLeading(const TError& error);
+    void StopFollowing(const TError& error);
+    void StopVoting(const TError& error);
 
     void InitEpochContext(TPeerId leaderId, TEpochId epoch);
     void SetState(EPeerState newState);
@@ -110,6 +111,7 @@ private:
     void OnPeerReconfigured(TPeerId peerId);
 
     void FireAlivePeerSetChanged();
+
 };
 
 DEFINE_REFCOUNTED_TYPE(TDistributedElectionManager)
@@ -122,33 +124,52 @@ class TDistributedElectionManager::TFollowerPinger
 {
 public:
     explicit TFollowerPinger(TDistributedElectionManagerPtr owner)
-        : Owner(owner)
-        , Logger(Owner->Logger)
+        : Owner_(std::move(owner))
+        , Logger(Owner_->Logger)
+        , SendPingsExecutor_(New<TPeriodicExecutor>(
+            Owner_->EpochControlInvoker_,
+            BIND(&TFollowerPinger::SendPings, MakeWeak(this)),
+            Owner_->Config_->FollowerPingPeriod))
     { }
 
     void Run()
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
-
-        const auto& cellManager = Owner->CellManager;
-        for (TPeerId id = 0; id < cellManager->GetTotalPeerCount(); ++id) {
-            if (id == cellManager->GetSelfPeerId())
-                continue;
-
-            SendPing(id);
-        }
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        SendPingsExecutor_->Start();
     }
 
 private:
-    const TDistributedElectionManagerPtr Owner;
+    const TDistributedElectionManagerPtr Owner_;
     const NLogging::TLogger Logger;
+    const TPeriodicExecutorPtr SendPingsExecutor_;
 
+    // Ping sessions are in progress for peers [0, TotalPeerCount_) (except for self).
+    int TotalPeerCount_ = 0;
+
+    void SendPings()
+    {
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+
+        const auto& cellManager = Owner_->CellManager_;
+        for (auto id = TotalPeerCount_; id < cellManager->GetTotalPeerCount(); ++id) {
+            SendPing(id);
+        }
+        TotalPeerCount_ = cellManager->GetTotalPeerCount();
+    }
 
     void SendPing(TPeerId peerId)
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        auto channel = Owner->CellManager->GetPeerChannel(peerId);
+        if (peerId >= Owner_->CellManager_->GetTotalPeerCount()) {
+            return;
+        }
+
+        if (peerId == Owner_->CellManager_->GetSelfPeerId()) {
+            return;
+        }
+
+        auto channel = Owner_->CellManager_->GetPeerChannel(peerId);
         if (!channel) {
             SchedulePing(peerId);
             return;
@@ -158,29 +179,33 @@ private:
 
         TElectionServiceProxy proxy(channel);
         auto req = proxy.PingFollower();
-        req->SetTimeout(Owner->Config->FollowerPingRpcTimeout);
-        req->set_leader_id(Owner->CellManager->GetSelfPeerId());
-        ToProto(req->mutable_epoch_id(), Owner->EpochContext->EpochId);
+        req->SetTimeout(Owner_->Config_->FollowerPingRpcTimeout);
+        req->set_leader_id(Owner_->CellManager_->GetSelfPeerId());
+        ToProto(req->mutable_epoch_id(), Owner_->EpochContext_->EpochId);
 
         req->Invoke().Subscribe(
-            BIND(&TFollowerPinger::OnPingResponse, MakeStrong(this), peerId)
-                .Via(Owner->ControlEpochInvoker));
+            BIND(&TFollowerPinger::OnPingResponse, MakeWeak(this), peerId)
+                .Via(Owner_->EpochControlInvoker_));
     }
 
     void SchedulePing(TPeerId id)
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         TDelayedExecutor::Submit(
-            BIND(&TFollowerPinger::SendPing, MakeStrong(this), id)
-                .Via(Owner->ControlEpochInvoker),
-            Owner->Config->FollowerPingPeriod);
+            BIND(&TFollowerPinger::SendPing, MakeWeak(this), id)
+                .Via(Owner_->EpochControlInvoker_),
+            Owner_->Config_->FollowerPingPeriod);
     }
 
     void OnPingResponse(TPeerId id, const TElectionServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
-        YT_VERIFY(Owner->State == EPeerState::Leading);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_VERIFY(Owner_->State_ == EPeerState::Leading);
+
+        if (id >= TotalPeerCount_) {
+            return;
+        }
 
         if (rspOrError.IsOK()) {
             OnPingResponseSuccess(id, rspOrError.Value());
@@ -193,27 +218,27 @@ private:
     {
         YT_LOG_DEBUG("Ping reply from follower (PeerId: %v)", id);
 
-        const auto votingPeer = Owner->IsVotingPeer(id);
+        const auto votingPeer = Owner_->IsVotingPeer(id);
 
-        if (Owner->PotentialPeers.contains(id)) {
+        if (Owner_->PotentialPeers_.contains(id)) {
             YT_LOG_INFO("%v is up, first success (PeerId: %v)",
                 votingPeer ? "Follower" : "Observer",
                 id);
-            YT_VERIFY(Owner->PotentialPeers.erase(id) == 1);
+            YT_VERIFY(Owner_->PotentialPeers_.erase(id) == 1);
         } else {
             if (votingPeer) {
-                if (!Owner->AliveFollowers.contains(id)) {
+                if (!Owner_->AliveFollowers_.contains(id)) {
                     YT_LOG_INFO("Follower is up (PeerId: %v)", id);
-                    YT_VERIFY(Owner->AliveFollowers.insert(id).second);
+                    YT_VERIFY(Owner_->AliveFollowers_.insert(id).second);
                     // Peers are a superset of followers.
-                    YT_VERIFY(Owner->AlivePeers.insert(id).second);
-                    Owner->FireAlivePeerSetChanged();
+                    YT_VERIFY(Owner_->AlivePeers_.insert(id).second);
+                    Owner_->FireAlivePeerSetChanged();
                 }
             } else {
-                if (!Owner->AlivePeers.contains(id)) {
+                if (!Owner_->AlivePeers_.contains(id)) {
                     YT_LOG_INFO("Observer is up (PeerId: %v)", id);
-                    YT_VERIFY(Owner->AlivePeers.insert(id).second);
-                    Owner->FireAlivePeerSetChanged();
+                    YT_VERIFY(Owner_->AlivePeers_.insert(id).second);
+                    Owner_->FireAlivePeerSetChanged();
                 }
             }
         }
@@ -223,7 +248,7 @@ private:
 
     void OnPingResponseFailure(TPeerId id, const TError& error)
     {
-        const auto votingPeer = Owner->IsVotingPeer(id);
+        const auto votingPeer = Owner_->IsVotingPeer(id);
 
         const auto code = error.GetCode();
         if (code == NElection::EErrorCode::InvalidState ||
@@ -231,15 +256,15 @@ private:
             code == NElection::EErrorCode::InvalidEpoch)
         {
             // These errors are possible during grace period.
-            if (Owner->PotentialPeers.contains(id)) {
-                 if (TInstant::Now() > Owner->EpochContext->StartTime + Owner->Config->FollowerGraceTimeout) {
+            if (Owner_->PotentialPeers_.contains(id)) {
+                 if (TInstant::Now() > Owner_->EpochContext_->StartTime + Owner_->Config_->FollowerGraceTimeout) {
                     YT_LOG_WARNING(error, "Error pinging %v, no success within grace period, considered down (PeerId: %v)",
                         votingPeer ? "follower" : "observer",
                         id);
-                    Owner->PotentialPeers.erase(id);
-                    Owner->AliveFollowers.erase(id);
-                    if (Owner->AlivePeers.erase(id) > 0) {
-                        Owner->FireAlivePeerSetChanged();
+                    Owner_->PotentialPeers_.erase(id);
+                    Owner_->AliveFollowers_.erase(id);
+                    if (Owner_->AlivePeers_.erase(id) > 0) {
+                        Owner_->FireAlivePeerSetChanged();
                     }
                 } else {
                     YT_LOG_INFO(error, "Error pinging %v, will retry later (PeerId: %v)",
@@ -248,40 +273,40 @@ private:
                 }
             } else {
                 if (votingPeer) {
-                    if (Owner->AliveFollowers.erase(id) > 0) {
+                    if (Owner_->AliveFollowers_.erase(id) > 0) {
                         YT_LOG_WARNING(error, "Error pinging follower, considered down (PeerId: %v)",
                             id);
-                        YT_VERIFY(Owner->AlivePeers.erase(id));
-                        Owner->FireAlivePeerSetChanged();
+                        YT_VERIFY(Owner_->AlivePeers_.erase(id));
+                        Owner_->FireAlivePeerSetChanged();
                     }
                 } else {
-                    if (Owner->AlivePeers.erase(id) > 0) {
+                    if (Owner_->AlivePeers_.erase(id) > 0) {
                         YT_LOG_WARNING(error, "Error pinging observer, considered down (PeerId: %v)",
                             id);
-                        Owner->FireAlivePeerSetChanged();
+                        Owner_->FireAlivePeerSetChanged();
                     }
                 }
             }
         } else {
             if (votingPeer) {
-                if (Owner->AliveFollowers.erase(id) > 0) {
+                if (Owner_->AliveFollowers_.erase(id) > 0) {
                     YT_LOG_WARNING(error, "Error pinging follower, considered down (PeerId: %v)",
                         id);
-                    Owner->PotentialPeers.erase(id);
-                    YT_VERIFY(Owner->AlivePeers.erase(id) > 0);
-                    Owner->FireAlivePeerSetChanged();
+                    Owner_->PotentialPeers_.erase(id);
+                    YT_VERIFY(Owner_->AlivePeers_.erase(id) > 0);
+                    Owner_->FireAlivePeerSetChanged();
                 }
             } else {
-                if (Owner->AlivePeers.erase(id) > 0) {
+                if (Owner_->AlivePeers_.erase(id) > 0) {
                     YT_LOG_WARNING(error, "Error pinging observer, considered down (PeerId: %v)",
                         id);
-                    Owner->PotentialPeers.erase(id);
-                    Owner->FireAlivePeerSetChanged();
+                    Owner_->PotentialPeers_.erase(id);
+                    Owner_->FireAlivePeerSetChanged();
                 }
             }
         }
 
-        if (votingPeer && !Owner->CheckQuorum()) {
+        if (votingPeer && !Owner_->CheckQuorum()) {
             return;
         }
 
@@ -291,7 +316,6 @@ private:
             SchedulePing(id);
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,79 +325,82 @@ class TDistributedElectionManager::TVotingRound
 {
 public:
     explicit TVotingRound(TDistributedElectionManagerPtr owner)
-        : Owner(owner)
+        : Owner_(owner)
     {
-        Logger = Owner->Logger;
-        Logger.AddTag("RoundId: %v, VoteEpochId: %v",
+        Logger = Owner_->Logger;
+        Logger.AddTag("RoundId: %v, VoteEpochId_: %v",
             TGuid::Create(),
-            Owner->VoteEpochId);
+            Owner_->VoteEpochId_);
     }
 
     void Run()
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
-        YT_VERIFY(Owner->State == EPeerState::Voting);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_VERIFY(Owner_->State_ == EPeerState::Voting);
 
-        auto cellManager = Owner->CellManager;
+        auto cellManager = Owner_->CellManager_;
 
         YT_LOG_DEBUG("New voting round started");
 
-        if (Owner->IsVotingPeer()) {
+        if (Owner_->IsVotingPeer()) {
             ProcessVote(
                 cellManager->GetSelfPeerId(),
                 TStatus(
-                    Owner->State,
-                    Owner->VoteId,
-                    Owner->ElectionCallbacks->GetPriority(),
-                    Owner->VoteEpochId));
+                    Owner_->State_,
+                    Owner_->VoteId_,
+                    Owner_->ElectionCallbacks_->GetPriority(),
+                    Owner_->VoteEpochId_));
         }
 
         std::vector<TFuture<void>> asyncResults;
         for (TPeerId id = 0; id < cellManager->GetTotalPeerCount(); ++id) {
-            if (id == cellManager->GetSelfPeerId())
+            if (id == cellManager->GetSelfPeerId()) {
                 continue;
+            }
 
-            auto channel = Owner->CellManager->GetPeerChannel(id);
-            if (!channel)
+            auto channel = Owner_->CellManager_->GetPeerChannel(id);
+            if (!channel) {
                 continue;
+            }
 
-            if (!Owner->IsVotingPeer(id))
+            if (!Owner_->IsVotingPeer(id)) {
                 continue;
+            }
 
             TElectionServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Owner->Config->ControlRpcTimeout);
+            proxy.SetDefaultTimeout(Owner_->Config_->ControlRpcTimeout);
 
             auto req = proxy.GetStatus();
             asyncResults.push_back(
                 req->Invoke().Apply(
                     BIND(&TVotingRound::OnResponse, MakeStrong(this), id)
-                        .AsyncVia(Owner->ControlEpochInvoker)));
+                        .AsyncVia(Owner_->EpochControlInvoker_)));
         }
 
         Combine(asyncResults).Subscribe(
             BIND(&TVotingRound::OnComplete, MakeStrong(this))
-                .Via(Owner->ControlEpochInvoker));
+                .Via(Owner_->EpochControlInvoker_));
     }
 
 private:
-    const TDistributedElectionManagerPtr Owner;
+    const TDistributedElectionManagerPtr Owner_;
 
     struct TStatus
     {
-        EPeerState State;
-        TPeerId VoteId;
+        EPeerState State_;
+        TPeerId VoteId_;
         TPeerPriority Priority;
-        TEpochId VoteEpochId;
+        TEpochId VoteEpochId_;
 
         TStatus(
             EPeerState state = EPeerState::Stopped,
             TPeerId vote = InvalidPeerId,
             TPeerPriority priority = -1,
             TEpochId voteEpochId = TEpochId())
-            : State(state)
-            , VoteId(vote)
+            : State_(state)
+            , VoteId_(vote)
             , Priority(priority)
-            , VoteEpochId(voteEpochId)
+            , VoteEpochId_(voteEpochId)
         { }
     };
 
@@ -388,11 +415,11 @@ private:
 
     void ProcessVote(TPeerId id, const TStatus& status)
     {
-        YT_LOG_DEBUG("Vote received (PeerId: %v, State: %v, VoteId: %v, Priority: %v)",
+        YT_LOG_DEBUG("Vote received (PeerId: %v, State_: %v, VoteId_: %v, Priority: %v)",
             id,
-            status.State,
-            status.VoteId,
-            Owner->ElectionCallbacks->FormatPriority(status.Priority));
+            status.State_,
+            status.VoteId_,
+            Owner_->ElectionCallbacks_->FormatPriority(status.Priority));
 
         YT_VERIFY(id != InvalidPeerId);
         StatusTable[id] = status;
@@ -406,7 +433,7 @@ private:
 
     void OnResponse(TPeerId id, const TElectionServiceProxy::TErrorOrRspGetStatusPtr& rspOrError)
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (Finished)
             return;
@@ -435,13 +462,13 @@ private:
         // Use the local one for self
         // (others may still be following with an outdated epoch).
         auto candidateEpochId =
-            candidateId == Owner->CellManager->GetSelfPeerId()
-            ? Owner->VoteEpochId
-            : candidateStatus.VoteEpochId;
+            candidateId == Owner_->CellManager_->GetSelfPeerId()
+            ? Owner_->VoteEpochId_
+            : candidateStatus.VoteEpochId_;
 
         // Count votes (including self) and quorum.
         int voteCount = CountVotesFor(candidateId, candidateEpochId);
-        int quorumCount = Owner->CellManager->GetQuorumPeerCount();
+        int quorumCount = Owner_->CellManager_->GetQuorumPeerCount();
 
         // Check for quorum.
         if (voteCount < quorumCount) {
@@ -456,16 +483,16 @@ private:
         Finished = true;
 
         // Become a leader or a follower.
-        if (candidateId == Owner->CellManager->GetSelfPeerId()) {
-            Owner->ControlEpochInvoker->Invoke(BIND(
+        if (candidateId == Owner_->CellManager_->GetSelfPeerId()) {
+            Owner_->EpochControlInvoker_->Invoke(BIND(
                 &TDistributedElectionManager::StartLeading,
-                Owner));
+                Owner_));
         } else {
-            Owner->ControlEpochInvoker->Invoke(BIND(
+            Owner_->EpochControlInvoker_->Invoke(BIND(
                 &TDistributedElectionManager::StartFollowing,
-                Owner,
+                Owner_,
                 candidateId,
-                candidateStatus.VoteEpochId));
+                candidateStatus.VoteEpochId_));
         }
 
         return true;
@@ -475,7 +502,7 @@ private:
     {
         int result = 0;
         for (const auto& pair : StatusTable) {
-            if (pair.second.VoteId == candidateId && pair.second.VoteEpochId == epochId) {
+            if (pair.second.VoteId_ == candidateId && pair.second.VoteEpochId_ == epochId) {
                 ++result;
             }
         }
@@ -485,17 +512,17 @@ private:
     bool IsFeasibleLeader(TPeerId candidateId, const TStatus& candidateStatus) const
     {
         // He must be voting for himself.
-        if (candidateId != candidateStatus.VoteId) {
+        if (candidateId != candidateStatus.VoteId_) {
             return false;
         }
 
-        if (candidateId == Owner->CellManager->GetSelfPeerId()) {
+        if (candidateId == Owner_->CellManager_->GetSelfPeerId()) {
             // Check that we're voting.
-            YT_VERIFY(candidateStatus.State == EPeerState::Voting);
+            YT_VERIFY(candidateStatus.State_ == EPeerState::Voting);
             return true;
         } else {
             // The candidate must be aware of his leadership.
-            return candidateStatus.State == EPeerState::Leading;
+            return candidateStatus.State_ == EPeerState::Leading;
         }
     }
 
@@ -510,12 +537,12 @@ private:
             return false;
         }
 
-        return lhs.VoteId < rhs.VoteId;
+        return lhs.VoteId_ < rhs.VoteId_;
     }
 
     void OnComplete(const TError&)
     {
-        VERIFY_THREAD_AFFINITY(Owner->ControlThread);
+        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (Finished)
             return;
@@ -526,7 +553,7 @@ private:
         std::optional<TStatus> bestCandidate;
         for (const auto& pair : StatusTable) {
             const auto& currentCandidate = pair.second;
-            if (StatusTable.find(currentCandidate.VoteId) != StatusTable.end() &&
+            if (StatusTable.find(currentCandidate.VoteId_) != StatusTable.end() &&
                 (!bestCandidate || IsBetterCandidate(currentCandidate, *bestCandidate)))
             {
                 bestCandidate = currentCandidate;
@@ -536,10 +563,10 @@ private:
         if (bestCandidate) {
             // Extract the status of the best candidate.
             // His status must be present in the table by the above checks.
-            const auto& candidateStatus = StatusTable[bestCandidate->VoteId];
-            Owner->ContinueVoting(candidateStatus.VoteId, candidateStatus.VoteEpochId);
+            const auto& candidateStatus = StatusTable[bestCandidate->VoteId_];
+            Owner_->ContinueVoting(candidateStatus.VoteId_, candidateStatus.VoteEpochId_);
         } else {
-            Owner->StartVoting();
+            Owner_->StartVoting();
         }
     }
 
@@ -561,22 +588,22 @@ TDistributedElectionManager::TDistributedElectionManager(
                 cellManager->GetCellId(),
                 cellManager->GetSelfPeerId()),
         cellManager->GetCellId())
-    , Config(config)
-    , CellManager(cellManager)
-    , ControlInvoker(controlInvoker)
-    , ElectionCallbacks(electionCallbacks)
+    , Config_(config)
+    , CellManager_(cellManager)
+    , ControlInvoker_(controlInvoker)
+    , ElectionCallbacks_(electionCallbacks)
     , RpcServer_(rpcServer)
 {
-    YT_VERIFY(Config);
-    YT_VERIFY(CellManager);
-    YT_VERIFY(ControlInvoker);
-    YT_VERIFY(ElectionCallbacks);
-    VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker, ControlThread);
+    YT_VERIFY(Config_);
+    YT_VERIFY(CellManager_);
+    YT_VERIFY(ControlInvoker_);
+    YT_VERIFY(ElectionCallbacks_);
+    VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
 
-    CellManager->SubscribePeerReconfigured(
+    CellManager_->SubscribePeerReconfigured(
         BIND(&TDistributedElectionManager::OnPeerReconfigured, MakeWeak(this)));
 }
 
@@ -585,13 +612,18 @@ void TDistributedElectionManager::Initialize()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     RpcServer_->RegisterService(this);
+
+    YT_LOG_INFO("Election instance initialized");
 }
 
 void TDistributedElectionManager::Finalize()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    Abandon();
+    YT_LOG_INFO("Election instance is finalizing");
+
+    Abandon(TError("Election instance is finalizing"));
+
     RpcServer_->UnregisterService(this);
 }
 
@@ -599,7 +631,7 @@ void TDistributedElectionManager::Participate()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    switch (State) {
+    switch (State_) {
         case EPeerState::Stopped:
             StartVoting();
             break;
@@ -608,14 +640,12 @@ void TDistributedElectionManager::Participate()
             break;
 
         case EPeerState::Leading:
-            YT_LOG_INFO("Leader restart forced");
-            StopLeading();
+            StopLeading(TError("Leader is requested to participant in re-elections"));
             StartVoting();
             break;
 
         case EPeerState::Following:
-            YT_LOG_INFO("Follower restart forced");
-            StopFollowing();
+            StopFollowing(TError("Follower is requested to participant in re-elections"));
             StartVoting();
             break;
 
@@ -624,24 +654,24 @@ void TDistributedElectionManager::Participate()
     }
 }
 
-void TDistributedElectionManager::Abandon()
+void TDistributedElectionManager::Abandon(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    switch (State) {
+    switch (State_) {
         case EPeerState::Stopped:
             break;
 
         case EPeerState::Voting:
-            StopVoting();
+            StopVoting(error);
             break;
 
         case EPeerState::Leading:
-            StopLeading();
+            StopLeading(error);
             break;
 
         case EPeerState::Following:
-            StopFollowing();
+            StopFollowing(error);
             break;
 
         default:
@@ -652,13 +682,13 @@ void TDistributedElectionManager::Abandon()
 TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
 {
     return BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
-        auto epochContext = EpochContext;
+        auto epochContext = EpochContext_;
         BuildYsonFluently(consumer)
             .BeginMap()
-                .Item("state").Value(State)
+                .Item("state").Value(State_)
                 .Item("peers").BeginList()
-                    .DoFor(0, CellManager->GetTotalPeerCount(), [=] (TFluentList fluent, TPeerId id) {
-                        fluent.Item().Value(CellManager->GetPeerConfig(id));
+                    .DoFor(0, CellManager_->GetTotalPeerCount(), [=] (TFluentList fluent, TPeerId id) {
+                        fluent.Item().Value(CellManager_->GetPeerConfig(id));
                     })
                 .EndList()
                 .DoIf(epochContext.operator bool(), [&] (TFluentMap fluent) {
@@ -666,7 +696,7 @@ TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
                         .Item("leader_id").Value(epochContext->LeaderId)
                         .Item("epoch_id").Value(epochContext->EpochId);
                 })
-                .Item("vote_id").Value(VoteId)
+                .Item("vote_id").Value(VoteId_)
             .EndMap();
     });
 }
@@ -679,56 +709,52 @@ void TDistributedElectionManager::Reset()
 
     CancelContext();
 
-    VoteId = InvalidPeerId;
-    AliveFollowers.clear();
-    AlivePeers.clear();
-    PotentialPeers.clear();
-    TLeaseManager::CloseLease(LeaderPingLease);
-    LeaderPingLease.Reset();
+    VoteId_ = InvalidPeerId;
+    AliveFollowers_.clear();
+    AlivePeers_.clear();
+    PotentialPeers_.clear();
+    TLeaseManager::CloseLease(LeaderPingLease_);
+    LeaderPingLease_.Reset();
 }
 
 void TDistributedElectionManager::CancelContext()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (EpochContext) {
-        EpochContext->CancelableContext->Cancel(TError("Election epoch canceled"));
+    if (EpochContext_) {
+        EpochContext_->CancelableContext->Cancel(TError("Election epoch canceled"));
     }
-    EpochContext.Reset();
+    EpochContext_.Reset();
 }
 
 void TDistributedElectionManager::OnLeaderPingLeaseExpired()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YT_LOG_INFO("No recurrent ping from leader within timeout");
-
-    YT_VERIFY(State == EPeerState::Following);
-    StopFollowing();
+    YT_VERIFY(State_ == EPeerState::Following);
+    StopFollowing(TError("No recurrent ping from leader within timeout"));
 }
 
 bool TDistributedElectionManager::CheckQuorum()
 {
-    if (AliveFollowers.size() >= CellManager->GetQuorumPeerCount()) {
+    if (AliveFollowers_.size() >= CellManager_->GetQuorumPeerCount()) {
         return true;
     }
 
-    YT_LOG_WARNING("Quorum is lost");
-
-    StopLeading();
+    StopLeading(TError("Quorum is lost"));
 
     return false;
 }
 
 bool TDistributedElectionManager::IsVotingPeer() const
 {
-    const auto& config = CellManager->GetSelfConfig();
+    const auto& config = CellManager_->GetSelfConfig();
     return config.Voting;
 }
 
 bool TDistributedElectionManager::IsVotingPeer(TPeerId peerId) const
 {
-    const auto& config = CellManager->GetPeerConfig(peerId);
+    const auto& config = CellManager_->GetPeerConfig(peerId);
     return config.Voting;
 }
 
@@ -737,12 +763,12 @@ void TDistributedElectionManager::ContinueVoting(TPeerId voteId, TEpochId voteEp
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     SetState(EPeerState::Voting);
-    VoteId = voteId;
-    VoteEpochId = voteEpoch;
+    VoteId_ = voteId;
+    VoteEpochId_ = voteEpoch;
 
-    YT_LOG_DEBUG("Voting for another candidate (VoteId: %v, VoteEpochId: %v)",
-        VoteId,
-        VoteEpochId);
+    YT_LOG_DEBUG("Voting for another candidate (VoteId_: %v, VoteEpochId_: %v)",
+        VoteId_,
+        VoteEpochId_);
 
     StartVotingRound();
 }
@@ -753,21 +779,21 @@ void TDistributedElectionManager::StartVoting()
 
     CancelContext();
 
-    EpochContext = New<TEpochContext>();
-    ControlEpochInvoker = EpochContext->CancelableContext->CreateInvoker(ControlInvoker);
+    EpochContext_ = New<TEpochContext>();
+    EpochControlInvoker_ = EpochContext_->CancelableContext->CreateInvoker(ControlInvoker_);
 
     SetState(EPeerState::Voting);
-    VoteEpochId = TGuid::Create();
+    VoteEpochId_ = TGuid::Create();
 
     if (IsVotingPeer()) {
-        VoteId = CellManager->GetSelfPeerId();
-        YT_LOG_DEBUG("Voting for self (VoteId: %v, VoteEpochId: %v)",
-            VoteId,
-            VoteEpochId);
+        VoteId_ = CellManager_->GetSelfPeerId();
+        YT_LOG_DEBUG("Voting for self (VoteId_: %v, VoteEpochId_: %v)",
+            VoteId_,
+            VoteEpochId_);
     } else {
-        VoteId = InvalidPeerId;
-        YT_LOG_DEBUG("Voting for nobody (VoteEpochId: %v)",
-            VoteEpochId);
+        VoteId_ = InvalidPeerId;
+        YT_LOG_DEBUG("Voting for nobody (VoteEpochId_: %v)",
+            VoteEpochId_);
     }
 
     StartVotingRound();
@@ -776,13 +802,13 @@ void TDistributedElectionManager::StartVoting()
 void TDistributedElectionManager::StartVotingRound()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YT_VERIFY(State == EPeerState::Voting);
+    YT_VERIFY(State_ == EPeerState::Voting);
 
     auto round = New<TVotingRound>(this);
     TDelayedExecutor::Submit(
         BIND(&TVotingRound::Run, round)
-            .Via(ControlEpochInvoker),
-        Config->VotingRoundPeriod);
+            .Via(EpochControlInvoker_),
+        Config_->VotingRoundPeriod);
 }
 
 void TDistributedElectionManager::StartLeading()
@@ -790,30 +816,30 @@ void TDistributedElectionManager::StartLeading()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     SetState(EPeerState::Leading);
-    YT_VERIFY(VoteId == CellManager->GetSelfPeerId());
+    YT_VERIFY(VoteId_ == CellManager_->GetSelfPeerId());
 
     // Initialize followers state.
-    for (TPeerId id = 0; id < CellManager->GetTotalPeerCount(); ++id) {
-        PotentialPeers.insert(id);
-        AlivePeers.insert(id);
+    for (TPeerId id = 0; id < CellManager_->GetTotalPeerCount(); ++id) {
+        PotentialPeers_.insert(id);
+        AlivePeers_.insert(id);
         if (IsVotingPeer(id)) {
-            AliveFollowers.insert(id);
+            AliveFollowers_.insert(id);
         }
     }
 
-    InitEpochContext(CellManager->GetSelfPeerId(), VoteEpochId);
+    InitEpochContext(CellManager_->GetSelfPeerId(), VoteEpochId_);
 
     // Send initial pings.
-    YT_VERIFY(!FollowerPinger);
-    FollowerPinger = New<TFollowerPinger>(this);
-    FollowerPinger->Run();
+    YT_VERIFY(!FollowerPinger_);
+    FollowerPinger_ = New<TFollowerPinger>(this);
+    FollowerPinger_->Run();
 
     YT_LOG_INFO("Started leading (EpochId: %v)",
-        EpochContext->EpochId);
+        EpochContext_->EpochId);
 
-    BIND(&IElectionCallbacks::OnStartLeading, ElectionCallbacks)
-        .AsyncVia(ControlInvoker)
-        .Run(EpochContext);
+    BIND(&IElectionCallbacks::OnStartLeading, ElectionCallbacks_)
+        .AsyncVia(ControlInvoker_)
+        .Run(EpochContext_);
 }
 
 void TDistributedElectionManager::StartFollowing(
@@ -823,70 +849,70 @@ void TDistributedElectionManager::StartFollowing(
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     SetState(EPeerState::Following);
-    VoteId = leaderId;
-    VoteEpochId = epochId;
+    VoteId_ = leaderId;
+    VoteEpochId_ = epochId;
 
     InitEpochContext(leaderId, epochId);
 
-    LeaderPingLease = TLeaseManager::CreateLease(
-        Config->LeaderPingTimeout,
+    LeaderPingLease_ = TLeaseManager::CreateLease(
+        Config_->LeaderPingTimeout,
         BIND(&TDistributedElectionManager::OnLeaderPingLeaseExpired, MakeWeak(this))
-            .Via(ControlEpochInvoker));
+            .Via(EpochControlInvoker_));
 
     YT_LOG_INFO("Started following (LeaderId: %v, EpochId: %v)",
-        EpochContext->LeaderId,
-        EpochContext->EpochId);
+        EpochContext_->LeaderId,
+        EpochContext_->EpochId);
 
-    BIND(&IElectionCallbacks::OnStartFollowing, ElectionCallbacks)
-        .AsyncVia(ControlInvoker)
-        .Run(EpochContext);
+    BIND(&IElectionCallbacks::OnStartFollowing, ElectionCallbacks_)
+        .AsyncVia(ControlInvoker_)
+        .Run(EpochContext_);
 }
 
-void TDistributedElectionManager::StopLeading()
+void TDistributedElectionManager::StopLeading(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YT_VERIFY(State == EPeerState::Leading);
+    YT_VERIFY(State_ == EPeerState::Leading);
 
-    YT_LOG_INFO("Stopped leading (EpochId: %v)",
-        EpochContext->EpochId);
+    YT_LOG_INFO(error, "Stopped leading (EpochId: %v)",
+        EpochContext_->EpochId);
 
-    BIND(&IElectionCallbacks::OnStopLeading, ElectionCallbacks)
-        .AsyncVia(ControlInvoker)
-        .Run();
+    BIND(&IElectionCallbacks::OnStopLeading, ElectionCallbacks_)
+        .AsyncVia(ControlInvoker_)
+        .Run(error);
 
-    YT_VERIFY(FollowerPinger);
-    FollowerPinger.Reset();
+    YT_VERIFY(FollowerPinger_);
+    FollowerPinger_.Reset();
 
     Reset();
 }
 
-void TDistributedElectionManager::StopFollowing()
+void TDistributedElectionManager::StopFollowing(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YT_VERIFY(State == EPeerState::Following);
+    YT_VERIFY(State_ == EPeerState::Following);
 
-    YT_LOG_INFO("Stopped following (LeaderId: %v, EpochId: %v)",
-        EpochContext->LeaderId,
-        EpochContext->EpochId);
+    YT_LOG_INFO(error, "Stopped following (LeaderId: %v, EpochId: %v)",
+        EpochContext_->LeaderId,
+        EpochContext_->EpochId);
 
-    BIND(&IElectionCallbacks::OnStopFollowing, ElectionCallbacks)
-        .AsyncVia(ControlInvoker)
-        .Run();
+    BIND(&IElectionCallbacks::OnStopFollowing, ElectionCallbacks_)
+        .AsyncVia(ControlInvoker_)
+        .Run(error);
 
     Reset();
 }
 
-void TDistributedElectionManager::StopVoting()
+void TDistributedElectionManager::StopVoting(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-    YT_VERIFY(State == EPeerState::Voting);
+    YT_VERIFY(State_ == EPeerState::Voting);
 
-    YT_LOG_INFO("Voting stopped (EpochId: %v)",
-        EpochContext->EpochId);
+    YT_LOG_INFO(error, "Voting stopped (EpochId: %v)",
+        EpochContext_->EpochId);
 
-    BIND(&IElectionCallbacks::OnStopVoting, ElectionCallbacks)
-        .AsyncVia(ControlInvoker)
-        .Run();
+    BIND(&IElectionCallbacks::OnStopVoting, ElectionCallbacks_)
+        .AsyncVia(ControlInvoker_)
+        .Run(error);
 
     Reset();
 }
@@ -895,52 +921,50 @@ void TDistributedElectionManager::InitEpochContext(TPeerId leaderId, TEpochId ep
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    EpochContext->LeaderId = leaderId;
-    EpochContext->EpochId = epochId;
-    EpochContext->StartTime = TInstant::Now();
+    EpochContext_->LeaderId = leaderId;
+    EpochContext_->EpochId = epochId;
+    EpochContext_->StartTime = TInstant::Now();
 }
 
 void TDistributedElectionManager::SetState(EPeerState newState)
 {
-    if (newState == State)
+    if (newState == State_)
         return;
 
     // This generic message logged to simplify tracking state changes.
-    YT_LOG_INFO("State changed: %v -> %v",
-        State,
+    YT_LOG_INFO("State_ changed: %v -> %v",
+        State_,
         newState);
-    State = newState;
+    State_ = newState;
 }
 
 void TDistributedElectionManager::OnPeerReconfigured(TPeerId peerId)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (peerId == CellManager->GetSelfPeerId()) {
-        if (State != EPeerState::Stopped) {
-            Abandon();
+    if (peerId == CellManager_->GetSelfPeerId()) {
+        if (State_ != EPeerState::Stopped) {
+            Abandon(TError("Peer has been reconfigured"));
         }
-    } else {
-        if (State == EPeerState::Leading) {
-            PotentialPeers.erase(peerId);
-            AliveFollowers.erase(peerId);
-            if (AlivePeers.erase(peerId) > 0) {
-                FireAlivePeerSetChanged();
-            }
-            // NB: even if the peer is non-voting, quorum must be checked
-            // because the peer may've been voting before reconfiguration.
-            CheckQuorum();
-        } else if (State == EPeerState::Following && peerId == EpochContext->LeaderId) {
-            Abandon();
+    } else if (State_ == EPeerState::Leading) {
+        PotentialPeers_.erase(peerId);
+        AliveFollowers_.erase(peerId);
+        if (AlivePeers_.erase(peerId) > 0) {
+            FireAlivePeerSetChanged();
         }
+        // NB: even if the peer is non-voting, quorum must be checked
+        // because the peer may've been voting before reconfiguration.
+        CheckQuorum();
+    } else if (State_ == EPeerState::Following && peerId == EpochContext_->LeaderId) {
+        Abandon(TError("Leader has been reconfigured"));
     }
 }
 
 void TDistributedElectionManager::FireAlivePeerSetChanged()
 {
-    BIND(&IElectionCallbacks::OnAlivePeerSetChanged, ElectionCallbacks)
-        .AsyncVia(ControlInvoker)
-        .Run(AlivePeers);
+    BIND(&IElectionCallbacks::OnAlivePeerSetChanged, ElectionCallbacks_)
+        .AsyncVia(ControlInvoker_)
+        .Run(AlivePeers_);
 }
 
 DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, PingFollower)
@@ -955,31 +979,31 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, PingFollower)
         epochId,
         leaderId);
 
-    if (State != EPeerState::Following) {
+    if (State_ != EPeerState::Following) {
         THROW_ERROR_EXCEPTION(
             NElection::EErrorCode::InvalidState,
             "Received ping in invalid state: expected %Qlv, actual %Qlv",
             EPeerState::Following,
-            State);
+            State_);
     }
 
-    if (epochId != EpochContext->EpochId) {
+    if (epochId != EpochContext_->EpochId) {
         THROW_ERROR_EXCEPTION(
             NElection::EErrorCode::InvalidEpoch,
             "Received ping with invalid epoch: expected %v, received %v",
-            EpochContext->EpochId,
+            EpochContext_->EpochId,
             epochId);
     }
 
-    if (leaderId != EpochContext->LeaderId) {
+    if (leaderId != EpochContext_->LeaderId) {
         THROW_ERROR_EXCEPTION(
             NElection::EErrorCode::InvalidLeader,
             "Ping from an invalid leader: expected %v, received %v",
-            EpochContext->LeaderId,
+            EpochContext_->LeaderId,
             leaderId);
     }
 
-    TLeaseManager::RenewLease(LeaderPingLease);
+    TLeaseManager::RenewLease(LeaderPingLease_);
 
     context->Reply();
 }
@@ -997,19 +1021,19 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, GetStatus)
             "Not a voting peer");
     }
 
-    auto priority = ElectionCallbacks->GetPriority();
+    auto priority = ElectionCallbacks_->GetPriority();
 
-    response->set_state(static_cast<int>(State));
-    response->set_vote_id(VoteId);
+    response->set_state(static_cast<int>(State_));
+    response->set_vote_id(VoteId_);
     response->set_priority(priority);
-    ToProto(response->mutable_vote_epoch_id(), VoteEpochId);
-    response->set_self_id(CellManager->GetSelfPeerId());
+    ToProto(response->mutable_vote_epoch_id(), VoteEpochId_);
+    response->set_self_id(CellManager_->GetSelfPeerId());
 
-    context->SetResponseInfo("State: %v, VoteId: %v, Priority: %v, VoteEpochId: %v",
-        State,
-        VoteId,
-        ElectionCallbacks->FormatPriority(priority),
-        VoteEpochId);
+    context->SetResponseInfo("State_: %v, VoteId_: %v, Priority: %v, VoteEpochId_: %v",
+        State_,
+        VoteId_,
+        ElectionCallbacks_->FormatPriority(priority),
+        VoteEpochId_);
 
     context->Reply();
 }

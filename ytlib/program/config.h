@@ -55,7 +55,13 @@ DEFINE_REFCOUNTED_TYPE(TSingletonsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: These functions should not be called from bootstrap
+// config validator since logger is not set up yet.
 void WarnForUnrecognizedOptions(
+    const NLogging::TLogger& logger,
+    const NYTree::TYsonSerializablePtr& config);
+
+void AbortOnUnrecognizedOptions(
     const NLogging::TLogger& logger,
     const NYTree::TYsonSerializablePtr& config);
 

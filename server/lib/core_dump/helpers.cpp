@@ -36,6 +36,23 @@ void Serialize(const TCoreInfo& coreInfo, IYsonConsumer* consumer)
                 fluent
                     .Item("error").Value(NYT::FromProto<TError>(coreInfo.error()));
             })
+            .DoIf(coreInfo.has_thread_id(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("thread_id").Value(coreInfo.thread_id());
+            })
+            .DoIf(coreInfo.has_signal(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("signal").Value(coreInfo.signal());
+            })
+            .DoIf(coreInfo.has_container(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("container").Value(coreInfo.container());
+            })
+            .DoIf(coreInfo.has_datetime(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("datetime").Value(coreInfo.datetime());
+            })
+
         .EndMap();
 }
 

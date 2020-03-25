@@ -169,13 +169,8 @@ TDuration TTentativeTreeEligibility::GetTentativeTreeAverageJobDuration(const TS
 
     if (tentativeCount < SampleJobCount_) {
         auto it = LastStartJobTimePerPoolTree_.find(treeId);
-        if (it == LastStartJobTimePerPoolTree_.end()) {
-            // COMPAT(ignat): for revived operations.
-            tentativeCount += 1;
-        } else {
-            tentativeCount += 1;
-            tentativeDurationSum += TInstant::Now() - it->second;
-        }
+        tentativeCount += 1;
+        tentativeDurationSum += TInstant::Now() - it->second;
         return tentativeDurationSum / tentativeCount;
     } else {
         int completedJobCount = FinishedJobsPerStatePerPoolTree_.Value(treeId, THashMap<EJobState, int>()).Value(EJobState::Completed, 0);

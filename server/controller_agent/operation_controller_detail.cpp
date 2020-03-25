@@ -56,8 +56,8 @@
 #include <yt/client/security_client/acl.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
-#include <yt/ytlib/table_client/data_slice_fetcher.h>
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schema.h>
 
@@ -327,6 +327,13 @@ const TJobSpec& TOperationControllerBase::GetAutoMergeJobSpecTemplate(int tableI
     return AutoMergeJobSpecTemplates_[tableIndex];
 }
 
+void TOperationControllerBase::SleepInInitialize()
+{
+    if (auto delay = Spec_->TestingOperationOptions->DelayInsideInitialize) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
+}
+
 void TOperationControllerBase::InitializeClients()
 {
     TClientOptions options;
@@ -497,6 +504,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
     WaitFor(Host->UpdateInitializedOperationNode())
         .ThrowOnError();
 
+    SleepInInitialize();
+
     YT_LOG_INFO("Operation initialized");
 
     TOperationControllerInitializeResult result;
@@ -528,6 +537,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 
     WaitFor(Host->UpdateInitializedOperationNode())
         .ThrowOnError();
+
+    SleepInInitialize();
 
     YT_LOG_INFO("Operation initialized");
 
@@ -847,6 +858,8 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     InitializeStandardEdgeDescriptors();
 
+    YT_LOG_INFO("Operation prepared");
+
     TOperationControllerPrepareResult result;
     FillPrepareResult(&result);
     return result;
@@ -934,6 +947,10 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             YT_LOG_DEBUG("Job splitter created");
         }
 
+        if (auto maybeDelay = Spec_->TestingOperationOptions->DelayInsideMaterialize) {
+            TDelayedExecutor::WaitForDuration(*maybeDelay);
+        }
+
         if (State != EControllerState::Preparing) {
             return result;
         }
@@ -969,8 +986,7 @@ void TOperationControllerBase::SaveSnapshot(IOutputStream* output)
 
 void TOperationControllerBase::SleepInRevive()
 {
-    auto delay = Spec_->TestingOperationOptions->DelayInsideRevive;
-    if (delay) {
+    if (auto delay = Spec_->TestingOperationOptions->DelayInsideRevive) {
         TDelayedExecutor::WaitForDuration(*delay);
     }
 }
@@ -1058,6 +1074,8 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
             joblet->NodeDescriptor.Address
         });
     }
+
+    YT_LOG_INFO("Operation revived");
 
     State = EControllerState::Running;
 
@@ -1669,6 +1687,8 @@ i64 TOperationControllerBase::GetPartSize(EOutputTableType tableType)
 
 void TOperationControllerBase::SafeCommit()
 {
+    SleepInCommitStage(EDelayInsideOperationCommitStage::Start);
+
     StartOutputCompletionTransaction();
     StartDebugCompletionTransaction();
 
@@ -2156,7 +2176,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     req->set_value(ConvertToYsonString(GetPartSize(table->OutputType)).GetData());
                     batchReq->AddRequest(req);
                 }
-                if (table->OutputType == EOutputTableType::Core && GetWriteSparseCoreDumps()) {
+                if (table->OutputType == EOutputTableType::Core) {
                     auto req = TYPathProxy::Set(table->GetObjectIdPath() + "/@sparse");
                     SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
                     req->set_value(ConvertToYsonString(true).GetData());
@@ -6336,21 +6356,21 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
     };
 
     std::vector<TFuture<void>> asyncResults;
-    std::vector<TDataSliceFetcherPtr> fetchers;
+    std::vector<IChunkSliceFetcherPtr> fetchers;
 
     for (const auto& table : InputTables_) {
         if (!table->IsForeign() && table->Dynamic && table->Schema.IsSorted()) {
-            auto fetcher = New<TDataSliceFetcher>(
+            auto fetcher = CreateChunkSliceFetcher(
                 Config->Fetcher,
                 sliceSize,
-                table->Schema.GetKeyColumns().size(),
-                true,
                 InputNodeDirectory_,
                 GetCancelableInvoker(),
                 createScraperForFetcher(),
                 Host->GetClient(),
                 RowBuffer,
                 Logger);
+
+            auto keyColumnCount = table->Schema.GetKeyColumns().size();
 
             for (const auto& chunk : table->Chunks) {
                 if (IsUnavailable(chunk, CheckParityReplicas()) &&
@@ -6359,7 +6379,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
                     continue;
                 }
 
-                fetcher->AddChunk(chunk);
+                fetcher->AddChunkForSlicing(chunk, keyColumnCount, true);
             }
 
             fetcher->SetCancelableContext(GetCancelableContext());
@@ -6373,7 +6393,8 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
 
     std::vector<TInputDataSlicePtr> result;
     for (const auto& fetcher : fetchers) {
-        for (auto& dataSlice : fetcher->GetDataSlices()) {
+        auto dataSlices = CombineVersionedChunkSlices(fetcher->GetChunkSlices());
+        for (auto& dataSlice : dataSlices) {
             YT_LOG_TRACE("Added dynamic table slice (TablePath: %v, Range: %v..%v, ChunkIds: %v)",
                 InputTables_[dataSlice->GetTableIndex()]->GetPath(),
                 dataSlice->LowerLimit(),
@@ -7802,11 +7823,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_use_porto_memory_tracking(config->UsePortoMemoryTracking);
 
     if (Config->EnableTmpfs) {
-        // COMPAT(ignat): remove after node update.
-        if (config->TmpfsVolumes.size() == 1) {
-            jobSpec->set_tmpfs_size(config->TmpfsVolumes[0]->Size);
-            jobSpec->set_tmpfs_path(config->TmpfsVolumes[0]->Path);
-        }
         for (const auto& volume : config->TmpfsVolumes) {
             ToProto(jobSpec->add_tmpfs_volumes(), *volume);
         }
@@ -7873,7 +7889,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_network_project_id(ConvertTo<ui32>(getRspOrError.ValueOrThrow()));
     }
 
-    jobSpec->set_write_sparse_core_dumps(GetWriteSparseCoreDumps());
+    // COMPAT(gritukan): Drop it when nodes will be fresh enough.
+    jobSpec->set_write_sparse_core_dumps(true);
+
     jobSpec->set_enable_porto(static_cast<int>(config->EnablePorto.value_or(Config->DefaultEnablePorto)));
     jobSpec->set_fail_job_on_core_dump(config->FailJobOnCoreDump);
 
@@ -8364,11 +8382,6 @@ TBlobTableWriterConfigPtr TOperationControllerBase::GetCoreTableWriterConfig() c
 std::optional<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
 {
     return std::nullopt;
-}
-
-bool TOperationControllerBase::GetWriteSparseCoreDumps() const
-{
-    return false;
 }
 
 void TOperationControllerBase::OnChunksReleased(int /* chunkCount */)

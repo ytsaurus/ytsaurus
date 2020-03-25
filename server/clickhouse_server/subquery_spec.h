@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include "table_schema.h"
+#include "schema.h"
 
 #include <yt/server/clickhouse_server/protos/subquery_spec.pb.h>
 
@@ -25,7 +25,6 @@ public:
     std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> DataSliceDescriptors;
     TQueryId InitialQueryId;
     TString InitialQuery;
-    DB::NamesAndTypesList Columns;
     NTableClient::TTableSchema ReadSchema;
     // TODO(max42): CHYT-154.
     NYson::TYsonString MembershipHint;

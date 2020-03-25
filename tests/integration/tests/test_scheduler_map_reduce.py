@@ -307,18 +307,29 @@ print "x={0}\ty={1}".format(x, y)
 
     @authors("levysotsky")
     def test_intermediate_live_preview(self):
+        create_user("u")
+        create("table", "//tmp/t1")
+        write_table("//tmp/t1", {"foo": "bar"})
+        create("table", "//tmp/t2")
+
         create_user("admin")
         set("//sys/operations/@acl/end", make_ace("allow", "admin", ["read", "write", "manage"]))
+
+        def is_admin_in_base_acl():
+            op = map(
+                command="cat",
+                in_="//tmp/t1",
+                out="//tmp/t2",
+            )
+            return any(ace["subjects"] == ["admin"] for ace in get_operation(op.id)["runtime_parameters"]["acl"])
+        wait(is_admin_in_base_acl)
+
         try:
-            create_user("u")
-            create("table", "//tmp/t1")
-            write_table("//tmp/t1", {"foo": "bar"})
-            create("table", "//tmp/t2")
 
             op = map_reduce(
                 track=False,
                 mapper_command="cat",
-                reducer_command="cat; sleep 3",
+                reducer_command=with_breakpoint("cat; BREAKPOINT"),
                 in_="//tmp/t1",
                 out="//tmp/t2",
                 sort_by=["foo"],
@@ -327,7 +338,7 @@ print "x={0}\ty={1}".format(x, y)
                 },
             )
 
-            time.sleep(2)
+            wait(lambda: op.get_job_count("completed") == 1)
 
             operation_path = op.get_path()
             scheduler_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
@@ -343,6 +354,7 @@ print "x={0}\ty={1}".format(x, y)
                 make_ace("allow", "admin", "read"),
             ])
 
+            release_breakpoint()
             op.track()
             assert read_table("//tmp/t2") == [{"foo": "bar"}]
         finally:
@@ -752,7 +764,7 @@ print "x={0}\ty={1}".format(x, y)
                 {"name": "bypass_key", "type": "int64", "sort_order": "ascending" if sorted else None}
             ]
         })
-        
+
         write_table("<append=%true>//tmp/t_in", [{"a": i} for i in range(10)])
 
         op = map_reduce(

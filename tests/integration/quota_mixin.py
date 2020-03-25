@@ -24,6 +24,9 @@ class QuotaMixin(YTEnvSetup):
 
     @classmethod
     def setup_class(cls):
+        if cls.get_param("USE_PORTO_FOR_SERVERS", 0):
+            return
+
         if arcadia_interop.yatest_common is not None:
             pytest.skip("Quota tests are not supported inside distbuild")
 
@@ -55,6 +58,9 @@ class QuotaMixin(YTEnvSetup):
 
     @classmethod
     def clear(cls, ignore_errors):
+        if cls.get_param("USE_PORTO_FOR_SERVERS", 0):
+            return
+
         try:
             subprocess.check_call(["sudo", "umount", "-ld", cls.mount_path])
             subprocess.check_call(["sudo", "rm", "-f", cls.fs_path])

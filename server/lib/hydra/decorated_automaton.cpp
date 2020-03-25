@@ -24,6 +24,8 @@
 
 #include <yt/core/net/connection.h>
 
+#include <yt/core/utilex/random.h>
+
 #include <yt/library/process/pipe.h>
 
 #include <yt/core/profiling/timing.h>
@@ -670,7 +672,7 @@ void TDecoratedAutomaton::OnLeaderRecoveryComplete()
 {
     YT_VERIFY(State_ == EPeerState::LeaderRecovery);
     State_ = EPeerState::Leading;
-    LastSnapshotTime_ = TInstant::Now();
+    UpdateSnapshotBuildDeadline();
 }
 
 void TDecoratedAutomaton::OnStopLeading()
@@ -691,7 +693,7 @@ void TDecoratedAutomaton::OnFollowerRecoveryComplete()
 {
     YT_VERIFY(State_ == EPeerState::FollowerRecovery);
     State_ = EPeerState::Following;
-    LastSnapshotTime_ = TInstant::Now();
+    UpdateSnapshotBuildDeadline();
 }
 
 void TDecoratedAutomaton::OnStopFollowing()
@@ -939,7 +941,7 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot()
     YT_LOG_INFO("Snapshot scheduled (Version: %v)",
         loggedVersion);
 
-    LastSnapshotTime_ = TInstant::Now();
+    UpdateSnapshotBuildDeadline();
     SnapshotVersion_ = loggedVersion;
     SnapshotParamsPromise_ = NewPromise<TRemoteSnapshotParams>();
 
@@ -984,6 +986,12 @@ void TDecoratedAutomaton::DoRotateChangelog()
             currentChangelogId);
 
         YT_VERIFY(loggedVersion.RecordId == Changelog_->GetRecordCount());
+
+        if (NextChangelogFuture_ && NextChangelogFuture_.IsSet() && !NextChangelogFuture_.Get().IsOK()) {
+            YT_LOG_INFO("Changelog preallocation failed, trying to open it once again (ChangelogId: %v)",
+                nextChangelogId);
+            NextChangelogFuture_.Reset();
+        }
 
         if (!NextChangelogFuture_) {
             YT_LOG_INFO("Creating changelog (ChangelogId: %v)", nextChangelogId);
@@ -1247,11 +1255,11 @@ i64 TDecoratedAutomaton::GetDataSizeSinceLastCheckpoint() const
     return Changelog_->GetDataSize() + RecoveryDataSize_;
 }
 
-TInstant TDecoratedAutomaton::GetLastSnapshotTime() const
+TInstant TDecoratedAutomaton::GetSnapshotBuildDeadline() const
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    return LastSnapshotTime_;
+    return SnapshotBuildDeadline_;
 }
 
 TVersion TDecoratedAutomaton::GetAutomatonVersion() const
@@ -1380,6 +1388,7 @@ void TDecoratedAutomaton::StopEpoch()
     CancelSnapshot(error);
     RecoveryRecordCount_ = 0;
     RecoveryDataSize_ = 0;
+    SnapshotBuildDeadline_ = TInstant::Max();
 }
 
 void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError)
@@ -1392,6 +1401,14 @@ void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemot
 
     auto snapshotId = snapshotInfoOrError.Value().SnapshotId;
     LastSuccessfulSnapshotId_ = std::max(LastSuccessfulSnapshotId_.load(), snapshotId);
+}
+
+void TDecoratedAutomaton::UpdateSnapshotBuildDeadline()
+{
+    SnapshotBuildDeadline_ =
+        TInstant::Now() +
+        Config_->SnapshotBuildPeriod +
+        RandomDuration(Config_->SnapshotBuildSplay);
 }
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()

@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup, wait, parametrize_external,\
     Restarter, NODES_SERVICE, MASTERS_SERVICE
 from yt_commands import *
+from yt_helpers import *
 
 from yt.environment.helpers import assert_items_equal
 
@@ -190,6 +191,13 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         wait(check)
 
+    def _check_cell_stable(self, cell_id):
+        addresses = [peer["address"] for peer in get("#" + cell_id + "/@peers")]
+        metrics = [Metric.at_node(address, "hydra/restart_count", with_tags={"cell_id": cell_id}) for address in addresses]
+        sleep(10.0)
+        for metric in metrics:
+            assert metric.update().get(verbose=True) == 0
+
     @authors("kiselyovp")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_follower_catchup(self, decommission_through_extra_peers):
@@ -362,39 +370,38 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         def get_peers():
             return get("#" + cell_id + "/@peers")
 
-        def get_peer_state(peer_address):
-            for peer in get_peers():
-                if peer["address"] == peer_address:
-                    return peer["state"]
-            return None
-
         assert len(get_peers()) == 1
         first_peer_address = get_peers()[0]["address"]
-        assert get_peer_state(first_peer_address) == "leading"
+
+        self._wait_cell_good(cell_id)
 
         set("//sys/tablet_cells/{}/@peer_count".format(cell_id), 2)
+
         with pytest.raises(YtError):
             set("//sys/tablet_cells/{}/@peer_count".format(cell_id), 1)
 
+        self._wait_cell_good(cell_id)
+
         assert len(get_peers()) == 2
-        wait(lambda: get_peers()[1]["state"] == "following")
         second_peer_address = get_peers()[1]["address"]
         assert first_peer_address != second_peer_address
-        wait(lambda: get_peer_state(first_peer_address) == "leading")
+
+        self._check_cell_stable(cell_id)
 
         set_node_decommissioned(first_peer_address, True)
         self._wait_cell_good(cell_id, [first_peer_address])
 
-        wait(lambda: get_peer_state(second_peer_address) == "leading")
         assert len(get_peers()) == 2
         assert get_peers()[1]["address"] == second_peer_address
 
         remove("//sys/tablet_cells/{}/@peer_count".format(cell_id))
+
+        self._wait_cell_good(cell_id)
+
         assert len(get_peers()) == 1
         assert get_peers()[0]["address"] == second_peer_address
-        wait(lambda: get_peer_state(second_peer_address) == "leading")
-        sleep(1)
-        assert get_peer_state(second_peer_address) == "leading"
+
+        self._check_cell_stable(cell_id)
 
     @authors("savrus")
     def test_tablet_cell_health_statistics(self):
@@ -1518,10 +1525,10 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
     }
 
     def _verify_resource_usage(self, account, resource, expected):
-        def resource_usage_matches():
-            return (get("//sys/accounts/{0}/@resource_usage/{1}".format(account, resource)) == expected and
-                    get("//sys/accounts/{0}/@committed_resource_usage/{1}".format(account, resource)) == expected)
-        wait(resource_usage_matches)
+        def resource_usage_matches(driver):
+            return lambda: (get("//sys/accounts/{0}/@resource_usage/{1}".format(account, resource), driver=driver) == expected and
+                    get("//sys/accounts/{0}/@committed_resource_usage/{1}".format(account, resource), driver=driver) == expected)
+        self._multicell_wait(resource_usage_matches)
 
     def _multicell_set(self, path, value):
         set(path, value)
@@ -1588,6 +1595,38 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         self._verify_resource_usage("test_account", "tablet_count", 2)
         self._create_sorted_table("//tmp/t2", account="test_account", pivot_keys=[[], [1]])
         self._verify_resource_usage("test_account", "tablet_count", 4)
+
+    @authors("lexolordan")
+    def test_mount_mounted_table(self):
+        create_account("test_account")
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_count", 2)
+        sync_create_cells(1)
+
+        def _create_table(table_name):
+            self._create_sorted_table(table_name, account="test_account", external_cell_tag=1)
+
+            sync_mount_table(table_name)
+            insert_rows(table_name, [{"key": 0, "value": "0"}])
+            sync_unmount_table(table_name)
+
+        _create_table("//tmp/t0")
+        _create_table("//tmp/t1")
+
+        data_size = get("//tmp/t0/@uncompressed_data_size")
+        self._multicell_set("//sys/accounts/test_account/@resource_limits/tablet_static_memory", data_size)
+
+        set("//tmp/t0/@in_memory_mode", "uncompressed")
+        sync_mount_table("//tmp/t0")
+
+        self._verify_resource_usage("test_account", "tablet_static_memory", data_size)
+
+        set("//tmp/t1/@in_memory_mode", "uncompressed")
+        with pytest.raises(YtError):
+            sync_mount_table("//tmp/t1")
+
+        remount_table("//tmp/t0")
+        sync_unmount_table("//tmp/t0")
+        self._verify_resource_usage("test_account", "tablet_static_memory", 0)
 
     @authors("savrus")
     def test_tablet_count_limit_reshard(self):

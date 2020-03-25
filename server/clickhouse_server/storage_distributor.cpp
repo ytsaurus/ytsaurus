@@ -4,14 +4,14 @@
 #include "bootstrap.h"
 #include "block_input_stream.h"
 #include "block_output_stream.h"
-#include "type_helpers.h"
 #include "helpers.h"
 #include "query_context.h"
 #include "subquery.h"
 #include "join_workaround.h"
-#include "db_helpers.h"
-#include "query_helpers.h"
+#include "schema.h"
+#include "query_registry.h"
 #include "query_analyzer.h"
+#include "table.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
@@ -160,25 +160,23 @@ public:
 
     TStorageDistributor(
         TQueryContext* queryContext,
-        NTableClient::TTableSchema schema,
-        TClickHouseTableSchema clickHouseSchema,
-        std::vector<TRichYPath> tablePaths)
+        std::vector<TTablePtr> tables,
+        TTableSchema schema)
         : QueryContext_(queryContext)
-        , ClickHouseSchema_(std::move(clickHouseSchema))
+        , Tables_(std::move(tables))
         , Schema_(std::move(schema))
-        , TablePaths_(std::move(tablePaths))
     { }
 
     virtual void startup() override
     {
-        const auto& Logger = ServerLogger;
+        const auto& Logger = ClickHouseYtLogger;
 
         YT_LOG_TRACE("StorageDistributor instantiated (Address: %v)", static_cast<void*>(this));
-        if (ClickHouseSchema_.Columns.empty()) {
+        if (Schema_.GetColumnCount() == 0) {
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
                 << TErrorAttribute("path", getTableName());
         }
-        setColumns(DB::ColumnsDescription(ClickHouseSchema_.Columns));
+        setColumns(DB::ColumnsDescription(ToNamesAndTypesList(Schema_)));
     }
 
     std::string getName() const override
@@ -191,6 +189,11 @@ public:
         return "";
     }
 
+    bool supportsPrewhere() const override
+    {
+        return true;
+    }
+
     bool isRemote() const override
     {
         return true;
@@ -198,7 +201,7 @@ public:
 
     virtual bool supportsIndexForIn() const override
     {
-        return ClickHouseSchema_.HasPrimaryKey();
+        return Schema_.IsSorted();
     }
 
     virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* queryAst */, const DB::Context& /* context */) const override
@@ -209,11 +212,11 @@ public:
     virtual std::string getTableName() const
     {
         std::string result = "";
-        for (size_t index = 0; index < TablePaths_.size(); ++index) {
+        for (size_t index = 0; index < Tables_.size(); ++index) {
             if (index > 0) {
                 result += ", ";
             }
-            result += std::string(TablePaths_[index].GetPath().data());
+            result += std::string(Tables_[index]->Path.GetPath().data());
         }
         return result;
     }
@@ -289,6 +292,18 @@ public:
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
 
         int subqueryCount = std::min(Subqueries_.size(), cliqueNodes.size());
+
+        if (subqueryCount == 0) {
+            // NB: if we make no subqueries, there will be a tricky issue around schemas.
+            // Namely, we return an empty vector of streams, so the resulting schema will
+            // be taken from columns of this storage (which are set via setColumns).
+            // Such schema will be incorrect as it will lack aggregates in mergeable state
+            // which should normally return from our distributed storage.
+            // In order to overcome this, we forcefully make at least one stream, even though it
+            // will return empty result for sure.
+            subqueryCount = 1;
+        }
+
         for (int index = 0; index < subqueryCount; ++index) {
             int firstSubqueryIndex = index * Subqueries_.size() / subqueryCount;
             int lastSubqueryIndex = (index + 1) * Subqueries_.size() / subqueryCount;
@@ -307,6 +322,8 @@ public:
                     threadSubquery.StripeList->TotalRowCount,
                     threadSubquery.StripeList->TotalChunkCount);
             }
+
+            YT_VERIFY(!threadSubqueries.Empty() || Subqueries_.empty());
 
             const auto& cliqueNode = cliqueNodes[index];
             auto subqueryAst = QueryAnalyzer_->RewriteQuery(
@@ -355,12 +372,12 @@ public:
     {
         // Set append if it is not set.
 
-        if (TablePaths_.size() != 1) {
+        if (Tables_.size() != 1) {
             THROW_ERROR_EXCEPTION("Cannot write to many tables simultaneously")
-                << TErrorAttribute("paths", TablePaths_);
+                << TErrorAttribute("paths", getTableName());
         }
 
-        auto path = TablePaths_.front();
+        auto path = Tables_.front()->Path;
         path.SetAppend(path.GetAppend(true /* defaultValue */));
         auto writer = WaitFor(CreateSchemalessTableWriter(
             QueryContext_->Bootstrap->GetConfig()->TableWriterConfig,
@@ -375,14 +392,9 @@ public:
 
     // IStorageDistributor overrides.
 
-    virtual std::vector<TRichYPath> GetTablePaths() const override
+    virtual std::vector<TTablePtr> GetTables() const override
     {
-        return TablePaths_;
-    }
-
-    virtual TClickHouseTableSchema GetClickHouseSchema() const override
-    {
-        return ClickHouseSchema_;
+        return Tables_;
     }
 
     virtual TTableSchema GetSchema() const override
@@ -392,11 +404,10 @@ public:
 
 private:
     TQueryContext* QueryContext_;
-    TClickHouseTableSchema ClickHouseSchema_;
-    NTableClient::TTableSchema Schema_;
+    std::vector<TTablePtr> Tables_;
+    TTableSchema Schema_;
     TSubquerySpec SpecTemplate_;
     std::vector<TSubquery> Subqueries_;
-    std::vector<TRichYPath> TablePaths_;
     std::optional<TQueryAnalyzer> QueryAnalyzer_;
     // TODO(max42): YT-11778.
     // TMiscExt is used for better memory estimation in readers, but it is dropped when using
@@ -412,12 +423,8 @@ private:
         auto queryAnalysisResult = QueryAnalyzer_->Analyze();
 
         auto input = FetchInput(
-            QueryContext_->Bootstrap,
-            QueryContext_->Client(),
-            QueryContext_->Bootstrap->GetSerializedWorkerInvoker(),
+            QueryContext_,
             queryAnalysisResult,
-            QueryContext_->RowBuffer,
-            QueryContext_->Bootstrap->GetConfig()->Engine->Subquery,
             SpecTemplate_);
 
         MiscExtMap_ = std::move(input.MiscExtMap);
@@ -443,6 +450,12 @@ private:
             context,
             QueryContext_->Bootstrap->GetConfig()->Engine->Subquery);
 
+        size_t totalInputDataWeight = 0;
+
+        for (const auto& subquery : Subqueries_) {
+            totalInputDataWeight += subquery.StripeList->TotalDataWeight;
+        }
+
         for (const auto& subquery : Subqueries_) {
             if (static_cast<ui64>(subquery.StripeList->TotalDataWeight) >
                 QueryContext_->Bootstrap->GetConfig()->Engine->Subquery->MaxDataWeightPerSubquery)
@@ -451,7 +464,8 @@ private:
                     NClickHouseServer::EErrorCode::SubqueryDataWeightLimitExceeded,
                     "Subquery exceeds data weight limit: %v > %v",
                     subquery.StripeList->TotalDataWeight,
-                    QueryContext_->Bootstrap->GetConfig()->Engine->Subquery->MaxDataWeightPerSubquery);
+                    QueryContext_->Bootstrap->GetConfig()->Engine->Subquery->MaxDataWeightPerSubquery)
+                    << TErrorAttribute("total_input_data_weight", totalInputDataWeight);
             }
         }
     }
@@ -524,48 +538,31 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         .ValueOrThrow();
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
 
+    auto table = FetchTables(queryContext->Client(), queryContext->Bootstrap->GetHost(), {path}, /* skipUnsuitableNodes */ false, queryContext->Logger);
+
     return std::make_shared<TStorageDistributor>(
         queryContext,
-        schema,
-        TClickHouseTableSchema::From(TClickHouseTable(path, schema)),
-        std::vector<TRichYPath>{path});
+        std::vector<TTablePtr>{table},
+        schema);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::StoragePtr CreateStorageDistributor(TQueryContext* queryContext, std::vector<TClickHouseTablePtr> tables)
+DB::StoragePtr CreateStorageDistributor(
+    TQueryContext* queryContext,
+    std::vector<TTablePtr> tables)
 {
     if (tables.empty()) {
-        THROW_ERROR_EXCEPTION("Cannot concatenate empty list of tables");
+        THROW_ERROR_EXCEPTION("No tables to read from");
     }
 
-    TTableSchema schema;
-    TClickHouseTableSchema clickHouseSchema;
-    if (tables.size() > 1) {
-        std::vector<TTableSchema> schemas;
-        schemas.reserve(tables.size());
-        for (const auto& table : tables) {
-            schemas.push_back(table->TableSchema);
-        }
-        schema = GetCommonSchema(schemas);
-        if (schema.Columns().empty()) {
-            THROW_ERROR_EXCEPTION("Requested tables do not have any common column");
-        }
-    } else {
-        schema = tables.front()->TableSchema;
-    }
-    clickHouseSchema = TClickHouseTableSchema::From(schema);
-
-    std::vector<TRichYPath> paths;
-    for (const auto& table : tables) {
-        paths.emplace_back(table->Path);
-    }
+    auto commonSchema = InferCommonSchema(tables, queryContext->Logger);
 
     auto storage = std::make_shared<TStorageDistributor>(
         queryContext,
-        std::move(schema),
-        std::move(clickHouseSchema),
-        std::move(paths));
+        std::move(tables),
+        std::move(commonSchema));
+
     storage->startup();
 
     return storage;

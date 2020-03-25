@@ -87,7 +87,7 @@ TError TCheckPermissionResult::ToError(
             if (ObjectName && SubjectName) {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied for user %v: %Qlv permission is denied for %Qv by ACE at %v",
+                    "Access denied for user %Qv: %Qlv permission is denied for %Qv by ACE at %v",
                     user,
                     permission,
                     *SubjectName,
@@ -95,7 +95,7 @@ TError TCheckPermissionResult::ToError(
             } else {
                 error = TError(
                     NSecurityClient::EErrorCode::AuthorizationError,
-                    "Access denied for user %v: %Qlv permission is not allowed by any matching ACE",
+                    "Access denied for user %Qv: %Qlv permission is not allowed by any matching ACE",
                     user,
                     permission);
             }

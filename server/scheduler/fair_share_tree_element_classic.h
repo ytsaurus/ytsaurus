@@ -204,6 +204,7 @@ private:
 class TSchedulerElementFixedState
 {
 public:
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsageAtUpdate);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceDemand);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits, TJobResources::Infinite());
     DEFINE_BYREF_RO_PROPERTY(TJobResources, MaxPossibleResourceUsage);
@@ -334,7 +335,7 @@ public:
     virtual void SetStarving(bool starving);
     virtual void CheckForStarvation(TInstant now) = 0;
 
-    TJobResources GetLocalResourceUsage() const;
+    TJobResources GetInstantResourceUsage() const;
     TJobMetrics GetJobMetrics() const;
     double GetResourceUsageRatio() const;
     double GetResourceUsageRatioWithPrecommit() const;
@@ -344,9 +345,9 @@ public:
     void IncreaseHierarchicalResourceUsage(const TJobResources& delta);
 
     virtual void BuildElementMapping(
-        TRawOperationElementMap* operationMap,
-        TRawPoolMap* poolMap,
-        TDisabledOperationsSet* disabledOperations) = 0;
+        TRawOperationElementMap* enabledOperationMap,
+        TRawOperationElementMap* disabledOperationMap,
+        TRawPoolMap* poolMap) = 0;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) = 0;
 
@@ -506,7 +507,7 @@ public:
     virtual std::vector<EFifoSortParameter> GetFifoSortParameters() const = 0;
     virtual bool AreImmediateOperationsForbidden() const = 0;
 
-    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations) override;
+    virtual void BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap) override;
 
     void IncreaseOperationCount(int delta);
     void IncreaseRunningOperationCount(int delta);
@@ -589,7 +590,7 @@ public:
     void SetUserName(const std::optional<TString>& userName);
     const std::optional<TString>& GetUserName() const;
 
-    TPoolConfigPtr GetConfig();
+    TPoolConfigPtr GetConfig() const;
     void SetConfig(TPoolConfigPtr config);
     void SetDefaultConfig();
     void SetEphemeralInDefaultParentPool();
@@ -643,7 +644,7 @@ public:
     virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
-    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations) override;
+    virtual void BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap) override;
 private:
     TPoolConfigPtr Config_;
     TSchedulingTagFilter SchedulingTagFilter_;
@@ -902,7 +903,7 @@ public:
         bool force = false);
     void OnJobFinished(TJobId jobId);
 
-    virtual void BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations) override;
+    virtual void BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap) override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
 

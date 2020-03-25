@@ -46,12 +46,12 @@ protected:
 
     virtual TFuture<TValue> DoGet(
         const TKey& key,
-        bool isPeriodicUpdate) = 0;
+        bool isPeriodicUpdate) noexcept = 0;
     virtual TFuture<std::vector<TErrorOr<TValue>>> DoGetMany(
         const std::vector<TKey>& keys,
-        bool isPeriodicUpdate);
+        bool isPeriodicUpdate) noexcept;
 
-    virtual void OnErase(const TKey& key);
+    virtual void OnEvicted(const TKey& key) noexcept;
 
 private:
     const NProfiling::TProfiler Profiler_;

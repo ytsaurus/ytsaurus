@@ -406,7 +406,7 @@ private:
 
     virtual TFuture<TExternalFunctionSpec> DoGet(
         const std::pair<TString, TString>& key,
-        bool isPeriodicUpdate) override
+        bool isPeriodicUpdate) noexcept override
     {
         return DoGetMany({key}, isPeriodicUpdate)
             .Apply(BIND([] (const std::vector<TErrorOr<TExternalFunctionSpec>>& specs) {
@@ -417,7 +417,7 @@ private:
 
     virtual TFuture<std::vector<TErrorOr<TExternalFunctionSpec>>> DoGetMany(
         const std::vector<std::pair<TString, TString>>& keys,
-        bool /*isPeriodicUpdate*/) override
+        bool /*isPeriodicUpdate*/) noexcept override
     {
         if (auto client = Client_.Lock()) {
             auto future = BIND(LookupAllUdfDescriptors, keys, std::move(client))

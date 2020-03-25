@@ -68,6 +68,8 @@ DECLARE_REFCOUNTED_CLASS(TResponseKeeper)
 DECLARE_REFCOUNTED_CLASS(TAttachmentsInputStream)
 DECLARE_REFCOUNTED_CLASS(TAttachmentsOutputStream)
 
+DECLARE_REFCOUNTED_CLASS(TServerAddressPool)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TServerConfig)

@@ -545,15 +545,15 @@ TYsonSerializableLite::TParameter<T>& TYsonSerializableLite::RegisterParameter(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-inline TIntrusivePtr<T> CloneYsonSerializable(TIntrusivePtr<T> obj)
+inline TIntrusivePtr<T> CloneYsonSerializable(const TIntrusivePtr<T>& obj)
 {
     return NYTree::ConvertTo<TIntrusivePtr<T>>(NYTree::ConvertToYsonString(*obj));
 }
 
 template <class T>
 TIntrusivePtr<T> UpdateYsonSerializable(
-    TIntrusivePtr<T> obj,
-    NYTree::INodePtr patch)
+    const TIntrusivePtr<T>& obj,
+    const NYTree::INodePtr& patch)
 {
     static_assert(
         NMpl::TIsConvertible<T*, TYsonSerializable*>::Value,
@@ -571,7 +571,7 @@ TIntrusivePtr<T> UpdateYsonSerializable(
 
 template <class T>
 TIntrusivePtr<T> UpdateYsonSerializable(
-    TIntrusivePtr<T> obj,
+    const TIntrusivePtr<T>& obj,
     const NYson::TYsonString& patch)
 {
     if (!patch) {
@@ -583,17 +583,24 @@ TIntrusivePtr<T> UpdateYsonSerializable(
 
 template <class T>
 bool ReconfigureYsonSerializable(
-    TIntrusivePtr<T> config,
+    const TIntrusivePtr<T>& config,
     const NYson::TYsonString& newConfigYson)
 {
-    auto newConfig = ConvertToNode(newConfigYson);
-    return ReconfigureYsonSerializable(config, newConfig);
+    return ReconfigureYsonSerializable(config, ConvertToNode(newConfigYson));
 }
 
 template <class T>
 bool ReconfigureYsonSerializable(
-    TIntrusivePtr<T> config,
-    NYTree::INodePtr newConfigNode)
+    const TIntrusivePtr<T>& config,
+    const TIntrusivePtr<T>& newConfig)
+{
+    return ReconfigureYsonSerializable(config, ConvertToNode(newConfig));
+}
+
+template <class T>
+bool ReconfigureYsonSerializable(
+    const TIntrusivePtr<T>& config,
+    const NYTree::INodePtr& newConfigNode)
 {
     auto configNode = NYTree::ConvertToNode(config);
 

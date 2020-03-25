@@ -11,7 +11,7 @@ namespace NYT::NClickHouseServer {
 using namespace DB;
 using namespace NTracing;
 
-static const auto& Logger = ServerLogger;
+static const auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

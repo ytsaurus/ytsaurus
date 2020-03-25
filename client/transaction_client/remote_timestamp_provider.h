@@ -19,11 +19,14 @@ NRpc::IChannelPtr CreateTimestampProviderChannelFromAddresses(
 
 ITimestampProviderPtr CreateBatchingTimestampProvider(
     ITimestampProviderPtr underlying,
-    TDuration updatePeriod,
     TDuration batchPeriod);
 
 ITimestampProviderPtr CreateRemoteTimestampProvider(
     TRemoteTimestampProviderConfigPtr config,
+    NRpc::IChannelPtr channel);
+
+ITimestampProviderPtr CreateBatchingRemoteTimestampProvider(
+    TBatchingRemoteTimestampProviderConfigPtr config,
     NRpc::IChannelPtr channel);
 
 ////////////////////////////////////////////////////////////////////////////////

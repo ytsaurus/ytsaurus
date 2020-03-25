@@ -8,6 +8,7 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TCoreWatcherConfig)
 DECLARE_REFCOUNTED_CLASS(TJobProxyConfig)
 DECLARE_REFCOUNTED_CLASS(TJobThrottlerConfig)
 DECLARE_REFCOUNTED_CLASS(TJobSatelliteConnectionConfig)

@@ -158,6 +158,16 @@ public:
         Interrupted_ = true;
     }
 
+    virtual void SkipCurrentReader() override
+    {
+        YT_ABORT();
+    }
+
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
 private:
     const TTableData& TableData_;
     const TTableSchema TableSchema_;
@@ -182,12 +192,12 @@ protected:
 
     void ReadAndCheckResult(
         TReaderFactory createReader,
-        std::vector<TResultStorage> *resultStorage,
+        std::vector<TResultStorage>* resultStorage,
         int rowsPerRead,
         int interruptRowCount,
         int expectedReadRowCount,
         TString expectedLastReadRow,
-        std::vector<std::pair<int,TString>> expectedResult)
+        std::vector<std::pair<int, TString>> expectedResult)
     {
         auto reader = createReader(resultStorage);
         std::vector<TUnversionedRow> rows;
@@ -298,6 +308,28 @@ const TTableData tableData2 {
     }
 };
 
+const TTableData tableData3 {
+    "<strict=%false>["
+        "{name = c0; type = string; sort_order = ascending};"
+        "{name = c1; type = int64}; ]",
+    {
+        "c0=a; c1=1",
+        "c0=a; c1=3",
+        "c0=a; c1=5",
+    }
+};
+
+const TTableData tableData4 {
+    "<strict=%false>["
+        "{name = c0; type = string; sort_order = ascending};"
+        "{name = c1; type = int64}; ]",
+    {
+        "c0=a; c1=2",
+        "c0=a; c1=4",
+        "c0=a; c1=6",
+    }
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderSingleTable)
@@ -334,8 +366,9 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderMultipleTables)
         resultStorage->clear();
         resultStorage->resize(2);
         std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
+        // NB: Table indexes are not passed to readers.
         primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0, &(*resultStorage)[0]));
-        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 1, &(*resultStorage)[1]));
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 0, &(*resultStorage)[1]));
 
         return CreateSchemalessSortedMergingReader(primaryReaders, 3, 2);
     };
@@ -975,9 +1008,55 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderPrimaryBeforeF
         });
 }
 
+TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceEqualKeys)
+{
+    auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
+        resultStorage->clear();
+        resultStorage->resize(2);
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData3, 0, &(*resultStorage)[0]));
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData4, 1, &(*resultStorage)[1]));
+
+        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
+        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0));
+
+        return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 1, 1, foreignReaders, 1);
+    };
+
+    std::vector<TResultStorage> resultStorage;
+    auto rows = ReadAll(createReader, &resultStorage);
+
+    int interruptRowCount = 2;
+    int rowsPerRead = 1;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        interruptRowCount,
+        rows[interruptRowCount - 1],
+        {
+            {1, rows[2]},
+            {3, rows[3]},
+        });
+
+    interruptRowCount = 5;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        interruptRowCount,
+        rows[interruptRowCount - 1],
+        {
+            {0, ""},
+            {1, rows[5]},
+        });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-const TTableData tableData3 {
+const TTableData tableData5 {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending}; ]",
     {
@@ -990,7 +1069,7 @@ const TTableData tableData3 {
     }
 };
 
-const TTableData tableData4 {
+const TTableData tableData6 {
     "<strict=%false>["
         "{name = c0; type = string; sort_order = ascending}; ]",
     {
@@ -1007,10 +1086,10 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceJoiningReaderCheckLastRows)
         resultStorage->clear();
         resultStorage->resize(1);
         std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
-        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData4, 1, &(*resultStorage)[0]));
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData5, 1, &(*resultStorage)[0]));
 
         std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
-        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData3, 0));
+        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData6, 0));
 
         return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 1, 1, foreignReaders, 1);
     };

@@ -1,0 +1,23 @@
+package NYT.NDiscoveryServer.NProto;
+
+import "yt/ytlib/discovery_client/proto/discovery_client_service.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGossipMemberInfo
+{
+    required NYT.NDiscoveryClient.NProto.TMemberInfo member_info = 1;
+    required string group_id = 2;
+    required int64 lease_deadline = 3;
+}
+
+message TReqProcessGossip
+{
+    repeated TGossipMemberInfo members = 1;
+}
+
+message TRspProcessGossip
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+

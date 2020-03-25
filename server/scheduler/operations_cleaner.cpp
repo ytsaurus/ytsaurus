@@ -155,10 +155,7 @@ std::vector<TString> GetPools(const IMapNodePtr& runtimeParameters)
 
     std::vector<TString> pools;
     for (const auto& [key, value] : schedulingOptionsNode->AsMap()->GetChildren()) {
-        auto poolNode = value->AsMap()->FindChild("pool");
-        if (poolNode) { // COMPAT(renadeen): remove this check when everything will be on 19.4
-            pools.push_back(poolNode->GetValue<TString>());
-        }
+        pools.push_back(value->AsMap()->GetChild("pool")->GetValue<TString>());
     }
 
     return pools;
@@ -895,11 +892,14 @@ private:
 
                 int pendingCount = ArchivePendingCounter_.GetCurrent();
                 if (pendingCount >= Config_->MinOperationCountEnqueuedForAlert) {
+                    auto alertError = TError("Too many operations in archivation queue")
+                        << TErrorAttribute("pending_count", pendingCount);
+                    if (!error.IsOK()) {
+                        alertError.InnerErrors().push_back(error);
+                    }
                     Host_->SetSchedulerAlert(
                         ESchedulerAlertType::OperationsArchivation,
-                        TError("Too many operations in archivation queue")
-                            << TErrorAttribute("pending_count", pendingCount)
-                            << error);
+                        alertError);
                 } else {
                     Host_->SetSchedulerAlert(
                         ESchedulerAlertType::OperationsArchivation,

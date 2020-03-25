@@ -520,7 +520,7 @@ TEST_F(TSchedulerTest, PropagateFiberCancelationToFuture)
     auto f1 = p1.ToFuture();
 
     auto a = BIND([=] () mutable {
-        Y_UNUSED(WaitFor(f1));
+        WaitUntilSet(f1);
     });
 
     auto f2 = a.AsyncVia(Queue1->GetInvoker()).Run();
@@ -902,7 +902,7 @@ TEST_F(TSuspendableInvokerTest, AllowSuspendOnContextSwitch)
 
     auto setFlagFuture = BIND([&] () {
         Sleep(SleepQuantum);
-        Y_UNUSED(WaitFor(future));
+        WaitUntilSet(future);
         flag = true;
     })
     .AsyncVia(suspendableInvoker)

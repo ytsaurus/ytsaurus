@@ -78,16 +78,18 @@ public:
     {
         auto sessionIdMD5 = TMD5Hasher().Append(credentials.SessionId).GetHexDigestUpper();
         auto sslSessionIdMD5 = TMD5Hasher().Append(credentials.SslSessionId.value_or("")).GetHexDigestUpper();
+        auto userIP = FormatUserIP(credentials.UserIP);
+
         YT_LOG_DEBUG(
             "Authenticating user via session cookie (SessionIdMD5: %v, SslSessionIdMD5: %v, UserIP: %v)",
             sessionIdMD5,
             sslSessionIdMD5,
-            credentials.UserIP.FormatIP());
+            userIP);
 
-        THashMap<TString, TString> params = {
+        THashMap<TString, TString> params{
             {"sessionid", credentials.SessionId},
             {"host", Config_->Domain},
-            {"userip", credentials.UserIP.FormatIP()}
+            {"userip", userIP}
         };
 
         if (credentials.SslSessionId) {
@@ -201,7 +203,7 @@ private:
 
     virtual TFuture<TAuthenticationResult> DoGet(
         const TCookieAuthenticatorCacheKey& cacheKey,
-        bool /*isPeriodicUpdate*/) override
+        bool /*isPeriodicUpdate*/) noexcept override
     {
         TCookieCredentials credentials;
         credentials.SessionId = cacheKey.first;
@@ -218,7 +220,7 @@ private:
         return UnderlyingAuthenticator_->Authenticate(credentials);
     }
 
-    virtual void OnErase(const TCookieAuthenticatorCacheKey& cacheKey) override
+    virtual void OnEvicted(const TCookieAuthenticatorCacheKey& cacheKey) noexcept override
     {
         auto guard = Guard(LastUserIPLock_);
         LastUserIP_.erase(cacheKey);

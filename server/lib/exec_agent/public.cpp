@@ -9,7 +9,8 @@ const TEnumIndexedVector<ESandboxKind, TString> SandboxDirectoryNames{
     "udf",
     "home",
     "pipes",
-    "tmp"
+    "tmp",
+    "cores",
 };
 
 ////////////////////////////////////////////////////////////////////////////////

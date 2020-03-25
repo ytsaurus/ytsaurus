@@ -54,6 +54,21 @@ message TAgentToSchedulerOperationEvent
 
     // for BannedInTentativeTree
     repeated NYT.NProto.TGuid tentative_tree_job_ids = 5;
+
+    // for InitializationFinished
+    optional NYT.NControllerAgent.NProto.TInitializeOperationResult initialize_result = 6;
+
+    // for PreparationFinished
+    optional NYT.NControllerAgent.NProto.TPrepareOperationResult prepare_result = 7;
+
+    // for MaterializationFinished
+    optional NYT.NControllerAgent.NProto.TMaterializeOperationResult materialize_result = 8;
+
+    // for RevivalFinished
+    optional NYT.NControllerAgent.NProto.TReviveOperationResult revive_result = 9;
+
+    // for CommitFinished
+    optional NYT.NControllerAgent.NProto.TCommitOperationResult commit_result = 10;
 }
 
 message TAgentToSchedulerJobEvent

@@ -129,6 +129,18 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Returns a future that is either set to an actual value (if the original one is set in timely manner)
+//! or to |std::nullopt| (in case of timeout).
+//! Moreover, in case of timeout |onFinishedAfterTimeout| callback will be subscribed to the original future.
+//! The original future is NOT cancelled on timeout or when this future is cancelled.
+template <class T>
+TFuture<std::optional<T>> WithSoftTimeout(
+    TFuture<T> future,
+    TDuration timeout,
+    TCallback<void(const TErrorOr<T>&)> onFinishedAfterTimeout = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent
 
 #define HELPERS_INL_H_

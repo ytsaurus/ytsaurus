@@ -4,6 +4,8 @@
 
 #include <yt/server/lib/tablet_node/config.h>
 
+#include <yt/server/lib/hive/config.h>
+
 #include <yt/ytlib/table_client/config.h>
 
 #include <yt/core/ytree/yson_serializable.h>
@@ -322,26 +324,12 @@ class TReplicatedTableTrackerConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    bool EnableReplicatedTableTracker;
-    TDuration CheckPeriod;
-    TDuration UpdatePeriod;
-    int ThreadCount;
-    TReplicatedTableTrackerExpiringCacheConfigPtr BundleHealthCache;
+    int CheckerThreadCount;
 
     TReplicatedTableTrackerConfig()
     {
-        RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
-            .Default(true);
-        RegisterParameter("check_period", CheckPeriod)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("update_period", UpdatePeriod)
-            .Default(TDuration::Seconds(1));
-        RegisterParameter("thread_count", ThreadCount)
+        RegisterParameter("checker_thread_count", CheckerThreadCount)
             .Default(1);
-        RegisterParameter("bundle_health_cache", BundleHealthCache)
-            // COMPAT(savrus)
-            .Alias("async_expiring_cache")
-            .DefaultNew();
     }
 };
 
@@ -354,17 +342,23 @@ class TDynamicReplicatedTableTrackerConfig
 {
 public:
     bool EnableReplicatedTableTracker;
-
+    TDuration CheckPeriod;
+    TDuration UpdatePeriod;
     TAsyncExpiringCacheConfigPtr BundleHealthCache;
+    NHiveServer::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizer;
 
     TDynamicReplicatedTableTrackerConfig()
     {
         RegisterParameter("enable_replicated_table_tracker", EnableReplicatedTableTracker)
             .Default(true);
+        RegisterParameter("check_period", CheckPeriod)
+            .Default(TDuration::Seconds(3));
+        RegisterParameter("update_period", UpdatePeriod)
+            .Default(TDuration::Seconds(3));
         RegisterParameter("bundle_health_cache", BundleHealthCache)
-            // COMPAT(savrus)
-            .Alias("async_expiring_cache")
-            .Default();
+            .DefaultNew();
+        RegisterParameter("cluster_directory_synchronizer", ClusterDirectorySynchronizer)
+            .DefaultNew();
     }
 };
 

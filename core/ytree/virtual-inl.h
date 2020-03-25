@@ -33,39 +33,47 @@ class TCollectionBoundMapService
     : public TVirtualMapBase
 {
 public:
-    TCollectionBoundMapService(const T& collection)
-        : Collection_(collection)
+    explicit TCollectionBoundMapService(std::weak_ptr<T> collection)
+        : Collection_(std::move(collection))
     { }
 
     virtual i64 GetSize() const override
     {
-        return Collection_.size();
+        if (auto collection = Collection_.lock()) {
+            return collection->size();
+        }
+        return 0;
     }
 
     virtual std::vector<TString> GetKeys(i64 limit) const override
     {
         std::vector<TString> keys;
-        keys.reserve(limit);
-        for (const auto& pair : Collection_) {
-            if (static_cast<i64>(keys.size()) >= limit) {
-                break;
+        if (auto collection = Collection_.lock()) {
+            keys.reserve(limit);
+            for (const auto& pair : *collection) {
+                if (static_cast<i64>(keys.size()) >= limit) {
+                    break;
+                }
+                keys.emplace_back(TConversionTraits::ConvertKeyToString(pair.first));
             }
-            keys.emplace_back(TConversionTraits::ConvertKeyToString(pair.first));
         }
         return keys;
     }
 
     virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
-        auto it = Collection_.find(TConversionTraits::ConvertStringToKey(key));
-        if (it == Collection_.end()) {
-            return nullptr;
+        if (auto collection = Collection_.lock()) {
+            auto it = collection->find(TConversionTraits::ConvertStringToKey(key));
+            if (it == collection->end()) {
+                return nullptr;
+            }
+            return it->second->GetService();
         }
-        return it->second->GetService();
+        return nullptr;
     }
 
 private:
-    const T& Collection_;
+    const std::weak_ptr<T> Collection_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,23 +83,29 @@ class TCollectionBoundListService
     : public TVirtualListBase
 {
 public:
-    TCollectionBoundListService(const T& collection)
-        : Collection_(collection)
+    explicit TCollectionBoundListService(std::weak_ptr<T> collection)
+        : Collection_(std::move(collection))
     { }
 
     virtual i64 GetSize() const override
     {
-        return Collection_.size();
+        if (auto collection = Collection_.lock()) {
+            return collection->size();
+        }
+        return 0;
     }
 
     virtual IYPathServicePtr FindItemService(int index) const override
     {
-        YT_VERIFY(0 <= index && index < Collection_.size());
-        return Collection_[index] ? Collection_[index]->GetService() : nullptr;
+        if (auto collection = Collection_.lock()) {
+            YT_VERIFY(0 <= index && index < collection->size());
+            return (*collection)[index] ? (*collection)[index]->GetService() : nullptr;
+        }
+        return nullptr;
     }
 
 private:
-    const T& Collection_;
+    const std::weak_ptr<T> Collection_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

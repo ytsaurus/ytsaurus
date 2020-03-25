@@ -4,17 +4,36 @@
 
 #include <yt/core/actions/invoker.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
+
 #include <yt/core/misc/collection_helpers.h>
 
+#include <yt/core/profiling/profiler.h>
+
 namespace NYT::NChunkClient {
+
+using namespace NConcurrency;
+using namespace NProfiling;
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TProfiler MultiReaderMemoryManagerProfiler("/chunk_reader/memory");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TParallelReaderMemoryManagerOptions::TParallelReaderMemoryManagerOptions(
-    i64 totalMemorySize,
-    i64 maxInitialReaderReservedMemory)
-    : TotalMemorySize(totalMemorySize)
+    i64 totalReservedMemorySize,
+    i64 maxInitialReaderReservedMemory,
+    i64 minRequiredMemorySize,
+    TTagIdList profilingTagList,
+    bool enableProfiling,
+    TDuration profilingPeriod)
+    : TotalReservedMemorySize(totalReservedMemorySize)
     , MaxInitialReaderReservedMemory(maxInitialReaderReservedMemory)
+    , MinRequiredMemorySize(minRequiredMemorySize)
+    , ProfilingTagList(std::move(profilingTagList))
+    , EnableProfiling(enableProfiling)
+    , ProfilingPeriod(profilingPeriod)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -24,25 +43,69 @@ class TParallelReaderMemoryManager
     , public IReaderMemoryManagerHost
 {
 public:
-    TParallelReaderMemoryManager(TParallelReaderMemoryManagerOptions options, IInvokerPtr invoker)
+    TParallelReaderMemoryManager(
+        TParallelReaderMemoryManagerOptions options,
+        TWeakPtr<IReaderMemoryManagerHost> host,
+        IInvokerPtr invoker)
         : Options_(std::move(options))
+        , Host_(std::move(host))
         , Invoker_(std::move(invoker))
-        , FreeMemory_(Options_.TotalMemorySize)
-    { }
-
-    virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(std::optional<i64> reservedMemorySize = std::nullopt) override
+        , TotalReservedMemory_(options.TotalReservedMemorySize)
+        , FreeMemory_(Options_.TotalReservedMemorySize)
+        , ProfilingTagList_(std::move(options.ProfilingTagList))
+        , ProfilingExecutor_(New<TPeriodicExecutor>(
+            Invoker_,
+            BIND(&TParallelReaderMemoryManager::OnProfiling, MakeWeak(this)),
+            Options_.ProfilingPeriod))
     {
+        if (Options_.EnableProfiling) {
+            ProfilingExecutor_->Start();
+        }
+    }
+
+    virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
+        std::optional<i64> reservedMemorySize,
+        TTagIdList profilingTagList) override
+    {
+        YT_VERIFY(!Finalized_);
+
         auto initialReaderMemory = std::min<i64>(reservedMemorySize.value_or(Options_.MaxInitialReaderReservedMemory), FreeMemory_);
         initialReaderMemory = std::min<i64>(initialReaderMemory, Options_.MaxInitialReaderReservedMemory);
         initialReaderMemory = std::max<i64>(initialReaderMemory, 0);
 
         auto memoryManager = New<TChunkReaderMemoryManager>(
-            TChunkReaderMemoryManagerOptions(initialReaderMemory),
+            TChunkReaderMemoryManagerOptions(initialReaderMemory, std::move(profilingTagList)),
             MakeWeak(this));
         FreeMemory_ -= initialReaderMemory;
 
-        Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeWeak(this), memoryManager));
-        Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoRebalance, MakeWeak(this)));
+        Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeWeak(this), memoryManager, true));
+        ScheduleRebalancing();
+
+        return memoryManager;
+    }
+
+    virtual IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(
+        std::optional<i64> requiredMemorySize,
+        TTagIdList profilingTagList) override
+    {
+        YT_VERIFY(!Finalized_);
+
+        auto minRequiredMemorySize = std::min<i64>(requiredMemorySize.value_or(0), FreeMemory_);
+        minRequiredMemorySize = std::max<i64>(minRequiredMemorySize, 0);
+
+        TParallelReaderMemoryManagerOptions options{
+            minRequiredMemorySize,
+            Options_.MaxInitialReaderReservedMemory,
+            minRequiredMemorySize,
+            std::move(profilingTagList)
+        };
+
+        FreeMemory_ -= minRequiredMemorySize;
+
+        auto memoryManager = New<TParallelReaderMemoryManager>(options, MakeWeak(this), Invoker_);
+
+        Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeWeak(this), memoryManager, true));
+        ScheduleRebalancing();
         return memoryManager;
     }
 
@@ -54,16 +117,60 @@ public:
     virtual void UpdateMemoryRequirements(IReaderMemoryManagerPtr readerMemoryManager) override
     {
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoUpdateReaderInfo, MakeWeak(this), std::move(readerMemoryManager)));
-        Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoRebalance, MakeWeak(this)));
+        ScheduleRebalancing();
+    }
+
+    virtual i64 GetRequiredMemorySize() const override
+    {
+        return std::max<i64>(Options_.MinRequiredMemorySize, TotalRequiredMemory_);
+    }
+
+    virtual i64 GetDesiredMemorySize() const override
+    {
+        return std::max<i64>(Options_.MinRequiredMemorySize, TotalDesiredMemory_);
+    }
+
+    virtual i64 GetReservedMemorySize() const override
+    {
+        return TotalReservedMemory_;
+    }
+
+    virtual void SetReservedMemorySize(i64 size) override
+    {
+        i64 reservedMemorySizeDelta = size - TotalReservedMemory_;
+        TotalReservedMemory_ += reservedMemorySizeDelta;
+        FreeMemory_ += reservedMemorySizeDelta;
+        ScheduleRebalancing();
+    }
+
+    virtual void Finalize() override
+    {
+        Finalized_ = true;
+        Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::TryUnregister, MakeWeak(this)));
+    }
+
+    virtual const TTagIdList& GetProfilingTagList() const override
+    {
+        return ProfilingTagList_;
     }
 
 private:
+    void ScheduleRebalancing()
+    {
+        if (RebalancingsScheduled_ == 0) {
+            ++RebalancingsScheduled_;
+            Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoRebalance, MakeWeak(this)));
+        }
+    }
+
     //! Performs memory rebalancing between readers. After rebalancing one of the following holds:
     //! 1) All readers have reserved_memory <= required_memory.
     //! 2) All readers have reserved_memory >= required_memory.
     void DoRebalance()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        --RebalancingsScheduled_;
 
         // Part 1: try to satisfy as many requirements as possible.
         {
@@ -84,11 +191,11 @@ private:
 
                 auto newReservedMemory = GetOrCrash(ReservedMemory_, reader) - memoryToRevoke;
 
-                DoRemoveReaderInfo(reader);
+                DoRemoveReaderInfo(reader, false);
                 reader->SetReservedMemorySize(newReservedMemory);
                 needExtraMemoryToSatisfyAllRequirements -= memoryToRevoke;
                 FreeMemory_ += memoryToRevoke;
-                DoAddReaderInfo(reader);
+                DoAddReaderInfo(reader, false);
             }
 
             while (FreeMemory_ > 0 && !ReadersWithUnsatisfiedMemoryRequirement_.empty()) {
@@ -101,10 +208,10 @@ private:
 
                 auto newReservedMemory = GetOrCrash(ReservedMemory_, reader) + memoryToAdd;
 
-                DoRemoveReaderInfo(reader);
+                DoRemoveReaderInfo(reader, false);
                 reader->SetReservedMemorySize(newReservedMemory);
                 FreeMemory_ -= memoryToAdd;
-                DoAddReaderInfo(reader);
+                DoAddReaderInfo(reader, false);
             }
         }
 
@@ -116,7 +223,7 @@ private:
 
             int allocationsLeft = MaxDesiredMemoryAllocationsPerRebalancing;
 
-            while (FreeMemory_ && !ReadersWithoutDesiredMemoryAmount_.empty() && allocationsLeft) {
+            while (FreeMemory_ > 0 && !ReadersWithoutDesiredMemoryAmount_.empty() && allocationsLeft) {
                 // Take reader with minimum desired_memory - reserved_memory.
                 auto readerInfo = *ReadersWithoutDesiredMemoryAmount_.begin();
                 auto reader = readerInfo.second;
@@ -126,17 +233,17 @@ private:
 
                 auto newReservedMemory = GetOrCrash(RequiredMemory_, reader) + memoryToAdd;
 
-                DoRemoveReaderInfo(reader);
+                DoRemoveReaderInfo(reader, false);
                 reader->SetReservedMemorySize(newReservedMemory);
                 FreeMemory_ -= memoryToAdd;
-                DoAddReaderInfo(reader);
+                DoAddReaderInfo(reader, false);
 
                 --allocationsLeft;
             }
 
             // More allocations can be done, so schedule another rebalancing.
             if (FreeMemory_ > 0 && !ReadersWithoutDesiredMemoryAmount_.empty()) {
-                Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoRebalance, MakeWeak(this)));
+                ScheduleRebalancing();
             }
         }
     }
@@ -145,10 +252,11 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        DoRemoveReaderInfo(readerMemoryManager);
+        DoRemoveReaderInfo(readerMemoryManager, true);
         FreeMemory_ += readerMemoryManager->GetReservedMemorySize();
         readerMemoryManager->SetReservedMemorySize(0);
-        DoRebalance();
+        TryUnregister();
+        ScheduleRebalancing();
     }
 
     void DoUpdateReaderInfo(const IReaderMemoryManagerPtr& reader)
@@ -160,12 +268,12 @@ private:
             return;
         }
 
-        DoRemoveReaderInfo(reader);
-        DoAddReaderInfo(reader);
-        DoRebalance();
+        DoRemoveReaderInfo(reader, false);
+        DoAddReaderInfo(reader, true);
+        ScheduleRebalancing();
     }
 
-    void DoAddReaderInfo(const IReaderMemoryManagerPtr& reader)
+    void DoAddReaderInfo(const IReaderMemoryManagerPtr& reader, bool updateMemoryRequirements)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
@@ -184,9 +292,18 @@ private:
             reservedMemory = desiredMemory;
         }
 
+        TotalRequiredMemory_ += requiredMemory;
+        TotalDesiredMemory_ += desiredMemory;
+        if (updateMemoryRequirements) {
+            if (auto host = Host_.Lock()) {
+                host->UpdateMemoryRequirements(MakeStrong(this));
+            }
+        }
+
         YT_VERIFY(RequiredMemory_.emplace(reader, requiredMemory).second);
         YT_VERIFY(DesiredMemory_.emplace(reader, desiredMemory).second);
         YT_VERIFY(ReservedMemory_.emplace(reader, reservedMemory).second);
+        ReservedMemoryByProfilingTags_[reader->GetProfilingTagList()] += reservedMemory;
 
         if (reservedMemory < requiredMemory) {
             YT_VERIFY(ReadersWithUnsatisfiedMemoryRequirement_.emplace(requiredMemory - reservedMemory, reader).second);
@@ -200,7 +317,7 @@ private:
         }
     }
 
-    void DoRemoveReaderInfo(const IReaderMemoryManagerPtr& reader)
+    void DoRemoveReaderInfo(const IReaderMemoryManagerPtr& reader, bool updateMemoryRequirements)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
@@ -208,9 +325,18 @@ private:
         auto desiredMemory = GetOrCrash(DesiredMemory_, reader);
         auto reservedMemory = GetOrCrash(ReservedMemory_, reader);
 
+        TotalRequiredMemory_ -= requiredMemory;
+        TotalDesiredMemory_ -= desiredMemory;
+        if (updateMemoryRequirements) {
+            if (auto host = Host_.Lock()) {
+                host->UpdateMemoryRequirements(MakeStrong(this));
+            }
+        }
+
         YT_VERIFY(RequiredMemory_.erase(reader));
         YT_VERIFY(DesiredMemory_.erase(reader));
         YT_VERIFY(ReservedMemory_.erase(reader));
+        ReservedMemoryByProfilingTags_[reader->GetProfilingTagList()] -= reservedMemory;
 
         if (reservedMemory < requiredMemory) {
             YT_VERIFY(ReadersWithUnsatisfiedMemoryRequirement_.erase({requiredMemory - reservedMemory, reader}));
@@ -224,8 +350,39 @@ private:
         }
     }
 
-    TParallelReaderMemoryManagerOptions Options_;
-    IInvokerPtr Invoker_;
+    void TryUnregister()
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        if (Finalized_ && RequiredMemory_.empty() && !Unregistered_) {
+            Unregistered_ = true;
+            if (auto host = Host_.Lock()) {
+                host->Unregister(MakeStrong(this));
+            }
+        }
+    }
+
+    void OnProfiling() const
+    {
+        for (const auto& [tagIdList, memoryUsage] : ReservedMemoryByProfilingTags_) {
+            MultiReaderMemoryManagerProfiler.Enqueue("/usage", memoryUsage, EMetricType::Gauge, tagIdList);
+        }
+    }
+
+    const TParallelReaderMemoryManagerOptions Options_;
+    const TWeakPtr<IReaderMemoryManagerHost> Host_;
+    const IInvokerPtr Invoker_;
+
+    std::atomic<int> RebalancingsScheduled_ = 0;
+
+    //! Sum of required_memory over all child memory managers.
+    std::atomic<i64> TotalRequiredMemory_ = 0;
+
+    //! Sum of desired_memory over all child memory managers.
+    std::atomic<i64> TotalDesiredMemory_ = 0;
+
+    //! Amount of memory reserved for this memory manager.
+    std::atomic<i64> TotalReservedMemory_ = 0;
 
     std::atomic<i64> FreeMemory_ = 0;
 
@@ -233,18 +390,28 @@ private:
     THashMap<IReaderMemoryManagerPtr, i64> DesiredMemory_;
     THashMap<IReaderMemoryManagerPtr, i64> ReservedMemory_;
 
-    //! Readers with reserved_memory < required_memory ordered by required_memory - reserved_memory.
+    THashMap<TTagIdList, i64> ReservedMemoryByProfilingTags_;
+
+    std::atomic<bool> Finalized_ = false;
+
+    bool Unregistered_ = false;
+
+    //! Memory managers with reserved_memory < required_memory ordered by required_memory - reserved_memory.
     std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithUnsatisfiedMemoryRequirement_;
 
-    //! Sum of required_memory - reserved_memory over all readers with reserved_memory < required_memory.
+    //! Sum of required_memory - reserved_memory over all memory managers with reserved_memory < required_memory.
     i64 RequiredMemoryDeficit_ = 0;
 
-    //! Readers with reserved_memory >= required_memory ordered by reserved_memory - required_memory.
+    //! Memory managers with reserved_memory >= required_memory ordered by reserved_memory - required_memory.
     std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithSatisfiedMemoryRequirement_;
 
-    //! Readers with reserved_memory >= required_memory and reserved_memory < desired_memory
+    //! Memory managers with reserved_memory >= required_memory and reserved_memory < desired_memory
     //! ordered by desired_memory - reserved_memory.
     std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithoutDesiredMemoryAmount_;
+
+    const TTagIdList ProfilingTagList_;
+
+    const TPeriodicExecutorPtr ProfilingExecutor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,7 +420,7 @@ IMultiReaderMemoryManagerPtr CreateParallelReaderMemoryManager(
     TParallelReaderMemoryManagerOptions options,
     IInvokerPtr invoker)
 {
-    return New<TParallelReaderMemoryManager>(std::move(options), std::move(invoker));
+    return New<TParallelReaderMemoryManager>(std::move(options), nullptr, std::move(invoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

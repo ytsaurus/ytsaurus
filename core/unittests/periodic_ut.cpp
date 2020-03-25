@@ -176,7 +176,7 @@ TEST_W(TPeriodicTest, Stop)
     auto neverSetPromise = NewPromise<void>();
     auto immediatelyCancelableFuture = neverSetPromise.ToFuture().ToImmediatelyCancelable();
     auto callback = BIND([&] {
-        Y_UNUSED(WaitFor(immediatelyCancelableFuture));
+        WaitUntilSet(immediatelyCancelableFuture);
     });
     auto actionQueue = New<TActionQueue>();
     auto executor = New<TPeriodicExecutor>(

@@ -219,8 +219,6 @@ struct ISchedulerStrategy
     virtual void ScanWaitingForPoolOperations() = 0;
 
     virtual TFuture<void> GetFullFairShareUpdateFinished() = 0;
-
-    virtual bool IsOperationTreeSetConsistentWithSnapshots(TOperationId operationId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)

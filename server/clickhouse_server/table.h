@@ -2,100 +2,48 @@
 
 #include "private.h"
 
-#include <yt/client/table_client/schema.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/client/ypath/rich.h>
+#include <yt/client/ypath/public.h>
 
-#include <util/generic/string.h>
+#include <yt/core/logging/public.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class EClickHouseColumnType
+struct TTable
+    : public TIntrinsicRefCounted
+    , public NChunkClient::TUserObject
 {
-    /// Invalid type.
-    Invalid = 0,
+    int ChunkCount = 0;
+    NTableClient::TTableSchema Schema;
+    //! Table index according to JOIN clause (if any):
+    //! - SELECT * FROM AAA: AAA.TableIndex = 0.
+    //! - SELECT * FROM AAA JOIN BBB: AAA.TableIndex = 0, BBB.TableIndex = 1.
+    //! If operand consists of several tables (like in concat* case), all of them share
+    //! same table index.
+    //! NB: Currently, CH handles multi-JOIN as a left-associative sequence of two-operand joins.
+    //! In particular,
+    //! - SELECT * FROM AAA JOIN BBB JOIN CCC is actually (SELECT * FROM AAA JOIN BBB) JOIN CCC.
+    //! Thus, TableIndex is always 0 or 1.
+    int TableIndex = 0;
+    bool Dynamic = false;
 
-    /// Signed integer value.
-    Int8,
-    Int16,
-    Int32,
-    Int64,
-
-    /// Unsigned integer value.
-    UInt8,
-    UInt16,
-    UInt32,
-    UInt64,
-
-    /// Floating point value.
-    Float,
-    Double,
-
-    /// Boolean value.
-    Boolean,
-
-    /// DateTime value.
-    Date,
-    DateTime,
-    // TODO(dakovalkov): https://github.com/yandex/ClickHouse/pull/7170.
-    // DateTime64,
-
-    /// String value.
-    String,
+    TTable(NYPath::TRichYPath path, const NYTree::TAttributeMap& attributes);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum class EColumnFlags
-{
-    None = 0,
-    Sorted = 0x01,
-    Nullable = 0x02,
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TClickHouseColumn
-{
-    TString Name;
-    EClickHouseColumnType Type = EClickHouseColumnType::Invalid;
-    int Flags = 0;
-
-    TClickHouseColumn() = default;
-
-    TClickHouseColumn(TString name, EClickHouseColumnType type, int flags = 0)
-        : Name(std::move(name))
-        , Type(type)
-        , Flags(flags)
-    {}
-
-    bool IsSorted() const;
-    bool IsNullable() const;
-
-    void SetSorted();
-    void DropSorted();
-    void SetNullable();
-
-    static std::optional<TClickHouseColumn> FromColumnSchema(const NTableClient::TColumnSchema& columnSchema);
-};
-
-bool operator == (const TClickHouseColumn& lhs, const TClickHouseColumn& rhs);
-bool operator != (const TClickHouseColumn& lhs, const TClickHouseColumn& rhs);
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TClickHouseTable
-{
-    NYPath::TRichYPath Path;
-    std::vector<TClickHouseColumn> Columns;
-    NTableClient::TTableSchema TableSchema;
-
-    TClickHouseTable() = default;
-
-    TClickHouseTable(const NYPath::TRichYPath& path, const NTableClient::TTableSchema& tableSchema);
-};
+// Fetches tables for given paths.
+// If `skipUnsuitableNodes` is set, skips all non-static-table items,
+// otherwise throws an error for them.
+std::vector<TTablePtr> FetchTables(
+    const NApi::NNative::IClientPtr& client,
+    const TClickHouseHostPtr& host,
+    const std::vector<NYPath::TRichYPath>& richPaths,
+    bool skipUnsuitableNodes,
+    NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

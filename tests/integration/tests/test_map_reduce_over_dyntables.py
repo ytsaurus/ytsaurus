@@ -4,6 +4,8 @@ from yt_env_setup import (
 )
 from yt_commands import *
 
+from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
+
 from yt.test_helpers import assert_items_equal, are_almost_equal
 from yt.yson import loads
 
@@ -347,7 +349,7 @@ class TestMapOnDynamicTablesPorto(YTEnvSetup):
 
 ##################################################################
 
-class MRoverOrderedDynTablesHelper(YTEnvSetup):
+class MROverOrderedDynTablesHelper(YTEnvSetup):
     CONTROL_ATTRIBUTES_SPEC = {
         "control_attributes": {
             "enable_tablet_index": True,
@@ -365,7 +367,7 @@ class MRoverOrderedDynTablesHelper(YTEnvSetup):
             file=["//tmp/script.py"],
             spec={
                 "job_count": 1,
-                "job_io": MRoverOrderedDynTablesHelper.CONTROL_ATTRIBUTES_SPEC,
+                "job_io": MROverOrderedDynTablesHelper.CONTROL_ATTRIBUTES_SPEC,
                 "max_failed_job_count": 1,
                 "mapper": {
                     "format": yson.loads("<format=text>yson"),
@@ -391,7 +393,7 @@ class MRoverOrderedDynTablesHelper(YTEnvSetup):
                 "reducer": {
                     "format": yson.loads("<format=text>yson"),
                 },
-                "map_job_io": MRoverOrderedDynTablesHelper.CONTROL_ATTRIBUTES_SPEC,
+                "map_job_io": MROverOrderedDynTablesHelper.CONTROL_ATTRIBUTES_SPEC,
             },
         )
 
@@ -449,9 +451,7 @@ class MRoverOrderedDynTablesHelper(YTEnvSetup):
         write_file("//tmp/script.py", script)
 
 
-
-
-class TestInputOutputForOrderedWithTabletIndex(MRoverOrderedDynTablesHelper):
+class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -620,7 +620,7 @@ class TestInputOutputForOrderedWithTabletIndexPortal(TestInputOutputForOrderedWi
 
 ##################################################################
 
-class TestSchedulerMapReduceDynamic(MRoverOrderedDynTablesHelper):
+class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1

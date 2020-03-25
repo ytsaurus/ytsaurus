@@ -1,11 +1,10 @@
 #include "database.h"
 
 #include "storage_distributor.h"
-#include "type_helpers.h"
 #include "helpers.h"
 #include "query_context.h"
-#include "table.h"
 #include "query_registry.h"
+#include "table.h"
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -117,17 +116,6 @@ StoragePtr TDatabase::GetTable(
 {
     auto* queryContext = GetQueryContext(context);
 
-    auto table = FetchClickHouseTableFromCache(
-        queryContext->Bootstrap,
-        queryContext->Client(),
-        TRichYPath::Parse(TString(path)),
-        queryContext->Logger);
-
-    if (!table) {
-        // table not found
-        return nullptr;
-    }
-
     // Here goes the dirty-ass hack. When query context is created, query AST is not parsed yet,
     // so it is not present in client info for query. That's why if we crash somewhere during coordination
     // phase, dumped query registry in crash handler will lack crashing query itself. As a workaround,
@@ -138,7 +126,21 @@ StoragePtr TDatabase::GetTable(
             .Run())
         .ThrowOnError();
 
-    return CreateStorageDistributor(queryContext, {std::move(table)});
+    try {
+        auto tables = FetchTables(
+            queryContext->Client(),
+            queryContext->Bootstrap->GetHost(),
+            {TRichYPath::Parse(path.data())},
+            /* skipUnsuitableNodes */ false,
+            queryContext->Logger);
+
+        return CreateStorageDistributor(queryContext, std::move(tables));
+    } catch (const TErrorException& ex) {
+        if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return nullptr;
+        }
+        throw;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

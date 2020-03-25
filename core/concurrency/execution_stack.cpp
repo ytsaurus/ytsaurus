@@ -1,4 +1,5 @@
 #include "execution_stack.h"
+#include "private.h"
 
 #include <yt/core/misc/ref.h>
 #include <yt/core/misc/ref_tracked.h>
@@ -18,6 +19,8 @@
 #include <util/system/sanitizers.h>
 
 namespace NYT::NConcurrency {
+
+static const auto& Logger = ConcurrencyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -72,13 +75,12 @@ TExecutionStack::TExecutionStack(size_t size)
         0));
 
     if (Base_ == MAP_FAILED) {
-        THROW_ERROR_EXCEPTION("Failed to allocate execution stack")
-            << TErrorAttribute("size", Size_)
-            << TErrorAttribute("guard_size", guardSize)
-            << TError::FromSystem();
+        YT_LOG_FATAL(TError::FromSystem(), "Failed to allocate execution stack (Size: %v)", Size_);
     }
 
-    ::mprotect(Base_, guardSize, PROT_NONE);
+    if (::mprotect(Base_, guardSize, PROT_NONE) == -1) {
+        YT_LOG_FATAL(TError::FromSystem(), "Failed to protect execution stack (GuardSize: %v)", guardSize);
+    }
 
     Stack_ = Base_ + guardSize;
     YT_VERIFY((reinterpret_cast<uintptr_t>(Stack_)& 15) == 0);
@@ -173,7 +175,7 @@ int GetFiberStackPoolSize(EExecutionStackKind stackKind)
 void SetFiberStackPoolSize(EExecutionStackKind stackKind, int poolSize)
 {
     if (poolSize < 0) {
-        THROW_ERROR_EXCEPTION("Invalid fiber stack pool size %v is given for %Qlv stacks",
+        YT_LOG_FATAL("Invalid fiber stack pool size (Size: %v, Kind: %Qlv)",
             poolSize,
             stackKind);
     }

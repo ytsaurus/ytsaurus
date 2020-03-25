@@ -15,54 +15,84 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TNetworkAddressTest, ParseGoodIpv4)
+TEST(TNetworkAddressTest, ParseGoodIPv4)
 {
-    TNetworkAddress address = TNetworkAddress::Parse("[192.0.2.33]");
-    EXPECT_EQ("tcp://192.0.2.33", ToString(address, false));
+    TNetworkAddressFormatOptions options{
+        .IncludePort = false
+    };
+
+    auto address = TNetworkAddress::Parse("[192.0.2.33]");
+    EXPECT_EQ("tcp://192.0.2.33", ToString(address, options));
 
     address = TNetworkAddress::Parse("192.0.2.33");
-    EXPECT_EQ("tcp://192.0.2.33", ToString(address, false));
+    EXPECT_EQ("tcp://192.0.2.33", ToString(address, options));
 }
 
-TEST(TNetworkAddressTest, ParseGoodIpv4WithPort)
+TEST(TNetworkAddressTest, ParseGoodIPv4WithPort)
 {
-    TNetworkAddress address = TNetworkAddress::Parse("[192.0.2.33]:1000");
-    EXPECT_EQ("tcp://192.0.2.33:1000", ToString(address, true));
+    auto address = TNetworkAddress::Parse("[192.0.2.33]:1000");
+    EXPECT_EQ("tcp://192.0.2.33:1000", ToString(address));
 
     address = TNetworkAddress::Parse("192.0.2.33:1000");
-    EXPECT_EQ("tcp://192.0.2.33:1000", ToString(address, true));
+    EXPECT_EQ("tcp://192.0.2.33:1000", ToString(address));
 }
 
-TEST(TNetworkAddressTest, ParseBadIpv4Address)
+TEST(TNetworkAddressTest, ParseBadIPv4Address)
 {
     EXPECT_ANY_THROW(TNetworkAddress::Parse("[192.0.XXX.33]")); // extra symbols
     EXPECT_ANY_THROW(TNetworkAddress::Parse("[192.0.2.33]:")); // no port after colon
 }
 
-TEST(TNetworkAddressTest, ParseGoodIpv6)
+TEST(TNetworkAddressTest, ParseGoodIPv6)
 {
-    TNetworkAddress address = TNetworkAddress::Parse("[2001:db8:8714:3a90::12]");
-    EXPECT_EQ("tcp://[2001:db8:8714:3a90::12]", ToString(address, false));
+    TNetworkAddressFormatOptions options{
+        .IncludePort = false
+    };
+
+    auto address = TNetworkAddress::Parse("[2001:db8:8714:3a90::12]");
+    EXPECT_EQ("tcp://[2001:db8:8714:3a90::12]", ToString(address, options));
 }
 
 TEST(TNetworkAddressTest, IP6Conversion)
 {
-    TNetworkAddress address = TNetworkAddress::Parse("[2001:db8:8714:3a90::12]");
+    auto address = TNetworkAddress::Parse("[2001:db8:8714:3a90::12]");
     auto ip6Address = address.ToIP6Address();
 
     EXPECT_EQ("2001:db8:8714:3a90::12", ToString(ip6Address));
 }
 
-TEST(TNetworkAddressTest, ParseGoodIpv6WithPort)
+TEST(TNetworkAddressTest, ParseGoodIPv6WithPort)
 {
-    TNetworkAddress address = TNetworkAddress::Parse("[2001:db8:8714:3a90::12]:1000");
-    EXPECT_EQ("tcp://[2001:db8:8714:3a90::12]:1000", ToString(address, true));
+    auto address = TNetworkAddress::Parse("[2001:db8:8714:3a90::12]:1000");
+    EXPECT_EQ("tcp://[2001:db8:8714:3a90::12]:1000", ToString(address));
 }
 
-TEST(TNetworkAddressTest, ParseBadIpv6Address)
+TEST(TNetworkAddressTest, ParseBadIPv6Address)
 {
     EXPECT_ANY_THROW(TNetworkAddress::Parse("[2001:db8:SOME_STRING:3a90::12]")); // extra symbols
     EXPECT_ANY_THROW(TNetworkAddress::Parse("[2001:db8:8714:3a90::12]:")); // no port after colon
+}
+
+TEST(TNetworkAddressTest, FormatParseGoodIPv4NoTcpNoPort)
+{
+    TNetworkAddressFormatOptions options{
+        .IncludePort = false,
+        .IncludeTcpProtocol = false
+    };
+
+    auto address = TNetworkAddress::Parse("127.0.0.1");
+    EXPECT_EQ("127.0.0.1", ToString(address, options));
+}
+
+TEST(TNetworkAddressTest, FormatParseGoodIPv6NoTcpNoPort)
+{
+    TNetworkAddressFormatOptions options{
+        .IncludePort = false,
+        .IncludeTcpProtocol = false
+    };
+
+    auto address = TNetworkAddress::Parse("2001:db8:8714:3a90::12");
+    EXPECT_EQ("2001:db8:8714:3a90::12", ToString(address, options));
 }
 
 #ifdef _unix_

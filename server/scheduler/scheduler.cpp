@@ -894,6 +894,14 @@ public:
             }
         }
 
+        auto state = operation->GetState();
+        if (state == EOperationState::Materializing ||
+            state == EOperationState::Reviving ||
+            state == EOperationState::RevivingJobs)
+        {
+            THROW_ERROR_EXCEPTION("Operation runtime parameters update is forbidden during the operation's materialization and revival");
+        }
+
         auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
 
         Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams, /* validatePools */ update->ContainsPool());
@@ -992,10 +1000,8 @@ public:
         auto* request = &context->Request();
         auto nodeId = request->node_id();
 
-        TFuture<void> unregisterFuture;
-
-        if (HandleNodeIdChangesStrictly_)
-        {
+        auto unregisterFuture = VoidFuture;
+        if (HandleNodeIdChangesStrictly_) {
             auto guard = Guard(NodeAddressToNodeShardIdLock_);
 
             auto descriptor = FromProto<TNodeDescriptor>(request->node_descriptor());
@@ -1014,13 +1020,15 @@ public:
             NodeAddressToNodeShardId_[address] = nodeId;
         }
 
-        if (unregisterFuture) {
-            WaitFor(unregisterFuture)
-                .ThrowOnError();
-        }
+        unregisterFuture.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            if (!error.IsOK()) {
+                context->Reply(error);
+                return;
+            }
 
-        const auto& nodeShard = GetNodeShard(nodeId);
-        nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
+            const auto& nodeShard = GetNodeShard(nodeId);
+            nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
+        }));
     }
 
     // ISchedulerStrategyHost implementation
@@ -1090,9 +1098,8 @@ public:
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
             asyncMaterializeResult = operation->GetController()->Materialize();
 
-            bool shouldWaitForFullFairShareUpdate = operation->Spec()->ScheduleInSingleTree &&
-                !Strategy_->IsOperationTreeSetConsistentWithSnapshots(operation->GetId());
-            auto maybeFullFairShareUpdateFinished = shouldWaitForFullFairShareUpdate
+            bool willScheduleInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
+            auto maybeFullFairShareUpdateFinished = willScheduleInSingleTree
                 ? Strategy_->GetFullFairShareUpdateFinished()
                 : VoidFuture;
 
@@ -1148,29 +1155,54 @@ public:
         // (a) only one tree was specified for operation, or
         // (b) scheduler failed/disconnected before persisting ErasedTrees to master,
         //     in which case it's safe to choose the tree once again.
-        if (operation->Spec()->ScheduleInSingleTree && operation->ErasedTrees().empty()) {
+        bool willScheduleInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
+        if (willScheduleInSingleTree && operation->ErasedTrees().empty()) {
             auto chosenTree = Strategy_->ChooseBestSingleTreeForOperation(operation->GetId(), neededResources);
 
+            std::vector<TString> treeIdsToUnregister;
             for (const auto& [treeId, treeRuntimeParameters] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
                 YT_VERIFY(!treeRuntimeParameters->Tentative);
                 if (treeId != chosenTree) {
-                    Strategy_->UnregisterOperationFromTree(operation->GetId(), treeId);
+                    treeIdsToUnregister.emplace_back(treeId);
                 }
             }
 
-            auto expectedState = operation->GetState();
-            // NB(eshcherbin): Persist info about erased trees to master. This flush is safe because nothing should
-            // happen to |operation| until its state is set to EOperationState::Running. The only possible exception
-            // would be the case when materialization fails and the operation is terminated, but we've already checked for any fail beforehand.
-            // Result is ignored since failure causes scheduler disconnection.
-            Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
-            if (operation->GetState() != expectedState) {
-                return;
+            // If any tree was erased, we should:
+            // (1) Unregister operation from each tree.
+            // (2) Remove each tree from operation's runtime parameters.
+            // (3) Flush all these changes to master.
+            if (!treeIdsToUnregister.empty()) {
+                auto updatedRuntimeParameters = CloneYsonSerializable(operation->GetRuntimeParameters());
+                for (const auto& treeId : treeIdsToUnregister) {
+                    Strategy_->UnregisterOperationFromTree(operation->GetId(), treeId);
+                    YT_VERIFY(updatedRuntimeParameters->SchedulingOptionsPerPoolTree.erase(treeId));
+                }
+
+                // NB(eshcherbin): Normally the runtime parameters should be updated in |DoUpdateOperationParameters|, however,
+                // here we perform very custom changes (removing erased trees) and we can omit all validations and updates
+                // in strategy and controller agent.
+                // Flushes to master are performed below.
+                operation->SetRuntimeParameters(updatedRuntimeParameters);
+
+                // NB(eshcherbin): Persist info about erased trees to master. This flush is safe because nothing should
+                // happen to |operation| until its state is set to EOperationState::Running. The only possible exception
+                // would be the case when materialization fails and the operation is terminated, but we've already checked for any fail beforehand.
+                // Result is ignored since failure causes scheduler disconnection.
+                auto expectedState = operation->GetState();
+                Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
+                if (operation->GetState() != expectedState) {
+                    return;
+                }
+
+                Y_UNUSED(MasterConnector_->FlushOperationRuntimeParameters(operation, updatedRuntimeParameters));
+                if (operation->GetState() != expectedState) {
+                    return;
+                }
             }
         }
 
-        if (operation->Spec()->TestingOperationOptions->DelayInsideMaterialize) {
-            TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayInsideMaterialize);
+        if (operation->Spec()->TestingOperationOptions->DelayAfterMaterialize) {
+            TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayAfterMaterialize);
         }
         operation->SetStateAndEnqueueEvent(EOperationState::Running);
         Strategy_->EnableOperation(operation.Get());
@@ -2622,28 +2654,34 @@ private:
         return Combine(asyncResults);
     }
 
+    void BuildOperationOrchid(const TOperationPtr& operation, IYsonConsumer* consumer)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto agent = operation->FindAgent();
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation))
+                .DoIf(static_cast<bool>(agent), [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("agent_id").Value(agent->GetId());
+                })
+                .OptionalItem("alias", operation->Alias())
+                .Item("progress").BeginMap()
+                    .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, Strategy_, operation->GetId()))
+                .EndMap()
+                .Item("brief_progress").BeginMap()
+                    .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, Strategy_, operation->GetId()))
+                .EndMap()
+            .EndMap();
+    }
+
     IYPathServicePtr CreateOperationOrchidService(const TOperationPtr& operation)
     {
-        auto createProducer = [&] (void (ISchedulerStrategy::*method)(TOperationId operationId, TFluentMap fluent)) {
-            return IYPathService::FromProducer(BIND([this, operation, method] (IYsonConsumer* consumer) {
-                BuildYsonFluently(consumer)
-                    .BeginMap()
-                        .Do(BIND(method, Strategy_, operation->GetId()))
-                    .EndMap();
-            }));
-        };
-
-        auto attributesService = IYPathService::FromProducer(BIND(&TImpl::BuildOperationAttributes, Unretained(this), operation))
+        auto operationOrchidProducer = BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation);
+        return IYPathService::FromProducer(operationOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::Orchid));
-
-        auto progressAttributesService = New<TCompositeMapService>()
-            ->AddChild("progress", createProducer(&ISchedulerStrategy::BuildOperationProgress))
-            ->AddChild("brief_progress", createProducer(&ISchedulerStrategy::BuildBriefOperationProgress))
-            ->Via(GetControlInvoker(EControlQueue::Orchid));
-
-        return New<TServiceCombiner>(
-            std::vector<IYPathServicePtr>{attributesService, progressAttributesService},
-            Config_->OrchidKeysUpdatePeriod);
     }
 
     void RegisterOperationAlias(const TOperationPtr& operation)
@@ -3304,23 +3342,6 @@ private:
             builder.AppendString(operation->GetSuspiciousJobs().GetData());
         }
         return TYsonString(builder.Flush(), EYsonType::MapFragment);
-    }
-
-    void BuildOperationAttributes(const TOperationPtr& operation, IYsonConsumer* consumer)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto agent = operation->FindAgent();
-
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Do(BIND(&NScheduler::BuildFullOperationAttributes, operation))
-                .DoIf(static_cast<bool>(agent), [&] (TFluentMap fluent) {
-                    fluent
-                        .Item("agent_id").Value(agent->GetId());
-                })
-                .OptionalItem("alias", operation->Alias())
-            .EndMap();
     }
 
     void BuildStaticOrchid(IYsonConsumer* consumer)

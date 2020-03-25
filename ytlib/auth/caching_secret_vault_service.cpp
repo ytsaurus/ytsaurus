@@ -49,7 +49,7 @@ private:
 
     virtual TFuture<TSecretSubresponse> DoGet(
         const TSecretSubrequest& subrequest,
-        bool /*isPeriodicUpdate*/) override
+        bool /*isPeriodicUpdate*/) noexcept override
     {
         return Underlying_->GetSecrets({subrequest})
             .Apply(BIND([] (const std::vector<TErrorOrSecretSubresponse>& result) {

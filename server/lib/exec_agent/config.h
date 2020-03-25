@@ -172,10 +172,6 @@ public:
     //! Chunk size used for copying chunks if #copy_chunks is set to %true in operation spec.
     i64 FileCopyChunkSize;
 
-    //! A directory that contains files defining the correspondence between slot user id
-    //! and its job proxy RPC Unix Domain Socket name.
-    std::optional<TString> JobProxySocketNameDirectory;
-
     TDuration DiskResourcesUpdatePeriod;
 
     int MaxConsecutiveAborts;
@@ -196,9 +192,6 @@ public:
         RegisterParameter("file_copy_chunk_size", FileCopyChunkSize)
             .GreaterThanOrEqual(1_KB)
             .Default(10_MB);
-
-        RegisterParameter("job_proxy_socket_name_directory", JobProxySocketNameDirectory)
-            .Default();
 
         RegisterParameter("disk_resources_update_period", DiskResourcesUpdatePeriod)
             .Alias("disk_info_update_period")
@@ -306,15 +299,19 @@ public:
 
     TDuration JobProxyPreparationTimeout;
 
-    TDuration CoreForwarderTimeout;
-
     i64 MinRequiredDiskSpace;
 
     TDuration JobAbortionTimeout;
 
-    //! Do not create L3 virtual interface in porto container.
     //! This option is used for testing purposes only.
+    //! Do not create L3 virtual interface in porto container.
     bool TestNetwork;
+
+    //! This option is used for testing purposes only.
+    //! Adds inner errors for failed jobs.
+    bool TestJobErrorTruncation;
+
+    NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
 
     TExecAgentConfig()
     {
@@ -355,10 +352,6 @@ public:
         RegisterParameter("job_proxy_preparation_timeout", JobProxyPreparationTimeout)
             .Default(TDuration::Minutes(3));
 
-        RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
-            .Default(TDuration::Seconds(60))
-            .GreaterThan(TDuration::Zero());
-
         RegisterParameter("min_required_disk_space", MinRequiredDiskSpace)
             .Default(100_MB);
         RegisterParameter("job_abortion_timeout", JobAbortionTimeout)
@@ -366,6 +359,12 @@ public:
 
         RegisterParameter("test_network", TestNetwork)
             .Default(false);
+
+        RegisterParameter("test_job_error_truncation", TestJobErrorTruncation)
+            .Default(false);
+
+        RegisterParameter("core_watcher", CoreWatcher)
+            .DefaultNew();
     }
 };
 

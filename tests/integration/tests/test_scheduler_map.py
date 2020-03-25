@@ -1207,13 +1207,10 @@ print('{interrupt=43};')"
         op = map(
             in_="//tmp/t_input",
             out="<sorted_by=[key]>//tmp/t_output" if with_output_schema else "//tmp/t_output",
-            command="cat; sleep $((5 - $YT_JOB_INDEX)); echo stderr 1>&2",
+            command="cat; sleep $(($RANDOM % 5)); echo stderr 1>&2",
             ordered=True,
             spec={"job_count": 5})
 
-        jobs = get(op.get_path() + "/jobs/@count")
-
-        assert jobs == 5
         if with_output_schema:
             assert get("//tmp/t_output/@sorted")
             assert get("//tmp/t_output/@sorted_by") == ["key"]

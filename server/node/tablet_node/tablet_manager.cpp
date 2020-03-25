@@ -1337,7 +1337,7 @@ private:
         });
 
         if (mountRevision != tablet->GetMountRevision()) {
-            YT_LOG_DEBUG("Mount revision changed during mutation batch; has tablet been forcefully unmounted? "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Mount revision mismatch; write ignored "
                 "(%v, TransactionId: %v, MutationMountRevision: %llx, CurrentMountRevision: %llx)",
                 tablet->GetLoggingId(),
                 transactionId,
@@ -1396,6 +1396,14 @@ private:
             }
 
             case EAtomicity::None: {
+                if (tablet->GetState() == ETabletState::Orphaned) {
+                    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet is orphaned; non-atomic write ignored "
+                        "(%v, TransactionId: %v)",
+                        tablet->GetLoggingId(),
+                        transactionId);
+                    return;
+                }
+
                 TWireProtocolReader reader(writeRecord.Data);
                 TWriteContext context;
                 context.Phase = EWritePhase::Commit;

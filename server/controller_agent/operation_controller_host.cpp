@@ -20,6 +20,128 @@ static const auto& Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateCompletedEvent(TOperationId operationId)
+{
+    return TAgentToSchedulerOperationEvent{
+        EAgentToSchedulerOperationEventType::Completed,
+        operationId
+    };
+}
+
+TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateSuspendedEvent(TOperationId operationId, TError error)
+{
+    return TAgentToSchedulerOperationEvent{
+        EAgentToSchedulerOperationEventType::Suspended,
+        operationId,
+        std::move(error)
+    };
+}
+
+TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateFailedEvent(TOperationId operationId, TError error)
+{
+    return TAgentToSchedulerOperationEvent{
+        EAgentToSchedulerOperationEventType::Failed,
+        operationId,
+        std::move(error)
+    };
+}
+
+TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateAbortedEvent(TOperationId operationId, TError error)
+{
+    return TAgentToSchedulerOperationEvent{
+        EAgentToSchedulerOperationEventType::Aborted,
+        operationId,
+        std::move(error)
+    };
+}
+
+TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateBannedInTentativeTreeEvent(
+    TOperationId operationId,
+    TString treeId,
+    std::vector<TJobId> jobIds)
+{
+    TAgentToSchedulerOperationEvent event{
+        EAgentToSchedulerOperationEventType::BannedInTentativeTree,
+        operationId,
+    };
+    event.TentativeTreeId = std::move(treeId);
+    event.TentativeTreeJobIds = std::move(jobIds);
+    return event;
+}
+
+TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyControllerActionFinishedEvent(
+    TOperationId operationId,
+    TError error,
+    std::optional<TOperationControllerInitializeResult> maybeResult)
+{
+    TAgentToSchedulerOperationEvent event{
+        EAgentToSchedulerOperationEventType::InitializationFinished,
+        operationId,
+        std::move(error)
+    };
+    event.InitializeResult = maybeResult;
+    return event;
+}
+
+
+TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyControllerActionFinishedEvent(
+    TOperationId operationId,
+    TError error,
+    std::optional<TOperationControllerPrepareResult> maybeResult)
+{
+    TAgentToSchedulerOperationEvent event{
+        EAgentToSchedulerOperationEventType::PreparationFinished,
+        operationId,
+        std::move(error)
+    };
+    event.PrepareResult = maybeResult;
+    return event;
+}
+
+TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyControllerActionFinishedEvent(
+    TOperationId operationId,
+    TError error,
+    std::optional<TOperationControllerMaterializeResult> maybeResult)
+{
+    TAgentToSchedulerOperationEvent event{
+        EAgentToSchedulerOperationEventType::MaterializationFinished,
+        operationId,
+        std::move(error)
+    };
+    event.MaterializeResult = maybeResult;
+    return event;
+}
+
+TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyControllerActionFinishedEvent(
+    TOperationId operationId,
+    TError error,
+    std::optional<TOperationControllerReviveResult> maybeResult)
+{
+    TAgentToSchedulerOperationEvent event{
+        EAgentToSchedulerOperationEventType::RevivalFinished,
+        operationId,
+        std::move(error)
+    };
+    event.ReviveResult = maybeResult;
+    return event;
+}
+
+TAgentToSchedulerOperationEvent TAgentToSchedulerOperationEvent::CreateHeavyControllerActionFinishedEvent(
+    TOperationId operationId,
+    TError error,
+    std::optional<TOperationControllerCommitResult> maybeResult)
+{
+    TAgentToSchedulerOperationEvent event{
+        EAgentToSchedulerOperationEventType::CommitFinished,
+        operationId,
+        std::move(error)
+    };
+    event.CommitResult = maybeResult;
+    return event;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationControllerHost::TOperationControllerHost(
     TOperation* operation,
     IInvokerPtr cancelableControlInvoker,
@@ -227,22 +349,14 @@ const NJobAgent::TJobReporterPtr& TOperationControllerHost::GetJobReporter()
 
 void TOperationControllerHost::OnOperationCompleted()
 {
-    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
-        EAgentToSchedulerOperationEventType::Completed,
-        OperationId_,
-        {}
-    });
+    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateCompletedEvent(OperationId_));
     YT_LOG_DEBUG("Operation completion notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
 void TOperationControllerHost::OnOperationAborted(const TError& error)
 {
-    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
-        EAgentToSchedulerOperationEventType::Aborted,
-        OperationId_,
-        error
-    });
+    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateAbortedEvent(OperationId_, error));
     YT_LOG_DEBUG(error, "Operation abort notification enqueued (OperationId: %v)",
         OperationId_,
         error);
@@ -250,35 +364,24 @@ void TOperationControllerHost::OnOperationAborted(const TError& error)
 
 void TOperationControllerHost::OnOperationFailed(const TError& error)
 {
-    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
-        EAgentToSchedulerOperationEventType::Failed,
-        OperationId_,
-        error
-    });
+    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateFailedEvent(OperationId_, error));
     YT_LOG_DEBUG(error, "Operation failure notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
 void TOperationControllerHost::OnOperationSuspended(const TError& error)
 {
-    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
-        EAgentToSchedulerOperationEventType::Suspended,
-        OperationId_,
-        error
-    });
+    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateSuspendedEvent(OperationId_, error));
     YT_LOG_DEBUG(error, "Operation suspension notification enqueued (OperationId: %v)",
         OperationId_);
 }
 
 void TOperationControllerHost::OnOperationBannedInTentativeTree(const TString& treeId, const std::vector<TJobId>& jobIds)
 {
-    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent{
-        EAgentToSchedulerOperationEventType::BannedInTentativeTree,
+    OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateBannedInTentativeTreeEvent(
         OperationId_,
-        {},
         treeId,
-        jobIds
-    });
+        jobIds));
     YT_LOG_DEBUG("Operation tentative tree ban notification enqueued (OperationId: %v, TreeId: %v)",
         OperationId_,
         treeId);

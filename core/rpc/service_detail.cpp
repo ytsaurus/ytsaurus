@@ -158,7 +158,7 @@ public:
         return ReplyBus_;
     }
 
-    void Run(const TErrorOr<TLiteHandler>& handlerOrError)
+    void CheckAndRun(const TErrorOr<TLiteHandler>& handlerOrError)
     {
         if (!handlerOrError.IsOK()) {
             Reply(TError(handlerOrError));
@@ -170,8 +170,12 @@ public:
             return;
         }
 
-        auto wrappedHandler = BIND(&TServiceContext::DoRun, MakeStrong(this), handler);
-        GetInvoker()->Invoke(std::move(wrappedHandler));
+        Run(handler);
+    }
+
+    void Run(const TLiteHandler& handler)
+    {
+        GetInvoker()->Invoke(BIND(&TServiceContext::DoRun, MakeStrong(this), handler));
     }
 
     virtual void SubscribeCanceled(const TClosure& callback) override
@@ -505,7 +509,6 @@ private:
         if (IsRegistrable()) {
             Service_->UnregisterRequest(this);
         }
-
 
         if (RuntimeInfo_->Descriptor.StreamingEnabled) {
             static const auto FinalizedError = TError("Request finalized");
@@ -1213,8 +1216,8 @@ bool TServiceBase::TryAcquireRequestSemaphore(const TRuntimeMethodInfoPtr& runti
 {
     auto& semaphore = runtimeInfo->ConcurrencySemaphore;
     auto limit = runtimeInfo->Descriptor.ConcurrencyLimit;
+    auto current = semaphore.load(std::memory_order_relaxed);
     while (true) {
-        auto current = semaphore.load();
         if (current >= limit) {
             return false;
         }
@@ -1239,22 +1242,13 @@ void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
     }
     ScheduleRequestsLatch = true;
 
-    while (true) {
-        if (runtimeInfo->RequestQueue.IsEmpty()) {
-            break;
-        }
-
-        if (!TryAcquireRequestSemaphore(runtimeInfo)) {
-            break;
-        }
-
+    while (TryAcquireRequestSemaphore(runtimeInfo)) {
         TServiceContextPtr context;
-        if (runtimeInfo->RequestQueue.Dequeue(&context)) {
-            RunRequest(std::move(context));
+        if (!runtimeInfo->RequestQueue.Dequeue(&context)) {
+            ReleaseRequestSemaphore(runtimeInfo);
             break;
         }
-
-        ReleaseRequestSemaphore(runtimeInfo);
+        RunRequest(std::move(context));
     }
 
     ScheduleRequestsLatch = false;
@@ -1268,7 +1262,7 @@ void TServiceBase::RunRequest(const TServiceContextPtr& context)
         runtimeInfo->Descriptor.HeavyHandler
             .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
             .Run(context, options)
-            .Subscribe(BIND(&TServiceContext::Run, context));
+            .Subscribe(BIND(&TServiceContext::CheckAndRun, context));
     } else {
         context->Run(runtimeInfo->Descriptor.LiteHandler);
     }

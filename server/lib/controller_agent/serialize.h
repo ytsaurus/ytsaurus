@@ -25,6 +25,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobHasCompetitorsFlag)                (300231))
     ((RetainedJobsCoreInfoCount)            (300232))
     ((ControllerWritesJobArchive)           (300233))
+    ((SliceForeignChunks)                   (300234))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -68,6 +68,7 @@ TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodic
 
     TObjectServiceProxy proxy(connection->GetMasterChannelOrThrow(Config_->ReadFrom));
     auto batchReq = proxy.ExecuteBatch();
+    SetBalancingHeader(batchReq, connection->GetConfig(), GetMasterReadOptions());
     batchReq->SetUser(isPeriodicUpdate || Config_->AlwaysUseRefreshUser ? Config_->RefreshUser : key.User);
     batchReq->AddRequest(MakeCheckPermissionRequest(connection, key));
 
@@ -117,6 +118,16 @@ TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
         }));
 }
 
+NApi::TMasterReadOptions TPermissionCache::GetMasterReadOptions()
+{
+    return NApi::TMasterReadOptions{
+        Config_->ReadFrom,
+        Config_->ExpireAfterSuccessfulUpdateTime,
+        Config_->ExpireAfterFailedUpdateTime,
+        1
+    };
+}
+
 TObjectYPathProxy::TReqCheckPermissionPtr TPermissionCache::MakeCheckPermissionRequest(
     const IConnectionPtr& connection,
     const TPermissionKey& key)
@@ -127,15 +138,7 @@ TObjectYPathProxy::TReqCheckPermissionPtr TPermissionCache::MakeCheckPermissionR
     if (key.Columns) {
         ToProto(req->mutable_columns()->mutable_items(), *key.Columns);
     }
-    SetCachingHeader(
-        req,
-        connection->GetConfig(),
-        NApi::TMasterReadOptions{
-            NApi::EMasterChannelKind::Cache,
-            Config_->ExpireAfterSuccessfulUpdateTime,
-            Config_->ExpireAfterFailedUpdateTime,
-            1
-        });
+    SetCachingHeader(req, connection->GetConfig(), GetMasterReadOptions());
     NCypressClient::SetSuppressAccessTracking(req, true);
     return req;
 }

@@ -16,6 +16,23 @@ TString GetCryptoHash(TStringBuf secret)
         .GetHexDigestLower();
 }
 
+TString FormatUserIP(const NNet::TNetworkAddress& address)
+{
+    if (!address.IsIP()) {
+        // Sometimes userIP is missing (e.g. user is connecting
+        // from job using unix socket), but it is required by
+        // blackbox. Put placeholder in place of a real IP.
+        static const TString LocalUserIP = "127.0.0.1";
+        return LocalUserIP;
+    }
+    return ToString(
+        address,
+        NNet::TNetworkAddressFormatOptions{
+            .IncludePort = false,
+            .IncludeTcpProtocol = false
+        });
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const THashSet<TString> PrivateUrlParams{

@@ -42,8 +42,7 @@ public:
         TSlotLocationPtr location,
         IJobEnvironmentPtr environment,
         IVolumeManagerPtr volumeManager,
-        const TString& nodeTag,
-        const std::optional<TString>& jobProxySocketNameDirectory)
+        const TString& nodeTag)
         : SlotIndex_(slotIndex)
         , JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
@@ -52,13 +51,6 @@ public:
         , JobProxyUnixDomainSocketPath_(GetJobProxyUnixDomainSocketPath())
     {
         Location_->IncreaseSessionCount();
-
-        if (jobProxySocketNameDirectory) {
-            auto filePath = Format("%v/%v", *jobProxySocketNameDirectory, JobEnvironment_->GetUserId(slotIndex));
-            TFile file(filePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-            TUnbufferedFileOutput fileOutput(file);
-            fileOutput << JobProxyUnixDomainSocketPath_ << Endl;
-        }
     }
 
     virtual void CleanProcesses() override
@@ -90,8 +82,10 @@ public:
         TOperationId operationId) override
     {
         return RunPrepareAction<void>([&] {
-                auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
-                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config")
+                {
+                    auto error = WaitFor(Location_->MakeConfig(SlotIndex_, ConvertToNode(config)));
+                    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to create job proxy config");
+                }
 
                 return JobEnvironment_->RunJobProxy(
                     SlotIndex_,
@@ -260,16 +254,14 @@ ISlotPtr CreateSlot(
     TSlotLocationPtr location,
     IJobEnvironmentPtr environment,
     IVolumeManagerPtr volumeManager,
-    const TString& nodeTag,
-    const std::optional<TString>& jobProxySocketNameDirectory)
+    const TString& nodeTag)
 {
     auto slot = New<TSlot>(
         slotIndex,
         std::move(location),
         std::move(environment),
         std::move(volumeManager),
-        nodeTag,
-        jobProxySocketNameDirectory);
+        nodeTag);
 
     return slot;
 }

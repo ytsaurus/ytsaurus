@@ -32,6 +32,8 @@ struct ISchemalessChunkReader
     //! Returns #unreadRows to reader and builds data slice descriptors for read and unread data.
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor(
         TRange<NTableClient::TUnversionedRow> unreadRows) const = 0;
+
+    virtual const NChunkClient::TDataSliceDescriptor& GetCurrentReaderDescriptor() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessChunkReader)
@@ -84,6 +86,11 @@ struct ISchemalessMultiChunkReader
 
     //! Interrupts the reader, notifies the consumer via end of stream in Read() method.
     virtual void Interrupt() = 0;
+
+	//! Should be called only after successful call to #Read()
+    //! if caller wants to skip remaining rows from the current data slice.
+    //! To wait for readiness after this call, use #GetReadyEvent().
+    virtual void SkipCurrentReader() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchemalessMultiChunkReader)

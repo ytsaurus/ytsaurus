@@ -9,8 +9,8 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void WaitFor(
-    TAwaitable awaitable,
+void WaitUntilSet(
+    TFuture<void> future,
     IInvokerPtr invoker = GetCurrentInvoker());
 
 template <class T>
@@ -30,7 +30,7 @@ struct IScheduler
 
     //! Transfers control back to the scheduler and puts currently executing fiber
     //! into sleep until occurrence of an external event.
-    virtual void WaitFor(TAwaitable awaitable, IInvokerPtr invoker) = 0;
+    virtual void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker) = 0;
 
 };
 

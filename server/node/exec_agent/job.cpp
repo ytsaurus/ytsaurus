@@ -382,6 +382,17 @@ public:
         return JobPhase_;
     }
 
+    virtual int GetSlotIndex() const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!Slot_) {
+            return -1;
+        }
+
+        return Slot_->GetSlotIndex();
+    }
+
     virtual TNodeResources GetResourceUsage() const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -825,6 +836,16 @@ private:
                 return;
             }
         }
+        if (Config_->TestJobErrorTruncation) {
+            auto error = FromProto<TError>(jobResult.error());
+            if (!error.IsOK()) {
+                for (int index = 0; index < 10; ++index) {
+                    error.InnerErrors().push_back(TError("Test error " + ToString(index)));
+                }
+                ToProto(jobResult.mutable_error(), error);
+                YT_LOG_DEBUG(error, "TestJobErrorTruncation");
+            }
+        }
 
         {
             auto error = FromProto<TError>(jobResult.error());
@@ -1147,12 +1168,6 @@ private:
 
         auto error = FromProto<TError>(JobResult_->error());
 
-        if (!error.IsOK()) {
-            // NB: it is required to report error that occurred in some place different
-            // from OnJobFinished method.
-            ReportStatistics(TNodeJobReport().Error(error));
-        }
-
         if (error.IsOK()) {
             SetJobState(EJobState::Completed);
         } else if (IsFatalError(error)) {
@@ -1168,6 +1183,12 @@ private:
             } else {
                 SetJobState(EJobState::Failed);
             }
+        }
+
+        if (!error.IsOK()) {
+            // NB: it is required to report error that occurred in some place different
+            // from OnJobFinished method.
+            ReportStatistics(TNodeJobReport().Error(error));
         }
 
         YT_LOG_INFO(error, "Setting final job state (JobState: %v)", GetState());
@@ -1343,14 +1364,6 @@ private:
                 TTmpfsVolume tmpfsVolume;
                 tmpfsVolume.Size = tmpfsVolumeProto.size();
                 tmpfsVolume.Path = tmpfsVolumeProto.path();
-                options.TmpfsVolumes.push_back(tmpfsVolume);
-            }
-
-            // COMPAT(ignat).
-            if (options.TmpfsVolumes.empty() && userJobSpec.has_tmpfs_path()) {
-                TTmpfsVolume tmpfsVolume;
-                tmpfsVolume.Size = userJobSpec.tmpfs_size();
-                tmpfsVolume.Path = userJobSpec.tmpfs_path();
                 options.TmpfsVolumes.push_back(tmpfsVolume);
             }
 

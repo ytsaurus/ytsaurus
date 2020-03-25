@@ -26,6 +26,12 @@ message TSliceRequest
     optional TReadLimit lower_limit = 2;
     optional TReadLimit upper_limit = 3;
     optional int32 erasure_codec = 4;
+    optional int64 slice_data_weight = 5;
+    // If false, chunks are sliced by row indexes and
+    // lower_key and upper_key contain estimated values.
+    // If true, chunks are sliced by key, each slice contains the whole key
+    optional bool slice_by_keys = 6;
+    optional int32 key_column_count = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

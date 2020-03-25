@@ -14,13 +14,49 @@ namespace NYT::NControllerAgent {
 
 struct TAgentToSchedulerOperationEvent
 {
+    static TAgentToSchedulerOperationEvent CreateCompletedEvent(TOperationId operationId);
+    static TAgentToSchedulerOperationEvent CreateSuspendedEvent(TOperationId operationId, TError error);
+    static TAgentToSchedulerOperationEvent CreateFailedEvent(TOperationId operationId, TError error);
+    static TAgentToSchedulerOperationEvent CreateAbortedEvent(TOperationId operationId, TError error);
+    static TAgentToSchedulerOperationEvent CreateBannedInTentativeTreeEvent(
+        TOperationId operationId,
+        TString treeId,
+        std::vector<TJobId> jobIds);
+
+    static TAgentToSchedulerOperationEvent CreateHeavyControllerActionFinishedEvent(
+        TOperationId operationId,
+        TError error,
+        std::optional<TOperationControllerInitializeResult> maybeResult);
+    static TAgentToSchedulerOperationEvent CreateHeavyControllerActionFinishedEvent(
+        TOperationId operationId,
+        TError error,
+        std::optional<TOperationControllerPrepareResult> maybeResult);
+    static TAgentToSchedulerOperationEvent CreateHeavyControllerActionFinishedEvent(
+        TOperationId operationId,
+        TError error,
+        std::optional<TOperationControllerMaterializeResult> maybeResult);
+    static TAgentToSchedulerOperationEvent CreateHeavyControllerActionFinishedEvent(
+        TOperationId operationId,
+        TError error,
+        std::optional<TOperationControllerReviveResult> maybeResult);
+    static TAgentToSchedulerOperationEvent CreateHeavyControllerActionFinishedEvent(
+        TOperationId operationId,
+        TError error,
+        std::optional<TOperationControllerCommitResult> maybeResult);
+
     NScheduler::EAgentToSchedulerOperationEventType EventType;
     TOperationId OperationId;
     TError Error;
     TString TentativeTreeId;
     std::vector<TJobId> TentativeTreeJobIds;
+    std::optional<TOperationControllerInitializeResult> InitializeResult;
+    std::optional<TOperationControllerPrepareResult> PrepareResult;
+    std::optional<TOperationControllerMaterializeResult> MaterializeResult;
+    std::optional<TOperationControllerReviveResult> ReviveResult;
+    std::optional<TOperationControllerCommitResult> CommitResult;
 };
 
+// TODO(eshcherbin): Add static CreateXXXEvent methods as in TAgentToSchedulerOperationEvent.
 struct TAgentToSchedulerJobEvent
 {
     NScheduler::EAgentToSchedulerJobEventType EventType;

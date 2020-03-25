@@ -1,13 +1,12 @@
 #include "bootstrap.h"
 
-#include "clickhouse.h"
 #include "config.h"
 #include "coordinator.h"
 #include "api.h"
 #include "http_authenticator.h"
 #include "private.h"
 
-#include <yt/build/build.h>
+#include <yt/server/http_proxy/clickhouse/handler.h>
 
 #include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/connection.h>
@@ -24,6 +23,7 @@
 #include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/client/driver/driver.h>
+#include <yt/client/driver/config.h>
 
 #include <yt/core/bus/tcp/server.h>
 
@@ -47,6 +47,8 @@
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
+
+#include <yt/build/build.h>
 
 namespace NYT::NHttpProxy {
 
@@ -72,7 +74,11 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
 {
-    WarnForUnrecognizedOptions(Logger, Config_);
+    if (Config_->AbortOnUnrecognizedOptions) {
+        AbortOnUnrecognizedOptions(Logger, Config_);
+    } else {
+        WarnForUnrecognizedOptions(Logger, Config_);
+    }
 
     Control_ = New<TActionQueue>("Control");
     Poller_ = CreateThreadPoolPoller(Config_->ThreadCount, "Poller");
@@ -127,7 +133,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     DiscoverVersionsHandlerV1_ = New<TDiscoverVersionsHandlerV1>(Connection_, RootClient_, Config_->Coordinator);
     DiscoverVersionsHandlerV2_ = New<TDiscoverVersionsHandlerV2>(Connection_, RootClient_, Config_->Coordinator);
 
-    ClickHouseHandler_ = New<TClickHouseHandler>(this);
+    ClickHouseHandler_ = New<NClickHouse::TClickHouseHandler>(this);
 
     auto driverV3Config = CloneNode(Config_->Driver);
     driverV3Config->AsMap()->AddChild("api_version", ConvertToNode<i64>(3));
@@ -168,12 +174,6 @@ void TBootstrap::SetupClients()
         TClientOptions options;
         options.PinnedUser = NSecurityClient::RootUserName;
         RootClient_ = Connection_->CreateClient(options);
-    }
-
-    {
-        TClientOptions options;
-        options.PinnedUser = ClickHouseUserName;
-        ClickHouseClient_ = Connection_->CreateClient(options);
     }
 }
 
@@ -258,11 +258,6 @@ const ITokenAuthenticatorPtr& TBootstrap::GetTokenAuthenticator() const
 const IPollerPtr& TBootstrap::GetPoller() const
 {
     return Poller_;
-}
-
-const NApi::IClientPtr& TBootstrap::GetClickHouseClient() const
-{
-    return ClickHouseClient_;
 }
 
 const TApiPtr& TBootstrap::GetApi() const

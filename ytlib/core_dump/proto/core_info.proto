@@ -10,6 +10,11 @@ message TCoreInfo
     required string executable_name = 2;
     optional uint64 size = 3;
     optional NYT.NProto.TError error = 4;
+    required int32 core_index = 5;
+    optional int32 thread_id = 6;
+    optional int32 signal = 7;
+    optional string container = 8;
+    optional string datetime = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

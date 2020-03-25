@@ -47,6 +47,7 @@ public:
         RegisterParameter("directory", Directory);
         RegisterParameter("update_period", UpdatePeriod)
             .Default(TDuration::Seconds(30));
+
         RegisterParameter("ban_timeout", BanTimeout)
             .Default(TDuration::Seconds(60));
         RegisterParameter("transaction_timeout", TransactionTimeout)

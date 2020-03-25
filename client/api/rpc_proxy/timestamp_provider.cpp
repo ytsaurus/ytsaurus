@@ -6,18 +6,21 @@
 
 namespace NYT::NApi::NRpcProxy {
 
+using namespace NTransactionClient;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTimestampProvider
-    : public NTransactionClient::TTimestampProviderBase
+    : public TTimestampProviderBase
 {
 public:
     TTimestampProvider(
         IChannelPtr channel,
-        TDuration rpcTimeout)
-        : Channel_(std::move(channel))
+        TDuration rpcTimeout,
+        TDuration latestTimestampUpdatePeriod)
+        : TTimestampProviderBase(latestTimestampUpdatePeriod)
+        , Channel_(std::move(channel))
         , RpcTimeout_(rpcTimeout)
     { }
 
@@ -43,11 +46,13 @@ private:
 
 NTransactionClient::ITimestampProviderPtr CreateTimestampProvider(
     IChannelPtr channel,
-    TDuration rpcTimeout)
+    TDuration rpcTimeout,
+    TDuration latestTimestampUpdatePeriod)
 {
     return New<TTimestampProvider>(
         std::move(channel),
-        rpcTimeout);
+        rpcTimeout,
+        latestTimestampUpdatePeriod);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

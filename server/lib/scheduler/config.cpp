@@ -140,6 +140,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         // Effectively disabled.
         .Default(1.0);
 
+    RegisterParameter("enable_by_user_profiling", EnableByUserProfiling)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
@@ -194,8 +197,8 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("default_tentative_pool_trees", DefaultTentativePoolTrees)
         .Default();
 
-    RegisterParameter("best_tree_heuristic_regularization_value", BestTreeHeuristicRegularizationValue)
-        .Default(1.0);
+    RegisterParameter("enable_schedule_in_single_tree", EnableScheduleInSingleTree)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -517,6 +520,9 @@ TSchedulerBootstrapConfig::TSchedulerBootstrapConfig()
             .BeginMap()
             .EndMap()
             ->AsMap());
+
+    RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+        .Default(false);
 
     RegisterPreprocessor([&] () {
         ResponseKeeper->EnableWarmup = false;

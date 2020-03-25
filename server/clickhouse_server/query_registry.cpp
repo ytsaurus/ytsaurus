@@ -3,6 +3,7 @@
 #include "query_context.h"
 #include "private.h"
 #include "config.h"
+#include "helpers.h"
 
 #include <yt/core/ytree/ypath_service.h>
 #include <yt/core/ytree/fluent.h>
@@ -22,30 +23,7 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 
-static const auto& Logger = ServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TUserStatusSnapshot
-{
-    std::vector<const DB::QueryStatusInfo*> QueryStatuses;
-    i64 TotalMemoryUsage = 0;
-    // TODO(max42): expose peak memory usage from process list.
-
-    void AddQueryStatus(const DB::QueryStatusInfo* queryStatus)
-    {
-        QueryStatuses.push_back(queryStatus);
-        TotalMemoryUsage += queryStatus->memory_usage;
-    }
-};
-
-void Serialize(const TUserStatusSnapshot& snapshot, IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("total_memory_usage").Value(snapshot.TotalMemoryUsage)
-        .EndMap();
-}
+static const auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,47 +34,50 @@ class TProcessListSnapshot
 public:
     TProcessListSnapshot(const DB::ProcessList& processList)
     {
-        auto queryStatuses = processList.getInfo(true, true, true);
+        auto queryStatusInfos = processList.getInfo(true, true, true);
         // NB: reservation is important for stored pointers not to invalidate.
-        QueryStatuses_.reserve(queryStatuses.size());
-        for (auto& queryStatus : queryStatuses) {
-            const auto& queryIdString = queryStatus.client_info.current_query_id;
-            const auto& user = queryStatus.client_info.current_user;
+        QueryStatusInfos_.reserve(queryStatusInfos.size());
+        for (auto& queryStatusInfo : queryStatusInfos) {
+            const auto& queryIdString = queryStatusInfo.client_info.current_query_id;
+            const auto& user = queryStatusInfo.client_info.current_user;
             TQueryId queryId;
             if (!TQueryId::FromString(queryIdString, &queryId)) {
-                YT_LOG_DEBUG("Process list contains query without proper YT query id, skipping it in query registry (QueryId: %v)", queryIdString);
+                YT_LOG_DEBUG("Process list contains query without proper YT query id, skipping it in query registry (QueryId: %v, User: %v)", queryIdString, user);
             }
-            QueryStatuses_.emplace_back(std::move(queryStatus));
-            QueryIdToQueryStatus_[queryId] = &QueryStatuses_.back();
-            UserToUserStatusSnapshot_[user].AddQueryStatus(&QueryStatuses_.back());
+            QueryStatusInfos_.emplace_back(std::move(queryStatusInfo));
+            QueryIdToQueryStatusInfo_[queryId] = &QueryStatusInfos_.back();
         }
-        YT_LOG_DEBUG("Process list snapshot built (QueryStatusCount: %v, UserCount: %v)", QueryStatuses_.size(), UserToUserStatusSnapshot_.size());
+
+        auto userToProcessListForUserInfo = processList.getUserInfo(true);
+        UserToProcessListForUserInfo_.insert(userToProcessListForUserInfo.begin(), userToProcessListForUserInfo.end());
+
+        YT_LOG_DEBUG("Process list snapshot built (QueryCount: %v, UserCount: %v)", QueryStatusInfos_.size(), UserToProcessListForUserInfo_.size());
     }
 
     TProcessListSnapshot() = default;
 
-    const DB::QueryStatusInfo* FindQueryStatusByQueryId(const TQueryId& queryId) const
+    const DB::QueryStatusInfo* FindQueryStatusInfoByQueryId(const TQueryId& queryId) const
     {
-        auto it = QueryIdToQueryStatus_.find(queryId);
-        if (it != QueryIdToQueryStatus_.end()) {
+        auto it = QueryIdToQueryStatusInfo_.find(queryId);
+        if (it != QueryIdToQueryStatusInfo_.end()) {
             return it->second;
         }
         return nullptr;
     }
 
-    const TUserStatusSnapshot* FindUserStatusSnapshotByUser(const TString& user) const
+    const DB::ProcessListForUserInfo* FindProcessListForUserInfoByUser(const TString& user) const
     {
-        auto it = UserToUserStatusSnapshot_.find(user);
-        if (it != UserToUserStatusSnapshot_.end()) {
+        auto it = UserToProcessListForUserInfo_.find(user);
+        if (it != UserToProcessListForUserInfo_.end()) {
             return &it->second;
         }
         return nullptr;
     }
 
 private:
-    std::vector<DB::QueryStatusInfo> QueryStatuses_;
-    THashMap<TQueryId, const DB::QueryStatusInfo*> QueryIdToQueryStatus_;
-    THashMap<TString, TUserStatusSnapshot> UserToUserStatusSnapshot_;
+    std::vector<DB::QueryStatusInfo> QueryStatusInfos_;
+    THashMap<TQueryId, const DB::QueryStatusInfo*> QueryIdToQueryStatusInfo_;
+    THashMap<TString, DB::ProcessListForUserInfo> UserToProcessListForUserInfo_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,6 +89,9 @@ public:
     int RunningSecondaryQueryCount = 0;
     int HistoricalInitialQueryCount = 0;
     int HistoricalSecondaryQueryCount = 0;
+
+    TEnumIndexedVector<EQueryPhase, int> PerPhaseRunningInitialQueryCount;
+    TEnumIndexedVector<EQueryPhase, int> PerPhaseRunningSecondaryQueryCount;
 
     NProfiling::TTagId TagId;
 
@@ -122,7 +106,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void Serialize(const TUserProfilingEntry& userInfo, IYsonConsumer* consumer, const TUserStatusSnapshot* userStatusSnapshot)
+void Serialize(const TUserProfilingEntry& userInfo, IYsonConsumer* consumer, const DB::ProcessListForUserInfo* processListForUserInfo)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -130,7 +114,7 @@ void Serialize(const TUserProfilingEntry& userInfo, IYsonConsumer* consumer, con
             .Item("running_secondary_query_count").Value(userInfo.RunningSecondaryQueryCount)
             .Item("historical_initial_query_count").Value(userInfo.HistoricalInitialQueryCount)
             .Item("historical_secondary_query_count").Value(userInfo.HistoricalSecondaryQueryCount)
-            .Item("user_status").Value(userStatusSnapshot)
+            .Item("process_list_for_user_info").Value(processListForUserInfo)
         .EndMap();
 }
 
@@ -208,7 +192,12 @@ public:
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::UpdateProcessListSnapshot, MakeWeak(this)),
             Bootstrap_->GetConfig()->ProcessListSnapshotUpdatePeriod))
-    { }
+        , QueryRegistryProfiler_(ClickHouseYtProfiler.AppendPath("/query_registry"))
+    {
+        for (const auto& queryPhase : TEnumTraits<EQueryPhase>::GetDomainValues()) {
+            QueryPhaseToProfilingTagId_[queryPhase] = NProfiling::TProfileManager::Get()->RegisterTag("query_phase", FormatEnum(queryPhase));
+        }
+    }
 
     void Start()
     {
@@ -236,10 +225,12 @@ public:
             case EQueryKind::InitialQuery:
                 ++userProfilingEntry.HistoricalInitialQueryCount;
                 ++userProfilingEntry.RunningInitialQueryCount;
+                ++userProfilingEntry.PerPhaseRunningInitialQueryCount[queryContext->GetQueryPhase()];
                 break;
             case EQueryKind::SecondaryQuery:
                 ++userProfilingEntry.HistoricalSecondaryQueryCount;
                 ++userProfilingEntry.RunningSecondaryQueryCount;
+                ++userProfilingEntry.PerPhaseRunningSecondaryQueryCount[queryContext->GetQueryPhase()];
                 break;
             default:
                 YT_ABORT();
@@ -268,9 +259,11 @@ public:
         {
             case EQueryKind::InitialQuery:
                 --userProfilingEntry.RunningInitialQueryCount;
+                --userProfilingEntry.PerPhaseRunningInitialQueryCount[queryContext->GetQueryPhase()];
                 break;
             case EQueryKind::SecondaryQuery:
                 --userProfilingEntry.RunningSecondaryQueryCount;
+                --userProfilingEntry.PerPhaseRunningSecondaryQueryCount[queryContext->GetQueryPhase()];
                 break;
             default:
                 YT_ABORT();
@@ -283,6 +276,24 @@ public:
 
         if (QueryContexts_.empty()) {
             IdlePromise_.Set();
+        }
+    }
+
+    void AccountPhaseCounter(TQueryContext* queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
+    {
+        auto& userProfilingEntry = GetOrCrash(UserToUserProfilingEntry_, queryContext->User);
+
+        switch (queryContext->QueryKind) {
+            case EQueryKind::InitialQuery:
+                --userProfilingEntry.PerPhaseRunningInitialQueryCount[fromPhase];
+                ++userProfilingEntry.PerPhaseRunningInitialQueryCount[toPhase];
+                break;
+            case EQueryKind::SecondaryQuery:
+                --userProfilingEntry.PerPhaseRunningSecondaryQueryCount[fromPhase];
+                ++userProfilingEntry.PerPhaseRunningSecondaryQueryCount[toPhase];
+                break;
+            default:
+                YT_ABORT();
         }
     }
 
@@ -305,40 +316,72 @@ public:
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         for (const auto& [user, userProfilingInfo] : UserToUserProfilingEntry_) {
-            ServerProfiler.Enqueue(
+            QueryRegistryProfiler_.Enqueue(
                 "/running_initial_query_count",
                 userProfilingInfo.RunningInitialQueryCount,
                 EMetricType::Gauge,
                 {userProfilingInfo.TagId});
 
-            ServerProfiler.Enqueue(
+            QueryRegistryProfiler_.Enqueue(
                 "/running_secondary_query_count",
                 userProfilingInfo.RunningSecondaryQueryCount,
                 EMetricType::Gauge,
                 {userProfilingInfo.TagId});
 
-            ServerProfiler.Enqueue(
+            for (const auto& queryPhase : TEnumTraits<EQueryPhase>::GetDomainValues()) {
+                if (queryPhase == EQueryPhase::Finish) {
+                    // There will be no such queries.
+                    continue;
+                }
+
+                QueryRegistryProfiler_.Enqueue(
+                    "/running_initial_query_count_per_phase",
+                    userProfilingInfo.PerPhaseRunningInitialQueryCount[queryPhase],
+                    EMetricType::Gauge,
+                    {userProfilingInfo.TagId, QueryPhaseToProfilingTagId_[queryPhase]});
+
+                QueryRegistryProfiler_.Enqueue(
+                    "/running_secondary_query_count_per_phase",
+                    userProfilingInfo.PerPhaseRunningSecondaryQueryCount[queryPhase],
+                    EMetricType::Gauge,
+                    {userProfilingInfo.TagId, QueryPhaseToProfilingTagId_[queryPhase]});
+            }
+
+            QueryRegistryProfiler_.Enqueue(
                 "/historical_initial_query_count",
                 userProfilingInfo.HistoricalInitialQueryCount,
                 EMetricType::Counter,
                 {userProfilingInfo.TagId});
 
-            ServerProfiler.Enqueue(
+            QueryRegistryProfiler_.Enqueue(
                 "/historical_secondary_query_count",
                 userProfilingInfo.HistoricalSecondaryQueryCount,
                 EMetricType::Counter,
                 {userProfilingInfo.TagId});
 
-            i64 memoryUsage = 0;
-            if (const auto* userStatusSnapshot = ProcessListSnapshot_.FindUserStatusSnapshotByUser(user)) {
-                memoryUsage = userStatusSnapshot->TotalMemoryUsage;
-            }
+            if (const auto* processListForUserInfo = ProcessListSnapshot_.FindProcessListForUserInfoByUser(user)) {
+                QueryRegistryProfiler_.Enqueue(
+                    "/memory_usage",
+                    processListForUserInfo->memory_usage,
+                    EMetricType::Gauge,
+                    {userProfilingInfo.TagId});
 
-            ServerProfiler.Enqueue(
-                "/memory_usage",
-                memoryUsage,
-                EMetricType::Gauge,
-                {userProfilingInfo.TagId});
+                QueryRegistryProfiler_.Enqueue(
+                    "/peak_memory_usage",
+                    processListForUserInfo->peak_memory_usage,
+                    EMetricType::Gauge,
+                    {userProfilingInfo.TagId});
+
+                for (int index = 0; index < static_cast<int>(ProfileEvents::end()); ++index) {
+                    const auto* name = ProfileEvents::getName(index);
+                    auto value = (*processListForUserInfo->profile_counters)[index].load(std::memory_order::memory_order_relaxed);
+                    ClickHouseNativeProfiler.Enqueue(
+                        "/user_profile_events/" + CamelCaseToUnderscoreCase(TString(name)),
+                        value,
+                        EMetricType::Counter,
+                        {userProfilingInfo.TagId});
+                }
+            }
         }
     }
 
@@ -378,6 +421,10 @@ private:
 
     TPeriodicExecutorPtr ProcessListSnapshotExecutor_;
 
+    TEnumIndexedVector<EQueryPhase, NProfiling::TTagId> QueryPhaseToProfilingTagId_;
+
+    TProfiler QueryRegistryProfiler_;
+
     void BuildYson(IYsonConsumer* consumer) const
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
@@ -387,12 +434,12 @@ private:
             .Item("running_queries").DoMapFor(QueryContexts_, [&] (TFluentMap fluent, const TQueryContext* queryContext) {
                 const auto& queryId = queryContext->QueryId;
                 fluent
-                    .Item(ToString(queryId)).Value(*queryContext, ProcessListSnapshot_.FindQueryStatusByQueryId(queryId));
+                    .Item(ToString(queryId)).Value(*queryContext, ProcessListSnapshot_.FindQueryStatusInfoByQueryId(queryId));
             })
             .Item("users").DoMapFor(UserToUserProfilingEntry_, [&] (TFluentMap fluent, const auto& pair) {
                 const auto& [user, userProfilingEntry] = pair;
                 fluent
-                    .Item(user).Value(userProfilingEntry, ProcessListSnapshot_.FindUserStatusSnapshotByUser(user));
+                    .Item(user).Value(userProfilingEntry, ProcessListSnapshot_.FindProcessListForUserInfoByUser(user));
             })
             .EndMap();
     }
@@ -425,6 +472,11 @@ void TQueryRegistry::Register(TQueryContext* queryContext)
 void TQueryRegistry::Unregister(TQueryContext* queryContext)
 {
     Impl_->Unregister(queryContext);
+}
+
+void TQueryRegistry::AccountPhaseCounter(TQueryContext* queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
+{
+    Impl_->AccountPhaseCounter(queryContext, fromPhase, toPhase);
 }
 
 size_t TQueryRegistry::GetQueryCount() const

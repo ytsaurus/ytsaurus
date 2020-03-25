@@ -8,8 +8,11 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkReaderMemoryManagerOptions::TChunkReaderMemoryManagerOptions(i64 bufferSize)
+TChunkReaderMemoryManagerOptions::TChunkReaderMemoryManagerOptions(
+    i64 bufferSize,
+    NProfiling::TTagIdList profilingTagList)
     : BufferSize(bufferSize)
+    , ProfilingTagList(std::move(profilingTagList))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,6 +25,7 @@ TChunkReaderMemoryManager::TChunkReaderMemoryManager(
     , PrefetchMemorySize_(Options_.BufferSize)
     , AsyncSemaphore_(New<TAsyncSemaphore>(Options_.BufferSize))
     , HostMemoryManager_(std::move(hostMemoryManager))
+    , ProfilingTagList_(std::move(options.ProfilingTagList))
 { }
 
 i64 TChunkReaderMemoryManager::GetRequiredMemorySize() const
@@ -61,6 +65,11 @@ void TChunkReaderMemoryManager::SetReservedMemorySize(i64 size)
 {
     ReservedMemorySize_ = size;
     AsyncSemaphore_->SetTotal(ReservedMemorySize_);
+}
+
+const NProfiling::TTagIdList& TChunkReaderMemoryManager::GetProfilingTagList() const
+{
+    return ProfilingTagList_;
 }
 
 TMemoryUsageGuardPtr TChunkReaderMemoryManager::Acquire(i64 size)

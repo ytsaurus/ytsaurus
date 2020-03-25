@@ -195,9 +195,10 @@ protected:
 
             auto connectionCount = TTcpDispatcher::TImpl::Get()->GetCounters(clientNetwork)->ServerConnections.load();
             auto connectionLimit = Config_->MaxSimultaneousConnections;
+            auto formattedClientAddress = ToString(clientAddress, NNet::TNetworkAddressFormatOptions{.IncludePort = false});
             if (connectionCount >= connectionLimit) {
                 YT_LOG_WARNING("Connection dropped (Address: %v, ConnectionCount: %v, ConnectionLimit: %v)",
-                    ToString(clientAddress, false),
+                    formattedClientAddress,
                     connectionCount,
                     connectionLimit);
                 close(clientSocket);
@@ -205,7 +206,7 @@ protected:
             } else {
                 YT_LOG_DEBUG("Connection accepted (ConnectionId: %v, Address: %v, Network: %v, ConnectionCount: %v, ConnectionLimit: %v)",
                     connectionId,
-                    ToString(clientAddress, false),
+                    formattedClientAddress,
                     clientNetwork,
                     connectionCount,
                     connectionLimit);

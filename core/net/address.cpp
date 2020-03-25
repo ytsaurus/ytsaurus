@@ -191,6 +191,11 @@ bool TNetworkAddress::IsUnix() const
     return Storage.ss_family == AF_UNIX;
 }
 
+bool TNetworkAddress::IsIP() const
+{
+    return IsIP4() || IsIP6();
+}
+
 bool TNetworkAddress::IsIP4() const
 {
     return Storage.ss_family == AF_INET;
@@ -342,61 +347,7 @@ TNetworkAddress TNetworkAddress::Parse(TStringBuf address)
     return TryParse(address).ValueOrThrow();
 }
 
-TString TNetworkAddress::FormatIP(bool withPort) const
-{
-    const void* ipAddr;
-    int port = 0;
-    bool ipv6 = false;
-    switch (GetSockAddr()->sa_family) {
-        case AF_INET: {
-            const auto* typedAddr = reinterpret_cast<const sockaddr_in*>(GetSockAddr());
-            ipAddr = &typedAddr->sin_addr;
-            port = typedAddr->sin_port;
-            break;
-        }
-        case AF_INET6: {
-            const auto* typedAddr = reinterpret_cast<const sockaddr_in6*>(GetSockAddr());
-            ipAddr = &typedAddr->sin6_addr;
-            port = typedAddr->sin6_port;
-            ipv6 = true;
-            break;
-        }
-        default: {
-            THROW_ERROR_EXCEPTION("Invalid address type");
-        }
-    }
-
-    std::array<char, 256> buffer;
-    if (!inet_ntop(
-        GetSockAddr()->sa_family,
-        const_cast<void*>(ipAddr),
-        buffer.data(),
-        buffer.size()))
-    {
-        THROW_ERROR_EXCEPTION("Failed to format IP address");
-    }
-
-    TString result;
-
-    if (ipv6 && withPort) {
-        result.append('[');
-    }
-
-    result.append(buffer.data());
-
-    if (ipv6 && withPort) {
-        result.append(']');
-    }
-
-    if (withPort) {
-        result.append(':');
-        result.append(ToString(ntohs(port)));
-    }
-
-    return result;
-}
-
-TString ToString(const TNetworkAddress& address, bool withPort)
+TString ToString(const TNetworkAddress& address, const TNetworkAddressFormatOptions& options)
 {
     const auto& sockAddr = address.GetSockAddr();
 
@@ -438,34 +389,34 @@ TString ToString(const TNetworkAddress& address, bool withPort)
             return Format("unknown://family(%v)", sockAddr->sa_family);
     }
 
-    std::array<char, 256> buffer;
-    if (!inet_ntop(
+    std::array<char, std::max(INET6_ADDRSTRLEN, INET_ADDRSTRLEN)> buffer;
+    YT_VERIFY(inet_ntop(
         sockAddr->sa_family,
         const_cast<void*>(ipAddr),
         buffer.data(),
-        buffer.size()))
-    {
-        return "invalid://";
+        buffer.size()));
+
+    TStringBuilder result;
+    if (options.IncludeTcpProtocol) {
+        result.AppendString(AsStringBuf("tcp://"));
     }
 
-    TString result("tcp://");
-
-    if (ipv6) {
-        result.append('[');
+    bool withBrackets = ipv6 && (options.IncludeTcpProtocol || options.IncludePort);
+    if (withBrackets) {
+        result.AppendChar('[');
     }
 
-    result.append(buffer.data());
+    result.AppendString(buffer.data());
 
-    if (ipv6) {
-        result.append(']');
+    if (withBrackets) {
+        result.AppendChar(']');
     }
 
-    if (withPort) {
-        result.append(':');
-        result.append(ToString(ntohs(port)));
+    if (options.IncludePort) {
+        result.AppendFormat(":%v", ntohs(port));
     }
 
-    return result;
+    return result.Flush();
 }
 
 bool operator == (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
@@ -949,7 +900,7 @@ private:
 
     TDnsResolver DnsResolver_;
 
-    virtual TFuture<TNetworkAddress> DoGet(const TString& hostName, bool isPeriodicUpdate) override;
+    virtual TFuture<TNetworkAddress> DoGet(const TString& hostName, bool isPeriodicUpdate) noexcept override;
 
     const std::vector<TNetworkAddress>& GetLocalAddresses();
 };
@@ -989,7 +940,7 @@ TFuture<TNetworkAddress> TAddressResolver::TImpl::Resolve(const TString& hostNam
     return Get(hostName);
 }
 
-TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const TString& hostname, bool /*isPeriodicUpdate*/)
+TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const TString& hostname, bool /*isPeriodicUpdate*/) noexcept
 {
     return DnsResolver_
         .ResolveName(hostname, Config_->EnableIPv4, Config_->EnableIPv6)

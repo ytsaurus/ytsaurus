@@ -205,8 +205,11 @@ protected:
             sliceRequest.mutable_upper_limit()->CopyFrom(chunkSpec.upper_limit());
         }
         sliceRequest.set_erasure_codec(chunkSpec.erasure_codec());
+        sliceRequest.set_slice_data_weight(sliceDataWeight);
+        sliceRequest.set_key_column_count(keyColumnCount);
+        sliceRequest.set_slice_by_keys(sliceByKeys);
 
-        return NChunkClient::SliceChunk(sliceRequest, chunkSpec.chunk_meta(), sliceDataWeight, keyColumnCount, sliceByKeys);
+        return NChunkClient::SliceChunk(sliceRequest, chunkSpec.chunk_meta());
     }
 };
 

@@ -124,13 +124,13 @@ public:
     TFuture<void> UpdateOperationRuntimeParameters(
         TOperationId operationId,
         NScheduler::TOperationRuntimeParametersUpdatePtr update);
-    TFuture<TOperationControllerInitializeResult> InitializeOperation(
+    TFuture<std::optional<TOperationControllerInitializeResult>> InitializeOperation(
         const TOperationPtr& operation,
         const std::optional<TControllerTransactionIds>& transactions);
-    TFuture<TOperationControllerPrepareResult> PrepareOperation(const TOperationPtr& operation);
-    TFuture<TOperationControllerMaterializeResult> MaterializeOperation(const TOperationPtr& operation);
-    TFuture<TOperationControllerReviveResult> ReviveOperation(const TOperationPtr& operation);
-    TFuture<void> CommitOperation(const TOperationPtr& operation);
+    TFuture<std::optional<TOperationControllerPrepareResult>> PrepareOperation(const TOperationPtr& operation);
+    TFuture<std::optional<TOperationControllerMaterializeResult>> MaterializeOperation(const TOperationPtr& operation);
+    TFuture<std::optional<TOperationControllerReviveResult>> ReviveOperation(const TOperationPtr& operation);
+    TFuture<std::optional<TOperationControllerCommitResult>> CommitOperation(const TOperationPtr& operation);
     TFuture<void> CompleteOperation(const TOperationPtr& operation);
     TFuture<void> TerminateOperation(const TOperationPtr& operation, EControllerState controllerFinalState);
 

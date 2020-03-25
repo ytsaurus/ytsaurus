@@ -24,6 +24,8 @@ public:
     TDriverResponseHolder();
     virtual ~TDriverResponseHolder();
 
+    void Initialize();
+
     NYson::IFlushableYsonConsumer* GetResponseParametersConsumer() const;
     NYson::TYsonString GetResponseParametersYsonString() const;
     bool IsResponseParametersFinished() const;
@@ -31,12 +33,21 @@ public:
 
     void HoldInputStream(std::unique_ptr<IInputStream> inputStream);
     void HoldOutputStream(std::unique_ptr<IOutputStream>& outputStream);
+
+    static void OnBeforePythonFinalize();
+    static void OnAfterPythonFinalize();
+
 private:
+    std::atomic<bool> Initialized_ = {false};
+
     std::unique_ptr<IInputStream> InputStream_;
     std::unique_ptr<IOutputStream> OutputStream_;
     TBlobOutput ResponseParametersBlobOutput_;
     std::unique_ptr<NYson::IFlushableYsonConsumer> ResponseParametersYsonWriter_;
     std::atomic<bool> ResponseParametersFinished_ = {false};
+
+    static TSpinLock DesctructionSpinLock_;
+    static std::atomic<bool> ShuttingDown_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
