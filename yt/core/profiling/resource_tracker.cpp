@@ -3,6 +3,8 @@
 #include "profiler.h"
 #include "timing.h"
 
+#include <yt/core/logging/log.h>
+
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
 
@@ -31,6 +33,7 @@ DEFINE_REFCOUNTED_TYPE(TResourceTracker)
 
 static const TDuration UpdatePeriod = TDuration::Seconds(1);
 static TProfiler Profiler("/resource_tracker");
+static NLogging::TLogger Logger("Profiling");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +52,16 @@ i64 GetTicksPerSecond()
 
 // Please, refer to /proc documentation to know more about available information.
 // http://www.kernel.org/doc/Documentation/filesystems/proc.txt
+
+TResourceTracker::TTimings TResourceTracker::TTimings::operator+(const TResourceTracker::TTimings& other) const
+{
+    return {UserJiffies + other.UserJiffies, SystemJiffies + other.SystemJiffies, CpuWaitNsec + other.CpuWaitNsec};
+}
+
+TResourceTracker::TTimings TResourceTracker::TTimings::operator-(const TResourceTracker::TTimings& other) const
+{
+    return {UserJiffies - other.UserJiffies, SystemJiffies - other.SystemJiffies, CpuWaitNsec - other.CpuWaitNsec};
+}
 
 TResourceTracker::TResourceTracker(IInvokerPtr invoker)
     // CPU time is measured in jiffies; we need USER_HZ to convert them
@@ -69,34 +82,36 @@ void TResourceTracker::Start()
 
 void TResourceTracker::EnqueueUsage()
 {
+    YT_LOG_DEBUG("Resource tracker enqueue started");
+
     EnqueueMemoryUsage();
     EnqueueCpuUsage();
+
+    YT_LOG_DEBUG("Resource tracker enqueue finished ");
 }
 
-void TResourceTracker::EnqueueCpuUsage()
+TResourceTracker::TThreadMap TResourceTracker::ReadThreadStats()
 {
-    i64 timeDelta = TInstant::Now().MilliSeconds() - LastUpdateTime_.MilliSeconds();
-    if (timeDelta <= 0)
-        return;
-
-    TString procPath("/proc/self/task");
+    static constexpr auto procPath = "/proc/self/task";
 
     TDirsList dirsList;
     try {
         dirsList.Fill(procPath);
     } catch (const TSystemError&) {
         // Ignore all exceptions.
-        return;
+        return {};
     }
 
-    std::unordered_map<TString, std::tuple<i64, i64, i64>> threadStats;
+    TThreadMap tidToStats;
 
     for (int index = 0; index < dirsList.Size(); ++index) {
-        auto threadStatPath = NFS::CombinePaths(procPath, dirsList.Next());
+        auto tid = TString(dirsList.Next());
+        auto threadStatPath = NFS::CombinePaths(procPath, tid);
         auto cpuStatPath = NFS::CombinePaths(threadStatPath, "stat");
         auto schedStatPath = NFS::CombinePaths(threadStatPath, "schedstat");
 
-        std::vector<TString> fields, schedFields;
+        std::vector<TString> fields;
+        std::vector<TString> schedFields;
         try {
             TIFStream cpuStatFile(cpuStatPath);
             fields = SplitString(cpuStatFile.ReadLine(), " ");
@@ -115,56 +130,99 @@ void TResourceTracker::EnqueueCpuUsage()
         YT_VERIFY(fields[1].size() >= 2);
 
         auto threadName = fields[1].substr(1, fields[1].size() - 2);
-        i64 userJiffies = FromString<i64>(fields[13]); // In jiffies
-        i64 systemJiffies = FromString<i64>(fields[14]); // In jiffies
-        i64 cpuWait = FromString<i64>(schedFields[1]); // In nanoseconds
+        i64 userJiffies = FromString<i64>(fields[13]); // In jiffies.
+        i64 systemJiffies = FromString<i64>(fields[14]); // In jiffies.
+        i64 cpuWaitNsec = FromString<i64>(schedFields[1]); // In nanoseconds.
 
-        auto it = threadStats.find(threadName);
-        if (it == threadStats.end()) {
-            threadStats.emplace(threadName, std::make_tuple(userJiffies, systemJiffies, cpuWait));
-        } else {
-            std::get<0>(it->second) += userJiffies;
-            std::get<1>(it->second) += systemJiffies;
-            std::get<2>(it->second) += cpuWait;
-        }
+        YT_LOG_TRACE("Thread statistics (Tid: %v, ThreadName: %v, UserJiffies: %v, SystemJiffies: %v, CpuWaitNsec: %v)",
+            tid,
+            threadName,
+            userJiffies,
+            systemJiffies,
+            cpuWaitNsec);
+
+        tidToStats[tid] = TThreadStats{threadName, TTimings{userJiffies, systemJiffies, cpuWaitNsec}};
     }
 
-    double totalUserCpu = 0.0, totalSystemCpu = 0.0, totalWaitTime = 0.0;
-    for (const auto& stat : threadStats)
-    {
-        const auto& threadName = stat.first;
-        auto [userJiffies, systemJiffies, cpuWait] = stat.second;
- 
-        auto it = ThreadNameToJiffies_.find(threadName);
-        if (it != ThreadNameToJiffies_.end()) {
-            auto& jiffies = it->second;
-            double userCpuTime = 100. * std::max<i64>((userJiffies - jiffies.PreviousUser) * 1000 / TicksPerSecond_, 0) / timeDelta;
-            double systemCpuTime = 100. * std::max<i64>((systemJiffies - jiffies.PreviousSystem) * 1000 / TicksPerSecond_, 0) / timeDelta;
-            double waitTime = 100 * std::max<double>((cpuWait - jiffies.PreviousWait) / 1'000'000'000., 0.) * 1000 / timeDelta;
+    return tidToStats;
+}
 
-            totalUserCpu += userCpuTime;
-            totalSystemCpu += systemCpuTime;
-            totalWaitTime += waitTime;
+void TResourceTracker::EnqueueAggregatedTimings(
+    const TResourceTracker::TThreadMap& oldTidToStats,
+    const TResourceTracker::TThreadMap& newTidToStats,
+    i64 timeDeltaUsec)
+{
+    double totalUserCpuTime = 0.0;
+    double totalSystemCpuTime = 0.0;
+    double totalCpuWaitTime = 0.0;
 
-            TTagIdList tagIds;
-            tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", threadName));
+    THashMap<TString, TTimings> threadNameToAggregatedTimings;
 
-            Profiler.Enqueue("/user_cpu", userCpuTime, EMetricType::Gauge, tagIds);
-            Profiler.Enqueue("/system_cpu", systemCpuTime, EMetricType::Gauge, tagIds);
-            Profiler.Enqueue("/cpu_wait", waitTime, EMetricType::Gauge, tagIds);
+    // Consider only those threads which did not change their thread names.
+    // In each group of such threads with same thread name, export aggregated timings.
+
+    for (const auto& [tid, newStats] : newTidToStats) {
+        auto it = oldTidToStats.find(tid);
+
+        if (it == oldTidToStats.end()) {
+            continue;
         }
 
-        {
-            auto& jiffies = ThreadNameToJiffies_[threadName];
-            jiffies.PreviousUser = userJiffies;
-            jiffies.PreviousSystem = systemJiffies;
-            jiffies.PreviousWait = cpuWait;
+        const auto& oldStats = it->second;
+
+        if (oldStats.ThreadName != newStats.ThreadName) {
+            continue;
         }
+
+        threadNameToAggregatedTimings[newStats.ThreadName] = threadNameToAggregatedTimings[newStats.ThreadName] + (newStats.Timings - oldStats.Timings);
     }
 
-    LastUserCpu_.store(totalUserCpu);
-    LastSystemCpu_.store(totalSystemCpu);
-    LastCpuWait_.store(totalWaitTime);
+    for (const auto& [threadName, aggregatedTimings] : threadNameToAggregatedTimings) {
+        // Multiplier 1e6 / timeDelta is for taking average over time (all values should be "per second").
+        // Multiplier 100 for cpu time is for measuring cpu load in percents. It is due to historical reasons.
+        double userCpuTime = std::max<double>(0.0, 100. * aggregatedTimings.UserJiffies / TicksPerSecond_ * (1e6 / timeDeltaUsec));
+        double systemCpuTime = std::max<double>(0.0, 100. * aggregatedTimings.SystemJiffies / TicksPerSecond_ * (1e6 / timeDeltaUsec));
+        double waitTime = std::max<double>(0.0, 100 * aggregatedTimings.CpuWaitNsec / 1e9 * (1e6 / timeDeltaUsec));
+
+        totalUserCpuTime += userCpuTime;
+        totalSystemCpuTime += systemCpuTime;
+        totalCpuWaitTime += waitTime;
+
+        TTagIdList tagIds;
+        tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", threadName));
+
+        Profiler.Enqueue("/user_cpu", userCpuTime, EMetricType::Gauge, tagIds);
+        Profiler.Enqueue("/system_cpu", systemCpuTime, EMetricType::Gauge, tagIds);
+        Profiler.Enqueue("/cpu_wait", waitTime, EMetricType::Gauge, tagIds);
+
+        YT_LOG_TRACE("Thread cpu timings in percent/sec (ThreadName: %v, UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
+            threadName,
+            userCpuTime,
+            systemCpuTime,
+            waitTime);
+    }
+
+    LastUserCpu_.store(totalUserCpuTime);
+    LastSystemCpu_.store(totalSystemCpuTime);
+    LastCpuWait_.store(totalCpuWaitTime);
+
+    YT_LOG_DEBUG("Cpu timings in percent/sec (UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
+        totalUserCpuTime,
+        totalSystemCpuTime,
+        totalCpuWaitTime);
+}
+
+void TResourceTracker::EnqueueCpuUsage()
+{
+    i64 timeDeltaUsec = TInstant::Now().MicroSeconds() - LastUpdateTime_.MicroSeconds();
+    if (timeDeltaUsec <= 0) {
+        return;
+    }
+
+    auto tidToStats = ReadThreadStats();
+    EnqueueAggregatedTimings(TidToStats_, tidToStats, timeDeltaUsec);
+    TidToStats_ = tidToStats;
+
     LastUpdateTime_ = TInstant::Now();
 }
 
