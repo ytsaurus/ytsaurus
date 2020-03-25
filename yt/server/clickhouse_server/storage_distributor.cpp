@@ -427,7 +427,7 @@ private:
         const std::vector<std::string>& columnNames,
         const DB::Context& context)
     {
-        NTracing::TChildTraceContextGuard guard("ClickHouseYt.Prepare");
+        NTracing::TChildTraceContextGuard guard("ClickHouseYt.Prepare", /* forceTracing */ true);
         NTracing::GetCurrentTraceContext()->AddTag("chyt.subquery_count", ToString(subqueryCount));
         NTracing::GetCurrentTraceContext()->AddTag("chyt.column_names", Format("%v", MakeFormattableView(columnNames, TDefaultFormatter())));
 
