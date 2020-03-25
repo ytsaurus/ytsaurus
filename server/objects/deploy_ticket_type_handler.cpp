@@ -499,16 +499,28 @@ private:
         const std::vector<TObjectId>& patchIds,
         const TString& message,
         const TString& reason,
-        TTimestamp startTimestamp)
+        TTimestamp startTimestamp,
+        bool isFullCommit)
     {
         ValidatePatchStates(deployTicket, patchIds);
 
         const auto* release = deployTicket->Spec().Release().Load();
         auto* stage = deployTicket->Stage().Load();
 
+        auto patchesMessage = isFullCommit
+            ? Format("Parent %v: %v", reason, message)
+            : message;
+
         if (release->Spec().Etc().Load().has_sandbox()) {
             const auto& sandboxRelease = release->Spec().Etc().Load().sandbox();
-            ProcessStaticResources(deployTicket, stage, patchIds, sandboxRelease, message, reason, startTimestamp);
+            ProcessStaticResources(
+                deployTicket,
+                stage,
+                patchIds,
+                sandboxRelease,
+                patchesMessage,
+                reason,
+                startTimestamp);
 
         } else if (release->Spec().Etc().Load().has_docker()) {
             const auto& docker = release->Spec().Etc().Load().docker();
@@ -518,7 +530,7 @@ private:
                 patchIds,
                 docker.image_name(),
                 docker.image_tag(),
-                message,
+                patchesMessage,
                 reason,
                 startTimestamp);
 
@@ -528,6 +540,7 @@ private:
 
         if (!patchIds.empty()) {
             stage->Spec().Etc()->set_revision(stage->Spec().Etc()->revision() + 1);
+            stage->Spec().Etc()->mutable_revision_info()->set_description(message);
         }
     }
 
@@ -550,20 +563,25 @@ private:
         const std::vector<TObjectId>& patchIds,
         const TString& message,
         const TString& reason,
-        TTimestamp startTimestamp)
+        TTimestamp startTimestamp,
+        bool isFullSkip)
     {
         ValidatePatchStates(deployTicket, patchIds);
+
+        auto patchesMessage = isFullSkip
+            ? Format("Parent %v: %v", reason, message)
+            : message;
 
         for (const auto& patchId : patchIds) {
             YT_LOG_DEBUG("Deploy patch %v skipped (Message: %v)",
                 patchId,
-                message);
+                patchesMessage);
 
             deployTicket->UpdatePatchStatus(
                 patchId,
                 EDeployPatchActionType::Skip,
                 reason,
-                message,
+                patchesMessage,
                 startTimestamp);
         }
     }
@@ -594,7 +612,6 @@ private:
         ValidateTicketState(deployTicket);
 
         if (action.patch_selector().type() == EDeployTicketPatchSelectorType::Full) {
-            auto patchesMessage = Format("Parent %v: %v", action.reason(), action.message());
 
             YT_LOG_DEBUG("Deploy ticket %v starting fully %v (TicketTitle: %v, Message: %v)",
                 deployTicket->GetId(),
@@ -605,9 +622,10 @@ private:
             ticketAction(
                 deployTicket,
                 GetAlivePatches(deployTicket),
-                patchesMessage,
+                action.message(),
                 action.reason(),
-                startTimestamp);
+                startTimestamp,
+                true);
 
             deployTicket->UpdateTicketStatus(
                 actionType,
@@ -632,7 +650,9 @@ private:
                 patchIdsToAction,
                 action.message(),
                 action.reason(),
-                startTimestamp);
+                startTimestamp,
+                false);
+
         } else {
             THROW_ERROR_EXCEPTION("Ticket %Qv has none action type", deployTicket->GetId());
         }

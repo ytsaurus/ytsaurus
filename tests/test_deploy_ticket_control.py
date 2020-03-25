@@ -60,6 +60,9 @@ default_docker_resource = {"name": "default", "tag": "default"}
 def get_default_stage_spec():
     return {
         "revision": 1,
+        "revision_info": {
+            "description": "empty"
+        },
         "deploy_units": {
             deploy_unit: {
                 "replica_set": {
@@ -231,6 +234,9 @@ def prepare_docker_resources_objects(yp_client):
             "meta": {"id": "stage-id", "project_id": "project"},
             "spec": {
                 "revision": 1,
+                "revision_info": {
+                    "description": "empty"
+                },
                 "deploy_units": {
                     deploy_unit: {
                         "images_for_boxes": {
@@ -302,6 +308,7 @@ def check_all_states_after_sandbox_release(
     patch_action_state2,
     patch_action_state3,
     stage_revision,
+    commit_message
 ):
 
     ticket_action_result = yp_client.get_object(
@@ -335,8 +342,9 @@ def check_all_states_after_sandbox_release(
     assert patch_actions_result[1] == patch_action_state2
     assert patch_actions_result[2] == patch_action_state3
 
-    revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
-    assert revision == stage_revision
+    stage_revision_result = yp_client.get_object("stage", stage_id, selectors=["/spec/revision", "/spec/revision_info/description"])
+    assert stage_revision_result[0] == stage_revision
+    assert stage_revision_result[1] == commit_message
 
 
 def construct_static_resource_state(url, file_md5, resource_meta):
@@ -369,6 +377,7 @@ def check_all_states_after_docker_release(
     patch_action_state1,
     patch_action_state2,
     stage_revision,
+    commit_message,
 ):
 
     ticket_action_result = yp_client.get_object(
@@ -401,8 +410,9 @@ def check_all_states_after_docker_release(
     assert patch_actions_result[0] == patch_action_state1
     assert patch_actions_result[1] == patch_action_state2
 
-    revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
-    assert revision == stage_revision
+    stage_revision_result = yp_client.get_object("stage", stage_id, selectors=["/spec/revision", "/spec/revision_info/description"])
+    assert stage_revision_result[0] == stage_revision
+    assert stage_revision_result[1] == commit_message
 
 
 @pytest.mark.usefixtures("yp_env_configurable")
@@ -437,6 +447,7 @@ class TestCommitDeployTicket(object):
                 message="Parent COMMITTED: new commit"
             ),
             stage_revision=2,
+            commit_message="new commit",
         )
 
     def test_full_commit_with_inherit_acl(self, yp_env_configurable):
@@ -489,6 +500,7 @@ class TestCommitDeployTicket(object):
                 message="Parent COMMITTED: new commit"
             ),
             stage_revision=2,
+            commit_message="new commit",
         )
 
     def test_partial_commit(self, yp_env_configurable):
@@ -517,6 +529,7 @@ class TestCommitDeployTicket(object):
             patch_action_state2=default_action,
             patch_action_state3=default_action,
             stage_revision=2,
+            commit_message="new commit",
         )
 
     def test_full_commit_when_some_patches_already_committed(self, yp_env_configurable):
@@ -556,6 +569,7 @@ class TestCommitDeployTicket(object):
                 message="Parent COMMITTED: new commit"
             ),
             stage_revision=2,
+            commit_message="new commit",
         )
 
     def test_commit_patch_which_already_committed(self, yp_env_configurable):
@@ -594,7 +608,11 @@ class TestCommitDeployTicket(object):
             patch_action_state2=default_action,
             patch_action_state3=default_action,
             stage_revision=1,
+            commit_message="empty",
         )
+
+        revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
+        assert revision == 1
 
     def test_commit_ticket_which_already_committed(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -625,6 +643,7 @@ class TestCommitDeployTicket(object):
             patch_action_state2=default_action,
             patch_action_state3=default_action,
             stage_revision=1,
+            commit_message="empty",
         )
 
     def test_partial_commit_when_patch_id_does_not_exist(self, yp_env_configurable):
@@ -652,6 +671,7 @@ class TestCommitDeployTicket(object):
             patch_action_state2=default_action,
             patch_action_state3=default_action,
             stage_revision=1,
+            commit_message="empty",
         )
 
     def test_full_skip(self, yp_env_configurable):
@@ -681,6 +701,8 @@ class TestCommitDeployTicket(object):
 
         revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
         assert revision == 1
+        revision_message = yp_client.get_object("stage", stage_id, selectors=["/spec/revision_info/description"])[0]
+        assert revision_message == "empty"
 
     def test_partial_skip(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -713,6 +735,8 @@ class TestCommitDeployTicket(object):
 
         revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
         assert revision == 1
+        revision_message = yp_client.get_object("stage", stage_id, selectors=["/spec/revision_info/description"])[0]
+        assert revision_message == "empty"
 
     def test_full_skip_when_some_patches_already_skipped(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -752,6 +776,8 @@ class TestCommitDeployTicket(object):
 
         revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
         assert revision == 1
+        revision_message = yp_client.get_object("stage", stage_id, selectors=["/spec/revision_info/description"])[0]
+        assert revision_message == "empty"
 
     def test_skip_patch_which_already_has_terminal_state(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -796,6 +822,8 @@ class TestCommitDeployTicket(object):
 
         revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
         assert revision == 1
+        revision_message = yp_client.get_object("stage", stage_id, selectors=["/spec/revision_info/description"])[0]
+        assert revision_message == "empty"
 
     def test_skip_ticket_which_already_has_terminal_state(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -821,6 +849,8 @@ class TestCommitDeployTicket(object):
 
         revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
         assert revision == 1
+        revision_message = yp_client.get_object("stage", stage_id, selectors=["/spec/revision_info/description"])[0]
+        assert revision_message == "empty"
 
     def test_commit_when_deploy_unit_does_not_exist(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -856,6 +886,8 @@ class TestCommitDeployTicket(object):
 
         revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
         assert revision == 1
+        revision_message = yp_client.get_object("stage", stage_id, selectors=["/spec/revision_info/description"])[0]
+        assert revision_message == "empty"
 
     def test_commit_when_resource_id_does_not_exist(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -905,6 +937,8 @@ class TestCommitDeployTicket(object):
 
         revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
         assert revision == 1
+        revision_message = yp_client.get_object("stage", stage_id, selectors=["/spec/revision_info/description"])[0]
+        assert revision_message == "empty"
 
     def test_commit_when_resource_type_from_patch_does_not_exist_in_release(
         self, yp_env_configurable
@@ -949,6 +983,8 @@ class TestCommitDeployTicket(object):
 
         revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
         assert revision == 1
+        revision_message = yp_client.get_object("stage", stage_id, selectors=["/spec/revision_info/description"])[0]
+        assert revision_message == "empty"
 
     def test_full_docker_resources_commit(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
@@ -968,6 +1004,7 @@ class TestCommitDeployTicket(object):
             patch_action_state1=construct_commit_action_state("Parent COMMITTED: new commit"),
             patch_action_state2=construct_commit_action_state("Parent COMMITTED: new commit"),
             stage_revision=2,
+            commit_message="new commit",
         )
 
     def test_full_docker_resources_commit_when_some_patches_already_committed(
@@ -1001,6 +1038,7 @@ class TestCommitDeployTicket(object):
             patch_action_state1=construct_commit_action_state("old commit"),
             patch_action_state2=construct_commit_action_state("Parent COMMITTED: new commit"),
             stage_revision=2,
+            commit_message="new commit",
         )
 
     def test_full_docker_resources_commit_when_ticket_already_committed(self, yp_env_configurable):
@@ -1030,6 +1068,7 @@ class TestCommitDeployTicket(object):
             patch_action_state1=default_action,
             patch_action_state2=default_action,
             stage_revision=1,
+            commit_message="empty",
         )
 
     def test_full_docker_resources_commit_when_deploy_unit_does_not_exist(
@@ -1066,6 +1105,7 @@ class TestCommitDeployTicket(object):
             patch_action_state1=default_action,
             patch_action_state2=default_action,
             stage_revision=1,
+            commit_message="empty",
         )
 
     def test_full_docker_resources_commit_when_box_does_not_exist(self, yp_env_configurable):
@@ -1098,6 +1138,7 @@ class TestCommitDeployTicket(object):
             patch_action_state1=default_action,
             patch_action_state2=default_action,
             stage_revision=1,
+            commit_message="empty",
         )
 
     def test_partial_docker_resources_commit(self, yp_env_configurable):
@@ -1122,6 +1163,7 @@ class TestCommitDeployTicket(object):
             patch_action_state1=construct_commit_action_state("new commit"),
             patch_action_state2=default_action,
             stage_revision=2,
+            commit_message="new commit",
         )
 
     def test_partial_docker_resources_commit_patch_which_already_committed(
@@ -1160,6 +1202,7 @@ class TestCommitDeployTicket(object):
             patch_action_state1=construct_commit_action_state("old commit"),
             patch_action_state2=default_action,
             stage_revision=1,
+            commit_message="empty",
         )
 
     def test_error_when_empty_resources_in_deploy_unit(
