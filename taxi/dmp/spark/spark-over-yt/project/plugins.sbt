@@ -35,4 +35,4 @@ resolvers += Resolver.url("SparkReleases", url("http://artifactory.yandex.net/ar
       .withArtifactPatterns(Vector("[organisation]/[module]_2.12_1.0/[revision]/[artifact]-[revision].[ext]"))
   )
 
-addSbtPlugin("ru.yandex" % "sbt-yandex" % "0.0.3-1-SNAPSHOT")
+addSbtPlugin("ru.yandex" % "sbt-yandex" % "0.0.3")
