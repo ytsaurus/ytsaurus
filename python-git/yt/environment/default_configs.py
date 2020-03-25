@@ -462,6 +462,24 @@ b"""
         exec_agent = {
             node_directory_prepare_backoff_time = 100;
         };
+        data_node = {
+            incremental_heartbeat_period = 200;
+            register_retry_period = 100;
+
+            block_cache = {
+                compressed_data = {
+                    capacity = 0;
+                    shard_count = 1;
+                };
+                uncompressed_data = {
+                    capacity = 0;
+                    shard_count = 1;
+                };
+            };
+            chunk_meta_cache = {
+                capacity = 0;
+            };
+        };
     };
 }
 """)
