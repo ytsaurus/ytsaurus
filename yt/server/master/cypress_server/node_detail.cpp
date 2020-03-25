@@ -299,7 +299,8 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     if (!keyToAttribute.empty()) {
         auto* clonedAttributes = trunkNode->GetMutableAttributes();
         for (const auto& [key, value] : keyToAttribute) {
-            YT_VERIFY(clonedAttributes->TryInsert(key, value));
+            // NB: overwriting already existing attributes is essential in the inplace case.
+            clonedAttributes->Set(key, value);
         }
     }
 

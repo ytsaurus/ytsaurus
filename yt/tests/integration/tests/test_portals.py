@@ -497,6 +497,28 @@ class TestPortals(YTEnvSetup):
         remove("//tmp/p1")
         remove("//tmp/p2")
 
+    @authors("shakurov")
+    def test_cross_cell_move_opaque_with_user_attribute(self):
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+
+        create("table", "//tmp/d1/d2/d3/t", recursive=True, attributes={"external_cell_tag": 3})
+        set("//tmp/d1/d2/d3/t/@opaque", True)
+        set("//tmp/d1/d2/d3/t/@some_user_attr", "some_value")
+        set("//tmp/d1/d2/d3/@opaque", True)
+        set("//tmp/d1/d2/d3/@some_user_attr", "some_value")
+        set("//tmp/d1/d2/@opaque", True)
+        set("//tmp/d1/d2/@some_user_attr", "some_value")
+        set("//tmp/d1/@opaque", True)
+        set("//tmp/d1/@some_user_attr", "some_value")
+
+        move("//tmp/d1/d2", "//tmp/p1/d2")
+
+        assert not exists("//tmp/d1/d2/d3/t")
+        assert exists("//tmp/p1/d2/d3/t")
+
+        # XXX(babenko): cleanup is weird
+        remove("//tmp/p1")
+
     @authors("babenko")
     def test_cross_cell_copy_removed_account(self):
         create_account("a")
