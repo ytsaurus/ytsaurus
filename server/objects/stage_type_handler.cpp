@@ -137,7 +137,7 @@ private:
             const auto& oldUnits = stage->Spec().Etc().LoadOld().deploy_units();
 
             for (const auto& idAndDeployUnit : stage->Spec().Etc().Load().deploy_units()) {
-                ValidateId(idAndDeployUnit.first, "Deploy unit id");
+                ValidateDeployObjectId(idAndDeployUnit.first, "Deploy unit id");
                 const auto& deployUnit = idAndDeployUnit.second;
 
                 if (!deployUnit.has_replica_set() && !deployUnit.has_multi_cluster_replica_set()) {
@@ -190,13 +190,13 @@ private:
         if (stage->ProjectId().Load().empty()) {
             THROW_ERROR_EXCEPTION("Project id must not be empty");
         }
-        ValidateId(stage->ProjectId().Load(), "Project id");
+        ValidateDeployObjectId(stage->ProjectId().Load(), "Project id");
     }
 
     static void ValidateStageId(TTransaction* /*transaction*/, TStage* stage)
     {
         try {
-            ValidateId(stage->GetId(), "Stage id");
+            ValidateDeployObjectId(stage->GetId(), "Stage id");
         } catch (const std::exception& ex) {
             ThrowValidationError(ex, NClient::NApi::EErrorCode::InvalidObjectId, stage->GetId());
         }
@@ -258,7 +258,7 @@ void ValidateTvmConfig(const NClient::NApi::NProto::TTvmConfig& config)
     }
 }
 
-void ValidateId(const TObjectId& id, const TString& description)
+void ValidateDeployObjectId(const TObjectId& id, const TString& description)
 {
     static const re2::RE2 stageIdPattern("[A-Za-z0-9-_]+");
     static const size_t idLengthLimit = 70;

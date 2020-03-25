@@ -84,15 +84,15 @@ void AddMutableWorkloadToPodAgentSpec(
 
 TEST(StageValidator, ValidateStageDeployUnitIdTest)
 {
-    ASSERT_THROW(ValidateId("inv*", "Stage id"), TErrorException);
+    ASSERT_THROW(ValidateDeployObjectId("inv*", "Stage id"), TErrorException);
 
-    ValidateId("valid", "Stage id");
+    ValidateDeployObjectId("valid", "Stage id");
 }
 
 TEST(StageValidator, ValidateStageIdLengthTest)
 {
     TObjectId id = TString("a") * 75;
-    ASSERT_THROW(ValidateId(id, "Stage id"), TErrorException);
+    ASSERT_THROW(ValidateDeployObjectId(id, "Stage id"), TErrorException);
 }
 
 TEST(StageValidator, ValidateTvmConfigTest)
