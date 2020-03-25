@@ -485,6 +485,15 @@ def get_token(token=None, client=None):
         receive_token_by_ssh_session = get_config(client)["allow_receive_token_by_current_ssh_session"]
         if receive_token_by_ssh_session:
             token = _get_token_by_ssh_session(client)
+            # Update token in default location.
+            if get_config(client=client)["token_path"] is None and token is not None:
+                token_dir = os.path.join(os.path.expanduser("~"), ".yt")
+                if not os.path.exists(token_dir):
+                    os.makedirs(token_dir)
+                token_path = os.path.join(token_dir, "token")
+                with open(token_path, "w") as fout:
+                    fout.write(token)
+                os.chmod(token_path, 0o700)
 
     # Empty token considered as missing.
     if not token:
