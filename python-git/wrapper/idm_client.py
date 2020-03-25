@@ -14,12 +14,12 @@ DEFAULT_BASE_ACL_SERVICE_URL = "https://idm.yt.yandex-team.ru"
 DEFAULT_CERTIFICATE_BUNDLE_PATH = "/etc/ssl/certs/ca-certificates.crt"
 
 
-def make_acl_client(client=None):
-    """Creates AclClient from YtClient.
+def make_idm_client(address=None, client=None):
+    """Creates IdmClient from YtClient.
     """
     cluster = get_config(client)["proxy"]["url"].split(".")[0]
     token = get_token(client=client)
-    return YtAclClient(cluster, token)
+    return YtIdmClient(cluster, token, address)
 
 
 def _find_certificate():
@@ -39,7 +39,7 @@ def _flatten_dict(dict_):
             for subkey, subvalue in iteritems(_flatten_dict(value)):
                 result["{}.{}".format(key, subkey)] = subvalue
         elif isinstance(value, bool):
-            result[key] = 1 if value else 0
+            result[key] = "true" if value else "false"
         else:
             result[key] = value
     return result
@@ -90,17 +90,19 @@ def _with_optional_object_id(func):
     return wrapper
 
 
-class YtAclClient(object):
-    """Implements YT ACL client."""
-    def __init__(self, cluster, token, base_url=DEFAULT_BASE_ACL_SERVICE_URL,
-                 certitificate_path=None):
+class YtIdmClient(object):
+    """Implements YT IDM client."""
+    def __init__(self, cluster, token, base_url=None, certitificate_path=None):
         self._cluster = cluster
         self._token = token
-        self._base_url = base_url
-        if certitificate_path:
-            self._certificate_path = certitificate_path
+        if base_url is None:
+            self._base_url = DEFAULT_BASE_ACL_SERVICE_URL
         else:
+            self._base_url = base_url
+        if certitificate_path is None:
             self._certificate_path = _find_certificate()
+        else:
+            self._certificate_path = certitificate_path
 
     def _make_request(self, method, name, params=None, body=None, extra_headers=None):
         # NB: `extra_headers` is only used to supply additional headers in integration tests.
