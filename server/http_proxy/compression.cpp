@@ -2,9 +2,9 @@
 
 #include <yt/core/ytree/serialize.h>
 
-#include <library/streams/lzop/lzop.h>
-#include <library/streams/lz/lz.h>
-#include <library/streams/brotli/brotli.h>
+#include <library/cpp/streams/lzop/lzop.h>
+#include <library/cpp/streams/lz/lz.h>
+#include <library/cpp/streams/brotli/brotli.h>
 
 #include <library/blockcodecs/codecs.h>
 #include <library/blockcodecs/stream.h>
