@@ -8,7 +8,7 @@ Be ready to catch :class:`YtError <yt.common.YtError>` after all commands!
 
 from . import version_check
 
-from .acl_client import YtAclClient
+from .idm_client import YtIdmClient
 
 from .client_api import *
 from .client import YtClient, create_client_with_command_params
