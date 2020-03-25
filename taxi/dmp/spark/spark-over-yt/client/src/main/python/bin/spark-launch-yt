@@ -20,7 +20,7 @@ def main():
     parser.add_argument("--master-memory-limit", required=False, default="2G")
     parser.add_argument("--history-server-memory-limit", required=False, default="8G")
     parser.add_argument("--operation-alias", required=False)
-    parser.add_argument("--dynamic-config-path", required=False)
+    parser.add_argument("--dynamic-config-path", required=False, default="//sys/spark/conf/releases/spark-launch-conf")
     parser.add_argument("--operation-spec", required=False, action=ParseStructuredArgument,  dest="operation_spec",
                         default={"annotations": {"is_spark": True}, "max_failed_job_count": 5, "max_stderr_count": 150})
 
