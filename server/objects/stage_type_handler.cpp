@@ -45,7 +45,9 @@ public:
                 //TODO(DEPLOY-1502): ParentAttribute after DEPLOY-1486 and DEPLOY-1501
                 MakeAttributeSchema("project_id")
                     ->SetAttribute(TStage::ProjectIdSchema)
+                    ->SetMandatory()
                     ->SetUpdatable()
+                    ->SetValidator<TStage>(std::bind(&TStageTypeHandler::ValidateProjectId, this, _1, _2))
             });
 
         SpecAttributeSchema_
@@ -76,7 +78,7 @@ public:
         }
 
         IdAttributeSchema_
-            ->SetValidator<TStage>(ValidateId);
+            ->SetValidator<TStage>(ValidateStageId);
     }
 
     virtual const NYson::TProtobufMessageType* GetRootProtobufType() override
@@ -135,7 +137,7 @@ private:
             const auto& oldUnits = stage->Spec().Etc().LoadOld().deploy_units();
 
             for (const auto& idAndDeployUnit : stage->Spec().Etc().Load().deploy_units()) {
-                ValidateStageAndDeployUnitId(idAndDeployUnit.first, "Deploy unit id");
+                ValidateId(idAndDeployUnit.first, "Deploy unit id");
                 const auto& deployUnit = idAndDeployUnit.second;
 
                 if (!deployUnit.has_replica_set() && !deployUnit.has_multi_cluster_replica_set()) {
@@ -182,10 +184,19 @@ private:
         }
     }
 
-    static void ValidateId(TTransaction* /*transaction*/, TStage* stage)
+    // Remove after projec_id become Parent
+    void ValidateProjectId(TTransaction* /*transaction*/, TStage* stage)
+    {
+        if (stage->ProjectId().Load().empty()) {
+            THROW_ERROR_EXCEPTION("Project id must not be empty");
+        }
+        ValidateId(stage->ProjectId().Load(), "Project id");
+    }
+
+    static void ValidateStageId(TTransaction* /*transaction*/, TStage* stage)
     {
         try {
-            ValidateStageAndDeployUnitId(stage->GetId(), "Stage id");
+            ValidateId(stage->GetId(), "Stage id");
         } catch (const std::exception& ex) {
             ThrowValidationError(ex, NClient::NApi::EErrorCode::InvalidObjectId, stage->GetId());
         }
@@ -247,7 +258,7 @@ void ValidateTvmConfig(const NClient::NApi::NProto::TTvmConfig& config)
     }
 }
 
-void ValidateStageAndDeployUnitId(const TObjectId& id, const TString& description)
+void ValidateId(const TObjectId& id, const TString& description)
 {
     static const re2::RE2 stageIdPattern("[A-Za-z0-9-_]+");
     static const size_t idLengthLimit = 70;

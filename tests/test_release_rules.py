@@ -11,7 +11,7 @@ import pytest
 class TestReleaseRules(object):
     def _create_stage(self, yp_env):
         return yp_env.yp_client.create_object(
-            "stage", attributes={"meta": {"id": "stage"}, "spec": {"account_id": "tmp"}}
+            "stage", attributes={"meta": {"id": "stage", "project_id": "project"}, "spec": {"account_id": "tmp"}}
         )
 
     def test_update_spec(self, yp_env):

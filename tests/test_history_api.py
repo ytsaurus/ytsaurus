@@ -27,7 +27,7 @@ class TestHistoryApiDisabledTypes(object):
 
         # History is not disabled for stages.
         stage_id = yp_client.create_object(
-            object_type="stage", attributes={"spec": {"revision": 42}}
+            object_type="stage", attributes={"meta": {"project_id": "project"}, "spec": {"revision": 42}}
         )
         yp_client.update_object(
             "stage", stage_id, set_updates=[{"path": "/spec/revision", "value": 123}]
@@ -58,7 +58,7 @@ class TestHistoryApi(object):
         yp_client = yp_env.yp_client
 
         stage_id = yp_client.create_object(
-            object_type="stage", attributes={"spec": {"revision": 42}}
+            object_type="stage", attributes={"meta": {"project_id": "project"}, "spec": {"revision": 42}}
         )
         yp_client.update_object(
             "stage", stage_id, set_updates=[{"path": "/spec/revision", "value": 123}]
@@ -113,7 +113,7 @@ class TestHistoryApi(object):
         yp_client = yp_env.yp_client
 
         stage_id = yp_client.create_object(
-            object_type="stage", attributes={"spec": {"revision": 42}}
+            object_type="stage", attributes={"meta": {"project_id": "project"}, "spec": {"revision": 42}}
         )
         yp_client.update_object(
             "stage", stage_id, set_updates=[{"path": "/spec/revision", "value": 123}]
@@ -149,7 +149,7 @@ class TestHistoryApi(object):
     def test_selectors(self, yp_env):
         yp_client = yp_env.yp_client
 
-        stage_id = yp_client.create_object("stage", attributes={"spec": {"revision": 42}})
+        stage_id = yp_client.create_object("stage", attributes={"meta": {"project_id": "project"}, "spec": {"revision": 42}})
 
         events = yp_client.select_object_history(
             "stage",
@@ -188,10 +188,10 @@ class TestHistoryApi(object):
         yp_client = yp_env.yp_client
 
         stage_id = "abacaba"
-        yp_client.create_object(object_type="stage", attributes={"meta": {"id": stage_id}})
+        yp_client.create_object(object_type="stage", attributes={"meta": {"id": stage_id, "project_id": "project"}})
         uuid1 = yp_client.get_object("stage", stage_id, selectors=["/meta/uuid"])[0]
         yp_client.remove_object("stage", stage_id)
-        yp_client.create_object(object_type="stage", attributes={"meta": {"id": stage_id}})
+        yp_client.create_object(object_type="stage", attributes={"meta": {"id": stage_id, "project_id": "project"}})
         uuid2 = yp_client.get_object("stage", stage_id, selectors=["/meta/uuid"])[0]
         history_events = yp_client.select_object_history("stage", stage_id, ["/spec"])["events"]
         assert len(history_events) == 3
@@ -210,7 +210,7 @@ class TestHistoryApi(object):
         stage_id = "42"
         yp_client.create_object(
             object_type="stage",
-            attributes={"meta": {"id": stage_id}},
+            attributes={"meta": {"id": stage_id, "project_id": "project"}},
             transaction_id=transaction_id,
         )
         yp_client.update_object(
@@ -231,13 +231,13 @@ class TestHistoryApi(object):
         stage_id = "crc"
         yp_client.create_object(
             object_type="stage",
-            attributes={"meta": {"id": stage_id, "uuid": "a"}},
+            attributes={"meta": {"id": stage_id, "project_id": "project", "uuid": "a"}},
             transaction_id=transaction_id,
         )
         yp_client.remove_object("stage", stage_id, transaction_id=transaction_id)
         yp_client.create_object(
             object_type="stage",
-            attributes={"meta": {"id": stage_id, "uuid": "b"}},
+            attributes={"meta": {"id": stage_id, "project_id": "project", "uuid": "b"}},
             transaction_id=transaction_id,
         )
         yp_client.commit_transaction(transaction_id)
@@ -258,14 +258,14 @@ class TestHistoryApi(object):
         stage_id = "rc"
         yp_client.create_object(
             object_type="stage",
-            attributes={"meta": {"id": stage_id, "uuid": "a"}, "spec": {"revision": 1}},
+            attributes={"meta": {"id": stage_id, "project_id": "project", "uuid": "a"}, "spec": {"revision": 1}},
         )
 
         transaction_id = yp_client.start_transaction()
         yp_client.remove_object("stage", stage_id, transaction_id=transaction_id)
         yp_client.create_object(
             object_type="stage",
-            attributes={"meta": {"id": stage_id, "uuid": "b"}, "spec": {"revision": 2}},
+            attributes={"meta": {"id": stage_id, "project_id": "project", "uuid": "b"}, "spec": {"revision": 2}},
             transaction_id=transaction_id,
         )
         yp_client.commit_transaction(transaction_id)
@@ -295,14 +295,14 @@ class TestHistoryApi(object):
         stage_id = "rcr"
         yp_client.create_object(
             object_type="stage",
-            attributes={"meta": {"id": stage_id, "uuid": "a"}, "spec": {"revision": 1}},
+            attributes={"meta": {"id": stage_id, "project_id": "project", "uuid": "a"}, "spec": {"revision": 1}},
         )
 
         transaction_id = yp_client.start_transaction()
         yp_client.remove_object("stage", stage_id, transaction_id=transaction_id)
         yp_client.create_object(
             object_type="stage",
-            attributes={"meta": {"id": stage_id, "uuid": "b"}, "spec": {"revision": 2}},
+            attributes={"meta": {"id": stage_id, "project_id": "project", "uuid": "b"}, "spec": {"revision": 2}},
             transaction_id=transaction_id,
         )
         yp_client.remove_object("stage", stage_id, transaction_id=transaction_id)
@@ -327,6 +327,7 @@ class TestHistoryApi(object):
     def test_stage_status_deploy_unit_conditions_filter(self, yp_env_configurable):
         yp_client = yp_env_configurable.yp_client
         stage = {
+            "meta": {"project_id": "project"},
             "spec": {"account_id": "tmp"},
             "status": {"deploy_units": {"unit-id": {"in_progress": {"status": "false"}}}},
         }

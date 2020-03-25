@@ -99,8 +99,8 @@ def update_spec_test_template(
     assert yp_client.get_object(object_type, object_id, selectors=[update_path])[0] == update_value
 
 
-def update_spec_revision_test_template(yp_client, object_type):
-    update_spec_test_template(yp_client, object_type, {"revision": 1}, "/spec/revision", 2)
+def update_spec_revision_test_template(yp_client, object_type, initial_meta={}):
+    update_spec_test_template(yp_client, object_type, {"revision": 1}, "/spec/revision", 2, initial_meta)
 
 
 def replica_set_network_project_permissions_test_template(yp_env, replica_set_object_type):

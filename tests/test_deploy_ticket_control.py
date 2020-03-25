@@ -180,7 +180,7 @@ def prepare_sandbox_resources_objects(yp_client):
     stage_id = yp_client.create_object(
         "stage",
         attributes={
-            "meta": {"id": "stage-id"},
+            "meta": {"id": "stage-id", "project_id": "project"},
             "spec": spec_with_resources,
         },
     )
@@ -228,7 +228,7 @@ def prepare_docker_resources_objects(yp_client):
     stage_id = yp_client.create_object(
         "stage",
         attributes={
-            "meta": {"id": "stage-id"},
+            "meta": {"id": "stage-id", "project_id": "project"},
             "spec": {
                 "revision": 1,
                 "deploy_units": {
@@ -1188,7 +1188,7 @@ class TestCommitDeployTicket(object):
         stage_id = yp_client.create_object(
             "stage",
             attributes={
-                "meta": {"id": "stage-id"},
+                "meta": {"id": "stage-id", "project_id": "project"},
                 "spec": get_default_stage_spec(),
             },
         )

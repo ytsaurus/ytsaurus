@@ -434,7 +434,10 @@ class TestObjects(object):
         _check("account")
         _check("multi_cluster_replica_set")
         _check("replica_set", {"spec": {"account_id": account_id}})
-        _check("stage")
+        _check(
+            "stage",
+            attributes={"meta": {"project_id": "project"}}
+        )
 
         node_id = yp_client.create_object("node")
         _check(
