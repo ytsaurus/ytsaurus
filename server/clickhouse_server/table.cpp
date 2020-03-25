@@ -1,90 +1,96 @@
 #include "table.h"
 
-#include "type_translation.h"
+#include "host.h"
 
-#include <yt/client/table_client/schema.h>
+#include <yt/core/logging/log.h>
 
-#include <yt/core/yson/string.h>
+#include <yt/client/ypath/rich.h>
+
+#include <yt/client/object_client/helpers.h>
 
 namespace NYT::NClickHouseServer {
 
-using namespace NTableClient;
-using namespace NYson;
 using namespace NYPath;
+using namespace NLogging;
+using namespace NObjectClient;
+using namespace NYTree;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TClickHouseColumn::IsSorted() const
-{
-    return (Flags & static_cast<int>(EColumnFlags::Sorted)) != 0;
-}
+DEFINE_REFCOUNTED_TYPE(TTable);
 
-bool TClickHouseColumn::IsNullable() const
+TTable::TTable(TRichYPath path, const TAttributeMap& attributes)
+    : TUserObject(std::move(path))
 {
-    return (Flags & static_cast<int>(EColumnFlags::Nullable)) != 0;
-}
-
-void TClickHouseColumn::SetSorted()
-{
-    Flags |= static_cast<int>(EColumnFlags::Sorted);
-}
-
-void TClickHouseColumn::DropSorted()
-{
-    Flags &= 0x03 ^ static_cast<int>(EColumnFlags::Sorted);
-}
-
-void TClickHouseColumn::SetNullable()
-{
-    Flags |= static_cast<int>(EColumnFlags::Nullable);
-}
-
-std::optional<TClickHouseColumn> TClickHouseColumn::FromColumnSchema(const NTableClient::TColumnSchema& columnSchema)
-{
-    auto type = columnSchema.LogicalType();
-
-    if (!IsYtTypeSupported(type)) {
-        return std::nullopt;
+    ObjectId = TObjectId::FromString(attributes.at("id")->GetValue<TString>());
+    Type = TypeFromId(ObjectId);
+    if (Type != NObjectClient::EObjectType::Table) {
+        THROW_ERROR_EXCEPTION("Node %v has invalid type: expected %Qlv, actual %Qlv",
+            Path.GetPath(),
+            NObjectClient::EObjectType::Table,
+            Type);
     }
-
-    TClickHouseColumn column;
-    column.Name = columnSchema.Name();
-    column.Type = RepresentYtType(type);
-    if (columnSchema.SortOrder()) {
-        column.SetSorted();
+    Dynamic = attributes.at("dynamic")->GetValue<bool>();
+    if (Dynamic) {
+        THROW_ERROR_EXCEPTION("Table %v is dynamic; dynamic tables are not supported yet (CHYT-57)",
+            Path.GetPath());
     }
-    if (!columnSchema.Required()) {
-        column.SetNullable();
-    }
-
-    return column;
+    ExternalCellTag = attributes.at("external")->GetValue<bool>()
+        ? attributes.at("external_cell_tag")->GetValue<ui64>()
+        : CellTagFromId(ObjectId);
+    ChunkCount = attributes.at("chunk_count")->GetValue<i64>();
+    Schema = ConvertTo<TTableSchema>(attributes.at("schema"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator == (const TClickHouseColumn& lhs, const TClickHouseColumn& rhs)
+std::vector<TTablePtr> FetchTables(
+    const NApi::NNative::IClientPtr& client,
+    const TClickHouseHostPtr& host,
+    const std::vector<TRichYPath>& richPaths,
+    bool skipUnsuitableNodes,
+    TLogger logger)
 {
-    return lhs.Name == rhs.Name &&
-        lhs.Type == rhs.Type &&
-        lhs.Flags == rhs.Flags;
-}
+    const auto& Logger = logger;
 
-bool operator != (const TClickHouseColumn& lhs, const TClickHouseColumn& rhs)
-{
-    return !(lhs == rhs);
-}
+    YT_LOG_INFO("Fetching tables (PathCount: %v)", richPaths.size());
 
-////////////////////////////////////////////////////////////////////////////////
+    std::vector<TYPath> paths;
+    paths.reserve(richPaths.size());
+    for (const auto& path: richPaths) {
+        paths.emplace_back(path.GetPath());
+    }
 
-TClickHouseTable::TClickHouseTable(const TRichYPath& path, const TTableSchema& schema)
-    : Path(path)
-    , TableSchema(schema)
-{
-    for (const auto& columnSchema : schema.Columns()) {
-        if (auto clickHouseColumn = TClickHouseColumn::FromColumnSchema(columnSchema)) {
-            Columns.emplace_back(*clickHouseColumn);
+    auto attributesOrErrors = host->CheckPermissionsAndGetCachedObjectAttributes(paths, client);
+
+    std::vector<TTablePtr> tables;
+    std::vector<TError> errors;
+    for (int index = 0; index < static_cast<int>(richPaths.size()); ++index) {
+        const auto& path = richPaths[index];
+        const auto& attributesOrError = attributesOrErrors[index];
+
+        try {
+            tables.emplace_back(New<TTable>(
+                path,
+                attributesOrError.ValueOrThrow()));
+        } catch (const std::exception& ex) {
+            if (!skipUnsuitableNodes) {
+                errors.emplace_back(TError("Error fetching table %v", path)
+                    << ex
+                    << TErrorAttribute("path", path));
+            }
         }
     }
+
+    if (!errors.empty()) {
+        THROW_ERROR_EXCEPTION("Table fetching failed")
+            << errors;
+    }
+
+    YT_LOG_INFO("Tables fetched (SkippedCount: %v)", richPaths.size() - tables.size());
+
+    return tables;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

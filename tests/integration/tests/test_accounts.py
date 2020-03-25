@@ -1348,10 +1348,14 @@ class TestAccounts(AccountsTestSuiteBase):
         prev_usage = self._get_master_memory_usage("a")
 
         set("//tmp/t/@a", "a")
+        master_memory_sleep()
+
         wait(lambda: self._get_master_memory_usage("a") > prev_usage)
         prev_usage = self._get_master_memory_usage("a")
 
         remove("//tmp/t/@a")
+        master_memory_sleep()
+
         wait(lambda: self._get_master_memory_usage("a") < prev_usage)
 
         remove("//tmp/t")

@@ -3,6 +3,7 @@
 #include "helpers.h"
 #include "query_context.h"
 #include "subquery.h"
+#include "table.h"
 
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -89,9 +90,11 @@ void TQueryAnalyzer::ValidateKeyColumns()
                 joinArgument.KeyColumnToIndex[column] = columnIndex;
             }
 
-            joinArgument.Paths = storage->GetTablePaths();
-            if (joinArgument.Paths.size() != 1) {
-                THROW_ERROR_EXCEPTION("Invalid JOIN: only single table may currently be joined")
+            auto tables = storage->GetTables();
+            if (tables.size() == 1) {
+                joinArgument.Paths = {tables.front()->Path};
+            } else {
+                THROW_ERROR_EXCEPTION("Invalid sorted JOIN: only single table may currently be joined")
                     << TErrorAttribute("table_index", index)
                     << TErrorAttribute("table_paths", joinArgument.Paths);
             }
@@ -259,11 +262,15 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
         if (!storage) {
             continue;
         }
-        result.TablePaths.emplace_back(storage->GetTablePaths());
-        auto clickHouseSchema = storage->GetClickHouseSchema();
+        result.Tables.emplace_back(storage->GetTables());
+        auto schema = storage->GetSchema();
         std::optional<DB::KeyCondition> keyCondition;
-        if (clickHouseSchema.HasPrimaryKey()) {
-            keyCondition = CreateKeyCondition(Context_, QueryInfo_, clickHouseSchema);
+        if (schema.IsSorted()) {
+            auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(
+                ToNamesAndTypesList(schema),
+                Context_);
+
+            keyCondition = DB::KeyCondition(QueryInfo_, Context_, ToNames(schema.GetKeyColumns()), std::move(primaryKeyExpression));
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
         result.TableSchemas.emplace_back(storage->GetSchema());
@@ -288,8 +295,6 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
 {
     auto Logger = this->Logger;
     Logger.AddTag("SubqueryIndex: %v", subqueryIndex);
-
-    YT_VERIFY(!threadSubqueries.Empty());
 
     i64 totalRowCount = 0;
     i64 totalDataWeight = 0;
@@ -322,8 +327,6 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
 
         auto spec = specTemplate;
         spec.TableIndex = index;
-        auto clickHouseSchema = Storages_[index]->GetClickHouseSchema();
-        spec.Columns = clickHouseSchema.Columns;
         spec.ReadSchema = Storages_[index]->GetSchema();
 
         FillDataSliceDescriptors(spec, miscExtMap, MakeRange(stripes));

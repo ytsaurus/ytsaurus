@@ -55,15 +55,21 @@ public:
 
     virtual void Interrupt() override;
 
+    virtual void SkipCurrentReader() override;
+
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
+
 protected:
     struct TSession
     {
-        TSession(const ISchemalessMultiChunkReaderPtr& reader, int rowCount)
-            : Reader(reader)
+        TSession(const ISchemalessMultiChunkReaderPtr& reader, int rowCount, int sessionIndex)
+            : SessionIndex(sessionIndex)
+            , Reader(reader)
         {
             Rows.reserve(rowCount);
         }
 
+        const int SessionIndex;
         ISchemalessMultiChunkReaderPtr Reader;
         std::vector<TUnversionedRow> Rows;
         int CurrentRowIndex = 0;
@@ -161,6 +167,11 @@ TFuture<void> TSchemalessSortedMergingReaderBase::GetReadyEvent()
     return ReadyEvent_;
 }
 
+const TDataSliceDescriptor& TSchemalessSortedMergingReaderBase::GetCurrentReaderDescriptor() const
+{
+    YT_ABORT();
+}
+
 TDataStatistics TSchemalessSortedMergingReaderBase::GetDataStatistics() const
 {
     TDataStatistics dataStatistics;
@@ -206,6 +217,11 @@ std::vector<TChunkId> TSchemalessSortedMergingReaderBase::GetFailedChunkIds() co
 void TSchemalessSortedMergingReaderBase::Interrupt()
 {
     Interrupting_ = true;
+}
+
+void TSchemalessSortedMergingReaderBase::SkipCurrentReader()
+{
+    // Sorted merging reader doesn't support sub-reader skipping.
 }
 
 const TNameTablePtr& TSchemalessSortedMergingReaderBase::GetNameTable() const
@@ -260,6 +276,8 @@ public:
 
 private:
     TOwningKey LastKey_;
+
+    std::vector<int> LastReadRowSessionIndexes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -277,7 +295,8 @@ TSchemalessSortedMergingReader::TSchemalessSortedMergingReader(
     SessionHeap_.reserve(readers.size());
 
     for (const auto& reader : readers) {
-        SessionHolder_.emplace_back(reader, rowsPerSession);
+        int nextSessionIndex = SessionHolder_.size();
+        SessionHolder_.emplace_back(reader, rowsPerSession, nextSessionIndex);
         RowCount_ += reader->GetTotalRowCount();
     }
 
@@ -298,6 +317,7 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
     YT_VERIFY(rows->capacity() > 0);
 
     rows->clear();
+    LastReadRowSessionIndexes_.clear();
 
     if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
@@ -338,6 +358,7 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
             return !rows->empty();
         }
         rows->push_back(row);
+        LastReadRowSessionIndexes_.push_back(session->SessionIndex);
         dataWeight += GetDataWeight(rows->back());
         ++session->CurrentRowIndex;
         ++TableRowIndex_;
@@ -365,27 +386,25 @@ bool TSchemalessSortedMergingReader::Read(std::vector<TUnversionedRow>* rows)
 TInterruptDescriptor TSchemalessSortedMergingReader::GetInterruptDescriptor(
     TRange<TUnversionedRow> unreadRows) const
 {
+    YT_LOG_DEBUG("Creating interrupt descriptor for sorted merging reader (UnreadRowCount: %v)",
+        unreadRows.Size());
+
     TInterruptDescriptor result;
 
-    auto firstUnreadKey = !unreadRows.Empty()
-        ? GetKeyPrefix(unreadRows[0], ReduceKeyColumnCount_)
-        : MaxKey();
+    std::vector<i64> unreadRowCounts(SessionHolder_.size(), 0);
 
-    YT_LOG_DEBUG("Creating interrupt descriptor for sorted merging reader (UnreadRowCount: %v, FirstUnreadKey: %v)",
-        unreadRows.Size(),
-        firstUnreadKey);
+    YT_VERIFY(unreadRows.size() <= LastReadRowSessionIndexes_.size());
+    for (int index = LastReadRowSessionIndexes_.size() - unreadRows.size(); index < LastReadRowSessionIndexes_.size(); ++index) {
+        ++unreadRowCounts[LastReadRowSessionIndexes_[index]];
+    }
 
     for (const auto& session : SessionHolder_) {
-        auto it = std::lower_bound(
-            session.Rows.begin(),
-            session.Rows.begin() + session.CurrentRowIndex,
-            firstUnreadKey,
-            [&] (const TUnversionedRow& row, const TOwningKey& key) -> bool {
-                return CompareRows(row, key, ReduceKeyColumnCount_) < 0;
-            });
+        auto unreadRowCount = unreadRowCounts[session.SessionIndex];
+        YT_VERIFY(unreadRowCount <= session.CurrentRowIndex);
+
         auto interruptDescriptor = session.Reader->GetInterruptDescriptor(
             MakeRange(
-                session.Rows.data() + std::distance(session.Rows.begin(), it),
+                session.Rows.data() + session.CurrentRowIndex - unreadRowCount,
                 session.Rows.data() + session.Rows.size()));
 
         result.MergeFrom(std::move(interruptDescriptor));
@@ -414,6 +433,8 @@ public:
         TRange<TUnversionedRow> unreadRows) const override;
 
     virtual void Interrupt() override;
+
+    virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
 
 private:
     bool InterruptAtKeyEdge_ = true;
@@ -444,10 +465,15 @@ TSchemalessJoiningReader::TSchemalessJoiningReader(
     SessionHolder_.reserve(foreignReaders.size() + 1);
     SessionHeap_.reserve(foreignReaders.size() + 1);
 
-    SessionHolder_.emplace_back(mergingReader, primaryRowsPerSession);
+    {
+        int nextSessionIndex = SessionHolder_.size();
+        SessionHolder_.emplace_back(mergingReader, primaryRowsPerSession, nextSessionIndex);
+    }
+
     RowCount_ = mergingReader->GetTotalRowCount();
     for (const auto& reader : foreignReaders) {
-        SessionHolder_.emplace_back(reader, foreignRowsPerSession);
+        int nextSessionIndex = SessionHolder_.size();
+        SessionHolder_.emplace_back(reader, foreignRowsPerSession, nextSessionIndex);
         RowCount_ += reader->GetTotalRowCount();
     }
     PrimarySession_ = &SessionHolder_[0];
@@ -591,6 +617,11 @@ void TSchemalessJoiningReader::Interrupt()
     if (!InterruptAtKeyEdge_) {
         CompletionError_.TrySet();
     }
+}
+
+const TDataSliceDescriptor& TSchemalessJoiningReader::GetCurrentReaderDescriptor() const
+{
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

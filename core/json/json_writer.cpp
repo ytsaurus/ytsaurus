@@ -47,12 +47,16 @@ public:
 
     virtual void StartNextValue() override;
 
+    virtual ui64 GetWrittenByteCount() const override;
+
 private:
     void GenerateString(TStringBuf value);
+    TStringBuf GetBuffer() const;
 
 private:
     yajl_gen Handle;
     IOutputStream* Output;
+    ui64 WrittenToOutputByteCount_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -187,12 +191,19 @@ void TJsonWriter::GenerateString(TStringBuf value)
     CheckYajlCode(yajl_gen_string(Handle, (const unsigned char*) value.data(), value.size()));
 }
 
-void TJsonWriter::Flush()
+TStringBuf TJsonWriter::GetBuffer() const
 {
     size_t len = 0;
     const unsigned char* buf = nullptr;
     CheckYajlCode(yajl_gen_get_buf(Handle, &buf, &len));
-    Output->Write(buf, len);
+    return TStringBuf(static_cast<const char*>(static_cast<const void*>(buf)), len);
+}
+
+void TJsonWriter::Flush()
+{
+    auto buf = GetBuffer();
+    Output->Write(buf);
+    WrittenToOutputByteCount_ += buf.Size();
     yajl_gen_clear(Handle);
 }
 
@@ -274,6 +285,11 @@ void TJsonWriter::OnEndAttributes()
 void TJsonWriter::OnRaw(TStringBuf yson, NYT::NYson::EYsonType type)
 {
     THROW_ERROR_EXCEPTION("TJsonWriter does not support OnRaw()");
+}
+
+ui64 TJsonWriter::GetWrittenByteCount() const
+{
+    return GetBuffer().Size() + WrittenToOutputByteCount_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -106,6 +106,7 @@ template <class T, unsigned Size>
 class SmallVector;
 
 class TRef;
+class TMutableRef;
 
 namespace NDetail {
 

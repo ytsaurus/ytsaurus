@@ -80,6 +80,7 @@ class ListOperationsSetup(YTEnvSetup):
                 "acl": [
                     make_ace("allow", "group2", ["manage", "read"]),
                     make_ace("allow", "large_group", "read"),
+                    make_ace("deny", "user6", ["manage"])
                 ],
             },
         )
@@ -144,7 +145,7 @@ class ListOperationsSetup(YTEnvSetup):
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/other/fair_share_info"))
 
         # Create users and groups.
-        for i in range(1,6):
+        for i in range(1,7):
             create_user("user{0}".format(i))
         create_group("group1")
         create_group("group2")
@@ -156,6 +157,7 @@ class ListOperationsSetup(YTEnvSetup):
         add_member("group1", "large_group")
         add_member("group2", "large_group")
         add_member("user4", "admins")
+        add_member("user6", "group2")
 
         set("//testing/@acl/end", make_ace("allow", "everyone", ["read", "write"]))
 
@@ -181,8 +183,8 @@ class _TestListOperationsBase(ListOperationsSetup):
     #  1. map        - completed  - user1 -  user1           - False       - []            - []              - {key=[annotation1;annotation2]}
     #  2. map        - completed  - user2 -  user2           - False       - [group1,      - [group1, user3] - {}
     #                                                                          user3]
-    #  3. map_reduce - failed     - user3 -  user3           - True        - [group2,      - [group2]        - {}
-    #                                                                         large_group]
+    #  3. map_reduce - failed     - user3 -  user3           - True        - [group2,      - [group2         - {}
+    #                                                                         large_group]    except user6]
     #  4. reduce     - aborted    - user3 - [user3,          - False       - [large_group] - [large_group]   - {}
     #                                        some_pool]
     #  5. sort       - completed  - user4 -  user4           - False       - []            - []              - {}
@@ -423,6 +425,16 @@ class _TestListOperationsBase(ListOperationsSetup):
         access = {"subject": "user2", "permissions": ["read", "manage"]}
         res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
+
+        # user6 is like user2 with the only difference that he is banned from managing op3 and he is
+        # not an authenticated user for op2.
+        access = {"subject": "user6", "permissions": ["read"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id]
+
+        access = {"subject": "user6", "permissions": ["read", "manage"]}
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op4.id]
 
         # user4 is admin.
         access = {"subject": "user4", "permissions": ["read"]}

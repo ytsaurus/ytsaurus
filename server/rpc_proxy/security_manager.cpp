@@ -42,7 +42,7 @@ public:
 private:
     const TBootstrap* const Bootstrap_;
 
-    virtual TFuture<void> DoGet(const TString& user, bool isPeriodicUpdate) override
+    virtual TFuture<void> DoGet(const TString& user, bool isPeriodicUpdate) noexcept override
     {
         YT_LOG_DEBUG("User check started (User: %v)",
             user);

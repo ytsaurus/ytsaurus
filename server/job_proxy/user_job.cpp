@@ -7,7 +7,7 @@
 #include "user_job_synchronizer_service.h"
 #include "user_job_write_controller.h"
 #include "environment.h"
-#include "core_processor_service.h"
+#include "core_watcher.h"
 
 #include <yt/server/lib/job_proxy/config.h>
 
@@ -213,7 +213,7 @@ public:
 
             IUserJobEnvironment::TUserJobProcessOptions options;
             if (UserJobSpec_.has_core_table_spec()) {
-                options.CoreHandlerSocketPath = *host->GetConfig()->BusServer->UnixDomainSocketPath;
+                options.CoreWatcherDirectory = NFS::GetRealPath(NFS::CombinePaths({Host_->GetSlotPath(), "cores"}));
             }
             options.EnablePorto = TranslateEnablePorto(CheckedEnumCast<NScheduler::EEnablePorto>(UserJobSpec_.enable_porto()));
 
@@ -242,19 +242,16 @@ public:
             auto chunkList = FromProto<TChunkListId>(coreTableSpec.output_table_spec().chunk_list_id());
             auto blobTableWriterConfig = ConvertTo<TBlobTableWriterConfigPtr>(TYsonString(coreTableSpec.blob_table_writer_config()));
             auto debugTransactionId = FromProto<TTransactionId>(UserJobSpec_.debug_output_transaction_id());
-            auto writeSparseCoreDumps = UserJobSpec_.write_sparse_core_dumps();
 
-            CoreProcessorService_ = New<TCoreProcessorService>(
+            CoreWatcher_ = New<TCoreWatcher>(
+                Config_->CoreWatcher,
+                NFS::GetRealPath("./cores"),
                 Host_,
+                AuxQueue_->GetInvoker(),
                 blobTableWriterConfig,
                 tableWriterOptions,
                 debugTransactionId,
-                chunkList,
-                writeSparseCoreDumps,
-                AuxQueue_->GetInvoker(),
-                Config_->CoreForwarderTimeout);
-
-            Host_->GetRpcServer()->RegisterService(CoreProcessorService_);
+                chunkList);
         }
     }
 
@@ -337,10 +334,18 @@ public:
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
-            bool coreDumped = jobResultError.operator bool() && jobResultError->Attributes().Get("core_dumped", false /* defaultValue */);
-            auto coreResult = CoreProcessorService_->Finalize(coreDumped ? Config_->CoreForwarderTimeout : TDuration::Zero());
+            auto coreDumped = jobResultError && jobResultError->Attributes().Get("core_dumped", false /* defaultValue */);
+            std::optional<TDuration> finalizationTimeout;
+            if (coreDumped) {
+                finalizationTimeout = Config_->CoreWatcher->FinalizationTimeout;
+                YT_LOG_INFO("Job seems to produce core dump, core watcher will wait for it (FinalizationTimeout: %v)",
+                    finalizationTimeout);
+            }
+            auto coreResult = CoreWatcher_->Finalize(finalizationTimeout);
 
-            YT_LOG_INFO("User job produced %v core files", coreResult.CoreInfos.size());
+            YT_LOG_INFO("Core watcher finalized (CoreDumpCount: %v)",
+                coreResult.CoreInfos.size());
+
             if (!coreResult.CoreInfos.empty()) {
                 for (const auto& coreInfo : coreResult.CoreInfos) {
                     YT_LOG_DEBUG("Core file (Pid: %v, ExecutableName: %v, Size: %v)",
@@ -496,7 +501,7 @@ private:
     TSpinLock StatisticsLock_;
     TStatistics CustomStatistics_;
 
-    TCoreProcessorServicePtr CoreProcessorService_;
+    TCoreWatcherPtr CoreWatcher_;
 
     std::optional<TString> FailContext_;
     std::optional<TString> Profile_;

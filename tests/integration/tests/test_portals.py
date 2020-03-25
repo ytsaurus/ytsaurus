@@ -924,7 +924,7 @@ class TestPortals(YTEnvSetup):
     @authors("gritukan")
     def test_granular_cross_cell_copy(self):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1, "opaque": True})
-        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 1, "opaque": True})
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 2, "opaque": True})
 
         create("map_node", "//tmp/p1/m1", attributes={"opaque": True})
         create("map_node", "//tmp/p1/m1/m21", attributes={"opaque": True})
@@ -934,16 +934,15 @@ class TestPortals(YTEnvSetup):
         create("map_node", "//tmp/p1/m1/m22/m33", attributes={"opaque": True})
         create("map_node", "//tmp/p1/m1/m22/m34", attributes={"opaque": True})
 
-        for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
-            table_path = "//tmp/p1/m1" + table_directory + "/table"
-            create("table", table_path, attributes={"external": True, "external_cell_tag": 2})
-            write_table(table_path, [{"key": table_directory}])
+        for document_dir in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
+            document_path = "//tmp/p1/m1" + document_dir + "/doc"
+            create("document", document_path, attributes={"value": document_dir})
 
         copy("//tmp/p1/m1", "//tmp/p2/m1")
 
-        for table_directory in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
-            table_path = "//tmp/p2/m1" + table_directory + "/table"
-            assert read_table(table_path) == [{"key": table_directory}]
+        for document_dir in ["/m21/m31", "/m21/m32", "/m22/m33", "/m22/m34"]:
+            document_path = "//tmp/p1/m1" + document_dir + "/doc"
+            assert get(document_path) == document_dir
 
     @authors("shakurov")
     def test_link_not_externalizable(self):

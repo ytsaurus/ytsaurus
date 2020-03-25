@@ -55,7 +55,7 @@ bool TCancelableContext::IsCanceled() const
 void TCancelableContext::Cancel(const TError& error)
 {
     THashSet<TWeakPtr<TCancelableContext>> propagateToContexts;
-    THashSet<TAwaitable> propagateToAwaitables;
+    THashSet<TFuture<void>> propagateToFutures;
     {
         TGuard<TSpinLock> guard(SpinLock_);
         if (Canceled_) {
@@ -64,7 +64,7 @@ void TCancelableContext::Cancel(const TError& error)
         CancelationError_ = error;
         Canceled_ = true;
         PropagateToContexts_.swap(propagateToContexts);
-        PropagateToAwaitables_.swap(propagateToAwaitables);
+        PropagateToFutures_.swap(propagateToFutures);
     }
 
     Handlers_.FireAndClear(error);
@@ -76,8 +76,8 @@ void TCancelableContext::Cancel(const TError& error)
         }
     }
 
-    for (const auto& awaitable : propagateToAwaitables) {
-        awaitable.Cancel(error);
+    for (const auto& future : propagateToFutures) {
+        future.Cancel(error);
     }
 }
 
@@ -124,23 +124,23 @@ void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
     }));
 }
 
-void TCancelableContext::PropagateTo(const TAwaitable& awaitable)
+void TCancelableContext::PropagateTo(const TFuture<void>& future)
 {
     {
         TGuard<TSpinLock> guard(SpinLock_);
         if (Canceled_) {
             guard.Release();
-            awaitable.Cancel(CancelationError_);
+            future.Cancel(CancelationError_);
             return;
         }
 
-        PropagateToAwaitables_.insert(awaitable);
+        PropagateToFutures_.insert(future);
     }
 
-    awaitable.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] () {
+    future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] (const TError&) {
         if (auto this_ = weakThis.Lock()) {
             TGuard<TSpinLock> guard(SpinLock_);
-            PropagateToAwaitables_.erase(awaitable);
+            PropagateToFutures_.erase(future);
         }
     }));
 }

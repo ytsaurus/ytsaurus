@@ -13,8 +13,8 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::ControllerWritesJobArchive) &&
-           version <= GetCurrentSnapshotVersion();
+    return version >= ToUnderlying(ESnapshotVersion::SliceForeignChunks) &&
+        version <= GetCurrentSnapshotVersion();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

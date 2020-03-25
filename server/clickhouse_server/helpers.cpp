@@ -1,9 +1,8 @@
 #include "helpers.h"
 
 #include "bootstrap.h"
+#include "schema.h"
 #include "table.h"
-#include "table_schema.h"
-#include "type_translation.h"
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -53,18 +52,6 @@ using namespace NRe2;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-KeyCondition CreateKeyCondition(
-    const Context& context,
-    const SelectQueryInfo& queryInfo,
-    const TClickHouseTableSchema& schema)
-{
-    auto pkExpression = std::make_shared<ExpressionActions>(
-        schema.KeyColumns,
-        context);
-
-    return KeyCondition(queryInfo, context, schema.PrimarySortColumns, std::move(pkExpression));
-}
 
 void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, DB::Field* field)
 {
@@ -133,67 +120,6 @@ void ConvertToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClickHouseTablePtr FetchClickHouseTableFromCache(
-    TBootstrap* bootstrap,
-    const NNative::IClientPtr& client,
-    const TRichYPath& path,
-    const TLogger& Logger)
-{
-    try {
-        YT_LOG_DEBUG("Fetching clickhouse table");
-
-        auto attributes = bootstrap->GetHost()->CheckPermissionsAndGetCachedObjectAttributes({path.GetPath()}, client)[0]
-            .ValueOrThrow();
-
-        if (ConvertTo<NObjectClient::EObjectType>(attributes.at("type")) != NObjectClient::EObjectType::Table) {
-            return nullptr;
-        }
-
-        return std::make_shared<TClickHouseTable>(path, AdaptSchemaToClickHouse(ConvertTo<TTableSchema>(attributes.at("schema"))));
-    } catch (TErrorException& ex) {
-        if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return nullptr;
-        }
-        throw;
-    }
-}
-
-TTableSchema ConvertToTableSchema(const ColumnsDescription& columns, const TKeyColumns& keyColumns)
-{
-    std::vector<TString> columnOrder;
-    THashSet<TString> usedColumns;
-
-    for (const auto& keyColumnName : keyColumns) {
-        if (!columns.has(keyColumnName)) {
-            THROW_ERROR_EXCEPTION("Column %Qv is specified as key column but is missing",
-                keyColumnName);
-        }
-        columnOrder.emplace_back(keyColumnName);
-        usedColumns.emplace(keyColumnName);
-    }
-
-    for (const auto& column : columns) {
-        if (usedColumns.emplace(column.name).second) {
-            columnOrder.emplace_back(column.name);
-        }
-    }
-
-    std::vector<TColumnSchema> columnSchemas;
-    columnSchemas.reserve(columnOrder.size());
-    for (int index = 0; index < static_cast<int>(columnOrder.size()); ++index) {
-        const auto& name = columnOrder[index];
-        const auto& column = columns.get(name);
-        const auto& type = RepresentClickHouseType(column.type);
-        std::optional<ESortOrder> sortOrder;
-        if (index < static_cast<int>(keyColumns.size())) {
-            sortOrder = ESortOrder::Ascending;
-        }
-        columnSchemas.emplace_back(name, type, sortOrder);
-    }
-
-    return TTableSchema(columnSchemas);
-}
-
 TString MaybeTruncateSubquery(TString query)
 {
     static const auto ytSubqueryRegex = New<TRe2>("ytSubquery\\([^()]*\\)");
@@ -202,26 +128,29 @@ TString MaybeTruncateSubquery(TString query)
     return query;
 }
 
-TTableSchema AdaptSchemaToClickHouse(const TTableSchema& schema)
+TTableSchema InferCommonSchema(const std::vector<TTablePtr>& tables, const TLogger& logger)
 {
-    std::vector<TColumnSchema> columns;
-    columns.reserve(schema.Columns().size());
-    for (const auto& column : schema.Columns()) {
-        columns.emplace_back(column.Name(), AdaptTypeToClickHouse(column.LogicalType()), column.SortOrder());
+    THashSet<TTableSchema> schemas;
+    for (const auto& table : tables) {
+        schemas.emplace(table->Schema);
     }
-    return TTableSchema(std::move(columns), schema.GetStrict(), schema.GetUniqueKeys());
-}
 
-TTableSchema GetCommonSchema(const std::vector<TTableSchema>& schemas)
-{
     if (schemas.empty()) {
         return TTableSchema();
     }
 
+    if (schemas.size() == 1) {
+        return *schemas.begin();
+    }
+
+    const auto& Logger = logger;
+
+    const auto& firstSchema = *schemas.begin();
+
     THashMap<TString, TColumnSchema> nameToColumn;
     THashMap<TString, size_t> nameCounter;
 
-    for (const auto& column : schemas[0].Columns()) {
+    for (const auto& column : firstSchema.Columns()) {
         auto [it, _] = nameToColumn.emplace(column.Name(), column);
         // We will set sorted order for key columns later.
         it->second.SetSortOrder(std::nullopt);
@@ -242,8 +171,8 @@ TTableSchema GetCommonSchema(const std::vector<TTableSchema>& schemas)
     }
 
     std::vector<TColumnSchema> resultColumns;
-    resultColumns.reserve(schemas[0].Columns().size());
-    for (const auto& column : schemas[0].Columns()) {
+    resultColumns.reserve(firstSchema.Columns().size());
+    for (const auto& column : firstSchema.Columns()) {
         if (nameCounter[column.Name()] == schemas.size()) {
             resultColumns.push_back(nameToColumn[column.Name()]);
         }
@@ -268,7 +197,50 @@ TTableSchema GetCommonSchema(const std::vector<TTableSchema>& schemas)
         }
         resultColumns[index].SetSortOrder(ESortOrder::Ascending);
     }
-    return TTableSchema(resultColumns);
+
+    TTableSchema commonSchema(resultColumns);
+
+    YT_LOG_INFO("Common schema inferred (Schemas: %v, CommonSchema: %v)",
+        schemas,
+        commonSchema);
+
+    return commonSchema;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+//! Leaves only some of the "significant" profile counters.
+THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters& profileCounters)
+{
+    static const std::vector<ProfileEvents::Event> SignificantEvents = {
+        ProfileEvents::Query,
+        ProfileEvents::SelectQuery,
+        ProfileEvents::InsertQuery,
+        ProfileEvents::InsertedRows,
+        ProfileEvents::InsertedBytes,
+        ProfileEvents::ContextLock,
+        ProfileEvents::NetworkErrors,
+        ProfileEvents::RealTimeMicroseconds,
+        ProfileEvents::UserTimeMicroseconds,
+        ProfileEvents::SystemTimeMicroseconds,
+        ProfileEvents::SoftPageFaults,
+        ProfileEvents::HardPageFaults,
+        ProfileEvents::OSIOWaitMicroseconds,
+        ProfileEvents::OSCPUWaitMicroseconds,
+        ProfileEvents::OSCPUVirtualTimeMicroseconds,
+        ProfileEvents::OSReadChars,
+        ProfileEvents::OSWriteChars,
+        ProfileEvents::OSReadBytes,
+        ProfileEvents::OSWriteBytes,
+    };
+
+    THashMap<TString, size_t> result;
+
+    for (const auto& event : SignificantEvents) {
+        result[CamelCaseToUnderscoreCase(ProfileEvents::getName(event))] = profileCounters[event].load(std::memory_order::memory_order_relaxed);
+    }
+
+    return result;
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -302,6 +274,16 @@ void Serialize(const QueryStatusInfo& query, NYT::NYson::IYsonConsumer* consumer
             .Item("written_bytes").Value(query.written_bytes)
             .Item("memory_usage").Value(query.memory_usage)
             .Item("peak_memory_usage").Value(query.peak_memory_usage)
+        .EndMap();
+}
+
+void Serialize(const ProcessListForUserInfo& processListForUserInfo, NYT::NYson::IYsonConsumer* consumer)
+{
+    NYT::NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("memory_usage").Value(processListForUserInfo.memory_usage)
+            .Item("peak_memory_usage").Value(processListForUserInfo.peak_memory_usage)
+            .Item("brief_profile_counters").Value(NYT::NClickHouseServer::GetBriefProfileCounters(*processListForUserInfo.profile_counters))
         .EndMap();
 }
 

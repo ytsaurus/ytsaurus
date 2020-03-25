@@ -21,8 +21,9 @@ void TMockChunkSliceFetcherFactory::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
+    // NB: this is a very bad way to persist pointers, but it is ok for unittests.
     if (context.IsSave()) {
-        intptr_t fetchersAddress = reinterpret_cast<intptr_t>(Fetchers_);
+        auto fetchersAddress = reinterpret_cast<intptr_t>(Fetchers_);
         Persist(context, fetchersAddress);
     } else {
         intptr_t fetchersAddress;

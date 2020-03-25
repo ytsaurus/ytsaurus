@@ -35,10 +35,10 @@ public:
 protected:
     virtual TFuture<NYTree::TAttributeMap> DoGet(
         const NYPath::TYPath& path,
-        bool isPeriodicUpdate) override;
+        bool isPeriodicUpdate) noexcept override;
     virtual TFuture<std::vector<TErrorOr<NYTree::TAttributeMap>>> DoGetMany(
         const std::vector<NYPath::TYPath>& paths,
-        bool isPeriodicUpdate) override;
+        bool isPeriodicUpdate) noexcept override;
 
 private:
     const TObjectAttributeCacheConfigPtr Config_;

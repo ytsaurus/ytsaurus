@@ -40,7 +40,7 @@ private:
         const ITvmServicePtr Underlying_;
 
     private:
-        virtual TFuture<TString> DoGet(const TString& serviceId, bool /*isPeriodicUpdate*/) override
+        virtual TFuture<TString> DoGet(const TString& serviceId, bool /*isPeriodicUpdate*/) noexcept override
         {
             return Underlying_->GetTicket(serviceId);
         }

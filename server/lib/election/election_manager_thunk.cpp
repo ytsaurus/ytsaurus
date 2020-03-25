@@ -21,9 +21,9 @@ void TElectionManagerThunk::Participate()
     Underlying_->Participate();
 }
 
-void TElectionManagerThunk::Abandon()
+void TElectionManagerThunk::Abandon(const TError& error)
 {
-    Underlying_->Abandon();
+    Underlying_->Abandon(error);
 }
 
 NYson::TYsonProducer TElectionManagerThunk::GetMonitoringProducer()

@@ -56,6 +56,43 @@ DEFINE_REFCOUNTED_TYPE(TJobThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCoreWatcherConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Cores lookup period.
+    TDuration Period;
+
+    //! Input/output operations timeout.
+    TDuration IOTimeout;
+
+    //! Finalization timeout.
+    TDuration FinalizationTimeout;
+
+    //! Cumulative timeout for cores processing.
+    TDuration CoresProcessingTimeout;
+
+    TCoreWatcherConfig()
+    {
+        RegisterParameter("period", Period)
+            .Default(TDuration::Seconds(5))
+            .GreaterThan(TDuration::Zero());
+        RegisterParameter("io_timeout", IOTimeout)
+            .Default(TDuration::Seconds(60))
+            .GreaterThan(TDuration::Zero());
+        RegisterParameter("finalization_timeout", FinalizationTimeout)
+            .Default(TDuration::Seconds(60))
+            .GreaterThan(TDuration::Zero());
+        RegisterParameter("cores_processing_timeout", CoresProcessingTimeout)
+            .Default(TDuration::Minutes(15))
+            .GreaterThan(TDuration::Zero());
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCoreWatcherConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobProxyConfig
     : public TServerConfig
 {
@@ -87,8 +124,6 @@ public:
     std::optional<TString> Rack;
     std::optional<TString> DataCenter;
 
-    TDuration CoreForwarderTimeout;
-
     i64 AheadMemoryReserve;
 
     bool TestRootFS;
@@ -100,6 +135,10 @@ public:
 
     //! IP addresses to bind into container.
     std::vector<NNet::TIP6Address> NetworkAddresses;
+
+    bool AbortOnUnrecognizedOptions;
+
+    TCoreWatcherConfigPtr CoreWatcher;
 
     TJobProxyConfig()
     {
@@ -141,9 +180,6 @@ public:
         RegisterParameter("data_center", DataCenter)
             .Default();
 
-        RegisterParameter("core_forwarder_timeout", CoreForwarderTimeout)
-            .Default();
-
         RegisterParameter("ahead_memory_reserve", AheadMemoryReserve)
             .Default(100_MB);
 
@@ -158,6 +194,12 @@ public:
 
         RegisterParameter("network_addresses", NetworkAddresses)
             .Default();
+
+        RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
+            .Default(false);
+
+        RegisterParameter("core_watcher", CoreWatcher)
+            .DefaultNew();
     }
 };
 

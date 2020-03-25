@@ -86,7 +86,11 @@ TBootstrap::TBootstrap(TCellProxyConfigPtr config, INodePtr configNode)
     , WorkerPool_(New<TThreadPool>(Config_->WorkerThreadPoolSize, "Worker"))
     , HttpPoller_(CreateThreadPoolPoller(1, "HttpPoller"))
 {
-    WarnForUnrecognizedOptions(Logger, Config_);
+    if (Config_->AbortOnUnrecognizedOptions) {
+        AbortOnUnrecognizedOptions(Logger, Config_);
+    } else {
+        WarnForUnrecognizedOptions(Logger, Config_);
+    }
 }
 
 TBootstrap::~TBootstrap() = default;

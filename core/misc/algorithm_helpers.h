@@ -49,6 +49,10 @@ TIter ExpUpperBound(TIter begin, TIter end, const T& value);
 template <class TInputIt1, class TInputIt2>
 bool Intersects(TInputIt1 first1, TInputIt1 last1, TInputIt2 first2, TInputIt2 last2);
 
+//! Runs Fisher--Yates shuffle to pick a random K-subset [begin, end) from [begin,last) (for K = std::distance(begin, end)).
+template <class TIter>
+void PartialShuffle(TIter begin, TIter end, TIter last);
+
 template <class T, typename TGetKey>
 std::pair<const T&, const T&> MinMaxBy(const T& first, const T& second, const TGetKey& getKey);
 

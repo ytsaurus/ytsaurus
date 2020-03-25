@@ -198,6 +198,11 @@ TDuration TCodecStatistics::GetTotalDuration() const
     return TotalDuration_;
 }
 
+void FormatValue(TStringBuilderBase* builder, const TCodecStatistics& statistics, TStringBuf /* spec */)
+{
+    FormatKeyValueRange(builder, statistics.CodecToDuration(), TDefaultFormatter());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

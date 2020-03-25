@@ -8,6 +8,7 @@
 #include "scheduling_context.h"
 #include "memory_tag_queue.h"
 #include "bootstrap.h"
+#include "helpers.h"
 
 #include <yt/server/lib/job_agent/job_reporter.h>
 
@@ -572,7 +573,21 @@ public:
         return VoidFuture;
     }
 
-    TFuture<TOperationControllerInitializeResult> InitializeOperation(
+    template <class TResult>
+    void OnHeavyControllerActionFinished(TOperationId operationId, const TErrorOr<TResult>& resultOrError)
+    {
+        std::optional<TResult> maybeResult;
+        if (resultOrError.IsOK()) {
+            maybeResult.emplace(resultOrError.Value());
+        }
+
+        OperationEventsOutbox_->Enqueue(TAgentToSchedulerOperationEvent::CreateHeavyControllerActionFinishedEvent(
+            operationId,
+            resultOrError,
+            maybeResult));
+    }
+
+    TFuture<std::optional<TOperationControllerInitializeResult>> InitializeOperation(
         const TOperationPtr& operation,
         const std::optional<TControllerTransactionIds>& transactions)
     {
@@ -583,7 +598,7 @@ public:
         auto callback = transactions
             ? BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, *transactions)
             : BIND(&IOperationControllerSchedulerHost::InitializeClean, controller);
-        return callback
+        auto asyncResult = callback
             .AsyncVia(controller->GetCancelableInvoker())
             .Run()
             .Apply(BIND([=] (const TOperationControllerInitializeResult& result) {
@@ -607,42 +622,78 @@ public:
 
                 return result;
             }).AsyncVia(GetCurrentInvoker()));
+
+        return WithSoftTimeout(
+            asyncResult,
+            Config_->HeavyRequestImmediateResponseTimeout,
+            /* onFinishedAfterTimeout */ BIND(
+                &TImpl::OnHeavyControllerActionFinished<TOperationControllerInitializeResult>,
+                MakeWeak(this),
+                operation->GetId())
+                .Via(CancelableControlInvoker_));
     }
 
-    TFuture<TOperationControllerPrepareResult> PrepareOperation(const TOperationPtr& operation)
+    TFuture<std::optional<TOperationControllerPrepareResult>> PrepareOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
-        return BIND(&IOperationControllerSchedulerHost::Prepare, controller)
+        auto asyncResult = BIND(&IOperationControllerSchedulerHost::Prepare, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run();
+
+        return WithSoftTimeout(
+            asyncResult,
+            Config_->HeavyRequestImmediateResponseTimeout,
+            /* onFinishedAfterTimeout */ BIND(
+                &TImpl::OnHeavyControllerActionFinished<TOperationControllerPrepareResult>,
+                MakeWeak(this),
+                operation->GetId())
+                .Via(CancelableControlInvoker_));
     }
 
-    TFuture<TOperationControllerMaterializeResult> MaterializeOperation(const TOperationPtr& operation)
+    TFuture<std::optional<TOperationControllerMaterializeResult>> MaterializeOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
-        return BIND(&IOperationControllerSchedulerHost::Materialize, controller)
+        auto asyncResult = BIND(&IOperationControllerSchedulerHost::Materialize, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run();
+
+        return WithSoftTimeout(
+            asyncResult,
+            Config_->HeavyRequestImmediateResponseTimeout,
+            /* onFinishedAfterTimeout */ BIND(
+                &TImpl::OnHeavyControllerActionFinished<TOperationControllerMaterializeResult>,
+                MakeWeak(this),
+                operation->GetId())
+                .Via(CancelableControlInvoker_));
     }
 
-    TFuture<TOperationControllerReviveResult> ReviveOperation(const TOperationPtr& operation)
+    TFuture<std::optional<TOperationControllerReviveResult>> ReviveOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
-        return BIND(&IOperationControllerSchedulerHost::Revive, controller)
+        auto asyncResult = BIND(&IOperationControllerSchedulerHost::Revive, controller)
             .AsyncVia(controller->GetCancelableInvoker())
             .Run();
+
+        return WithSoftTimeout(
+            asyncResult,
+            Config_->HeavyRequestImmediateResponseTimeout,
+            /* onFinishedAfterTimeout */ BIND(
+                &TImpl::OnHeavyControllerActionFinished<TOperationControllerReviveResult>,
+                MakeWeak(this),
+                operation->GetId())
+                .Via(CancelableControlInvoker_));
     }
 
-    TFuture<void> CommitOperation(const TOperationPtr& operation)
+    TFuture<std::optional<TOperationControllerCommitResult>> CommitOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
@@ -650,17 +701,8 @@ public:
         const auto& controller = operation->GetControllerOrThrow();
 
         auto getOrchidAndCommit = BIND(
-            [controller, this_ = MakeStrong(this)] () -> IYPathServicePtr {
-                IYPathServicePtr orchid;
-                if (controller->GetOrchid()) {
-                    auto yson = WaitFor(AsyncYPathGet(controller->GetOrchid(), ""))
-                        .ValueOrThrow();
-                    auto producer = TYsonProducer(BIND([yson = std::move(yson)] (IYsonConsumer* consumer) {
-                        consumer->OnRaw(yson);
-                    }));
-                    orchid = IYPathService::FromProducer(std::move(producer))
-                        ->Via(this_->GetControllerThreadPoolInvoker());
-                }
+            [controller, this, this_ = MakeStrong(this)] () -> IYPathServicePtr {
+                auto orchid = BuildZombieOrchid(controller);
                 controller->Commit();
                 return orchid;
             })
@@ -671,10 +713,21 @@ public:
                 if (orchid) {
                     ZombieOperationOrchids_->AddOrchid(operationId, orchid);
                 }
+
+                return TOperationControllerCommitResult{};
             })
             .AsyncVia(GetCurrentInvoker());
 
-        return getOrchidAndCommit.Run().Apply(saveOrchid);
+        auto asyncResult = getOrchidAndCommit.Run().Apply(saveOrchid);
+
+        return WithSoftTimeout(
+            asyncResult,
+            Config_->HeavyRequestImmediateResponseTimeout,
+            /* onFinishedAfterTimeout */ BIND(
+                &TImpl::OnHeavyControllerActionFinished<TOperationControllerCommitResult>,
+                MakeWeak(this),
+                operation->GetId())
+                .Via(CancelableControlInvoker_));
     }
 
     TFuture<void> CompleteOperation(const TOperationPtr& operation)
@@ -703,6 +756,12 @@ public:
             YT_LOG_DEBUG("No controller to abort (OperationId: %v)",
                 operation->GetId());
             return VoidFuture;
+        }
+
+        if (!controller->GetCancelableContext()->IsCanceled()) {
+            if (auto orchid = BuildZombieOrchid(controller)) {
+                ZombieOperationOrchids_->AddOrchid(operation->GetId(), orchid);
+            }
         }
 
         controller->Cancel();
@@ -1118,6 +1177,36 @@ private:
                     case EAgentToSchedulerOperationEventType::BannedInTentativeTree:
                         ToProto(protoEvent->mutable_tentative_tree_id(), event.TentativeTreeId);
                         ToProto(protoEvent->mutable_tentative_tree_job_ids(), event.TentativeTreeJobIds);
+                        break;
+                    case EAgentToSchedulerOperationEventType::InitializationFinished:
+                        ToProto(protoEvent->mutable_error(), event.Error);
+                        if (event.InitializeResult) {
+                            ToProto(protoEvent->mutable_initialize_result(), *event.InitializeResult);
+                        }
+                        break;
+                    case EAgentToSchedulerOperationEventType::PreparationFinished:
+                        ToProto(protoEvent->mutable_error(), event.Error);
+                        if (event.PrepareResult) {
+                            ToProto(protoEvent->mutable_prepare_result(), *event.PrepareResult);
+                        }
+                        break;
+                    case EAgentToSchedulerOperationEventType::MaterializationFinished:
+                        ToProto(protoEvent->mutable_error(), event.Error);
+                        if (event.MaterializeResult) {
+                            ToProto(protoEvent->mutable_materialize_result(), *event.MaterializeResult);
+                        }
+                        break;
+                    case EAgentToSchedulerOperationEventType::RevivalFinished:
+                        ToProto(protoEvent->mutable_error(), event.Error);
+                        if (event.ReviveResult) {
+                            ToProto(protoEvent->mutable_revive_result(), *event.ReviveResult);
+                        }
+                        break;
+                    case EAgentToSchedulerOperationEventType::CommitFinished:
+                        ToProto(protoEvent->mutable_error(), event.Error);
+                        if (event.CommitResult) {
+                            ToProto(protoEvent->mutable_commit_result(), *event.CommitResult);
+                        }
                         break;
                     default:
                         YT_ABORT();
@@ -1535,6 +1624,27 @@ private:
             .EndMap();
     }
 
+    IYPathServicePtr BuildZombieOrchid(const IOperationControllerPtr& controller)
+    {
+        IYPathServicePtr orchid;
+        if (auto controllerOrchid = controller->GetOrchid()) {
+            auto ysonOrError = WaitFor(AsyncYPathGet(controllerOrchid, ""));
+            if (!ysonOrError.IsOK()) {
+                return nullptr;
+            }
+            auto yson = ysonOrError.Value();
+            if (!yson) {
+                return nullptr;
+            }
+            auto producer = TYsonProducer(BIND([yson = std::move(yson)] (IYsonConsumer* consumer) {
+                consumer->OnRaw(yson);
+            }));
+            orchid = IYPathService::FromProducer(std::move(producer))
+                ->Via(GetControllerThreadPoolInvoker());
+        }
+        return orchid;
+    }
+
     IYPathServicePtr GetDynamicOrchidService()
     {
         auto dynamicOrchidService = New<TCompositeMapService>();
@@ -1741,7 +1851,7 @@ TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(TOperationId op
     return Impl_->UpdateOperationRuntimeParameters(operationId, std::move(update));
 }
 
-TFuture<TOperationControllerInitializeResult> TControllerAgent::InitializeOperation(
+TFuture<std::optional<TOperationControllerInitializeResult>> TControllerAgent::InitializeOperation(
     const TOperationPtr& operation,
     const std::optional<TControllerTransactionIds>& transactions)
 {
@@ -1750,22 +1860,22 @@ TFuture<TOperationControllerInitializeResult> TControllerAgent::InitializeOperat
         transactions);
 }
 
-TFuture<TOperationControllerPrepareResult> TControllerAgent::PrepareOperation(const TOperationPtr& operation)
+TFuture<std::optional<TOperationControllerPrepareResult>> TControllerAgent::PrepareOperation(const TOperationPtr& operation)
 {
     return Impl_->PrepareOperation(operation);
 }
 
-TFuture<TOperationControllerMaterializeResult> TControllerAgent::MaterializeOperation(const TOperationPtr& operation)
+TFuture<std::optional<TOperationControllerMaterializeResult>> TControllerAgent::MaterializeOperation(const TOperationPtr& operation)
 {
     return Impl_->MaterializeOperation(operation);
 }
 
-TFuture<TOperationControllerReviveResult> TControllerAgent::ReviveOperation(const TOperationPtr& operation)
+TFuture<std::optional<TOperationControllerReviveResult>> TControllerAgent::ReviveOperation(const TOperationPtr& operation)
 {
     return Impl_->ReviveOperation(operation);
 }
 
-TFuture<void> TControllerAgent::CommitOperation(const TOperationPtr& operation)
+TFuture<std::optional<TOperationControllerCommitResult>> TControllerAgent::CommitOperation(const TOperationPtr& operation)
 {
     return Impl_->CommitOperation(operation);
 }

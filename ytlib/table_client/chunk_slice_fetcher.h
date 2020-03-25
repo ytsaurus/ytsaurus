@@ -19,6 +19,8 @@ struct IChunkSliceFetcher
     : public virtual NChunkClient::IFetcher
 {
     virtual std::vector<NChunkClient::TInputChunkSlicePtr> GetChunkSlices() = 0;
+
+    virtual void AddChunkForSlicing(NChunkClient::TInputChunkPtr chunk, int keyColumnCount, bool sliceByKeys) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcher);
@@ -28,8 +30,6 @@ DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcher);
 IChunkSliceFetcherPtr CreateChunkSliceFetcher(
     NChunkClient::TFetcherConfigPtr config,
     i64 chunkSliceSize,
-    int keyColumnCount,
-    bool sliceByKeys,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     IInvokerPtr invoker,
     NChunkClient::IFetcherChunkScraperPtr chunkScraper,

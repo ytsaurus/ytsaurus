@@ -1,7 +1,6 @@
 #include "table_functions.h"
 
 #include "storage_subquery.h"
-#include "type_helpers.h"
 #include "subquery.h"
 #include "query_context.h"
 #include "subquery_spec.h"

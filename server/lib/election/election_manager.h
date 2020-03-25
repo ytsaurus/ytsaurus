@@ -30,16 +30,16 @@ struct IElectionCallbacks
     virtual void OnStartLeading(TEpochContextPtr epochContext) = 0;
 
     //! Called when the current peer has stopped leading.
-    virtual void OnStopLeading() = 0;
+    virtual void OnStopLeading(const TError& error) = 0;
 
     //! Called when the current peer has started following.
     virtual void OnStartFollowing(TEpochContextPtr epochContext) = 0;
 
     //! Called when the current peer has stopped following.
-    virtual void OnStopFollowing() = 0;
+    virtual void OnStopFollowing(const TError& error) = 0;
 
     //! Called when the current peer has stopped voting.
-    virtual void OnStopVoting() = 0;
+    virtual void OnStopVoting(const TError& error) = 0;
 
     //! Called when the current peer's priority is needed for voting.
     virtual TPeerPriority GetPriority() = 0;
@@ -89,7 +89,7 @@ struct IElectionManager
      *  The implementation ensures that all relevant stop-notifications
      *  will be issued via IElectionCallbacks.
      */
-    virtual void Abandon() = 0;
+    virtual void Abandon(const TError& error) = 0;
 
 
     //! Returns the callback for producing the monitoring info.

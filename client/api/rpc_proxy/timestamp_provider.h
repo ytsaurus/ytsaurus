@@ -12,7 +12,8 @@ namespace NYT::NApi::NRpcProxy {
 
 NTransactionClient::ITimestampProviderPtr CreateTimestampProvider(
     NRpc::IChannelPtr channel,
-    TDuration rpcTimeout);
+    TDuration rpcTimeout,
+    TDuration latestTimestampUpdatePeriod);
 
 ////////////////////////////////////////////////////////////////////////////////
 

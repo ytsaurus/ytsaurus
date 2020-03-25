@@ -283,7 +283,7 @@ void TSchedulerElement::UpdateAttributes()
 
     // Choose dominant resource types, compute max share ratios, compute demand ratios.
     const auto& demand = ResourceDemand();
-    auto usage = GetLocalResourceUsage();
+    auto usage = ResourceUsageAtUpdate();
 
     auto maxPossibleResourceUsage = Min(TotalResourceLimits_, MaxPossibleResourceUsage_);
 
@@ -427,7 +427,7 @@ void TSchedulerElement::SetStarving(bool starving)
     PersistentAttributes_.Starving = starving;
 }
 
-TJobResources TSchedulerElement::GetLocalResourceUsage() const
+TJobResources TSchedulerElement::GetInstantResourceUsage() const
 {
     auto resourceUsage = ResourceTreeElement_->GetResourceUsage();
     if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
@@ -650,7 +650,7 @@ void TSchedulerElement::LogDetailedInfo() const
     YT_LOG_DEBUG("XXX Detailed information (TotalResourceLimits: %v, Demand: %v, Usage: %v, MaxPossibleResourceUsage: %v, RecursiveMaxPossibleResourceUsage: %v)",
         FormatResources(TotalResourceLimits_),
         FormatResources(ResourceDemand()),
-        FormatResources(GetLocalResourceUsage()),
+        FormatResources(ResourceUsageAtUpdate()),
         FormatResources(maxPossibleResourceUsage),
         FormatResources(possibleUsage));
 }
@@ -748,11 +748,13 @@ void TCompositeSchedulerElement::PreUpdateBottomUp(TUpdateFairShareContext* cont
 {
     YT_VERIFY(Mutable_);
 
+    ResourceUsageAtUpdate_ = {};
     ResourceDemand_ = {};
 
     for (const auto& child : EnabledChildren_) {
         child->PreUpdateBottomUp(context);
 
+        ResourceUsageAtUpdate_ += child->ResourceUsageAtUpdate();
         ResourceDemand_ += child->ResourceDemand();
     }
 
@@ -936,14 +938,14 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList*
     }
 }
 
-void TCompositeSchedulerElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
+void TCompositeSchedulerElement::BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap)
 {
     for (const auto& child : EnabledChildren_) {
-        child->BuildElementMapping(operationMap, poolMap, disabledOperations);
+        child->BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
     }
     for (const auto& child : DisabledChildren_) {
         if (child->IsOperation()) {
-            child->BuildElementMapping(operationMap, poolMap, disabledOperations);
+            child->BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
         }
     }
 }
@@ -1552,7 +1554,7 @@ const std::optional<TString>& TPool::GetUserName() const
     return UserName_;
 }
 
-TPoolConfigPtr TPool::GetConfig()
+TPoolConfigPtr TPool::GetConfig() const
 {
     return Config_;
 }
@@ -1795,10 +1797,10 @@ TJobResources TPool::GetSpecifiedResourceLimits() const
     return ToJobResources(Config_->ResourceLimits, TJobResources::Infinite());
 }
 
-void TPool::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
+void TPool::BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap)
 {
     poolMap->emplace(GetId(), this);
-    TCompositeSchedulerElement::BuildElementMapping(operationMap, poolMap, disabledOperations);
+    TCompositeSchedulerElement::BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2360,6 +2362,7 @@ TOperationElement::TOperationElement(
     , Spec_(other.Spec_)
     , OperationElementSharedState_(other.OperationElementSharedState_)
     , Controller_(other.Controller_)
+    , RunningInThisPoolTree_(other.RunningInThisPoolTree_)
     , SchedulingTagFilter_(other.SchedulingTagFilter_)
 { }
 
@@ -2387,7 +2390,8 @@ void TOperationElement::PreUpdateBottomUp(TUpdateFairShareContext* context)
 
     UnschedulableReason_ = ComputeUnschedulableReason();
     SlotIndex_ = Operation_->FindSlotIndex(GetTreeId());
-    ResourceDemand_ = ComputeResourceDemand();
+    ResourceUsageAtUpdate_ = GetInstantResourceUsage();
+    ResourceDemand_ = Max(ComputeResourceDemand(), ResourceUsageAtUpdate_);
     StartTime_ = Operation_->GetStartTime();
 
     TSchedulerElement::PreUpdateBottomUp(context);
@@ -2442,15 +2446,14 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesL
 
 TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit, bool logDetailedInfo) const
 {
-    auto usage = GetLocalResourceUsage();
+    auto usage = ResourceUsageAtUpdate();
     if (!Dominates(limit, usage)) {
         if (logDetailedInfo) {
             YT_LOG_DEBUG("XXX Scale usage (Limit: %v, Usage: %v, Scale: %v)", FormatResources(limit), FormatResources(usage), GetMinResourceRatio(limit, usage));
         }
         return usage * GetMinResourceRatio(limit, usage);
     } else {
-        // Hotfix while YT-12329 is not done.
-        auto remainingDemand = Max(TJobResources(), ResourceDemand() - usage);
+        auto remainingDemand = ResourceDemand() - usage;
         if (remainingDemand == TJobResources()) {
             if (logDetailedInfo) {
                 YT_LOG_DEBUG("XXX Zero additional demand");
@@ -2960,12 +2963,12 @@ void TOperationElement::OnJobFinished(TJobId jobId)
     }
 }
 
-void TOperationElement::BuildElementMapping(TRawOperationElementMap* operationMap, TRawPoolMap* poolMap, TDisabledOperationsSet* disabledOperations)
+void TOperationElement::BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap)
 {
     if (OperationElementSharedState_->Enabled()) {
-        operationMap->emplace(OperationId_, this);
+        enabledOperationMap->emplace(OperationId_, this);
     } else {
-        disabledOperations->insert(OperationId_);
+        disabledOperationMap->emplace(OperationId_, this);
     }
 }
 
@@ -3096,7 +3099,7 @@ TJobResources TOperationElement::ComputeResourceDemand() const
     if (maybeUnschedulableReason == EUnschedulableReason::IsNotRunning || maybeUnschedulableReason == EUnschedulableReason::Suspended) {
         return {};
     }
-    return GetLocalResourceUsage() + Controller_->GetNeededResources();
+    return GetInstantResourceUsage() + Controller_->GetNeededResources();
 }
 
 TJobResources TOperationElement::GetSpecifiedResourceLimits() const

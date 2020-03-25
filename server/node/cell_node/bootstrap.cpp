@@ -1,6 +1,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "batching_chunk_service.h"
+#include "dynamic_config_manager.h"
 #include "private.h"
 
 #include <yt/server/lib/exec_agent/config.h>
@@ -221,6 +222,11 @@ void TBootstrap::ValidateSnapshot(const TString& fileName)
         .ThrowOnError();
 }
 
+bool TBootstrap::IsReadOnly() const
+{
+    return !DynamicConfigManager_->IsDynamicConfigLoaded();
+}
+
 void TBootstrap::DoInitialize()
 {
     auto localRpcAddresses = NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
@@ -331,6 +337,10 @@ void TBootstrap::DoInitialize()
     MasterConnector_->SubscribePopulateAlerts(BIND(&TBootstrap::PopulateAlerts, this));
     MasterConnector_->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
     MasterConnector_->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
+
+    DynamicConfigManager_ = New<TDynamicConfigManager>(Config_->DynamicConfigManager, this);
+    DynamicConfigManager_->SubscribeConfigUpdated(BIND(&TBootstrap::OnDynamicConfigUpdated, this));
+    DynamicConfigManager_->Start();
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
@@ -503,7 +513,7 @@ void TBootstrap::DoInitialize()
     JobProxyConfigTemplate_->Tracing = Config_->ExecAgent->JobProxyTracing;
     JobProxyConfigTemplate_->TestRootFS = Config_->ExecAgent->TestRootFS;
 
-    JobProxyConfigTemplate_->CoreForwarderTimeout = Config_->ExecAgent->CoreForwarderTimeout;
+    JobProxyConfigTemplate_->CoreWatcher = Config_->ExecAgent->CoreWatcher;
 
     ExecSlotManager_ = New<NExecAgent::TSlotManager>(Config_->ExecAgent->SlotManager, this);
     GpuManager_ = New<TGpuManager>(this, Config_->ExecAgent->JobController->GpuManager);
@@ -587,8 +597,8 @@ void TBootstrap::DoInitialize()
 
     RpcServer_->RegisterService(CreateQueryService(Config_->QueryAgent, this));
 
-    auto timestampProviderConfig = CreateTimestampProviderConfig(Config_->ClusterConnection->PrimaryMaster);
-    auto timestampProvider = CreateRemoteTimestampProvider(
+    auto timestampProviderConfig = CreateBatchingRemoteTimestampProviderConfig(Config_->ClusterConnection->PrimaryMaster);
+    auto timestampProvider = CreateBatchingRemoteTimestampProvider(
         timestampProviderConfig,
         CreateTimestampProviderChannel(timestampProviderConfig, MasterConnection_->GetChannelFactory()));
     RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider));
@@ -703,6 +713,12 @@ void TBootstrap::DoRun()
         OrchidRoot_,
         "/store_compactor",
         CreateVirtualNode(GetOrchidService(storeCompactor)));
+    SetNodeByYPath(
+        OrchidRoot_,
+        "/dynamic_config_manager",
+        CreateVirtualNode(DynamicConfigManager_->GetOrchidService()
+            ->Via(GetControlInvoker())));
+
     SetBuildAttributes(OrchidRoot_, "node");
 
     SkynetHttpServer_->AddHandler(
@@ -739,11 +755,17 @@ void TBootstrap::DoValidateConfig()
 {
     auto unrecognized = Config_->GetUnrecognizedRecursively();
     if (unrecognized && unrecognized->GetChildCount() > 0) {
-        YT_LOG_WARNING("Node config contains unrecognized options (Unrecognized: %v)",
-            ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
         if (Config_->EnableUnrecognizedOptionsAlert) {
             MasterConnector_->RegisterAlert(TError(EErrorCode::UnrecognizedConfigOption, "Node config contains unrecognized options")
                 << TErrorAttribute("unrecognized", unrecognized));
+        }
+        if (Config_->AbortOnUnrecognizedOptions) {
+            YT_LOG_ERROR("Node config contains unrecognized options, aborting (Unrecognized: %v)",
+                ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
+            YT_ABORT();
+        } else {
+            YT_LOG_WARNING("Node config contains unrecognized options (Unrecognized: %v)",
+                ConvertToYsonString(unrecognized, NYson::EYsonFormat::Text));
         }
     }
 }
@@ -965,6 +987,11 @@ const TMasterConnectorPtr& TBootstrap::GetMasterConnector() const
 const TNodeDirectoryPtr& TBootstrap::GetNodeDirectory() const
 {
     return MasterConnection_->GetNodeDirectory();
+}
+
+const TDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const
+{
+    return DynamicConfigManager_;
 }
 
 const IQuerySubexecutorPtr& TBootstrap::GetQueryExecutor() const
@@ -1194,6 +1221,11 @@ void TBootstrap::OnMasterDisconnected()
     for (const auto& masterCacheService : MasterCacheServices_) {
         RpcServer_->UnregisterService(masterCacheService);
     }
+}
+
+void TBootstrap::OnDynamicConfigUpdated(TCellNodeDynamicConfigPtr newConfig)
+{
+    Y_UNUSED(newConfig);
 }
 
 void TBootstrap::UpdateFootprintMemoryUsage()

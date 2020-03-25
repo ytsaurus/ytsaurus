@@ -45,6 +45,10 @@ SchemaViolation = 307
 InvalidSchemaValue = 314
 AuthorizationErrorCode = 901
 UnrecognizedConfigOption = 1400
+FailedToFetchDynamicConfig = 1401
+DuplicateMatchingDynamicConfigs = 1402
+UnrecognizedDynamicConfigOption = 1403
+InvalidDynamicConfig = 1405
 NoSuchOperation = 1915
 NoSuchAttribute = 1920
 TabletNotMounted = 1702
@@ -1965,3 +1969,16 @@ def scheduler_orchid_pool_tree_path(tree):
 
 def scheduler_orchid_default_pool_tree_path():
     return scheduler_orchid_pool_tree_path("default")
+
+def get_applied_node_dynamic_config(node):
+    return get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/config".format(node))
+
+# Implements config.update(new_config) for dynamic nodes config and waits for config apply
+# assuming the only nodes config filter is `%true`.
+def update_nodes_dynamic_config(new_config):
+    current_config = get("//sys/cluster_nodes/@config")
+    current_config["%true"].update(new_config)
+    set("//sys/cluster_nodes/@config", current_config)
+
+    for node in ls("//sys/cluster_nodes"):
+        wait(lambda: get_applied_node_dynamic_config(node) == current_config["%true"])

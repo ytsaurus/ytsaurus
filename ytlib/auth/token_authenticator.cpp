@@ -21,7 +21,6 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = AuthLogger;
-static const TString LocalUserIP = "127.0.0.1";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,21 +42,19 @@ public:
         const TTokenCredentials& credentials) override
     {
         const auto& token = credentials.Token;
-        TString userIP;
-        if (credentials.UserIP.IsIP6() || credentials.UserIP.IsIP4()) {
-            userIP = credentials.UserIP.FormatIP();
-        } else {
-            // Sometimes userIP is missing (e.g. user is connecting
-            // from job using unix socket), but it is required by
-            // blackbox. Put placeholder in place of a real IP.
-            userIP = LocalUserIP;
-        }
-
+        auto userIP = FormatUserIP(credentials.UserIP);
         auto tokenHash = GetCryptoHash(token);
+
         YT_LOG_DEBUG("Authenticating user with token via Blackbox (TokenHash: %v, UserIP: %v)",
             tokenHash,
             userIP);
-        return Blackbox_->Call("oauth", {{"oauth_token", token}, {"userip", userIP}})
+
+        THashMap<TString, TString> params{
+            {"oauth_token", token},
+            {"userip", userIP}
+        };
+
+        return Blackbox_->Call("oauth", params)
             .Apply(BIND(
                 &TBlackboxTokenAuthenticator::OnCallResult,
                 MakeStrong(this),
@@ -270,7 +267,7 @@ private:
     TSpinLock Lock_;
     THashMap<TString, NNet::TNetworkAddress> LastUserIP_;
 
-    virtual TFuture<TAuthenticationResult> DoGet(const TString& token, bool /*isPeriodicUpdate*/) override
+    virtual TFuture<TAuthenticationResult> DoGet(const TString& token, bool /*isPeriodicUpdate*/) noexcept override
     {
         TTokenCredentials credentials;
         credentials.Token = token;
@@ -285,7 +282,7 @@ private:
         return TokenAuthenticator_->Authenticate(credentials);
     }
 
-    virtual void OnErase(const TString& token) override
+    virtual void OnEvicted(const TString& token) noexcept override
     {
         auto guard = Guard(Lock_);
         LastUserIP_.erase(token);

@@ -24,7 +24,7 @@ using namespace NTransactionClient;
 static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
 {
     for (const auto& ace : acl.Entries) {
-        if (ace.Action != ESecurityAction::Allow) {
+        if (ace.Action != ESecurityAction::Allow && ace.Action != ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION("Action %Qlv is forbidden to specify in operation ACE",
                 ace.Action)
                 << TErrorAttribute("ace", ace);
@@ -108,7 +108,7 @@ void Serialize(const TPoolName& value, NYson::IYsonConsumer* consumer)
     consumer->OnStringScalar(value.ToString());
 }
 
-////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TJobIOConfig::TJobIOConfig()
 {
@@ -154,15 +154,19 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default(ESchedulingDelayType::Sync);
     RegisterParameter("delay_inside_revive", DelayInsideRevive)
         .Default();
+    RegisterParameter("delay_inside_initialize", DelayInsideInitialize)
+        .Default();
     RegisterParameter("delay_inside_prepare", DelayInsidePrepare)
         .Default();
     RegisterParameter("delay_inside_suspend", DelayInsideSuspend)
         .Default();
     RegisterParameter("delay_inside_materialize", DelayInsideMaterialize)
         .Default();
-    RegisterParameter("delay_inside_abort", DelayInsideAbort)
-        .Default();
     RegisterParameter("delay_inside_operation_commit", DelayInsideOperationCommit)
+        .Default();
+    RegisterParameter("delay_after_materialize", DelayAfterMaterialize)
+        .Default();
+    RegisterParameter("delay_inside_abort", DelayInsideAbort)
         .Default();
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
         .Default();
@@ -766,8 +770,6 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
         // TODO(babenko): deprecate this
         .Alias("core_table_writer_config")
         .DefaultNew();
-    RegisterParameter("write_sparse_core_dumps", WriteSparseCoreDumps)
-        .Default(true);
 
     RegisterPostprocessor([&] {
         if (StderrTablePath) {
@@ -1433,6 +1435,9 @@ TPoolConfig::TPoolConfig()
         .DefaultNew();
 
     RegisterParameter("allowed_profiling_tags", AllowedProfilingTags)
+        .Default();
+
+    RegisterParameter("enable_by_user_profiling", EnableByUserProfiling)
         .Default();
 }
 

@@ -585,12 +585,11 @@ void TLeaderCommitter::OnAutoSnapshotCheck()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     if (DecoratedAutomaton_->GetState() == EPeerState::Leading &&
-        DecoratedAutomaton_->GetLastSnapshotTime() != TInstant::Zero() &&
-        TInstant::Now() > DecoratedAutomaton_->GetLastSnapshotTime() + Config_->SnapshotBuildPeriod)
+        TInstant::Now() > DecoratedAutomaton_->GetSnapshotBuildDeadline())
     {
-        YT_LOG_INFO("Requesting periodic snapshot (LastSnapshotTime: %v, SnapshotBuildPeriod: %v)",
-            DecoratedAutomaton_->GetLastSnapshotTime(),
-            Config_->SnapshotBuildPeriod);
+        YT_LOG_INFO("Requesting periodic snapshot (SnapshotBuildPeriod: %v, SnapshotBuildSplay: %v)",
+            Config_->SnapshotBuildPeriod,
+            Config_->SnapshotBuildSplay);
         CheckpointNeeded_.Fire(true);
     }
 }

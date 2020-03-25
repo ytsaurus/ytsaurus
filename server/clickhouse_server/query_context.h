@@ -4,8 +4,7 @@
 #include "bootstrap.h"
 #include "host.h"
 
-#include "objects.h"
-#include "table_schema.h"
+#include "schema.h"
 
 #include <yt/client/table_client/schema.h>
 
@@ -28,15 +27,6 @@ namespace NYT::NClickHouseServer {
 
 using namespace NLogging;
 using namespace NConcurrency;
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EQueryPhase,
-    ((Start)        (0))
-    ((Preparation)  (1))
-    ((Execution)    (2))
-    ((Finish)       (3))
-);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,15 +69,16 @@ public:
 
     void MoveToPhase(EQueryPhase phase);
 
+    EQueryPhase GetQueryPhase() const;
+
 private:
     TClickHouseHostPtr Host_;
     NTracing::TTraceContextGuard TraceContextGuard_;
 
-
     TInstant StartTime_;
 
     mutable TSpinLock PhaseLock_;
-    std::atomic<EQueryPhase> CurrentPhase_ {EQueryPhase::Start};
+    std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};
     TInstant LastPhaseTime_;
     TString PhaseDebugString_ = ToString(EQueryPhase::Start);
 

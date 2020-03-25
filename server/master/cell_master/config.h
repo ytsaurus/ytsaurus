@@ -161,6 +161,7 @@ public:
 
     NTabletServer::TReplicatedTableTrackerConfigPtr ReplicatedTableTracker;
 
+    bool EnableTimestampManager;
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
 
     NTransactionClient::TRemoteTimestampProviderWithDiscoveryConfigPtr TimestampProvider;
@@ -176,6 +177,8 @@ public:
 
     TDuration AnnotationSetterPeriod;
     NYTree::IMapNodePtr CypressAnnotations;
+
+    bool AbortOnUnrecognizedOptions;
 
     TCellMasterConfig();
 };

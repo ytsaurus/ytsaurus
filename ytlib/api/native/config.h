@@ -139,7 +139,8 @@ DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTransactionClient::TRemoteTimestampProviderWithDiscoveryConfigPtr CreateTimestampProviderConfig(TMasterConnectionConfigPtr connectionConfig);
+NTransactionClient::TRemoteTimestampProviderWithDiscoveryConfigPtr CreateRemoteTimestampProviderWithDiscoveryConfig(TMasterConnectionConfigPtr config);
+NTransactionClient::TBatchingRemoteTimestampProviderConfigPtr CreateBatchingRemoteTimestampProviderConfig(TMasterConnectionConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

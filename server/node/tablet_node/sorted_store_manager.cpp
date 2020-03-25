@@ -389,7 +389,14 @@ void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDes
                 && chunkView.read_range().has_lower_limit()
                 && chunkView.read_range().lower_limit().has_key())
             {
-                minKey = FromProto<TOwningKey>(chunkView.read_range().lower_limit().key());
+                auto chunkViewLimit = FromProto<TOwningKey>(chunkView.read_range().lower_limit().key());
+
+                // COMPAT(ifsmirnov)
+                if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewWideRange_YT_12532)) {
+                    minKey = chunkViewLimit;
+                } else {
+                    minKey = std::max(chunkViewLimit, minBoundaryKey);
+                }
             } else {
                 minKey = std::move(minBoundaryKey);
             }
@@ -401,8 +408,21 @@ void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDes
                 && chunkView.read_range().has_upper_limit()
                 && chunkView.read_range().upper_limit().has_key())
             {
-                maxKeyType = 0;
-                maxKey = FromProto<TOwningKey>(chunkView.read_range().upper_limit().key());
+                auto chunkViewLimit = FromProto<TOwningKey>(chunkView.read_range().upper_limit().key());
+
+                // COMPAT(ifsmirnov)
+                if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::ChunkViewWideRange_YT_12532)) {
+                    maxKeyType = 0;
+                    maxKey = chunkViewLimit;
+                } else {
+                    if (chunkViewLimit <= maxBoundaryKey) {
+                        maxKeyType = 0;
+                        maxKey = chunkViewLimit;
+                    } else {
+                        maxKeyType = 2;
+                        maxKey = maxBoundaryKey;
+                    }
+                }
             } else {
                 maxKeyType = 2;
                 maxKey = std::move(maxBoundaryKey);

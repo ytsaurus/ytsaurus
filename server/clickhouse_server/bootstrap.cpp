@@ -10,7 +10,7 @@
 #include "config.h"
 #include "query_context.h"
 #include "query_registry.h"
-#include "security_manager.h"
+#include "users_manager.h"
 
 #include <yt/server/clickhouse_server/protos/clickhouse_service.pb.h>
 
@@ -81,7 +81,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ServerLogger;
+static const auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,6 +1,8 @@
 #include "skynet.h"
 #include "client.h"
 #include "private.h"
+#include "connection.h"
+#include "rpc_helpers.h"
 
 #include <yt/client/api/skynet.h>
 
@@ -48,6 +50,9 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     auto Logger = NLogging::TLogger(ApiLogger)
         .AddTag("Path: %v", richPath.GetPath());
 
+    TGetUserObjectBasicAttributesOptions getAttributesOptions;
+    getAttributesOptions.ReadFrom = EMasterChannelKind::Cache;
+
     TUserObject userObject(richPath);
 
     GetUserObjectBasicAttributes(
@@ -55,7 +60,8 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         {&userObject},
         NullTransactionId,
         ChunkClientLogger,
-        EPermission::Read);
+        EPermission::Read,
+        getAttributesOptions);
 
     if (userObject.Type != EObjectType::Table) {
         THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
@@ -71,10 +77,18 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
     {
         YT_LOG_INFO("Requesting chunk count");
 
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Cache, userObject.ExternalCellTag);
         TObjectServiceProxy proxy(channel);
 
+        auto masterReadOptions = TMasterReadOptions{
+            .ReadFrom = EMasterChannelKind::Cache
+        };
+
+        auto batchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(batchReq, client->GetNativeConnection()->GetConfig(), masterReadOptions);
+
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
+        SetCachingHeader(req, client->GetNativeConnection()->GetConfig(), masterReadOptions);
         SetSuppressAccessTracking(req, false);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count",
@@ -82,11 +96,14 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
             "sorted"
         });
 
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting table chunk count %v",
+        batchReq->AddRequest(req);
+
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting table chunk count %v",
             richPath);
 
-        const auto& rsp = rspOrError.Value();
+        const auto& batchRsp = batchRspOrError.Value();
+        auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0).Value();
         auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
 
         chunkCount = attributes->Get<int>("chunk_count");

@@ -72,6 +72,11 @@ DEFINE_ENUM(EAgentToSchedulerOperationEventType,
     ((Failed)                   (2))
     ((Aborted)                  (3))
     ((BannedInTentativeTree)    (4))
+    ((InitializationFinished)   (5))
+    ((PreparationFinished)      (6))
+    ((MaterializationFinished)  (7))
+    ((RevivalFinished)          (8))
+    ((CommitFinished)           (9))
 );
 
 DEFINE_ENUM(EAgentToSchedulerJobEventType,

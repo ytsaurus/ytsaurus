@@ -43,15 +43,10 @@ if arcadia_interop.yatest_common is None:
     if YT_LOG_TAILER_PATH is None:
         YT_LOG_TAILER_PATH = find_executable("ytserver-log-tailer")
 else:
-    TEST_DIR = None
-    # XXX(max42): eliminate this ugly hack by exporting YT_ROOT into env variable from ya.make.
-    POSSIBLE_TEST_DIR_PATHS = ["yt/tests/integration/tests", "yt/19_4/yt/tests/integration/tests"]
-    for possible_test_dir_path in POSSIBLE_TEST_DIR_PATHS:
-        test_dir = arcadia_interop.yatest_common.source_path(possible_test_dir_path)
-        if os.path.exists(test_dir):
-            TEST_DIR = test_dir
-            break
-    assert TEST_DIR is not None
+    test_dir = os.environ.get("YT_ROOT") + "/yt/tests/integration/tests"
+    TEST_DIR = arcadia_interop.yatest_common.source_path(test_dir)
+    assert os.path.exists(TEST_DIR)
+
     YTSERVER_CLICKHOUSE_PATH = arcadia_interop.yatest_common.binary_path("ytserver-clickhouse")
     CLICKHOUSE_TRAMPOLINE_PATH = arcadia_interop.yatest_common.binary_path("clickhouse-trampoline")
     YT_LOG_TAILER_PATH = arcadia_interop.yatest_common.binary_path("ytserver-log-tailer")
@@ -135,6 +130,15 @@ class Clique(object):
 
     def get_active_instance_count(self):
         return len(self.get_active_instances())
+
+    def assert_read_row_count(self, query, exact=None, min=None, max=None, verbose=True):
+        result = self.make_query(query, verbose=verbose, only_rows=False)
+        assert (exact is not None) ^ (min is not None and max is not None)
+        if exact is not None:
+            assert result["statistics"]["rows_read"] == exact
+        else:
+            assert min <= result["statistics"]["rows_read"] <= max
+
 
     def _print_progress(self):
         print_debug(self.op.build_progress(), "(active instance count: {})".format(self.get_active_instance_count()))
@@ -597,6 +601,46 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert new_description[0]["name"] == "b"
 
     @authors("evgenstf")
+    def test_prewhere_one_chunk(self):
+        with Clique(1) as clique:
+            create("table", "//tmp/table_1", attributes={
+                "schema": [
+                    {"name": "i", "type": "int64"},
+                    {"name": "j", "type": "int64"},
+                    {"name": "k", "type": "int64"}]})
+            write_table("//tmp/table_1", [
+                {"i": 1, "j": 11, "k": 101},
+                {"i": 2, "j": 12, "k": 102},
+                {"i": 3, "j": 13, "k": 103},
+                {"i": 4, "j": 14, "k": 104},
+                {"i": 5, "j": 15, "k": 105},
+                {"i": 6, "j": 16, "k": 106},
+                {"i": 7, "j": 17, "k": 107},
+                {"i": 8, "j": 18, "k": 108},
+                {"i": 9, "j": 19, "k": 109},
+                {"i": 10, "j": 110, "k": 110} ])
+            assert clique.make_query('select i from "//tmp/table_1" prewhere j > 13 and j < 18 order by i') == [{'i': 4}, {'i': 5}, {'i': 6}, {'i': 7}]
+
+    @authors("evgenstf")
+    def test_prewhere_several_chunks(self):
+        with Clique(1) as clique:
+            create("table", "//tmp/test_table",
+                    attributes={"schema": [
+                        {"name": "key", "type": "string"},
+                        {"name": "index", "type": "int64"},
+                        {"name": "data", "type": "string"}]})
+            write_table(
+                "//tmp/test_table",
+                [{"key": "b_key", "index": i, "data": "b" * 50} if i == 1234 else {"key": "a_key", "data": "a" * 50} for i in range(10 * 10 * 1024)],
+                table_writer={
+                    "block_size": 1024,
+                    "desired_chunk_size": 10 * 1024})
+            assert get("//tmp/test_table/@chunk_count") > 5
+            assert clique.make_query('select index from \"//tmp/test_table\" prewhere key = \'b_key\'') == [{"index": 1234}]
+            clique.assert_read_row_count('select index from \"//tmp/test_table\" where key = \'b_key\'', exact=102400)
+            clique.assert_read_row_count('select index from \"//tmp/test_table\" prewhere key = \'b_key\'', exact=1)
+
+    @authors("evgenstf")
     def test_concat_directory_with_mixed_objects(self):
         with Clique(1) as clique:
             create("map_node", "//tmp/test_dir")
@@ -930,7 +974,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Table doesn't exist.
             assert clique.make_query('exists table "//tmp/t123456"') == [{"result": 0}]
             # Not a table.
-            assert clique.make_query('exists table "//sys"') == [{"result": 0}]
+            with pytest.raises(Exception):
+                clique.make_query('exists table "//sys"')
+
 
     @authors("dakovalkov")
     def test_date_types(self):
@@ -1046,29 +1092,32 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(5):
             pass
 
+    @authors("max42")
+    def test_any_empty_result(self):
+        # CHYT-338, CHYT-246.
+        create("table", "//tmp/t", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"},
+                                                          {"name": "value", "type": "string"}]})
+        write_table("//tmp/t", [{"key": 1, "value": "a"}])
+
+        with Clique(1) as clique:
+            assert clique.make_query("select any(value) from `//tmp/t` where key = 2") == [{"any(value)": None}]
+
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
-    def _expect_row_count(self, clique, query, exact=None, min=None, max=None, verbose=True):
-        result = clique.make_query(query, verbose=verbose, only_rows=False)
-        assert (exact is not None) ^ (min is not None and max is not None)
-        if exact is not None:
-            assert result["statistics"]["rows_read"] == exact
-        else:
-            assert min <= result["statistics"]["rows_read"] <= max
-
-    @authors("max42")
-    def test_chunk_filter(self):
+    @authors("max42", "evgenstf")
+    @pytest.mark.parametrize("where_prewhere", ["where", "prewhere"])
+    def test_chunk_filter(self, where_prewhere):
         create("table", "//tmp/t", attributes={"schema": [{"name": "i", "type": "int64", "sort_order": "ascending"}]})
         for i in xrange(10):
             write_table("<append=%true>//tmp/t", [{"i": i}])
         with Clique(1) as clique:
-            self._expect_row_count(clique, 'select * from "//tmp/t" where i >= 3', exact=7)
-            self._expect_row_count(clique, 'select * from "//tmp/t" where i < 2', exact=2)
-            self._expect_row_count(clique, 'select * from "//tmp/t" where 5 <= i and i <= 8', exact=4)
-            self._expect_row_count(clique, 'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=2)
+            clique.assert_read_row_count('select * from "//tmp/t" {} i >= 3'.format(where_prewhere), exact=7)
+            clique.assert_read_row_count('select * from "//tmp/t" {} i < 2'.format(where_prewhere), exact=2)
+            clique.assert_read_row_count('select * from "//tmp/t" {} 5 <= i and i <= 8'.format(where_prewhere), exact=4)
+            clique.assert_read_row_count('select * from "//tmp/t" {} i in (-1, 2, 8, 8, 15)'.format(where_prewhere), exact=2)
 
     @authors("dakovalkov")
     def test_common_schema_sorted(self):
@@ -1092,9 +1141,9 @@ class TestJobInput(ClickHouseTestBase):
 
         with Clique(1) as clique:
             # Column 'a' is sorted.
-            self._expect_row_count(clique, 'select * from concatYtTables("//tmp/t1", "//tmp/t2") where a > 18', exact=1)
+            clique.assert_read_row_count('select * from concatYtTables("//tmp/t1", "//tmp/t2") where a > 18', exact=1)
             # Column 'a' isn't sorted.
-            self._expect_row_count(clique, 'select * from concatYtTables("//tmp/t1", "//tmp/t3") where a > 18', exact=2)
+            clique.assert_read_row_count('select * from concatYtTables("//tmp/t1", "//tmp/t3") where a > 18', exact=2)
 
 
     @authors("max42")
@@ -1117,33 +1166,33 @@ class TestJobInput(ClickHouseTestBase):
 
         with Clique(1) as clique:
             # Due to inclusiveness issues each of the row counts should be correct with some error.
-            self._expect_row_count(clique, 'select i from "//tmp/t" where i >= 3', min=7, max=8)
-            self._expect_row_count(clique, 'select i from "//tmp/t" where i < 2', min=3, max=4)
-            self._expect_row_count(clique, 'select i from "//tmp/t" where 5 <= i and i <= 8', min=4, max=6)
-            self._expect_row_count(clique, 'select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', min=2, max=4)
+            clique.assert_read_row_count('select i from "//tmp/t" where i >= 3', min=7, max=8)
+            clique.assert_read_row_count('select i from "//tmp/t" where i < 2', min=3, max=4)
+            clique.assert_read_row_count('select i from "//tmp/t" where 5 <= i and i <= 8', min=4, max=6)
+            clique.assert_read_row_count('select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', min=2, max=4)
 
         # Forcefully disable chunk slicing.
         with Clique(1, config_patch={"engine": {"subquery": {"max_sliced_chunk_count": 0}}}) as clique:
             # Due to inclusiveness issues each of the row counts should be correct with some error.
-            self._expect_row_count(clique, 'select i from "//tmp/t" where i >= 3', exact=10)
-            self._expect_row_count(clique, 'select i from "//tmp/t" where i < 2', exact=10)
-            self._expect_row_count(clique, 'select i from "//tmp/t" where 5 <= i and i <= 8', exact=10)
-            self._expect_row_count(clique, 'select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
+            clique.assert_read_row_count('select i from "//tmp/t" where i >= 3', exact=10)
+            clique.assert_read_row_count('select i from "//tmp/t" where i < 2', exact=10)
+            clique.assert_read_row_count('select i from "//tmp/t" where 5 <= i and i <= 8', exact=10)
+            clique.assert_read_row_count('select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
 
     @authors("max42")
     def test_sampling(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": i} for i in range(1000)], verbose=False)
         with Clique(1) as clique:
-            self._expect_row_count(clique, 'select a from "//tmp/t" sample 0.1', min=85, max=115, verbose=False)
-            self._expect_row_count(clique, 'select a from "//tmp/t" sample 100', min=85, max=115, verbose=False)
-            self._expect_row_count(clique, 'select a from "//tmp/t" sample 2/20', min=85, max=115, verbose=False)
-            self._expect_row_count(clique, 'select a from "//tmp/t" sample 0.1 offset 42', min=85, max=115, verbose=False)
-            self._expect_row_count(clique, 'select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
-            self._expect_row_count(clique, 'select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
-            self._expect_row_count(clique, 'select a from "//tmp/t" sample 0', exact=0, verbose=False)
-            self._expect_row_count(clique, 'select a from "//tmp/t" sample 0.000000000001', exact=0, verbose=False)
-            self._expect_row_count(clique, 'select a from "//tmp/t" sample 1/100000000000', exact=0, verbose=False)
+            clique.assert_read_row_count('select a from "//tmp/t" sample 0.1', min=85, max=115, verbose=False)
+            clique.assert_read_row_count('select a from "//tmp/t" sample 100', min=85, max=115, verbose=False)
+            clique.assert_read_row_count('select a from "//tmp/t" sample 2/20', min=85, max=115, verbose=False)
+            clique.assert_read_row_count('select a from "//tmp/t" sample 0.1 offset 42', min=85, max=115, verbose=False)
+            clique.assert_read_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
+            clique.assert_read_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
+            clique.assert_read_row_count('select a from "//tmp/t" sample 0', exact=0, verbose=False)
+            clique.assert_read_row_count('select a from "//tmp/t" sample 0.000000000001', exact=0, verbose=False)
+            clique.assert_read_row_count('select a from "//tmp/t" sample 1/100000000000', exact=0, verbose=False)
 
     @authors("max42")
     def test_CHYT_143(self):
@@ -1648,6 +1697,22 @@ class TestCompositeTypes(ClickHouseTestBase):
             result = clique.make_query("select YPathExtract(a, '/a', 'Array(Array(UInt64))') as i from \"//tmp/s1\"")
             assert result == [{"i": object["a"]}]
 
+    @authors("max42")
+    def test_rich_types_v3_are_strings(self):
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type_v3": {"type_name": "list", "item": "int64"}}]})
+        lst = [42, 23]
+        write_table("//tmp/t2", [{"a": lst}])
+
+
+        with Clique(1) as clique:
+            result = clique.make_query("describe `//tmp/t2`")
+            assert len(result) == 1
+            assert result[0]["type"] == "String"
+
+            assert clique.make_query("select a from `//tmp/t2`")[0] == {"a": yson.dumps(lst, yson_format="binary")}
+
+
+
 class TestYtDictionaries(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -1769,8 +1834,8 @@ class TestYtDictionaries(ClickHouseTestBase):
             time.sleep(7)
             assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")[0]["value"] == "y"
 
-            create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64"},
-                                                                 {"name": "value", "type": "string"}]})
+            create("table", "//tmp/dict", attributes={"schema": [{"name": "key", "type": "uint64", "required": True},
+                                                                 {"name": "value", "type": "string", "required": True}]})
             write_table("//tmp/dict", [{"key": 42, "value": "z"}])
             time.sleep(7)
             assert clique.make_query("select dictGetString('dict', 'value', CAST(42 as UInt64)) as value")[0]["value"] == "z"
@@ -1909,33 +1974,46 @@ class TestClickHouseAccess(ClickHouseTestBase):
         self._setup()
 
     @authors("max42")
-    def DISABLED_test_clique_access(self):
-        # TODO(max42): CHYT-300.
-        create_user("u")
+    def test_clique_access(self):
+        create_group("g")
+        create_user("u1")
+        create_user("u2")
+        add_member("u1", "g")
+        add_member("u2", "g")
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 1}])
 
         with Clique(1, config_patch={"validate_operation_access": False}) as clique:
-            assert len(clique.make_query("select * from \"//tmp/t\"", user="u")) == 1
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
 
         with Clique(1, config_patch={"validate_operation_access": True}) as clique:
             with pytest.raises(YtError):
-                clique.make_query("select * from \"//tmp/t\"", user="u")
+                clique.make_query("select * from \"//tmp/t\"", user="u1")
+
+        allow_g = {"subjects": ["g"], "action": "allow", "permissions": ["read"]}
+        deny_u2 = {"subjects": ["u2"], "action": "deny", "permissions": ["read"]}
 
         with Clique(1,
                     config_patch={"validate_operation_access": True, "operation_acl_update_period": 100},
                     spec={
-                        "acl": [{
-                            "subjects": ["u"],
-                            "action": "allow",
-                            "permissions": ["read"]
-                        }]
+                        "acl": [allow_g]
                     }) as clique:
-            assert len(clique.make_query("select * from \"//tmp/t\"", user="u")) == 1
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u2")) == 1
+
+            update_op_parameters(clique.op.id, parameters={"acl": [allow_g, deny_u2]})
+            time.sleep(1)
+            assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"", user="u2")
+
             update_op_parameters(clique.op.id, parameters={"acl": []})
             time.sleep(1)
             with pytest.raises(YtError):
-                clique.make_query("select * from \"//tmp/t\"", user="u")
+                clique.make_query("select * from \"//tmp/t\"", user="u1")
+            with pytest.raises(YtError):
+                clique.make_query("select * from \"//tmp/t\"", user="u2")
+
 
 
 class TestQueryLog(ClickHouseTestBase):
@@ -2359,7 +2437,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert banned_count.update().get(verbose=True) == 1
 
     @authors("dakovalkov")
-    @pytest.mark.skipif(True, reason="temporarily broken")
     def test_ban_stopped_instance_in_proxy(self):
         patch = {
             "interruption_graceful_timeout": 100000,
@@ -2404,7 +2481,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert banned_count.update().get(verbose=True) == 1
 
     @authors("dakovalkov")
-    @pytest.mark.skipif(True, reason="temporarily broken")
     def test_clique_availability(self):
         create("table", "//tmp/table", attributes={"schema": [{"name": "i", "type": "int64"}]})
         write_table("//tmp/table", [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}])

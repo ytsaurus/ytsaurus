@@ -3200,7 +3200,17 @@ private:
             ? transactionManager->GetTransactionOrThrow(clonedTransactionId)
             : nullptr;
 
-        auto* sourceTrunkNode = GetNode(TVersionedObjectId(sourceNodeId));
+        auto* sourceTrunkNode = FindNode(TVersionedObjectId(sourceNodeId));
+        if (!IsObjectAlive(sourceTrunkNode)) {
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Attempted to clone non-existing foreign node (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
+                sourceNodeId,
+                clonedNodeId,
+                sourceTransactionId,
+                clonedTransactionId,
+                mode);
+            return;
+        }
+
         auto* sourceNode = GetVersionedNode(sourceTrunkNode, sourceTransaction);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();

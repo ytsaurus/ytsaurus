@@ -89,7 +89,7 @@ public:
         return Map_.erase(key) > 0;
     }
 
-public:
+private:
     THashMap<TString, TYsonString> Map_;
 
 };
@@ -134,6 +134,56 @@ public:
 const IAttributeDictionary& EmptyAttributes()
 {
     return *Singleton<TEmptyAttributeDictionary>();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TThreadSafeAttributeDictionary
+    : public NYTree::IAttributeDictionary
+{
+public:
+    explicit TThreadSafeAttributeDictionary(IAttributeDictionary* underlying)
+        : Underlying_(underlying)
+    { }
+
+    virtual std::vector<TString> ListKeys() const override
+    {
+        NConcurrency::TReaderGuard guard(Lock_);
+        return Underlying_->ListKeys();
+    }
+
+    virtual std::vector<TKeyValuePair> ListPairs() const override
+    {
+        NConcurrency::TReaderGuard guard(Lock_);
+        return Underlying_->ListPairs();
+    }
+
+    virtual NYson::TYsonString FindYson(TStringBuf key) const override
+    {
+        NConcurrency::TReaderGuard guard(Lock_);
+        return Underlying_->FindYson(key);
+    }
+
+    virtual void SetYson(const TString& key, const NYson::TYsonString& value) override
+    {
+        NConcurrency::TWriterGuard guard(Lock_);
+        Underlying_->SetYson(key, value);
+    }
+
+    virtual bool Remove(const TString& key) override
+    {
+        NConcurrency::TWriterGuard guard(Lock_);
+        return Underlying_->Remove(key);
+    }
+
+private:
+    IAttributeDictionary* const Underlying_;
+    NConcurrency::TReaderWriterSpinLock Lock_;
+};
+
+std::unique_ptr<IAttributeDictionary> CreateThreadSafeAttributes(IAttributeDictionary* underlying)
+{
+    return std::unique_ptr<IAttributeDictionary>(new TThreadSafeAttributeDictionary(underlying));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

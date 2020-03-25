@@ -24,7 +24,7 @@ struct IActionQueue
      * \param index Index is used as a hint to place the action
      * using the most suitable implementation-specific way.
      */
-    virtual void Enqueue(const TEnqueuedAction& action, int index) = 0;
+    virtual void Enqueue(TEnqueuedAction&& action, int index) = 0;
 
     //! Extracts single element from the queue.
     /*!
@@ -48,12 +48,12 @@ class TLockFreeActionQueue
     : public IActionQueue
 {
 public:
-    virtual void Enqueue(const TEnqueuedAction& action, int /*index*/) override
+    virtual void Enqueue(TEnqueuedAction&& action, int /*index*/) override
     {
         Queue_.Enqueue(action);
     }
 
-    virtual bool Dequeue(TEnqueuedAction *action, int /*index*/) override
+    virtual bool Dequeue(TEnqueuedAction* action, int /*index*/) override
     {
         return Queue_.Dequeue(action);
     }
@@ -180,7 +180,7 @@ class TMultiLockActionQueue
     : public IActionQueue
 {
 public:
-    virtual void Enqueue(const TEnqueuedAction& action, int index) override
+    virtual void Enqueue(TEnqueuedAction&& action, int index) override
     {
         Queue_.Enqueue(action, index);
     }
@@ -270,7 +270,7 @@ void TInvokerQueue::Invoke(TClosure callback)
     action.Finished = false;
     action.EnqueuedAt = GetCpuInstant();
     action.Callback = std::move(callback);
-    Queue->Enqueue(action, index);
+    Queue->Enqueue(std::move(action), index);
 
     CallbackEventCount->NotifyOne();
 }

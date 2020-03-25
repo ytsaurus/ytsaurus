@@ -21,10 +21,15 @@
 
 #include <yt/core/json/json_writer.h>
 #include <yt/core/json/config.h>
+#include <yt/core/json/helpers.h>
+
+#include <yt/core/misc/utf8_decoder.h>
 
 #include <yt/core/ytree/fluent.h>
 
 #include <util/generic/buffer.h>
+
+#include <util/stream/length.h>
 
 namespace NYT::NFormats {
 
@@ -38,60 +43,6 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto ContextBufferCapacity = 1_MB;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TWrittenSizeAccountedOutputStream
-    : public IOutputStream
-{
-public:
-    explicit TWrittenSizeAccountedOutputStream(
-        std::unique_ptr<IOutputStream> underlyingStream = nullptr)
-    {
-        Reset(std::move(underlyingStream));
-    }
-
-    void Reset(std::unique_ptr<IOutputStream> underlyingStream)
-    {
-        UnderlyingStream_ = std::move(underlyingStream);
-        WrittenSize_ = 0;
-    }
-
-    i64 GetWrittenSize() const
-    {
-        return WrittenSize_;
-    }
-
-protected:
-    // For simplicity we do not override DoWriteV and DoWriteC methods here.
-    // Overriding DoWrite method is enough for local usage.
-    virtual void DoWrite(const void* buf, size_t length) override
-    {
-        if (UnderlyingStream_) {
-            UnderlyingStream_->Write(buf, length);
-            WrittenSize_ += length;
-        }
-    }
-
-    virtual void DoFlush() override
-    {
-        if (UnderlyingStream_) {
-            UnderlyingStream_->Flush();
-        }
-    }
-
-    virtual void DoFinish() override
-    {
-        if (UnderlyingStream_) {
-            UnderlyingStream_->Finish();
-        }
-    }
-
-private:
-    std::unique_ptr<IOutputStream> UnderlyingStream_;
-
-    i64 WrittenSize_ = 0;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -307,9 +258,8 @@ public:
         const TWebJsonFormatConfigPtr& config,
         const TNameTablePtr& nameTable,
         const std::vector<TTableSchema>& schemas,
-        IJsonConsumer* consumer)
-        : UnderlyingConsumer_(consumer)
-        , Consumer_(UnderlyingConsumer_)
+        IJsonWriter* consumer)
+        : Consumer_(consumer)
         , TableIndexToColumnIdToTypeIndex_(schemas.size())
     {
         YT_VERIFY(config->ValueFormat == EWebJsonValueFormat::Yql);
@@ -318,7 +268,8 @@ public:
         for (auto valueType : TEnumTraits<EValueType>::GetDomainValues()) {
             if (IsValueType(valueType) || valueType == EValueType::Null) {
                 Types_.push_back(SimpleLogicalType(GetLogicalType(valueType)));
-                Converters_.push_back(CreateUnversionedValueToYqlConverter(Types_.back(), converterConfig));
+                Converters_.push_back(
+                    CreateUnversionedValueToYqlConverter(Types_.back(), converterConfig, Consumer_));
                 ValueTypeToTypeIndex_[valueType] = static_cast<int>(Types_.size()) - 1;
             } else {
                 ValueTypeToTypeIndex_[valueType] = UnknownTypeIndex;
@@ -329,7 +280,8 @@ public:
             const auto& schema = schemas[tableIndex];
             for (const auto& column : schema.Columns()) {
                 Types_.push_back(column.LogicalType());
-                Converters_.push_back(CreateUnversionedValueToYqlConverter(column.LogicalType(), converterConfig));
+                Converters_.push_back(
+                    CreateUnversionedValueToYqlConverter(column.LogicalType(), converterConfig, Consumer_));
                 auto [it, inserted] = TableIndexAndColumnNameToTypeIndex_.emplace(
                     std::make_pair(tableIndex, column.Name()),
                     static_cast<int>(Types_.size()) - 1);
@@ -340,22 +292,22 @@ public:
 
     void WriteValue(int tableIndex, TStringBuf columnName, TUnversionedValue value)
     {
-        Consumer_.OnBeginList();
+        Consumer_->OnBeginList();
 
-        Consumer_.OnListItem();
+        Consumer_->OnListItem();
         auto typeIndex = GetTypeIndex(tableIndex, value.Id, columnName, value.Type);
-        Converters_[typeIndex](value, &Consumer_);
+        Converters_[typeIndex](value);
 
-        Consumer_.OnListItem();
-        Consumer_.OnInt64Scalar(typeIndex);
+        Consumer_->OnListItem();
+        Consumer_->OnStringScalar(ToString(typeIndex));
 
-        Consumer_.OnEndList();
+        Consumer_->OnEndList();
     }
 
     void WriteMetaInfo()
     {
-        UnderlyingConsumer_->OnKeyedItem("yql_type_registry");
-        BuildYsonFluently(UnderlyingConsumer_)
+        Consumer_->OnKeyedItem("yql_type_registry");
+        BuildYsonFluently(Consumer_)
             .DoListFor(Types_, [&] (TFluentList fluentList, const TLogicalTypePtr& type) {
                 fluentList
                     .Item().Do([&] (TFluentAny innerFluent) {
@@ -364,25 +316,16 @@ public:
             });
     }
 
-    static TJsonFormatConfigPtr GetJsonConfig(const TWebJsonFormatConfigPtr& /* webJsonConfig */)
-    {
-        auto config = New<TJsonFormatConfig>();
-        config->EncodeUtf8 = false;
-        return config;
-    }
-
 private:
     static constexpr int UnknownTypeIndex = -1;
     static constexpr int UnschematizedTypeIndex = -2;
 
-    IJsonConsumer* UnderlyingConsumer_;
-    TYqlJsonConsumer Consumer_;
+    IJsonWriter* Consumer_;
     std::vector<TUnversionedValueToYqlConverter> Converters_;
     std::vector<TLogicalTypePtr> Types_;
     std::vector<std::vector<int>> TableIndexToColumnIdToTypeIndex_;
     THashMap<std::pair<int, TString>, int> TableIndexAndColumnNameToTypeIndex_;
     TEnumIndexedVector<EValueType, int> ValueTypeToTypeIndex_;
-    TBuffer BufferForWriters_;
 
 private:
     int GetTypeIndex(int tableIndex, ui16 columnId, TStringBuf columnName, EValueType valueType)
@@ -426,12 +369,16 @@ public:
         const TWebJsonFormatConfigPtr& config,
         const TNameTablePtr& nameTable,
         const std::vector<TTableSchema>& schemas,
-        IJsonConsumer* consumer)
+        IJsonWriter* writer)
         : FieldWeightLimit_(config->FieldWeightLimit)
-        , Consumer_(consumer)
         , BlobYsonWriter_(&TmpBlob_, EYsonType::Node)
     {
         YT_VERIFY(config->ValueFormat == EWebJsonValueFormat::Schemaless);
+
+        auto jsonFormatConfig = New<TJsonFormatConfig>();
+        jsonFormatConfig->Stringify = true;
+        jsonFormatConfig->AnnotateWithTypes = true;
+        Consumer_ = CreateJsonConsumer(writer, EYsonType::Node, std::move(jsonFormatConfig));
 
         for (int tableIndex = 0; tableIndex != schemas.size(); ++tableIndex) {
             for (const auto& column : schemas[tableIndex].Columns()) {
@@ -495,17 +442,9 @@ public:
     void WriteMetaInfo()
     { }
 
-    static TJsonFormatConfigPtr GetJsonConfig(const TWebJsonFormatConfigPtr& /* webJsonConfig */)
-    {
-        auto config = New<TJsonFormatConfig>();
-        config->Stringify = true;
-        config->AnnotateWithTypes = true;
-        return config;
-    }
-
 private:
     int FieldWeightLimit_;
-    IJsonConsumer* Consumer_;
+    std::unique_ptr<IJsonConsumer> Consumer_;
 
     // Map <tableIndex,columnId> -> YsonConverter
     THashMap<std::pair<int, int>, TYsonConverter> YsonConverters_;
@@ -538,13 +477,17 @@ private:
     const TNameTablePtr NameTable_;
     const TNameTableReader NameTableReader_;
 
-    TWrittenSizeAccountedOutputStream Output_;
-    std::unique_ptr<IJsonConsumer> ResponseBuilder_;
+    std::unique_ptr<IOutputStream> UnderlyingOutput_;
+    TCountingOutput Output_;
+
+    std::unique_ptr<IJsonWriter> ResponseBuilder_;
 
     TWebJsonColumnFilter ColumnFilter_;
     THashMap<ui16, TString> AllColumnIdToName_;
 
     TValueWriter ValueWriter_;
+
+    TUtf8Transcoder Utf8Transcoder_;
 
     bool IncompleteAllColumnNames_ = false;
     bool IncompleteColumns_ = false;
@@ -571,14 +514,12 @@ TWriterForWebJson<TValueWriter>::TWriterForWebJson(
     : Config_(std::move(config))
     , NameTable_(std::move(nameTable))
     , NameTableReader_(NameTable_)
-    , Output_(CreateBufferedSyncAdapter(
+    , UnderlyingOutput_(CreateBufferedSyncAdapter(
         std::move(output),
         ESyncStreamAdapterStrategy::WaitFor,
         ContextBufferCapacity))
-    , ResponseBuilder_(CreateJsonConsumer(
-        &Output_,
-        NYson::EYsonType::Node,
-        TValueWriter::GetJsonConfig(Config_)))
+    , Output_(UnderlyingOutput_.get())
+    , ResponseBuilder_(CreateJsonWriter(&Output_))
     , ColumnFilter_(std::move(columnFilter))
     , ValueWriter_(Config_, NameTable_, schemas, ResponseBuilder_.get())
 {
@@ -620,7 +561,7 @@ TBlob TWriterForWebJson<TValueWriter>::GetContext() const
 template <typename TValueWriter>
 i64 TWriterForWebJson<TValueWriter>::GetWrittenSize() const
 {
-    return Output_.GetWrittenSize();
+    return static_cast<i64>(Output_.Counter());
 }
 
 template <typename TValueWriter>
@@ -670,7 +611,7 @@ void TWriterForWebJson<TValueWriter>::DoFlush(bool force)
 {
     ResponseBuilder_->Flush();
     if (force) {
-        Output_.Flush();
+        UnderlyingOutput_->Flush();
     }
 }
 
@@ -696,14 +637,18 @@ void TWriterForWebJson<TValueWriter>::DoWrite(TRange<TUnversionedRow> rows)
             }
 
             int tableIndex = 0;
-            for (const auto& value : row) {
-                if (value.Id == TableIndexId_) {
-                    tableIndex = value.Data.Int64;
+            for (auto val : row) {
+                if (val.Id == TableIndexId_) {
+                    tableIndex = val.Data.Int64;
                     break;
                 }
             }
 
-            ResponseBuilder_->OnKeyedItem(columnName);
+            if (IsSpecialJsonKey(columnName)) {
+                ResponseBuilder_->OnKeyedItem(Utf8Transcoder_.Encode(TString("$") + columnName));
+            } else {
+                ResponseBuilder_->OnKeyedItem(Utf8Transcoder_.Encode(columnName));
+            }
             ValueWriter_.WriteValue(tableIndex, columnName, value);
         }
 
@@ -721,13 +666,13 @@ void TWriterForWebJson<TValueWriter>::DoClose()
     if (Error_.IsOK()) {
         ResponseBuilder_->OnEndList();
 
-        ResponseBuilder_->SetAnnotateWithTypesParameter(false);
-
         ResponseBuilder_->OnKeyedItem("incomplete_columns");
-        ResponseBuilder_->OnBooleanScalar(IncompleteColumns_);
+        // TODO(levysotsky): Maybe we don't need stringification here?
+        ResponseBuilder_->OnStringScalar(IncompleteColumns_ ? "true" : "false");
 
         ResponseBuilder_->OnKeyedItem("incomplete_all_column_names");
-        ResponseBuilder_->OnBooleanScalar(IncompleteAllColumnNames_);
+        // TODO(levysotsky): Maybe we don't need stringification here?
+        ResponseBuilder_->OnStringScalar(IncompleteAllColumnNames_ ? "true" : "false");
 
         ResponseBuilder_->OnKeyedItem("all_column_names");
         ResponseBuilder_->OnBeginList();

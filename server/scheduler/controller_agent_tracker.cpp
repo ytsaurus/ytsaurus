@@ -94,6 +94,89 @@ TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FromProto(
+    TOperationControllerInitializeResult* result,
+    const NControllerAgent::NProto::TInitializeOperationResult& resultProto,
+    TOperationId operationId,
+    TBootstrap* bootstrap,
+    TDuration operationTransactionPingPeriod)
+{
+    try {
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        FromProto(
+            &result->Transactions,
+            resultProto.transaction_ids(),
+            std::bind(&TBootstrap::GetRemoteMasterClient, bootstrap, _1),
+            operationTransactionPingPeriod);
+    } catch (const std::exception& ex) {
+        YT_LOG_INFO(ex, "Failed to attach operation transactions", operationId);
+    }
+
+    result->Attributes = TOperationControllerInitializeAttributes{
+        TYsonString(resultProto.mutable_attributes(), EYsonType::MapFragment),
+        TYsonString(resultProto.brief_spec(), EYsonType::MapFragment),
+        TYsonString(resultProto.full_spec(), EYsonType::Node),
+        TYsonString(resultProto.unrecognized_spec(), EYsonType::Node)
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(TOperationControllerPrepareResult* result, const NControllerAgent::NProto::TPrepareOperationResult& resultProto)
+{
+    result->Attributes = resultProto.has_attributes()
+        ? TYsonString(resultProto.attributes(), EYsonType::MapFragment)
+        : TYsonString();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(TOperationControllerMaterializeResult* result, const NControllerAgent::NProto::TMaterializeOperationResult& resultProto)
+{
+    result->Suspend = resultProto.suspend();
+    result->InitialNeededResources = FromProto<TJobResources>(resultProto.initial_needed_resources());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(
+    TOperationControllerReviveResult* result,
+    const NControllerAgent::NProto::TReviveOperationResult& resultProto,
+    TOperationId operationId,
+    TIncarnationId incarnationId,
+    EPreemptionMode preemptionMode)
+{
+    result->Attributes = TYsonString(resultProto.attributes(), EYsonType::MapFragment);
+    result->RevivedFromSnapshot = resultProto.revived_from_snapshot();
+    for (const auto& jobProto : resultProto.revived_jobs()) {
+        auto job = New<TJob>(
+            FromProto<TJobId>(jobProto.job_id()),
+            static_cast<EJobType>(jobProto.job_type()),
+            operationId,
+            incarnationId,
+            nullptr /* execNode */,
+            FromProto<TInstant>(jobProto.start_time()),
+            FromProto<TJobResources>(jobProto.resource_limits()),
+            jobProto.interruptible(),
+            preemptionMode,
+            jobProto.tree_id(),
+            jobProto.node_id(),
+            jobProto.node_address());
+        job->SetState(EJobState::Running);
+        result->RevivedJobs.push_back(job);
+    }
+    result->RevivedBannedTreeIds = FromProto<THashSet<TString>>(resultProto.revived_banned_tree_ids());
+    result->NeededResources = FromProto<TJobResources>(resultProto.needed_resources());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromProto(TOperationControllerCommitResult* /* result */, const NControllerAgent::NProto::TCommitOperationResult& /* resultProto */)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationController
     : public IOperationController
 {
@@ -139,6 +222,12 @@ public:
             return;
         }
 
+        PendingInitializeResult_ = TPromise<TOperationControllerInitializeResult>();
+        PendingPrepareResult_ = TPromise<TOperationControllerPrepareResult>();
+        PendingMaterializeResult_ = TPromise<TOperationControllerMaterializeResult>();
+        PendingReviveResult_ = TPromise<TOperationControllerReviveResult>();
+        PendingCommitResult_ = TPromise<TOperationControllerCommitResult>();
+
         IncarnationId_ = {};
         Agent_.Reset();
     }
@@ -150,40 +239,54 @@ public:
         return Agent_.Lock();
     }
 
-
     virtual TFuture<TOperationControllerInitializeResult> Initialize(const std::optional<TOperationTransactions>& transactions) override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IncarnationId_);
 
+        auto agent = Agent_.Lock();
+        if (!agent) {
+            throw TFiberCanceledException();
+        }
+
+        YT_VERIFY(!PendingInitializeResult_);
+        PendingInitializeResult_ = NewPromise<TOperationControllerInitializeResult>();
+
         auto req = AgentProxy_->InitializeOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
         if (transactions) {
             req->set_clean(false);
             ToProto(req->mutable_transaction_ids(), *transactions);
         } else {
             req->set_clean(true);
         }
-        return InvokeAgent<TControllerAgentServiceProxy::TRspInitializeOperation>(req).Apply(
-            BIND([this, this_ = MakeStrong(this)] (const TControllerAgentServiceProxy::TRspInitializeOperationPtr& rsp) {
-                TOperationTransactions transactions;
-                try {
-                    FromProto(&transactions, rsp->transaction_ids(), std::bind(&TBootstrap::GetRemoteMasterClient, Bootstrap_, _1), Config_->OperationTransactionPingPeriod);
-                } catch (const std::exception& ex) {
-                    YT_LOG_INFO(ex, "Failed to attach operation transactions",
-                        OperationId_);
+        InvokeAgent<TControllerAgentServiceProxy::TRspInitializeOperation>(req).Subscribe(
+            BIND([
+                this,
+                this_ = MakeStrong(this)
+            ] (const TErrorOr<TControllerAgentServiceProxy::TRspInitializeOperationPtr>& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    OnInitializationFinished(static_cast<TError>(rspOrError));
+                    return;
                 }
-                return TOperationControllerInitializeResult{
-                    TOperationControllerInitializeAttributes{
-                        TYsonString(rsp->mutable_attributes(), EYsonType::MapFragment),
-                        TYsonString(rsp->brief_spec(), EYsonType::MapFragment),
-                        TYsonString(rsp->full_spec(), EYsonType::Node),
-                        TYsonString(rsp->unrecognized_spec(), EYsonType::Node)
-                    },
-                    transactions
-                };
-            }));
+
+                auto rsp = rspOrError.Value();
+                if (rsp->has_result()) {
+                    TOperationControllerInitializeResult result;
+                    FromProto(
+                        &result,
+                        rsp->result(),
+                        OperationId_,
+                        Bootstrap_,
+                        Config_->OperationTransactionPingPeriod);
+
+                    OnInitializationFinished(result);
+                }
+            })
+            .Via(agent->GetCancelableInvoker()));
+
+        return PendingInitializeResult_;
     }
 
     virtual TFuture<TOperationControllerPrepareResult> Prepare() override
@@ -191,15 +294,35 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IncarnationId_);
 
+        auto agent = Agent_.Lock();
+        if (!agent) {
+            throw TFiberCanceledException();
+        }
+
+        YT_VERIFY(!PendingPrepareResult_);
+        PendingPrepareResult_ = NewPromise<TOperationControllerPrepareResult>();
+
         auto req = AgentProxy_->PrepareOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
-        return InvokeAgent<TControllerAgentServiceProxy::TRspPrepareOperation>(req).Apply(
-            BIND([] (const TControllerAgentServiceProxy::TRspPrepareOperationPtr& rsp) {
-                return TOperationControllerPrepareResult{
-                    rsp->has_attributes() ? TYsonString(rsp->attributes(), EYsonType::MapFragment) : TYsonString()
-                };
-            }));
+        req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
+        InvokeAgent<TControllerAgentServiceProxy::TRspPrepareOperation>(req).Subscribe(
+            BIND([
+                this,
+                this_ = MakeStrong(this)
+            ] (const TErrorOr<TControllerAgentServiceProxy::TRspPrepareOperationPtr>& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    OnPreparationFinished(static_cast<TError>(rspOrError));
+                    return;
+                }
+
+                auto rsp = rspOrError.Value();
+                if (rsp->has_result()) {
+                    OnPreparationFinished(FromProto<TOperationControllerPrepareResult>(rsp->result()));
+                }
+            })
+            .Via(agent->GetCancelableInvoker()));
+
+        return PendingPrepareResult_;
     }
 
     virtual TFuture<TOperationControllerMaterializeResult> Materialize() override
@@ -207,15 +330,35 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IncarnationId_);
 
+        auto agent = Agent_.Lock();
+        if (!agent) {
+            throw TFiberCanceledException();
+        }
+
+        YT_VERIFY(!PendingMaterializeResult_);
+        PendingMaterializeResult_ = NewPromise<TOperationControllerMaterializeResult>();
+
         auto req = AgentProxy_->MaterializeOperation();
-        // Materialize can last infinitely long if input chunks are unavailable.
-        // Therefore we set large timeout.
-        req->SetTimeout(TDuration::Days(30));
+        req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
         ToProto(req->mutable_operation_id(), OperationId_);
-        return InvokeAgent<TControllerAgentServiceProxy::TRspMaterializeOperation>(req).Apply(
-            BIND([] (const TControllerAgentServiceProxy::TRspMaterializeOperationPtr& rsp) {
-                return TOperationControllerMaterializeResult{rsp->suspend(), FromProto<TJobResources>(rsp->initial_needed_resources())};
-            }));
+        InvokeAgent<TControllerAgentServiceProxy::TRspMaterializeOperation>(req).Subscribe(
+            BIND([
+                this,
+                this_ = MakeStrong(this)
+            ] (const TErrorOr<TControllerAgentServiceProxy::TRspMaterializeOperationPtr>& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    OnMaterializationFinished(static_cast<TError>(rspOrError));
+                    return;
+                }
+
+                auto rsp = rspOrError.Value();
+                if (rsp->has_result()) {
+                    OnMaterializationFinished(FromProto<TOperationControllerMaterializeResult>(rsp->result()));
+                }
+            })
+            .Via(agent->GetCancelableInvoker()));
+
+        return PendingMaterializeResult_;
     }
 
     virtual TFuture<TOperationControllerReviveResult> Revive() override
@@ -228,51 +371,77 @@ public:
             throw TFiberCanceledException();
         }
 
+        YT_VERIFY(!PendingReviveResult_);
+        PendingReviveResult_ = NewPromise<TOperationControllerReviveResult>();
+
         auto req = AgentProxy_->ReviveOperation();
-        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
+        req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
         ToProto(req->mutable_operation_id(), OperationId_);
-        return InvokeAgent<TControllerAgentServiceProxy::TRspReviveOperation>(req).Apply(
+        InvokeAgent<TControllerAgentServiceProxy::TRspReviveOperation>(req).Subscribe(
             BIND([
+                this,
+                this_ = MakeStrong(this),
                 operationId = OperationId_,
                 incarnationId = agent->GetIncarnationId(),
                 preemptionMode = PreemptionMode_
-            ] (const TControllerAgentServiceProxy::TRspReviveOperationPtr& rsp)
-            {
-                TOperationControllerReviveResult result;
-                result.Attributes = TYsonString(rsp->attributes(), EYsonType::MapFragment);
-                result.RevivedFromSnapshot = rsp->revived_from_snapshot();
-                for (const auto& protoJob : rsp->revived_jobs()) {
-                    auto job = New<TJob>(
-                        FromProto<TJobId>(protoJob.job_id()),
-                        static_cast<EJobType>(protoJob.job_type()),
+            ] (const TErrorOr<TControllerAgentServiceProxy::TRspReviveOperationPtr>& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    OnRevivalFinished(static_cast<TError>(rspOrError));
+                    return;
+                }
+
+                auto rsp = rspOrError.Value();
+                if (rsp->has_result()) {
+                    TOperationControllerReviveResult result;
+                    FromProto(
+                        &result,
+                        rsp->result(),
                         operationId,
                         incarnationId,
-                        nullptr /* execNode */,
-                        FromProto<TInstant>(protoJob.start_time()),
-                        FromProto<TJobResources>(protoJob.resource_limits()),
-                        protoJob.interruptible(),
-                        preemptionMode,
-                        protoJob.tree_id(),
-                        protoJob.node_id(),
-                        protoJob.node_address());
-                    job->SetState(EJobState::Running);
-                    result.RevivedJobs.push_back(job);
+                        preemptionMode);
+
+                    OnRevivalFinished(result);
                 }
-                result.RevivedBannedTreeIds = FromProto<THashSet<TString>>(rsp->revived_banned_tree_ids());
-                result.NeededResources = FromProto<TJobResources>(rsp->needed_resources());
-                return result;
-            }));
+            })
+            .Via(agent->GetCancelableInvoker()));
+
+        return PendingReviveResult_;
     }
 
-    virtual TFuture<void> Commit() override
+    virtual TFuture<TOperationControllerCommitResult> Commit() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IncarnationId_);
 
+        auto agent = Agent_.Lock();
+        if (!agent) {
+            throw TFiberCanceledException();
+        }
+
+        YT_VERIFY(!PendingCommitResult_);
+        PendingCommitResult_ = NewPromise<TOperationControllerCommitResult>();
+
         auto req = AgentProxy_->CommitOperation();
         ToProto(req->mutable_operation_id(), OperationId_);
-        req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
-        return InvokeAgent<TControllerAgentServiceProxy::TRspCommitOperation>(req).As<void>();
+        req->SetTimeout(Config_->ControllerAgentTracker->LightRpcTimeout);
+        InvokeAgent<TControllerAgentServiceProxy::TRspCommitOperation>(req).Subscribe(
+            BIND([
+                this,
+                this_ = MakeStrong(this)
+            ] (const TErrorOr<TControllerAgentServiceProxy::TRspCommitOperationPtr>& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    OnCommitFinished(static_cast<TError>(rspOrError));
+                    return;
+                }
+
+                auto rsp = rspOrError.Value();
+                if (rsp->has_result()) {
+                    OnCommitFinished(FromProto<TOperationControllerCommitResult>(rsp->result()));
+                }
+            })
+            .Via(agent->GetCancelableInvoker()));
+
+        return PendingCommitResult_;
     }
 
     virtual TFuture<void> Terminate(EOperationState finalState) override
@@ -443,6 +612,80 @@ public:
             job->GetId());
     }
 
+    virtual void OnInitializationFinished(const TErrorOr<TOperationControllerInitializeResult>& resultOrError) override
+    {
+        YT_VERIFY(PendingInitializeResult_);
+
+        if (resultOrError.IsOK()) {
+            YT_LOG_DEBUG("Successful initialization result received");
+        } else {
+            YT_LOG_DEBUG("Unsuccessful initialization result received (Error: %v)", resultOrError);
+        }
+
+        PendingInitializeResult_.TrySet(resultOrError);
+    }
+
+    virtual void OnPreparationFinished(const TErrorOr<TOperationControllerPrepareResult>& resultOrError) override
+    {
+        YT_VERIFY(PendingPrepareResult_);
+
+        if (resultOrError.IsOK()) {
+            YT_LOG_DEBUG("Successful preparation result received");
+        } else {
+            YT_LOG_DEBUG("Unsuccessful preparation result received (Error: %v)", resultOrError);
+        }
+
+        PendingPrepareResult_.TrySet(resultOrError);
+    }
+
+    virtual void OnMaterializationFinished(const TErrorOr<TOperationControllerMaterializeResult>& resultOrError) override
+    {
+        YT_VERIFY(PendingMaterializeResult_);
+
+        if (resultOrError.IsOK()) {
+            auto materializeResult = resultOrError.Value();
+            YT_LOG_DEBUG("Successful materialization result received (Suspend: %v, InitialNeededResources: %v)",
+                materializeResult.Suspend,
+                FormatResources(materializeResult.InitialNeededResources));
+        } else {
+            YT_LOG_DEBUG("Unsuccessful materialization result received (Error: %v)", resultOrError);
+        }
+
+        PendingMaterializeResult_.TrySet(resultOrError);
+    }
+
+    virtual void OnRevivalFinished(const TErrorOr<TOperationControllerReviveResult>& resultOrError) override
+    {
+        YT_VERIFY(PendingReviveResult_);
+
+        if (resultOrError.IsOK()) {
+            auto result = resultOrError.Value();
+            YT_LOG_DEBUG(
+                "Successful revival result received "
+                "(RevivedFromSnapshot: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, NeededResources: %v)",
+                result.RevivedFromSnapshot,
+                result.RevivedJobs.size(),
+                result.RevivedBannedTreeIds,
+                FormatResources(result.NeededResources));
+        } else {
+            YT_LOG_DEBUG("Unsuccessful revival result received (Error: %v)", resultOrError);
+        }
+
+        PendingReviveResult_.TrySet(resultOrError);
+    }
+
+    virtual void OnCommitFinished(const TErrorOr<TOperationControllerCommitResult>& resultOrError) override
+    {
+        YT_VERIFY(PendingCommitResult_);
+
+        if (resultOrError.IsOK()) {
+            YT_LOG_DEBUG("Successful commit result received");
+        } else {
+            YT_LOG_DEBUG("Unsuccessful commit result received (Error: %v)", resultOrError);
+        }
+
+        PendingCommitResult_.TrySet(resultOrError);
+    }
 
     virtual TFuture<TControllerScheduleJobResultPtr> ScheduleJob(
         const ISchedulingContextPtr& context,
@@ -546,6 +789,12 @@ private:
     TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentJobEvent>> JobEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TSchedulerToAgentOperationEvent>> OperationEventsOutbox_;
     TIntrusivePtr<TMessageQueueOutbox<TScheduleJobRequestPtr>> ScheduleJobRequestsOutbox_;
+
+    TPromise<TOperationControllerInitializeResult> PendingInitializeResult_;
+    TPromise<TOperationControllerPrepareResult> PendingPrepareResult_;
+    TPromise<TOperationControllerMaterializeResult> PendingMaterializeResult_;
+    TPromise<TOperationControllerReviveResult> PendingReviveResult_;
+    TPromise<TOperationControllerCommitResult> PendingCommitResult_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -1119,6 +1368,84 @@ public:
                         auto treeId = protoEvent->tentative_tree_id();
                         auto jobIds = FromProto<std::vector<TJobId>>(protoEvent->tentative_tree_job_ids());
                         scheduler->OnOperationBannedInTentativeTree(operation, treeId, jobIds);
+                        break;
+                    }
+                    case EAgentToSchedulerOperationEventType::InitializationFinished: {
+                        TErrorOr<TOperationControllerInitializeResult> resultOrError;
+                        if (error.IsOK()) {
+                            YT_ASSERT(protoEvent->has_initialize_result());
+
+                            TOperationControllerInitializeResult result;
+                            FromProto(
+                                &result,
+                                protoEvent->initialize_result(),
+                                operationId,
+                                Bootstrap_,
+                                SchedulerConfig_->OperationTransactionPingPeriod);
+
+                            resultOrError = std::move(result);
+                        } else {
+                            resultOrError = std::move(error);
+                        }
+
+                        operation->GetController()->OnInitializationFinished(resultOrError);
+                        break;
+                    }
+                    case EAgentToSchedulerOperationEventType::PreparationFinished: {
+                        TErrorOr<TOperationControllerPrepareResult> resultOrError;
+                        if (error.IsOK()) {
+                            YT_ASSERT(protoEvent->has_prepare_result());
+                            resultOrError = FromProto<TOperationControllerPrepareResult>(protoEvent->prepare_result());
+                        } else {
+                            resultOrError = std::move(error);
+                        }
+
+                        operation->GetController()->OnPreparationFinished(resultOrError);
+                        break;
+                    }
+                    case EAgentToSchedulerOperationEventType::MaterializationFinished: {
+                        TErrorOr<TOperationControllerMaterializeResult> resultOrError;
+                        if (error.IsOK()) {
+                            YT_ASSERT(protoEvent->has_materialize_result());
+                            resultOrError = FromProto<TOperationControllerMaterializeResult>(protoEvent->materialize_result());
+                        } else {
+                            resultOrError = std::move(error);
+                        }
+
+                        operation->GetController()->OnMaterializationFinished(resultOrError);
+                        break;
+                    }
+                    case EAgentToSchedulerOperationEventType::RevivalFinished: {
+                        TErrorOr<TOperationControllerReviveResult> resultOrError;
+                        if (error.IsOK()) {
+                            YT_ASSERT(protoEvent->has_revive_result());
+
+                            TOperationControllerReviveResult result;
+                            FromProto(
+                                &result,
+                                protoEvent->revive_result(),
+                                operationId,
+                                incarnationId,
+                                operation->GetController()->GetPreemptionMode());
+
+                            resultOrError = std::move(result);
+                        } else {
+                            resultOrError = std::move(error);
+                        }
+
+                        operation->GetController()->OnRevivalFinished(resultOrError);
+                        break;
+                    }
+                    case EAgentToSchedulerOperationEventType::CommitFinished: {
+                        TErrorOr<TOperationControllerCommitResult> resultOrError;
+                        if (error.IsOK()) {
+                            YT_ASSERT(protoEvent->has_commit_result());
+                            resultOrError = FromProto<TOperationControllerCommitResult>(protoEvent->commit_result());
+                        } else {
+                            resultOrError = std::move(error);
+                        }
+
+                        operation->GetController()->OnCommitFinished(resultOrError);
                         break;
                     }
                     default:

@@ -1,33 +1,12 @@
 #include "subquery_spec.h"
 
-#include "table.h"
-#include "table_schema.h"
+#include "schema.h"
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 
 #include <DataTypes/DataTypeFactory.h>
-
-namespace DB {
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToProto(NYT::NClickHouseServer::NProto::TNameAndTypePair* protoPair, const NameAndTypePair& pair)
-{
-    protoPair->set_name(TString(pair.name));
-    protoPair->set_type(TString(pair.type->getName()));
-}
-
-void FromProto(NameAndTypePair* pair, const NYT::NClickHouseServer::NProto::TNameAndTypePair& protoPair)
-{
-    pair->name = protoPair.name();
-    pair->type = DB::DataTypeFactory::instance().get(protoPair.type());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace DB
 
 namespace NYT::NClickHouseServer {
 
@@ -53,9 +32,6 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
     }
 
     ToProto(protoSpec->mutable_initial_query_id(), spec.InitialQueryId);
-    for (const auto& column : spec.Columns) {
-        ToProto(protoSpec->add_columns(), column);
-    }
     ToProto(protoSpec->mutable_read_schema(), spec.ReadSchema);
 
     protoSpec->set_membership_hint(spec.MembershipHint.GetData());
@@ -78,9 +54,6 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
     }
 
     FromProto(&spec->InitialQueryId, protoSpec.initial_query_id());
-    for (const auto& protoColumn : protoSpec.columns()) {
-        FromProto(&spec->Columns.emplace_back(), protoColumn);
-    }
     FromProto(&spec->ReadSchema, protoSpec.read_schema());
 
     spec->MembershipHint = TYsonString(protoSpec.membership_hint());

@@ -372,7 +372,7 @@ private:
             tableInfo->SecondaryRevision});
     }
 
-    virtual void OnErase(const TTableMountCacheKey& key) override
+    virtual void OnEvicted(const TTableMountCacheKey& key) noexcept override
     {
         YT_LOG_DEBUG("Table mount info evicted from cache (Path: %Qv, PrimaryRevision: %v, SecondaryRevision: %v)",
             key.Path,

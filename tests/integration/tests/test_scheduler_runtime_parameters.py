@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE
+from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
 from yt.test_helpers import are_almost_equal
 from yt_commands import *
 
@@ -210,6 +210,73 @@ class TestRuntimeParameters(YTEnvSetup):
         # assert this doesn't fail
         update_op_parameters(op.id, parameters={"weight": 2})
 
+    @authors("eshcherbin")
+    def test_schedule_in_single_tree(self):
+        self.create_custom_pool_tree_with_one_node("other")
+        create_pool("pool1", pool_tree="other")
+        create_pool("pool2", pool_tree="other")
+        create_pool("pool1")
+        create_pool("pool2")
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/pool2"))
+
+        op = run_sleeping_vanilla(
+            spec={
+                "pool_trees": ["default", "other"],
+                "scheduling_options_per_pool_tree": {
+                    "default": {"pool": "pool1"},
+                    "custom": {"pool": "pool1"}
+                },
+                "schedule_in_single_tree": True
+            })
+
+        wait(lambda: op.get_state() == "running")
+
+        erased_tree = get(op.get_path() + "/@erased_trees")[0]
+        chosen_tree = "default" if erased_tree == "other" else "other"
+        parameters = {"scheduling_options_per_pool_tree": {chosen_tree: {"pool": "pool2"}}}
+        update_op_parameters(op.id, parameters=parameters)
+
+        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
+        wait(lambda: get(path) == "pool2")
+
+    @authors("eshcherbin")
+    def test_forbidden_during_materialization(self):
+        create_pool("initial_pool")
+        create_pool("changed_pool")
+
+        op = run_sleeping_vanilla(spec={
+            "pool": "initial_pool",
+            "testing": {"delay_inside_materialize": 10000}
+        })
+
+        wait(lambda: op.get_state() == "materializing", iter=10)
+
+        with pytest.raises(YtError):
+            update_op_parameters(op.id, parameters={"pool": "changed_pool"})
+
+        op.abort()
+
+    @authors("eshcherbin")
+    def test_forbidden_during_revival(self):
+        create_pool("initial_pool")
+        create_pool("changed_pool")
+
+        op = run_sleeping_vanilla(spec={
+            "pool": "initial_pool",
+            # Use "delay_inside_prepare" because revival from scratch is preparation.
+            "testing": {"delay_inside_prepare": 10000}
+        })
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            pass
+
+        wait(lambda: op.get_state() in ["reviving", "reviving_jobs"], iter=10)
+
+        with pytest.raises(YtError):
+            update_op_parameters(op.id, parameters={"pool": "changed_pool"})
+
+        op.abort()
+
     def create_custom_pool_tree_with_one_node(self, pool_tree):
         tag = pool_tree
         node = ls("//sys/cluster_nodes")[0]
@@ -338,6 +405,7 @@ class TestOperationDetailedLogs(YTEnvSetup):
     def test_enable_detailed_logs_requires_administer_permission(self):
         create_user("u1")
         op = run_sleeping_vanilla(job_count=5, authenticated_user="u1")
+        op.wait_for_state("running")
 
         def update_enable_detailed_logs():
             update_op_parameters(

@@ -61,16 +61,28 @@ struct TOperationControllerInitializeResult
     NScheduler::TOperationControllerInitializeAttributes Attributes;
 };
 
+void ToProto(NProto::TInitializeOperationResult* resultProto, const TOperationControllerInitializeResult& result);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TOperationControllerPrepareResult
 {
     NYson::TYsonString Attributes;
 };
+
+void ToProto(NProto::TPrepareOperationResult* resultProto, const TOperationControllerPrepareResult& result);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationControllerMaterializeResult
 {
     bool Suspend = false;
     TJobResources InitialNeededResources;
 };
+
+void ToProto(NProto::TMaterializeOperationResult* resultProto, const TOperationControllerMaterializeResult& result);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationControllerReviveResult
     : public TOperationControllerPrepareResult
@@ -92,6 +104,18 @@ struct TOperationControllerReviveResult
     THashSet<TString> RevivedBannedTreeIds;
     TJobResources NeededResources;
 };
+
+void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationControllerReviveResult& result);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOperationControllerCommitResult
+{
+};
+
+void ToProto(NProto::TCommitOperationResult* resultProto, const TOperationControllerCommitResult& result);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationControllerUnregisterResult
 {

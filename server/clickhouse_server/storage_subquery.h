@@ -2,7 +2,6 @@
 
 #include "private.h"
 
-#include "table.h"
 #include "subquery_spec.h"
 
 #include <Storages/IStorage.h>

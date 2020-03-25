@@ -110,7 +110,13 @@ TJobProxy::TJobProxy(
         .AddTag("OperationId: %v, JobId: %v",
             OperationId_,
             JobId_))
-{ }
+{
+    if (Config_->AbortOnUnrecognizedOptions) {
+        AbortOnUnrecognizedOptions(Logger, Config_);
+    } else {
+        WarnForUnrecognizedOptions(Logger, Config_);
+    }
+}
 
 TString TJobProxy::GetPreparationPath() const
 {
@@ -912,17 +918,26 @@ void TJobProxy::Exit(EJobProxyExitCode exitCode)
     _exit(static_cast<int>(exitCode));
 }
 
-void TJobProxy::SetCpuShare(double cpuShare)
+bool TJobProxy::TrySetCpuShare(double cpuShare)
 {
     if (auto environment = FindJobProxyEnvironment()) {
-        YT_LOG_INFO("Changing CPU share (OldCpuShare: %v, NewCpuShare: %v)",
+        try {
+            environment->SetCpuShare(cpuShare);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to set cpu share (OldCpuShare: %v, NewCpuShare: %v)",
+                CpuShare_.load(),
+                cpuShare);
+            return false;
+        }
+        CpuShare_ = cpuShare;
+        UpdateResourceUsage();
+        YT_LOG_INFO("Changed CPU share (OldCpuShare: %v, NewCpuShare: %v)",
             CpuShare_.load(),
             cpuShare);
-        CpuShare_ = cpuShare;
-        environment->SetCpuShare(cpuShare);
-        UpdateResourceUsage();
+        return true;
     } else {
         YT_LOG_INFO("Unable to change CPU share: environment is not set");
+        return false;
     }
 }
 

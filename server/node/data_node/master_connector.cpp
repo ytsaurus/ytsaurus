@@ -578,6 +578,10 @@ bool TMasterConnector::IsLocationWriteable(const TStoreLocationPtr& location)
         return false;
     }
 
+    if (Bootstrap_->IsReadOnly()) {
+        return false;
+    }
+
     return true;
 }
 
@@ -786,6 +790,13 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
     auto slotManager = Bootstrap_->GetTabletSlotManager();
     auto slots = slotManager->Slots();
+
+    if (Bootstrap_->IsReadOnly()) {
+        slots.clear();
+        request->mutable_statistics()->set_available_tablet_slots(0);
+        request->mutable_statistics()->set_used_tablet_slots(0);
+    }
+
     for (int slotId = 0; slotId < slots.size(); ++slotId) {
         const auto& slot = slots[slotId];
         auto* protoSlotInfo = request->add_tablet_slots();

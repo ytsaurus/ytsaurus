@@ -152,14 +152,13 @@ private:
                 *transactionIds = FromProto<TControllerTransactionIds>(request->transaction_ids());
             }
 
-            auto result = WaitFor(controllerAgent->InitializeOperation(operation, transactionIds))
+            auto maybeResult = WaitFor(controllerAgent->InitializeOperation(operation, transactionIds))
                 .ValueOrThrow();
 
-            response->set_mutable_attributes(result.Attributes.Mutable.GetData());
-            response->set_brief_spec(result.Attributes.BriefSpec.GetData());
-            response->set_full_spec(result.Attributes.FullSpec.GetData());
-            response->set_unrecognized_spec(result.Attributes.UnrecognizedSpec.GetData());
-            ToProto(response->mutable_transaction_ids(), result.TransactionIds);
+            context->SetResponseInfo("ImmediateResult: %v", maybeResult.has_value());
+            if (maybeResult) {
+                ToProto(response->mutable_result(), *maybeResult);
+            }
 
             context->Reply();
         });
@@ -179,12 +178,14 @@ private:
 
         WrapAgentException([&] {
             auto operation = controllerAgent->GetOperationOrThrow(operationId);
-            auto result = WaitFor(controllerAgent->PrepareOperation(operation))
+            auto maybeResult = WaitFor(controllerAgent->PrepareOperation(operation))
                 .ValueOrThrow();
 
-            if (result.Attributes) {
-                response->set_attributes(result.Attributes.GetData());
+            context->SetResponseInfo("ImmediateResult: %v", maybeResult.has_value());
+            if (maybeResult) {
+                ToProto(response->mutable_result(), *maybeResult);
             }
+
             context->Reply();
         });
     }
@@ -203,15 +204,18 @@ private:
 
         WrapAgentException([&] {
             auto operation = controllerAgent->GetOperationOrThrow(operationId);
-            auto result = WaitFor(controllerAgent->MaterializeOperation(operation))
+            auto maybeResult = WaitFor(controllerAgent->MaterializeOperation(operation))
                 .ValueOrThrow();
 
-            response->set_suspend(result.Suspend);
-            ToProto(response->mutable_initial_needed_resources(), result.InitialNeededResources);
+            context->SetIncrementalResponseInfo("ImmediateResult: %v", maybeResult.has_value());
+            if (maybeResult) {
+                ToProto(response->mutable_result(), *maybeResult);
 
-            context->SetResponseInfo("Suspend: %v, InitialNeededResources: %v",
-                result.Suspend,
-                FormatResources(result.InitialNeededResources));
+                context->SetIncrementalResponseInfo("Suspend: %v, InitialNeededResources: %v",
+                    maybeResult->Suspend,
+                    FormatResources(maybeResult->InitialNeededResources));
+            }
+
             context->Reply();
         });
     }
@@ -230,30 +234,20 @@ private:
 
         WrapAgentException([&] {
             auto operation = controllerAgent->GetOperationOrThrow(operationId);
-            auto result = WaitFor(controllerAgent->ReviveOperation(operation))
+            auto maybeResult = WaitFor(controllerAgent->ReviveOperation(operation))
                 .ValueOrThrow();
 
-            response->set_attributes(result.Attributes.GetData());
-            response->set_revived_from_snapshot(result.RevivedFromSnapshot);
-            for (const auto& job : result.RevivedJobs) {
-                auto* protoJob = response->add_revived_jobs();
-                ToProto(protoJob->mutable_job_id(), job.JobId);
-                protoJob->set_job_type(static_cast<int>(job.JobType));
-                protoJob->set_start_time(ToProto<ui64>(job.StartTime));
-                ToProto(protoJob->mutable_resource_limits(), job.ResourceLimits);
-                protoJob->set_interruptible(job.Interruptible);
-                protoJob->set_tree_id(job.TreeId);
-                protoJob->set_node_id(job.NodeId);
-                protoJob->set_node_address(job.NodeAddress);
-            }
-            ToProto(response->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
-            ToProto(response->mutable_needed_resources(), result.NeededResources);
+            context->SetIncrementalResponseInfo("ImmediateResult: %v", maybeResult.has_value());
+            if (maybeResult) {
+                ToProto(response->mutable_result(), *maybeResult);
 
-            context->SetResponseInfo("RevivedFromSnapshot: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, NeededResources: %v",
-                result.RevivedFromSnapshot,
-                result.RevivedJobs.size(),
-                result.RevivedBannedTreeIds,
-                FormatResources(result.NeededResources));
+                context->SetIncrementalResponseInfo("RevivedFromSnapshot: %v, RevivedJobCount: %v, RevivedBannedTreeIds: %v, NeededResources: %v",
+                    maybeResult->RevivedFromSnapshot,
+                    maybeResult->RevivedJobs.size(),
+                    maybeResult->RevivedBannedTreeIds,
+                    FormatResources(maybeResult->NeededResources));
+            }
+
             context->Reply();
         });
     }
@@ -272,8 +266,13 @@ private:
 
         WrapAgentException([&] {
             auto operation = controllerAgent->GetOperationOrThrow(operationId);
-            WaitFor(controllerAgent->CommitOperation(operation))
-                .ThrowOnError();
+            auto maybeResult = WaitFor(controllerAgent->CommitOperation(operation))
+                .ValueOrThrow();
+
+            context->SetResponseInfo("ImmediateResult: %v", maybeResult.has_value());
+            if (maybeResult) {
+                ToProto(response->mutable_result(), *maybeResult);
+            }
 
             context->Reply();
         });

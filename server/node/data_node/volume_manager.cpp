@@ -1559,14 +1559,20 @@ public:
         // Create locations.
         for (int index = 0; index < config->LayerLocations.size(); ++index) {
             const auto& locationConfig = config->LayerLocations[index];
-            auto id = Format("layers%v", index);
+            auto id = Format("layer%v", index);
 
             try {
                 auto location = New<TLayerLocation>(
                     locationConfig,
                     bootstrap->GetConfig()->DataNode->DiskHealthChecker,
-                    CreatePortoExecutor(config->PortoExecutor, Format("volume_%v", index)),
-                    CreatePortoExecutor(config->PortoExecutor, Format("layer_%v", index)),
+                    CreatePortoExecutor(
+                        config->PortoExecutor,
+                        Format("volume%v", index),
+                        DataNodeProfiler.AppendPath("/location_volumes/porto")),
+                    CreatePortoExecutor(
+                        config->PortoExecutor,
+                        Format("layer%v", index),
+                        DataNodeProfiler.AppendPath("/location_layers/porto")),
                     id);
                 Locations_.push_back(location);
             } catch (const std::exception& ex) {
@@ -1578,10 +1584,11 @@ public:
             }
         }
 
-        auto tmpfsExecutor = CreatePortoExecutor(config->PortoExecutor, "tmpfs_layer");
+        auto tmpfsExecutor = CreatePortoExecutor(
+            config->PortoExecutor,
+            "tmpfs_layer",
+            DataNodeProfiler.AppendPath("/tmpfs_layers/porto"));
         LayerCache_ = New<TLayerCache>(config, Locations_, tmpfsExecutor, bootstrap);
-
-        auto instance = GetSelfPortoInstance(tmpfsExecutor);
     }
 
     virtual TFuture<IVolumePtr> PrepareVolume(const std::vector<TArtifactKey>& layers) override
@@ -1590,7 +1597,7 @@ public:
 
         auto tag = TGuid::Create();
 
-        auto createVolume = [=] (bool isLocked, const TVolumeStatePtr& volumeState) {
+        auto createVolume = [=, this_ = MakeStrong(this)] (bool isLocked, const TVolumeStatePtr& volumeState) {
             for (const auto& layer : volumeState->GetLayers()) {
                 LayerCache_->Touch(layer);
             }

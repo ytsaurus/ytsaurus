@@ -160,6 +160,11 @@ public:
         return JobPhase_;
     }
 
+    virtual int GetSlotIndex() const override
+    {
+        return -1;
+    }
+
     virtual TNodeResources GetResourceUsage() const override
     {
         return ResourceLimits_;

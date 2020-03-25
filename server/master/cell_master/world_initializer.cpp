@@ -324,6 +324,11 @@ private:
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)
+                        .Item("config").BeginMap()
+                            .Item("%true").BeginMap()
+                                .Item("config_annotation").Value("default")
+                            .EndMap()
+                        .EndMap()
                     .EndMap());
 
             // COMPAT(babenko): YT-4558

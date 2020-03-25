@@ -693,6 +693,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("job_reporter", JobReporter)
         .DefaultNew();
 
+    RegisterParameter("heavy_request_immediate_response_timeout", HeavyRequestImmediateResponseTimeout)
+        .Default(TDuration::Seconds(1));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

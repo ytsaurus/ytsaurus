@@ -254,7 +254,7 @@ void TFiber::OnFinishRunning()
 
 void TFiber::CancelEpoch(size_t epoch, const TError& error)
 {
-    TAwaitable awaitable;
+    TFuture<void> future;
 
     {
         TGuard<TSpinLock> guard(SpinLock_);
@@ -270,13 +270,13 @@ void TFiber::CancelEpoch(size_t epoch, const TError& error)
 
         CancelationError_ = error;
 
-        awaitable = std::move(Awaitable_);
+        future = std::move(Future_);
     }
 
-    if (awaitable) {
+    if (future) {
         YT_LOG_DEBUG("Sending cancelation to fiber, propagating to the awaited future (TargetFiberId: %llx)",
             Id_);
-        awaitable.Cancel(error);
+        future.Cancel(error);
     } else {
         YT_LOG_DEBUG("Sending cancelation to fiber (TargetFiberId: %llx)",
             Id_);
@@ -293,7 +293,7 @@ void TFiber::ResetForReuse()
         CancelationError_ = {};
 
         Canceler_.Reset();
-        Awaitable_.Reset();
+        Future_.Reset();
     }
 
     RunCpuTime_ = 0;
@@ -329,16 +329,16 @@ const TFiberCanceler& TFiber::GetCanceler()
     return Canceler_;
 }
 
-void TFiber::SetAwaitable(TAwaitable awaitable)
+void TFiber::SetFuture(TFuture<void> future)
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    Awaitable_ = std::move(awaitable);
+    Future_ = std::move(future);
 }
 
-void TFiber::ResetAwaitable()
+void TFiber::ResetFuture()
 {
     TGuard<TSpinLock> guard(SpinLock_);
-    Awaitable_.Reset();
+    Future_.Reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

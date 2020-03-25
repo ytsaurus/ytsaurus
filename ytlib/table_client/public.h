@@ -32,7 +32,6 @@ class TBlockWriter;
 class THorizontalSchemalessBlockReader;
 
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
-DECLARE_REFCOUNTED_CLASS(TDataSliceFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcher)
 

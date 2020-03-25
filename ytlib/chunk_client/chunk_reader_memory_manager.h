@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/profiling/public.h>
+
 #include <yt/core/concurrency/async_semaphore.h>
 
 #include <yt/core/misc/ref.h>
@@ -12,16 +14,20 @@ namespace NYT::NChunkClient {
 
 struct TChunkReaderMemoryManagerOptions
 {
-    explicit TChunkReaderMemoryManagerOptions(i64 bufferSize);
+    explicit TChunkReaderMemoryManagerOptions(
+        i64 bufferSize,
+        NProfiling::TTagIdList profilingTagList = {});
 
     i64 BufferSize;
+
+    NProfiling::TTagIdList ProfilingTagList;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! This interface is used by MultiReaderMemoryManager to track children memory managers.
 class IReaderMemoryManager
-    : public TRefCounted
+    : public virtual TRefCounted
 {
 public:
     //! Minimum amount of memory required by reader to perform reads.
@@ -35,6 +41,12 @@ public:
 
     //! Change reserved amount of memory reserved for this reader.
     virtual void SetReservedMemorySize(i64 size) = 0;
+
+    //! Returns list of profiling tags for this memory manager.
+    virtual const NProfiling::TTagIdList& GetProfilingTagList() const = 0;
+
+    //! Indicates that memory requirements of this manager will not increase anymore.
+    virtual void Finalize() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReaderMemoryManager)
@@ -57,6 +69,11 @@ public:
 
     virtual void SetReservedMemorySize(i64 size) override;
 
+    virtual const NProfiling::TTagIdList& GetProfilingTagList() const override;
+ 
+    //! Called by fetcher when all blocks were fetched.
+    virtual void Finalize() override;
+
     //! Always succeeds, possibly with overcommit.
     TMemoryUsageGuardPtr Acquire(i64 size);
 
@@ -77,9 +94,6 @@ public:
     void SetRequiredMemorySize(i64 size);
 
     void SetPrefetchMemorySize(i64 size);
-
-    //! Called by fetcher when all blocks were fetched.
-    void Finalize();
 
 private:
     void OnSemaphoreAcquired(TPromise<TMemoryUsageGuardPtr> promise, NConcurrency::TAsyncSemaphoreGuard semaphoreGuard);
@@ -105,6 +119,8 @@ private:
     NConcurrency::TAsyncSemaphorePtr AsyncSemaphore_;
 
     TWeakPtr<IReaderMemoryManagerHost> HostMemoryManager_;
+
+    NProfiling::TTagIdList ProfilingTagList_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderMemoryManager)

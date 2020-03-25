@@ -22,6 +22,8 @@
 
 #include <yt/client/hydra/public.h>
 
+#include <yt/client/api/client.h>
+
 #include <yt/core/actions/public.h>
 
 #include <yt/library/erasure/public.h>
@@ -180,9 +182,9 @@ struct TUserObject
 };
 
 struct TGetUserObjectBasicAttributesOptions
+    : public NApi::TMasterReadOptions
 {
     bool SuppressAccessTracking = false;
-    NApi::EMasterChannelKind ChannelKind = NApi::EMasterChannelKind::Follower;
     bool OmitInaccessibleColumns = false;
     bool PopulateSecurityTags = false;
 };

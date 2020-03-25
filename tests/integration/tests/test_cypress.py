@@ -2582,9 +2582,23 @@ class TestCypressMulticell(TestCypress):
 
 class TestCypressPortal(TestCypressMulticell):
     ENABLE_TMP_PORTAL = True
+    NUM_SECONDARY_MASTER_CELLS = 3
 
     def setup(self):
         set("//tmp/@annotation", "")
+
+    @authors("shakurov")
+    def test_cross_shard_copy_w_tx(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+
+        tx = start_transaction()
+        create("table", "//tmp/p/t1", tx=tx, attributes={"external_cell_tag": 3})
+        # Must not crash.
+        move("//tmp/p/t1", "//tmp/t1_copy", tx=tx)
+
+        create("table", "//tmp/t2", tx=tx, attributes={"external_cell_tag": 3})
+        # Must not crash.
+        move("//tmp/t2", "//tmp/p/t2_copy", tx=tx)
 
     @authors("avmatrosov")
     def test_annotation_portal(self):

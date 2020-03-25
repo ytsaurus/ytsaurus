@@ -47,6 +47,8 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <yt/core/misc/atomic_object.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -55,7 +57,6 @@ using namespace NSecurityClient;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NTableServer;
-using namespace NTabletServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NTabletClient;
@@ -77,37 +78,36 @@ public:
     TImpl(TReplicatedTableTrackerConfigPtr config, TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::ReplicatedTableTracker)
         , Config_(std::move(config))
-        , BundleHealthCacheConfig_(Config_->BundleHealthCache)
         , BundleHealthCache_(New<TBundleHealthCache>(BundleHealthCacheConfig_))
-        , CheckerThreadPool_(New<TThreadPool>(Config_->ThreadCount, "ReplTableCheck"))
-        , ClusterDirectory_(New<TClusterDirectory>())
-        , ClusterDirectorySynchronizer_(New<NHiveServer::TClusterDirectorySynchronizer>(
-            New<NHiveServer::TClusterDirectorySynchronizerConfig>(),
-            Bootstrap_,
-            ClusterDirectory_))
+        , CheckerThreadPool_(New<TThreadPool>(Config_->CheckerThreadCount, "RplTableTracker"))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker), AutomatonThread);
         VERIFY_INVOKER_THREAD_AFFINITY(CheckerThreadPool_->GetInvoker(), CheckerThread);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SubscribeNodeCreated(BIND(&TImpl::OnNodeCreated, MakeStrong(this)));
+
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
 private:
-    const NTabletServer::TReplicatedTableTrackerConfigPtr Config_;
+    const TReplicatedTableTrackerConfigPtr Config_;
 
-    bool Enabled_ = false;
+    std::atomic<bool> Enabled_ = false;
 
     class TBundleHealthCache
         : public TAsyncExpiringCache<std::pair<NApi::IClientPtr, TString>, ETabletCellHealth>
     {
     public:
-        TBundleHealthCache(TAsyncExpiringCacheConfigPtr config)
-            : TAsyncExpiringCache(config)
+        explicit TBundleHealthCache(TAsyncExpiringCacheConfigPtr config)
+            : TAsyncExpiringCache(std::move(config))
         { }
 
     protected:
-        virtual TFuture<ETabletCellHealth> DoGet(const std::pair<NApi::IClientPtr, TString>& key, bool /*isPeriodicUpdate*/) override
+        virtual TFuture<ETabletCellHealth> DoGet(
+            const std::pair<NApi::IClientPtr, TString>& key,
+            bool /*isPeriodicUpdate*/) noexcept override
         {
             const auto& [client, bundleName] = key;
             return client->GetNode("//sys/tablet_cell_bundles/" + bundleName + "/@health").ToUncancelable()
@@ -123,8 +123,8 @@ private:
 
     using TBundleHealthCachePtr = TIntrusivePtr<TBundleHealthCache>;
 
-    TAsyncExpiringCacheConfigPtr BundleHealthCacheConfig_;
-    TBundleHealthCachePtr BundleHealthCache_;
+    const TAsyncExpiringCacheConfigPtr BundleHealthCacheConfig_ = New<TAsyncExpiringCacheConfig>();
+    TAtomicObject<TBundleHealthCachePtr> BundleHealthCache_;
 
     class TReplica
         : public TRefCounted
@@ -518,8 +518,9 @@ private:
     TThreadPoolPtr CheckerThreadPool_;
     TPeriodicExecutorPtr CheckerExecutor_;
 
-    const TClusterDirectoryPtr ClusterDirectory_;
-    const NHiveServer::TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
+    const TClusterDirectoryPtr ClusterDirectory_ = New<TClusterDirectory>();
+    const NHiveServer::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizerConfig_ = New<NHiveServer::TClusterDirectorySynchronizerConfig>();
+    NHiveServer::TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(CheckerThread);
@@ -527,31 +528,22 @@ private:
 
     void CheckEnabled()
     {
+        Enabled_ = false;
+
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         if (!hydraFacade->GetHydraManager()->IsActiveLeader()) {
-            Enabled_ = false;
             return;
         }
 
         const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
         if (!worldInitializer->IsInitialized()) {
-            Enabled_ = false;
             return;
         }
 
-        const auto& dynamicConfig = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ReplicatedTableTracker;
-
+        const auto& dynamicConfig = GetDynamicConfig();
         if (!dynamicConfig->EnableReplicatedTableTracker) {
-            Enabled_ = false;
-            YT_LOG_INFO("Replicated table manager is disabled, see //sys/@config");
+            YT_LOG_INFO("Replicated table tracker is disabled, see //sys/@config");
             return;
-        }
-
-        if (dynamicConfig->BundleHealthCache && BundleHealthCacheConfig_ != dynamicConfig->BundleHealthCache) {
-            auto lock = Guard(Lock_);
-
-            BundleHealthCacheConfig_ = dynamicConfig->BundleHealthCache;
-            BundleHealthCache_ = New<TBundleHealthCache>(BundleHealthCacheConfig_);
         }
 
         Enabled_ = true;
@@ -564,18 +556,19 @@ private:
         THashMap<TObjectId, TTablePtr> capturedTables;
 
         {
-            auto lock = Guard(Lock_);
+            auto guard = Guard(Lock_);
             capturedTables = Tables_;
         }
 
-        for (const auto& pair : capturedTables) {
-            auto& id = pair.first;
-            auto object = Bootstrap_->GetObjectManager()->FindObject(id);
+        for (const auto& [id, table] : capturedTables) {
+            auto* object = Bootstrap_->GetObjectManager()->FindObject(id);
             if (!IsObjectAlive(object)) {
-                auto lock = Guard(Lock_);
                 YT_LOG_DEBUG("Table no longer exists (TableId: %v)",
                     id);
-                Tables_.erase(id);
+                {
+                    auto guard = Guard(Lock_);
+                    Tables_.erase(id);
+                }
                 continue;
             }
 
@@ -590,19 +583,18 @@ private:
         std::vector<TFuture<void>> futures;
 
         {
-            auto lock = Guard(Lock_);
+            auto guard = Guard(Lock_);
             futures.reserve(Tables_.size());
-            for (const auto& item : Tables_) {
-                auto tableId = item.first;
-                if (!item.second->IsEnabled()) {
+            for (const auto& [id, table] : Tables_) {
+                if (!table->IsEnabled()) {
                     YT_LOG_DEBUG("Replicated Table Tracker is disabled (TableId: %v)",
-                        tableId);
+                        id);
                     continue;
                 }
-                auto future = item.second->Check(Bootstrap_);
-                future.Subscribe(BIND([tableId] (const TErrorOr<void>& errorOr) {
-                    YT_LOG_DEBUG_UNLESS(errorOr.IsOK(), errorOr, "Error on checking table (TableId: %v)",
-                        tableId);
+                auto future = table->Check(Bootstrap_);
+                future.Subscribe(BIND([id = id] (const TErrorOr<void>& result) {
+                    YT_LOG_DEBUG_UNLESS(result.IsOK(), result, "Error checking table (TableId: %v)",
+                        id);
                 }));
                 futures.push_back(future);
             }
@@ -643,32 +635,27 @@ private:
         }
     }
 
-    /* automaton parts */
+
     virtual void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (Config_->EnableReplicatedTableTracker) {
-            ClusterDirectorySynchronizer_->Start();
+        UpdaterExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker),
+            BIND(&TImpl::UpdateIteration, MakeWeak(this)));
+        UpdaterExecutor_->Start();
 
-            UpdaterExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker),
-                BIND(&TImpl::UpdateIteration, MakeWeak(this)),
-                Config_->UpdatePeriod);
-            UpdaterExecutor_->Start();
+        CheckerExecutor_ = New<TPeriodicExecutor>(
+            CheckerThreadPool_->GetInvoker(),
+            BIND(&TImpl::CheckIteration, MakeWeak(this)));
+        CheckerExecutor_->Start();
 
-            CheckerExecutor_ = New<TPeriodicExecutor>(
-                CheckerThreadPool_->GetInvoker(), BIND(&TImpl::CheckIteration, MakeWeak(this)),
-                Config_->CheckPeriod);
-            CheckerExecutor_->Start();
-        }
+        OnDynamicConfigChanged();
     }
 
     virtual void OnStopLeading() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        ClusterDirectorySynchronizer_->Stop();
 
         if (CheckerExecutor_) {
             CheckerExecutor_->Stop();
@@ -679,6 +666,13 @@ private:
             UpdaterExecutor_->Stop();
             UpdaterExecutor_.Reset();
         }
+
+        if (ClusterDirectorySynchronizer_) {
+            ClusterDirectorySynchronizer_->Stop();
+            ClusterDirectorySynchronizer_.Reset();
+        }
+
+        Enabled_ = false;
     }
 
     virtual void OnAfterSnapshotLoaded() noexcept override
@@ -688,14 +682,14 @@ private:
         TCompositeAutomatonPart::OnAfterSnapshotLoaded();
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        for (const auto& pair : cypressManager->Nodes()) {
-            auto* node = pair.second;
-            if (node->IsTrunk() && node->GetType() == NCypressClient::EObjectType::ReplicatedTable) {
+        for (auto [id, node] : cypressManager->Nodes()) {
+            if (node->IsTrunk() && node->GetType() == EObjectType::ReplicatedTable) {
                 auto* object = node->As<NTableServer::TReplicatedTableNode>();
                 ProcessReplicatedTable(object);
             }
         }
     }
+
 
     void ProcessReplicatedTable(NTableServer::TReplicatedTableNode* object)
     {
@@ -705,7 +699,7 @@ private:
             return;
         }
 
-        const auto& id = object->GetId();
+        auto id = object->GetId();
         const auto& config = object->GetReplicatedTableOptions();
 
         TTablePtr table;
@@ -713,7 +707,7 @@ private:
         bool newTable = false;
 
         {
-            auto lock = Guard(Lock_);
+            auto guard = Guard(Lock_);
             auto it = Tables_.find(id);
             if (it == Tables_.end()) {
                 table = New<TTable>(id, config);
@@ -758,18 +752,17 @@ private:
                     table->GetId());
             }
 
-            replicas.emplace_back(
-                New<TReplica>(
-                    replica->GetId(),
-                    replica->GetMode(),
-                    replica->GetClusterName(),
-                    replica->GetReplicaPath(),
-                    BundleHealthCache_,
-                    connection,
-                    CheckerThreadPool_->GetInvoker(),
-                    replica->ComputeReplicationLagTime(lastestTimestamp),
-                    config->TabletCellBundleNameTtl,
-                    config->RetryOnFailureInterval));
+            replicas.push_back(New<TReplica>(
+                replica->GetId(),
+                replica->GetMode(),
+                replica->GetClusterName(),
+                replica->GetReplicaPath(),
+                BundleHealthCache_.Load(),
+                connection,
+                CheckerThreadPool_->GetInvoker(),
+                replica->ComputeReplicationLagTime(lastestTimestamp),
+                config->TabletCellBundleNameTtl,
+                config->RetryOnFailureInterval));
         }
 
         const auto [maxSyncReplicas,  minSyncReplicas] = config->GetEffectiveMinMaxReplicaCount(static_cast<int>(replicas.size()));
@@ -792,12 +785,50 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (object->IsTrunk() && object->GetType() == NCypressClient::EObjectType::ReplicatedTable) {
+        if (object->IsTrunk() && object->GetType() == EObjectType::ReplicatedTable) {
             auto* replicatedTable = object->As<NTableServer::TReplicatedTableNode>();
             ProcessReplicatedTable(replicatedTable);
         }
     }
+
+
+    const TDynamicReplicatedTableTrackerConfigPtr& GetDynamicConfig()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ReplicatedTableTracker;
+    }
+
+    void OnDynamicConfigChanged()
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& dynamicConfig = GetDynamicConfig();
+
+        if (UpdaterExecutor_) {
+            UpdaterExecutor_->SetPeriod(dynamicConfig->UpdatePeriod);
+        }
+
+        if (CheckerExecutor_) {
+            CheckerExecutor_->SetPeriod(dynamicConfig->CheckPeriod);
+        }
+
+        if (ReconfigureYsonSerializable(BundleHealthCacheConfig_, dynamicConfig->BundleHealthCache)) {
+            BundleHealthCache_.Store(New<TBundleHealthCache>(BundleHealthCacheConfig_));
+        }
+
+        if (IsLeader() && (ReconfigureYsonSerializable(BundleHealthCacheConfig_, dynamicConfig->BundleHealthCache) || !ClusterDirectorySynchronizer_)) {
+            if (ClusterDirectorySynchronizer_) {
+                ClusterDirectorySynchronizer_->Stop();
+            }
+            ClusterDirectorySynchronizer_ = New<NHiveServer::TClusterDirectorySynchronizer>(
+                dynamicConfig->ClusterDirectorySynchronizer,
+                Bootstrap_,
+                ClusterDirectory_);
+            ClusterDirectorySynchronizer_->Start();
+        }
+    }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 TReplicatedTableTracker::TReplicatedTableTracker(
     TReplicatedTableTrackerConfigPtr config,
@@ -805,8 +836,7 @@ TReplicatedTableTracker::TReplicatedTableTracker(
     : Impl_(New<TImpl>(std::move(config), bootstrap))
 { }
 
-TReplicatedTableTracker::~TReplicatedTableTracker()
-{ }
+TReplicatedTableTracker::~TReplicatedTableTracker() = default;
 
 ////////////////////////////////////////////////////////////////////////////////
 

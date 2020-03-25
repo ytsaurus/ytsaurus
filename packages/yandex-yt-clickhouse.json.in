@@ -11,7 +11,7 @@
     },
     "build": {
         "targets": [
-            "yt/server/clickhouse_server/bin"
+            "@YT_ROOT@/yt/server/clickhouse_server/bin"
         ],
         "flags": [
             {
@@ -32,7 +32,7 @@
         {
             "source": {
                 "type": "BUILD_OUTPUT",
-                "path": "yt/server/clickhouse_server/bin/ytserver-clickhouse"
+                "path": "@YT_ROOT@/yt/server/clickhouse_server/bin/ytserver-clickhouse"
             },
             "destination": {
                 "path": "/usr/bin/ytserver-clickhouse"

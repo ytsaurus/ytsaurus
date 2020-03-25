@@ -2,6 +2,8 @@
 
 #include <yt/python/common/helpers.h>
 
+#include <yt/core/rpc/dispatcher.h>
+
 #include <yt/core/ytree/convert.h>
 
 namespace NYT::NPython {
@@ -10,27 +12,63 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::atomic<bool> TDriverResponseHolder::ShuttingDown_ = {};
+TSpinLock TDriverResponseHolder::DesctructionSpinLock_;
+
 TDriverResponseHolder::TDriverResponseHolder()
-    : ResponseParametersYsonWriter_(CreateYsonWriter(
+{ }
+
+void TDriverResponseHolder::Initialize()
+{
+    Initialized_.store(true);
+    ResponseParametersYsonWriter_ = CreateYsonWriter(
         &ResponseParametersBlobOutput_,
         EYsonFormat::Binary,
         EYsonType::MapFragment,
         /* enableRaw */ false,
-        /* booleanAsString */ false))
-{ }
+        /* booleanAsString */ false);
+}
 
 TDriverResponseHolder::~TDriverResponseHolder()
 {
-    // TODO(ignat): fix possible race here.
+    if (!Initialized_) {
+        return;
+    }
+
     if (!Py_IsInitialized()) {
         return;
     }
 
-    TGilGuard guard;
-    // Releasing Python objects under GIL.
-    InputStream_.reset(nullptr);
-    OutputStream_.reset(nullptr);
-    ResponseParametersYsonWriter_.reset(nullptr);
+    if (ShuttingDown_) {
+        return;
+    }
+
+    {
+        auto guard = Guard(DesctructionSpinLock_);
+        if (ShuttingDown_) {
+            return;
+        }
+
+        TGilGuard gilGuard;
+        // Releasing Python objects under GIL.
+        InputStream_.reset(nullptr);
+        OutputStream_.reset(nullptr);
+        ResponseParametersYsonWriter_.reset(nullptr);
+    }
+}
+
+void TDriverResponseHolder::OnBeforePythonFinalize()
+{
+    ShuttingDown_.store(true);
+    {
+        TReleaseAcquireGilGuard guard;
+        DesctructionSpinLock_.Acquire();
+    }
+}
+
+void TDriverResponseHolder::OnAfterPythonFinalize()
+{
+    DesctructionSpinLock_.Release();
 }
 
 IFlushableYsonConsumer* TDriverResponseHolder::GetResponseParametersConsumer() const
@@ -73,7 +111,9 @@ TString TDriverResponse::TypeName_;
 TDriverResponse::TDriverResponse(Py::PythonClassInstance *self, Py::Tuple& args, Py::Dict& kwargs)
     : Py::PythonClass<TDriverResponse>::PythonClass(self, args, kwargs)
     , Holder_(New<TDriverResponseHolder>())
-{ }
+{
+    Holder_->Initialize();
+}
 
 void TDriverResponse::SetResponse(TFuture<void> response)
 {
@@ -142,11 +182,14 @@ TDriverResponse::~TDriverResponse()
 {
     try {
         if (Response_) {
-            Response_.Cancel(TError("Driver response desroyed"));
+            Response_.Cancel(TError("Driver response destroyed"));
         }
     } catch (...) {
         // intentionally doing nothing
     }
+
+    // Holder destructor must not be called from python context.
+    GetFinalizerInvoker()->Invoke(BIND([holder=std::move(Holder_)] () {}));
 }
 
 void TDriverResponse::InitType(const TString& moduleName)

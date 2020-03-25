@@ -16,10 +16,14 @@ namespace NYT::NYTree {
 bool operator == (const IAttributeDictionary& lhs, const IAttributeDictionary& rhs);
 bool operator != (const IAttributeDictionary& lhs, const IAttributeDictionary& rhs);
 
-//! Creates attributes dictionary in memory
+//! Creates attributes dictionary in memory.
 std::unique_ptr<IAttributeDictionary> CreateEphemeralAttributes();
 
-//! Creates empty attributes dictionary with deprecated method Set
+//! Wraps an arbitrary implementation of IAttributeDictionary and turns it into a thread-safe one.
+//! Internally uses a read-write spinlock to protect the underlying instance from concurrent access.
+std::unique_ptr<IAttributeDictionary> CreateThreadSafeAttributes(IAttributeDictionary* underlying);
+
+//! Creates empty attributes dictionary with deprecated method Set.
 const IAttributeDictionary& EmptyAttributes();
 
 //! Serialize attributes to consumer. Used in ConvertTo* functions.
