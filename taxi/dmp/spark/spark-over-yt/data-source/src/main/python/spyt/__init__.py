@@ -37,6 +37,11 @@ def _format_memory(memory_bytes):
     return "{}B".format(memory_bytes)
 
 
+class Defaults(object):
+    LOCAL_CONF_PATH = os.path.join(os.getenv("HOME"), "spyt.yaml") if os.getenv("HOME") else None
+    REMOTE_CONF_PATH = "//sys/spark/conf/releases/spark-launch-conf"
+
+
 @contextmanager
 def spark_session(num_executors=None,
                   yt_proxy=None,
@@ -47,8 +52,8 @@ def spark_session(num_executors=None,
                   driver_memory=None,
                   dynamic_allocation=False,
                   spark_conf_args=None,
-                  local_conf_path=os.path.join(os.getenv("HOME"), "spyt.yaml"),
-                  remote_conf_path="//sys/spark/conf/releases/spark-launch-conf",
+                  local_conf_path=Defaults.LOCAL_CONF_PATH,
+                  remote_conf_path=Defaults.REMOTE_CONF_PATH,
                   spark_id=None,
                   client=None):
     conf = _build_spark_conf(
@@ -201,8 +206,8 @@ def connect(num_executors=5,
             driver_memory="1G",
             dynamic_allocation=False,
             spark_conf_args=None,
-            local_conf_path=os.path.join(os.getenv("HOME"), "spyt.yaml"),
-            remote_conf_path="//sys/spark/conf/releases/spark-launch-conf",
+            local_conf_path=Defaults.LOCAL_CONF_PATH,
+            remote_conf_path=Defaults.REMOTE_CONF_PATH,
             spark_id=None,
             client=None):
     conf = _build_spark_conf(
