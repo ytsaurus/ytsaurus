@@ -10,7 +10,7 @@ from pyspark.sql import SparkSession
 from yt_spark_client.utils import default_token, default_discovery_dir, get_spark_master, set_conf, SparkDiscovery
 from contextlib import contextmanager
 import os
-from yt.wrapper import YtClient
+from yt.wrapper import YtClient, read_file, get
 from yt.wrapper.http_helpers import get_token, get_user_name, get_proxy_url
 
 
@@ -41,26 +41,28 @@ def _format_memory(memory_bytes):
 def spark_session(num_executors=None,
                   yt_proxy=None,
                   discovery_path=None,
-                  config_path=None,
                   app_name=None,
                   cores_per_executor=None,
                   executor_memory_per_core=None,
                   driver_memory=None,
                   dynamic_allocation=False,
                   spark_conf_args=None,
+                  local_conf_path=os.path.join(os.getenv("HOME"), "spyt.yaml"),
+                  remote_conf_path="//sys/spark/conf/releases/spark-launch-conf",
                   spark_id=None,
                   client=None):
-    conf = _build_spark_config(
+    conf = _build_spark_conf(
         num_executors=num_executors,
         yt_proxy=yt_proxy,
         discovery_path=discovery_path,
-        config_path=config_path,
         app_name=app_name,
         cores_per_executor=cores_per_executor,
         executor_memory_per_core=executor_memory_per_core,
         driver_memory=driver_memory,
         dynamic_allocation=dynamic_allocation,
         spark_conf_args=spark_conf_args,
+        local_conf_path=local_conf_path,
+        remote_conf_path=remote_conf_path,
         spark_id=spark_id,
         client=client
     )
@@ -72,35 +74,17 @@ def spark_session(num_executors=None,
         spark._jvm.ru.yandex.spark.yt.fs.YtClientProvider.close()
 
 
-def get_master_from_discovery(discovery_path, spark_id, config, client):
-    spark_id = spark_id or config.get("spark_id")
-    discovery_path = discovery_path or config.get("discovery_path") or config.get(
+def get_spark_discovery(discovery_path, spark_id, conf):
+    spark_id = spark_id or conf.get("spark_id")
+    discovery_path = discovery_path or conf.get("discovery_path") or conf.get(
         "discovery_dir") or default_discovery_dir()
-    discovery = SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
-    master = get_spark_master(discovery, rest=False, yt_client=client)
-    return master
+    return SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
 
 
-def get_log_dir_from_discovery(discovery_path, spark_id, config):
-    spark_id = spark_id or config.get("spark_id")
-    discovery_path = discovery_path or config.get("discovery_path") or config.get(
-        "discovery_dir") or default_discovery_dir()
-    discovery = SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
-    return discovery.event_log()
-
-
-def create_yt_client(yt_proxy, config):
-    yt_proxy = yt_proxy or config.get("yt_proxy", os.getenv("YT_PROXY"))
-    yt_token = config.get("yt_token") or default_token()
+def create_yt_client(yt_proxy, conf):
+    yt_proxy = yt_proxy or conf.get("yt_proxy", os.getenv("YT_PROXY"))
+    yt_token = conf.get("yt_token") or default_token()
     return YtClient(proxy=yt_proxy, token=yt_token)
-
-
-def _read_config(config_path):
-    config_path = config_path or os.path.join(os.getenv("HOME"), "spyt.yaml")
-    if os.path.isfile(config_path):
-        with open(config_path) as f:
-            return yaml.load(f, Loader=yaml.BaseLoader)
-    return {}
 
 
 def _configure_client_mode(spark_conf,
@@ -109,8 +93,9 @@ def _configure_client_mode(spark_conf,
                            spark_id,
                            client=None):
     _configure_python()
-    master = get_master_from_discovery(discovery_path, spark_id, local_conf, client)
-    event_log_dir = get_log_dir_from_discovery(discovery_path, spark_id, local_conf)
+    discovery = get_spark_discovery(discovery_path, spark_id, local_conf)
+    master = get_spark_master(discovery, rest=False, yt_client=client)
+    event_log_dir = discovery.event_log()
     yt_proxy = get_proxy_url(required=True, client=client)
     yt_user = get_user_name(client=client)
     spark_conf.set("spark.master", master)
@@ -120,39 +105,15 @@ def _configure_client_mode(spark_conf,
     spark_conf.set("spark.hadoop.yt.token", get_token(client=client))
 
 
-def _validate_resources(num_executors,
-                        cores_per_executor,
-                        executor_memory_per_core,
-                        driver_memory,
-                        executor_memory):
-    _MAX_CORES = 32
-    _MAX_MEMORY = _parse_memory("64G")
-    _MIN_MEMORY = _parse_memory("512Mb")
-    _MAX_EXECUTORS = 100
-    _MAX_TOTAL_CORES = 400
-    _MAX_TOTAL_MEMORY = _parse_memory("1024G")
-
-    if driver_memory and (driver_memory < _MIN_MEMORY or driver_memory > _MAX_MEMORY):
-        raise AssertionError("Invalid amount of driver memory")
-
-    if num_executors and (not isinstance(num_executors, int) or num_executors < 1 or num_executors > _MAX_EXECUTORS):
+def _validate_resources(num_executors, cores_per_executor, executor_memory_per_core):
+    if num_executors and (not isinstance(num_executors, int) or num_executors < 1):
         raise AssertionError("Invalid number of executors")
 
-    if cores_per_executor and (not isinstance(cores_per_executor,
-                                              int) or cores_per_executor < 1 or cores_per_executor > _MAX_CORES):
+    if cores_per_executor and (not isinstance(cores_per_executor, int) or cores_per_executor < 1):
         raise AssertionError("Invalid number of cores per executor")
 
     if executor_memory_per_core and executor_memory_per_core < 1:
         raise AssertionError("Invalid amount of memory per core")
-
-    if executor_memory and (executor_memory > _MAX_MEMORY or executor_memory < _MIN_MEMORY):
-        raise AssertionError("Invalid amount of memory per executor")
-
-    if executor_memory and num_executors and executor_memory * num_executors > _MAX_TOTAL_MEMORY:
-        raise AssertionError("Invalid amount of total memory")
-
-    if cores_per_executor and num_executors and cores_per_executor * num_executors > _MAX_TOTAL_CORES:
-        raise AssertionError("Invalid amount of total cores")
 
 
 def _set_none_safe(conf, key, value):
@@ -172,34 +133,49 @@ def _configure_python():
         raise AssertionError("Python version {} is not supported".format(python_version))
 
 
-def _build_spark_config(num_executors=None,
-                        yt_proxy=None,
-                        discovery_path=None,
-                        config_path=None,
-                        app_name=None,
-                        cores_per_executor=None,
-                        executor_memory_per_core=None,
-                        driver_memory=None,
-                        dynamic_allocation=None,
-                        spark_conf_args=None,
-                        spark_id=None,
-                        client=None):
-    is_client_mode = os.getenv("IS_SPARK_CLUSTER") is None
-    local_conf = _read_config(config_path) if is_client_mode else {}
+def _read_remote_conf(path, client=None):
+    return get(path, client=client)["spark_conf"] if path else None
 
+
+def _read_local_conf(conf_path):
+    if os.path.isfile(conf_path):
+        with open(conf_path) as f:
+            return yaml.load(f, Loader=yaml.BaseLoader)
+    return {}
+
+
+def _build_spark_conf(num_executors=None,
+                      yt_proxy=None,
+                      discovery_path=None,
+                      app_name=None,
+                      cores_per_executor=None,
+                      executor_memory_per_core=None,
+                      driver_memory=None,
+                      dynamic_allocation=None,
+                      spark_conf_args=None,
+                      local_conf_path=None,
+                      remote_conf_path=None,
+                      spark_id=None,
+                      client=None):
+    is_client_mode = os.getenv("IS_SPARK_CLUSTER") is None
+    local_conf = {}
     spark_conf = SparkConf()
 
     if is_client_mode:
+        local_conf = _read_local_conf(local_conf_path)
         app_name = app_name or "PySpark for {}".format(os.getenv("USER"))
         client = client or create_yt_client(yt_proxy, local_conf)
         _configure_client_mode(spark_conf, discovery_path, local_conf, spark_id, client)
 
+    remote_dynamic_conf = _read_remote_conf(remote_conf_path, client=client)
+    set_conf(spark_conf, remote_dynamic_conf)
+
     num_executors = num_executors or local_conf.get("num_executors")
     cores_per_executor = cores_per_executor or local_conf.get("cores_per_executor")
     executor_memory_per_core = _parse_memory(executor_memory_per_core or local_conf.get("executor_memory_per_core"))
+    _validate_resources(num_executors, cores_per_executor, executor_memory_per_core)
     driver_memory = _parse_memory(driver_memory or local_conf.get("driver_memory"))
     executor_memory = executor_memory_per_core * cores_per_executor if executor_memory_per_core and cores_per_executor else None
-    _validate_resources(num_executors, cores_per_executor, executor_memory_per_core, driver_memory, executor_memory)
     max_cores = num_executors * cores_per_executor if num_executors and cores_per_executor else None
 
     _set_none_safe(spark_conf, "spark.dynamicAllocation.enabled", dynamic_allocation)
@@ -219,27 +195,30 @@ def _build_spark_config(num_executors=None,
 def connect(num_executors=5,
             yt_proxy=None,
             discovery_path=None,
-            config_path=None,
             app_name=None,
             cores_per_executor=4,
             executor_memory_per_core="4G",
             driver_memory="1G",
             dynamic_allocation=False,
             spark_conf_args=None,
-            spark_id=None):
-    conf = _build_spark_config(
+            local_conf_path=os.path.join(os.getenv("HOME"), "spyt.yaml"),
+            remote_conf_path="//sys/spark/conf/releases/spark-launch-conf",
+            spark_id=None,
+            client=None):
+    conf = _build_spark_conf(
         num_executors=num_executors,
         yt_proxy=yt_proxy,
         discovery_path=discovery_path,
-        config_path=config_path,
         app_name=app_name,
         cores_per_executor=cores_per_executor,
         executor_memory_per_core=executor_memory_per_core,
         driver_memory=driver_memory,
         dynamic_allocation=dynamic_allocation,
         spark_conf_args=spark_conf_args,
+        local_conf_path=local_conf_path,
+        remote_conf_path=remote_conf_path,
         spark_id=spark_id,
-        client=create_yt_client(yt_proxy, _read_config(config_path))
+        client=client
     )
 
     return SparkSession.builder.config(conf=conf).getOrCreate()

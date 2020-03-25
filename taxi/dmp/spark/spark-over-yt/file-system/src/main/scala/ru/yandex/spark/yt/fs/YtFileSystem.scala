@@ -1,5 +1,6 @@
 package ru.yandex.spark.yt.fs
 
+import java.io.FileNotFoundException
 import java.net.URI
 import java.util.UUID
 
@@ -31,7 +32,7 @@ class YtFileSystem extends FileSystem {
     this._ytConf = YtClientConfigurationConverter(_conf)
   }
 
-  def yt: YtClient = YtClientProvider.ytClient(_ytConf, this)
+  def yt: YtClient = YtClientProvider.ytClient(_ytConf, id)
 
   override def getUri: URI = _uri
 
@@ -135,7 +136,7 @@ class YtFileSystem extends FileSystem {
         new FileStatus(yp.rowCount, false, 1, yp.rowCount, 0, yp)
       case _ =>
         if (!YtTableUtils.exists(path, transaction)) {
-          null
+          throw new FileNotFoundException(s"File $path is not found")
         } else {
           val pathType = YtTableUtils.getType(path, transaction)
           pathType match {
@@ -154,7 +155,7 @@ class YtFileSystem extends FileSystem {
 
   override def close(): Unit = {
     log.info("Close YtFileSystem")
-    YtClientProvider.close(this)
+    YtClientProvider.close(id)
     super.close()
   }
 }

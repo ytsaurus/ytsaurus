@@ -24,8 +24,7 @@ lazy val `spark-launcher` = (project in file("spark-launcher"))
     libraryDependencies ++= circe,
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= logging,
-    assemblyJarName in assembly := s"${name.value}-${version.value}.jar",
-    publishYtArtifacts := Seq(assembly.value)
+    assemblyJarName in assembly := s"spark-yt-launcher.jar"
   )
 
 lazy val benchmark = (project in file("benchmark"))
@@ -83,8 +82,7 @@ lazy val `client` = (project in file("client"))
     ),
     sparkAdditionalPython := Seq(
       (sourceDirectory in `data-source`).value / "main" / "python"
-    ),
-    sparkLauncherName := (name in `spark-launcher`).value
+    )
   )
   .settings(
     debPackagePrefixPath := "/usr/lib/yandex",
@@ -121,13 +119,14 @@ lazy val `client` = (project in file("client"))
     }
   )
   .settings(
-    tarArchiveMapping += sparkPackage.value -> sparkName.value,
-    tarArchivePath := Some(target.value / s"${sparkName.value}.tgz")
+    tarArchiveMapping += sparkPackage.value -> "spark",
+    tarArchivePath := Some(target.value / s"spark.tgz")
   )
   .settings(
-    publishYtArtifacts += tarArchiveBuild.value,
-    publishYtArtifacts ++= (publishYtArtifacts in `spark-launcher`).value,
-    publishYtConfig ++= sparkLaunchConfig.value
+    sparkYtProxies := publishYtProxies.value,
+    publishYtArtifacts += YtPublishFile(tarArchiveBuild.value, sparkYtBinBasePath.value, None),
+    publishYtArtifacts += YtPublishFile((assembly in `spark-launcher`).value, sparkYtBinBasePath.value, None),
+    publishYtArtifacts ++= sparkYtConfigs.value
   )
 
 lazy val root = (project in file("."))

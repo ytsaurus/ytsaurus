@@ -37,7 +37,6 @@ object CommonPlugin extends AutoPlugin {
       else
         Some("releases" at nexus + "yandex_spark_releases")
     },
-    credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
-    publishYtBaseDir := "//sys/spark/bin"
+    credentials += Credentials(Path.userHome / ".sbt" / ".credentials")
   )
 }

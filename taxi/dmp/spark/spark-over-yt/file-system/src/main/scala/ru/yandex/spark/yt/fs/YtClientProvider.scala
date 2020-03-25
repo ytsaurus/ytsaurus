@@ -1,6 +1,7 @@
 package ru.yandex.spark.yt.fs
 
 import org.apache.hadoop.conf.Configuration
+import org.apache.log4j.Logger
 import org.apache.spark.SparkConf
 import org.apache.spark.deploy.SparkHadoopUtil
 import org.apache.spark.sql.SparkSession
@@ -12,8 +13,10 @@ import ru.yandex.yt.ytclient.proxy.YtClient
 import scala.collection.mutable
 
 object YtClientProvider {
-  private val client: ThreadLocal[Option[YtRpcClient]] = new ThreadLocal[Option[YtRpcClient]]
-  private val conf: ThreadLocal[YtClientConfiguration] = new ThreadLocal[YtClientConfiguration]
+  private val log = Logger.getLogger(getClass)
+
+  private val client = new ThreadLocal[Option[YtRpcClient]]
+  private val conf = new ThreadLocal[YtClientConfiguration]
   private val fsClient = mutable.HashMap.empty[String, YtRpcClient]
 
   private def cachedYtClient: Option[YtClient] = cachedClient.map(_.yt)
@@ -27,8 +30,11 @@ object YtClientProvider {
     this.client.get.get.yt
   }
 
-  def ytClient(conf: YtClientConfiguration, fs: YtFileSystem): YtClient = fsClient
-    .getOrElseUpdate(fs.id, YtClientUtils.createRpcClient(conf))
+  def ytClient(conf: YtClientConfiguration, id: String): YtClient = fsClient
+    .getOrElseUpdate(id, {
+      log.info(s"Create YT Client for id $id")
+      YtClientUtils.createRpcClient(conf)
+    })
     .yt
 
   def ytClient: YtClient = cachedYtClient
@@ -40,12 +46,14 @@ object YtClientProvider {
   }
 
   def close(): Unit = {
+    log.info(s"Close all YT Clients")
     cachedClient.foreach(_.close())
     fsClient.foreach(_._2.close())
   }
 
-  def close(fs: YtFileSystem): Unit = {
-    fsClient.get(fs.id).foreach(_.close())
+  def close(id: String): Unit = {
+    log.info(s"Close YT Client for id $id")
+    fsClient.get(id).foreach(_.close())
   }
 }
 

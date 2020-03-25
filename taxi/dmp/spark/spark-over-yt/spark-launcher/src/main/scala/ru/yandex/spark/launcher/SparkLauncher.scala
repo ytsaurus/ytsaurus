@@ -20,51 +20,37 @@ trait SparkLauncher {
   self =>
 
   private val log = Logger.getLogger(getClass)
-  private val sparkHome = sys.env("SPARK_HOME")
   private val masterClass = "org.apache.spark.deploy.master.Master"
   private val workerClass = "org.apache.spark.deploy.worker.Worker"
   private val historyServerClass = "org.apache.spark.deploy.history.HistoryServer"
   private var sparkThread: Thread = _
 
-  def startMaster(port: Int, webUiPort: Int, opts: Option[String]): Address = {
-    val env = Map(
-      "SPARK_MASTER_OPTS" -> opts,
-      "SPARK_PRINT_LAUNCH_COMMAND" -> Some(true)
-    ).flatMap { case (k, v) => v.map(vv => k -> vv.toString) }
-
+  def startMaster(): Address = {
     val host = InetAddress.getLocalHost.getHostName
-    sparkThread = runSparkThread(masterClass, Map.empty, Map(
-      "host" -> host,
-      "port" -> port.toString,
-      "webui-port" -> webUiPort.toString
-    ), Nil, env)
+    sparkThread = runSparkThread(masterClass, namedArgs = Map("host" -> host))
 
     readAddress("master", 5 minutes)
   }
 
   def startWorker(master: Address,
-                  port: Option[Int], webUiPort: Int,
-                  cores: Int, memory: String, opts: Option[String]): Unit = {
-    val env = Map(
-      "SPARK_WORKER_OPTS" -> opts,
-      "SPARK_HOME" -> Some(Seq(sys.env("HOME"), sparkHome).mkString(File.separator))
-    ).flatMap { case (k, v) => v.map(vv => k -> vv.toString) }
-
-    log.info(s"Env: $env")
-
-    sparkThread = runSparkThread(workerClass, Map.empty, Map(
-      "port" -> port.get.toString,
-      "webui-port" -> webUiPort.toString,
-      "cores" -> cores.toString,
-      "memory" -> memory
-    ), Seq(s"spark://${master.hostAndPort}"), env)
+                  cores: Int, memory: String): Unit = {
+    sparkThread = runSparkThread(
+      workerClass,
+      namedArgs = Map(
+        "cores" -> cores.toString,
+        "memory" -> memory
+      ),
+      positionalArgs = Seq(s"spark://${master.hostAndPort}")
+    )
   }
 
-  def startHistoryServer(port: Int, path: String, opts: Option[String]): Address = {
-    sparkThread = runSparkThread(historyServerClass, Map(
-      "spark.history.fs.logDirectory" -> path,
-      "spark.history.ui.port" -> port.toString
-    ), Map.empty, Nil, Map.empty)
+  def startHistoryServer(path: String): Address = {
+    sparkThread = runSparkThread(
+      historyServerClass,
+      systemProperties = Map(
+        "spark.history.fs.logDirectory" -> path
+      )
+    )
 
     readAddress("history", 5 minutes)
   }
@@ -87,15 +73,14 @@ trait SparkLauncher {
   }
 
   private def runSparkThread(className: String,
-                             systemProperties: Map[String, String],
-                             namedArgs: Map[String, String],
-                             positionalArgs: Seq[String],
-                             env: Map[String, String]): Thread = {
+                             systemProperties: Map[String, String] = Map.empty,
+                             namedArgs: Map[String, String] = Map.empty,
+                             positionalArgs: Seq[String] = Nil): Thread = {
     val thread = new Thread(() => {
       var process: Process = null
       try {
         val log = Logger.getLogger(self.getClass)
-        process = runSparkClass(className, systemProperties, namedArgs, positionalArgs, env, log)
+        process = runSparkClass(className, systemProperties, namedArgs, positionalArgs, log)
         log.warn(s"Spark exit value: ${process.exitValue()}")
       } catch {
         case e: Throwable =>
@@ -115,17 +100,23 @@ trait SparkLauncher {
                             systemProperties: Map[String, String],
                             namedArgs: Map[String, String],
                             positionalArgs: Seq[String],
-                            env: Map[String, String],
                             log: Logger): Process = {
-    val command = s"$sparkHome/bin/spark-class " +
-      s"${systemProperties.map{case (k, v) => s"-D$k=$v"}.mkString(" ")} " +
+    import scala.collection.JavaConverters._
+    val sparkSystemProperties = System.getProperties
+      .stringPropertyNames().asScala
+      .collect {
+        case name if name.startsWith("spark.") => name -> System.getProperty(name)
+      }
+    val fullSystemProperties = systemProperties ++ sparkSystemProperties
+    val command = s"./spark/bin/spark-class " +
+      s"${fullSystemProperties.map { case (k, v) => s"-D$k=$v" }.mkString(" ")} " +
       s"$className " +
       s"${namedArgs.map { case (k, v) => s"--$k $v" }.mkString(" ")} " +
       s"${positionalArgs.mkString(" ")}"
 
     log.info(s"Run command: $command")
 
-    Process(command, None, env.toSeq: _*).run(ProcessLogger(log.info(_)))
+    Process(command).run(ProcessLogger(log.info(_)))
   }
 
   def sparkThreadIsAlive: Boolean = sparkThread.isAlive

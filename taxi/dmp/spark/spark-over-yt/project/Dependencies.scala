@@ -1,13 +1,14 @@
 import sbt._
 
 object Dependencies {
-  lazy val circeVersion = "0.11.1"
+  lazy val circeVersion = "0.12.3"
+  lazy val circeYamlVersion = "0.12.0"
   lazy val scalatestVersion = "3.0.8"
   lazy val sparkVersion = "2.4.4"
   lazy val yandexIcebergVersion = "6453303"
   lazy val slf4jVersion = "1.7.28"
 
-  lazy val circe = Seq(
+  lazy val circe = ("io.circe" %% "circe-yaml" % circeYamlVersion) +: Seq(
     "io.circe" %% "circe-core",
     "io.circe" %% "circe-generic",
     "io.circe" %% "circe-parser"

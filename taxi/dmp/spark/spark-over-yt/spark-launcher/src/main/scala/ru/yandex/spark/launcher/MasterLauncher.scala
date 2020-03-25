@@ -13,7 +13,7 @@ object MasterLauncher extends App with SparkLauncher {
 
   run(masterArgs.ytConfig, masterArgs.discoveryPath) { discoveryService =>
     log.info("Start master")
-    val masterAddress = startMaster(masterArgs.port, masterArgs.webUiPort, masterArgs.opts)
+    val masterAddress = startMaster()
     val masterAlive = discoveryService.waitAlive(masterAddress.hostAndPort, 5 minutes)
     if (!masterAlive) {
       throw new RuntimeException("Master is not started")
@@ -29,21 +29,15 @@ object MasterLauncher extends App with SparkLauncher {
   }
 }
 
-case class MasterLauncherArgs(port: Int,
-                              webUiPort: Int,
-                              ytConfig: YtClientConfiguration,
+case class MasterLauncherArgs(ytConfig: YtClientConfiguration,
                               discoveryPath: String,
-                              operationId: String,
-                              opts: Option[String])
+                              operationId: String)
 
 object MasterLauncherArgs {
   def apply(args: Args): MasterLauncherArgs = MasterLauncherArgs(
-    args.required("port").toInt,
-    args.required("web-ui-port").toInt,
     YtClientConfiguration(args.optional),
     args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
-    args.required("operation-id"),
-    args.optional("opts").map(_.drop(1).dropRight(1))
+    args.optional("operation-id").getOrElse(sys.env("YT_OPERATION_ID"))
   )
 
   def apply(args: Array[String]): MasterLauncherArgs = MasterLauncherArgs(Args(args))

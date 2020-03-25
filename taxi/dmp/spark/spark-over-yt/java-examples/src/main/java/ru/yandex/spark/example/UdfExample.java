@@ -11,7 +11,7 @@ import org.apache.spark.sql.types.DataTypes;
 import ru.yandex.spark.yt.SparkAppJava;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 
-public class UdfExample implements SparkAppJava {
+public class UdfExample extends SparkAppJava {
     public void doRun(String[] strings, SparkSession spark, YtClient yt) {
         Dataset<Row> df = spark.read().format("yt").load("/sys/spark/examples/example_1");
         UserDefinedFunction splitUdf = functions.udf((String s) -> s.split("-")[1], DataTypes.StringType);

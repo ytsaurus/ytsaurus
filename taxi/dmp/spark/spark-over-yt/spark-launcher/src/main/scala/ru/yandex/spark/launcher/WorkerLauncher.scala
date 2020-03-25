@@ -14,14 +14,11 @@ object WorkerLauncher extends App with SparkLauncher {
 
   run(workerArgs.ytConfig, workerArgs.discoveryPath) { discoveryService =>
     log.info("Waiting for master http address")
-    val masterAddress = discoveryService.waitAddress(5 minutes)
+    val masterAddress = discoveryService.waitAddress(workerArgs.waitMasterTimeout)
       .getOrElse(throw new IllegalStateException(s"Empty discovery path ${workerArgs.discoveryPath}, master is not started"))
 
     log.info(s"Starting worker for master $masterAddress")
-    log.info(s"Worker opts: ${workerArgs.opts}")
-    log.info(s"Worker args: ${args.mkString(" ")}")
-    startWorker(masterAddress, workerArgs.port, workerArgs.webUiPort,
-      workerArgs.cores, workerArgs.memory, workerArgs.opts)
+    startWorker(masterAddress, workerArgs.cores, workerArgs.memory)
 
     def masterIsAlive: Boolean = DiscoveryService.isAlive(masterAddress.webUiHostAndPort)
 
@@ -30,25 +27,30 @@ object WorkerLauncher extends App with SparkLauncher {
   }
 }
 
-case class WorkerLauncherArgs(port: Option[Int],
-                              webUiPort: Int,
-                              cores: Int,
+case class WorkerLauncherArgs(cores: Int,
                               memory: String,
-                              opts: Option[String],
                               ytConfig: YtClientConfiguration,
-                              discoveryPath: String)
+                              discoveryPath: String,
+                              waitMasterTimeout: Duration)
 
 object WorkerLauncherArgs {
   def apply(args: Args): WorkerLauncherArgs = WorkerLauncherArgs(
-    args.optional("port").map(_.toInt),
-    args.optional("web-ui-port").map(_.toInt).getOrElse(8081),
     args.required("cores").toInt,
     args.required("memory"),
-    args.optional("opts").map(_.drop(1).dropRight(1)),
     YtClientConfiguration(args.optional),
     args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
+    args.optional("wait-master-timeout").map(parseDuration).getOrElse(5 minutes)
   )
 
   def apply(args: Array[String]): WorkerLauncherArgs = WorkerLauncherArgs(Args(args))
+
+  private def parseDuration(s: String): Duration = {
+    val regex = """(\d+)(.*)""".r
+    s match {
+      case regex(amount, "m") => amount.toInt.minutes
+      case regex(amount, "s") => amount.toInt.seconds
+      case regex(amount, "h") => amount.toInt.hours
+    }
+  }
 }
 

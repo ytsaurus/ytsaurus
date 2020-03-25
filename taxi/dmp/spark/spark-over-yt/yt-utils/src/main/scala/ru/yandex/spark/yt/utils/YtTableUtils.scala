@@ -290,4 +290,10 @@ object YtTableUtils {
   def fileSize(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Long = {
     tableAttribute(path, "compressed_data_size", transaction).longValue()
   }
+
+  def readDocument(path: String, transaction: Option[String] = None)(implicit yt: YtClient): YTreeNode = {
+    val request = new GetNode(formatPath(path)).optionalTransaction(transaction)
+    yt.getNode(request).join()
+
+  }
 }

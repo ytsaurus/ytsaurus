@@ -5,7 +5,7 @@ import org.apache.spark.sql.SparkSession;
 import ru.yandex.spark.yt.SparkAppJava;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 
-public class SmokeTest implements SparkAppJava {
+public class SmokeTest extends SparkAppJava {
     public void doRun(String[] strings, SparkSession spark, YtClient yt) {
         spark.read().format("yt").load("/sys/spark/examples/test_data").show();
     }
