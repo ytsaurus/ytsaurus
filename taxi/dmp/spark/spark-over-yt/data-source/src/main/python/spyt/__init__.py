@@ -10,7 +10,7 @@ from pyspark.sql import SparkSession
 from yt_spark_client.utils import default_token, default_discovery_dir, get_spark_master, set_conf, SparkDiscovery
 from contextlib import contextmanager
 import os
-from yt.wrapper import YtClient, read_file, get
+from yt.wrapper import YtClient, get
 from yt.wrapper.http_helpers import get_token, get_user_name, get_proxy_url
 
 
@@ -143,7 +143,7 @@ def _read_remote_conf(path, client=None):
 
 
 def _read_local_conf(conf_path):
-    if os.path.isfile(conf_path):
+    if conf_path and os.path.isfile(conf_path):
         with open(conf_path) as f:
             return yaml.load(f, Loader=yaml.BaseLoader)
     return {}
