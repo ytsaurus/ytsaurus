@@ -10,7 +10,7 @@
 #include <mapreduce/yt/interface/logging/log.h>
 
 #include <library/getopt/small/last_getopt.h>
-#include <library/streams/factory/factory.h>
+#include <library/cpp/streams/factory/factory.h>
 
 #include <util/generic/guid.h>
 #include <util/generic/vector.h>
