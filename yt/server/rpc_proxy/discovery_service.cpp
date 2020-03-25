@@ -281,6 +281,8 @@ private:
         TObjectServiceProxy proxy(channel);
 
         auto batchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(batchReq, Bootstrap_->GetNativeConnection()->GetConfig(), options);
+        batchReq->SetTimeout(Config_->ProxyUpdatePeriod);
 
         {
             auto req = TYPathProxy::Get(ProxyPath_ + "/@");
@@ -291,8 +293,10 @@ private:
                     BannedAttributeName,
                     BanMessageAttributeName,
                 });
+            SetCachingHeader(req, Bootstrap_->GetNativeConnection()->GetConfig(), options);
             batchReq->AddRequest(req, "get_ban");
         }
+
         {
             auto req = TYPathProxy::Get(RpcProxiesPath);
             ToProto(
@@ -302,14 +306,10 @@ private:
                     BannedAttributeName,
                     ConfigAttributeName,
                 });
-
-            SetBalancingHeader(req, Bootstrap_->GetNativeConnection()->GetConfig(), options);
             SetCachingHeader(req, Bootstrap_->GetNativeConnection()->GetConfig(), options);
-
             batchReq->AddRequest(req, "get_proxies");
         }
 
-        batchReq->SetTimeout(Config_->ProxyUpdatePeriod);
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error getting states of proxies");
         const auto& batchRsp = batchRspOrError.Value();
