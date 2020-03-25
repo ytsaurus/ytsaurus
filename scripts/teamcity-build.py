@@ -366,6 +366,7 @@ def prepare(options, build_context):
     teamcity_message(pprint.pformat(options.__dict__))
 
 @build_step
+@only_for_projects("yt", "yp")
 def build(options, build_context):
     env = ya_make_env(options)
     yall = os.path.join(options.checkout_directory, "yall")
@@ -403,8 +404,41 @@ def build(options, build_context):
 
     run(args, env=env, cwd=options.checkout_directory)
 
+@build_step
+@only_for_projects("yt_fast")
+def build_unittests(options, build_context):
+    env = ya_make_env(options)
+
+    # Do it always whenever options.build_enable_dist_build specified or not.
+    dist_cache_args = [
+        "--dist",
+        "--download-artifacts",
+    ]
+
+    install_args = [
+        "--install", os.path.join(options.working_directory, "bin")
+    ]
+
+    all_args = dist_cache_args + install_args
+    if options.use_asan:
+        all_args += ["--sanitize=address"]
+
+    all_args += ya_make_args(options)
+    all_args += ya_make_definition_args(options)
+
+    targets = []
+    for root, directores, files in os.walk(os.path.join(options.checkout_directory, get_relative_yt_root(options))):
+        for dir in directores:
+            if dir == "unittests":
+                targets.append(root[len(options.checkout_directory):].strip("/") + "/unittests")
+
+    run([get_ya(options), "make"] + targets + all_args,
+        env=env,
+        cwd=options.checkout_directory,
+    )
 
 @build_step
+@only_for_projects("yt", "yp")
 def gather_build_info(options, build_context):
     build_context["yt_version"] = run_captured(
         [
@@ -415,6 +449,7 @@ def gather_build_info(options, build_context):
 
 
 @build_step
+@only_for_projects("yt", "yp")
 def set_suid_bit(options, build_context):
     for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
         path = os.path.join(get_bin_dir(options), binary)
@@ -430,6 +465,7 @@ def set_suid_bit(options, build_context):
         run(["sudo", "chmod", "4755", path])
 
 @build_step
+@only_for_projects("yt", "yp")
 def import_yt_wrapper(options, build_context):
     python_source = os.path.join(options.checkout_directory, get_relative_python_root(options), "python")
     python_destination = os.path.join(options.working_directory, "python")
