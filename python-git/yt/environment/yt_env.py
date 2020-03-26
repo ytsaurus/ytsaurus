@@ -146,6 +146,11 @@ def _get_cgroup_path(cgroup_type, *args):
     return "/sys/fs/cgroup/{0}/{1}/{2}".format(cgroup_type, getpass.getuser(), "/".join(imap(str, args)))
 
 
+def _list_process_children(pid):
+    with open("/proc/{pid}/task/{pid}/children".format(pid=pid)) as f:
+        return f.read().strip().split()
+
+
 class YTInstance(object):
     # TODO(renadeen): remove extended_master_config when stable will get test_structured_security_logs
     def __init__(self, path, master_count=1, nonvoting_master_count=0, secondary_master_cell_count=0, clock_count=0,
@@ -576,12 +581,15 @@ class YTInstance(object):
             self._write_environment_info_to_file()
         except (YtError, KeyboardInterrupt) as err:
             logger.exception("Failed to start environment, dumping GDB backtraces")
-            children = subprocess.check_output("ps -o pid --ppid {} --noheaders".format(os.getpid()), shell=True)
-            logger.info("Process children:\n%s", children)
-            children = list(map(str.strip, children.strip().split()))
-            for child in children:
-                backtrace_path = os.path.join(self.backtraces_path, "gdb.{}".format(child))
-                self._dump_backtrace(int(child), backtrace_path)
+            try:
+                children = _list_process_children(os.getpid())
+                logger.info("Process children: %s", children)
+                for child in children:
+                    backtrace_path = os.path.join(self.backtraces_path, "gdb.{}".format(child))
+                    self._dump_backtrace(int(child), backtrace_path)
+            except Exception as e:
+                logger.warning("Failed to list children of current process: %s", e)
+                logger.exception(e)
             self.stop(force=True)
             raise YtError("Failed to start environment", inner_errors=[err])
 
