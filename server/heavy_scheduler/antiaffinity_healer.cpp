@@ -253,7 +253,7 @@ private:
                                 pod,
                                 disruptionThrottler->GetValidatePodDisruptionBudget());
                             taskManager->Add(std::move(task), ETaskSource::AntiaffinityHealer);
-                            disruptionThrottler->RegisterPodEviction(pod);
+                            disruptionThrottler->RegisterEviction(pod);
                             evictingPodCount += 1;
                         } else {
                             YT_LOG_DEBUG("Failed to create eviction task: concurrent task limit reached for antiaffinity healer "

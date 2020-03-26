@@ -49,7 +49,7 @@ public:
         }
     }
 
-    void RegisterPodEviction(TPod* pod)
+    void RegisterEviction(TPod* pod)
     {
         YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
             "Registering pod eviction (PodId: %v, PodSetId: %v)",
@@ -195,9 +195,16 @@ void TDisruptionThrottler::ReconcileState(const TClusterPtr& cluster)
     Impl_->ReconcileState(cluster);
 }
 
-void TDisruptionThrottler::RegisterPodEviction(TPod *pod)
+void TDisruptionThrottler::RegisterEviction(TPod* pod)
 {
-    Impl_->RegisterPodEviction(pod);
+    Impl_->RegisterEviction(pod);
+}
+
+void TDisruptionThrottler::RegisterEviction(const std::vector<TPod*>& pods)
+{
+    for (auto* pod : pods) {
+        Impl_->RegisterEviction(pod);
+    }
 }
 
 bool TDisruptionThrottler::ThrottleEviction(TPod* pod) const

@@ -86,7 +86,8 @@ class TSwapDefragmentatorConfig
 {
 public:
     int StarvingPodsPerIterationLimit;
-    int VictimCandidatePodCount;
+    int VictimNodeCandidateCount;
+    EVictimSetGeneratorType VictimSetGeneratorType;
 
     TSwapDefragmentatorConfig();
 };

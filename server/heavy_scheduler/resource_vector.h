@@ -36,8 +36,8 @@ bool operator < (const TResourceVector& lhs, const TResourceVector& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceVector GetResourceRequestVector(NCluster::TPod* pod);
-TResourceVector GetFreeResourceVector(NCluster::TNode* node);
+TResourceVector GetResourceRequestVector(const NCluster::TPod* pod);
+TResourceVector GetFreeResourceVector(const NCluster::TNode* node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

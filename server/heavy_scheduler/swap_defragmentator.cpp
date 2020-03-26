@@ -7,6 +7,7 @@
 #include "resource_vector.h"
 #include "task.h"
 #include "task_manager.h"
+#include "victim_set_generator.h"
 
 #include <yp/server/lib/cluster/allocator.h>
 #include <yp/server/lib/cluster/cluster.h>
@@ -18,6 +19,7 @@
 
 #include <yp/server/lib/objects/object_filter.h>
 
+#include <yp/client/api/native/client.h>
 #include <yp/client/api/native/helpers.h>
 
 #include <yt/core/misc/finally.h>
@@ -44,15 +46,19 @@ public:
         TGuid id,
         TInstant startTime,
         TObjectCompositeId starvingPodCompositeId,
-        TObjectCompositeId victimPodCompositeId)
+        std::vector<TObjectCompositeId> victimPodCompositeIds)
         : TTaskBase(id, startTime)
         , StarvingPodCompositeId_(std::move(starvingPodCompositeId))
-        , VictimPodCompositeId_(std::move(victimPodCompositeId))
+        , VictimPodCompositeIds_(std::move(victimPodCompositeIds))
     { }
 
     virtual std::vector<TObjectId> GetInvolvedPodIds() const override
     {
-        return {StarvingPodCompositeId_.Id, VictimPodCompositeId_.Id};
+        std::vector<TObjectId> ids = {StarvingPodCompositeId_.Id};
+        for (const auto& compositeId : VictimPodCompositeIds_) {
+            ids.push_back(compositeId.Id);
+        }
+        return ids;
     }
 
     virtual void ReconcileState(const TClusterPtr& cluster) override
@@ -60,7 +66,6 @@ public:
         YT_VERIFY(State_ == ETaskState::Active);
 
         auto* starvingPod = FindPod(cluster, StarvingPodCompositeId_);
-        auto* victimPod = FindPod(cluster, VictimPodCompositeId_);
 
         if (!starvingPod) {
             YT_LOG_DEBUG("Swap task is considered finished; starving pod does not exist");
@@ -74,8 +79,19 @@ public:
             return;
         }
 
-        if (victimPod && victimPod->Eviction().state() != NProto::EEvictionState::ES_NONE) {
-            YT_LOG_DEBUG("Swap task is considered not finished; victim pod is not evicted yet");
+        std::vector<TObjectId> unevictedPods;
+        for (const auto& victimPodCompositeId : VictimPodCompositeIds_) {
+            auto* victimPod = FindPod(cluster, victimPodCompositeId);
+            if (victimPod && victimPod->Eviction().state() != NProto::EEvictionState::ES_NONE) {
+                unevictedPods.push_back(victimPodCompositeId.Id);
+            }
+        }
+
+        if (!unevictedPods.empty()) {
+            YT_LOG_DEBUG(
+                "Swap task is considered not finished: some of victim pods are not evicted yet "
+                "(UnevictedPodIds: %v)",
+                unevictedPods);
             return;
         }
 
@@ -116,7 +132,7 @@ private:
     };
 
     const TObjectCompositeId StarvingPodCompositeId_;
-    const TObjectCompositeId VictimPodCompositeId_;
+    const std::vector<TObjectCompositeId> VictimPodCompositeIds_;
 
     TSchedulingStatusSketch SchedulingStatusSketchAfterVictimEviction_;
 };
@@ -126,32 +142,45 @@ private:
 ITaskPtr CreateSwapTask(
     const IClientPtr& client,
     TPod* starvingPod,
-    TPod* victimPod,
+    const std::vector<TPod*>& victimPods,
     bool validateDisruptionBudget)
 {
     auto id = TGuid::Create();
     auto starvingPodCompositeId = GetCompositeId(starvingPod);
-    auto victimPodCompositeId = GetCompositeId(victimPod);
 
-    YT_LOG_DEBUG("Creating swap task (TaskId: %v, StarvingPod: %v, VictimPod: %v)",
+    std::vector<TObjectCompositeId> victimPodCompositeIds;
+    for (auto* pod : victimPods) {
+        victimPodCompositeIds.push_back(GetCompositeId(pod));
+    }
+
+    YT_LOG_DEBUG("Creating swap task (TaskId: %v, StarvingPod: %v, VictimPods: %v)",
         id,
         starvingPodCompositeId,
-        victimPodCompositeId);
+        victimPodCompositeIds);
 
-    WaitFor(RequestPodEviction(
-        client,
-        victimPod->GetId(),
-        Format("Heavy Scheduler cluster defragmentation (TaskId: %v)", id),
-        TRequestPodEvictionOptions{
-            validateDisruptionBudget,
-            .Reason = EEvictionReason::Scheduler}))
-        .ValueOrThrow();
+    auto transactionId = WaitFor(client->StartTransaction())
+        .ValueOrThrow()
+        .TransactionId;
+
+    for (auto* victimPod : victimPods) {
+        WaitFor(RequestPodEviction(
+            client,
+            victimPod->GetId(),
+            Format("Heavy Scheduler cluster defragmentation (TaskId: %v)", id),
+            TRequestPodEvictionOptions{
+                validateDisruptionBudget,
+                .Reason = EEvictionReason::Scheduler},
+            transactionId))
+            .ValueOrThrow();
+    }
+
+    WaitFor(client->CommitTransaction(transactionId)).ThrowOnError();
 
     return New<TSwapTask>(
         std::move(id),
         TInstant::Now(),
         std::move(starvingPodCompositeId),
-        std::move(victimPodCompositeId));
+        std::move(victimPodCompositeIds));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,14 +239,12 @@ private:
 
         for (auto podIt = starvingPods.begin(); podIt < podItEnd; ++podIt) {
             if (!HeavyScheduler_->GetTaskManager()->HasTaskInvolvingPod(*podIt)) {
-                TryCreateSwapTask(cluster, *podIt);
+                ProcessStarvingPod(*podIt);
             }
         }
     }
 
-    void TryCreateSwapTask(
-        const TClusterPtr& cluster,
-        TPod* starvingPod)
+    void ProcessStarvingPod(TPod* starvingPod)
     {
         const auto& starvingPodFilteredNodesOrError = GetFilteredNodes(starvingPod);
         if (!starvingPodFilteredNodesOrError.IsOK()) {
@@ -226,7 +253,7 @@ private:
                 starvingPod->GetId());
             return;
         }
-        const auto& starvingPodFilteredNodes = starvingPodFilteredNodesOrError.Value();
+        auto starvingPodFilteredNodes = std::move(starvingPodFilteredNodesOrError.Value());
 
         auto starvingPodSuitableNodes = FindSuitableNodes(
             starvingPod,
@@ -239,37 +266,77 @@ private:
             return;
         }
 
-        const auto& taskManager = HeavyScheduler_->GetTaskManager();
+        Shuffle(starvingPodFilteredNodes.begin(), starvingPodFilteredNodes.end());
+        if (static_cast<int>(starvingPodFilteredNodes.size()) > Config_->VictimNodeCandidateCount) {
+            YT_LOG_DEBUG("Randomly selecting victim nodes (TotalCount: %v, RandomSelectionCount: %v)",
+                starvingPodFilteredNodes.size(),
+                Config_->VictimNodeCandidateCount);
+            starvingPodFilteredNodes.resize(Config_->VictimNodeCandidateCount);
+        }
 
-        auto* victimPod = FindVictimPod(
-            cluster,
-            starvingPod,
-            starvingPodFilteredNodes);
-        if (!victimPod) {
-            YT_LOG_DEBUG("Could not find victim pod (StarvingPodId: %v)",
+        struct TSearchResult
+        {
+            std::vector<TPod*> VictimPods;
+            double Score;
+        };
+        std::optional<TSearchResult> bestResult;
+
+        for (auto* victimNode : starvingPodFilteredNodes) {
+            if (!victimNode->CanAllocateAntiaffinityVacancies(starvingPod)) {
+                YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
+                    "Not enough antiaffinity vacancies (NodeId: %v, StarvingPodId: %v)",
+                    victimNode->GetId(),
+                    starvingPod->GetId());
+                continue;
+            }
+
+            auto generator = CreateNodeVictimSetGenerator(
+                Config_->VictimSetGeneratorType,
+                victimNode,
+                starvingPod,
+                HeavyScheduler_->GetDisruptionThrottler(),
+                HeavyScheduler_->GetVerbose());
+
+            std::vector<TPod*> victimPods;
+            while (!(victimPods = generator->GetNextCandidates()).empty()) {
+                double score = GetVictimSetScore(victimPods);
+                if (!bestResult || bestResult->Score < score) {
+                    bestResult = {std::move(victimPods), score};
+                }
+            }
+        }
+
+        if (bestResult) {
+            const auto& taskManager = HeavyScheduler_->GetTaskManager();
+            if (taskManager->GetTaskSlotCount(ETaskSource::SwapDefragmentator) > 0) {
+                auto task = CreateSwapTask(
+                    HeavyScheduler_->GetClient(),
+                    starvingPod,
+                    bestResult->VictimPods,
+                    HeavyScheduler_->GetDisruptionThrottler()->GetValidatePodDisruptionBudget());
+                taskManager->Add(std::move(task), ETaskSource::SwapDefragmentator);
+                HeavyScheduler_->GetDisruptionThrottler()->RegisterEviction(bestResult->VictimPods);
+            } else {
+                std::vector<TObjectId> victimPodIds;
+                for (auto* pod : bestResult->VictimPods) {
+                    victimPodIds.push_back(pod->GetId());
+                }
+                YT_LOG_DEBUG(
+                    "Failed to create swap task: concurrent task limit reached for swap defragmentator "
+                    "(StarvingPodId: %v, VictimPodIds: %v)",
+                    starvingPod->GetId(),
+                    victimPodIds);
+            }
+        } else {
+            YT_LOG_DEBUG("Could not find victim pods (StarvingPodId: %v)",
                 starvingPod->GetId());
             ++VictimSearchFailureCounter_;
-            return;
         }
+    }
 
-        YT_LOG_DEBUG("Found victim pod (PodId: %v, StarvingPodId: %v)",
-            victimPod->GetId(),
-            starvingPod->GetId());
-
-        if (taskManager->GetTaskSlotCount(ETaskSource::SwapDefragmentator) > 0) {
-            auto task = CreateSwapTask(
-                HeavyScheduler_->GetClient(),
-                starvingPod,
-                victimPod,
-                HeavyScheduler_->GetDisruptionThrottler()->GetValidatePodDisruptionBudget());
-            taskManager->Add(std::move(task), ETaskSource::SwapDefragmentator);
-            HeavyScheduler_->GetDisruptionThrottler()->RegisterPodEviction(victimPod);
-        } else {
-            YT_LOG_DEBUG("Failed to create swap task: concurrent task limit reached for swap defragmentator "
-                "(VictimPodId: %v, StarvingPodId: %v)",
-                victimPod->GetId(),
-                starvingPod->GetId());
-        }
+    double GetVictimSetScore(const std::vector<TPod*>& victimPods)
+    {
+        return -victimPods.size();
     }
 
     std::vector<TPod*> FindStarvingPods(const TClusterPtr& cluster) const
@@ -286,77 +353,6 @@ private:
         YT_LOG_DEBUG_UNLESS(result.empty(), "Found starving pods (Count: %v)",
             result.size());
         return result;
-    }
-
-    TPod* FindVictimPod(
-        const TClusterPtr& cluster,
-        TPod* starvingPod,
-        const std::vector<TNode*>& starvingPodFilteredNodes) const
-    {
-        THashSet<TNode*> starvingPodFilteredNodeSet;
-        for (auto* node : starvingPodFilteredNodes) {
-            starvingPodFilteredNodeSet.insert(node);
-        }
-
-        std::vector<TPod*> victimCandidatePods = GetNodeSegmentSchedulablePods(
-            cluster,
-            HeavyScheduler_->GetNodeSegment());
-        victimCandidatePods.erase(
-            std::remove_if(
-                victimCandidatePods.begin(),
-                victimCandidatePods.end(),
-                [&] (TPod* pod) {
-                    return !pod->GetNode() ||
-                        starvingPodFilteredNodeSet.find(pod->GetNode()) == starvingPodFilteredNodeSet.end();
-                }),
-            victimCandidatePods.end());
-
-        if (static_cast<int>(victimCandidatePods.size()) > Config_->VictimCandidatePodCount) {
-            YT_LOG_DEBUG("Randomly selecting victim candidates (TotalCount: %v, RandomSelectionCount: %v)",
-                victimCandidatePods.size(),
-                Config_->VictimCandidatePodCount);
-            Shuffle(victimCandidatePods.begin(), victimCandidatePods.end());
-            victimCandidatePods.resize(Config_->VictimCandidatePodCount);
-        }
-
-        YT_LOG_DEBUG("Selected victim pod candidates (Count: %v)",
-            victimCandidatePods.size());
-
-        for (auto* victimPod : victimCandidatePods) {
-            auto* node = victimPod->GetNode();
-
-            if (!node->CanAllocateAntiaffinityVacancies(starvingPod)) {
-                YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
-                    "Not enough antiaffinity vacancies (NodeId: %v, StarvingPodId: %v)",
-                    node->GetId(),
-                    starvingPod->GetId());
-                continue;
-            }
-
-            auto starvingPodResourceVector = GetResourceRequestVector(starvingPod);
-            auto victimPodResourceVector = GetResourceRequestVector(victimPod);
-            auto freeNodeResourceVector = GetFreeResourceVector(node);
-            if (freeNodeResourceVector + victimPodResourceVector < starvingPodResourceVector) {
-                YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
-                    "Not enough resources according to resource vectors (NodeId: %v, VictimPodId: %v, StarvingPodId: %v)",
-                    node->GetId(),
-                    victimPod->GetId(),
-                    starvingPod->GetId());
-                continue;
-            }
-
-            YT_LOG_DEBUG_IF(HeavyScheduler_->GetVerbose(),
-                "Checking eviction safety (PodId: %v)",
-                victimPod->GetId());
-            if (HeavyScheduler_->GetDisruptionThrottler()->ThrottleEviction(victimPod))
-            {
-                continue;
-            }
-
-            return victimPod;
-        }
-
-        return nullptr;
     }
 };
 

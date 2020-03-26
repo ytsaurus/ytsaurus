@@ -112,7 +112,8 @@ TFuture<TRequestPodEvictionResult> RequestPodEviction(
     const IClientPtr& client,
     TObjectId podId,
     TString message,
-    TRequestPodEvictionOptions options)
+    TRequestPodEvictionOptions options,
+    const TTransactionId& transactionId)
 {
     TSetUpdate update{
         "/control/request_eviction",
@@ -127,7 +128,9 @@ TFuture<TRequestPodEvictionResult> RequestPodEviction(
     return client->UpdateObject(
         std::move(podId),
         EObjectType::Pod,
-        std::vector<TUpdate>{std::move(update)});
+        std::vector<TUpdate>{std::move(update)},
+        /*attributeTimestampPrerequisites = */ {},
+        transactionId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

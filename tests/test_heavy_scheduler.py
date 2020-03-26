@@ -9,6 +9,7 @@ from .conftest import (
     update_node_id,
     wait,
     wait_pods_are_assigned,
+    DEFAULT_ACCOUNT_ID,
 )
 
 from yp.local import set_account_infinite_resource_limits
@@ -195,7 +196,7 @@ class TestHeavyScheduler(object):
         )
         node_labels = dict(segment=node_segment_id)
 
-        set_account_infinite_resource_limits(yp_client, "tmp", node_segment_id)
+        set_account_infinite_resource_limits(yp_client, DEFAULT_ACCOUNT_ID, node_segment_id)
 
         pod_set_id = yp_client.create_object(
             "pod_set", attributes=dict(spec=dict(node_segment_id=node_segment_id)),
@@ -437,6 +438,71 @@ class TestConcurrentHeavySchedulerSubsequentEvictions(TestConcurrentHeavySchedul
         pod_set_ids = [create_pod_set(yp_client) for _ in range(9)]
         bloat_pod_ids = self._prepare(yp_client, pod_set_ids)
         self._check(yp_client, bloat_pod_ids, expected_eviction_count=3)
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestSinglePodSwapDefragmentatorStrategy(object):
+    START_YP_HEAVY_SCHEDULER = True
+
+    YP_HEAVY_SCHEDULER_CONFIG = dict(
+        heavy_scheduler=dict(
+            verbose=True,
+            node_segment="default",
+            disruption_throttler=dict(
+                validate_pod_disruption_budget=False, safe_suitable_node_count=1,
+            ),
+            swap_defragmentator=dict(victim_set_generator_type="single",),
+        ),
+    )
+
+    def test_single_pod_strategy(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        node_ids = create_nodes(
+            yp_client,
+            node_count=100,
+            cpu_total_capacity=20000,
+            memory_total_capacity=2 ** 60,
+            labels=dict(segment="default"),
+        )
+
+        for node_id in node_ids:
+            topology = dict(node=node_id)
+            yp_client.update_object(
+                "node", node_id, set_updates=[dict(path="/labels/topology", value=topology)]
+            )
+
+        set_account_infinite_resource_limits(yp_client, DEFAULT_ACCOUNT_ID)
+        pod_set_id = create_pod_set(
+            yp_client, spec=dict(antiaffinity_constraints=[dict(key="node", max_pods=1)])
+        )
+        pod_ids = [
+            create_pod_with_boilerplate(
+                yp_client,
+                pod_set_id,
+                pod_id="cpu{}".format(cpu),
+                spec=dict(enable_scheduling=True, resource_requests=dict(vcpu_guarantee=cpu),),
+            )
+            for cpu in range(100, 10001, 100)
+        ]
+        wait_pods_are_assigned(yp_client, pod_ids)
+
+        create_nodes(
+            yp_client,
+            node_count=1,
+            cpu_total_capacity=15000,
+            memory_total_capacity=2 ** 60,
+            labels=dict(segment="default", topology=dict(node="free")),
+        )
+
+        second_pod_set_id = create_pod_set(yp_client)
+        create_pod_with_boilerplate(
+            yp_client,
+            second_pod_set_id,
+            spec=dict(enable_scheduling=True, resource_requests=dict(vcpu_guarantee=20000),),
+        )
+
+        wait(lambda: get_evictions_count(yp_client, pod_ids) == 1)
 
 
 @pytest.mark.usefixtures("yp_env_configurable")

@@ -41,7 +41,8 @@ TFuture<TRequestPodEvictionResult> RequestPodEviction(
     const IClientPtr& client,
     TObjectId podId,
     TString message,
-    TRequestPodEvictionOptions options = TRequestPodEvictionOptions());
+    TRequestPodEvictionOptions options = TRequestPodEvictionOptions(),
+    const TTransactionId& transactionId = TTransactionId());
 
 ////////////////////////////////////////////////////////////////////////////////
 

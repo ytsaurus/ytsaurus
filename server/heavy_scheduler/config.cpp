@@ -69,9 +69,12 @@ TSwapDefragmentatorConfig::TSwapDefragmentatorConfig()
         .GreaterThanOrEqual(1)
         .Default(100);
 
-    RegisterParameter("victim_candidate_pod_count", VictimCandidatePodCount)
-        .GreaterThan(0)
-        .Default(10000);
+    RegisterParameter("victim_node_candidate_count", VictimNodeCandidateCount)
+        .GreaterThanOrEqual(1)
+        .Default(500);
+
+    RegisterParameter("victim_set_generator_type", VictimSetGeneratorType)
+        .Default(EVictimSetGeneratorType::Single);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -71,7 +71,7 @@ bool operator < (const TResourceVector& lhs, const TResourceVector& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TResourceVector GetResourceRequestVector(TPod* pod)
+TResourceVector GetResourceRequestVector(const TPod* pod)
 {
     const auto& resourceRequests = pod->ResourceRequests();
     return TResourceVector({
@@ -83,7 +83,7 @@ TResourceVector GetResourceRequestVector(TPod* pod)
         pod->GetDiskRequestTotalCapacity(SsdStorageClass)});
 }
 
-TResourceVector GetFreeResourceVector(TNode* node)
+TResourceVector GetFreeResourceVector(const TNode* node)
 {
     return TResourceVector({
         GetCpuCapacity(node->CpuResource().GetFreeCapacities()),

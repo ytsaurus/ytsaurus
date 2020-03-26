@@ -19,7 +19,8 @@ public:
 
     void ReconcileState(const NCluster::TClusterPtr& cluster);
 
-    void RegisterPodEviction(NCluster::TPod* pod);
+    void RegisterEviction(NCluster::TPod* pod);
+    void RegisterEviction(const std::vector<NCluster::TPod*>& pods);
 
     bool ThrottleEviction(NCluster::TPod* pod) const;
 
