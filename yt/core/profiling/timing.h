@@ -67,6 +67,7 @@ private:
 
     TCpuInstant StartTime_;
     TCpuDuration Duration_;
+    bool Active_;
 
 };
 
