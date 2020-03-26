@@ -143,18 +143,30 @@ TString ToString(EValueType type)
         case VT_INT16:   return "int16";
         case VT_INT32:   return "int32";
         case VT_INT64:   return "int64";
+
         case VT_UINT8:   return "uint8";
         case VT_UINT16:  return "uint16";
         case VT_UINT32:  return "uint32";
         case VT_UINT64:  return "uint64";
+
         case VT_DOUBLE:  return "double";
+
         case VT_BOOLEAN: return "boolean";
+
         case VT_STRING:  return "string";
         case VT_UTF8:    return "utf8";
+
         case VT_ANY:     return "any";
-        default:
-            ythrow yexception() << "Invalid value type " << static_cast<int>(type);
+
+        case VT_NULL:    return "null";
+        case VT_VOID:    return "void";
+
+        case VT_DATE:    return "date";
+        case VT_DATETIME:  return "datetime";
+        case VT_TIMESTAMP: return "timestamp";
+        case VT_INTERVAL:  return "interval";
     }
+    ythrow yexception() << "Invalid value type " << static_cast<int>(type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
