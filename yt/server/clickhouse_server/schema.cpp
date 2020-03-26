@@ -26,6 +26,17 @@ DB::Names ToNames(const std::vector<TString>& columnNames)
     return result;
 }
 
+std::vector<TString> ToVectorString(const DB::Names& columnNames)
+{
+    std::vector<TString> result;
+
+    for (const auto& columnName : columnNames) {
+        result.emplace_back(columnName);
+    }
+
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::DataTypePtr RepresentYtType(const TLogicalTypePtr& valueType)

@@ -447,6 +447,65 @@ class TestClickHouseCommon(ClickHouseTestBase):
         self._setup()
 
     @authors("evgenstf")
+    def test_acl(self):
+        with Clique(1) as clique:
+            create_user('user_with_denied_column')
+            create_user('user_with_allowed_one_column')
+            create_user('user_with_allowed_all_columns')
+
+            def create_and_fill_table(path):
+                create('table', path, attributes={
+                    'schema': [
+                        {'name': 'a', 'type': 'string'},
+                        {'name': 'b', 'type': 'string'}
+                    ]},
+                    recursive=True)
+                write_table(path, [{'a': 'value1', 'b': 'value2'}])
+
+            create_and_fill_table('//tmp/t1')
+            set('//tmp/t1/@acl', [
+                make_ace('allow',  'user_with_denied_column', 'read'),
+                make_ace('deny',  'user_with_denied_column', 'read', columns='a'),
+            ])
+
+            with pytest.raises(Exception):
+                clique.make_query('select * from "//tmp/t1"', user='user_with_denied_column')
+
+            with pytest.raises(Exception):
+                clique.make_query('select a from "//tmp/t1"', user='user_with_denied_column')
+
+            assert clique.make_query('select b from "//tmp/t1"', user='user_with_denied_column') == [{'b': 'value2'}]
+
+            create_and_fill_table('//tmp/t2')
+            set('//tmp/t2/@acl', [
+                make_ace('allow', 'user_with_allowed_one_column', 'read', columns='b'),
+                make_ace('allow', 'user_with_allowed_all_columns', 'read', columns='a'),
+                make_ace('allow', 'user_with_allowed_all_columns', 'read', columns='b'),
+            ])
+
+            with pytest.raises(Exception):
+                clique.make_query('select * from "//tmp/t2"', user='user_with_allowed_one_column')
+            with pytest.raises(Exception):
+                clique.make_query('select a from "//tmp/t2"', user='user_with_allowed_one_column')
+            assert clique.make_query('select b from "//tmp/t2"', user='user_with_allowed_one_column') == [{'b': 'value2'}]
+            assert clique.make_query('select * from "//tmp/t2"', user='user_with_allowed_all_columns') == [{'a': 'value1', 'b': 'value2'}]
+            assert clique.make_query('select b from "//tmp/t2"', user='user_with_allowed_one_column') == [{'b': 'value2'}]
+            assert clique.make_query('select * from "//tmp/t2"', user='user_with_allowed_all_columns') == [{'a': 'value1', 'b': 'value2'}]
+            assert clique.make_query('select b from "//tmp/t2"', user='user_with_allowed_one_column') == [{'b': 'value2'}]
+            assert clique.make_query('select * from "//tmp/t2"', user='user_with_allowed_all_columns') == [{'a': 'value1', 'b': 'value2'}]
+
+            time.sleep(1.5)
+
+            assert clique.make_query('select b from "//tmp/t2"', user='user_with_allowed_one_column') == [{'b': 'value2'}]
+            assert clique.make_query('select * from "//tmp/t2"', user='user_with_allowed_all_columns') == [{'a': 'value1', 'b': 'value2'}]
+
+            time.sleep(0.5)
+
+            assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/object_attribute_cache/hit")[-1]['value'] == 50
+            assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/permission_cache/hit")[-1]['value'] == 5
+
+
+    @authors("evgenstf")
     def test_drop_nonexistent_table(self):
         patch = get_object_attibute_cache_config(500, 500, None)
         with Clique(1, config_patch=patch) as clique:

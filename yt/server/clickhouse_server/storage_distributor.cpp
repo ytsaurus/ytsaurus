@@ -157,6 +157,22 @@ DB::BlockInputStreamPtr CreateRemoteStream(
             TGuid::Create()));
 }
 
+void ValidateReadPermissions(
+    const std::vector<TString>& columnNames,
+    const std::vector<TTablePtr>& tables,
+    TQueryContext* queryContext)
+{
+    std::vector<TRichYPath> tablePathsWithColumns;
+    tablePathsWithColumns.reserve(tables.size());
+    for (const auto& table : tables) {
+        auto tablePath = TRichYPath(table->GetPath());
+        tablePath.SetColumns(columnNames);
+        tablePathsWithColumns.emplace_back(std::move(tablePath));
+    }
+    queryContext->Bootstrap->GetHost()->ValidateReadPermissions(tablePathsWithColumns,
+        queryContext->Client()->GetOptions().GetUser());
+}
+
 /////////////////////////////////////////////////////////////////////////////
 
 class TStorageDistributor
@@ -241,6 +257,8 @@ public:
         size_t /* maxBlockSize */,
         unsigned /* numStreams */) override
     {
+        ValidateReadPermissions(ToVectorString(columnNames), Tables_, QueryContext_);
+
         YT_LOG_TRACE("StorageDistributor started reading (Address: %v)", static_cast<void*>(this));
 
         SpecTemplate_ = TSubquerySpec();
