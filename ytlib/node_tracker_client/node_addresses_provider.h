@@ -18,7 +18,7 @@ NRpc::IChannelPtr CreateNodeAddressesChannel(
     TDuration syncPeriod,
     TWeakPtr<NCellMasterClient::TCellDirectory> cellDirectory,
     ENodeRole nodeRole,
-    const TCallback<NRpc::IChannelPtr(const std::vector<TString>&)>& getChannelFromAddresses);
+    TCallback<NRpc::IChannelPtr(const std::vector<TString>&)> channelBuilder);
 
 ////////////////////////////////////////////////////////////////////////////////
 
