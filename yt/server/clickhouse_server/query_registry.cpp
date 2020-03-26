@@ -372,11 +372,9 @@ public:
                     EMetricType::Gauge,
                     {userProfilingInfo.TagId});
 
-                for (int index = 0; index < static_cast<int>(ProfileEvents::end()); ++index) {
-                    const auto* name = ProfileEvents::getName(index);
-                    auto value = (*processListForUserInfo->profile_counters)[index].load(std::memory_order::memory_order_relaxed);
+                for (const auto& [name, value] : GetBriefProfileCounters(*processListForUserInfo->profile_counters)) {
                     ClickHouseNativeProfiler.Enqueue(
-                        "/user_profile_events/" + CamelCaseToUnderscoreCase(TString(name)),
+                        "/user_profile_events/" + name,
                         value,
                         EMetricType::Counter,
                         {userProfilingInfo.TagId});

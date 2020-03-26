@@ -43,6 +43,11 @@ TString MaybeTruncateSubquery(TString query);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Leaves only some of the "significant" profile counters.
+THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters& profileCounters);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NClickHouseServer
 
 namespace DB {
