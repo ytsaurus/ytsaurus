@@ -257,10 +257,6 @@ class YtStuff(object):
         # build_path = yatest.common.runtime.build_path()
         work_path = yatest.common.runtime.work_path()
 
-        self.tmpfs_path = self.config.ram_drive_path or yatest.common.get_param("ram_drive_path")
-        if self.tmpfs_path:
-            self.tmpfs_path = tempfile.mkdtemp(prefix="yt_", dir=self.tmpfs_path)
-
         # YT directory.
         self.yt_path = tempfile.mkdtemp(dir=work_path, prefix="yt_") if self.config.yt_path is None else self.config.yt_path
 
@@ -278,10 +274,14 @@ class YtStuff(object):
             self.yt_work_dir = os.path.join(user_yt_work_dir_base, "yt_wd")
         else:
             ram_drive_path = yatest.common.get_param("output_ram_drive_path")
-            if ram_drive_path is None:
+            if ram_drive_path is None or self.config.ram_drive_path:
                 self.yt_work_dir = yatest.common.output_path("yt_wd")
             else:
                 self.yt_work_dir = os.path.join(yatest.common.output_ram_drive_path(), "yt_wd")
+
+        self.tmpfs_path = self.config.ram_drive_path or yatest.common.get_param("ram_drive_path")
+        if self.tmpfs_path:
+            self.tmpfs_path = tempfile.mkdtemp(prefix="yt_", dir=self.tmpfs_path)
 
         if not os.path.isdir(self.yt_work_dir):
             os.mkdir(self.yt_work_dir)
