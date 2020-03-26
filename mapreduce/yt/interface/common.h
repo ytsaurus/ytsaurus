@@ -161,6 +161,14 @@ enum EValueType : int
     VT_UINT32,
 
     VT_UTF8,
+
+    VT_NULL,
+    VT_VOID,
+
+    VT_DATE,
+    VT_DATETIME,
+    VT_TIMESTAMP,
+    VT_INTERVAL,
 };
 
 enum ESortOrder : int
