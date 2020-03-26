@@ -176,17 +176,32 @@ def add_schema_permissions(client, type, subject, permissions):
         add_permission(client, "schema", type, subject, permission, attribute="")
 
 
-def set_account(client, account_name, segment_name, cpu, memory, hdd, ssd, ipv4):
+def set_account(
+    client,
+    account_name,
+    segment_name,
+    cpu,
+    memory,
+    ipv4,
+    disk_capacity_per_storage_class,
+    disk_bandwidth_per_storage_class
+):
     resource_limits = client.get_object(
         "account", account_name, selectors=["/spec/resource_limits/per_segment"],
     )[0]
     resource_limits = resource_limits.get(segment_name, {})
 
-    def get_capacity(path_tokens):
+    def get_resource(path_tokens, resource):
         node = resource_limits
         for token in path_tokens:
             node = node.get(token, {})
-        return node.get("capacity", None)
+        return node.get(resource, None)
+
+    def get_capacity(path_tokens):
+        return get_resource(path_tokens, "capacity")
+
+    def get_bandwidth(path_tokens):
+        return get_resource(path_tokens, "bandwidth")
 
     updates_set = list()
     if get_capacity(["cpu"]) != long(cpu):
@@ -218,27 +233,35 @@ def set_account(client, account_name, segment_name, cpu, memory, hdd, ssd, ipv4)
             )
         )
 
-    if get_capacity(["disk_per_storage_class", "hdd"]) != long(hdd):
-        updates_set.append(
-            dict(
-                path="/spec/resource_limits/per_segment/{}/disk_per_storage_class/hdd/capacity".format(
-                    segment_name
-                ),
-                value=long(hdd),
-                recursive=True,
-            )
-        )
+    for storage_class in disk_capacity_per_storage_class:
+        value = long(disk_capacity_per_storage_class[storage_class])
 
-    if get_capacity(["disk_per_storage_class", "ssd"]) != long(ssd):
-        updates_set.append(
-            dict(
-                path="/spec/resource_limits/per_segment/{}/disk_per_storage_class/ssd/capacity".format(
-                    segment_name
-                ),
-                value=long(ssd),
-                recursive=True,
+        if get_capacity(["disk_per_storage_class", storage_class]) != value:
+            updates_set.append(
+                dict(
+                    path="/spec/resource_limits/per_segment/{}/disk_per_storage_class/{}/capacity".format(
+                        segment_name,
+                        storage_class,
+                    ),
+                    value=value,
+                    recursive=True,
+                )
             )
-        )
+
+    for storage_class in disk_bandwidth_per_storage_class:
+        value = long(disk_bandwidth_per_storage_class[storage_class])
+
+        if get_bandwidth(["disk_per_storage_class", storage_class]) != value:
+            updates_set.append(
+                dict(
+                    path="/spec/resource_limits/per_segment/{}/disk_per_storage_class/{}/bandwidth".format(
+                        segment_name,
+                        storage_class,
+                    ),
+                    value=value,
+                    recursive=True,
+                )
+            )
 
     if updates_set:
         client.update_object("account", account_name, updates_set)
@@ -264,38 +287,27 @@ def resolve_all_segments(client):
 def create_accounts(client, cluster, accounts):
     for account in accounts:
         create_account(client, account.name, account.allow_use_for_all)
-        segments = None
+
+        def set_account_for_segment(segment, limits):
+            set_account(
+                client,
+                account.name,
+                segment,
+                cpu=limits["cpu"],
+                memory=limits["memory"],
+                ipv4=limits.get("ipv4", 0),
+                disk_capacity_per_storage_class=limits.get("disk_capacity_per_storage_class", {}),
+                disk_bandwidth_per_storage_class=limits.get("disk_bandwidth_per_storage_class", {}),
+            )
 
         if len(account.quotas_per_segment) == 1 and account.quotas_per_segment.keys()[0] == "*":
-            segments = resolve_all_segments(client)
-
             limits = account.quotas_per_segment["*"]
-
-            for segment in segments:
-                set_account(
-                    client,
-                    account.name,
-                    segment,
-                    cpu=limits["cpu"],
-                    memory=limits["memory"],
-                    hdd=limits["hdd"],
-                    ssd=limits["ssd"],
-                    ipv4=limits.get("ipv4", 0),
-                )
-
+            for segment in resolve_all_segments(client):
+                set_account_for_segment(segment, limits)
         else:
             for segment in account.quotas_per_segment:
                 limits = account.quotas_per_segment[segment]
-                set_account(
-                    client,
-                    account.name,
-                    segment,
-                    cpu=limits["cpu"],
-                    memory=limits["memory"],
-                    hdd=limits["hdd"],
-                    ssd=limits["ssd"],
-                    ipv4=limits.get("ipv4", 0),
-                )
+                set_account_for_segment(segment, limits)
 
 
 def setup_tentacles_podset(client, cluster):
@@ -361,7 +373,17 @@ TB = 1024 * GB
 ACCOUNTS = [
     Account(
         "replication-common-account",
-        {"*": {"cpu": 1000000, "memory": 10 * TB, "hdd": 100 * TB, "ssd": 100 * TB, "ipv4": 10}},
+        {
+            "*": {
+                "cpu": 1000000,
+                "memory": 10 * TB,
+                "ipv4": 10,
+                "disk_capacity_per_storage_class": {
+                    "hdd": 100 * TB,
+                    "ssd": 100 * TB,
+                },
+            },
+        },
     ),
     Account(
         "tmp",
@@ -369,8 +391,14 @@ ACCOUNTS = [
             "default": {
                 "cpu": 1700000,
                 "memory": 10000000000000,
-                "hdd": 150000000000000,
-                "ssd": 20000000000000,
+                "disk_capacity_per_storage_class": {
+                    "hdd": 150000000000000,
+                    "ssd": 20000000000000,
+                },
+                "disk_bandwidth_per_storage_class": {
+                    "hdd": 10 * GB,
+                    "ssd": 10 * GB,
+                },
             },
         },
         allow_use_for_all=True,
@@ -381,8 +409,10 @@ ACCOUNTS = [
             "*": {
                 "cpu": 100000000,
                 "memory": 1000000000000,
-                "hdd": 1000000000000000,
-                "ssd": 1000000000000000,
+                "disk_capacity_per_storage_class": {
+                    "hdd": 1000000000000000,
+                    "ssd": 1000000000000000,
+                },
             }
         },
     ),
@@ -392,9 +422,11 @@ ACCOUNTS = [
             "default": {
                 "cpu": 100000000,
                 "memory": 1000000000000,
-                "hdd": 1000000000000000,
-                "ssd": 1000000000000000,
-            }
+                "disk_capacity_per_storage_class": {
+                    "hdd": 1000000000000000,
+                    "ssd": 1000000000000000,
+                },
+            },
         },
     ),
 ]
@@ -410,10 +442,12 @@ def accounts_override_xdc(cluster, accounts, client):
                 "default": {
                     "cpu": 100000,
                     "memory": 1099511627776,
-                    "hdd": 1099511627776000,
-                    "ssd": 1099511627776000,
                     "ipv4": 0,
-                }
+                    "disk_capacity_per_storage_class": {
+                        "hdd": 1099511627776000,
+                        "ssd": 1099511627776000,
+                    },
+                },
             },
         )
     )
@@ -437,10 +471,16 @@ def setup_dev_segment(cluster, accounts, client):
                     "dev": {
                         "cpu": 159500,
                         "memory": 1389370749747,
-                        "hdd": 15750772503347,
-                        "ssd": 1192927166464,
                         "ipv4": 0,
-                    }
+                        "disk_capacity_per_storage_class": {
+                            "hdd": 15750772503347,
+                            "ssd": 1192927166464,
+                        },
+                        "disk_bandwidth_per_storage_class": {
+                            "hdd": 1 * GB,
+                            "ssd": 1 * GB,
+                        },
+                    },
                 },
             )
         ],
@@ -451,9 +491,15 @@ def setup_dev_segment(cluster, accounts, client):
                     "dev": {
                         "cpu": 156202,
                         "memory": 1571816262861,
-                        "hdd": 18485541004902,
-                        "ssd": 992137445376,
                         "ipv4": 0,
+                        "disk_capacity_per_storage_class": {
+                            "hdd": 18485541004902,
+                            "ssd": 992137445376,
+                        },
+                        "disk_bandwidth_per_storage_class": {
+                            "hdd": 1 * GB,
+                            "ssd": 1 * GB,
+                        },
                     }
                 },
             )
@@ -465,9 +511,15 @@ def setup_dev_segment(cluster, accounts, client):
                     "dev": {
                         "cpu": 283000,
                         "memory": 3653874640486,
-                        "hdd": 15993491842662,
-                        "ssd": 17324609581875,
                         "ipv4": 0,
+                        "disk_capacity_per_storage_class": {
+                            "hdd": 15993491842662,
+                            "ssd": 17324609581875,
+                        },
+                        "disk_bandwidth_per_storage_class": {
+                            "hdd": 1 * GB,
+                            "ssd": 1 * GB,
+                        },
                     }
                 },
             )
@@ -479,9 +531,11 @@ def setup_dev_segment(cluster, accounts, client):
                     "dev": {
                         "cpu": 283000,
                         "memory": 3653874640486,
-                        "hdd": 15993491842662,
-                        "ssd": 17324609581875,
                         "ipv4": 100,
+                        "disk_capacity_per_storage_class": {
+                            "hdd": 15993491842662,
+                            "ssd": 17324609581875,
+                        },
                     }
                 },
             )
