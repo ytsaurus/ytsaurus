@@ -48,6 +48,7 @@ DEFINE_ENUM(EPodNodeScoreType,
     (NodeRandomHash)
     (FreeCpuMemoryShareVariance)
     (FreeCpuMemoryShareSquaredMinDelta)
+    (FreeCpuMemorySharePowSum)
 );
 
 using TPodNodeScoreValue = double;

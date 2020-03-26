@@ -128,6 +128,48 @@ TEST(TPodNodeScoreTest, FreeCpuMemoryShareSquaredMinDelta)
     EXPECT_EQ(0.4375, score->Compute(node2.get(), pod21.get()));
 }
 
+TEST(TPodNodeScoreTest, FreeCpuMemorySharePowSum)
+{
+    auto config = New<TPodNodeScoreConfig>();
+    config->Type = EPodNodeScoreType::FreeCpuMemorySharePowSum;
+
+    auto score = CreatePodNodeScore(config);
+
+    constexpr ui64 nodeCpuCapacity = 1000;
+    constexpr ui64 nodeMemoryCapacity = 1024 * 1024;
+
+    // Default check.
+    auto node1 = CreateMockNode(
+        THomogeneousResource(
+            /* total */ MakeCpuCapacities(nodeCpuCapacity),
+            /* allocated */ MakeCpuCapacities(0)),
+        THomogeneousResource(
+            /* total */ MakeMemoryCapacities(nodeMemoryCapacity),
+            /* allocated */ MakeMemoryCapacities(0)));
+
+    auto pod1 = CreateMockPod(nodeCpuCapacity / 2, nodeMemoryCapacity / 2);
+    auto pod2 = CreateMockPod(nodeCpuCapacity / 2, nodeMemoryCapacity);
+    auto pod3 = CreateMockPod(2 * nodeCpuCapacity + 1, 0);
+
+    EXPECT_NEAR(6.3245, score->Compute(node1.get(), pod1.get()), 0.001);
+    EXPECT_NEAR(4.1622, score->Compute(node1.get(), pod2.get()), 0.001);
+    EXPECT_THROW(score->Compute(node1.get(), pod3.get()), TErrorException);
+
+    // Check for partially allocated node.
+    auto node2 = CreateMockNode(
+        THomogeneousResource(
+            /* total */ MakeCpuCapacities(2 * nodeCpuCapacity),
+            /* allocated */ MakeCpuCapacities(nodeCpuCapacity)),
+        THomogeneousResource(
+            /* total */ MakeMemoryCapacities(2 * nodeMemoryCapacity),
+            /* allocated */ MakeMemoryCapacities(nodeMemoryCapacity)));
+    auto pod4 = CreateMockPod(nodeCpuCapacity, nodeMemoryCapacity);
+
+    EXPECT_NEAR(2.0, score->Compute(node2.get(), pod4.get()), 0.001);
+    EXPECT_THROW(score->Compute(node2.get(), pod3.get()), TErrorException);
+}
+
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

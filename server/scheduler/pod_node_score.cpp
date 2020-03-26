@@ -229,6 +229,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFreeCpuMemorySharePowSumPodNodeScore
+    : public TFreeCpuMemoryShareVariancePodNodeScore
+{
+public:
+    virtual TPodNodeScoreValue Compute(TNode* node, TPod* pod) override
+    {
+        auto nodeResources = GetNodeResources(node);
+        AllocateOrThrow(node->GetId(), &nodeResources, pod);
+        auto [freeCpuShare, freeMemoryShare] = ComputeFreeCpuMemoryShares(nodeResources);
+        return pow(10, freeCpuShare) + pow(10, freeMemoryShare);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <typename TPodNodeScoreParameters>
 TIntrusivePtr<TPodNodeScoreParameters> CreatePodNodeScoreParameters(
     const NYT::NYTree::INodePtr& dynamicParameters)
@@ -252,6 +267,8 @@ IPodNodeScorePtr CreatePodNodeScore(TPodNodeScoreConfigPtr config)
             return New<TFreeCpuMemoryShareVariancePodNodeScore>();
         case EPodNodeScoreType::FreeCpuMemoryShareSquaredMinDelta:
             return New<TFreeCpuMemoryShareSquaredMinDeltaPodNodeScore>();
+        case EPodNodeScoreType::FreeCpuMemorySharePowSum:
+            return New<TFreeCpuMemorySharePowSumPodNodeScore>();
         default:
             YT_UNIMPLEMENTED();
     }
