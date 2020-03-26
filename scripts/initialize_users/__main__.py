@@ -755,6 +755,15 @@ def initialize_users(cluster, dry_run):
                 client, "dns_record_set", User("mcden"), right_crw,
             )
 
+        # YPSUPPORT-75
+        if cluster != "xdc":
+            add_schema_permissions(
+                client, "horizontal_pod_autoscaler", User("robot-drug-deploy"), right_c,
+            )
+            add_schema_permissions(
+                client, "horizontal_pod_autoscaler", Group("deploy-public-object-creators"), right_c,
+            )
+
         create_accounts(client, cluster, accounts)
 
         allow_account_usage(client, account="odin", subject=User("odin"))
