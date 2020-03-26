@@ -97,6 +97,15 @@ class Role(object):
 
         self.comment = comment
 
+    def _signature(self):
+        return (self.subject, self.permissions, self.columns)
+
+    def __hash__(self):
+        return hash(self._signature())
+
+    def __eq__(self, other):
+        return self.__class__ == other.__class__ and self._signature() == other._signature()
+
     def to_pretty_string(self):
         permissions = "/".join(self.permissions)
         return "{:<20} - {}".format(self.subject.to_pretty_string(), permissions)
@@ -109,7 +118,7 @@ class Role(object):
         result["subject"] = self.subject.to_json_type()
         return result
 
-class ObjectAclSnapshot(object):
+class ObjectIdmSnapshot(object):
     def __init__(self, object_id, idm_client):
         self.idm_client = idm_client
         self.object_id = object_id
@@ -175,7 +184,7 @@ class ObjectAclSnapshot(object):
             self._new_roles.append(role)
             self.roles.append(role)
 
-    def remove_roles(self, subjects, comment):
+    def remove_roles(self, subjects, comment=""):
         subjects = set(subjects)
         for role in self.roles:
             if role.subject in subjects:
@@ -183,11 +192,31 @@ class ObjectAclSnapshot(object):
                 self._roles_to_remove.append(role)
         self.roles = [role for role in self.roles if role.subject not in subjects]
 
-    def remove_all_roles(self, comment):
+    def remove_all_roles(self, comment=""):
         for role in self.roles:
             role.comment = comment
             self._roles_to_remove.append(role)
         self.roles = []
+
+    def clear(self):
+        self.responsibles = []
+        self.read_approvers = []
+        self.auditors = []
+        self.remove_all_roles()
+
+    def copy_flags_from(self, other):
+        for flag in ("inherit_acl", "disable_responsible_inheritance", "require_boss_approval"):
+            setattr(self, flag, getattr(other, flag))
+
+    def copy_permissions_from(self, other):
+        for attr in ("responsibles", "read_approvers", "auditors"):
+            for subject in getattr(other, attr):
+                my_list = getattr(self, attr)
+                if subject not in my_list:
+                    my_list.append(subject)
+        for role in other.roles:
+            if role not in self.roles:
+                self._new_roles.append(role)
 
     def commit(self):
         subjects_to_json = lambda subjects: [subj.to_json_type() for subj in subjects]
@@ -277,7 +306,7 @@ def with_idm_info(func):
     def wrapper(**kwargs):
         object_id, args = extract_object_id(**kwargs)
         idm_client = yt.make_idm_client(args.address)
-        snapshot = ObjectAclSnapshot(object_id, idm_client)
+        snapshot = ObjectIdmSnapshot(object_id, idm_client)
         return func(snapshot, args)
     return wrapper
 
@@ -316,3 +345,17 @@ def revoke(object_idm_snapshot, args):
                 subjects_from_string(args.subjects),
                 args.comment,
             )
+
+@with_idm_info
+def copy(source_idm_snapshot, args):
+    dest_object_id = source_idm_snapshot.object_id.copy()
+    assert len(dest_object_id) == 1
+    dest_object_id[tuple(dest_object_id)[0]] = args.destination
+
+    dest_idm_snapshot = ObjectIdmSnapshot(dest_object_id, source_idm_snapshot.idm_client)
+
+    with modify_idm_snapshot(dest_idm_snapshot, args.dry_run):
+        if args.erase:
+            dest_idm_snapshot.clear()
+            dest_idm_snapshot.copy_flags_from(source_idm_snapshot)
+        dest_idm_snapshot.copy_permissions_from(source_idm_snapshot)
