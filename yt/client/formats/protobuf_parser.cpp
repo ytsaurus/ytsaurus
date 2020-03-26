@@ -1,12 +1,10 @@
 #include "protobuf_parser.h"
 
-#include "helpers.h"
 #include "protobuf.h"
 #include "parser.h"
 #include "yson_map_to_unversioned_value.h"
 
 #include <yt/client/table_client/helpers.h>
-#include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/table_consumer.h>
 #include <yt/client/table_client/unversioned_row.h>
 
@@ -277,14 +275,14 @@ public:
         int tableIndex,
         EComplexTypeMode complexTypeMode)
         : ValueConsumer_(valueConsumer)
-        , Description_(std::move(description))
-        , TableIndex_(tableIndex)
+          , Description_(std::move(description))
+          , TableIndex_(tableIndex)
         // NB. We use ColumnConsumer_ to generate yson representation of complex types we don't want additional
         // conversions so we use Positional mode.
         // At the same time we use OtherColumnsConsumer_ to feed yson passed by users.
         // This YSON should be in format specified on the format config.
-        , ColumnConsumer_(EComplexTypeMode::Positional, valueConsumer)
-        , OtherColumnsConsumer_(complexTypeMode, valueConsumer)
+          , ColumnConsumer_(EComplexTypeMode::Positional, valueConsumer)
+          , OtherColumnsConsumer_(complexTypeMode, valueConsumer)
     {
         YT_VERIFY(Description_->GetTableCount() == 1);
         const auto& columns = Description_->GetTableDescription(0).Columns;
@@ -292,7 +290,7 @@ public:
         auto nameTable = ValueConsumer_->GetNameTable();
 
         TProtobufFieldDescription rootDescription;
-        for (const auto& [name, columnDescription] : columns) {
+        for (const auto&[name, columnDescription] : columns) {
             rootDescription.Children.push_back(columnDescription);
             ChildColumnIds_.push_back(static_cast<ui16>(nameTable->GetIdOrRegisterName(columnDescription.Name)));
         }
@@ -396,14 +394,22 @@ private:
                 const auto& childDescription = description.GetChildren()[childIndex];
 
                 if (Y_UNLIKELY(wireTag != childDescription.WireTag)) {
-                    THROW_ERROR_EXCEPTION("Expected wire tag to be %v, got %v",
+                    THROW_ERROR_EXCEPTION("Expected wire tag for field %Qv to be %v, got %v",
+                        childDescription.Name,
                         childDescription.WireTag,
                         wireTag)
                         << TErrorAttribute("field_number", fieldNumber)
                         << TErrorAttribute("table_index", TableIndex_);
                 }
 
-                ReadAndProcessUnversionedValue(rowParser, childIndex, childDescription, depth, &fields);
+                if (childDescription.Packed) {
+                    auto elementsParser = TRowParser(rowParser.ReadLengthDelimited());
+                    while (!elementsParser.IsExhausted()) {
+                        ReadAndProcessUnversionedValue(elementsParser, childIndex, childDescription, depth, &fields);
+                    }
+                } else {
+                    ReadAndProcessUnversionedValue(rowParser, childIndex, childDescription, depth, &fields);
+                }
             }
         } catch (const TErrorException& exception) {
             THROW_ERROR_EXCEPTION(exception) << rowParser.GetContextErrorAttributes();
@@ -414,7 +420,7 @@ private:
         const auto inRoot = (depth == 0);
 
         int structElementIndex = 0;
-        auto skipElements = [&] (int targetIndex) {
+        auto skipElements = [&](int targetIndex) {
             if (inRoot) {
                 return;
             }
@@ -435,22 +441,20 @@ private:
             }
             if (childDescription.Repeated) {
                 ColumnConsumer_.OnBeginList();
-            }
-
-            bool haveFields = (fieldIt != fields.end() && fieldIt->ChildIndex == childIndex);
-            while (fieldIt != fields.end() && fieldIt->ChildIndex == childIndex) {
-                if (childDescription.Repeated) {
+                while (fieldIt != fields.end() && fieldIt->ChildIndex == childIndex) {
                     ColumnConsumer_.OnListItem();
+                    OutputValue(fieldIt->Value, childDescription, depth);
+                    ++fieldIt;
                 }
-                OutputValue(fieldIt->Value, childDescription, depth);
-                ++fieldIt;
-            }
-            if (!haveFields && !inRoot && !childDescription.Repeated) {
-                ColumnConsumer_.OnEntity();
-            }
-
-            if (childDescription.Repeated) {
                 ColumnConsumer_.OnEndList();
+            } else {
+                bool haveFields = (fieldIt != fields.end() && fieldIt->ChildIndex == childIndex);
+                if (haveFields) {
+                    OutputValue(fieldIt->Value, childDescription, depth);
+                    ++fieldIt;
+                } else if (!inRoot) {
+                    ColumnConsumer_.OnEntity();
+                }
             }
             ++structElementIndex;
         }

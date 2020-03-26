@@ -550,7 +550,7 @@ public:
     }
 
     // It's quite likely that this value can be bounded by `WireFormatLite::UInt64Size(10 * ysonLength)`,
-    // but currently we return just maximum size of a varint representation of 32-bit number.
+    // but currently we return just maximum size of a varint representation of a 32-bit number.
     static Y_FORCE_INLINE int GetMaxVarIntSizeOfProtobufSizeOfComplexType(ui64 ysonLength)
     {
         return MaxVarUint32Size;
@@ -632,11 +632,15 @@ private:
     {
         if (fieldDescription.Repeated) {
             YT_VERIFY(!fieldDescription.Optional);
-            parser->ParseBeginList();
-            while (!parser->IsEndList()) {
-                TraverseNonRepeated(fieldDescription, parser, maxVarIntSize);
+            if (fieldDescription.Packed) {
+                TraversePackedRepeated(fieldDescription, parser, maxVarIntSize);
+            } else {
+                parser->ParseBeginList();
+                while (!parser->IsEndList()) {
+                    TraverseNonRepeated(fieldDescription, parser, maxVarIntSize);
+                }
+                parser->ParseEndList();
             }
-            parser->ParseEndList();
         } else {
             TraverseNonRepeated(fieldDescription, parser, maxVarIntSize);
         }
@@ -653,6 +657,23 @@ private:
         auto totalWrittenSizeAfter = Writer_->GetTotalWrittenSize();
         auto messageSize = totalWrittenSizeAfter - totalWrittenSizeBefore;
         WriteVarUint64WithPadding(Writer_->GetGapPointer(gap), messageSize, maxVarIntSize);
+    }
+
+    Y_FORCE_INLINE void TraversePackedRepeated(
+        const TProtobufFieldDescription& fieldDescription,
+        TYsonPullParser* parser,
+        int maxVarIntSize)
+    {
+        parser->ParseBeginList();
+        if (!parser->IsEndList()) {
+            WriteVarUint32(Writer_, fieldDescription.WireTag);
+            WriteWithSizePrefix(maxVarIntSize, [&] {
+                while (!parser->IsEndList()) {
+                    WriteProtobufField(Writer_, fieldDescription, TYsonValueExtractor(parser));
+                }
+            });
+        }
+        parser->ParseEndList();
     }
 
     Y_FORCE_INLINE void TraverseNonRepeated(
