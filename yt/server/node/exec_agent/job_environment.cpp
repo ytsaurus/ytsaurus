@@ -306,7 +306,7 @@ public:
         return Config_->StartUid + slotIndex;
     }
 
-    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path)
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int /*locationIndex*/)
     {
         return CreateSimpleJobDirectoryManager(
             MounterThread_->GetInvoker(),
@@ -382,7 +382,7 @@ public:
             : ::getuid();
     }
 
-    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path) override
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int /*locationIndex*/) override
     {
         return CreateSimpleJobDirectoryManager(
             MounterThread_->GetInvoker(),
@@ -470,9 +470,9 @@ public:
         return Config_->StartUid + slotIndex;
     }
 
-    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path)
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int locationIndex)
     {
-        return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path);
+        return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path, locationIndex);
     }
 
     virtual std::optional<i64> GetMemoryLimit() const override

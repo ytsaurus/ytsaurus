@@ -151,6 +151,7 @@ void TBootstrap::DoRun()
     NYTAlloc::SetEnableEagerMemoryRelease(true);
 
     Config_->MonitoringServer->Port = MonitoringPort_;
+    Config_->MonitoringServer->ServerName = "monitoring";
     HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
     NYTree::IMapNodePtr orchidRoot;
