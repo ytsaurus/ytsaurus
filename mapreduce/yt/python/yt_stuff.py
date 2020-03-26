@@ -277,7 +277,7 @@ class YtStuff(object):
         if user_yt_work_dir_base:
             self.yt_work_dir = os.path.join(user_yt_work_dir_base, "yt_wd")
         else:
-            ram_drive_path = yatest.common.get_param("ram_drive_path")
+            ram_drive_path = yatest.common.get_param("output_ram_drive_path")
             if ram_drive_path is None:
                 self.yt_work_dir = yatest.common.output_path("yt_wd")
             else:
