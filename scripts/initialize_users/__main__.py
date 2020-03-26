@@ -818,6 +818,14 @@ def initialize_users(cluster, dry_run):
                 client, "horizontal_pod_autoscaler", Group("deploy-public-object-creators"), right_c,
             )
 
+        if cluster == "sas-test":
+            add_schema_permissions(
+                client, "persistent_volume", Group("everyone"), right_c,
+            )
+            add_schema_permissions(
+                client, "persistent_disk", Group("everyone"), right_c,
+            )
+
         create_accounts(client, cluster, accounts)
 
         allow_account_usage(client, account="odin", subject=User("odin"))
