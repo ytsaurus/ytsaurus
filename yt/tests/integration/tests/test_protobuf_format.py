@@ -7,7 +7,6 @@ import protobuf_format
 
 import copy
 import random
-import string
 
 
 def assert_rowsets_equal(first, second):
@@ -139,8 +138,8 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
         enum_names = ENUMERATIONS["MyEnum"].keys()
         for _ in xrange(count):
             rows.append({
-                "int64_column": random.randrange(1<<63),
-                "uint64_column": yson.YsonUint64(random.randrange(1<<64)),
+                "int64_column": random.randrange(1 << 63),
+                "uint64_column": yson.YsonUint64(random.randrange(1 << 64)),
                 "double_column": random.random(),
                 "bool_column": random.randrange(2) == 0,
                 "string_column": make_random_string(20),
@@ -369,6 +368,10 @@ SCHEMA = [
         "name": "utf8",
         "type_v3": "utf8",
     },
+    {
+        "name": "packed_repeated_int8",
+        "type_v3": list_type("int8"),
+    },
 ]
 
 SCHEMAFUL_TABLE_PROTOBUF_CONFIG = {
@@ -443,6 +446,13 @@ SCHEMAFUL_TABLE_PROTOBUF_CONFIG = {
             "field_number": 6,
             "proto_type": "string",
         },
+        {
+            "name": "packed_repeated_int8",
+            "field_number": 7,
+            "proto_type": "int32",
+            "packed": True,
+            "repeated": True,
+        },
     ],
 }
 
@@ -463,6 +473,7 @@ SCHEMAFUL_TABLE_ROWS = [
             "extra_field": "baz",
         },
         "utf8": HELLO_WORLD,
+        "packed_repeated_int8": [0, 12, 127],
     },
     {
         "int16": -32768,
@@ -476,6 +487,7 @@ SCHEMAFUL_TABLE_ROWS = [
             "enum_string": "Red",
         },
         "utf8": GOODBYE_WORLD,
+        "packed_repeated_int8": [],
     },
 ]
 
@@ -492,6 +504,7 @@ PROTOBUF_SCHEMAFUL_TABLE_ROWS = [
             "enum_string": "Green",
         },
         "utf8": HELLO_WORLD,
+        "packed_repeated_int8": [0, 12, 127],
     },
     {
         "int16": -32768,
@@ -520,6 +533,7 @@ SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD = [
             "extra_field": yson.YsonEntity(),
         },
         "utf8": HELLO_WORLD,
+        "packed_repeated_int8": [0, 12, 127],
     },
     {
         "int16": -32768,
@@ -534,6 +548,7 @@ SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD = [
             "extra_field": yson.YsonEntity(),
         },
         "utf8": GOODBYE_WORLD,
+        "packed_repeated_int8": [],
     },
 ]
 
@@ -565,10 +580,7 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
             PROTOBUF_SCHEMAFUL_TABLE_ROWS
         )
         write_table("//tmp/t", value=data, is_raw=True, input_format=format)
-        assert_rowsets_equal(
-            read_table("//tmp/t"),
-            SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD
-        )
+        assert_rowsets_equal(read_table("//tmp/t"), SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD)
 
     def _generate_random_rows(self, count):
         rows = []
@@ -576,10 +588,10 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
         enum_names = ENUMERATIONS["MyEnum"].keys()
         for _ in xrange(count):
             rows.append({
-                "int16": random.randrange(1<<15),
+                "int16": random.randrange(1 << 15),
                 "list_of_strings": [make_random_string(random.randrange(10)) for _ in xrange(random.randrange(5))],
                 "optional_boolean": random.randrange(2) == 0,
-                "list_of_optional_any": [yson.YsonEntity(), {"x": random.randrange(1<<64)}, []],
+                "list_of_optional_any": [yson.YsonEntity(), {"x": random.randrange(1 << 64)}, []],
                 "struct": {
                     "key": make_random_string(10),
                     "points": [{"x": random.randrange(100), "y": random.randrange(100)} for _ in xrange(random.randrange(5))],
@@ -588,6 +600,7 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
                     "extra_field": make_random_string(7),
                 },
                 "utf8": make_random_string(10),
+                "packed_repeated_int8": [-128 + random.randrange(256) for _ in xrange(random.randrange(5))]
             })
         return rows
 
@@ -626,8 +639,9 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
                 del row["list_of_strings"]
             if len(row["struct"]["points"]) == 0:
                 del row["struct"]["points"]
+            if len(row["packed_repeated_int8"]) == 0:
+                del row["packed_repeated_int8"]
         assert_rowsets_equal(parsed_rows, expected_rows)
-
 
     @unix_only
     def test_multi_output_map(self):

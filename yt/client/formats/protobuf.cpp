@@ -13,6 +13,7 @@ using ::google::protobuf::Descriptor;
 using ::google::protobuf::FileDescriptor;
 using ::google::protobuf::Message;
 using ::google::protobuf::DescriptorPool;
+using ::google::protobuf::internal::WireFormatLite;
 
 using namespace NYT::NTableClient;
 using namespace NYT::NYTree;
@@ -225,7 +226,7 @@ static TEnumerationDescription ConvertToEnumMap(const ::google::protobuf::EnumDe
 
 ui32 TProtobufFieldDescriptionBase::GetFieldNumber() const
 {
-    return ::google::protobuf::internal::WireFormatLite::GetTagFieldNumber(WireTag);
+    return WireFormatLite::GetTagFieldNumber(WireTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -362,6 +363,16 @@ void ValidateSimpleType(
     YT_ABORT();
 }
 
+static bool CanBePacked(EProtobufType type)
+{
+    auto wireFieldType = static_cast<WireFormatLite::FieldType>(ConvertFromInternalProtobufType(type));
+    auto wireType = WireFormatLite::WireTypeForFieldType(wireFieldType);
+    return
+        wireType == WireFormatLite::WireType::WIRETYPE_FIXED32 ||
+        wireType == WireFormatLite::WireType::WIRETYPE_FIXED64 ||
+        wireType == WireFormatLite::WireType::WIRETYPE_VARINT;
+}
+
 void TProtobufFormatDescription::Init(
     const TProtobufFormatConfigPtr& config,
     const std::vector<NTableClient::TTableSchema>& schemas,
@@ -470,12 +481,12 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
             auto& field = fieldIt->second;
 
             field.Name = columnName;
-            auto wireFieldType = static_cast<::google::protobuf::internal::WireFormatLite::FieldType>(fieldDescriptor->type());
-            field.WireTag = google::protobuf::internal::WireFormatLite::MakeTag(
+            auto wireFieldType = static_cast<WireFormatLite::FieldType>(fieldDescriptor->type());
+            field.WireTag = WireFormatLite::MakeTag(
                 fieldDescriptor->number(),
-                ::google::protobuf::internal::WireFormatLite::WireTypeForFieldType(wireFieldType));
+                WireFormatLite::WireTypeForFieldType(wireFieldType));
             field.Type = *optionalType;
-            field.TagSize = ::google::protobuf::internal::WireFormatLite::TagSize(fieldDescriptor->number(), wireFieldType);
+            field.TagSize = WireFormatLite::TagSize(fieldDescriptor->number(), wireFieldType);
 
             if (field.Type == EProtobufType::EnumString || field.Type == EProtobufType::EnumInt) {
                 auto enumDescriptor = fieldDescriptor->enum_type();
@@ -550,6 +561,11 @@ void TProtobufFormatDescription::InitFromProtobufSchema(
                     EProtobufType::StructuredMessage);
             }
 
+            if (columnConfig->Packed && !columnConfig->Repeated) {
+                THROW_ERROR_EXCEPTION("Field %Qv is marked \"packed\" but is not marked \"repeated\"",
+                    columnConfig->Name);
+            }
+
             if (logicalType) {
                 InitField(
                     &fieldIt->second,
@@ -570,19 +586,26 @@ void TProtobufFormatDescription::InitSchemalessField(
 {
     field->Name = columnConfig->Name;
     field->Type = columnConfig->ProtoType;
+    field->Repeated = columnConfig->Repeated;
+    field->Packed = columnConfig->Packed;
 
-    auto wireFieldType = static_cast<::google::protobuf::internal::WireFormatLite::FieldType>(
+    auto wireFieldType = static_cast<WireFormatLite::FieldType>(
         ConvertFromInternalProtobufType(field->Type));
-    field->WireTag = ::google::protobuf::internal::WireFormatLite::MakeTag(
-        columnConfig->FieldNumber,
-        ::google::protobuf::internal::WireFormatLite::WireTypeForFieldType(wireFieldType));
-    field->TagSize = ::google::protobuf::internal::WireFormatLite::TagSize(
+    field->TagSize = WireFormatLite::TagSize(
         columnConfig->FieldNumber,
         wireFieldType);
+    WireFormatLite::WireType wireType;
+    if (columnConfig->Packed) {
+        wireType = WireFormatLite::WireType::WIRETYPE_LENGTH_DELIMITED;
+    } else {
+        wireType = WireFormatLite::WireTypeForFieldType(wireFieldType);
+    }
+    field->WireTag = WireFormatLite::MakeTag(columnConfig->FieldNumber, wireType);
+
 
     if (field->Type == EProtobufType::EnumString) {
         if (!columnConfig->EnumerationName) {
-            THROW_ERROR_EXCEPTION("Invalid format: \"enumeration_name\" for column %Qv is not specified",
+            THROW_ERROR_EXCEPTION("Invalid format: \"enumeration_name\" for column or field %Qv is not specified",
                 columnConfig->Name);
         }
         auto it = EnumerationDescriptionMap_.find(*columnConfig->EnumerationName);
@@ -617,7 +640,14 @@ void TProtobufFormatDescription::InitField(
     InitSchemalessField(field, columnConfig);
 
     field->StructElementIndex = elementIndex;
-    field->Repeated = columnConfig->Repeated;
+
+    if (field->Packed && !CanBePacked(field->Type)) {
+        THROW_ERROR_EXCEPTION("Packed protobuf field %Qv must have primitive numeric type, got %Qlv",
+            field->Name,
+            field->Type)
+            << errorAttributes;
+    }
+
     if (logicalType->GetMetatype() == ELogicalMetatype::Optional) {
         logicalType = logicalType->AsOptionalTypeRef().GetElement();
         field->Optional = true;

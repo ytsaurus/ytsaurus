@@ -3,6 +3,7 @@ import yt.yson
 import ctypes
 import collections
 from cStringIO import StringIO
+import os
 import struct
 
 
@@ -40,6 +41,12 @@ class BytesReader:
         assert result
         return result
 
+    def is_exhausted(self):
+        if len(self.inp.read(1)) == 0:
+            return True
+        self.inp.seek(-1, os.SEEK_CUR)
+        return False
+
 
 TYPE_NAME_TO_STRUCT_FORMAT = {
     "bool": "?",
@@ -52,15 +59,23 @@ TYPE_NAME_TO_STRUCT_FORMAT = {
 }
 
 
+WIRE_TYPE_VARINT = 0
+WIRE_TYPE_64_BIT = 1
+WIRE_TYPE_LENGTH_DELIMITED = 2
+WIRE_TYPE_32_BIT = 5
+
+
 TypeInfo = collections.namedtuple("TypeInfo", ["name", "writer_function", "reader_function", "wire_type"])
 
 
-def create_type_name_to_type_info():
-    WIRE_TYPE_VARINT = 0
-    WIRE_TYPE_64_BIT = 1
-    WIRE_TYPE_LENGTH_DELIMITED = 2
-    WIRE_TYPE_32_BIT = 5
+def get_wire_type(type_info, is_packed):
+    if is_packed:
+        return WIRE_TYPE_LENGTH_DELIMITED
+    else:
+        return type_info.wire_type
 
+
+def create_type_name_to_type_info():
     TYPE_NAME_TO_WIRE_TYPE = {
         "varint": WIRE_TYPE_VARINT,
         "zigzag_varint": WIRE_TYPE_VARINT,
@@ -228,6 +243,13 @@ class ProtobufReader(BytesReader):
 
 def parse_protobuf_message(message, field_configs, enumerations):
     def parse(reader, field_config, type_info):
+        if field_config.get("packed", False):
+            inner_reader = ProtobufReader(StringIO(reader.read_length_delimited()))
+            result = []
+            while not inner_reader.is_exhausted():
+                result.append(type_info.reader_function(inner_reader))
+            return result
+
         field_type = field_config["proto_type"]
         if field_type == "structured_message":
             return parse_protobuf_message(
@@ -258,10 +280,11 @@ def parse_protobuf_message(message, field_configs, enumerations):
         field_config = field_number_to_field_config[field_number]
         field_type, field_name = field_config["proto_type"], field_config["name"]
         type_info = TYPE_NAME_TO_TYPE_INFO[field_type]
-        assert tag & 0b111 == type_info.wire_type
+        packed = field_config.get("packed", False)
+        assert tag & 0b111 == get_wire_type(type_info, packed)
 
         value = parse(reader, field_config, type_info)
-        if field_config.get("repeated", False):
+        if field_config.get("repeated", False) and not field_config.get("packed", False):
             result.setdefault(field_name, []).append(value)
         elif field_type == "other_columns":
             result.update(value)
@@ -332,8 +355,9 @@ class ProtobufWriter:
             return getattr(self, method_name)(value)
 
 
-def create_protobuf_tag(type_info, field_number):
-    return (field_number << 3) | type_info.wire_type
+def create_protobuf_tag(type_info, field_number, packed):
+    wire_type = WIRE_TYPE_LENGTH_DELIMITED if packed else type_info.wire_type
+    return (field_number << 3) | wire_type
 
 
 def write_protobuf_message(message_dict, field_configs, enumerations):
@@ -374,11 +398,25 @@ def write_protobuf_message(message_dict, field_configs, enumerations):
         field_config = field_name_to_field_config[name]
         field_type = field_config["proto_type"]
         type_info = TYPE_NAME_TO_TYPE_INFO[field_type]
-        tag = create_protobuf_tag(type_info, field_config["field_number"])
+        tag = create_protobuf_tag(
+            type_info,
+            field_config["field_number"],
+            field_config.get("packed", False),
+        )
         if field_config.get("repeated", False):
             assert isinstance(value, list)
-            for el in value:
-                write(writer, tag, field_config, type_info, el)
+            if field_config.get("packed", False):
+                if len(value) == 0:
+                    continue
+                writer.write_varint(tag)
+                inner_bufio = StringIO()
+                inner_writer = ProtobufWriter(inner_bufio)
+                for el in value:
+                    type_info.writer_function(inner_writer, el)
+                writer.write_length_delimited(inner_bufio.getvalue())
+            else:
+                for el in value:
+                    write(writer, tag, field_config, type_info, el)
         else:
             write(writer, tag, field_config, type_info, value)
 

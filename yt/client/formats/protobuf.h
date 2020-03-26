@@ -34,14 +34,25 @@ struct TProtobufFieldDescriptionBase
     EProtobufType Type;
     ui64 WireTag;
     size_t TagSize;
+
     const TEnumerationDescription* EnumerationDescription;
 
+    // Number of fields in struct in schema (only for |Type == StructuredMessage|).
     int StructElementCount;
 
+    // Index of field inside struct (for fields corresponding to struct fields in schema).
     int StructElementIndex;
+
+    // Is field repeated?
     bool Repeated;
+
+    // Is a repeated field packed (i.e. it is encoded as `<tag> <length> <value1> ... <valueK>`)?
+    bool Packed;
+
+    // Is the corresponding type in schema optional?
     bool Optional;
 
+    // Extracts field number from |WireTag|.
     ui32 GetFieldNumber() const;
 };
 

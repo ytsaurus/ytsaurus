@@ -382,6 +382,7 @@ public:
     EProtobufType ProtoType;
     ui64 FieldNumber;
     bool Repeated;
+    bool Packed;
     std::vector<TProtobufColumnConfigPtr> Fields;
     std::optional<TString> EnumerationName;
 
@@ -392,6 +393,8 @@ public:
         RegisterParameter("proto_type", ProtoType);
         RegisterParameter("field_number", FieldNumber);
         RegisterParameter("repeated", Repeated)
+            .Default(false);
+        RegisterParameter("packed", Packed)
             .Default(false);
         RegisterParameter("fields", Fields)
             .Default();
