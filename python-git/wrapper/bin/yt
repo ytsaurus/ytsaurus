@@ -1422,6 +1422,9 @@ def add_idm_parser(root_subparsers):
     revoke_parser.add_argument("--revoke-all-roles", help="Revoke all IDM roles", action="store_true")
     revoke_parser.set_defaults(func=idm.revoke)
 
+    # idm copy
+    add_idm_copy_parser(idm_subparsers)
+
 def add_idm_show_parser(idm_subparsers):
     parser = fix_parser(idm_subparsers.add_parser("show", description="Show IDM information"))
     parser.set_defaults(func=idm.show)
@@ -1463,6 +1466,16 @@ def add_idm_request_or_revoke_parser(parser):
     parser.add_argument("--comment", dest="comment", help="Comment for the role")
     parser.add_argument("--dry-run", action="store_true", dest="dry_run",
         help="Do not make real changes", default=False)
+
+
+def add_idm_copy_parser(idm_subparsers):
+    parser = fix_parser(idm_subparsers.add_parser("copy", description="Copy IDM permissions"))
+    parser.add_argument("destination", help="Destination object")
+    parser.add_argument("--erase", "-e", action="store_true",
+                        help="Erase all existing permissions from destination object")
+    parser.add_argument("--dry-run", action="store_true", dest="dry_run",
+        help="Do not make real changes", default=False)
+    parser.set_defaults(func=idm.copy)
 
 
 def main():
