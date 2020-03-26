@@ -227,7 +227,7 @@ def pretty_print_idm_info(object_idm_snapshot, indent=0):
     prettify_list = lambda list_: " ".join(entry.to_pretty_string() for entry in list_)
     print_aligned("Responsibles:", prettify_list(object_idm_snapshot.responsibles), indent)
     print_aligned("Read approvers:", prettify_list(object_idm_snapshot.read_approvers), indent)
-    print_aligned("Auditors:", prettify_list(object_idm_snapshot.read_approvers), indent)
+    print_aligned("Auditors:", prettify_list(object_idm_snapshot.auditors), indent)
     print_aligned("Inherit responsibles:", (not object_idm_snapshot.disable_responsible_inheritance), indent)
     print_aligned("Boss approval required:", object_idm_snapshot.require_boss_approval, indent)
     print_aligned("Inherit ACL:", object_idm_snapshot.inherit_acl, indent)
