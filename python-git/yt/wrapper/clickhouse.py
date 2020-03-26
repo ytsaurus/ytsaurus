@@ -167,6 +167,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        enable_job_tables=None,
                                        enable_log_tailer=None,
                                        uncompressed_block_cache_size=None,
+                                       trampoline_log_file=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
@@ -244,6 +245,9 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     if enable_log_tailer:
         args += ["--log-tailer-bin", ytserver_log_tailer_path]
+
+    if trampoline_log_file:
+        args += ["--log-file", trampoline_log_file]
 
     trampoline_command = " ".join(args)
 
