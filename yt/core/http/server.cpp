@@ -356,7 +356,10 @@ IServerPtr CreateServer(int port, const IPollerPtr& poller)
 
 IServerPtr CreateServer(const TServerConfigPtr& config)
 {
-    auto poller = CreateThreadPoolPoller(1, "Http");
+    auto threadName = config->ServerName
+        ? "Http:" + config->ServerName
+        : "Http";
+    auto poller = CreateThreadPoolPoller(1, threadName);
     return CreateServer(config, poller);
 }
 

@@ -136,6 +136,7 @@ void TBootstrap::DoRun()
     Config_->MonitoringServer->Port = Config_->MonitoringPort;
     Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
     Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
+    Config_->MonitoringServer->ServerName = "monitoring";
     HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
     ControllerAgent_ = New<TControllerAgent>(Config_->ControllerAgent, this);

@@ -39,11 +39,14 @@ class TPortoJobDirectoryManager
     : public IJobDirectoryManager
 {
 public:
-    TPortoJobDirectoryManager(const TVolumeManagerConfigPtr& config, const TString& path)
+    TPortoJobDirectoryManager(
+        const TVolumeManagerConfigPtr& config,
+        const TString& path,
+        int locationIndex)
         : Path_(path)
         , Executor_(CreatePortoExecutor(
             config->PortoExecutor,
-            "job_dir",
+            Format("job_dir:%v", locationIndex),
             ExecAgentProfiler.AppendPath("/job_directory/porto")))
     {
         // Collect and drop all existing volumes.
@@ -147,9 +150,12 @@ private:
     }
 };
 
-IJobDirectoryManagerPtr CreatePortoJobDirectoryManager(TVolumeManagerConfigPtr config, const TString& path)
+IJobDirectoryManagerPtr CreatePortoJobDirectoryManager(
+    TVolumeManagerConfigPtr config,
+    const TString& path,
+    int locationIndex)
 {
-    return New<TPortoJobDirectoryManager>(std::move(config), path);
+    return New<TPortoJobDirectoryManager>(std::move(config), path, locationIndex);
 }
 
 #endif

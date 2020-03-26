@@ -669,6 +669,7 @@ void TBootstrap::DoRun()
     Config_->MonitoringServer->Port = Config_->MonitoringPort;
     Config_->MonitoringServer->BindRetryCount = Config_->BusServer->BindRetryCount;
     Config_->MonitoringServer->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
+    Config_->MonitoringServer->ServerName = "monitoring";
     HttpServer_ = NHttp::CreateServer(
         Config_->MonitoringServer);
 
@@ -676,6 +677,7 @@ void TBootstrap::DoRun()
     skynetHttpConfig->Port = Config_->SkynetHttpPort;
     skynetHttpConfig->BindRetryCount = Config_->BusServer->BindRetryCount;
     skynetHttpConfig->BindRetryBackoff = Config_->BusServer->BindRetryBackoff;
+    skynetHttpConfig->ServerName = "skynet";
     SkynetHttpServer_ = NHttp::CreateServer(skynetHttpConfig);
 
     NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_);

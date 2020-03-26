@@ -41,7 +41,8 @@ DEFINE_REFCOUNTED_TYPE(IJobDirectoryManager)
 
 IJobDirectoryManagerPtr CreatePortoJobDirectoryManager(
     NDataNode::TVolumeManagerConfigPtr config,
-    const TString& path);
+    const TString& path,
+    int locationIndex);
 
 #endif
 

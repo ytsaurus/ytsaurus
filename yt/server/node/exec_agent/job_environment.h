@@ -34,7 +34,7 @@ struct IJobEnvironment
 
     virtual void CleanProcesses(int slotIndex) = 0;
 
-    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path) = 0;
+    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int locationIndex) = 0;
 
     //! User id for user job processes.
     virtual int GetUserId(int slotIndex) const = 0;
