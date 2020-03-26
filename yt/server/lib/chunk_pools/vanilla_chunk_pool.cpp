@@ -56,7 +56,10 @@ public:
         YT_VERIFY(jobSummary.InterruptReason == EInterruptReason::None);
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
         if (RestartCompletedJobs_) {
-            JobManager_->AddJob(std::make_unique<TJobStub>());
+            // NB: it is important to lose this job intead of alloacting new job since we want
+            // to keep range of cookies same as before (without growing infinitely). It is
+            // significant to some of the vanilla operation applications like CHYT.
+            JobManager_->Lost(cookie);
         }
     }
 
