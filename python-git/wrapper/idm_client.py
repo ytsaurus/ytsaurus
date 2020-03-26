@@ -2,16 +2,14 @@ from .config import get_config
 from .http_helpers import get_token
 
 from yt.common import YtError
+from yt.wrapper.common import load_certificate
 import yt.logger as logger
 
 import yt.packages.requests as requests
 from yt.packages.six import iteritems
 
-import os
-
 
 DEFAULT_BASE_ACL_SERVICE_URL = "https://idm.yt.yandex-team.ru"
-DEFAULT_CERTIFICATE_BUNDLE_PATH = "/etc/ssl/certs/ca-certificates.crt"
 
 
 def make_idm_client(address=None, client=None):
@@ -20,16 +18,6 @@ def make_idm_client(address=None, client=None):
     cluster = get_config(client)["proxy"]["url"].split(".")[0]
     token = get_token(client=client)
     return YtIdmClient(cluster, token, address)
-
-
-def _find_certificate():
-    # NB: only works for Ubuntu and Debian.
-    # TODO: make it crossplatform.
-    if os.path.exists(DEFAULT_CERTIFICATE_BUNDLE_PATH):
-        return DEFAULT_CERTIFICATE_BUNDLE_PATH
-    else:
-        logger.warning("No certificates found")
-        return None
 
 
 def _flatten_dict(dict_):
@@ -92,17 +80,14 @@ def _with_optional_object_id(func):
 
 class YtIdmClient(object):
     """Implements YT IDM client."""
-    def __init__(self, cluster, token, base_url=None, certitificate_path=None):
+    def __init__(self, cluster, token, base_url=None, certificate_path=None):
         self._cluster = cluster
         self._token = token
         if base_url is None:
             self._base_url = DEFAULT_BASE_ACL_SERVICE_URL
         else:
             self._base_url = base_url
-        if certitificate_path is None:
-            self._certificate_path = _find_certificate()
-        else:
-            self._certificate_path = certitificate_path
+        self._certificate = load_certificate(certificate_path)
 
     def _make_request(self, method, name, params=None, body=None, extra_headers=None):
         # NB: `extra_headers` is only used to supply additional headers in integration tests.
@@ -119,7 +104,7 @@ class YtIdmClient(object):
 
         logger.debug("Sending %s %s (params: %s, body: %s)", method.upper(), url, params, body)
         response = requests.request(method, url, headers=headers, params=_flatten_dict(params),
-                                    json=body, verify=self._certificate_path)
+                                    json=body, verify=self._certificate)
         logger.debug("Got response %s (body: %s)", response.status_code, response.text)
 
         if response.status_code == 400:
