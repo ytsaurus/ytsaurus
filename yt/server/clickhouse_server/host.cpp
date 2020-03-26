@@ -312,76 +312,80 @@ public:
         }
     }
 
-    std::vector<TErrorOr<NYTree::TAttributeMap>> CheckPermissionsAndGetCachedObjectAttributes(
+    void ValidateReadPermissions(
+        const std::vector<NYPath::TRichYPath>& paths,
+        const TString& user)
+    {
+        std::vector<TPermissionKey> permissionCacheKeys;
+        permissionCacheKeys.reserve(paths.size());
+        for (const auto& path : paths) {
+            permissionCacheKeys.push_back(TPermissionKey{
+                .Object = path.GetPath(),
+                .User = user,
+                .Permission = EPermission::Read,
+                .Columns = path.GetColumns()
+            });
+        }
+        auto validationResults = WaitFor(PermissionCache_->Get(permissionCacheKeys))
+            .ValueOrThrow();
+
+        std::vector<TError> errors;
+        for (size_t index = 0; index < validationResults.size(); ++index) {
+            const auto& validationResult = validationResults[index];
+            PermissionCache_->Set(permissionCacheKeys[index], validationResult);
+
+            if (!validationResult.IsOK()) {
+                errors.push_back(validationResult
+                    << TErrorAttribute("path", paths[index])
+                    << TErrorAttribute("permission", "read")
+                    << TErrorAttribute("columns", paths[index].GetColumns()));
+            }
+        }
+        if (!errors.empty()) {
+            THROW_ERROR_EXCEPTION("Error validating permissions for user %v", user) << errors;
+        }
+    }
+
+    std::vector<TErrorOr<NYTree::TAttributeMap>> GetObjectAttributes(
         const std::vector<TYPath>& paths,
         const IClientPtr& client)
     {
         const auto& user = client->GetOptions().GetUser();
-        auto foundAttributes = TableAttributeCache_->Find(paths);
+        auto cachedAttributes = TableAttributeCache_->Find(paths);
         std::vector<TYPath> missedPaths;
-        std::vector<TYPath> hitPaths;
-        std::vector<TYPath> permissionKeys;
         for (int index = 0; index < (int)paths.size(); ++index) {
-            if (foundAttributes[index]) {
-                hitPaths.push_back(paths[index]);
-            } else {
+            if (!cachedAttributes[index].has_value()) {
                 missedPaths.push_back(paths[index]);
             }
         }
 
-        YT_LOG_DEBUG("Getting object attributes (CacheHit: %v, CacheMissed: %v, User: %v)",
-            hitPaths.size(),
+        YT_LOG_DEBUG("Getting object attributes (HitCount: %v, MissedCount: %v, User: %v)",
+            paths.size() - missedPaths.size(),
             missedPaths.size(),
             user);
 
-        auto attributesFuture = TableAttributeCache_->GetFromClient(missedPaths, client);
+        std::reverse(missedPaths.begin(), missedPaths.end());
 
-        std::vector<TPermissionKey> permissionCacheKeys;
-        permissionKeys.reserve(hitPaths.size());
-        for (const auto& path : hitPaths) {
-            permissionCacheKeys.push_back(TPermissionKey{
-                .Object = path,
-                .User = user,
-                .Permission = EPermission::Read
-                // TODO(max42): provide columns
-            });
-        }
-        auto permissionOrErrors = WaitFor(PermissionCache_->Get(permissionCacheKeys))
+        auto attributesForMissedPaths = WaitFor(TableAttributeCache_->GetFromClient(missedPaths, client))
             .ValueOrThrow();
 
-        auto attributeOrErrors = WaitFor(attributesFuture)
-            .ValueOrThrow();
+        std::vector<TErrorOr<NYTree::TAttributeMap>> attributes;
+        attributes.reserve(paths.size());
 
-        for (int index = 0; index < (int)missedPaths.size(); ++index) {
-            if (attributeOrErrors[index].IsOK()) {
-                TableAttributeCache_->Set(missedPaths[index], attributeOrErrors[index]);
-                // User can read attributes -> user has read permissions to table.
-                PermissionCache_->Set({missedPaths[index], user, EPermission::Read, std::nullopt}, TError());
-            }
-        }
-
-        std::reverse(attributeOrErrors.begin(), attributeOrErrors.end());
-        std::reverse(permissionOrErrors.begin(), permissionOrErrors.end());
-
-        std::vector<TErrorOr<NYTree::TAttributeMap>> result;
-        result.reserve(paths.size());
-
-        for (int index = 0; index < (int)paths.size(); ++index) {
-            if (foundAttributes[index]) {
-                if (permissionOrErrors.back().IsOK()) {
-                    result.emplace_back(std::move(*foundAttributes[index]));
-                } else {
-                    result.emplace_back(std::move(permissionOrErrors.back()));
-                }
-                permissionOrErrors.pop_back();
+        for (auto& cachedAttributeOrError : cachedAttributes) {
+            if (cachedAttributeOrError.has_value()) {
+                attributes.emplace_back(std::move(*cachedAttributeOrError));
             } else {
-                result.emplace_back(std::move(attributeOrErrors.back()));
-                attributeOrErrors.pop_back();
+                TableAttributeCache_->Set(missedPaths.back(), attributesForMissedPaths.back());
+                attributes.emplace_back(std::move(attributesForMissedPaths.back()));
+                attributesForMissedPaths.pop_back();
+                missedPaths.pop_back();
             }
         }
 
-        return result;
+        return attributes;
     }
+
 
     Poco::Logger& logger() const override
     {
@@ -814,11 +818,18 @@ void TClickHouseHost::StopTcpServers()
     return Impl_->StopTcpServers();
 }
 
-std::vector<TErrorOr<NYTree::TAttributeMap>> TClickHouseHost::CheckPermissionsAndGetCachedObjectAttributes(
-    const std::vector<TYPath>& paths,
+void TClickHouseHost::ValidateReadPermissions(
+    const std::vector<NYPath::TRichYPath>& paths,
+    const TString& user)
+{
+    return Impl_->ValidateReadPermissions(paths, user);
+}
+
+std::vector<TErrorOr<NYTree::TAttributeMap>> TClickHouseHost::GetObjectAttributes(
+    const std::vector<NYPath::TYPath>& paths,
     const IClientPtr& client)
 {
-    return Impl_->CheckPermissionsAndGetCachedObjectAttributes(paths, client);
+    return Impl_->GetObjectAttributes(paths, client);
 }
 
 const IInvokerPtr& TClickHouseHost::GetControlInvoker() const

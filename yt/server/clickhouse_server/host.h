@@ -43,7 +43,9 @@ public:
     TFuture<void> StopDiscovery();
     void StopTcpServers();
 
-    std::vector<TErrorOr<NYTree::TAttributeMap>> CheckPermissionsAndGetCachedObjectAttributes(
+    void ValidateReadPermissions(const std::vector<NYPath::TRichYPath>& paths, const TString& user);
+
+    std::vector<TErrorOr<NYTree::TAttributeMap>> GetObjectAttributes(
         const std::vector<NYPath::TYPath>& paths,
         const NApi::NNative::IClientPtr& client);
 
