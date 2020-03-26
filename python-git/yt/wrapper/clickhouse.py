@@ -1,5 +1,5 @@
 from .operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
-from .common import YtError, require, update
+from .common import YtError, require, update, update_inplace
 from .spec_builders import VanillaSpecBuilder
 from .run_operation_commands import run_operation
 from .dynamic_table_commands import mount_table, unmount_table, reshard_table
@@ -333,8 +333,14 @@ def prepare_configs(instance_count,
         "cpu_limit": cpu_limit,
     }
 
+    cluster_connection_patch = {
+        "cluster_connection": get("//sys/@cluster_connection", client=client)
+    }
+
     clickhouse_config_cypress_base = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else None
-    resulting_clickhouse_config = update(clickhouse_config_cypress_base, update(clickhouse_config_base, clickhouse_config))
+    resulting_clickhouse_config = {}
+    for patch in (clickhouse_config_cypress_base, clickhouse_config_base, clickhouse_config, cluster_connection_patch):
+        update_inplace(resulting_clickhouse_config, patch)
 
     log_tailer_config_base = {
         "profile_manager": {
@@ -343,7 +349,9 @@ def prepare_configs(instance_count,
     }
 
     log_tailer_config_cypress_base = get(cypress_log_tailer_config_path, client=client) if cypress_log_tailer_config_path != "" else None
-    resulting_log_tailer_config = update(log_tailer_config_cypress_base, log_tailer_config_base)
+    resulting_log_tailer_config = {}
+    for patch in (log_tailer_config_cypress_base, log_tailer_config_base, cluster_connection_patch):
+        update_inplace(resulting_log_tailer_config, patch)
 
     return {
         "clickhouse": resulting_clickhouse_config,
