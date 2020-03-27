@@ -819,12 +819,10 @@ def initialize_users(cluster, dry_run):
             )
 
         if cluster == "sas-test":
-            add_schema_permissions(
-                client, "persistent_volume", Group("everyone"), right_c,
-            )
-            add_schema_permissions(
-                client, "persistent_disk", Group("everyone"), right_c,
-            )
+            for object_type in ("persistent_volume", "persistent_disk", "persistent_volume_claim"):
+                add_schema_permissions(
+                    client, object_type, Group("everyone"), right_c,
+                )
 
         create_accounts(client, cluster, accounts)
 
