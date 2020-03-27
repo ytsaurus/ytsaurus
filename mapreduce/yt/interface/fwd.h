@@ -165,9 +165,9 @@ namespace NYT {
 
     enum EErasureCodecAttr : i8;
 
-    struct TColumnSchema;
+    class TColumnSchema;
 
-    struct TTableSchema;
+    class TTableSchema;
 
     struct TReadLimit;
 

@@ -100,11 +100,11 @@ Y_UNIT_TEST_SUITE(Schema) {
 
         TTableSchema readSchema;
         Deserialize(readSchema, client->Get(workingDir + "/table/@schema"));
-        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns_.size(), schema.Columns_.size());
-        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns_[0].Type_, VT_STRING);
-        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns_[0].Required_, true);
-        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns_[1].Type_, VT_UTF8);
-        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns_[1].Required_, false);
+        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns().size(), schema.Columns().size());
+        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns()[0].Type(), VT_STRING);
+        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns()[0].Required(), true);
+        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns()[1].Type(), VT_UTF8);
+        UNIT_ASSERT_VALUES_EQUAL(readSchema.Columns()[1].Required(), false);
 
         // Check no exception
         client->Create(workingDir + "/table2", NT_TABLE,

@@ -29,12 +29,68 @@ namespace NYT {
         return static_cast<TSelf&>(*this); \
     }
 
+#define FLUENT_FIELD_ENCAPSULATED(type, name) \
+private: \
+    type name##_; \
+public: \
+    TSelf& name(const type& value) & \
+    { \
+        name##_ = value; \
+        return static_cast<TSelf&>(*this); \
+    } \
+    TSelf name(const type& value) && \
+    { \
+        name##_ = value; \
+        return static_cast<TSelf&>(*this); \
+    } \
+    const type& name() const & \
+    { \
+        return name##_; \
+    } \
+    type name() && \
+    { \
+        return name##_; \
+    }
+
 #define FLUENT_FIELD_OPTION(type, name) \
     TMaybe<type> name##_; \
     TSelf& name(const type& value) \
     { \
         name##_ = value; \
         return static_cast<TSelf&>(*this); \
+    }
+
+#define FLUENT_FIELD_OPTION_ENCAPSULATED(type, name) \
+private: \
+    TMaybe<type> name##_; \
+public: \
+    TSelf& name(const type& value) & \
+    { \
+        name##_ = value; \
+        return static_cast<TSelf&>(*this); \
+    } \
+    TSelf name(const type& value) && \
+    { \
+        name##_ = value; \
+        return static_cast<TSelf&>(*this); \
+    } \
+    TSelf& Reset##name() & \
+    { \
+        name##_ = Nothing(); \
+        return static_cast<TSelf&>(*this); \
+    } \
+    TSelf Reset##name() && \
+    { \
+        name##_ = Nothing(); \
+        return static_cast<TSelf&>(*this); \
+    } \
+    const TMaybe<type>& name() const& \
+    { \
+        return name##_; \
+    } \
+    TMaybe<type> name() && \
+    { \
+        return name##_; \
     }
 
 #define FLUENT_FIELD_DEFAULT(type, name, defaultValue) \
@@ -45,12 +101,68 @@ namespace NYT {
         return static_cast<TSelf&>(*this); \
     }
 
+#define FLUENT_FIELD_DEFAULT_ENCAPSULATED(type, name, defaultValue) \
+private: \
+    type name##_ = defaultValue; \
+public: \
+    TSelf& name(const type& value) & \
+    { \
+        name##_ = value; \
+        return static_cast<TSelf&>(*this); \
+    } \
+    TSelf name(const type& value) && \
+    { \
+        name##_ = value; \
+        return static_cast<TSelf&>(*this); \
+    } \
+    const type& name() const & \
+    { \
+        return name##_; \
+    } \
+    type name() && \
+    { \
+        return name##_; \
+    }
+
 #define FLUENT_VECTOR_FIELD(type, name) \
     TVector<type> name##s_; \
     TSelf& Add##name(const type& value) \
     { \
         name##s_.push_back(value); \
         return static_cast<TSelf&>(*this);\
+    }
+
+#define FLUENT_VECTOR_FIELD_ENCAPSULATED(type, name) \
+private: \
+    TVector<type> name##s_; \
+public: \
+    TSelf& Add##name(const type& value) & \
+    { \
+        name##s_.push_back(value); \
+        return static_cast<TSelf&>(*this);\
+    } \
+    TSelf Add##name(const type& value) && \
+    { \
+        name##s_.push_back(value); \
+        return static_cast<TSelf&>(*this);\
+    } \
+    TSelf& name##s(TVector<type> value) & \
+    { \
+        name##s_ = std::move(value); \
+        return static_cast<TSelf&>(*this);\
+    } \
+    TSelf name##s(TVector<type> value) && \
+    { \
+        name##s_ = std::move(value); \
+        return static_cast<TSelf&>(*this);\
+    } \
+    const TVector<type>& name##s() const & \
+    { \
+        return name##s_; \
+    } \
+    TVector<type> name##s() && \
+    { \
+        return name##s_; \
     }
 
 #define FLUENT_MAP_FIELD(keytype, valuetype, name) \
@@ -190,38 +302,55 @@ enum EErasureCodecAttr : i8
     EC_LRC_12_2_2_ATTR          /* "lrc_12_2_2" */,
 };
 
-struct TColumnSchema
+/// @brief Single column description
+///
+/// Each field describing column has setter and getter.
+///
+/// Example reading field:
+/// ```
+///    ... columnSchema.Name() ...
+/// ```
+///
+/// Example setting field:
+/// ```
+///    columnSchema.Name("my-column").Type(VT_INT64); // set name and type
+/// ```
+class TColumnSchema
 {
+public:
     using TSelf = TColumnSchema;
 
-    FLUENT_FIELD(TString, Name);
-    FLUENT_FIELD_DEFAULT(EValueType, Type, VT_INT64);
+    FLUENT_FIELD_ENCAPSULATED(TString, Name);
+    FLUENT_FIELD_DEFAULT_ENCAPSULATED(EValueType, Type, VT_INT64);
 
     // If Required is set to true "null" values are not allowed in this column.
     // Column of type "any" cannot have required=true attribute.
     // Dynamic tables cannot have columns with required=true attribute.
-    FLUENT_FIELD_DEFAULT(bool, Required, false);
+    FLUENT_FIELD_DEFAULT_ENCAPSULATED(bool, Required, false);
 
     // Experimental feature
-    FLUENT_FIELD_OPTION(TNode, RawTypeV2);
-    FLUENT_FIELD_OPTION(TNode, RawTypeV3);
+    FLUENT_FIELD_OPTION_ENCAPSULATED(TNode, RawTypeV2);
+    FLUENT_FIELD_OPTION_ENCAPSULATED(TNode, RawTypeV3);
 
-    FLUENT_FIELD_OPTION(ESortOrder, SortOrder);
-    FLUENT_FIELD_OPTION(TString, Lock);
-    FLUENT_FIELD_OPTION(TString, Expression);
-    FLUENT_FIELD_OPTION(TString, Aggregate);
-    FLUENT_FIELD_OPTION(TString, Group);
+    FLUENT_FIELD_OPTION_ENCAPSULATED(ESortOrder, SortOrder);
+    FLUENT_FIELD_OPTION_ENCAPSULATED(TString, Lock);
+    FLUENT_FIELD_OPTION_ENCAPSULATED(TString, Expression);
+    FLUENT_FIELD_OPTION_ENCAPSULATED(TString, Aggregate);
+    FLUENT_FIELD_OPTION_ENCAPSULATED(TString, Group);
+
+    friend void Deserialize(TColumnSchema& columnSchema, const TNode& node);
 };
 
-struct TTableSchema
+class TTableSchema
 {
 public:
     using TSelf = TTableSchema;
 
-    FLUENT_VECTOR_FIELD(TColumnSchema, Column);
-    FLUENT_FIELD_DEFAULT(bool, Strict, true);
-    FLUENT_FIELD_DEFAULT(bool, UniqueKeys, false);
+    FLUENT_VECTOR_FIELD_ENCAPSULATED(TColumnSchema, Column);
+    FLUENT_FIELD_DEFAULT_ENCAPSULATED(bool, Strict, true);
+    FLUENT_FIELD_DEFAULT_ENCAPSULATED(bool, UniqueKeys, false);
 
+    TVector<TColumnSchema>& MutableColumns();
     bool Empty() const;
 
 public:
@@ -237,6 +366,8 @@ public:
     TTableSchema SortBy(const TVector<TString>& columns) &&;
 
     TNode ToNode() const;
+
+    friend void Deserialize(TTableSchema& tableSchema, const TNode& node);
 };
 
 TTableSchema CreateTableSchema(

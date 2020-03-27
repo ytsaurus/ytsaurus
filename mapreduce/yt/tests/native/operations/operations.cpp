@@ -4793,7 +4793,7 @@ public:
             auto schema = context.GetInputTableSchema(i);
             schema.AddColumn(TColumnSchema().Name("even").Type(EValueType::VT_INT64));
             builder.OutputSchema(2 * i, schema);
-            schema.Columns_.back() = TColumnSchema().Name("odd").Type(EValueType::VT_INT64);
+            schema.MutableColumns().back() = TColumnSchema().Name("odd").Type(EValueType::VT_INT64);
             builder.OutputSchema(2 * i + 1, schema);
         }
     }
@@ -4824,7 +4824,7 @@ public:
             auto schema = context.GetInputTableSchema(i);
             UNIT_ASSERT(!schema.Empty());
             builder.OutputSchema(i + 1, schema);
-            for (const auto& column : schema.Columns_) {
+            for (const auto& column : schema.Columns()) {
                 bigSchema.AddColumn(column);
             }
         }
@@ -4864,8 +4864,8 @@ public:
         UNIT_ASSERT(!context.GetInputTableSchema(0).Empty());
 
         TTableSchema result;
-        for (const auto& column : context.GetInputTableSchema(0).Columns_) {
-            if (ColumnsToRetain_.contains(column.Name_)) {
+        for (const auto& column : context.GetInputTableSchema(0).Columns()) {
+            if (ColumnsToRetain_.contains(column.Name())) {
                 result.AddColumn(column);
             }
         }
@@ -4958,18 +4958,18 @@ Y_UNIT_TEST_SUITE(JobSchemaInference)
         }
 
         for (int i = 0; i < 4; ++i) {
-            UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_.size(), 2);
+            UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns().size(), 2);
 
             if (i < 2) {
-                UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_[0].Name_, someSchema.Columns_[0].Name_);
-                UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_[0].Type_, someSchema.Columns_[0].Type_);
+                UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns()[0].Name(), someSchema.Columns()[0].Name());
+                UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns()[0].Type(), someSchema.Columns()[0].Type());
             } else {
-                UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_[0].Name_, otherSchema.Columns_[0].Name_);
-                UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_[0].Type_, otherSchema.Columns_[0].Type_);
+                UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns()[0].Name(), otherSchema.Columns()[0].Name());
+                UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns()[0].Type(), otherSchema.Columns()[0].Type());
             }
 
-            UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_[1].Name_, (i % 2 == 0) ? "even" : "odd");
-            UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns_[1].Type_, EValueType::VT_INT64);
+            UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns()[1].Name(), (i % 2 == 0) ? "even" : "odd");
+            UNIT_ASSERT_VALUES_EQUAL(outSchemas[i].Columns()[1].Type(), EValueType::VT_INT64);
         }
     }
 
@@ -5031,17 +5031,17 @@ Y_UNIT_TEST_SUITE(JobSchemaInference)
         Deserialize(outSchema, client->Get(outTable + "/@schema"));
 
         for (const auto& [index, expectedSchema] : TVector<std::pair<int, TTableSchema>>{{0, someSchema}, {1, otherSchema}}) {
-            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns_.size(), 2);
+            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns().size(), 2);
 
-            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns_[0].Name_, expectedSchema.Columns_[0].Name_);
-            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns_[0].Type_, expectedSchema.Columns_[0].Type_);
-            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns_[0].SortOrder_, expectedSchema.Columns_[0].SortOrder_);
+            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns()[0].Name(), expectedSchema.Columns()[0].Name());
+            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns()[0].Type(), expectedSchema.Columns()[0].Type());
+            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns()[0].SortOrder(), expectedSchema.Columns()[0].SortOrder());
 
-            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns_[1].Name_, expectedSchema.Columns_[1].Name_);
-            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns_[1].Type_, expectedSchema.Columns_[1].Type_);
+            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns()[1].Name(), expectedSchema.Columns()[1].Name());
+            UNIT_ASSERT_VALUES_EQUAL(mapperOutSchemas[index].Columns()[1].Type(), expectedSchema.Columns()[1].Type());
         }
 
-        UNIT_ASSERT_VALUES_EQUAL(outSchema.Columns_.size(), 3);
+        UNIT_ASSERT_VALUES_EQUAL(outSchema.Columns().size(), 3);
 
         for (const auto& [index, expectedName, expectedType, expectedSortOrder] :
             TVector<std::tuple<int, TString, EValueType, TMaybe<ESortOrder>>>{
@@ -5049,9 +5049,9 @@ Y_UNIT_TEST_SUITE(JobSchemaInference)
                 {1, "other_key", EValueType::VT_INT64, ESortOrder::SO_ASCENDING},
                 {2, "other_column", EValueType::VT_INT64, Nothing()}})
         {
-            UNIT_ASSERT_VALUES_EQUAL(outSchema.Columns_[index].Name_, expectedName);
-            UNIT_ASSERT_VALUES_EQUAL(outSchema.Columns_[index].Type_, expectedType);
-            UNIT_ASSERT_VALUES_EQUAL(outSchema.Columns_[index].SortOrder_, expectedSortOrder);
+            UNIT_ASSERT_VALUES_EQUAL(outSchema.Columns()[index].Name(), expectedName);
+            UNIT_ASSERT_VALUES_EQUAL(outSchema.Columns()[index].Type(), expectedType);
+            UNIT_ASSERT_VALUES_EQUAL(outSchema.Columns()[index].SortOrder(), expectedSortOrder);
         }
     }
 
@@ -5090,14 +5090,14 @@ Y_UNIT_TEST_SUITE(JobSchemaInference)
             TTableSchema schema;
             Deserialize(schema, client->Get(outputForInference + "/@schema"));
 
-            UNIT_ASSERT_VALUES_EQUAL(schema.Columns_.size(), 3);
+            UNIT_ASSERT_VALUES_EQUAL(schema.Columns().size(), 3);
             for (const auto& [index, expectedName, expectedType] : TVector<std::tuple<int, TString, EValueType>>{
                 {0, "Host", EValueType::VT_STRING},
                 {1, "Path", EValueType::VT_STRING},
                 {2, "HttpCode", EValueType::VT_INT32}})
             {
-                UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[index].Name_, expectedName);
-                UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[index].Type_, expectedType);
+                UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[index].Name(), expectedName);
+                UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[index].Type(), expectedType);
             }
         }
 
@@ -5113,15 +5113,15 @@ Y_UNIT_TEST_SUITE(JobSchemaInference)
         TTableSchema schema;
         Deserialize(schema, client->Get(outputForBothInferences + "/@schema"));
 
-        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_.size(), 4);
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns().size(), 4);
         for (const auto& [index, expectedName, expectedType] : TVector<std::tuple<int, TString, EValueType>>{
             {0, "Host", EValueType::VT_STRING},
             {1, "Path", EValueType::VT_STRING},
             {2, "HttpCode", EValueType::VT_INT32},
             {3, "extra", EValueType::VT_DOUBLE}})
         {
-            UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[index].Name_, expectedName);
-            UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[index].Type_, expectedType);
+            UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[index].Name(), expectedName);
+            UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[index].Type(), expectedType);
         }
     }
 

@@ -13,7 +13,7 @@ using namespace NYT;
 TTableSchema CreateYtSchema(const TBlobTableSchema& blobSchema)
 {
     TTableSchema result;
-    result.Columns_ = blobSchema.BlobIdColumns_;
+    result.Columns(blobSchema.BlobIdColumns_);
     result.AddColumn(blobSchema.PartIndexColumnName_, VT_INT64);
     result.AddColumn(blobSchema.DataColumnName_, VT_STRING);
     return result;
@@ -32,7 +32,7 @@ static bool IsSortedSchema(const TNode& tableSchema, const TBlobTableSchema& blo
         if (tableSchema[i]["sort_order"] != "ascending") {
             return false;
         }
-        if (tableSchema[i]["name"] != blobTableSchema.BlobIdColumns_[i].Name_) {
+        if (tableSchema[i]["name"] != blobTableSchema.BlobIdColumns_[i].Name()) {
             return false;
         }
     }
@@ -48,24 +48,23 @@ static bool IsSortedSchema(const TNode& tableSchema, const TBlobTableSchema& blo
 static TTableSchema CreateSortedSchema(const TTableSchema& tableSchema, const TBlobTableSchema& blobTableSchema)
 {
     TTableSchema result = tableSchema;
-    result.UniqueKeys_ = true;
-    result.Columns_.clear();
+    result.UniqueKeys(true);
+    result.Columns({});
 
     THashSet<TString> keyColumns;
-    for (const auto& columnSchema : blobTableSchema.BlobIdColumns_) {
-        result.Columns_.push_back(columnSchema);
-        result.Columns_.back().SortOrder_ = SO_ASCENDING;
-        keyColumns.emplace(columnSchema.Name_);
+    for (auto columnSchema : blobTableSchema.BlobIdColumns_) {
+        result.AddColumn(columnSchema.SortOrder(SO_ASCENDING));
+        keyColumns.emplace(columnSchema.Name());
     }
 
     keyColumns.emplace(blobTableSchema.PartIndexColumnName_);
     result.AddColumn(blobTableSchema.PartIndexColumnName_, VT_ANY, SO_ASCENDING);
 
-    for (const auto& columnSchema : tableSchema.Columns_) {
-        if (keyColumns.contains(columnSchema.Name_)) {
+    for (const auto& columnSchema : tableSchema.Columns()) {
+        if (keyColumns.contains(columnSchema.Name())) {
             continue;
         }
-        result.Columns_.push_back(columnSchema);
+        result.AddColumn(columnSchema);
     }
 
     return result;
@@ -209,9 +208,9 @@ void TBlobTable::ResetSorting()
     auto schema = Client_->Get(Path_ + "/@schema");
     Deserialize(tableSchema, schema);
 
-    tableSchema.UniqueKeys_ = false;
-    for (auto& columnSchema : tableSchema.Columns_) {
-        columnSchema.SortOrder_ = Nothing();
+    tableSchema.UniqueKeys(false);
+    for (auto& columnSchema : tableSchema.MutableColumns()) {
+        columnSchema.ResetSortOrder();
     }
 
     Client_->AlterTable(Path_, TAlterTableOptions().Schema(tableSchema));
@@ -221,7 +220,7 @@ NYT::IOperationPtr TBlobTable::SortAsync()
 {
     TKeyColumns keyColumns;
     for (const auto& columnSchema : Schema_.BlobIdColumns_) {
-        keyColumns.Parts_.push_back(columnSchema.Name_);
+        keyColumns.Parts_.push_back(columnSchema.Name());
     }
     keyColumns.Parts_.push_back(Schema_.PartIndexColumnName_);
 
@@ -246,7 +245,7 @@ IFileWriterPtr TBlobTable::AppendBlob(const TKey& key)
 
     TNode keyNode = TNode::CreateMap();
     for (size_t i = 0; i != key.Parts_.size(); ++i) {
-        keyNode[Schema_.BlobIdColumns_[i].Name_] = key.Parts_[i];
+        keyNode[Schema_.BlobIdColumns_[i].Name()] = key.Parts_[i];
     }
 
     auto writer = Client_->CreateTableWriter<TNode>(TRichYPath(Path_).Append(true));

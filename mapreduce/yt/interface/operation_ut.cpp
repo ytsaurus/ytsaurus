@@ -83,12 +83,12 @@ Y_UNIT_TEST_SUITE(SchemaInference)
             UNIT_ASSERT(resultSchema.Defined());
         }
 
-        UNIT_ASSERT_VALUES_EQUAL(result[0]->Columns_[0].Name_, thirdSchema.Columns_[0].Name_);
-        UNIT_ASSERT_VALUES_EQUAL(result[1]->Columns_[0].Name_, someSchema.Columns_[0].Name_);
-        UNIT_ASSERT_VALUES_EQUAL(result[2]->Columns_[0].Name_, otherSchema.Columns_[0].Name_);
-        UNIT_ASSERT_VALUES_EQUAL(result[3]->Columns_[0].Name_, thirdSchema.Columns_[0].Name_);
-        UNIT_ASSERT_VALUES_EQUAL(result[4]->Columns_[0].Name_, thirdSchema.Columns_[0].Name_);
-        UNIT_ASSERT_VALUES_EQUAL(result[5]->Columns_[0].Name_, otherSchema.Columns_[0].Name_);
-        UNIT_ASSERT_VALUES_EQUAL(result[6]->Columns_[0].Name_, thirdSchema.Columns_[0].Name_);
+        UNIT_ASSERT_VALUES_EQUAL(result[0]->Columns()[0].Name(), thirdSchema.Columns()[0].Name());
+        UNIT_ASSERT_VALUES_EQUAL(result[1]->Columns()[0].Name(), someSchema.Columns()[0].Name());
+        UNIT_ASSERT_VALUES_EQUAL(result[2]->Columns()[0].Name(), otherSchema.Columns()[0].Name());
+        UNIT_ASSERT_VALUES_EQUAL(result[3]->Columns()[0].Name(), thirdSchema.Columns()[0].Name());
+        UNIT_ASSERT_VALUES_EQUAL(result[4]->Columns()[0].Name(), thirdSchema.Columns()[0].Name());
+        UNIT_ASSERT_VALUES_EQUAL(result[5]->Columns()[0].Name(), otherSchema.Columns()[0].Name());
+        UNIT_ASSERT_VALUES_EQUAL(result[6]->Columns()[0].Name(), thirdSchema.Columns()[0].Name());
     }
 } // Y_UNIT_TEST_SUITE(SchemaInference)
