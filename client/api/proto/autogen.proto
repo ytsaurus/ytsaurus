@@ -35,6 +35,7 @@ import "yt/core/ytree/proto/attributes.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 import "yp/client/api/proto/enums.proto";
 import "yp/client/api/proto/conditions.proto";
+import "google/protobuf/timestamp.proto";
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -747,6 +748,8 @@ message TReleaseMeta
     uint64 creation_time = 3;
     bool inherit_acl = 10;
     repeated TAccessControlEntry acl = 11;
+    // Custom fields:
+    string author_id = 4;
 }
 
 message TRelease

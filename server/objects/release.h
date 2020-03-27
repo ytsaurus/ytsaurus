@@ -25,6 +25,9 @@ public:
 
     virtual EObjectType GetType() const override;
 
+    static const TScalarAttributeSchema<TRelease, TObjectId> AuthorIdSchema;
+    DEFINE_BYREF_RW_PROPERTY_NO_INIT(TScalarAttribute<TObjectId>, AuthorId);
+
     using TDeployTicketsAttribute = TOneToManyAttribute<TRelease, TDeployTicket>;
     static const TDeployTicketsAttribute::TSchema DeployTicketsSchema;
     DEFINE_BYREF_RW_PROPERTY_NO_INIT(TDeployTicketsAttribute, DeployTickets);

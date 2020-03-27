@@ -23,6 +23,13 @@ option (NYP.NClient.NApi.NProto.object_type) = {
     type_value: 24
 };
 
+// for field descriptions see NYP.NClient.NApi.NProto.TReleaseMeta
+message TReleaseMetaBase
+{
+    // Id of release author.
+    string author_id = 4;
+}
+
 // TSandboxResource fields correspond to result of get_release_info sandbox-method.
 message TSandboxResource
 {

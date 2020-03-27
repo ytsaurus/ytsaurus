@@ -29,11 +29,17 @@ const TScalarAttributeSchema<TRelease, TRelease::TStatus> TRelease::StatusSchema
     [] (TRelease* release) { return &release->Status(); }
 };
 
+const TScalarAttributeSchema<TRelease, TObjectId> TRelease::AuthorIdSchema{
+    &ReleasesTable.Fields.Meta_AuthorId,
+    [] (TRelease* release) { return &release->AuthorId(); }
+};
+
 TRelease::TRelease(
     const TObjectId& id,
     IObjectTypeHandler* typeHandler,
     ISession* session)
     : TObject(id, TObjectId(), typeHandler, session)
+    , AuthorId_(this, &AuthorIdSchema)
     , DeployTickets_(this, &DeployTicketsSchema)
     , Spec_(this)
     , Status_(this, &StatusSchema)

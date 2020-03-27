@@ -32,6 +32,13 @@ public:
     {
         TObjectTypeHandlerBase::Initialize();
 
+        MetaAttributeSchema_
+            ->AddChildren({
+                MakeAttributeSchema("author_id")
+                    ->SetAttribute(TRelease::AuthorIdSchema)
+                    ->SetValidator<TRelease>(std::bind(&TReleaseTypeHandler::ValidateAuthorId, this, _1, _2))
+            });
+
         SpecAttributeSchema_
             ->AddChildren({
                 MakeEtcAttributeSchema()
@@ -72,6 +79,24 @@ public:
         return std::make_unique<TRelease>(id, this, session);
     }
 
+    virtual void BeforeObjectCreated(
+        TTransaction* transaction,
+        TObject* object) override
+    {
+        TObjectTypeHandlerBase::BeforeObjectCreated(transaction, object);
+
+        auto* release = object->As<TRelease>();
+
+        const auto& userId = Bootstrap_->GetAccessControlManager()->TryGetAuthenticatedUser();
+
+        if (userId.empty()) {
+            THROW_ERROR_EXCEPTION("Authenticated user was not resolved for release %Qv",
+                release->GetId());
+        }
+
+        release->AuthorId() = userId;
+    }
+
 private:
     static void ValidateId(TTransaction* /*transaction*/, TRelease* release)
     {
@@ -90,6 +115,14 @@ private:
                 "Release id %Qv length exceeds limit %v",
                 id,
                 idLengthLimit);
+        }
+    }
+
+    void ValidateAuthorId(TTransaction* /*transaction*/, TRelease* release)
+    {
+        if (!release->AuthorId().Load().empty())
+        {
+            THROW_ERROR_EXCEPTION("Field /meta/author_id must be empty when release is created");
         }
     }
 

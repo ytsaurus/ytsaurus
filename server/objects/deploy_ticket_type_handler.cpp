@@ -49,7 +49,6 @@ public:
                 MakeAttributeSchema("release_id")
                     ->SetAttribute(TDeployTicket::TSpec::ReleaseSchema
                         .SetNullable(false))
-                    ->SetUpdatable()
                     ->SetMandatory(),
 
                 MakeAttributeSchema("release_rule_id")
@@ -508,7 +507,7 @@ private:
         auto* stage = deployTicket->Stage().Load();
 
         auto patchesMessage = isFullCommit
-            ? Format("Parent %v: %v", reason, message)
+            ? Format("DeployTicket was committed: %v", message)
             : message;
 
         if (release->Spec().Etc().Load().has_sandbox()) {
@@ -569,7 +568,7 @@ private:
         ValidatePatchStates(deployTicket, patchIds);
 
         auto patchesMessage = isFullSkip
-            ? Format("Parent %v: %v", reason, message)
+            ? Format("DeployTicket was skipped: %v", message)
             : message;
 
         for (const auto& patchId : patchIds) {

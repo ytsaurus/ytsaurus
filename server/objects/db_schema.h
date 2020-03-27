@@ -939,6 +939,7 @@ extern const struct TReleasesTable
     struct TFields
         : public TObjectTableBase::TFields
     {
+        TDBField Meta_AuthorId{"meta.author_id", NTableClient::EValueType::String};
         TDBField Spec_Etc{"spec.etc", NTableClient::EValueType::Any};
         TDBField Status{"status", NTableClient::EValueType::Any};
     } Fields;

@@ -1,4 +1,5 @@
 from . import templates
+from .conftest import create_user
 
 from yp.common import YtResponseError
 
@@ -144,3 +145,60 @@ class TestReleases(object):
                 release_id,
                 set_updates=[{"path": "/spec/docker/image_name", "value": ""}],
             )
+
+    def test_author_id_filling(self, yp_env):
+        yp_client = yp_env.yp_client
+        spec = {
+            "docker": {
+                "image_name": "some_image_name",
+                "image_tag": "some_image_tag",
+                "image_hash": "some_image_hash",
+                "release_type": "stable",
+            }
+        }
+
+        user_id = create_user(yp_client, id="u1", grant_create_permission_for_types=("release",))
+        yp_env.sync_access_control()
+
+        with yp_env.yp_instance.create_client(config={"user": user_id}) as user_client:
+            with pytest.raises(YtResponseError):
+                release_id = user_client.create_object(
+                    "release", attributes={"meta": {"id": "release1", "author_id": "id"}, "spec": spec}
+                )
+
+            release_id = user_client.create_object(
+                "release", attributes={"meta": {"id": "release1"}, "spec": spec}
+            )
+
+            author_id = yp_client.get_object("release", release_id, selectors=["/meta/author_id"])[0]
+            assert author_id == user_id
+
+    def test_author_id_not_updatable(self, yp_env):
+        yp_client = yp_env.yp_client
+        spec = {
+            "docker": {
+                "image_name": "some_image_name",
+                "image_tag": "some_image_tag",
+                "image_hash": "some_image_hash",
+                "release_type": "stable",
+            }
+        }
+
+        user_id = create_user(yp_client, id="u1", grant_create_permission_for_types=("release",))
+        yp_env.sync_access_control()
+
+        with yp_env.yp_instance.create_client(config={"user": user_id}) as user_client:
+            release_id = user_client.create_object(
+                "release", attributes={"meta": {"creation_time": 1, "id": "release1"}, "spec": spec}
+            )
+
+            author_id = yp_client.get_object("release", release_id, selectors=["/meta/author_id"])[0]
+            assert author_id == user_id
+
+            with pytest.raises(YtResponseError):
+                user_client.update_object(
+                    "release", release_id, set_updates=[{
+                        "path": "/meta/author_id",
+                        "value": "other_author"
+                    }]
+                )
