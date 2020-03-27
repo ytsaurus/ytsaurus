@@ -6,6 +6,7 @@
 #    yt/server/master/cell_master/serialize.cpp - if the version differs, then the update should be done with master snapshots (+ --set-read-only).
 #    yt/server/node/tablet_node/serialize.cpp - if the version differs, then the update should be done with tablet cell recreation.
 
+* ifsmirnov: Added validation of creating non-external nodes. Update masters via snapshot.
 * lexolordan: To use unmount user is required to have permission "use" on cell_bundle. Update masters via snapshot.
 * gritukan: Nodes dynamic config added. Make sure that //sys/cluster_nodes/@config contains actual dynamic config.
 * lexolordan: Calculating static memory while tablets are mounting without mounted tablets. Update masters via snapshot.
