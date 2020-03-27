@@ -87,56 +87,67 @@ public:
 
     virtual TFuture<void> CreateContainer(const TString& name) override
     {
-        return BIND(&TPortoExecutor::DoCreate, MakeStrong(this), name)
+        return BIND(&TPortoExecutor::DoCreateContainer, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> SetProperty(const TString& name, const TString& key, const TString& value) override
+    virtual TFuture<std::map<TString, TErrorOr<TString>>> GetContainerProperties(const TString& name, const std::vector<TString>& properties) override
     {
-        return BIND(&TPortoExecutor::DoSetProperty, MakeStrong(this), name, key, value)
+        return BIND([=, this_ = MakeStrong(this)] () {
+            const std::vector<TString> containers{name};
+            auto getResponse = DoGetContainerProperties(containers, properties);
+            return ParsePortoGetResponse(name, getResponse);
+        })
+        .AsyncVia(Queue_->GetInvoker())
+        .Run();
+    }
+
+    virtual TFuture<void> SetContainerProperty(const TString& name, const TString& key, const TString& value) override
+    {
+        return BIND(&TPortoExecutor::DoSetContainerProperty, MakeStrong(this), name, key, value)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
     virtual TFuture<void> DestroyContainer(const TString& name) override
     {
-        return BIND(&TPortoExecutor::DoDestroy, MakeStrong(this), name)
+        return BIND(&TPortoExecutor::DoDestroyContainer, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> Stop(const TString& name) override
+    virtual TFuture<void> StopContainer(const TString& name) override
     {
-        return BIND(&TPortoExecutor::DoStop, MakeStrong(this), name)
+        return BIND(&TPortoExecutor::DoStopContainer, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> Start(const TString& name) override
+    virtual TFuture<void> StartContainer(const TString& name) override
     {
-        return BIND(&TPortoExecutor::DoStart, MakeStrong(this), name)
+        return BIND(&TPortoExecutor::DoStartContainer, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<void> Kill(const TString& name, int signal) override
+    virtual TFuture<void> KillContainer(const TString& name, int signal) override
     {
-        return BIND(&TPortoExecutor::DoKill, MakeStrong(this), name, signal)
+        return BIND(&TPortoExecutor::DoKillContainer, MakeStrong(this), name, signal)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
     virtual TFuture<std::vector<TString>> ListContainers() override
     {
-        return BIND(&TPortoExecutor::DoList, MakeStrong(this))
+        return BIND(&TPortoExecutor::DoListContainers, MakeStrong(this))
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
 
-    virtual TFuture<int> AsyncPoll(const TString& name) override
+    virtual TFuture<int> PollContainer(const TString& name) override
     {
-        return BIND(&TPortoExecutor::DoAsyncPoll, MakeStrong(this), name)
+        return BIND(&TPortoExecutor::DoPollContainer, MakeStrong(this), name)
             .AsyncVia(Queue_->GetInvoker())
             .Run();
     }
@@ -149,17 +160,6 @@ public:
     virtual void UnsubscribeFailed(const TCallback<void (const TError&)>& callback)
     {
         Failed_.Unsubscribe(callback);
-    }
-
-    virtual TFuture<std::map<TString, TErrorOr<TString>>> GetProperties(const TString& name, const std::vector<TString>& properties) override
-    {
-        return BIND([=, this_ = MakeStrong(this)] () {
-            const std::vector<TString> containers{name};
-            auto getResponse = DoGet(containers, properties);
-            return ParsePortoGetResponse(name, getResponse);
-        })
-        .AsyncVia(Queue_->GetInvoker())
-        .Run();
     }
 
     virtual TFuture<TString> CreateVolume(
@@ -226,7 +226,7 @@ private:
     const TPeriodicExecutorPtr PollExecutor_;
 
     std::vector<TString> Containers_;
-    THashMap<TString, TPromise<int>> ContainersMap_;
+    THashMap<TString, TPromise<int>> ContainerMap_;
     TSingleShotCallbackList<void(const TError&)> Failed_;
 
     struct TCommandEntry
@@ -256,17 +256,17 @@ private:
             << TErrorAttribute("porto_error_message", message);
     }
 
-    void DoCreate(const TString& name)
+    void DoCreateContainer(const TString& name)
     {
         ExecuteApiCall([&] () { return Api_->Create(name); }, "Create");
     }
 
-    void DoSetProperty(const TString& name, const TString& key, const TString& value)
+    void DoSetContainerProperty(const TString& name, const TString& key, const TString& value)
     {
         ExecuteApiCall([&] () { return Api_->SetProperty(name, key, value); }, "SetProperty");
     }
 
-    void DoDestroy(const TString& name)
+    void DoDestroyContainer(const TString& name)
     {
         try {
             ExecuteApiCall([&] () { return Api_->Destroy(name); }, "Destroy");
@@ -277,32 +277,31 @@ private:
         }
     }
 
-    void DoStop(const TString& name)
+    void DoStopContainer(const TString& name)
     {
         ExecuteApiCall([&] () { return Api_->Stop(name); }, "Stop");
     }
 
-    void DoStart(const TString& name)
+    void DoStartContainer(const TString& name)
     {
         ExecuteApiCall([&] () { return Api_->Start(name); }, "Start");
     }
 
-    void DoKill(const TString& name, int signal)
+    void DoKillContainer(const TString& name, int signal)
     {
         ExecuteApiCall([&] () { return Api_->Kill(name, signal); }, "Kill");
     }
 
-    std::vector<TString> DoList()
+    std::vector<TString> DoListContainers()
     {
         TVector<TString> clist;
         ExecuteApiCall([&] () { return Api_->List(clist); }, "List");
-
         return std::vector<TString>(clist.begin(), clist.end());
     }
 
-    TFuture<int> DoAsyncPoll(const TString& name)
+    TFuture<int> DoPollContainer(const TString& name)
     {
-        auto entry = ContainersMap_.insert({name, NewPromise<int>()});
+        auto entry = ContainerMap_.insert({name, NewPromise<int>()});
         if (!entry.second) {
             YT_LOG_WARNING("Container already added for polling (Container: %v)",
                 name);
@@ -312,7 +311,7 @@ private:
         return entry.first->second.ToFuture();
     }
 
-    Porto::TGetResponse DoGet(
+    Porto::TGetResponse DoGetContainerProperties(
         const std::vector<TString>& containers,
         const std::vector<TString>& vars)
     {
@@ -337,7 +336,7 @@ private:
                 return;
             }
 
-            auto getResponse = DoGet(Containers_, ContainerRequestVars_);
+            auto getResponse = DoGetContainerProperties(Containers_, ContainerRequestVars_);
 
             if (getResponse.list().empty()) {
                 return;
@@ -482,8 +481,8 @@ private:
     void HandleResult(const TString& name, const Porto::TGetResponse::TContainerGetValueResponse& rsp)
     {
         auto portoErrorCode = ConvertPortoErrorCode(rsp.error());
-        auto it = ContainersMap_.find(name);
-        if (it == ContainersMap_.end()) {
+        auto it = ContainerMap_.find(name);
+        if (it == ContainerMap_.end()) {
             YT_LOG_ERROR("Got an unexpected container "
                 "(Container: %v, ResponseError: %v, ErrorMessage: %v, Value: %v)",
                 name,
@@ -518,10 +517,10 @@ private:
 
     void RemoveFromPoller(const TString& name)
     {
-        ContainersMap_.erase(name);
+        ContainerMap_.erase(name);
         Containers_.clear();
 
-        for (const auto containerIt : ContainersMap_) {
+        for (const auto containerIt : ContainerMap_) {
             Containers_.push_back(containerIt.first);
         }
     }

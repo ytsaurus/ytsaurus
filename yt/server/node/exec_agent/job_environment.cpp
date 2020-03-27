@@ -447,7 +447,7 @@ public:
                 slotIndex));
 
             // Reset cpu guarantee.
-            WaitFor(PortoExecutor_->SetProperty(
+            WaitFor(PortoExecutor_->SetContainerProperty(
                 GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
                 "cpu_guarantee",
                 "0.05c"))
@@ -533,7 +533,7 @@ private:
 
     TString GetAbsoluteName(const TString& name)
     {
-        auto properties = WaitFor(PortoExecutor_->GetProperties(
+        auto properties = WaitFor(PortoExecutor_->GetContainerProperties(
             name,
             std::vector<TString>{"absolute_name"}))
             .ValueOrThrow();
@@ -633,13 +633,13 @@ private:
                     .ThrowOnError();
 
                 // This forces creation of cpu cgroup for this container.
-                WaitFor(PortoExecutor_->SetProperty(
+                WaitFor(PortoExecutor_->SetContainerProperty(
                     GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
                     "cpu_guarantee",
                     "0.05c"))
                     .ThrowOnError();
 
-                WaitFor(PortoExecutor_->SetProperty(
+                WaitFor(PortoExecutor_->SetContainerProperty(
                     GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
                     "controllers",
                     "freezer;cpu;cpuacct;cpuset;net_cls"))
