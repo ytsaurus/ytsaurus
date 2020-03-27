@@ -778,6 +778,10 @@ private:
     {
         YT_VERIFY(FindMasterMailbox(cellTag));
 
+        if (RegisteredMasterMap_.find(cellTag) != RegisteredMasterMap_.end()) {
+            return;
+        }
+
         YT_VERIFY(RegisteredMasterMap_.size() == RegisteredMasterCellTags_.size());
         int index = static_cast<int>(RegisteredMasterMap_.size());
         RegisteredMasterCellTags_.push_back(cellTag);
