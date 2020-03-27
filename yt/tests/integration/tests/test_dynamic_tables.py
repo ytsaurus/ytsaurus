@@ -1235,11 +1235,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             assert read_table("//tmp/t{value}") == [{"value": 1}]
             assert read_table("//tmp/t{key,value}") == [{"key": 0, "value": 1}]
             assert read_table("//tmp/t") == [{"key": 0, "value": 1}]
-            if is_dynamic_sorted:
-                with pytest.raises(YtError):
-                    read_table("//tmp/t{zzzzz}")
-            else:
-                assert read_table("//tmp/t{zzzzz}") == [{}]
+            assert read_table("//tmp/t{zzzzz}") == [{}]
 
         write_table("//tmp/t", [{"key": 0, "value": 1}])
         check_reads(False)
