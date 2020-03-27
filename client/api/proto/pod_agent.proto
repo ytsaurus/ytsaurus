@@ -947,11 +947,19 @@ message TContainerStatus {
 
         int32 return_code = 2;
 
-        // Последний 4KB stderr
+        // Последние 4KB stderr
+        // Возможно, скоро будет удалено в пользу stderr_tail
         string stderr = 3;
 
         // Последние 4KB stdout
+        // Возможно, скоро будет удалено в пользу stdout_tail
         string stdout = 4;
+
+        // Последние 4KB stderr
+        bytes stderr_tail = 8;
+
+        // Последние 4KB stdout
+        bytes stdout_tail = 9;
 
         // Неструктурированное описание последней ошибки связанной c запуском контейнера
         string fail_reason = 5;
