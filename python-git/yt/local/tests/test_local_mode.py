@@ -36,6 +36,8 @@ import random
 
 logger = logging.getLogger("Yt.local")
 
+yt.http_helpers.RECEIVE_TOKEN_FROM_SSH_SESSION = False
+
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 PYTHONPATH = os.path.abspath(os.path.join(TESTS_LOCATION, "../../../"))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")

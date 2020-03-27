@@ -12,7 +12,7 @@ try:
 except:
     get_gdb_path = None
 
-from yt.common import YtError, remove_file, makedirp, set_pdeathsig
+from yt.common import YtError, remove_file, makedirp, set_pdeathsig, update
 from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
@@ -325,6 +325,8 @@ class YTInstance(object):
             self.watcher_config["logs_rotate_compress"] = True
         else:
             self.watcher_config["disable_logrotate"] = True
+
+        self._default_client_config = {"enable_token": False}
 
         self._prepare_environment(jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                                   node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, node_port_set_size,
@@ -1276,7 +1278,7 @@ class YTInstance(object):
 
     def create_client(self):
         if self.has_http_proxy:
-            return YtClient(proxy=self.get_http_proxy_address())
+            return YtClient(proxy=self.get_http_proxy_address(), config=self._default_client_config)
         return self.create_native_client()
 
     def create_native_client(self, driver_name="driver"):
@@ -1287,10 +1289,13 @@ class YTInstance(object):
 
         driver_config["connection_type"] = "native"
 
-        config = {
-            "backend": "native",
-            "driver_config": driver_config
-        }
+        config = update(
+            self._default_client_config,
+            {
+                "backend": "native",
+                "driver_config": driver_config
+            }
+        )
 
         return YtClient(config=config)
 
