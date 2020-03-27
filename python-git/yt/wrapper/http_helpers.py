@@ -27,6 +27,8 @@ from copy import deepcopy
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
 
+RECEIVE_TOKEN_FROM_SSH_SESSION = True
+
 def _format_logging_params(params):
     return ", ".join(["{}: {}".format(key, value) for key, value in iteritems(params)])
 
@@ -434,7 +436,8 @@ def _get_token_by_ssh_session(client):
 
     token = lpo.get_token(get_config(client)["oauth_client_id"], get_config(client)["oauth_client_secret"])
     if not token:
-        raise YtTokenError("Failed to receive token using current session ssh keys")
+        logger.warning("Failed to receive token using current session ssh keys")
+        token = None
 
     return token
 
@@ -482,9 +485,18 @@ def get_token(token=None, client=None):
     if not token:
         token = _get_token_from_file(client)
     if not token:
-        receive_token_by_ssh_session = get_config(client)["allow_receive_token_by_current_ssh_session"]
+        receive_token_by_ssh_session = get_config(client)["allow_receive_token_by_current_ssh_session"] and RECEIVE_TOKEN_FROM_SSH_SESSION
         if receive_token_by_ssh_session:
             token = _get_token_by_ssh_session(client)
+            # Update token in default location.
+            if get_config(client=client)["token_path"] is None and token is not None:
+                token_dir = os.path.join(os.path.expanduser("~"), ".yt")
+                if not os.path.exists(token_dir):
+                    os.makedirs(token_dir)
+                token_path = os.path.join(token_dir, "token")
+                with open(token_path, "w") as fout:
+                    fout.write(token)
+                os.chmod(token_path, 0o600)
 
     # Empty token considered as missing.
     if not token:
