@@ -7,7 +7,7 @@ from yt_commands import *
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt.test_helpers import assert_items_equal, are_almost_equal
-from yt.yson import loads
+from yt.yson import loads, YsonEntity, YsonInt64
 
 from flaky import flaky
 
@@ -292,6 +292,34 @@ class TestMapOnDynamicTables(YTEnvSetup):
             else:
                 assert stat1["uncompressed_data_size"] > stat2["uncompressed_data_size"]
                 assert stat1["compressed_data_size"] > stat2["compressed_data_size"]
+
+    @authors("ifsmirnov")
+    def test_bizarre_column_filters(self):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": YsonEntity(), "value": "none"}] + \
+                [{"key": YsonInt64(i), "value": str(i*i)} for i in range(2)] + \
+                [{"key": 100500, "value": YsonEntity()}]
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        def _check(*columns):
+            expected = [{column: row[column] for column in columns if column in row} for row in rows]
+            actual = read_table("//tmp/t{" + ','.join(columns) + "}")
+            assert expected == actual
+
+        _check("key")
+        _check("value")
+        _check("key", "key")
+        _check("value", "key")
+        _check("value", "value", "key")
+        _check("value", "key", "value", "key")
+        _check("oops")
+        _check("oops", "yup")
+        _check("oops", "value", "yup")
+        _check("oops", "value", "key")
 
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
