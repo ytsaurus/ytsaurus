@@ -36,18 +36,18 @@ Y_UNIT_TEST_SUITE(Common)
             auto initialSchema = schema;
             schema.SortBy(columns);
             for (const auto& i: xrange(columns.size())) {
-                UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[i].Name_, columns[i]);
-                UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[i].SortOrder_, ESortOrder::SO_ASCENDING);
+                UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[i].Name(), columns[i]);
+                UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[i].SortOrder(), ESortOrder::SO_ASCENDING);
             }
-            for (const auto& i: xrange(columns.size(), (size_t)initialSchema.Columns_.size())) {
-                UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[i].SortOrder_, Nothing());
+            for (const auto& i: xrange(columns.size(), (size_t)initialSchema.Columns().size())) {
+                UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[i].SortOrder(), Nothing());
             }
-            UNIT_ASSERT_VALUES_EQUAL(initialSchema.Columns_.size(), schema.Columns_.size());
+            UNIT_ASSERT_VALUES_EQUAL(initialSchema.Columns().size(), schema.Columns().size());
             return schema;
         };
         auto newSchema = checkSortBy(schema, {"b"});
-        UNIT_ASSERT_VALUES_EQUAL(newSchema.Columns_[1].Name_, TString("a"));
-        UNIT_ASSERT_VALUES_EQUAL(newSchema.Columns_[2].Name_, TString("c"));
+        UNIT_ASSERT_VALUES_EQUAL(newSchema.Columns()[1].Name(), TString("a"));
+        UNIT_ASSERT_VALUES_EQUAL(newSchema.Columns()[2].Name(), TString("c"));
         checkSortBy(schema, {"b", "c"});
         checkSortBy(schema, {"c", "a"});
         UNIT_ASSERT_EXCEPTION(checkSortBy(schema, {"b", "b"}), yexception);

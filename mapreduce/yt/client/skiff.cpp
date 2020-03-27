@@ -76,22 +76,22 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchema(
 {
     using namespace NSkiff;
 
-    Y_ENSURE(schema.Strict_, "Cannot create Skiff schema for non-strict table schema");
+    Y_ENSURE(schema.Strict(), "Cannot create Skiff schema for non-strict table schema");
     TVector<TSkiffSchemaPtr> skiffColumns;
-    for (const auto& column: schema.Columns_) {
+    for (const auto& column: schema.Columns()) {
         TSkiffSchemaPtr skiffColumn;
-        if (column.Required_) {
-            skiffColumn = CreateSimpleTypeSchema(ValueTypeToSkiffType(column.Type_));
+        if (column.Required()) {
+            skiffColumn = CreateSimpleTypeSchema(ValueTypeToSkiffType(column.Type()));
         } else {
             skiffColumn = CreateVariant8Schema({
                 CreateSimpleTypeSchema(EWireType::Nothing),
-                CreateSimpleTypeSchema(ValueTypeToSkiffType(column.Type_))});
+                CreateSimpleTypeSchema(ValueTypeToSkiffType(column.Type()))});
         }
         if (options.RenameColumns_) {
-            auto maybeName = options.RenameColumns_->find(column.Name_);
-            skiffColumn->SetName(maybeName == options.RenameColumns_->end() ? column.Name_ : maybeName->second);
+            auto maybeName = options.RenameColumns_->find(column.Name());
+            skiffColumn->SetName(maybeName == options.RenameColumns_->end() ? column.Name() : maybeName->second);
         } else {
-            skiffColumn->SetName(column.Name_);
+            skiffColumn->SetName(column.Name());
         }
         skiffColumns.push_back(skiffColumn);
     }

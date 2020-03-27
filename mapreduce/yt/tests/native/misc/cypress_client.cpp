@@ -126,19 +126,19 @@ Y_UNIT_TEST_SUITE(CypressClient) {
         TTableSchema schema;
         Deserialize(schema, schemaNode);
 
-        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_.size(), 3);
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns().size(), 3);
 
-        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[0].Name_, "Host");
-        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[0].Type_, EValueType::VT_STRING);
-        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[0].SortOrder_, ESortOrder::SO_ASCENDING);
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[0].Name(), "Host");
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[0].Type(), EValueType::VT_STRING);
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[0].SortOrder(), ESortOrder::SO_ASCENDING);
 
-        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[1].Name_, "Path");
-        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[1].Type_, EValueType::VT_STRING);
-        UNIT_ASSERT(schema.Columns_[1].SortOrder_.Empty());
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[1].Name(), "Path");
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[1].Type(), EValueType::VT_STRING);
+        UNIT_ASSERT(schema.Columns()[1].SortOrder().Empty());
 
-        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[2].Name_, "HttpCode");
-        UNIT_ASSERT_VALUES_EQUAL(schema.Columns_[2].Type_, EValueType::VT_INT32);
-        UNIT_ASSERT(schema.Columns_[2].SortOrder_.Empty());
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[2].Name(), "HttpCode");
+        UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[2].Type(), EValueType::VT_INT32);
+        UNIT_ASSERT(schema.Columns()[2].SortOrder().Empty());
     }
 
     Y_UNIT_TEST(TestCreateHugeAttribute)

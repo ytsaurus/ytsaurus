@@ -60,12 +60,12 @@ TTableSchema& TTableSchema::SortBy(const TVector<TString>& columns) &
     }
 
     for (auto& column : Columns_) {
-        if (auto it = columnsIndex.find(column.Name_)) {
+        if (auto it = columnsIndex.find(column.Name())) {
             column.SortOrder(ESortOrder::SO_ASCENDING);
             newColumns[it->second] = std::move(column); // see newColumns.resize() above
             columnsIndex.erase(it);
         } else {
-            column.SortOrder_ = Nothing();
+            column.ResetSortOrder();
             newColumns.push_back(std::move(column));
         }
     }
@@ -80,6 +80,11 @@ TTableSchema& TTableSchema::SortBy(const TVector<TString>& columns) &
 TTableSchema TTableSchema::SortBy(const TVector<TString>& columns) &&
 {
     return std::move(SortBy(columns));
+}
+
+TVector<TColumnSchema>& TTableSchema::MutableColumns()
+{
+    return Columns_;
 }
 
 TNode TTableSchema::ToNode() const

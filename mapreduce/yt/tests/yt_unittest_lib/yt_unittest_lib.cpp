@@ -246,14 +246,14 @@ void TTabletFixture::WaitForTabletCell()
 
 bool AreSchemasEqual(const TTableSchema& lhs, const TTableSchema& rhs)
 {
-    if (lhs.Columns_.size() != rhs.Columns_.size()) {
+    if (lhs.Columns().size() != rhs.Columns().size()) {
         return false;
     }
-    for (int i = 0; i < static_cast<int>(lhs.Columns_.size()); ++i) {
-        if (lhs.Columns_[i].Name_ != rhs.Columns_[i].Name_) {
+    for (int i = 0; i < static_cast<int>(lhs.Columns().size()); ++i) {
+        if (lhs.Columns()[i].Name() != rhs.Columns()[i].Name()) {
             return false;
         }
-        if (lhs.Columns_[i].Type_ != rhs.Columns_[i].Type_) {
+        if (lhs.Columns()[i].Type() != rhs.Columns()[i].Type()) {
             return false;
         }
     }

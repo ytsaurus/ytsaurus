@@ -91,21 +91,21 @@ void Deserialize(EErasureCodecAttr& erasureCodec, const TNode& node)
 void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
-        .Item("name").Value(columnSchema.Name_)
-        .DoIf(!columnSchema.RawTypeV2_.Defined() && !columnSchema.RawTypeV3_.Defined(),
+        .Item("name").Value(columnSchema.Name())
+        .DoIf(!columnSchema.RawTypeV2().Defined() && !columnSchema.RawTypeV3().Defined(),
             [&] (TFluentMap fluent) {
-                fluent.Item("type").Value(NDetail::ToString(columnSchema.Type_));
-                fluent.Item("required").Value(columnSchema.Required_);
+                fluent.Item("type").Value(NDetail::ToString(columnSchema.Type()));
+                fluent.Item("required").Value(columnSchema.Required());
             }
         )
-        .DoIf(columnSchema.RawTypeV2_.Defined(), [&] (TFluentMap fluent) {
-            const auto& rawTypeV2 = *columnSchema.RawTypeV2_;
+        .DoIf(columnSchema.RawTypeV2().Defined(), [&] (TFluentMap fluent) {
+            const auto& rawTypeV2 = *columnSchema.RawTypeV2();
             fluent.Item("type_v2").Value(rawTypeV2);
 
             // COMPAT(levysotsky): Fill "type" and "required" for (optional) simple types.
             if (rawTypeV2.IsString()) {
                 fluent
-                    .Item("type").Value(columnSchema.RawTypeV2_->AsString())
+                    .Item("type").Value(columnSchema.RawTypeV2()->AsString())
                     .Item("required").Value(true);
                 return;
             }
@@ -116,8 +116,8 @@ void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
                     .Item("required").Value(false);
             }
         })
-        .DoIf(columnSchema.RawTypeV3_.Defined(), [&] (TFluentMap fluent) {
-            const auto& rawTypeV3 = *columnSchema.RawTypeV3_;
+        .DoIf(columnSchema.RawTypeV3().Defined(), [&] (TFluentMap fluent) {
+            const auto& rawTypeV3 = *columnSchema.RawTypeV3();
             fluent.Item("type_v3").Value(rawTypeV3);
 
             // We going set old fields `type` and `required` to be compatible
@@ -171,20 +171,20 @@ void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
                 return;
             }
         })
-        .DoIf(columnSchema.SortOrder_.Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("sort_order").Value(::ToString(*columnSchema.SortOrder_));
+        .DoIf(columnSchema.SortOrder().Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("sort_order").Value(::ToString(*columnSchema.SortOrder()));
         })
-        .DoIf(columnSchema.Lock_.Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("lock").Value(*columnSchema.Lock_);
+        .DoIf(columnSchema.Lock().Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("lock").Value(*columnSchema.Lock());
         })
-        .DoIf(columnSchema.Expression_.Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("expression").Value(*columnSchema.Expression_);
+        .DoIf(columnSchema.Expression().Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("expression").Value(*columnSchema.Expression());
         })
-        .DoIf(columnSchema.Aggregate_.Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("aggregate").Value(*columnSchema.Aggregate_);
+        .DoIf(columnSchema.Aggregate().Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("aggregate").Value(*columnSchema.Aggregate());
         })
-        .DoIf(columnSchema.Group_.Defined(), [&] (TFluentMap fluent) {
-            fluent.Item("group").Value(*columnSchema.Group_);
+        .DoIf(columnSchema.Group().Defined(), [&] (TFluentMap fluent) {
+            fluent.Item("group").Value(*columnSchema.Group());
         })
     .EndMap();
 }
@@ -207,10 +207,10 @@ void Deserialize(TColumnSchema& columnSchema, const TNode& node)
 void Serialize(const TTableSchema& tableSchema, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginAttributes()
-        .Item("strict").Value(tableSchema.Strict_)
-        .Item("unique_keys").Value(tableSchema.UniqueKeys_)
+        .Item("strict").Value(tableSchema.Strict())
+        .Item("unique_keys").Value(tableSchema.UniqueKeys())
     .EndAttributes()
-    .List(tableSchema.Columns_);
+    .List(tableSchema.Columns());
 }
 
 void Deserialize(TTableSchema& tableSchema, const TNode& node)
