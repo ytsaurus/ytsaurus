@@ -32,6 +32,10 @@ DECLARE_REFCOUNTED_CLASS(TAccessControlManagerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TAccessControlManager)
 
+DECLARE_REFCOUNTED_CLASS(TRequestTrackerConfig)
+
+DECLARE_REFCOUNTED_CLASS(TRequestTracker)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NAccessControl

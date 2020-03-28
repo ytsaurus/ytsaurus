@@ -388,7 +388,7 @@ private:
             CreateVirtualNode(CreateInitialConfigOrchidService()->Via(GetControlInvoker())));
         SetBuildAttributes(orchidRoot, "yp_master");
 
-        ObjectService_ = NApi::CreateObjectService(Bootstrap_);
+        ObjectService_ = NApi::CreateObjectService(Bootstrap_, InitialConfig_->ObjectService);
         ClientDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::Client);
         SecureClientDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::SecureClient);
         AgentDiscoveryService_ = NApi::CreateDiscoveryService(Bootstrap_, EMasterInterface::Agent);

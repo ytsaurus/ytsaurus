@@ -58,6 +58,7 @@ SET(YP_TEST_SRCS
     test_release_rules.py
     test_releases.py
     test_replica_sets.py
+    test_request_throttling.py
     test_resource_cache.py
     test_resources.py
     test_retries.py

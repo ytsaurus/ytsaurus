@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "private.h"
+#include "request_tracker.h"
 
 #include <yp/server/access_control/proto/continuation_token.pb.h>
 
@@ -133,36 +134,59 @@ void ForEachAttributeAce(
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     TAccessControlManagerPtr accessControlManager,
     const TObjectId& userId)
+    : EnqueuedRequests_(0)
 {
     accessControlManager->SetAuthenticatedUser(userId);
     AccessControlManager_ = std::move(accessControlManager);
 }
 
 TAuthenticatedUserGuard::TAuthenticatedUserGuard(TAuthenticatedUserGuard&& other)
+    : EnqueuedRequests_(0)
 {
     std::swap(AccessControlManager_, other.AccessControlManager_);
+    std::swap(EnqueuedRequests_, other.EnqueuedRequests_);
 }
 
 TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 {
-    if (AccessControlManager_) {
-        AccessControlManager_->ResetAuthenticatedUser();
-    }
+    Release();
 }
 
 TAuthenticatedUserGuard& TAuthenticatedUserGuard::operator=(TAuthenticatedUserGuard&& other)
 {
     Release();
     std::swap(AccessControlManager_, other.AccessControlManager_);
+    std::swap(EnqueuedRequests_, other.EnqueuedRequests_);
     return *this;
 }
 
 void TAuthenticatedUserGuard::Release()
 {
     if (AccessControlManager_) {
+        if (EnqueuedRequests_) {
+            const auto& requestTracker = AccessControlManager_->GetRequestTracker();
+            const auto& user = AccessControlManager_->GetAuthenticatedUser();
+            requestTracker->DecreaseRequestQueueSize(user, EnqueuedRequests_);
+            EnqueuedRequests_ = 0;
+        }
         AccessControlManager_->ResetAuthenticatedUser();
         AccessControlManager_.Reset();
     }
+}
+
+TFuture<void> TAuthenticatedUserGuard::ThrottleUserRequest(int requestCount, i64 requestWeight)
+{
+    auto requestTracker = AccessControlManager_->GetRequestTracker();
+    const auto& userId = AccessControlManager_->GetAuthenticatedUser();
+    if (requestTracker->TryIncreaseRequestQueueSize(userId, requestCount)) {
+        EnqueuedRequests_ += requestCount;
+    } else {
+        THROW_ERROR_EXCEPTION(
+            NClient::NApi::EErrorCode::RequestThrottled,
+            "User %Qv has exceeded its request queue size limit",
+            userId);
+    }
+    return requestTracker->ThrottleUserRequest(userId, requestWeight);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -300,6 +324,17 @@ public:
         if (subject->GetType() == EObjectType::User) {
             YT_VERIFY(EveryoneGroup_->RecursiveUserIds().insert(id).second);
         }
+    }
+
+    std::vector<TSubject*> GetSubjects(EObjectType type) const
+    {
+        std::vector<TSubject*> result;
+        for (const auto& [key, value] : IdToSubject_) {
+            if (value->GetType() == type) {
+                result.push_back(value.get());
+            }
+        }
+        return result;
     }
 
     bool IsSuperuser(const TObjectId& userId)
@@ -872,6 +907,7 @@ public:
             ClusterStateUpdateQueue_->GetInvoker(),
             BIND(&TImpl::OnUpdateClusterState, MakeWeak(this)),
             Config_->ClusterStateUpdatePeriod))
+        , RequestTracker_(New<TRequestTracker>(Config_->RequestTracker))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(
             ClusterStateUpdateQueue_->GetInvoker(),
@@ -1108,6 +1144,11 @@ public:
         return *userId;
     }
 
+    const TRequestTrackerPtr& GetRequestTracker()
+    {
+        return RequestTracker_;
+    }
+
     void ValidatePermission(
         NObjects::TObject* object,
         EAccessControlPermission permission,
@@ -1178,12 +1219,14 @@ private:
 
     const TActionQueuePtr ClusterStateUpdateQueue_;
     const TPeriodicExecutorPtr ClusterStateUpdateExecutor_;
+    const TRequestTrackerPtr RequestTracker_;
 
     TReaderWriterSpinLock ClusterSubjectSnapshotLock_;
     TClusterSubjectSnapshotPtr ClusterSubjectSnapshot_;
 
     TReaderWriterSpinLock ClusterObjectSnapshotLock_;
     TClusterObjectSnapshotPtr ClusterObjectSnapshot_;
+
 
     std::atomic<TTimestamp> ClusterStateTimestamp = NTransactionClient::NullTimestamp;
 
@@ -1258,6 +1301,12 @@ private:
                 NRpc::EErrorCode::Unavailable,
                 "Cluster access control subject snapshot is not loaded yet");
         }
+        return ClusterSubjectSnapshot_;
+    }
+
+    TClusterSubjectSnapshotPtr TryGetClusterSubjectSnapshot()
+    {
+        TReaderGuard guard(ClusterSubjectSnapshotLock_);
         return ClusterSubjectSnapshot_;
     }
 
@@ -1347,6 +1396,10 @@ private:
             }
 
             snapshot->Prepare();
+
+            auto oldSnapshot = TryGetClusterSubjectSnapshot();
+            UpdateRequestTrackerState(oldSnapshot, snapshot);
+
             SetClusterSubjectSnapshot(std::move(snapshot));
 
             YT_LOG_DEBUG("Finished loading cluster subject snapshot (UserCount: %v, GroupCount: %v)",
@@ -1355,6 +1408,69 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Error loading cluster subject snapshot");
         }
+    }
+
+    void UpdateRequestTrackerState(
+        const TClusterSubjectSnapshotPtr& oldSnapshot,
+        const TClusterSubjectSnapshotPtr& newSnapshot)
+    {
+        std::vector<TRequestTracker::TUserSetup> batch;
+
+        auto defaultUserRequestWeightRate = Config_->RequestTracker->DefaultUserRequestWeightRateLimit;
+        auto defaultUserRequestQueueSizeLimit = Config_->RequestTracker->DefaultUserRequestQueueSizeLimit;
+
+        auto getWeightRate = [defaultUserRequestWeightRate] (TSubject* subject) {
+            const auto& spec = subject->AsUser()->Spec();
+
+            return spec.has_request_weight_rate_limit()
+                ? spec.request_weight_rate_limit()
+                : defaultUserRequestWeightRate;
+        };
+
+        auto getQueueSizeLimit = [defaultUserRequestQueueSizeLimit] (TSubject* subject) {
+            const auto& spec = subject->AsUser()->Spec();
+            return spec.has_request_queue_size_limit()
+                ? spec.request_queue_size_limit()
+                : defaultUserRequestQueueSizeLimit;
+        };
+
+        /*
+         * NB: obsolete users deletion is not supported. Throttlers reside in memory, thus will be discarded
+         * upon next ypmaster restart.
+         */
+        for (const auto& newSubject : newSnapshot->GetSubjects(EObjectType::User)) {
+            auto newRequestRate = getWeightRate(newSubject);
+            auto newRequestQueueSizeLimit = getQueueSizeLimit(newSubject);
+
+            if (!oldSnapshot) {
+                batch.emplace_back(
+                    newSubject->GetId(),
+                    newRequestRate,
+                    newRequestQueueSizeLimit);
+                continue;
+            }
+
+            auto* oldSubject = oldSnapshot->FindSubject(newSubject->GetId());
+            if (!oldSubject) {
+                batch.emplace_back(
+                    newSubject->GetId(),
+                    newRequestRate,
+                    newRequestQueueSizeLimit);
+                continue;
+            }
+
+            auto oldRequestRate = getWeightRate(oldSubject);
+            auto oldRequestQueueSizeLimit = getQueueSizeLimit(oldSubject);
+
+            if (newRequestRate != oldRequestRate || newRequestQueueSizeLimit != oldRequestQueueSizeLimit) {
+                batch.emplace_back(
+                    newSubject->GetId(),
+                    newRequestRate,
+                    newRequestQueueSizeLimit);
+            }
+
+        }
+        RequestTracker_->ReconfigureUsersBatch(batch);
     }
 
     void UpdateClusterObjectSnapshot(const NObjects::TTransactionPtr& transaction)
@@ -1544,6 +1660,11 @@ TObjectId TAccessControlManager::TryGetAuthenticatedUser()
 bool TAccessControlManager::HasAuthenticatedUser()
 {
     return Impl_->HasAuthenticatedUser();
+}
+
+const TRequestTrackerPtr& TAccessControlManager::GetRequestTracker()
+{
+    return Impl_->GetRequestTracker();
 }
 
 void TAccessControlManager::ValidatePermission(

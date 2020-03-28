@@ -5,6 +5,7 @@ import yp.data_model as data_model
 from yp.common import (
     YpInvalidContinuationTokenError,
     YtResponseError,
+    YpAuthenticationError
 )
 
 from yt.yson import YsonEntity
@@ -278,3 +279,39 @@ class TestObjectService(object):
         for options in (dict(limit=100500), dict(limit=1)):
             response = select(options)
             assert len(response["continuation_token"]) > 0, "Options {}".format(options)
+
+
+# NB: delete after YP-1956 is closed
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestSupplementaryNoAuth(object):
+    YP_MASTER_CONFIG = {
+        "object_service": {
+            "require_authentication_in_supplementary_calls": False
+        },
+    }
+
+    def test_call(self, yp_env_configurable):
+        user_client = yp_env_configurable.yp_instance.create_client(config={"user": "invalid_user"})
+        user_client.generate_timestamp()
+
+
+# NB: delete after YP-1956 is closed
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestSupplementaryAuth(object):
+    YP_MASTER_CONFIG = {
+        "object_service": {
+            "require_authentication_in_supplementary_calls": True
+        },
+    }
+
+    def test_call(self, yp_env_configurable):
+        user_id = "batman"
+        user_client = yp_env_configurable.yp_instance.create_client(config={"user": user_id})
+        with pytest.raises(YpAuthenticationError):
+            user_client.generate_timestamp()
+
+        yp_env_configurable.yp_client.create_object("user", attributes={
+            "meta": {"id": user_id}})
+
+        yp_env_configurable.sync_access_control()
+        user_client.generate_timestamp()

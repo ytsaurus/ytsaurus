@@ -63,6 +63,7 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidObjectSpec)               (100017))
     ((ContinuationTokenVersionMismatch)(100018))
     ((TimestampOutOfRange)             (100019))
+    ((RequestThrottled)                (100020))
 );
 
 DEFINE_STRING_SERIALIZABLE_ENUM(EHfsmState,

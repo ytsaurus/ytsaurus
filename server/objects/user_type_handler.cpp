@@ -9,6 +9,9 @@ namespace NYP::NServer::NObjects {
 
 using namespace NAccessControl;
 
+using std::placeholders::_1;
+using std::placeholders::_2;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUserTypeHandler
@@ -24,7 +27,8 @@ public:
         TSubjectTypeHandlerBase::Initialize();
 
         SpecAttributeSchema_
-            ->SetAttribute(TUser::SpecSchema);
+            ->SetAttribute(TUser::SpecSchema)
+            ->SetValidator<TUser>(std::bind(&TUserTypeHandler::ValidateSpec, this, _1, _2));
 
         StatusAttributeSchema_
             ->SetComposite();
@@ -57,6 +61,36 @@ public:
     virtual std::vector<EAccessControlPermission> GetDefaultPermissions() override
     {
         return {};
+    }
+
+private:
+    void ValidateSpec(TTransaction* /*transaction*/, TUser* user)
+    {
+        const auto& userSpecNew = user->Spec().Load();
+        const auto& userSpecOld = user->Spec().LoadOld();
+
+        auto checkBound = [](auto newValue, const TString& field) {
+            constexpr int lowerBound = 0;
+            constexpr int upperBound = 100000;
+
+            if (newValue < lowerBound || newValue > upperBound) {
+                THROW_ERROR_EXCEPTION("Field %Qv value %v must be in range [%v, %v]",
+                    field,
+                    newValue,
+                    lowerBound,
+                    upperBound);
+            }
+        };
+
+        auto requestQueueSizeLimit = userSpecNew.request_queue_size_limit();
+        if (!user->DidExist() || userSpecOld.request_queue_size_limit() != requestQueueSizeLimit) {
+            checkBound(requestQueueSizeLimit, "request_queue_size_limit");
+        }
+
+        auto requestWeightRateLimit = userSpecNew.request_weight_rate_limit();
+        if (!user->DidExist() || userSpecOld.request_weight_rate_limit() != requestWeightRateLimit) {
+            checkBound(requestWeightRateLimit, "request_weight_rate_limit");
+        }
     }
 };
 

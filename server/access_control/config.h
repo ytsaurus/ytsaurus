@@ -28,12 +28,45 @@ namespace NYP::NServer::NAccessControl {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRequestTrackerConfig
+    : public NYT::NYTree::TYsonSerializable
+{
+public:
+    bool Enabled;
+    i64 DefaultUserRequestWeightRateLimit;
+    int DefaultUserRequestQueueSizeLimit;
+    size_t ReconfigureBatchSize;
+
+    TRequestTrackerConfig()
+    {
+        RegisterParameter("enabled", Enabled)
+            .Default(false);
+        RegisterParameter("default_user_request_weight_rate_limit", DefaultUserRequestWeightRateLimit)
+            .GreaterThanOrEqual(0)
+            .LessThanOrEqual(100000)
+            .Default(0);
+        RegisterParameter("default_user_request_queue_size_limit", DefaultUserRequestQueueSizeLimit)
+            .GreaterThanOrEqual(0)
+            .LessThanOrEqual(100000)
+            .Default(0);
+        RegisterParameter("reconfigure_batch_size", ReconfigureBatchSize)
+            .GreaterThan(0)
+            .LessThan(100000)
+            .Default(500);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRequestTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAccessControlManagerConfig
     : public NYT::NYTree::TYsonSerializable
 {
 public:
     TDuration ClusterStateUpdatePeriod;
     std::vector<NObjects::EObjectType> ClusterStateAllowedObjectTypes;
+    TRequestTrackerConfigPtr RequestTracker;
 
     TAccessControlManagerConfig()
     {
@@ -56,6 +89,8 @@ public:
                 NObjects::EObjectType::ResourceCache,
                 NObjects::EObjectType::Stage,
             });
+        RegisterParameter("request_tracker", RequestTracker)
+            .DefaultNew();
     }
 };
 

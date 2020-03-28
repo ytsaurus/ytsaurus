@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "request_tracker.h"
+
 #include <yp/server/master/public.h>
 
 #include <yp/server/objects/public.h>
@@ -52,8 +54,11 @@ public:
     TAuthenticatedUserGuard& operator=(const TAuthenticatedUserGuard& other) = delete;
     TAuthenticatedUserGuard& operator=(TAuthenticatedUserGuard&& other);
 
+    TFuture<void> ThrottleUserRequest(int requestCount, i64 requestWeight);
+
 private:
     TAccessControlManagerPtr AccessControlManager_;
+    int EnqueuedRequests_;
 
 private:
     void Release();
@@ -110,6 +115,8 @@ public:
     bool HasAuthenticatedUser();
     NObjects::TObjectId GetAuthenticatedUser();
     NObjects::TObjectId TryGetAuthenticatedUser();
+
+    const TRequestTrackerPtr& GetRequestTracker();
 
     void ValidatePermission(
         NObjects::TObject* object,

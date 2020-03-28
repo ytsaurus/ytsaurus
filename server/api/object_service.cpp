@@ -1,5 +1,6 @@
 #include "object_service.h"
 
+#include "config.h"
 #include "private.h"
 
 #include <yp/server/master/bootstrap.h>
@@ -49,12 +50,13 @@ class TObjectService
     : public NMaster::TServiceBase
 {
 public:
-    explicit TObjectService(TBootstrap* bootstrap)
+    explicit TObjectService(TBootstrap* bootstrap, TObjectServiceConfigPtr config)
         : TServiceBase(
             bootstrap,
             NClient::NApi::NNative::TObjectServiceProxy::GetDescriptor(),
             NApi::Logger,
             bootstrap->GetAuthenticationManager()->GetRpcAuthenticator())
+        , Config_(std::move(config))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamp));
 
@@ -78,6 +80,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetUserAccessAllowedTo));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectObjectHistory));
     }
+private:
+    const TObjectServiceConfigPtr Config_;
 
 private:
     class TTransactionWrapper
@@ -138,9 +142,19 @@ private:
     };
 
 
-    TAuthenticatedUserGuard MakeAuthenticatedUserGuard(const NRpc::IServiceContextPtr& context)
+    TAuthenticatedUserGuard MakeAuthenticatedUserGuard(
+        const NRpc::IServiceContextPtr& context,
+        int requestCount,
+        i64 requestWeight)
     {
-        return TAuthenticatedUserGuard(Bootstrap_->GetAccessControlManager(), context->GetUser());
+        TAuthenticatedUserGuard authenticatedUserGuard(
+            Bootstrap_->GetAccessControlManager(),
+            context->GetUser());
+        auto future = authenticatedUserGuard.ThrottleUserRequest(requestCount, requestWeight);
+        WaitFor(future)
+            .ThrowOnError();
+        return authenticatedUserGuard;
+
     }
 
     // COMPAT(babenko): YP-752
@@ -330,6 +344,11 @@ private:
         Y_UNUSED(request);
         context->SetRequestInfo();
 
+        std::optional<TAuthenticatedUserGuard> authenticatedUserGuard;
+        if (Config_->RequireAuthenticationInSupplementaryCalls) {
+            authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, 1);
+        }
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto timestamp = WaitFor(transactionManager->GenerateTimestamp())
             .ValueOrThrow();
@@ -344,7 +363,7 @@ private:
         Y_UNUSED(request);
         context->SetRequestInfo();
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, 1);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadWriteTransaction())
@@ -361,7 +380,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         context->SetRequestInfo("TransactionId: %v", transactionId);
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, 1);
 
         TTransactionWrapper transactionWrapper(transactionId, true, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
@@ -380,7 +399,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         context->SetRequestInfo("TransactionId: %v", transactionId);
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, 1);
 
         TTransactionWrapper transactionWrapper(transactionId, true, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
@@ -406,7 +425,7 @@ private:
             objectType,
             &deprecatedPayloadFormatLogged);
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, 1);
 
         TTransactionWrapper transactionWrapper(transactionId, false, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
@@ -457,7 +476,7 @@ private:
                     subrequest.Type);
             }));
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, request->subrequests_size());
 
         TTransactionWrapper transactionWrapper(transactionId, false, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
@@ -504,7 +523,7 @@ private:
             objectType,
             objectId);
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, 1);
 
         TTransactionWrapper transactionWrapper(transactionId, false, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
@@ -552,7 +571,7 @@ private:
                     subrequest.Id);
             }));
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, request->subrequests_size());
 
         TTransactionWrapper transactionWrapper(transactionId, false, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
@@ -609,7 +628,7 @@ private:
             updates.size(),
             prerequisites.size());
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, 1);
 
         TTransactionWrapper transactionWrapper(transactionId, false, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
@@ -674,7 +693,7 @@ private:
                     subrequest.Prerequisites.size());
             }));
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, request->subrequests_size());
 
         TTransactionWrapper transactionWrapper(transactionId, false, Bootstrap_);
         const auto& transaction = transactionWrapper.Unwrap();
@@ -725,7 +744,7 @@ private:
             LogDeprecatedPayloadFormat(context);
         }
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, 1);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))
@@ -775,7 +794,7 @@ private:
             LogDeprecatedPayloadFormat(context);
         }
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, request->subrequests_size());
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))
@@ -829,7 +848,7 @@ private:
             objectType,
             options);
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, 1);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(
@@ -893,7 +912,7 @@ private:
             LogDeprecatedPayloadFormat(context);
         }
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, 1);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))
@@ -945,7 +964,7 @@ private:
 
         // Only generic yson can be used for aggregate query.
         auto format = NClient::NApi::NProto::PF_YSON;
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, 1);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))
@@ -985,6 +1004,11 @@ private:
         context->SetRequestInfo("Timestamp: %llx, SubrequestCount: %v",
             timestamp,
             request->subrequests_size());
+
+        std::optional<TAuthenticatedUserGuard> authenticatedUserGuard;
+        if (Config_->RequireAuthenticationInSupplementaryCalls) {
+            authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, request->subrequests_size());
+        }
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))
@@ -1032,6 +1056,11 @@ private:
             timestamp,
             request->subrequests_size());
 
+        std::optional<TAuthenticatedUserGuard> authenticatedUserGuard;
+        if (Config_->RequireAuthenticationInSupplementaryCalls) {
+            authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, request->subrequests_size());
+        }
+
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction(timestamp))
             .ValueOrThrow();
@@ -1067,6 +1096,11 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NClient::NApi::NProto, GetUserAccessAllowedTo)
     {
         context->SetRequestInfo("SubrequestCount: %v", request->subrequests_size());
+
+        std::optional<TAuthenticatedUserGuard> authenticatedUserGuard;
+        if (Config_->RequireAuthenticationInSupplementaryCalls) {
+            authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, request->subrequests_size());
+        }
 
         const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
         for (const auto& subrequest : request->subrequests()) {
@@ -1132,7 +1166,7 @@ private:
             LogDeprecatedPayloadFormat(context);
         }
 
-        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context);
+        auto authenticatedUserGuard = MakeAuthenticatedUserGuard(context, 1, 1);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto transaction = WaitFor(transactionManager->StartReadOnlyTransaction())
@@ -1160,9 +1194,9 @@ private:
     }
 };
 
-IServicePtr CreateObjectService(TBootstrap* bootstrap)
+IServicePtr CreateObjectService(TBootstrap* bootstrap, TObjectServiceConfigPtr config)
 {
-    return New<TObjectService>(bootstrap);
+    return New<TObjectService>(bootstrap, std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

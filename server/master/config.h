@@ -14,6 +14,8 @@
 
 #include <yp/server/accounting/config.h>
 
+#include <yp/server/api/config.h>
+
 #include <yt/ytlib/program/config.h>
 
 #include <yt/ytlib/api/native/config.h>
@@ -110,6 +112,7 @@ public:
     TSecretVaultServiceConfigPtr SecretVaultService;
     int WorkerThreadPoolSize;
     TDuration ConfigUpdatePeriod;
+    NServer::NApi::TObjectServiceConfigPtr ObjectService;
 
     TMasterConfig()
     {
@@ -157,6 +160,8 @@ public:
             .Default(8);
         RegisterParameter("config_update_period", ConfigUpdatePeriod)
             .Default(TDuration::Seconds(5));
+        RegisterParameter("object_service", ObjectService)
+            .DefaultNew();
 
         RegisterPostprocessor([&] {
             if (InternalBusServer && !InternalBusServer->Port) {

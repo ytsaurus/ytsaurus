@@ -1931,6 +1931,10 @@ message TUserSpec
 {
     // If true, user is forbidden from accessing the cluster.
     optional bool banned = 1;
+
+    // 0 - unlimited
+    optional int64 request_weight_rate_limit = 2;
+    optional int32 request_queue_size_limit = 3;
 }
 
 message TUserStatus
