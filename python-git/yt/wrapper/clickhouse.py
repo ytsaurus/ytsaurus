@@ -295,8 +295,6 @@ def prepare_configs(instance_count,
     :type cypress_base_config_path: str or None
     :param clickhouse_config: configuration patch to be applied onto the base config; if None, nothing happens
     :type clickhouse_config: dict or None
-    :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
-    :type enable_monitoring: bool or None
     :param uncompressed_block_cache_size: size of uncompressed block cache at each instance.
     :type int
     """
