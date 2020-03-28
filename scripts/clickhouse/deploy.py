@@ -18,20 +18,23 @@ def get_bin_path(src_dir, kind, platform="linux"):
     platform_dir = platform if is_multiplatform_bin(kind) else ""
     platform_ext = ".exe" if platform == "windows" else ""
     return os.path.join(src_dir, platform_dir, kind + platform_ext)
-    
+
 def get_version(src_dir, kind):
     bin_path = get_bin_path(src_dir, kind)
     args = [bin_path, "--version"]
     print >>sys.stderr, "Invoking {} to find out commit".format(args)
     version = subprocess.check_output(args, stderr=subprocess.STDOUT).strip()
 
-    if kind in ("ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer"):
+    if kind in ("ytserver-clickhouse", "ytserver-log-tailer"):
         yt_commit = re.search("~([0-9a-z]*)", version).groups()[0]
         return (yt_commit, version)
     else:
-        yt_commit = re.search("git:([0-9a-z]*)", version).groups()[0]
+        if kind == "clickhouse-trampoline":
+            yt_commit = re.search("smth~([0-9a-z]*)", version).groups()[0]
+        else:
+            yt_commit = re.search("git:([0-9a-z]*)", version).groups()[0]
         return (yt_commit, datetime.datetime.now().strftime("%Y%m%d%H%M%S") + "-" + yt_commit)
-        
+
 def main():
     parser = argparse.ArgumentParser(description="Deploy CHYT binary")
     parser.add_argument("--src-dir", default="../../../build-rel/bin", help="Path containing binary to be deployed; by default, ../../../build-rel/bin")
@@ -41,7 +44,7 @@ def main():
                         help="Kind of binary to be deployed")
     args = parser.parse_args()
 
-    yt_commit, version = get_version(args.src_dir, args.kind) 
+    yt_commit, version = get_version(args.src_dir, args.kind)
 
     kind_to_repo_path = {
         "ytserver-clickhouse": "/yt/server/clickhouse_server",
