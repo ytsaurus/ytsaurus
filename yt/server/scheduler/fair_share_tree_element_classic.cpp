@@ -373,20 +373,20 @@ double TSchedulerElement::GetWeight() const
     if (!TreeConfig_->InferWeightFromMinShareRatioMultiplier) {
         return 1.0;
     }
-    if (Attributes().RecursiveMinShareRatio < RatioComputationPrecision) {
+    if (Attributes().MinShareRatio < RatioComputationPrecision) {
         return 1.0;
     }
 
     double parentMinShareRatio = 1.0;
     if (GetParent()) {
-        parentMinShareRatio = GetParent()->Attributes().RecursiveMinShareRatio;
+        parentMinShareRatio = GetParent()->Attributes().MinShareRatio;
     }
 
     if (parentMinShareRatio < RatioComputationPrecision) {
         return 1.0;
     }
 
-    return Attributes().RecursiveMinShareRatio * (*TreeConfig_->InferWeightFromMinShareRatioMultiplier) /
+    return Attributes().MinShareRatio * (*TreeConfig_->InferWeightFromMinShareRatioMultiplier) /
         parentMinShareRatio;
 }
 
@@ -1212,7 +1212,7 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList* , TUpdateFai
     for (const auto& child : children) {
         auto& childAttributes = child->Attributes();
 
-        childAttributes.RecursiveMinShareRatio = 0.0;
+        childAttributes.MinShareRatio = 0.0;
         childAttributes.AdjustedMinShareRatio = 0.0;
 
         childAttributes.FifoIndex = index;
@@ -1252,32 +1252,12 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList* dynamic
     double minWeight = std::numeric_limits<double>::max();
     for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
-        auto minShareRatio = child->GetMinShareRatio();
-        auto minShareRatioByResources = GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_);
 
-        childAttributes.RecursiveMinShareRatio = std::max(
-            Attributes_.RecursiveMinShareRatio * minShareRatio,
-            minShareRatioByResources);
-
+        childAttributes.MinShareRatio = GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_);
         if (child->IsOperation()) {
-            minShareRatioSumForOperations += childAttributes.RecursiveMinShareRatio;
+            minShareRatioSumForOperations += childAttributes.MinShareRatio;
         } else {
-            minShareRatioSumForPools += childAttributes.RecursiveMinShareRatio;
-        }
-
-        if ((!child->IsOperation() && minShareRatio > 0) && Attributes_.RecursiveMinShareRatio == 0) {
-            context->Errors.emplace_back(
-                "Min share ratio setting for %Qv has no effect "
-                "because min share ratio of parent pool %Qv is zero",
-                child->GetId(),
-                GetId());
-        }
-        if ((!child->IsOperation() && minShareRatioByResources > 0) && Attributes_.RecursiveMinShareRatio == 0) {
-            context->Errors.emplace_back(
-                "Min share ratio resources setting for %Qv has no effect "
-                "because min share ratio of parent pool %Qv is zero",
-                child->GetId(),
-                GetId());
+            minShareRatioSumForPools += childAttributes.MinShareRatio;
         }
 
         if (child->GetWeight() > RatioComputationPrecision) {
@@ -1286,30 +1266,30 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList* dynamic
     }
 
     // If min share sum is larger than one, adjust all children min shares to sum up to one.
-    if (minShareRatioSumForPools > Attributes_.RecursiveMinShareRatio + RatioComparisonPrecision) {
+    if (minShareRatioSumForPools > Attributes_.MinShareRatio + RatioComparisonPrecision) {
         context->Errors.emplace_back(
             "Impossible to satisfy resources guarantees of pool %Qv, "
             "total min share ratio of children pools is too large: %v > %v",
             GetId(),
             minShareRatioSumForPools,
-            Attributes_.RecursiveMinShareRatio);
+            Attributes_.MinShareRatio);
 
-        double fitFactor = Attributes_.RecursiveMinShareRatio / minShareRatioSumForPools;
+        double fitFactor = Attributes_.MinShareRatio / minShareRatioSumForPools;
         for (const auto& child : EnabledChildren_) {
             auto& childAttributes = child->Attributes();
             if (child->IsOperation()) {
-                childAttributes.RecursiveMinShareRatio = 0.0;
+                childAttributes.MinShareRatio = 0.0;
             } else {
-                childAttributes.RecursiveMinShareRatio *= fitFactor;
+                childAttributes.MinShareRatio *= fitFactor;
             }
         }
-    } else if (minShareRatioSumForPools + minShareRatioSumForOperations > Attributes_.RecursiveMinShareRatio + RatioComparisonPrecision) {
+    } else if (minShareRatioSumForPools + minShareRatioSumForOperations > Attributes_.MinShareRatio + RatioComparisonPrecision) {
         // Min share ratios of operations are fitted silently.
-        double fitFactor = (Attributes_.RecursiveMinShareRatio - minShareRatioSumForPools + RatioComparisonPrecision) / minShareRatioSumForOperations;
+        double fitFactor = (Attributes_.MinShareRatio - minShareRatioSumForPools + RatioComparisonPrecision) / minShareRatioSumForOperations;
         for (const auto& child : EnabledChildren_) {
             auto& childAttributes = child->Attributes();
             if (child->IsOperation()) {
-                childAttributes.RecursiveMinShareRatio *= fitFactor;
+                childAttributes.MinShareRatio *= fitFactor;
             }
         }
     }
@@ -1320,7 +1300,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList* dynamic
             const auto& childAttributes = child->Attributes();
             double result = fitFactor * child->GetWeight() / minWeight;
             // Never give less than promised by min share.
-            result = std::max(result, childAttributes.RecursiveMinShareRatio);
+            result = std::max(result, childAttributes.MinShareRatio);
             // Never give more than can be used.
             result = std::min(result, childAttributes.MaxPossibleUsageRatio);
             // Never give more than we can allocate.
@@ -1361,7 +1341,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList* dynamic
             const auto& childAttributes = child->Attributes();
             double result = fitFactor * child->GetWeight() / minWeight;
             // Never give less than promised by min share.
-            result = std::max(result, childAttributes.RecursiveMinShareRatio);
+            result = std::max(result, childAttributes.MinShareRatio);
             return result;
         },
         [&] (const TSchedulerElementPtr& child, double value, double uncertaintyRatio) {
@@ -1373,7 +1353,7 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList* dynamic
     // Compute adjusted min share ratios.
     for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
-        double result = childAttributes.RecursiveMinShareRatio;
+        double result = childAttributes.MinShareRatio;
         // Never give more than can be used.
         result = std::min(result, childAttributes.MaxPossibleUsageRatio);
         // Never give more than we can allocate.
@@ -1606,11 +1586,6 @@ TString TPool::GetId() const
 std::optional<double> TPool::GetSpecifiedWeight() const
 {
     return Config_->Weight;
-}
-
-double TPool::GetMinShareRatio() const
-{
-    return Config_->MinShareRatio.value_or(0.0);
 }
 
 TJobResources TPool::GetMinShareResources() const
@@ -2761,11 +2736,6 @@ std::optional<double> TOperationElement::GetSpecifiedWeight() const
     return RuntimeParameters_->Weight;
 }
 
-double TOperationElement::GetMinShareRatio() const
-{
-    return Spec_->MinShareRatio.value_or(0.0);
-}
-
 TJobResources TOperationElement::GetMinShareResources() const
 {
     return ToJobResources(Spec_->MinShareResources, {});
@@ -3253,7 +3223,7 @@ TRootElement::TRootElement(
     SetFairShareRatio(1.0);
     Attributes_.GuaranteedResourcesRatio = 1.0;
     Attributes_.AdjustedMinShareRatio = 1.0;
-    Attributes_.RecursiveMinShareRatio = 1.0;
+    Attributes_.MinShareRatio = 1.0;
     Mode_ = ESchedulingMode::FairShare;
     Attributes_.AdjustedFairShareStarvationTolerance = GetFairShareStarvationTolerance();
     Attributes_.AdjustedMinSharePreemptionTimeout = GetMinSharePreemptionTimeout();
@@ -3320,11 +3290,6 @@ TString TRootElement::GetId() const
 std::optional<double> TRootElement::GetSpecifiedWeight() const
 {
     return std::nullopt;
-}
-
-double TRootElement::GetMinShareRatio() const
-{
-    return 1.0;
 }
 
 TJobResources TRootElement::GetMinShareResources() const
