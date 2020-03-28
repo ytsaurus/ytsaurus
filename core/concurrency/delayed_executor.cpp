@@ -188,7 +188,7 @@ public:
 #if defined(HAVE_TIMERFD)
         ScheduleImmediateWakeup();
 #endif
-        Exited_.Get();
+        PollerThread_.Join();
     }
 
 private:
@@ -213,7 +213,6 @@ private:
     std::atomic<bool> Started_ = {false};
     std::atomic<bool> Stopping_ = {false};
     TPromise<void> Stopped_ = NewPromise<void>();
-    TPromise<void> Exited_ = NewPromise<void>();
 
     static thread_local bool InDelayedPollerThread_;
 
@@ -329,9 +328,6 @@ private:
         DelayedQueue_->Shutdown();
         DelayedQueue_.Reset();
         DelayedInvoker_.Reset();
-
-        // Release those waiting for shutdown.
-        Exited_.Set();
     }
 
 #if defined(HAVE_TIMERFD)
