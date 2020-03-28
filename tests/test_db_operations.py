@@ -5,7 +5,10 @@ from .conftest import (
 
 from yp.local import ACTUAL_DB_VERSION
 from yp.db_manager import DbManager
-from yp.db_operations import estimate_db_available_timestamps
+from yp.db_operations import (
+    estimate_db_available_timestamps,
+    reset_yp,
+)
 
 from yp.common import (
     YpTimestampOutOfRangeError,
@@ -122,3 +125,41 @@ class TestMigrations(object):
         yt_client = yp_env.yt_client
         min_timestamp, max_timestamp = estimate_db_available_timestamps(yt_client, "//yp")
         assert min_timestamp + 100 < max_timestamp
+
+
+@pytest.mark.usefixtures("yp_env")
+class TestResetYp(object):
+    def test(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        disk_id = yp_client.create_object(
+            "persistent_disk",
+            attributes=dict(
+                spec=dict(
+                    storage_class="hdd",
+                    managed_policy=dict(total_capacity=100),
+                ),
+            ),
+        )
+        volume_id = yp_client.create_object(
+            "persistent_volume",
+            attributes=dict(
+                meta=dict(disk_id=disk_id),
+                spec=dict(managed_policy=dict(capacity=100)),
+            ),
+        )
+        yp_client.create_object(
+            "persistent_volume_claim",
+            attributes=dict(
+                spec=dict(existing_volume_policy=dict(volume_id=volume_id)),
+            ),
+        )
+
+        # Order of object removal matters.
+        reset_yp(yp_client)
+
+        def assert_no_objects_of(type):
+            assert [] == yp_client.select_objects(type, selectors=["/meta/id"])
+
+        for type in ("persistent_disk", "persistent_volume", "persistent_volume_claim"):
+            assert_no_objects_of(type)

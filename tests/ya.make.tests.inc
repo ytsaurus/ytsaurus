@@ -22,6 +22,7 @@ SET(YP_TEST_SRCS
     test_config.py
     test_cypress_auth.py
     test_daemon_sets.py
+    test_db_operations.py
     test_deploy_ticket_control.py
     test_deploy_tickets.py
     test_disk_bandwidth_resource.py
@@ -42,7 +43,6 @@ SET(YP_TEST_SRCS
     test_labels.py
     test_local_cli.py
     test_maintenance.py
-    test_migrations.py
     test_multi_cluster_replica_sets.py
     test_net.py
     test_network_projects.py
