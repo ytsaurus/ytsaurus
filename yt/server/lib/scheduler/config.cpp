@@ -4,6 +4,14 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStrategyTestingOptions::TStrategyTestingOptions()
+{
+    RegisterParameter("delay_inside_fair_share_update", DelayInsideFairShareUpdate)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControllerConfig()
 {
     RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
@@ -199,6 +207,9 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
 
     RegisterParameter("enable_schedule_in_single_tree", EnableScheduleInSingleTree)
         .Default(true);
+
+    RegisterParameter("strategy_testing_options", StrategyTestingOptions)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

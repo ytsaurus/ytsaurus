@@ -1142,3 +1142,30 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
 
         set("//sys/pool_trees/default/@nodes_filter", "")
 
+##################################################################
+
+class TestTreeSetChangedDuringFairShareUpdate(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 0
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 1000,
+            "strategy_testing_options": {
+                "delay_inside_fair_share_update": 900
+            }
+        }
+    }
+
+    @authors("eshcherbin")
+    def test_tree_set_changed_during_fair_share_update(self):
+        for i in range(10):
+            create_pool_tree("other{}".format(i), wait_for_orchid=True)
+            # This sleep is needed here to spread the creation of new pool trees over time.
+            time.sleep(0.6)
+
+        for i in range(10):
+            remove_pool_tree("other{}".format(i), wait_for_orchid=True)
+            # This sleep is needed here to spread the deletion of new pool trees over time.
+            time.sleep(0.6)

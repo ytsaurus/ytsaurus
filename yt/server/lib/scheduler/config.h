@@ -48,6 +48,20 @@ DEFINE_ENUM(EDeactivationReason,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TStrategyTestingOptions
+    : public NYTree::TYsonSerializable
+{
+public:
+    // Testing option that enables sleeping during fair share strategy update.
+    std::optional<TDuration> DelayInsideFairShareUpdate;
+
+    TStrategyTestingOptions();
+};
+
+DEFINE_REFCOUNTED_TYPE(TStrategyTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareStrategyOperationControllerConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -209,6 +223,8 @@ public:
 
     //! Enables the "schedule_in_single_tree" operation spec option cluster-wide.
     bool EnableScheduleInSingleTree;
+
+    TStrategyTestingOptionsPtr StrategyTestingOptions;
 
     TFairShareStrategyConfig();
 };
