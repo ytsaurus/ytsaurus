@@ -171,11 +171,6 @@ def add_permission(client, object_type, object_id, subject, permission, attribut
     client.update_object(object_type, object_id, set_updates=set_updates)
 
 
-def add_schema_permissions(client, type, subject, permissions):
-    for permission in permissions:
-        add_permission(client, "schema", type, subject, permission, attribute="")
-
-
 def set_account(
     client,
     account_name,
@@ -184,7 +179,7 @@ def set_account(
     memory,
     ipv4,
     disk_capacity_per_storage_class,
-    disk_bandwidth_per_storage_class
+    disk_bandwidth_per_storage_class,
 ):
     resource_limits = client.get_object(
         "account", account_name, selectors=["/spec/resource_limits/per_segment"],
@@ -240,8 +235,7 @@ def set_account(
             updates_set.append(
                 dict(
                     path="/spec/resource_limits/per_segment/{}/disk_per_storage_class/{}/capacity".format(
-                        segment_name,
-                        storage_class,
+                        segment_name, storage_class,
                     ),
                     value=value,
                     recursive=True,
@@ -255,8 +249,7 @@ def set_account(
             updates_set.append(
                 dict(
                     path="/spec/resource_limits/per_segment/{}/disk_per_storage_class/{}/bandwidth".format(
-                        segment_name,
-                        storage_class,
+                        segment_name, storage_class,
                     ),
                     value=value,
                     recursive=True,
@@ -378,10 +371,7 @@ ACCOUNTS = [
                 "cpu": 1000000,
                 "memory": 10 * TB,
                 "ipv4": 10,
-                "disk_capacity_per_storage_class": {
-                    "hdd": 100 * TB,
-                    "ssd": 100 * TB,
-                },
+                "disk_capacity_per_storage_class": {"hdd": 100 * TB, "ssd": 100 * TB},
             },
         },
     ),
@@ -391,14 +381,8 @@ ACCOUNTS = [
             "default": {
                 "cpu": 1700000,
                 "memory": 10000000000000,
-                "disk_capacity_per_storage_class": {
-                    "hdd": 150000000000000,
-                    "ssd": 20000000000000,
-                },
-                "disk_bandwidth_per_storage_class": {
-                    "hdd": 10 * GB,
-                    "ssd": 10 * GB,
-                },
+                "disk_capacity_per_storage_class": {"hdd": 150000000000000, "ssd": 20000000000000},
+                "disk_bandwidth_per_storage_class": {"hdd": 10 * GB, "ssd": 10 * GB},
             },
         },
         allow_use_for_all=True,
@@ -476,10 +460,7 @@ def setup_dev_segment(cluster, accounts, client):
                             "hdd": 15750772503347,
                             "ssd": 1192927166464,
                         },
-                        "disk_bandwidth_per_storage_class": {
-                            "hdd": 1 * GB,
-                            "ssd": 1 * GB,
-                        },
+                        "disk_bandwidth_per_storage_class": {"hdd": 1 * GB, "ssd": 1 * GB},
                     },
                 },
             )
@@ -496,10 +477,7 @@ def setup_dev_segment(cluster, accounts, client):
                             "hdd": 18485541004902,
                             "ssd": 992137445376,
                         },
-                        "disk_bandwidth_per_storage_class": {
-                            "hdd": 1 * GB,
-                            "ssd": 1 * GB,
-                        },
+                        "disk_bandwidth_per_storage_class": {"hdd": 1 * GB, "ssd": 1 * GB},
                     }
                 },
             )
@@ -516,10 +494,7 @@ def setup_dev_segment(cluster, accounts, client):
                             "hdd": 15993491842662,
                             "ssd": 17324609581875,
                         },
-                        "disk_bandwidth_per_storage_class": {
-                            "hdd": 1 * GB,
-                            "ssd": 1 * GB,
-                        },
+                        "disk_bandwidth_per_storage_class": {"hdd": 1 * GB, "ssd": 1 * GB},
                     }
                 },
             )
@@ -649,16 +624,234 @@ def configure_admins_group(client, **kwargs):
 
 
 ####################################################################################################
+PERMISSIONS_ALL = {
+    "account": {
+        User("robot-yp-export"): "crw",
+        User("nanny-robot"): "u",
+        User("robot-drug-deploy"): "u",
+        User("robot-mcrsc"): "u",
+        User("robot-rsc"): "u",
+        User("robot-vmagent-rtc"): "u",
+    },
+    "deploy_ticket": {},
+    "dns_record_set": {User("robot-ydnxdns-export"): "crwu"},
+    "dynamic_resource": {
+        User("robot-yp-dynresource"): "crwu",
+        Group("everyone"): "crwu",  # DEPLOY-1117
+    },
+    "endpoint_set": {User("robot-srv-ctl"): "rw"},
+    "group": {User("robot-yp-export"): "crw", User("robot-yp-idm"): "rw"},
+    "horizontal_pod_autoscaler": {User("robot-yd-hpa-ctl"): "rw"},  # YPSUPPORT-71
+    "internet_address": {User("robot-yp-inet-mngr"): "crwu"},
+    "ip4_address_pool": {User("robot-yp-inet-mngr"): "crwu"},
+    "multi_cluster_replica_set": {User("robot-mcrsc"): "rw", User("robot-drug-deploy"): "crw"},
+    "network_project": {
+        User("nanny-robot"): "u",
+        User("robot-yp-export"): "crw",
+        User("odin"): "u",
+        User("robot-rsc"): "u",
+        User("robot-mcrsc"): "u",
+        User("robot-vmagent-rtc"): "u",
+        User("robot-drug-deploy"): "u",  # YPADMIN-266
+    },
+    "node": {
+        User("robot-yp-export"): "crw",
+        User("robot-yp-hfsm"): "crw",
+        User("robot-yp-inet-mngr"): "rw",
+        User("robot-yp-eviction-st"): "rw",
+    },
+    "node_segment": {User("robot-yp-export"): "crw"},
+    "pod": {User("robot-yp-hfsm"): "rw", User("robot-yp-pdns"): "r", User("robot-yp-cauth"): "r"},
+    "pod_disruption_budget": {
+        User("robot-yt-odin"): "c",
+        User("nanny-robot"): "crw",  # YPADMIN-257
+    },
+    "pod_set": {User("robot-yp-export"): "crw", User("robot-yp-hfsm"): "rw"},
+    "project": {},
+    "release": {},
+    "release_rule": {},
+    "replica_set": {User("robot-rsc"): "crw", User("robot-drug-deploy"): "crwu"},
+    "resource": {User("robot-yp-export"): "crw"},
+    "resource_cache": {User("robot-rcc"): "rw"},  # YPSUPPORT-70
+    "stage": {User("robot-drug-deploy"): "rw"},
+    "user": {User("robot-yp-export"): "crw"},
+    "virtual_service": {User("robot-yp-export"): "crw"},
+}
+
+PERMISSIONS_SAS_TEST = {
+    "account": {
+        User("robot-deploy-test"): "u",  # YPADMIN-233
+        User("robot-deploy-auth-t"): "u",  # YPSUPPORT-49
+    },
+    "deploy_ticket": {},
+    "dns_record_set": {User("robot-dns"): "c"},  # YPSUPPORT-69
+    "dynamic_resource": {},
+    "endpoint_set": {},
+    "group": {User("robot-deploy-auth-t"): "c"},  # YPADMIN-282
+    "horizontal_pod_autoscaler": {
+        User("robot-drug-deploy"): "c",  # YPSUPPORT-75
+        Group("deploy-public-object-creators"): "c",  # YPSUPPORT-75
+    },
+    "internet_address": {},
+    "ip4_address_pool": {},
+    "multi_cluster_replica_set": {},
+    "network_project": {User("robot-deploy-test"): "u"},  # YPADMIN-266
+    "node": {},
+    "node_segment": {},
+    "persistent_volume": {Group("everyone"): "c"},
+    "persistent_disk": {Group("everyone"): "c"},
+    "persistent_volume_claim": {Group("everyone"): "c"},
+    "pod": {},
+    "pod_disruption_budget": {Group("abc:service-scope:730:5"): "crw"},  # YPADMIN-257
+    "pod_set": {},
+    "project": {User("robot-deploy-auth-t"): "rw"},  # YPSUPPORT-74
+    "release": {},
+    "release_rule": {},
+    "replica_set": {},
+    "resource": {},
+    "resource_cache": {Group("abc:service-scope:3494:5"): "crw"},  # YPSUPPORT-48
+    "stage": {
+        User("robot-deploy-test"): "rw",  # YPADMIN-233
+        User("robot-deploy-auth-t"): "rw",  # YPSUPPORT-49
+    },
+    "user": {},
+    "virtual_service": {},
+}
+
+PERMISSIONS_MAN_PRE = {
+    "account": {
+        User("robot-deploy-test"): "u",  # YPADMIN-233
+        User("robot-deploy-auth-t"): "u",  # YPSUPPORT-49
+    },
+    "deploy_ticket": {},
+    "dns_record_set": {},
+    "dynamic_resource": {},
+    "endpoint_set": {},
+    "group": {},
+    "horizontal_pod_autoscaler": {
+        User("robot-drug-deploy"): "c",  # YPSUPPORT-75
+        Group("deploy-public-object-creators"): "c",  # YPSUPPORT-75
+    },
+    "internet_address": {},
+    "ip4_address_pool": {},
+    "multi_cluster_replica_set": {},
+    "network_project": {User("robot-deploy-test"): "u"},  # YPADMIN-266
+    "node": {},
+    "node_segment": {},
+    "pod": {},
+    "pod_disruption_budget": {Group("abc:service-scope:730:5"): "crw"},  # YPADMIN-257
+    "pod_set": {},
+    "project": {User("robot-deploy-auth-t"): "rw"},  # YPSUPPORT-74
+    "release": {},
+    "release_rule": {},
+    "replica_set": {},
+    "resource": {},
+    "resource_cache": {Group("abc:service-scope:3494:5"): "crw"},  # YPSUPPORT-48
+    "stage": {
+        User("robot-deploy-test"): "rw",  # YPADMIN-233
+        User("robot-deploy-auth-t"): "rw",  # YPSUPPORT-49
+    },
+    "user": {},
+    "virtual_service": {},
+}
+
+PERMISSIONS_PROD = {
+    "account": {},
+    "deploy_ticket": {},
+    "dns_record_set": {},
+    "dynamic_resource": {},
+    "endpoint_set": {},
+    "group": {},
+    "horizontal_pod_autoscaler": {
+        User("robot-drug-deploy"): "c",  # YPSUPPORT-75
+        Group("deploy-public-object-creators"): "c",  # YPSUPPORT-75
+    },
+    "internet_address": {},
+    "ip4_address_pool": {},
+    "multi_cluster_replica_set": {},
+    "network_project": {},
+    "node": {},
+    "node_segment": {},
+    "pod": {},
+    "pod_disruption_budget": {},
+    "pod_set": {},
+    "project": {},
+    "release": {},
+    "release_rule": {},
+    "replica_set": {},
+    "resource": {},
+    "resource_cache": {},
+    "stage": {},
+    "user": {},
+    "virtual_service": {},
+}
+
+PERMISSIONS_XDC = {
+    "account": {User("robot-deploy-auth"): "u"},  # YPSUPPORT-49
+    "deploy_ticket": {},
+    "dns_record_set": {User("robot-gencfg"): "crw", User("mcden"): "crw"},  # YPSUPPORT-72
+    "dynamic_resource": {},
+    "endpoint_set": {},
+    "group": {},
+    "horizontal_pod_autoscaler": {},
+    "internet_address": {},
+    "ip4_address_pool": {},
+    "multi_cluster_replica_set": {},
+    "network_project": {},
+    "node": {},
+    "node_segment": {},
+    "pod": {},
+    "pod_disruption_budget": {},
+    "pod_set": {},
+    "project": {User("robot-deploy-auth"): "rw"},  # YPSUPPORT-74
+    "release": {},
+    "release_rule": {},
+    "replica_set": {},
+    "resource": {},
+    "resource_cache": {},
+    "stage": {User("robot-deploy-auth"): "rw"},  # YPSUPPORT-49
+    "user": {},
+    "virtual_service": {},
+}
+
+
+def _convert_permission(p):
+    mapping = {
+        "c": "create",
+        "r": "read",
+        "w": "write",
+        "u": "use",
+    }
+
+    permission = mapping.get(p)
+    if permission is None:
+        raise Exception("Bad permission: " + p)
+    return permission
+
+
+def _add_schema_permissions_impl(client, permissions_bundle):
+    for object_id, subjects in permissions_bundle.items():
+        for subject, ps in subjects.items():
+            for p in ps:
+                add_permission(client, "schema", object_id, subject, _convert_permission(p), "")
+
+
+def add_schema_permissions(client, cluster):
+    _add_schema_permissions_impl(client, PERMISSIONS_ALL)
+
+    if cluster == "sas-test":
+        _add_schema_permissions_impl(client, PERMISSIONS_SAS_TEST)
+    elif cluster == "man-pre":
+        _add_schema_permissions_impl(client, PERMISSIONS_MAN_PRE)
+    elif cluster == "xdc":
+        _add_schema_permissions_impl(client, PERMISSIONS_XDC)
+    elif cluster in ("sas", "man", "vla", "iva", "myt"):
+        _add_schema_permissions_impl(client, PERMISSIONS_PROD)
+    else:
+        raise Exception("Cluster not found")
 
 
 def initialize_users(cluster, dry_run):
-    right_c = ["create"]
-    right_crw = ["create", "read", "write"]
-    right_ro = ["read"]
-    right_rw = ["read", "write"]
-    right_crwu = ["create", "read", "write", "use"]
-    right_u = ["read", "use"]
-
     token = find_token()
     with YpClient(cluster, config=dict(token=token)) as raw_client:
         client = ClientWrapper(raw_client, dry_run)
@@ -686,143 +879,7 @@ def initialize_users(cluster, dry_run):
         for subject_id in ("odin", "nanny-robot", "robot-yp-export"):
             create(client, User(subject_id))
 
-        add_schema_permissions(client, "pod_set", User("robot-yp-export"), right_crw)
-        add_schema_permissions(client, "pod_set", User("robot-yp-hfsm"), right_rw)
-
-        add_schema_permissions(client, "replica_set", User("robot-rsc"), right_crw)
-
-        add_schema_permissions(client, "node", User("robot-yp-export"), right_crw)
-        add_schema_permissions(client, "node", User("robot-yp-hfsm"), right_crw)
-        add_schema_permissions(client, "node", User("robot-yp-inet-mngr"), right_rw)
-        add_schema_permissions(client, "node", User("robot-yp-eviction-st"), right_rw)
-
-        add_schema_permissions(client, "node_segment", User("robot-yp-export"), right_crw)
-        add_schema_permissions(client, "resource", User("robot-yp-export"), right_crw)
-        add_schema_permissions(client, "user", User("robot-yp-export"), right_crw)
-        add_schema_permissions(client, "group", User("robot-yp-export"), right_crw)
-        add_schema_permissions(client, "group", User("robot-yp-idm"), right_rw)
-        add_schema_permissions(client, "virtual_service", User("robot-yp-export"), right_crw)
-
-        add_schema_permissions(client, "pod", User("robot-yp-hfsm"), right_rw)
-        add_schema_permissions(client, "pod", User("robot-yp-pdns"), right_ro)
-        add_schema_permissions(client, "pod", User("robot-yp-cauth"), right_ro)
-
-        add_schema_permissions(client, "network_project", User("nanny-robot"), right_u)
-        add_schema_permissions(client, "network_project", User("robot-yp-export"), right_crw)
-        add_schema_permissions(client, "network_project", User("odin"), right_u)
-        add_schema_permissions(client, "network_project", User("robot-rsc"), right_u)
-        add_schema_permissions(client, "network_project", User("robot-mcrsc"), right_u)
-        add_schema_permissions(client, "network_project", User("robot-vmagent-rtc"), right_u)
-
-        add_schema_permissions(client, "account", User("robot-yp-export"), right_crw)
-        add_schema_permissions(client, "account", User("nanny-robot"), right_u)
-        add_schema_permissions(client, "account", User("robot-drug-deploy"), right_u)
-        add_schema_permissions(client, "account", User("robot-mcrsc"), right_u)
-        add_schema_permissions(client, "account", User("robot-rsc"), right_u)
-        add_schema_permissions(client, "account", User("robot-vmagent-rtc"), right_u)
-
-        add_schema_permissions(client, "internet_address", User("robot-yp-inet-mngr"), right_crwu)
-        add_schema_permissions(client, "ip4_address_pool", User("robot-yp-inet-mngr"), right_crwu)
-
-        add_schema_permissions(client, "endpoint_set", User("robot-srv-ctl"), right_rw)
-
-        add_schema_permissions(client, "replica_set", User("robot-rsc"), right_rw)
-        add_schema_permissions(client, "replica_set", User("robot-drug-deploy"), right_crwu)
-
-        add_schema_permissions(client, "multi_cluster_replica_set", User("robot-mcrsc"), right_rw)
-        add_schema_permissions(
-            client, "multi_cluster_replica_set", User("robot-drug-deploy"), right_crw
-        )
-
-        add_schema_permissions(client, "stage", User("robot-drug-deploy"), right_rw)
-
-        add_schema_permissions(client, "dynamic_resource", User("robot-yp-dynresource"), right_crwu)
-
-        add_schema_permissions(client, "pod_disruption_budget", User("robot-yt-odin"), right_c)
-
-        # DEPLOY-1117
-        add_schema_permissions(client, "dynamic_resource", Group("everyone"), right_crwu)
-
-        if cluster == "xdc":
-            add_schema_permissions(client, "dns_record_set", User("robot-gencfg"), right_crw)
-
-        # YPADMIN-233
-        if cluster in ("sas-test", "man-pre"):
-            add_schema_permissions(client, "stage", User("robot-deploy-test"), right_rw)
-            add_schema_permissions(client, "account", User("robot-deploy-test"), right_u)
-
-        add_schema_permissions(client, "dns_record_set", User("robot-ydnxdns-export"), right_crwu)
-
-        # YPADMIN-257
-        add_schema_permissions(client, "pod_disruption_budget", User("nanny-robot"), right_crw)
-        if cluster in ("man-pre", "sas-test"):
-            add_schema_permissions(
-                client, "pod_disruption_budget", Group("abc:service-scope:730:5"), right_crw,
-            )
-
-        # YPADMIN-266
-        if cluster in ("sas-test", "man-pre"):
-            add_schema_permissions(client, "network_project", User("robot-deploy-test"), right_u)
-        add_schema_permissions(client, "network_project", User("robot-drug-deploy"), right_u)
-
-        if cluster == "sas-test":
-            # YPADMIN-282
-            add_schema_permissions(client, "group", User("robot-deploy-auth-t"), right_c)
-            # YPSUPPORT-69
-            add_schema_permissions(client, "dns_record_set", User("robot-dns"), right_c)
-
-        if cluster in ("sas-test", "man-pre"):
-            # YPSUPPORT-49
-            add_schema_permissions(client, "stage", User("robot-deploy-auth-t"), right_rw)
-            add_schema_permissions(client, "account", User("robot-deploy-auth-t"), right_u)
-
-            # YPSUPPORT-74
-            add_schema_permissions(client, "project", User("robot-deploy-auth-t"), right_rw)
-
-        if cluster == "xdc":
-            # YPSUPPORT-49
-            add_schema_permissions(client, "stage", User("robot-deploy-auth"), right_rw)
-            add_schema_permissions(client, "account", User("robot-deploy-auth"), right_u)
-
-            # YPSUPPORT-74
-            add_schema_permissions(client, "project", User("robot-deploy-auth"), right_rw)
-
-        # YPSUPPORT-48
-        if cluster in ("sas-test", "man-pre"):
-            add_schema_permissions(
-                client, "resource_cache", Group("abc:service-scope:3494:5"), right_crw,
-            )
-
-        # YPSUPPORT-70
-        add_schema_permissions(
-            client, "resource_cache", User("robot-rcc"), right_rw,
-        )
-
-        # YPSUPPORT-71
-        add_schema_permissions(
-            client, "horizontal_pod_autoscaler", User("robot-yd-hpa-ctl"), right_rw,
-        )
-
-        # YPSUPPORT-72
-        if cluster == "xdc":
-            add_schema_permissions(
-                client, "dns_record_set", User("mcden"), right_crw,
-            )
-
-        # YPSUPPORT-75
-        if cluster != "xdc":
-            add_schema_permissions(
-                client, "horizontal_pod_autoscaler", User("robot-drug-deploy"), right_c,
-            )
-            add_schema_permissions(
-                client, "horizontal_pod_autoscaler", Group("deploy-public-object-creators"), right_c,
-            )
-
-        if cluster == "sas-test":
-            for object_type in ("persistent_volume", "persistent_disk", "persistent_volume_claim"):
-                add_schema_permissions(
-                    client, object_type, Group("everyone"), right_c,
-                )
+        add_schema_permissions(client, cluster)
 
         create_accounts(client, cluster, accounts)
 
