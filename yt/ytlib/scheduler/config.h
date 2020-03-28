@@ -121,8 +121,6 @@ public:
     // Specifies resource limits in absolute values.
     TResourceLimitsConfigPtr ResourceLimits;
 
-    // Specifies guaranteed resources in terms of a share of all cluster resources.
-    std::optional<double> MinShareRatio;
     // Specifies guaranteed resources in absolute values.
     TResourceLimitsConfigPtr MinShareResources;
 

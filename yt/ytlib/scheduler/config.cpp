@@ -1334,9 +1334,6 @@ TSchedulableConfig::TSchedulableConfig()
     RegisterParameter("resource_limits", ResourceLimits)
         .DefaultNew();
 
-    RegisterParameter("min_share_ratio", MinShareRatio)
-        .Default()
-        .InRange(0.0, 1.0);
     RegisterParameter("min_share_resources", MinShareResources)
         .DefaultNew();
 

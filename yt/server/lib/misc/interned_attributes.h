@@ -204,7 +204,6 @@
     XX(MinKey, min_key) \
     XX(MinSharePreemptionTimeoutLimit, min_share_preemption_timeout_limit) \
     XX(MinSharePreemptionTimeout, min_share_preemption_timeout) \
-    XX(MinShareRatio, min_share_ratio) \
     XX(MinShareResources, min_share_resources) \
     XX(MinTabletSize, min_tablet_size) \
     XX(MinTimestamp, min_timestamp) \

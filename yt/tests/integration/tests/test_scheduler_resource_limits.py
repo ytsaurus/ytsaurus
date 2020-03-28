@@ -249,7 +249,7 @@ class TestSchedulerGpu(YTEnvSetup):
         gpu_pool_orchid_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/fair_share_info/pools/gpu_pool"
         wait(lambda: exists(gpu_pool_orchid_path))
         wait(lambda: get(gpu_pool_orchid_path + "/min_share_resources/gpu") == 1)
-        wait(lambda: get(gpu_pool_orchid_path + "/recursive_min_share_ratio") == 1.0)
+        wait(lambda: get(gpu_pool_orchid_path + "/min_share_ratio") == 1.0)
 
 ###############################################################################################
 

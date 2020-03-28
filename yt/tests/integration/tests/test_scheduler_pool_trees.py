@@ -382,12 +382,12 @@ class TestTentativePoolTrees(YTEnvSetup):
         return other_nodes
 
     def _create_spec(self):
-        spec = {
+        return {
             "pool_trees": ["default"],
             "tentative_pool_trees": ["other"],
             "scheduling_options_per_pool_tree": {
                 "default": {
-                    "min_share_ratio": 0.37
+                    "min_share_resources": {"cpu": 1}
                 },
                 "other": {
                     "pool": "superpool"
@@ -400,7 +400,6 @@ class TestTentativePoolTrees(YTEnvSetup):
             },
             "data_size_per_job": 1,
         }
-        return spec
 
     def _iter_running_jobs(self, op, tentative_nodes):
         jobs_path = op.get_path() + "/controller_orchid/running_jobs"
