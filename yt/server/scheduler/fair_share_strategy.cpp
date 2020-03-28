@@ -687,6 +687,10 @@ public:
             return;
         }
 
+        if (auto delay = Config->StrategyTestingOptions->DelayInsideFairShareUpdate) {
+            TDelayedExecutor::WaitForDuration(*delay);
+        }
+
         THashMap<TString, IFairShareTreeSnapshotPtr> snapshots;
         std::vector<TError> errors;
 
@@ -698,7 +702,16 @@ public:
             }
         }
 
-        TreeIdToSnapshot_.Exchange(std::move(snapshots));
+        {
+            // NB(eshcherbin): Make sure that snapshots in strategy and snapshots in trees are updated atomically.
+            // This is necessary to maintain consistency between strategy and trees.
+            TForbidContextSwitchGuard guard;
+
+            TreeIdToSnapshot_.Exchange(std::move(snapshots));
+            for (const auto& [_, tree] : idToTree) {
+                tree->FinishFairShareUpdate();
+            }
+        }
 
         if (!errors.empty()) {
             auto error = TError("Found pool configuration issues during fair share update")

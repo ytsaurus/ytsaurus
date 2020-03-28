@@ -127,6 +127,7 @@ static constexpr int MaxNodeShardCount = 32;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TStrategyTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyOperationControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyTreeConfig)
