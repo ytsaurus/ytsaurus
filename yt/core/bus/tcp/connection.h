@@ -160,6 +160,7 @@ private:
     TString NetworkName_;
     TTcpDispatcherCountersPtr Counters_;
     bool GenerateChecksums_ = true;
+    bool ConnectionCounterIncremented_ = false;
 
     // Only used by client sockets.
     int Port_ = 0;
@@ -173,14 +174,15 @@ private:
     bool TerminateRequested_ = false;
     SOCKET Socket_ = INVALID_SOCKET;
 
+    bool Unregistered_ = false;
     TError CloseError_;
 
     NNet::IAsyncDialerSessionPtr DialerSession_;
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
-    std::atomic<bool> PendingRead_ = {false};
-    std::atomic<bool> PendingWrite_ = {false};
+    std::atomic<bool> ArmedForQueuedMessages_ = {false};
+    std::atomic<bool> HasUnsentData_ = {false};
 
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
     std::atomic<size_t> PendingOutPayloadBytes_ = {0};
@@ -207,9 +209,9 @@ private:
     std::atomic<TTosLevel> TosLevel_ = {DefaultTosLevel};
 
 
-    void Open();
-    void Close();
+    void Cleanup();
 
+    void Open();
     void ResolveAddress();
     void Abort(const TError& error);
 
@@ -219,6 +221,7 @@ private:
 
     void ConnectSocket(const NNet::TNetworkAddress& address);
     void OnDialerFinished(const TErrorOr<SOCKET>& socketOrError);
+    void CloseSocket();
 
     void OnAddressResolveFinished(const TErrorOr<NNet::TNetworkAddress>& result);
     void OnAddressResolved(const NNet::TNetworkAddress& address);
@@ -260,7 +263,13 @@ private:
     void DiscardOutcomingMessages(const TError& error);
     void DiscardUnackedMessages(const TError& error);
 
-    void UpdateConnectionCount(int delta);
+    void UnregisterFromPoller();
+
+    void ArmPollerForWrite();
+    void DoArmPoller();
+    void RearmPoller();
+
+    void UpdateConnectionCount(bool increment);
     void UpdatePendingOut(int countDelta, i64 sizeDelta);
 
     void InitSocketTosLevel(int tosLevel);
