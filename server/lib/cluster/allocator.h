@@ -18,6 +18,7 @@ DEFINE_ENUM(EAllocatorConstraintKind,
     (IP6Subnet)
     (Slot)
     (Gpu)
+    (DaemonSet)
 );
 
 using TAllocatorConstraintCounters = TEnumIndexedVector<EAllocatorConstraintKind, int>;

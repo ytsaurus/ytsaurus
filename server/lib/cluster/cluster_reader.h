@@ -16,20 +16,23 @@ struct IClusterReader
 
     virtual NObjects::TTimestamp StartTransaction() = 0;
 
+    virtual void ReadAccounts(
+        TObjectConsumer<TAccount> accountConsumer) = 0;
+
+    virtual void ReadDaemonSets(
+        TObjectConsumer<TDaemonSet> daemonSetConsumer) = 0;
+
     virtual void ReadIP4AddressPools(
         TObjectConsumer<TIP4AddressPool> ip4AddressPool) = 0;
 
     virtual void ReadInternetAddresses(
         TObjectConsumer<TInternetAddress> internetAddressConsumer) = 0;
 
-    virtual void ReadNodes(
-        TObjectConsumer<TNode> nodeConsumer) = 0;
-
-    virtual void ReadAccounts(
-        TObjectConsumer<TAccount> accountConsumer) = 0;
-
     virtual void ReadNodeSegments(
         TObjectConsumer<TNodeSegment> nodeSegmentConsumer) = 0;
+
+    virtual void ReadNodes(
+        TObjectConsumer<TNode> nodeConsumer) = 0;
 
     virtual void ReadPodDisruptionBudgets(
         TObjectConsumer<TPodDisruptionBudget> podDisruptionBudgetConsumer) = 0;

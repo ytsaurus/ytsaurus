@@ -13,6 +13,7 @@ namespace NYP::NServer::NCluster {
 
 DECLARE_REFCOUNTED_CLASS(TCluster)
 class TAccount;
+class TDaemonSet;
 class TIP4AddressPool;
 class TInternetAddress;
 class TNode;

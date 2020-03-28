@@ -29,10 +29,14 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TNode*>, Nodes);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TNode*>, SchedulableNodes);
 
+    void SetNodeFilterCache(std::unique_ptr<TObjectFilterCache<TNode>> cache);
+    TObjectFilterCache<TNode>* GetNodeFilterCache() const;
+
     void SetSchedulableNodeFilterCache(std::unique_ptr<TObjectFilterCache<TNode>> cache);
     TObjectFilterCache<TNode>* GetSchedulableNodeFilterCache() const;
 
 private:
+    std::unique_ptr<TObjectFilterCache<TNode>> NodeFilterCache_;
     std::unique_ptr<TObjectFilterCache<TNode>> SchedulableNodeFilterCache_;
 };
 

@@ -30,6 +30,7 @@
 #include <yp/server/lib/cluster/internet_address.h>
 #include <yp/server/lib/cluster/node.h>
 #include <yp/server/lib/cluster/pod.h>
+#include <yp/server/lib/cluster/pod_set.h>
 #include <yp/server/lib/cluster/resource.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -120,6 +121,7 @@ private:
                 Profiler.AppendPath("/cluster_snapshot"),
                 CreateClusterReader(bootstrap),
                 CreateLabelFilterEvaluator(bootstrap)))
+            , DaemonScheduleQueue(New<TScheduleQueue>())
             , ScheduleQueue(New<TScheduleQueue>())
         { }
 
@@ -128,6 +130,7 @@ private:
         TPodDisruptionBudgetControllerPtr PodDisruptionBudgetController;
         TPodExponentialBackoffPolicyPtr FailedAllocationBackoffPolicy;
         NCluster::TClusterPtr Cluster;
+        TScheduleQueuePtr DaemonScheduleQueue;
         TScheduleQueuePtr ScheduleQueue;
         TAllocationPlanProfiling AllocationPlanProfiling;
     };
@@ -230,9 +233,14 @@ private:
                     }
                 }
             }
+            if (shouldRunStage(ESchedulerLoopStage::ScheduleDaemons)) {
+                PROFILE_TIMING("/time/schedule_daemons") {
+                    SchedulePods(Context_.Config->ScheduleDaemonsStage, Context_.DaemonScheduleQueue);
+                }
+            }
             if (shouldRunStage(ESchedulerLoopStage::SchedulePods)) {
                 PROFILE_TIMING("/time/schedule_pods") {
-                    SchedulePods(Context_.Config->SchedulePodsStage);
+                    SchedulePods(Context_.Config->SchedulePodsStage, Context_.ScheduleQueue);
                 }
             }
             PROFILE_TIMING("/time/commit") {
@@ -250,6 +258,14 @@ private:
 
         TAllocationPlan AllocationPlan_;
 
+        void Enqueue(const NCluster::TPod* pod, TInstant deadline)
+        {
+            if (pod->GetPodSet()->GetDaemonSet() != nullptr) {
+                Context_.DaemonScheduleQueue->Enqueue(pod->GetId(), deadline);
+            } else {
+                Context_.ScheduleQueue->Enqueue(pod->GetId(), deadline);
+            }
+        }
 
         void ReconcileState()
         {
@@ -263,7 +279,7 @@ private:
                 if (!pod->GetNode()) {
                     YT_LOG_DEBUG("Adding pod to schedule queue since it is not assigned to any node (PodId: %v)",
                         pod->GetId());
-                    Context_.ScheduleQueue->Enqueue(pod->GetId(), now);
+                    Enqueue(pod, now);
                 }
             }
 
@@ -334,18 +350,16 @@ private:
 
         void BackoffScheduling(const NCluster::TPod* pod)
         {
-            const auto& podId = pod->GetId();
-
             auto backoffDuration = Context_.FailedAllocationBackoffPolicy->GetNextBackoffDuration(pod);
             auto deadline = TInstant::Now() + backoffDuration;
             YT_LOG_DEBUG("Backing off pod scheduling (PodId: %v, BackoffDuration: %v, Deadline: %v)",
-                podId,
+                pod->GetId(),
                 backoffDuration,
                 deadline);
-            Context_.ScheduleQueue->Enqueue(podId, deadline);
+            Enqueue(pod, deadline);
         }
 
-        void SchedulePods(const TSchedulePodsStageConfigPtr& config)
+        void SchedulePods(const TSchedulePodsStageConfigPtr& config, TScheduleQueuePtr queue)
         {
             YT_LOG_DEBUG("Started scheduling pods");
 
@@ -365,7 +379,7 @@ private:
                     break;
                 }
 
-                auto podId = Context_.ScheduleQueue->Dequeue(startInstant);
+                auto podId = queue->Dequeue(startInstant);
                 if (!podId) {
                     break;
                 }
@@ -571,7 +585,7 @@ private:
                     YT_LOG_DEBUG(ex, "Error committing pods assignment; will reschedule");
                     for (const auto& variantRequest : perNodePlan.Requests) {
                         if (auto request = std::get_if<TAllocationPlan::TPodRequest>(&variantRequest); request && request->Type == EAllocationPlanPodRequestType::AssignPodToNode) {
-                            Context_.ScheduleQueue->Enqueue(request->Pod->GetId(), now);
+                            Enqueue(request->Pod, now);
                         }
                     }
                 }
@@ -719,4 +733,3 @@ TFuture<void> TScheduler::UpdateConfig(TSchedulerConfigPtr config)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYP::NServer::NScheduler
-

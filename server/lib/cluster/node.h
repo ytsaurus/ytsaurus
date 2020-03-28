@@ -141,6 +141,9 @@ public:
     using TGpuResources = SmallVector<TGpuResource, NObjects::TypicalGpuResourceCountPerNode>;
     DEFINE_BYREF_RW_PROPERTY(TGpuResources, GpuResources);
 
+    using TDaemonSetPodMap = THashMap<TDaemonSet*, TPod*>;
+    DEFINE_BYREF_RW_PROPERTY(TDaemonSetPodMap, DaemonSetPods);
+
     bool CanAllocateAntiaffinityVacancies(const TPod* pod) const;
     void AllocateAntiaffinityVacancies(const TPod* pod);
 

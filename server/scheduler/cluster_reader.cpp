@@ -14,6 +14,7 @@
 
 #include <yp/server/lib/cluster/account.h>
 #include <yp/server/lib/cluster/cluster_reader.h>
+#include <yp/server/lib/cluster/daemon_set.h>
 #include <yp/server/lib/cluster/internet_address.h>
 #include <yp/server/lib/cluster/ip4_address_pool.h>
 #include <yp/server/lib/cluster/node.h>
@@ -41,6 +42,7 @@ using namespace NCluster;
 using namespace NMaster;
 
 using NObjects::AccountsTable;
+using NObjects::DaemonSetsTable;
 using NObjects::IP4AddressPoolsTable;
 using NObjects::InternetAddressesTable;
 using NObjects::NodeSegmentsTable;
@@ -69,6 +71,18 @@ public:
         return Transaction_->GetStartTimestamp();
     }
 
+    virtual void ReadAccounts(
+        TObjectConsumer<TAccount> accountConsumer) override
+    {
+        ReadImpl(std::move(accountConsumer), "accounts");
+    }
+
+    virtual void ReadDaemonSets(
+        TObjectConsumer<TDaemonSet> daemonSetConsumer) override
+    {
+        ReadImpl(std::move(daemonSetConsumer), "daemon sets");
+    }
+
     virtual void ReadIP4AddressPools(
         TObjectConsumer<TIP4AddressPool> ip4AddressPoolConsumer) override
     {
@@ -85,12 +99,6 @@ public:
         TObjectConsumer<TNode> nodeConsumer) override
     {
         ReadImpl(std::move(nodeConsumer), "nodes");
-    }
-
-    virtual void ReadAccounts(
-        TObjectConsumer<TAccount> accountConsumer) override
-    {
-        ReadImpl(std::move(accountConsumer), "accounts");
     }
 
     virtual void ReadNodeSegments(
@@ -185,6 +193,78 @@ private:
 
 // NB! Gcc does not allow to define GetObjectQueryString<> and ParseObjectFromRow<>
 //     template specializations directly inside TClusterReader body.
+
+template <>
+TString TClusterReader::GetObjectQueryString<TAccount>()
+{
+    const auto& ytConnector = Bootstrap_->GetYTConnector();
+    return Format(
+        "[%v], [%v], [%v] from [%v] where is_null([%v])",
+        AccountsTable.Fields.Meta_Id.Name,
+        AccountsTable.Fields.Labels.Name,
+        AccountsTable.Fields.Spec_ParentId.Name,
+        ytConnector->GetTablePath(&AccountsTable),
+        AccountsTable.Fields.Meta_RemovalTime.Name);
+}
+
+template <>
+std::unique_ptr<TAccount> TClusterReader::ParseObjectFromRow<TAccount>(
+    TUnversionedRow row)
+{
+    TObjectId accountId;
+    TYsonString labels;
+    TObjectId parentId;
+    FromUnversionedRow(
+        row,
+        &accountId,
+        &labels,
+        &parentId);
+
+    return std::make_unique<TAccount>(
+        std::move(accountId),
+        std::move(labels),
+        std::move(parentId));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+TString TClusterReader::GetObjectQueryString<TDaemonSet>()
+{
+    const auto& ytConnector = Bootstrap_->GetYTConnector();
+    return Format(
+        "[%v], [%v], [%v], [%v] from [%v] where is_null([%v])",
+        DaemonSetsTable.Fields.Meta_Id.Name,
+        DaemonSetsTable.Fields.Labels.Name,
+        DaemonSetsTable.Fields.Meta_PodSetId.Name,
+        DaemonSetsTable.Fields.Spec.Name,
+        ytConnector->GetTablePath(&DaemonSetsTable),
+        DaemonSetsTable.Fields.Meta_RemovalTime.Name);
+}
+
+template <>
+std::unique_ptr<TDaemonSet> TClusterReader::ParseObjectFromRow<TDaemonSet>(
+    TUnversionedRow row)
+{
+    TObjectId daemonSetId;
+    TYsonString labels;
+    TObjectId podSetId;
+    NClient::NApi::NProto::TDaemonSetSpec spec;
+    FromUnversionedRow(
+        row,
+        &daemonSetId,
+        &labels,
+        &podSetId,
+        &spec);
+
+    return std::make_unique<TDaemonSet>(
+        std::move(daemonSetId),
+        std::move(labels),
+        std::move(podSetId),
+        std::move(spec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <>
 TString TClusterReader::GetObjectQueryString<TIP4AddressPool>()
@@ -303,40 +383,6 @@ std::unique_ptr<TNode> TClusterReader::ParseObjectFromRow<TNode>(
         statusEtc.alerts(),
         std::move(*statusEtc.mutable_maintenance()),
         std::move(spec));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <>
-TString TClusterReader::GetObjectQueryString<TAccount>()
-{
-    const auto& ytConnector = Bootstrap_->GetYTConnector();
-    return Format(
-        "[%v], [%v], [%v] from [%v] where is_null([%v])",
-        AccountsTable.Fields.Meta_Id.Name,
-        AccountsTable.Fields.Labels.Name,
-        AccountsTable.Fields.Spec_ParentId.Name,
-        ytConnector->GetTablePath(&AccountsTable),
-        AccountsTable.Fields.Meta_RemovalTime.Name);
-}
-
-template <>
-std::unique_ptr<TAccount> TClusterReader::ParseObjectFromRow<TAccount>(
-    TUnversionedRow row)
-{
-    TObjectId accountId;
-    TYsonString labels;
-    TObjectId parentId;
-    FromUnversionedRow(
-        row,
-        &accountId,
-        &labels,
-        &parentId);
-
-    return std::make_unique<TAccount>(
-        std::move(accountId),
-        std::move(labels),
-        std::move(parentId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

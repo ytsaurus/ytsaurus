@@ -69,6 +69,7 @@ DEFINE_ENUM(ESchedulerLoopStage,
     (RevokePodsWithAcknowledgedEviction)
     (RemoveOrphanedAllocations)
     (AcknowledgeNodeMaintenance)
+    (ScheduleDaemons)
     (SchedulePods)
 );
 

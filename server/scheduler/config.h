@@ -207,6 +207,7 @@ public:
     TGlobalResourceAllocatorConfigPtr GlobalResourceAllocator;
     TPodDisruptionBudgetControllerConfigPtr PodDisruptionBudgetController;
     NCluster::TClusterConfigPtr Cluster;
+    TSchedulePodsStageConfigPtr ScheduleDaemonsStage;
     TSchedulePodsStageConfigPtr SchedulePodsStage;
 
     bool IsStageDisabled(ESchedulerLoopStage stage) const
@@ -233,6 +234,8 @@ public:
         RegisterParameter("pod_disruption_budget_controller", PodDisruptionBudgetController)
             .DefaultNew();
         RegisterParameter("cluster", Cluster)
+            .DefaultNew();
+        RegisterParameter("schedule_daemons_stage", ScheduleDaemonsStage)
             .DefaultNew();
         RegisterParameter("schedule_pods_stage", SchedulePodsStage)
             .DefaultNew();

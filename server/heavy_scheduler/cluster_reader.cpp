@@ -5,6 +5,7 @@
 
 #include <yp/server/lib/cluster/account.h>
 #include <yp/server/lib/cluster/cluster_reader.h>
+#include <yp/server/lib/cluster/daemon_set.h>
 #include <yp/server/lib/cluster/internet_address.h>
 #include <yp/server/lib/cluster/ip4_address_pool.h>
 #include <yp/server/lib/cluster/node.h>
@@ -52,6 +53,86 @@ struct TSelectObjectTraits;
 
 template <class TObject>
 struct TParseObjectTraits;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct TSelectObjectTraits<TAccount>
+{
+    static const std::vector<NYPath::TYPath>& GetPaths()
+    {
+        static const std::vector<NYPath::TYPath> paths{
+            "/meta/id",
+            "/labels",
+            "/spec/parent_id"};
+        return paths;
+    }
+};
+
+template <>
+struct TParseObjectTraits<TAccount>
+{
+    static std::unique_ptr<TAccount> Parse(const std::vector<TPayload>& payloads)
+    {
+        NObjects::TObjectId id;
+        NYson::TYsonString labels;
+        NObjects::TObjectId parentId;
+
+        ParsePayloads(
+            payloads,
+            &id,
+            &labels,
+            &parentId);
+
+        return std::make_unique<TAccount>(
+            std::move(id),
+            std::move(labels),
+            std::move(parentId));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+struct TSelectObjectTraits<TDaemonSet>
+{
+    static const std::vector<NYPath::TYPath>& GetPaths()
+    {
+        static const std::vector<NYPath::TYPath> paths{
+            "/meta/id",
+            "/labels",
+            "/spec",
+            "/meta/pod_set_id"};
+        return paths;
+    }
+};
+
+template <>
+struct TParseObjectTraits<TDaemonSet>
+{
+    static std::unique_ptr<TDaemonSet> Parse(const std::vector<TPayload>& payloads)
+    {
+        NObjects::TObjectId id;
+        NYson::TYsonString labels;
+        NObjects::TObjectId podSetId;
+        NClient::NApi::NProto::TDaemonSetSpec spec;
+
+        ParsePayloads(
+            payloads,
+            &id,
+            &labels,
+            &podSetId,
+            &spec);
+
+        return std::make_unique<TDaemonSet>(
+            std::move(id),
+            std::move(labels),
+            std::move(podSetId),
+            std::move(spec));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <>
 struct TSelectObjectTraits<TIP4AddressPool>
@@ -184,43 +265,6 @@ struct TParseObjectTraits<TNode>
             NObjects::TNodeAlerts(), // TODO(bidzilya): Support node alerts.
             std::move(maintenance),
             std::move(spec));
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <>
-struct TSelectObjectTraits<TAccount>
-{
-    static const std::vector<NYPath::TYPath>& GetPaths()
-    {
-        static const std::vector<NYPath::TYPath> paths{
-            "/meta/id",
-            "/labels",
-            "/spec/parent_id"};
-        return paths;
-    }
-};
-
-template <>
-struct TParseObjectTraits<TAccount>
-{
-    static std::unique_ptr<TAccount> Parse(const std::vector<TPayload>& payloads)
-    {
-        NObjects::TObjectId id;
-        NYson::TYsonString labels;
-        NObjects::TObjectId parentId;
-
-        ParsePayloads(
-            payloads,
-            &id,
-            &labels,
-            &parentId);
-
-        return std::make_unique<TAccount>(
-            std::move(id),
-            std::move(labels),
-            std::move(parentId));
     }
 };
 
@@ -527,6 +571,18 @@ public:
         return Timestamp_;
     }
 
+    virtual void ReadAccounts(
+        TObjectConsumer<TAccount> accountConsumer) override
+    {
+        ReadImpl<TAccount>(std::move(accountConsumer));
+    }
+
+    virtual void ReadDaemonSets(
+        TObjectConsumer<TDaemonSet> daemonSetConsumer) override
+    {
+        ReadImpl<TDaemonSet>(std::move(daemonSetConsumer));
+    }
+
     virtual void ReadIP4AddressPools(
         TObjectConsumer<TIP4AddressPool> ip4AddressPoolConsumer) override
     {
@@ -543,12 +599,6 @@ public:
         TObjectConsumer<TNode> nodeConsumer) override
     {
         ReadImpl<TNode>(std::move(nodeConsumer));
-    }
-
-    virtual void ReadAccounts(
-        TObjectConsumer<TAccount> accountConsumer) override
-    {
-        ReadImpl<TAccount>(std::move(accountConsumer));
     }
 
     virtual void ReadNodeSegments(

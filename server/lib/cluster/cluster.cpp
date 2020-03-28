@@ -4,6 +4,7 @@
 #include "allocation_statistics.h"
 #include "cluster_reader.h"
 #include "config.h"
+#include "daemon_set.h"
 #include "internet_address.h"
 #include "ip4_address_pool.h"
 #include "node.h"
@@ -220,14 +221,25 @@ public:
             }
 
             InitializeResources();
-            InitializeNodeResources();
 
+            PROFILE_TIMING("/time/read_daemon_sets") {
+                Reader_->ReadDaemonSets(
+                    [this] (std::unique_ptr<TDaemonSet> daemonSet) {
+                        RegisterObject(DaemonSetMap_, std::move(daemonSet));
+                    });
+            }
+
+            InitializeDaemonSets();
+
+            InitializeNodeResources();
             InitializeNodePods();
             InitializePodSetPods();
             InitializeAccountPods();
             InitializeAntiaffinityVacancies();
             InitializeIP4AddressPools();
             InitializePodIP4AddressPools();
+            InitializeDaemonSetPodSets();
+            InitializeNodeDaemonSetPods();
 
             YT_LOG_INFO(
                 "Finished loading cluster snapshot ("
@@ -240,7 +252,8 @@ public:
                 "InternetAddressCount: %v, "
                 "IP4AddressPoolCount: %v, "
                 "ResourceCount: %v, "
-                "TopologyZoneCount: %v)",
+                "TopologyZoneCount: %v, "
+                "DaemonSetCount: %v)",
                 NodeMap_.size(),
                 PodMap_.size(),
                 PodDisruptionBudgetMap_.size(),
@@ -250,7 +263,8 @@ public:
                 InternetAddressMap_.size(),
                 IP4AddressPoolMap_.size(),
                 ResourceMap_.size(),
-                TopologyZoneMap_.size());
+                TopologyZoneMap_.size(),
+                DaemonSetMap_.size());
         } catch (const std::exception& ex) {
             Clear();
             THROW_ERROR_EXCEPTION("Error loading cluster snapshot")
@@ -267,14 +281,15 @@ private:
     TClusterConfigPtr Config_;
 
     NObjects::TTimestamp Timestamp_ = NObjects::NullTimestamp;
+    THashMap<TObjectId, std::unique_ptr<TAccount>> AccountMap_;
+    THashMap<TObjectId, std::unique_ptr<TDaemonSet>> DaemonSetMap_;
+    THashMap<TObjectId, std::unique_ptr<TIP4AddressPool>> IP4AddressPoolMap_;
+    THashMap<TObjectId, std::unique_ptr<TInternetAddress>> InternetAddressMap_;
     THashMap<TObjectId, std::unique_ptr<TNode>> NodeMap_;
+    THashMap<TObjectId, std::unique_ptr<TNodeSegment>> NodeSegmentMap_;
     THashMap<TObjectId, std::unique_ptr<TPod>> PodMap_;
     THashMap<TObjectId, std::unique_ptr<TPodDisruptionBudget>> PodDisruptionBudgetMap_;
     THashMap<TObjectId, std::unique_ptr<TPodSet>> PodSetMap_;
-    THashMap<TObjectId, std::unique_ptr<TNodeSegment>> NodeSegmentMap_;
-    THashMap<TObjectId, std::unique_ptr<TAccount>> AccountMap_;
-    THashMap<TObjectId, std::unique_ptr<TInternetAddress>> InternetAddressMap_;
-    THashMap<TObjectId, std::unique_ptr<TIP4AddressPool>> IP4AddressPoolMap_;
     THashMap<TObjectId, std::unique_ptr<TResource>> ResourceMap_;
 
     THashMap<std::pair<TString, TString>, std::unique_ptr<TTopologyZone>> TopologyZoneMap_;
@@ -300,6 +315,34 @@ private:
         }
     }
 
+    void InitializeDaemonSets()
+    {
+        std::vector<TObjectId> invalidDaemonSetIds;
+        for (const auto& [daemonSetId, daemonSet] : DaemonSetMap_) {
+            const auto& podSetId = daemonSet->PodSetId();
+            if (!podSetId) {
+                // Unattached DaemonSets are permitted, but ignored
+                invalidDaemonSetIds.push_back(daemonSetId);
+                continue;
+            }
+
+            auto* podSet = FindPodSet(podSetId);
+            if (!podSet) {
+                YT_LOG_WARNING("DaemonSet refers to an unknown pod set (DaemonSetId: %v, PodSetId: %v)",
+                    daemonSetId,
+                    podSetId);
+                invalidDaemonSetIds.push_back(daemonSetId);
+                OnValidationError();
+                continue;
+            }
+
+            daemonSet->SetPodSet(podSet);
+        }
+
+        for (const auto& invalidDaemonSetId : invalidDaemonSetIds) {
+            YT_VERIFY(DaemonSetMap_.erase(invalidDaemonSetId) > 0);
+        }
+    }
 
     void InitializeInternetAddresses()
     {
@@ -386,12 +429,17 @@ private:
                 continue;
             }
 
+            auto nodeFilterCache = std::make_unique<TObjectFilterCache<TNode>>(
+                NodeFilterEvaluator_,
+                nodesOrError.Value());
+
             auto schedulableNodeFilterCache = std::make_unique<TObjectFilterCache<TNode>>(
                 NodeFilterEvaluator_,
                 schedulableNodesOrError.Value());
 
             nodeSegment->Nodes() = std::move(nodesOrError).Value();
             nodeSegment->SchedulableNodes() = std::move(schedulableNodesOrError).Value();
+            nodeSegment->SetNodeFilterCache(std::move(nodeFilterCache));
             nodeSegment->SetSchedulableNodeFilterCache(std::move(schedulableNodeFilterCache));
         }
         for (const auto& invalidNodeSegmentId : invalidNodeSegmentIds) {
@@ -677,6 +725,53 @@ private:
         }
     }
 
+    void InitializeDaemonSetPodSets()
+    {
+        for (const auto& [daemonSetId, daemonSet] : DaemonSetMap_) {
+            auto* podSet = daemonSet->GetPodSet();
+            if (podSet->GetDaemonSet() != nullptr) {
+                YT_LOG_WARNING("PodSet %v has two DaemonSets: %v and %v",
+                    podSet->GetId(),
+                    podSet->GetDaemonSet()->GetId(),
+                    daemonSetId);
+                OnValidationError();
+                continue;
+            }
+            podSet->SetDaemonSet(daemonSet.get());
+        }
+    }
+
+    void InitializeNodeDaemonSetPods()
+    {
+        for (const auto& [daemonSetId, daemonSet] : DaemonSetMap_) {
+            auto* podSet = daemonSet->GetPodSet();
+            auto* nodeSegment = podSet->GetNodeSegment();
+            auto* cache = nodeSegment->GetNodeFilterCache();
+            NObjects::TObjectFilter filter{podSet->NodeFilter()};
+            auto nodesOrError = cache->Get(filter);
+            if (!nodesOrError.IsOK()) {
+                YT_LOG_ERROR(nodesOrError,
+                    "Error filtering nodes for DaemonSet (DaemonSetId: %v, PodSetId: %v, "
+                    "NodeSegmentId: %v, NodeSegmentFilter: %v)",
+                    daemonSetId,
+                    podSet->GetId(),
+                    nodeSegment->GetId(),
+                    podSet->NodeFilter());
+                continue;
+            }
+            for (auto* node : nodesOrError.Value()) {
+                TPod* daemonSetPod = nullptr;
+                for (auto* pod : node->Pods()) {
+                    if (pod->GetPodSet() == podSet) {
+                        daemonSetPod = pod;
+                        break;
+                    }
+                }
+                node->DaemonSetPods()[daemonSet.get()] = daemonSetPod;
+            }
+        }
+    }
+
     std::vector<TNode*> GetSchedulableNodes()
     {
         std::vector<TNode*> result;
@@ -755,17 +850,18 @@ private:
 
     void Clear()
     {
-        NodeMap_.clear();
-        PodMap_.clear();
-        PodDisruptionBudgetMap_.clear();
-        PodSetMap_.clear();
         AccountMap_.clear();
-        InternetAddressMap_.clear();
+        DaemonSetMap_.clear();
         IP4AddressPoolMap_.clear();
-        TopologyZoneMap_.clear();
-        TopologyKeyZoneMap_.clear();
+        InternetAddressMap_.clear();
+        NodeMap_.clear();
         NodeSegmentMap_.clear();
+        PodDisruptionBudgetMap_.clear();
+        PodMap_.clear();
+        PodSetMap_.clear();
         ResourceMap_.clear();
+        TopologyKeyZoneMap_.clear();
+        TopologyZoneMap_.clear();
         Timestamp_ = NullTimestamp;
         Config_.Reset();
     }

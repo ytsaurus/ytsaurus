@@ -39,6 +39,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TNodeSegment*, NodeSegment);
     DEFINE_BYVAL_RW_PROPERTY(TAccount*, Account);
     DEFINE_BYVAL_RW_PROPERTY(TPodDisruptionBudget*, PodDisruptionBudget);
+    DEFINE_BYVAL_RW_PROPERTY(TDaemonSet*, DaemonSet);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

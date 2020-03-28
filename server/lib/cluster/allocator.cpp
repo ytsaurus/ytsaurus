@@ -1,6 +1,7 @@
 #include "allocator.h"
 
 #include "cluster.h"
+#include "daemon_set.h"
 #include "node.h"
 #include "pod.h"
 #include "resource_capacities.h"
@@ -112,6 +113,11 @@ public:
         , Pod_(pod)
     { }
 
+    TPod* GetPod() const
+    {
+        return Pod_;
+    }
+
     bool TryAcquireIP6Addresses(TAllocatorDiagnostics* diagnostics)
     {
         for (const auto& addressRequest : Pod_->IP6AddressRequests().ProtoRequests()) {
@@ -138,6 +144,23 @@ public:
     {
         // NB! Just checking: actual allocation is deferred to the commit stage.
         return Node_->CanAllocateAntiaffinityVacancies(Pod_);
+    }
+
+    bool TryAllocateDaemonSets()
+    {
+        bool daemonSetsSatisfied = true;
+        for (const auto& [daemonSet, daemonSetPod] : Node_->DaemonSetPods()) {
+            if (daemonSet->GetPodSet() == Pod_->GetPodSet()) {
+                // This is a daemon set pod, it's free to get allocated.
+                return true;
+            }
+            if (daemonSetPod == nullptr && daemonSet->Spec().strong()) {
+                // If there's at least one unsatisfied daemon set, defer everything to next
+                // iteration.
+                daemonSetsSatisfied = false;
+            }
+        }
+        return daemonSetsSatisfied;
     }
 
     void Commit()
@@ -168,7 +191,6 @@ private:
 
 bool TryAllocateNodeResourses(
     TNodeAllocationContext* nodeAllocationContext,
-    TPod* pod,
     TAllocatorDiagnostics* diagnostics)
 {
     bool result = true;
@@ -187,7 +209,7 @@ bool TryAllocateNodeResourses(
         diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::Antiaffinity);
     }
 
-    const auto& resourceRequests = pod->ResourceRequests();
+    const auto& resourceRequests = nodeAllocationContext->GetPod()->ResourceRequests();
 
     if (resourceRequests.vcpu_guarantee() > 0) {
         if (!nodeAllocationContext->CpuResource().TryAllocate(MakeCpuCapacities(resourceRequests.vcpu_guarantee()))) {
@@ -218,7 +240,7 @@ bool TryAllocateNodeResourses(
     }
 
     bool allDiskVolumeRequestsSatisfied = true;
-    for (const auto& volumeRequest : pod->DiskVolumeRequests()) {
+    for (const auto& volumeRequest : nodeAllocationContext->GetPod()->DiskVolumeRequests()) {
         const auto& storageClass = volumeRequest.storage_class();
         auto policy = GetDiskVolumeRequestPolicy(volumeRequest);
         auto capacities = GetDiskVolumeRequestCapacities(volumeRequest);
@@ -242,7 +264,7 @@ bool TryAllocateNodeResourses(
     }
 
     bool allGpuRequestsSatisfied = true;
-    const auto& gpuRequests = pod->GpuRequests();
+    const auto& gpuRequests = nodeAllocationContext->GetPod()->GpuRequests();
     for (const auto& gpuRequest : gpuRequests) {
         const auto capacities = GetGpuRequestCapacities(gpuRequest);
         bool satisfied = false;
@@ -276,13 +298,17 @@ bool TryAllocateNodeResourses(
         diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::Gpu);
     }
 
+    if (!nodeAllocationContext->TryAllocateDaemonSets()) {
+        result = false;
+        diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::DaemonSet);
+    }
+
     return result;
 }
 
 bool TryAllocate(
     TInternetAddressesAllocationContext* internetAllocationContext,
     TNodeAllocationContext* nodeAllocationContext,
-    TPod* pod,
     TAllocatorDiagnostics* diagnostics)
 {
     bool result = true;
@@ -291,7 +317,7 @@ bool TryAllocate(
         result = false;
     }
 
-    if (!TryAllocateNodeResourses(nodeAllocationContext, pod, diagnostics)) {
+    if (!TryAllocateNodeResourses(nodeAllocationContext, diagnostics)) {
         result = false;
     }
 
@@ -318,7 +344,7 @@ void TAllocator::Allocate(TNode* node, TPod* pod)
 {
     TInternetAddressesAllocationContext internetAllocationContext(pod);
     TNodeAllocationContext nodeAllocationContext(node, pod);
-    if (!TryAllocate(&internetAllocationContext, &nodeAllocationContext, pod, &Diagnostics_)) {
+    if (!TryAllocate(&internetAllocationContext, &nodeAllocationContext, &Diagnostics_)) {
         THROW_ERROR_EXCEPTION("Could not allocate resources for pod %Qv on node %Qv",
             pod->GetId(),
             node->GetId());
@@ -331,7 +357,7 @@ bool TAllocator::CanAllocate(TNode* node, TPod* pod)
 {
     TInternetAddressesAllocationContext internetAllocationContext(pod);
     TNodeAllocationContext nodeAllocationContext(node, pod);
-    return TryAllocate(&internetAllocationContext, &nodeAllocationContext, pod, &Diagnostics_);
+    return TryAllocate(&internetAllocationContext, &nodeAllocationContext, &Diagnostics_);
 }
 
 const TAllocatorDiagnostics& TAllocator::GetDiagnostics() const

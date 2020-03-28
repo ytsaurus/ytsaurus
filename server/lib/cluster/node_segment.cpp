@@ -12,6 +12,16 @@ TNodeSegment::TNodeSegment(
     , NodeFilter_(std::move(nodeFilter))
 { }
 
+void TNodeSegment::SetNodeFilterCache(std::unique_ptr<TObjectFilterCache<TNode>> cache)
+{
+    NodeFilterCache_ = std::move(cache);
+}
+
+TObjectFilterCache<TNode>* TNodeSegment::GetNodeFilterCache() const
+{
+    return NodeFilterCache_.get();
+}
+
 void TNodeSegment::SetSchedulableNodeFilterCache(std::unique_ptr<TObjectFilterCache<TNode>> cache)
 {
     SchedulableNodeFilterCache_ = std::move(cache);
