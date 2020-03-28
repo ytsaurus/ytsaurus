@@ -81,7 +81,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const auto& Logger = DataNodeLogger;
+static const auto& Logger = DataNodeLogger;
 static const auto ProfilingPeriod = TDuration::Seconds(1);
 
 static const TString StorageSuffix = "storage";
@@ -1235,13 +1235,17 @@ private:
         const auto& client = Bootstrap_->GetMasterClient();
 
         auto tag = TGuid::Create();
-        YT_LOG_INFO("Start updating tmpfs layers (Tag: %v)", tag);
+        auto Logger = NLogging::TLogger(DataNodeLogger)
+            .AddTag("Tag: %v", tag);
 
+        YT_LOG_INFO("Started updating tmpfs layers");
+
+        TListNodeOptions listNodeOptions;
+        listNodeOptions.ReadFrom = EMasterChannelKind::Cache;
+        listNodeOptions.Attributes = std::vector<TString>{"id"};
         auto listNodeRspOrError = WaitFor(client->ListNode(
             *Config_->TmpfsLayerCache->LayersDirectoryPath,
-            TListNodeOptions {
-                .Attributes = std::vector<TString>{"id"}
-            }));
+            listNodeOptions));
 
         if (!listNodeRspOrError.IsOK()) {
             SetTmpfsAlert(TError("Failed to list tmpfs layers directory %v",
@@ -1249,23 +1253,24 @@ private:
                 << listNodeRspOrError);
             return;
         }
+        const auto& listNodeRsp = listNodeRspOrError.Value();
 
         THashSet<TYPath> paths;
         try {
-            const auto& listNode = ConvertToNode(listNodeRspOrError.Value())->AsList();
-
+            auto listNode = ConvertToNode(listNodeRsp)->AsList();
             for (const auto& node : listNode->GetChildren()) {
-                auto idString = ConvertTo<TString>(node->Attributes().GetYson("id"));
-                const auto& id = TObjectId::FromString(idString);
+                auto idString = node->Attributes().Get<TString>("id");
+                auto id = TObjectId::FromString(idString);
                 paths.insert(FromObjectId(id));
             }
         } catch (const std::exception& ex) {
             SetTmpfsAlert(TError("Tmpfs layers directory %v has invalid structure",
-                Config_->TmpfsLayerCache->LayersDirectoryPath) << ex);
+                Config_->TmpfsLayerCache->LayersDirectoryPath)
+                << ex);
             return;
         }
 
-        YT_LOG_INFO("Listed %v tmpfs layers", paths.size());
+        YT_LOG_INFO("Listed tmpfs layers (Count: %v)", paths.size());
 
         {
             THashMap<TYPath, TFetchedArtifactKey> cachedLayerDescriptors;
@@ -1285,7 +1290,7 @@ private:
 
         std::vector<TFuture<TFetchedArtifactKey>> futures;
         for (const auto& pair : CachedLayerDescriptors_) {
-            auto future = BIND([pair, this, this_ = MakeStrong(this)] () {
+            auto future = BIND([=, this_ = MakeStrong(this)] () {
                 const auto& path = pair.first;
                 const auto& fetchedKey = pair.second;
                 auto revision = fetchedKey.ArtifactKey
@@ -1301,7 +1306,8 @@ private:
 
         auto fetchResultsOrError = WaitFor(Combine(futures));
         if (!fetchResultsOrError.IsOK()) {
-            SetTmpfsAlert(TError("Failed to fetch tmpfs layer descriptions") << fetchResultsOrError);
+            SetTmpfsAlert(TError("Failed to fetch tmpfs layer descriptions")
+                << fetchResultsOrError);
             return;
         }
 
@@ -1317,11 +1323,12 @@ private:
             newArtifacts.insert(*pair.second.ArtifactKey);
         }
 
-        YT_LOG_DEBUG("Listed %v unique tmpfs layers", newArtifacts.size());
+        YT_LOG_DEBUG("Listed unique tmpfs layers (Count: %v)", newArtifacts.size());
 
         {
             std::vector<TArtifactKey> artifactsToRemove;
             artifactsToRemove.reserve(CachedTmpfsLayers_.size());
+
             auto guard = Guard(TmpfsCacheDataSpinLock_);
             for (const auto& [key, layer] : CachedTmpfsLayers_) {
                 if (!newArtifacts.contains(key)) {
@@ -1337,7 +1344,9 @@ private:
             }
 
             guard.Release();
-            YT_LOG_INFO_IF(artifactsToRemove.size() > 0, "Releases %v cached tmpfs layers", artifactsToRemove.size());
+
+            YT_LOG_INFO_IF(!artifactsToRemove.empty(), "Released cached tmpfs layers (Count: %v)",
+                artifactsToRemove.size());
         }
 
         std::vector<TFuture<TLayerPtr>> newLayerFutures;
@@ -1359,18 +1368,19 @@ private:
                 hasFailedLayer = true;
                 SetTmpfsAlert(TError("Failed to import new tmpfs layer")
                     << newLayerOrError);
-            } else {
-                const auto& layer = newLayerOrError.Value();
-                YT_LOG_INFO("Successfully imported new tmpfs layer (LayerId: %v, ArtifactPath:%v, Tag: %v)",
-                    layer->GetMeta().Id,
-                    layer->GetMeta().artifact_key().data_source().path(),
-                    tag);
-                auto guard = Guard(TmpfsCacheDataSpinLock_);
-
-                TArtifactKey key;
-                key.MergeFrom(layer->GetMeta().artifact_key());
-                CachedTmpfsLayers_[key] = layer;
+                continue;
             }
+
+            const auto& layer = newLayerOrError.Value();
+            YT_LOG_INFO("Successfully imported new tmpfs layer (LayerId: %v, ArtifactPath: %v)",
+                layer->GetMeta().Id,
+                layer->GetMeta().artifact_key().data_source().path());
+
+            TArtifactKey key;
+            key.CopyFrom(layer->GetMeta().artifact_key());
+
+            auto guard = Guard(TmpfsCacheDataSpinLock_);
+            CachedTmpfsLayers_[key] = layer;
         }
 
         if (!hasFailedLayer) {
@@ -1378,16 +1388,16 @@ private:
             SetTmpfsAlert(TError());
         }
 
-        YT_LOG_INFO("Finished updating tmpfs layers (Tag: %v)", tag);
+        YT_LOG_INFO("Finished updating tmpfs layers");
     }
 
     void SetTmpfsAlert(const TError& error)
     {
         auto guard = Guard(TmpfsCacheAlertSpinLock_);
         if (error.IsOK() && !TmpfsCacheAlert_.IsOK()) {
-            YT_LOG_INFO("Removing tmpfs layer cache alert");
+            YT_LOG_INFO("Tmpfs layer cache alert reset");
         } else if (!error.IsOK()) {
-            YT_LOG_WARNING("Setting tmpfs layer cache alert (Error: %v)", error);
+            YT_LOG_WARNING(error, "Tmpfs layer cache alert set");
         }
 
         TmpfsCacheAlert_ = error;

@@ -43,7 +43,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     EMasterChannelKind masterChannelKind,
     const NLogging::TLogger& logger)
 {
-    auto& Logger = logger;
+    const auto& Logger = logger;
 
     TUserObject userObject;
     userObject.Path = path;
@@ -70,8 +70,8 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
                 EObjectType::File,
                 userObject.Type)
                 << TErrorAttribute("path", path)
-                << TErrorAttribute("expected", EObjectType::File)
-                << TErrorAttribute("actual", userObject.Type);
+                << TErrorAttribute("expected_type", EObjectType::File)
+                << TErrorAttribute("actual_type", userObject.Type);
         }
     }
 
@@ -86,7 +86,10 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         auto attributesFuture = NCypressClient::FetchAttributes(
             {objectIdPath},
             {"content_revision"},
-            bootstrap->GetMasterClient());
+            bootstrap->GetMasterClient(),
+            TMasterReadOptions{
+                .ReadFrom = masterChannelKind
+            });
 
         try {
             auto fetchResult = WaitFor(attributesFuture)
@@ -95,8 +98,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
             auto attributesMap = fetchResult[0]
                 .ValueOrThrow();
 
-            auto fetchedRevision = NHydra::TRevision(attributesMap["content_revision"]->AsUint64()->GetValue());
-            userObject.ContentRevision = fetchedRevision;
+            userObject.ContentRevision = attributesMap["content_revision"]->GetValue<NHydra::TRevision>();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error fetching revision for layer %v", path)
                 << ex;
