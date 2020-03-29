@@ -525,6 +525,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
         LockInputs();
     });
 
+    SleepInInitialize();
+
     auto initializeFuture = initializeAction
         .AsyncVia(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default))
         .Run()
@@ -537,8 +539,6 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 
     WaitFor(Host->UpdateInitializedOperationNode())
         .ThrowOnError();
-
-    SleepInInitialize();
 
     YT_LOG_INFO("Operation initialized");
 

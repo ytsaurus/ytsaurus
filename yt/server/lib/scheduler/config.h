@@ -342,6 +342,9 @@ public:
     // Timeout of incarnation transaction.
     TDuration IncarnationTransactionTimeout;
 
+    // Timeout of incarnation transaction.
+    TDuration IncarnationTransactionPingPeriod;
+
     // Strategy to pick controller agent for operation.
     EControllerAgentPickStrategy AgentPickStrategy;
 

@@ -293,6 +293,9 @@ TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
     RegisterParameter("incarnation_transaction_timeout", IncarnationTransactionTimeout)
         .Default(TDuration::Seconds(30));
 
+    RegisterParameter("incarnation_transaction_ping_period", IncarnationTransactionPingPeriod)
+        .Default();
+
     RegisterParameter("agent_pick_strategy", AgentPickStrategy)
         .Default(EControllerAgentPickStrategy::Random);
 
