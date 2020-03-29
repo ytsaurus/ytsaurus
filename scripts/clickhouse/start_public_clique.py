@@ -56,6 +56,7 @@ def main():
                     "max_execution_time": 600 if args.type == "datalens" else 1800,
                     "max_threads": 3 if args.type in ("prestable") else cpu_limit,
                 },
+                "health_checker": {"period": 10 * 1000, "queries": ["select * from `//sys/clickhouse/sample_table`"]} if args.type == "prestable" else {},
             },
         },
         abort_existing=True,
