@@ -20,7 +20,7 @@ def run_chyt_query(worker_index, query, heavy_proxy, alias, token):
     url = "http://{proxy}/query?database={alias}".format(proxy=heavy_proxy, alias=alias)
     s = requests.Session()
     s.headers['Authorization'] = 'OAuth {token}'.format(token=token)
-    resp = s.post(url, data=query, allow_redirects=False, timeout=10)
+    resp = s.post(url, data=query, allow_redirects=False, timeout=300)
     logger.debug("[%d] Response status: %s", worker_index, resp.status_code)
     logger.debug("[%d] Response headers: %s", worker_index, resp.headers)
     logger.debug("[%d] Response content: %s", worker_index, resp.content)
@@ -39,7 +39,7 @@ def run_chyt_query(worker_index, query, heavy_proxy, alias, token):
     return query_execution
 
 
-def worker_guarded(worker_index, alias, query):
+def worker_guarded(worker_index, alias, query, log_each_query):
     logger.info("[%d] Starting worker", worker_index)
     heavy_proxy_provider = HeavyProxyProvider(None)
     heavy_proxy = heavy_proxy_provider()
@@ -52,6 +52,9 @@ def worker_guarded(worker_index, alias, query):
         execution = run_chyt_query(worker_index, query, heavy_proxy, alias, get_token())
         executions.append(execution)
         index += 1
+        if log_each_query:
+            logger.info("[%d] Query %d: query_id = %s, request_id = %s, time = %f", worker_index,
+                        index, execution["query_id"], execution["request_id"], execution["time"])
         if index & (index - 1) == 0:
             logger.info("[%d] Average time on first %d queries is %f", worker_index, index,
                         sum(execution["time"] for execution in executions) / index)
@@ -59,9 +62,9 @@ def worker_guarded(worker_index, alias, query):
             logger.info("[%d] Slowest execution is: query_id = %s, request_id = %s, time = %f", worker_index,
                         slowest_execution["query_id"], slowest_execution["request_id"], slowest_execution["time"])
 
-def worker(worker_index, alias, query):
+def worker(worker_index, alias, query, log_each_query):
     try:
-        worker_guarded(worker_index, alias, query)
+        worker_guarded(worker_index, alias, query, log_each_query)
     except Exception:
         logger.exception("[%d] Caught exception", worker_index)
 
@@ -72,6 +75,7 @@ def main():
     parser.add_argument("--alias", help="Operation alias to query", required=True)
     parser.add_argument("--query", help="Query", required=True)
     parser.add_argument("-v", "--verbose", help="Verbosity", action="store_true")
+    parser.add_argument("--log-each-query", action="store_true")
 
     args = parser.parse_args()
 
@@ -84,7 +88,7 @@ def main():
     signal.signal(signal.SIGINT, original_sigint_handler)
     results = []
     for index in xrange(args.pool_size):
-        results.append(pool.apply_async(worker, args=(index, args.alias, args.query)))
+        results.append(pool.apply_async(worker, args=(index, args.alias, args.query, args.log_each_query)))
     try:
         for result in results:
             result.get(1e9)
