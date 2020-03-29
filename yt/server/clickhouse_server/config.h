@@ -155,14 +155,23 @@ class THealthCheckerConfig
 {
 public:
     TDuration Period;
+    TDuration Timeout;
     std::vector<TString> Queries;
 
     THealthCheckerConfig()
     {
         RegisterParameter("period", Period)
             .Default(TDuration::Minutes(1));
+        RegisterParameter("timeout", Timeout)
+            .Default();
         RegisterParameter("queries", Queries)
             .Default();
+
+        RegisterPostprocessor([&] {
+            if (Timeout == TDuration::Zero()) {
+                Timeout = Period / std::max<double>(1.0, Queries.size()) * 0.95;
+            }
+        });
     }
 };
 
