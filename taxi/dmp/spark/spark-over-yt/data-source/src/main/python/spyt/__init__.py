@@ -132,6 +132,8 @@ def _configure_python():
         os.environ["PYSPARK_PYTHON"] = "/opt/python3.7/bin/python3.7"
     elif python_version == "3.5":
         os.environ["PYSPARK_PYTHON"] = "python3.5"
+    elif python_version == "3.4":
+        os.environ["PYSPARK_PYTHON"] = "/opt/python3.4/bin/python3.4"
     elif python_version == "2.7":
         os.environ["PYSPARK_PYTHON"] = "python2.7"
     else:
