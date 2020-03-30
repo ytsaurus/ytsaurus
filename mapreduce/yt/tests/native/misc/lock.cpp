@@ -21,7 +21,7 @@ Y_UNIT_TEST_SUITE(Lock)
         auto lock = tx1->Lock(workingDir + "/node_for_lock", ELockMode::LM_EXCLUSIVE);
 
         auto getLockState = [&] {
-            return client->Get("//sys/locks/" + GetGuidAsString(lock->GetId()) + "/@state").AsString();
+            return client->Get("#" + GetGuidAsString(lock->GetId()) + "/@state").AsString();
         };
 
         UNIT_ASSERT(lock->GetAcquiredFuture().HasValue());
@@ -47,7 +47,7 @@ Y_UNIT_TEST_SUITE(Lock)
         auto lockId = tx2->Lock(workingDir + "/node_for_lock", LM_EXCLUSIVE, TLockOptions().Waitable(true))->GetId();
 
         auto getLockState = [&] {
-            return client->Get("//sys/locks/" + GetGuidAsString(lockId) + "/@state").AsString();
+            return client->Get("#" + GetGuidAsString(lockId) + "/@state").AsString();
         };
 
         UNIT_ASSERT_VALUES_EQUAL(getLockState(), "pending");

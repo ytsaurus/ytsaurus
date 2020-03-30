@@ -247,7 +247,7 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_EXCEPTION(badLockRes.GetValue(), TErrorResponse);
 
         auto getLockAttr = [&] (const ILockPtr& lock, const TString& attrName) {
-            return client->Get("//sys/locks/" + GetGuidAsString(lock->GetId()) + "/@" + attrName).AsString();
+            return client->Get("#" + GetGuidAsString(lock->GetId()) + "/@" + attrName).AsString();
         };
         UNIT_ASSERT_VALUES_EQUAL(
             getLockAttr(exclusiveLockRes.GetValue(), "mode"),
