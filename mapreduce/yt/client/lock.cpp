@@ -22,7 +22,7 @@ class TLockPollerItem
 {
 public:
     TLockPollerItem(const TLockId& lockId, NThreading::TPromise<void> acquired)
-        : LockStateYPath_("//sys/locks/" + GetGuidAsString(lockId) + "/@state")
+        : LockStateYPath_("#" + GetGuidAsString(lockId) + "/@state")
         , Acquired_(acquired)
     { }
 
