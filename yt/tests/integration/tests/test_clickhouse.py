@@ -447,6 +447,19 @@ class TestClickHouseCommon(ClickHouseTestBase):
         self._setup()
 
     @authors("evgenstf")
+    def test_prewhere_actions(self):
+        with Clique(1) as clique:
+            create("table", "//tmp/t1", attributes={"schema": [{"name": "value", "type": "int64"}]})
+            write_table("//tmp/t1", [{"value": 0}, {"value": 1}, {"value": 2}, {"value": 3}])
+
+            assert clique.make_query('select count() from "//tmp/t1"') == [{'count()': 4}]
+            assert clique.make_query('select count() from "//tmp/t1" prewhere (value < 3)') == [{'count()': 3}]
+            assert clique.make_query('select count(*) from "//tmp/t1" prewhere (value < 3)') == [{'count()': 3}]
+            assert clique.make_query('select count(value) from "//tmp/t1" prewhere (value < 3)') == [{'count(value)': 3}]
+            assert clique.make_query('select count() from "//tmp/t1" prewhere (value < 3)') == [{'count()': 3}]
+            assert clique.make_query('select any(0) from "//tmp/t1" prewhere (value < 3)') == [{'any(0)': 0}]
+
+    @authors("evgenstf")
     def test_acl(self):
         with Clique(1) as clique:
             create_user('user_with_denied_column')
