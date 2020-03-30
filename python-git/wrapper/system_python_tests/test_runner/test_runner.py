@@ -26,7 +26,7 @@ def build_bindings(build_dir, python_version):
     yatest.common.execute(args, stdout="ya_make.out", stderr="ya_make.err")
 
 def prepare_python_packages():
-    prepare_source_tree = imp.load_source("prepare_source_tree", os.path.join(yatest.common.source_path(), PYTHON_ROOT, "packages/prepare_source_tree.py"))
+    prepare_source_tree = imp.load_source("prepare_source_tree", os.path.join(yatest.common.source_path(), PYTHON_ROOT, "prepare_source_tree/prepare_source_tree.py"))
     prepare_source_tree.prepare_python_source_tree(
         python_root=os.path.join(yatest.common.source_path(), PYTHON_ROOT),
         # TODO(ignat): improve prepare_source_tree.
