@@ -28,8 +28,10 @@ object SparkPackagePlugin extends AutoPlugin {
                                ),
                                environment: Map[String, String] = Map(
                                  "JAVA_HOME" -> "/opt/jdk8",
-                                 "IS_SPARK_CLUSTER" -> "true"
-                               )) {
+                                 "IS_SPARK_CLUSTER" -> "true",
+                                 "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB" -> "1"
+                               ),
+                               operation_spec: Map[String, String] = Map()) {
 
     private def toYson(value: Any, builder: YTreeBuilder): YTreeBuilder = {
       value match {

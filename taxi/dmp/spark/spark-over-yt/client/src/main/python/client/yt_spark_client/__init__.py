@@ -39,8 +39,10 @@ def _create_spark_env(client, spark_home):
     spark_env = os.environ.copy()
     yt_token = get_token(client=client)
     yt_user = get_user_name(client=client)
+    yt_proxy = get_proxy_url(client=client)
     spark_env["SPARK_USER"] = yt_user
-    spark_env["YT_TOKEN"] = yt_token
+    spark_env["SPARK_YT_TOKEN"] = yt_token
+    spark_env["SPARK_YT_PROXY"] = yt_proxy
     spark_env["SPARK_HOME"] = spark_home
     return spark_env
 
@@ -163,9 +165,10 @@ def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
 
     user = get_user_name(client=client)
 
-    operation_spec = deepcopy(operation_spec or {})
+    operation_spec = dynamic_config["operation_spec"]
     operation_spec["stderr_table_path"] = str(spark_discovery.stderr())
     operation_spec["pool"] = pool
+    operation_spec = deepcopy(operation_spec or {})
     if "title" not in operation_spec:
         operation_spec["title"] = operation_alias or "spark_{}".format(user)
 

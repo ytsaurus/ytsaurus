@@ -92,6 +92,18 @@ def create_yt_client(yt_proxy, conf):
     return YtClient(proxy=yt_proxy, token=yt_token)
 
 
+def create_yt_client_spark_conf(yt_proxy, spark_conf):
+    yt_proxy = yt_proxy or spark_conf.get("spark.hadoop.yt.proxy") or os.getenv("SPARK_YT_PROXY")
+    yt_token = spark_conf.get("spark.hadoop.yt.token") or os.getenv("SPARK_YT_TOKEN")
+    print("token is in env: {}".format(os.getenv("SPARK_YT_TOKEN") is not None))
+    print("token is empty: {}".format(yt_token is None))
+    print("yt_proxy conf: {}".format(spark_conf.get("spark.hadoop.yt.proxy")))
+    print("yt_proxy env: {}".format(os.getenv("SPARK_YT_PROXY")))
+    print("yt_proxy env 2: {}".format(os.getenv("YT_PROXY")))
+    print("yt proxy: {}".format(yt_proxy))
+    return YtClient(proxy=yt_proxy, token=yt_token)
+
+
 def _configure_client_mode(spark_conf,
                            discovery_path,
                            local_conf,
@@ -173,6 +185,8 @@ def _build_spark_conf(num_executors=None,
         app_name = app_name or "PySpark for {}".format(os.getenv("USER"))
         client = client or create_yt_client(yt_proxy, local_conf)
         _configure_client_mode(spark_conf, discovery_path, local_conf, spark_id, client)
+    else:
+        client = client or create_yt_client_spark_conf(yt_proxy, spark_conf)
 
     remote_dynamic_conf = _read_remote_conf(remote_conf_path, client=client)
     set_conf(spark_conf, remote_dynamic_conf)

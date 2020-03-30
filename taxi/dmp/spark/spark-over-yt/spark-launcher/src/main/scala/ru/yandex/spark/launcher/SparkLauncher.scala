@@ -114,7 +114,7 @@ trait SparkLauncher {
       }
     val fullSystemProperties = systemProperties ++ sparkSystemProperties
 
-    val sparkHome = env("SPARK_HOME", "./spark")
+    val sparkHome = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
     val command = s"$sparkHome/bin/spark-class " +
       s"${fullSystemProperties.map { case (k, v) => s"-D$k=$v" }.mkString(" ")} " +
       s"$className " +
