@@ -947,11 +947,23 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_create_ignore_existing_fail(self):
         create("map_node", "//tmp/a/b", recursive=True)
-        with pytest.raises(YtError): create("table", "//tmp/a/b", ignore_existing=False)
+        with pytest.raises(YtError): create("table", "//tmp/a/b", ignore_existing=True)
 
     @authors("babenko")
     def test_create_ignore_existing_force_fail(self):
         with pytest.raises(YtError): create("table", "//tmp/t", ignore_existing=True, force=True)
+
+    @authors("gritukan")
+    def test_create_ignore_type_mismatch(self):
+        create("map_node", "//tmp/a/b", recursive=True)
+        create("map_node", "//tmp/a/b", ignore_existing=True, ignore_type_mismatch=True)
+        create("table", "//tmp/a/b", ignore_existing=True, ignore_type_mismatch=True)
+        assert get("//tmp/a/b/@type") == "map_node"
+
+    @authors("gritukan")
+    def test_create_ignore_type_mismatch_without_ignore_existing_fail(self):
+        create("map_node", "//tmp/a/b", recursive=True)
+        with pytest.raises(YtError): create("map_node", "//tmp/a/b", ignore_type_mismatch=True)
 
     @authors("babenko")
     def test_create_force(self):

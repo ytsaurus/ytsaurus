@@ -42,6 +42,7 @@ message TReqCreate
     optional bool ignore_existing = 4 [default = false];
     optional bool lock_existing = 5 [default = false];
     optional bool force = 6 [default = false];
+    optional bool ignore_type_mismatch = 7 [default = false];
 }
 
 message TRspCreate

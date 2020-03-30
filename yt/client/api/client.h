@@ -554,6 +554,7 @@ struct TCreateNodeOptions
     bool Recursive = false;
     bool LockExisting = false;
     bool Force = false;
+    bool IgnoreTypeMismatch = false;
 };
 
 struct TLockNodeOptions

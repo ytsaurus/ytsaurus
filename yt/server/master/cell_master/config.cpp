@@ -52,6 +52,8 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("multicell_manager", MulticellManager)
         .DefaultNew();
+    RegisterParameter("world_initializer", WorldInitializer)
+        .DefaultNew();
     RegisterParameter("enable_provision_lock", EnableProvisionLock)
         .Default(true);
     RegisterParameter("bus_client", BusClient)
