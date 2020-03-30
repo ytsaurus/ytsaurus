@@ -160,6 +160,8 @@ TCreateNodeCommand::TCreateNodeCommand()
         .Optional();
     RegisterParameter("force", Options.Force)
         .Optional();
+    RegisterParameter("ignore_type_mismatch", Options.IgnoreTypeMismatch)
+        .Optional();
 }
 
 void TCreateNodeCommand::DoExecute(ICommandContextPtr context)

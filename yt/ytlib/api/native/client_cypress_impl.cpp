@@ -723,6 +723,7 @@ TNodeId TClient::DoCreateNode(
     req->set_ignore_existing(options.IgnoreExisting);
     req->set_lock_existing(options.LockExisting);
     req->set_force(options.Force);
+    req->set_ignore_type_mismatch(options.IgnoreTypeMismatch);
     if (options.Attributes) {
         ToProto(req->mutable_node_attributes(), *options.Attributes);
     }

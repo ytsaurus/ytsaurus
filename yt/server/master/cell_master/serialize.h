@@ -89,6 +89,7 @@ DEFINE_ENUM(EMasterReign,
     ((SwitchToAlterTableReplica)                                    (1303))  // babenko
     ((DynamicTimestampProviderDiscovery)                            (1304))  // aleksandra-zh
     ((YT_12365_FixCalculatingStaticMemoryInMounting)                (1305))  // lexolordan
+    ((IgnoreTypeMismatch)                                           (1306))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

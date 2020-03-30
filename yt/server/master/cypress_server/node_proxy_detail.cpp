@@ -1392,6 +1392,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto lockExisting = request->lock_existing();
     auto recursive = request->recursive();
     auto force = request->force();
+    auto ignoreTypeMismatch = request->ignore_type_mismatch();
     const auto& path = GetRequestTargetYPath(context->RequestHeader());
 
     YT_LOG_ACCESS_IF(
@@ -1401,12 +1402,13 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         Transaction_,
         {{"type", FormatEnum(type)}});
 
-    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, Force: %v",
+    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, Force: %v, IgnoreTypeMismatch: %v",
         type,
         ignoreExisting,
         lockExisting,
         recursive,
-        force);
+        force,
+        ignoreTypeMismatch);
 
     if (ignoreExisting && force) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
@@ -1416,6 +1418,10 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         THROW_ERROR_EXCEPTION("Cannot specify \"lock_existing\" without \"ignore_existing\"");
     }
 
+    if (!ignoreExisting && ignoreTypeMismatch) {
+        THROW_ERROR_EXCEPTION("Cannot specify \"ignore_type_mismatch\" without \"ignore_existing\"");
+    }
+
     bool replace = path.empty();
     if (replace && !force) {
         if (!ignoreExisting) {
@@ -1423,7 +1429,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
 
         const auto* impl = GetThisImpl();
-        if (impl->GetType() != type && !force) {
+        if (impl->GetType() != type && !force && !ignoreTypeMismatch) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "%v already exists and has type %Qlv while node of %Qlv type is about to be created",

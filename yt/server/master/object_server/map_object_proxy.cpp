@@ -679,6 +679,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
     auto ignoreExisting = request->ignore_existing();
     auto recursive = request->recursive();
     auto force = request->force();
+    auto ignoreTypeMismatch = request->ignore_type_mismatch();
     const auto& path = GetRequestTargetYPath(context->RequestHeader());
 
     std::unique_ptr<IAttributeDictionary> explicitAttributes;
@@ -695,12 +696,16 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
     if (ignoreExisting) {
         THROW_ERROR_EXCEPTION("\"ignore_existing\" option is not supported for nonversioned map objects");
     }
+    if (ignoreTypeMismatch) {
+        THROW_ERROR_EXCEPTION("\"ignore_type_mismatch\" option is not supported for nonversioned map objects");
+    }
 
-    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v, Force: %v",
+    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, Recursive: %v, Force: %v, IgnoreTypeMismatch: %v",
         type,
         ignoreExisting,
         recursive,
-        force);
+        force,
+        ignoreTypeMismatch);
 
     auto proxy = Create(type, path, explicitAttributes.get());
     const auto& objectId = proxy->GetId();

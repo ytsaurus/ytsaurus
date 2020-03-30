@@ -101,6 +101,31 @@ DEFINE_REFCOUNTED_TYPE(TMulticellManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TWorldInitializerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration InitRetryPeriod;
+
+    TDuration InitTransactionTimeout;
+
+    TDuration UpdatePeriod;
+
+    TWorldInitializerConfig()
+    {
+        RegisterParameter("init_retry_period", InitRetryPeriod)
+            .Default(TDuration::Seconds(3));
+        RegisterParameter("init_transaction_timeout", InitTransactionTimeout)
+            .Default(TDuration::Seconds(60));
+        RegisterParameter("update_period", UpdatePeriod)
+            .Default(TDuration::Minutes(5));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TWorldInitializerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicMulticellManagerConfig
     : public NYTree::TYsonSerializable
 {
@@ -169,6 +194,8 @@ public:
     NHiveServer::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
     TMulticellManagerConfigPtr MulticellManager;
+
+    TWorldInitializerConfigPtr WorldInitializer;
 
     //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
     bool EnableProvisionLock;

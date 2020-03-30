@@ -57,8 +57,6 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = CellMasterLogger;
-static const auto InitRetryPeriod = TDuration::Seconds(3);
-static const auto InitTransactionTimeout = TDuration::Seconds(60);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,7 +108,6 @@ private:
 
     std::vector<TFuture<void>> ScheduledMutations_;
 
-
     void OnLeaderActive()
     {
         // NB: Initialization cannot be carried out here since not all subsystems
@@ -119,47 +116,43 @@ private:
         ScheduleInitialize();
     }
 
-    void InitializeIfNeeded()
-    {
-        if (IsInitialized()) {
-            YT_LOG_INFO("World is already initialized");
-        } else {
-            Initialize();
-        }
-    }
-
     void ScheduleInitialize(TDuration delay = TDuration::Zero())
     {
+        if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader()) {
+            YT_LOG_INFO("Master is not leading anymore, ignore world initialization schedule request");
+            return;
+        }
+
+        YT_LOG_DEBUG("Schedule world initialization (Delay: %v)",
+            delay);
         TDelayedExecutor::Submit(
-            BIND(&TImpl::InitializeIfNeeded, MakeStrong(this))
+            BIND(&TImpl::Initialize, MakeStrong(this))
                 .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic)),
             delay);
     }
 
     void Initialize()
     {
-        YT_LOG_INFO("World initialization started");
+        if (IsInitialized()) {
+            YT_LOG_INFO("World update started");
+        } else {
+            YT_LOG_INFO("World initialization started");
+        }
 
         auto traceContext = NTracing::CreateRootTraceContext("WorldInitializer");
         traceContext->SetSampled();
         NTracing::TTraceContextGuard contextGuard(traceContext);
         NTracing::TTraceContextFinishGuard finishGuard(traceContext);
 
-        try {
-            // Check for pre-existing transactions to avoid collisions with previous (failed)
-            // initialization attempts.
-            const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            if (transactionManager->Transactions().GetSize() > 0) {
-                AbortTransactions();
-                THROW_ERROR_EXCEPTION("World initialization aborted: transactions found");
-            }
+        TTransactionId transactionId;
 
+        try {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
 
             // All initialization will be happening within this transaction.
-            auto transactionId = StartTransaction();
+            transactionId = StartTransaction();
 
             // Level 1
             ScheduleCreateNode(
@@ -173,21 +166,25 @@ private:
                         })
                     .EndMap());
 
-            ScheduleCreateNode(
-                "//tmp",
-                transactionId,
-                EObjectType::MapNode,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("opaque").Value(true)
-                        .Item("account").Value("tmp")
-                        .Item("acl").BeginList()
-                            .Item().Value(TAccessControlEntry(
-                                ESecurityAction::Allow,
-                                securityManager->GetUsersGroup(),
-                                EPermissionSet(EPermission::Read | EPermission::Write | EPermission::Remove)))
-                        .EndList()
-                    .EndMap());
+            // "//tmp" directory is frequently created and removed in tests.
+            // Let's not touch it during update to prevent transactions conflicts.
+            if (!IsInitialized()) {
+                ScheduleCreateNode(
+                    "//tmp",
+                    transactionId,
+                    EObjectType::MapNode,
+                    BuildYsonStringFluently()
+                        .BeginMap()
+                            .Item("opaque").Value(true)
+                            .Item("account").Value("tmp")
+                            .Item("acl").BeginList()
+                                .Item().Value(TAccessControlEntry(
+                                    ESecurityAction::Allow,
+                                    securityManager->GetUsersGroup(),
+                                    EPermissionSet(EPermission::Read | EPermission::Write | EPermission::Remove)))
+                            .EndList()
+                        .EndMap());
+            }
 
             FlushScheduled();
 
@@ -358,7 +355,8 @@ private:
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)
-                    .EndMap());
+                    .EndMap(),
+                /* force */ true);
 
             ScheduleCreateNode(
                 "//sys/secondary_masters",
@@ -367,7 +365,8 @@ private:
                 BuildYsonStringFluently()
                     .BeginMap()
                         .Item("opaque").Value(true)
-                    .EndMap());
+                    .EndMap(),
+                /* force */ true);
 
             ScheduleCreateNode(
                 "//sys/locks",
@@ -588,30 +587,38 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "World initialization failed");
             AbandonScheduled();
-            ScheduleInitialize(InitRetryPeriod);
+            if (transactionId) {
+                try {
+                    AbortTransaction(transactionId);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ERROR(ex, "Failed to abort world initialization transaction (TransactionId: %v)",
+                        transactionId);
+                }
+            }
         }
-    }
 
-    void AbortTransactions()
-    {
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto transactionIds = ToObjectIds(GetValues(transactionManager->Transactions()));
-        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        for (auto transactionId : transactionIds) {
-            transactionSupervisor->AbortTransaction(transactionId);
-        }
+        ScheduleInitialize(IsInitialized()
+            ? Config_->WorldInitializer->UpdatePeriod
+            : Config_->WorldInitializer->InitRetryPeriod);
     }
 
     TTransactionId StartTransaction()
     {
         TTransactionServiceProxy proxy(Bootstrap_->GetLocalRpcChannel());
         auto req = proxy.StartTransaction();
-        req->set_timeout(ToProto<i64>(InitTransactionTimeout));
+        req->set_timeout(ToProto<i64>(Config_->WorldInitializer->InitTransactionTimeout));
         req->set_title("World initialization");
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
         return FromProto<TTransactionId>(rsp->id());
+    }
+
+    void AbortTransaction(TTransactionId transactionId)
+    {
+        const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
+        WaitFor(transactionSupervisor->AbortTransaction(transactionId))
+            .ThrowOnError();
     }
 
     void CommitTransaction(TTransactionId transactionId)
@@ -625,13 +632,20 @@ private:
         const TYPath& path,
         TTransactionId transactionId,
         EObjectType type,
-        const TYsonString& attributes = TYsonString("{}"))
+        const TYsonString& attributes = TYsonString("{}"),
+        bool force = false)
     {
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::Create(path);
         SetTransactionId(req, transactionId);
         req->set_type(static_cast<int>(type));
         req->set_recursive(true);
+        if (force) {
+            req->set_force(true);
+        } else {
+            req->set_ignore_existing(true);
+            req->set_ignore_type_mismatch(true);
+        }
         ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
         ScheduledMutations_.push_back(ExecuteVerb(service, req).As<void>());
     }
