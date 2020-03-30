@@ -6793,6 +6793,9 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
             coreInfo.has_error() ? FromProto<TError>(coreInfo.error()) : TError());
     }
 
+    if (!schedulerResultExt.has_core_table_boundary_keys()) {
+        return;
+    }
     const auto& boundaryKeys = schedulerResultExt.core_table_boundary_keys();
     if (boundaryKeys.empty()) {
         return;
