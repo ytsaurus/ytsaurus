@@ -795,6 +795,7 @@ PERMISSIONS_XDC = {
     "dns_record_set": {User("robot-gencfg"): "crw", User("mcden"): "crw"},  # YPSUPPORT-72
     "endpoint": {User("robot-gencfg"): "c"},  # YP-1769
     "endpoint_set": {User("robot-gencfg"): "c"},  # YP-1769
+    "group": {User("robot-deploy-auth"): "c"},  # YPSUPPORT-81
     "multi_cluster_replica_set": {
         User("robot-deploy-test"): "c",  # YP-1769
         User("robot-drug-deploy"): "c",  # YP-1769
