@@ -557,42 +557,33 @@ def configure_pod_resource_reallocators_group(client, **kwargs):
 
 # Public objects common to all deploy systems (see YP-1769).
 def configure_common_public_object_creators(client, **kwargs):
-    common_public_object_types = (
-        "endpoint",
-        "endpoint_set",
-    )
     common_public_object_creators = Group("common-public-object-creators")
     members = (Group("staff:department:1"),)
     add_group_members(client, common_public_object_creators, members)
-    for object_type in common_public_object_types:
-        add_permission(
-            client,
-            object_type="schema",
-            object_id=object_type,
-            subject=common_public_object_creators,
-            permission="create",
-            attribute="",
-        )
 
 
 # Public objects of Y.Deploy (see YP-1769).
 def configure_deploy_public_object_creators(client, cluster, **kwargs):
-    deploy_public_object_types = ("stage",)
     deploy_public_object_creators = Group("deploy-public-object-creators")
-    members = [Group("staff:department:1")]
-    if cluster in ("sas-test", "man-pre", "xdc"):
-        members.append(User("robot-metrika-test"))
+    members = [Group("staff:department:1"), User("robot-infracloudui")]
+    if cluster in ("xdc", "sas", "man", "vla", "iva", "myt"):
+        members += [
+            User("robot-metrika-test"),
+            User("robot-market-infra"),
+            User("robot-yappy"),
+            User("robot-ci"),
+            User("robot-tap"),
+            User("robot-bobr"),
+            User("robot-logbroker"),
+            User("robot-trendbot"),
+            User("robot-srch-releaser"),
+            User("robot-vertis-shiva"),
+            User("robot-partner"),
+            User("zomb-podrick"),
+            User("robot-tt-front"),
+        ]
     add_group_members(client, deploy_public_object_creators, members)
     create(client, deploy_public_object_creators)
-    for object_type in deploy_public_object_types:
-        add_permission(
-            client,
-            object_type="schema",
-            object_id=object_type,
-            subject=deploy_public_object_creators,
-            permission="create",
-            attribute="",
-        )
 
 
 # YPADMIN-286
@@ -633,18 +624,21 @@ PERMISSIONS_ALL = {
         User("robot-rsc"): "u",
         User("robot-vmagent-rtc"): "u",
     },
-    "deploy_ticket": {},
     "dns_record_set": {User("robot-ydnxdns-export"): "crwu"},
     "dynamic_resource": {
         User("robot-yp-dynresource"): "crwu",
         Group("everyone"): "crwu",  # DEPLOY-1117
     },
-    "endpoint_set": {User("robot-srv-ctl"): "rw"},
+    "endpoint": {Group("common-public-object-creators"): "c"},
+    "endpoint_set": {
+        Group("common-public-object-creators"): "c",
+        User("robot-srv-ctl"): "rw",
+    },
     "group": {User("robot-yp-export"): "crw", User("robot-yp-idm"): "rw"},
     "horizontal_pod_autoscaler": {User("robot-yd-hpa-ctl"): "rw"},  # YPSUPPORT-71
     "internet_address": {User("robot-yp-inet-mngr"): "crwu"},
     "ip4_address_pool": {User("robot-yp-inet-mngr"): "crwu"},
-    "multi_cluster_replica_set": {User("robot-mcrsc"): "rw", User("robot-drug-deploy"): "crw"},
+    "multi_cluster_replica_set": {User("robot-mcrsc"): "rw", User("robot-drug-deploy"): "rw"},
     "network_project": {
         User("nanny-robot"): "u",
         User("robot-yp-export"): "crw",
@@ -662,15 +656,9 @@ PERMISSIONS_ALL = {
     },
     "node_segment": {User("robot-yp-export"): "crw"},
     "pod": {User("robot-yp-hfsm"): "rw", User("robot-yp-pdns"): "r", User("robot-yp-cauth"): "r"},
-    "pod_disruption_budget": {
-        User("robot-yt-odin"): "c",
-        User("nanny-robot"): "crw",  # YPADMIN-257
-    },
+    "pod_disruption_budget": {User("nanny-robot"): "rw"},  # YPADMIN-257
     "pod_set": {User("robot-yp-export"): "crw", User("robot-yp-hfsm"): "rw"},
-    "project": {},
-    "release": {},
-    "release_rule": {},
-    "replica_set": {User("robot-rsc"): "crw", User("robot-drug-deploy"): "crwu"},
+    "replica_set": {User("robot-rsc"): "rw", User("robot-drug-deploy"): "rwu"},
     "resource": {User("robot-yp-export"): "crw"},
     "resource_cache": {User("robot-rcc"): "rw"},  # YPSUPPORT-70
     "stage": {User("robot-drug-deploy"): "rw"},
@@ -683,39 +671,35 @@ PERMISSIONS_SAS_TEST = {
         User("robot-deploy-test"): "u",  # YPADMIN-233
         User("robot-deploy-auth-t"): "u",  # YPSUPPORT-49
     },
-    "deploy_ticket": {},
+    "deploy_ticket": {Group("everyone"): "c"},  # YP-1769
     "dns_record_set": {User("robot-dns"): "c"},  # YPSUPPORT-69
-    "dynamic_resource": {},
-    "endpoint_set": {},
+    "endpoint_set": {Group("everyone"): "c"},  # YP-1769
     "group": {User("robot-deploy-auth-t"): "c"},  # YPADMIN-282
-    "horizontal_pod_autoscaler": {
-        User("robot-drug-deploy"): "c",  # YPSUPPORT-75
-        Group("deploy-public-object-creators"): "c",  # YPSUPPORT-75
-    },
-    "internet_address": {},
-    "ip4_address_pool": {},
-    "multi_cluster_replica_set": {},
+    "horizontal_pod_autoscaler": {Group("everyone"): "c"},  # YP-1769
+    "multi_cluster_replica_set": {Group("everyone"): "c"},  # YP-1769
     "network_project": {User("robot-deploy-test"): "u"},  # YPADMIN-266
-    "node": {},
-    "node_segment": {},
     "persistent_volume": {Group("everyone"): "c"},
     "persistent_disk": {Group("everyone"): "c"},
     "persistent_volume_claim": {Group("everyone"): "c"},
-    "pod": {},
-    "pod_disruption_budget": {Group("abc:service-scope:730:5"): "crw"},  # YPADMIN-257
-    "pod_set": {},
-    "project": {User("robot-deploy-auth-t"): "rw"},  # YPSUPPORT-74
-    "release": {},
-    "release_rule": {},
-    "replica_set": {},
-    "resource": {},
+    "pod": {Group("everyone"): "c"},  # YP-1769
+    "pod_disruption_budget": {
+        Group("everyone"): "c",  # YP-1769
+        Group("abc:service-scope:730:5"): "rw",  # YPADMIN-257
+    },
+    "pod_set": {Group("everyone"): "c"},  # YP-1769
+    "project": {
+        Group("everyone"): "c",  # YP-1769
+        User("robot-deploy-auth-t"): "rw",  # YPSUPPORT-74
+    },
+    "release": {Group("everyone"): "c"},  # YP-1769
+    "release_rule": {Group("everyone"): "c"},  # YP-1769
+    "replica_set": {Group("everyone"): "c"},  # YP-1769
     "resource_cache": {Group("abc:service-scope:3494:5"): "crw"},  # YPSUPPORT-48
     "stage": {
+        Group("everyone"): "c",  # YP-1769
         User("robot-deploy-test"): "rw",  # YPADMIN-233
         User("robot-deploy-auth-t"): "rw",  # YPSUPPORT-49
     },
-    "user": {},
-    "virtual_service": {},
 }
 
 PERMISSIONS_MAN_PRE = {
@@ -723,95 +707,108 @@ PERMISSIONS_MAN_PRE = {
         User("robot-deploy-test"): "u",  # YPADMIN-233
         User("robot-deploy-auth-t"): "u",  # YPSUPPORT-49
     },
-    "deploy_ticket": {},
-    "dns_record_set": {},
-    "dynamic_resource": {},
-    "endpoint_set": {},
-    "group": {},
-    "horizontal_pod_autoscaler": {
-        User("robot-drug-deploy"): "c",  # YPSUPPORT-75
-        Group("deploy-public-object-creators"): "c",  # YPSUPPORT-75
+    "endpoint_set": {
+        User("nanny-robot"): "c",  # YP-1769
+        User("robot-deploy-test"): "c",  # YP-1769
+        User("robot-drug-deploy"): "c",  # YP-1769
     },
-    "internet_address": {},
-    "ip4_address_pool": {},
-    "multi_cluster_replica_set": {},
+    "horizontal_pod_autoscaler": {
+        User("robot-drug-deploy"): "c",  # YPSUPPORT-75, # YP-1769
+        Group("deploy-public-object-creators"): "c",  # YPSUPPORT-75, # YP-1769
+    },
+    "multi_cluster_replica_set": {
+        User("robot-deploy-test"): "c",  # YP-1769
+        User("robot-drug-deploy"): "c",  # YP-1769
+    },
     "network_project": {User("robot-deploy-test"): "u"},  # YPADMIN-266
-    "node": {},
-    "node_segment": {},
-    "pod": {},
-    "pod_disruption_budget": {Group("abc:service-scope:730:5"): "crw"},  # YPADMIN-257
-    "pod_set": {},
-    "project": {User("robot-deploy-auth-t"): "rw"},  # YPSUPPORT-74
-    "release": {},
-    "release_rule": {},
-    "replica_set": {},
-    "resource": {},
+    "pod": {
+        User("robot-vmagent-rtc"): "c",  # YP-1769
+        User("nanny-robot"): "c",  # YP-1769
+        User("robot-mcrsc"): "c",  # YP-1769
+        User("robot-rsc"): "c",  # YP-1769
+    },
+    "pod_disruption_budget": {
+        User("nanny-robot"): "c",  # YP-1769
+        User("robot-drug-deploy"): "c",  # YP-1769
+        Group("abc:service-scope:730:5"): "rw",  # YPADMIN-257
+    },
+    "pod_set": {
+        User("robot-vmagent-rtc"): "c",  # YP-1769
+        User("nanny-robot"): "c",  # YP-1769
+        User("robot-mcrsc"): "c",  # YP-1769
+        User("robot-rsc"): "c",  # YP-1769
+    },
+    "project": {
+        Group("deploy-public-object-creators"): "c",  # YP-1769
+        User("robot-deploy-auth-t"): "crw",  # YPSUPPORT-74, YP-1769
+    },
+    "replica_set": {
+        User("robot-deploy-test"): "c",  # YP-1769
+        User("robot-drug-deploy"): "c",  # YP-1769
+    },
     "resource_cache": {Group("abc:service-scope:3494:5"): "crw"},  # YPSUPPORT-48
     "stage": {
+        Group("deploy-public-object-creators"): "c",  # YP-1769
         User("robot-deploy-test"): "rw",  # YPADMIN-233
         User("robot-deploy-auth-t"): "rw",  # YPSUPPORT-49
     },
-    "user": {},
-    "virtual_service": {},
 }
 
 PERMISSIONS_PROD = {
-    "account": {},
-    "deploy_ticket": {},
-    "dns_record_set": {},
-    "dynamic_resource": {},
-    "endpoint_set": {},
-    "group": {},
-    "horizontal_pod_autoscaler": {
-        User("robot-drug-deploy"): "c",  # YPSUPPORT-75
-        Group("deploy-public-object-creators"): "c",  # YPSUPPORT-75
+    "endpoint_set": {
+        User("nanny-robot"): "c",  # YP-1769
+        User("robot-deploy-test"): "c",  # YP-1769
+        User("robot-drug-deploy"): "c",  # YP-1769
     },
-    "internet_address": {},
-    "ip4_address_pool": {},
-    "multi_cluster_replica_set": {},
-    "network_project": {},
-    "node": {},
-    "node_segment": {},
-    "pod": {},
-    "pod_disruption_budget": {},
-    "pod_set": {},
-    "project": {},
-    "release": {},
-    "release_rule": {},
-    "replica_set": {},
-    "resource": {},
-    "resource_cache": {},
-    "stage": {},
-    "user": {},
-    "virtual_service": {},
+    "horizontal_pod_autoscaler": {
+        User("robot-drug-deploy"): "c",  # YPSUPPORT-75, # YP-1769
+        Group("deploy-public-object-creators"): "c",  # YPSUPPORT-75, # YP-1769
+    },
+    "pod": {
+        User("robot-vmagent-rtc"): "c",  # YP-1769
+        User("nanny-robot"): "c",  # YP-1769
+        User("robot-mcrsc"): "c",  # YP-1769
+        User("robot-rsc"): "c",  # YP-1769
+    },
+    "pod_disruption_budget": {
+        User("nanny-robot"): "c",  # YP-1769
+        User("robot-drug-deploy"): "c",  # YP-1769
+    },
+    "pod_set": {
+        User("robot-vmagent-rtc"): "c",  # YP-1769
+        User("nanny-robot"): "c",  # YP-1769
+        User("robot-mcrsc"): "c",  # YP-1769
+        User("robot-rsc"): "c",  # YP-1769
+    },
+    "replica_set": {
+        User("robot-deploy-test"): "c",  # YP-1769
+        User("robot-drug-deploy"): "c",  # YP-1769
+    },
 }
 
 PERMISSIONS_XDC = {
     "account": {User("robot-deploy-auth"): "u"},  # YPSUPPORT-49
-    "deploy_ticket": {},
+    "deploy_ticket": {
+        User("robot-srch-releaser"): "c",  # YP-1769
+        User("robot-yd-releaser"): "c",  # YP-1769
+    },
     "dns_record_set": {User("robot-gencfg"): "crw", User("mcden"): "crw"},  # YPSUPPORT-72
-    "dynamic_resource": {},
-    "endpoint_set": {},
-    "group": {},
-    "horizontal_pod_autoscaler": {},
-    "internet_address": {},
-    "ip4_address_pool": {},
-    "multi_cluster_replica_set": {},
-    "network_project": {},
-    "node": {},
-    "node_segment": {},
-    "pod": {},
-    "pod_disruption_budget": {},
-    "pod_set": {},
-    "project": {User("robot-deploy-auth"): "rw"},  # YPSUPPORT-74
-    "release": {},
-    "release_rule": {},
-    "replica_set": {},
-    "resource": {},
-    "resource_cache": {},
-    "stage": {User("robot-deploy-auth"): "rw"},  # YPSUPPORT-49
-    "user": {},
-    "virtual_service": {},
+    "endpoint": {User("robot-gencfg"): "c"},  # YP-1769
+    "endpoint_set": {User("robot-gencfg"): "c"},  # YP-1769
+    "multi_cluster_replica_set": {
+        User("robot-deploy-test"): "c",  # YP-1769
+        User("robot-drug-deploy"): "c",  # YP-1769
+    },
+    "project": {
+        Group("deploy-public-object-creators"): "c",  # YP-1769
+        User("robot-deploy-auth"): "crw",  # YPSUPPORT-74, YP-1769
+    },
+    "release": {Group("everyone"): "c"},  # YP-1769
+    "release_rule": {Group("deploy-public-object-creators"): "c"},  # YP-1769
+    "stage": {
+        Group("deploy-public-object-creators"): "c",  # YP-1769
+        User("robot-deploy-auth"): "rw",  # YPSUPPORT-49
+    },
 }
 
 
