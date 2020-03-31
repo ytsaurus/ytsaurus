@@ -180,6 +180,7 @@ def set_account(
     ipv4,
     disk_capacity_per_storage_class,
     disk_bandwidth_per_storage_class,
+    gpu_capacity_per_model,
 ):
     resource_limits = client.get_object(
         "account", account_name, selectors=["/spec/resource_limits/per_segment"],
@@ -199,7 +200,7 @@ def set_account(
         return get_resource(path_tokens, "bandwidth")
 
     updates_set = list()
-    if get_capacity(["cpu"]) != long(cpu):
+    if cpu is not None and get_capacity(["cpu"]) != long(cpu):
         updates_set.append(
             dict(
                 path="/spec/resource_limits/per_segment/{}/cpu/capacity".format(segment_name),
@@ -208,7 +209,7 @@ def set_account(
             )
         )
 
-    if get_capacity(["memory"]) != long(memory):
+    if memory is not None and get_capacity(["memory"]) != long(memory):
         updates_set.append(
             dict(
                 path="/spec/resource_limits/per_segment/{}/memory/capacity".format(segment_name),
@@ -256,6 +257,20 @@ def set_account(
                 )
             )
 
+    for model, capacity in gpu_capacity_per_model.items():
+        value = long(capacity)
+
+        if get_capacity(["gpu_per_model", model]) != value:
+            updates_set.append(
+                dict(
+                    path="/spec/resource_limits/per_segment/{}/gpu_per_model/{}/capacity".format(
+                        segment_name, model,
+                    ),
+                    value=value,
+                    recursive=True,
+                )
+            )
+
     if updates_set:
         client.update_object("account", account_name, updates_set)
 
@@ -286,11 +301,12 @@ def create_accounts(client, cluster, accounts):
                 client,
                 account.name,
                 segment,
-                cpu=limits["cpu"],
-                memory=limits["memory"],
+                cpu=limits.get("cpu"),
+                memory=limits.get("memory"),
                 ipv4=limits.get("ipv4", 0),
                 disk_capacity_per_storage_class=limits.get("disk_capacity_per_storage_class", {}),
                 disk_bandwidth_per_storage_class=limits.get("disk_bandwidth_per_storage_class", {}),
+                gpu_capacity_per_model=limits.get("gpu_capacity_per_model", {}),
             )
 
         if len(account.quotas_per_segment) == 1 and account.quotas_per_segment.keys()[0] == "*":
@@ -463,7 +479,10 @@ def setup_dev_segment(cluster, accounts, client):
                         "disk_bandwidth_per_storage_class": {"hdd": 1 * GB, "ssd": 1 * GB},
                     },
                 },
-            )
+            ),
+            Account(
+                "abc:service:7758", {"gpu-dev": {"gpu_capacity_per_model": {"gpu_tesla_k40": 3}}},
+            ),
         ],
         "man": [
             Account(
@@ -630,10 +649,7 @@ PERMISSIONS_ALL = {
         Group("everyone"): "crwu",  # DEPLOY-1117
     },
     "endpoint": {Group("common-public-object-creators"): "c"},
-    "endpoint_set": {
-        Group("common-public-object-creators"): "c",
-        User("robot-srv-ctl"): "rw",
-    },
+    "endpoint_set": {Group("common-public-object-creators"): "c", User("robot-srv-ctl"): "rw"},
     "group": {User("robot-yp-export"): "crw", User("robot-yp-idm"): "rw"},
     "horizontal_pod_autoscaler": {User("robot-yd-hpa-ctl"): "rw"},  # YPSUPPORT-71
     "internet_address": {User("robot-yp-inet-mngr"): "crwu"},
