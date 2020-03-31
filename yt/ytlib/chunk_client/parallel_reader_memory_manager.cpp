@@ -5,6 +5,7 @@
 #include <yt/core/actions/invoker.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/scheduler_api.h>
 
 #include <yt/core/misc/collection_helpers.h>
 
@@ -50,9 +51,9 @@ public:
         : Options_(std::move(options))
         , Host_(std::move(host))
         , Invoker_(std::move(invoker))
-        , TotalReservedMemory_(options.TotalReservedMemorySize)
+        , TotalReservedMemory_(Options_.TotalReservedMemorySize)
         , FreeMemory_(Options_.TotalReservedMemorySize)
-        , ProfilingTagList_(std::move(options.ProfilingTagList))
+        , ProfilingTagList_(std::move(Options_.ProfilingTagList))
         , ProfilingExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TParallelReaderMemoryManager::OnProfiling, MakeWeak(this)),
@@ -78,7 +79,7 @@ public:
             MakeWeak(this));
         FreeMemory_ -= initialReaderMemory;
 
-        Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeWeak(this), memoryManager, true));
+        Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeStrong(this), memoryManager, true, false));
         ScheduleRebalancing();
 
         return memoryManager;
@@ -99,13 +100,12 @@ public:
             minRequiredMemorySize,
             std::move(profilingTagList)
         };
-
+        auto memoryManager = New<TParallelReaderMemoryManager>(options, MakeWeak(this), Invoker_);
         FreeMemory_ -= minRequiredMemorySize;
 
-        auto memoryManager = New<TParallelReaderMemoryManager>(options, MakeWeak(this), Invoker_);
-
-        Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeWeak(this), memoryManager, true));
+        Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeStrong(this), memoryManager, true, false));
         ScheduleRebalancing();
+
         return memoryManager;
     }
 
@@ -155,6 +155,13 @@ public:
     }
 
 private:
+    struct TMemoryManagerState
+    {
+        i64 RequiredMemorySize;
+        i64 DesiredMemorySize;
+        i64 ReservedMemorySize;
+    };
+
     void ScheduleRebalancing()
     {
         if (RebalancingsScheduled_ == 0) {
@@ -189,12 +196,11 @@ private:
                     break;
                 }
 
-                auto newReservedMemory = GetOrCrash(ReservedMemory_, reader) - memoryToRevoke;
+                auto newReservedMemory = GetOrCrash(State_, reader).ReservedMemorySize - memoryToRevoke;
 
                 DoRemoveReaderInfo(reader, false);
                 reader->SetReservedMemorySize(newReservedMemory);
                 needExtraMemoryToSatisfyAllRequirements -= memoryToRevoke;
-                FreeMemory_ += memoryToRevoke;
                 DoAddReaderInfo(reader, false);
             }
 
@@ -206,11 +212,10 @@ private:
                 auto memoryToAdd = std::min<i64>(FreeMemory_, readerInfo.first);
                 memoryToAdd = std::max<i64>(memoryToAdd, 0);
 
-                auto newReservedMemory = GetOrCrash(ReservedMemory_, reader) + memoryToAdd;
+                auto newReservedMemory = GetOrCrash(State_, reader).ReservedMemorySize + memoryToAdd;
 
                 DoRemoveReaderInfo(reader, false);
                 reader->SetReservedMemorySize(newReservedMemory);
-                FreeMemory_ -= memoryToAdd;
                 DoAddReaderInfo(reader, false);
             }
         }
@@ -231,11 +236,10 @@ private:
                 auto memoryToAdd = std::min<i64>(FreeMemory_, readerInfo.first);
                 memoryToAdd = std::max<i64>(memoryToAdd, 0);
 
-                auto newReservedMemory = GetOrCrash(RequiredMemory_, reader) + memoryToAdd;
+                auto newReservedMemory = GetOrCrash(State_, reader).ReservedMemorySize + memoryToAdd;
 
                 DoRemoveReaderInfo(reader, false);
                 reader->SetReservedMemorySize(newReservedMemory);
-                FreeMemory_ -= memoryToAdd;
                 DoAddReaderInfo(reader, false);
 
                 --allocationsLeft;
@@ -253,7 +257,6 @@ private:
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
         DoRemoveReaderInfo(readerMemoryManager, true);
-        FreeMemory_ += readerMemoryManager->GetReservedMemorySize();
         readerMemoryManager->SetReservedMemorySize(0);
         TryUnregister();
         ScheduleRebalancing();
@@ -263,7 +266,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        if (RequiredMemory_.find(reader) == RequiredMemory_.end()) {
+        if (State_.find(reader) == State_.end()) {
             // Reader is already unregistered. Do nothing.
             return;
         }
@@ -273,7 +276,7 @@ private:
         ScheduleRebalancing();
     }
 
-    void DoAddReaderInfo(const IReaderMemoryManagerPtr& reader, bool updateMemoryRequirements)
+    void DoAddReaderInfo(const IReaderMemoryManagerPtr& reader, bool updateMemoryRequirements, bool updateFreeMemory = true)
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
@@ -285,6 +288,10 @@ private:
         // between desired_memory and required_memory fetching, however condition required_memory <= desired_memory
         // is important.
         desiredMemory = std::max(desiredMemory, requiredMemory);
+
+        if (updateFreeMemory) {
+            FreeMemory_ -= reservedMemory;
+        }
 
         if (reservedMemory > desiredMemory) {
             FreeMemory_ += reservedMemory - desiredMemory;
@@ -300,9 +307,12 @@ private:
             }
         }
 
-        YT_VERIFY(RequiredMemory_.emplace(reader, requiredMemory).second);
-        YT_VERIFY(DesiredMemory_.emplace(reader, desiredMemory).second);
-        YT_VERIFY(ReservedMemory_.emplace(reader, reservedMemory).second);
+        TMemoryManagerState state {
+            .RequiredMemorySize = requiredMemory,
+            .DesiredMemorySize = desiredMemory,
+            .ReservedMemorySize = reservedMemory
+        };
+        YT_VERIFY(State_.emplace(reader, state).second);
         ReservedMemoryByProfilingTags_[reader->GetProfilingTagList()] += reservedMemory;
 
         if (reservedMemory < requiredMemory) {
@@ -321,10 +331,11 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto requiredMemory = GetOrCrash(RequiredMemory_, reader);
-        auto desiredMemory = GetOrCrash(DesiredMemory_, reader);
-        auto reservedMemory = GetOrCrash(ReservedMemory_, reader);
+        auto requiredMemory = GetOrCrash(State_, reader).RequiredMemorySize;
+        auto desiredMemory = GetOrCrash(State_, reader).DesiredMemorySize;
+        auto reservedMemory = GetOrCrash(State_, reader).ReservedMemorySize;
 
+        FreeMemory_ += reservedMemory;
         TotalRequiredMemory_ -= requiredMemory;
         TotalDesiredMemory_ -= desiredMemory;
         if (updateMemoryRequirements) {
@@ -333,9 +344,7 @@ private:
             }
         }
 
-        YT_VERIFY(RequiredMemory_.erase(reader));
-        YT_VERIFY(DesiredMemory_.erase(reader));
-        YT_VERIFY(ReservedMemory_.erase(reader));
+        YT_VERIFY(State_.erase(reader));
         ReservedMemoryByProfilingTags_[reader->GetProfilingTagList()] -= reservedMemory;
 
         if (reservedMemory < requiredMemory) {
@@ -354,7 +363,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        if (Finalized_ && RequiredMemory_.empty() && !Unregistered_) {
+        if (Finalized_ && State_.empty() && !Unregistered_) {
             Unregistered_ = true;
             if (auto host = Host_.Lock()) {
                 host->Unregister(MakeStrong(this));
@@ -386,9 +395,7 @@ private:
 
     std::atomic<i64> FreeMemory_ = 0;
 
-    THashMap<IReaderMemoryManagerPtr, i64> RequiredMemory_;
-    THashMap<IReaderMemoryManagerPtr, i64> DesiredMemory_;
-    THashMap<IReaderMemoryManagerPtr, i64> ReservedMemory_;
+    THashMap<IReaderMemoryManagerPtr, TMemoryManagerState> State_;
 
     THashMap<TTagIdList, i64> ReservedMemoryByProfilingTags_;
 
