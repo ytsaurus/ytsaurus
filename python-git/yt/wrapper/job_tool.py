@@ -298,15 +298,19 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
     makedirp(sandbox_path)
 
     file_count = len(op_spec[job_spec_section]["file_paths"])
-    try:
-        with client.Transaction(transaction_id=full_info["user_transaction_id"]):
-            _download_files(op_spec, sandbox_path, client)
-    except YtResponseError as err:
-        if err.is_no_such_transaction():
-            _download_files(op_spec, sandbox_path, client)
-        else:
-            raise
 
+    downloaded_with_user_tx = False
+    if "user_transaction_id" in full_info:
+        try:
+            with client.Transaction(transaction_id=full_info["user_transaction_id"]):
+                _download_files(op_spec, sandbox_path, client)
+                downloaded_with_user_tx = True
+        except YtResponseError as err:
+            if not err.is_no_such_transaction():
+                raise
+
+    if not downloaded_with_user_tx:
+        _download_files(op_spec, sandbox_path, client)
 
     if file_count > 0:
         logger.info("Job files were downloaded to %s", sandbox_path)
