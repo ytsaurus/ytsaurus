@@ -451,3 +451,17 @@ def format_disk_space(num, suffix="B"):
 def is_of_iterable_type(obj):
     iterable_types = (list, types.GeneratorType, Iterator, Iterable)
     return isinstance(obj, iterable_types)
+
+def load_certificate(path=None):
+    if path is not None:
+        with open(path, "r") as f:
+            return f.read()
+
+    if is_arcadia_python():
+        import library.python.resource
+
+        return library.python.resource.find("/yt/YandexInternalRootCA.crt")
+
+    path = os.path.join(os.path.dirname(__file__), "YandexInternalRootCA.crt")
+    with open(path, "r") as f:
+        return f.read()

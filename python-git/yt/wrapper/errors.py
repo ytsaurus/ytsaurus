@@ -11,6 +11,12 @@ def hide_token(headers):
         headers["Authorization"] = "x" * 32
     return headers
 
+def hide_request_info_token(request_info):
+    if "headers" in request_info:
+        request_info = deepcopy(request_info)
+        request_info["headers"] = hide_token(request_info["headers"])
+    return request_info
+
 class YtOperationFailedError(YtError):
     """Operation failed during waiting completion."""
     def __init__(self, id, state, error, stderrs, url):
@@ -166,7 +172,7 @@ class YtProxyUnavailable(YtError):
         self.response = response
         attributes = {
             "url": response.url,
-            "request_info": hide_token(response.request_info)
+            "request_info": hide_request_info_token(response.request_info)
         }
         super(YtProxyUnavailable, self).__init__(
             message="Proxy is unavailable",
@@ -180,7 +186,7 @@ class YtIncorrectResponse(YtError):
         attributes = {
             "url": response.url,
             "headers": response.headers,
-            "request_info": hide_token(response.request_info),
+            "request_info": hide_request_info_token(response.request_info),
             "body": self.truncate(response.text)}
         super(YtIncorrectResponse, self).__init__(message, attributes=attributes)
 
