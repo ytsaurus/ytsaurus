@@ -156,16 +156,16 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
     {
         auto groupsFuture = discoveryClient->ListGroups();
         const auto& groups = groupsFuture.Get().ValueOrThrow();
-        EXPECT_EQ(groups.size(), 1);
-        EXPECT_EQ(groups[0], groupId);
+        EXPECT_EQ(1, groups.size());
+        EXPECT_EQ(groupId, groups[0]);
     }
 
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& members = membersFuture.Get().ValueOrThrow();
-        EXPECT_EQ(members.size(), 2);
-        EXPECT_EQ(members[0].Id, memberId1);
-        EXPECT_EQ(members[1].Id, memberId2);
+        EXPECT_EQ(2, members.size());
+        EXPECT_EQ(memberId1, members[0].Id);
+        EXPECT_EQ(memberId2, members[1].Id);
     }
 
     memberClient1->Stop();
@@ -174,8 +174,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& members = membersFuture.Get().ValueOrThrow();
-        EXPECT_EQ(members.size(), 1);
-        EXPECT_EQ(members[0].Id, memberId2);
+        EXPECT_EQ(1, members.size());
+        EXPECT_EQ(memberId2, members[0].Id);
     }
 
     memberClient2->Stop();
@@ -184,7 +184,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
     {
         auto groupsFuture = discoveryClient->ListGroups();
         const auto& groups = groupsFuture.Get().ValueOrThrow();
-        EXPECT_EQ(groups.size(), 0);
+        EXPECT_EQ(0, groups.size());
     }
 }
 
@@ -208,15 +208,15 @@ TEST_F(TDiscoveryServiceTestSuite, TestGossip)
     {
         auto groupsFuture = discoveryClient->ListGroups();
         const auto& groups = groupsFuture.Get().ValueOrThrow();
-        EXPECT_EQ(groups.size(), 1);
-        EXPECT_EQ(groups[0], groupId);
+        EXPECT_EQ(1, groups.size());
+        EXPECT_EQ(groupId, groups[0]);
     }
 
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& members = membersFuture.Get().ValueOrThrow();
-        EXPECT_EQ(members.size(), 1);
-        EXPECT_EQ(members[0].Id, memberId);
+        EXPECT_EQ(1, members.size());
+        EXPECT_EQ(memberId, members[0].Id);
     }
 }
 
@@ -247,8 +247,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
         const auto& members = membersFuture.Get().ValueOrThrow();
-        EXPECT_EQ(members.size(), 1);
-        EXPECT_EQ(members[0].Id, memberId);
+        EXPECT_EQ(1, members.size());
+        EXPECT_EQ(memberId, members[0].Id);
         EXPECT_TRUE(members[0].Attributes->ListKeys().empty());
     }
 
@@ -260,8 +260,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
         const auto& members = membersFuture.Get().ValueOrThrow();
-        EXPECT_EQ(members.size(), 1);
-        EXPECT_TRUE(members[0].Attributes->Find<TString>(key) == value);
+        EXPECT_EQ(1, members.size());
+        EXPECT_EQ(value, members[0].Attributes->Find<TString>(key));
     }
 }
 
@@ -286,9 +286,9 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& members = membersFuture.Get().ValueOrThrow();
-        EXPECT_EQ(members.size(), membersNum);
+        EXPECT_EQ(membersNum, members.size());
         for (int i = 0; i < membersNum; ++i) {
-            EXPECT_EQ(members[i].Priority, i);
+            EXPECT_EQ(i, members[i].Priority);
         }
     }
 
@@ -298,9 +298,9 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, options);
         const auto& members = membersFuture.Get().ValueOrThrow();
-        EXPECT_EQ(members.size(), options.Limit);
+        EXPECT_EQ(options.Limit, members.size());
         for (int i = 0; i < options.Limit; ++i) {
-            EXPECT_EQ(members[i].Priority, i);
+            EXPECT_EQ(i, members[i].Priority);
         }
     }
 }
@@ -332,15 +332,15 @@ TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
     {
         auto groupsFuture = discoveryClient->ListGroups();
         const auto& groups = groupsFuture.Get().ValueOrThrow();
-        EXPECT_EQ(groups.size(), 1);
-        EXPECT_EQ(groups[0], groupId);
+        EXPECT_EQ(1, groups.size());
+        EXPECT_EQ(groupId, groups[0]);
     }
 
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& members = membersFuture.Get().ValueOrThrow();
-        EXPECT_EQ(members.size(), 1);
-        EXPECT_EQ(members[0].Id, memberId);
+        EXPECT_EQ(1, members.size());
+        EXPECT_EQ(memberId, members[0].Id);
     }
 }
 
