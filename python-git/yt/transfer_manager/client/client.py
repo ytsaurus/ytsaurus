@@ -48,7 +48,7 @@ def _raise_for_status(response):
     if response.status_code == 500 or response.status_code == 502:
         message = "Transfer Manager is not available"
         if response.content:
-            message += ": " + response.content
+            message += ": " + str(response.content)
 
         raise TransferManagerUnavailableError(message)
 
