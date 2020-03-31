@@ -66,7 +66,8 @@ public:
         const TClientBlockReadOptions& blockReadOptions,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler)
+        IThroughputThrottlerPtr rpsThrottler,
+        IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
         : KeyColumns_(keyColumns)
         , KeyColumnCount_(static_cast<int>(KeyColumns_.size()))
         , OnNetworkReleased_(onNetworkReleased)
@@ -101,7 +102,8 @@ public:
             blockReadOptions,
             trafficMeter,
             bandwidthThrottler,
-            rpsThrottler);
+            rpsThrottler,
+            std::move(multiReaderMemoryManager));
 
         SortQueue_ = New<TActionQueue>("Sort");
         ReadyEvent_ = BIND(
@@ -600,7 +602,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     return New<TSchemalessPartitionSortReader>(
         config,
@@ -618,7 +621,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
         blockReadOptions,
         trafficMeter,
         bandwidthThrottler,
-        rpsThrottler);
+        rpsThrottler,
+        std::move(multiReaderMemoryManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1841,7 +1841,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
@@ -1888,6 +1889,9 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             nullptr,
                             nullptr);
 
+                        auto chunkReaderMemoryManager =
+                            multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate);
+
                         return CreateSchemalessChunkReader(
                             std::move(chunkState),
                             std::move(chunkMeta),
@@ -1900,7 +1904,8 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             dataSource.OmittedInaccessibleColumns(),
                             columnFilter.IsUniversal() ? CreateColumnFilter(dataSource.Columns(), nameTable) : columnFilter,
                             range,
-                            partitionTag);
+                            partitionTag,
+                            chunkReaderMemoryManager);
                     } catch(const std::exception& ex) {
                         THROW_ERROR_EXCEPTION("Error creating chunk reader")
                             << TErrorAttribute("chunk_id", chunkSpec.chunk_id())
@@ -1908,7 +1913,11 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                     }
                 };
 
-                factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate, dataSliceDescriptor));
+                auto canCreateReader = [=] {
+                    return multiReaderMemoryManager->GetFreeMemorySize() >= memoryEstimate;
+                };
+
+                factories.emplace_back(CreateReaderFactory(createReader, canCreateReader, dataSliceDescriptor));
                 break;
             }
 
@@ -1935,7 +1944,11 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         rpsThrottler);
                 };
 
-                factories.emplace_back(CreateReaderFactory(createReader, memoryEstimate, dataSliceDescriptor));
+                auto canCreateReader = [=] {
+                    return multiReaderMemoryManager->GetFreeMemorySize() >= memoryEstimate;
+                };
+
+                factories.emplace_back(CreateReaderFactory(createReader, canCreateReader, dataSliceDescriptor));
                 break;
             }
 
@@ -1974,7 +1987,8 @@ public:
         std::optional<int> partitionTag,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler);
+        IThroughputThrottlerPtr rpsThrottler,
+        NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
     ~TSchemalessMultiChunkReader();
 
@@ -2034,7 +2048,8 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
     : TBase(
         config,
         options,
@@ -2055,7 +2070,9 @@ TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
             partitionTag,
             trafficMeter,
             bandwidthThrottler,
-            rpsThrottler))
+            rpsThrottler,
+            multiReaderMemoryManager),
+        multiReaderMemoryManager)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , RowCount_(GetCumulativeRowCount(dataSliceDescriptors))
@@ -2218,8 +2235,18 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
+    if (!multiReaderMemoryManager) {
+        multiReaderMemoryManager = CreateParallelReaderMemoryManager(
+            TParallelReaderMemoryManagerOptions(
+                config->MaxBufferSize,
+                config->WindowSize,
+                0),
+            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+    }
+
     auto reader = New<TSchemalessMultiChunkReader<TSequentialMultiReaderBase>>(
         config,
         options,
@@ -2237,7 +2264,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
         partitionTag,
         trafficMeter,
         std::move(bandwidthThrottler),
-        std::move(rpsThrottler));
+        std::move(rpsThrottler),
+        std::move(multiReaderMemoryManager));
 
     reader->Open();
     return reader;
@@ -2262,8 +2290,18 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     std::optional<int> partitionTag,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
+    if (!multiReaderMemoryManager) {
+        multiReaderMemoryManager = CreateParallelReaderMemoryManager(
+            TParallelReaderMemoryManagerOptions(
+                config->MaxBufferSize,
+                config->WindowSize,
+                0),
+            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+    }
+
     auto reader = New<TSchemalessMultiChunkReader<TParallelMultiReaderBase>>(
         config,
         options,
@@ -2281,7 +2319,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
         partitionTag,
         trafficMeter,
         std::move(bandwidthThrottler),
-        std::move(rpsThrottler));
+        std::move(rpsThrottler),
+        std::move(multiReaderMemoryManager));
 
     reader->Open();
     return reader;

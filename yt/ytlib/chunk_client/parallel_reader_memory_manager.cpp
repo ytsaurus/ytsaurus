@@ -143,6 +143,11 @@ public:
         ScheduleRebalancing();
     }
 
+    virtual i64 GetFreeMemorySize() override
+    {
+        return FreeMemory_;
+    }
+
     virtual void Finalize() override
     {
         Finalized_ = true;

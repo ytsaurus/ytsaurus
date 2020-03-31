@@ -39,7 +39,8 @@ public:
         NChunkClient::IBlockCachePtr blockCache,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         const TKeyColumns& keyColumns,
-        int partitionTag);
+        int partitionTag,
+        NChunkClient::TChunkReaderMemoryManagerPtr chunkReaderMemoryManager = nullptr);
 
     template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
     bool Read(
@@ -114,7 +115,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler);
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler,
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

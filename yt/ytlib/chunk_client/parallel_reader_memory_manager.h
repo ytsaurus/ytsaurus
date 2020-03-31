@@ -12,6 +12,9 @@ namespace NYT::NChunkClient {
 struct IMultiReaderMemoryManager
     : public IReaderMemoryManager
 {
+    //! Returns amount of free memory in memory manager.
+    virtual i64 GetFreeMemorySize() = 0;
+
     //! Creates memory manager for particular chunk reader with `reservedMemorySize' reserved memory.
     //! If not set `MaxInitialReaderReservedMemory' memory will be allocated.
     virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
