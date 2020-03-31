@@ -31,8 +31,6 @@ from yt.packages.six.moves import xrange, zip as izip
 
 import yt.wrapper as yt
 
-from flaky import flaky
-
 import io
 import logging
 import os
