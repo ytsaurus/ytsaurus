@@ -2405,9 +2405,8 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
         assert suspicious
 
-    @authors("ignat")
-    @pytest.mark.xfail(reason="TODO(max42)")
-    def test_true_suspicious_jobs_old(self):
+    @authors("max42")
+    def DISABLED_test_true_suspicious_jobs_old(self):
         # This test involves dirty hack to make lots of retries for fetching feasible
         # seeds from master making the job suspicious (as it doesn't give the input for the
         # user job for a long time).
