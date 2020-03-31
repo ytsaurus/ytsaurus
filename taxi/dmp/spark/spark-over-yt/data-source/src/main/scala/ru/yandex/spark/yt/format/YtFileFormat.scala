@@ -105,6 +105,6 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
   }
 
   override def supportBatch(sparkSession: SparkSession, dataSchema: StructType): Boolean = {
-    dataSchema.forall(f => f.dataType.isInstanceOf[AtomicType] || f.dataType.isInstanceOf[StringType])
+    dataSchema.forall(f => f.dataType.isInstanceOf[AtomicType])
   }
 }
