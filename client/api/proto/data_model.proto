@@ -1812,8 +1812,6 @@ message TEndpointSetSpec
     /* If given, guarantees that endpoints_count >= ceil(liveness_limit_ratio * pods_count).
      * Where endpoints_count - endpoints count within endpoint set, pods_count - pod count within endpoint set.
      *
-     * Will start working after YP-1502.
-     *
      * If "ready" pods count >= ceil(liveness_limit_ratio * pods_count) - liveness_limit_ratio has no affect.
      *
      * In case when endpoints count is less than ceil(liveness_limit_ratio * pods_count),
