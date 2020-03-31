@@ -226,20 +226,43 @@ private:
             return;
         }
 
-        Shuffle(starvingPods.begin(), starvingPods.end());
+        THashMap<TPodSet*, std::vector<TPod*>> starvingPodsPerPodSet;
+        for (auto* pod : starvingPods) {
+            starvingPodsPerPodSet[pod->GetPodSet()].push_back(pod);
+        }
 
-        auto podItEnd = static_cast<int>(starvingPods.size()) > Config_->StarvingPodsPerIterationLimit
-            ? starvingPods.begin() + Config_->StarvingPodsPerIterationLimit
-            : starvingPods.end();
+        std::deque<TPodSet*> starvingPodSets;
+        for (const auto& [podSet, pods] : starvingPodsPerPodSet) {
+            starvingPodSets.push_back(podSet);
+        }
+
+        Shuffle(starvingPodSets.begin(), starvingPodSets.end());
+        for (auto& [podSet, pods] : starvingPodsPerPodSet) {
+            Shuffle(pods.begin(), pods.end());
+        }
 
         VictimSearchFailureCounter_ = 0;
         auto finally = Finally([this] () {
             Profiler.Update(Profiling_.VictimSearchFailureCounter, VictimSearchFailureCounter_);
         });
 
-        for (auto podIt = starvingPods.begin(); podIt < podItEnd; ++podIt) {
-            if (!HeavyScheduler_->GetTaskManager()->HasTaskInvolvingPod(*podIt)) {
-                ProcessStarvingPod(*podIt);
+        for (int processedPodCount = 0;
+            processedPodCount < Config_->StarvingPodsPerIterationLimit && !starvingPodSets.empty();
+            ++processedPodCount)
+        {
+            auto* podSet = starvingPodSets.front();
+            starvingPodSets.pop_front();
+
+            auto& pods = starvingPodsPerPodSet[podSet];
+            auto* pod = pods.back();
+            pods.pop_back();
+
+            if (!pods.empty()) {
+                starvingPodSets.push_back(podSet);
+            }
+
+            if (!HeavyScheduler_->GetTaskManager()->HasTaskInvolvingPod(pod)) {
+                ProcessStarvingPod(pod);
             }
         }
     }
