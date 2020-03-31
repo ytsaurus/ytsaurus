@@ -323,11 +323,6 @@ public:
     FLUENT_FIELD_ENCAPSULATED(TString, Name);
     FLUENT_FIELD_DEFAULT_ENCAPSULATED(EValueType, Type, VT_INT64);
 
-    // If Required is set to true "null" values are not allowed in this column.
-    // Column of type "any" cannot have required=true attribute.
-    // Dynamic tables cannot have columns with required=true attribute.
-    FLUENT_FIELD_DEFAULT_ENCAPSULATED(bool, Required, false);
-
     // Experimental feature
     FLUENT_FIELD_OPTION_ENCAPSULATED(TNode, RawTypeV2);
     FLUENT_FIELD_OPTION_ENCAPSULATED(TNode, RawTypeV3);
@@ -337,6 +332,13 @@ public:
     FLUENT_FIELD_OPTION_ENCAPSULATED(TString, Expression);
     FLUENT_FIELD_OPTION_ENCAPSULATED(TString, Aggregate);
     FLUENT_FIELD_OPTION_ENCAPSULATED(TString, Group);
+
+    bool Required() const;
+    TColumnSchema& Type(EValueType type, bool required) &;
+    TColumnSchema Type(EValueType type, bool required) &&;
+
+private:
+    bool Required_ = false;
 
     friend void Deserialize(TColumnSchema& columnSchema, const TNode& node);
 };
