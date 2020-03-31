@@ -464,6 +464,8 @@ public:
                 EMetricType::Gauge);
         }
 
+        HealthChecker_->OnProfiling();
+
         YT_LOG_DEBUG("Profiling flushed");
     }
 

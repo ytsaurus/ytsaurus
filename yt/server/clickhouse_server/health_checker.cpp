@@ -122,7 +122,7 @@ THealthChecker::THealthChecker(
     , ActionQueue_(New<TActionQueue>("HealthChecker"))
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         ActionQueue_->GetInvoker(),
-        BIND(&THealthChecker::ExecuteAndProfileQueries, MakeWeak(this)),
+        BIND(&THealthChecker::ExecuteQueries, MakeWeak(this)),
         Config_->Period))
     , QueryIndexToTag_(NDetail::RegisterQueryTags(Config_->Queries.size()))
 { }
@@ -135,8 +135,10 @@ void THealthChecker::Start()
     PeriodicExecutor_->Start();
 }
 
-void THealthChecker::ExecuteAndProfileQueries()
+void THealthChecker::ExecuteQueries()
 {
+    std::vector<bool> newResult(Config_->Queries.size());
+
     for (size_t queryIndex = 0; queryIndex < Config_->Queries.size(); ++queryIndex) {
         const auto& query = Config_->Queries[queryIndex];
         YT_LOG_DEBUG("Executing health checker query (Index: %v, Query: %v)", queryIndex, query);
@@ -158,9 +160,36 @@ void THealthChecker::ExecuteAndProfileQueries()
                 query);
         }
 
+        newResult[queryIndex] = error.IsOK();
+    }
+
+    {
+        TGuard guard(Lock_);
+        LastResult_.swap(newResult);
+    }
+}
+
+void THealthChecker::OnProfiling()
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
+    std::vector<bool> lastResultSnapshot;
+
+    // Make a copy in order to not hold lock for a long time in case of profiling overload.
+    {
+        TGuard guard(Lock_);
+        lastResultSnapshot = LastResult_;
+    }
+
+    if (lastResultSnapshot.empty()) {
+        // Nothing to export yet.
+        return;
+    }
+
+    for (size_t queryIndex = 0; queryIndex < Config_->Queries.size(); ++queryIndex) {
         ClickHouseYtProfiler.Enqueue(
             "/health_checker/success",
-            error.IsOK(),
+            lastResultSnapshot[queryIndex],
             NProfiling::EMetricType::Gauge,
             {QueryIndexToTag_[queryIndex]});
     }
