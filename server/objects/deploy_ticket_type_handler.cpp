@@ -507,7 +507,7 @@ private:
         auto* stage = deployTicket->Stage().Load();
 
         auto patchesMessage = isFullCommit
-            ? Format("DeployTicket was committed: %v", message)
+            ? Format("Deploy ticket was committed: %v", message)
             : message;
 
         if (release->Spec().Etc().Load().has_sandbox()) {
@@ -568,7 +568,7 @@ private:
         ValidatePatchStates(deployTicket, patchIds);
 
         auto patchesMessage = isFullSkip
-            ? Format("DeployTicket was skipped: %v", message)
+            ? Format("Deploy ticket was skipped: %v", message)
             : message;
 
         for (const auto& patchId : patchIds) {

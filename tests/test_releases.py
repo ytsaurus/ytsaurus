@@ -162,12 +162,19 @@ class TestReleases(object):
 
         with yp_env.yp_instance.create_client(config={"user": user_id}) as user_client:
             with pytest.raises(YtResponseError):
-                release_id = user_client.create_object(
+                user_client.create_object(
                     "release", attributes={"meta": {"id": "release1", "author_id": "id"}, "spec": spec}
                 )
 
             release_id = user_client.create_object(
-                "release", attributes={"meta": {"id": "release1"}, "spec": spec}
+                "release", attributes={"meta": {"id": "release1", "author_id": ""}, "spec": spec}
+            )
+
+            author_id = yp_client.get_object("release", release_id, selectors=["/meta/author_id"])[0]
+            assert author_id == user_id
+
+            release_id = user_client.create_object(
+                "release", attributes={"meta": {"id": "release2"}, "spec": spec}
             )
 
             author_id = yp_client.get_object("release", release_id, selectors=["/meta/author_id"])[0]

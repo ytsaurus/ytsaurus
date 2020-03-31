@@ -36,7 +36,6 @@ public:
             ->AddChildren({
                 MakeAttributeSchema("author_id")
                     ->SetAttribute(TRelease::AuthorIdSchema)
-                    ->SetValidator<TRelease>(std::bind(&TReleaseTypeHandler::ValidateAuthorId, this, _1, _2))
             });
 
         SpecAttributeSchema_
@@ -79,18 +78,21 @@ public:
         return std::make_unique<TRelease>(id, this, session);
     }
 
-    virtual void BeforeObjectCreated(
+    virtual void AfterObjectCreated(
         TTransaction* transaction,
         TObject* object) override
     {
-        TObjectTypeHandlerBase::BeforeObjectCreated(transaction, object);
+        TObjectTypeHandlerBase::AfterObjectCreated(transaction, object);
 
         auto* release = object->As<TRelease>();
 
-        const auto& userId = Bootstrap_->GetAccessControlManager()->TryGetAuthenticatedUser();
+        if (!release->AuthorId().Load().empty()) {
+            THROW_ERROR_EXCEPTION("Field /meta/author_id cannot be set");
+        }
+        auto userId = Bootstrap_->GetAccessControlManager()->TryGetAuthenticatedUser();
 
         if (userId.empty()) {
-            THROW_ERROR_EXCEPTION("Authenticated user was not resolved for release %Qv",
+            THROW_ERROR_EXCEPTION("Authenticated user cannot be resolved for release %Qv",
                 release->GetId());
         }
 
@@ -115,14 +117,6 @@ private:
                 "Release id %Qv length exceeds limit %v",
                 id,
                 idLengthLimit);
-        }
-    }
-
-    void ValidateAuthorId(TTransaction* /*transaction*/, TRelease* release)
-    {
-        if (!release->AuthorId().Load().empty())
-        {
-            THROW_ERROR_EXCEPTION("Field /meta/author_id must be empty when release is created");
         }
     }
 

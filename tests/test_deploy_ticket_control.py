@@ -438,13 +438,13 @@ class TestCommitDeployTicket(object):
             ),
             layer_state1=construct_layer_state(new_skynet_id, "MD5:" + new_md5, new_resource_meta3),
             patch_action_state1=construct_commit_action_state(
-                message="DeployTicket was committed: new commit"
+                message="Deploy ticket was committed: new commit"
             ),
             patch_action_state2=construct_commit_action_state(
-                message="DeployTicket was committed: new commit"
+                message="Deploy ticket was committed: new commit"
             ),
             patch_action_state3=construct_commit_action_state(
-                message="DeployTicket was committed: new commit"
+                message="Deploy ticket was committed: new commit"
             ),
             stage_revision=2,
             commit_message="new commit",
@@ -491,13 +491,13 @@ class TestCommitDeployTicket(object):
             ),
             layer_state1=construct_layer_state(new_skynet_id, "MD5:" + new_md5, new_resource_meta3),
             patch_action_state1=construct_commit_action_state(
-                message="DeployTicket was committed: new commit"
+                message="Deploy ticket was committed: new commit"
             ),
             patch_action_state2=construct_commit_action_state(
-                message="DeployTicket was committed: new commit"
+                message="Deploy ticket was committed: new commit"
             ),
             patch_action_state3=construct_commit_action_state(
-                message="DeployTicket was committed: new commit"
+                message="Deploy ticket was committed: new commit"
             ),
             stage_revision=2,
             commit_message="new commit",
@@ -563,10 +563,10 @@ class TestCommitDeployTicket(object):
             layer_state1=construct_layer_state(new_skynet_id, "MD5:" + new_md5, new_resource_meta3),
             patch_action_state1=construct_commit_action_state(message="old commit"),
             patch_action_state2=construct_commit_action_state(
-                message="DeployTicket was committed: new commit"
+                message="Deploy ticket was committed: new commit"
             ),
             patch_action_state3=construct_commit_action_state(
-                message="DeployTicket was committed: new commit"
+                message="Deploy ticket was committed: new commit"
             ),
             stage_revision=2,
             commit_message="new commit",
@@ -696,8 +696,8 @@ class TestCommitDeployTicket(object):
             ],
         )
 
-        assert patch_actions_result[0] == construct_skip_action_state("DeployTicket was skipped: skip ticket")
-        assert patch_actions_result[1] == construct_skip_action_state("DeployTicket was skipped: skip ticket")
+        assert patch_actions_result[0] == construct_skip_action_state("Deploy ticket was skipped: skip ticket")
+        assert patch_actions_result[1] == construct_skip_action_state("Deploy ticket was skipped: skip ticket")
 
         revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
         assert revision == 1
@@ -772,7 +772,7 @@ class TestCommitDeployTicket(object):
         )
 
         assert patch_actions_result[0] == construct_skip_action_state("skip patch")
-        assert patch_actions_result[1] == construct_skip_action_state("DeployTicket was skipped: skip ticket")
+        assert patch_actions_result[1] == construct_skip_action_state("Deploy ticket was skipped: skip ticket")
 
         revision = yp_client.get_object("stage", stage_id, selectors=["/spec/revision"])[0]
         assert revision == 1
@@ -1001,8 +1001,8 @@ class TestCommitDeployTicket(object):
             ticket_action_state=construct_commit_action_state("new commit"),
             docker_resource_state1={"name": image_name, "tag": image_tag},
             docker_resource_state2={"name": image_name, "tag": image_tag},
-            patch_action_state1=construct_commit_action_state("DeployTicket was committed: new commit"),
-            patch_action_state2=construct_commit_action_state("DeployTicket was committed: new commit"),
+            patch_action_state1=construct_commit_action_state("Deploy ticket was committed: new commit"),
+            patch_action_state2=construct_commit_action_state("Deploy ticket was committed: new commit"),
             stage_revision=2,
             commit_message="new commit",
         )
@@ -1036,7 +1036,7 @@ class TestCommitDeployTicket(object):
             docker_resource_state1=default_docker_resource,
             docker_resource_state2={"name": image_name, "tag": image_tag},
             patch_action_state1=construct_commit_action_state("old commit"),
-            patch_action_state2=construct_commit_action_state("DeployTicket was committed: new commit"),
+            patch_action_state2=construct_commit_action_state("Deploy ticket was committed: new commit"),
             stage_revision=2,
             commit_message="new commit",
         )
