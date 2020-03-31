@@ -128,7 +128,7 @@ TInstant TMember::GetLastGossipAttributesUpdateTime() const
     return LastGossipAttributesUpdateTime_;
 }
 
-void TMember::SetLastGossipAttributesUpdateTime(const TInstant& lastGossipAttributesUpdateTime)
+void TMember::SetLastGossipAttributesUpdateTime(TInstant lastGossipAttributesUpdateTime)
 {
     LastGossipAttributesUpdateTime_ = lastGossipAttributesUpdateTime;
 }
