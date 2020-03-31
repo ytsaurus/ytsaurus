@@ -968,7 +968,7 @@ struct TSorterSelector<std::vector<T>, C, TSortedTag>
 template <class T, class C, unsigned size>
 struct TSorterSelector<SmallVector<T, size>, C, TSortedTag>
 {
-typedef TCollectionSorter<SmallVector<T, size>, TValueSorterComparer<C>> TSorter;
+    typedef TCollectionSorter<SmallVector<T, size>, TValueSorterComparer<C>> TSorter;
 };
 
 template <class C, class... T>
