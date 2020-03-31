@@ -46,7 +46,9 @@ void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& contex
     if (context.IsSave()) {
         auto& ctx = context.SaveContext();
         Save<i32>(ctx, DiskSpacePerMedium.size());
-        for (const auto& [mediumIndex, diskSpace] : DiskSpacePerMedium) {
+        std::vector<std::pair<int, i64>> diskSpacePerMedium(DiskSpacePerMedium.begin(), DiskSpacePerMedium.end());
+        std::sort(diskSpacePerMedium.begin(), diskSpacePerMedium.end());
+        for (auto [mediumIndex, diskSpace] : diskSpacePerMedium) {
             Save(ctx, mediumIndex);
             Save(ctx, diskSpace);
         }
