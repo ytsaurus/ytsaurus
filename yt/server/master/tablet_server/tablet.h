@@ -34,7 +34,7 @@ struct TTabletCellStatisticsBase
     i64 CompressedDataSize = 0;
     i64 MemorySize = 0;
     i64 DynamicMemoryPoolSize = 0;
-    NChunkClient::TMediumMap<i64> DiskSpacePerMedium = NChunkClient::TMediumMap<i64>();
+    NChunkClient::TMediumMap<i64> DiskSpacePerMedium;
     int ChunkCount = 0;
     int PartitionCount = 0;
     int StoreCount = 0;
