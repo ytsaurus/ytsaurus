@@ -336,7 +336,7 @@ private:
 
     double GetVictimSetScore(const std::vector<TPod*>& victimPods)
     {
-        return -victimPods.size();
+        return -1. * victimPods.size();
     }
 
     std::vector<TPod*> FindStarvingPods(const TClusterPtr& cluster) const

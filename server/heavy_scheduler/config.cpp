@@ -74,7 +74,7 @@ TSwapDefragmentatorConfig::TSwapDefragmentatorConfig()
         .Default(500);
 
     RegisterParameter("victim_set_generator_type", VictimSetGeneratorType)
-        .Default(EVictimSetGeneratorType::Single);
+        .Default(EVictimSetGeneratorType::BruteForce);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

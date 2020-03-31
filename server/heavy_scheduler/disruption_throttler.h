@@ -23,6 +23,7 @@ public:
     void RegisterEviction(const std::vector<NCluster::TPod*>& pods);
 
     bool ThrottleEviction(NCluster::TPod* pod) const;
+    bool ThrottleEviction(const std::vector<NCluster::TPod*>& pod) const;
 
     int EvictionCount() const;
 

@@ -123,7 +123,7 @@ class TestHeavyScheduler(object):
             node_count=1,
             cpu_total_capacity=1000,
             memory_total_capacity=2 ** 30,
-            labels=dict(node="node", rack="rack", dc="dc")
+            labels=dict(node="node", rack="rack", dc="dc"),
         )
 
         pod_set_id = create_pod_set(yp_client)
@@ -145,11 +145,14 @@ class TestHeavyScheduler(object):
             "pod_set",
             pod_set_id,
             set_updates=[
-                dict(path="/spec/antiaffinity_constraints", value=[
-                    dict(key="node", max_pods=1),
-                    dict(key="rack", max_pods=1),
-                    dict(key="dc", max_pods=1),
-                ])
+                dict(
+                    path="/spec/antiaffinity_constraints",
+                    value=[
+                        dict(key="node", max_pods=1),
+                        dict(key="rack", max_pods=1),
+                        dict(key="dc", max_pods=1),
+                    ],
+                )
             ],
         )
 
@@ -503,6 +506,100 @@ class TestSinglePodSwapDefragmentatorStrategy(object):
         )
 
         wait(lambda: get_evictions_count(yp_client, pod_ids) == 1)
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
+class TestBruteForceDefragmentationStrategy(object):
+    START_YP_HEAVY_SCHEDULER = True
+
+    YP_HEAVY_SCHEDULER_CONFIG = dict(
+        heavy_scheduler=dict(
+            verbose=True,
+            node_segment="default",
+            disruption_throttler=dict(
+                validate_pod_disruption_budget=False, safe_suitable_node_count=1,
+            ),
+            swap_defragmentator=dict(victim_set_generator_type="brute_force",),
+        ),
+    )
+
+    @pytest.mark.parametrize("node_cpu,expected_evictions", [(4000, 3), (5000, 2), (6000, 1)])
+    def test_brute_force_strategy(self, yp_env_configurable, node_cpu, expected_evictions):
+        yp_client = yp_env_configurable.yp_client
+
+        node_ids = create_nodes(
+            yp_client,
+            node_count=4,
+            cpu_total_capacity=node_cpu,
+            memory_total_capacity=2 ** 60,
+            labels=dict(segment="default"),
+        )
+
+        pod_ids = []
+        for node_id in node_ids:
+            yp_client.update_object(
+                "node", node_id, set_updates=[dict(path="/labels/node", value=node_id)]
+            )
+
+            pod_ids.extend(
+                [
+                    create_pod_with_boilerplate(
+                        yp_client,
+                        create_pod_set(yp_client),
+                        pod_id="cpu{}-{}-node{}".format(cpu, i, node_id),
+                        spec=dict(
+                            enable_scheduling=True,
+                            resource_requests=dict(vcpu_guarantee=cpu),
+                            node_filter='[/labels/node] = "{}"'.format(node_id),
+                        ),
+                    )
+                    for i, cpu in enumerate(3 * [1000] + 7 * [100])
+                ]
+            )
+
+        wait_pods_are_assigned(yp_client, pod_ids)
+
+        yp_client.update_objects(
+            [
+                dict(
+                    object_type="pod",
+                    object_id=pod_id,
+                    remove_updates=[dict(path="/spec/node_filter")],
+                )
+                for pod_id in pod_ids
+            ]
+        )
+
+        if node_cpu < 5000:
+            create_nodes(
+                yp_client,
+                node_count=3,
+                cpu_total_capacity=1000,
+                memory_total_capacity=2 ** 60,
+                labels=dict(segment="default"),
+            )
+
+        create_pod_with_boilerplate(
+            yp_client,
+            create_pod_set(yp_client),
+            pod_id="starving",
+            spec=dict(enable_scheduling=True, resource_requests=dict(vcpu_guarantee=3000),),
+        )
+
+        wait(
+            lambda: get_evictions_count(yp_client, pod_ids) == expected_evictions,
+            sleep_backoff=5,
+            iter=10,
+        )
+
+        result = yp_client.select_objects(
+            "pod",
+            filter='[/status/eviction/state] = "requested"',
+            selectors=["/spec/resource_requests/vcpu_guarantee", "/status/scheduling/node_id"],
+        )
+        assert len(result) == expected_evictions
+        assert len(set(node_id for _, node_id in result)) == 1
+        assert all(cpu_request == 1000 for cpu_request, _ in result)
 
 
 @pytest.mark.usefixtures("yp_env_configurable")
