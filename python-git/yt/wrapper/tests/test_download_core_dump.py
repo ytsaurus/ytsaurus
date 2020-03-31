@@ -7,6 +7,8 @@ from yt.packages.six.moves import xrange
 
 import pytest
 
+from flaky import flaky
+
 import os
 import random
 import string
@@ -17,6 +19,8 @@ import time
 @pytest.mark.skipif("yatest_common is not None")
 @pytest.mark.usefixtures("yt_env_with_porto")
 class TestDownloadCoreDump(object):
+    # More details in YT-12581.
+    @flaky(max_runs=3)
     def test_download_core_dump(self):
         assert which("g++")
 
