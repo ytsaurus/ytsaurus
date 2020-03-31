@@ -39,7 +39,7 @@ public:
         , Connection_(directoryConnection)
         , NodeDirectory_(nodeDirectory)
         , SyncExecutor_(New<TPeriodicExecutor>(
-            NRpc::TDispatcher::Get()->GetLightInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             BIND(&TImpl::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
     { }
