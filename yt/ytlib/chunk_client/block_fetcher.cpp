@@ -110,8 +110,8 @@ TBlockFetcher::TBlockFetcher(
         totalBlockUncompressedSize += blockInfo.UncompressedDataSize;
     }
 
-    MemoryManager_->SetTotalSize(totalBlockUncompressedSize);
-    MemoryManager_->SetPrefetchMemorySize(Config_->WindowSize);
+    MemoryManager_->SetTotalSize(totalBlockUncompressedSize + Config_->WindowSize);
+    MemoryManager_->SetPrefetchMemorySize(std::min<i64>(Config_->WindowSize, TotalRemainingSize_));
 
     YT_LOG_DEBUG("Creating block fetcher (Blocks: %v)",
         blockIndexes);
@@ -298,8 +298,9 @@ void TBlockFetcher::FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGua
     }
 
     if (TotalRemainingSize_ > 0) {
+        MemoryManager_->SetPrefetchMemorySize(std::min<i64>(TotalRemainingSize_, Config_->GroupSize));
         FetchNextGroupMemoryFuture_ =
-            MemoryManager_->AsyncAquire(std::min(TotalRemainingSize_.load(), Config_->GroupSize));
+            MemoryManager_->AsyncAquire(std::min<i64>(TotalRemainingSize_, Config_->GroupSize));
         FetchNextGroupMemoryFuture_.SubscribeUnique(BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this))
             .Via(ReaderInvoker_));
     }
