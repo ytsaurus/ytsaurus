@@ -114,15 +114,15 @@ struct TParseObjectTraits<TDaemonSet>
     {
         NObjects::TObjectId id;
         NYson::TYsonString labels;
-        NObjects::TObjectId podSetId;
         NClient::NApi::NProto::TDaemonSetSpec spec;
+        NObjects::TObjectId podSetId;
 
         ParsePayloads(
             payloads,
             &id,
             &labels,
-            &podSetId,
-            &spec);
+            &spec,
+            &podSetId);
 
         return std::make_unique<TDaemonSet>(
             std::move(id),
