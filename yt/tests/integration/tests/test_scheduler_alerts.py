@@ -255,15 +255,19 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         assert "excessive_disk_usage" in op.get_alerts()
 
     @authors("ignat")
-    def test_long_aborted_jobs_alert(self):
-        create_test_tables(row_count=5)
+    @pytest.mark.parametrize("operation_type", ["map", "vanilla"])
+    def test_long_aborted_jobs_alert(self, operation_type):
+        if operation_type == "map":
+            create_test_tables(row_count=5)
 
-        op = map(
-            command="sleep 100; cat",
-            in_="//tmp/t_in",
-            out="//tmp/t_out",
-            spec={"data_size_per_job": 1},
-            track=False)
+            op = map(
+                command="sleep 3; cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out",
+                spec={"data_size_per_job": 1},
+                track=False)
+        else:
+            op = run_test_vanilla("sleep 3", job_count=5)
 
         self.wait_for_running_jobs(op)
 
@@ -273,7 +277,12 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         for job in op.get_running_jobs():
             abort_job(job)
 
-        wait(lambda: "long_aborted_jobs" in op.get_alerts())
+        op.track()
+
+        if operation_type == "map":
+            assert "long_aborted_jobs" in op.get_alerts()
+        else:
+            assert "long aborted_jobs" not in op.get_alerts();
 
     # if these three tests flap - call renadeen@
     @authors("renadeen")

@@ -3500,6 +3500,10 @@ void TOperationControllerBase::AnalyzePartitionHistogram()
 
 void TOperationControllerBase::AnalyzeAbortedJobs()
 {
+    if (OperationType == EOperationType::Vanilla) {
+        return;
+    }
+
     auto aggregateTimeForJobState = [&] (EJobState state) {
         i64 sum = 0;
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
