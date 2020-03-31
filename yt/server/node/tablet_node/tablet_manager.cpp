@@ -1160,9 +1160,12 @@ private:
             return;
         }
 
-        auto mountRevision = request->mount_revision();
-        if (mountRevision != tablet->GetMountRevision()) {
-            return;
+        // COMPAT(ifsmirnov)
+        if (request->has_mount_revision() && request->mount_revision() != 0) {
+            auto mountRevision = request->mount_revision();
+            if (mountRevision != tablet->GetMountRevision()) {
+                return;
+            }
         }
 
         auto transactionId = FromProto<TTabletId>(request->transaction_id());
