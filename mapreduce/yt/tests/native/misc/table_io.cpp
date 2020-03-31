@@ -96,7 +96,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
         TRichYPath path = workingDir + "/table";
         if (strictSchema) {
             path.Schema(TTableSchema().Strict(true)
-                .AddColumn(TColumnSchema().Name("key1").Type(VT_STRING).Required(true))
+                .AddColumn(TColumnSchema().Name("key1").Type(VT_STRING, true))
                 .AddColumn(TColumnSchema().Name("key2").Type(VT_STRING))
                 .AddColumn(TColumnSchema().Name("key3").Type(VT_STRING)));
         }

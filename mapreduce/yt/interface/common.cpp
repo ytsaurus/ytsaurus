@@ -19,6 +19,25 @@ using ::google::protobuf::Descriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TColumnSchema::Required() const
+{
+    return Required_;
+}
+
+TColumnSchema& TColumnSchema::Type(EValueType type, bool required) &
+{
+    Required_ = required;
+    return Type(type);
+}
+
+TColumnSchema TColumnSchema::Type(EValueType type, bool required) &&
+{
+    Required_ = required;
+    return Type(type);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool TTableSchema::Empty() const
 {
     return Columns_.empty();

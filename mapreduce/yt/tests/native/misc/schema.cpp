@@ -25,7 +25,7 @@ Y_UNIT_TEST_SUITE(Schema) {
         client->Create(workingDir + "/table", NT_TABLE,
             TCreateOptions().Attributes(
                 TNode()
-                ("schema", TTableSchema().AddColumn(TColumnSchema().Name("value").Type(VT_STRING).Required(true)).ToNode())
+                ("schema", TTableSchema().AddColumn(TColumnSchema().Name("value").Type(VT_STRING, true)).ToNode())
             ));
 
         {

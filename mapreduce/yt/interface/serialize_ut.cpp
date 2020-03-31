@@ -11,7 +11,7 @@ Y_UNIT_TEST_SUITE(Serialization)
         auto schema = TTableSchema()
             .AddColumn(TColumnSchema().Name("a").Type(EValueType::VT_STRING).SortOrder(SO_ASCENDING))
             .AddColumn(TColumnSchema().Name("b").Type(EValueType::VT_UINT64))
-            .AddColumn(TColumnSchema().Name("c").Type(EValueType::VT_INT64).Required(true));
+            .AddColumn(TColumnSchema().Name("c").Type(EValueType::VT_INT64, true));
 
         auto schemaNode = schema.ToNode();
         UNIT_ASSERT(schemaNode.IsList());
