@@ -87,7 +87,7 @@ struct ISchemalessMultiChunkReader
     //! Interrupts the reader, notifies the consumer via end of stream in Read() method.
     virtual void Interrupt() = 0;
 
-	//! Should be called only after successful call to #Read()
+    //! Should be called only after successful call to #Read()
     //! if caller wants to skip remaining rows from the current data slice.
     //! To wait for readiness after this call, use #GetReadyEvent().
     virtual void SkipCurrentReader() = 0;
@@ -114,7 +114,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
     std::optional<int> partitionTag = std::nullopt,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -135,7 +136,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
     std::optional<int> partitionTag = std::nullopt,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

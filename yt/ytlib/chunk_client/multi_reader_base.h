@@ -28,7 +28,8 @@ public:
     TMultiReaderBase(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        const std::vector<IReaderFactoryPtr>& readerFactories);
+        const std::vector<IReaderFactoryPtr>& readerFactories,
+        IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
     void Open();
 
@@ -65,6 +66,7 @@ protected:
     const TMultiChunkReaderConfigPtr Config_;
     const TMultiChunkReaderOptionsPtr Options_;
     const std::vector<IReaderFactoryPtr> ReaderFactories_;
+    const IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
 
     const NLogging::TLogger Logger;
 
@@ -97,7 +99,6 @@ protected:
 
     TSpinLock PrefetchLock_;
     int PrefetchIndex_ = 0;
-    i64 FreeBufferSize_;
 
     TSpinLock FailedChunksLock_;
     THashSet<TChunkId> FailedChunks_;
@@ -130,7 +131,8 @@ public:
     TSequentialMultiReaderBase(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        const std::vector<IReaderFactoryPtr>& readerFactories);
+        const std::vector<IReaderFactoryPtr>& readerFactories,
+        IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
 protected:
     virtual TUnreadState GetUnreadState() const override;
@@ -165,7 +167,8 @@ public:
     TParallelMultiReaderBase(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        const std::vector<IReaderFactoryPtr>& readerFactories);
+        const std::vector<IReaderFactoryPtr>& readerFactories,
+        IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
 protected:
     virtual TUnreadState GetUnreadState() const override;

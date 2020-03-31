@@ -125,6 +125,11 @@ TBlockFetcher::TBlockFetcher(
         .Via(ReaderInvoker_));
 }
 
+TBlockFetcher::~TBlockFetcher()
+{
+    MemoryManager_->Finalize();
+}
+
 bool TBlockFetcher::HasMoreBlocks() const
 {
     return TotalRemainingFetches_ > 0;

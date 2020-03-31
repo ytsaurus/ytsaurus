@@ -95,7 +95,8 @@ public:
                 partitionTag,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),
-                Host_->GetOutRpsThrottler());
+                Host_->GetOutRpsThrottler(),
+                /* multiReaderMemoryManager */ nullptr);
             return Reader_;
         };
 

@@ -460,7 +460,8 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
             /* partitionTag */ std::nullopt,
             /* trafficMeter */ nullptr,
             bandwidthThrottler,
-            rpsThrottler);
+            rpsThrottler,
+            /* multiReaderMemoryManager */ nullptr);
     }
 
     return reader->GetReadyEvent()
