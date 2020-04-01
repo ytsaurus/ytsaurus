@@ -8,6 +8,8 @@ from yp.local import (
 
 from yp.common import YtError, wait
 
+from yp.logger import logger
+
 from yt.wrapper import ypath_join
 from yt.wrapper.errors import YtTabletNotMounted
 
@@ -165,6 +167,8 @@ class TestAdminCliInitAndMigrateDb(object):
         yp_path = "//yp_init_db_test"
         yt_client.create("map_node", yp_path)
 
+        start_time = time.time()
+
         cli = YpAdminCli()
         output = cli.check_output(
             [
@@ -198,6 +202,17 @@ class TestAdminCliInitAndMigrateDb(object):
         )
         assert output == ""
         assert_db(ACTUAL_DB_VERSION)
+
+        duration = time.time() - start_time
+        max_duration = 2 * 60
+
+        logger.info("Migration duration is {} seconds".format(duration))
+
+        assert duration < max_duration, \
+            "Migration duration expected to be smaller than {} seconds, but got {}".format(
+                max_duration,
+                duration,
+            )
 
 
 class TestAdminCliDryRunMigrateDb(object):
