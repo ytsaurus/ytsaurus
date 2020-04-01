@@ -310,9 +310,9 @@ void TBootstrap::DoRun()
     }
 
 
-    Host_->Start();
-
     NDetail::InitOrchidNode(Config_->Engine->CypressRootPath, CliqueId_, RpcPort_, RootClient_);
+
+    Host_->Start();
 
     // Bootstrap never dies, so it is _kinda_ safe.
     TSignalRegistry::Get()->PushCallback(SIGINT, [=] { SigintHandler(); });

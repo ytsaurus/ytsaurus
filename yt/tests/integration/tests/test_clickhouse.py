@@ -524,8 +524,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
             for instance in clique.get_active_instances():
                 assert str(instance) != job_to_abort
 
-            time.sleep(1)
-
             for i in range(3):
                 assert 'monitoring' in clique.get_orchid(clique.get_active_instances()[i], "/")
 
