@@ -31,7 +31,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TQueryContext
-    : public DB::IHostContext
+    : public TRefCounted
 {
 public:
     TLogger Logger;

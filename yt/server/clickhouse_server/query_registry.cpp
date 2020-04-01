@@ -210,13 +210,13 @@ public:
             .ThrowOnError();
     }
 
-    void Register(TQueryContext* queryContext)
+    void Register(TQueryContextPtr queryContext)
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         const auto& Logger = queryContext->Logger;
 
-        YT_VERIFY(QueryContexts_.insert(queryContext).second);
+        YT_VERIFY(QueryContexts_.insert(queryContext.Get()).second);
 
         auto& userProfilingEntry = GetOrRegisterUserProfilingEntry(queryContext->User);
 
@@ -279,7 +279,7 @@ public:
         }
     }
 
-    void AccountPhaseCounter(TQueryContext* queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
+    void AccountPhaseCounter(TQueryContextPtr queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
     {
         auto& userProfilingEntry = GetOrCrash(UserToUserProfilingEntry_, queryContext->User);
 
@@ -462,9 +462,9 @@ TQueryRegistry::TQueryRegistry(NYT::NClickHouseServer::TBootstrap* bootstrap)
 TQueryRegistry::~TQueryRegistry()
 { }
 
-void TQueryRegistry::Register(TQueryContext* queryContext)
+void TQueryRegistry::Register(TQueryContextPtr queryContext)
 {
-    Impl_->Register(queryContext);
+    Impl_->Register(std::move(queryContext));
 }
 
 void TQueryRegistry::Unregister(TQueryContext* queryContext)
@@ -472,9 +472,9 @@ void TQueryRegistry::Unregister(TQueryContext* queryContext)
     Impl_->Unregister(queryContext);
 }
 
-void TQueryRegistry::AccountPhaseCounter(TQueryContext* queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
+void TQueryRegistry::AccountPhaseCounter(TQueryContextPtr queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
 {
-    Impl_->AccountPhaseCounter(queryContext, fromPhase, toPhase);
+    Impl_->AccountPhaseCounter(std::move(queryContext), fromPhase, toPhase);
 }
 
 size_t TQueryRegistry::GetQueryCount() const

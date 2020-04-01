@@ -89,7 +89,7 @@ TQueryContext::TQueryContext(
     WaitFor(BIND(
         &TQueryRegistry::Register,
         Bootstrap->GetQueryRegistry(),
-        this)
+        MakeStrong(this))
         .AsyncVia(Bootstrap->GetControlInvoker())
         .Run())
         .ThrowOnError();
@@ -97,16 +97,15 @@ TQueryContext::TQueryContext(
 
 TQueryContext::~TQueryContext()
 {
+    VERIFY_INVOKER_AFFINITY(Bootstrap->GetControlInvoker());
+
     MoveToPhase(EQueryPhase::Finish);
 
     if (TraceContext) {
         TraceContext->Finish();
     }
 
-    Bootstrap->GetControlInvoker()->Invoke(BIND(
-        &TQueryRegistry::Unregister,
-        Bootstrap->GetQueryRegistry(),
-        this));
+    Bootstrap->GetQueryRegistry()->Unregister(this);
 
     auto finishTime = TInstant::Now();
     auto duration = finishTime - StartTime_;
@@ -151,12 +150,20 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
     auto oldPhase = QueryPhase_.load();
 
     YT_LOG_INFO("Query phase changed (FromPhase: %v, ToPhase: %v, Duration: %v)", oldPhase, nextPhase, duration);
-    Bootstrap->GetControlInvoker()->Invoke(BIND(
-        &TQueryRegistry::AccountPhaseCounter,
-        Bootstrap->GetQueryRegistry(),
-        this,
-        oldPhase,
-        nextPhase));
+
+    // It is effectively useless to count queries in state "Finish" in query registry,
+    // and also we do not want exceptions to throw in query context destructor.
+    if (nextPhase != EQueryPhase::Finish) {
+        WaitFor(BIND(
+            &TQueryRegistry::AccountPhaseCounter,
+            Bootstrap->GetQueryRegistry(),
+            MakeStrong(this),
+            oldPhase,
+            nextPhase)
+            .AsyncVia(Bootstrap->GetControlInvoker())
+            .Run())
+            .ThrowOnError();
+    }
 
     QueryPhase_ = nextPhase;
 }
@@ -165,6 +172,10 @@ EQueryPhase TQueryContext::GetQueryPhase() const
 {
     return QueryPhase_.load();
 }
+
+DEFINE_REFCOUNTED_TYPE(TQueryContext)
+
+////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const DB::QueryStatusInfo* queryStatusInfo)
 {
@@ -195,23 +206,49 @@ void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct THostContext
+    : public DB::IHostContext
+{
+    TBootstrap* Bootstrap;
+    TQueryContextPtr QueryContext;
+
+    THostContext(TBootstrap* bootstrap, TQueryContextPtr queryContext)
+        : Bootstrap(bootstrap)
+          , QueryContext(std::move(queryContext))
+    { }
+
+    // Destruction of query context should be done in control invoker as
+    // it non-trivially modifies query registry which may be accessed only
+    // from control invoker.
+    virtual ~THostContext() override
+    {
+        Bootstrap->GetControlInvoker()->Invoke(
+            BIND([queryContext = std::move(QueryContext)] () mutable {
+                queryContext.Reset();
+            }));
+    }
+};
+
 void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId, TTraceContextPtr traceContext, std::optional<TString> dataLensRequestId)
 {
     YT_VERIFY(traceContext);
 
-    context.getHostContext() = std::make_shared<TQueryContext>(
+    auto queryContext = New<TQueryContext>(
         bootstrap,
         context,
         queryId,
         std::move(traceContext),
         std::move(dataLensRequestId));
+
+    context.getHostContext() = std::make_shared<THostContext>(bootstrap, std::move(queryContext));
+
 }
 
 TQueryContext* GetQueryContext(const DB::Context& context)
 {
     auto* hostContext = context.getHostContext().get();
-    YT_ASSERT(dynamic_cast<TQueryContext*>(hostContext) != nullptr);
-    auto* queryContext = static_cast<TQueryContext*>(hostContext);
+    YT_ASSERT(dynamic_cast<THostContext*>(hostContext) != nullptr);
+    auto* queryContext = static_cast<THostContext*>(hostContext)->QueryContext.Get();
 
     return queryContext;
 }
