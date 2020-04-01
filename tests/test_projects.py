@@ -142,7 +142,7 @@ class TestProjects(object):
                     "meta": {"id": "project", "owner_id": "new_owner"},
                     "spec": {
                         "account_id": "tmp",
-                        "user_specific_box_types": ["my_box", "front_box", "__box__"],
+                        "user_specific_box_types": ["my_box", "front_box", "default"],
                     },
                 },
             )
@@ -179,7 +179,7 @@ class TestProjects(object):
             yp_client.update_object(
                 "project",
                 project_id,
-                set_updates=[{"path": "/spec/user_specific_box_types", "value": ["__system_box__"]}],
+                set_updates=[{"path": "/spec/user_specific_box_types", "value": ["system"]}],
             )
 
         result = yp_client.get_object(

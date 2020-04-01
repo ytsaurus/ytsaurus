@@ -106,7 +106,7 @@ private:
         for (const auto& userSpecificBoxType : project->Spec().Etc().Load().user_specific_box_types()) {
             ValidateId(userSpecificBoxType, "User specific box type");
 
-            if (userSpecificBoxType == "__box__" || userSpecificBoxType == "__system_box__") {
+            if (userSpecificBoxType == "default" || userSpecificBoxType == "system") {
                 THROW_ERROR_EXCEPTION("Box type %Qv is reserved. Please use another one.",
                     userSpecificBoxType);
             }

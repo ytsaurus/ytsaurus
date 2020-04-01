@@ -652,7 +652,7 @@ message TBox {
     string virtual_disk_id_ref = 14;
 
     // Тип бокса
-    // Должен иметь значение "box", "system-box" или одно из значений в списке TProjectSpec.user_specific_box_types
+    // Должен иметь значение "default", "system" или одно из значений в списке TProjectSpec.user_specific_box_types
     string specific_type = 16;
 }
 
@@ -818,7 +818,7 @@ message TBoxStatus {
     repeated string volume_refs = 15;
 
     // Тип бокса
-    // Имеет значение "box", "system-box" или одно из значений в списке TProjectSpec.user_specific_box_types
+    // Имеет значение "default", "system" или одно из значений в списке TProjectSpec.user_specific_box_types
     string specific_type = 17;
 }
 
