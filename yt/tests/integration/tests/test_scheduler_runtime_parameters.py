@@ -270,7 +270,7 @@ class TestRuntimeParameters(YTEnvSetup):
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        wait(lambda: op.get_state() in ["reviving", "reviving_jobs"], iter=10)
+        wait(lambda: op.get_state() in ["revive_initializing", "reviving", "reviving_jobs"], iter=10)
 
         with pytest.raises(YtError):
             update_op_parameters(op.id, parameters={"pool": "changed_pool"})
