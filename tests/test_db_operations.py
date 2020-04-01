@@ -19,8 +19,7 @@ from yp.common import (
 import pytest
 
 
-@pytest.mark.usefixtures("yp_env")
-class TestMigrations(object):
+class TestDbOperations(object):
     def _emulate_migration(self, yp_env, table_names):
         def mapper(row):
             yield row
@@ -126,10 +125,7 @@ class TestMigrations(object):
         min_timestamp, max_timestamp = estimate_db_available_timestamps(yt_client, "//yp")
         assert min_timestamp + 100 < max_timestamp
 
-
-@pytest.mark.usefixtures("yp_env")
-class TestResetYp(object):
-    def test(self, yp_env):
+    def test_reset_yp(self, yp_env):
         yp_client = yp_env.yp_client
 
         disk_id = yp_client.create_object(
