@@ -237,7 +237,7 @@ public:
             InitializeAntiaffinityVacancies();
             InitializeIP4AddressPools();
             InitializePodIP4AddressPools();
-            InitializeDaemonSetPodSets();
+            InitializePodSetDaemonSets();
             InitializeNodeDaemonSetPods();
 
             YT_LOG_INFO(
@@ -320,14 +320,13 @@ private:
         for (const auto& [daemonSetId, daemonSet] : DaemonSetMap_) {
             const auto& podSetId = daemonSet->PodSetId();
             if (!podSetId) {
-                // Unattached DaemonSets are permitted, but ignored
-                invalidDaemonSetIds.push_back(daemonSetId);
                 continue;
             }
 
             auto* podSet = FindPodSet(podSetId);
             if (!podSet) {
-                YT_LOG_WARNING("DaemonSet refers to an unknown pod set (DaemonSetId: %v, PodSetId: %v)",
+                YT_LOG_WARNING(
+                    "Daemon set refers to an unknown pod set (DaemonSetId: %v, PodSetId: %v)",
                     daemonSetId,
                     podSetId);
                 invalidDaemonSetIds.push_back(daemonSetId);
@@ -724,12 +723,16 @@ private:
         }
     }
 
-    void InitializeDaemonSetPodSets()
+    void InitializePodSetDaemonSets()
     {
         for (const auto& [daemonSetId, daemonSet] : DaemonSetMap_) {
             auto* podSet = daemonSet->GetPodSet();
+            if (podSet == nullptr) {
+                continue;
+            }
             if (podSet->GetDaemonSet() != nullptr) {
-                YT_LOG_WARNING("PodSet %v has two DaemonSets: %v and %v",
+                YT_LOG_WARNING(
+                    "Pod set has two daemon sets (PodSetId: %v, DaemonSetId1: %v, DaemonSetId2: %v)",
                     podSet->GetId(),
                     podSet->GetDaemonSet()->GetId(),
                     daemonSetId);
@@ -744,13 +747,16 @@ private:
     {
         for (const auto& [daemonSetId, daemonSet] : DaemonSetMap_) {
             auto* podSet = daemonSet->GetPodSet();
+            if (podSet == nullptr) {
+                continue;
+            }
             auto* nodeSegment = podSet->GetNodeSegment();
             auto* cache = nodeSegment->GetNodeFilterCache();
             NObjects::TObjectFilter filter{podSet->NodeFilter()};
             auto nodesOrError = cache->Get(filter);
             if (!nodesOrError.IsOK()) {
-                YT_LOG_ERROR(nodesOrError,
-                    "Error filtering nodes for DaemonSet (DaemonSetId: %v, PodSetId: %v, "
+                YT_LOG_WARNING(nodesOrError,
+                    "Error filtering nodes for daemon set (DaemonSetId: %v, PodSetId: %v, "
                     "NodeSegmentId: %v, NodeSegmentFilter: %v)",
                     daemonSetId,
                     podSet->GetId(),

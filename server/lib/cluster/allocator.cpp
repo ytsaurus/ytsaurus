@@ -152,6 +152,7 @@ public:
         for (const auto& [daemonSet, daemonSetPod] : Node_->DaemonSetPods()) {
             if (daemonSet->GetPodSet() == Pod_->GetPodSet()) {
                 // This is a daemon set pod, it's free to get allocated.
+                DaemonSet_ = daemonSet;
                 return true;
             }
             if (daemonSetPod == nullptr && daemonSet->Spec().strong()) {
@@ -173,6 +174,10 @@ public:
         Node_->SlotResource() = SlotResource_;
         Node_->DiskResources() = DiskResources_;
         Node_->GpuResources() = GpuResources_;
+
+        if (DaemonSet_ != nullptr) {
+            Node_->DaemonSetPods()[DaemonSet_] = Pod_;
+        }
     }
 
     DEFINE_BYREF_RW_PROPERTY(THomogeneousResource, CpuResource);
@@ -185,6 +190,7 @@ public:
 private:
     TNode* const Node_;
     TPod* const Pod_;
+    TDaemonSet* DaemonSet_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
