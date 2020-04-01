@@ -103,24 +103,16 @@ TQueryContext::~TQueryContext()
         TraceContext->Finish();
     }
 
-    auto error = WaitFor(BIND(
+    Bootstrap->GetControlInvoker()->Invoke(BIND(
         &TQueryRegistry::Unregister,
         Bootstrap->GetQueryRegistry(),
-        this)
-        .AsyncVia(Bootstrap->GetControlInvoker())
-        .Run());
+        this));
 
     auto finishTime = TInstant::Now();
     auto duration = finishTime - StartTime_;
     YT_LOG_INFO("Query time statistics (StartTime: %v, FinishTime: %v, Duration: %v)", StartTime_, finishTime, duration);
     YT_LOG_INFO("Query phase debug string (DebugString: %v)", PhaseDebugString_);
-
-    // Trying so hard to not throw exception from the destructor :(
-    if (error.IsOK()) {
-        YT_LOG_INFO("Query context destroyed");
-    } else {
-        YT_LOG_ERROR(error, "Error while destroying query context");
-    }
+    YT_LOG_INFO("Query context destroyed");
 }
 
 const NApi::NNative::IClientPtr& TQueryContext::Client() const
@@ -159,15 +151,12 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
     auto oldPhase = QueryPhase_.load();
 
     YT_LOG_INFO("Query phase changed (FromPhase: %v, ToPhase: %v, Duration: %v)", oldPhase, nextPhase, duration);
-    WaitFor(BIND(
+    Bootstrap->GetControlInvoker()->Invoke(BIND(
         &TQueryRegistry::AccountPhaseCounter,
         Bootstrap->GetQueryRegistry(),
         this,
         oldPhase,
-        nextPhase)
-        .AsyncVia(Bootstrap->GetControlInvoker())
-        .Run())
-        .ThrowOnError();
+        nextPhase));
 
     QueryPhase_ = nextPhase;
 }
