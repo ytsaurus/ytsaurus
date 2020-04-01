@@ -13,6 +13,8 @@ struct IConnection
 {
     virtual NYT::NRpc::IChannelPtr GetChannel() = 0;
 
+    virtual NYT::TErrorOr<NYT::NRpc::IChannelPtr> GetChannel(int instanceTag) = 0;
+
     virtual void SetupRequestAuthentication(
         const TIntrusivePtr<NYT::NRpc::TClientRequest>& request) = 0;
 };

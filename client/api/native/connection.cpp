@@ -164,15 +164,38 @@ public:
         return channelSlots[index].Channel;
     }
 
-    //! Reuses existing channels and terminates idle channels.
-    void Setup(TErrorOr<THashSet<TString>> addressesOrError)
+    TErrorOr<IChannelPtr> GetByInstance(int instanceTag)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (addressesOrError.IsOK()) {
-            SetupAddresses(addressesOrError.Value());
+        TReaderGuard guard(ChannelSlotLock_);
+        if (!ChannelSlotsOrError_.IsOK()) {
+            return TError(ChannelSlotsOrError_);
+        }
+        const auto& channelSlots = ChannelSlotsOrError_.Value();
+        auto it = std::find_if(
+            channelSlots.begin(),
+            channelSlots.end(),
+            [&] (const TChannelSlot& slot) {
+                return slot.InstanceTag == instanceTag;
+            });
+        if (it == channelSlots.end()) {
+            return TError(NYT::NRpc::EErrorCode::Unavailable,
+                "There is no channel with instance tag %v",
+                instanceTag);
+        }
+        return it->Channel;
+    }
+
+    //! Reuses existing channels and terminates idle channels.
+    void Setup(TErrorOr<THashSet<std::pair<TString, int>>> addressAndInstanceTagPairs)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (addressAndInstanceTagPairs.IsOK()) {
+            SetupAddresses(addressAndInstanceTagPairs.Value());
         } else {
-            SetupError(std::move(addressesOrError));
+            SetupError(std::move(addressAndInstanceTagPairs));
         }
     }
 
@@ -180,12 +203,14 @@ private:
     struct TChannelSlot
     {
         TString Address;
+        int InstanceTag;
         IChannelPtr Channel;
 
         TChannelSlot() = default;
 
-        TChannelSlot(TString address, IChannelPtr channel)
+        TChannelSlot(TString address, int InstanceTag, IChannelPtr channel)
             : Address(std::move(address))
+            , InstanceTag(InstanceTag)
             , Channel(std::move(channel))
         { }
     };
@@ -201,13 +226,13 @@ private:
     TChannelSlotsContainer ChannelSlotsToRelease_;
 
 
-    void SetupAddresses(const THashSet<TString>& addresses)
+    void SetupAddresses(const THashSet<std::pair<TString, int>>& addressAndInstanceTagPairs)
     {
-        YT_LOG_DEBUG("Setting up channel pool addresses (Addresses: %v)",
-            addresses);
+        YT_LOG_DEBUG("Setting up channel pool addresses (AddressAndInstanceTag: %v)",
+            addressAndInstanceTagPairs);
 
         TChannelSlotsContainer newChannelSlotsToRelease;
-        THashSet<TString> newAddresses = addresses;
+        THashSet<std::pair<TString, int>> newMasters = addressAndInstanceTagPairs;
         {
             TWriterGuard guard(ChannelSlotLock_);
 
@@ -218,30 +243,33 @@ private:
                     channelSlots.begin(),
                     channelSlots.end(),
                     [&] (const TChannelSlot& channelSlot) {
-                        return addresses.find(channelSlot.Address) != addresses.end();
+                        auto item = std::make_pair(channelSlot.Address, channelSlot.InstanceTag);
+                        return addressAndInstanceTagPairs.find(item) != addressAndInstanceTagPairs.end();
                     });
 
                 newChannelSlotsToRelease.reserve(std::distance(itBegin, channelSlots.end()));
                 for (auto it = itBegin; it != channelSlots.end(); ++it) {
-                    YT_LOG_DEBUG("Removing old channel from pool (Address: %v)",
-                        it->Address);
+                    YT_LOG_DEBUG("Removing old channel from pool (Address: %v, InstanceTag: %v)",
+                        it->Address,
+                        it->InstanceTag);
                     newChannelSlotsToRelease.push_back(std::move(*it));
                 }
                 channelSlots.erase(itBegin, channelSlots.end());
 
                 for (const auto& channelSlot : channelSlots) {
-                    newAddresses.erase(channelSlot.Address);
+                    newMasters.erase(std::make_pair(channelSlot.Address, channelSlot.InstanceTag));
                 }
             }
         }
 
         TChannelSlotsContainer newChannelSlots;
-        newChannelSlots.reserve(newAddresses.size());
-        for (auto& address : newAddresses) {
-            YT_LOG_DEBUG("Adding new channel to pool (Address: %v)",
-                address);
+        newChannelSlots.reserve(newMasters.size());
+        for (auto& [address, instanceTag] : newMasters) {
+            YT_LOG_DEBUG("Adding new channel to pool (Address: %v, InstanceTag: %v)",
+                address,
+                instanceTag);
             auto channel = ChannelFactory_->CreateChannel(address);
-            newChannelSlots.emplace_back(std::move(address), std::move(channel));
+            newChannelSlots.emplace_back(std::move(address), instanceTag, std::move(channel));
         }
 
         if (!newChannelSlots.empty()) {
@@ -293,8 +321,9 @@ private:
             });
 
         for (auto it = itBegin; it != ChannelSlotsToRelease_.end(); ++it) {
-            YT_LOG_DEBUG("Terminating pool channel (Address: %v)",
-                it->Address);
+            YT_LOG_DEBUG("Terminating pool channel (Address: %v, InstanceTag: %v)",
+                it->Address,
+                it->InstanceTag);
             it->Channel->Terminate(TError("Channel is not already in use"));
         }
 
@@ -365,6 +394,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    TErrorOr<IChannelPtr> GetInstanceChannel(int instanceTag)
+    {
+        return ChannelPool_->GetByInstance(instanceTag);
+    }
+
 private:
     const TDiscoveryClientPtr DiscoveryClient_;
     const IChannelFactoryPtr ChannelFactory_;
@@ -392,21 +426,33 @@ private:
             if (getMastersResultOrError.IsOK()) {
                 const auto& getMastersResult = getMastersResultOrError.Value();
 
+                THashSet<std::pair<TString, int>> addressAndInstanceTagPairs;
                 THashSet<TString> addresses;
-                addresses.reserve(getMastersResult.MasterInfos.size());
+                THashSet<int> instanceTags;
+                addressAndInstanceTagPairs.reserve(getMastersResult.MasterInfos.size());
                 for (const auto& masterInfo : getMastersResult.MasterInfos) {
                     if (masterInfo.Alive) {
+                        auto pair = std::make_pair(masterInfo.GrpcAddress, masterInfo.InstanceTag);
+                        if (!addressAndInstanceTagPairs.insert(std::move(pair)).second) {
+                            YT_LOG_WARNING("Discovered duplicate master (GrpcAddress: %v, InstanceTag: %v)",
+                                masterInfo.GrpcAddress,
+                                masterInfo.InstanceTag);
+                        }
                         if (!addresses.insert(masterInfo.GrpcAddress).second) {
-                            YT_LOG_WARNING("Discovered duplicate master (GrpcAddress: %v)",
+                            YT_LOG_WARNING("Discovered duplicate master address (GrpcAddress: %v)",
                                 masterInfo.GrpcAddress);
+                        }
+                        if (!instanceTags.insert(masterInfo.InstanceTag).second) {
+                            YT_LOG_WARNING("Discovered duplicate master tag (InstanceTag: %v)",
+                                masterInfo.InstanceTag);
                         }
                     }
                 }
 
-                YT_LOG_DEBUG("Discovered alive masters (GrpcAddresses: %v)",
-                    addresses);
+                YT_LOG_DEBUG("Discovered alive masters (AddressToInstanceTag: %v)",
+                    addressAndInstanceTagPairs);
 
-                ChannelPool_->Setup(std::move(addresses));
+                ChannelPool_->Setup(std::move(addressAndInstanceTagPairs));
             } else {
                 YT_LOG_DEBUG("Error discoverying masters (Error: %v)",
                     getMastersResultOrError);
@@ -442,6 +488,15 @@ public:
     virtual IChannelPtr GetChannel() override
     {
         return CreateRetryingChannel(CreateRoamingChannel(DiscoveryChannelProvider_));
+    }
+
+    virtual TErrorOr<IChannelPtr> GetChannel(int instanceTag) override
+    {
+        auto instanceChannelOrError = DiscoveryChannelProvider_->GetInstanceChannel(instanceTag);
+        if (!instanceChannelOrError.IsOK()) {
+            return static_cast<TError>(instanceChannelOrError);
+        }
+        return CreateRetryingChannel(std::move(instanceChannelOrError.Value()));
     }
 
     virtual void SetupRequestAuthentication(const TIntrusivePtr<TClientRequest>& request) override

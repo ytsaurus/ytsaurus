@@ -126,7 +126,7 @@ public:
         std::vector<TAttributeTimestampPrerequisite> attributeTimestampPrerequisites,
         const TTransactionId& transactionId) override
     {
-        TObjectServiceProxy proxy(Connection_->GetChannel());
+        TObjectServiceProxy proxy(GetMaybeTransactionChannel(transactionId));
         auto req = proxy.UpdateObject();
         SetupRequest(req);
 
@@ -181,7 +181,7 @@ public:
         TPayload attributesPayload,
         const TTransactionId& transactionId) override
     {
-        TObjectServiceProxy proxy(Connection_->GetChannel());
+        TObjectServiceProxy proxy(GetMaybeTransactionChannel(transactionId));
         auto req = proxy.CreateObject();
         SetupRequest(req);
 
@@ -213,7 +213,7 @@ public:
         EObjectType objectType,
         const TTransactionId& transactionId) override
     {
-        TObjectServiceProxy proxy(Connection_->GetChannel());
+        TObjectServiceProxy proxy(GetMaybeTransactionChannel(transactionId));
         auto req = proxy.RemoveObject();
         SetupRequest(req);
 
@@ -268,7 +268,7 @@ public:
     virtual TFuture<TAbortTransactionResult> AbortTransaction(
         const TTransactionId& id) override
     {
-        TObjectServiceProxy proxy(Connection_->GetChannel());
+        TObjectServiceProxy proxy(GetTransactionChannel(id));
         auto req = proxy.AbortTransaction();
         SetupRequest(req);
 
@@ -289,7 +289,7 @@ public:
     virtual TFuture<TCommitTransactionResult> CommitTransaction(
         const TTransactionId& id) override
     {
-        TObjectServiceProxy proxy(Connection_->GetChannel());
+        TObjectServiceProxy proxy(GetTransactionChannel(id));
         auto req = proxy.CommitTransaction();
         SetupRequest(req);
 
@@ -320,6 +320,25 @@ private:
     {
         Connection_->SetupRequestAuthentication(request);
         request->SetTimeout(Config_->Timeout);
+    }
+
+
+    IChannelPtr GetMaybeTransactionChannel(const TTransactionId& transactionId)
+    {
+        if (!transactionId) {
+            return Connection_->GetChannel();
+        }
+        return GetTransactionChannel(transactionId);
+    }
+
+
+    IChannelPtr GetTransactionChannel(const TTransactionId& transactionId)
+    {
+        if (!transactionId) {
+            THROW_ERROR_EXCEPTION("No transaction id specified");
+        }
+        int instanceTag = transactionId.Parts32[1] >> 24;
+        return Connection_->GetChannel(instanceTag).ValueOrThrow();
     }
 
 
