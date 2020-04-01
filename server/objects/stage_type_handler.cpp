@@ -48,6 +48,7 @@ public:
                     ->SetMandatory()
                     ->SetUpdatable()
                     ->SetValidator<TStage>(std::bind(&TStageTypeHandler::ValidateProjectId, this, _1, _2))
+                    ->EnableHistory()
             });
 
         SpecAttributeSchema_

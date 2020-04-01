@@ -157,7 +157,7 @@ class TestHistoryApi(object):
             [
                 "/spec",
                 "/spec/revision",
-                "/meta",
+                "/meta/unknown",
                 "/spec/abc",
                 "/spec/abc",
                 "/spec/revision/abc",
@@ -639,3 +639,31 @@ class TestHistoryApi(object):
 
             for i in xrange(count):
                 results[i].result()
+
+    def test_stage(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        stage_id = yp_client.create_object(
+            object_type="stage",
+            attributes=dict(meta=dict(project_id="project1")),
+        )
+
+        yp_client.update_object(
+            "stage",
+            stage_id,
+            set_updates=[
+                dict(
+                    path="/meta/project_id",
+                    value="project2",
+                ),
+            ],
+        )
+
+        history_events = yp_client.select_object_history(
+            "stage",
+            stage_id,
+            ["/meta/project_id"],
+        )["events"]
+        assert 2 == len(history_events)
+        assert "project1" == history_events[0]["results"][0]["value"]
+        assert "project2" == history_events[1]["results"][0]["value"]
