@@ -462,7 +462,6 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
         if (!ShouldCleanSandboxes()) {
             YT_LOG_WARNING("Sandbox cleanup is disabled by environment variable %v; should be used for testing purposes only",
                 DisableSandboxCleanupEnv);
-            Disable(TError("Sandbox cleanup is disabled by environment variable %v; slot can be only once", DisableSandboxCleanupEnv));
             return;
         }
 
