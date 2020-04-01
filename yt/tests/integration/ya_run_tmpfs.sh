@@ -25,7 +25,7 @@ for arg do
 done
 
 ulimit -c unlimited
-../../../scripts/run-py-test.py -sv --ignore tests.sandbox "$@"
+../../../yt/scripts/run-py-test.py -sv --ignore tests.sandbox "$@"
 exit_code=$?
 
 echo "==========================================================="
