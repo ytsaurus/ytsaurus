@@ -29,6 +29,20 @@ func TestDecodeTime(t *testing.T) {
 	// testRoundtrip(t, t0)
 }
 
+func TestZeroTime(t *testing.T) {
+	t0 := Time{}
+
+	s, err := MarshalTime(t0)
+	require.NoError(t, err)
+	require.Equal(t, "#", s)
+	t.Logf("zero time (%v) encoded into %s", t0, s)
+
+	t1, err := UnmarshalTime(s)
+	require.NoError(t, err)
+	require.Equal(t, Time{}, t1)
+	t.Logf("entity decoded into %v", t1)
+}
+
 func TestTimeFormat(t *testing.T) {
 	before := "2019-03-09T13:27:04.084029Z"
 
