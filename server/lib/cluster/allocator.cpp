@@ -2,6 +2,7 @@
 
 #include "cluster.h"
 #include "daemon_set.h"
+#include "ip4_address_pool.h"
 #include "node.h"
 #include "pod.h"
 #include "resource_capacities.h"
@@ -34,21 +35,20 @@ public:
             if (IP4AddressPool_->AllocatedInternetAddressCount() + 1 > IP4AddressPool_->InternetAddressCount()) {
                 diagnostics->RegisterUnsatisfiedConstraint(EAllocatorConstraintKind::IP6AddressIP4TunnelCapacity);
                 return false;
-            } else {
-                IP4AddressPool_->AllocatedInternetAddressCount() += 1;
-                TemporarilyAllocated_ = true;
             }
+            IP4AddressPool_->AllocatedInternetAddressCount() += 1;
+            TemporarilyAllocated_ = true;
         }
         return true;
     }
 
-    void Commit()
+    void Commit() noexcept
     {
         // Unset flag to indicate permanent allocation.
         TemporarilyAllocated_ = false;
     }
 
-    ~TSingleInternetAddressAllocationContext()
+    ~TSingleInternetAddressAllocationContext() noexcept
     {
         if (TemporarilyAllocated_) {
             IP4AddressPool_->AllocatedInternetAddressCount() -= 1;
@@ -78,7 +78,7 @@ public:
     bool TryAllocate(TAllocatorDiagnostics* diagnostics)
     {
         bool result = true;
-        for (TSingleInternetAddressAllocationContext& context : SingleAddressContexts_) {
+        for (auto& context : SingleAddressContexts_) {
             if (!context.TryAllocate(diagnostics)) {
                 result = false;
             }
@@ -86,9 +86,9 @@ public:
         return result;
     }
 
-    void Commit()
+    void Commit() noexcept
     {
-        for (TSingleInternetAddressAllocationContext& context : SingleAddressContexts_) {
+        for (auto& context : SingleAddressContexts_) {
             context.Commit();
         }
     }
@@ -163,7 +163,7 @@ public:
         return daemonSetsSatisfied;
     }
 
-    void Commit()
+    void Commit() noexcept
     {
         Node_->AllocateAntiaffinityVacancies(Pod_);
 

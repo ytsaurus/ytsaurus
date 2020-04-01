@@ -6,8 +6,6 @@
 #include <yp/server/objects/pod.h>
 #include <yp/server/objects/transaction.h>
 
-#include <yp/server/lib/objects/public.h>
-
 namespace NYP::NServer::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////

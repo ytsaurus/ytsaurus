@@ -107,8 +107,10 @@ private:
 
     void Initialize()
     {
-        InitializeInternalTypesInfo();
-        InitializeExternalTypesInfo();
+        THashSet<TString> visitedProtoFileNames;
+        InitializeTypesFromProtoFilesRecursively(
+            GetRootProtoFileDescriptor(),
+            &visitedProtoFileNames);
     }
 
     void AddTypeInfo(EObjectType type, std::unique_ptr<TTypeInfo> typeInfo)
@@ -120,23 +122,6 @@ private:
             type,
             TypeInfos_[type]->HumanReadableName,
             TypeInfos_[type]->CapitalizedHumanReadableName);
-    }
-
-    void InitializeInternalTypesInfo()
-    {
-        AddTypeInfo(
-            EObjectType::NetworkModule,
-            std::make_unique<TTypeInfo>(
-                "network module",
-                "Network module"));
-    }
-
-    void InitializeExternalTypesInfo()
-    {
-        THashSet<TString> visitedProtoFileNames;
-        InitializeTypesFromProtoFilesRecursively(
-            GetRootProtoFileDescriptor(),
-            &visitedProtoFileNames);
     }
 
     void InitializeTypesFromProtoFilesRecursively(

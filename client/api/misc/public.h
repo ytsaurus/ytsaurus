@@ -112,7 +112,6 @@ DEFINE_ENUM(EObjectType,
     ((PersistentDisk)         (30))
     ((PersistentVolume)       (31))
     ((PersistentVolumeClaim)  (32))
-    ((NetworkModule)         (100)) // internal, not present in data_model.proto
     ((Schema)                (256))
 );
 

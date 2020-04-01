@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ip4_address_pool.h"
 #include "object.h"
 
 #include <yp/client/api/proto/data_model.pb.h>
@@ -14,12 +13,12 @@ namespace NYP::NServer::NCluster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExtendedIP6AddressRequests {
+class TPodIP6AddressRequests
+{
 public:
-    TExtendedIP6AddressRequests() = default;
-
-    explicit TExtendedIP6AddressRequests(
-        NObjects::TPodIP6AddressRequests ip6AddressRequests);
+    TPodIP6AddressRequests() = default;
+    explicit TPodIP6AddressRequests(
+        const NObjects::TPodIP6AddressRequests& ip6AddressRequests);
 
     DEFINE_BYREF_RO_PROPERTY(NObjects::TPodIP6AddressRequests, ProtoRequests);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TIP4AddressPool*>, IP4AddressPools);
@@ -69,7 +68,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NObjects::TPodResourceRequests, ResourceRequests);
     DEFINE_BYREF_RO_PROPERTY(NObjects::TPodDiskVolumeRequests, DiskVolumeRequests);
     DEFINE_BYREF_RO_PROPERTY(NObjects::TPodGpuRequests, GpuRequests);
-    DEFINE_BYREF_RW_PROPERTY(TExtendedIP6AddressRequests, IP6AddressRequests);
+    DEFINE_BYREF_RW_PROPERTY(TPodIP6AddressRequests, IP6AddressRequests);
     DEFINE_BYREF_RO_PROPERTY(NObjects::TPodIP6SubnetRequests, IP6SubnetRequests);
     DEFINE_BYREF_RO_PROPERTY(TString, NodeFilter);
     DEFINE_BYREF_RO_PROPERTY(NObjects::TSchedulingHints, SchedulingHints);

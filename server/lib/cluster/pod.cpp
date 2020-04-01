@@ -52,18 +52,19 @@ TErrorOr<TString> ParseAntiaffinityGroupIdPathLabelsKey(const NYPath::TYPath& gr
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExtendedIP6AddressRequests::TExtendedIP6AddressRequests(
-    NObjects::TPodIP6AddressRequests ip6AddressRequests)
-    : ProtoRequests_(std::move(ip6AddressRequests))
+TPodIP6AddressRequests::TPodIP6AddressRequests(
+    const NObjects::TPodIP6AddressRequests& ip6AddressRequests)
+    : ProtoRequests_(ip6AddressRequests)
     , IP4AddressPools_(ProtoRequests_.size(), nullptr)
 { }
 
-size_t TExtendedIP6AddressRequests::GetSize() const
+size_t TPodIP6AddressRequests::GetSize() const
 {
     return ProtoRequests_.size();
 }
 
-void TExtendedIP6AddressRequests::SetPool(size_t pos, TIP4AddressPool* pool) {
+void TPodIP6AddressRequests::SetPool(size_t pos, TIP4AddressPool* pool)
+{
     YT_VERIFY(pos < GetSize());
     IP4AddressPools_.at(pos) = pool;
 }

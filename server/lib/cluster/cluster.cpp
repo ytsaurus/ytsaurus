@@ -19,7 +19,6 @@
 #include "topology_zone.h"
 
 #include <yp/server/lib/objects/object_filter.h>
-#include <yp/server/lib/objects/public.h>
 #include <yp/server/lib/objects/type_info.h>
 
 #include <yt/core/ytree/convert.h>

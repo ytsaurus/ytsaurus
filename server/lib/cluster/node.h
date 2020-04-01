@@ -1,7 +1,6 @@
 #pragma once
 
 #include "object.h"
-#include "pod.h"
 
 #include <yp/client/api/proto/data_model.pb.h>
 

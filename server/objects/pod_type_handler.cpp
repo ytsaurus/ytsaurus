@@ -27,8 +27,6 @@
 
 #include <yp/server/access_control/access_control_manager.h>
 
-#include <yp/server/lib/objects/public.h>
-
 #include <yp/client/api/proto/cluster_api.pb.h>
 
 #include <yt/core/ytree/fluent.h>
