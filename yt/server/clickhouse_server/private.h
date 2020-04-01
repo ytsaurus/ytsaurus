@@ -41,14 +41,13 @@ DECLARE_REFCOUNTED_CLASS(TClickHouseHost);
 DECLARE_REFCOUNTED_CLASS(TQueryRegistry);
 DECLARE_REFCOUNTED_CLASS(THealthChecker);
 DECLARE_REFCOUNTED_STRUCT(TTable);
+DECLARE_REFCOUNTED_STRUCT(TQueryContext);
 
 struct TValue;
-struct TQueryContext;
 class TBootstrap;
 class TSubquerySpec;
 struct TSubquery;
 struct TQueryAnalysisResult;
-struct IQueryContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 
