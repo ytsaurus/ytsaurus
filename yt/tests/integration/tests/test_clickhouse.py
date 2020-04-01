@@ -114,7 +114,7 @@ class Clique(object):
     def get_active_instances(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
             instances = ls("//sys/clickhouse/cliques/{0}".format(self.op.id),
-                           attributes=["locks", "host", "http_port", "monitoring_port"], verbose=False)
+                           attributes=["locks", "host", "http_port", "monitoring_port", "job_cookie"], verbose=False)
 
             def is_active(instance):
                 if not instance.attributes["locks"]:
@@ -138,7 +138,6 @@ class Clique(object):
             assert result["statistics"]["rows_read"] == exact
         else:
             assert min <= result["statistics"]["rows_read"] <= max
-
 
     def _print_progress(self):
         print_debug(self.op.build_progress(), "(active instance count: {})".format(self.get_active_instance_count()))
@@ -322,19 +321,8 @@ class Clique(object):
         return t
 
     def get_orchid(self, instance, path, verbose=True):
-        url = "http://{}:{}/orchid{}".format(instance.attributes["host"], instance.attributes["monitoring_port"], path)
-        if verbose:
-            print_debug("Getting orchid at {}".format(url))
-        result = requests.post(url)
-        if verbose:
-            print_debug("Status code: {}".format(result.status_code))
-        if result.status_code == 200:
-            result = result.json()
-        else:
-            result = None
-        if verbose:
-            print_debug(pprint.pformat(result))
-        return result
+        orchid_path = "//sys/clickhouse/orchids/{}/{}".format(self.op.id, instance.attributes["job_cookie"])
+        return get(orchid_path + path, verbose=verbose)
 
     def resize(self, size, jobs_to_abort=[]):
         update_op_parameters(self.op.id, parameters=get_scheduling_options(user_slots=size))
@@ -459,6 +447,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query('select count() from "//tmp/t1" prewhere (value < 3)') == [{'count()': 3}]
             assert clique.make_query('select any(0) from "//tmp/t1" prewhere (value < 3)') == [{'any(0)': 0}]
 
+
     @authors("evgenstf")
     def test_acl(self):
         with Clique(1) as clique:
@@ -516,6 +505,27 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/object_attribute_cache/hit")[-1]['value'] == 50
             assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/permission_cache/hit")[-1]['value'] == 5
+
+
+    @authors("evgenstf")
+    def test_monitoring_orchids(self):
+        with Clique(3) as clique:
+            for i in range(3):
+                assert 'monitoring' in clique.get_orchid(clique.get_active_instances()[i], "/")
+
+	    job_to_abort = str(clique.get_active_instances()[0])
+            node_to_ban = clique.op.get_node(job_to_abort)
+
+            abort_job(job_to_abort)
+            set_banned_flag(True, [node_to_ban])
+
+            wait(lambda: len(clique.get_active_instances()) == 2)
+            wait(lambda: len(clique.get_active_instances()) == 3)
+            for instance in clique.get_active_instances():
+                assert str(instance) != job_to_abort
+
+            for i in range(3):
+                assert 'monitoring' in clique.get_orchid(clique.get_active_instances()[i], "/")
 
 
     @authors("evgenstf")

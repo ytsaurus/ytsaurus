@@ -74,6 +74,7 @@ public:
             res_columns[5]->insert(std::string(name));
             res_columns[6]->insert(attributes.at("pid")->GetValue<i64>());
             res_columns[7]->insert(name == InstanceId_);
+            res_columns[8]->insert(attributes.at("job_cookie")->GetValue<ui64>());
         }
 
         return BlockInputStreams(1, std::make_shared<OneBlockInputStream>(getSampleBlock().cloneWithColumns(std::move(res_columns))));
@@ -114,6 +115,10 @@ private:
             {
                 "self",
                 std::make_shared<DataTypeUInt8>(),
+            },
+            {
+                "job_cookie",
+                std::make_shared<DataTypeUInt32>(),
             }
         });
     }

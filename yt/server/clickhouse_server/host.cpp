@@ -84,6 +84,7 @@
 #include <Poco/Util/XMLConfiguration.h>
 
 #include <util/system/hostname.h>
+#include <util/system/env.h>
 
 #include <atomic>
 #include <memory>
@@ -247,6 +248,7 @@ public:
                 "tcp_port",
                 "http_port",
                 "pid",
+                "job_cookie",
             },
             Logger);
 
@@ -263,6 +265,7 @@ public:
             {"tcp_port", ConvertToNode(TcpPort_)},
             {"http_port", ConvertToNode(HttpPort_)},
             {"pid", ConvertToNode(getpid())},
+            {"job_cookie", ConvertToNode(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))},
         };
 
         WaitFor(Discovery_->Enter(InstanceId_, attributes))
