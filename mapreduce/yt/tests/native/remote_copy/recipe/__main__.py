@@ -9,6 +9,7 @@ import yt.wrapper
 import os
 import json
 
+
 info_files = []
 
 
@@ -69,7 +70,7 @@ def start_for_remote_copy(args):
     src, dst = start_clusters(args, 2)
     set_env("YT_PROXY_SRC", "localhost:" + str(src.yt_proxy_port))
     set_env("YT_PROXY_DST", "localhost:" + str(dst.yt_proxy_port))
-    src_name = "src"
+    src_name = src.yt_id
     set_env("YT_SRC_CLUSTER_NAME", src_name)
     src_client, dst_client = map(_get_client, [src, dst])
 
