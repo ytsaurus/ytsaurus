@@ -667,3 +667,36 @@ class TestHistoryApi(object):
         assert 2 == len(history_events)
         assert "project1" == history_events[0]["results"][0]["value"]
         assert "project2" == history_events[1]["results"][0]["value"]
+
+    def test_network_project(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        network_project_id = yp_client.create_object(
+            object_type="network_project",
+            attributes=dict(spec=dict(project_id=42)),
+        )
+
+        def update(value):
+            yp_client.update_object(
+                "network_project",
+                network_project_id,
+                set_updates=[
+                    dict(
+                        path="/spec/project_id",
+                        value=value,
+                    ),
+                ],
+            )
+
+        update(42)
+        update(43)
+        update(43)
+
+        history_events = yp_client.select_object_history(
+            "network_project",
+            network_project_id,
+            ["/spec/project_id"],
+        )["events"]
+        assert 2 == len(history_events)
+        assert 42 == history_events[0]["results"][0]["value"]
+        assert 43 == history_events[1]["results"][0]["value"]

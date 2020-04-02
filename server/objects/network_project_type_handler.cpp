@@ -1,9 +1,12 @@
 #include "network_project_type_handler.h"
-#include "type_handler_detail.h"
-#include "network_project.h"
+
 #include "db_schema.h"
+#include "network_project.h"
+#include "type_handler_detail.h"
 
 namespace NYP::NServer::NObjects {
+
+using std::placeholders::_1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +28,8 @@ public:
                     ->SetAttribute(TNetworkProject::TSpec::ProjectIdSchema)
                     ->SetMandatory()
                     ->SetUpdatable()
+                    ->EnableHistory(THistoryEnabledAttributeSchema()
+                        .SetValueFilter<TNetworkProject>(std::bind(&TNetworkProjectTypeHandler::SpecProjectIdHistoryFilter, this, _1)))
             });
 
         StatusAttributeSchema_
@@ -52,6 +57,12 @@ public:
         ISession* session) override
     {
         return std::make_unique<TNetworkProject>(id, this, session);
+    }
+
+private:
+    bool SpecProjectIdHistoryFilter(TNetworkProject* networkProject)
+    {
+        return networkProject->Spec().ProjectId().LoadOld() != networkProject->Spec().ProjectId().Load();
     }
 };
 
