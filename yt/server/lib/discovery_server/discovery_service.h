@@ -24,6 +24,8 @@ public:
     void Initialize();
     void Finalize();
 
+    NYTree::IYPathServicePtr GetYPathService();
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

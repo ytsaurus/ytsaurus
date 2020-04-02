@@ -2,6 +2,8 @@
 
 #include <yt/core/misc/public.h>
 
+#include <yt/core/ypath/public.h>
+
 namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -9,16 +11,14 @@ namespace NYT::NDiscoveryClient {
 namespace NProto {
 
 class TMemberInfo;
+class TGroupMeta;
 class TListMembersOptions;
-
-class TReqListGroups;
-class TRspListGroups;
 
 class TReqListMembers;
 class TRspListMembers;
 
-class TReqGetGroupSize;
-class TRspGetGroupSize;
+class TReqGetGroupMeta;
+class TRspGetGroupMeta;
 
 class TReqHeartbeat;
 class TRspHeartbeat;
@@ -32,8 +32,15 @@ DECLARE_REFCOUNTED_CLASS(TDiscoveryClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TGroupId = TString;
+using TGroupId = NYPath::TYPath;
 using TMemberId = TString;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TString PriorityAttribute = "priority";
+static const TString RevisionAttribute = "revision";
+static const TString LastHeartbeatTimeAttribute = "last_heartbeat_time";
+static const TString LastAttributesUpdateTimeAttribute = "last_attributes_update_time";
 
 ////////////////////////////////////////////////////////////////////////////////
 

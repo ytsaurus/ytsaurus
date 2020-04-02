@@ -134,7 +134,7 @@ TEST_F(TDistributedThrottlerTestSuite, TestLimitUniform)
             i == 0 ? leaderThrottlerConfig : throttlerConfig,
             channelFactory,
             memberActionQueue->GetInvoker(),
-            "group",
+            "/group",
             "throttler" + ToString(i),
             rpcServer,
             address,
@@ -147,15 +147,15 @@ TEST_F(TDistributedThrottlerTestSuite, TestLimitUniform)
         channelFactory);
 
     while (true) {
-        auto rspOrError = WaitFor(discoveryClient->GetGroupSize("group"));
+        auto rspOrError = WaitFor(discoveryClient->GetGroupMeta("/group"));
         if (!rspOrError.IsOK()) {
             continue;
         }
-        auto count = rspOrError.Value();
-
+        auto count = rspOrError.Value().MemberCount;
         if (count >= throttlersCount - 1) {
             break;
         }
+        Sleep(TDuration::Seconds(1));
     }
 
     Sleep(TDuration::Seconds(1));
@@ -208,7 +208,7 @@ TEST_F(TDistributedThrottlerTestSuite, TestLimitAdaptive)
             throttlerConfig,
             channelFactory,
             memberActionQueue->GetInvoker(),
-            "group",
+            "/group",
             "throttler" + ToString(i),
             rpcServer,
             address,

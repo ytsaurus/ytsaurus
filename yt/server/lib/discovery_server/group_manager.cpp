@@ -1,6 +1,7 @@
 #include "group.h"
 #include "group_manager.h"
 #include "public.h"
+#include "cypress_integration.h"
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
@@ -19,43 +20,13 @@ using namespace NYTree;
 TGroupManager::TGroupManager(
     const NLogging::TLogger& logger)
     : Logger(logger)
+    , GroupTree_(New<TGroupTree>(Logger))
+    , YPathService_(CreateDiscoveryYPathService(GroupTree_))
 { }
 
 THashMap<TGroupId, TGroupPtr> TGroupManager::GetOrCreateGroups(const std::vector<TGroupId>& groupIds)
 {
-    THashMap<TGroupId, TGroupPtr> result;
-
-    {
-        TReaderGuard readerGuard(GroupsLock_);
-        for (const auto& groupId : groupIds) {
-            auto it = IdToGroup_.find(groupId);
-            if (it != IdToGroup_.end()) {
-                result.emplace(groupId, it->second);
-            }
-        }
-    }
-
-    {
-        TWriterGuard writerGuard(GroupsLock_);
-        for (const auto& groupId : groupIds) {
-            if (result.contains(groupId)) {
-                continue;
-            }
-            auto onGroupEmptied = BIND([=, this_ = MakeStrong(this)] {
-                TWriterGuard guard(GroupsLock_);
-                auto it = IdToGroup_.find(groupId);
-                if (it == IdToGroup_.end()) {
-                    YT_LOG_WARNING("Empty group is already deleted (GroupId: %v)", groupId);
-                    return;
-                }
-                IdToGroup_.erase(it);
-            });
-            auto group = New<TGroup>(groupId, onGroupEmptied, Logger);
-            IdToGroup_.emplace(groupId, group);
-            result.emplace(groupId, group);
-        }
-    }
-    return result;
+    return GroupTree_->GetOrCreateGroups(groupIds);
 }
 
 void TGroupManager::ProcessGossip(const std::vector<TGossipMemberInfo>& membersBatch)
@@ -95,27 +66,18 @@ void TGroupManager::ProcessHeartbeat(
 
 TGroupPtr TGroupManager::FindGroup(const TGroupId& id)
 {
-    TReaderGuard guard(GroupsLock_);
-    auto it = IdToGroup_.find(id);
-    if (it == IdToGroup_.end()) {
-        return nullptr;
-    }
-    return it->second;
+    return GroupTree_->FindGroup(id);
 }
 
 TGroupPtr TGroupManager::GetGroupOrThrow(const TGroupId& id)
 {
     auto group = FindGroup(id);
     if (!group) {
-        THROW_ERROR_EXCEPTION("No such group %Qv", id);
+        THROW_ERROR_EXCEPTION(NDiscoveryServer::EErrorCode::NoSuchGroup,
+            "No such group %v",
+            id);
     }
     return group;
-}
-
-std::vector<TGroupPtr> TGroupManager::ListGroups()
-{
-    TReaderGuard guard(GroupsLock_);
-    return GetValues(IdToGroup_);
 }
 
 THashSet<TMemberPtr> TGroupManager::GetModifiedMembers()
@@ -126,6 +88,11 @@ THashSet<TMemberPtr> TGroupManager::GetModifiedMembers()
         ModifiedMembers_.swap(modifiedMembers);
     }
     return modifiedMembers;
+}
+
+NYTree::IYPathServicePtr TGroupManager::GetYPathService()
+{
+    return YPathService_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

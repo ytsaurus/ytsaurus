@@ -33,38 +33,6 @@ TDiscoveryClientServiceProxy CreateProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TListGroupsRequestSession::TListGroupsRequestSession(
-    TServerAddressPoolPtr addressPool,
-    TDiscoveryClientConfigPtr config,
-    IChannelFactoryPtr channelFactory,
-    const NLogging::TLogger& logger)
-    : TRequestSession<std::vector<TString>>(
-        config->ReadQuorum,
-        std::move(addressPool),
-        logger)
-    , Config_(std::move(config))
-    , ChannelFactory_(std::move(channelFactory))
-{ }
-
-TFuture<void> TListGroupsRequestSession::MakeRequest(const TString& address)
-{
-    auto proxy = CreateProxy(Config_, ChannelFactory_, address);
-
-    auto req = proxy.ListGroups();
-    return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TDiscoveryClientServiceProxy::TRspListGroupsPtr& rsp) {
-        auto rspGroups = FromProto<std::vector<TString>>(rsp->groups());
-        TGuard guard(Lock_);
-        GroupIds_.insert(rspGroups.begin(), rspGroups.end());
-        if (++SuccessCount_ == RequiredSuccessCount_) {
-            std::vector<TString> result{GroupIds_.begin(), GroupIds_.end()};
-            guard.Release();
-            Promise_.TrySet(std::move(result));
-        }
-    }));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TListMembersRequestSession::TListMembersRequestSession(
     TServerAddressPoolPtr addressPool,
     TDiscoveryClientConfigPtr config,
@@ -119,13 +87,13 @@ TFuture<void> TListMembersRequestSession::MakeRequest(const TString& address)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TGetGroupSizeRequestSession::TGetGroupSizeRequestSession(
+TGetGroupMetaRequestSession::TGetGroupMetaRequestSession(
     TServerAddressPoolPtr addressPool,
     TDiscoveryClientConfigPtr config,
     IChannelFactoryPtr channelFactory,
     const NLogging::TLogger& logger,
     TString groupId)
-    : TRequestSession<int>(
+    : TRequestSession<TGroupMeta>(
         config->ReadQuorum,
         std::move(addressPool),
         logger)
@@ -134,21 +102,21 @@ TGetGroupSizeRequestSession::TGetGroupSizeRequestSession(
     , GroupId_(std::move(groupId))
 { }
 
-TFuture<void> TGetGroupSizeRequestSession::MakeRequest(const TString& address)
+TFuture<void> TGetGroupMetaRequestSession::MakeRequest(const TString& address)
 {
     auto proxy = CreateProxy(Config_, ChannelFactory_, address);
 
-    auto req = proxy.GetGroupSize();
+    auto req = proxy.GetGroupMeta();
     req->set_group_id(GroupId_);
-    return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TDiscoveryClientServiceProxy::TRspGetGroupSizePtr& rsp) {
+    return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TDiscoveryClientServiceProxy::TRspGetGroupMetaPtr& rsp) {
         TGuard guard(Lock_);
 
-        auto receivedGroupSize = rsp->group_size();
-        GroupSize_ = std::max(GroupSize_, receivedGroupSize);
+        auto groupMeta = FromProto<TGroupMeta>(rsp->meta());
+        GroupMeta_.MemberCount = std::max(GroupMeta_.MemberCount, groupMeta.MemberCount);
 
         if (++SuccessCount_ == RequiredSuccessCount_) {
             guard.Release();
-            Promise_.TrySet(GroupSize_);
+            Promise_.TrySet(GroupMeta_);
         }
     }));
 }
