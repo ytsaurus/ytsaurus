@@ -498,7 +498,11 @@ message TUlimitSoft {
 }
 
 enum EResolvConf {
+    // Использовать конфигурацию из portod.conf с хоста
+    // Если в portod.conf нет конфигурации, будет использован resolv.conf с хоста
     EResolvConf_DEFAULT = 0 [(NYT.NYson.NProto.enum_value_name) = "default"];
+
+    // Оставляет resolv.conf в контейнере as is, никак не изменяя его
     EResolvConf_KEEP = 1 [(NYT.NYson.NProto.enum_value_name) = "keep"];
 
     // При использовании nat64 resolv.conf будет содержать следующие строки:
