@@ -326,6 +326,7 @@ class YtStuff(object):
         self.yt_client.config["pickling"]["python_binary"] = self.python_binary
 
     def _init_sys_clusters(self):
+        self.yt_client.set("//sys/@cluster_name", self.yt_id)
         self._log("Configuring //sys/clusters reference")
         self.yt_client.set("//sys/clusters", {self.yt_id: self.cluster_config})
 

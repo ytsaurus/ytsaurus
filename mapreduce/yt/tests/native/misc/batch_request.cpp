@@ -572,7 +572,7 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
 
         auto batchRequest = client->CreateBatchRequest();
         auto simpleRes = batchRequest->Link(workingDir + "/simple", workingDir + "/simple_link");
-        auto txErrorRes = batchRequest->Link(workingDir + "/tx_simple", workingDir + "/tx_simple_missing_link");
+        auto txErrorRes = batchRequest->Link(workingDir + "/tx_simple", workingDir + "/tx_simple_broken_link///");
         auto txRes = batchRequest->WithTransaction(tx).Link(workingDir + "/tx_simple", workingDir + "/tx_simple_link");
         auto attributesRes = batchRequest->Link(workingDir + "/simple", workingDir + "/simple_link_with_attributes",
             TLinkOptions().Attributes(
