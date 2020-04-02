@@ -324,9 +324,8 @@ void TBlockFetcher::ReleaseBlock(int windowIndex)
 {
     auto& windowSlot = Window_[windowIndex];
     ResetBlockPromise(windowSlot);
-    YT_LOG_DEBUG("Releasing block (WindowIndex: %v, WindowSize: %v)",
-        windowIndex,
-        windowSlot.MemoryUsageGuard->Guard.GetSlots());
+    YT_LOG_DEBUG("Releasing block (WindowIndex: %v)",
+        windowIndex);
 }
 
 TPromise<TBlock> TBlockFetcher::GetBlockPromise(TWindowSlot& windowSlot)
