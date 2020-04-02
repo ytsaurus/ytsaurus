@@ -90,6 +90,7 @@ DEFINE_ENUM(EMasterReign,
     ((DynamicTimestampProviderDiscovery)                            (1304))  // aleksandra-zh
     ((YT_12365_FixCalculatingStaticMemoryInMounting)                (1305))  // lexolordan
     ((IgnoreTypeMismatch)                                           (1306))  // gritukan
+    ((FixTErrorSerialization)                                       (1307))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
