@@ -3,12 +3,18 @@ from .conftest import (
     are_pods_touched_by_scheduler,
     create_nodes,
     create_pod_set,
+    create_pod_with_boilerplate,
+    create_user,
     get_pod_scheduling_status,
     is_error_pod_scheduling_status,
     is_pod_assigned,
 )
 
-from yp.common import wait, YtResponseError
+from yp.common import (
+    YpAuthorizationError,
+    YtResponseError,
+    wait,
+)
 
 import pytest
 
@@ -348,3 +354,56 @@ class TestSchedulerHints(object):
                 )
             ],
         )
+
+    def test_permissions(self, yp_env):
+        root_client = yp_env.yp_client
+
+        node_id = create_nodes(root_client, 1)[0]
+        pod_set_id = create_pod_set(root_client)
+        pod_id = create_pod_with_boilerplate(root_client, pod_set_id)
+
+        create_user(root_client, "u")
+        root_client.update_object(
+            "pod",
+            pod_id,
+            set_updates=[
+                dict(
+                    path="/meta/acl/end",
+                    value=dict(
+                        action="allow",
+                        permissions=["write"],
+                        subjects=["u"],
+                    ),
+                ),
+            ],
+        )
+        yp_env.sync_access_control()
+
+        with yp_env.yp_instance.create_client(config={"user": "u"}) as user_client:
+            with pytest.raises(YpAuthorizationError):
+                user_client.add_scheduling_hint(pod_id, node_id, strong=False)
+
+            root_client.add_scheduling_hint(pod_id, node_id, strong=False)
+            hint_uuid = root_client.get_object("pod", pod_id, selectors=["/spec/scheduling/hints/0/uuid"])[0]
+            with pytest.raises(YpAuthorizationError):
+                user_client.remove_scheduling_hint(pod_id, hint_uuid)
+
+            root_client.update_object(
+                "node_segment",
+                "default",
+                set_updates=[
+                    dict(
+                        path="/meta/acl/end",
+                        value=dict(
+                            action="allow",
+                            permissions=["use"],
+                            subjects=["u"],
+                            attributes=["/access/scheduling/manage_hints"],
+                        ),
+                    ),
+                ],
+            )
+            yp_env.sync_access_control()
+
+            user_client.remove_scheduling_hint(pod_id, hint_uuid)
+            user_client.add_scheduling_hint(pod_id, node_id, strong=False)

@@ -797,6 +797,11 @@ private:
         TPod* pod,
         const NClient::NApi::NProto::TPodControl_TAddSchedulingHint& control)
     {
+        ValidatePodSetNodeSegmentPermission(
+            pod,
+            EAccessControlPermission::Use,
+            "/access/scheduling/manage_hints");
+
         if (!transaction->GetNode(control.node_id())->DoesExist()) {
             THROW_ERROR_EXCEPTION("Node with id %Qv does not exist",
                 control.node_id());
@@ -815,6 +820,11 @@ private:
         TPod* pod,
         const NClient::NApi::NProto::TPodControl_TRemoveSchedulingHint& control)
     {
+        ValidatePodSetNodeSegmentPermission(
+            pod,
+            EAccessControlPermission::Use,
+            "/access/scheduling/manage_hints");
+
         YT_LOG_DEBUG("Remove scheduling hint (PodId: %v, Uuid: %v)",
             pod->GetId(),
             control.uuid());
