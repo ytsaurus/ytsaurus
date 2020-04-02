@@ -147,7 +147,7 @@ void InitOrchidNode(
 
     auto batchResponseOrError = WaitFor(batchRequest->Invoke());
 
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchResponseOrError), "Error Initializing orchid node %v", orchidNodePath);
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchResponseOrError), "Error initializing orchid node %v", orchidNodePath);
 
     YT_LOG_INFO("Initialized orchid node (LocalHostName: %v, Port: %v, CliqueId: %v, JobCookie: %v, OrchidNodePath: %v)",
         localHostName,
