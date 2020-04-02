@@ -39,7 +39,7 @@ public:
 
 private:
     void DoFetchConfig();
-    bool TryFetchConfig();
+    void TryFetchConfig();
 
     void DoBuildOrchid(NYson::IYsonConsumer* consumer);
 
