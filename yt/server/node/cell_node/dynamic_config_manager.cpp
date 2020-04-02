@@ -98,21 +98,18 @@ void TDynamicConfigManager::DoFetchConfig()
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     YT_LOG_INFO("Fetching dynamic node config");
-    bool configUpdated = false;
     try {
-        configUpdated = TryFetchConfig();
+        TryFetchConfig();
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(TError(ex));
         LastError_ = ex;
         return;
     }
 
-    if (configUpdated) {
-        LastError_ = TError();
-    }
+    LastError_ = TError();
 }
 
-bool TDynamicConfigManager::TryFetchConfig()
+void TDynamicConfigManager::TryFetchConfig()
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
@@ -162,7 +159,7 @@ bool TDynamicConfigManager::TryFetchConfig()
     }
 
     if (AreNodesEqual(newConfigNode, CurrentConfig_)) {
-        return false;
+        return;
     }
 
     YT_LOG_INFO("Node dynamic config has changed, reconfiguring");
@@ -191,8 +188,6 @@ bool TDynamicConfigManager::TryFetchConfig()
     CurrentConfig_ = newConfigNode;
     ConfigUpdated_.Fire(newConfig);
     LastConfigUpdateTime_ = TInstant::Now();
-
-    return true;
 }
 
 void TDynamicConfigManager::DoBuildOrchid(IYsonConsumer* consumer)
