@@ -52,6 +52,8 @@
 
 #include <yt/core/rpc/dispatcher.h>
 
+#include <util/system/env.h>
+
 namespace NYT::NExecAgent {
 
 using namespace NRpc;
@@ -81,6 +83,10 @@ using namespace NNet;
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 static const TString SlotIndexPattern("\%slot_index\%");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1207,14 +1213,19 @@ private:
         PortsReleased_.Fire();
 
         if (Slot_) {
-            try {
-                YT_LOG_DEBUG("Clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
-                Slot_->CleanSandbox();
-            } catch (const std::exception& ex) {
-                // Errors during cleanup phase do not affect job outcome.
-                YT_LOG_ERROR(ex, "Failed to clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
+            if (ShouldCleanSandboxes()) {
+                try {
+                    YT_LOG_DEBUG("Clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
+                    Slot_->CleanSandbox();
+                } catch (const std::exception& ex) {
+                    // Errors during cleanup phase do not affect job outcome.
+                    YT_LOG_ERROR(ex, "Failed to clean sandbox (SlotIndex: %v)", Slot_->GetSlotIndex());
+                }
+                Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
+            } else {
+                YT_LOG_WARNING("Sandbox cleanup is disabled by environment variable %v; should be used for testing purposes only",
+                    DisableSandboxCleanupEnv);
             }
-            Bootstrap_->GetExecSlotManager()->ReleaseSlot(Slot_->GetSlotIndex());
         }
 
         ResourcesUpdated_.Fire(-oneUserSlotResources);
@@ -1850,6 +1861,11 @@ private:
             THROW_ERROR_EXCEPTION("Job probe is not available");
         }
         return JobProbe_;
+    }
+
+    bool ShouldCleanSandboxes() const
+    {
+        return GetEnv(DisableSandboxCleanupEnv) != "1";
     }
 };
 
