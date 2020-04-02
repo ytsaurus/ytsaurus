@@ -795,8 +795,17 @@ class YTInstance(object):
             processes = self._service_processes["node"]
             for process in processes:
                 if not isinstance(process, PortoSubprocess):
-                    raise  YtError("Cpu limits are not supported for non-porto environment")
+                    raise YtError("Cpu limits are not supported for non-porto environment")
                 process.set_cpu_limit(cpu_limit)
+
+    def set_nodes_memory_limit(self, memory_limit):
+        with self._lock:
+            logger.info("Setting memory limit {0} for nodes".format(memory_limit))
+            processes = self._service_processes["node"]
+            for process in processes:
+                if not isinstance(process, PortoSubprocess):
+                    raise YtError("Memory limits are not supported for non-porto environment")
+                process.set_memory_limit(memory_limit)
 
     def check_liveness(self, callback_func):
         with self._lock:
