@@ -85,6 +85,9 @@ class PortoSubprocess(object):
     def set_cpu_limit(self, cpu_limit):
         self._container.SetProperty("cpu_limit", "{}c".format(cpu_limit))
 
+    def set_memory_limit(self, memory_limit):
+        self._container.SetProperty("memory_limit", "{}".format(memory_limit))
+
     @property
     def returncode(self):
         return self._returncode
