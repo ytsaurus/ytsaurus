@@ -1,6 +1,6 @@
 #include "parallel_reader_memory_manager.h"
-
 #include "chunk_reader_memory_manager.h"
+#include "private.h"
 
 #include <yt/core/actions/invoker.h>
 
@@ -14,6 +14,7 @@
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
+using namespace NLogging;
 using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -22,11 +23,17 @@ const TProfiler MultiReaderMemoryManagerProfiler("/chunk_reader/memory");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr auto MaxRecordPerLogLine = 300;
+constexpr auto FullStateLogPeriod = TDuration::Seconds(30);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TParallelReaderMemoryManagerOptions::TParallelReaderMemoryManagerOptions(
     i64 totalReservedMemorySize,
     i64 maxInitialReaderReservedMemory,
     i64 minRequiredMemorySize,
     TTagIdList profilingTagList,
+    bool enableDetailedLogging,
     bool enableProfiling,
     TDuration profilingPeriod)
     : TotalReservedMemorySize(totalReservedMemorySize)
@@ -35,6 +42,7 @@ TParallelReaderMemoryManagerOptions::TParallelReaderMemoryManagerOptions(
     , ProfilingTagList(std::move(profilingTagList))
     , EnableProfiling(enableProfiling)
     , ProfilingPeriod(profilingPeriod)
+    , EnableDetailedLogging(enableDetailedLogging)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,10 +66,22 @@ public:
             Invoker_,
             BIND(&TParallelReaderMemoryManager::OnProfiling, MakeWeak(this)),
             Options_.ProfilingPeriod))
+        , Id_(TGuid::Create())
+        , Logger(TLogger{ReaderMemoryManagerLogger}
+            .AddTag("Id: %v", Id_))
     {
         if (Options_.EnableProfiling) {
             ProfilingExecutor_->Start();
         }
+
+        YT_LOG_DEBUG("Parallel reader memory manager created (TotalReservedMemory: %v, MaxInitialReaderReservedMemory: %v, MinRequiredMemorySize: %v, "
+            "ProfilingEnabled: %v, ProfilingPeriod: %v, DetailedLoggingEnabled: %v)",
+            TotalReservedMemory_.load(),
+            Options_.MaxInitialReaderReservedMemory,
+            Options_.MinRequiredMemorySize,
+            Options_.EnableProfiling,
+            Options_.ProfilingPeriod,
+            Options_.EnableDetailedLogging);
     }
 
     virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
@@ -75,11 +95,16 @@ public:
         initialReaderMemory = std::max<i64>(initialReaderMemory, 0);
 
         auto memoryManager = New<TChunkReaderMemoryManager>(
-            TChunkReaderMemoryManagerOptions(initialReaderMemory, std::move(profilingTagList)),
+            TChunkReaderMemoryManagerOptions(initialReaderMemory, std::move(profilingTagList), Options_.EnableDetailedLogging),
             MakeWeak(this));
         FreeMemory_ -= initialReaderMemory;
 
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeStrong(this), memoryManager, true, false));
+        YT_LOG_DEBUG("Created child chunk reader memory manager (ChildId: %v, InitialReaderMemorySize: %v, FreeMemorySize: %v)",
+            memoryManager->GetId(),
+            initialReaderMemory,
+            FreeMemory_.load());
+
         ScheduleRebalancing();
 
         return memoryManager;
@@ -98,12 +123,18 @@ public:
             minRequiredMemorySize,
             Options_.MaxInitialReaderReservedMemory,
             minRequiredMemorySize,
-            std::move(profilingTagList)
+            std::move(profilingTagList),
+            Options_.EnableDetailedLogging
         };
         auto memoryManager = New<TParallelReaderMemoryManager>(options, MakeWeak(this), Invoker_);
         FreeMemory_ -= minRequiredMemorySize;
 
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeStrong(this), memoryManager, true, false));
+        YT_LOG_DEBUG("Created child parallel reader memory manager (ChildId: %v, InitialManagerMemorySize: %v, FreeMemorySize: %v)",
+            memoryManager->GetId(),
+            minRequiredMemorySize,
+            FreeMemory_.load());
+
         ScheduleRebalancing();
 
         return memoryManager;
@@ -111,11 +142,21 @@ public:
 
     virtual void Unregister(IReaderMemoryManagerPtr readerMemoryManager) override
     {
+        YT_LOG_DEBUG("Child memory manager unregistration scheduled (ChildId: %v)", readerMemoryManager->GetId());
+
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoUnregister, MakeWeak(this), std::move(readerMemoryManager)));
     }
 
     virtual void UpdateMemoryRequirements(IReaderMemoryManagerPtr readerMemoryManager) override
     {
+        YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Child memory manager memory requirements update scheduled (ChildId: %v, TotalRequiredMemorySize: %v, "
+            "TotalDesiredMemorySize: %v, TotalReservedMemorySize: %v, FreeMemorySize: %v)",
+            readerMemoryManager->GetId(),
+            TotalRequiredMemory_.load(),
+            TotalDesiredMemory_.load(),
+            TotalReservedMemory_.load(),
+            FreeMemory_.load());
+
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoUpdateReaderInfo, MakeWeak(this), std::move(readerMemoryManager)));
         ScheduleRebalancing();
     }
@@ -137,6 +178,10 @@ public:
 
     virtual void SetReservedMemorySize(i64 size) override
     {
+        YT_LOG_DEBUG_UNLESS(GetReservedMemorySize() == size, "Updating reserved memory size (OldReservedMemorySize: %v, NewReservedMemorySize: %v)",
+            GetReservedMemorySize(),
+            size);
+
         i64 reservedMemorySizeDelta = size - TotalReservedMemory_;
         TotalReservedMemory_ += reservedMemorySizeDelta;
         FreeMemory_ += reservedMemorySizeDelta;
@@ -150,6 +195,9 @@ public:
 
     virtual void Finalize() override
     {
+        YT_LOG_DEBUG("Finalizing parallel reader memory manager (AlreadyFinalized: %v)",
+            Finalized_.load());
+
         Finalized_ = true;
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::TryUnregister, MakeWeak(this)));
     }
@@ -157,6 +205,21 @@ public:
     virtual const TTagIdList& GetProfilingTagList() const override
     {
         return ProfilingTagList_;
+    }
+
+    virtual void AddChunkReaderInfo(TGuid chunkReaderId) override
+    {
+        Logger.AddTag("chunk_reader_id", chunkReaderId);
+    }
+
+    virtual void AddReadSessionInfo(TGuid readSessionId) override
+    {
+        Logger.AddTag("read_session_id", readSessionId);
+    }
+
+    virtual TGuid GetId() const override
+    {
+        return Id_;
     }
 
 private:
@@ -170,6 +233,8 @@ private:
     void ScheduleRebalancing()
     {
         if (RebalancingsScheduled_ == 0) {
+            YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Scheduling rebalancing");
+
             ++RebalancingsScheduled_;
             Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoRebalance, MakeWeak(this)));
         }
@@ -182,11 +247,17 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
+        YT_LOG_DEBUG("Starting memory rebalancing (RebalancingsScheduled: %v)",
+            RebalancingsScheduled_.load());
+
         --RebalancingsScheduled_;
 
         // Part 1: try to satisfy as many requirements as possible.
         {
             i64 needExtraMemoryToSatisfyAllRequirements = std::max<i64>(0, RequiredMemoryDeficit_ - FreeMemory_);
+
+            YT_LOG_DEBUG("Trying to satisfy children memory requirements (NeedExtraMemoryToSatisfyRequirements: %v)",
+                needExtraMemoryToSatisfyAllRequirements);
 
             // To obtain extra memory we revoke some memory from readers with reserved_memory > required_memory.
             while (needExtraMemoryToSatisfyAllRequirements > 0 && !ReadersWithSatisfiedMemoryRequirement_.empty()) {
@@ -195,6 +266,10 @@ private:
                 auto reader = readerInfo.second;
 
                 auto memoryToRevoke = std::min<i64>(needExtraMemoryToSatisfyAllRequirements, readerInfo.first);
+
+                YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Revoking extra memory from child reader (ChildId: %v, MemoryToRevoke: %v)",
+                    reader->GetId(),
+                    memoryToRevoke);
 
                 // Can't revoke more memory.
                 if (memoryToRevoke == 0) {
@@ -207,6 +282,8 @@ private:
                 reader->SetReservedMemorySize(newReservedMemory);
                 needExtraMemoryToSatisfyAllRequirements -= memoryToRevoke;
                 DoAddReaderInfo(reader, false);
+
+                YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Extra memory revoked (FreeMemorySize: %v)", FreeMemory_.load());
             }
 
             while (FreeMemory_ > 0 && !ReadersWithUnsatisfiedMemoryRequirement_.empty()) {
@@ -222,6 +299,13 @@ private:
                 DoRemoveReaderInfo(reader, false);
                 reader->SetReservedMemorySize(newReservedMemory);
                 DoAddReaderInfo(reader, false);
+
+                YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Added memory to child memory manager to satisfy memory requirement (ChildId: %v, MemoryToAdd: %v, NewReservedMemory: %v, "
+                    "FreeMemorySize: %v)",
+                    reader->GetId(),
+                    memoryToAdd,
+                    newReservedMemory,
+                    FreeMemory_.load());
             }
         }
 
@@ -247,14 +331,30 @@ private:
                 reader->SetReservedMemorySize(newReservedMemory);
                 DoAddReaderInfo(reader, false);
 
+                YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Added memory to child memory manager (ChildId: %v, MemoryToAdd: %v, NewReservedMemory: %v, "
+                    "FreeMemorySize: %v)",
+                    reader->GetId(),
+                    memoryToAdd,
+                    newReservedMemory,
+                    FreeMemory_.load());
+
                 --allocationsLeft;
             }
 
             // More allocations can be done, so schedule another rebalancing.
             if (FreeMemory_ > 0 && !ReadersWithoutDesiredMemoryAmount_.empty()) {
+                YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "More allocations can be performed, scheduling another rebalancing "
+                    "(FreeMemorySize: %v, ReaderWithoutDesiredMemorySizeCount: %v)",
+                    FreeMemory_.load(),
+                    ReadersWithoutDesiredMemoryAmount_.size());
+
                 ScheduleRebalancing();
             }
+
+            TryLogFullState();
         }
+
+        YT_LOG_DEBUG("Memory rebalancing finished (FreeMemorySize: %v)", FreeMemory_.load());
     }
 
     void DoUnregister(const IReaderMemoryManagerPtr& readerMemoryManager)
@@ -263,6 +363,12 @@ private:
 
         DoRemoveReaderInfo(readerMemoryManager, true);
         readerMemoryManager->SetReservedMemorySize(0);
+
+        YT_LOG_DEBUG("Child memory manager unregistered (ChildId: %v, FreeMemorySize: %v)",
+            readerMemoryManager->GetId(),
+            FreeMemory_.load());
+        TryLogFullState();
+
         TryUnregister();
         ScheduleRebalancing();
     }
@@ -275,6 +381,10 @@ private:
             // Reader is already unregistered. Do nothing.
             return;
         }
+
+        YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Updating child info (ChildId: %v)",
+            reader->GetId());
+        TryLogFullState();
 
         DoRemoveReaderInfo(reader, false);
         DoAddReaderInfo(reader, true);
@@ -330,6 +440,17 @@ private:
         if (reservedMemory < desiredMemory) {
             YT_VERIFY(ReadersWithoutDesiredMemoryAmount_.emplace(desiredMemory - reservedMemory, reader).second);
         }
+
+        YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Child reader info added (ChildId: %v, RequiredMemorySize: %v, DesiredMemorySize: %v, ReservedMemorySize: %v, "
+            "TotalRequiredMemorySize: %v, TotalDesiredMemorySize: %v, FreeMemorySize: %v)",
+            reader->GetId(),
+            requiredMemory,
+            desiredMemory,
+            reservedMemory,
+            TotalRequiredMemory_.load(),
+            TotalDesiredMemory_.load(),
+            FreeMemory_.load());
+        TryLogFullState();
     }
 
     void DoRemoveReaderInfo(const IReaderMemoryManagerPtr& reader, bool updateMemoryRequirements)
@@ -362,6 +483,17 @@ private:
         if (reservedMemory < desiredMemory) {
             YT_VERIFY(ReadersWithoutDesiredMemoryAmount_.erase({desiredMemory - reservedMemory, reader}));
         }
+
+        YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Child reader info removed (ChildId: %v, RequiredMemorySize: %v, DesiredMemorySize: %v, ReservedMemorySize: %v, "
+            "TotalRequiredMemorySize: %v, TotalDesiredMemorySize: %v, FreeMemorySize: %v)",
+            reader->GetId(),
+            requiredMemory,
+            desiredMemory,
+            reservedMemory,
+            TotalRequiredMemory_.load(),
+            TotalDesiredMemory_.load(),
+            FreeMemory_.load());
+        TryLogFullState();
     }
 
     void TryUnregister()
@@ -369,17 +501,115 @@ private:
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
         if (Finalized_ && State_.empty() && !Unregistered_) {
+            YT_LOG_DEBUG("Parallel reader memory manager unregistered");
             Unregistered_ = true;
             if (auto host = Host_.Lock()) {
                 host->Unregister(MakeStrong(this));
             }
         }
+
+        TryLogFullState();
     }
 
     void OnProfiling() const
     {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
         for (const auto& [tagIdList, memoryUsage] : ReservedMemoryByProfilingTags_) {
             MultiReaderMemoryManagerProfiler.Enqueue("/usage", memoryUsage, EMetricType::Gauge, tagIdList);
+        }
+
+        TryLogFullState();
+    }
+
+    void TryLogFullState() const
+    {
+        VERIFY_INVOKER_AFFINITY(Invoker_);
+
+        auto now = TInstant::Now();
+        if (LastFullStateLoggingTime_ + FullStateLogPeriod > now) {
+            return;
+        }
+        LastFullStateLoggingTime_ = now;
+
+        YT_LOG_DEBUG("Logging full parallel reader memory manager state (RebalancingsScheduled: %v, TotalRequiredMemorySize: %v, "
+            "TotalDesiredMemorySize: %v, TotalReservedMemorySize: %v, FreeMemorySize: %v, RequiredMemoryDeficit: %v, Finalized: %v, Unregistered: %v)",
+            RebalancingsScheduled_.load(),
+            TotalRequiredMemory_.load(),
+            TotalDesiredMemory_.load(),
+            TotalReservedMemory_.load(),
+            FreeMemory_.load(),
+            RequiredMemoryDeficit_,
+            Finalized_.load(),
+            Unregistered_);
+
+        class TBatchLogger
+        {
+        public:
+            TBatchLogger(TString name, TLogger logger)
+                : Name_(name)
+                , Logger(logger)
+            { }
+
+            ~TBatchLogger()
+            {
+                if (RecordCount_ > 0) {
+                    Builder_.AppendString(")");
+                    YT_LOG_DEBUG(Builder_.Flush());
+                }
+            }
+
+            void LogRecord(const TString& record)
+            {
+                if (RecordCount_ == 0) {
+                    Builder_.AppendFormat("Logging batch of %v (", Name_);
+                } else {
+                    Builder_.AppendString(", ");
+                }
+                Builder_.AppendString(record);
+                ++RecordCount_;
+                if (RecordCount_ == MaxRecordPerLogLine) {
+                    Builder_.AppendString(")");
+                    YT_LOG_DEBUG(Builder_.Flush());
+                    Builder_.Reset();
+                    RecordCount_ = 0;
+                }
+            }
+
+        private:
+            TString Name_;
+            TLogger Logger;
+            TStringBuilder Builder_;
+            int RecordCount_ = 0;
+        };
+
+        {
+            TBatchLogger logger("reader infos", Logger);
+            for (const auto& [reader, state] : State_) {
+                logger.LogRecord(Format("%v: {RequiredMemorySize: %v, DesiredMemorySize: %v, ReservedMemorySize: %v}",
+                    reader->GetId(),
+                    state.RequiredMemorySize,
+                    state.DesiredMemorySize,
+                    state.ReservedMemorySize));
+            }
+        }
+        {
+            TBatchLogger logger("readers with unsatisfied memory requirement", Logger);
+            for (const auto& [delta, reader] : ReadersWithUnsatisfiedMemoryRequirement_) {
+                logger.LogRecord(Format("%v: %v", reader->GetId(), delta));
+            }
+        }
+        {
+            TBatchLogger logger("readers with satisfied memory requirement", Logger);
+            for (const auto& [delta, reader] : ReadersWithSatisfiedMemoryRequirement_) {
+                logger.LogRecord(Format("%v: %v", reader->GetId(), delta));
+            }
+        }
+        {
+            TBatchLogger logger("readers without desired memory amount", Logger);
+            for (const auto& [delta, reader] : ReadersWithoutDesiredMemoryAmount_) {
+                logger.LogRecord(Format("%v: %v", reader->GetId(), delta));
+            }
         }
     }
 
@@ -424,6 +654,12 @@ private:
     const TTagIdList ProfilingTagList_;
 
     const TPeriodicExecutorPtr ProfilingExecutor_;
+
+    const TGuid Id_;
+
+    TLogger Logger;
+
+    mutable TInstant LastFullStateLoggingTime_ = TInstant::Now();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
