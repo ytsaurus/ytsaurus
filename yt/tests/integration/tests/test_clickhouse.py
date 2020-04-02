@@ -73,7 +73,7 @@ class Clique(object):
     core_dump_path = None
     proxy_address = None
 
-    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, **kwargs):
+    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, enable_core_dump=True, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else copy.deepcopy(Clique.base_config)
         spec = {"pool": None}
         self.is_tracing = False
@@ -99,15 +99,18 @@ class Clique(object):
         if "cypress_ytserver_log_tailer_config_path" in kwargs:
             cypress_config_paths["log_tailer"] = (kwargs.pop("cypress_ytserver_log_tailer_config_path"), "log_tailer_config.yson")
 
+        core_dump_destination = None
+        if enable_core_dump:
+            core_dump_destination = Clique.core_dump_path
         spec_builder = get_clickhouse_clique_spec_builder(instance_count,
                                                           cypress_config_paths=cypress_config_paths,
                                                           max_failed_job_count=max_failed_job_count,
                                                           defaults=DEFAULTS,
                                                           spec=spec,
-                                                          core_dump_destination=Clique.core_dump_path,
+                                                          core_dump_destination=core_dump_destination,
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
-        if not is_asan_build():
+        if not is_asan_build() and enable_core_dump:
             self.spec["tasks"]["instances"]["force_core_dump"] = True
         self.instance_count = instance_count
 
@@ -505,6 +508,25 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/object_attribute_cache/hit")[-1]['value'] == 50
             assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/permission_cache/hit")[-1]['value'] == 5
+
+
+    @authors("evgenstf")
+    def test_orchid_error_handle(self):
+        create('map_node', '//sys/clickhouse/orchids')
+
+        create_user('test_user')
+        set("//sys/clickhouse/@acl", [
+            make_ace("allow", "test_user", ["write", "create", "remove", "modify_children"]),
+        ])
+        set("//sys/accounts/sys/@acl", [make_ace("allow", "test_user", "use")])
+
+        set("//sys/clickhouse/orchids/@acl", [
+            make_ace("deny", "test_user", "create"),
+        ])
+
+        with pytest.raises(Exception):
+            with Clique(1, config_patch={"user": "test_user"}, enable_core_dump=False) as clique:
+                pass
 
 
     @authors("evgenstf")
