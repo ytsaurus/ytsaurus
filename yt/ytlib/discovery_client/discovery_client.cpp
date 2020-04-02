@@ -34,16 +34,6 @@ TDiscoveryClient::TDiscoveryClient(
         Config_->ServerAddresses))
 { }
 
-TFuture<std::vector<TString>> TDiscoveryClient::ListGroups()
-{
-    auto session = New<TListGroupsRequestSession>(
-        AddressPool_,
-        Config_,
-        ChannelFactory_,
-        Logger);
-    return session->Run();
-}
-
 TFuture<std::vector<TMemberInfo>> TDiscoveryClient::ListMembers(
     const TString& groupId,
     const TListMembersOptions& options)
@@ -58,9 +48,9 @@ TFuture<std::vector<TMemberInfo>> TDiscoveryClient::ListMembers(
     return session->Run();
 }
 
-TFuture<int> TDiscoveryClient::GetGroupSize(const TString& groupId)
+TFuture<TGroupMeta> TDiscoveryClient::GetGroupMeta(const TString& groupId)
 {
-    auto session = New<TGetGroupSizeRequestSession>(
+    auto session = New<TGetGroupMetaRequestSession>(
         AddressPool_,
         Config_,
         ChannelFactory_,

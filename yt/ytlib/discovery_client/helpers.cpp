@@ -36,6 +36,16 @@ void FromProto(TMemberInfo* memberInfo, const NProto::TMemberInfo& protoMemberIn
     memberInfo->Revision = protoMemberInfo.revision();
 }
 
+void ToProto(NProto::TGroupMeta* protoGroupMeta, const TGroupMeta& groupMeta)
+{
+    protoGroupMeta->set_member_count(groupMeta.MemberCount);
+}
+
+void FromProto(TGroupMeta* groupMeta, const NProto::TGroupMeta& protoGroupMeta)
+{
+    groupMeta->MemberCount = protoGroupMeta.member_count();
+}
+
 void ToProto(NProto::TListMembersOptions* protoListMembersOptions, const TListMembersOptions& listMembersOptions)
 {
     protoListMembersOptions->set_limit(listMembersOptions.Limit);
@@ -50,6 +60,16 @@ void FromProto(TListMembersOptions* listMembersOptions, const NProto::TListMembe
     for (const auto& key : protoListMembersOptions.attribute_keys()) {
         listMembersOptions->AttributeKeys.push_back(key);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsMemberSystemAttribute(const TString& key)
+{
+    return key == PriorityAttribute ||
+        key == RevisionAttribute ||
+        key == LastHeartbeatTimeAttribute ||
+        key == LastAttributesUpdateTimeAttribute;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

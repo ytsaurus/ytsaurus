@@ -44,9 +44,8 @@ public:
         , RpcServer_(std::move(rpcServer))
         , GroupManager_(std::move(groupManager))
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ListGroups));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListMembers));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetGroupSize));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetGroupMeta));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
     }
@@ -64,19 +63,6 @@ public:
 private:
     const IServerPtr RpcServer_;
     const TGroupManagerPtr GroupManager_;
-
-    DECLARE_RPC_SERVICE_METHOD(NDiscoveryClient::NProto, ListGroups)
-    {
-        Y_UNUSED(request);
-        context->SetRequestInfo();
-
-        const auto& groups = GroupManager_->ListGroups();
-        for (const auto& group : groups) {
-            response->add_groups(group->GetId());
-        }
-        context->SetResponseInfo("GroupCount: %v", groups.size());
-        context->Reply();
-    }
 
     DECLARE_RPC_SERVICE_METHOD(NDiscoveryClient::NProto, ListMembers)
     {
@@ -110,7 +96,7 @@ private:
         context->Reply();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NDiscoveryClient::NProto, GetGroupSize)
+    DECLARE_RPC_SERVICE_METHOD(NDiscoveryClient::NProto, GetGroupMeta)
     {
         const auto& groupId = request->group_id();
 
@@ -118,10 +104,12 @@ private:
             groupId);
 
         auto group = GroupManager_->GetGroupOrThrow(groupId);
-        auto groupSize = group->GetSize();
-        response->set_group_size(groupSize);
 
-        context->SetResponseInfo("GroupSize: %v", groupSize);
+        TGroupMeta meta;
+        meta.MemberCount = group->GetMemberCount();
+        ToProto(response->mutable_meta(), meta);
+
+        context->SetResponseInfo("MemberCount: %v", meta.MemberCount);
         context->Reply();
     }
 
@@ -261,6 +249,11 @@ public:
         YT_LOG_INFO("Server finalized");
     }
 
+    NYTree::IYPathServicePtr GetYPathService()
+    {
+        return GroupManager_->GetYPathService();
+    }
+
 private:
     const IServerPtr RpcServer_;
     const TString SelfAddress_;
@@ -352,6 +345,11 @@ void TDiscoveryServer::Initialize()
 void TDiscoveryServer::Finalize()
 {
     Impl_->Finalize();
+}
+
+NYTree::IYPathServicePtr TDiscoveryServer::GetYPathService()
+{
+    return Impl_->GetYPathService();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -135,13 +135,13 @@ private:
 
     void UpdateUniformLimitDistribution()
     {
-        auto countRspOrError = WaitFor(DiscoveryClient_->GetGroupSize(GroupId_));
+        auto countRspOrError = WaitFor(DiscoveryClient_->GetGroupMeta(GroupId_));
         if (!countRspOrError.IsOK()) {
             YT_LOG_WARNING(countRspOrError, "Error updating throttler limits");
             return;
         }
 
-        auto totalCount = countRspOrError.Value();
+        auto totalCount = countRspOrError.Value().MemberCount;
         if (totalCount == 0) {
             YT_LOG_WARNING("No members in current group");
             return;

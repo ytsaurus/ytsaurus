@@ -10,9 +10,8 @@ extern const NLogging::TLogger DiscoveryClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TListGroupsRequestSession)
 DECLARE_REFCOUNTED_CLASS(TListMembersRequestSession)
-DECLARE_REFCOUNTED_CLASS(TGetGroupSizeRequestSession)
+DECLARE_REFCOUNTED_CLASS(TGetGroupMetaRequestSession)
 DECLARE_REFCOUNTED_CLASS(THeartbeatSession)
 
 ////////////////////////////////////////////////////////////////////////////////
