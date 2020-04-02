@@ -63,6 +63,7 @@ protected:
         std::vector<IReaderFactoryPtr> ReaderFactories;
     };
 
+    const TGuid Id_;
     const TMultiChunkReaderConfigPtr Config_;
     const TMultiChunkReaderOptionsPtr Options_;
     const std::vector<IReaderFactoryPtr> ReaderFactories_;

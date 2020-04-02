@@ -43,6 +43,8 @@ public:
 
     //! Called by chunk reader to notify that memory requirements have changed.
     virtual void UpdateMemoryRequirements(IReaderMemoryManagerPtr readerMemoryManager) = 0;
+
+    virtual TGuid GetId() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReaderMemoryManagerHost)
@@ -56,6 +58,7 @@ struct TParallelReaderMemoryManagerOptions
         i64 maxInitialReaderReservedMemory,
         i64 minRequiredMemorySize,
         NProfiling::TTagIdList profilingTagList = {},
+        bool enableDetailedLogging = false,
         bool enableProfiling = false,
         TDuration profilingPeriod = TDuration::Seconds(1));
 
@@ -75,6 +78,8 @@ struct TParallelReaderMemoryManagerOptions
     bool EnableProfiling = false;
 
     TDuration ProfilingPeriod = TDuration::Seconds(5);
+
+    bool EnableDetailedLogging = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

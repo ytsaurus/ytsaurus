@@ -24,12 +24,13 @@ TMultiReaderBase::TMultiReaderBase(
     TMultiChunkReaderOptionsPtr options,
     const std::vector<IReaderFactoryPtr>& readerFactories,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
-    : Config_(config)
+    : Id_(TGuid::Create())
+    , Config_(config)
     , Options_(options)
     , ReaderFactories_(readerFactories)
     , MultiReaderMemoryManager_(std::move(multiReaderMemoryManager))
     , Logger(NLogging::TLogger(ChunkClientLogger)
-        .AddTag("MultiReaderId: %v", TGuid::Create()))
+        .AddTag("MultiReaderId: %v", Id_))
     , UncancelableCompletionError_(CompletionError_.ToFuture().ToUncancelable())
     , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
 {
@@ -37,6 +38,8 @@ TMultiReaderBase::TMultiReaderBase(
 
     YT_LOG_DEBUG("Creating multi reader (ReaderCount: %v)",
         readerFactories.size());
+
+    MultiReaderMemoryManager_->AddChunkReaderInfo(Id_);
 
     UncancelableCompletionError_.Subscribe(BIND([Logger = this->Logger, multiReaderMemoryManager = MultiReaderMemoryManager_] (const TError& error) {
         if (error.IsOK()) {

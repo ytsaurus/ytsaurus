@@ -70,7 +70,7 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerGetsMemory)
     reader1->SetRequiredMemorySize(100);
     reader1->SetPrefetchMemorySize(100);
     WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 200; });
-    EXPECT_EQ(reader1->GetAvailableSize(), 200);
+    EXPECT_EQ(reader1->GetFreeMemorySize(), 200);
 
     {
         auto acquire1 = reader1->AsyncAquire(200);
@@ -78,7 +78,7 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerGetsMemory)
             .ValueOrThrow();
     }
 
-    EXPECT_EQ(reader1->GetAvailableSize(), 200);
+    EXPECT_EQ(reader1->GetFreeMemorySize(), 200);
     auto acquire2 = reader1->AsyncAquire(201);
     AssertOverTime([&] () { return !acquire2.IsSet(); });
 }
@@ -95,7 +95,7 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerRevokesMemory)
     reader1->SetRequiredMemorySize(50);
     reader1->SetPrefetchMemorySize(50);
     WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 100; });
-    EXPECT_EQ(reader1->GetAvailableSize(), 100);
+    EXPECT_EQ(reader1->GetFreeMemorySize(), 100);
 
     {
         auto acquire1 = reader1->AsyncAquire(100);
@@ -107,8 +107,8 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerRevokesMemory)
     reader2->SetRequiredMemorySize(50);
     WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 50; });
     EXPECT_EQ(reader2->GetReservedMemorySize(), 50);
-    EXPECT_EQ(reader1->GetAvailableSize(), 50);
-    EXPECT_EQ(reader2->GetAvailableSize(), 50);
+    EXPECT_EQ(reader1->GetFreeMemorySize(), 50);
+    EXPECT_EQ(reader2->GetFreeMemorySize(), 50);
 
     auto acquire2 = reader2->AsyncAquire(51);
     AssertOverTime([&] () { return !acquire2.IsSet(); });
