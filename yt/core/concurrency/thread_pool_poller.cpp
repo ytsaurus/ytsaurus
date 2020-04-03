@@ -340,7 +340,7 @@ private:
 
             // Dequeue one by one to let other threads do their job
             while (Poller_->Retry_.Dequeue(&pollable)) {
-                pollable->OnEvent(EPollControl::None);
+                pollable->OnEvent(EPollControl::Retry);
             }
         }
 
