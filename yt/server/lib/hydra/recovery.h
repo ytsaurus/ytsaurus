@@ -29,13 +29,13 @@ protected:
         TDistributedHydraManagerConfigPtr config,
         const TDistributedHydraManagerOptions& options,
         const TDistributedHydraManagerDynamicOptions& dynamicOptions,
-        NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
         NRpc::TResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
-        TVersion syncVersion);
+        TVersion syncVersion,
+        NLogging::TLogger logger);
 
     //! Must be derived by the inheritors to control the recovery behavior.
     virtual bool IsLeader() const = 0;
@@ -48,14 +48,12 @@ protected:
     const TDistributedHydraManagerConfigPtr Config_;
     const TDistributedHydraManagerOptions Options_;
     const TDistributedHydraManagerDynamicOptions DynamicOptions_;
-    const NElection::TCellManagerPtr CellManager_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     const IChangelogStorePtr ChangelogStore_;
     const ISnapshotStorePtr SnapshotStore_;
     const NRpc::TResponseKeeperPtr ResponseKeeper_;
     TEpochContext* const EpochContext_;
     const TVersion SyncVersion_;
-
     const NLogging::TLogger Logger;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -88,12 +86,12 @@ public:
         TDistributedHydraManagerConfigPtr config,
         const TDistributedHydraManagerOptions& options,
         const TDistributedHydraManagerDynamicOptions& dynamicOptions,
-        NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
         NRpc::TResponseKeeperPtr responseKeeper,
-        TEpochContext* epochContext);
+        TEpochContext* epochContext,
+        NLogging::TLogger logger);
 
     //! Performs leader recovery up to #TEpochContext::ReachableVersion.
     TFuture<void> Run();
@@ -122,13 +120,13 @@ public:
         TDistributedHydraManagerConfigPtr config,
         const TDistributedHydraManagerOptions& options,
         const TDistributedHydraManagerDynamicOptions& dynamicOptions,
-        NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         IChangelogStorePtr changelogStore,
         ISnapshotStorePtr snapshotStore,
         NRpc::TResponseKeeperPtr responseKeeper,
         TEpochContext* epochContext,
-        TVersion syncVersion);
+        TVersion syncVersion,
+        NLogging::TLogger logger);
 
     //! Performs follower recovery bringing the follower up-to-date and synchronized with the leader.
     TFuture<void> Run();

@@ -33,6 +33,7 @@ namespace NYT::NHydra {
 struct TEpochContext
     : public TRefCounted
 {
+    NElection::TCellManagerPtr CellManager;
     IChangelogStorePtr ChangelogStore;
     TVersion ReachableVersion;
 
@@ -120,11 +121,11 @@ public:
     TDecoratedAutomaton(
         TDistributedHydraManagerConfigPtr config,
         const TDistributedHydraManagerOptions& options,
-        NElection::TCellManagerPtr cellManager,
         IAutomatonPtr automaton,
         IInvokerPtr automatonInvoker,
         IInvokerPtr controlInvoker,
         ISnapshotStorePtr snapshotStore,
+        const NLogging::TLogger& logger,
         const NProfiling::TProfiler& profiler);
 
     void Initialize();

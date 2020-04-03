@@ -59,7 +59,7 @@ public:
         const TYPath& remotePath,
         IClientPtr client,
         ITransactionPtr prerequisiteTransaction,
-        TVersion reachableVersion,
+        std::optional<TVersion> reachableVersion,
         const NProfiling::TTagIdList& profilerTags)
         : Config_(std::move(config))
         , Options_(options)
@@ -72,7 +72,12 @@ public:
             .AddTag("Path: %v", Path_))
     { }
 
-    virtual TVersion GetReachableVersion() const override
+    virtual bool IsReadOnly() const override
+    {
+        return !PrerequisiteTransaction_;
+    }
+
+    virtual std::optional<TVersion> GetReachableVersion() const override
     {
         return ReachableVersion_;
     }
@@ -104,7 +109,7 @@ private:
     const TYPath Path_;
     const IClientPtr Client_;
     const ITransactionPtr PrerequisiteTransaction_;
-    const TVersion ReachableVersion_;
+    const std::optional<TVersion> ReachableVersion_;
     const NProfiling::TTagIdList ProfilerTags_;
 
     const NLogging::TLogger Logger;
@@ -380,7 +385,7 @@ private:
     {
         try {
             ITransactionPtr prerequisiteTransaction;
-            TVersion reachableVersion;
+            std::optional<TVersion> reachableVersion;
             if (PrerequisiteTransactionId_) {
                 prerequisiteTransaction = CreatePrerequisiteTransaction();
                 TakeLock(prerequisiteTransaction);

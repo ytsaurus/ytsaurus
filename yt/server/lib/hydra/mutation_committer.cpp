@@ -37,19 +37,17 @@ static const auto AutoSnapshotCheckPeriod = TDuration::Seconds(15);
 TCommitterBase::TCommitterBase(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
-    TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
-    TEpochContext* epochContext)
+    TEpochContext* epochContext,
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler)
     : Config_(std::move(config))
     , Options_(options)
-    , CellManager_(std::move(cellManager))
     , DecoratedAutomaton_(std::move(decoratedAutomaton))
     , EpochContext_(epochContext)
-    , Logger(NLogging::TLogger(HydraLogger)
-        .AddTag("CellId: %v, SelfPeerId: %v",
-            CellManager_->GetCellId(),
-            CellManager_->GetSelfPeerId()))
-    , Profiler(HydraProfiler.AddTags(Options_.ProfilingTagIds))
+    , Logger(std::move(logger))
+    , Profiler(std::move(profiler))
+    , CellManager_(EpochContext_->CellManager)
 {
     YT_VERIFY(Config_);
     YT_VERIFY(DecoratedAutomaton_);
@@ -373,25 +371,22 @@ private:
 TLeaderCommitter::TLeaderCommitter(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
-    TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
-    IChangelogStorePtr changelogStore,
-    TEpochContext* epochContext)
+    TEpochContext* epochContext,
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler)
     : TCommitterBase(
-        config,
+        std::move(config),
         options,
-        cellManager,
-        decoratedAutomaton,
-        epochContext)
-    , ChangelogStore_(changelogStore)
+        std::move(decoratedAutomaton),
+        epochContext,
+        std::move(logger),
+        std::move(profiler))
     , AutoSnapshotCheckExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochUserAutomatonInvoker,
         BIND(&TLeaderCommitter::OnAutoSnapshotCheck, MakeWeak(this)),
         AutoSnapshotCheckPeriod))
 {
-    YT_VERIFY(CellManager_);
-    YT_VERIFY(ChangelogStore_);
-
     AutoSnapshotCheckExecutor_->Start();
 }
 
@@ -606,15 +601,17 @@ void TLeaderCommitter::FireCommitFailed(const TError& error)
 TFollowerCommitter::TFollowerCommitter(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
-    TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
-    TEpochContext* epochContext)
+    TEpochContext* epochContext,
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler)
     : TCommitterBase(
-        config,
+        std::move(config),
         options,
-        cellManager,
-        decoratedAutomaton,
-        epochContext)
+        std::move(decoratedAutomaton),
+        epochContext,
+        std::move(logger),
+        std::move(profiler))
 { }
 
 TFuture<void> TFollowerCommitter::AcceptMutations(

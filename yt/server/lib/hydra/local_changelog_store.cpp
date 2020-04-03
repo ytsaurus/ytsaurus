@@ -404,7 +404,12 @@ public:
         , ReachableVersion_(reachableVersion)
     { }
 
-    virtual TVersion GetReachableVersion() const override
+    virtual bool IsReadOnly() const override
+    {
+        return false;
+    }
+
+    virtual std::optional<TVersion> GetReachableVersion() const override
     {
         return ReachableVersion_;
     }
