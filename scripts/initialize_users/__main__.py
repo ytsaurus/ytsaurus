@@ -542,7 +542,7 @@ def setup_dev_segment(cluster, accounts, client):
 
 
 # YPADMIN-287
-def configure_pod_eviction_requesters_group(client, **kwargs):
+def configure_pod_eviction_requesters(client, **kwargs):
     pod_eviction_requesters = Group("pod-eviction-requesters")
     members = (
         User("robot-yp-heavy-sched"),
@@ -561,7 +561,7 @@ def configure_pod_eviction_requesters_group(client, **kwargs):
 
 
 # YPADMIN-324
-def configure_pod_resource_reallocators_group(client, **kwargs):
+def configure_pod_resource_reallocators(client, **kwargs):
     pod_resource_reallocators = Group("pod-resource-reallocators")
     for attribute in ("/control/reallocate_resources",):
         add_permission(
@@ -602,11 +602,83 @@ def configure_deploy_public_object_creators(client, cluster, **kwargs):
             User("robot-tt-front"),
         ]
     add_group_members(client, deploy_public_object_creators, members)
-    create(client, deploy_public_object_creators)
+
+
+# YPADMIN-316
+def configure_yt_controllers(client, cluster, **kwargs):
+    yt_controllers = Group("yt-controllers")
+    members = (
+        Group("abc:service:470"),  # YT service.
+    )
+    add_group_members(client, yt_controllers, members)
+    segments_per_cluster = {
+        "man-pre": (
+            "yt_hume",
+        ),
+        "sas": (
+            "yt_ada",
+            "yt_hahn",
+            "yt_kelvin",
+            "yt_locke",
+            "yt_ofd_xdc",
+            "yt_vanga",
+        ),
+        "man": (
+            "yt_freud",
+            "yt_kelvin",
+            "yt_locke",
+            "yt_vanga",
+        ),
+        "vla": (
+            "yt_arnold",
+            "yt_kelvin",
+            "yt_locke",
+            "yt_ofd_xdc",
+            "yt_vanga",
+        ),
+        "iva": (
+            "yt_locke",
+        ),
+        "myt": (
+            "yt_locke",
+            "yt_ofd_xdc",
+            "yt_vanga",
+        ),
+    }
+    for segment in segments_per_cluster.get(cluster, tuple()):
+        add_permission(
+            client,
+            "node_segment",
+            segment,
+            yt_controllers,
+            "use",
+            "/access/scheduling/assign_pod_to_node",
+        )
+    pod_sets_per_cluster = {
+        "sas": (
+            "sas-yt-ada-solomon-bridge-over-yp",
+            "sas-yt-ada-nodes-over-yp",
+            "sas-yt-ada-rpc-proxies-over-yp",
+            "sas-yt-ada-proxies-over-yp",
+            "sas-yt-ada-controller-agents-over-yp",
+            "sas-yt-ada-schedulers-over-yp",
+            "sas-yt-ada-masters-over-yp",
+        )
+    }
+    for pod_set in pod_sets_per_cluster.get(cluster, tuple()):
+        for permission in ("write", "read_secrets"):
+            add_permission(
+                client,
+                "pod_set",
+                pod_set,
+                yt_controllers,
+                permission,
+                attribute="",
+            )
 
 
 # YPADMIN-286
-def configure_admins_group(client, **kwargs):
+def configure_admins(client, **kwargs):
     admins = Group("admins")
     members = (
         User("babenko"),
@@ -622,6 +694,7 @@ def configure_admins_group(client, **kwargs):
         "pod-resource-reallocators",
         "common-public-object-creators",
         "deploy-public-object-creators",
+        "yt-controllers",
     ):
         add_permission(
             client,
@@ -632,8 +705,8 @@ def configure_admins_group(client, **kwargs):
             attribute="/spec/members",
         )
 
-
 ####################################################################################################
+
 PERMISSIONS_ALL = {
     "account": {
         User("robot-yp-export"): "crw",
@@ -871,11 +944,12 @@ def initialize_users(cluster, dry_run):
         client = ClientWrapper(raw_client, dry_run)
 
         configurators = (
-            configure_pod_eviction_requesters_group,
-            configure_pod_resource_reallocators_group,
+            configure_pod_eviction_requesters,
+            configure_pod_resource_reallocators,
             configure_common_public_object_creators,
             configure_deploy_public_object_creators,
-            configure_admins_group,
+            configure_yt_controllers,
+            configure_admins,
         )
 
         for configurator in configurators:
