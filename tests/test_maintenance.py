@@ -660,3 +660,41 @@ class TestPodMaintenanceInterface(object):
 
         # State of in progress maintenance will be pushed down to pods forcefully (i.e. even without acknowledgement).
         wait(lambda: get_maintenance(pod_id)["state"] == "in_progress")
+
+    def test_prepare_maintenance_twice(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        node_id = create_nodes(yp_client, 1)[0]
+
+        def prepare_maintenance(uuid=None):
+            info = dict()
+            if uuid is not None:
+                info["uuid"] = uuid
+            yp_client.update_hfsm_state(
+                node_id,
+                "prepare_maintenance",
+                "Test",
+                maintenance_info=info,
+            )
+
+        def get_maintenance_uuid():
+            return yp_client.get_object(
+                "node",
+                node_id,
+                selectors=["/status/maintenance/info/uuid"],
+            )[0]
+
+        prepare_maintenance()
+        maintenance_uuid = get_maintenance_uuid()
+        assert len(maintenance_uuid) > 0
+
+        with pytest.raises(YtResponseError):
+            prepare_maintenance(maintenance_uuid)
+
+        assert maintenance_uuid == get_maintenance_uuid()
+
+        prepare_maintenance(uuid="")
+
+        new_maintenance_uuid = get_maintenance_uuid()
+        assert len(new_maintenance_uuid) > 0
+        assert maintenance_uuid != new_maintenance_uuid

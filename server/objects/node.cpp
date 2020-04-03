@@ -136,12 +136,12 @@ void TNode::UpdateHfsmStatus(
     auto oldMaintenanceState = static_cast<ENodeMaintenanceState>(oldMaintenance.state());
     if (state == EHfsmState::PrepareMaintenance) {
         YT_VERIFY(maintenanceInfo);
-        if (oldMaintenanceState != ENodeMaintenanceState::Requested || maintenanceInfo->uuid() != oldMaintenance.info().uuid()) {
-            UpdateMaintenanceStatus(
-                ENodeMaintenanceState::Requested,
-                Format("Maintenance requested by HFSM transition to %Qlv state", state),
-                std::move(*maintenanceInfo));
-        }
+        // Update maintenance status even if the previous state is "requested",
+        // because the new maintenance must be generated per every prepare-maintenance request.
+        UpdateMaintenanceStatus(
+            ENodeMaintenanceState::Requested,
+            Format("Maintenance requested by HFSM transition to %Qlv state", state),
+            std::move(*maintenanceInfo));
     } else if (state == EHfsmState::Maintenance) {
         YT_VERIFY(!maintenanceInfo);
         if (oldMaintenanceState != ENodeMaintenanceState::InProgress) {
