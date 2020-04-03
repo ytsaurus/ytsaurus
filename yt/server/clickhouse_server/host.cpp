@@ -26,12 +26,16 @@
 
 #include <yt/ytlib/api/native/client.h>
 
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
+
 #include <yt/ytlib/security_client/permission_cache.h>
 
 #include <yt/ytlib/object_client/object_attribute_cache.h>
 
 #include <yt/client/misc/discovery.h>
 
+#include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/profiling/profile_manager.h>
@@ -101,6 +105,7 @@ using namespace NProto;
 using namespace NSecurityClient;
 using namespace NObjectClient;
 using namespace NTracing;
+using namespace NChunkClient;
 
 static const auto& Logger = ClickHouseYtLogger;
 
@@ -178,6 +183,8 @@ private:
 
     THealthCheckerPtr HealthChecker_;
 
+    IMultiReaderMemoryManagerPtr ParallelReaderMemoryManager_;
+
 public:
     TImpl(
         TBootstrap* bootstrap,
@@ -219,7 +226,19 @@ public:
             Config_->User,
             DatabaseContext_.get(),
             Bootstrap_))
-    { }
+    {
+        TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions(
+            /* totalReservedMemorySize =*/Config_->TotalReaderMemoryLimit,
+            /* maxInitialReaderReservedMemory =*/Config_->TotalReaderMemoryLimit,
+            /* minRequiredMemorySize =*/0,
+            /* profilingTagList =*/{},
+            /* enableDetailedLogging =*/false,
+            /* enableProfiling =*/true);
+        // TODO(gritukan): Move it to NChunkClient::TDispatcher.
+        ParallelReaderMemoryManager_ = CreateParallelReaderMemoryManager(
+            parallelReaderMemoryManagerOptions, 
+            NChunkClient::TDispatcher().GetReaderMemoryManagerInvoker());
+    }
 
     void Start()
     {
@@ -472,6 +491,11 @@ public:
     const IInvokerPtr& GetControlInvoker() const
     {
         return ControlInvoker_;
+    }
+
+    const IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const
+    {
+        return ParallelReaderMemoryManager_;
     }
 
 private:
@@ -850,6 +874,11 @@ DB::Context& TClickHouseHost::GetContext() const
 TClusterNodes TClickHouseHost::GetNodes() const
 {
     return Impl_->GetNodes();
+}
+
+const IMultiReaderMemoryManagerPtr& TClickHouseHost::GetMultiReaderMemoryManager() const
+{
+    return Impl_->GetMultiReaderMemoryManager();
 }
 
 TClickHouseHost::~TClickHouseHost() = default;
