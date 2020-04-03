@@ -231,7 +231,7 @@ template <class TTypedObject>
 THistoryEnabledAttributeSchema& THistoryEnabledAttributeSchema::SetValueFilter(
     std::function<bool(TTypedObject*)> valueFilter)
 {
-    ValueFilter =
+    ValueFilter_ =
         [=] (TObject* object) -> bool {
             auto* typedObject = object->template As<TTypedObject>();
             return valueFilter(typedObject);

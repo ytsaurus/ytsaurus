@@ -27,6 +27,17 @@ using NYT::NQueryClient::TSourceLocation;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+bool AreTrivialHistoryPaths(const std::vector<NYPath::TYPath>& paths)
+{
+    return paths.size() == 1 && paths[0] == "";
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateAttributePath(const NYPath::TYPath& attributePath)
 {
     NYPath::TTokenizer tokenizer(attributePath);
@@ -626,18 +637,46 @@ bool TAttributeSchema::IsEtc() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THistoryEnabledAttributeSchema& THistoryEnabledAttributeSchema::SetPath(NYPath::TYPath path)
+THistoryEnabledAttributeSchema& THistoryEnabledAttributeSchema::AddPath(NYPath::TYPath path)
 {
-    Path = std::move(path);
+    Paths_.push_back(std::move(path));
     return *this;
 }
+
+const std::vector<NYPath::TYPath>& THistoryEnabledAttributeSchema::GetPaths() const
+{
+    static const std::vector<NYPath::TYPath> DefaultPaths{""};
+    return Paths_.empty()
+        ? DefaultPaths
+        : Paths_;
+}
+
+bool THistoryEnabledAttributeSchema::RunValueFilter(TObject* object) const
+{
+    return !ValueFilter_ || ValueFilter_(object);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 TAttributeSchema* TAttributeSchema::EnableHistory(
     THistoryEnabledAttributeSchema schema)
 {
-    ValidateAttributePath(schema.Path);
     YT_VERIFY(!HistoryEnabledAttribute_);
+
+    {
+        const auto& paths = schema.GetPaths();
+        for (const auto& path : paths) {
+            ValidateAttributePath(path);
+        }
+        for (size_t i = 0; i < paths.size(); ++i) {
+            for (size_t j = i + 1; j < paths.size(); ++j) {
+                YT_VERIFY(!paths[i].StartsWith(paths[j]));
+            }
+        }
+    }
+
     HistoryEnabledAttribute_ = std::move(schema);
+
     return this;
 }
 
@@ -663,7 +702,9 @@ bool TAttributeSchema::HasHistoryEnabledAttributeForStore(TObject* object) const
 void TAttributeSchema::FillHistoryEnabledAttributePaths(std::vector<TYPath>* result) const
 {
     if (HistoryEnabledAttribute_) {
-        result->push_back(GetPath() + HistoryEnabledAttribute_->Path);
+        for (const auto& path : HistoryEnabledAttribute_->GetPaths()) {
+            result->push_back(GetPath() + path);
+        }
     }
 
     if (IsComposite()) {
@@ -687,7 +728,7 @@ INodePtr TAttributeSchema::GetHistoryEnabledAttributesImpl(
 
     if (IsComposite()) {
         if (HistoryEnabledAttribute_) {
-            YT_VERIFY(HistoryEnabledAttribute_->Path.empty());
+            YT_VERIFY(AreTrivialHistoryPaths(HistoryEnabledAttribute_->GetPaths()));
         }
 
         INodePtr result;
@@ -727,42 +768,42 @@ INodePtr TAttributeSchema::GetHistoryEnabledAttributesImpl(
         value = GetEphemeralNodeFactory()->CreateEntity();
     }
 
-    static const NYPath::TYPath EmptyAttributePath;
-    const auto& path = hasHistoryEnabledParentAttribute
-        ? EmptyAttributePath
-        : HistoryEnabledAttribute_->Path;
-
-    if (!path) {
+    if (hasHistoryEnabledParentAttribute || AreTrivialHistoryPaths(HistoryEnabledAttribute_->GetPaths())) {
         return value;
     }
 
     auto result = GetEphemeralNodeFactory()->CreateMap();
 
-    // Supposing path is consistent with the data model.
-    ForceYPath(result, path);
+    for (const auto& path : HistoryEnabledAttribute_->GetPaths()) {
+        // Trivial path has already been processed.
+        YT_VERIFY(path);
 
-    static const TNodeWalkOptions WalkOptions{
-        .MissingAttributeHandler = [] (const TString& /* key */) {
-            return GetEphemeralNodeFactory()->CreateEntity();
-        },
-        .MissingChildKeyHandler = [] (const IMapNodePtr& /* node */, const TString& /* key */) {
-            return GetEphemeralNodeFactory()->CreateEntity();
-        },
-        .MissingChildIndexHandler = [] (const IListNodePtr& /* node */, int /* index */) {
-            return GetEphemeralNodeFactory()->CreateEntity();
-        },
-        .NodeCannotHaveChildrenHandler = [] (const INodePtr& node) {
-            if (node->GetType() != ENodeType::Entity) {
-                ThrowCannotHaveChildren(node);
-            }
-            return GetEphemeralNodeFactory()->CreateEntity();
-        }};
+        // Supposing path is consistent with the data model.
+        ForceYPath(result, path);
 
-    // Implicitly destroys the previous value of the #value variable, and so
-    // detaches found node from its parent and allows to reuse it.
-    value = WalkNodeByYPath(value, path, WalkOptions);
+        static const TNodeWalkOptions WalkOptions{
+            .MissingAttributeHandler = [] (const TString& /* key */) {
+                return GetEphemeralNodeFactory()->CreateEntity();
+            },
+            .MissingChildKeyHandler = [] (const IMapNodePtr& /* node */, const TString& /* key */) {
+                return GetEphemeralNodeFactory()->CreateEntity();
+            },
+            .MissingChildIndexHandler = [] (const IListNodePtr& /* node */, int /* index */) {
+                return GetEphemeralNodeFactory()->CreateEntity();
+            },
+            .NodeCannotHaveChildrenHandler = [] (const INodePtr& node) {
+                if (node->GetType() != ENodeType::Entity) {
+                    ThrowCannotHaveChildren(node);
+                }
+                return GetEphemeralNodeFactory()->CreateEntity();
+            }};
 
-    SetNodeByYPath(result, path, value);
+        auto subvalue = WalkNodeByYPath(value, path, WalkOptions);
+
+        // Subvalue cannot be reused (and hence it is cloned) because
+        // it is attached to the #value parent.
+        SetNodeByYPath(result, path, CloneNode(subvalue));
+    }
 
     return result;
 }
@@ -772,8 +813,7 @@ bool TAttributeSchema::HasHistoryEnabledAttributeForStoreImpl(
     bool hasAcceptedByHistoryFilterParentAttribute) const
 {
     if (HistoryEnabledAttribute_) {
-        const auto& valueFilter = HistoryEnabledAttribute_->ValueFilter;
-        if (!valueFilter || valueFilter(object)) {
+        if (HistoryEnabledAttribute_->RunValueFilter(object)) {
             hasAcceptedByHistoryFilterParentAttribute = true;
         }
     }

@@ -32,18 +32,24 @@ struct IQueryContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct THistoryEnabledAttributeSchema
+class THistoryEnabledAttributeSchema
 {
-    THistoryEnabledAttributeSchema& SetPath(NYPath::TYPath path);
+public:
+    THistoryEnabledAttributeSchema& AddPath(NYPath::TYPath path);
 
     template <class TTypedObject>
     THistoryEnabledAttributeSchema& SetValueFilter(std::function<bool(TTypedObject*)> valueFilter);
 
-    //! Path of the attribute relative to the current attribute schema.
-    NYPath::TYPath Path;
+    const std::vector<NYPath::TYPath>& GetPaths() const;
+
+    bool RunValueFilter(TObject* object) const;
+
+private:
+    //! Paths of the attribute relative to the current attribute schema.
+    std::vector<NYPath::TYPath> Paths_;
 
     //! Determines if the new value of the attribute should be stored.
-    std::function<bool(TObject*)> ValueFilter;
+    std::function<bool(TObject*)> ValueFilter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

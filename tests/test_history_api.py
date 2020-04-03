@@ -700,3 +700,59 @@ class TestHistoryApi(object):
         assert 2 == len(history_events)
         assert 42 == history_events[0]["results"][0]["value"]
         assert 43 == history_events[1]["results"][0]["value"]
+
+    def test_node(self, yp_env):
+        yp_client = yp_env.yp_client
+
+        node_id = create_nodes(yp_client, 1)[0]
+        pod_set_id = create_pod_set(yp_client)
+        pod_id = create_pod_with_boilerplate(
+            yp_client, pod_set_id, spec=dict(enable_scheduling=True)
+        )
+        wait(lambda: is_pod_assigned(yp_client, pod_id))
+
+        # Do not change state.
+        yp_client.update_hfsm_state(node_id, "up", "New up state")
+
+        # Change maintenance uuid.
+        yp_client.update_hfsm_state(node_id, "prepare_maintenance", "Test1")
+        yp_client.update_hfsm_state(node_id, "prepare_maintenance", "Test2")
+
+        # Change maintenance state.
+        wait(lambda: "requested" == yp_client.get_object("pod", pod_id, selectors=["/status/maintenance/state"])[0])
+        yp_client.acknowledge_pod_maintenance(pod_id, "Test")
+        wait(lambda: "acknowledged" == yp_client.get_object("node", node_id, selectors=["/status/maintenance/state"])[0])
+
+        yp_client.update_hfsm_state(node_id, "prepare_maintenance", "Test3")
+
+        history_events = yp_client.select_object_history(
+            "node",
+            node_id,
+            ["/status"],
+        )["events"]
+
+        assert 6 == len(history_events)
+
+        assert set(["/status/hfsm", "/status/maintenance"]) == set(history_events[0]["history_enabled_attributes"])
+        assert "initial" == history_events[0]["results"][0]["value"]["hfsm"]["state"]
+        assert "none" == history_events[0]["results"][0]["value"]["maintenance"]["state"]
+
+        assert "up" == history_events[1]["results"][0]["value"]["hfsm"]["state"]
+        assert "Test" == history_events[1]["results"][0]["value"]["hfsm"]["message"]
+        assert "none" == history_events[1]["results"][0]["value"]["maintenance"]["state"]
+
+        assert "prepare_maintenance" == history_events[2]["results"][0]["value"]["hfsm"]["state"]
+        assert "Test1" == history_events[2]["results"][0]["value"]["hfsm"]["message"]
+        assert "requested" == history_events[2]["results"][0]["value"]["maintenance"]["state"]
+
+        assert "prepare_maintenance" == history_events[3]["results"][0]["value"]["hfsm"]["state"]
+        assert "Test2" == history_events[3]["results"][0]["value"]["hfsm"]["message"]
+        assert "requested" == history_events[3]["results"][0]["value"]["maintenance"]["state"]
+
+        assert "prepare_maintenance" == history_events[4]["results"][0]["value"]["hfsm"]["state"]
+        assert "Test2" == history_events[4]["results"][0]["value"]["hfsm"]["message"]
+        assert "acknowledged" == history_events[4]["results"][0]["value"]["maintenance"]["state"]
+
+        assert "prepare_maintenance" == history_events[5]["results"][0]["value"]["hfsm"]["state"]
+        assert "Test3" == history_events[5]["results"][0]["value"]["hfsm"]["message"]
+        assert "requested" == history_events[5]["results"][0]["value"]["maintenance"]["state"]

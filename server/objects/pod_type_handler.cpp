@@ -142,7 +142,7 @@ public:
                 MakeEtcAttributeSchema()
                     ->SetAttribute(TPod::TStatus::EtcSchema)
                     ->EnableHistory(THistoryEnabledAttributeSchema()
-                        .SetPath("/eviction")
+                        .AddPath("/eviction")
                         .SetValueFilter<TPod>(std::bind(&TPodTypeHandler::StatusEvictionHistoryFilter, this, _1)))
             });
 

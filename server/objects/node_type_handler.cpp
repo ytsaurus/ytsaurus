@@ -66,6 +66,10 @@ public:
                 MakeEtcAttributeSchema()
                     ->SetUpdatable()
                     ->SetAttribute(TNode::TStatus::EtcSchema)
+                    ->EnableHistory(THistoryEnabledAttributeSchema()
+                        .AddPath("/hfsm")
+                        .AddPath("/maintenance")
+                        .SetValueFilter<TNode>(std::bind(&TNodeTypeHandler::StatusHfsmAndMaintenanceHistoryFilter, this, _1)))
             });
 
         ControlAttributeSchema_
@@ -261,6 +265,22 @@ private:
                 node->GetId());
         }
         node->Status().AttachedPersistentDisks().Remove(disk);
+    }
+
+    bool StatusHfsmAndMaintenanceHistoryFilter(TNode* node)
+    {
+        const auto& oldStatus = node->Status().Etc().LoadOld();
+        const auto& status = node->Status().Etc().Load();
+
+        const auto& oldMaintenance = oldStatus.maintenance();
+        const auto& maintenance = status.maintenance();
+
+        const auto& oldHfsm = oldStatus.hfsm();
+        const auto& hfsm = status.hfsm();
+
+        return hfsm.state() != oldHfsm.state()
+            || maintenance.state() != oldMaintenance.state()
+            || maintenance.info().uuid() != oldMaintenance.info().uuid();
     }
 };
 
