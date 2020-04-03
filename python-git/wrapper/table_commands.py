@@ -153,7 +153,9 @@ def write_table(table, input_stream, format=None, table_writer=None, max_row_buf
     :param bool is_stream_compressed: expect stream to contain compressed table data. \
     This data can be passed directly to proxy without recompression. Be careful! this option \
     disables write retries.
-    :param bool force_create: unconditionally creates table and ignores existing table.
+    :param bool force_create: unconditionally try to create table whether it exists \
+    (if not specified the pure write_table call will create table if it is not exists). \
+    Use this option only if you know what you do.
 
     The function tries to split input stream to portions of fixed size and write its with retries.
     If splitting fails, stream is written as is through HTTP.

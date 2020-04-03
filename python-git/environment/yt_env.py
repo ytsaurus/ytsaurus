@@ -12,7 +12,7 @@ try:
 except:
     get_gdb_path = None
 
-from yt.common import YtError, remove_file, makedirp, set_pdeathsig
+from yt.common import YtError, remove_file, makedirp, set_pdeathsig, update
 from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
@@ -144,6 +144,11 @@ def _has_cgroups():
 
 def _get_cgroup_path(cgroup_type, *args):
     return "/sys/fs/cgroup/{0}/{1}/{2}".format(cgroup_type, getpass.getuser(), "/".join(imap(str, args)))
+
+
+def _list_process_children(pid):
+    with open("/proc/{pid}/task/{pid}/children".format(pid=pid)) as f:
+        return f.read().strip().split()
 
 
 class YTInstance(object):
@@ -320,6 +325,8 @@ class YTInstance(object):
             self.watcher_config["logs_rotate_compress"] = True
         else:
             self.watcher_config["disable_logrotate"] = True
+
+        self._default_client_config = {"enable_token": False}
 
         self._prepare_environment(jobs_resource_limits, jobs_memory_limit, jobs_cpu_limit, jobs_user_slot_count, node_chunk_store_quota,
                                   node_memory_limit_addition, allow_chunk_storage_in_tmpfs, port_range_start, node_port_set_size,
@@ -576,8 +583,15 @@ class YTInstance(object):
             self._write_environment_info_to_file()
         except (YtError, KeyboardInterrupt) as err:
             logger.exception("Failed to start environment, dumping GDB backtraces")
-            for name in self._service_processes:
-                self._dump_backtraces(name)
+            try:
+                children = _list_process_children(os.getpid())
+                logger.info("Process children: %s", children)
+                for child in children:
+                    backtrace_path = os.path.join(self.backtraces_path, "gdb.{}".format(child))
+                    self._dump_backtrace(int(child), backtrace_path)
+            except Exception as e:
+                logger.warning("Failed to list children of current process: %s", e)
+                logger.exception(e)
             self.stop(force=True)
             raise YtError("Failed to start environment", inner_errors=[err])
 
@@ -1264,7 +1278,7 @@ class YTInstance(object):
 
     def create_client(self):
         if self.has_http_proxy:
-            return YtClient(proxy=self.get_http_proxy_address())
+            return YtClient(proxy=self.get_http_proxy_address(), config=self._default_client_config)
         return self.create_native_client()
 
     def create_native_client(self, driver_name="driver"):
@@ -1275,10 +1289,13 @@ class YTInstance(object):
 
         driver_config["connection_type"] = "native"
 
-        config = {
-            "backend": "native",
-            "driver_config": driver_config
-        }
+        config = update(
+            self._default_client_config,
+            {
+                "backend": "native",
+                "driver_config": driver_config
+            }
+        )
 
         return YtClient(config=config)
 
@@ -1505,22 +1522,25 @@ class YTInstance(object):
 
         raise error
 
+    def _dump_backtrace(self, pid, backtrace_path):
+        logger.info("Dumping backtrace for process {} to {}".format(pid, backtrace_path))
+        subprocess.check_call(
+            "{gdb} -p {pid} -ex 'set confirm off' -ex 'set pagination off' -ex 'thread apply all bt' -ex 'quit'".format(
+                gdb=get_gdb_path(),
+                pid=pid,
+            ),
+            stdout=open(backtrace_path, "w"),
+            stderr=sys.stderr,
+            shell=True,
+        )
+
     def _dump_backtraces(self, name):
         for index, process in enumerate(self._service_processes[name]):
             if process is None:
                 continue
             if get_gdb_path is not None and process.poll() is None:
                 backtrace_path = os.path.join(self.backtraces_path, "gdb.{}-{}".format(name, index))
-                logger.info("Dumping backtrace for process {} to {}".format(process.pid, backtrace_path))
-                subprocess.check_call(
-                    "{gdb} -p {pid} -ex 'set confirm off' -ex 'set pagination off' -ex 'thread apply all bt' -ex 'quit'".format(
-                        gdb=get_gdb_path(),
-                        pid=process.pid,
-                    ),
-                    stdout=open(backtrace_path, "w"),
-                    stderr=sys.stderr,
-                    shell=True,
-                )
+                self._dump_backtrace(process.pid, backtrace_path)
 
     def _start_watcher(self):
         log_paths = []

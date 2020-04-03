@@ -28,6 +28,7 @@ SET(YT_TEST_SRCS
     test_operations.py
     test_parse_ypath.py
     test_random_sample.py
+    test_spark.py
     test_spec_builders.py
     test_table_commands.py
     test_thread_pool.py

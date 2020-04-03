@@ -133,15 +133,6 @@ class ConfigsProvider(object):
     def build_configs(self, ports_generator, dirs, logs_dir=None, provision=None):
         provision = get_value(provision, get_default_provision())
 
-        # XXX(asaitgalin): All services depend on master so it is useful to make
-        # connection configs with addresses and other useful info about all master cells.
-        master_configs, connection_configs = self._build_master_configs(
-            provision,
-            dirs["master"],
-            dirs["master_tmpfs"],
-            ports_generator,
-            logs_dir)
-
         clock_configs, clock_connection_configs = self._build_clock_configs(
             provision,
             dirs["clock"],
@@ -149,28 +140,40 @@ class ConfigsProvider(object):
             ports_generator,
             logs_dir)
 
-        scheduler_configs = self._build_scheduler_configs(provision, dirs["scheduler"], deepcopy(connection_configs),
+        # XXX(asaitgalin): All services depend on master so it is useful to make
+        # connection configs with addresses and other useful info about all master cells.
+        master_configs, master_connection_configs = self._build_master_configs(
+            provision,
+            dirs["master"],
+            dirs["master_tmpfs"],
+            clock_connection_configs,
+            ports_generator,
+            logs_dir)
+
+        scheduler_configs = self._build_scheduler_configs(provision, dirs["scheduler"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
                                                           ports_generator, logs_dir)
 
-        controller_agent_configs = self._build_controller_agent_configs(provision, dirs["controller_agent"], deepcopy(connection_configs),
+        controller_agent_configs = self._build_controller_agent_configs(provision, dirs["controller_agent"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
                                                                         ports_generator, logs_dir)
 
         node_configs, node_addresses = self._build_node_configs(
             provision,
             dirs["node"],
             dirs["node_tmpfs"],
-            deepcopy(connection_configs),
+            deepcopy(master_connection_configs),
+            deepcopy(clock_connection_configs),
             ports_generator,
             logs_dir)
 
-        http_proxy_configs = self._build_proxy_config(provision, dirs["http_proxy"], deepcopy(connection_configs), ports_generator,
-                                                      logs_dir, master_cache_nodes=node_addresses)
+        http_proxy_configs = self._build_proxy_config(provision, dirs["http_proxy"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
+                                                      ports_generator, logs_dir, master_cache_nodes=node_addresses)
 
         rpc_proxy_configs = []
         rpc_client_config = None
         rpc_proxy_addresses = None
         if provision["rpc_proxy"]["count"] > 0:
-            rpc_proxy_configs = self._build_rpc_proxy_configs(provision, logs_dir, deepcopy(connection_configs), node_addresses, ports_generator)
+            rpc_proxy_configs = self._build_rpc_proxy_configs(provision, logs_dir, deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
+                                                              node_addresses, ports_generator)
             rpc_proxy_addresses = ["{0}:{1}".format(provision["fqdn"], rpc_proxy_config["rpc_port"])
                 for rpc_proxy_config in rpc_proxy_configs]
             rpc_client_config = {
@@ -179,7 +182,7 @@ class ConfigsProvider(object):
             }
 
         driver_configs, rpc_driver_configs = \
-            self._build_driver_configs(provision, deepcopy(connection_configs), deepcopy(clock_connection_configs),
+            self._build_driver_configs(provision, deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
                                        master_cache_nodes=node_addresses, rpc_proxy_addresses=rpc_proxy_addresses)
 
         if provision["driver"]["backend"] == "rpc":
@@ -201,7 +204,8 @@ class ConfigsProvider(object):
         return cluster_configuration
 
     @abc.abstractmethod
-    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
+    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, clock_connection_configs,
+                              ports_generator, master_logs_dir):
         pass
 
     @abc.abstractmethod
@@ -209,21 +213,22 @@ class ConfigsProvider(object):
         pass
 
     @abc.abstractmethod
-    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
+    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs, clock_connection_configs,
                                  ports_generator, scheduler_logs_dir):
         pass
 
     @abc.abstractmethod
-    def _build_controller_agent_configs(self, provision, controller_agent_dirs, master_connection_configs,
+    def _build_controller_agent_configs(self, provision, controller_agent_dirs, master_connection_configs, clock_connection_configs,
                                         ports_generator, controller_agent_logs_dir):
         pass
 
     @abc.abstractmethod
-    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
+    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, clock_connection_configs,
+                            ports_generator, node_logs_dir):
         pass
 
     @abc.abstractmethod
-    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes):
+    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, clock_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes):
         pass
 
     @abc.abstractmethod
@@ -231,7 +236,7 @@ class ConfigsProvider(object):
         pass
 
     @abc.abstractmethod
-    def _build_rpc_proxy_configs(self, provision, master_connection_configs, master_cache_nodes, ports_generator):
+    def _build_rpc_proxy_configs(self, provision, master_connection_configs, clock_connection_configs, master_cache_nodes, ports_generator):
         pass
 
 def init_logging(node, path, name, log_errors_to_stderr, enable_debug_logging, enable_compression, enable_structured_logging=False):
@@ -332,7 +337,13 @@ def _get_node_resource_limits_config(provision):
     return {"memory": memory}
 
 class ConfigsProvider_19(ConfigsProvider):
-    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
+    def _get_timestamp_provider_addresses(self, provision, master_connection_configs, clock_connection_configs):
+        if provision["clock"]["cell_size"] == 0:
+            return master_connection_configs[master_connection_configs["primary_cell_tag"]]["addresses"]
+        else:
+            return clock_connection_configs[clock_connection_configs["cell_tag"]]["addresses"]
+
+    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, clock_connection_configs, ports_generator, master_logs_dir):
         ports = []
 
         cell_tags = [str(provision["master"]["primary_cell_tag"] + index)
@@ -384,7 +395,11 @@ class ConfigsProvider_19(ConfigsProvider):
                 config["secondary_masters"] = [connection_configs[tag]
                                                for tag in connection_configs["secondary_cell_tags"]]
 
-                set_at(config, "timestamp_provider/addresses", connection_configs[cell_tags[0]]["addresses"])
+                config["enable_timestamp_manager"] = (provision["clock"]["cell_size"] == 0)
+
+                set_at(config, "timestamp_provider/addresses",
+                       self._get_timestamp_provider_addresses(provision, connection_configs, clock_connection_configs))
+
                 set_at(config, "snapshots/path",
                        os.path.join(master_dirs[cell_index][master_index], "snapshots"))
 
@@ -478,7 +493,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
         return configs, connection_configs
 
-    def _build_cluster_connection_config(self, master_connection_configs, master_cache_nodes=None,
+    def _build_cluster_connection_config(self, provision, master_connection_configs, clock_connection_configs, master_cache_nodes=None,
                                          config_template=None, enable_master_cache=False, enable_permission_cache=True):
         primary_cell_tag = master_connection_configs["primary_cell_tag"]
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
@@ -490,7 +505,7 @@ class ConfigsProvider_19(ConfigsProvider):
                 "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
             },
             "timestamp_provider": {
-                "addresses": master_connection_configs[primary_cell_tag]["addresses"],
+                "addresses": self._get_timestamp_provider_addresses(provision, master_connection_configs, clock_connection_configs),
                 "update_period": 500,
                 "soft_backoff_time": 100,
                 "hard_backoff_time": 100
@@ -560,7 +575,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
         return cluster_connection
 
-    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
+    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs, clock_connection_configs,
                                  ports_generator, scheduler_logs_dir):
         configs = []
 
@@ -570,7 +585,9 @@ class ConfigsProvider_19(ConfigsProvider):
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
             config["cluster_connection"] = \
                 self._build_cluster_connection_config(
+                    provision,
                     master_connection_configs,
+                    clock_connection_configs,
                     config_template=config["cluster_connection"])
 
             config["rpc_port"] = next(ports_generator)
@@ -593,10 +610,12 @@ class ConfigsProvider_19(ConfigsProvider):
         if controller_agent_dirs:
             assert False, "Controller agents are not supported in 19.2"
 
-    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes):
+    def _build_proxy_config(self, provision, proxy_dir, master_connection_configs, clock_connection_configs, ports_generator, proxy_logs_dir, master_cache_nodes):
         driver_config = default_configs.get_driver_config()
         update_inplace(driver_config, self._build_cluster_connection_config(
+            provision,
             master_connection_configs,
+            clock_connection_configs,
             master_cache_nodes=master_cache_nodes,
             enable_master_cache=provision["enable_master_cache"],
             enable_permission_cache=provision["enable_permission_cache"]))
@@ -608,9 +627,9 @@ class ConfigsProvider_19(ConfigsProvider):
             proxy_config["port"] = provision["http_proxy"]["http_ports"][index] if provision["http_proxy"]["http_ports"] else next(ports_generator)
             proxy_config["monitoring_port"] = next(ports_generator)
             proxy_config["rpc_port"] = next(ports_generator)
-            proxy_config["fqdn"] = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
 
-            set_at(proxy_config, "coordinator/public_fqdn", proxy_config["fqdn"])
+            fqdn = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
+            set_at(proxy_config, "coordinator/public_fqdn", fqdn)
 
             proxy_config["logging"] = init_logging(
                 proxy_config.get("logging"),
@@ -621,17 +640,16 @@ class ConfigsProvider_19(ConfigsProvider):
                 enable_compression=provision["enable_logging_compression"],
                 enable_structured_logging=True)
 
-            _set_bind_retry_options(proxy_config)
-
             proxy_config["driver"] = driver_config
 
+            _set_bind_retry_options(proxy_config, key="http_server")
             _set_bind_retry_options(proxy_config, key="bus_server")
 
             proxy_configs.append(proxy_config)
 
         return proxy_configs
 
-    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
+    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, clock_connection_configs, ports_generator, node_logs_dir):
         configs = []
         addresses = []
 
@@ -654,8 +672,10 @@ class ConfigsProvider_19(ConfigsProvider):
             addresses.append("{0}:{1}".format(provision["fqdn"], config["rpc_port"]))
 
             config["cluster_connection"] = \
-               self._build_cluster_connection_config(
+                self._build_cluster_connection_config(
+                    provision,
                     master_connection_configs,
+                    clock_connection_configs,
                     config_template=config["cluster_connection"])
 
             set_at(config, "data_node/multiplexed_changelog/path", os.path.join(node_dirs[index], "multiplexed"))
@@ -735,6 +755,13 @@ class ConfigsProvider_19(ConfigsProvider):
         configs = {}
         rpc_configs = {}
         for driver_type in ("native", "rpc"):
+
+            def _set_config(tag, config):
+                if driver_type == "rpc":
+                    rpc_configs[tag] = config
+                else:
+                    configs[tag] = config
+
             for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
                 config = default_configs.get_driver_config()
 
@@ -745,7 +772,9 @@ class ConfigsProvider_19(ConfigsProvider):
                 if cell_index == 0:
                     tag = primary_cell_tag
                     update_inplace(config, self._build_cluster_connection_config(
+                        provision,
                         master_connection_configs,
+                        clock_connection_configs,
                         master_cache_nodes=master_cache_nodes,
                         enable_master_cache=provision["enable_master_cache"],
                         enable_permission_cache=provision["enable_permission_cache"]))
@@ -755,7 +784,7 @@ class ConfigsProvider_19(ConfigsProvider):
                         "primary_master": master_connection_configs[secondary_cell_tags[cell_index - 1]],
                         "master_cell_directory_synchronizer": {"sync_period": None},
                         "timestamp_provider": {
-                            "addresses": master_connection_configs[primary_cell_tag]["addresses"]
+                            "addresses": self._get_timestamp_provider_addresses(provision, master_connection_configs, clock_connection_configs),
                         },
                         "transaction_manager": {
                             "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
@@ -766,24 +795,17 @@ class ConfigsProvider_19(ConfigsProvider):
 
                     update_inplace(config, cell_connection_config)
 
-                if driver_type == "rpc":
-                    rpc_configs[tag] = config
-                else:
-                    configs[tag] = config
+                _set_config(tag, config)
 
-            if clock_connection_configs:
+            if provision["clock"]["cell_size"] > 0:
                 tag = clock_connection_configs["cell_tag"]
                 config = deepcopy(configs[primary_cell_tag])
                 update_inplace(config["timestamp_provider"], clock_connection_configs[tag])
-
-                if driver_type == "rpc":
-                    rpc_configs[tag] = config
-                else:
-                    configs[tag] = config
+                _set_config(tag, config)
 
         return configs, rpc_configs
 
-    def _build_rpc_proxy_configs(self, provision, proxy_logs_dir, master_connection_configs, master_cache_nodes, ports_generator):
+    def _build_rpc_proxy_configs(self, provision, proxy_logs_dir, master_connection_configs, clock_connection_configs, master_cache_nodes, ports_generator):
         configs = []
 
         for rpc_proxy_index in xrange(provision["rpc_proxy"]["count"]):
@@ -817,7 +839,9 @@ class ConfigsProvider_19(ConfigsProvider):
                 }
             }
             config["cluster_connection"] = self._build_cluster_connection_config(
+                provision,
                 master_connection_configs,
+                clock_connection_configs,
                 master_cache_nodes=master_cache_nodes,
                 enable_master_cache=provision["enable_master_cache"],
                 enable_permission_cache=provision["enable_permission_cache"])
@@ -837,9 +861,9 @@ class ConfigsProvider_19(ConfigsProvider):
 
 
 class ConfigsProvider_19_4(ConfigsProvider_19):
-    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir):
+    def _build_master_configs(self, provision, master_dirs, master_tmpfs_dirs, clock_connection_configs, ports_generator, master_logs_dir):
         configs, connection_configs = super(ConfigsProvider_19_4, self)._build_master_configs(
-            provision, master_dirs, master_tmpfs_dirs, ports_generator, master_logs_dir)
+            provision, master_dirs, master_tmpfs_dirs, clock_connection_configs, ports_generator, master_logs_dir)
 
         for key, cell_configs in iteritems(configs):
             if key in ["primary_cell_tag", "secondary_cell_tags"]:
@@ -867,10 +891,10 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
 
         return configs, connection_configs
 
-    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs,
+    def _build_scheduler_configs(self, provision, scheduler_dirs, master_connection_configs, clock_connection_configs,
                                  ports_generator, scheduler_logs_dir):
         configs = super(ConfigsProvider_19_4, self)._build_scheduler_configs(
-            provision, scheduler_dirs, master_connection_configs,
+            provision, scheduler_dirs, master_connection_configs, clock_connection_configs,
             ports_generator, scheduler_logs_dir)
 
         for config in configs:
@@ -879,7 +903,7 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
 
         return configs
 
-    def _build_controller_agent_configs(self, provision, controller_agent_dirs, master_connection_configs,
+    def _build_controller_agent_configs(self, provision, controller_agent_dirs, master_connection_configs, clock_connection_configs,
                                         ports_generator, controller_agent_logs_dir):
         configs = []
 
@@ -889,7 +913,9 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
             set_at(config, "address_resolver/localhost_fqdn", provision["fqdn"])
             config["cluster_connection"] = \
                 self._build_cluster_connection_config(
+                    provision,
                     master_connection_configs,
+                    clock_connection_configs,
                     config_template=config["cluster_connection"])
 
             config["rpc_port"] = next(ports_generator)
@@ -907,9 +933,9 @@ class ConfigsProvider_19_4(ConfigsProvider_19):
 
         return configs
 
-    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir):
+    def _build_node_configs(self, provision, node_dirs, node_tmpfs_dirs, master_connection_configs, clock_connection_configs, ports_generator, node_logs_dir):
         configs, addresses = super(ConfigsProvider_19_4, self)._build_node_configs(
-            provision, node_dirs, node_tmpfs_dirs, master_connection_configs, ports_generator, node_logs_dir)
+            provision, node_dirs, node_tmpfs_dirs, master_connection_configs, clock_connection_configs, ports_generator, node_logs_dir)
 
         if hasattr(ports_generator, "local_port_range"):
             USER_PORT_START = ports_generator.local_port_range[1]

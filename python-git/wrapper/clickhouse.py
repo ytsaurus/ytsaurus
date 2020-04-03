@@ -1,12 +1,12 @@
 from .operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
-from .common import YtError, require, update
+from .common import YtError, require, update, update_inplace
 from .spec_builders import VanillaSpecBuilder
 from .run_operation_commands import run_operation
 from .dynamic_table_commands import mount_table, unmount_table, reshard_table
 from .cypress_commands import get, exists, copy, create, set
 from .transaction_commands import _make_transactional_request
 from .operation_commands import get_operation_url, abort_operation
-from .http_helpers import get_proxy_url
+from .http_helpers import get_cluster_name
 from .ypath import FilePath
 from .file_commands import smart_upload_file
 from .config import get_config
@@ -33,10 +33,9 @@ BUNDLED_DEFAULTS = {
     "cypress_log_tailer_config_path": "//sys/clickhouse/log_tailer_config",
     "dump_tables": True,
     "cpu_limit": 8,
-    "enable_monitoring": False,
+    "enable_monitoring": True,
     "clickhouse_config": {},
     "max_failed_job_count": 10 * 1000,
-    "use_exact_thread_count": True,
     "uncompressed_block_cache_size": 20 * 1000*3,
 }
 
@@ -90,14 +89,6 @@ def _resolve_alias(operation_alias, client=None):
         return None
 
 
-def _determine_cluster(client=None):
-    proxy_url = get_proxy_url(required=False, client=client)
-    default_suffix = get_config(client)["proxy"]["default_suffix"]
-    if proxy_url is not None and proxy_url.endswith(default_suffix):
-        return proxy_url[:-len(default_suffix)]
-    return None
-
-
 def _format_url(url):
     return to_yson_type(url, attributes={"_type_tag": "url"})
 
@@ -109,6 +100,7 @@ def _get_user_attributes(path, client=None):
     return get(path + "/@", attributes=attr_keys, client=client)
 
 
+@_patch_defaults
 def _build_description(cypress_ytserver_clickhouse_path=None,
                        cypress_ytserver_log_tailer_path=None,
                        cypress_clickhouse_trampoline_path=None,
@@ -136,7 +128,7 @@ def _build_description(cypress_ytserver_clickhouse_path=None,
         description["previous_operation_id"] = prev_operation_id
         description["previous_operation_url"] = _format_url(get_operation_url(prev_operation_id, client=client))
 
-    cluster = _determine_cluster(client=client)
+    cluster = get_cluster_name(client=client)
 
     # Put link to yql query. It is currently possible to add it only when alias is specified, otherwise we do not have access to operation id.
     # TODO(max42): YT-11115.
@@ -175,6 +167,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        enable_job_tables=None,
                                        enable_log_tailer=None,
                                        uncompressed_block_cache_size=None,
+                                       trampoline_log_file=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
@@ -241,7 +234,8 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     args = [clickhouse_trampoline_path, ytserver_clickhouse_path]
     if enable_monitoring:
-        args += ["--monitoring-port", "10142"]
+        args += ["--monitoring-port", "10142", "--log-tailer-monitoring-port", "10242"]
+
     if cypress_geodata_path is not None:
         file_paths.append(FilePath(cypress_geodata_path, file_name="geodata.tgz"))
         args += ["--prepare-geodata"]
@@ -251,6 +245,9 @@ def get_clickhouse_clique_spec_builder(instance_count,
 
     if enable_log_tailer:
         args += ["--log-tailer-bin", ytserver_log_tailer_path]
+
+    if trampoline_log_file:
+        args += ["--log-file", trampoline_log_file]
 
     trampoline_command = " ".join(args)
 
@@ -288,7 +285,6 @@ def prepare_configs(instance_count,
                     cpu_limit=None,
                     memory_limit=None,
                     memory_footprint=None,
-                    use_exact_thread_count=None,
                     operation_alias=None,
                     uncompressed_block_cache_size=None,
                     client=None):
@@ -299,8 +295,6 @@ def prepare_configs(instance_count,
     :type cypress_base_config_path: str or None
     :param clickhouse_config: configuration patch to be applied onto the base config; if None, nothing happens
     :type clickhouse_config: dict or None
-    :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
-    :type enable_monitoring: bool or None
     :param uncompressed_block_cache_size: size of uncompressed block cache at each instance.
     :type int
     """
@@ -308,15 +302,13 @@ def prepare_configs(instance_count,
     require(cpu_limit is not None, lambda: YtError("Cpu limit should be set to prepare the ClickHouse config"))
     require(memory_limit is not None, lambda: YtError("Memory limit should be set to prepare the ClickHouse config"))
 
-    thread_count = cpu_limit if use_exact_thread_count else 2 * max(cpu_limit, instance_count) + 1
-
     clickhouse_config_base = {
         "engine": {
             "settings": {
-                "max_threads": thread_count,
-                "max_distributed_connections": thread_count,
+                "max_threads": cpu_limit,
                 "max_memory_usage_for_all_queries": memory_limit,
                 "log_queries": 1,
+                "queue_max_wait_ms": 30 * 1000,
             },
         },
         "memory_watchdog": {
@@ -335,10 +327,18 @@ def prepare_configs(instance_count,
                 },
             },
         },
+        "worker_thread_count": cpu_limit,
+        "cpu_limit": cpu_limit,
+    }
+
+    cluster_connection_patch = {
+        "cluster_connection": get("//sys/@cluster_connection", client=client)
     }
 
     clickhouse_config_cypress_base = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else None
-    resulting_clickhouse_config = update(clickhouse_config_cypress_base, update(clickhouse_config_base, clickhouse_config))
+    resulting_clickhouse_config = {}
+    for patch in (clickhouse_config_cypress_base, clickhouse_config_base, clickhouse_config, cluster_connection_patch):
+        update_inplace(resulting_clickhouse_config, patch)
 
     log_tailer_config_base = {
         "profile_manager": {
@@ -347,7 +347,9 @@ def prepare_configs(instance_count,
     }
 
     log_tailer_config_cypress_base = get(cypress_log_tailer_config_path, client=client) if cypress_log_tailer_config_path != "" else None
-    resulting_log_tailer_config = update(log_tailer_config_cypress_base, log_tailer_config_base)
+    resulting_log_tailer_config = {}
+    for patch in (log_tailer_config_cypress_base, log_tailer_config_base, cluster_connection_patch):
+        update_inplace(resulting_log_tailer_config, patch)
 
     return {
         "clickhouse": resulting_clickhouse_config,
@@ -386,11 +388,6 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_vers
 
 
 def set_log_tailer_table_dynamic_attributes(table_kind, table_path, client=None):
-    if table_kind == "ordered_normally":
-        logger.debug("Resharding %s", table_path)
-        pivot_keys = [[]] + [[YsonUint64(i), None, None, None] for i in xrange(1, 100)]
-        reshard_table(table_path, pivot_keys=pivot_keys, sync=True, client=client)
-
     attributes = {
         "tablet_balancer_config/min_tablet_size": 0,
         "tablet_balancer_config/desired_tablet_size": 10 * 1024**3,
@@ -400,6 +397,13 @@ def set_log_tailer_table_dynamic_attributes(table_kind, table_path, client=None)
         attribute_path = table_path + "/@" + attribute
         logger.debug("Setting %s to %s", attribute_path, value)
         set(attribute_path, value, client=client)
+
+
+def reshard_log_tailer_table(table_kind, table_path, sync=True, client=None):
+    if table_kind == "ordered_normally":
+        logger.debug("Resharding %s", table_path)
+    pivot_keys = [[]] + [[YsonUint64(i), None, None, None] for i in xrange(1, 100)]
+    reshard_table(table_path, pivot_keys=pivot_keys, sync=sync, client=client)
 
 
 def create_log_tailer_table(table_kind, table_path, client=None):
@@ -469,6 +473,7 @@ def prepare_log_tailer_tables(log_file,
             unmount_table(path, sync=True)
         set_log_tailer_table_attributes(kind, path, ttl, log_tailer_version=log_tailer_version, client=client)
         set_log_tailer_table_dynamic_attributes(kind, path, client=client)
+        reshard_log_tailer_table(kind, path, client=client)
         mount_table(path, sync=True)
 
 
@@ -703,6 +708,7 @@ def start_clickhouse_clique(instance_count,
                                                          operation_alias=operation_alias,
                                                          prev_operation_id=prev_operation_id,
                                                          enable_monitoring=enable_monitoring,
+                                                         defaults=defaults,
                                                          client=client))
 
     op = run_operation(get_clickhouse_clique_spec_builder(instance_count,

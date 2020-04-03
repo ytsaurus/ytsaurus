@@ -34,6 +34,8 @@ import warnings
 # The next version of cryptography will remove support. Please upgrade to a 2.7.x release that supports hmac.compare_digest as soon as possible."""
 warnings.filterwarnings(action="ignore", module="cryptography.hazmat.primitives.*")
 
+yt.http_helpers.RECEIVE_TOKEN_FROM_SSH_SESSION = False
+
 def pytest_ignore_collect(path, config):
     path = str(path)
     return path.startswith(get_tests_sandbox()) or \

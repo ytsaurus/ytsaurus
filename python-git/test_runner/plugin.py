@@ -216,7 +216,7 @@ class YtParallelTestsRunnerPlugin(object):
 
         self.processes_tasks = scheduling.get_scheduling_func()(session.items, self.process_count)
         for index, tasks in enumerate(self.processes_tasks):
-            self._log_to_terminal("Process (id {0}) will run {1} tests".format(index, len(tasks)))
+            self._log_to_terminal("Executor {0} will run {1} tests".format(index, len(tasks)))
 
         self.finished_processes = []
 

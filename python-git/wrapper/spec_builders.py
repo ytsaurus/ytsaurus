@@ -496,7 +496,7 @@ class UserJobSpecBuilder(object):
                 memory_limit = 512 * MB
             memory_limit += tmpfs_size
 
-        if "memory_limit" not in spec and memory_limit is not None:
+        if memory_limit is not None:
             spec["memory_limit"] = memory_limit
         return spec
 
