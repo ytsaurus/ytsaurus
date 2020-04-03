@@ -1,4 +1,7 @@
 #include <mapreduce/yt/interface/common.h>
+
+#include <library/yson/node/node_io.h>
+
 #include <util/generic/xrange.h>
 
 #include <library/unittest/registar.h>
@@ -52,5 +55,53 @@ Y_UNIT_TEST_SUITE(Common)
         checkSortBy(schema, {"c", "a"});
         UNIT_ASSERT_EXCEPTION(checkSortBy(schema, {"b", "b"}), yexception);
         UNIT_ASSERT_EXCEPTION(checkSortBy(schema, {"a", "junk"}), yexception);
+    }
+
+    Y_UNIT_TEST(TColumnSchema_TypeV3)
+    {
+        {
+            auto column = TColumnSchema().Type(NTi::Interval());
+            UNIT_ASSERT_VALUES_EQUAL(column.Required(), true);
+            UNIT_ASSERT_VALUES_EQUAL(column.Type(), VT_INTERVAL);
+        }
+        {
+            auto column = TColumnSchema().Type(NTi::Optional(NTi::Date()));
+            UNIT_ASSERT_VALUES_EQUAL(column.Required(), false);
+            UNIT_ASSERT_VALUES_EQUAL(column.Type(), VT_DATE);
+        }
+        {
+            auto column = TColumnSchema().Type(NTi::Null());
+            UNIT_ASSERT_VALUES_EQUAL(column.Required(), false);
+            UNIT_ASSERT_VALUES_EQUAL(column.Type(), VT_NULL);
+        }
+        {
+            auto column = TColumnSchema().Type(NTi::Optional(NTi::Null()));
+            UNIT_ASSERT_VALUES_EQUAL(column.Required(), false);
+            UNIT_ASSERT_VALUES_EQUAL(column.Type(), VT_ANY);
+        }
+    }
+
+    Y_UNIT_TEST(ToTypeV3)
+    {
+        UNIT_ASSERT_VALUES_EQUAL(*ToTypeV3(VT_INT32, true), *NTi::Int32());
+        UNIT_ASSERT_VALUES_EQUAL(*ToTypeV3(VT_UTF8, false), *NTi::Optional(NTi::Utf8()));
+    }
+
+    Y_UNIT_TEST(DeserializeColumn)
+    {
+        auto deserialize = [] (TStringBuf yson) {
+            auto node = NodeFromYsonString(yson);
+            TColumnSchema column;
+            Deserialize(column, node);
+            return column;
+        };
+
+        auto column = deserialize("{name=foo; type=int64; required=%false}");
+        UNIT_ASSERT_VALUES_EQUAL(column.Name(), "foo");
+        UNIT_ASSERT_VALUES_EQUAL(*column.TypeV3(), *NTi::Optional(NTi::Int64()));
+
+        column = deserialize("{name=bar; type=utf8; required=%true; type_v3=utf8}");
+        UNIT_ASSERT_VALUES_EQUAL(column.Name(), "bar");
+        UNIT_ASSERT_VALUES_EQUAL(*column.TypeV3(), *NTi::Utf8());
     }
 }

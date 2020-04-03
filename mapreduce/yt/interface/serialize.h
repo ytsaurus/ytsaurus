@@ -2,6 +2,8 @@
 
 #include "common.h"
 
+#include <library/cpp/type_info/fwd.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -55,6 +57,9 @@ void Deserialize(TTabletInfo& tabletInfos, const TNode& node);
 
 void Serialize(const TGUID& path, IYsonConsumer* consumer);
 void Deserialize(TGUID& value, const TNode& node);
+
+void Serialize(const NTi::TTypePtr& type, IYsonConsumer* consumer);
+void Deserialize(NTi::TTypePtr& type, const TNode& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 

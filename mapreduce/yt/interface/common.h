@@ -302,6 +302,9 @@ enum EErasureCodecAttr : i8
     EC_LRC_12_2_2_ATTR          /* "lrc_12_2_2" */,
 };
 
+NTi::TTypePtr ToTypeV3(EValueType type, bool required);
+
+///
 /// @brief Single column description
 ///
 /// Each field describing column has setter and getter.
@@ -320,10 +323,31 @@ class TColumnSchema
 public:
     using TSelf = TColumnSchema;
 
-    FLUENT_FIELD_ENCAPSULATED(TString, Name);
-    FLUENT_FIELD_DEFAULT_ENCAPSULATED(EValueType, Type, VT_INT64);
+    TColumnSchema();
 
-    // Experimental feature
+    TColumnSchema(const TColumnSchema&) = default;
+
+    FLUENT_FIELD_ENCAPSULATED(TString, Name);
+
+    ///
+    /// @brief @deprecated Functions to work with type in old manner.
+    ///
+    /// New code is recommended to work with types using @ref NTi::TTypePtr from type_info library.
+    TColumnSchema& Type(EValueType type) &;
+    TColumnSchema Type(EValueType type) &&;
+    EValueType Type() const;
+
+    /// @brief Set and get column type.
+    /// @{
+    TColumnSchema& Type(const NTi::TTypePtr& type) &;
+    TColumnSchema Type(const NTi::TTypePtr& type) &&;
+
+    TColumnSchema& TypeV3(const NTi::TTypePtr& type) &;
+    TColumnSchema TypeV3(const NTi::TTypePtr& type) &&;
+    NTi::TTypePtr TypeV3() const;
+    /// @}
+
+    // Experimental features
     FLUENT_FIELD_OPTION_ENCAPSULATED(TNode, RawTypeV2);
     FLUENT_FIELD_OPTION_ENCAPSULATED(TNode, RawTypeV3);
 
@@ -338,9 +362,9 @@ public:
     TColumnSchema Type(EValueType type, bool required) &&;
 
 private:
-    bool Required_ = false;
-
     friend void Deserialize(TColumnSchema& columnSchema, const TNode& node);
+    NTi::TTypePtr TypeV3_;
+    bool Required_ = false;
 };
 
 class TTableSchema
@@ -363,6 +387,9 @@ public:
 
     TTableSchema& AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &;
     TTableSchema AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &&;
+
+    TTableSchema& AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &;
+    TTableSchema AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &&;
 
     TTableSchema& SortBy(const TVector<TString>& columns) &;
     TTableSchema SortBy(const TVector<TString>& columns) &&;
