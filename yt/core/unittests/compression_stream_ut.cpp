@@ -2,7 +2,7 @@
 
 #include <yt/core/misc/random.h>
 
-#include <library/streams/brotli/brotli.h>
+#include <library/cpp/streams/brotli/brotli.h>
 
 namespace NYT::NCompression {
 namespace {
