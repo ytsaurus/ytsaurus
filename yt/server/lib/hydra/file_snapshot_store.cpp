@@ -14,7 +14,7 @@
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/serialize.h>
 
-#include <library/streams/lz/lz.h>
+#include <library/cpp/streams/lz/lz.h>
 
 #include <util/stream/file.h>
 
