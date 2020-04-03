@@ -1,5 +1,7 @@
 from yt_commands import *
 
+import pytest
+
 import subprocess
 import sys
 import os.path
@@ -47,6 +49,7 @@ class TestLogTailer(YTEnvSetup):
         if YT_DUMMY_LOGGER_BINARY is None:
             pytest.skip("This test requires dummy_logger binary being built")
 
+    @pytest.mark.xfail(run = False, reason = "YT-12576")
     @authors("gritukan")
     def test_log_rotation(self):
         log_tailer_config = yson.loads(self._read_local_config_file("log_tailer_config.yson"))
