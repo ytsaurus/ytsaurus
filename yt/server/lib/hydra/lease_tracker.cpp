@@ -39,7 +39,7 @@ class TLeaseTracker::TFollowerPinger
 {
 public:
     explicit TFollowerPinger(TLeaseTrackerPtr owner)
-        : Owner_(owner)
+        : Owner_(std::move(owner))
         , Logger(Owner_->Logger)
     { }
 
@@ -47,8 +47,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
 
-        for (TPeerId id = 0; id < Owner_->CellManager_->GetTotalPeerCount(); ++id) {
-            if (id == Owner_->CellManager_->GetSelfPeerId()) {
+        for (TPeerId id = 0; id < Owner_->EpochContext_->CellManager->GetTotalPeerCount(); ++id) {
+            if (id == Owner_->EpochContext_->CellManager->GetSelfPeerId()) {
                 OnSuccess();
             } else {
                 SendPing(id);
@@ -70,14 +70,15 @@ private:
     std::vector<TFuture<void>> AsyncResults_;
     std::vector<TError> PingErrors_;
 
-    TPromise<void> Promise_ = NewPromise<void>();
+    const TPromise<void> Promise_ = NewPromise<void>();
 
 
     void SendPing(TPeerId followerId)
     {
-        auto channel = Owner_->CellManager_->GetPeerChannel(followerId);
-        if (!channel)
+        auto channel = Owner_->EpochContext_->CellManager->GetPeerChannel(followerId);
+        if (!channel) {
             return;
+        }
 
         const auto& decoratedAutomaton = Owner_->DecoratedAutomaton_;
         const auto& epochContext = Owner_->EpochContext_;
@@ -101,7 +102,7 @@ private:
             req->add_alive_peers(peerId);
         }
 
-        bool voting = Owner_->CellManager_->GetPeerConfig(followerId).Voting;
+        bool voting = Owner_->EpochContext_->CellManager->GetPeerConfig(followerId).Voting;
         AsyncResults_.push_back(req->Invoke().Apply(
             BIND(&TFollowerPinger::OnResponse, MakeStrong(this), followerId, voting)
                 .Via(epochContext->EpochControlInvoker)));
@@ -152,50 +153,48 @@ private:
     void OnSuccess()
     {
         ++ActiveCount_;
-        if (ActiveCount_ == Owner_->CellManager_->GetQuorumPeerCount()) {
+        if (ActiveCount_ == Owner_->EpochContext_->CellManager->GetQuorumPeerCount()) {
             Promise_.Set();
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaseTracker::TLeaseTracker(
     TDistributedHydraManagerConfigPtr config,
-    TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     TLeaderLeasePtr lease,
-    const std::vector<TCallback<TFuture<void>()>>& customLeaseCheckers)
-    : Config_(config)
-    , CellManager_(cellManager)
-    , DecoratedAutomaton_(decoratedAutomaton)
+    std::vector<TCallback<TFuture<void>()>> customLeaseCheckers,
+    NLogging::TLogger logger)
+    : Config_(std::move(config))
+    , DecoratedAutomaton_(std::move(decoratedAutomaton))
     , EpochContext_(epochContext)
-    , Lease_(lease)
-    , CustomLeaseCheckers_(customLeaseCheckers)
+    , Lease_(std::move(lease))
+    , CustomLeaseCheckers_(std::move(customLeaseCheckers))
+    , Logger(std::move(logger))
+    , LeaseCheckExecutor_(New<TPeriodicExecutor>(
+        EpochContext_->EpochControlInvoker,
+        BIND(&TLeaseTracker::OnLeaseCheck, MakeWeak(this)),
+        Config_->LeaderLeaseCheckPeriod))
 {
     YT_VERIFY(Config_);
-    YT_VERIFY(CellManager_);
     YT_VERIFY(DecoratedAutomaton_);
     YT_VERIFY(EpochContext_);
     YT_VERIFY(Lease_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
-
-    Logger = HydraLogger;
-    Logger.AddTag("CellId: %v, SelfPeerId: %v",
-        CellManager_->GetCellId(),
-        CellManager_->GetSelfPeerId());
 }
 
 void TLeaseTracker::Start()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    LeaseCheckExecutor_ = New<TPeriodicExecutor>(
-        EpochContext_->EpochControlInvoker,
-        BIND(&TLeaseTracker::OnLeaseCheck, MakeWeak(this)),
-        Config_->LeaderLeaseCheckPeriod);
+    AlivePeers_.clear();
+    for (TPeerId id = 0; id < EpochContext_->CellManager->GetTotalPeerCount(); ++id) {
+        AlivePeers_.insert(id);
+    }
+
     LeaseCheckExecutor_->Start();
 }
 

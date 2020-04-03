@@ -91,11 +91,16 @@ DEFINE_REFCOUNTED_TYPE(IChangelog)
 struct IChangelogStore
     : public virtual TRefCounted
 {
+    //! Returns |true| is the store is created in read-only mode.
+    //! This is possible for remote stores instantiated by non-voting tablet cells.
+    virtual bool IsReadOnly() const = 0;
+
     //! Returns the initial reachable version, i.e this is
     //! |(n,m)| if |n| is the maximum existing changelog id with |m| records in it.
     //! If no changelog exist in the store then zero version is returned.
+    //! If the store is read-only then |std::nullopt| is returned.
     //! This reachable version captures the initial state and is never updated.
-    virtual TVersion GetReachableVersion() const = 0;
+    virtual std::optional<TVersion> GetReachableVersion() const = 0;
 
     //! Creates a new changelog.
     virtual TFuture<IChangelogPtr> CreateChangelog(int id) = 0;

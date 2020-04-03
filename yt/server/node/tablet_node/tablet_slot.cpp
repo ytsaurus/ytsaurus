@@ -423,22 +423,23 @@ public:
 
         auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
 
+        auto channelFactory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetChannelFactory();
+
+        CellManager_ = New<TCellManager>(
+            cellConfig,
+            channelFactory,
+            PeerId_);
+
         if (auto slotHydraManager = GetHydraManager()) {
             slotHydraManager->SetDynamicOptions(hydraManagerDynamicOptions);
-            CellManager_->Reconfigure(cellConfig, PeerId_);
+            ElectionManager_->ReconfigureCell(CellManager_);
 
             YT_LOG_INFO("Slot reconfigured (ConfigVersion: %v)",
                 CellDescriptor_.ConfigVersion);
         } else {
-            auto channelFactory = Bootstrap_
-                ->GetMasterClient()
-                ->GetNativeConnection()
-                ->GetChannelFactory();
-            CellManager_ = New<TCellManager>(
-                cellConfig,
-                channelFactory,
-                PeerId_);
-
             Automaton_ = New<TTabletAutomaton>(
                 Owner_,
                 SnapshotQueue_->GetInvoker());
@@ -465,7 +466,7 @@ public:
                 Automaton_,
                 rpcServer,
                 ElectionManagerThunk_,
-                CellManager_,
+                GetCellId(),
                 ChangelogStoreFactoryThunk_,
                 SnapshotStoreThunk_,
                 hydraManagerOptions,

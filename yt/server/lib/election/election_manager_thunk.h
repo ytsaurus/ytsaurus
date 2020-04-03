@@ -2,6 +2,8 @@
 
 #include "election_manager.h"
 
+#include <yt/core/misc/atomic_object.h>
+
 namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -15,13 +17,14 @@ public:
 
     virtual void Participate() override;
     virtual void Abandon(const TError& error) override;
+    virtual void ReconfigureCell(TCellManagerPtr cellManager) override;
 
     virtual NYson::TYsonProducer GetMonitoringProducer();
 
     void SetUnderlying(IElectionManagerPtr underlying);
 
 private:
-    IElectionManagerPtr Underlying_;
+    TAtomicObject<IElectionManagerPtr> Underlying_;
 
 };
 

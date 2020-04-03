@@ -8,32 +8,37 @@ namespace NYT::NElection {
 
 void TElectionManagerThunk::Initialize()
 {
-    Underlying_->Initialize();
+    Underlying_.Load()->Initialize();
 }
 
 void TElectionManagerThunk::Finalize()
 {
-    Underlying_->Finalize();
+    Underlying_.Load()->Finalize();
 }
 
 void TElectionManagerThunk::Participate()
 {
-    Underlying_->Participate();
+    Underlying_.Load()->Participate();
 }
 
 void TElectionManagerThunk::Abandon(const TError& error)
 {
-    Underlying_->Abandon(error);
+    Underlying_.Load()->Abandon(error);
+}
+
+void TElectionManagerThunk::ReconfigureCell(TCellManagerPtr cellManager)
+{
+    Underlying_.Load()->ReconfigureCell(std::move(cellManager));
 }
 
 NYson::TYsonProducer TElectionManagerThunk::GetMonitoringProducer()
 {
-    return Underlying_->GetMonitoringProducer();
+    return Underlying_.Load()->GetMonitoringProducer();
 }
 
 void TElectionManagerThunk::SetUnderlying(IElectionManagerPtr underlying)
 {
-    Underlying_ = std::move(underlying);
+    Underlying_.Store(std::move(underlying));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

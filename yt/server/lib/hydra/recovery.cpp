@@ -33,30 +33,25 @@ TRecoveryBase::TRecoveryBase(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
     const TDistributedHydraManagerDynamicOptions& dynamicOptions,
-    TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
     TResponseKeeperPtr responseKeeper,
     TEpochContext* epochContext,
-    TVersion syncVersion)
-    : Config_(config)
+    TVersion syncVersion,
+    NLogging::TLogger logger)
+    : Config_(std::move(config))
     , Options_(options)
     , DynamicOptions_(dynamicOptions)
-    , CellManager_(cellManager)
-    , DecoratedAutomaton_(decoratedAutomaton)
-    , ChangelogStore_(changelogStore)
-    , SnapshotStore_(snapshotStore)
-    , ResponseKeeper_(responseKeeper)
+    , DecoratedAutomaton_(std::move(decoratedAutomaton))
+    , ChangelogStore_(std::move(changelogStore))
+    , SnapshotStore_(std::move(snapshotStore))
+    , ResponseKeeper_(std::move(responseKeeper))
     , EpochContext_(epochContext)
     , SyncVersion_(syncVersion)
-    , Logger(NLogging::TLogger(HydraLogger)
-        .AddTag("CellId: %v, SelfPeerId: %v",
-            CellManager_->GetCellId(),
-            CellManager_->GetSelfPeerId()))
+    , Logger(std::move(logger))
 {
     YT_VERIFY(Config_);
-    YT_VERIFY(CellManager_);
     YT_VERIFY(DecoratedAutomaton_);
     YT_VERIFY(ChangelogStore_);
     YT_VERIFY(SnapshotStore_);
@@ -196,7 +191,7 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    auto channel = CellManager_->GetPeerChannel(EpochContext_->LeaderId);
+    auto channel = EpochContext_->CellManager->GetPeerChannel(EpochContext_->LeaderId);
     YT_VERIFY(channel);
 
     THydraServiceProxy proxy(channel);
@@ -230,7 +225,7 @@ void TRecoveryBase::SyncChangelog(IChangelogPtr changelog, int changelogId)
     } else if (localRecordCount < syncRecordCount) {
         auto asyncResult = DownloadChangelog(
             Config_,
-            CellManager_,
+            EpochContext_->CellManager,
             ChangelogStore_,
             changelogId,
             syncRecordCount);
@@ -278,7 +273,7 @@ bool TRecoveryBase::ReplayChangelog(IChangelogPtr changelog, int changelogId, in
 
     auto asyncResult = ComputeChangelogQuorumInfo(
         Config_,
-        CellManager_,
+        EpochContext_->CellManager,
         changelogId,
         changelog->GetRecordCount());
     auto result = WaitFor(asyncResult)
@@ -342,23 +337,23 @@ TLeaderRecovery::TLeaderRecovery(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
     const TDistributedHydraManagerDynamicOptions& dynamicOptions,
-    TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
     TResponseKeeperPtr responseKeeper,
-    TEpochContext* epochContext)
+    TEpochContext* epochContext,
+    NLogging::TLogger logger)
     : TRecoveryBase(
-        config,
+        std::move(config),
         options,
         dynamicOptions,
-        cellManager,
-        decoratedAutomaton,
-        changelogStore,
-        snapshotStore,
-        responseKeeper,
+        std::move(decoratedAutomaton),
+        std::move(changelogStore),
+        std::move(snapshotStore),
+        std::move(responseKeeper),
         epochContext,
-        epochContext->ReachableVersion)
+        epochContext->ReachableVersion,
+        std::move(logger))
 { }
 
 TFuture<void> TLeaderRecovery::Run()
@@ -374,6 +369,10 @@ void TLeaderRecovery::DoRun()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    if (EpochContext_->ChangelogStore->IsReadOnly()) {
+        THROW_ERROR_EXCEPTION("Cannot recover leader with a read-only changelog store");
+    }
+
     NProfiling::TWallTimer timer;
     RecoverToVersion(EpochContext_->ReachableVersion);
 
@@ -385,8 +384,9 @@ void TLeaderRecovery::DoRun()
             currentSegmentId);
 
         std::vector<TFuture<THydraServiceProxy::TRspAbandonLeaderLeasePtr>> futures;
-        for (int peerId = 0; peerId < CellManager_->GetTotalPeerCount(); ++peerId) {
-            auto peerChannel = CellManager_->GetPeerChannel(peerId);
+        const auto& cellManager = EpochContext_->CellManager;
+        for (int peerId = 0; peerId < cellManager->GetTotalPeerCount(); ++peerId) {
+            auto peerChannel = cellManager->GetPeerChannel(peerId);
             if (!peerChannel) {
                 YT_LOG_INFO("Peer channel is not configured (PeerId: %v)", peerId);
                 continue;
@@ -397,7 +397,7 @@ void TLeaderRecovery::DoRun()
             auto tryAbandonLeaderLeaseRequest = proxy.AbandonLeaderLease();
             tryAbandonLeaderLeaseRequest->SetTimeout(Config_->AbandonLeaderLeaseRequestTimeout);
             tryAbandonLeaderLeaseRequest->set_segment_id(SyncVersion_.SegmentId);
-            tryAbandonLeaderLeaseRequest->set_peer_id(CellManager_->GetSelfPeerId());
+            tryAbandonLeaderLeaseRequest->set_peer_id(cellManager->GetSelfPeerId());
             futures.push_back(tryAbandonLeaderLeaseRequest->Invoke());
         }
 
@@ -454,24 +454,24 @@ TFollowerRecovery::TFollowerRecovery(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
     const TDistributedHydraManagerDynamicOptions& dynamicOptions,
-    TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     IChangelogStorePtr changelogStore,
     ISnapshotStorePtr snapshotStore,
     TResponseKeeperPtr responseKeeper,
     TEpochContext* epochContext,
-    TVersion syncVersion)
+    TVersion syncVersion,
+    NLogging::TLogger logger)
     : TRecoveryBase(
-        config,
+        std::move(config),
         options,
         dynamicOptions,
-        cellManager,
-        decoratedAutomaton,
-        changelogStore,
-        snapshotStore,
-        responseKeeper,
+        std::move(decoratedAutomaton),
+        std::move(changelogStore),
+        std::move(snapshotStore),
+        std::move(responseKeeper),
         epochContext,
-        syncVersion)
+        syncVersion,
+        std::move(logger))
     , PostponedVersion_(syncVersion)
     , CommittedVersion_(syncVersion)
 { }
