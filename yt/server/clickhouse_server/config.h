@@ -434,6 +434,12 @@ public:
 
     std::optional<int> CpuLimit;
 
+    //! Total amount of memory available for chunk readers.
+    i64 TotalReaderMemoryLimit;
+
+    //! Initial memory reservation for reader.
+    i64 ReaderMemoryRequirement;
+
     TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -486,6 +492,11 @@ public:
 
         RegisterParameter("cpu_limit", CpuLimit)
             .Default();
+
+        RegisterParameter("total_reader_memory_limit", TotalReaderMemoryLimit)
+            .Default(20_GB);
+        RegisterParameter("reader_memory_requirement", ReaderMemoryRequirement)
+            .Default(500_MB);
 
         RegisterPreprocessor([&] {
             PermissionCache->ExpireAfterAccessTime = TDuration::Minutes(2);

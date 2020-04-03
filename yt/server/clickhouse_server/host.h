@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/api/native/public.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/ytlib/security_client/public.h>
@@ -54,6 +56,8 @@ public:
     DB::Context& GetContext() const;
 
     TClusterNodes GetNodes() const;
+
+    const NChunkClient::IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const;
 
 private:
     class TImpl;

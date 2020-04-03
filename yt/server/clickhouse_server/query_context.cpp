@@ -74,6 +74,8 @@ TQueryContext::TQueryContext(
         HttpUserAgent = clientInfo.http_user_agent;
     }
 
+    UserTagId = Bootstrap->GetQueryRegistry()->GetUserProfilingTag(User);
+
     YT_LOG_INFO(
         "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "
         "InitialQueryId: %v, Interface: %v, ClientHostname: %v, HttpUserAgent: %v)",

@@ -19,7 +19,6 @@ class TDispatcher::TImpl
 {
 public:
     TImpl()
-        : ReaderMemoryManagerInvoker_(CreateSerializedInvoker(GetReaderInvoker()))
     { }
 
     void Configure(TDispatcherConfigPtr config)
@@ -31,6 +30,7 @@ public:
     {
         ReaderThreadPool_->Shutdown();
         WriterThread_->Shutdown();
+        MemoryManagerThread_->Shutdown();
     }
 
     IInvokerPtr GetReaderInvoker()
@@ -45,13 +45,13 @@ public:
 
     const IInvokerPtr& GetReaderMemoryManagerInvoker()
     {
-        return ReaderMemoryManagerInvoker_;
+        return MemoryManagerThread_->GetInvoker();
     }
 
 private:
     const TActionQueuePtr WriterThread_ = New<TActionQueue>("ChunkWriter");
     const TThreadPoolPtr ReaderThreadPool_ = New<TThreadPool>(TDispatcherConfig::DefaultChunkReaderPoolSize, "ChunkReader");
-    const IInvokerPtr ReaderMemoryManagerInvoker_;
+    const TActionQueuePtr MemoryManagerThread_ = New<TActionQueue>("MemoryManager");
 };
 
 /////////////////////////////////////////////////////////////////////////////

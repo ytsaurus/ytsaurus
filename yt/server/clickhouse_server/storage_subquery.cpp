@@ -1,8 +1,10 @@
 #include "storage_subquery.h"
 
 #include "block_input_stream.h"
+#include "config.h"
 #include "query_context.h"
 #include "subquery_spec.h"
+#include "query_registry.h"
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -12,6 +14,7 @@
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 
@@ -97,11 +100,14 @@ std::pair<BlockInputStreamPtr, ISchemalessMultiChunkReaderPtr> CreateBlockInputS
         "ClickHouseYt.BlockInputStream");
     NTracing::TTraceContextGuard guard(blockInputStreamTraceContext);
 
+    auto readerMemoryManager = queryContext->Bootstrap->GetHost()->GetMultiReaderMemoryManager()->CreateMultiReaderMemoryManager(
+        queryContext->Bootstrap->GetConfig()->ReaderMemoryRequirement,
+        {queryContext->UserTagId});
     auto reader = CreateSchemalessParallelMultiReader(
         CreateTableReaderConfig(),
         New<NTableClient::TTableReaderOptions>(),
         queryContext->Client(),
-        /*localDescriptor =*/{},
+        /* localDescriptor =*/{},
         std::nullopt,
         queryContext->Client()->GetNativeConnection()->GetBlockCache(),
         queryContext->Client()->GetNativeConnection()->GetNodeDirectory(),
@@ -114,7 +120,8 @@ std::pair<BlockInputStreamPtr, ISchemalessMultiChunkReaderPtr> CreateBlockInputS
         /* partitionTag =*/std::nullopt,
         /* trafficMeter =*/nullptr,
         /* bandwidthThrottler =*/GetUnlimitedThrottler(),
-        /* rpsThrottler =*/GetUnlimitedThrottler());
+        /* rpsThrottler =*/GetUnlimitedThrottler(),
+        /* multiReaderMemoryManager =*/readerMemoryManager);
 
     auto blockInputStream = CreateBlockInputStream(
         reader,

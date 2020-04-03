@@ -33,6 +33,8 @@ public:
 
     void SaveState();
 
+    NProfiling::TTagId GetUserProfilingTag(const TString& user);
+
     void Start();
     void Stop();
 

@@ -163,12 +163,12 @@ public:
 
     virtual i64 GetRequiredMemorySize() const override
     {
-        return std::max<i64>(Options_.MinRequiredMemorySize, TotalRequiredMemory_);
+        return TotalRequiredMemory_;
     }
 
     virtual i64 GetDesiredMemorySize() const override
     {
-        return std::max<i64>(Options_.MinRequiredMemorySize, TotalDesiredMemory_);
+        return TotalDesiredMemory_;
     }
 
     virtual i64 GetReservedMemorySize() const override
