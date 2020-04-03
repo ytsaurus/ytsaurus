@@ -18,6 +18,12 @@ import pytest
 
 class BaseTestSchedulerCluster(object):
     def impl(self, yp_client):
+        ds_pod_set_id = create_pod_set(yp_client)
+        yp_client.create_object(
+            object_type="daemon_set",
+            attributes={"meta": {"pod_set_id": ds_pod_set_id}, "spec": {"strong": False}},
+        )
+
         yp_client.create_object("ip4_address_pool")
 
         internet_address_count = 10

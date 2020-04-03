@@ -762,6 +762,7 @@ private:
                     podSet->GetId(),
                     nodeSegment->GetId(),
                     podSet->NodeFilter());
+                OnValidationError();
                 continue;
             }
             for (auto* node : nodesOrError.Value()) {
