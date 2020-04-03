@@ -6,7 +6,7 @@ from yt.common import remove_file, is_process_alive, which
 from yt.wrapper import YtClient
 from yt.wrapper.common import generate_uuid
 from yt.environment.helpers import is_dead_or_zombie, OpenPortIterator
-from yt.test_helpers import get_tests_sandbox
+from yt.test_helpers import get_tests_sandbox, wait
 import yt.subprocess_wrapper as subprocess
 import yt.environment.arcadia_interop as arcadia_interop
 
@@ -35,6 +35,8 @@ import string
 import random
 
 logger = logging.getLogger("Yt.local")
+
+yt.http_helpers.RECEIVE_TOKEN_FROM_SSH_SESSION = False
 
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 PYTHONPATH = os.path.abspath(os.path.join(TESTS_LOCATION, "../../../"))
@@ -489,7 +491,7 @@ class TestLocalMode(object):
             try:
                 client = YtClient(proxy=self.yt_local("get_proxy", env_id))
                 node_address = client.list("//sys/cluster_nodes")[0]
-                assert client.get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node_address)) == 20
+                wait(lambda: client.get("//sys/cluster_nodes/{0}/@resource_limits/user_slots".format(node_address)) == 20)
                 for subpath in ["primary_masters", "scheduler/instances"]:
                     address = client.list("//sys/{0}".format(subpath))[0]
                     assert client.get("//sys/{0}/{1}/orchid/config/yt_local_test_key"

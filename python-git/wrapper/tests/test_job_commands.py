@@ -78,7 +78,7 @@ class TestJobCommands(object):
 
     # Remove after YT-8596
     @flaky(max_runs=5)
-    def test_job_shell_command(self, yt_env, job_events):
+    def test_job_shell_command(self, yt_env_with_rpc, job_events):
         if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
 

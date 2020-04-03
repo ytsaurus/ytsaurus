@@ -448,7 +448,7 @@ b"""
 
 
     dynamic_config_manager = {
-        config_fetch_period = 50;
+        update_period = 50;
     };
 }
 """)
@@ -458,9 +458,27 @@ def get_dynamic_node_config():
 b"""
 {
     "%true" = {
-        config_annotation = "default_config";
+        config_annotation = "default";
         exec_agent = {
             node_directory_prepare_backoff_time = 100;
+        };
+        data_node = {
+            incremental_heartbeat_period = 200;
+            register_retry_period = 100;
+
+            block_cache = {
+                compressed_data = {
+                    capacity = 0;
+                    shard_count = 1;
+                };
+                uncompressed_data = {
+                    capacity = 0;
+                    shard_count = 1;
+                };
+            };
+            chunk_meta_cache = {
+                capacity = 0;
+            };
         };
     };
 }
@@ -490,9 +508,11 @@ def get_proxy_config():
 b"""
 {
     port = -1;
-    address = "::";
 
-    disable_cors_check = %true;
+    api = {
+        disable_cors_check = %true;
+    };
+
     auth = {
         enable_authentication = %false;
         blackbox_service = {};
@@ -501,9 +521,7 @@ b"""
             scope = "";
             enable_scope_check = %false;
         };
-        blackbox_cookie_authenticator = {
-            csrf_token = "";
-        };
+        blackbox_cookie_authenticator = {};
     };
 
     coordinator = {
