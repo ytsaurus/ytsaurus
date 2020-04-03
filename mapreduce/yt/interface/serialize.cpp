@@ -2,7 +2,11 @@
 
 #include "fluent.h"
 
+#include <library/yson/parser.h>
+#include <library/yson/node/node_io.h>
 #include <library/yson/node/serialize.h>
+
+#include <library/cpp/type_info/type_io.h>
 
 #include <util/generic/string.h>
 
@@ -96,6 +100,13 @@ void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
             [&] (TFluentMap fluent) {
                 fluent.Item("type").Value(NDetail::ToString(columnSchema.Type()));
                 fluent.Item("required").Value(columnSchema.Required());
+                if (columnSchema.Type() == VT_ANY
+                    && *columnSchema.TypeV3() != *NTi::Optional(NTi::Yson()))
+                {
+                    // A lot of user canonize serialized schema.
+                    // To be backward compatible we only set type_v3 for new types.
+                    fluent.Item("type_v3").Value(columnSchema.TypeV3());
+                }
             }
         )
         .DoIf(columnSchema.RawTypeV2().Defined(), [&] (TFluentMap fluent) {
@@ -193,8 +204,6 @@ void Deserialize(TColumnSchema& columnSchema, const TNode& node)
 {
     const auto& nodeMap = node.AsMap();
     DESERIALIZE_ITEM("name", columnSchema.Name_);
-    DESERIALIZE_ITEM("type", columnSchema.Type_);
-    DESERIALIZE_ITEM("required", columnSchema.Required_);
     DESERIALIZE_ITEM("type_v2", columnSchema.RawTypeV2_);
     DESERIALIZE_ITEM("type_v3", columnSchema.RawTypeV3_);
     DESERIALIZE_ITEM("sort_order", columnSchema.SortOrder_);
@@ -202,6 +211,18 @@ void Deserialize(TColumnSchema& columnSchema, const TNode& node)
     DESERIALIZE_ITEM("expression", columnSchema.Expression_);
     DESERIALIZE_ITEM("aggregate", columnSchema.Aggregate_);
     DESERIALIZE_ITEM("group", columnSchema.Group_);
+
+    if (nodeMap.contains("type_v3")) {
+        NTi::TTypePtr type;
+        DESERIALIZE_ITEM("type_v3", type);
+        columnSchema.Type(type);
+    } else {
+        EValueType oldType = VT_INT64;
+        bool required = false;
+        DESERIALIZE_ITEM("type", oldType);
+        DESERIALIZE_ITEM("required", required);
+        columnSchema.Type(ToTypeV3(oldType, required));
+    }
 }
 
 void Serialize(const TTableSchema& tableSchema, IYsonConsumer* consumer)
@@ -403,6 +424,18 @@ void Deserialize(TTabletInfo& value, const TNode& node)
     DESERIALIZE_ITEM("total_row_count", value.TotalRowCount)
     DESERIALIZE_ITEM("trimmed_row_count", value.TrimmedRowCount)
     DESERIALIZE_ITEM("barrier_timestamp", value.BarrierTimestamp)
+}
+
+void Serialize(const NTi::TTypePtr& type, IYsonConsumer* consumer)
+{
+    auto yson = NTi::NIo::SerializeYson(type.Get());
+    ParseYsonStringBuffer(yson, consumer);
+}
+
+void Deserialize(NTi::TTypePtr& type, const TNode& node)
+{
+    auto yson = NodeToYsonString(node, YF_BINARY);
+    type = NTi::NIo::DeserializeYson(*NTi::HeapFactory(), yson);
 }
 
 #undef DESERIALIZE_ITEM

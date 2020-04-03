@@ -1,5 +1,6 @@
 #include "common.h"
 
+#include "errors.h"
 #include "format.h"
 #include "serialize.h"
 
@@ -9,6 +10,7 @@
 
 #include <library/yson/node/node_builder.h>
 #include <library/yson/node/node_io.h>
+#include <library/cpp/type_info/type.h>
 
 #include <util/generic/xrange.h>
 
@@ -19,21 +21,228 @@ using ::google::protobuf::Descriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static NTi::TTypePtr OldTypeToTypeV3(EValueType type)
+{
+    switch (type) {
+        case VT_INT64:
+            return NTi::Int64();
+        case VT_UINT64:
+            return NTi::Uint64();
+
+        case VT_DOUBLE:
+            return NTi::Double();
+
+        case VT_BOOLEAN:
+            return NTi::Bool();
+
+        case VT_STRING:
+            return NTi::String();
+
+        case VT_ANY:
+            return NTi::Yson();
+
+        case VT_INT8:
+            return NTi::Int8();
+        case VT_INT16:
+            return NTi::Int16();
+        case VT_INT32:
+            return NTi::Int32();
+
+        case VT_UINT8:
+            return NTi::Uint8();
+        case VT_UINT16:
+            return NTi::Uint16();
+        case VT_UINT32:
+            return NTi::Uint32();
+
+        case VT_UTF8:
+            return NTi::Utf8();
+
+        case VT_NULL:
+            return NTi::Null();
+
+        case VT_VOID:
+            return NTi::Void();
+
+        case VT_DATE:
+            return NTi::Date();
+        case VT_DATETIME:
+            return NTi::Datetime();
+        case VT_TIMESTAMP:
+            return NTi::Timestamp();
+        case VT_INTERVAL:
+            return NTi::Interval();
+    }
+}
+
+static std::pair<EValueType, bool> Simplify(const NTi::TTypePtr& type)
+{
+    using namespace NTi;
+    const auto typeName = type->GetTypeName();
+    switch (typeName) {
+        case ETypeName::Bool:
+            return {VT_BOOLEAN, true};
+
+        case ETypeName::Int8:
+            return {VT_INT8, true};
+        case ETypeName::Int16:
+            return {VT_INT16, true};
+        case ETypeName::Int32:
+            return {VT_INT32, true};
+        case ETypeName::Int64:
+            return {VT_INT64, true};
+
+        case ETypeName::Uint8:
+            return {VT_UINT8, true};
+        case ETypeName::Uint16:
+            return {VT_UINT16, true};
+        case ETypeName::Uint32:
+            return {VT_UINT32, true};
+        case ETypeName::Uint64:
+            return {VT_UINT64, true};
+
+        case ETypeName::Float:
+            break;
+        case ETypeName::Double:
+            return {VT_DOUBLE, true};
+
+        case ETypeName::String:
+            return {VT_STRING, true};
+        case ETypeName::Utf8:
+            return {VT_UTF8, true};
+
+        case ETypeName::Date:
+            return {VT_DATE, true};
+        case ETypeName::Datetime:
+            return {VT_DATETIME, true};
+        case ETypeName::Timestamp:
+            return {VT_TIMESTAMP, true};
+        case ETypeName::Interval:
+            return {VT_INTERVAL, true};
+
+        case ETypeName::TzDate:
+        case ETypeName::TzDatetime:
+        case ETypeName::TzTimestamp:
+            break;
+
+        case ETypeName::Decimal:
+        case ETypeName::Json:
+        case ETypeName::Uuid:
+            break;
+        case ETypeName::Yson:
+            return {VT_ANY, true};
+
+        case ETypeName::Void:
+            return {VT_VOID, false};
+        case ETypeName::Null:
+            return {VT_NULL, false};
+
+        case ETypeName::Optional:
+            {
+                auto itemType = type->AsOptional()->GetItemType();
+                if (itemType->IsPrimitive()) {
+                    auto simplified = Simplify(itemType->AsPrimitive());
+                    if (simplified.second) {
+                        simplified.second = false;
+                        return simplified;
+                    }
+                }
+                return {VT_ANY, false};
+            }
+        case ETypeName::List:
+            return {VT_ANY, true};
+        case ETypeName::Dict:
+            return {VT_ANY, true};
+        case ETypeName::Struct:
+            return {VT_ANY, true};
+        case ETypeName::Tuple:
+            return {VT_ANY, true};
+        case ETypeName::Variant:
+            return {VT_ANY, true};
+        case ETypeName::Tagged:
+            return Simplify(type->AsTagged()->GetItemType());
+    }
+    ythrow TApiUsageError() << "Unsupported type: " << typeName;
+}
+
+NTi::TTypePtr ToTypeV3(EValueType type, bool required)
+{
+    auto typeV3 = OldTypeToTypeV3(type);
+    if (!Simplify(typeV3).second) {
+        if (required) {
+            ythrow TApiUsageError() << "type: " << type << " cannot be required";
+        } else {
+            return typeV3;
+        }
+    }
+    if (required) {
+        return typeV3;
+    } else {
+        return NTi::Optional(typeV3);
+    }
+}
+
+TColumnSchema::TColumnSchema()
+    : TypeV3_(NTi::Optional(NTi::Int64()))
+{ }
+
+EValueType TColumnSchema::Type() const
+{
+    return Simplify(TypeV3_).first;
+}
+
+TColumnSchema& TColumnSchema::Type(EValueType type) &
+{
+    return Type(ToTypeV3(type, false));
+}
+
+TColumnSchema TColumnSchema::Type(EValueType type) &&
+{
+    return Type(ToTypeV3(type, false));
+}
+
+TColumnSchema& TColumnSchema::Type(const NTi::TTypePtr& type) &
+{
+    Y_VERIFY(type.Get(), "Cannot create column schema with nullptr type");
+    TypeV3_ = type;
+    return *this;
+}
+
+TColumnSchema TColumnSchema::Type(const NTi::TTypePtr& type) &&
+{
+    Y_VERIFY(type.Get(), "Cannot create column schema with nullptr type");
+    TypeV3_ = type;
+    return *this;
+}
+
+TColumnSchema& TColumnSchema::TypeV3(const NTi::TTypePtr& type) &
+{
+    return Type(type);
+}
+
+TColumnSchema TColumnSchema::TypeV3(const NTi::TTypePtr& type) &&
+{
+    return Type(type);
+}
+
+NTi::TTypePtr TColumnSchema::TypeV3() const
+{
+    return TypeV3_;
+}
+
 bool TColumnSchema::Required() const
 {
-    return Required_;
+    return Simplify(TypeV3_).second;
 }
 
 TColumnSchema& TColumnSchema::Type(EValueType type, bool required) &
 {
-    Required_ = required;
-    return Type(type);
+    return Type(ToTypeV3(type, required));
 }
 
 TColumnSchema TColumnSchema::Type(EValueType type, bool required) &&
 {
-    Required_ = required;
-    return Type(type);
+    return Type(ToTypeV3(type, required));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
