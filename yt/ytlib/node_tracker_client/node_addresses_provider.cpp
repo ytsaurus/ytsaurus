@@ -63,55 +63,129 @@ public:
         TDuration syncPeriod,
         TWeakPtr<TCellDirectory> cellDirectory,
         ENodeRole nodeRole,
-        const TCallback<IChannelPtr(const std::vector<TString>&)>& getChannelFromAddresses)
-        : CellDirectory_(cellDirectory)
+        TCallback<IChannelPtr(const std::vector<TString>&)> channelBuilder)
+        : CellDirectory_(std::move(cellDirectory))
         , NodeRole_(nodeRole)
-        , GetChannelFromAddresses_(getChannelFromAddresses)
+        , ChannelBuilder_(std::move(channelBuilder))
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
             BIND(&TNodeAddressesProvider::OnSync, MakeWeak(this)),
             syncPeriod))
         , Logger(NYT::NLogging::TLogger(NodeTrackerClientLogger)
             .AddTag("NodeRole: %v", NodeRole_))
-        , Channel_(getChannelFromAddresses({}))
-    {
-        SyncExecutor_->Start();
-    }
+        , NullChannel_(ChannelBuilder_({}))
+    { }
 
     virtual const TString& GetEndpointDescription() const override
     {
-        return Channel_.Load()->GetEndpointDescription();
+        return GetChannel()->GetEndpointDescription();
     }
 
     virtual const IAttributeDictionary& GetEndpointAttributes() const override
     {
-        return Channel_.Load()->GetEndpointAttributes();
+        return GetChannel()->GetEndpointAttributes();
     }
 
     virtual TNetworkId GetNetworkId() const override
     {
-        return Channel_.Load()->GetNetworkId();
+        return GetChannel()->GetNetworkId();
     }
 
     virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /* request */) override
     {
-        return MakeFuture(Channel_.Load());
+        EnsureStarted();
+        auto guard = Guard(Lock_);
+        if (!TerminationError_.IsOK()) {
+            return MakeFuture<IChannelPtr>(TError(
+                NRpc::EErrorCode::TransportError,
+                "Channel terminated")
+                << NullChannel_->GetEndpointAttributes()
+                << TerminationError_);
+        }
+        return ChannelPromise_;
     }
 
     virtual TFuture<void> Terminate(const TError& error) override
     {
-        return Channel_.Load()->Terminate(error);
+        {
+            auto guard = Guard(Lock_);
+            if (TerminationError_.IsOK()) {
+                TerminationError_ = error;
+                if (ChannelPromise_.IsSet()) {
+                    const auto& channelOrError = ChannelPromise_.Get();
+                    if (channelOrError.IsOK()) {
+                        const auto& channel = channelOrError.Value();
+                        TerminationFuture_ = channel->Terminate(error);
+                    } else {
+                        TerminationFuture_ = VoidFuture;
+                    }
+                }
+            }
+        }
+        SyncExecutor_->Stop();
+        return TerminationFuture_;
     }
 
 private:
     const TWeakPtr<TCellDirectory> CellDirectory_;
     const ENodeRole NodeRole_;
-    const TCallback<IChannelPtr(const std::vector<TString>&)> GetChannelFromAddresses_;
+    const TCallback<IChannelPtr(const std::vector<TString>&)> ChannelBuilder_;
     const TPeriodicExecutorPtr SyncExecutor_;
     const NYT::NLogging::TLogger Logger;
 
-    TAtomicObject<IChannelPtr> Channel_;
-    std::vector<TString> Addresses_;
+    const IChannelPtr NullChannel_;
+
+    mutable TSpinLock Lock_;
+    mutable bool Started_ = false;
+    TPromise<IChannelPtr> ChannelPromise_ = NewPromise<IChannelPtr>();
+    TError TerminationError_;
+    TFuture<void> TerminationFuture_;
+
+    std::optional<std::vector<TString>> Addresses_;
+
+    void EnsureStarted() const
+    {
+        {
+            auto guard = Guard(Lock_);
+            if (!TerminationError_.IsOK() || Started_) {
+                return;
+            }
+            Started_ = true;
+        }
+        SyncExecutor_->Start();
+    }
+
+    IChannelPtr GetChannel() const
+    {
+        EnsureStarted();
+        auto guard = Guard(Lock_);
+        if (!ChannelPromise_.IsSet()) {
+            return NullChannel_;
+        }
+        const auto& channelOrError = ChannelPromise_.Get();
+        if (!channelOrError.IsOK()) {
+            return NullChannel_;
+        }
+        return channelOrError.Value();
+    }
+
+    void SetChannel(IChannelPtr channel)
+    {
+        TPromise<IChannelPtr> promise;
+        {
+            auto guard = Guard(Lock_);
+            if (!TerminationError_.IsOK()) {
+                guard.Release();
+                channel->Terminate(TerminationError_);
+                return;
+            }
+            if (ChannelPromise_.IsSet()) {
+                ChannelPromise_ = NewPromise<IChannelPtr>();
+            }
+            promise = ChannelPromise_;
+        }
+        promise.Set(std::move(channel));
+    }
 
     void OnSync()
     {
@@ -140,13 +214,21 @@ private:
                     YT_ABORT();
             }
 
-            // TODO(aleksandra-zh): think of a better way
+            // TODO(aleksandra-zh): think of a better way of annotating req and batchReq.
             TGetClusterMetaOptions options;
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             cachingHeaderExt->set_success_expiration_time(ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
             cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));
 
-            auto rsp = WaitFor(proxy.Execute(req)).ValueOrThrow();
+            auto batchReq = proxy.ExecuteBatch();
+            auto* balancingHeaderExt = batchReq->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
+            balancingHeaderExt->set_enable_stickness(true);
+            batchReq->AddRequest(req);
+
+            auto batchRsp = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
+            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspGetClusterMeta>(0)
+                .ValueOrThrow();
             auto newAddresses = GetAddresses(NodeRole_, rsp);
 
             YT_LOG_DEBUG("Received node list (Addresses: %v)", newAddresses);
@@ -161,7 +243,7 @@ private:
                 newAddresses);
 
             Addresses_ = std::move(newAddresses);
-            Channel_.Store(GetChannelFromAddresses_(Addresses_));
+            SetChannel(ChannelBuilder_(*Addresses_));
 
             YT_LOG_DEBUG("Finished updating node list");
         } catch (const std::exception& ex) {
@@ -174,13 +256,13 @@ IChannelPtr CreateNodeAddressesChannel(
     TDuration syncPeriod,
     TWeakPtr<TCellDirectory> cellDirectory,
     ENodeRole nodeRole,
-    const TCallback<IChannelPtr(const std::vector<TString>&)>& getChannelFromAddresses)
+    TCallback<IChannelPtr(const std::vector<TString>&)> channelBuilder)
 {
     return CreateRoamingChannel(New<TNodeAddressesProvider>(
         syncPeriod,
-        cellDirectory,
+        std::move(cellDirectory),
         nodeRole,
-        getChannelFromAddresses));
+        std::move(channelBuilder)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
