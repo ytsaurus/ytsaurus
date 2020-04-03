@@ -1,5 +1,7 @@
 from yt_commands import *
 
+import pytest
+
 import subprocess
 import sys
 import os.path
