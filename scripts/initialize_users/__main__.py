@@ -93,6 +93,15 @@ class ClientWrapper(object):
         return self._client.commit_transaction(*args, **kwargs)
 
 
+def try_get_group_members(client, group, timestamp=None):
+    try:
+        spec = client.get_object("group", group, ["/spec"], timestamp=timestamp)[0]
+        return spec.get("members", [])
+    except YpNoSuchObjectError:
+        logger.warning('No such group "%s", assuming empty list of members', group)
+        return None
+
+
 def add_group_members(client, group, subjects):
     create(client, group)
 
@@ -100,8 +109,9 @@ def add_group_members(client, group, subjects):
     transaction_id = transaction["transaction_id"]
     start_timestamp = transaction["start_timestamp"]
 
-    spec = client.get_object("group", group.id, ["/spec"], timestamp=start_timestamp)[0]
-    members = spec.get("members", [])
+    members = try_get_group_members(client, group.id, timestamp=start_timestamp)
+    if members is None:
+        members = []
 
     old_members = set(members)
     new_members = set(members + list(map(lambda subject: subject.id, subjects)))
