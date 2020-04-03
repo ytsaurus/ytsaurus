@@ -39,22 +39,36 @@ def permissions_test_template(
                 attributes={"meta": meta_specific_fields, "spec": {"account_id": account_id}},
             )
 
-    yp_client.update_object(
-        "account",
-        account_id,
-        set_updates=[
-            {
-                "path": "/meta/acl/end",
-                "value": {"action": "allow", "permissions": ["use"], "subjects": [user_id]},
-            }
-        ],
-    )
-    yp_env.sync_access_control()
+    add_permission(yp_env, "account", account_id, "use", user_id)
 
     with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
         client.create_object(
             object_type,
             attributes={"meta": meta_specific_fields, "spec": {"account_id": account_id}},
+        )
+
+
+def spec_update_without_account_use_test_template(yp_env, object_type, meta_specific_fields={}):
+    yp_client = yp_env.yp_client
+
+    account_id = yp_client.create_object("account")
+    object_spec = {"account_id": account_id}
+
+    object_id = yp_client.create_object(
+        object_type, attributes={"meta": meta_specific_fields, "spec": object_spec}
+    )
+
+    user_id = create_user(yp_client, "u", grant_create_permission_for_types=(object_type,))
+    yp_env.sync_access_control()
+
+    add_permission(yp_env, object_type, object_id, "write", user_id)
+
+    # User has no permission to use the account, but still succeeds
+    with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
+        client.update_object(
+            object_type,
+            object_id,
+            set_updates=[dict(path="/spec", value=object_spec)],
         )
 
 
@@ -140,17 +154,7 @@ def network_project_permissions_test_template(
         with pytest.raises(YpAuthorizationError):
             client.create_object(object_type, attributes={"spec": spec, "meta": meta})
 
-    yp_client.update_object(
-        "network_project",
-        network_project,
-        set_updates=[
-            {
-                "path": "/meta/acl/end",
-                "value": {"action": "allow", "permissions": ["use"], "subjects": [user_id]},
-            }
-        ],
-    )
-    yp_env.sync_access_control()
+    add_permission(yp_env, "network_project", network_project, "use", user_id)
 
     with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
         object_id = client.create_object(object_type, attributes={"spec": spec, "meta": meta})
@@ -160,3 +164,17 @@ def network_project_permissions_test_template(
     # spec is now invalid as it is, but update succeeds because it does not change network project
     with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
         client.update_object(object_type, object_id, set_updates=[{"path": "/spec", "value": spec}])
+
+
+def add_permission(yp_env, object_type, object_id, permission, user_id):
+    yp_env.yp_client.update_object(
+        object_type,
+        object_id,
+        set_updates=[
+            {
+                "path": "/meta/acl/end",
+                "value": {"action": "allow", "permissions": [permission], "subjects": [user_id]},
+            }
+        ],
+    )
+    yp_env.sync_access_control()

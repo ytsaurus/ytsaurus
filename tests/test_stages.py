@@ -237,3 +237,6 @@ class TestStages(object):
 
         with yp_env.yp_instance.create_client(config={"user": user_id}) as client:
             client.update_object("stage", stage_id, set_updates=[{"path": "/spec", "value": spec}])
+
+    def test_update_without_account_use(self, yp_env):
+        templates.spec_update_without_account_use_test_template(yp_env, "stage", {"project_id": "project"})

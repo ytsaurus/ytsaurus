@@ -45,3 +45,6 @@ class TestMultiClusterReplicaSets(object):
             rs_id,
             set_updates=[{"path": "/spec/node_segment", "value": segment_id_2}],
         )
+
+    def test_update_without_account_use(self, yp_env):
+        templates.spec_update_without_account_use_test_template(yp_env, "multi_cluster_replica_set")

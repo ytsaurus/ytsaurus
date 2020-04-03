@@ -8,6 +8,7 @@
 #include "pod_type_handler.h"
 #include "release_rule.h"
 #include "config.h"
+#include "validation_helpers.h"
 
 #include <yp/server/master/bootstrap.h>
 
@@ -111,9 +112,7 @@ private:
 
     void ValidateAccount(TTransaction* /*transaction*/, TStage* stage)
     {
-        auto* account = stage->Spec().Account().Load();
-        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-        accessControlManager->ValidatePermission(account, EAccessControlPermission::Use);
+        ValidateUsePermissionIfChanged(stage->Spec().Account(), Bootstrap_->GetAccessControlManager());
     }
 
     static void ThrowValidationError(const std::exception& ex, NClient::NApi::EErrorCode errorCode, const TString& id)

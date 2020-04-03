@@ -6,6 +6,7 @@
 #include "db_schema.h"
 #include "pod_type_handler.h"
 #include "config.h"
+#include "validation_helpers.h"
 
 #include <yp/server/master/bootstrap.h>
 
@@ -97,9 +98,7 @@ private:
 
     void ValidateAccount(TTransaction* /*transaction*/, TMultiClusterReplicaSet* replicaSet)
     {
-        auto* account = replicaSet->Spec().Account().Load();
-        const auto& accessControlManager = Bootstrap_->GetAccessControlManager();
-        accessControlManager->ValidatePermission(account, EAccessControlPermission::Use);
+        ValidateUsePermissionIfChanged(replicaSet->Spec().Account(), Bootstrap_->GetAccessControlManager());
     }
 };
 
