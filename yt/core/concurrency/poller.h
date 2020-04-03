@@ -10,10 +10,14 @@ namespace NYT::NConcurrency {
 
 //! Describes the types of events a pollable entity may be interested in.
 DEFINE_BIT_ENUM(EPollControl,
-    ((None) (0x0))
-    ((Read) (0x1))
-    ((Write)(0x2))
-    ((EdgeTriggered)(0x10))  // TODO(khlebnikov) make it default
+    ((None)         (0x0))
+    ((Read)         (0x1))      // Pending read (OnEvent, Arm)
+    ((Write)        (0x2))      // Pending write (OnEvent, Arm)
+    ((Retry)        (0x8))      // Retry requested (OnEvent)
+    ((EdgeTriggered)(0x10))     // TODO(khlebnikov) make it default (Arm)
+    ((Starting)     (0x20))     // Not ready to handle events (for exernal use)
+    ((Terminate)    (0x40))     // Termination requested (for external use)
+    ((Running)      (0x80))     // Operation in progress (for external use)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,7 +78,7 @@ struct IPoller
     //! Arms the poller to handle events of a given type for a given entity.
     virtual void Arm(int fd, const IPollablePtr& pollable, EPollControl control) = 0;
 
-    //! Schedule call of #IPollable::OnEvent with EPollControl::None.
+    //! Schedule call of #IPollable::OnEvent with EPollControl::Retry.
     //! From OnEvent could be called with wakeup = false to not wake new thread.
     //! Pollable must be registered - retry queue does not grab own reference.
     virtual void Retry(const IPollablePtr& pollable, bool wakeup = true) = 0;
