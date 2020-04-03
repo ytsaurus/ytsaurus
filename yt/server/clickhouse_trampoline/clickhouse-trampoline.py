@@ -136,13 +136,18 @@ def print_version():
     print "smth~" + library.python.svn_version.commit_id()[:10]
 
 
-def setup_logging():
+def setup_logging(log_file):
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter("%(asctime)s %(levelname)s\t%(message)s")
     stderr_handler = logging.StreamHandler()
     stderr_handler.setLevel(logging.DEBUG)
     stderr_handler.setFormatter(formatter)
     logger.addHandler(stderr_handler)
+
+    file_handler = logging.FileHandler(log_file or "trampoline.debug.log")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
 
 def main():
@@ -159,9 +164,10 @@ def main():
                              "manual trampoline invocations")
     parser.add_argument("--log-tailer-bin", help="Log tailer binary path; log tailer will be run over "
                                                  "ytserver-clickhouse process")
+    parser.add_argument("--log-file", help="Path to trampoline log file")
     args = parser.parse_args()
 
-    setup_logging()
+    setup_logging(args.log_file)
 
     logger.info("Trampoline started, args = %s", args)
     if args.version:
