@@ -512,7 +512,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("evgenstf")
     def test_orchid_error_handle(self):
-        create('map_node', '//sys/clickhouse/orchids')
+        if not exists('//sys/clickhouse/orchids'):
+            create('map_node', '//sys/clickhouse/orchids')
 
         create_user('test_user')
         set("//sys/clickhouse/@acl", [
