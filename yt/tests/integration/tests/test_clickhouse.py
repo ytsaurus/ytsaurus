@@ -108,6 +108,7 @@ class Clique(object):
                                                           defaults=DEFAULTS,
                                                           spec=spec,
                                                           core_dump_destination=core_dump_destination,
+                                                          trampoline_log_file=os.path.join(self.log_root, "trampoline.debug.log"),
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
         if not is_asan_build() and enable_core_dump:
