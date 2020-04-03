@@ -654,27 +654,22 @@ def configure_yt_controllers(client, cluster, **kwargs):
             "use",
             "/access/scheduling/assign_pod_to_node",
         )
-    pod_sets_per_cluster = {
-        "sas": (
-            "sas-yt-ada-solomon-bridge-over-yp",
-            "sas-yt-ada-nodes-over-yp",
-            "sas-yt-ada-rpc-proxies-over-yp",
-            "sas-yt-ada-proxies-over-yp",
-            "sas-yt-ada-controller-agents-over-yp",
-            "sas-yt-ada-schedulers-over-yp",
-            "sas-yt-ada-masters-over-yp",
+        pod_sets_response = client.select_objects(
+            "pod_set",
+            filter="[/spec/node_segment_id] = \"{}\"".format(segment),
+            selectors=["/meta/id"],
         )
-    }
-    for pod_set in pod_sets_per_cluster.get(cluster, tuple()):
-        for permission in ("write", "read_secrets"):
-            add_permission(
-                client,
-                "pod_set",
-                pod_set,
-                yt_controllers,
-                permission,
-                attribute="",
-            )
+        pod_sets = map(lambda response: response[0], pod_sets_response)
+        for pod_set in pod_sets:
+            for permission in ("write", "read_secrets"):
+                add_permission(
+                    client,
+                    "pod_set",
+                    pod_set,
+                    yt_controllers,
+                    permission,
+                    attribute="",
+                )
 
 
 # YPADMIN-286
