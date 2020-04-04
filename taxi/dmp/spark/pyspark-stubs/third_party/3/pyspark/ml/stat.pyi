@@ -57,3 +57,11 @@ class MultivariateGaussian:
     mean: Vector
     cov: Matrix
     def __init__(self, mean: Vector, cov: Matrix) -> None: ...
+
+class ANOVATest:
+    @staticmethod
+    def test(dataset: DataFrame, featuresCol: str, labelCol: str) -> DataFrame: ...
+
+class FValueTest:
+    @staticmethod
+    def test(dataset: DataFrame, featuresCol: str, labelCol: str) -> DataFrame: ...
