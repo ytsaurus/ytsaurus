@@ -156,7 +156,7 @@ default_config = {
     "token_path": None,
     # This option enables receiving token from oauth.yandex-team.ru
     # using currect session ssh secret.
-    "allow_receive_token_by_current_ssh_session": True,
+    "allow_receive_token_by_current_ssh_session": False,
     # Tokens for receiving token by current ssh session.
     "oauth_client_id": "23b4f83306e3469abdee07054d307e7c",
     "oauth_client_secret": "87dcc81340254b12a4cecdfe34c6d387",
