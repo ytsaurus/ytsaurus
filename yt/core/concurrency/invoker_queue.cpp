@@ -50,7 +50,7 @@ class TLockFreeActionQueue
 public:
     virtual void Enqueue(TEnqueuedAction&& action, int /*index*/) override
     {
-        Queue_.Enqueue(action);
+        Queue_.Enqueue(std::move(action));
     }
 
     virtual bool Dequeue(TEnqueuedAction* action, int /*index*/) override
