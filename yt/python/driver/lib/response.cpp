@@ -13,7 +13,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 std::atomic<bool> TDriverResponseHolder::ShuttingDown_ = {};
-TSpinLock TDriverResponseHolder::DesctructionSpinLock_;
+TSpinLock TDriverResponseHolder::DestructionSpinLock_;
 
 TDriverResponseHolder::TDriverResponseHolder()
 { }
@@ -44,7 +44,7 @@ TDriverResponseHolder::~TDriverResponseHolder()
     }
 
     {
-        auto guard = Guard(DesctructionSpinLock_);
+        auto guard = Guard(DestructionSpinLock_);
         if (ShuttingDown_) {
             return;
         }
@@ -62,13 +62,13 @@ void TDriverResponseHolder::OnBeforePythonFinalize()
     ShuttingDown_.store(true);
     {
         TReleaseAcquireGilGuard guard;
-        DesctructionSpinLock_.Acquire();
+        DestructionSpinLock_.Acquire();
     }
 }
 
 void TDriverResponseHolder::OnAfterPythonFinalize()
 {
-    DesctructionSpinLock_.Release();
+    DestructionSpinLock_.Release();
 }
 
 IFlushableYsonConsumer* TDriverResponseHolder::GetResponseParametersConsumer() const
@@ -189,7 +189,7 @@ TDriverResponse::~TDriverResponse()
     }
 
     // Holder destructor must not be called from python context.
-    GetFinalizerInvoker()->Invoke(BIND([holder=std::move(Holder_)] () {}));
+    GetFinalizerInvoker()->Invoke(BIND([holder = Holder_.Release()] { Unref(holder); }));
 }
 
 void TDriverResponse::InitType(const TString& moduleName)
