@@ -1231,16 +1231,16 @@ auto TFairShareTree<TFairShareImpl>::DoFairShareUpdateAt(TInstant now) -> std::p
     rootElementSnapshot->RootElement = rootElement;
     rootElementSnapshot->Config = Config_;
 
-    RootElementSnapshot_ = rootElementSnapshot;
+    RootElementSnapshotPrecommit_ = rootElementSnapshot;
 
     if (updateContext.FairShareRatioDisagreementHappened) {
         YT_LOG_DEBUG("XXX Significant fair share ratio disagreement happened, log full information about pools and operations");
         OnFairShareLoggingAt(TInstant::Now());
-        for (const auto& [operationId, element] : RootElementSnapshot_->OperationIdToElement) {
+        for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {
             element->LogDetailedInfo();
         }
         if (Config_->EnablePoolStarvation) {
-            for (const auto& [poolName, element] : RootElementSnapshot_->PoolNameToElement) {
+            for (const auto& [poolName, element] : rootElementSnapshot->PoolNameToElement) {
                 element->LogDetailedInfo();
             }
         }
@@ -1253,6 +1253,16 @@ auto TFairShareTree<TFairShareImpl>::DoFairShareUpdateAt(TInstant now) -> std::p
         StrategyHost_->GetResourceLimits(GetNodesFilter()),
         Logger);
     return std::make_pair(treeSnapshot, error);
+}
+
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::FinishFairShareUpdate() -> void
+{
+    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+    YT_VERIFY(RootElementSnapshotPrecommit_);
+    RootElementSnapshot_ = std::move(RootElementSnapshotPrecommit_);
+    RootElementSnapshotPrecommit_.Reset();
 }
 
 template <class TFairShareImpl>
@@ -2077,11 +2087,10 @@ auto TFairShareTree<TFairShareImpl>::BuildElementYson(const TSchedulerElement* e
         .Item("resource_limits").Value(element->ResourceLimits())
         .Item("dominant_resource").Value(attributes.DominantResource)
         .Item("weight").Value(element->GetWeight())
-        .Item("min_share_ratio").Value(element->GetMinShareRatio())
         .Item("max_share_ratio").Value(element->GetMaxShareRatio())
         .Item("min_share_resources").Value(element->GetMinShareResources())
         .Item("adjusted_min_share_ratio").Value(attributes.GetAdjustedMinShareRatio())
-        .Item("recursive_min_share_ratio").Value(attributes.GetRecursiveMinShareRatio())
+        .Item("min_share_ratio").Value(attributes.GetMinShareRatio())
         .Item("guaranteed_resources_ratio").Value(attributes.GetGuaranteedResourcesRatio())
         .Item("guaranteed_resources").Value(guaranteedResources)
         .Item("max_possible_usage_ratio").Value(attributes.GetMaxPossibleUsageRatio())

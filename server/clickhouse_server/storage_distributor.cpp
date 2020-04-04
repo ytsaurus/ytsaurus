@@ -110,8 +110,11 @@ DB::BlockInputStreamPtr CreateRemoteStream(
     const DB::Context& context,
     const DB::ThrottlerPtr& throttler,
     const DB::Tables& externalTables,
-    DB::QueryProcessingStage::Enum processedStage)
+    DB::QueryProcessingStage::Enum processedStage,
+    TLogger logger)
 {
+    const auto& Logger = logger;
+
     const auto* queryContext = GetQueryContext(context);
 
     std::string query = queryToString(queryAst);
@@ -139,14 +142,35 @@ DB::BlockInputStreamPtr CreateRemoteStream(
         traceContext = queryContext->TraceContext.Get();
     }
     YT_VERIFY(traceContext);
+    auto traceId = traceContext->GetTraceId();
     auto spanId = traceContext->GetSpanId();
-    stream->setQueryId(Format("%v@%" PRIx64 "%v", remoteQueryId, spanId, traceContext->IsSampled() ? "T" : "F"));
+    auto sampled = traceContext->IsSampled() ? "T" : "F";
+    auto compositeQueryId = Format("%v@%v@%" PRIx64 "@%v", remoteQueryId, traceId, spanId, sampled);
+
+    YT_LOG_INFO("Composite query id for secondary query constructed (RemoteQueryId: %v, CompositeQueryId: %v)", remoteQueryId, compositeQueryId);
+    stream->setQueryId(compositeQueryId);
 
     return CreateBlockInputStreamLoggingAdapter(std::move(stream), TLogger(queryContext->Logger)
         .AddTag("RemoteQueryId: %v, RemoteNode: %v, RemoteStreamId: %v",
             remoteQueryId,
             remoteNode->GetName().ToString(),
             TGuid::Create()));
+}
+
+void ValidateReadPermissions(
+    const std::vector<TString>& columnNames,
+    const std::vector<TTablePtr>& tables,
+    TQueryContext* queryContext)
+{
+    std::vector<TRichYPath> tablePathsWithColumns;
+    tablePathsWithColumns.reserve(tables.size());
+    for (const auto& table : tables) {
+        auto tablePath = TRichYPath(table->GetPath());
+        tablePath.SetColumns(columnNames);
+        tablePathsWithColumns.emplace_back(std::move(tablePath));
+    }
+    queryContext->Bootstrap->GetHost()->ValidateReadPermissions(tablePathsWithColumns,
+        queryContext->Client()->GetOptions().GetUser());
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -165,12 +189,11 @@ public:
         : QueryContext_(queryContext)
         , Tables_(std::move(tables))
         , Schema_(std::move(schema))
+        , Logger(QueryContext_->Logger)
     { }
 
     virtual void startup() override
     {
-        const auto& Logger = ClickHouseYtLogger;
-
         YT_LOG_TRACE("StorageDistributor instantiated (Address: %v)", static_cast<void*>(this));
         if (Schema_.GetColumnCount() == 0) {
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
@@ -234,7 +257,7 @@ public:
         size_t /* maxBlockSize */,
         unsigned /* numStreams */) override
     {
-        const auto& Logger = QueryContext_->Logger;
+        ValidateReadPermissions(ToVectorString(columnNames), Tables_, QueryContext_);
 
         YT_LOG_TRACE("StorageDistributor started reading (Address: %v)", static_cast<void*>(this));
 
@@ -249,7 +272,7 @@ public:
 
         QueryContext_->MoveToPhase(EQueryPhase::Preparation);
 
-        Prepare(cliqueNodes.size(), queryInfo, context);
+        Prepare(cliqueNodes.size(), queryInfo, columnNames, context);
 
         YT_LOG_INFO("Starting distribution (ColumnNames: %v, TableName: %v, NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
             columnNames,
@@ -353,7 +376,8 @@ public:
                     newContext,
                     throttler,
                     context.getExternalTables(),
-                    processedStage);
+                    processedStage,
+                    Logger);
 
             streams.push_back(std::move(substream));
         }
@@ -413,12 +437,18 @@ private:
     // TMiscExt is used for better memory estimation in readers, but it is dropped when using
     // TInputChunk, so for now we store it explicitly in a map and use when serializing subquery input.
     THashMap<TChunkId, TRefCountedMiscExtPtr> MiscExtMap_;
+    TLogger Logger;
 
     void Prepare(
         int subqueryCount,
         const DB::SelectQueryInfo& queryInfo,
+        const std::vector<std::string>& columnNames,
         const DB::Context& context)
     {
+        NTracing::TChildTraceContextGuard guard("ClickHouseYt.Prepare", /* forceTracing */ true);
+        NTracing::GetCurrentTraceContext()->AddTag("chyt.subquery_count", ToString(subqueryCount));
+        NTracing::GetCurrentTraceContext()->AddTag("chyt.column_names", Format("%v", MakeFormattableView(columnNames, TDefaultFormatter())));
+
         QueryAnalyzer_.emplace(context, queryInfo);
         auto queryAnalysisResult = QueryAnalyzer_->Analyze();
 
@@ -468,6 +498,8 @@ private:
                     << TErrorAttribute("total_input_data_weight", totalInputDataWeight);
             }
         }
+
+        NTracing::GetCurrentTraceContext()->AddTag("chyt.total_input_data_weight", ToString(totalInputDataWeight));
     }
 };
 

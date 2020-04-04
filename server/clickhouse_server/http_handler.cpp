@@ -57,28 +57,42 @@ public:
         , Bootstrap_(bootstrap)
     {
         TraceContext_ = SetupTraceContext(ClickHouseYtLogger, request);
+
+        // By default, trace id coincides with query id. It makes significantly easier to
+        // debug singular queries like those which are issued via YQL.
+        // If trace id is external (i.e. suggested via traceparent header), we cannot use
+        // trace id as a query id as it will result in several queries sharing same query id.
+        // So, we form query id as a mix of trace id lower part and a span id.
+        if (request.get("traceparent", "").empty()) {
+            QueryId_ = TraceContext_->GetTraceId();
+        } else {
+            // If trace id = 11111111-22222222-33333333-44444444 and span id = 5555555566666666,
+            // then query id will be 33333333-44444444-55555555-66666666.
+            QueryId_.Parts64[1] = TraceContext_->GetTraceId().Parts64[0];
+            QueryId_.Parts64[0] = TraceContext_->GetSpanId();
+        }
     }
 
     virtual void customizeContext(DB::Context& context) override
     {
         YT_VERIFY(TraceContext_);
 
-        // If trace id = 11111111-22222222-33333333-44444444 and span id = 5555555566666666,
-        // then query id will be 33333333-44444444-55555555-66666666.
-        const auto& traceId = TraceContext_->GetTraceId();
-        TGuid queryId;
-        queryId.Parts64[1] = traceId.Parts64[0];
-        queryId.Parts64[0] = TraceContext_->GetSpanId();
-
         // For HTTP queries (which are always initial) query id is same as trace id.
-        context.getClientInfo().current_query_id = context.getClientInfo().initial_query_id = ToString(queryId);
-        SetupHostContext(Bootstrap_, context, queryId, TraceContext_, DataLensRequestId_);
+        context.getClientInfo().current_query_id = context.getClientInfo().initial_query_id = ToString(QueryId_);
+        SetupHostContext(Bootstrap_, context, QueryId_, TraceContext_, DataLensRequestId_);
+    }
+
+    virtual void handleRequest(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response) override
+    {
+        response.set("X-Yt-Trace-Id", ToString(TraceContext_->GetTraceId()));
+        DB::HTTPHandler::handleRequest(request, response);
     }
 
 private:
     TBootstrap* const Bootstrap_;
     TTraceContextPtr TraceContext_;
     std::optional<TString> DataLensRequestId_;
+    TQueryId QueryId_;
 
     //! If span is present in query headers, parse it and setup trace context which is its child.
     //! Otherwise, generate our own trace id (aka query id) and maybe generate root trace context

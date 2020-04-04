@@ -359,9 +359,21 @@ bool operator != (const TNodeDescriptor& lhs, const NProto::TNodeDescriptor& rhs
 
 void TNodeDirectory::MergeFrom(const NProto::TNodeDirectory& source)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
-    for (const auto& item : source.items()) {
-        DoAddDescriptor(item.node_id(), item.node_descriptor());
+    std::vector<const NProto::TNodeDirectory_TItem*> items;
+    items.reserve(source.items_size());
+    {
+        NConcurrency::TReaderGuard guard(SpinLock_);
+        for (const auto& item : source.items()) {
+            if (NeedToAddDescriptor(item.node_id(), item.node_descriptor())) {
+                items.push_back(&item);
+            }
+        }
+    }
+    {
+        NConcurrency::TWriterGuard guard(SpinLock_);
+        for (const auto* item : items) {
+            DoAddDescriptor(item->node_id(), item->node_descriptor());
+        }
     }
 }
 
@@ -370,10 +382,23 @@ void TNodeDirectory::MergeFrom(const TNodeDirectoryPtr& source)
     if (this == source.Get()) {
         return;
     }
-    NConcurrency::TWriterGuard thisGuard(SpinLock_);
-    NConcurrency::TReaderGuard sourceGuard(source->SpinLock_);
-    for (const auto& pair : source->IdToDescriptor_) {
-        DoAddDescriptor(pair.first, *pair.second);
+
+    std::vector<std::pair<TNodeId, TNodeDescriptor>> items;
+    {
+        NConcurrency::TWriterGuard thisGuard(SpinLock_);
+        NConcurrency::TReaderGuard sourceGuard(source->SpinLock_);
+        items.reserve(source->IdToDescriptor_.size());
+        for (auto [id, descriptor] : source->IdToDescriptor_) {
+            if (NeedToAddDescriptor(id, *descriptor)) {
+                items.emplace_back(id, *descriptor);
+            }
+        }
+    }
+    {
+        NConcurrency::TWriterGuard thisGuard(SpinLock_);
+        for (const auto& [id, descriptor] : items) {
+            DoAddDescriptor(id, descriptor);
+        }
     }
 }
 
@@ -415,24 +440,32 @@ void TNodeDirectory::AddDescriptor(TNodeId id, const TNodeDescriptor& descriptor
     DoAddDescriptor(id, descriptor);
 }
 
-void TNodeDirectory::DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
+bool TNodeDirectory::NeedToAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
 {
     auto it = IdToDescriptor_.find(id);
-    if (it != IdToDescriptor_.end() && *it->second == descriptor) {
+    return it == IdToDescriptor_.end() || *it->second != descriptor;
+}
+
+void TNodeDirectory::DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor)
+{
+    if (!NeedToAddDescriptor(id, descriptor)) {
         return;
     }
-
     auto descriptorHolder = std::make_unique<TNodeDescriptor>(descriptor);
     DoAddCapturedDescriptor(id, std::move(descriptorHolder));
 }
 
-void TNodeDirectory::DoAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& protoDescriptor)
+bool TNodeDirectory::NeedToAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& descriptor)
 {
     auto it = IdToDescriptor_.find(id);
-    if (it != IdToDescriptor_.end() && *it->second == protoDescriptor) {
+    return it == IdToDescriptor_.end() || *it->second != descriptor;
+}
+
+void TNodeDirectory::DoAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& protoDescriptor)
+{
+    if (!NeedToAddDescriptor(id, protoDescriptor)) {
         return;
     }
-
     auto descriptorHolder = std::make_unique<TNodeDescriptor>();
     FromProto(descriptorHolder.get(), protoDescriptor);
     DoAddCapturedDescriptor(id, std::move(descriptorHolder));

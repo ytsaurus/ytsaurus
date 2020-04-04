@@ -525,6 +525,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
         LockInputs();
     });
 
+    SleepInInitialize();
+
     auto initializeFuture = initializeAction
         .AsyncVia(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default))
         .Run()
@@ -537,8 +539,6 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 
     WaitFor(Host->UpdateInitializedOperationNode())
         .ThrowOnError();
-
-    SleepInInitialize();
 
     YT_LOG_INFO("Operation initialized");
 
@@ -3500,6 +3500,10 @@ void TOperationControllerBase::AnalyzePartitionHistogram()
 
 void TOperationControllerBase::AnalyzeAbortedJobs()
 {
+    if (OperationType == EOperationType::Vanilla) {
+        return;
+    }
+
     auto aggregateTimeForJobState = [&] (EJobState state) {
         i64 sum = 0;
         for (auto type : TEnumTraits<EJobType>::GetDomainValues()) {
@@ -6793,6 +6797,9 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
             coreInfo.has_error() ? FromProto<TError>(coreInfo.error()) : TError());
     }
 
+    if (!schedulerResultExt.has_core_table_boundary_keys()) {
+        return;
+    }
     const auto& boundaryKeys = schedulerResultExt.core_table_boundary_keys();
     if (boundaryKeys.empty()) {
         return;

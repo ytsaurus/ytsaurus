@@ -1077,7 +1077,8 @@ private:
                     *schema,
                     columnFilter,
                     /* omittedInaccessibleColumns */ {},
-                    key.data_source().timestamp()));
+                    key.data_source().timestamp(),
+                    key.data_source().retention_timestamp()));
                 dataSliceDescriptors.push_back(TDataSliceDescriptor(FromProto<std::vector<TChunkSpec>>(key.chunk_specs())));
                 break;
 

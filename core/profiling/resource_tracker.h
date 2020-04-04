@@ -30,18 +30,31 @@ private:
     i64 TicksPerSecond_;
     TInstant LastUpdateTime_;
 
+    // Value below are in percents.
     std::atomic<double> LastUserCpu_{0.0};
     std::atomic<double> LastSystemCpu_{0.0};
     std::atomic<double> LastCpuWait_{0.0};
 
-    struct TJiffies
+    struct TTimings
     {
-        i64 PreviousUser;
-        i64 PreviousSystem;
-        i64 PreviousWait;
+        i64 UserJiffies = 0;
+        i64 SystemJiffies = 0;
+        i64 CpuWaitNsec = 0;
+
+        TTimings operator+(const TTimings& other) const;
+        TTimings operator-(const TTimings& other) const;
     };
 
-    THashMap<TString, TJiffies> ThreadNameToJiffies_;
+    struct TThreadStats
+    {
+        TString ThreadName;
+        TTimings Timings;
+    };
+
+    // thread id -> stats
+    using TThreadMap = THashMap<TString, TThreadStats>;
+
+    TThreadMap TidToStats_;
 
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
@@ -50,6 +63,11 @@ private:
     void EnqueueCpuUsage();
     void EnqueueMemoryUsage();
 
+    TThreadMap ReadThreadStats();
+    void EnqueueAggregatedTimings(
+        const TThreadMap& oldTidToStats,
+        const TThreadMap& newTidToStats,
+        i64 timeDeltaUsec);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

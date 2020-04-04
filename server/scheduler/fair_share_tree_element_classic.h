@@ -38,7 +38,7 @@ struct TSchedulableAttributes
     double DemandRatio = 0.0;
     double FairShareRatio = 0.0;
     double AdjustedMinShareRatio = 0.0;
-    double RecursiveMinShareRatio = 0.0;
+    double MinShareRatio = 0.0;
     double MaxPossibleUsageRatio = 1.0;
     double BestAllocationRatio = 1.0;
     double GuaranteedResourcesRatio = 0.0;
@@ -70,9 +70,9 @@ struct TSchedulableAttributes
         return AdjustedMinShareRatio;
     }
 
-    double GetRecursiveMinShareRatio() const
+    double GetMinShareRatio() const
     {
-        return RecursiveMinShareRatio;
+        return MinShareRatio;
     }
 
     double GetMaxPossibleUsageRatio() const
@@ -314,7 +314,6 @@ public:
     virtual std::optional<double> GetSpecifiedWeight() const = 0;
     virtual double GetWeight() const;
 
-    virtual double GetMinShareRatio() const = 0;
     virtual TJobResources GetMinShareResources() const = 0;
 
     virtual double GetMaxShareRatio() const = 0;
@@ -606,7 +605,6 @@ public:
     virtual TString GetId() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual double GetMinShareRatio() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
 
@@ -861,7 +859,6 @@ public:
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual double GetMinShareRatio() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
 
@@ -1020,7 +1017,6 @@ public:
     virtual TString GetId() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual double GetMinShareRatio() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual double GetMaxShareRatio() const override;
 

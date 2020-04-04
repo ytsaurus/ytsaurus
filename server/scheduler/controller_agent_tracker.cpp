@@ -61,6 +61,11 @@ bool IsAgentFailureError(const TError& error)
     return code == NYT::EErrorCode::Timeout;
 }
 
+bool IsAgentDisconnectionError(const TError& error)
+{
+    return error.FindMatching(NObjectClient::EErrorCode::PrerequisiteCheckFailed).has_value();
+}
+
 template <class TResponse, class TRequest>
 TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
     TBootstrap* bootstrap,
@@ -79,14 +84,17 @@ TFuture<TIntrusivePtr<TResponse>> InvokeAgent(
         YT_LOG_DEBUG(rspOrError, "Agent response received (AgentId: %v, OperationId: %v)",
             agent->GetId(),
             operationId);
-        if (rspOrError.GetCode() == NControllerAgent::EErrorCode::AgentCallFailed) {
-            YT_VERIFY(rspOrError.InnerErrors().size() == 1);
-            THROW_ERROR rspOrError.InnerErrors()[0];
-        } else if (IsAgentFailureError(rspOrError)) {
+        if (IsAgentFailureError(rspOrError) || IsAgentDisconnectionError(rspOrError)) {
             const auto& agentTracker = bootstrap->GetControllerAgentTracker();
             agentTracker->HandleAgentFailure(agent, rspOrError);
+            // Unregistration should happen before actions that subscribed on this result.
+            return rspOrError.ValueOrThrow();
+        } else if (rspOrError.GetCode() == NControllerAgent::EErrorCode::AgentCallFailed) {
+            YT_VERIFY(rspOrError.InnerErrors().size() == 1);
+            THROW_ERROR rspOrError.InnerErrors()[0];
+        } else {
+            return rspOrError.ValueOrThrow();
         }
-        return rspOrError.ValueOrThrow();
     }));
 }
 
@@ -620,6 +628,7 @@ public:
             YT_LOG_DEBUG("Successful initialization result received");
         } else {
             YT_LOG_DEBUG("Unsuccessful initialization result received (Error: %v)", resultOrError);
+            ProcessControllerAgentError(resultOrError);
         }
 
         PendingInitializeResult_.TrySet(resultOrError);
@@ -633,6 +642,7 @@ public:
             YT_LOG_DEBUG("Successful preparation result received");
         } else {
             YT_LOG_DEBUG("Unsuccessful preparation result received (Error: %v)", resultOrError);
+            ProcessControllerAgentError(resultOrError);
         }
 
         PendingPrepareResult_.TrySet(resultOrError);
@@ -649,6 +659,7 @@ public:
                 FormatResources(materializeResult.InitialNeededResources));
         } else {
             YT_LOG_DEBUG("Unsuccessful materialization result received (Error: %v)", resultOrError);
+            ProcessControllerAgentError(resultOrError);
         }
 
         PendingMaterializeResult_.TrySet(resultOrError);
@@ -669,6 +680,7 @@ public:
                 FormatResources(result.NeededResources));
         } else {
             YT_LOG_DEBUG("Unsuccessful revival result received (Error: %v)", resultOrError);
+            ProcessControllerAgentError(resultOrError);
         }
 
         PendingReviveResult_.TrySet(resultOrError);
@@ -682,6 +694,7 @@ public:
             YT_LOG_DEBUG("Successful commit result received");
         } else {
             YT_LOG_DEBUG("Unsuccessful commit result received (Error: %v)", resultOrError);
+            ProcessControllerAgentError(resultOrError);
         }
 
         PendingCommitResult_.TrySet(resultOrError);
@@ -867,6 +880,18 @@ private:
             OperationId_,
             agent,
             request);
+    }
+
+    void ProcessControllerAgentError(const TError& error)
+    {
+        if (IsAgentDisconnectionError(error)) {
+            auto agent = Agent_.Lock();
+            if (!agent) {
+                throw TFiberCanceledException();
+            }
+            const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
+            agentTracker->HandleAgentFailure(agent, error);
+        }
     }
 };
 
@@ -1132,6 +1157,9 @@ public:
 
         NApi::TTransactionStartOptions options;
         options.Timeout = Config_->IncarnationTransactionTimeout;
+        if (Config_->IncarnationTransactionPingPeriod) {
+            options.PingPeriod = Config_->IncarnationTransactionPingPeriod;
+        }
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("title", Format("Controller agent incarnation for %v", agentId));
         options.Attributes = std::move(attributes);

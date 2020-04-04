@@ -178,6 +178,8 @@ public:
     // NB: This function is public for scheduler simulator.
     TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>> OnFairShareUpdateAt(TInstant now);
 
+    void FinishFairShareUpdate();
+
     // NB: This function is public for scheduler simulator.
     void OnFairShareLoggingAt(TInstant now);
 
@@ -334,6 +336,7 @@ private:
     THashMap<TString, int> ElementIndexes_;
 
     TRootElementSnapshotPtr RootElementSnapshot_;
+    TRootElementSnapshotPtr RootElementSnapshotPrecommit_;
 
     TFairShareSchedulingStage NonPreemptiveSchedulingStage_;
     TFairShareSchedulingStage PreemptiveSchedulingStage_;

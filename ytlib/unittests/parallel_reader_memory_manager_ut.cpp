@@ -70,14 +70,15 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerGetsMemory)
     reader1->SetRequiredMemorySize(100);
     reader1->SetPrefetchMemorySize(100);
     WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 200; });
-    EXPECT_EQ(reader1->GetAvailableSize(), 200);
+    EXPECT_EQ(reader1->GetFreeMemorySize(), 200);
 
     {
         auto acquire1 = reader1->AsyncAquire(200);
-        NConcurrency::WaitFor(acquire1).ValueOrThrow();
+        NConcurrency::WaitFor(acquire1)
+            .ValueOrThrow();
     }
 
-    EXPECT_EQ(reader1->GetAvailableSize(), 200);
+    EXPECT_EQ(reader1->GetFreeMemorySize(), 200);
     auto acquire2 = reader1->AsyncAquire(201);
     AssertOverTime([&] () { return !acquire2.IsSet(); });
 }
@@ -94,19 +95,20 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerRevokesMemory)
     reader1->SetRequiredMemorySize(50);
     reader1->SetPrefetchMemorySize(50);
     WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 100; });
-    EXPECT_EQ(reader1->GetAvailableSize(), 100);
+    EXPECT_EQ(reader1->GetFreeMemorySize(), 100);
 
     {
         auto acquire1 = reader1->AsyncAquire(100);
-        NConcurrency::WaitFor(acquire1).ValueOrThrow();
+        NConcurrency::WaitFor(acquire1)
+            .ValueOrThrow();
     }
 
     auto reader2 = memoryManager->CreateChunkReaderMemoryManager();
     reader2->SetRequiredMemorySize(50);
     WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 50; });
     EXPECT_EQ(reader2->GetReservedMemorySize(), 50);
-    EXPECT_EQ(reader1->GetAvailableSize(), 50);
-    EXPECT_EQ(reader2->GetAvailableSize(), 50);
+    EXPECT_EQ(reader1->GetFreeMemorySize(), 50);
+    EXPECT_EQ(reader2->GetFreeMemorySize(), 50);
 
     auto acquire2 = reader2->AsyncAquire(51);
     AssertOverTime([&] () { return !acquire2.IsSet(); });
@@ -285,6 +287,27 @@ TEST(TestParallelReaderMemoryManager, TestTotalSize)
 
     WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 70; });
     WaitTestPredicate([&] () { return reader2->GetReservedMemorySize() == 30; });
+}
+
+TEST(TestParallelReaderMemoryManager, TestFreeMemorySize)
+{
+    auto actionQueue = New<NConcurrency::TActionQueue>();
+
+    auto memoryManager = CreateParallelReaderMemoryManager(
+        TParallelReaderMemoryManagerOptions(100, 0, 0),
+        actionQueue->GetInvoker());
+
+    EXPECT_EQ(memoryManager->GetFreeMemorySize(), 100);
+
+    auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
+    reader1->SetRequiredMemorySize(50);
+    WaitTestPredicate([&] () { return memoryManager->GetFreeMemorySize() == 50; });
+
+    reader1->SetPrefetchMemorySize(50);
+    WaitTestPredicate([&] () { return memoryManager->GetFreeMemorySize() == 0; });
+
+    reader1->Finalize();
+    WaitTestPredicate([&] () { return memoryManager->GetFreeMemorySize() == 100; });
 }
 
 TEST(TestParallelReaderMemoryManager, TestRequiredMemorySizeNeverDecreases)
@@ -473,44 +496,6 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagersTree)
     WaitTestPredicate([&] () { return r4->GetReservedMemorySize() == 1; });
 }
 
-TEST(TestParallelReaderMemoryManager, TestMinRequiredMemorySize)
-{
-    /*
-     *          mm11
-     *          / \
-     *         /   \
-     *        /     \
-     *      mm21    mm22
-     *               |
-     *               r1
-     *
-     */
-
-    auto actionQueue = New<NConcurrency::TActionQueue>();
-
-    auto mm11 = CreateParallelReaderMemoryManager(
-       TParallelReaderMemoryManagerOptions(10, 0, 0),
-       actionQueue->GetInvoker());
-
-    auto mm21 = mm11->CreateMultiReaderMemoryManager(5);
-    auto mm22 = mm11->CreateMultiReaderMemoryManager();
-
-    auto r1 = mm22->CreateChunkReaderMemoryManager();
-    r1->SetRequiredMemorySize(10);
-
-    WaitTestPredicate([&] () { return r1->GetReservedMemorySize() == 5; });
-
-    EXPECT_EQ(mm21->GetRequiredMemorySize(), 5);
-    EXPECT_EQ(mm21->GetDesiredMemorySize(), 5);
-    EXPECT_EQ(mm21->GetReservedMemorySize(), 5);
-    EXPECT_EQ(mm22->GetRequiredMemorySize(), 10);
-    EXPECT_EQ(mm22->GetDesiredMemorySize(), 10);
-    EXPECT_EQ(mm22->GetReservedMemorySize(), 5);
-    EXPECT_EQ(mm11->GetRequiredMemorySize(), 15);
-    EXPECT_EQ(mm11->GetDesiredMemorySize(), 15);
-    EXPECT_EQ(mm11->GetReservedMemorySize(), 10);
-}
-
 TEST(TestParallelReaderMemoryManager, TestParallelReaderMemoryManagerFinalize)
 {
     /*
@@ -543,10 +528,6 @@ TEST(TestParallelReaderMemoryManager, TestParallelReaderMemoryManagerFinalize)
     WaitTestPredicate([&] () { return r2->GetReservedMemorySize() == 5; });
 
     r1->Finalize();
-
-    Sleep(TDuration::MilliSeconds(50));
-    EXPECT_EQ(r2->GetReservedMemorySize(), 5);
-
     mm21->Finalize();
     WaitTestPredicate([&] () { return r2->GetReservedMemorySize() == 10; });
 }

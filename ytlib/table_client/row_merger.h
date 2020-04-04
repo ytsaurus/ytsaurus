@@ -25,7 +25,8 @@ public:
         int columnCount,
         int keyColumnCount,
         const TColumnFilter& columnFilter,
-        NQueryClient::TColumnEvaluatorPtr columnEvaluator);
+        NQueryClient::TColumnEvaluatorPtr columnEvaluator,
+        TTimestamp retentionTimestamp = NullTimestamp);
 
     void AddPartialRow(TVersionedRow row);
     void AddPartialRow(TVersionedRow row, TTimestamp timestamp);
@@ -37,6 +38,7 @@ private:
     const int ColumnCount_;
     const int KeyColumnCount_;
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
+    const TTimestamp RetentionTimestamp_;
 
     TMutableUnversionedRow MergedRow_;
     SmallVector<TTimestamp, TypicalColumnCount> MergedTimestamps_;

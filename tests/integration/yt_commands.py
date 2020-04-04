@@ -911,10 +911,12 @@ class Operation(object):
     def get_path(self):
         return get_operation_cypress_path(self.id)
 
-    def get_job_phase(self, job_id):
+    def get_node(self, job_id):
         job_path = "//sys/scheduler/orchid/scheduler/jobs/{0}".format(job_id)
-        node = get(job_path + "/address", verbose=False)
-        job_phase_path = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/job_phase".format(node, job_id)
+        return get(job_path + "/address", verbose=False)
+
+    def get_job_phase(self, job_id):
+        job_phase_path = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/job_phase".format(self.get_node(job_id), job_id)
         return get(job_phase_path, verbose=False)
 
     def ensure_running(self, timeout=10.0):

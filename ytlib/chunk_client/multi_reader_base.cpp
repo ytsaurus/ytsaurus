@@ -1,6 +1,7 @@
 #include "multi_reader_base.h"
 #include "config.h"
 #include "dispatcher.h"
+#include "parallel_reader_memory_manager.h"
 #include "private.h"
 #include "reader_factory.h"
 #include "data_slice_descriptor.h"
@@ -21,20 +22,34 @@ using NProto::TDataStatistics;
 TMultiReaderBase::TMultiReaderBase(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    const std::vector<IReaderFactoryPtr>& readerFactories)
-    : Config_(config)
+    const std::vector<IReaderFactoryPtr>& readerFactories,
+    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
+    : Id_(TGuid::Create())
+    , Config_(config)
     , Options_(options)
     , ReaderFactories_(readerFactories)
+    , MultiReaderMemoryManager_(std::move(multiReaderMemoryManager))
     , Logger(NLogging::TLogger(ChunkClientLogger)
-        .AddTag("MultiReaderId: %v", TGuid::Create()))
+        .AddTag("MultiReaderId: %v", Id_))
     , UncancelableCompletionError_(CompletionError_.ToFuture().ToUncancelable())
     , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
-    , FreeBufferSize_(Config_->MaxBufferSize)
 {
     CurrentSession_.Reset();
 
     YT_LOG_DEBUG("Creating multi reader (ReaderCount: %v)",
         readerFactories.size());
+
+    MultiReaderMemoryManager_->AddChunkReaderInfo(Id_);
+
+    UncancelableCompletionError_.Subscribe(BIND([Logger = this->Logger, multiReaderMemoryManager = MultiReaderMemoryManager_] (const TError& error) {
+        if (error.IsOK()) {
+            YT_LOG_DEBUG("Reading completed");
+        } else {
+            YT_LOG_INFO(error, "Reading completed with error");
+        }
+
+        multiReaderMemoryManager->Finalize();
+    }));
 
     if (readerFactories.empty()) {
         CompletionError_.Set(TError());
@@ -104,7 +119,7 @@ void TMultiReaderBase::OpenNextChunks()
 {
     TGuard<TSpinLock> guard(PrefetchLock_);
     for (; PrefetchIndex_ < ReaderFactories_.size(); ++PrefetchIndex_) {
-        if (ReaderFactories_[PrefetchIndex_]->GetMemoryFootprint() > FreeBufferSize_ &&
+        if (!ReaderFactories_[PrefetchIndex_]->CanCreateReader() &&
             ActiveReaderCount_ > 0 &&
             !Options_->KeepInMemory)
         {
@@ -116,13 +131,10 @@ void TMultiReaderBase::OpenNextChunks()
         }
 
         ++ActiveReaderCount_;
-        FreeBufferSize_ -= ReaderFactories_[PrefetchIndex_]->GetMemoryFootprint();
 
-        YT_LOG_DEBUG("Reserve buffer for the next reader (Index: %v, ActiveReaderCount: %v, ReaderMemoryFootprint: %v, FreeBufferSize: %v)",
+        YT_LOG_DEBUG("Creating next reader (Index: %v, ActiveReaderCount: %v)",
             PrefetchIndex_,
-            ActiveReaderCount_.load(),
-            ReaderFactories_[PrefetchIndex_]->GetMemoryFootprint(),
-            FreeBufferSize_);
+            ActiveReaderCount_.load());
 
         BIND(
             &TMultiReaderBase::DoOpenReader,
@@ -135,11 +147,11 @@ void TMultiReaderBase::OpenNextChunks()
 
 void TMultiReaderBase::DoOpenReader(int index)
 {
+    YT_LOG_DEBUG("Opening reader (Index: %v)", index);
+
     if (CompletionError_.IsSet()) {
         return;
     }
-
-    YT_LOG_DEBUG("Opening reader (Index: %v)", index);
 
     IReaderBasePtr reader;
     TError error;
@@ -168,8 +180,9 @@ void TMultiReaderBase::DoOpenReader(int index)
         CompletionError_.TrySet(error);
     }
 
-    if (CompletionError_.IsSet())
+    if (CompletionError_.IsSet()) {
         return;
+    }
 
     OnReaderOpened(reader, index);
 
@@ -192,13 +205,10 @@ void TMultiReaderBase::OnReaderFinished()
     }
 
     --ActiveReaderCount_;
-    FreeBufferSize_ += ReaderFactories_[CurrentSession_.Index]->GetMemoryFootprint();
 
-    YT_LOG_DEBUG("Release buffer reserved by finished reader (Index: %v, ActiveReaderCount: %v, ReaderMemoryFootprint: %v, FreeBufferSize: %v)",
+    YT_LOG_DEBUG("Reader finished (Index: %v, ActiveReaderCount: %v)",
         CurrentSession_.Index,
-        static_cast<int>(ActiveReaderCount_),
-        ReaderFactories_[CurrentSession_.Index]->GetMemoryFootprint(),
-        FreeBufferSize_);
+        static_cast<int>(ActiveReaderCount_));
 
     CurrentSession_.Reset();
     OpenNextChunks();
@@ -244,11 +254,13 @@ void TMultiReaderBase::OnInterrupt()
 TSequentialMultiReaderBase::TSequentialMultiReaderBase(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    const std::vector<IReaderFactoryPtr>& readerFactories)
+    const std::vector<IReaderFactoryPtr>& readerFactories,
+    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
     : TMultiReaderBase(
-        config,
-        options,
-        readerFactories)
+        std::move(config),
+        std::move(options),
+        readerFactories,
+        std::move(multiReaderMemoryManager))
 {
     YT_LOG_DEBUG("Multi chunk reader is sequential");
     NextReaders_.reserve(ReaderFactories_.size());
@@ -361,11 +373,13 @@ TMultiReaderBase::TUnreadState TSequentialMultiReaderBase::GetUnreadState() cons
 TParallelMultiReaderBase::TParallelMultiReaderBase(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    const std::vector<IReaderFactoryPtr>& readerFactories)
+    const std::vector<IReaderFactoryPtr>& readerFactories,
+    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
     : TMultiReaderBase(
-        config,
-        options,
-        readerFactories)
+        std::move(config),
+        std::move(options),
+        readerFactories,
+        std::move(multiReaderMemoryManager))
 {
     YT_LOG_DEBUG("Multi chunk reader is parallel");
     UncancelableCompletionError_.Subscribe(

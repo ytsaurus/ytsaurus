@@ -33,6 +33,7 @@
 #include <yt/core/http/helpers.h>
 #include <yt/core/http/server.h>
 
+#include <yt/core/https/config.h>
 #include <yt/core/https/server.h>
 
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
@@ -85,6 +86,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     Acceptor_ = CreateThreadPoolPoller(1, "Acceptor");
 
     Config_->MonitoringServer->Port = Config_->MonitoringPort;
+    Config_->MonitoringServer->ServerName = "monitoring";
     MonitoringServer_ = NHttp::CreateServer(
         Config_->MonitoringServer);
 
@@ -157,10 +159,12 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         Coordinator_);
 
     Api_ = New<TApi>(this);
+    Config_->HttpServer->ServerName = "http_api";
     ApiHttpServer_ = NHttp::CreateServer(Config_->HttpServer, Poller_, Acceptor_);
     RegisterRoutes(ApiHttpServer_);
 
     if (Config_->HttpsServer) {
+        Config_->HttpsServer->ServerName = "https_api";
         ApiHttpsServer_ = NHttps::CreateServer(Config_->HttpsServer, Poller_, Acceptor_);
         RegisterRoutes(ApiHttpsServer_);
     }

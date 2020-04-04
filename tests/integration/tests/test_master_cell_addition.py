@@ -13,6 +13,11 @@ import __builtin__
 class TestMasterCellAddition(YTEnvSetup):
     NUM_SECONDARY_MASTER_CELLS = 3
     START_SECONDARY_MASTER_CELLS = False
+    DELTA_MASTER_CONFIG = {
+        "world_initializer": {
+            "update_period": 1000,
+        },
+    }
 
     NUM_NODES = 3
     DEFER_NODE_START = True
@@ -132,10 +137,28 @@ class TestMasterCellAddition(YTEnvSetup):
         assert_true_for_secondary_cells(self.Env,
             lambda driver: not exists("//sys/accounts/acc_async_remove", driver=driver))
 
+    def check_sys_masters_node(self):
+        def check(cell_ids):
+            secondary_masters = get("//sys/secondary_masters")
+            if sorted(secondary_masters.keys()) != sorted(cell_ids):
+                return False
+
+            for cell_id in cell_ids:
+                assert len(secondary_masters[cell_id]) == 3
+
+            return True
+
+        assert check(['1', '2'])
+
+        yield
+
+        wait(lambda: check(['1', '2', '3']))
+
     @authors("shakurov")
     def test_add_new_cell(self):
         CHECKER_LIST = [
             self.check_accounts,
+            self.check_sys_masters_node,
         ]
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

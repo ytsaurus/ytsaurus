@@ -38,7 +38,7 @@ TNotificationHandle::~TNotificationHandle()
 void TNotificationHandle::Raise()
 {
 #ifdef _linux_
-    size_t one = 1;
+    uint64_t one = 1;
     YT_VERIFY(HandleEintr(write, EventFD_, &one, sizeof(one)) == sizeof(one));
 #else
     if (PipeCount_.load(std::memory_order_relaxed) > 0) {
@@ -54,8 +54,10 @@ void TNotificationHandle::Raise()
 void TNotificationHandle::Clear()
 {
 #ifdef _linux_
-    size_t count = 0;
-    YT_VERIFY(HandleEintr(read, EventFD_, &count, sizeof(count)) == sizeof(count));
+    uint64_t count = 0;
+    ssize_t ret = HandleEintr(read, EventFD_, &count, sizeof(count));
+    // For edge-triggered one could clear multiple events, others get nothing.
+    YT_VERIFY(ret == sizeof(count) || (ret < 0 && errno == EAGAIN));
 #else
     for (int count = PipeCount_.exchange(0, std::memory_order_relaxed); count > 0; --count) {
         char c;

@@ -380,13 +380,21 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         with pytest.raises(YtError):
             vanilla(spec={"tasks": {"main": {"job_count": 100 * 1000 + 1, "command": "true"}}})
 
-    @authors("dakovalkov")
+    @authors("dakovalkov", "max42")
     def test_restart_completed_jobs(self):
-        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), task_patch={"restart_completed_jobs": True})
-        wait_breakpoint()
-        release_breakpoint()
-        wait(lambda: op.get_job_count("completed") == 1)
-        wait(lambda: op.get_job_count("running") == 1)
+        op = run_test_vanilla("if [[ \"$YT_JOB_COOKIE\" != \"0\" ]] ; then exit 1 ; else true ; fi",
+                              task_patch={"restart_completed_jobs": True},
+                              spec={"max_failed_job_count": 1})
+
+        def check_status():
+            print_debug(op.build_progress())
+            if op.get_job_count("lost") >= 3:
+                return True
+            if op.get_state(verbose=False) == "failed":
+                raise op.get_error()
+            return False
+
+        wait(check_status)
 
     @authors("ignat")
     def test_get_job_context(self):

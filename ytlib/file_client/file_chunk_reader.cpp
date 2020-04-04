@@ -18,6 +18,7 @@
 #include <yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/io_engine.h>
+#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
@@ -57,7 +58,8 @@ public:
         NCompression::ECodec codecId,
         const TClientBlockReadOptions& blockReadOptions,
         i64 startOffset,
-        i64 endOffset)
+        i64 endOffset,
+        TChunkReaderMemoryManagerPtr chunkReaderMemoryManager)
         : Config_(std::move(config))
         , ChunkReader_(std::move(chunkReader))
         , BlockCache_(std::move(blockCache))
@@ -65,8 +67,13 @@ public:
         , BlockReadOptions_(blockReadOptions)
         , StartOffset_(startOffset)
         , EndOffset_(endOffset)
-        , MemoryManager_(New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize)))
     {
+        if (chunkReaderMemoryManager) {
+            MemoryManager_ = chunkReaderMemoryManager;
+        } else {
+            MemoryManager_ = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
+        }
+
         Logger.AddTag("ChunkId: %v", ChunkReader_->GetChunkId());
         if (BlockReadOptions_.ReadSessionId) {
             Logger.AddTag("ReadSessionId: %v", BlockReadOptions_.ReadSessionId);
@@ -290,16 +297,18 @@ IFileReaderPtr CreateFileChunkReader(
     NCompression::ECodec codecId,
     const TClientBlockReadOptions& blockReadOptions,
     i64 startOffset,
-    i64 endOffset)
+    i64 endOffset,
+    TChunkReaderMemoryManagerPtr chunkReaderMemoryManager)
 {
     return New<TFileChunkReader>(
-        config,
-        chunkReader,
-        blockCache,
+        std::move(config),
+        std::move(chunkReader),
+        std::move(blockCache),
         codecId,
         blockReadOptions,
         startOffset,
-        endOffset);
+        endOffset,
+        std::move(chunkReaderMemoryManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -359,11 +368,22 @@ IFileReaderPtr CreateFileMultiChunkReader(
     const std::vector<TChunkSpec>& chunkSpecs,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
+    if (!multiReaderMemoryManager) {
+        multiReaderMemoryManager = CreateParallelReaderMemoryManager(
+            TParallelReaderMemoryManagerOptions(
+                config->MaxBufferSize,
+                config->WindowSize,
+                0),
+            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+    }
+
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& chunkSpec : chunkSpecs) {
         auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
+
         auto createReader = [=] () {
             auto remoteReader = CreateRemoteReader(
                 chunkSpec,
@@ -397,19 +417,25 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 CheckedEnumCast<NCompression::ECodec>(miscExt.compression_codec()),
                 blockReadOptions,
                 startOffset,
-                endOffset);
+                endOffset,
+                multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));
+        };
+
+        auto canCreateReader = [=] {
+            return multiReaderMemoryManager->GetFreeMemorySize() >= memoryEstimate;
         };
 
         factories.emplace_back(CreateReaderFactory(
             createReader,
-            memoryEstimate,
+            canCreateReader,
             TDataSliceDescriptor(chunkSpec)));
     }
 
     auto reader = New<TFileMultiChunkReader>(
         config,
         options,
-        factories);
+        factories,
+        multiReaderMemoryManager);
     reader->Open();
     return reader;
 }

@@ -121,8 +121,6 @@ private:
         ESandboxKind kind,
         const std::function<void(const TString& destinationPath)>& callback,
         const TString& destinationName);
-
-    bool ShouldCleanSandboxes() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotLocation)

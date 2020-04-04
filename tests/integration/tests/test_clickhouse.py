@@ -73,7 +73,7 @@ class Clique(object):
     core_dump_path = None
     proxy_address = None
 
-    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, **kwargs):
+    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, enable_core_dump=True, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else copy.deepcopy(Clique.base_config)
         spec = {"pool": None}
         self.is_tracing = False
@@ -99,22 +99,26 @@ class Clique(object):
         if "cypress_ytserver_log_tailer_config_path" in kwargs:
             cypress_config_paths["log_tailer"] = (kwargs.pop("cypress_ytserver_log_tailer_config_path"), "log_tailer_config.yson")
 
+        core_dump_destination = None
+        if enable_core_dump:
+            core_dump_destination = Clique.core_dump_path
         spec_builder = get_clickhouse_clique_spec_builder(instance_count,
                                                           cypress_config_paths=cypress_config_paths,
                                                           max_failed_job_count=max_failed_job_count,
                                                           defaults=DEFAULTS,
                                                           spec=spec,
-                                                          core_dump_destination=Clique.core_dump_path,
+                                                          core_dump_destination=core_dump_destination,
+                                                          trampoline_log_file=os.path.join(self.log_root, "trampoline.debug.log"),
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
-        if not is_asan_build():
+        if not is_asan_build() and enable_core_dump:
             self.spec["tasks"]["instances"]["force_core_dump"] = True
         self.instance_count = instance_count
 
     def get_active_instances(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
             instances = ls("//sys/clickhouse/cliques/{0}".format(self.op.id),
-                           attributes=["locks", "host", "http_port", "monitoring_port"], verbose=False)
+                           attributes=["locks", "host", "http_port", "monitoring_port", "job_cookie"], verbose=False)
 
             def is_active(instance):
                 if not instance.attributes["locks"]:
@@ -138,7 +142,6 @@ class Clique(object):
             assert result["statistics"]["rows_read"] == exact
         else:
             assert min <= result["statistics"]["rows_read"] <= max
-
 
     def _print_progress(self):
         print_debug(self.op.build_progress(), "(active instance count: {})".format(self.get_active_instance_count()))
@@ -322,19 +325,8 @@ class Clique(object):
         return t
 
     def get_orchid(self, instance, path, verbose=True):
-        url = "http://{}:{}/orchid{}".format(instance.attributes["host"], instance.attributes["monitoring_port"], path)
-        if verbose:
-            print_debug("Getting orchid at {}".format(url))
-        result = requests.post(url)
-        if verbose:
-            print_debug("Status code: {}".format(result.status_code))
-        if result.status_code == 200:
-            result = result.json()
-        else:
-            result = None
-        if verbose:
-            print_debug(pprint.pformat(result))
-        return result
+        orchid_path = "//sys/clickhouse/orchids/{}/{}".format(self.op.id, instance.attributes["job_cookie"])
+        return get(orchid_path + path, verbose=verbose)
 
     def resize(self, size, jobs_to_abort=[]):
         update_op_parameters(self.op.id, parameters=get_scheduling_options(user_slots=size))
@@ -445,6 +437,120 @@ def get_schema_from_description(describe_info):
 class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
         self._setup()
+
+    @authors("evgenstf")
+    def test_prewhere_actions(self):
+        with Clique(1) as clique:
+            create("table", "//tmp/t1", attributes={"schema": [{"name": "value", "type": "int64"}]})
+            write_table("//tmp/t1", [{"value": 0}, {"value": 1}, {"value": 2}, {"value": 3}])
+
+            assert clique.make_query('select count() from "//tmp/t1"') == [{'count()': 4}]
+            assert clique.make_query('select count() from "//tmp/t1" prewhere (value < 3)') == [{'count()': 3}]
+            assert clique.make_query('select count(*) from "//tmp/t1" prewhere (value < 3)') == [{'count()': 3}]
+            assert clique.make_query('select count(value) from "//tmp/t1" prewhere (value < 3)') == [{'count(value)': 3}]
+            assert clique.make_query('select count() from "//tmp/t1" prewhere (value < 3)') == [{'count()': 3}]
+            assert clique.make_query('select any(0) from "//tmp/t1" prewhere (value < 3)') == [{'any(0)': 0}]
+
+
+    @authors("evgenstf")
+    def test_acl(self):
+        with Clique(1) as clique:
+            create_user('user_with_denied_column')
+            create_user('user_with_allowed_one_column')
+            create_user('user_with_allowed_all_columns')
+
+            def create_and_fill_table(path):
+                create('table', path, attributes={
+                    'schema': [
+                        {'name': 'a', 'type': 'string'},
+                        {'name': 'b', 'type': 'string'}
+                    ]},
+                    recursive=True)
+                write_table(path, [{'a': 'value1', 'b': 'value2'}])
+
+            create_and_fill_table('//tmp/t1')
+            set('//tmp/t1/@acl', [
+                make_ace('allow',  'user_with_denied_column', 'read'),
+                make_ace('deny',  'user_with_denied_column', 'read', columns='a'),
+            ])
+
+            with pytest.raises(Exception):
+                clique.make_query('select * from "//tmp/t1"', user='user_with_denied_column')
+
+            with pytest.raises(Exception):
+                clique.make_query('select a from "//tmp/t1"', user='user_with_denied_column')
+
+            assert clique.make_query('select b from "//tmp/t1"', user='user_with_denied_column') == [{'b': 'value2'}]
+
+            create_and_fill_table('//tmp/t2')
+            set('//tmp/t2/@acl', [
+                make_ace('allow', 'user_with_allowed_one_column', 'read', columns='b'),
+                make_ace('allow', 'user_with_allowed_all_columns', 'read', columns='a'),
+                make_ace('allow', 'user_with_allowed_all_columns', 'read', columns='b'),
+            ])
+
+            with pytest.raises(Exception):
+                clique.make_query('select * from "//tmp/t2"', user='user_with_allowed_one_column')
+            with pytest.raises(Exception):
+                clique.make_query('select a from "//tmp/t2"', user='user_with_allowed_one_column')
+            assert clique.make_query('select b from "//tmp/t2"', user='user_with_allowed_one_column') == [{'b': 'value2'}]
+            assert clique.make_query('select * from "//tmp/t2"', user='user_with_allowed_all_columns') == [{'a': 'value1', 'b': 'value2'}]
+            assert clique.make_query('select b from "//tmp/t2"', user='user_with_allowed_one_column') == [{'b': 'value2'}]
+            assert clique.make_query('select * from "//tmp/t2"', user='user_with_allowed_all_columns') == [{'a': 'value1', 'b': 'value2'}]
+            assert clique.make_query('select b from "//tmp/t2"', user='user_with_allowed_one_column') == [{'b': 'value2'}]
+            assert clique.make_query('select * from "//tmp/t2"', user='user_with_allowed_all_columns') == [{'a': 'value1', 'b': 'value2'}]
+
+            time.sleep(1.5)
+
+            assert clique.make_query('select b from "//tmp/t2"', user='user_with_allowed_one_column') == [{'b': 'value2'}]
+            assert clique.make_query('select * from "//tmp/t2"', user='user_with_allowed_all_columns') == [{'a': 'value1', 'b': 'value2'}]
+
+            time.sleep(0.5)
+
+            assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/object_attribute_cache/hit")[-1]['value'] == 50
+            assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/permission_cache/hit")[-1]['value'] == 5
+
+
+    @authors("evgenstf")
+    def test_orchid_error_handle(self):
+        if not exists('//sys/clickhouse/orchids'):
+            create('map_node', '//sys/clickhouse/orchids')
+
+        create_user('test_user')
+        set("//sys/clickhouse/@acl", [
+            make_ace("allow", "test_user", ["write", "create", "remove", "modify_children"]),
+        ])
+        set("//sys/accounts/sys/@acl", [make_ace("allow", "test_user", "use")])
+
+        set("//sys/clickhouse/orchids/@acl", [
+            make_ace("deny", "test_user", "create"),
+        ])
+
+        with pytest.raises(Exception):
+            with Clique(1, config_patch={"user": "test_user"}, enable_core_dump=False) as clique:
+                pass
+
+
+    @authors("evgenstf")
+    def test_monitoring_orchids(self):
+        with Clique(3) as clique:
+            for i in range(3):
+                assert 'monitoring' in clique.get_orchid(clique.get_active_instances()[i], "/")
+
+	    job_to_abort = str(clique.get_active_instances()[0])
+            node_to_ban = clique.op.get_node(job_to_abort)
+
+            abort_job(job_to_abort)
+            set_banned_flag(True, [node_to_ban])
+
+            wait(lambda: len(clique.get_active_instances()) == 2)
+            wait(lambda: len(clique.get_active_instances()) == 3)
+            for instance in clique.get_active_instances():
+                assert str(instance) != job_to_abort
+
+            for i in range(3):
+                assert 'monitoring' in clique.get_orchid(clique.get_active_instances()[i], "/")
+
 
     @authors("evgenstf")
     def test_drop_nonexistent_table(self):
@@ -2481,6 +2587,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert banned_count.update().get(verbose=True) == 1
 
     @authors("dakovalkov")
+    @pytest.mark.skipif(True, reason="whatever")
     def test_clique_availability(self):
         create("table", "//tmp/table", attributes={"schema": [{"name": "i", "type": "int64"}]})
         write_table("//tmp/table", [{"i": 0}, {"i": 1}, {"i": 2}, {"i": 3}])

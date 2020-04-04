@@ -1,0 +1,142 @@
+# This file contains important actions and notes to be considered before the cluster update.
+# New lines go first, lines should be added within the same commit with the corresponding change.
+# Before cluster update you may run the following command in order to see new entries related to the update from the cluster version to the current one:
+#    git diff <cluster commit id> Changelog
+# It is also a good idea to take a look on:
+#    yt/server/master/cell_master/serialize.cpp - if the version differs, then the update should be done with master snapshots (+ --set-read-only).
+#    yt/server/node/tablet_node/serialize.cpp - if the version differs, then the update should be done with tablet cell recreation.
+
+* gritukan: |Get| semantics changed. Update masters via snapshot.
+* ifsmirnov: Added validation of creating non-external nodes. Update masters via snapshot.
+* lexolordan: To use unmount user is required to have permission "use" on cell_bundle. Update masters via snapshot.
+* gritukan: Nodes dynamic config added. Make sure that //sys/cluster_nodes/@config contains actual dynamic config.
+* lexolordan: Calculating static memory while tablets are mounting without mounted tablets. Update masters via snapshot.
+* gritukan: Serialization of network projects fixed. Update masters via snapshot.
+* savrus: Changed semantics of mount locking on secondary master. Update masters via snapshot.
+* lexolordan: To use force unmount user is required to have permission "administer" on cell_bundle. Update masters via snapshot.
+* shakurov: ACL validation semantics have changed for portal nodes. Update masters via snapshot.
+* ifsmirnov: Sync reshard semantics changed. Update masters via snapshot.
+* renadeen: Added filtering of jobs by has_competitors. Update operation archive to version 33.
+* shakurov: Commit d674773a35 has changed (and fixed) serialization format of TSchedulerPool{Tree}::SpecifiedAttributes_. Update masters via snapshot.
+* shakurov: Commit c5503dc801 has changed semantics of setting/removing attributes. Update masters via snapshot.
+* savrus: Added some compatibility code for 19.4 clusters. Please use this version or later for updating a 19.4 cluster.
+* shakurov: Changed (and fixed) serialization format of TSchedulerPool{Tree}::SpecifiedAttributes_. Update masters via snapshot.
+* shakurov: Changed semantics of setting/removing attributes. Update masters via snapshot.
+* ermolovd: Introduce new logical type. Update masters via snapshot.
+* ermolovd: Disabled complex types for dynamic tables. Update masters via snapshot.
+* renadeen: Added filtering of jobs by job_competition_id. Feel free to update masters without snapshots but update operation archive to version 32.
+* ermolovd: Add `type_v3' to schema. Update masters via snapshot.
+* ifsmirnov: Do not store tablet and replication errors on master. Update masters via snapshot.
+* gritukan: Cypress tree serialization format changed. Update masters via snapshot.
+* renadeen: Added new scheduler pool object at master. Update masters via snapshot.
+* !IMPORTANT!
+*   You can skip migration of old pools (map_nodes) to new scheduler pool objects and everything will work the old way
+*       but don't forget to ask renadeen@ to perform migration of this cluster.
+*   If you are brave enough to perform migration yourself then good luck.
+*   Best time to perform migration - when new masters are up but scheduler is down.
+*   1) Become superuser on cluster (necessary to create virtual map nodes)
+*   2) Run migration script 'python scripts/scheduler/migrate_pools.py --proxy cluster_name' as superuser on cluster.
+*   It will reproduce full pool structure at separate location and if succeeds will replace //sys/pool_trees with new virtual map node.
+*   Old pool structure will be moved to //sys/pool_trees_bak by default.
+*   If an exception is thrown during reconstruction phase old pools will not be touched and scheduler still can work the old way.
+*   If migration was done but for some reason you want to switch back to old pools
+*       you can ask scheduler to read config from different path (i. e. `//sys/pool_trees_bak`) by updating scheduler config option:
+*       `yt set //sys/scheduler/config/pool_trees_root //path/to/pool_trees/root`
+*   Please tell renadeen@ if there were any problems.
+
+* aleksandra-zh: Two-level master cache. Update masters via snapshot.
+* aleksandra-zh: Dynamic master cache discovery. Update masters via snapshot.
+* gritukan: New mutation for changing peer count was added. Update masters via snapshot.
+* ifsmirnov: Fix memory accounting in bulk insert. Update masters via snapshot if bulk insert is enabled.
+* ifsmirnov: Overwrite mode for bulk insert. Update masters via snapshot.
+* ifsmirnov: Mount revision is set during tablet unlock. Update masters via snapshot.
+* shakurov: Commit 71325f8588 has changed the 'unlock' command semantics. Update masters via snapshot.
+* shakurov: TClusterResources serialization has changed slightly. Update masters via snapshot.
+* avmatrosov: Added annotations. Update masters via snapshot.
+* aozeritsky: RequestRateLimitOptions was added. Update masters via snapshot.
+* babenko: Transaction mirroring. Update via snapshot.
+* ermolovd: Update type validation. Update via snapshot.
+* ermolovd: Introduced new time-related logical types. Update via snapshot.
+* savrus: Fix dynamic table statistics update in multicell environment. Update masters via snapshot.
+* ignat: Update operations archive to version 31 (core_info added).
+* ifsmirnov: Changed semantics in merging dynamic table nodes. Update masters via snapshot.
+* avmatrosov: Added copy for replicated tables. Update masters via snapshot.
+* ifsmirnov: Estimated creation time map. Update masters via snapshot.
+* akozhikhov: Added new users for tablet system activity. Update masters via snapshot.
+* babenko: Some recent fix in portal destruction requires masters to be updated via snapshot.
+* savrus: Moved tablet manager config to dynamic configs. Update masters via snapshot.
+* ermolovd: Enabled null type in schema. Update masters via snapshot.
+* savrus: Allowed to change tablet cell bundle options on fly in 42a67269eb. Update masters via snapshot.
+* savrus: Introduced reigns in 63bd34940. Do not need to follow fbe2670bc16 instruction to remove tablet cells.
+* babenko: More portal exit attributes. Update masters via snapshot.
+* babenko: Transaction depth limit introduced. Update masters via snapshot.
+* ifsmirnov: Multilevel chunklists for dynamic tables. Update masters via snapshot.
+* babenko: Introduce Cypress shard objects. Update masters via snapshot.
+* babenko: Initial support for Cypress portals. Update masters via snapshot.
+* ifsmirnov: Chunk views are now saved into chunks' Parents_ array. Update masters via snapshot.
+* shakurov: Commit 61ba9b7fe9 has changed mutation semantics for unlock and tx abort. Update masters via snapshot.
+* ifsmirnov: Changed semantics around required columns in replication log. Remove tablet cells before cluster update.
+* ermolovd: New variant_tuple and variant_struct types. Update masters via snapshot.
+* levysotsky: YT-8412: "operations_client" builtin user. Update masters via snapshot.
+* babenko: Schedule delayed recomputation of membership closure on group removal. Update masters via snapshot.
+* ifsmirnov: YT-10908. GetMountInfo and CheckPermission no longer modify access_time. Update masters via snapshot.
+* shakurov: Master snapshot format was changed by 8b6665a6a2. Update masters via snapshot.
+* babenko: Delayed recomputation of membership closure. Update masters via snapshot.
+* ermolovd: Stricter schema validation. Update masters via snapshot.
+* shakurov: Transaction abort has changed its sematics. Update masters via snapshot.
+* babenko: YT-9991. Change use permission checks for bundles.  Update masters via snapshot.
+* babenko: YT-10892. Apart from diagonistics; also fix TTableNodeProxy::GetBasicAttributes. Update masters via snapshot.
+* aozeritsky: YT-9862. Update masters via snapshot.
+* shakurov: A change in sematics of the "lock node" mutation was made by commit fdfd1e9966. Update masters via snapshot.
+* shakurov: YT-10852. Update masters via snapshot.
+* levysotsky: Changed TTableSchemas's operator==. Update masters via snapshot.
+* aozeritsky: Update masters via snapshot.
+* shakurov: Changed Hydra service protocol. Update masters via snapshot.
+* ignat: Protocol between controller agent and scheduler has changed, update it simultaneously.
+* ifsmirnov: Tablet cell bundle destruction semantics changed (once again). Update masters with snapshot.
+* shakurov: Transactional semantics for @expiration_time. Master servers must be updated via snapshot.
+* ifsmirnov: TChunkView introduced. Update masters via snapshot.
+* renadeen: Operation snapshot version has changed, operations will be restarted
+* max42: ============================ ALL ENTRIES SHOULD BE IN ENGLISH ABOVE THIS LINE ==============================
+* shakurov: Multiplied TUser::ReadRequestRateLimit_ by the number of followers. Update masters via snapshot.
+* savrus: Изменилась валидация прав при создании таблиц с несколькими таблетами. Обновлять через снепшот.
+* ermolovd: Изменилась валидация схем таблиц (коммит 7ebee26d7b7). Обновлять через снепшот.
+* ifsmirnov: Tablet cell bundle destruction semantics changed. Update masters with snapshot.
+* babenko: Some master config settings were made dynamic and moved to //sys/@config; check master logs for unrecogznied options after upgrade and migrate them to //sys/@config
+* babenko: Security tags
+* shakurov: Изменилась логика проверки прав в мутации создания кипарисных узлов. Обновлять через снепшот.
+* babenko: Добавлены поколоночные ACL, обновлять мастера через снепшот.
+* babenko: Еще одно исправление в проверке прав создания реплик, обновлять мастера через снепшот.
+* babenko: Исправлена проверка прав создания реплик, обновлять мастера через снепшот.
+* shakurov: В коммите 796a8f8988 изменилась семантика одной из мутаций, обновлять мастера через снапшот.
+* levysotsky: Добавлено новое право manage, мастеров обновлять перед шедулерами и контроллер агентами.
+* savrus: Вычищены dynamic tables attributes из статических таблиц, обновлять мастеров через снапшот.
+* shakurov: Восстановлена совместимость "новый мастер - старая нода", сломанная коммитом 3933bd84f9.
+* babenko: Исправлено удаление атрибута внутри транзакции (YT-10192), изменилась семантика, обновлять мастеров через снепшот.
+* savrus: Поменялись проверки прав для доступа к tablet action и tablet cell bundle, обновлять мастеров через снапшот.
+* savrus: Изменился протокол добавления нового мастер-целла, обновлять мастеров через снапшот.
+* savrus: Добавились новые мутации при подсчёте статистик таблет-целлов, обновлять мастеров через снапшот.
+* babenko: Изменилась семантика проверки прав на реплики, обновлять мастеров через снепшот.
+* max42: Обновить архив операций до версии 29 (колонка annotations).
+* savrus: Поменялся формат снапшотов таблет-целлов и протокол общения между мастерами. Нужно проследить что нет декоммиссированных таблет-целлов и обновиться через снапшот.
+* shakurov: Увеличен тип TClusterResources::{Node,Chunk}Count с int до i64; обновляться через снапшот.
+* shakurov: Добавлены новые поля в NNodeTrackerServer::TNode, обновляться через снапшот.
+* shakurov: Добавлена настройка в конфиги медиумов; для корректной ее инициализации обновляться через снапшот.
+* prime: Обновить архив операций до версии 28.
+* aozeritsky: Добавлены новые поля в TUser, обновляться через снапшот.
+* aozeritsky: Поменялся протокол сообщений между мастерами, обновляться через снапшот.
+* aozeritsky: Поменялся протокол сообщений между мастерами, обновляться через снапшот.
+* renadeen: Обновить архив операций до версии 27.
+* max42: Необходимо обновить архив операций до версии минимум 26.
+* savrus: Подправил протокол общения между мастерами, обновляться через снапшот.
+* savrus: Подправил протокол общения между мастерами, обновляться через снапшот.
+* savrus: В статистики таблет целлов добавилoсь поле health, обновляться через снапшот.
+* babenko: У реплик таблиц появилось новое состояние "enabling" и изменился протокол перевода их в состояние "enabled". Обновление через снепшот.
+* savrus: Подправил протокол общения между мастерами, обновляться через снапшот.
+* savrus: Проверить, что на нодах кластера работает ядро версии не ниже 4.4.114-5 (нужно для ytalloc).
+* savrus: Поменялась обработка prepare стадии mount/unmount/etc, обновляться через снапшот.
+* savrus: Поменялся протокол сообщений между мастерами, обновляться через снапшот.
+* savrus: Поменялся протокол сообщений между мастерами, обновляться через снапшот.
+* savrus: Поменялся протокол доставки динтабличных статистик между мастерами. Нужно перед обновлением отмонтировать все динтаблицы
+* ignat: При обновлении мастеров на свежий prestable/19.3 необходимо удалить пользователя operations_cleaner перед подъемом из снепшота (коммит cd6c1dc5af7)
+* ignat: Обновление проксей необходимо делать после мастеров (коммит 3f286a1150801 от 16 января)

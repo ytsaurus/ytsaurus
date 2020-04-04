@@ -25,9 +25,12 @@ if arcadia_interop.yatest_common is None:
     if YT_DUMMY_LOGGER_BINARY is None:
         YT_DUMMY_LOGGER_BINARY = find_executable("dummy_logger")
 else:
-    TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
+    test_dir = os.environ.get("YT_ROOT") + "/yt/tests/integration/tests"
+    TEST_DIR = arcadia_interop.yatest_common.source_path(test_dir)
+    assert os.path.exists(TEST_DIR)
+
     YT_LOG_TAILER_BINARY = arcadia_interop.yatest_common.binary_path("ytserver-log-tailer")
-    YT_DUMMY_LOGGER_BINARY  =arcadia_interop.yatest_common.binary_path("dummy_logger")
+    YT_DUMMY_LOGGER_BINARY = arcadia_interop.yatest_common.binary_path("dummy_logger")
 
 #################################################################
 
@@ -46,10 +49,9 @@ class TestLogTailer(YTEnvSetup):
         if YT_DUMMY_LOGGER_BINARY is None:
             pytest.skip("This test requires dummy_logger binary being built")
 
-    @pytest.mark.xfail(run = False, reason = "YT-12576")
     @authors("gritukan")
     def test_log_rotation(self):
-        log_tailer_config = yson.loads(open(os.path.join(TEST_DIR, "test_clickhouse", "log_tailer_config.yson")).read())
+        log_tailer_config = yson.loads(self._read_local_config_file("log_tailer_config.yson"))
         log_path = \
             os.path.join(self.path_to_run,
             "logs",

@@ -6,6 +6,8 @@
 
 #include <yt/ytlib/api/native/public.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/ytlib/object_client/public.h>
 
 #include <yt/ytlib/security_client/public.h>
@@ -43,7 +45,9 @@ public:
     TFuture<void> StopDiscovery();
     void StopTcpServers();
 
-    std::vector<TErrorOr<NYTree::TAttributeMap>> CheckPermissionsAndGetCachedObjectAttributes(
+    void ValidateReadPermissions(const std::vector<NYPath::TRichYPath>& paths, const TString& user);
+
+    std::vector<TErrorOr<NYTree::TAttributeMap>> GetObjectAttributes(
         const std::vector<NYPath::TYPath>& paths,
         const NApi::NNative::IClientPtr& client);
 
@@ -52,6 +56,8 @@ public:
     DB::Context& GetContext() const;
 
     TClusterNodes GetNodes() const;
+
+    const NChunkClient::IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const;
 
 private:
     class TImpl;

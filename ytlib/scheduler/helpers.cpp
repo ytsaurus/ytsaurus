@@ -252,6 +252,7 @@ bool IsOperationInProgress(EOperationState state)
         state == EOperationState::Preparing ||
         state == EOperationState::Materializing ||
         state == EOperationState::Pending ||
+        state == EOperationState::ReviveInitializing ||
         state == EOperationState::Reviving ||
         state == EOperationState::RevivingJobs ||
         state == EOperationState::Running ||

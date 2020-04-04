@@ -33,6 +33,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<TString>>, Columns);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, OmittedInaccessibleColumns);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, Timestamp, NTransactionClient::NullTimestamp);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetentionTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TColumnRenameDescriptors, ColumnRenameDescriptors);
 
     TDataSource() = default;
@@ -43,6 +44,7 @@ public:
         const std::optional<std::vector<TString>>& columns,
         const std::vector<TString>& omittedInaccessibleColumns,
         NTransactionClient::TTimestamp timestamp,
+        NTransactionClient::TTimestamp retentionTimestamp,
         const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors);
 };
 
@@ -52,6 +54,7 @@ TDataSource MakeVersionedDataSource(
     const std::optional<std::vector<TString>>& columns,
     const std::vector<TString>& omittedInaccessibleColumns,
     NTransactionClient::TTimestamp timestamp,
+    NTransactionClient::TTimestamp retentionTimestamp = NTransactionClient::NullTimestamp,
     const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors = {});
 
 TDataSource MakeUnversionedDataSource(

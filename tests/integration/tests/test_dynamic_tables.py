@@ -727,6 +727,28 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "administer"))
         sync_unmount_table("//tmp/t", force=True, authenticated_user="u")
 
+    @authors("lexolordan")
+    def test_cell_bundle_use_permission(self):
+        create_tablet_cell_bundle("b")
+        sync_create_cells(1, tablet_cell_bundle="b")
+        create_user('u')
+        set("//sys/tablet_cell_bundles/b/@acl/end", make_ace("allow", "u", "use"))
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="b", authenticated_user="u")
+        set("//tmp/t/@acl/end", make_ace("allow", "u", "mount"))
+        sync_mount_table("//tmp/t", authenticated_user="u")
+
+        set("//sys/tablet_cell_bundles/b/@acl", [make_ace("deny", "u", "use")])
+        with pytest.raises(YtError): sync_unmount_table("//tmp/t", authenticated_user="u")
+        with pytest.raises(YtError): sync_freeze_table("//tmp/t", authenticated_user="u")
+        with pytest.raises(YtError): sync_unfreeze_table("//tmp/t", authenticated_user="u")
+        with pytest.raises(YtError): remount_table("//tmp/t", authenticated_user="u")
+
+        set("//sys/tablet_cell_bundles/b/@acl", [make_ace("allow", "u", "use")])
+        sync_freeze_table("//tmp/t", authenticated_user="u")
+        sync_unfreeze_table("//tmp/t", authenticated_user="u")
+        remount_table("//tmp/t", authenticated_user="u")
+        sync_unmount_table("//tmp/t", authenticated_user="u")
+
     @authors("savrus")
     def test_mount_permission_allowed_by_ancestor(self):
         sync_create_cells(1)
@@ -1213,11 +1235,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             assert read_table("//tmp/t{value}") == [{"value": 1}]
             assert read_table("//tmp/t{key,value}") == [{"key": 0, "value": 1}]
             assert read_table("//tmp/t") == [{"key": 0, "value": 1}]
-            if is_dynamic_sorted:
-                with pytest.raises(YtError):
-                    read_table("//tmp/t{zzzzz}")
-            else:
-                assert read_table("//tmp/t{zzzzz}") == [{}]
+            assert read_table("//tmp/t{zzzzz}") == [{}]
 
         write_table("//tmp/t", [{"key": 0, "value": 1}])
         check_reads(False)

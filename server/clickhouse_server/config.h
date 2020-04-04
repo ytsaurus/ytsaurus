@@ -155,14 +155,23 @@ class THealthCheckerConfig
 {
 public:
     TDuration Period;
+    TDuration Timeout;
     std::vector<TString> Queries;
 
     THealthCheckerConfig()
     {
         RegisterParameter("period", Period)
             .Default(TDuration::Minutes(1));
+        RegisterParameter("timeout", Timeout)
+            .Default();
         RegisterParameter("queries", Queries)
             .Default();
+
+        RegisterPostprocessor([&] {
+            if (Timeout == TDuration::Zero()) {
+                Timeout = Period / std::max<double>(1.0, Queries.size()) * 0.95;
+            }
+        });
     }
 };
 
@@ -425,6 +434,12 @@ public:
 
     std::optional<int> CpuLimit;
 
+    //! Total amount of memory available for chunk readers.
+    i64 TotalReaderMemoryLimit;
+
+    //! Initial memory reservation for reader.
+    i64 ReaderMemoryRequirement;
+
     TClickHouseServerBootstrapConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
@@ -477,6 +492,11 @@ public:
 
         RegisterParameter("cpu_limit", CpuLimit)
             .Default();
+
+        RegisterParameter("total_reader_memory_limit", TotalReaderMemoryLimit)
+            .Default(20_GB);
+        RegisterParameter("reader_memory_requirement", ReaderMemoryRequirement)
+            .Default(500_MB);
 
         RegisterPreprocessor([&] {
             PermissionCache->ExpireAfterAccessTime = TDuration::Minutes(2);

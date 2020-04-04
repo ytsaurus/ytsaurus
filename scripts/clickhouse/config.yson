@@ -1,0 +1,52 @@
+{
+    "user" = "yt-clickhouse";
+    "logging" = {
+        "writers" = {
+            "stderr" = {
+                "type" = "stderr";
+            };
+            "debug" = {
+                "file_name" = "./clickhouse-0.debug.log";
+                "type" = "file";
+            };
+            "info" = {
+                "file_name" = "./clickhouse-0.log";
+                "type" = "file";
+            };
+        };
+        "rules" = [
+            {
+                "min_level" = "trace";
+                "writers" = [
+                    "debug";
+                ];
+            };
+            {
+                "min_level" = "info";
+                "writers" = [
+                    "info";
+                ];
+            };
+            {
+                "min_level" = "error";
+                "writers" = [
+                    "stderr";
+                ];
+            };
+        ];
+    };
+    "validate_operation_permission" = %false;
+    "address_resolver" = {
+        "localhost_fqdn" = "localhost";
+    };
+    "addresses" = [
+        [
+            "interconnect";
+            "localhost";
+        ];
+        [
+            "default";
+            "localhost";
+        ];
+    ];
+}
