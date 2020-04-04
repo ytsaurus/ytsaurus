@@ -10,10 +10,10 @@ class TReaderFactory
 public:
     TReaderFactory(
         std::function<IReaderBasePtr()> factory,
-        i64 memoryFootprint,
+        std::function<bool()> canCreateReader,
         const TDataSliceDescriptor& dataSliceDescriptor)
         : Factory_(factory)
-        , MemoryFootprint_(memoryFootprint)
+        , CanCreateReader_(canCreateReader)
         , DataSliceDescriptor_(dataSliceDescriptor)
     { }
 
@@ -22,9 +22,9 @@ public:
         return Factory_();
     }
 
-    virtual i64 GetMemoryFootprint() const override
+    virtual bool CanCreateReader() const override
     {
-        return MemoryFootprint_;
+        return CanCreateReader_();
     }
 
     virtual const TDataSliceDescriptor& GetDataSliceDescriptor() const override
@@ -34,7 +34,7 @@ public:
 
 private:
     const std::function<IReaderBasePtr()> Factory_;
-    const i64 MemoryFootprint_;
+    const std::function<bool()> CanCreateReader_;
     const TDataSliceDescriptor DataSliceDescriptor_;
 };
 
@@ -42,10 +42,10 @@ private:
 
 IReaderFactoryPtr CreateReaderFactory(
     std::function<IReaderBasePtr()> factory,
-    i64 memoryFootprint,
+    std::function<bool()> canCreateReader,
     const TDataSliceDescriptor& dataSliceDescriptor)
 {
-    return New<TReaderFactory>(factory, memoryFootprint, dataSliceDescriptor);
+    return New<TReaderFactory>(factory, canCreateReader, dataSliceDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

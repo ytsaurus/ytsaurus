@@ -1501,3 +1501,49 @@ class TestAsyncControllerActions(YTEnvSetup):
             pass
 
         op.track()
+
+class TestControllerAgentPrerequisiteTxError(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 2  # snapshot upload replication factor is 2; unable to configure
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "controller_agent_tracker": {
+                "incarnation_transaction_ping_period": 10000,
+                "incarnation_transaction_timeout": 30000,
+            }
+        }
+    }
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10000,
+        },
+    }
+
+    def _abort_controller_agent_incarnation_transaction(self):
+        incarnation_tx = None
+        for tx in ls("//sys/transactions", attributes=["title"]):
+            title = tx.attributes.get("title", "")
+            id = str(tx)
+            if "Controller agent incarnation" in title:
+                incarnation_tx = id
+        assert incarnation_tx is not None
+
+        abort_transaction(incarnation_tx)
+
+    @authors("ignat")
+    def test_incarnation_transaction_abort(self):
+        create("table", "//tmp/test_input")
+        create("table", "//tmp/test_output")
+        write_table("//tmp/test_output", [{"a": "b"}])
+        op = map(
+            track=False,
+            command="sleep 1",
+            in_="//tmp/test_input",
+            out="//tmp/test_output",
+            spec={"testing": {"delay_inside_initialize": 5000}})
+        # This sleep is intentional, it is usually enough to enter initialization, but test still should be correct if it does not happen.
+        time.sleep(3)
+        self._abort_controller_agent_incarnation_transaction()
+        op.track()

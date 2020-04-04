@@ -215,6 +215,12 @@ private:
                 return;
             }
 
+            if (userName == Bootstrap_->GetConfig()->User) {
+                YT_LOG_DEBUG("Username is %Qv which is default user from config, allowing this user to register",
+                    userName);
+                return;
+            }
+
             if (!CurrentAcl_) {
                 YT_LOG_DEBUG("No operation ACL available, allowing access to user (User: %v)", userName);
                 return;

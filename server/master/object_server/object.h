@@ -190,6 +190,9 @@ public:
     //! Clears the collection of attributes associated with the object.
     void ClearAttributes();
 
+    //! Returns a pointer to the value of the attribute or |nullptr| if it is not set.
+    const NYson::TYsonString* FindAttribute(const TString& key) const;
+
     //! Returns the relative complexity of object destruction.
     //! This value must always be positive. The default is 10.
     virtual int GetGCWeight() const;

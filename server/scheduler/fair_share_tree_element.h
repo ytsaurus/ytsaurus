@@ -77,7 +77,7 @@ struct TSchedulableAttributes
         return MaxComponent(AdjustedMinShare);
     }
 
-    double GetRecursiveMinShareRatio() const
+    double GetMinShareRatio() const
     {
         return MaxComponent(RecursiveMinShare);
     }
@@ -338,7 +338,6 @@ public:
     virtual std::optional<double> GetSpecifiedWeight() const = 0;
     virtual double GetWeight() const;
 
-    virtual double GetMinShareRatio() const = 0;
     virtual TJobResources GetMinShareResources() const = 0;
 
     virtual TResourceVector GetMaxShare() const = 0;
@@ -672,7 +671,6 @@ public:
     virtual TString GetId() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual double GetMinShareRatio() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual TResourceVector GetMaxShare() const override;
 
@@ -941,7 +939,6 @@ public:
     virtual bool IsAggressiveStarvationPreemptionAllowed() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual double GetMinShareRatio() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual TResourceVector GetMaxShare() const override;
 
@@ -1102,7 +1099,6 @@ public:
     virtual TString GetId() const override;
 
     virtual std::optional<double> GetSpecifiedWeight() const override;
-    virtual double GetMinShareRatio() const override;
     virtual TJobResources GetMinShareResources() const override;
     virtual TResourceVector GetMaxShare() const override;
 

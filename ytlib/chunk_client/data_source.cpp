@@ -23,6 +23,7 @@ TDataSource::TDataSource(
     const std::optional<std::vector<TString>>& columns,
     const std::vector<TString>& omittedInaccessibleColumns,
     TTimestamp timestamp,
+    TTimestamp retentionTimestamp,
     const TColumnRenameDescriptors& columnRenameDescriptors)
     : Type_(type)
     , Path_(path)
@@ -30,6 +31,7 @@ TDataSource::TDataSource(
     , Columns_(columns)
     , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
     , Timestamp_(timestamp)
+    , RetentionTimestamp_(retentionTimestamp)
     , ColumnRenameDescriptors_(columnRenameDescriptors)
 { }
 
@@ -67,8 +69,12 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
         protoDataSource->set_path(*dataSource.GetPath());
     }
 
-    if (dataSource.GetTimestamp()) {
+    if (dataSource.GetTimestamp() != NullTimestamp) {
         protoDataSource->set_timestamp(dataSource.GetTimestamp());
+    }
+
+    if (dataSource.GetRetentionTimestamp() != NullTimestamp) {
+        protoDataSource->set_retention_timestamp(dataSource.GetRetentionTimestamp());
     }
 
     protoDataSource->set_foreign(dataSource.GetForeign());
@@ -123,6 +129,10 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
         dataSource->SetTimestamp(protoDataSource.timestamp());
     }
 
+    if (protoDataSource.has_retention_timestamp()) {
+        dataSource->SetRetentionTimestamp(protoDataSource.retention_timestamp());
+    }
+
     dataSource->SetForeign(protoDataSource.foreign());
 
     dataSource->ColumnRenameDescriptors() = FromProto<TColumnRenameDescriptors>(protoDataSource.column_rename_descriptors());
@@ -134,6 +144,7 @@ TDataSource MakeVersionedDataSource(
     const std::optional<std::vector<TString>>& columns,
     const std::vector<TString>& omittedInaccessibleColumns,
     NTransactionClient::TTimestamp timestamp,
+    NTransactionClient::TTimestamp retentionTimestamp,
     const TColumnRenameDescriptors& columnRenameDescriptors)
 {
     return TDataSource(
@@ -143,6 +154,7 @@ TDataSource MakeVersionedDataSource(
         columns,
         omittedInaccessibleColumns,
         timestamp,
+        retentionTimestamp,
         columnRenameDescriptors);
 }
 
@@ -160,6 +172,7 @@ TDataSource MakeUnversionedDataSource(
         columns,
         omittedInaccessibleColumns,
         NullTimestamp,
+        NullTimestamp,
         columnRenameDescriptors);
 }
 
@@ -171,6 +184,7 @@ TDataSource MakeFileDataSource(const std::optional<TYPath>& path)
         std::nullopt,
         std::nullopt,
         {},
+        NullTimestamp,
         NullTimestamp,
         {});
 }

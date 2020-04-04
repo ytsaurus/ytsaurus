@@ -32,10 +32,18 @@
 
 #include <yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <yt/ytlib/object_client/object_service_proxy.h>
+
 #include <yt/client/api/client.h>
 #include <yt/client/api/client_cache.h>
 
 #include <yt/client/misc/discovery.h>
+
+#include <yt/client/object_client/public.h>
+
+#include <yt/client/node_tracker_client/public.h>
 
 #include <yt/core/bus/tcp/server.h>
 #include <yt/core/misc/crash_handler.h>
@@ -60,11 +68,14 @@
 
 #include <yt/core/rpc/bus/server.h>
 
+#include <yt/core/net/local_address.h>
+
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/virtual.h>
 #include <yt/core/ytree/ypath_client.h>
 
 #include <util/datetime/base.h>
+#include <util/system/env.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -96,6 +107,54 @@ void WriteCurrentQueryIdToStderr()
     const auto& queryId = DB::CurrentThread::getQueryId();
     WriteToStderr(queryId.data, queryId.size);
     WriteToStderr(" ***\n");
+}
+
+auto CreateNodeRequest(const TString& path, NObjectClient::EObjectType nodeType)
+{
+    auto request = NCypressClient::TCypressYPathProxy::Create(path);
+    request->set_force(true);
+    request->set_recursive(true);
+    request->set_type(static_cast<int>(nodeType));
+    GenerateMutationId(request);
+    return request;
+}
+
+void InitOrchidNode(
+    const TString& cypressRootPath,
+    const TString& cliqueId,
+    ui16 port,
+    const NApi::NNative::IClientPtr& masterClient)
+{
+    const auto& localHostName = NNet::GetLocalHostName();
+    const auto& jobCookie = GetEnv("YT_JOB_COOKIE");
+
+    NObjectClient::TObjectServiceProxy proxy(masterClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
+
+    NNodeTrackerClient::TAddressMap rpcOrchidAddressMap;
+    rpcOrchidAddressMap["default"] = NNet::GetLocalHostName() + ":" + std::to_string(port);
+
+    auto orchidNodePath = cypressRootPath + "/orchids/" + cliqueId + "/" + jobCookie;
+
+    auto orchidNodeCreateRequest = CreateNodeRequest(orchidNodePath, NObjectClient::EObjectType::Orchid);
+
+    auto attributes = CreateEphemeralAttributes();
+    attributes->Set("remote_addresses", rpcOrchidAddressMap);
+    ToProto(orchidNodeCreateRequest->mutable_node_attributes(), *attributes);
+
+    auto batchRequest = proxy.ExecuteBatch();
+    batchRequest = proxy.ExecuteBatch();
+    batchRequest->AddRequest(orchidNodeCreateRequest);
+
+    auto batchResponseOrError = WaitFor(batchRequest->Invoke());
+
+    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchResponseOrError), "Error initializing orchid node %v", orchidNodePath);
+
+    YT_LOG_INFO("Initialized orchid node (LocalHostName: %v, Port: %v, CliqueId: %v, JobCookie: %v, OrchidNodePath: %v)",
+        localHostName,
+        port,
+        cliqueId,
+        jobCookie,
+        orchidNodePath);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -151,6 +210,7 @@ void TBootstrap::DoRun()
     NYTAlloc::SetEnableEagerMemoryRelease(true);
 
     Config_->MonitoringServer->Port = MonitoringPort_;
+    Config_->MonitoringServer->ServerName = "monitoring";
     HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
     NYTree::IMapNodePtr orchidRoot;
@@ -249,6 +309,9 @@ void TBootstrap::DoRun()
         YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
         RpcServer_->Start();
     }
+
+
+    NDetail::InitOrchidNode(Config_->Engine->CypressRootPath, CliqueId_, RpcPort_, RootClient_);
 
     Host_->Start();
 

@@ -9,6 +9,7 @@
 
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
+#include <DataTypes/DataTypeNothing.h>
 
 #include <Columns/ColumnNullable.h>
 #include <Columns/ColumnsNumber.h>
@@ -88,6 +89,18 @@ DB::Block ConvertRowsToBlock(
     return block;
 }
 
+// Analog of the method from MergeTreeBaseSelectBlockInputStream::executePrewhereActions from CH.
+void ExecutePrewhereActions(DB::Block& block, const DB::PrewhereInfoPtr& prewhereInfo)
+{
+    if (prewhereInfo->alias_actions) {
+        prewhereInfo->alias_actions->execute(block);
+    }
+    prewhereInfo->prewhere_actions->execute(block);
+    if (!block) {
+        block.insert({nullptr, std::make_shared<DB::DataTypeNothing>(), "_nothing"});
+    }
+}
+
 DB::Block FilterRowsByPrewhereInfo(
     DB::Block&& blockToFilter,
     std::vector<TUnversionedRow>&& rowsToFilter,
@@ -98,9 +111,8 @@ DB::Block FilterRowsByPrewhereInfo(
     const DB::Block& headerBlock,
     IInvokerPtr invoker)
 {
-    prewhereInfo->remove_prewhere_column = false;
-    DB::MergeTreeBaseSelectBlockInputStream::executePrewhereActions(
-        blockToFilter, prewhereInfo);
+    // Create prewhere column for filtering.
+    ExecutePrewhereActions(blockToFilter, prewhereInfo);
     const auto& prewhereColumn = blockToFilter.getByName(prewhereInfo->prewhere_column_name).column;
 
     std::vector<TUnversionedRow> filteredRows;
@@ -110,7 +122,7 @@ DB::Block FilterRowsByPrewhereInfo(
         }
     }
 
-    return WaitFor(BIND(
+    auto filteredBlock = WaitFor(BIND(
         &NDetail::ConvertRowsToBlock,
         filteredRows,
         schema,
@@ -120,6 +132,11 @@ DB::Block FilterRowsByPrewhereInfo(
         .AsyncVia(invoker)
         .Run())
         .ValueOrThrow();
+
+    // Execute prewhere actions for filtered block.
+    ExecutePrewhereActions(filteredBlock, prewhereInfo);
+
+    return filteredBlock;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,26 +171,37 @@ public:
 
     virtual DB::Block getHeader() const override
     {
-        return HeaderBlock_;
+        return OutputHeaderBlock_;
     }
 
     virtual void readPrefixImpl() override
     {
+        TTraceContextGuard guard(TraceContext_);
+        TraceContext_ = GetCurrentTraceContext();
         YT_LOG_DEBUG("readPrefixImpl() is called");
     }
 
     virtual void readSuffixImpl() override
     {
+        TTraceContextGuard guard(TraceContext_);
         YT_LOG_DEBUG("readSuffixImpl() is called");
+
+        if (TraceContext_) {
+            NTracing::GetCurrentTraceContext()->AddTag("chyt.reader.data_statistics", ToString(Reader_->GetDataStatistics()));
+            NTracing::GetCurrentTraceContext()->AddTag("chyt.reader.codec_statistics", ToString(Reader_->GetDecompressionStatistics()));
+            TraceContext_->Finish();
+        }
     }
 
 private:
     ISchemalessReaderPtr Reader_;
     TTableSchema ReadSchema_;
     TTraceContextPtr TraceContext_;
+
     TBootstrap* Bootstrap_;
     TLogger Logger;
-    DB::Block HeaderBlock_;
+    DB::Block InputHeaderBlock_;
+    DB::Block OutputHeaderBlock_;
     std::vector<int> IdToColumnIndex_;
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
     DB::PrewhereInfoPtr PrewhereInfo_;
@@ -214,7 +242,7 @@ private:
                 ReadSchema_,
                 IdToColumnIndex_,
                 RowBuffer_,
-                HeaderBlock_.cloneEmpty())
+                InputHeaderBlock_.cloneEmpty())
                 .AsyncVia(Bootstrap_->GetWorkerInvoker())
                 .Run())
                 .ValueOrThrow();
@@ -227,7 +255,7 @@ private:
                     ReadSchema_,
                     IdToColumnIndex_,
                     RowBuffer_,
-                    HeaderBlock_,
+                    InputHeaderBlock_,
                     Bootstrap_->GetWorkerInvoker());
             }
 
@@ -243,7 +271,12 @@ private:
 
     void Prepare()
     {
-        HeaderBlock_ = ToHeaderBlock(ReadSchema_);
+        InputHeaderBlock_ = ToHeaderBlock(ReadSchema_);
+        OutputHeaderBlock_ = ToHeaderBlock(ReadSchema_);
+        if (PrewhereInfo_) {
+            // Create header with executed prewhere actions.
+            NDetail::ExecutePrewhereActions(OutputHeaderBlock_, PrewhereInfo_);
+        }
 
         for (int index = 0; index < static_cast<int>(ReadSchema_.Columns().size()); ++index) {
             const auto& columnSchema = ReadSchema_.Columns()[index];

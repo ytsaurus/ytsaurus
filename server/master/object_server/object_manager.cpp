@@ -1721,7 +1721,17 @@ void TObjectManager::TImpl::HydraUnrefExportedObjects(NProto::TReqUnrefExportedO
         auto objectId = FromProto<TObjectId>(entry.object_id());
         auto importRefCounter = entry.import_ref_counter();
 
-        auto* object = GetObject(objectId);
+        auto* object = FindObject(objectId);
+
+        if (!IsObjectAlive(object)) {
+            YT_LOG_ALERT_UNLESS(IsRecovery(),
+                "Requested to unexport non-existing object (ObjectId: %v, ImportRefCounter: %v, CellTag: %v)",
+                objectId,
+                importRefCounter,
+                cellTag);
+            continue;
+        }
+
         UnrefObject(object, importRefCounter);
 
         const auto& handler = GetHandler(object);

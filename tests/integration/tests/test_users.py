@@ -352,6 +352,22 @@ class TestUsers(YTEnvSetup):
         add_member("u2", "g")
         assert sorted(get("//sys/users/u2/@usable_network_projects")) == ["a"]
 
+    @authors("ifsmirnov")
+    def test_create_non_external_table(self):
+        create("table", "//tmp/t1", attributes={"external": False})
+
+        create_user("u")
+        with pytest.raises(YtError):
+            create("table", "//tmp/t2", attributes={"external": False}, authenticated_user="u")
+
+        set("//sys/users/u/@allow_external_false", True)
+        create("table", "//tmp/t3", attributes={"external": False}, authenticated_user="u")
+
+        set("//sys/users/u/@allow_external_false", False)
+        with pytest.raises(YtError):
+            create("table", "//tmp/t4", attributes={"external": False}, authenticated_user="u")
+
+
 class TestBuiltinTabletSystemUsers(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
@@ -410,6 +426,7 @@ class TestBuiltinTabletSystemUsers(YTEnvSetup):
 
         insert_rows("//tmp/t", [{"key": 2, "value": 2}])
         _check_rows(3)
+
 
 ##################################################################
 

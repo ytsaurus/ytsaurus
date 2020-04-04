@@ -305,6 +305,7 @@ public:
             Any(handler->GetFlags() & ETypeFlags::Externalizable) &&
             (multicellManager->IsPrimaryMaster() || Shard_ && Shard_->GetRoot() && Shard_->GetRoot()->GetType() == EObjectType::PortalExit) &&
             !multicellManager->GetRegisteredMasterCellTags().empty();
+        ValidateCreateNonExternalNode(explicitAttributes);
         bool external = explicitAttributes->GetAndRemove<bool>("external", defaultExternal);
 
         double externalCellBias = explicitAttributes->GetAndRemove<double>("external_cell_bias", 1.0);
@@ -579,6 +580,32 @@ private:
             objectManager->UnrefObject(object);
         }
         StagedObjects_.clear();
+    }
+
+    void ValidateCreateNonExternalNode(IAttributeDictionary* explicitAttributes) const
+    {
+        auto explicitExternal = explicitAttributes->Find<bool>("external");
+        if (!explicitExternal || explicitExternal.value()) {
+            return;
+        }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto* user = securityManager->GetAuthenticatedUser();
+
+        if (user->RecursiveMemberOf().contains(securityManager->GetSuperusersGroup())) {
+            return;
+        }
+
+        auto* attribute  = user->FindAttribute("allow_external_false");
+        if (attribute && ConvertTo<bool>(*attribute)) {
+            return;
+        }
+
+        THROW_ERROR_EXCEPTION(
+            "User %Qv is not allowed to create explicitly non-external nodes. "
+            "Check for `external=%%false' in object attributes and do not specify "
+            "this attribute",
+            user->GetName());
     }
 };
 

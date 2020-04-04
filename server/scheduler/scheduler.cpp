@@ -894,12 +894,14 @@ public:
             }
         }
 
+        // TODO(escherbin): move this check to some helper and add tests.
         auto state = operation->GetState();
         if (state == EOperationState::Materializing ||
             state == EOperationState::Reviving ||
             state == EOperationState::RevivingJobs)
         {
-            THROW_ERROR_EXCEPTION("Operation runtime parameters update is forbidden during the operation's materialization and revival");
+            THROW_ERROR_EXCEPTION("Operation runtime parameters update is forbidden while "
+                                  "operation is in materializing or reviving state");
         }
 
         auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
@@ -2549,7 +2551,7 @@ private:
 
         auto operationId = operation->GetId();
 
-        ValidateOperationState(operation, EOperationState::Reviving);
+        ValidateOperationState(operation, EOperationState::ReviveInitializing);
 
         YT_LOG_INFO("Reviving operation (OperationId: %v)",
             operationId);
@@ -2569,12 +2571,12 @@ private:
                 operation->BriefSpecString() = BuildBriefSpec(operation);
             }
 
-            ValidateOperationState(operation, EOperationState::Reviving);
+            ValidateOperationState(operation, EOperationState::ReviveInitializing);
 
             WaitFor(MasterConnector_->UpdateInitializedOperationNode(operation))
                 .ThrowOnError();
 
-            ValidateOperationState(operation, EOperationState::Reviving);
+            operation->SetStateAndEnqueueEvent(EOperationState::Reviving);
 
             {
                 auto result = WaitFor(controller->Revive())
@@ -3109,10 +3111,10 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto state = operation->GetState();
-        if (IsOperationFinished(state) ||
-            state == EOperationState::Failing ||
-            state == EOperationState::Aborting)
+        auto initialState = operation->GetState();
+        if (IsOperationFinished(initialState) ||
+            initialState == EOperationState::Failing ||
+            initialState == EOperationState::Aborting)
         {
             // Safe to call multiple times, just ignore it.
             return;
@@ -3124,7 +3126,7 @@ private:
         AbortOperationJobs(
             operation,
             TError("Operation terminated")
-                << TErrorAttribute("state", state)
+                << TErrorAttribute("state", initialState)
                 << error,
             /* terminated */ true);
 
@@ -3161,14 +3163,24 @@ private:
             }
         }
 
-        if (!operation->FindAgent() && operation->Transactions()) {
+        bool owningTransactions =
+            initialState == EOperationState::WaitingForAgent ||
+            initialState == EOperationState::Orphaned ||
+            initialState == EOperationState::Initializing ||
+            initialState == EOperationState::ReviveInitializing;
+        if (owningTransactions && operation->Transactions()) {
             std::vector<TFuture<void>> asyncResults;
             auto scheduleAbort = [&] (const ITransactionPtr& transaction, TString transactionType) {
                 if (transaction) {
-                    YT_LOG_DEBUG("Aborting transaction %v (Type: %v)", transaction->GetId(), transactionType);
+                    YT_LOG_DEBUG("Aborting transaction %v (Type: %v, OperationId: %v)",
+                        transaction->GetId(),
+                        transactionType,
+                        operation->GetId());
                     asyncResults.push_back(transaction->Abort());
                 } else {
-                    YT_LOG_DEBUG("Transaction missed, skipping abort (Type: %v)", transactionType);
+                    YT_LOG_DEBUG("Transaction missed, skipping abort (Type: %v, OperationId: %v)",
+                        transactionType,
+                        operation->GetId());
                 }
             };
 
@@ -3185,8 +3197,14 @@ private:
                 WaitFor(Combine(asyncResults))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
-                YT_LOG_DEBUG(ex, "Failed to abort transactions of orphaned operation (OperationId: %v)", operation->GetId());
+                YT_LOG_DEBUG(ex, "Failed to abort transactions of orphaned operation (OperationId: %v)",
+                    operation->GetId());
             }
+        } else {
+            YT_LOG_DEBUG("Skipping transactions abort (OperationId: %v, InitialState: %v, HasTransaction: %v)",
+                operation->GetId(),
+                initialState,
+                static_cast<bool>(operation->Transactions()));
         }
 
         SetOperationFinalState(operation, finalState, error);
@@ -3269,19 +3287,22 @@ private:
         YT_LOG_INFO(error, "Aborting operation without revival (OperationId: %v)",
              operation->GetId());
 
-        auto abortTransaction = [&] (ITransactionPtr transaction) {
+        auto abortTransaction = [&] (ITransactionPtr transaction, const TString& type) {
             if (transaction) {
+                YT_LOG_DEBUG("Aborting transaction %v (Type: %v, OperationId: %v)", transaction->GetId(), type, operation->GetId());
                 // Fire-and-forget.
                 transaction->Abort();
+            } else {
+                YT_LOG_DEBUG("Transaction is missing, skipping abort (Type: %v, OperationId: %v)", type, operation->GetId());
             }
         };
 
         const auto& transactions = *operation->Transactions();
-        abortTransaction(transactions.AsyncTransaction);
-        abortTransaction(transactions.InputTransaction);
-        abortTransaction(transactions.OutputTransaction);
+        abortTransaction(transactions.AsyncTransaction, "Async");
+        abortTransaction(transactions.InputTransaction, "Input");
+        abortTransaction(transactions.OutputTransaction, "Output");
         for (const auto& transaction : transactions.NestedInputTransactions) {
-            abortTransaction(transaction);
+            abortTransaction(transaction, "NestedInput");
         }
 
         SetOperationFinalState(operation, EOperationState::Aborted, error);
@@ -3494,7 +3515,7 @@ private:
         };
 
         if (operation->RevivalDescriptor()) {
-            operation->SetStateAndEnqueueEvent(EOperationState::Reviving, eventAttributes);
+            operation->SetStateAndEnqueueEvent(EOperationState::ReviveInitializing, eventAttributes);
             operation->GetCancelableControlInvoker()->Invoke(
                 BIND(&TImpl::DoReviveOperation, MakeStrong(this), operation));
         } else {

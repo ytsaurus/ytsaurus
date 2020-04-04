@@ -79,14 +79,15 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
 
     @authors("ignat")
     def test_scheduler_guaranteed_resources_ratio(self):
-        create_pool("big_pool", attributes={"min_share_ratio": 1.0})
+        total_resource_limits = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
+
+        create_pool("big_pool", attributes={"min_share_resources": {"cpu": total_resource_limits["cpu"]}})
         create_pool("subpool_1", parent_name="big_pool", attributes={"weight": 1.0})
         create_pool("subpool_2", parent_name="big_pool", attributes={"weight": 3.0})
         create_pool("small_pool", attributes={"weight": 100.0})
         create_pool("subpool_3", parent_name="small_pool")
         create_pool("subpool_4", parent_name="small_pool")
 
-        total_resource_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
 
         # Wait for fair share update.
         time.sleep(1)
@@ -100,7 +101,7 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
             get("{0}/{1}/guaranteed_resources_ratio".format(pools_orchid, pool))
 
         assert are_almost_equal(get_pool_guaranteed_resources_ratio("big_pool"), 1.0)
-        assert get_pool_guaranteed_resources("big_pool") == total_resource_limit
+        assert get_pool_guaranteed_resources("big_pool") == total_resource_limits
 
         assert are_almost_equal(get_pool_guaranteed_resources_ratio("small_pool"), 0)
         assert are_almost_equal(get_pool_guaranteed_resources_ratio("subpool_3"), 0)
@@ -286,23 +287,6 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
         op1.track()
         op2.track()
         op3.track()
-
-    @authors("renadeen", "ignat")
-    def test_recursive_fair_share_when_lack_of_resources(self):
-        create_pool("parent_pool", attributes={"min_share_ratio": 0.1})
-        create_pool("subpool1", parent_name="parent_pool", attributes={"min_share_ratio": 1})
-        create_pool("subpool2", parent_name="parent_pool", attributes={"min_share_ratio": 1})
-
-        def check():
-            ratio_path = scheduler_orchid_default_pool_tree_path() + "/pools/{0}/recursive_min_share_ratio"
-            try:
-                return \
-                    get(ratio_path.format("subpool1")) == 0.05 and \
-                    get(ratio_path.format("subpool2")) == 0.05
-            except:
-                return False
-
-        wait(check)
 
     @authors("renadeen", "ignat")
     def test_fractional_cpu_usage(self):
@@ -938,7 +922,8 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         assert get(pools_path + "/fake_pool/fair_share_ratio") >= 0.999
         assert get(pools_path + "/fake_pool/usage_ratio") >= 0.999
 
-        create_pool("test_pool", attributes={"min_share_ratio": 1.0})
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
+        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
         op2 = map(track=False, command="cat", in_=["//tmp/t_in"], out="//tmp/t_out2", spec={"pool": "test_pool"})
         enable_op_detailed_logs(op2)
         op2.track()
@@ -990,7 +975,8 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         assert get(pools_path + "/fake_pool/fair_share_ratio") >= 0.999
         assert get(pools_path + "/fake_pool/usage_ratio") >= 0.999
 
-        create_pool("test_pool", attributes={"min_share_ratio": 1.0})
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
+        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
 
         # Ensure that all three jobs have started.
         events_on_fs().wait_breakpoint(timeout=datetime.timedelta(1000), job_count=3)
@@ -1063,68 +1049,31 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_min_share_ratio(self):
-        create_pool("test_min_share_ratio_pool", attributes={"min_share_ratio": 1.0})
-
-        create("table", "//tmp/t_in")
-        for i in xrange(3):
-            write_table("<append=true>//tmp/t_in", {"foo": "bar"})
-
-        create("table", "//tmp/t_out")
+        create_pool("test_min_share_ratio_pool", attributes={"min_share_resources": {"cpu": 3}})
 
         get_operation_min_share_ratio = lambda op_id: \
             get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/adjusted_min_share_ratio".format(op_id))
 
         min_share_settings = [
-            {"min_share_ratio": 0.5},
-            {"min_share_resources": {"cpu": 3}},
-            {"min_share_resources": {"cpu": 1, "user_slots": 3}},
-            {"min_share_ratio": 0.5, "min_share_resources": {"cpu": 3}},
+            {"cpu": 3},
+            {"cpu": 1, "user_slots": 3}
         ]
 
-        total_resource_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
-
-        def compute_min_share_ratio(spec):
-            min_share_ratio = spec.get("min_share_ratio", 0.0)
-            if "min_share_resources" in spec:
-                for resource, value in spec["min_share_resources"].iteritems():
-                    min_share_ratio = max(min_share_ratio, value * 1.0 / total_resource_limit[resource])
-            return min_share_ratio
-
         for min_share_spec in min_share_settings:
-            spec = {"job_count": 3, "pool": "test_min_share_ratio_pool"}
-            spec.update(min_share_spec)
             reset_events_on_fs()
-            op = map(
-                track=False,
-                command=with_breakpoint("cat ; BREAKPOINT"),
-                in_=["//tmp/t_in"],
-                out="//tmp/t_out",
-                spec=spec)
+            op = run_test_vanilla(
+                with_breakpoint("BREAKPOINT"),
+                spec={
+                    "pool": "test_min_share_ratio_pool",
+                    "min_share_resources": min_share_spec
+                },
+                job_count=3)
             wait_breakpoint()
 
-            wait(lambda: get_operation_min_share_ratio(op.id) == compute_min_share_ratio(min_share_spec))
+            wait(lambda: get_operation_min_share_ratio(op.id) == 1.0)
 
             release_breakpoint()
             op.track()
-
-    @authors("ignat")
-    def test_infer_weight_from_min_share(self):
-        create_pool_tree("custom_pool_tree", attributes={"infer_weight_from_min_share_ratio_multiplier": 10, "nodes_filter": "missing"})
-        create_pool("test_pool1", pool_tree="custom_pool_tree", attributes={"min_share_ratio": 0.3})
-        create_pool("test_pool2", pool_tree="custom_pool_tree", attributes={"min_share_ratio": 0.4})
-        create_pool("test_pool3", pool_tree="custom_pool_tree")
-        create_pool("subpool1", pool_tree="custom_pool_tree", parent_name="test_pool2", attributes={"min_share_ratio": 0.3})
-        create_pool("subpool2", pool_tree="custom_pool_tree", parent_name="test_pool2", attributes={"min_share_ratio": 0.4})
-
-        pools_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/custom_pool_tree/fair_share_info/pools"
-        wait(lambda: exists(pools_path + "/subpool2"))
-        get(pools_path)
-        wait(lambda: are_almost_equal(get(pools_path + "/test_pool1/weight"), 3.0))
-        wait(lambda: are_almost_equal(get(pools_path + "/test_pool2/weight"), 4.0))
-        wait(lambda: are_almost_equal(get(pools_path + "/test_pool3/weight"), 1.0))
-
-        wait(lambda: are_almost_equal(get(pools_path + "/subpool1/weight"), 3.0))
-        wait(lambda: are_almost_equal(get(pools_path + "/subpool2/weight"), 4.0))
 
     @authors("ignat")
     def test_recursive_preemption_settings(self):
@@ -1238,7 +1187,8 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
     @authors("mrkastep")
     def test_preemptor_event_log(self):
         set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
-        create_pool("pool1", attributes={"min_share_ratio": 1.0})
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
+        create_pool("pool1", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
 
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out0")
@@ -1287,6 +1237,39 @@ class TestSchedulerPreemptionVector(BaseTestSchedulerPreemption):
         BaseTestSchedulerPreemption.BASE_DELTA_SCHEDULER_CONFIG,
         {"use_classic_scheduler": True}
     )
+
+class TestInferWeightFromMinShare(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100
+        }
+    }
+
+    @authors("ignat")
+    def test_infer_weight_from_min_share(self):
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+        set("//sys/pool_trees/default/@infer_weight_from_min_share_ratio_multiplier", 10)
+
+        create_pool("test_pool1", pool_tree="default", attributes={"min_share_resources": {"cpu": 0.3*total_cpu_limit}})
+        create_pool("test_pool2", pool_tree="default", attributes={"min_share_resources": {"cpu": 0.4*total_cpu_limit}})
+        create_pool("test_pool3", pool_tree="default")
+        create_pool("subpool1", pool_tree="default", parent_name="test_pool2", attributes={"min_share_resources": {"cpu": 0.4*0.3*total_cpu_limit}})
+        create_pool("subpool2", pool_tree="default", parent_name="test_pool2", attributes={"min_share_resources": {"cpu": 0.4*0.4*total_cpu_limit}})
+
+        pools_path = scheduler_orchid_default_pool_tree_path() + "/pools"
+        wait(lambda: exists(pools_path + "/subpool2"))
+
+        wait(lambda: are_almost_equal(get(pools_path + "/test_pool1/weight"), 3.0))
+        wait(lambda: are_almost_equal(get(pools_path + "/test_pool2/weight"), 4.0))
+        wait(lambda: are_almost_equal(get(pools_path + "/test_pool3/weight"), 1.0))
+
+        wait(lambda: are_almost_equal(get(pools_path + "/subpool1/weight"), 3.0))
+        wait(lambda: are_almost_equal(get(pools_path + "/subpool2/weight"), 4.0))
+
 
 ##################################################################
 
@@ -2422,9 +2405,8 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
         assert suspicious
 
-    @authors("ignat")
-    @pytest.mark.xfail(reason="TODO(max42)")
-    def test_true_suspicious_jobs_old(self):
+    @authors("max42")
+    def DISABLED_test_true_suspicious_jobs_old(self):
         # This test involves dirty hack to make lots of retries for fetching feasible
         # seeds from master making the job suspicious (as it doesn't give the input for the
         # user job for a long time).

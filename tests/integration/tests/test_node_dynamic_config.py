@@ -142,7 +142,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
             alerts = get("//sys/cluster_nodes/{0}/@alerts".format(nodes[0]))
             return len(alerts) == 1 and alerts[0]["code"] == UnrecognizedDynamicConfigOption
         wait(check_alert)
-        assert len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0
+        wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0)
 
         assert self.get_dynamic_config_annotation(nodes[0]) == "boo"
         assert self.get_dynamic_config(nodes[0])["some_unrecognized_option"] == 42
@@ -182,7 +182,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
             alerts = get("//sys/cluster_nodes/{0}/@alerts".format(nodes[0]))
             return len(alerts) == 1 and alerts[0]["code"] == InvalidDynamicConfig
         wait(check_alert)
-        assert len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0
+        wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0)
 
         wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "foo")
         assert self.get_dynamic_config_annotation(nodes[0]) == "foo"
@@ -223,10 +223,10 @@ class TestNodeDynamicConfig(YTEnvSetup):
         wait(lambda: self.get_dynamic_config_annotation(nodes[2]) == "foo")
 
         wait(lambda: self.get_dynamic_config_annotation(nodes[0]) == "configA")
-        assert len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[0]))) == 0
+        wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[0]))) == 0)
 
         wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "configB")
-        assert len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0
+        wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0)
 
     @authors("gritukan")
     def test_boolean_formula(self):
@@ -249,13 +249,13 @@ class TestNodeDynamicConfig(YTEnvSetup):
         set("//sys/cluster_nodes/@config", config)
 
         wait(lambda: self.get_dynamic_config_annotation(nodes[0]) == "configA")
-        assert len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[0]))) == 0
+        wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[0]))) == 0)
 
         wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "configB")
-        assert len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0
+        wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0)
 
         wait(lambda: self.get_dynamic_config_annotation(nodes[2]) == "configC")
-        assert len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[2]))) == 0
+        wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[2]))) == 0)
 
     @authors("gritukan")
     def test_last_config_update_time(self):

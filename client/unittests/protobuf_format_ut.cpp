@@ -31,6 +31,7 @@ using namespace NYTree;
 using namespace NFormats;
 using namespace NTableClient;
 using namespace NConcurrency;
+using namespace NProtobufFormatTest;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -142,20 +143,24 @@ INodePtr CreateAllFieldsFileDescriptorConfig()
         .Value("protobuf");
 }
 
+static const auto EnumerationsConfig = BuildYsonNodeFluently()
+    .BeginMap()
+        .Item("EEnum")
+        .BeginMap()
+            .Item("One").Value(1)
+            .Item("Two").Value(2)
+            .Item("Three").Value(3)
+            .Item("MinusFortyTwo").Value(-42)
+            .Item("MaxInt32").Value(std::numeric_limits<int>::max())
+            .Item("MinInt32").Value(std::numeric_limits<int>::min())
+        .EndMap()
+    .EndMap();
+
 INodePtr CreateAllFieldsSchemaConfig()
 {
     return BuildYsonNodeFluently()
         .BeginAttributes()
-            .Item("enumerations")
-            .BeginMap()
-                .Item("EEnum")
-                .BeginMap()
-                    .Item("One").Value(1)
-                    .Item("Two").Value(2)
-                    .Item("Three").Value(3)
-                    .Item("MinusFortyTwo").Value(-42)
-                .EndMap()
-            .EndMap()
+            .Item("enumerations").Value(EnumerationsConfig)
             .Item("tables")
             .BeginList()
                 .Item()
@@ -524,6 +529,60 @@ TEST(TProtobufFormat, TestConfigParsing)
     EXPECT_THROW_WITH_SUBSTRING(
         ParseAndValidateConfig(configWithBytes, {schemaWithUtf8}),
         "mismatch: expected logical type to be one of");
+
+    auto configWithPackedNonRepeated = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("SomeColumn")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("int64")
+                            .Item("packed").Value(true)
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ParseAndValidateConfig(configWithPackedNonRepeated, {}),
+        "Field \"SomeColumn\" is marked \"packed\" but is not marked \"repeated\"");
+
+    auto configWithPackedRepeatedString = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("SomeColumn")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("string")
+                            .Item("packed").Value(true)
+                            .Item("repeated").Value(true)
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    auto schemaWithStringList = TTableSchema({
+        TColumnSchema("SomeColumn", ListLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::String)))
+    });
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ParseAndValidateConfig(configWithPackedRepeatedString, {schemaWithStringList}),
+        "Packed protobuf field \"SomeColumn\" must have primitive numeric type, got \"string\"");
 }
 
 TEST(TProtobufFormat, TestParseBigZigZag)
@@ -536,7 +595,7 @@ TEST(TProtobufFormat, TestParseBigZigZag)
         &rowCollector,
         ParseFormatConfigFromNode(CreateAllFieldsSchemaConfig()->Attributes().ToMap()),
         0);
-    NProtobufFormatTest::TMessage message;
+    TMessage message;
     message.set_int32_field(value);
     parser->Read(LenvalBytes(message));
     parser->Finish();
@@ -554,23 +613,23 @@ TEST(TProtobufFormat, TestParseEnumerationString)
         0);
 
     {
-        NProtobufFormatTest::TMessage message;
-        message.set_enum_field(NProtobufFormatTest::EEnum::one);
+        TMessage message;
+        message.set_enum_field(EEnum::one);
         parser->Read(LenvalBytes(message));
     }
     {
-        NProtobufFormatTest::TMessage message;
-        message.set_enum_field(NProtobufFormatTest::EEnum::two);
+        TMessage message;
+        message.set_enum_field(EEnum::two);
         parser->Read(LenvalBytes(message));
     }
     {
-        NProtobufFormatTest::TMessage message;
-        message.set_enum_field(NProtobufFormatTest::EEnum::three);
+        TMessage message;
+        message.set_enum_field(EEnum::three);
         parser->Read(LenvalBytes(message));
     }
     {
-        NProtobufFormatTest::TMessage message;
-        message.set_enum_field(NProtobufFormatTest::EEnum::minus_forty_two);
+        TMessage message;
+        message.set_enum_field(EEnum::minus_forty_two);
         parser->Read(LenvalBytes(message));
     }
 
@@ -591,8 +650,8 @@ TEST(TProtobufFormat, TestParseWrongEnumeration)
         ParseFormatConfigFromNode(CreateAllFieldsSchemaConfig()->Attributes().ToMap()),
         0);
 
-        NProtobufFormatTest::TMessage message;
-        auto enumTag = NProtobufFormatTest::TMessage::descriptor()->FindFieldByName("enum_field")->number();
+        TMessage message;
+        auto enumTag = TMessage::descriptor()->FindFieldByName("enum_field")->number();
         message.mutable_unknown_fields()->AddVarint(enumTag, 30);
 
     auto feedParser = [&] {
@@ -629,28 +688,28 @@ TEST(TProtobufFormat, TestParseEnumerationInt)
     auto parser = CreateParserForProtobuf(&rowCollector, ParseFormatConfigFromNode(config), 0);
 
     {
-        NProtobufFormatTest::TMessage message;
-        message.set_enum_field(NProtobufFormatTest::EEnum::one);
+        TMessage message;
+        message.set_enum_field(EEnum::one);
         parser->Read(LenvalBytes(message));
     }
     {
-        NProtobufFormatTest::TMessage message;
-        message.set_enum_field(NProtobufFormatTest::EEnum::two);
+        TMessage message;
+        message.set_enum_field(EEnum::two);
         parser->Read(LenvalBytes(message));
     }
     {
-        NProtobufFormatTest::TMessage message;
-        message.set_enum_field(NProtobufFormatTest::EEnum::three);
+        TMessage message;
+        message.set_enum_field(EEnum::three);
         parser->Read(LenvalBytes(message));
     }
     {
-        NProtobufFormatTest::TMessage message;
-        message.set_enum_field(NProtobufFormatTest::EEnum::minus_forty_two);
+        TMessage message;
+        message.set_enum_field(EEnum::minus_forty_two);
         parser->Read(LenvalBytes(message));
     }
     {
-        NProtobufFormatTest::TMessage message;
-        auto enumTag = NProtobufFormatTest::TMessage::descriptor()->FindFieldByName("enum_field")->number();
+        TMessage message;
+        auto enumTag = TMessage::descriptor()->FindFieldByName("enum_field")->number();
         message.mutable_unknown_fields()->AddVarint(enumTag, 100500);
         parser->Read(LenvalBytes(message));
     }
@@ -755,16 +814,16 @@ TEST(TProtobufFormat, TestWriteEnumerationString)
     {
         auto row = parser.Next();
         ASSERT_TRUE(row);
-        NYT::NProtobufFormatTest::TMessage message;
+        NYT::TMessage message;
         ASSERT_TRUE(message.ParseFromString(row->RowData));
-        ASSERT_EQ(message.enum_field(), NYT::NProtobufFormatTest::EEnum::minus_forty_two);
+        ASSERT_EQ(message.enum_field(), NYT::EEnum::minus_forty_two);
     }
     {
         auto row = parser.Next();
         ASSERT_TRUE(row);
-        NYT::NProtobufFormatTest::TMessage message;
+        NYT::TMessage message;
         ASSERT_TRUE(message.ParseFromString(row->RowData));
-        ASSERT_EQ(message.enum_field(), NYT::NProtobufFormatTest::EEnum::three);
+        ASSERT_EQ(message.enum_field(), NYT::EEnum::three);
     }
     {
         auto row = parser.Next();
@@ -797,7 +856,7 @@ TEST(TProtobufFormat, TestWriteEnumerationInt)
     auto nameTable = New<TNameTable>();
     auto enumId = nameTable->RegisterName("Enum");
 
-    auto writeAndParseRow = [&] (TUnversionedRow row, NProtobufFormatTest::TMessage* message) {
+    auto writeAndParseRow = [&] (TUnversionedRow row, TMessage* message) {
         TString result;
         TStringOutput resultStream(result);
         auto writer = CreateWriterForProtobuf(
@@ -825,43 +884,43 @@ TEST(TProtobufFormat, TestWriteEnumerationInt)
     };
 
     {
-        NProtobufFormatTest::TMessage message;
+        TMessage message;
         writeAndParseRow(
             MakeRow({
                 MakeUnversionedInt64Value(-42, enumId),
             }).Get(),
             &message);
-        ASSERT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::minus_forty_two);
+        ASSERT_EQ(message.enum_field(), EEnum::minus_forty_two);
     }
     {
-        NProtobufFormatTest::TMessage message;
+        TMessage message;
         writeAndParseRow(
             MakeRow({
                 MakeUnversionedInt64Value(std::numeric_limits<i32>::max(), enumId),
             }).Get(),
             &message);
-        ASSERT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::max_int32);
+        ASSERT_EQ(message.enum_field(), EEnum::max_int32);
     }
     {
-        NProtobufFormatTest::TMessage message;
+        TMessage message;
         writeAndParseRow(
             MakeRow({
                 MakeUnversionedUint64Value(std::numeric_limits<i32>::max(), enumId),
             }).Get(),
             &message);
-        ASSERT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::max_int32);
+        ASSERT_EQ(message.enum_field(), EEnum::max_int32);
     }
     {
-        NProtobufFormatTest::TMessage message;
+        TMessage message;
         writeAndParseRow(
             MakeRow({
                 MakeUnversionedInt64Value(std::numeric_limits<i32>::min(), enumId),
             }).Get(),
             &message);
-        ASSERT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::min_int32);
+        ASSERT_EQ(message.enum_field(), EEnum::min_int32);
     }
 
-    NProtobufFormatTest::TMessage message;
+    TMessage message;
     ASSERT_THROW(
         writeAndParseRow(
             MakeRow({
@@ -957,7 +1016,7 @@ TEST(TProtobufFormat, TestContext)
 
     TString context;
     try {
-        NProtobufFormatTest::TMessage message;
+        TMessage message;
         message.set_string_field("PYSHCH-PYSHCH");
         parser->Read(LenvalBytes(message));
         parser->Finish();
@@ -991,6 +1050,7 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(ECo
             {"any_map_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))},
             {"optional_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
+            {"packed_repeated_enum_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
             {"field_missing_from_proto2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
         })},
         {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
@@ -1024,20 +1084,13 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(ECo
         })},
 
         {"utf8_field", SimpleLogicalType(ESimpleLogicalValueType::Utf8)},
+
+        {"packed_repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
     });
 
     auto config = BuildYsonNodeFluently()
         .BeginAttributes()
-            .Item("enumerations")
-            .BeginMap()
-                .Item("EEnum")
-                .BeginMap()
-                    .Item("One").Value(1)
-                    .Item("Two").Value(2)
-                    .Item("Three").Value(3)
-                    .Item("MinusFortyTwo").Value(-42)
-                .EndMap()
-            .EndMap()
+            .Item("enumerations").Value(EnumerationsConfig)
             .Item("tables")
             .BeginList()
                 .Item()
@@ -1063,6 +1116,15 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(ECo
                                     .Item("field_number").Value(1)
                                     .Item("proto_type").Value("enum_string")
                                     .Item("enumeration_name").Value("EEnum")
+                                .EndMap()
+                                .Item()
+                                .BeginMap()
+                                    .Item("name").Value("packed_repeated_enum_field")
+                                    .Item("field_number").Value(11)
+                                    .Item("proto_type").Value("enum_string")
+                                    .Item("enumeration_name").Value("EEnum")
+                                    .Item("repeated").Value(true)
+                                    .Item("packed").Value(true)
                                 .EndMap()
                                 .Item().BeginMap()
                                     .Item("name").Value("message_field")
@@ -1280,6 +1342,15 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(ECo
                             .Item("field_number").Value(15)
                             .Item("proto_type").Value("other_columns")
                         .EndMap()
+
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("packed_repeated_int64_field")
+                            .Item("field_number").Value(17)
+                            .Item("proto_type").Value("int64")
+                            .Item("repeated").Value(true)
+                            .Item("packed").Value(true)
+                        .EndMap()
                     .EndList()
                 .EndMap()
             .EndList()
@@ -1337,6 +1408,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     auto utf8FieldId = nameTable->RegisterName("utf8_field");
     auto repeatedOptionalAnyFieldId = nameTable->RegisterName("repeated_optional_any_field");
     auto otherComplexFieldId = nameTable->RegisterName("other_complex_field");
+    auto packedRepeatedInt64FieldId = nameTable->RegisterName("packed_repeated_int64_field");
 
     auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage(complexTypeMode);
 
@@ -1394,6 +1466,11 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
                     .Item().Value(2)
                     .Item().Entity()
                     .Item().Value("foo")
+                .EndList()
+            .Item()
+                .BeginList()
+                    .Item().Value("MinusFortyTwo")
+                    .Item().Value("Two")
                 .EndList()
         .EndList();
 
@@ -1468,6 +1545,8 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
 
     builder.AddValue(MakeUnversionedAnyValue(otherComplexFieldYson.GetData(), otherComplexFieldId));
 
+    builder.AddValue(MakeUnversionedAnyValue("[12;-10;123456789000;]", packedRepeatedInt64FieldId));
+    
     auto rows = std::vector<TUnversionedRow>(rowCount, builder.GetRow());
     writer->Write(rows);
 
@@ -1482,11 +1561,11 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
         auto entry = lenvalParser.Next();
         ASSERT_TRUE(entry);
 
-        NYT::NProtobufFormatTest::TMessageWithStructuredEmbedded message;
+        NYT::TMessageWithStructuredEmbedded message;
         ASSERT_TRUE(message.ParseFromString(entry->RowData));
 
         const auto& first = message.first();
-        EXPECT_EQ(first.enum_field(), NProtobufFormatTest::EEnum::two);
+        EXPECT_EQ(first.enum_field(), EEnum::two);
         EXPECT_EQ(first.int64_field(), 44);
         std::vector<i64> firstRepeatedInt64Field(
             first.repeated_int64_field().begin(),
@@ -1529,6 +1608,13 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
 
         EXPECT_FALSE(first.has_optional_int64_field());
 
+        std::vector<EEnum> actualFirstPackedRepeatedEnumField;
+        for (auto x : first.packed_repeated_enum_field()) {
+            actualFirstPackedRepeatedEnumField.push_back(static_cast<EEnum>(x));
+        }
+        auto expectedFirstPackedRepeatedEnumField = std::vector<EEnum>{EEnum::minus_forty_two, EEnum::two};
+        EXPECT_EQ(expectedFirstPackedRepeatedEnumField, actualFirstPackedRepeatedEnumField);
+
         const auto& second = message.second();
         EXPECT_EQ(second.one(), 101);
         EXPECT_EQ(second.two(), 102);
@@ -1558,9 +1644,9 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
         EXPECT_EQ(message.int64_field(), -32);
         EXPECT_EQ(message.uint64_field(), 32);
 
-        EXPECT_EQ(message.enum_int_field(), NProtobufFormatTest::EEnum::minus_forty_two);
-        EXPECT_EQ(message.enum_string_string_field(), NProtobufFormatTest::EEnum::three);
-        EXPECT_EQ(message.enum_string_int64_field(), NProtobufFormatTest::EEnum::one);
+        EXPECT_EQ(message.enum_int_field(), EEnum::minus_forty_two);
+        EXPECT_EQ(message.enum_string_string_field(), EEnum::three);
+        EXPECT_EQ(message.enum_string_int64_field(), EEnum::one);
 
         EXPECT_EQ(message.utf8_field(), HelloWorldInRussian);
 
@@ -1589,6 +1675,12 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
 
             EXPECT_NODES_EQUAL(expected, otherColumns->GetChild("other_complex_field"));
         }
+
+        std::vector<i64> actualPackedRepeatedInt64Field(
+            message.packed_repeated_int64_field().begin(),
+            message.packed_repeated_int64_field().end());
+        auto expectedPackedRepeatedInt64Field = std::vector<i64>{12, -10, 123456789000LL};
+        EXPECT_EQ(expectedPackedRepeatedInt64Field, actualPackedRepeatedInt64Field);
     }
 
     ASSERT_FALSE(lenvalParser.Next());
@@ -1607,10 +1699,10 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         ParseFormatConfigFromNode(config->Attributes().ToMap()),
         0);
 
-    NYT::NProtobufFormatTest::TMessageWithStructuredEmbedded message;
+    NYT::TMessageWithStructuredEmbedded message;
 
     auto* first = message.mutable_first();
-    first->set_enum_field(NProtobufFormatTest::EEnum::two);
+    first->set_enum_field(EEnum::two);
     first->set_int64_field(44);
 
     first->add_repeated_int64_field(55);
@@ -1640,6 +1732,9 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
     first->add_repeated_optional_any_field("42");
     first->add_repeated_optional_any_field("#");
 
+    first->add_packed_repeated_enum_field(EEnum::max_int32);
+    first->add_packed_repeated_enum_field(EEnum::minus_forty_two);
+
     auto* second = message.mutable_second();
     second->set_one(101);
     second->set_two(102);
@@ -1667,8 +1762,8 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
     message.set_uint32_field(64);
 
     // Note that we don't set the "enum_string_int64_field" as it would fail during parsing.
-    message.set_enum_int_field(NProtobufFormatTest::EEnum::minus_forty_two);
-    message.set_enum_string_string_field(NProtobufFormatTest::EEnum::three);
+    message.set_enum_int_field(EEnum::minus_forty_two);
+    message.set_enum_string_string_field(EEnum::three);
 
     const auto HelloWorldInChinese = "\xe4\xbd\xa0\xe5\xa5\xbd\xef\xbc\x8c\xe4\xb8\x96\xe7\x95\x8c";
     message.set_utf8_field(HelloWorldInChinese);
@@ -1706,6 +1801,9 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         .EndMap();
     message.set_other_columns_field(otherColumnsYson.GetData());
 
+    message.add_packed_repeated_int64_field(-123456789000LL);
+    message.add_packed_repeated_int64_field(0);
+
     TString lenvalBytes;
     {
         TStringOutput out(lenvalBytes);
@@ -1725,7 +1823,7 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         auto firstNode = GetAny(rowCollector.GetRowValue(rowIndex, "first"));
         ASSERT_EQ(firstNode->GetType(), ENodeType::List);
         const auto& firstList = firstNode->AsList();
-        ASSERT_EQ(firstList->GetChildCount(), 12);
+        ASSERT_EQ(firstList->GetChildCount(), 13);
 
         EXPECT_EQ(firstList->GetChild(0)->GetType(), ENodeType::Entity);
         EXPECT_EQ(firstList->GetChild(1)->GetValue<TString>(), "Two");
@@ -1760,25 +1858,33 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         EXPECT_EQ(firstList->GetChild(7)->GetValue<i64>(), 4422);
 
         ASSERT_EQ(firstList->GetChild(8)->GetType(), ENodeType::Map);
-        EXPECT_TRUE(AreNodesEqual(
+        EXPECT_NODES_EQUAL(
             firstList->GetChild(8),
             BuildYsonNodeFluently()
                 .BeginMap()
                     .Item("key").Value("value")
-                .EndMap()));
+                .EndMap());
 
         ASSERT_EQ(firstList->GetChild(9)->GetType(), ENodeType::Entity);
 
-        ASSERT_TRUE(AreNodesEqual(
+        EXPECT_NODES_EQUAL(
             firstList->GetChild(10),
             BuildYsonNodeFluently()
                 .BeginList()
                     .Item().Value(false)
                     .Item().Value(42)
                     .Item().Entity()
-                .EndList()));
+                .EndList());
 
-        ASSERT_EQ(firstList->GetChild(11)->GetType(), ENodeType::Entity);
+        EXPECT_NODES_EQUAL(
+            firstList->GetChild(11),
+            BuildYsonNodeFluently()
+                .BeginList()
+                    .Item().Value("MaxInt32")
+                    .Item().Value("MinusFortyTwo")
+                .EndList());
+
+        ASSERT_EQ(firstList->GetChild(12)->GetType(), ENodeType::Entity);
 
         auto secondNode = GetAny(rowCollector.GetRowValue(rowIndex, "second"));
         ASSERT_EQ(secondNode->GetType(), ENodeType::List);
@@ -1832,6 +1938,15 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
 
         auto actualOtherComplexField = GetAny(rowCollector.GetRowValue(rowIndex, "other_complex_field"));
         EXPECT_NODES_EQUAL(actualOtherComplexField, otherComplexFieldPositional);
+
+        auto actualPackedRepeatedInt64Field = GetAny(rowCollector.GetRowValue(rowIndex, "packed_repeated_int64_field"));
+        EXPECT_NODES_EQUAL(
+            actualPackedRepeatedInt64Field,
+            BuildYsonNodeFluently()
+                .BeginList()
+                    .Item().Value(-123456789000LL)
+                    .Item().Value(0)
+                .EndList());
     }
 }
 
@@ -1856,16 +1971,7 @@ std::pair<std::vector<TTableSchema>, INodePtr> CreateSeveralTablesSchemasAndConf
 
     auto config = BuildYsonNodeFluently()
         .BeginAttributes()
-            .Item("enumerations")
-            .BeginMap()
-                .Item("EEnum")
-                .BeginMap()
-                    .Item("One").Value(1)
-                    .Item("Two").Value(2)
-                    .Item("Three").Value(3)
-                    .Item("MinusFortyTwo").Value(-42)
-                .EndMap()
-            .EndMap()
+            .Item("enumerations").Value(EnumerationsConfig)
             .Item("tables")
             .BeginList()
                 // Table #1.
@@ -2019,11 +2125,11 @@ TEST(TProtobufFormat, WriteSeveralTables)
         auto entry = lenvalParser.Next();
         ASSERT_TRUE(entry);
 
-        NYT::NProtobufFormatTest::TSeveralTablesMessageFirst message;
+        NYT::TSeveralTablesMessageFirst message;
         ASSERT_TRUE(message.ParseFromString(entry->RowData));
 
         const auto& embedded = message.embedded();
-        EXPECT_EQ(embedded.enum_field(), NProtobufFormatTest::EEnum::two);
+        EXPECT_EQ(embedded.enum_field(), EEnum::two);
         EXPECT_EQ(embedded.int64_field(), 44);
 
         std::vector<i64> repeatedInt64Field(
@@ -2036,17 +2142,17 @@ TEST(TProtobufFormat, WriteSeveralTables)
         auto entry = lenvalParser.Next();
         ASSERT_TRUE(entry);
 
-        NYT::NProtobufFormatTest::TSeveralTablesMessageSecond message;
+        NYT::TSeveralTablesMessageSecond message;
         ASSERT_TRUE(message.ParseFromString(entry->RowData));
 
-        EXPECT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::two);
+        EXPECT_EQ(message.enum_field(), EEnum::two);
         EXPECT_EQ(message.int64_field(), 999);
     }
     {
         auto entry = lenvalParser.Next();
         ASSERT_TRUE(entry);
 
-        NYT::NProtobufFormatTest::TSeveralTablesMessageThird message;
+        NYT::TSeveralTablesMessageThird message;
         ASSERT_TRUE(message.ParseFromString(entry->RowData));
 
         EXPECT_EQ(message.string_field(), "blah");
@@ -2071,9 +2177,9 @@ TEST(TProtobufFormat, ParseSeveralTables)
             tableIndex));
     }
 
-    NYT::NProtobufFormatTest::TSeveralTablesMessageFirst firstMessage;
+    NYT::TSeveralTablesMessageFirst firstMessage;
     auto* embedded = firstMessage.mutable_embedded();
-    embedded->set_enum_field(NProtobufFormatTest::EEnum::two);
+    embedded->set_enum_field(EEnum::two);
     embedded->set_int64_field(44);
 
     firstMessage.add_repeated_int64_field(55);
@@ -2082,11 +2188,11 @@ TEST(TProtobufFormat, ParseSeveralTables)
 
     firstMessage.set_int64_field(4444);
 
-    NYT::NProtobufFormatTest::TSeveralTablesMessageSecond secondMessage;
-    secondMessage.set_enum_field(NProtobufFormatTest::EEnum::two);
+    NYT::TSeveralTablesMessageSecond secondMessage;
+    secondMessage.set_enum_field(EEnum::two);
     secondMessage.set_int64_field(44);
 
-    NYT::NProtobufFormatTest::TSeveralTablesMessageThird thirdMessage;
+    NYT::TSeveralTablesMessageThird thirdMessage;
     thirdMessage.set_string_field("blah");
 
     auto parse = [] (auto& parser, const auto& message) {
@@ -2571,7 +2677,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
         New<TControlAttributesConfig>(),
         0);
 
-    NProtobufFormatTest::TEmbeddedMessage embeddedMessage;
+    TEmbeddedMessage embeddedMessage;
     embeddedMessage.set_key("embedded_key");
     embeddedMessage.set_value("embedded_value");
     TString embeddedMessageBytes;
@@ -2650,7 +2756,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
         auto entry = lenvalParser.Next();
         ASSERT_TRUE(entry);
 
-        NYT::NProtobufFormatTest::TMessage message;
+        NYT::TMessage message;
         ASSERT_TRUE(message.ParseFromString(entry->RowData));
 
         EXPECT_DOUBLE_EQ(message.double_field(), 3.14159);
@@ -2671,7 +2777,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
         EXPECT_EQ(message.string_field(), "this_is_string");
         EXPECT_EQ(message.bytes_field(), "this_is_bytes");
 
-        EXPECT_EQ(message.enum_field(), NProtobufFormatTest::EEnum::two);
+        EXPECT_EQ(message.enum_field(), EEnum::two);
 
         EXPECT_EQ(message.message_field().key(), "embedded_key");
         EXPECT_EQ(message.message_field().value(), "embedded_value");
@@ -2721,7 +2827,7 @@ TEST_P(TProtobufFormatAllFields, Parser)
         ParseFormatConfigFromNode(config->Attributes().ToMap()),
         0);
 
-    NProtobufFormatTest::TMessage message;
+    TMessage message;
     message.set_double_field(3.14159);
     message.set_float_field(2.71828);
 
@@ -2740,7 +2846,7 @@ TEST_P(TProtobufFormatAllFields, Parser)
     message.set_bool_field(true);
     message.set_string_field("this_is_string");
     message.set_bytes_field("this_is_bytes");
-    message.set_enum_field(NProtobufFormatTest::EEnum::three);
+    message.set_enum_field(EEnum::three);
 
     message.mutable_message_field()->set_key("embedded_key");
     message.mutable_message_field()->set_value("embedded_value");
@@ -2816,7 +2922,7 @@ TEST_P(TProtobufFormatAllFields, Parser)
             ASSERT_EQ(GetInt64(rowCollector.GetRowValue(rowIndex, "Enum")), 3);
         }
 
-        NProtobufFormatTest::TEmbeddedMessage embededMessage;
+        TEmbeddedMessage embededMessage;
         ASSERT_TRUE(embededMessage.ParseFromString(GetString(rowCollector.GetRowValue(rowIndex, "Message"))));
         ASSERT_EQ(embededMessage.key(), "embedded_key");
         ASSERT_EQ(embededMessage.value(), "embedded_value");

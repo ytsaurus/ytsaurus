@@ -74,6 +74,19 @@ void TObject::ClearAttributes()
     Attributes_.reset();
 }
 
+const NYson::TYsonString* TObject::FindAttribute(const TString& key) const
+{
+    if (!Attributes_) {
+        return nullptr;
+    }
+
+    const auto& attributeMap = Attributes_->Attributes();
+    auto it = attributeMap.find(key);
+    return it != attributeMap.end()
+        ? &it->second
+        : nullptr;
+}
+
 int TObject::GetGCWeight() const
 {
     return 10;

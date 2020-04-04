@@ -7,6 +7,7 @@
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
@@ -41,12 +42,14 @@ TPartitionChunkReader::TPartitionChunkReader(
     IBlockCachePtr blockCache,
     const TClientBlockReadOptions& blockReadOptions,
     const TKeyColumns& keyColumns,
-    int partitionTag)
+    int partitionTag,
+    TChunkReaderMemoryManagerPtr memoryManager)
     : TChunkReaderBase(
-        config,
-        underlyingReader,
-        blockCache,
-        blockReadOptions)
+        std::move(config),
+        std::move(underlyingReader),
+        std::move(blockCache),
+        blockReadOptions,
+        std::move(memoryManager))
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , PartitionTag_(partitionTag)
@@ -160,8 +163,18 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
+    if (!multiReaderMemoryManager) {
+        multiReaderMemoryManager = CreateParallelReaderMemoryManager(
+            TParallelReaderMemoryManagerOptions(
+                config->MaxBufferSize,
+                config->WindowSize,
+                0),
+            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+    }
+
     std::vector<IReaderFactoryPtr> factories;
     for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
         const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
@@ -170,6 +183,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                 const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
 
                 auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
+
                 auto createReader = [=] () {
                     auto remoteReader = CreateRemoteReader(
                         chunkSpec,
@@ -196,12 +210,17 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         blockCache,
                         blockReadOptions,
                         keyColumns,
-                        partitionTag);
+                        partitionTag,
+                        multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));
+                };
+
+                auto canCreateReader = [=] {
+                    return multiReaderMemoryManager->GetFreeMemorySize() >= memoryEstimate;
                 };
 
                 factories.emplace_back(CreateReaderFactory(
                     createReader,
-                    memoryEstimate,
+                    canCreateReader,
                     dataSliceDescriptor));
                 break;
             }
@@ -214,7 +233,8 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
     auto reader = New<TPartitionMultiChunkReader>(
         config,
         options,
-        factories);
+        factories,
+        multiReaderMemoryManager);
 
     reader->Open();
     return reader;

@@ -253,6 +253,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::CreateNode(
     req->set_force(options.Force);
     req->set_ignore_existing(options.IgnoreExisting);
     req->set_lock_existing(options.LockExisting);
+    req->set_ignore_type_mismatch(options.IgnoreTypeMismatch);
 
     ToProto(req->mutable_transactional_options(), options);
     ToProto(req->mutable_prerequisite_options(), options);

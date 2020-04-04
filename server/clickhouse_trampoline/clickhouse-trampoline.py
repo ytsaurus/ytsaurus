@@ -61,12 +61,18 @@ def extract_geodata():
     logger.info("Geodata extracted")
 
 
+def substitute_env(content):
+    content = content.replace("$YT_JOB_INDEX", os.environ["YT_JOB_INDEX"])
+    content = content.replace("$YT_JOB_COOKIE", os.environ["YT_JOB_COOKIE"])
+    return content
+
+
 def patch_ytserver_clickhouse_config(prepare_geodata):
     logger.info("Patching config")
     assert os.path.exists("./config.yson")
     with open("./config.yson", "r") as f:
         content = f.read()
-    content = content.replace("$YT_JOB_INDEX", os.environ["YT_JOB_INDEX"])
+    content = substitute_env(content)
     if not prepare_geodata:
         content = "\n".join(filter(lambda line: "./geodata" not in line, content.split("\n")))
     with open("./config_patched.yson", "w") as f:
@@ -79,7 +85,7 @@ def patch_log_tailer_config():
     assert os.path.exists("./log_tailer_config.yson")
     with open("./log_tailer_config.yson", "r") as f:
         content = f.read()
-    content = content.replace("$YT_JOB_INDEX", os.environ["YT_JOB_INDEX"])
+    content = substitute_env(content)
     with open("./log_tailer_config_patched.yson", "w") as f:
         f.write(content)
     logger.info("Config patched")
@@ -130,13 +136,18 @@ def print_version():
     print "smth~" + library.python.svn_version.commit_id()[:10]
 
 
-def setup_logging():
+def setup_logging(log_file):
     logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter("%(asctime)s %(levelname)s\t%(message)s")
     stderr_handler = logging.StreamHandler()
     stderr_handler.setLevel(logging.DEBUG)
     stderr_handler.setFormatter(formatter)
     logger.addHandler(stderr_handler)
+
+    file_handler = logging.FileHandler(log_file or "trampoline.debug.log")
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
 
 
 def main():
@@ -153,9 +164,10 @@ def main():
                              "manual trampoline invocations")
     parser.add_argument("--log-tailer-bin", help="Log tailer binary path; log tailer will be run over "
                                                  "ytserver-clickhouse process")
+    parser.add_argument("--log-file", help="Path to trampoline log file")
     args = parser.parse_args()
 
-    setup_logging()
+    setup_logging(args.log_file)
 
     logger.info("Trampoline started, args = %s", args)
     if args.version:

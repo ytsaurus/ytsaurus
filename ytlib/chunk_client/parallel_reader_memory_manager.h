@@ -12,6 +12,9 @@ namespace NYT::NChunkClient {
 struct IMultiReaderMemoryManager
     : public IReaderMemoryManager
 {
+    //! Returns amount of free memory in memory manager.
+    virtual i64 GetFreeMemorySize() = 0;
+
     //! Creates memory manager for particular chunk reader with `reservedMemorySize' reserved memory.
     //! If not set `MaxInitialReaderReservedMemory' memory will be allocated.
     virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
@@ -40,6 +43,8 @@ public:
 
     //! Called by chunk reader to notify that memory requirements have changed.
     virtual void UpdateMemoryRequirements(IReaderMemoryManagerPtr readerMemoryManager) = 0;
+
+    virtual TGuid GetId() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReaderMemoryManagerHost)
@@ -53,6 +58,7 @@ struct TParallelReaderMemoryManagerOptions
         i64 maxInitialReaderReservedMemory,
         i64 minRequiredMemorySize,
         NProfiling::TTagIdList profilingTagList = {},
+        bool enableDetailedLogging = false,
         bool enableProfiling = false,
         TDuration profilingPeriod = TDuration::Seconds(1));
 
@@ -72,6 +78,8 @@ struct TParallelReaderMemoryManagerOptions
     bool EnableProfiling = false;
 
     TDuration ProfilingPeriod = TDuration::Seconds(5);
+
+    bool EnableDetailedLogging = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

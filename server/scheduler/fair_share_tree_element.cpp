@@ -1425,14 +1425,10 @@ void TCompositeSchedulerElement::UpdateMinShareNormal(TUpdateFairShareContext* c
     TResourceVector minShareSumForOperations = {};
     for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
-        double minShareRatio = child->GetMinShareRatio();
         double minShareRatioByResources = GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_);
 
         // NB: Semantics of this MinShare differs from the original one.
-        childAttributes.RecursiveMinShare = Attributes_.RecursiveMinShare * minShareRatio;
-        childAttributes.RecursiveMinShare = TResourceVector::Max(
-            childAttributes.RecursiveMinShare,
-            TResourceVector::FromDouble(minShareRatioByResources));
+        childAttributes.RecursiveMinShare = TResourceVector::FromDouble(minShareRatioByResources);
 
         // RecursiveMinShare must not be greater than LimitsShare_
         childAttributes.RecursiveMinShare = TResourceVector::Min(
@@ -1443,23 +1439,6 @@ void TCompositeSchedulerElement::UpdateMinShareNormal(TUpdateFairShareContext* c
             minShareSumForOperations += childAttributes.RecursiveMinShare;
         } else {
             minShareSumForPools += childAttributes.RecursiveMinShare;
-        }
-
-        if ((!child->IsOperation() && minShareRatio > 0) && Attributes_.RecursiveMinShare == TResourceVector::Zero()) {
-            context->Errors.emplace_back(
-                "Min share ratio setting for %Qv has no effect "
-                "because min share ratio of parent pool %Qv is zero",
-                child->GetId(),
-                GetId());
-        }
-        if ((!child->IsOperation() && minShareRatioByResources > 0) &&
-            Attributes_.RecursiveMinShare == TResourceVector::Zero())
-        {
-            context->Errors.emplace_back(
-                "Min share ratio resources setting for %Qv has no effect "
-                "because min share of parent pool %Qv is zero",
-                child->GetId(),
-                GetId());
         }
     }
 
@@ -2007,11 +1986,6 @@ TString TPool::GetId() const
 std::optional<double> TPool::GetSpecifiedWeight() const
 {
     return Config_->Weight;
-}
-
-double TPool::GetMinShareRatio() const
-{
-    return Config_->MinShareRatio.value_or(0.0);
 }
 
 TJobResources TPool::GetMinShareResources() const
@@ -3262,11 +3236,6 @@ std::optional<double> TOperationElement::GetSpecifiedWeight() const
     return RuntimeParameters_->Weight;
 }
 
-double TOperationElement::GetMinShareRatio() const
-{
-    return Spec_->MinShareRatio.value_or(0.0);
-}
-
 TJobResources TOperationElement::GetMinShareResources() const
 {
     return ToJobResources(Spec_->MinShareResources, {});
@@ -3857,11 +3826,6 @@ TString TRootElement::GetId() const
 std::optional<double> TRootElement::GetSpecifiedWeight() const
 {
     return std::nullopt;
-}
-
-double TRootElement::GetMinShareRatio() const
-{
-    return 1.0;
 }
 
 TJobResources TRootElement::GetMinShareResources() const

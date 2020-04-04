@@ -50,6 +50,7 @@ TFiberId GetCurrentFiberId()
 //! Sets the current fiber id.
 void SetCurrentFiberId(TFiberId id)
 {
+    NYTAlloc::SetCurrentFiberId(id);
     CurrentFiberId = id;
 }
 

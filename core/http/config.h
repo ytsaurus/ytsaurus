@@ -49,6 +49,9 @@ public:
     //! This field is not accessable from config.
     bool IsHttps = false;
 
+    //! Used for thread naming.
+    TString ServerName;
+
     TServerConfig();
 };
 

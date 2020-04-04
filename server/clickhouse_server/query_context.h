@@ -31,11 +31,12 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TQueryContext
-    : public DB::IHostContext
+    : public TRefCounted
 {
 public:
     TLogger Logger;
     const TString User;
+    NProfiling::TTagId UserTagId;
     const NTracing::TTraceContextPtr TraceContext;
     const TQueryId QueryId;
     const EQueryKind QueryKind;

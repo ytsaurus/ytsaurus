@@ -41,6 +41,8 @@ TChunkReaderBase::TChunkReaderBase(
         MemoryManager_ = New<TChunkReaderMemoryManager>(TChunkReaderMemoryManagerOptions(Config_->WindowSize));
     }
 
+    MemoryManager_->AddReadSessionInfo(BlockReadOptions_.ReadSessionId);
+
     if (BlockReadOptions_.ReadSessionId) {
         Logger.AddTag("ReadSessionId: %v", BlockReadOptions_.ReadSessionId);
     }

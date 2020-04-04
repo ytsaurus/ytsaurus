@@ -789,7 +789,7 @@ class OperationReviveBase(YTEnvSetup):
             "orphaned"
         ]
         if stage <= "stage5":
-            expected_events = events_prefix + ["waiting_for_agent", "reviving", "pending", "reviving_jobs", "running", "completing", "completed"]
+            expected_events = events_prefix + ["waiting_for_agent", "revive_initializing", "reviving", "pending", "reviving_jobs", "running", "completing", "completed"]
         else:
             expected_events = events_prefix + ["completed"]
 

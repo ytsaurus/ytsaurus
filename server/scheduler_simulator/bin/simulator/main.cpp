@@ -248,6 +248,7 @@ protected:
             config->MonitoringServer->Port = config->MonitoringPort;
             config->MonitoringServer->BindRetryCount = config->BusServer->BindRetryCount;
             config->MonitoringServer->BindRetryBackoff = config->BusServer->BindRetryBackoff;
+            config->MonitoringServer->ServerName = "monitoring";
             auto httpServer = NHttp::CreateServer(config->MonitoringServer);
 
             NMonitoring::TMonitoringManagerPtr monitoringManager;

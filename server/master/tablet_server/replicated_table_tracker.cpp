@@ -47,6 +47,8 @@
 
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <yt/core/ypath/token.h>
+
 #include <yt/core/misc/atomic_object.h>
 
 namespace NYT::NTabletServer {
@@ -62,12 +64,40 @@ using namespace NHiveServer;
 using namespace NTabletClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 using namespace NApi;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TBundleHealthCache)
+
+class TBundleHealthCache
+    : public TAsyncExpiringCache<std::pair<NApi::IClientPtr, TString>, ETabletCellHealth>
+{
+public:
+    explicit TBundleHealthCache(TAsyncExpiringCacheConfigPtr config)
+        : TAsyncExpiringCache(std::move(config))
+    { }
+
+protected:
+    virtual TFuture<ETabletCellHealth> DoGet(
+        const std::pair<NApi::IClientPtr, TString>& key,
+        bool /*isPeriodicUpdate*/) noexcept override
+    {
+        const auto& [client, bundleName] = key;
+        return client->GetNode("//sys/tablet_cell_bundles/" + ToYPathLiteral(bundleName) + "/@health").ToUncancelable()
+            .Apply(BIND([] (const TErrorOr<TYsonString>& error) {
+                return ConvertTo<ETabletCellHealth>(error.ValueOrThrow());
+            }));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBundleHealthCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -96,33 +126,6 @@ private:
 
     std::atomic<bool> Enabled_ = false;
 
-    class TBundleHealthCache
-        : public TAsyncExpiringCache<std::pair<NApi::IClientPtr, TString>, ETabletCellHealth>
-    {
-    public:
-        explicit TBundleHealthCache(TAsyncExpiringCacheConfigPtr config)
-            : TAsyncExpiringCache(std::move(config))
-        { }
-
-    protected:
-        virtual TFuture<ETabletCellHealth> DoGet(
-            const std::pair<NApi::IClientPtr, TString>& key,
-            bool /*isPeriodicUpdate*/) noexcept override
-        {
-            const auto& [client, bundleName] = key;
-            return client->GetNode("//sys/tablet_cell_bundles/" + bundleName + "/@health").ToUncancelable()
-                .Apply(BIND([] (const TErrorOr<TYsonString>& error) {
-                    // COMPAT(aozeritsky): Remove after updating all clusters
-                    if (!error.IsOK() && error.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                        return ETabletCellHealth::Good;
-                    }
-                    return ConvertTo<ETabletCellHealth>(error.ValueOrThrow());
-                }));
-        }
-    };
-
-    using TBundleHealthCachePtr = TIntrusivePtr<TBundleHealthCache>;
-
     const TAsyncExpiringCacheConfigPtr BundleHealthCacheConfig_ = New<TAsyncExpiringCacheConfig>();
     TAtomicObject<TBundleHealthCachePtr> BundleHealthCache_;
 
@@ -135,7 +138,7 @@ private:
             ETableReplicaMode mode,
             const TString& clusterName,
             const TYPath& path,
-            const TBundleHealthCachePtr& bundleHealthCache,
+            TBundleHealthCachePtr bundleHealthCache,
             IConnectionPtr connection,
             IInvokerPtr checkerInvoker,
             TDuration lag,
@@ -145,7 +148,7 @@ private:
             , Mode_(mode)
             , ClusterName_(clusterName)
             , Path_(path)
-            , BundleHealthCache_(bundleHealthCache)
+            , BundleHealthCache_(std::move(bundleHealthCache))
             , Connection_(std::move(connection))
             , CheckerInvoker_(std::move(checkerInvoker))
             , Lag_(lag)
@@ -188,7 +191,6 @@ private:
             }
 
             return Combine(std::vector<TFuture<void>>{
-                CheckListRoot(),
                 CheckTableExists(),
                 CheckBundleHealth()
             });
@@ -274,14 +276,6 @@ private:
         TDuration RetryOnFailureInterval_;
 
         TInstant LastUpdateTime_;
-
-        TFuture<void> CheckListRoot()
-        {
-            return Client_->ListNode("/")
-                .Apply(BIND([] (const TErrorOr<TYsonString>& result) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error listing root");
-                }));
-        }
 
         TFuture<void> CheckBundleHealth()
         {
@@ -815,7 +809,7 @@ private:
             BundleHealthCache_.Store(New<TBundleHealthCache>(BundleHealthCacheConfig_));
         }
 
-        if (IsLeader() && (ReconfigureYsonSerializable(BundleHealthCacheConfig_, dynamicConfig->BundleHealthCache) || !ClusterDirectorySynchronizer_)) {
+        if (IsLeader() && (ReconfigureYsonSerializable(ClusterDirectorySynchronizerConfig_, dynamicConfig->ClusterDirectorySynchronizer) || !ClusterDirectorySynchronizer_)) {
             if (ClusterDirectorySynchronizer_) {
                 ClusterDirectorySynchronizer_->Stop();
             }

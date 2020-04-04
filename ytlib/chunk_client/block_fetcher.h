@@ -48,6 +48,8 @@ public:
         double compressionRatio,
         const TClientBlockReadOptions& blockReadOptions);
 
+    ~TBlockFetcher();
+
     //! Returns |true| if there are requested blocks that were not fetched enough times.
     bool HasMoreBlocks() const;
 

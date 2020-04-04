@@ -203,6 +203,11 @@ void FormatValue(TStringBuilderBase* builder, const TCodecStatistics& statistics
     FormatKeyValueRange(builder, statistics.CodecToDuration(), TDefaultFormatter());
 }
 
+TString ToString(const TCodecStatistics& statistics)
+{
+    return ToStringViaBuilder(statistics);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

@@ -140,7 +140,9 @@ private:
     THashMap<TString, const TNodeDescriptor*> AddressToDescriptor_;
     std::vector<std::unique_ptr<TNodeDescriptor>> Descriptors_;
 
+    bool NeedToAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
     void DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
+    bool NeedToAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& descriptor);
     void DoAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& protoDescriptor);
     void DoAddCapturedDescriptor(TNodeId id, std::unique_ptr<TNodeDescriptor> descriptorHolder);
 

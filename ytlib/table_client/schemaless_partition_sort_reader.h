@@ -31,7 +31,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NChunkClient::TTrafficMeterPtr trafficMeter,
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
-    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler(),
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

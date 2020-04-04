@@ -573,6 +573,11 @@ std::optional<NTransactionClient::TTimestamp> TRichYPath::GetTimestamp() const
     return FindAttribute<NTransactionClient::TTimestamp>(*this, "timestamp");
 }
 
+std::optional<NTransactionClient::TTimestamp> TRichYPath::GetRetentionTimestamp() const
+{
+    return FindAttribute<NTransactionClient::TTimestamp>(*this, "retention_timestamp");
+}
+
 std::optional<NTableClient::EOptimizeFor> TRichYPath::GetOptimizeFor() const
 {
     return FindAttribute<NTableClient::EOptimizeFor>(*this, "optimize_for");

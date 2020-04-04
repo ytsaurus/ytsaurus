@@ -17,10 +17,10 @@ public:
     TQueryRegistry(TBootstrap* bootstrap);
     ~TQueryRegistry();
 
-    void Register(TQueryContext* queryContext);
+    void Register(TQueryContextPtr queryContext);
     void Unregister(TQueryContext* queryContext);
 
-    void AccountPhaseCounter(TQueryContext* queryContext, EQueryPhase fromPhase, EQueryPhase toPhase);
+    void AccountPhaseCounter(TQueryContextPtr queryContext, EQueryPhase fromPhase, EQueryPhase toPhase);
 
     size_t GetQueryCount() const;
     TFuture<void> GetIdleFuture() const;
@@ -32,6 +32,8 @@ public:
     void WriteStateToStderr() const;
 
     void SaveState();
+
+    NProfiling::TTagId GetUserProfilingTag(const TString& user);
 
     void Start();
     void Stop();

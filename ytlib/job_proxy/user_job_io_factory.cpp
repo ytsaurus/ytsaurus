@@ -111,7 +111,8 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
         /* partitionTag */ std::nullopt,
         std::move(trafficMeter),
         std::move(bandwidthThrottler),
-        std::move(rpsThrottler));
+        std::move(rpsThrottler),
+        /* multiReaderMemoryManager */ nullptr);
 }
 
 ISchemalessMultiChunkReaderPtr CreateRegularReader(

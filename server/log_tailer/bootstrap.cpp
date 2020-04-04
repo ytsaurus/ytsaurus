@@ -39,6 +39,7 @@ void TBootstrap::Run()
     YT_LOG_INFO("Starting log tailer");
 
     Config_->MonitoringServer->Port = MonitoringPort_;
+    Config_->MonitoringServer->ServerName = "monitoring";
     HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
     NMonitoring::Initialize(HttpServer_, &MonitoringManager_, &OrchidRoot_);

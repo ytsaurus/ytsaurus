@@ -177,7 +177,7 @@ public:
 
     virtual void Kill(int signal) override
     {
-        auto error = WaitFor(Executor_->Kill(Name_, signal));
+        auto error = WaitFor(Executor_->KillContainer(Name_, signal));
         // Killing already finished process is not an error.
         if (error.FindMatching(EPortoErrorCode::InvalidState)) {
             return;
@@ -244,14 +244,14 @@ public:
 
     virtual void Stop() override
     {
-        WaitFor(Executor_->Stop(Name_))
+        WaitFor(Executor_->StopContainer(Name_))
             .ThrowOnError();
     }
 
     virtual TString GetRoot() override
     {
         auto getRoot = [&] (TString name) {
-            auto properties = WaitFor(Executor_->GetProperties(
+            auto properties = WaitFor(Executor_->GetContainerProperties(
                 name,
                 std::vector<TString>{"root"}))
                 .ValueOrThrow();
@@ -293,7 +293,7 @@ public:
             }
         }
 
-        auto response = WaitFor(Executor_->GetProperties(Name_, properties))
+        auto response = WaitFor(Executor_->GetContainerProperties(Name_, properties))
             .ValueOrThrow();
 
         TUsage result;
@@ -331,7 +331,7 @@ public:
         properties.push_back("memory_limit");
         properties.push_back("cpu_limit");
 
-        auto responseOrError = WaitFor(Executor_->GetProperties(Name_, properties));
+        auto responseOrError = WaitFor(Executor_->GetContainerProperties(Name_, properties));
         THROW_ERROR_EXCEPTION_IF_FAILED(responseOrError, "Failed to get porto container resource limits");
 
         const auto& response = responseOrError.Value();
@@ -392,7 +392,7 @@ public:
 
     virtual TString GetAbsoluteName() const override
     {
-        auto properties = WaitFor(Executor_->GetProperties(
+        auto properties = WaitFor(Executor_->GetContainerProperties(
             Name_,
             std::vector<TString>{"absolute_name"}))
             .ValueOrThrow();
@@ -403,7 +403,7 @@ public:
 
     virtual TString GetStderr() const override
     {
-        auto properties = WaitFor(Executor_->GetProperties(
+        auto properties = WaitFor(Executor_->GetContainerProperties(
             Name_,
             std::vector<TString>{"stderr"}))
             .ValueOrThrow();
@@ -460,7 +460,7 @@ public:
 
     virtual pid_t GetPid() const override
     {
-        auto pid = WaitFor(Executor_->GetProperties(Name_, std::vector<TString>{"root_pid"}))
+        auto pid = WaitFor(Executor_->GetContainerProperties(Name_, std::vector<TString>{"root_pid"}))
             .ValueOrThrow();
         return std::stoi(pid.at("root_pid")
             .ValueOrThrow());
@@ -520,7 +520,7 @@ public:
         // preparation has failed
         WaitForActions()
             .ThrowOnError();
-        auto startAction = Executor_->Start(Name_);
+        auto startAction = Executor_->StartContainer(Name_);
 
         // Wait for starting process - here we get error if exec has failed
         // i.e. no such file, execution bit, etc
@@ -532,7 +532,7 @@ public:
                 << error;
         }
 
-        return Executor_->AsyncPoll(Name_);
+        return Executor_->PollContainer(Name_);
     }
 
 private:
@@ -561,7 +561,7 @@ private:
 
     void SetProperty(const TString& key, const TString& value)
     {
-        Actions_.push_back(Executor_->SetProperty(Name_, key, value));
+        Actions_.push_back(Executor_->SetContainerProperty(Name_, key, value));
     }
 
     TError WaitForActions()

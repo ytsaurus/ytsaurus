@@ -326,44 +326,51 @@ void TErrorOr<void>::Save(TStreamSaveContext& context) const
         attributeCount += 2;
     }
 
-    TSizeSerializer::Save(context, attributeCount);
+    if (attributeCount > 0) {
+        // Cf. TAttributeDictionaryRefSerializer.
+        Save(context, true);
 
-    auto saveAttribute = [&] (const TString& key, const auto& value) {
-        Save(context, key);
-        Save(context, ConvertToYsonString(value));
-    };
+        TSizeSerializer::Save(context, attributeCount);
 
-    if (HasOriginAttributes()) {
-        static const TString HostKey("host");
-        saveAttribute(HostKey, Host_);
+        auto saveAttribute = [&] (const TString& key, const auto& value) {
+            Save(context, key);
+            Save(context, ConvertToYsonString(value));
+        };
 
-        static const TString DatetimeKey("datetime");
-        saveAttribute(DatetimeKey, Datetime_);
+        if (HasOriginAttributes()) {
+            static const TString HostKey("host");
+            saveAttribute(HostKey, Host_);
 
-        static const TString PidKey("pid");
-        saveAttribute(PidKey, Pid_);
+            static const TString DatetimeKey("datetime");
+            saveAttribute(DatetimeKey, Datetime_);
 
-        static const TString TidKey("tid");
-        saveAttribute(TidKey, Tid_);
+            static const TString PidKey("pid");
+            saveAttribute(PidKey, Pid_);
 
-        static const TString FidKey("fid");
-        saveAttribute(FidKey, Fid_);
-    }
+            static const TString TidKey("tid");
+            saveAttribute(TidKey, Tid_);
 
-    if (HasTracingAttributes()) {
-        static const TString TraceIdKey("trace_id");
-        saveAttribute(TraceIdKey, TraceId_);
+            static const TString FidKey("fid");
+            saveAttribute(FidKey, Fid_);
+        }
 
-        static const TString SpanIdKey("span_id");
-        saveAttribute(SpanIdKey, SpanId_);
-    }
+        if (HasTracingAttributes()) {
+            static const TString TraceIdKey("trace_id");
+            saveAttribute(TraceIdKey, TraceId_);
 
-    std::sort(attributePairs.begin(), attributePairs.end(), [] (const auto& lhs, const auto& rhs) {
-        return lhs.first < rhs.first;
-    });
-    for (const auto& [key, value] : attributePairs) {
-        Save(context, key);
-        Save(context, value);
+            static const TString SpanIdKey("span_id");
+            saveAttribute(SpanIdKey, SpanId_);
+        }
+
+        std::sort(attributePairs.begin(), attributePairs.end(), [] (const auto& lhs, const auto& rhs) {
+            return lhs.first < rhs.first;
+        });
+        for (const auto& [key, value] : attributePairs) {
+            Save(context, key);
+            Save(context, value);
+        }
+    } else {
+        Save(context, false);
     }
 
     Save(context, InnerErrors_);

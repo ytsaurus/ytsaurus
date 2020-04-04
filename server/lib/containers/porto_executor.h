@@ -72,20 +72,21 @@ struct IPortoExecutor
     : public TRefCounted
 {
     virtual TFuture<void> CreateContainer(const TString& name) = 0;
-    virtual TFuture<void> SetProperty(
+    virtual TFuture<void> SetContainerProperty(
         const TString& name,
         const TString& key,
         const TString& value) = 0;
-    virtual TFuture<std::map<TString, TErrorOr<TString>>> GetProperties(
+    virtual TFuture<std::map<TString, TErrorOr<TString>>> GetContainerProperties(
         const TString& name,
         const std::vector<TString>& value) = 0;
     virtual TFuture<void> DestroyContainer(const TString& name) = 0;
-    virtual TFuture<void> Stop(const TString& name) = 0;
-    virtual TFuture<void> Start(const TString& name) = 0;
-    virtual TFuture<void> Kill(const TString& name, int signal) = 0;
+    virtual TFuture<void> StopContainer(const TString& name) = 0;
+    virtual TFuture<void> StartContainer(const TString& name) = 0;
+    virtual TFuture<void> KillContainer(const TString& name, int signal) = 0;
     virtual TFuture<std::vector<TString>> ListContainers() = 0;
     // Starts polling a given container, returns future with exit code of finished process.
-    virtual TFuture<int> AsyncPoll(const TString& name) = 0;
+    virtual TFuture<int> PollContainer(const TString& name) = 0;
+
     virtual TFuture<TString> CreateVolume(
         const TString& path,
         const std::map<TString, TString>& properties) = 0;
@@ -97,8 +98,13 @@ struct IPortoExecutor
         const TString& name) = 0;
     virtual TFuture<std::vector<TString>> ListVolumePaths() = 0;
 
-    virtual TFuture<void> ImportLayer(const TString& archivePath, const TString& layerId, const TString& place) = 0;
-    virtual TFuture<void> RemoveLayer(const TString& layerId, const TString& place) = 0;
+    virtual TFuture<void> ImportLayer(
+        const TString& archivePath,
+        const TString& layerId,
+        const TString& place) = 0;
+    virtual TFuture<void> RemoveLayer(
+        const TString& layerId,
+        const TString& place) = 0;
     virtual TFuture<std::vector<TString>> ListLayers(const TString& place) = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(const TError&), Failed)

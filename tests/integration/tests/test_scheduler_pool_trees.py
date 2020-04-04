@@ -382,12 +382,12 @@ class TestTentativePoolTrees(YTEnvSetup):
         return other_nodes
 
     def _create_spec(self):
-        spec = {
+        return {
             "pool_trees": ["default"],
             "tentative_pool_trees": ["other"],
             "scheduling_options_per_pool_tree": {
                 "default": {
-                    "min_share_ratio": 0.37
+                    "min_share_resources": {"cpu": 1}
                 },
                 "other": {
                     "pool": "superpool"
@@ -400,7 +400,6 @@ class TestTentativePoolTrees(YTEnvSetup):
             },
             "data_size_per_job": 1,
         }
-        return spec
 
     def _iter_running_jobs(self, op, tentative_nodes):
         jobs_path = op.get_path() + "/controller_orchid/running_jobs"
@@ -1142,3 +1141,30 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
 
         set("//sys/pool_trees/default/@nodes_filter", "")
 
+##################################################################
+
+class TestTreeSetChangedDuringFairShareUpdate(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 0
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 1000,
+            "strategy_testing_options": {
+                "delay_inside_fair_share_update": 900
+            }
+        }
+    }
+
+    @authors("eshcherbin")
+    def test_tree_set_changed_during_fair_share_update(self):
+        for i in range(10):
+            create_pool_tree("other{}".format(i), wait_for_orchid=True)
+            # This sleep is needed here to spread the creation of new pool trees over time.
+            time.sleep(0.6)
+
+        for i in range(10):
+            remove_pool_tree("other{}".format(i), wait_for_orchid=True)
+            # This sleep is needed here to spread the deletion of new pool trees over time.
+            time.sleep(0.6)

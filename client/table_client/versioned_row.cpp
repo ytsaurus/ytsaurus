@@ -171,7 +171,7 @@ bool AreRowsIdentical(TVersionedRow lhs, TVersionedRow rhs)
 TString ToString(TVersionedRow row)
 {
     if (!row) {
-        return "<std::nullopt>";
+        return "<null>";
     }
 
     TStringBuilder builder;

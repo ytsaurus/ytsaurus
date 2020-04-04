@@ -121,9 +121,6 @@ private:
         try {
             YT_LOG_DEBUG("Started synchronizing cluster directory");
 
-            auto req = NObjectClient::TMasterYPathProxy::GetClusterMeta();
-            req->set_populate_cluster_directory(true);
-
             TMasterReadOptions options{
                 EMasterChannelKind::Cache,
                 Config_->ExpireAfterSuccessfulUpdateTime,
@@ -131,23 +128,32 @@ private:
                 1
             };
 
-            SetBalancingHeader(req, Bootstrap_->GetClusterConnection()->GetConfig(), options);
-            SetCachingHeader(req, Bootstrap_->GetClusterConnection()->GetConfig(), options);
-
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsSecondaryMaster()) {
                 auto channel = MulticellManager_->FindMasterChannel(CellTag_, NHydra::EPeerKind::Follower);
                 NObjectClient::TObjectServiceProxy proxy(channel);
+
                 auto batchReq = proxy.ExecuteBatch();
+                SetBalancingHeader(batchReq, Bootstrap_->GetClusterConnection()->GetConfig(), options);
+
+                auto req = NObjectClient::TMasterYPathProxy::GetClusterMeta();
+                req->set_populate_cluster_directory(true);
+                SetCachingHeader(req, Bootstrap_->GetClusterConnection()->GetConfig(), options);
                 batchReq->AddRequest(req);
+
                 auto batchRsp = WaitFor(batchReq->Invoke())
                     .ValueOrThrow();
                 auto rsp = batchRsp->GetResponse<NObjectClient::TMasterYPathProxy::TRspGetClusterMeta>(0)
                     .ValueOrThrow();
+
                 ClusterDirectory_->UpdateDirectory(rsp->cluster_directory());
             } else {
+                auto req = NObjectClient::TMasterYPathProxy::GetClusterMeta();
+                req->set_populate_cluster_directory(true);
+
                 auto rsp = WaitFor(ExecuteVerb(ObjectManager_->GetMasterProxy(), req))
                     .ValueOrThrow();
+
                 ClusterDirectory_->UpdateDirectory(rsp->cluster_directory());
             }
 

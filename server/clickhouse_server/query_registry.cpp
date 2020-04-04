@@ -95,8 +95,8 @@ public:
 
     NProfiling::TTagId TagId;
 
-    explicit TUserProfilingEntry(const TString& name)
-        : TagId(TProfileManager::Get()->RegisterTag("user", name))
+    explicit TUserProfilingEntry(TTagId tagId, const TString& name)
+        : TagId(tagId)
         , Name_(name)
     { }
 
@@ -187,6 +187,7 @@ public:
     TImpl(TBootstrap* bootstrap)
         : OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildYson, MakeWeak(this))))
         , Bootstrap_(bootstrap)
+        , UserTagCache_("user")
         , IdlePromise_(MakePromise<void>(TError()))
         , ProcessListSnapshotExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
@@ -210,16 +211,15 @@ public:
             .ThrowOnError();
     }
 
-    void Register(TQueryContext* queryContext)
+    void Register(TQueryContextPtr queryContext)
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         const auto& Logger = queryContext->Logger;
 
-        YT_VERIFY(QueryContexts_.insert(queryContext).second);
+        YT_VERIFY(QueryContexts_.insert(queryContext.Get()).second);
 
         auto& userProfilingEntry = GetOrRegisterUserProfilingEntry(queryContext->User);
-
         switch (queryContext->QueryKind)
         {
             case EQueryKind::InitialQuery:
@@ -279,7 +279,7 @@ public:
         }
     }
 
-    void AccountPhaseCounter(TQueryContext* queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
+    void AccountPhaseCounter(TQueryContextPtr queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
     {
         auto& userProfilingEntry = GetOrCrash(UserToUserProfilingEntry_, queryContext->User);
 
@@ -372,11 +372,9 @@ public:
                     EMetricType::Gauge,
                     {userProfilingInfo.TagId});
 
-                for (int index = 0; index < static_cast<int>(ProfileEvents::end()); ++index) {
-                    const auto* name = ProfileEvents::getName(index);
-                    auto value = (*processListForUserInfo->profile_counters)[index].load(std::memory_order::memory_order_relaxed);
+                for (const auto& [name, value] : GetBriefProfileCounters(*processListForUserInfo->profile_counters)) {
                     ClickHouseNativeProfiler.Enqueue(
-                        "/user_profile_events/" + CamelCaseToUnderscoreCase(TString(name)),
+                        "/user_profile_events/" + name,
                         value,
                         EMetricType::Counter,
                         {userProfilingInfo.TagId});
@@ -407,10 +405,18 @@ public:
         ProcessListSnapshot_ = TProcessListSnapshot(Bootstrap_->GetHost()->GetContext().getProcessList());
     }
 
+    NProfiling::TTagId GetUserProfilingTag(const TString& user)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return UserTagCache_.GetTag(user);
+    }
+
 private:
     TBootstrap* Bootstrap_;
     THashSet<TQueryContext*> QueryContexts_;
 
+    TTagCache<TString> UserTagCache_;
     THashMap<TString, TUserProfilingEntry> UserToUserProfilingEntry_;
 
     TPromise<void> IdlePromise_;
@@ -446,10 +452,13 @@ private:
 
     TUserProfilingEntry& GetOrRegisterUserProfilingEntry(const TString& user)
     {
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
         THashMap<TString, TUserProfilingEntry>::insert_ctx ctx;
         auto it = UserToUserProfilingEntry_.find(user, ctx);
         if (it == UserToUserProfilingEntry_.end()) {
-            it = UserToUserProfilingEntry_.emplace_direct(ctx, user, TUserProfilingEntry(user));
+            auto tagId = GetUserProfilingTag(user);
+            it = UserToUserProfilingEntry_.emplace_direct(ctx, user, TUserProfilingEntry(tagId, user));
         }
         return it->second;
     }
@@ -464,9 +473,9 @@ TQueryRegistry::TQueryRegistry(NYT::NClickHouseServer::TBootstrap* bootstrap)
 TQueryRegistry::~TQueryRegistry()
 { }
 
-void TQueryRegistry::Register(TQueryContext* queryContext)
+void TQueryRegistry::Register(TQueryContextPtr queryContext)
 {
-    Impl_->Register(queryContext);
+    Impl_->Register(std::move(queryContext));
 }
 
 void TQueryRegistry::Unregister(TQueryContext* queryContext)
@@ -474,9 +483,9 @@ void TQueryRegistry::Unregister(TQueryContext* queryContext)
     Impl_->Unregister(queryContext);
 }
 
-void TQueryRegistry::AccountPhaseCounter(TQueryContext* queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
+void TQueryRegistry::AccountPhaseCounter(TQueryContextPtr queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
 {
-    Impl_->AccountPhaseCounter(queryContext, fromPhase, toPhase);
+    Impl_->AccountPhaseCounter(std::move(queryContext), fromPhase, toPhase);
 }
 
 size_t TQueryRegistry::GetQueryCount() const
@@ -507,6 +516,11 @@ void TQueryRegistry::WriteStateToStderr() const
 void TQueryRegistry::SaveState()
 {
     Impl_->SaveState();
+}
+
+NProfiling::TTagId TQueryRegistry::GetUserProfilingTag(const TString& user)
+{
+    return Impl_->GetUserProfilingTag(user);
 }
 
 void TQueryRegistry::Start()

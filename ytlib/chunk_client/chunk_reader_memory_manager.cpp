@@ -1,18 +1,21 @@
 #include "chunk_reader_memory_manager.h"
-
 #include "parallel_reader_memory_manager.h"
+#include "private.h"
 
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReaderMemoryManagerOptions::TChunkReaderMemoryManagerOptions(
     i64 bufferSize,
-    NProfiling::TTagIdList profilingTagList)
+    NProfiling::TTagIdList profilingTagList,
+    bool enableDetailedLogging)
     : BufferSize(bufferSize)
     , ProfilingTagList(std::move(profilingTagList))
+    , EnableDetailedLogging(enableDetailedLogging)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -26,7 +29,19 @@ TChunkReaderMemoryManager::TChunkReaderMemoryManager(
     , AsyncSemaphore_(New<TAsyncSemaphore>(Options_.BufferSize))
     , HostMemoryManager_(std::move(hostMemoryManager))
     , ProfilingTagList_(std::move(options.ProfilingTagList))
-{ }
+    , Id_(TGuid::Create())
+    , Logger(TLogger{ReaderMemoryManagerLogger}
+        .AddTag("Id: %v", Id_))
+{
+    TGuid parentId;
+    if (auto parent = HostMemoryManager_.Lock()) {
+        parentId = parent->GetId();
+    }
+    YT_LOG_DEBUG("Chunk reader memory manager created (ReservedMemorySize: %v, PrefetchMemorySize: %v, ParentId: %v)",
+        GetReservedMemorySize(),
+        PrefetchMemorySize_.load(),
+        parentId);
+}
 
 i64 TChunkReaderMemoryManager::GetRequiredMemorySize() const
 {
@@ -63,6 +78,10 @@ i64 TChunkReaderMemoryManager::GetReservedMemorySize() const
 
 void TChunkReaderMemoryManager::SetReservedMemorySize(i64 size)
 {
+    YT_LOG_DEBUG_UNLESS(GetReservedMemorySize() == size, "Updating reserved memory size (OldReservedMemorySize: %v, NewReservedMemorySize: %v)",
+        GetReservedMemorySize(),
+        size);
+
     ReservedMemorySize_ = size;
     AsyncSemaphore_->SetTotal(ReservedMemorySize_);
 }
@@ -72,13 +91,32 @@ const NProfiling::TTagIdList& TChunkReaderMemoryManager::GetProfilingTagList() c
     return ProfilingTagList_;
 }
 
+void TChunkReaderMemoryManager::AddChunkReaderInfo(TGuid chunkReaderId)
+{
+    Logger.AddTag("chunk_reader_id", chunkReaderId);
+}
+
+void TChunkReaderMemoryManager::AddReadSessionInfo(TGuid readSessionId)
+{
+    Logger.AddTag("read_session_id", readSessionId);
+}
+
+TGuid TChunkReaderMemoryManager::GetId() const
+{
+    return Id_;
+}
+
 TMemoryUsageGuardPtr TChunkReaderMemoryManager::Acquire(i64 size)
 {
+    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Force acquiring memory (MemorySize: %v, FreeMemorySize: %v)", size, GetFreeMemorySize());
+
     return New<TMemoryUsageGuard>(TAsyncSemaphoreGuard::Acquire(AsyncSemaphore_, size), MakeWeak(this));
 }
 
 TFuture<TMemoryUsageGuardPtr> TChunkReaderMemoryManager::AsyncAquire(i64 size)
 {
+    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Acquiring memory (MemorySize: %v, FreeMemorySize: %v)", size, GetFreeMemorySize());
+
     auto memoryPromise = NewPromise<TMemoryUsageGuardPtr>();
     auto memoryFuture = memoryPromise.ToFuture();
     AsyncSemaphore_->AsyncAcquire(
@@ -91,6 +129,8 @@ TFuture<TMemoryUsageGuardPtr> TChunkReaderMemoryManager::AsyncAquire(i64 size)
 
 void TChunkReaderMemoryManager::Release(i64 size)
 {
+    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Releasing memory (MemorySize: %v, FreeMemorySize: %v)", size, GetFreeMemorySize());
+
     AsyncSemaphore_->Release(size);
     TryUnregister();
 }
@@ -106,13 +146,17 @@ void TChunkReaderMemoryManager::TryUnregister()
     }
 }
 
-i64 TChunkReaderMemoryManager::GetAvailableSize() const
+i64 TChunkReaderMemoryManager::GetFreeMemorySize() const
 {
     return AsyncSemaphore_->GetFree();
 }
 
 void TChunkReaderMemoryManager::SetTotalSize(i64 size)
 {
+    YT_LOG_DEBUG_UNLESS(TotalMemorySize_.load() == size, "Updating total memory size (OldTotalSize: %v, NewTotalSize: %v)",
+        TotalMemorySize_.load(),
+        size);
+
     TotalMemorySize_ = size;
     OnMemoryRequirementsUpdated();
 }
@@ -127,6 +171,9 @@ void TChunkReaderMemoryManager::SetRequiredMemorySize(i64 size)
             break;
         }
         if (RequiredMemorySize_.compare_exchange_weak(oldValue, size)) {
+            YT_LOG_DEBUG_UNLESS(RequiredMemorySize_.load() == size, "Updating required memory size (OldRequiredMemorySize: %v, NewRequiredMemorySize: %v)",
+                oldValue,
+                size);
             OnMemoryRequirementsUpdated();
             break;
         }
@@ -135,23 +182,39 @@ void TChunkReaderMemoryManager::SetRequiredMemorySize(i64 size)
 
 void TChunkReaderMemoryManager::SetPrefetchMemorySize(i64 size)
 {
+    YT_LOG_DEBUG_UNLESS(PrefetchMemorySize_.load() == size, "Updating prefetch memory size (OldPrefetchMemorySize: %v, NewPrefetchMemorySize: %v)",
+        PrefetchMemorySize_.load(),
+        size);
+
     PrefetchMemorySize_ = size;
     OnMemoryRequirementsUpdated();
 }
 
 void TChunkReaderMemoryManager::Finalize()
 {
+    YT_LOG_DEBUG("Finalizing chunk reader memory manager (AlreadyFinalized: %v)", Finalized_.load());
+
     Finalized_ = true;
     TryUnregister();
 }
 
 void TChunkReaderMemoryManager::OnSemaphoreAcquired(TPromise<TMemoryUsageGuardPtr> promise, TAsyncSemaphoreGuard semaphoreGuard)
 {
+    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Semaphore acquired (MemorySize: %v)", semaphoreGuard.GetSlots());
+
     promise.Set(New<TMemoryUsageGuard>(std::move(semaphoreGuard), MakeWeak(this)));
 }
 
 void TChunkReaderMemoryManager::OnMemoryRequirementsUpdated()
 {
+    YT_LOG_DEBUG("Memory requirements updated (ReservedMemorySize: %v, UsedMemorySize: %v, TotalMemorySize: %v, "
+        "RequiredMemorySize: %v, PrefetchMemorySize: %v)",
+        GetReservedMemorySize(),
+        GetUsedMemorySize(),
+        TotalMemorySize_.load(),
+        GetRequiredMemorySize(),
+        PrefetchMemorySize_.load());
+
     auto hostMemoryManager = HostMemoryManager_.Lock();
     if (hostMemoryManager) {
         hostMemoryManager->UpdateMemoryRequirements(MakeStrong(this));
@@ -161,6 +224,7 @@ void TChunkReaderMemoryManager::OnMemoryRequirementsUpdated()
 void TChunkReaderMemoryManager::DoUnregister()
 {
     if (!Unregistered_.test_and_set()) {
+        YT_LOG_DEBUG("Unregistering chunk reader memory manager");
         auto hostMemoryManager = HostMemoryManager_.Lock();
         if (hostMemoryManager) {
             hostMemoryManager->Unregister(MakeStrong(this));

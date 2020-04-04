@@ -62,7 +62,7 @@ std::vector<TTablePtr> FetchTables(
         paths.emplace_back(path.GetPath());
     }
 
-    auto attributesOrErrors = host->CheckPermissionsAndGetCachedObjectAttributes(paths, client);
+    auto attributesOrErrors = host->GetObjectAttributes(paths, client);
 
     std::vector<TTablePtr> tables;
     std::vector<TError> errors;

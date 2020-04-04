@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/logging/log.h>
+
 #include <yt/core/profiling/public.h>
 
 #include <yt/core/concurrency/async_semaphore.h>
@@ -16,11 +18,14 @@ struct TChunkReaderMemoryManagerOptions
 {
     explicit TChunkReaderMemoryManagerOptions(
         i64 bufferSize,
-        NProfiling::TTagIdList profilingTagList = {});
+        NProfiling::TTagIdList profilingTagList = {},
+        bool enableDetailedLogging = false);
 
     i64 BufferSize;
 
     NProfiling::TTagIdList ProfilingTagList;
+
+    const bool EnableDetailedLogging;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,6 +49,15 @@ public:
 
     //! Returns list of profiling tags for this memory manager.
     virtual const NProfiling::TTagIdList& GetProfilingTagList() const = 0;
+
+    //! Adds information about corresponding chunk reader.
+    virtual void AddChunkReaderInfo(TGuid chunkReaderId) = 0;
+
+    //! Adds information abount corresponding read session.
+    virtual void AddReadSessionInfo(TGuid readSessionId) = 0;
+
+    //! Returns unique reader id.
+    virtual TGuid GetId() const = 0;
 
     //! Indicates that memory requirements of this manager will not increase anymore.
     virtual void Finalize() = 0;
@@ -71,6 +85,12 @@ public:
 
     virtual const NProfiling::TTagIdList& GetProfilingTagList() const override;
  
+    virtual void AddChunkReaderInfo(TGuid chunkReaderId) override;
+
+    virtual void AddReadSessionInfo(TGuid readSessionId) override;
+
+    virtual TGuid GetId() const override;
+
     //! Called by fetcher when all blocks were fetched.
     virtual void Finalize() override;
 
@@ -85,7 +105,7 @@ public:
     void TryUnregister();
 
     //! Returns amount of memory that is possible to acquire now.
-    i64 GetAvailableSize() const;
+    i64 GetFreeMemorySize() const;
 
     //! Set total size of blocks we are going to read. Called by block fetcher.
     void SetTotalSize(i64 size);
@@ -121,6 +141,10 @@ private:
     TWeakPtr<IReaderMemoryManagerHost> HostMemoryManager_;
 
     NProfiling::TTagIdList ProfilingTagList_;
+
+    const TGuid Id_;
+
+    NLogging::TLogger Logger;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderMemoryManager)
