@@ -37,6 +37,7 @@ BUNDLED_DEFAULTS = {
     "clickhouse_config": {},
     "max_failed_job_count": 10 * 1000,
     "uncompressed_block_cache_size": 20 * 1000*3,
+    "max_instance_count": 100,
 }
 
 
@@ -93,13 +94,6 @@ def _format_url(url):
     return to_yson_type(url, attributes={"_type_tag": "url"})
 
 
-# Inherit all custom attributes from the ytserver-clickhouse.
-# TODO(max42): YT-11099.
-def _get_user_attributes(path, client=None):
-    attr_keys = get(path + "/@user_attribute_keys", client=client)
-    return get(path + "/@", attributes=attr_keys, client=client)
-
-
 @_patch_defaults
 def _build_description(cypress_ytserver_clickhouse_path=None,
                        cypress_ytserver_log_tailer_path=None,
@@ -112,16 +106,13 @@ def _build_description(cypress_ytserver_clickhouse_path=None,
 
     description = {}
     if cypress_ytserver_clickhouse_path is not None:
-        description = update(description, {"ytserver-clickhouse": _get_user_attributes(cypress_ytserver_clickhouse_path, client=client)})
+        description = update(description, {"ytserver-clickhouse": get(cypress_ytserver_clickhouse_path + "/@user_attributes", client=client)})
 
     if cypress_ytserver_log_tailer_path is not None:
-        description = update(description, {"ytserver-log-tailer": _get_user_attributes(cypress_ytserver_log_tailer_path, client=client)})
+        description = update(description, {"ytserver-log-tailer": get(cypress_ytserver_log_tailer_path + "/@user_attributes", client=client)})
 
     if cypress_clickhouse_trampoline_path is not None:
-        description = update(description, {"clickhouse-trampoline": _get_user_attributes(cypress_clickhouse_trampoline_path, client=client)})
-
-    if artifact_path is not None:
-        description = update(description, {"artifact_path": _format_url()})
+        description = update(description, {"clickhouse-trampoline": get(cypress_clickhouse_trampoline_path + "/@user_attributes", client=client)})
 
     # Put information about previous incarnation of the operation by the given alias (if any).
     if prev_operation_id is not None:
@@ -139,8 +130,11 @@ def _build_description(cypress_ytserver_clickhouse_path=None,
 
     # Put link to monitoring.
     if cluster is not None and operation_alias is not None and enable_monitoring:
-        description["monitoring_url"] = _format_url(
+        description["solomon_root_url"] = _format_url(
             "https://solomon.yandex-team.ru/?project=yt&cluster={}&service=yt_clickhouse&operation_alias={}"
+                .format(cluster, operation_alias[1:]))
+        description["solomon_dashboard_url"] = _format_url(
+            "https://solomon.yandex-team.ru/?project=yt&cluster={}&service=yt_clickhouse&cookie=Aggr&dashboard=chyt&l.operation_alias={}"
                 .format(cluster, operation_alias[1:]))
 
     return description
@@ -168,6 +162,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        enable_log_tailer=None,
                                        uncompressed_block_cache_size=None,
                                        trampoline_log_file=None,
+                                       max_instance_count=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
@@ -192,6 +187,10 @@ def get_clickhouse_clique_spec_builder(instance_count,
     require(cypress_config_paths is not None,
             lambda: YtError("At least cypress clickhouse server config.yson path should be specified as cypress_config_"
                             "paths dictionary; consider using prepare_cypress_configs helper"))
+
+    require(instance_count <= max_instance_count,
+            lambda: YtError("Requested instance count exceeds maximum allowed instance count: {} > {}; if you indeed want to run clique of such size, "
+                            "consult with CHYT support in support chat".format(instance_count, max_instance_count)))
 
     spec_base = {
         "annotations": {
