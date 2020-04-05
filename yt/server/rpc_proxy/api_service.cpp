@@ -327,6 +327,7 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTablePivotKeys));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMember));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMember));
@@ -786,6 +787,24 @@ private:
                     tableMountInfo->Dynamic,
                     tableMountInfo->Tablets.size(),
                     tableMountInfo->Replicas.size());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetTablePivotKeys)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto path = FromProto<TYPath>(request->path());
+
+        context->SetRequestInfo("Path: %v", path);
+
+        CompleteCallWith(
+            client,
+            context,
+            client->GetTablePivotKeys(path),
+            [] (const auto& context, const TYsonString& result) {
+                auto* response = &context->Response();
+                response->set_value(result.GetData());
             });
     }
 

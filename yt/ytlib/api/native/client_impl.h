@@ -181,6 +181,10 @@ public:
         NTabletClient::TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options),
         (replicaId, options))
+    IMPLEMENT_METHOD(NYson::TYsonString, GetTablePivotKeys, (
+        const NYPath::TYPath& path,
+        const TGetTablePivotKeysOptions& options),
+        (path, options))
     IMPLEMENT_METHOD(std::vector<NTabletClient::TTabletActionId>, BalanceTabletCells, (
         const TString& tabletCellBundle,
         const std::vector< NYPath::TYPath>& movableTables,
@@ -635,6 +639,10 @@ private:
     void DoAlterTableReplica(
         NTabletClient::TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options);
+
+    NYson::TYsonString DoGetTablePivotKeys(
+        const NYPath::TYPath& path,
+        const TGetTablePivotKeysOptions& options);
 
     std::vector<NTabletClient::TTabletActionId> DoBalanceTabletCells(
         const TString& tabletCellBundle,
