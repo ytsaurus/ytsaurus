@@ -442,6 +442,40 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         assert len(select_rows("* from [//tmp/t]")) == 1
 
+    @authors("kiselyovp")
+    def test_get_table_pivot_keys(self):
+        create("file", "//tmp/f")
+        with pytest.raises(YtError): get_table_pivot_keys("//tmp/f")
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a" : "b"})
+        with pytest.raises(YtError): get_table_pivot_keys("//tmp/t")
+        remove("//tmp/t")
+
+        sync_create_cells(1)
+        self._create_ordered_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key" : 1, "value" : "abacaba"}])
+        with pytest.raises(YtError): get_table_pivot_keys("//tmp/t")
+        remove("//tmp/t")
+
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [100], [200], [300]])
+        assert get_table_pivot_keys("//tmp/t") == [{}, {"key": 100}, {"key": 200}, {"key": 300}]
+        remove("//tmp/t")
+
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "key1", "type_v3": optional_type("int64"), "sort_order": "ascending"},
+            {"name": "key2", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ])
+        sync_reshard_table("//tmp/t", [[], [100, "lol"], [200], [300, "abacaba"]])
+        assert get_table_pivot_keys("//tmp/t") == [
+            {},
+            {"key1": 100, "key2": "lol"},
+            {"key1": 200},
+            {"key1": 300, "key2": "abacaba"}]
+
 ##################################################################
 
 class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):

@@ -406,4 +406,18 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetTablePivotKeysCommand
+    : public TTypedCommand<NApi::TGetTablePivotKeysOptions>
+{
+public:
+    TGetTablePivotKeysCommand();
+
+private:
+    NYPath::TYPath Path;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

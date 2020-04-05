@@ -212,6 +212,10 @@ public:
         NTabletClient::TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options));
 
+    MOCK_METHOD2(GetTablePivotKeys, TFuture<NYson::TYsonString>(
+        const NYPath::TYPath& path,
+        const TGetTablePivotKeysOptions& options));
+
     MOCK_METHOD4(GetInSyncReplicas, TFuture<std::vector<NTabletClient::TTableReplicaId>>(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,

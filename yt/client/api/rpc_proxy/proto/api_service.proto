@@ -784,6 +784,18 @@ message TRspGetTableMountInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqGetTablePivotKeys
+{
+    required string path = 1;
+}
+
+message TRspGetTablePivotKeys
+{
+    required bytes value = 1; // YSON
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqCreateNode
 {
     required string path = 1; // YPath
