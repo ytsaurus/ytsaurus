@@ -1578,7 +1578,7 @@ class TAnyFutureCombiner
     : public TRefCounted
 {
 public:
-    explicit TAnyFutureCombiner(
+    TAnyFutureCombiner(
         std::vector<TFuture<T>> futures,
         bool skipErrors,
         TFutureCombinerOptions options)
