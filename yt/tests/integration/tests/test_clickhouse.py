@@ -60,6 +60,7 @@ DEFAULTS = {
     "enable_monitoring": False,
     "clickhouse_config": {},
     "uncompressed_block_cache_size": 0,
+    "max_instance_count": 100,
 }
 
 QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show", "exists")
