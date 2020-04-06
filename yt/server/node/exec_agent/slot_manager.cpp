@@ -186,6 +186,11 @@ bool TSlotManager::IsEnabled() const
     return isEnabled && !PersistentAlert_ && !TransientAlert_;
 }
 
+void TSlotManager::UpdateCpuLimit(double cpuLimit)
+{
+    JobEnvironment_->UpdateCpuLimit(cpuLimit);
+}
+
 void TSlotManager::Disable(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -200,20 +205,6 @@ void TSlotManager::Disable(const TError& error)
 
     YT_LOG_WARNING(errorWrapper);
     PersistentAlert_ = errorWrapper;
-}
-
-std::optional<i64> TSlotManager::GetMemoryLimit() const
-{
-    return JobEnvironment_ && JobEnvironment_->IsEnabled()
-        ? JobEnvironment_->GetMemoryLimit()
-        : std::nullopt;
-}
-
-std::optional<double> TSlotManager::GetCpuLimit() const
-{
-    return JobEnvironment_ && JobEnvironment_->IsEnabled()
-       ? JobEnvironment_->GetCpuLimit()
-       : std::nullopt;
 }
 
 void TSlotManager::OnJobFinished(EJobState jobState)

@@ -12,6 +12,7 @@
 
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cell_node/resource_manager.h>
 
 #include <yt/server/node/data_node/journal_dispatcher.h>
 
@@ -979,6 +980,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
         auto tags = FromProto<std::vector<TString>>(rsp->tags());
         UpdateTags(std::move(tags));
+
+        auto resourceManager = Bootstrap_->GetNodeResourceManager();
+        resourceManager->SetResourceLimitsOverride(rsp->resource_limits_overrides());
 
         auto jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());

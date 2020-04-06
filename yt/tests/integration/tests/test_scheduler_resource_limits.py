@@ -174,14 +174,27 @@ class TestContainerCpuLimit(YTEnvSetup):
 
 ###############################################################################################
 
-class TestUpdateCpuLimits(YTEnvSetup):
+class TestUpdateInstanceLimits(YTEnvSetup):
     DELTA_NODE_CONFIG = {
+        "instance_limits_update_period": 200,
+        "resource_limits_update_period": 200,
+        "resource_limits": {
+            "node_dedicated_cpu": 1,
+            "user_jobs": {
+                "type": "dynamic",
+            },
+            "tablet_static": {
+                "type": "static",
+                "value": 10**9,
+            },
+            "tablet_dynamic": {
+                "type": "dynamic",
+            },
+        },
         "exec_agent": {
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
-                    "resource_limits_update_period" : 200,
-                    "node_dedicated_cpu" : 1,
                 },
             }
         }
@@ -191,7 +204,7 @@ class TestUpdateCpuLimits(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
-    @authors("psushin")
+    @authors("psushin", "gritukan")
     def test_update_cpu_limits(self):
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
@@ -200,6 +213,21 @@ class TestUpdateCpuLimits(YTEnvSetup):
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 3)
         self.Env.set_nodes_cpu_limit(3)
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 2)
+
+    @authors("gritukan")
+    def test_update_memory_limits(self):
+        # User jobs memory limit is approximately (total_memory - 10**9) / 2.
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        precision = 10**8
+        self.Env.set_nodes_memory_limit(15 * 10**8)
+        wait(lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 25 * 10**7) <= precision)
+        self.Env.set_nodes_memory_limit(2 * 10**9)
+        wait(lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 5 * 10**8) <= precision)
+        self.Env.set_nodes_memory_limit(10**9 - 1)
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node))) == 0)
 
 ###############################################################################################
 

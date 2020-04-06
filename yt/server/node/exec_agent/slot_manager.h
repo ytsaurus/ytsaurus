@@ -44,9 +44,7 @@ public:
 
     bool IsEnabled() const;
 
-    std::optional<i64> GetMemoryLimit() const;
-
-    std::optional<double> GetCpuLimit() const;
+    void UpdateCpuLimit(double cpuLimit);
 
     NNodeTrackerClient::NProto::TDiskResources GetDiskResources();
 

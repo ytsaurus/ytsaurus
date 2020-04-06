@@ -6,6 +6,7 @@
 #    yt/server/master/cell_master/serialize.cpp - if the version differs, then the update should be done with master snapshots (+ --set-read-only).
 #    yt/server/node/tablet_node/serialize.cpp - if the version differs, then the update should be done with tablet cell recreation.
 
+* gritukan: Node resource limits config format changed. Everything is _hopefully_ backwards-compatible, but better update config before nodes update.
 * gritukan: |Get| semantics changed. Update masters via snapshot.
 * ifsmirnov: Added validation of creating non-external nodes. Update masters via snapshot.
 * lexolordan: To use unmount user is required to have permission "use" on cell_bundle. Update masters via snapshot.

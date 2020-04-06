@@ -645,10 +645,11 @@ public:
             .GreaterThanOrEqual(0)
             .Default(4);
         RegisterParameter("tablet_static_memory", TabletStaticMemory)
+            .GreaterThanOrEqual(0)
             .Default(std::numeric_limits<i64>::max());
         RegisterParameter("tablet_dynamic_memory", TabletDynamicMemory)
             .GreaterThanOrEqual(0)
-            .Default(1_GB);
+            .Default(std::numeric_limits<i64>::max());
     }
 };
 

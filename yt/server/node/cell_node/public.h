@@ -18,6 +18,8 @@ DECLARE_REFCOUNTED_CLASS(TCellNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TCellNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TBatchingChunkServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
+DECLARE_REFCOUNTED_CLASS(TNodeResourceManager)
+DECLARE_REFCOUNTED_CLASS(TMemoryLimit)
 
 using NNodeTrackerClient::TNodeMemoryTracker;
 using NNodeTrackerClient::TNodeMemoryTrackerPtr;
