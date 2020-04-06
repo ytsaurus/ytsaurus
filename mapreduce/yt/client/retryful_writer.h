@@ -9,7 +9,7 @@
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
-#include <library/threading/blocking_queue/blocking_queue.h>
+#include <library/cpp/threading/blocking_queue/blocking_queue.h>
 
 #include <util/stream/output.h>
 #include <util/generic/buffer.h>

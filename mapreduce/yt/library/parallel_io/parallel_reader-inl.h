@@ -11,7 +11,7 @@
 
 #include <mapreduce/yt/interface/logging/log.h>
 
-#include <library/threading/blocking_queue/blocking_queue.h>
+#include <library/cpp/threading/blocking_queue/blocking_queue.h>
 
 #include <util/generic/maybe.h>
 #include <util/generic/ptr.h>
