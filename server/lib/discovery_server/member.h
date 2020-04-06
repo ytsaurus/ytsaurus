@@ -61,7 +61,7 @@ public:
     TInstant GetLastHeartbeatTime() const;
     TInstant GetLastAttributesUpdateTime() const;
     TInstant GetLastGossipAttributesUpdateTime() const;
-    void SetLastGossipAttributesUpdateTime(const TInstant& lastGossipAttributesUpdateTime);
+    void SetLastGossipAttributesUpdateTime(TInstant lastGossipAttributesUpdateTime);
 
 private:
     const TMemberId Id_;
@@ -73,10 +73,8 @@ private:
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
     NConcurrency::TLease Lease_;
     TInstant LeaseDeadline_;
-
     TInstant LastHeartbeatTime_;
     TInstant LastAttributesUpdateTime_;
-
     TInstant LastGossipAttributesUpdateTime_;
 };
 

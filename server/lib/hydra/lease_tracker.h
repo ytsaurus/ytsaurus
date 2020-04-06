@@ -31,7 +31,7 @@ public:
     void Invalidate();
 
 private:
-    std::atomic<NProfiling::TCpuInstant> Deadline_ = {0};
+    std::atomic<NProfiling::TCpuInstant> Deadline_ = 0;
 
 };
 
@@ -45,11 +45,11 @@ class TLeaseTracker
 public:
     TLeaseTracker(
         TDistributedHydraManagerConfigPtr config,
-        NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
         TLeaderLeasePtr lease,
-        const std::vector<TCallback<TFuture<void>()>>& customLeaseCheckers);
+        std::vector<TCallback<TFuture<void>()>> customLeaseCheckers,
+        NLogging::TLogger logger);
 
     void Start();
 
@@ -62,25 +62,23 @@ private:
     class TFollowerPinger;
 
     const TDistributedHydraManagerConfigPtr Config_;
-    const NElection::TCellManagerPtr CellManager_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;
-    TLeaderLeasePtr Lease_;
+    const TLeaderLeasePtr Lease_;
     const std::vector<TCallback<TFuture<void>()>> CustomLeaseCheckers_;
+    const NLogging::TLogger Logger;
+
+    const NConcurrency::TPeriodicExecutorPtr LeaseCheckExecutor_;
+    
+    const TPromise<void> LeaseAcquired_ = NewPromise<void>();
+    const TPromise<void> LeaseLost_ = NewPromise<void>();
+
     TPeerIdSet AlivePeers_;
-
-    NConcurrency::TPeriodicExecutorPtr LeaseCheckExecutor_;
-
-    TPromise<void> LeaseAcquired_ = NewPromise<void>();
-    TPromise<void> LeaseLost_ = NewPromise<void>();
-
-    NLogging::TLogger Logger;
 
     void OnLeaseCheck();
     TFuture<void> FireLeaseCheck();
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TLeaseTracker)

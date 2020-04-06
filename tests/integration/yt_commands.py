@@ -683,6 +683,10 @@ def get_in_sync_replicas(path, data, **kwargs):
     kwargs["path"] = path
     return execute_command("get_in_sync_replicas", kwargs, input_stream=_prepare_rows_stream(data), parse_yson=True)
 
+def get_table_pivot_keys(path, **kwargs):
+    kwargs["path"] = path
+    return execute_command("get_table_pivot_keys", kwargs, parse_yson=True)
+
 def get_tablet_infos(path, tablet_indexes, **kwargs):
     kwargs["path"] = path
     kwargs["tablet_indexes"] = tablet_indexes

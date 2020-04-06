@@ -306,18 +306,26 @@ T* TEntityStreamLoadContext::GetEntity(TEntitySerializationKey key) const
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
-TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::TCustomPersistenceContext(
-    TSaveContext& context)
-    : SaveContext_(&context)
-    , LoadContext_(nullptr)
+TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::TCustomPersistenceContext(TSaveContext* saveContext, TLoadContext* loadContext)
+    : SaveContext_(saveContext)
+    , LoadContext_(loadContext)
 { }
 
 template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
-TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::TCustomPersistenceContext(
-    TLoadContext& context)
-    : SaveContext_(nullptr)
-    , LoadContext_(&context)
-{ }
+template <class TActualSaveContext>
+TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>
+TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::FromSave(TActualSaveContext& context)
+{
+    return TCustomPersistenceContext(&context, nullptr);
+}
+
+template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
+template <class TActualLoadContext>
+TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>
+TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::FromLoad(TActualLoadContext& context)
+{
+    return TCustomPersistenceContext(nullptr, &context);
+}
 
 template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
 bool TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::IsSave() const
@@ -349,7 +357,7 @@ template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
 template <class TOtherContext>
 TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::operator TOtherContext() const
 {
-    return IsSave() ? TOtherContext(*SaveContext_) : TOtherContext(*LoadContext_);
+    return IsSave() ? TOtherContext::FromSave(*SaveContext_) : TOtherContext::FromLoad(*LoadContext_);
 }
 
 template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
@@ -432,14 +440,14 @@ struct TPersistMemberTraits
 template <class P, class T, class C>
 void SaveViaPersist(C& context, const T& value)
 {
-    P wrappedContext(context);
+    auto wrappedContext = P::FromSave(context);
     const_cast<T&>(value).Persist(wrappedContext);
 }
 
 template <class P, class T, class C>
 void LoadViaPersist(C& context, T& value)
 {
-    P wrappedContext(context);
+    auto wrappedContext = P::FromLoad(context);
     value.Persist(wrappedContext);
 }
 

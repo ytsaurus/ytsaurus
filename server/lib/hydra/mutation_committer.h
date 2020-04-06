@@ -44,21 +44,23 @@ protected:
     TCommitterBase(
         TDistributedHydraManagerConfigPtr config,
         const TDistributedHydraManagerOptions& options,
-        NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        TEpochContext* epochContext);
+        TEpochContext* epochContext,
+        NLogging::TLogger logger,
+        NProfiling::TProfiler profiler);
 
     virtual void DoSuspendLogging() = 0;
     virtual void DoResumeLogging() = 0;
 
     const TDistributedHydraManagerConfigPtr Config_;
     const TDistributedHydraManagerOptions Options_;
-    const NElection::TCellManagerPtr CellManager_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;
 
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
+
+    const NElection::TCellManagerPtr CellManager_;
 
     NProfiling::TSimpleGauge LoggingSuspensionTimeGauge_{"/mutation_logging_suspension_time"};
 
@@ -86,10 +88,10 @@ public:
     TLeaderCommitter(
         TDistributedHydraManagerConfigPtr config,
         const TDistributedHydraManagerOptions& options,
-        NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        IChangelogStorePtr changelogStore,
-        TEpochContext* epochContext);
+        TEpochContext* epochContext,
+        NLogging::TLogger logger,
+        NProfiling::TProfiler profiler);
 
     ~TLeaderCommitter();
 
@@ -142,8 +144,6 @@ private:
     virtual void DoSuspendLogging() override;
     virtual void DoResumeLogging() override;
 
-    const IChangelogStorePtr ChangelogStore_;
-
     const NConcurrency::TPeriodicExecutorPtr AutoSnapshotCheckExecutor_;
 
     struct TPendingMutation
@@ -188,9 +188,10 @@ public:
     TFollowerCommitter(
         TDistributedHydraManagerConfigPtr config,
         const TDistributedHydraManagerOptions& options,
-        NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
-        TEpochContext* epochContext);
+        TEpochContext* epochContext,
+        NLogging::TLogger logger,
+        NProfiling::TProfiler profiler);
 
     //! Logs a batch of mutations at the follower.
     TFuture<void> AcceptMutations(

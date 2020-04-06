@@ -212,6 +212,10 @@ struct TAlterTableReplicaOptions
     std::optional<NTransactionClient::EAtomicity> Atomicity;
 };
 
+struct TGetTablePivotKeysOptions
+    : public TTimeoutOptions
+{ };
+
 struct TGetInSyncReplicasOptions
     : public TTimeoutOptions
 {
@@ -1289,6 +1293,10 @@ struct IClient
     virtual TFuture<void> AlterTableReplica(
         NTabletClient::TTableReplicaId replicaId,
         const TAlterTableReplicaOptions& options = {}) = 0;
+
+    virtual TFuture<NYson::TYsonString> GetTablePivotKeys(
+        const NYPath::TYPath& path,
+        const TGetTablePivotKeysOptions& options = {}) = 0;
 
     virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,

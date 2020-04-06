@@ -1519,6 +1519,33 @@ void TClient::DoAlterTableReplica(
         .ThrowOnError();
 }
 
+TYsonString TClient::DoGetTablePivotKeys(
+    const NYPath::TYPath& path,
+    const TGetTablePivotKeysOptions& options)
+{
+    const auto& tableMountCache = Connection_->GetTableMountCache();
+    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
+        .ValueOrThrow();
+
+    tableInfo->ValidateDynamic();
+    tableInfo->ValidateSorted();
+
+    auto keySchema = tableInfo->Schemas[ETableSchemaKind::Primary].ToKeys();
+
+    return BuildYsonStringFluently()
+        .DoListFor(tableInfo->Tablets, [&] (TFluentList fluent, const TTabletInfoPtr& tablet) {
+            fluent
+                .Item()
+                .DoMapFor(tablet->PivotKey, [&] (TFluentMap fluent, const TUnversionedValue& value) {
+                    if (value.Id <= keySchema.GetColumnCount()) {
+                        fluent
+                            .Item(keySchema.Columns()[value.Id].Name())
+                            .Value(value);
+                    }
+                });
+        });
+}
+
 std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
     const TString& tabletCellBundle,
     const std::vector<TYPath>& movableTables,

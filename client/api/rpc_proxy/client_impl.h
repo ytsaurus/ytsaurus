@@ -80,6 +80,10 @@ public:
         NTabletClient::TTableReplicaId replicaId,
         const NApi::TAlterTableReplicaOptions& options) override;
 
+    virtual TFuture<NYson::TYsonString> GetTablePivotKeys(
+        const NYPath::TYPath& path,
+        const TGetTablePivotKeysOptions& options) override;
+
     virtual TFuture<std::vector<NTabletClient::TTableReplicaId>> GetInSyncReplicas(
         const NYPath::TYPath& path,
         NTableClient::TNameTablePtr nameTable,

@@ -209,19 +209,15 @@ class TDecoratedAutomaton::TSnapshotBuilderBase
     , public virtual TRefCounted
 {
 public:
-    TSnapshotBuilderBase(
-        TDecoratedAutomatonPtr owner,
-        i64 sequenceNumber,
-        int segmentId,
-        ui64 randomSeed,
-        TDuration buildSnapshotDelay)
+    explicit TSnapshotBuilderBase(TDecoratedAutomatonPtr owner)
         : Owner_(owner)
-        , SequenceNumber_(sequenceNumber)
-        , SnapshotId_(segmentId)
-        , RandomSeed_(randomSeed)
-        , BuildSnapshotDelay_(buildSnapshotDelay)
+        , SequenceNumber_(Owner_->SequenceNumber_)
+        , SnapshotId_(Owner_->SnapshotVersion_.SegmentId + 1)
+        , RandomSeed_(Owner_->RandomSeed_)
+        , EpochContext_(Owner_->EpochContext_)
     {
-        Logger = Owner_->Logger;
+        Logger = NLogging::TLogger(Owner_->Logger)
+            .AddTag("SnapshotId: %v", SnapshotId_);
     }
 
     ~TSnapshotBuilderBase()
@@ -232,8 +228,6 @@ public:
     TFuture<TRemoteSnapshotParams> Run()
     {
         VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
-
-        Logger.AddTag("SnapshotId: %v", SnapshotId_);
 
         try {
             TryAcquireLock();
@@ -263,9 +257,7 @@ protected:
     const i64 SequenceNumber_;
     const int SnapshotId_;
     const ui64 RandomSeed_;
-
-    // For testing.
-    const TDuration BuildSnapshotDelay_;
+    const TEpochContextPtr EpochContext_;
 
     ISnapshotWriterPtr SnapshotWriter_;
 
@@ -287,9 +279,10 @@ protected:
     void ReleaseLock()
     {
         if (LockAcquired_) {
-            if (BuildSnapshotDelay_ != TDuration::Zero()) {
-                YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", BuildSnapshotDelay_);
-                TDelayedExecutor::WaitForDuration(BuildSnapshotDelay_);
+            auto delay = Owner_->Config_->BuildSnapshotDelay;
+            if (delay != TDuration::Zero()) {
+                YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", delay);
+                TDelayedExecutor::WaitForDuration(delay);
             }
 
             Owner_->BuildingSnapshot_.store(false);
@@ -312,7 +305,7 @@ private:
         const auto& params = SnapshotWriter_->GetParams();
 
         TRemoteSnapshotParams remoteParams;
-        remoteParams.PeerId = Owner_->CellManager_->GetSelfPeerId();
+        remoteParams.PeerId = EpochContext_->CellManager->GetSelfPeerId();
         remoteParams.SnapshotId = SnapshotId_;
         static_cast<TSnapshotParams&>(remoteParams) = params;
         return remoteParams;
@@ -326,14 +319,7 @@ class TDecoratedAutomaton::TForkSnapshotBuilder
     , public TForkExecutor
 {
 public:
-    TForkSnapshotBuilder(
-        TDecoratedAutomatonPtr owner,
-        i64 sequenceNumber,
-        int segmentId,
-        ui64 randomSeed,
-        TDuration buildSnapshotDelay)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, sequenceNumber, segmentId, randomSeed, buildSnapshotDelay)
-    { }
+    using TSnapshotBuilderBase::TSnapshotBuilderBase;
 
 private:
     IAsyncInputStreamPtr InputStream_;
@@ -539,7 +525,6 @@ private:
     {
         return LastForwardResult_ = UnderlyingStream_->Write(block);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -548,14 +533,7 @@ class TDecoratedAutomaton::TNoForkSnapshotBuilder
     : public TSnapshotBuilderBase
 {
 public:
-    TNoForkSnapshotBuilder(
-        TDecoratedAutomatonPtr owner,
-        i64 sequenceNumber,
-        int segmentId,
-        ui64 randomSeed,
-        TDuration buildSnapshotDelay)
-        : TDecoratedAutomaton::TSnapshotBuilderBase(owner, sequenceNumber, segmentId, randomSeed, buildSnapshotDelay)
-    { }
+    using TSnapshotBuilderBase::TSnapshotBuilderBase;
 
     ~TNoForkSnapshotBuilder()
     {
@@ -623,29 +601,24 @@ private:
 TDecoratedAutomaton::TDecoratedAutomaton(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
-    TCellManagerPtr cellManager,
     IAutomatonPtr automaton,
     IInvokerPtr automatonInvoker,
     IInvokerPtr controlInvoker,
     ISnapshotStorePtr snapshotStore,
+    const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
     : Config_(std::move(config))
     , Options_(options)
-    , CellManager_(std::move(cellManager))
     , Automaton_(std::move(automaton))
     , AutomatonInvoker_(std::move(automatonInvoker))
     , DefaultGuardedUserInvoker_(CreateGuardedUserInvoker(AutomatonInvoker_))
     , ControlInvoker_(std::move(controlInvoker))
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(std::move(snapshotStore))
-    , Logger(NLogging::TLogger(HydraLogger)
-        .AddTag("CellId: %v, SelfPeerId: %v",
-            CellManager_->GetCellId(),
-            CellManager_->GetSelfPeerId()))
+    , Logger(logger)
     , Profiler(profiler)
 {
     YT_VERIFY(Config_);
-    YT_VERIFY(CellManager_);
     YT_VERIFY(Automaton_);
     YT_VERIFY(ControlInvoker_);
     YT_VERIFY(SnapshotStore_);
@@ -1424,8 +1397,8 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 #else
         Options_.UseFork
 #endif
-        ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this, SequenceNumber_, SnapshotVersion_.SegmentId + 1, RandomSeed_, Config_->BuildSnapshotDelay))
-        : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this, SequenceNumber_, SnapshotVersion_.SegmentId + 1, RandomSeed_, Config_->BuildSnapshotDelay));
+        ? TIntrusivePtr<TSnapshotBuilderBase>(New<TForkSnapshotBuilder>(this))
+        : TIntrusivePtr<TSnapshotBuilderBase>(New<TNoForkSnapshotBuilder>(this));
 
     auto buildResult = builder->Run();
     buildResult.Subscribe(

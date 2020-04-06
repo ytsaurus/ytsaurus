@@ -223,12 +223,14 @@ private:
     {
         std::vector<TFuture<void>> asyncResults;
         for (auto peerId = 0; peerId < Owner_->CellManager_->GetTotalPeerCount(); ++peerId) {
-            if (peerId == Owner_->CellManager_->GetSelfPeerId())
+            if (peerId == Owner_->CellManager_->GetSelfPeerId()) {
                 continue;
-
+            }
+                
             auto channel = Owner_->CellManager_->GetPeerChannel(peerId);
-            if (!channel)
+            if (!channel) {
                 continue;
+            }
 
             YT_LOG_DEBUG("Requesting follower to rotate the changelog (PeerId: %v)", peerId);
 
@@ -334,21 +336,19 @@ private:
 TCheckpointer::TCheckpointer(
     TDistributedHydraManagerConfigPtr config,
     const TDistributedHydraManagerOptions& options,
-    TCellManagerPtr cellManager,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TLeaderCommitterPtr leaderCommitter,
     ISnapshotStorePtr snapshotStore,
-    TEpochContext* epochContext)
+    TEpochContext* epochContext,
+    NLogging::TLogger logger)
     : Config_(config)
     , Options_(options)
-    , CellManager_(cellManager)
     , DecoratedAutomaton_(decoratedAutomaton)
     , EpochContext_(epochContext)
-    , Logger(NLogging::TLogger(HydraLogger)
-        .AddTag("CellId: %v", CellManager_->GetCellId()))
+    , Logger(std::move(logger))
+    , CellManager_(EpochContext_->CellManager)
 {
     YT_VERIFY(Config_);
-    YT_VERIFY(CellManager_);
     YT_VERIFY(DecoratedAutomaton_);
     YT_VERIFY(EpochContext_);
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);

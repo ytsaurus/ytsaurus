@@ -1033,6 +1033,21 @@ void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetTablePivotKeysCommand::TGetTablePivotKeysCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TGetTablePivotKeysCommand::DoExecute(ICommandContextPtr context)
+{
+    auto asyncResult = context->GetClient()->GetTablePivotKeys(Path, Options);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+    context->ProduceOutputValue(result);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TGetTabletInfosCommand::TGetTabletInfosCommand()
 {
     RegisterParameter("path", Path);

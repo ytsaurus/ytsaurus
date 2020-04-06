@@ -49,6 +49,7 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NScheduler;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -419,6 +420,22 @@ TFuture<void> TClient::AlterTableReplica(
     return req->Invoke().As<void>();
 }
 
+TFuture<TYsonString> TClient::GetTablePivotKeys(
+    const TYPath& path,
+    const TGetTablePivotKeysOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.GetTablePivotKeys();
+    SetTimeoutOptions(*req, options);
+
+    req->set_path(path);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetTablePivotKeysPtr& rsp) {
+        return TYsonString(rsp->value());
+    }));
+}
+
 TFuture<std::vector<TTableReplicaId>> TClient::GetInSyncReplicas(
     const TYPath& path,
     TNameTablePtr nameTable,
@@ -599,7 +616,7 @@ TFuture<TCheckPermissionByAclResult> TClient::CheckPermissionByAcl(
 
 TFuture<NScheduler::TOperationId> TClient::StartOperation(
     NScheduler::EOperationType type,
-    const NYson::TYsonString& spec,
+    const TYsonString& spec,
     const TStartOperationOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -681,7 +698,7 @@ TFuture<void> TClient::CompleteOperation(
 
 TFuture<void> TClient::UpdateOperationParameters(
     const TOperationIdOrAlias& operationIdOrAlias,
-    const NYson::TYsonString& parameters,
+    const TYsonString& parameters,
     const TUpdateOperationParametersOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -696,7 +713,7 @@ TFuture<void> TClient::UpdateOperationParameters(
     return req->Invoke().As<void>();
 }
 
-TFuture<NYson::TYsonString> TClient::GetOperation(
+TFuture<TYsonString> TClient::GetOperation(
     const TOperationIdOrAlias& operationIdOrAlias,
     const TGetOperationOptions& options)
 {
@@ -714,7 +731,7 @@ TFuture<NYson::TYsonString> TClient::GetOperation(
     req->set_include_runtime(options.IncludeRuntime);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetOperationPtr& rsp) {
-        return NYson::TYsonString(rsp->meta());
+        return TYsonString(rsp->meta());
     }));
 }
 
@@ -751,7 +768,7 @@ TFuture<NConcurrency::IAsyncZeroCopyInputStreamPtr> TClient::GetJobInput(
     return CreateRpcClientInputStream(std::move(req));
 }
 
-TFuture<NYson::TYsonString> TClient::GetJobInputPaths(
+TFuture<TYsonString> TClient::GetJobInputPaths(
     NJobTrackerClient::TJobId jobId,
     const TGetJobInputPathsOptions& options)
 {
@@ -763,7 +780,7 @@ TFuture<NYson::TYsonString> TClient::GetJobInputPaths(
     ToProto(req->mutable_job_id(), jobId);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobInputPathsPtr& rsp) {
-        return NYson::TYsonString(rsp->paths());
+        return TYsonString(rsp->paths());
     }));
 }
 
@@ -920,7 +937,7 @@ TFuture<TListJobsResult> TClient::ListJobs(
     }));
 }
 
-TFuture<NYson::TYsonString> TClient::GetJob(
+TFuture<TYsonString> TClient::GetJob(
     NJobTrackerClient::TOperationId operationId,
     NJobTrackerClient::TJobId jobId,
     const TGetJobOptions& options)
@@ -936,11 +953,11 @@ TFuture<NYson::TYsonString> TClient::GetJob(
     ToProto(req->mutable_attributes(), options.Attributes);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobPtr& rsp) {
-        return NYson::TYsonString(rsp->info());
+        return TYsonString(rsp->info());
     }));
 }
 
-TFuture<NYson::TYsonString> TClient::StraceJob(
+TFuture<TYsonString> TClient::StraceJob(
     NJobTrackerClient::TJobId jobId,
     const TStraceJobOptions& options)
 {
@@ -952,7 +969,7 @@ TFuture<NYson::TYsonString> TClient::StraceJob(
     ToProto(req->mutable_job_id(), jobId);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspStraceJobPtr& rsp) {
-        return NYson::TYsonString(rsp->trace());
+        return TYsonString(rsp->trace());
     }));
 }
 
@@ -986,9 +1003,9 @@ TFuture<void> TClient::AbandonJob(
     return req->Invoke().As<void>();
 }
 
-TFuture<NYson::TYsonString> TClient::PollJobShell(
+TFuture<TYsonString> TClient::PollJobShell(
     NJobTrackerClient::TJobId jobId,
-    const NYson::TYsonString& parameters,
+    const TYsonString& parameters,
     const TPollJobShellOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -1000,7 +1017,7 @@ TFuture<NYson::TYsonString> TClient::PollJobShell(
     req->set_parameters(parameters.GetData());
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPollJobShellPtr& rsp) {
-        return NYson::TYsonString(rsp->result());
+        return TYsonString(rsp->result());
     }));
 }
 

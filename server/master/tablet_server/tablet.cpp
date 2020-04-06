@@ -42,25 +42,7 @@ void TTabletCellStatisticsBase::Persist(NCellMaster::TPersistenceContext& contex
     Persist(context, UncompressedDataSize);
     Persist(context, CompressedDataSize);
     Persist(context, MemorySize);
-    // COMPAT(babenko): rewrite this
-    if (context.IsSave()) {
-        auto& ctx = context.SaveContext();
-        Save<i32>(ctx, DiskSpacePerMedium.size());
-        std::vector<std::pair<int, i64>> diskSpacePerMedium(DiskSpacePerMedium.begin(), DiskSpacePerMedium.end());
-        std::sort(diskSpacePerMedium.begin(), diskSpacePerMedium.end());
-        for (auto [mediumIndex, diskSpace] : diskSpacePerMedium) {
-            Save(ctx, mediumIndex);
-            Save(ctx, diskSpace);
-        }
-    } else {
-        auto& ctx = context.LoadContext();
-        auto size = Load<i32>(ctx);
-        for (auto i = 0; i < size; ++i) {
-            auto mediumIndex = Load<int>(ctx);
-            auto diskSpace = Load<i64>(ctx);
-            DiskSpacePerMedium[mediumIndex] = diskSpace;
-        }
-    }
+    Persist(context, DiskSpacePerMedium);
     Persist(context, ChunkCount);
     Persist(context, PartitionCount);
     Persist(context, StoreCount);

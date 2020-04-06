@@ -1890,8 +1890,8 @@ public:
             chunkManager->AttachToChunkList(clonedRootChunkList, tabletChunkList);
 
             clonedTablets.push_back(clonedTablet);
-            trunkClonedTable->RecomputeTabletMasterMemoryUsage();
         }
+        trunkClonedTable->RecomputeTabletMasterMemoryUsage();
 
         if (sourceTable->IsReplicated()) {
             auto* replicatedSourceTable = sourceTable->As<TReplicatedTableNode>();

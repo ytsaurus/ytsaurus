@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 import os
 import sys
-# TODO(asaitgalin): Maybe replace it with PYTHONPATH=... in teamcity command?
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "teamcity-build", "python"))
+
+TEAMCITY_BUILD_LIBRARY_PATH = os.path.join(os.path.dirname(__file__), "teamcity-build", "python")
+if not os.path.exists(TEAMCITY_BUILD_LIBRARY_PATH):
+    # We suppose that current directory is checkout directory.
+    TEAMCITY_BUILD_LIBRARY_PATH = os.path.join(os.getcwd(), "yt/teamcity-build/python")
+sys.path.insert(0, TEAMCITY_BUILD_LIBRARY_PATH)
 
 from teamcity.teamcity import (
     build_step,
@@ -45,6 +49,7 @@ from datetime import datetime
 
 import argparse
 import contextlib
+import copy
 import fnmatch
 import functools
 import glob
@@ -89,10 +94,14 @@ YA_CACHE_YT_STORE_CODEC = "zstd08_1"
 
 YT_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
+NANNY_RELEASELIB_PATH = os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src")
+if not os.path.exists(NANNY_RELEASELIB_PATH):
+    NANNY_RELEASELIB_PATH = os.path.join(os.getcwd(), "yt/nanny-releaselib/src")
+
+sys.path.insert(0, NANNY_RELEASELIB_PATH)
 try:
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src"))
     from releaselib.sandbox import client as sandbox_client
-except:
+except ImportError:
     sandbox_client = None
 
 def get_relative_yt_root(options):
@@ -1077,6 +1086,7 @@ def run_ya_tests(options, suite_name, test_paths, dist=True):
         "-ttt",
         "--dont-merge-split-tests",
         "--stat",
+        "--cache-tests",
         "--build-results-report", os.path.join(sandbox_storage, "ya_make_results_report.txt"),
     ]
     if not options.arc:
