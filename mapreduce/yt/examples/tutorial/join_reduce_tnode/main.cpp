@@ -1,6 +1,6 @@
 #include <mapreduce/yt/interface/client.h>
 
-#include <library/regex/pcre/regexp.h>
+#include <library/cpp/regex/pcre/regexp.h>
 
 #include <util/system/user.h>
 
