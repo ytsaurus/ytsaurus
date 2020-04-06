@@ -1148,6 +1148,46 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert data_weight_metric.update().get() > 0
         assert data_bytes_metric.update().get() > 0
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("extend_twice", [False, True])
+    def test_read_with_alter(self, optimize_for, extend_twice):
+        sync_create_cells(1)
+        schema1 = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"}]
+        schema2 = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"},
+            {"name": "value2", "type": "string"}]
+        if extend_twice:
+            schema2 = schema2[:2] + [{"name": "key3", "type": "int64", "sort_order": "ascending"}] + schema2[2:]
+
+        create("table", "//tmp/t", attributes={
+            "dynamic": True,
+            "optimize_for": optimize_for,
+            "schema": schema1})
+
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 0, "value1": "0"}], update=True)
+
+        sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", schema=schema2)
+        sync_mount_table("//tmp/t")
+
+        expected_row = [{"key": 0, "key2": yson.YsonEntity(), "value1": "0", "value2": yson.YsonEntity()}]
+        if extend_twice:
+            expected_row[0]["key3"] = yson.YsonEntity()
+
+        assert read_table("<ranges=[{lower_limit={key=[0;]}}]>//tmp/t") == expected_row
+        assert read_table("<ranges=[{lower_limit={key=[0; <type=min>#;]}}]>//tmp/t") == expected_row
+        assert read_table("<ranges=[{lower_limit={key=[<type=min>#; <type=max>#]}}]>//tmp/t") == expected_row
+
+        assert read_table("<ranges=[{lower_limit={key=[0; <type=max>#;]}}]>//tmp/t") == []
+        assert read_table("<ranges=[{lower_limit={key=[0; <type=null>#; <type=max>#]}}]>//tmp/t") == []
+        assert read_table("<ranges=[{lower_limit={key=[0; <type=null>#; <type=null>#; <type=null>#]}}]>//tmp/t") == []
+
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
 
