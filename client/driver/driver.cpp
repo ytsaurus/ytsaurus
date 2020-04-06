@@ -210,6 +210,7 @@ public:
         REGISTER    (TReshardTableCommand,                "reshard_table",                 Null,       Structured, true,  false, ApiVersion4);
         REGISTER    (TAlterTableCommand,                  "alter_table",                   Null,       Structured, true,  false, ApiVersion4);
 
+        REGISTER    (TGetTablePivotKeysCommand,           "get_table_pivot_keys",          Null,       Structured, false, false, ApiVersion4);
         REGISTER    (TGetTabletInfosCommand,              "get_tablet_infos",              Null,       Structured, true,  false, ApiVersion4);
 
         REGISTER_ALL(TReshardTableAutomaticCommand,       "reshard_table_automatic",       Null,       Structured, true,  false);

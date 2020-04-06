@@ -15,7 +15,8 @@ class TestMasterCellAddition(YTEnvSetup):
     START_SECONDARY_MASTER_CELLS = False
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 1000,
+            "update_period": 3600000,
+            "init_retry_period": 300
         },
     }
 
@@ -66,19 +67,28 @@ class TestMasterCellAddition(YTEnvSetup):
             for cell_id in cls.CELL_IDS:
                 build_snapshot(cell_id=cell_id, set_read_only=True)
 
-            assert get("//sys/topmost_transactions/@count") == 0
+            # NB: don't use asserts before masters are restarted (and thus read-only mode goes away).
+            all_transactions_successfully_aborted_before_restart = get("//sys/topmost_transactions/@count") == 0
+            unexpected_transactions_before_restart = []
+            if not all_transactions_successfully_aborted_before_restart:
+                unexpected_transactions_before_restart = ls("//sys/topmost_transactions")
 
             with Restarter(cls.Env, MASTERS_SERVICE):
-                for i in xrange(len(cls.PATCHED_CONFIGS)):
-                    cls.PATCHED_CONFIGS[i]["secondary_masters"].append(cls.STASHED_CELL_CONFIGS[i])
+                if all_transactions_successfully_aborted_before_restart:
+                    for i in xrange(len(cls.PATCHED_CONFIGS)):
+                        cls.PATCHED_CONFIGS[i]["secondary_masters"].append(cls.STASHED_CELL_CONFIGS[i])
 
-                cls.Env.rewrite_master_configs()
+                    cls.Env.rewrite_master_configs()
+
+            assert not unexpected_transactions_before_restart
+            assert all_transactions_successfully_aborted_before_restart
 
             assert get("//sys/topmost_transactions/@count") == 0
 
-            cls.Env.rewrite_node_configs()
-            cls.Env.rewrite_scheduler_configs()
-            cls.Env.rewrite_controller_agent_configs()
+            if all_transactions_successfully_aborted_before_restart:
+                cls.Env.rewrite_node_configs()
+                cls.Env.rewrite_scheduler_configs()
+                cls.Env.rewrite_controller_agent_configs()
 
     @classmethod
     def modify_master_config(cls, config, index):

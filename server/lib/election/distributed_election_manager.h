@@ -4,8 +4,6 @@
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/core/actions/public.h>
-
 namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////

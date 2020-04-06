@@ -32,20 +32,16 @@ public:
     const TCellPeerConfig& GetPeerConfig(TPeerId id) const;
     NRpc::IChannelPtr GetPeerChannel(TPeerId id) const;
 
-    void Reconfigure(TCellConfigPtr newConfig, TPeerId selfId);
-
-    DEFINE_SIGNAL(void(TPeerId peerId), PeerReconfigured);
-
 private:
-    TCellConfigPtr Config_;
+    const TCellConfigPtr Config_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
-    TPeerId SelfId_;
+    const TPeerId SelfId_;
+
+    const int VotingPeerCount_;
+    const int QuorumPeerCount_;
+    const int TotalPeerCount_;
 
     const NLogging::TLogger Logger;
-
-    int VotingPeerCount_;
-    int QuorumPeerCount_;
-    int TotalPeerCount_;
 
     std::vector<NRpc::IChannelPtr> PeerChannels_;
 

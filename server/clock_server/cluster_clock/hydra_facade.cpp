@@ -77,7 +77,7 @@ public:
             Automaton_,
             Bootstrap_->GetRpcServer(),
             electionManagerThunk,
-            Bootstrap_->GetCellManager(),
+            Bootstrap_->GetCellManager()->GetCellId(),
             Bootstrap_->GetChangelogStoreFactory(),
             Bootstrap_->GetSnapshotStore(),
             hydraManagerOptions);

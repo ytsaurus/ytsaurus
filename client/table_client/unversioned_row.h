@@ -740,12 +740,12 @@ public:
 
 
     // STL interop.
-    const TUnversionedValue* begin()
+    const TUnversionedValue* begin() const
     {
         return Begin();
     }
 
-    const TUnversionedValue* end()
+    const TUnversionedValue* end() const
     {
         return End();
     }

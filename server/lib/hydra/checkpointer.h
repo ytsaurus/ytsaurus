@@ -26,14 +26,14 @@ public:
     TCheckpointer(
         TDistributedHydraManagerConfigPtr config,
         const TDistributedHydraManagerOptions& options,
-        NElection::TCellManagerPtr cellManager,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TLeaderCommitterPtr leaderCommitter,
         ISnapshotStorePtr snapshotStore,
-        TEpochContext* epochContext);
+        TEpochContext* epochContext,
+        NLogging::TLogger logger);
 
     //! A changelog rotation result.
-    typedef TFuture<void> TRotateChangelogResult;
+    using TRotateChangelogResult = TFuture<void>;
 
     struct TBuildSnapshotResult
     {
@@ -71,14 +71,14 @@ public:
 private:
     const TDistributedHydraManagerConfigPtr Config_;
     const TDistributedHydraManagerOptions Options_;
-    const NElection::TCellManagerPtr CellManager_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;
+    const NLogging::TLogger Logger;
+
+    const NElection::TCellManagerPtr CellManager_;
 
     bool BuildingSnapshot_ = false;
     bool RotatingChangelogs_ = false;
-
-    const NLogging::TLogger Logger;
 
     class TSession;
 

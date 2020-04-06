@@ -35,7 +35,7 @@ GH = "git@github.yandex-team.ru:yt"
 SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
 PROJECT_PATH = os.path.abspath(os.path.join(SCRIPT_PATH, "../../"))
 
-GIT_EXCLUDES = ["yt/scripts/teamcity-build", "yt/scripts/nanny-releaselib"]
+GIT_EXCLUDES = ["yt/scripts/teamcity-build", "yt/scripts/nanny-releaselib", "scripts/teamcity-build", "scripts/nanny-releaselib"]
 
 ARGV0 = sys.argv[0]
 
@@ -580,7 +580,7 @@ def fetch_git_svn(git, svn, git_svn_remote, one_by_one=False, force=False):
     logger.debug("Fetched git-svn remote '%s'", git_svn_remote)
 
 
-def strip_tree_of_symlinks(git, treeish):
+def strip_tree_of_symlinks(git, treeish, path=""):
     tree_str = git.call("ls-tree", "-z", treeish, cwd=git.work_dir)
     tree_item_list = tree_str.strip('\0').split('\0')
     new_tree_str = ""
@@ -590,8 +590,10 @@ def strip_tree_of_symlinks(git, treeish):
         if stat.S_ISLNK(int(mode, 8)):
             assert object_type == "blob"
             continue
+        if os.path.join(path, object_name) in GIT_EXCLUDES:
+            continue
         if object_type == "tree":
-            object_hash = strip_tree_of_symlinks(git, object_hash)
+            object_hash = strip_tree_of_symlinks(git, object_hash, os.path.join(path, object_name))
         new_tree_str += "{mode} {object_type} {object_hash}\t{object_name}\0".format(
             mode=mode,
             object_type=object_type,
@@ -612,7 +614,9 @@ def check_striped_symlink_tree_equal(git, treeish1, treeish2):
             git_dir=git.git_dir,
         )
     )
-    if strip_tree_of_symlinks(git, treeish1) != strip_tree_of_symlinks(git, treeish2):
+    a = strip_tree_of_symlinks(git, treeish1)
+    b = strip_tree_of_symlinks(git, treeish2)
+    if a != b:
         raise ArcadiaSyncError(msg)
 
 

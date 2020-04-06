@@ -91,6 +91,11 @@ struct IElectionManager
      */
     virtual void Abandon(const TError& error) = 0;
 
+    //! Replaces the Cell Manager. Restarts the epoch.
+    /*!
+     *  Cell id cannot be changed.
+     */
+    virtual void ReconfigureCell(TCellManagerPtr cellManager) = 0;
 
     //! Returns the callback for producing the monitoring info.
     /*!
@@ -117,6 +122,9 @@ struct TEpochContext
 
     //! This context is canceled whenever the epoch ends.
     TCancelableContextPtr CancelableContext = New<TCancelableContext>();
+
+    //! Cell Manager for this epoch. 
+    TCellManagerPtr CellManager;
 };
 
 DEFINE_REFCOUNTED_TYPE(TEpochContext)

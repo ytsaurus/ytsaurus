@@ -143,7 +143,7 @@ public:
         IAutomatonPtr automaton,
         IServerPtr rpcServer,
         IElectionManagerPtr electionManager,
-        TCellManagerPtr cellManager,
+        TCellId cellId,
         IChangelogStoreFactoryPtr changelogStoreFactory,
         ISnapshotStorePtr snapshotStore,
         const TDistributedHydraManagerOptions& options,
@@ -152,14 +152,11 @@ public:
             controlInvoker,
             THydraServiceProxy::GetDescriptor(),
             NLogging::TLogger(HydraLogger)
-                .AddTag("CellId: %v, SelfPeerId: %v",
-                    cellManager->GetCellId(),
-                    cellManager->GetSelfPeerId()),
-            cellManager->GetCellId())
+                .AddTag("CellId: %v", cellId),
+            cellId)
         , Config_(config)
         , RpcServer_(rpcServer)
         , ElectionManager_(electionManager)
-        , CellManager_(cellManager)
         , ControlInvoker_(controlInvoker)
         , CancelableControlInvoker_(CancelableContext_->CreateInvoker(ControlInvoker_))
         , AutomatonInvoker_(automatonInvoker)
@@ -176,11 +173,11 @@ public:
         DecoratedAutomaton_ = New<TDecoratedAutomaton>(
             Config_,
             Options_,
-            CellManager_,
             automaton,
             AutomatonInvoker_,
             ControlInvoker_,
             SnapshotStore_,
+            Logger,
             Profiler);
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupChangelog));
@@ -212,9 +209,7 @@ public:
 
         RpcServer_->RegisterService(this);
 
-        YT_LOG_INFO("Hydra instance initialized (SelfAddress: %v, SelfId: %v)",
-            CellManager_->GetSelfConfig(),
-            CellManager_->GetSelfPeerId());
+        YT_LOG_INFO("Hydra instance initialized");
 
         ControlState_ = EPeerState::Elections;
 
@@ -381,7 +376,6 @@ public:
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("state").Value(ControlState_)
-                    .Item("voting").Value(CellManager_->GetSelfConfig().Voting)
                     .Item("committed_version").Value(ToString(DecoratedAutomaton_->GetCommittedVersion()))
                     .Item("automaton_version").Value(ToString(DecoratedAutomaton_->GetAutomatonVersion()))
                     .Item("logged_version").Value(ToString(DecoratedAutomaton_->GetLoggedVersion()))
@@ -413,7 +407,7 @@ public:
                 "Not an active peer"));
         }
 
-        if (epochContext->LeaderId == CellManager_->GetSelfPeerId()) {
+        if (epochContext->LeaderId == epochContext->CellManager->GetSelfPeerId()) {
             // NB: Leader lease is already checked in IsActive.
             return VoidFuture;
         }
@@ -516,7 +510,6 @@ private:
     const TDistributedHydraManagerConfigPtr Config_;
     const IServerPtr RpcServer_;
     const IElectionManagerPtr ElectionManager_;
-    const TCellManagerPtr CellManager_;
     const IInvokerPtr ControlInvoker_;
     const IInvokerPtr CancelableControlInvoker_;
     const IInvokerPtr AutomatonInvoker_;
@@ -1124,12 +1117,18 @@ private:
                 ChangelogStore_ = WaitFor(ChangelogStoreFactory_->Lock())
                     .ValueOrThrow();
 
-                auto changelogVersion = ChangelogStore_->GetReachableVersion();
-                YT_LOG_INFO("The latest changelog version is %v", changelogVersion);
-
-                ReachableVersion_ = changelogVersion.SegmentId < maxSnapshotId
-                    ? TVersion(maxSnapshotId, 0)
-                    : changelogVersion;
+                auto optionalReachableVersion = ChangelogStore_->GetReachableVersion();
+                if (optionalReachableVersion) {
+                    ReachableVersion_ = optionalReachableVersion->SegmentId < maxSnapshotId
+                        ? TVersion(maxSnapshotId, 0)
+                        : *optionalReachableVersion;
+                    YT_LOG_INFO("Reachable version is available (Version: %v)",
+                        ReachableVersion_);
+                } else {
+                    ReachableVersion_ = DecoratedAutomaton_->GetCommittedVersion();
+                    YT_LOG_INFO("Reachable version is not available, using committed version instead (Version: %v)",
+                        ReachableVersion_);
+                }
 
                 break;
             } catch (const std::exception& ex) {
@@ -1140,8 +1139,6 @@ private:
                     Config_->MaxPersistentStoreInitializationBackoffTime);
             }
         }
-
-        YT_LOG_INFO("Reachable version is %v", ReachableVersion_);
 
         ElectionManager_->Participate();
     }
@@ -1288,7 +1285,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Starting leader recovery");
+        YT_LOG_INFO("Starting leader recovery (SelfAddress: %v, SelfId: %v)",
+            electionEpochContext->CellManager->GetSelfConfig(),
+            electionEpochContext->CellManager->GetSelfPeerId());
 
         YT_VERIFY(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::LeaderRecovery;
@@ -1297,21 +1296,21 @@ private:
 
         epochContext->LeaseTracker = New<TLeaseTracker>(
             Config_,
-            CellManager_,
             DecoratedAutomaton_,
             epochContext.Get(),
             LeaderLease_,
-            LeaderLeaseCheck_.ToVector());
+            LeaderLeaseCheck_.ToVector(),
+            Logger);
         epochContext->LeaseTracker->GetLeaseLost().Subscribe(
             BIND(&TDistributedHydraManager::OnLeaderLeaseLost, MakeWeak(this), MakeWeak(epochContext)));
 
         epochContext->LeaderCommitter = New<TLeaderCommitter>(
             Config_,
             Options_,
-            CellManager_,
             DecoratedAutomaton_,
-            ChangelogStore_,
-            epochContext.Get());
+            epochContext.Get(),
+            Logger,
+            Profiler);
         epochContext->LeaderCommitter->SubscribeCheckpointNeeded(
             BIND(&TDistributedHydraManager::OnCheckpointNeeded, MakeWeak(this)));
         epochContext->LeaderCommitter->SubscribeCommitFailed(
@@ -1322,11 +1321,11 @@ private:
         epochContext->Checkpointer = New<TCheckpointer>(
             Config_,
             Options_,
-            CellManager_,
             DecoratedAutomaton_,
             epochContext->LeaderCommitter,
             SnapshotStore_,
-            epochContext.Get());
+            epochContext.Get(),
+            Logger);
 
         SwitchTo(DecoratedAutomaton_->GetSystemInvoker());
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1341,20 +1340,9 @@ private:
         SwitchTo(epochContext->EpochControlInvoker);
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        epochContext->LeaseTracker->SetAlivePeers(GetAllPeers());
         epochContext->LeaseTracker->Start();
 
         RecoverLeader();
-    }
-
-    TPeerIdSet GetAllPeers()
-    {
-        TPeerIdSet result;
-        result.reserve(CellManager_->GetTotalPeerCount());
-        for (TPeerId id = 0; id < CellManager_->GetTotalPeerCount(); ++id) {
-            result.insert(id);
-        }
-        return result;
     }
 
     void RecoverLeader()
@@ -1368,12 +1356,12 @@ private:
                 Config_,
                 Options_,
                 GetDynamicOptions(),
-                CellManager_,
                 DecoratedAutomaton_,
                 ChangelogStore_,
                 SnapshotStore_,
                 Options_.ResponseKeeper,
-                epochContext.Get());
+                epochContext.Get(),
+                Logger);
 
             SwitchTo(epochContext->EpochSystemAutomatonInvoker);
             VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1473,7 +1461,9 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Starting follower recovery");
+        YT_LOG_INFO("Starting follower recovery (SelfAddress: %v, SelfId: %v)",
+            electionEpochContext->CellManager->GetSelfConfig(),
+            electionEpochContext->CellManager->GetSelfPeerId());
 
         YT_VERIFY(ControlState_ == EPeerState::Elections);
         ControlState_ = EPeerState::FollowerRecovery;
@@ -1483,9 +1473,10 @@ private:
         epochContext->FollowerCommitter = New<TFollowerCommitter>(
             Config_,
             Options_,
-            CellManager_,
             DecoratedAutomaton_,
-            epochContext.Get());
+            epochContext.Get(),
+            Logger,
+            Profiler);
         epochContext->FollowerCommitter->SubscribeLoggingFailed(
             BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
 
@@ -1659,13 +1650,13 @@ private:
             Config_,
             Options_,
             GetDynamicOptions(),
-            CellManager_,
             DecoratedAutomaton_,
             ChangelogStore_,
             SnapshotStore_,
             Options_.ResponseKeeper,
             epochContext.Get(),
-            pingVersion);
+            pingVersion,
+            Logger);
 
         epochContext->EpochControlInvoker->Invoke(
             BIND(&TDistributedHydraManager::RecoverFollower, MakeStrong(this)));
@@ -1677,6 +1668,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         auto epochContext = New<TEpochContext>();
+        epochContext->CellManager = electionEpochContext->CellManager;
         epochContext->ChangelogStore = ChangelogStore_;
         epochContext->ReachableVersion = *ReachableVersion_;
         epochContext->LeaderId = electionEpochContext->LeaderId;
@@ -1830,7 +1822,7 @@ private:
         YT_VERIFY(!epochContext->LeaderSyncPromise);
         epochContext->LeaderSyncPromise = NewPromise<void>();
 
-        auto channel = CellManager_->GetPeerChannel(epochContext->LeaderId);
+        auto channel = epochContext->CellManager->GetPeerChannel(epochContext->LeaderId);
         YT_VERIFY(channel);
 
         THydraServiceProxy proxy(channel);
@@ -1980,7 +1972,7 @@ IDistributedHydraManagerPtr CreateDistributedHydraManager(
     IAutomatonPtr automaton,
     IServerPtr rpcServer,
     IElectionManagerPtr electionManager,
-    TCellManagerPtr cellManager,
+    TCellId cellId,
     IChangelogStoreFactoryPtr changelogStoreFactory,
     ISnapshotStorePtr snapshotStore,
     const TDistributedHydraManagerOptions& options,
@@ -1992,7 +1984,6 @@ IDistributedHydraManagerPtr CreateDistributedHydraManager(
     YT_VERIFY(automaton);
     YT_VERIFY(rpcServer);
     YT_VERIFY(electionManager);
-    YT_VERIFY(cellManager);
     YT_VERIFY(changelogStoreFactory);
     YT_VERIFY(snapshotStore);
 
@@ -2003,7 +1994,7 @@ IDistributedHydraManagerPtr CreateDistributedHydraManager(
         automaton,
         rpcServer,
         electionManager,
-        cellManager,
+        cellId,
         changelogStoreFactory,
         snapshotStore,
         options,
