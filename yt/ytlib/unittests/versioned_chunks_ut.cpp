@@ -41,6 +41,23 @@ TString B("b");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TUnversionedValue DoMakeMinSentinel()
+{
+    return MakeUnversionedSentinelValue(EValueType::Min);
+}
+
+TUnversionedValue DoMakeNullSentinel()
+{
+    return MakeUnversionedSentinelValue(EValueType::Null);
+}
+
+TUnversionedValue DoMakeMaxSentinel()
+{
+    return MakeUnversionedSentinelValue(EValueType::Max);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // ToDo(psushin): rewrite this legacy test.
 class TVersionedChunksLookupTestBase
     : public ::testing::Test
@@ -650,6 +667,45 @@ protected:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedChunksHeavyTestWithParametrizedBounds
+    : public TVersionedChunksHeavyTest
+    , public ::testing::WithParamInterface<std::pair<TUnversionedValue, TUnversionedValue>>
+{
+protected:
+    void DoReadWideSchemaWithSpecifiedBounds(
+        EOptimizeFor optimizeFor,
+        const std::pair<TUnversionedValue, TUnversionedValue>& bounds)
+    {
+        auto writeSchema = TTableSchema(ColumnSchemas_);
+
+        auto columnSchemas = ColumnSchemas_;
+        columnSchemas.insert(
+            columnSchemas.begin() + 5,
+            TColumnSchema("extraKey", EValueType::Int64).SetSortOrder(ESortOrder::Ascending));
+        auto readSchema = TTableSchema(columnSchemas);
+
+        TUnversionedOwningRowBuilder lowerKeyBuilder;
+        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
+            lowerKeyBuilder.AddValue(*it);
+        }
+        lowerKeyBuilder.AddValue(bounds.first);
+        auto lowerKey = lowerKeyBuilder.FinishRow();
+
+        TUnversionedOwningRowBuilder upperKeyBuilder;
+        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
+            upperKeyBuilder.AddValue(*it);
+        }
+        upperKeyBuilder.AddValue(bounds.second);
+        auto upperKey = upperKeyBuilder.FinishRow();
+
+        TestRangeReader(optimizeFor, writeSchema, readSchema, lowerKey, upperKey, 25, false);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TVersionedChunksHeavyTest, FullScanCompactionScan)
 {
     DoFullScanCompaction(EOptimizeFor::Scan);
@@ -716,6 +772,31 @@ TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaLookup)
 {
     DoEmptyReadWideSchema(EOptimizeFor::Lookup);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TVersionedChunksHeavyTestWithParametrizedBounds, ReadWideSchemaWithNonscalarBoundsScan)
+{
+    auto bounds = GetParam();
+    DoReadWideSchemaWithSpecifiedBounds(EOptimizeFor::Scan, bounds);
+}
+
+TEST_P(TVersionedChunksHeavyTestWithParametrizedBounds, ReadWideSchemaWithNonscalarBoundsLookup)
+{
+    auto bounds = GetParam();
+    DoReadWideSchemaWithSpecifiedBounds(EOptimizeFor::Lookup, bounds);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    VersionedChunkWithNonscalarBoundsTest,
+    TVersionedChunksHeavyTestWithParametrizedBounds,
+    ::testing::Values(
+        std::make_pair(DoMakeMinSentinel(), DoMakeMinSentinel()),
+        std::make_pair(DoMakeMinSentinel(), DoMakeNullSentinel()),
+        std::make_pair(DoMakeMinSentinel(), DoMakeMaxSentinel()),
+        std::make_pair(DoMakeNullSentinel(), DoMakeNullSentinel()),
+        std::make_pair(DoMakeNullSentinel(), DoMakeMaxSentinel()),
+        std::make_pair(DoMakeMaxSentinel(), DoMakeMaxSentinel())));
 
 ////////////////////////////////////////////////////////////////////////////////
 
