@@ -4,7 +4,7 @@
 #include <util/generic/strbuf.h>
 #include <util/generic/vector.h>
 
-#include <yt/19_4/yt/core/ypath/token.h>
+#include <yt/core/ypath/token.h>
 
 #include <initializer_list>
 

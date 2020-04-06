@@ -1,7 +1,7 @@
 #include "cypress_path.h"
 
-#include <yt/19_4/yt/core/ypath/tokenizer.h>
-#include <yt/19_4/yt/core/misc/error.h>
+#include <yt/core/ypath/tokenizer.h>
+#include <yt/core/misc/error.h>
 
 #include <util/stream/output.h>
 
