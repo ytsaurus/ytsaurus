@@ -1190,7 +1190,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         cell = sync_create_cells(1)[0]
         self._disable_tablet_cells_on_peer(cell)
 
-    @authors("savrus")
+    @authors("savrus", "gritukan")
     def test_tablet_slot_charges_cpu_resource_limit(self):
         get_cpu = lambda x: get("//sys/cluster_nodes/{0}/orchid/job_controller/resource_limits/cpu".format(x))
 
@@ -1199,10 +1199,13 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         peer = get("#{0}/@peers/0/address".format(cell))
 
         node = list(__builtin__.set(ls("//sys/cluster_nodes")) - __builtin__.set([peer]))[0]
-        empty_node_cpu = get_cpu(node)
 
-        assigned_node_cpu = get_cpu(peer)
-        assert int(empty_node_cpu - assigned_node_cpu) == 1
+        def get_cpu_delta():
+            empty_node_cpu = get_cpu(node)
+            assigned_node_cpu = get_cpu(peer)
+            return empty_node_cpu - assigned_node_cpu
+
+        wait(lambda: int(get_cpu_delta()) == 1)
 
         def _get_orchid(path):
             return get("//sys/cluster_nodes/{0}/orchid/tablet_cells/{1}{2}".format(peer, cell, path))
@@ -1213,8 +1216,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: _get_orchid("/dynamic_config_version") == 1)
         assert _get_orchid("/dynamic_options/cpu_per_tablet_slot") == 0.0
 
-        assigned_node_cpu = get_cpu(peer)
-        assert int(empty_node_cpu - assigned_node_cpu) == 0
+        wait(lambda: int(get_cpu_delta()) == 0)
 
     @authors("savrus", "babenko")
     def test_bundle_node_list(self):

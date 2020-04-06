@@ -54,6 +54,15 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
         }
     }
 
+    DELTA_NODE_CONFIG = {
+        "resource_limits": {
+            "user_jobs": {
+                "type": "static",
+                "value": 10**9,
+            },
+        }
+    }
+
     def setup_method(self, method):
         super(BaseTestResourceUsage, self).setup_method(method)
         set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)

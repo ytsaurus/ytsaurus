@@ -95,8 +95,6 @@ public:
 
     TDuration BlockIOWatchdogPeriod;
 
-    std::optional<TDuration> ResourceLimitsUpdatePeriod;
-
     THashMap<TString, TString> ExternalBinds;
 
     double JobsIOWeight;
@@ -110,8 +108,6 @@ public:
         RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)
             .Default(TDuration::Seconds(60));
 
-        RegisterParameter("resource_limits_update_period", ResourceLimitsUpdatePeriod)
-            .Default();
         RegisterParameter("external_binds", ExternalBinds)
             .Default();
 

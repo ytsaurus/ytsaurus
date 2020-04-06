@@ -2,6 +2,7 @@
 #include "config.h"
 #include "batching_chunk_service.h"
 #include "dynamic_config_manager.h"
+#include "resource_manager.h"
 #include "private.h"
 
 #include <yt/server/lib/exec_agent/config.h>
@@ -62,6 +63,9 @@
 #include <yt/server/lib/transaction_server/timestamp_proxy_service.h>
 
 #include <yt/server/lib/admin/admin_service.h>
+
+#include <yt/server/lib/containers/instance_limits_tracker.h>
+#include <yt/server/lib/containers/porto_executor.h>
 
 #include <yt/server/lib/core_dump/core_dumper.h>
 
@@ -149,6 +153,7 @@ using namespace NAdmin;
 using namespace NBus;
 using namespace NObjectClient;
 using namespace NChunkClient;
+using namespace NContainers;
 using namespace NNodeTrackerClient;
 using namespace NElection;
 using namespace NHydra;
@@ -240,25 +245,25 @@ void TBootstrap::DoInitialize()
         Config_->ClusterConnection->PrimaryMaster->Addresses,
         Config_->Tags);
 
-    MemoryUsageTracker_ = New<TNodeMemoryTracker>(
-        Config_->ResourceLimits->Memory,
-        std::vector<std::pair<EMemoryCategory, i64>>{
-            {EMemoryCategory::TabletStatic, Config_->TabletNode->ResourceLimits->TabletStaticMemory},
-            {EMemoryCategory::TabletDynamic, Config_->TabletNode->ResourceLimits->TabletDynamicMemory}
-        },
-        Logger,
-        TProfiler("/cell_node/memory_usage"));
-
-    {
-        auto result = MemoryUsageTracker_->TryAcquire(EMemoryCategory::Footprint, Config_->FootprintMemorySize);
-        THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving footprint memory");
+    NodeResourceManager_ = New<TNodeResourceManager>(GetControlInvoker(), this, Config_->ResourceLimitsUpdatePeriod);
+    if (Config_->InstanceLimitsUpdatePeriod) {
+        auto portoExecutorConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecAgent->SlotManager->JobEnvironment)->PortoExecutor;
+        auto portoExecutor = CreatePortoExecutor(
+            portoExecutorConfig,
+            "limits_tracker");
+        InstanceLimitsTracker_ = CreateSelfPortoInstanceLimitsTracker(
+            portoExecutor,
+            GetControlInvoker(),
+            *Config_->InstanceLimitsUpdatePeriod);
+        InstanceLimitsTracker_->SubscribeLimitsUpdated(BIND(&TNodeResourceManager::OnInstanceLimitsUpdated, NodeResourceManager_)
+            .Via(GetControlInvoker()));
     }
 
-    FootprintUpdateExecutor_ = New<TPeriodicExecutor>(
-        GetControlInvoker(),
-        BIND(&TBootstrap::UpdateFootprintMemoryUsage, this),
-        Config_->FootprintUpdatePeriod);
-    FootprintUpdateExecutor_->Start();
+    MemoryUsageTracker_ = New<TNodeMemoryTracker>(
+        Config_->ResourceLimits->TotalMemory,
+        std::vector<std::pair<EMemoryCategory, i64>>{},
+        Logger,
+        TProfiler("/cell_node/memory_usage"));
 
     MasterConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
     MasterClient_ = MasterConnection_->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
@@ -459,7 +464,7 @@ void TBootstrap::DoInitialize()
 
     auto localAddress = GetDefaultAddress(localRpcAddresses);
 
-    if (ConvertTo<EJobEnvironmentType>(Config_->ExecAgent->SlotManager->JobEnvironment->AsMap()->FindChild("type")) == EJobEnvironmentType::Porto) {
+    if (GetEnvironmentType() == EJobEnvironmentType::Porto) {
         auto* resolver = TAddressResolver::Get();
         ResolvedNodeAddresses_.reserve(Config_->Addresses.size());
         for (const auto& [addressName, address] : Config_->Addresses) {
@@ -655,6 +660,11 @@ void TBootstrap::DoRun()
         GetValues(localRpcAddresses),
         Config_->ClusterConnection->PrimaryMaster->Addresses,
         Config_->Tags);
+
+    NodeResourceManager_->Start();
+    if (InstanceLimitsTracker_) {
+        InstanceLimitsTracker_->Start();
+    }
 
     // Force start node directory synchronizer.
     MasterConnection_->GetNodeDirectorySynchronizer()->Start();
@@ -996,6 +1006,11 @@ const TDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const
     return DynamicConfigManager_;
 }
 
+const TNodeResourceManagerPtr& TBootstrap::GetNodeResourceManager() const
+{
+    return NodeResourceManager_;
+}
+
 const IQuerySubexecutorPtr& TBootstrap::GetQueryExecutor() const
 {
     return QueryExecutor_;
@@ -1166,6 +1181,11 @@ std::optional<TString> TBootstrap::GetDefaultNetworkName()
     return Config_->BusServer->DefaultNetwork;
 }
 
+EJobEnvironmentType TBootstrap::GetEnvironmentType() const
+{
+    return ConvertTo<EJobEnvironmentType>(Config_->ExecAgent->SlotManager->JobEnvironment->AsMap()->FindChild("type"));
+}
+
 const std::vector<TIP6Address>& TBootstrap::GetResolvedNodeAddresses() const
 {
     return ResolvedNodeAddresses_;
@@ -1228,37 +1248,6 @@ void TBootstrap::OnMasterDisconnected()
 void TBootstrap::OnDynamicConfigUpdated(TCellNodeDynamicConfigPtr newConfig)
 {
     Y_UNUSED(newConfig);
-}
-
-void TBootstrap::UpdateFootprintMemoryUsage()
-{
-    auto bytesCommitted = NYTAlloc::GetTotalAllocationCounters()[NYTAlloc::ETotalCounter::BytesCommitted];
-    auto newFootprint = Config_->FootprintMemorySize + bytesCommitted;
-    for (auto memoryCategory : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-        if (memoryCategory == EMemoryCategory::UserJobs || memoryCategory == EMemoryCategory::Footprint) {
-            continue;
-        }
-        newFootprint -= GetMemoryUsageTracker()->GetUsed(memoryCategory);
-    }
-    // Footprint cannot be less than value in config.
-    newFootprint = std::max(Config_->FootprintMemorySize, newFootprint);
-
-    auto oldFootprint = GetMemoryUsageTracker()->GetUsed(EMemoryCategory::Footprint);
-
-    YT_LOG_INFO("Memory footprint updated (BytesCommitted: %v, OldFootprint: %v, NewFootprint: %v)",
-        bytesCommitted,
-        oldFootprint,
-        newFootprint);
-
-    if (newFootprint > oldFootprint) {
-        GetMemoryUsageTracker()->Acquire(
-            EMemoryCategory::Footprint,
-            newFootprint - oldFootprint);
-    } else {
-        GetMemoryUsageTracker()->Release(
-            EMemoryCategory::Footprint,
-            oldFootprint - newFootprint);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -49,6 +49,12 @@ DEFINE_ENUM(EMemoryCategory,
     ((MasterCache)                (12))
 );
 
+DEFINE_ENUM(EMemoryLimitType,
+    ((None)                        (0))
+    ((Static)                      (1))
+    ((Dynamic)                     (2))
+);
+
 DEFINE_ENUM(ENodeState,
     // Used internally.
     ((Unknown)    (-1))
