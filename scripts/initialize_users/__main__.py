@@ -66,10 +66,15 @@ class ClientWrapper(object):
     def __init__(self, client, dry_run):
         self._client = client
         self._dry_run = dry_run
+        self._dry_objects = {}
 
     def create_object(self, *args, **kwargs):
         logger.info("Creating object: " + format_args(args, kwargs))
-        if not self._dry_run:
+        if self._dry_run:
+            self._dry_objects.setdefault(kwargs["object_type"], []).append(
+                kwargs["attributes"]["meta"]["id"]
+            )
+        else:
             self._client.create_object(*args, **kwargs)
 
     def update_object(self, *args, **kwargs):
@@ -92,14 +97,38 @@ class ClientWrapper(object):
     def commit_transaction(self, *args, **kwargs):
         return self._client.commit_transaction(*args, **kwargs)
 
+    def has_dry_object(self, object_type, object_id):
+        ids = self._dry_objects.get(object_type)
+        return ids is not None and object_id in ids
+
 
 def try_get_group_members(client, group, timestamp=None):
     try:
         spec = client.get_object("group", group, ["/spec"], timestamp=timestamp)[0]
         return spec.get("members", [])
     except YpNoSuchObjectError:
-        logger.warning('No such group "%s", assuming empty list of members', group)
-        return None
+        if client.has_dry_object("group", group):
+            logger.warning(
+                "Group [%s] created in dry-run mode, assuming empty list of members", group
+            )
+            return []
+        else:
+            raise
+
+
+def try_get_acl(client, object_type, object_id):
+    try:
+        return client.get_object(object_type, object_id, ["/meta/acl"])[0]
+    except YpNoSuchObjectError:
+        if client.has_dry_object(object_type, object_id):
+            logger.warning(
+                "Object [%s][%s] created in dry-run mode, assuming empty acl",
+                object_type,
+                object_id,
+            )
+            return []
+        else:
+            raise
 
 
 def add_group_members(client, group, subjects):
@@ -110,8 +139,6 @@ def add_group_members(client, group, subjects):
     start_timestamp = transaction["start_timestamp"]
 
     members = try_get_group_members(client, group.id, timestamp=start_timestamp)
-    if members is None:
-        members = []
 
     old_members = set(members)
     new_members = set(members + list(map(lambda subject: subject.id, subjects)))
@@ -140,7 +167,7 @@ def add_permission(client, object_type, object_id, subject, permission, attribut
 
     matching_ace = None
 
-    acl = client.get_object(object_type, object_id, ["/meta/acl"])[0]
+    acl = try_get_acl(client, object_type, object_id)
     for ace in acl:
         if ace["action"] != "allow":
             continue
@@ -617,43 +644,15 @@ def configure_deploy_public_object_creators(client, cluster, **kwargs):
 # YPADMIN-316
 def configure_yt_controllers(client, cluster, **kwargs):
     yt_controllers = Group("yt-controllers")
-    members = (
-        Group("abc:service:470"),  # YT service.
-    )
+    members = (Group("abc:service:470"),)  # YT service.
     add_group_members(client, yt_controllers, members)
     segments_per_cluster = {
-        "man-pre": (
-            "yt_hume",
-        ),
-        "sas": (
-            "yt_ada",
-            "yt_hahn",
-            "yt_kelvin",
-            "yt_locke",
-            "yt_ofd_xdc",
-            "yt_vanga",
-        ),
-        "man": (
-            "yt_freud",
-            "yt_kelvin",
-            "yt_locke",
-            "yt_vanga",
-        ),
-        "vla": (
-            "yt_arnold",
-            "yt_kelvin",
-            "yt_locke",
-            "yt_ofd_xdc",
-            "yt_vanga",
-        ),
-        "iva": (
-            "yt_locke",
-        ),
-        "myt": (
-            "yt_locke",
-            "yt_ofd_xdc",
-            "yt_vanga",
-        ),
+        "man-pre": ("yt_hume",),
+        "sas": ("yt_ada", "yt_hahn", "yt_kelvin", "yt_locke", "yt_ofd_xdc", "yt_vanga",),
+        "man": ("yt_freud", "yt_kelvin", "yt_locke", "yt_vanga",),
+        "vla": ("yt_arnold", "yt_kelvin", "yt_locke", "yt_ofd_xdc", "yt_vanga",),
+        "iva": ("yt_locke",),
+        "myt": ("yt_locke", "yt_ofd_xdc", "yt_vanga",),
     }
     for segment in segments_per_cluster.get(cluster, tuple()):
         add_permission(
@@ -666,19 +665,14 @@ def configure_yt_controllers(client, cluster, **kwargs):
         )
         pod_sets_response = client.select_objects(
             "pod_set",
-            filter="[/spec/node_segment_id] = \"{}\"".format(segment),
+            filter='[/spec/node_segment_id] = "{}"'.format(segment),
             selectors=["/meta/id"],
         )
         pod_sets = map(lambda response: response[0], pod_sets_response)
         for pod_set in pod_sets:
             for permission in ("write", "read_secrets"):
                 add_permission(
-                    client,
-                    "pod_set",
-                    pod_set,
-                    yt_controllers,
-                    permission,
-                    attribute="",
+                    client, "pod_set", pod_set, yt_controllers, permission, attribute="",
                 )
 
 
@@ -709,6 +703,7 @@ def configure_admins(client, **kwargs):
             permission="write",
             attribute="/spec/members",
         )
+
 
 ####################################################################################################
 
@@ -806,6 +801,7 @@ PERMISSIONS_MAN_PRE = {
         User("robot-deploy-test"): "c",  # YP-1769
         User("robot-drug-deploy"): "c",  # YP-1769
     },
+    "group": {User("robot-deploy-auth-t"): "c"},  # YPSUPPORT-82
     "horizontal_pod_autoscaler": {
         User("robot-drug-deploy"): "c",  # YPSUPPORT-75, # YP-1769
         Group("deploy-public-object-creators"): "c",  # YPSUPPORT-75, # YP-1769
@@ -854,6 +850,7 @@ PERMISSIONS_PROD = {
         User("robot-deploy-test"): "c",  # YP-1769
         User("robot-drug-deploy"): "c",  # YP-1769
     },
+    "group": {User("robot-deploy-auth"): "c"},  # YPSUPPORT-82
     "horizontal_pod_autoscaler": {
         User("robot-drug-deploy"): "c",  # YPSUPPORT-75, # YP-1769
         Group("deploy-public-object-creators"): "c",  # YPSUPPORT-75, # YP-1769
