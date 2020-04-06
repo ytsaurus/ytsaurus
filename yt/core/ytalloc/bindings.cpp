@@ -228,6 +228,7 @@ public:
     std::optional<size_t> MinProfilingBytesUsedToReport;
     std::optional<TDuration> StockpileInterval;
     std::optional<size_t> StockpileSize;
+    std::optional<bool> EnableEagerMemoryRelease;
 
     TSerializableConfiguration()
     {
@@ -249,6 +250,8 @@ public:
             .Default();
         RegisterParameter("stockpile_size", StockpileSize)
             .GreaterThan(0)
+            .Default();
+        RegisterParameter("enable_eager_memory_release", EnableEagerMemoryRelease)
             .Default();
     }
 };
@@ -312,6 +315,9 @@ void ConfigureFromEnv()
     }
     if (config->StockpileSize) {
         SetStockpileSize(*config->StockpileSize);
+    }
+    if (config->EnableEagerMemoryRelease) {
+        SetEnableEagerMemoryRelease(*config->EnableEagerMemoryRelease);
     }
 
     YT_LOG_DEBUG("%v environment variable parsed successfully",
