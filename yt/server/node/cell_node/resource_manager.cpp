@@ -225,7 +225,7 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
             return;
         }
     }
-    
+
     JobsCpuLimit_ = newJobsCpuLimit;
 }
 
