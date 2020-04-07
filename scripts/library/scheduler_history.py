@@ -90,17 +90,23 @@ class SchedulerObjectsHistory(SchedulerCluster):
                 drop_nones(obj)
 
     def drop_pods_with_nonexistent_network_project(self, limit):
+        logging.info("Dropping pods with non-existent network projects")
         project_ids = set(proj["meta"]["id"] for proj in self.network_projects)
 
-        def check_requests(requests):
-            return all(req["network_id"] in project_ids for req in requests)
+        def check_pod(pod):
+            requests = pod["spec"].get("ip6_address_requests", []) + pod["spec"].get(
+                "ip6_subnet_requests", []
+            )
+            missing_projects = set(req["network_id"] for req in requests) - project_ids
+            if missing_projects:
+                logging.warning(
+                    "Dropping pod '%s' due to nonexistent network project(s): '%s'",
+                    pod["meta"]["id"],
+                    "', '".join(missing_projects),
+                )
+            return not missing_projects
 
-        pods = [
-            pod
-            for pod in self.pods
-            if check_requests(pod["spec"].get("ip6_address_requests", []))
-            and check_requests(pod["spec"].get("ip6_subnet_requests", []))
-        ]
+        pods = [pod for pod in self.pods if check_pod(pod)]
         lost = len(self.pods) - len(pods)
         if lost > limit:
             raise RuntimeError("Dropped pods limit exceeded: {}".format(lost))
@@ -120,15 +126,17 @@ class SchedulerObjectsHistory(SchedulerCluster):
     def drop_pods_on_nonexistent_nodes(self, limit):
         logging.info("Dropping pods on non-existent nodes")
         node_ids = [node["meta"]["id"] for node in self.nodes]
-        pods = []
-        for pod in self.pods:
+
+        def check_pod(pod):
             node_id = pod["spec"].get("node_id")
-            if not node_id or node_id in node_ids:
-                pods.append(pod)
-            else:
+            if node_id and node_id not in node_ids:
                 logging.warning(
-                    "Dropping pod '%s': non-existent node '%s'", pod["meta"]["id"], node_id,
+                    "Dropping pod '%s' due to non-existent node '%s'", pod["meta"]["id"], node_id
                 )
+                return False
+            return True
+
+        pods = [pod for pod in self.pods if check_pod(pod)]
 
         lost = len(self.pods) - len(pods)
         if lost > limit:
@@ -173,11 +181,7 @@ class SchedulerObjectsHistory(SchedulerCluster):
         if dropped_pod_count > 0:
             logging.warn("Dropping %d pods of non-up nodes", dropped_pod_count)
 
-        return self.replace(
-            nodes=remained_nodes,
-            resources=remained_resources,
-            pods=remained_pods
-        )
+        return self.replace(nodes=remained_nodes, resources=remained_resources, pods=remained_pods)
 
 
 def extract_attributes(obj, attrs):
