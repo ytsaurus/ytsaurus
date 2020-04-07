@@ -2286,7 +2286,7 @@ private:
         TotalBytesSent_ += req->ByteSize();
 
         NProfiling::TWallTimer dataWaitTimer;
-        return req->Invoke()
+        req->Invoke()
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr& rspOrError) {
                 this_->ReceiveRequestFromPeer(
                     std::move(rspOrError),
