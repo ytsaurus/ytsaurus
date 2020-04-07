@@ -3,8 +3,16 @@ package ru.yandex.spark.yt.fs
 import org.apache.hadoop.fs.FSInputStream
 import ru.yandex.spark.yt.utils.YtFileInputStream
 
+import scala.annotation.tailrec
+
 class YtFsInputStream(in: YtFileInputStream) extends FSInputStream {
-  override def seek(pos: Long): Unit = ???
+  @tailrec
+  override final def seek(pos: Long): Unit = {
+    if (getPos < pos) {
+      read()
+      seek(pos)
+    }
+  }
 
   override def getPos: Long = in.pos
 
