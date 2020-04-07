@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 
+import sys
 import os
+spark_home = os.environ.get("SPARK_HOME") or "/usr/lib/yandex/spark"
+sys.path.append(os.path.join(spark_home, "bin", "python"))
+
 from yt.wrapper import YtClient
-from yt_spark_client import raw_submit
-from yt_spark_client import utils as spark_utils
+from spyt.standalone import raw_submit
+from spyt import utils as spark_utils
 
 
 def main():

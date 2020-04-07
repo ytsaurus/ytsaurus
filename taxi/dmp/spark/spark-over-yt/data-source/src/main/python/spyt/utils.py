@@ -1,12 +1,17 @@
 import argparse
+import logging
 import os
 import re
+
 from yt.wrapper import YPath
-from yt.wrapper.config import get_config
 from yt.wrapper.cypress_commands import list as yt_list, create
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.http_helpers import get_proxy_url, get_user_name
 from yt.wrapper.operation_commands import get_operation_url
+
+
+logger = logging.getLogger(__name__)
+
 
 class SparkCluster(object):
     def __init__(self, master_endpoint, master_web_ui_url, master_rest_endpoint, operation_id, shs_url):
@@ -19,6 +24,7 @@ class SparkCluster(object):
     def operation_url(self, client=None):
         return get_operation_url(self.operation_id, client=client)
 
+
 class SparkDiscovery(object):
     def __init__(self, discovery_path=None, spark_id=None):
         discovery_path = discovery_path or os.getenv("SPARK_YT_DISCOVERY_PATH")
@@ -30,9 +36,9 @@ class SparkDiscovery(object):
         try:
             return yt_list(path, client=client)[0]
         except YtHttpResponseError as e:
-            print(e.message)
+            logger.warning(e.message)
             for inner in e.inner_errors:
-                print(inner["message"])
+                logger.warning(inner["message"])
 
     def create(self, client):
         create("map_node", self.discovery(), recursive=True, ignore_existing=True, client=client)
@@ -69,11 +75,13 @@ class SparkDiscovery(object):
         return self.logs().join("stderr")
 
 
-def parse_memory(memory_str):
-    units = {"gb": 1024 * 1024 * 1024, "mb": 1024 * 1024, "kb": 1024, "bb": 1, "b": 1}
-    if memory_str is None:
+def parse_memory(memory):
+    if isinstance(memory, int):
+        return memory
+    if memory is None:
         return None
-    m = re.match(r"(\d+)(.*)", memory_str)
+    units = {"gb": 1024 * 1024 * 1024, "mb": 1024 * 1024, "kb": 1024, "bb": 1, "b": 1}
+    m = re.match(r"(\d+)(.*)", memory)
     value = int(m.group(1))
     unit = m.group(2).lower().strip()
     if len(unit) <= 1:
@@ -82,6 +90,8 @@ def parse_memory(memory_str):
 
 
 def format_memory(memory_bytes):
+    if memory_bytes is None:
+        return None
     units = {"gb": 1024 * 1024 * 1024, "mb": 1024 * 1024, "kb": 1024, "bb": 1, "b": 1}
     if memory_bytes % units["gb"] == 0:
         return "{}G".format(memory_bytes // units["gb"])
@@ -98,14 +108,6 @@ def get_spark_master(discovery, rest, yt_client=None):
     return "spark://{0}".format(master)
 
 
-def determine_cluster(client=None):
-    proxy_url = get_proxy_url(required=False, client=client)
-    default_suffix = get_config(client)["proxy"]["default_suffix"]
-    if proxy_url is not None and proxy_url.endswith(default_suffix):
-        return proxy_url[:-len(default_suffix)]
-    return None
-
-
 def default_token():
     token = os.getenv("YT_TOKEN")
     if token is None:
@@ -115,7 +117,7 @@ def default_token():
 
 
 def base_spark_conf(client, discovery):
-    yt_proxy = determine_cluster(client=client)
+    yt_proxy = get_proxy_url(client=client)
     yt_user = get_user_name(client=client)
     return {
         "spark.hadoop.yt.proxy": yt_proxy,
