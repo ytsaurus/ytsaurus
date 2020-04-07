@@ -85,6 +85,7 @@ class YtFileSystem extends FileSystem {
     pathType match {
       case PathType.Table => listTableAsFiles(f, path, transaction)
       case PathType.Directory => listYtDirectory(f, path, transaction)
+      case PathType.File => Array(getFileStatus(f))
       case _ => throw new IllegalArgumentException(s"Can't list $pathType")
     }
   }
