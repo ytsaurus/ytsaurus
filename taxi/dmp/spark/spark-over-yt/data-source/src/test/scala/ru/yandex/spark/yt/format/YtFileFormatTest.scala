@@ -483,6 +483,30 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUti
     res.columns should contain theSameElementsAs Seq("a", "b", "c")
     res.collect().isEmpty shouldEqual true
   }
+
+  it should "serialize yson" in {
+    import org.apache.spark.sql.functions._
+    val df1 = Seq("a", "b", "c")
+      .toDF("value1")
+      .withColumn("value2", lit(null).cast(StringType))
+      .withYsonColumn("info", struct('value1, 'value2))
+
+    val df2 = Seq("A", "B", "C")
+      .toDF("value2")
+      .withColumn("value1", lit(null).cast(StringType))
+      .withYsonColumn("info", struct('value1, 'value2))
+
+    df1.union(df2).coalesce(1).write.yt(tmpPath)
+
+    spark.read
+      .schemaHint(
+        "info" -> StructType(Seq(
+          StructField("value1", StringType),
+          StructField("value2", StringType)
+        ))
+      )
+      .yt(tmpPath).show()
+  }
 }
 
 object Counter {

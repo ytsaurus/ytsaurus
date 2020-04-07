@@ -15,7 +15,7 @@ class YsonDecoderProperties extends Properties("YsonDecoder") {
   private val eps = 0.0001
 
   property("decode") = forAll(genTree) { case StructValue(expected, dataType) =>
-    val bytes = YsonRowConverter.serialize(expected, dataType)
+    val bytes = YsonRowConverter.serialize(expected, dataType, skipNulls = false)
     val actual = YsonDecoder.decode(bytes, SchemaConverter.indexedDataType(dataType))
     equals(expected, actual, dataType)
   }

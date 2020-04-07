@@ -6,6 +6,7 @@ import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
 import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientConfigurationConverter, YtClientProvider}
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.yt.ytclient.proxy.YtClient
+import org.apache.spark.sql.functions._
 
 package object yt {
   lazy val yt: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(SparkSession.getDefaultSession.get))
@@ -47,6 +48,18 @@ package object yt {
 
     def sortedBy(cols: String*): DataFrameWriter[T] = {
       writer.option(YtTableSparkSettings.SortColumns.name, cols.mkString(","))
+    }
+  }
+
+  implicit class YtDataset[T](df: Dataset[T]) {
+    def withYsonColumn(name: String, column: Column): DataFrame = {
+      val colSchema = df.withColumn(name, column).schema(name)
+      val metadata = new MetadataBuilder()
+        .withMetadata(colSchema.metadata)
+        .putBoolean("skipNulls", true)
+        .build()
+      val newColumn = column.as(name, metadata)
+      df.withColumn(name, newColumn)
     }
   }
 }

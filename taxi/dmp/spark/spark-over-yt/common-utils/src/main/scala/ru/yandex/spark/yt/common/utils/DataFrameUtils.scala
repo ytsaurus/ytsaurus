@@ -1,11 +1,11 @@
-package ru.yandex.spark.yt.utils
+package ru.yandex.spark.yt.common.utils
 
 import java.util.{ArrayList => JList}
 
 import org.apache.spark.sql.catalyst.encoders.RowEncoder
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{Column, DataFrame, Dataset, Encoders, Row}
+import org.apache.spark.sql._
 
 import scala.reflect.runtime.universe.TypeTag
 
@@ -107,8 +107,8 @@ object DataFrameUtils {
     df.top(groupBy.asScala, topBy.asScala, partitions)
   }
 
-  def joinWithHotKeyNull(left: DataFrame, right: DataFrame, key: String, joinType: String): DataFrame = {
-    left.joinWithHotKey(right, key, None, joinType)
+  def joinWithHotKeyNull(left: DataFrame, right: DataFrame, key: String, joinType: String, andCondition: Column): DataFrame = {
+    left.joinWithHotKey(right, key, None, joinType, andCondition)
   }
 
   def minByColumns(df: DataFrame, groupBy: String,

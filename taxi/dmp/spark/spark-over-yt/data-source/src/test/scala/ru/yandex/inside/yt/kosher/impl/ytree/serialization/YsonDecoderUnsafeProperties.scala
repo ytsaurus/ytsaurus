@@ -17,7 +17,7 @@ class YsonDecoderUnsafeProperties extends Properties("YsonDecoderUnsafe") {
   private val eps = 0.0001
 
   property("decode") = forAll(genTree) { case StructValue(expected, dataType) =>
-    val bytes = YsonRowConverter.serialize(expected, dataType)
+    val bytes = YsonRowConverter.serialize(expected, dataType, skipNulls = false)
     val writer = new UnsafeRowWriter(1)
     writer.reset()
     YsonDecoderUnsafe.decode(bytes, SchemaConverter.indexedDataType(dataType), writer, 0)
