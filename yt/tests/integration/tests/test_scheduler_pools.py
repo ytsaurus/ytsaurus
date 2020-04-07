@@ -415,11 +415,11 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             create_pool("prod", pool_tree="my_tree")
 
     def test_creation_works_after_load_from_snapshot(self):
-        create_pool_tree("my_tree")
+        create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree")
 
         build_snapshot(cell_id=None)
-        with Restarter(self.Env, MASTER_CELL_SERVICE):
+        with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
         create_pool("prod", pool_tree="my_tree", parent_name="nirvana")
