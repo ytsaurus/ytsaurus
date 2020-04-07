@@ -13,7 +13,7 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::SliceForeignChunks) &&
+    return version >= ToUnderlying(ESnapshotVersion::CompletedRowCount) &&
         version <= GetCurrentSnapshotVersion();
 }
 
