@@ -11,7 +11,7 @@
 
 #include <library/threading/future/async.h>
 
-#include <library/digest/md5/md5.h>
+#include <library/cpp/digest/md5/md5.h>
 
 #include <util/generic/guid.h>
 #include <util/string/cast.h>
