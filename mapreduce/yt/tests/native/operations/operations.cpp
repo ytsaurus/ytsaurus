@@ -26,7 +26,7 @@
 
 #include <mapreduce/yt/util/wait_for_tablets_state.h>
 
-#include <library/digest/md5/md5.h>
+#include <library/cpp/digest/md5/md5.h>
 
 #include <library/unittest/registar.h>
 

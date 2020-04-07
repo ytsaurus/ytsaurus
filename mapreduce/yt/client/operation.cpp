@@ -63,7 +63,7 @@
 #include <util/system/rwlock.h>
 #include <util/system/thread.h>
 
-#include <library/digest/md5/md5.h>
+#include <library/cpp/digest/md5/md5.h>
 
 namespace NYT {
 namespace NDetail {
