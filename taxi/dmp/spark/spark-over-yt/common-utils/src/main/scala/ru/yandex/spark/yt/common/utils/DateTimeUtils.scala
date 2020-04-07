@@ -1,4 +1,4 @@
-package ru.yandex.spark.yt.utils
+package ru.yandex.spark.yt.common.utils
 
 import java.time.format.DateTimeFormatter
 import java.time.{ZoneId, ZoneOffset, ZonedDateTime}

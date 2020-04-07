@@ -71,7 +71,8 @@ class InternalRowSerializer(schema: StructType) extends WireRowSerializer[Intern
           case BinaryType => writeBytes(writeable, idMapping, i, row.getBinary(i))
           case StringType => writeBytes(writeable, idMapping, i, row.getUTF8String(i).getBytes)
           case t@(ArrayType(_, _) | StructType(_) | MapType(_, _, _)) =>
-            writeBytes(writeable, idMapping, i, YsonEncoder.encode(row.get(i, schema(i).dataType), t))
+            val skipNulls = schema(i).metadata.contains("skipNulls") && schema(i).metadata.getBoolean("skipNulls")
+            writeBytes(writeable, idMapping, i, YsonEncoder.encode(row.get(i, schema(i).dataType), t, skipNulls))
           case atomic =>
             writeHeader(writeable, idMapping, i, 0)
             atomic match {

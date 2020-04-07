@@ -136,15 +136,15 @@ object YsonEncoder {
   private val TRUE = 0x5
   private val UNSIGNED_INTEGER = 0x6
 
-  def encode(value: Any, dataType: DataType): Array[Byte] = {
+  def encode(value: Any, dataType: DataType, skipNulls: Boolean): Array[Byte] = {
     val output = new ByteArrayOutputStream(200)
     val writer = new YsonEncoder(output)
-    write(value, dataType, writer)
+    write(value, dataType, skipNulls, writer)
     writer.close()
     output.toByteArray
   }
 
-  private def write(value: Any, dataType: DataType, writer: YsonEncoder): Unit = {
-    YsonRowConverter.serializeValue(value, dataType, writer)
+  private def write(value: Any, dataType: DataType, skipNulls: Boolean, writer: YsonEncoder): Unit = {
+    YsonRowConverter.serializeValue(value, dataType, skipNulls, writer)
   }
 }

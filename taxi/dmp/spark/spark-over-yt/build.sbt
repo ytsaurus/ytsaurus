@@ -13,6 +13,7 @@ lazy val `data-source` = (project in file("data-source"))
     libraryDependencies ++= testDeps,
     libraryDependencies ++= spark,
     libraryDependencies ++= yandexIceberg,
+    libraryDependencies += organization.value %% "spark-yt-common-utils" % "0.0.1",
     libraryDependencies ++= logging.map(_ % Provided),
     assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
     test in assembly := {}
@@ -127,6 +128,15 @@ lazy val `client` = (project in file("client"))
     publishYtArtifacts += YtPublishFile(tarArchiveBuild.value, sparkYtBinBasePath.value, None),
     publishYtArtifacts += YtPublishFile((assembly in `spark-launcher`).value, sparkYtBinBasePath.value, None),
     publishYtArtifacts ++= sparkYtConfigs.value
+  )
+
+lazy val `common-utils` = (project in file("common-utils"))
+  .dependsOn(`data-source` % Provided, `test-utils` % Test)
+  .settings(
+    version := "0.0.2-SNAPSHOT",
+    libraryDependencies ++= spark,
+    libraryDependencies ++= testDeps,
+    libraryDependencies ++= logging.map(_ % Provided)
   )
 
 lazy val root = (project in file("."))

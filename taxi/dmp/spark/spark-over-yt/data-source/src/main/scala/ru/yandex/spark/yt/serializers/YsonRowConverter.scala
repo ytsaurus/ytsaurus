@@ -20,7 +20,7 @@ import ru.yandex.yt.ytclient.proxy.TableWriter
 import scala.annotation.tailrec
 import scala.collection.mutable
 
-class YsonRowConverter(schema: StructType) extends YTreeSerializer[Row] {
+class YsonRowConverter(schema: StructType, skipNulls: Boolean) extends YTreeSerializer[Row] {
   private val log = Logger.getLogger(getClass)
 
   private val indexedFields = schema.zipWithIndex
@@ -28,11 +28,17 @@ class YsonRowConverter(schema: StructType) extends YTreeSerializer[Row] {
 
   override def getClazz: ClassX[Row] = ClassX.wrap(classOf[Row])
 
+  private def skipNullsForField(field: StructField): Boolean = {
+    field.metadata.contains("skipNulls") && field.metadata.getBoolean("skipNulls")
+  }
+
   override def serialize(row: Row, consumer: YTreeConsumer): Unit = {
     consumer.onBeginMap()
     indexedFields.foreach { case (field, index) =>
-      consumer.onKeyedItem(field.name)
-      YsonRowConverter.serializeValue(row.get(index), field.dataType, consumer)
+      if (!skipNulls || !row.isNullAt(index)) {
+        consumer.onKeyedItem(field.name)
+        YsonRowConverter.serializeValue(row.get(index), field.dataType, skipNullsForField(field), consumer)
+      }
     }
     consumer.onEndMap()
   }
@@ -40,8 +46,10 @@ class YsonRowConverter(schema: StructType) extends YTreeSerializer[Row] {
   def serializeUnsafeRow(row: UnsafeRow, consumer: YTreeConsumer): Unit = {
     consumer.onBeginMap()
     indexedFields.foreach { case (field, index) =>
-      consumer.onKeyedItem(field.name)
-      YsonRowConverter.serializeValue(row.get(index, field.dataType), field.dataType, consumer)
+      if (!skipNulls || !row.isNullAt(index)) {
+        consumer.onKeyedItem(field.name)
+        YsonRowConverter.serializeValue(row.get(index, field.dataType), field.dataType, skipNullsForField(field), consumer)
+      }
     }
     consumer.onEndMap()
   }
@@ -49,8 +57,10 @@ class YsonRowConverter(schema: StructType) extends YTreeSerializer[Row] {
   def serializeInternalRow(row: InternalRow, consumer: YTreeConsumer): Unit = {
     consumer.onBeginMap()
     indexedFields.foreach { case (field, index) =>
-      consumer.onKeyedItem(field.name)
-      YsonRowConverter.serializeValue(row.get(index, field.dataType), field.dataType, consumer)
+      if (!skipNulls || !row.isNullAt(index)) {
+        consumer.onKeyedItem(field.name)
+        YsonRowConverter.serializeValue(row.get(index, field.dataType), field.dataType, skipNullsForField(field), consumer)
+      }
     }
     consumer.onEndMap()
   }
@@ -58,8 +68,10 @@ class YsonRowConverter(schema: StructType) extends YTreeSerializer[Row] {
   def serialize(row: Row, consumer: YsonEncoder): Unit = {
     consumer.onBeginMap()
     indexedFields.foreach { case (field, index) =>
-      consumer.onKeyedItem(field.name)
-      YsonRowConverter.serializeValue(row.get(index), field.dataType, consumer)
+      if (!skipNulls || !row.isNullAt(index)) {
+        consumer.onKeyedItem(field.name)
+        YsonRowConverter.serializeValue(row.get(index), field.dataType, skipNullsForField(field), consumer)
+      }
     }
     consumer.onEndMap()
   }
@@ -67,8 +79,10 @@ class YsonRowConverter(schema: StructType) extends YTreeSerializer[Row] {
   def serializeUnsafeRow(row: UnsafeRow, consumer: YsonEncoder): Unit = {
     consumer.onBeginMap()
     indexedFields.foreach { case (field, index) =>
-      consumer.onKeyedItem(field.name)
-      YsonRowConverter.serializeValue(row.get(index, field.dataType), field.dataType, consumer)
+      if (!skipNulls || !row.isNullAt(index)) {
+        consumer.onKeyedItem(field.name)
+        YsonRowConverter.serializeValue(row.get(index, field.dataType), field.dataType, skipNullsForField(field), consumer)
+      }
     }
     consumer.onEndMap()
   }
@@ -76,8 +90,10 @@ class YsonRowConverter(schema: StructType) extends YTreeSerializer[Row] {
   def serializeInternalRow(row: InternalRow, consumer: YsonEncoder): Unit = {
     consumer.onBeginMap()
     indexedFields.foreach { case (field, index) =>
-      consumer.onKeyedItem(field.name)
-      YsonRowConverter.serializeValue(row.get(index, field.dataType), field.dataType, consumer)
+      if (!skipNulls || !row.isNullAt(index)) {
+        consumer.onKeyedItem(field.name)
+        YsonRowConverter.serializeValue(row.get(index, field.dataType), field.dataType, skipNullsForField(field), consumer)
+      }
     }
     consumer.onEndMap()
   }
@@ -160,7 +176,7 @@ object YsonRowConverter {
     }
   }
 
-  def serializeValue(value: Any, dataType: DataType, consumer: YTreeConsumer): Unit = {
+  def serializeValue(value: Any, dataType: DataType, skipNulls: Boolean, consumer: YTreeConsumer): Unit = {
     if (isNull(value)) {
       consumer.onEntity()
     } else {
@@ -184,14 +200,14 @@ object YsonRowConverter {
           }
           iterable.foreach { row =>
             consumer.onListItem()
-            serializeValue(row, elementType, consumer)
+            serializeValue(row, elementType, skipNulls = false, consumer)
           }
           consumer.onEndList()
         case t: StructType =>
           value match {
-            case row: Row => YsonRowConverter.getOrCreate(t).serialize(row, consumer)
-            case row: UnsafeRow => YsonRowConverter.getOrCreate(t).serializeUnsafeRow(row, consumer)
-            case row: InternalRow => YsonRowConverter.getOrCreate(t).serializeInternalRow(row, consumer)
+            case row: Row => YsonRowConverter.getOrCreate(t, skipNulls).serialize(row, consumer)
+            case row: UnsafeRow => YsonRowConverter.getOrCreate(t, skipNulls).serializeUnsafeRow(row, consumer)
+            case row: InternalRow => YsonRowConverter.getOrCreate(t, skipNulls).serializeInternalRow(row, consumer)
           }
         case MapType(StringType, valueType, _) =>
           consumer.onBeginMap()
@@ -201,7 +217,7 @@ object YsonRowConverter {
           }
           map.foreach { case (key, mapValue) =>
             consumer.onKeyedItem(key.toString)
-            serializeValue(mapValue, valueType, consumer)
+            serializeValue(mapValue, valueType, skipNulls = false, consumer)
           }
           consumer.onEndMap()
       }
@@ -209,7 +225,7 @@ object YsonRowConverter {
 
   }
 
-  def serializeValue(value: Any, dataType: DataType, consumer: YsonEncoder): Unit = {
+  def serializeValue(value: Any, dataType: DataType, skipNulls: Boolean, consumer: YsonEncoder): Unit = {
     if (isNull(value)) {
       consumer.onEntity()
     } else {
@@ -232,14 +248,14 @@ object YsonRowConverter {
           }
           iterable.foreach { row =>
             consumer.onListItem()
-            serializeValue(row, elementType, consumer)
+            serializeValue(row, elementType, skipNulls = false, consumer)
           }
           consumer.onEndList()
         case t: StructType =>
           value match {
-            case row: Row => YsonRowConverter.getOrCreate(t).serialize(row, consumer)
-            case row: UnsafeRow => YsonRowConverter.getOrCreate(t).serializeUnsafeRow(row, consumer)
-            case row: InternalRow => YsonRowConverter.getOrCreate(t).serializeInternalRow(row, consumer)
+            case row: Row => YsonRowConverter.getOrCreate(t, skipNulls).serialize(row, consumer)
+            case row: UnsafeRow => YsonRowConverter.getOrCreate(t, skipNulls).serializeUnsafeRow(row, consumer)
+            case row: InternalRow => YsonRowConverter.getOrCreate(t, skipNulls).serializeInternalRow(row, consumer)
           }
         case MapType(StringType, valueType, _) =>
           consumer.onBeginMap()
@@ -249,7 +265,7 @@ object YsonRowConverter {
           }
           map.foreach { case (key, mapValue) =>
             consumer.onKeyedItem(key.toString)
-            serializeValue(mapValue, valueType, consumer)
+            serializeValue(mapValue, valueType, skipNulls = false, consumer)
           }
           consumer.onEndMap()
       }
@@ -257,21 +273,21 @@ object YsonRowConverter {
 
   }
 
-  def serializeToYson(value: Any, dataType: DataType): YTreeNode = {
+  def serializeToYson(value: Any, dataType: DataType, skipNulls: Boolean): YTreeNode = {
     val consumer = YTree.builder()
-    serializeValue(value, dataType, consumer)
+    serializeValue(value, dataType, skipNulls, consumer)
     consumer.build()
   }
 
-  def serialize(value: Any, dataType: DataType): Array[Byte] = {
+  def serialize(value: Any, dataType: DataType, skipNulls: Boolean): Array[Byte] = {
     val output = new ByteArrayOutputStream
-    YTreeBinarySerializer.serialize(serializeToYson(value, dataType), output)
+    YTreeBinarySerializer.serialize(serializeToYson(value, dataType, skipNulls), output)
     output.toByteArray
   }
 
   private val serializer: ThreadLocal[mutable.Map[StructType, YsonRowConverter]] = ThreadLocal.withInitial(() => mutable.ListMap.empty)
 
-  def getOrCreate(schema: StructType): YsonRowConverter = {
-    serializer.get().getOrElseUpdate(schema, new YsonRowConverter(schema))
+  def getOrCreate(schema: StructType, skipNulls: Boolean): YsonRowConverter = {
+    serializer.get().getOrElseUpdate(schema, new YsonRowConverter(schema, skipNulls))
   }
 }

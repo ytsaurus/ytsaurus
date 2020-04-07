@@ -1,8 +1,8 @@
-package ru.yandex.spark.yt.utils
+package ru.yandex.spark.yt.common.utils
 
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.functions.col
 import org.scalatest.{FlatSpec, Matchers}
-import org.apache.spark.sql.functions._
 import ru.yandex.spark.yt.test.LocalSpark
 
 class DataFrameUtilsTest extends FlatSpec with Matchers with LocalSpark {
@@ -27,7 +27,7 @@ class DataFrameUtilsTest extends FlatSpec with Matchers with LocalSpark {
     val res = df.top(Seq("user_phone", "brand"), Seq("moscow_event_dttm"), 1)
 
     res.columns should contain theSameElementsAs df.columns
-    res.select(df.columns.head, df.columns.tail:_*).collect() should contain theSameElementsAs Seq(
+    res.select(df.columns.head, df.columns.tail: _*).collect() should contain theSameElementsAs Seq(
       Row("1", "1", "1", "a"),
       Row("1", "2", "1", "d"),
       Row("2", "3", "1", "f")
@@ -55,7 +55,7 @@ class DataFrameUtilsTest extends FlatSpec with Matchers with LocalSpark {
 
     val expectedColumns = Seq("key", "valueA", "valueB")
     res.columns should contain theSameElementsAs expectedColumns
-    res.select(expectedColumns.map(col):_*).collect() should contain theSameElementsAs Seq(
+    res.select(expectedColumns.map(col): _*).collect() should contain theSameElementsAs Seq(
       Row(null, "1", null),
       Row(null, "2", null),
       Row(null, "3", null),
@@ -74,7 +74,7 @@ class DataFrameUtilsTest extends FlatSpec with Matchers with LocalSpark {
       ("1", Some("3"), "c", "ccc", Some("3"), "cc"),
       ("1", Some("4"), "d", "ddd", Some("4"), "dd"),
       ("1", Some("5"), "e", "eee", Some("5"), "ee"),
-      ("1", None,      "f", "fff", None,      "ff"),
+      ("1", None, "f", "fff", None, "ff"),
       ("2", Some("1"), "a", "aaa", None, "aa")
     ).toDF("key", "min_by_key", "min_by_value1", "min_by_value2", "max_by_key", "max_by_value")
 
@@ -86,10 +86,9 @@ class DataFrameUtilsTest extends FlatSpec with Matchers with LocalSpark {
     )
 
     res.columns should contain theSameElementsAs df.columns
-    res.select(df.columns.map(col):_*).collect() should contain theSameElementsAs Seq(
+    res.select(df.columns.map(col): _*).collect() should contain theSameElementsAs Seq(
       Row("1", "1", "a", "aaa", "5", "ee"),
       Row("2", "1", "a", "aaa", null, "aa")
     )
   }
-
 }
