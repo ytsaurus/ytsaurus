@@ -282,7 +282,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         if operation_type == "map":
             assert "long_aborted_jobs" in op.get_alerts()
         else:
-            assert "long aborted_jobs" not in op.get_alerts();
+            assert "long_aborted_jobs" not in op.get_alerts();
 
     # if these three tests flap - call renadeen@
     @authors("renadeen")
