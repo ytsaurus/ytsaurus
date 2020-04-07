@@ -8306,6 +8306,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, PathToInputTables_);
     Persist(context, JobMetricsDeltaPerTree_);
     Persist(context, TotalTimePerTree_);
+    Persist(context, CompletedRowCount_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
