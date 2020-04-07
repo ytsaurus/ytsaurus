@@ -11,7 +11,7 @@
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
 #include <yt/core/ytalloc/bindings.h>
 
-#include <library/ytalloc/api/ytalloc.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYP::NServer::NHeavyScheduler {
 
