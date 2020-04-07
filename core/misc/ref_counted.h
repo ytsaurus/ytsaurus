@@ -3,7 +3,7 @@
 #include "intrusive_ptr.h"
 #include "port.h"
 
-#include <library/ytalloc/api/ytalloc.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <util/generic/noncopyable.h>
 
