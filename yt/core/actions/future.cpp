@@ -13,12 +13,12 @@ const TFuture<bool> FalseFuture = MakeWellKnownFuture(TErrorOr<bool>(false));
 
 namespace NDetail {
 
-void TFutureState<void>::Subscribe(TVoidResultHandler handler)
+TFutureCallbackCookie TFutureState<void>::Subscribe(TVoidResultHandler handler)
 {
     // Fast path.
     if (Set_) {
         RunNoExcept(handler, ResultError_);
-        return;
+        return NullFutureCallbackCookie;
     }
 
     // Slow path.
@@ -28,10 +28,27 @@ void TFutureState<void>::Subscribe(TVoidResultHandler handler)
         if (Set_) {
             guard.Release();
             RunNoExcept(handler, ResultError_);
+            return NullFutureCallbackCookie;
         } else {
-            VoidResultHandlers_.push_back(std::move(handler));
             HasHandlers_ = true;
+            return VoidResultHandlers_.Add(std::move(handler));
         }
+    }
+}
+
+void TFutureState<void>::Unsubscribe(TFutureCallbackCookie cookie)
+{
+    // Fast path.
+    if (Set_ || cookie == NullFutureCallbackCookie) {
+        return;
+    }
+
+    {
+        auto guard = Guard(SpinLock_);
+        if (Set_) {
+            return;
+        }
+        YT_VERIFY(DoUnsubscribe(cookie, &guard));
     }
 }
 
@@ -129,7 +146,6 @@ void TFutureState<void>::InstallAbandonedError() const
 void TFutureState<void>::InstallAbandonedError()
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-
     if (AbandonedUnset_ && !Set_) {
         SetResultError(NDetail::MakeAbandonedError());
         Set_ = true;
@@ -139,15 +155,21 @@ void TFutureState<void>::InstallAbandonedError()
 void TFutureState<void>::ResetResult()
 { }
 
+void TFutureState<void>::SetResultError(const TError& error)
+{
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    ResultError_ = error;
+}
+
 bool TFutureState<void>::TrySetError(const TError& error)
 {
     return TrySet(error);
 }
 
-void TFutureState<void>::SetResultError(const TError& error)
+bool TFutureState<void>::DoUnsubscribe(TFutureCallbackCookie cookie, TGuard<TSpinLock>* guard)
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-    ResultError_ = error;
+    return VoidResultHandlers_.TryRemove(cookie, guard);
 }
 
 void TFutureState<void>::WaitUntilSet() const

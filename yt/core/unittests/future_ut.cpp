@@ -32,6 +32,46 @@ TEST_F(TFutureTest, Noncopyable)
     EXPECT_EQ(1, *result.Value());
 }
 
+TEST_F(TFutureTest, Unsubscribe)
+{
+    auto p = NewPromise<int>();
+    auto f = p.ToFuture();
+    
+    bool f1 = false;
+    auto c1 = f.AsVoid().Subscribe(BIND([&] (const TError&) { f1 = true; }));
+    
+    bool f2 = false;
+    auto c2 = f.Subscribe(BIND([&] (const TErrorOr<int>&) { f2 = true; }));
+    
+    EXPECT_NE(c1, c2);
+
+    f.Unsubscribe(c1);
+    f.Unsubscribe(c2);
+
+    bool f3 = false;
+    auto c3 = f.AsVoid().Subscribe(BIND([&] (const TError&) { f3 = true; }));
+    EXPECT_EQ(c1, c3);
+
+    bool f4 = false;
+    auto c4 = f.Subscribe(BIND([&] (const TErrorOr<int>&) { f4 = true; }));
+    EXPECT_EQ(c2, c4);
+
+    p.Set(1);
+
+    EXPECT_FALSE(f1); 
+    EXPECT_FALSE(f2); 
+    EXPECT_TRUE(f3); 
+    EXPECT_TRUE(f4);
+
+    bool f5 = false;
+    EXPECT_EQ(NullFutureCallbackCookie, f.Subscribe(BIND([&] (const TError&) { f5 = true; })));
+    EXPECT_TRUE(f5); 
+
+    bool f6 = false;
+    EXPECT_EQ(NullFutureCallbackCookie, f.Subscribe(BIND([&] (const TErrorOr<int>&) { f6 = true; })));
+    EXPECT_TRUE(f6);
+}
+
 TEST_F(TFutureTest, IsNull)
 {
     TFuture<int> empty;
