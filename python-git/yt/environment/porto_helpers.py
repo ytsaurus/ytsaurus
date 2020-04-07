@@ -43,7 +43,7 @@ def remove_all_volumes(path):
 
 class PortoSubprocess(object):
     @classmethod
-    def Popen(cls, args, shell=None, close_fds=None, preexec_fn=None, cwd=None, stdout=None, stderr=None):
+    def Popen(cls, args, shell=None, close_fds=None, preexec_fn=None, cwd=None, stdout=None, stderr=None, env=None):
         conn = Connection()
         name = generate_uuid()
         command = " ".join(["'" + quote(a) + "'" for a in args])
@@ -56,7 +56,7 @@ class PortoSubprocess(object):
         p._container.SetProperty("porto_namespace", name + "/")
         p._container.SetProperty("isolate", "true")
         p._returncode = None
-        p._copy_env()
+        p._set_env(env)
         if stdout is not None:
             p._container.SetProperty("stdout_path", stdout.name)
         if stderr is not None:
@@ -106,8 +106,11 @@ class PortoSubprocess(object):
         if self._container.Wait(timeout):
             self._returncode = self._container.GetData("exit_status")
 
-    def _copy_env(self):
-        environment = ""
-        for env, value in iteritems(os.environ):
-            environment += env + "=" + value.replace(';','\\;') + ";"
-        self._container.SetProperty("env", environment)
+    def _set_env(self, env):
+        def _format_key(key, value):
+            return key + "=" + value.replace(';','\\;')
+        if env is not None:
+            environment = []
+            for key, value in iteritems(env):
+                environment.append(_format_key(key, value))
+            self._container.SetProperty("env", ";".join(environment))
