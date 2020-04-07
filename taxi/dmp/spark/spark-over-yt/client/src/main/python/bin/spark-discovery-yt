@@ -2,23 +2,26 @@
 
 from __future__ import print_function
 
+import sys
+import os
+spark_home = os.environ.get("SPARK_HOME") or "/usr/lib/yandex/spark"
+sys.path.append(os.path.join(spark_home, "bin", "python"))
+
 from yt.wrapper import YtClient
-from yt.wrapper.operation_commands import get_operation_url
-from yt_spark_client import utils as spark_utils
-from yt_spark_client.utils import SparkDiscovery
+from spyt import utils as spark_utils
+from spyt.standalone import find_spark_cluster
 
 
 def main():
     args, unknown_args = spark_utils.parse_args(parser_arguments=dict(description="Spark Discovery"))
 
     client = YtClient(proxy=args.proxy, token=spark_utils.default_token())
-
-    discovery = SparkDiscovery(discovery_path=args.discovery_path, spark_id=args.id)
-    print("Master: %s" % SparkDiscovery.get(discovery.master_spark(), client=client))
-    print("Master Web UI: http://%s/" % SparkDiscovery.get(discovery.master_webui(), client=client))
-    print("Master REST API Endpoint: %s" % SparkDiscovery.get(discovery.operation(), client=client))
-    print("Operation: %s" % get_operation_url(SparkDiscovery.get(discovery.operation(), client=client), client=client))
-    print("Spark History Server: http://%s/" % SparkDiscovery.get(discovery.shs(), client=client))
+    spark_cluster = find_spark_cluster(discovery_path=args.discovery_path, client=client)
+    print("Master: {}".format(spark_cluster.master_endpoint))
+    print("Master Web UI: http://{}/".format(spark_cluster.master_web_ui_url))
+    print("Master REST API Endpoint: {}".format(spark_cluster.master_rest_endpoint))
+    print("Operation: {}".format(spark_cluster.operation_url(client=client)))
+    print("Spark History Server: http://{}/".format(spark_cluster.shs_url))
 
 
 if __name__ == '__main__':

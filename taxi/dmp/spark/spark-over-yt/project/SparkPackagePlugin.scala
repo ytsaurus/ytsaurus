@@ -31,7 +31,13 @@ object SparkPackagePlugin extends AutoPlugin {
                                  "IS_SPARK_CLUSTER" -> "true",
                                  "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB" -> "1"
                                ),
-                               operation_spec: Map[String, String] = Map()) {
+                               operation_spec: Map[String, String] = Map(),
+                               python_cluster_paths: Map[String, String] = Map(
+                                 "3.7" -> "/opt/python3.7/bin/python3.7",
+                                 "3.5" -> "python3.5",
+                                 "3.4" -> "/opt/python3.4/bin/python3.4",
+                                 "2.7" -> "python2.7"
+                               )) {
 
     private def toYson(value: Any, builder: YTreeBuilder): YTreeBuilder = {
       value match {
@@ -164,14 +170,10 @@ object SparkPackagePlugin extends AutoPlugin {
       }
 
       val pythonDir = sparkDist / "bin" / "python"
-      if (!pythonDir.exists()) {
-        IO.createDirectory(sparkDist / "bin" / "python")
-      }
-      IO.copyDirectory(sourceDirectory.value / "main" / "python" / "client", sparkDist / "bin" / "python")
+      if (!pythonDir.exists()) IO.createDirectory(pythonDir)
 
-      val ytClient = sourceDirectory.value / "main" / "python" / "client"
-      (ytClient +: sparkAdditionalPython.value).foreach { f =>
-        IO.copyDirectory(f, sparkDist / "python")
+      sparkAdditionalPython.value.foreach { f =>
+        IO.copyDirectory(f, pythonDir)
 
         import sys.process._
         IO.listFiles(f).foreach {
@@ -194,7 +196,7 @@ object SparkPackagePlugin extends AutoPlugin {
     import scala.language.postfixOps
     import scala.sys.process._
 
-    val sparkBuildCommand = s"$sparkHome/dev/make-distribution.sh --pip -Phadoop-2.7"
+    val sparkBuildCommand = s"$sparkHome/dev/make-distribution.sh -Phadoop-2.7"
     println("Building spark...")
     val code = (sparkBuildCommand !)
     if (code != 0) {

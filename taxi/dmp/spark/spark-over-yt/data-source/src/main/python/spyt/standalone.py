@@ -1,15 +1,30 @@
+import logging
 import os
 import re
 import subprocess
-from copy import deepcopy
 from yt.wrapper import get
+from yt.wrapper.common import update_inplace
 from yt.wrapper.cypress_commands import exists
 from yt.wrapper.http_helpers import get_token, get_user_name, get_proxy_url
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
 from yt.wrapper.run_operation_commands import run_operation
 from yt.wrapper.spec_builders import VanillaSpecBuilder
 
-from .utils import get_spark_master, base_spark_conf, SparkDiscovery, determine_cluster, SparkCluster
+from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster
+
+logger = logging.getLogger(__name__)
+
+
+class SparkDefaultArguments(object):
+    SPARK_WORKER_TMPFS_LIMIT = "150G"
+    SPARK_MASTER_MEMORY_LIMIT = "2G"
+    SPARK_HISTORY_SERVER_MEMORY_LIMIT = "8G"
+    DYNAMIC_CONFIG_PATH = "//sys/spark/bin/releases/spark-launch-conf"
+    SPARK_WORKER_TIMEOUT = "5m"
+
+    @staticmethod
+    def get_operation_spec():
+        return {"annotations": {"is_spark": True}, "max_failed_job_count": 5, "max_stderr_count": 150}
 
 
 def _add_conf(spark_conf, spark_args):
@@ -165,10 +180,11 @@ def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
 
     user = get_user_name(client=client)
 
-    operation_spec = dynamic_config["operation_spec"]
+    custom_operation_spec = operation_spec or {}
+    operation_spec = SparkDefaultArguments.get_operation_spec()
     operation_spec["stderr_table_path"] = str(spark_discovery.stderr())
     operation_spec["pool"] = pool
-    operation_spec = deepcopy(operation_spec or {})
+    update_inplace(operation_spec, custom_operation_spec)
     if "title" not in operation_spec:
         operation_spec["title"] = operation_alias or "spark_{}".format(user)
 
@@ -221,7 +237,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_timeout=
     :param worker_cores: number of cores that will be available on worker
     :param worker_memory: amount of memory that will be available on worker
     :param worker_num: number of workers
-    :param worker_timeout_minutes: timeout to fail master waiting
+    :param worker_timeout: timeout to fail master waiting
     :param tmpfs_limit: limit of tmpfs usage, default 150G
     :param master_memory_limit: memory limit for master, default 2G
     :param history_server_memory_limit: memory limit for history server, default 8G
@@ -251,7 +267,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_timeout=
     op = run_operation(spec_builder, sync=False, client=client)
     _wait_master_start(op, spark_discovery, client)
     master_address = SparkDiscovery.get(spark_discovery.master_webui(), client=client)
-    print("Spark Master's Web UI: http://{0}".format(master_address))
+    logger.info("Spark Master's Web UI: http://{0}".format(master_address))
 
     return op
 
