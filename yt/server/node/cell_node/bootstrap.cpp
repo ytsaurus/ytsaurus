@@ -145,7 +145,7 @@
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/virtual.h>
 
-#include <library/ytalloc/api/ytalloc.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NCellNode {
 
