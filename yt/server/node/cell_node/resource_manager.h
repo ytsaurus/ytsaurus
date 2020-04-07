@@ -32,10 +32,10 @@ public:
 
 private:
     const IInvokerPtr Invoker_;
-    const TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
     const TResourceLimitsConfigPtr Config_;
 
-    NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
 
     std::optional<double> TotalCpu_;
     i64 TotalMemory_ = 0;
