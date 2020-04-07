@@ -1,2 +1,2 @@
 // Just a thunk.
-#include <library/ytalloc/core/concurrency/fork_aware_spinlock.h>
+#include <library/cpp/ytalloc/core/concurrency/fork_aware_spinlock.h>
