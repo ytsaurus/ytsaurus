@@ -9,11 +9,12 @@ from yt_spark_client import utils as spark_utils
 def main():
     args, unknown_args = spark_utils.parse_args(parser_arguments=dict(description="Spark Submit"))
     yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token())
-    raw_submit(discovery_path=args.discovery_path,
-               spark_home=os.getenv("SPARK_HOME"),
-               spark_args=unknown_args,
-               client=yt_client,
-               spark_id=args.id)
+    return_code = raw_submit(discovery_path=args.discovery_path,
+                             spark_home=os.getenv("SPARK_HOME"),
+                             spark_args=unknown_args,
+                             client=yt_client,
+                             spark_id=args.id)
+    exit(return_code)
 
 
 if __name__ == '__main__':

@@ -119,7 +119,7 @@ def raw_submit(discovery_path, spark_home, spark_args, client=None, spark_id=Non
     spark_env = _create_spark_env(client, spark_home)
 
     # replace stdin to avoid https://bugs.openjdk.java.net/browse/JDK-8211842
-    subprocess.call(spark_base_args + spark_args, env=spark_env, stdin=subprocess.PIPE)
+    return subprocess.call(spark_base_args + spark_args, env=spark_env, stdin=subprocess.PIPE)
 
 
 def shell(discovery_path, spark_home, spark_args, client=None, spark_id=None):
