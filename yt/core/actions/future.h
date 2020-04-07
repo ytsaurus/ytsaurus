@@ -151,6 +151,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! An opaque future callback id.
+using TFutureCallbackCookie = int;
+constexpr TFutureCallbackCookie NullFutureCallbackCookie = -1;
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! A base class for both TFuture<T> and its specialization TFuture<void>.
 /*!
  *  The resulting value can be accessed by either subscribing (#Subscribe)
@@ -221,9 +227,12 @@ public:
      *  \param handler A callback to call when the value gets set
      *  (passing the value as a parameter).
      *
+     *  \returns a cookie that can later be passed to #Unsubscribe to remove the handler.
+     * 
      *  \note
      *  If the value is set before the call to #Subscribe, then
-     *  #callback gets called synchronously.
+     *  #callback gets called synchronously. In this case the returned
+     *  cookie is #NullFutureCallbackCookie.
      *
      *  \note
      *  If the callback throws an exception, the program terminates with
@@ -231,9 +240,18 @@ public:
      *  and thus we have to ensure that the promise state remains valid by correctly
      *  finishing the Set call.
      */
-    void Subscribe(TCallback<void(const TErrorOr<T>&)> handler) const;
+    TFutureCallbackCookie Subscribe(TCallback<void(const TErrorOr<T>&)> handler) const;
+
+    //! Unsubscribes a previously subscribed callback.
+    /*!
+     *  Callback cookies are recycled; don't retry calls to this function.
+     */
+    void Unsubscribe(TFutureCallbackCookie cookie) const;
 
     //! Similar to #Subscribe but enables moving the value to the handler.
+    /*!
+     *  Normally at most one such handler could be attached.
+     */
     void SubscribeUnique(TCallback<void(TErrorOr<T>&&)> handler) const;
 
     //! Notifies the producer that the promised value is no longer needed.
