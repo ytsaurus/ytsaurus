@@ -93,6 +93,8 @@ public:
 
     double KeyFilterFalsePositiveRate;
 
+    std::optional<TDuration> TestingDelay;
+
     TChunkWriterConfig()
     {
         // Allow very small blocks for testing purposes.
@@ -132,6 +134,9 @@ public:
             .GreaterThan(0)
             .LessThanOrEqual(1.0)
             .Default(0.03);
+
+        RegisterParameter("testing_delay", TestingDelay)
+            .Default();
     }
 };
 

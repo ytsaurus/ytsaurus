@@ -2059,6 +2059,10 @@ private:
                 YT_LOG_DEBUG("Table upload started (UploadTransactionId: %v)",
                     uploadTransactionId);
             }
+
+            if (Config_->TestingDelay) {
+                TDelayedExecutor::WaitForDuration(*Config_->TestingDelay);
+            }
         }
 
         StartListenTransaction(UploadTransaction_);
