@@ -603,6 +603,66 @@ class TestBruteForceDefragmentationStrategy(object):
 
 
 @pytest.mark.usefixtures("yp_env_configurable")
+class TestGreedyCpuDefragmentationStrategy(object):
+    START_YP_HEAVY_SCHEDULER = True
+
+    YP_HEAVY_SCHEDULER_CONFIG = dict(
+        heavy_scheduler=dict(
+            verbose=True,
+            node_segment="default",
+            disruption_throttler=dict(
+                validate_pod_disruption_budget=False, safe_suitable_node_count=1,
+            ),
+            swap_defragmentator=dict(victim_set_generator_type="greedy_cpu",),
+        ),
+    )
+
+    def test_greedy_cpu_strategy(self, yp_env_configurable):
+        yp_client = yp_env_configurable.yp_client
+
+        create_nodes(
+            yp_client,
+            node_count=1,
+            cpu_total_capacity=5500,
+            memory_total_capacity=2 ** 60,
+            labels=dict(segment="default"),
+        )
+
+        pod_ids = [
+            create_pod_with_boilerplate(
+                yp_client,
+                create_pod_set(yp_client),
+                pod_id="cpu{}".format(cpu),
+                spec=dict(enable_scheduling=True, resource_requests=dict(vcpu_guarantee=cpu),),
+            )
+            for cpu in range(100, 1001, 100)
+        ]
+
+        wait_pods_are_assigned(yp_client, pod_ids)
+
+        create_nodes(
+            yp_client,
+            node_count=8,
+            cpu_total_capacity=5000,
+            memory_total_capacity=2 ** 60,
+            labels=dict(segment="default"),
+        )
+
+        create_pod_with_boilerplate(
+            yp_client,
+            create_pod_set(yp_client),
+            pod_id="starving",
+            spec=dict(enable_scheduling=True, resource_requests=dict(vcpu_guarantee=5200),),
+        )
+
+        wait(
+            lambda: get_evictions_count(yp_client, pod_ids[2:]) == 8,
+            sleep_backoff=5,
+            iter=10,
+        )
+
+
+@pytest.mark.usefixtures("yp_env_configurable")
 class TestAntiaffinityHealer(object):
     START_YP_HEAVY_SCHEDULER = True
 

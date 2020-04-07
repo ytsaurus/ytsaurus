@@ -247,6 +247,58 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGreedyCpuGenerator
+    : public TVictimSetGeneratorBase
+{
+public:
+    TGreedyCpuGenerator(
+        TNode* victimNode,
+        TPod* starvingPod,
+        TDisruptionThrottlerPtr disruptionThrottler,
+        bool verbose,
+        size_t sizeLimit)
+        : TVictimSetGeneratorBase(victimNode, starvingPod, std::move(disruptionThrottler), verbose)
+        , SizeLimit_(sizeLimit)
+    {
+        Pods_ = GetNodeSchedulablePods(VictimNode_);
+        std::sort(
+            Pods_.begin(),
+            Pods_.end(),
+            [] (TPod* lhs, TPod* rhs) {
+                return lhs->ResourceRequests().vcpu_guarantee() > rhs->ResourceRequests().vcpu_guarantee();
+            });
+    }
+
+    virtual std::vector<TPod*> GetNextCandidates() override
+    {
+        for (; Offset_ < Pods_.size(); ++Offset_) {
+            for (; Offset_ + Size_ <= Pods_.size() && Size_ <= SizeLimit_; ++Size_) {
+                std::vector<TPod*> candidates(
+                    Pods_.begin() + Offset_,
+                    Pods_.begin() + Offset_ + Size_);
+                if (!IsSafeToEvict(candidates)) {
+                    break;
+                }
+                if (HasEnoughResources(candidates)) {
+                    ++Offset_;
+                    Size_ = 1;
+                    return candidates;
+                }
+            }
+            Size_ = 1;
+        }
+        return {};
+    }
+
+private:
+    std::vector<TPod*> Pods_;
+    size_t SizeLimit_;
+    size_t Offset_ = 0;
+    size_t Size_ = 1;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 IVictimSetGeneratorPtr CreateNodeVictimSetGenerator(
     EVictimSetGeneratorType generatorType,
     NCluster::TNode* victimNode,
@@ -269,6 +321,13 @@ IVictimSetGeneratorPtr CreateNodeVictimSetGenerator(
                 verbose,
                 /* maxSetSize = */ 3,
                 /* chooseFromSize = */ 20);
+        case EVictimSetGeneratorType::GreedyCpu:
+            return New<TGreedyCpuGenerator>(
+                victimNode,
+                starvingPod,
+                std::move(disruptionThrottler),
+                verbose,
+                /* sizeLimit = */ 8);
         default:
             YT_UNIMPLEMENTED();
     }

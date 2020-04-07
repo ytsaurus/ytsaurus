@@ -52,6 +52,7 @@ DEFINE_ENUM(ETaskSource,
 DEFINE_ENUM(EVictimSetGeneratorType,
     (Single)
     (BruteForce)
+    (GreedyCpu)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
