@@ -95,10 +95,10 @@ TTcpConnection::TTcpConnection(
 
 TTcpConnection::~TTcpConnection()
 {
-    Close();
+    Cleanup();
 }
 
-void TTcpConnection::Close()
+void TTcpConnection::Cleanup()
 {
     if (CloseError_.IsOK()) {
         CloseError_ = TError(NBus::EErrorCode::TransportError, "Bus terminated")
@@ -122,24 +122,13 @@ void TTcpConnection::Close()
 
     EncodedFragments_.clear();
 
-    if (Socket_ != INVALID_SOCKET) {
-        if (State_ == EState::Open) {
-            Poller_->Unarm(Socket_);
-            UpdateConnectionCount(-1);
-        }
-        close(Socket_);
-        Socket_ = INVALID_SOCKET;
-    }
+    CloseSocket();
 
-    State_ = EState::Closed;
-    Pending_ = EPollControl::None;
+    UpdateConnectionCount(false);
 }
 
 void TTcpConnection::Start()
 {
-    // This prevents retrying events until end of Open().
-    Pending_ = EPollControl::Starting;
-
     switch (ConnectionType_) {
         case EConnectionType::Client:
             YT_VERIFY(Socket_ == INVALID_SOCKET);
@@ -148,11 +137,13 @@ void TTcpConnection::Start()
             break;
 
         case EConnectionType::Server: {
-            auto guard = Guard(Lock_);
+            TWriterGuard guard(ControlSpinLock_);
             YT_VERIFY(Socket_ != INVALID_SOCKET);
             State_ = EState::Opening;
             SetupNetwork(NetworkName_);
             Open();
+            UpdateConnectionCount(true);
+            DoArmPoller();
             break;
         }
 
@@ -174,8 +165,7 @@ void TTcpConnection::CheckLiveness()
         Terminate(TError(
             NBus::EErrorCode::TransportError,
             "Socket write stalled")
-            << TErrorAttribute("timeout", Config_->WriteStallTimeout)
-            << TErrorAttribute("pending", Pending_));
+            << TErrorAttribute("timeout", Config_->WriteStallTimeout));
         return;
     }
 
@@ -184,8 +174,7 @@ void TTcpConnection::CheckLiveness()
         Terminate(TError(
             NBus::EErrorCode::TransportError,
             "Socket read stalled")
-            << TErrorAttribute("timeout", Config_->ReadStallTimeout)
-            << TErrorAttribute("pending", Pending_));
+            << TErrorAttribute("timeout", Config_->ReadStallTimeout));
         return;
     }
 }
@@ -195,8 +184,18 @@ const TString& TTcpConnection::GetLoggingId() const
     return LoggingId_;
 }
 
-void TTcpConnection::UpdateConnectionCount(int delta)
+void TTcpConnection::UpdateConnectionCount(bool increment)
 {
+    if (increment) {
+        YT_VERIFY(!ConnectionCounterIncremented_);
+        ConnectionCounterIncremented_ = true;
+    } else {
+        if (!ConnectionCounterIncremented_) {
+            return;
+        }
+        ConnectionCounterIncremented_ = false;
+    }
+    int delta = increment ? +1 : -1;
     switch (ConnectionType_) {
         case EConnectionType::Client:
             Counters_->ClientConnections.fetch_add(delta, std::memory_order_relaxed);
@@ -227,23 +226,6 @@ void TTcpConnection::Open()
     State_ = EState::Open;
 
     YT_LOG_DEBUG("Connection established (LocalPort: %v)", GetSocketPort());
-
-    if (LastIncompleteWriteTime_ != std::numeric_limits<NProfiling::TCpuInstant>::max()) {
-        // Rewind stall detection if already armed by pending send
-        LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
-    }
-
-    UpdateConnectionCount(1);
-
-    // Done starting and arm event processing
-    Pending_ &= ~EPollControl::Starting;
-    Poller_->Arm(Socket_, this, EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered);
-
-    // Something might be pending already, for example Terminate
-    if (Any(Pending_)) {
-        YT_LOG_TRACE("Retry event processing (Pending: %v)", Pending_);
-        Poller_->Retry(this);
-    }
 }
 
 void TTcpConnection::ResolveAddress()
@@ -321,29 +303,15 @@ void TTcpConnection::Abort(const TError& error)
         return;
     }
 
-    {
-        auto guard = Guard(Lock_);
+    State_ = EState::Aborted;
+    YT_VERIFY(!error.IsOK());
 
-        if (State_ == EState::Aborted || State_ == EState::Closed) {
-            return;
-        }
-
-        if (State_ == EState::Open && Socket_ != INVALID_SOCKET) {
-            Poller_->Unarm(Socket_);
-            UpdateConnectionCount(-1);
-        }
-
-        State_ = EState::Aborted;
-        YT_VERIFY(!error.IsOK());
-
-        CloseError_ = error << *EndpointAttributes_;
-    }
+    CloseError_ = error << *EndpointAttributes_;
 
     // Construct a detailed error.
     YT_LOG_DEBUG(CloseError_, "Connection aborted");
 
-    // OnShutdown() will be called after draining events from thread pools.
-    Poller_->Unregister(this);
+    UnregisterFromPoller();
 }
 
 void TTcpConnection::InitBuffers()
@@ -373,6 +341,15 @@ int TTcpConnection::GetSocketPort()
 
         default:
             return -1;
+    }
+}
+
+void TTcpConnection::CloseSocket()
+{
+    TWriterGuard guard(ControlSpinLock_);
+    if (Socket_ != INVALID_SOCKET) {
+        close(Socket_);
+        Socket_ = INVALID_SOCKET;
     }
 }
 
@@ -449,24 +426,12 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
         queuedMessage.PacketId,
         pendingOutPayloadBytes);
 
-    if (LastIncompleteWriteTime_ == std::numeric_limits<NProfiling::TCpuInstant>::max()) {
-        // Arm stall detection
+    if (State_ == EState::Open) {
         LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
     }
 
     QueuedMessages_.Enqueue(queuedMessage);
-
-    {
-        auto guard = Guard(Lock_);
-
-        if (!Any(Pending_ & EPollControl::Write)) {
-            Pending_ |= EPollControl::Write;
-            if (Pending_ == EPollControl::Write) {
-                YT_LOG_TRACE("Retry event processing for Send");
-                Poller_->Retry(this);
-            }
-        }
-    }
+    ArmPollerForWrite();
 
     return queuedMessage.Promise;
 }
@@ -478,7 +443,7 @@ void TTcpConnection::SetTosLevel(TTosLevel tosLevel)
     }
 
     {
-        auto guard = Guard(Lock_);
+        NConcurrency::TWriterGuard guard(ControlSpinLock_);
         if (Socket_ != INVALID_SOCKET) {
             InitSocketTosLevel(tosLevel);
         }
@@ -489,9 +454,9 @@ void TTcpConnection::SetTosLevel(TTosLevel tosLevel)
 
 void TTcpConnection::Terminate(const TError& error)
 {
-    auto guard = Guard(Lock_);
+    NConcurrency::TWriterGuard guard(ControlSpinLock_);
 
-    if (Any(Pending_ & EPollControl::Terminate) || State_ == EState::Aborted) {
+    if (TerminateRequested_) {
         return;
     }
 
@@ -500,12 +465,14 @@ void TTcpConnection::Terminate(const TError& error)
     YT_VERIFY(!error.IsOK());
     YT_VERIFY(TerminateError_.IsOK());
     TerminateError_ = error;
+    TerminateRequested_ = true;
 
-    // Arm calling OnTerminate() from OnEvent()
-    Pending_ |= EPollControl::Terminate;
-    if (Pending_ == EPollControl::Terminate) {
-        Poller_->Retry(this);
+    if (State_ != EState::Open) {
+        YT_LOG_TRACE("Cannot arm poller since connection is not open yet");
+        return;
     }
+
+    DoArmPoller();
 }
 
 void TTcpConnection::SubscribeTerminated(const TCallback<void(const TError&)>& callback)
@@ -520,74 +487,60 @@ void TTcpConnection::UnsubscribeTerminated(const TCallback<void(const TError&)>&
 
 void TTcpConnection::OnEvent(EPollControl control)
 {
-    EPollControl action;
-
-    {
-        auto guard = Guard(Lock_);
-
-        // New events could come while previous handler is still running.
-        if (Any(Pending_ & EPollControl::Running)) {
+    do {
+        TTryGuard<TSpinLock> guard(EventHandlerSpinLock_);
+        if (!guard.WasAcquired()) {
             YT_LOG_TRACE("Event handler is already running");
-            Pending_ |= control;
             return;
         }
 
-        action = Pending_ | control;
-
-        // Clear Read/Write before operation. Consequent event will raise it
-        // back and retry handling. OnSocketRead() always consumes all backlog
-        // or aborts connection if something went wrong, othwewise if somehting
-        // left then handling should raise Read in Pending_ back.
-        Pending_ = EPollControl::Running;
-    }
-
-    {
-        if (Any(action & EPollControl::Terminate)) {
-            OnTerminate();
-            // Leave Running flag in Pending_ to sink further events.
+        if (State_ == EState::Aborted || State_ == EState::Closed) {
+            YT_LOG_TRACE("Connection is already closed");
             return;
+        }
+
+        if (TerminateRequested_) {
+            OnTerminated();
+            return;
+        }
+
+        // For client sockets the first write notification means that
+        // connection was established.
+        // This is handled here to avoid race between arming in Send() and OnSocketConnected().
+        if (Any(control & EPollControl::Write) &&
+            ConnectionType_ == EConnectionType::Client &&
+            State_ == EState::Opening)
+        {
+            Open();
         }
 
         YT_LOG_TRACE("Event processing started");
 
+        ProcessQueuedMessages();
+
         // NB: Try to read from the socket before writing into it to avoid
         // getting SIGPIPE when the other party closes the connection.
-        if (Any(action & EPollControl::Read)) {
+        if (Any(control & EPollControl::Read)) {
             OnSocketRead();
         }
 
-        if (Any(action & EPollControl::Write)) {
-            ProcessQueuedMessages();
+        if (Any(control & EPollControl::Write)) {
             OnSocketWrite();
         }
 
-        YT_LOG_TRACE("Event processing finished (HasUnsentData: %v)", HasUnsentData());
-    }
+        HasUnsentData_ = HasUnsentData();
+        YT_LOG_TRACE("Event processing finished (HasUnsentData: %v)", HasUnsentData_.load());
+    } while (ArmedForQueuedMessages_);
 
-    // Finaly, clear Running flag and recheck new pending events.
-    //
-    // Looping here around one pollable could cause starvation for others and
-    // increase latency for events already picked by this thread. So, put it
-    // away into retry queue without waking other threads. This or any other
-    // thread will handle it on next iteration after handling picked events.
-    {
-        auto guard = Guard(Lock_);
-        Pending_ &= ~EPollControl::Running;
-        if (Any(Pending_)) {
-            YT_LOG_TRACE("Retry event processing (Pending: %v)", Pending_);
-            Poller_->Retry(this, false);
-        }
-    }
+    RearmPoller();
 }
 
 void TTcpConnection::OnShutdown()
 {
-    {
-        auto guard = Guard(Lock_);
+    // Perform the initial cleanup (the final one will be in dtor).
+    Cleanup();
 
-        // Perform the initial cleanup (the final one will be in dtor).
-        Close();
-    }
+    State_ = EState::Closed;
 
     YT_LOG_DEBUG(CloseError_, "Connection terminated");
 
@@ -611,23 +564,29 @@ void TTcpConnection::OnSocketConnected(SOCKET socket)
         return;
     }
 
+    UpdateConnectionCount(true);
+
     {
-        auto guard = Guard(Lock_);
+        NConcurrency::TWriterGuard guard(ControlSpinLock_);
 
         auto tosLevel = TosLevel_.load();
         if (tosLevel != DefaultTosLevel) {
             InitSocketTosLevel(tosLevel);
         }
 
-        Open();
+        DoArmPoller();
     }
 }
 
 void TTcpConnection::OnSocketRead()
 {
-    YT_LOG_TRACE("Started serving read request");
+    if (State_ == EState::Closed || State_ == EState::Aborted) {
+        return;
+    }
 
+    YT_LOG_TRACE("Started serving read request");
     size_t bytesReadTotal = 0;
+
     while (true) {
         // Check if the decoder is expecting a chunk of large enough size.
         auto decoderChunk = Decoder_.GetFragment();
@@ -839,16 +798,14 @@ TTcpConnection::TPacket* TTcpConnection::EnqueuePacket(
 
 void TTcpConnection::OnSocketWrite()
 {
+    if (State_ == EState::Closed || State_ == EState::Aborted) {
+        return;
+    }
+
     YT_LOG_TRACE("Started serving write request");
 
     size_t bytesWrittenTotal = 0;
-    while (true) {
-        if (!HasUnsentData()) {
-            // Unarm stall detection at end of write
-            LastIncompleteWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
-            break;
-        }
-
+    while (HasUnsentData()) {
         if (!MaybeEncodeFragments()) {
             break;
         }
@@ -859,11 +816,6 @@ void TTcpConnection::OnSocketWrite()
 
         FlushWrittenFragments(bytesWritten);
         FlushWrittenPackets(bytesWritten);
-
-        if (bytesWritten) {
-            // Rearm stall detection after progress
-            LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
-        }
 
         if (!success) {
             break;
@@ -1103,11 +1055,11 @@ void TTcpConnection::OnMessagePacketSent(const TPacket& packet)
     PendingOutPayloadBytes_.fetch_sub(packet.PayloadSize);
 }
 
-void TTcpConnection::OnTerminate()
+void TTcpConnection::OnTerminated()
 {
     TError error;
     {
-        auto guard = Guard(Lock_);
+        TReaderGuard guard(ControlSpinLock_);
         error = TerminateError_;
     }
 
@@ -1118,6 +1070,7 @@ void TTcpConnection::OnTerminate()
 
 void TTcpConnection::ProcessQueuedMessages()
 {
+    ArmedForQueuedMessages_ = false;
     auto messages = QueuedMessages_.DequeueAll();
 
     for (auto it = messages.rbegin(); it != messages.rend(); ++it) {
@@ -1173,6 +1126,93 @@ void TTcpConnection::DiscardUnackedMessages(const TError& error)
         }
         UnackedMessages_.pop();
     }
+}
+
+void TTcpConnection::UnregisterFromPoller()
+{
+    NConcurrency::TWriterGuard guard(ControlSpinLock_);
+
+    if (Unregistered_) {
+        return;
+    }
+    Unregistered_ = true;
+
+    if (Socket_ != INVALID_SOCKET) {
+        Poller_->Unarm(Socket_);
+    }
+    Poller_->Unregister(this);
+}
+
+void TTcpConnection::ArmPollerForWrite()
+{
+    if (State_ != EState::Open) {
+        YT_LOG_TRACE("Cannot arm poller since connection is not open yet");
+        return;
+    }
+
+    // In case the connection is already open we kick-start processing by arming the poller.
+    // ArmedForQueuedMessages_ is used to batch these arm calls.
+    bool expected = false;
+    if (!ArmedForQueuedMessages_.compare_exchange_strong(expected, true)) {
+        YT_LOG_TRACE("Poller is already armed");
+        return;
+    }
+
+    {
+        NConcurrency::TReaderGuard guard(ControlSpinLock_);
+        DoArmPoller();
+    }
+}
+
+void TTcpConnection::DoArmPoller()
+{
+    if (Unregistered_) {
+        YT_LOG_TRACE("Cannot arm poller since connection is unregistered");
+        return;
+    }
+
+    if (Socket_ == INVALID_SOCKET) {
+        YT_LOG_TRACE("Cannot arm poller since socket is closed");
+        return;
+    }
+
+    Poller_->Arm(Socket_, this, EPollControl::Read|EPollControl::Write);
+
+    YT_LOG_TRACE("Poller armed");
+}
+
+void TTcpConnection::RearmPoller()
+{
+    NConcurrency::TReaderGuard guard(ControlSpinLock_);
+
+    if (Unregistered_) {
+        YT_LOG_TRACE("Cannot rearm poller since connection is unregistered");
+        return;
+    }
+
+    if (Socket_ == INVALID_SOCKET) {
+        YT_LOG_TRACE("Cannot rearm poller since socket is closed");
+        return;
+    }
+
+    auto mustArmForWrite = [&] {
+        return HasUnsentData_.load() || ArmedForQueuedMessages_.load();
+    };
+
+    // This loop is to avoid race with #TTcpConnection::Send and to prevent
+    // arming the poller in read-only mode in presence of queued messages or unsent data.
+    bool forWrite;
+    do {
+        if (HasUnsentData_.load()) {
+            LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
+        } else {
+            LastIncompleteWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
+        }
+
+        forWrite = mustArmForWrite();
+        Poller_->Arm(Socket_, this, EPollControl::Read | (forWrite ? EPollControl::Write : EPollControl::None));
+        YT_LOG_TRACE("Poller rearmed (ForWrite: %v)", forWrite);
+    } while (!forWrite && mustArmForWrite());
 }
 
 int TTcpConnection::GetSocketError() const
