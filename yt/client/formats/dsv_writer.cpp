@@ -89,6 +89,9 @@ private:
 
     void WriteValue(const TUnversionedValue& value)
     {
+        if (Config_->SkipUnsupportedTypes && IsAnyOrComposite(value)) {
+            return;
+        }
         auto* output = GetOutputStream();
         EscapeAndWrite(NameTableReader_->GetName(value.Id), output, KeyEscapeTable_);
         output->Write(Config_->KeyValueSeparator);

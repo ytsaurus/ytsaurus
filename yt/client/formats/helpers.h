@@ -30,6 +30,8 @@ private:
 
 void WriteUnversionedValue(const NTableClient::TUnversionedValue& value, IOutputStream* output, const TEscapeTable& escapeTable);
 
+bool IsAnyOrComposite(const NTableClient::TUnversionedValue& value);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFormats

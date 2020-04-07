@@ -154,7 +154,12 @@ private:
 
         bool firstColumn = true;
         for (int id = 0; id < NameTableSize_; ++id) {
-            if (RowValues_[id]) {
+            const auto* value = RowValues_[id];
+            if (!value) {
+                continue;
+            }
+            bool skip = Config_->SkipUnsupportedTypesInValue && IsAnyOrComposite(*value);
+            if (!skip) {
                 if (!firstColumn) {
                     stream->Write(Config_->FieldSeparator);
                 } else {
@@ -163,8 +168,8 @@ private:
                 stream->Write(EscapedColumnNames_[id]);
                 stream->Write(Config_->KeyValueSeparator);
                 WriteUnversionedValue(*RowValues_[id], stream, ValueEscapeTable_);
-                RowValues_[id] = nullptr;
             }
+            RowValues_[id] = nullptr;
         }
 
         if (Config_->Lenval) {
