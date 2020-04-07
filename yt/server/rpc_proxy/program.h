@@ -8,7 +8,7 @@
 
 #include <yt/library/phdr_cache/phdr_cache.h>
 
-#include <library/ytalloc/api/ytalloc.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <yt/core/ytalloc/bindings.h>
 

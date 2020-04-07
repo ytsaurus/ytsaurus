@@ -8,7 +8,7 @@
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/string_builder.h>
 
-#include <library/ytalloc/api/ytalloc.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 

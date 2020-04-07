@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <library/ytalloc/core/misc/preprocessor.h>
+#include <library/cpp/ytalloc/core/misc/preprocessor.h>
 
 namespace NYT {
 namespace {
