@@ -28,6 +28,7 @@ import yt.packages.requests as requests
 
 import logging
 import os
+import copy
 import time
 import signal
 import socket
@@ -933,7 +934,11 @@ class YTInstance(object):
                         handle.write(str(os.getpid()))
                         handle.write("\n")
 
+            env = copy.copy(os.environ)
+            env = update(env, {"YT_ALLOC_CONFIG": "{enable_eager_memory_release=%true}"})
+
             p = self._subprocess_module.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.runtime_data_path,
+                                              env=env,
                                               stdout=stdout, stderr=stderr)
 
             time.sleep(timeout)
