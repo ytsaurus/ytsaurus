@@ -624,6 +624,12 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         with pytest.raises(YtError):
             set(attribute_key, True)
 
+    def test_set_inexistent_path_fails_with_correct_error(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+
+        with raises_yt_error(ResolveErrorCode):
+            set("//sys/pool_trees/my_tree/nirvana/@mode", "fifo")
+
     def test_pool_tree_and_pool_common_attributes(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree")
