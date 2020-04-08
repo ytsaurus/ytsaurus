@@ -15,7 +15,7 @@ class Base:
 
     def select_nodes(self, ids):
         nodes = sorted(ls("//sys/cluster_nodes"))
-        return list(nodes[id] for id in ids)
+        return sorted(list(nodes[id] for id in ids))
 
     def set_node_tags(self, id, tags):
         set("//sys/cluster_nodes/{0}/@user_tags".format(self.select_node(id)), tags)
@@ -95,6 +95,35 @@ class Base:
 
         self.wait_for_config([])
 
+    @authors("aleksandra-zh")
+    def test_peer_count_change(self):
+        self.set_peer_count(3)
+        self.wait_for_config([0, 1, 2])
+
+        self.set_peer_count(1)
+
+        wait(lambda: len(self.get_discovered_node_list()) == 1, "Master cannot update node list")
+
+    @authors("aleksandra-zh")
+    def test_racks(self):
+        expected_node_ids = [0, 1, 2]
+        nodes = self.select_nodes(expected_node_ids)
+        create_rack("r1")
+        set("//sys/cluster_nodes/" + nodes[0] + "/@rack", "r1")
+        create_rack("r2")
+        set("//sys/cluster_nodes/" + nodes[1] + "/@rack", "r2")
+        set("//sys/cluster_nodes/" + nodes[2] + "/@rack", "r2")
+
+        self.set_max_peers_per_rack(1)
+        self.set_peer_count(2)
+        def check_discovered_node_list():
+            node_list = self.get_discovered_node_list()
+            return node_list == [0, 1] or node_list == [0, 2]
+        wait(lambda: check_discovered_node_list, "Master cannot update node list")
+
+        self.set_peer_count(3)
+        self.wait_for_config([0, 1, 2])
+
 
 class TestMasterCache(Base, YTEnvSetup):
     NUM_MASTERS = 1
@@ -117,23 +146,29 @@ class TestMasterCache(Base, YTEnvSetup):
         "master_cache": MASTER_CACHE_CONFIG
     }
 
-    def get_master_cache_list(self):
-        return get("//sys/cluster_nodes/@master_cache_nodes")
+    def get_discovered_node_list(self):
+        return sorted(get("//sys/cluster_nodes/@master_cache_nodes"))
 
     def get_node_addresses_list(self, node):
-         return list(get("//sys/cluster_nodes/{}/orchid/cluster_connection/master_cache/channel_attributes/addresses".format(node)))
+         return sorted(list(get("//sys/cluster_nodes/{}/orchid/cluster_connection/master_cache/channel_attributes/addresses".format(node))))
 
     def wait_for_config(self, expected_node_ids):
         expected_nodes = self.select_nodes(expected_node_ids)
         print>>stderr, "Expecting master caches:", expected_nodes
 
-        wait(lambda: self.get_master_cache_list() == expected_nodes, "Master cannot update list of master caches")
+        wait(lambda: self.get_discovered_node_list() == expected_nodes, "Master cannot update list of master caches")
         if expected_nodes:
             self.wait_for_config_at_nodes(expected_nodes)
         self.wait_for_requests(
             expected_node_ids,
             {"service": "ObjectService", "method": "Execute"},
             lambda: ls("//tmp", read_from="cache"))
+
+    def set_peer_count(self, peer_count):
+        set("//sys/@config/node_tracker/master_cache_manager/peer_count", peer_count)
+
+    def set_max_peers_per_rack(self, max_peers_per_rack):
+        set("//sys/@config/node_tracker/master_cache_manager/max_peers_per_rack", max_peers_per_rack)
 
     def set_update_period(self, update_period):
         set("//sys/@config/node_tracker/master_cache_manager/update_period", update_period)
@@ -163,17 +198,17 @@ class TestTimestampProvider(Base, YTEnvSetup):
         "timestamp_provider": TIMESTAMP_PROVIDER_CONFIG
     }
 
-    def get_timestamp_provider_list(self):
-        return get("//sys/cluster_nodes/@timestamp_provider_nodes")
+    def get_discovered_node_list(self):
+        return sorted(get("//sys/cluster_nodes/@timestamp_provider_nodes"))
 
     def get_node_addresses_list(self, node):		
-         return list(get("//sys/cluster_nodes/{}/orchid/cluster_connection/timestamp_provider/channel_attributes/addresses".format(node)))
+         return sorted(list(get("//sys/cluster_nodes/{}/orchid/cluster_connection/timestamp_provider/channel_attributes/addresses".format(node))))
 
     def wait_for_config(self, expected_node_ids):
         expected_nodes = self.select_nodes(expected_node_ids)
         print>>stderr, "Expecting timestamp providers:", expected_nodes
 
-        wait(lambda: self.get_timestamp_provider_list() == expected_nodes, "Master cannot update list of timestamp providers")
+        wait(lambda: self.get_discovered_node_list() == expected_nodes, "Master cannot update list of timestamp providers")
         if expected_nodes:
             self.wait_for_config_at_nodes(expected_nodes)
         self.wait_for_requests(
@@ -186,3 +221,9 @@ class TestTimestampProvider(Base, YTEnvSetup):
 
     def set_node_tag_filter(self, node_tag_filter):
         set("//sys/@config/node_tracker/timestamp_provider_manager/node_tag_filter", node_tag_filter)
+
+    def set_peer_count(self, peer_count):
+        set("//sys/@config/node_tracker/timestamp_provider_manager/peer_count", peer_count)
+
+    def set_max_peers_per_rack(self, max_peers_per_rack):
+        set("//sys/@config/node_tracker/timestamp_provider_manager/max_peers_per_rack", max_peers_per_rack)

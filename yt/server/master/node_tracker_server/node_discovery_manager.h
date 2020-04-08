@@ -45,10 +45,8 @@ protected:
     void OnLeaderActive();
     void OnStopLeading();
     bool IsGoodNode(const TNode* node) const;
-    THashMap<TRack*, int> CountNodesPerRack(const std::vector<TNode*>& nodes);
-    std::vector<TNode*> FindAppropriateNodes(const std::vector<TNode*>& selectedNodes, int count);
     void UpdateNodeList();
-    void CommitNewNodes(const std::vector<TNode*>& nodes);
+    void CommitNewNodes(const THashSet<TNode*>& nodes);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeDiscoveryManager)

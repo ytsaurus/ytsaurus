@@ -119,46 +119,6 @@ bool TNodeDiscoveryManager::IsGoodNode(const TNode* node) const
         Config_->NodeTagFilter.IsSatisfiedBy(node->Tags());
 }
 
-THashMap<TRack*, int> TNodeDiscoveryManager::CountNodesPerRack(const std::vector<TNode*>& nodes)
-{
-    THashMap<TRack*, int> result;
-    for (auto* node : nodes) {
-        if (IsObjectAlive(node)) {
-            ++result[node->GetRack()];
-        }
-    }
-    return result;
-}
-
-std::vector<TNode*> TNodeDiscoveryManager::FindAppropriateNodes(const std::vector<TNode*>& selectedNodes, int count)
-{
-    auto nodeCountPerRack = CountNodesPerRack(selectedNodes);
-
-    std::vector<TNode*> result;
-
-    int maxPeersPerRack = Config_->MaxPeersPerRack;
-
-    THashSet<TNode*> selectedNodeSet(selectedNodes.begin(), selectedNodes.end());
-    for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
-        if (count == 0) {
-            break;
-        }
-
-        if (!IsGoodNode(node) || selectedNodeSet.contains(node)) {
-            continue;
-        }
-
-        auto* rack = node->GetRack();
-        if (!rack || nodeCountPerRack[rack] < maxPeersPerRack) {
-            ++nodeCountPerRack[rack];
-            result.push_back(node);
-            --count;
-        }
-    }
-
-    return result;
-}
-
 void TNodeDiscoveryManager::UpdateNodeList()
 {
     auto nodes = Bootstrap_->GetNodeTracker()->GetNodesForRole(NodeRole_);
@@ -166,32 +126,77 @@ void TNodeDiscoveryManager::UpdateNodeList()
     YT_LOG_INFO("Started updating nodes (OldNodes: %v)",
         MakeFormattableView(nodes, TNodePtrAddressFormatter()));
 
-    nodes.erase(std::remove_if(nodes.begin(), nodes.end(), [&] (auto* node) {
-        return !IsGoodNode(node);
-    }), nodes.end());
+    THashSet<TNode*> selectedNodeSet(nodes.begin(), nodes.end());
+    THashMap<TRack*, int> nodeCountPerRack;
 
-    int nodesToReplaceCount = Config_->PeerCount - static_cast<int>(nodes.size());
+    auto isRackLimitSatisfied = [&] (TNode* node, int rackLimit) {
+        if (!IsGoodNode(node)) {
+            return false;
+        }
+
+        auto* rack = node->GetRack();
+        return !rack || nodeCountPerRack[rack] < rackLimit;
+    };
+
+    for (auto* node : nodes) {
+        if (isRackLimitSatisfied(node, Config_->MaxPeersPerRack)) {
+            ++nodeCountPerRack[node->GetRack()];
+        } else {
+            selectedNodeSet.erase(node);
+        }
+    }
+
+    while (selectedNodeSet.size() > Config_->PeerCount) {
+        auto it = selectedNodeSet.begin();
+        --nodeCountPerRack[(*it)->GetRack()];
+        selectedNodeSet.erase(it);
+    }
+
+    int nodesToReplaceCount = Config_->PeerCount - static_cast<int>(selectedNodeSet.size());
     if (nodesToReplaceCount == 0) {
         YT_LOG_INFO("No new nodes needed");
     } else {
         YT_LOG_INFO("New nodes needed (NodesToReplaceCount: %v)", nodesToReplaceCount);
     }
 
-    auto newNodes = FindAppropriateNodes(nodes, nodesToReplaceCount);
-    if (static_cast<int>(newNodes.size()) < nodesToReplaceCount) {
+    auto updateSelectedNodeSet = [&] (int maxPeersPerRack) {
+        for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
+            if (nodesToReplaceCount == 0) {
+                break;
+            }
+
+            if (!selectedNodeSet.contains(node) && isRackLimitSatisfied(node, maxPeersPerRack)) {
+                ++nodeCountPerRack[node->GetRack()];
+                YT_VERIFY(selectedNodeSet.insert(node).second);
+                --nodesToReplaceCount;
+            }
+        }
+    };
+
+    updateSelectedNodeSet(Config_->MaxPeersPerRack);
+
+    int rackCount = static_cast<int>(nodeCountPerRack.size());
+    if (nodesToReplaceCount > 0 && rackCount > 0) {
+        YT_LOG_WARNING("There is not enough alive nodes satisfying rack awareness (MaxPeersPerRack: %v, NewNodesCount: %v, NeededNodesCount: %v)",
+            Config_->MaxPeersPerRack,
+            selectedNodeSet.size(),
+            nodesToReplaceCount);
+        auto nodeCount = (nodesToReplaceCount + rackCount - 1) / rackCount;
+        updateSelectedNodeSet(nodeCount);
+        updateSelectedNodeSet(Config_->PeerCount);
+    }
+
+    if (static_cast<int>(selectedNodeSet.size()) < Config_->PeerCount) {
         YT_LOG_WARNING("Failed to find enough alive nodes satisfying node tag filter (Filter: %v)",
             Config_->NodeTagFilter.GetFormula());
     }
-    YT_LOG_INFO("Found new nodes (FoundCount: %v, NewNodes: %v)",
-        newNodes.size(),
-        MakeFormattableView(newNodes, TNodePtrAddressFormatter()));
+    YT_LOG_INFO("Node list updated (NewNodeList: %v)",
+        MakeFormattableView(selectedNodeSet, TNodePtrAddressFormatter()));
 
-    nodes.insert(nodes.end(), newNodes.begin(), newNodes.end());
-
-    CommitNewNodes(nodes);
+    CommitNewNodes(selectedNodeSet);
 }
 
-void TNodeDiscoveryManager::CommitNewNodes(const std::vector<TNode*>& nodes)
+void TNodeDiscoveryManager::CommitNewNodes(const THashSet<TNode*>& nodes)
 {
     NProto::TReqUpdateNodesForRole request;
     request.set_node_role(static_cast<int>(NodeRole_));
