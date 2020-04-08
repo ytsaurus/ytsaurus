@@ -1,6 +1,6 @@
 #include <mapreduce/yt/interface/client.h>
 
-#include <library/string_utils/levenstein_diff/levenstein_diff.h>
+#include <library/cpp/string_utils/levenshtein_diff/levenshtein_diff.h>
 
 #include <util/stream/output.h>
 #include <util/system/user.h>
@@ -25,7 +25,7 @@ public:
         for (auto& cursor : *reader) {
             const auto& row = cursor.GetRow();
             const auto& name = row["name"].AsString();
-            if (NHunting::LevensteinDistance(name, Pattern_) <= MaxDistance_) {
+            if (NLevenshtein::Distance(name, Pattern_) <= MaxDistance_) {
                 writer->AddRow(row);
             }
         }
