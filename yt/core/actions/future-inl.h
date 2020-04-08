@@ -412,7 +412,7 @@ public:
 private:
     std::optional<TErrorOr<T>> Result_;
 #ifndef NDEBUG
-    std::atomic_flag ResultMovedOut_ = ATOMIC_FLAG_INIT;
+    mutable std::atomic<bool> ResultMovedOut_ = false;
 #endif
 
     TResultHandlers ResultHandlers_;
@@ -435,25 +435,44 @@ private:
             return false;
         }
 
-        ResultHandlers_.RunAndClear(*Result_);
+        ResultHandlers_.RunAndClear(GetResult());
 
         if (UniqueResultHandler_) {
-            RunNoExcept(UniqueResultHandler_, MoveResultOut());
+            RunNoExcept(UniqueResultHandler_, GetUniqueResult());
             UniqueResultHandler_ = {};
         }
 
         return true;
     }
 
-    TErrorOr<T> MoveResultOut()
+
+    const TErrorOr<T>& GetResult() const
     {
 #ifndef NDEBUG
-        YT_ASSERT(!ResultMovedOut_.test_and_set());
+        YT_ASSERT(!ResultMovedOut_);
+#endif
+        YT_ASSERT(Result_);
+        return *Result_;
+    }
+
+    const std::optional<TErrorOr<T>>& GetOptionalResult() const
+    {
+#ifndef NDEBUG
+        YT_ASSERT(!ResultMovedOut_);
+#endif
+        return Result_;
+    }
+
+    TErrorOr<T> GetUniqueResult()
+    {
+#ifndef NDEBUG
+        YT_ASSERT(!ResultMovedOut_.exchange(true));
 #endif
         auto result = std::move(*Result_);
         Result_.reset();
         return result;
     }
+
 
     virtual bool TrySetError(const TError& error) override
     {
@@ -499,14 +518,14 @@ public:
     const TErrorOr<T>& Get() const
     {
         WaitUntilSet();
-        return *Result_;
+        return GetResult();
     }
 
     TErrorOr<T> GetUnique()
     {
         // Fast path.
         if (Set_) {
-            return MoveResultOut();
+            return GetUniqueResult();
         }
 
         // Slow path.
@@ -514,7 +533,7 @@ public:
             auto guard = Guard(SpinLock_);
             InstallAbandonedError();
             if (Set_) {
-                return MoveResultOut();
+                return GetUniqueResult();
             }
             if (!ReadyEvent_) {
                 ReadyEvent_.reset(new NConcurrency::TEvent());
@@ -523,7 +542,7 @@ public:
 
         ReadyEvent_->Wait();
 
-        return MoveResultOut();
+        return GetUniqueResult();
     }
 
     std::optional<TErrorOr<T>> TryGet() const
@@ -531,7 +550,7 @@ public:
         if (!CheckIfSet()) {
             return std::nullopt;
         }
-        return Result_;
+        return GetOptionalResult();
     }
 
     std::optional<TErrorOr<T>> TryGetUnique()
@@ -539,7 +558,7 @@ public:
         if (!CheckIfSet()) {
             return std::nullopt;
         }
-        return MoveResultOut();
+        return GetUniqueResult();
     }
 
     template <class U>
@@ -564,7 +583,7 @@ public:
     {
         // Fast path.
         if (Set_) {
-            RunNoExcept(handler, *Result_);
+            RunNoExcept(handler, GetResult());
             return NullFutureCallbackCookie;
         }
 
@@ -574,7 +593,7 @@ public:
             InstallAbandonedError();
             if (Set_) {
                 guard.Release();
-                RunNoExcept(handler, *Result_);
+                RunNoExcept(handler, GetResult());
                 return NullFutureCallbackCookie;
             } else {
                 HasHandlers_ = true;
@@ -587,7 +606,7 @@ public:
     {
         // Fast path.
         if (Set_) {
-            RunNoExcept(handler, MoveResultOut());
+            RunNoExcept(handler, GetUniqueResult());
             return;
         }
 
@@ -597,7 +616,7 @@ public:
             InstallAbandonedError();
             if (Set_) {
                 guard.Release();
-                RunNoExcept(handler, MoveResultOut());
+                RunNoExcept(handler, GetUniqueResult());
             } else {
                 YT_ASSERT(!UniqueResultHandler_);
                 YT_ASSERT(ResultHandlers_.IsEmpty());
