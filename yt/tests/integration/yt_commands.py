@@ -43,6 +43,7 @@ SortOrderViolation = 301
 UniqueKeyViolation = 306
 SchemaViolation = 307
 InvalidSchemaValue = 314
+ResolveErrorCode = 500
 AuthorizationErrorCode = 901
 UnrecognizedConfigOption = 1400
 FailedToFetchDynamicConfig = 1401
