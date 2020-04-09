@@ -6,8 +6,10 @@ from .batch_response import apply_function_to_result
 from datetime import datetime
 
 def transaction_params(transaction, client=None):
-    return {"ping_ancestor_transactions": get_command_param("ping_ancestor_transactions", client),
-            "transaction_id": get_value(transaction, get_command_param("transaction_id", client))}
+    params = {}
+    set_param(params, "transaction_id", get_value(transaction, get_command_param("transaction_id", client)))
+    set_param(params, "ping_ancestor_transactions", get_command_param("ping_ancestor_transactions", client))
+    return params
 
 def _make_transactional_request(command_name, params, **kwargs):
     return make_request(command_name, params, **kwargs)
