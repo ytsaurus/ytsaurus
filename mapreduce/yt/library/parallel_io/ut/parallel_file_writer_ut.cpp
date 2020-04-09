@@ -70,13 +70,13 @@ Y_UNIT_TEST_SUITE(ParallelFileWriter) {
         {
             auto reader = client->CreateFileReader(path);
             auto read = reader->ReadAll();
-            UNIT_ASSERT_EQUAL(data, read)
+            UNIT_ASSERT_EQUAL(data, read);
         }
         WriteFileParallel(client, fileName, path.Append(false), TParallelFileWriterOptions().NumThreads(5));
         {
             auto reader = client->CreateFileReader(path);
             auto read = reader->ReadAll();
-            UNIT_ASSERT_EQUAL(data, read)
+            UNIT_ASSERT_EQUAL(data, read);
         }
     }
     Y_UNIT_TEST(AppendTrue) {
@@ -94,13 +94,13 @@ Y_UNIT_TEST_SUITE(ParallelFileWriter) {
         {
             auto reader = client->CreateFileReader(path);
             auto read = reader->ReadAll();
-            UNIT_ASSERT_EQUAL(data, read)
+            UNIT_ASSERT_EQUAL(data, read);
         }
         WriteFileParallel(client, fileName, path.Append(true), TParallelFileWriterOptions().NumThreads(5));
         {
             auto reader = client->CreateFileReader(path);
             auto read = reader->ReadAll();
-            UNIT_ASSERT_EQUAL(data + data, read)
+            UNIT_ASSERT_EQUAL(data + data, read);
         }
     }
     Y_UNIT_TEST(SmallData) {
@@ -118,13 +118,13 @@ Y_UNIT_TEST_SUITE(ParallelFileWriter) {
         {
             auto reader = client->CreateFileReader(path);
             auto read = reader->ReadAll();
-            UNIT_ASSERT_EQUAL(data, read)
+            UNIT_ASSERT_EQUAL(data, read);
         }
         WriteFileParallel(client, fileName, path.Append(true), TParallelFileWriterOptions().NumThreads(10));
         {
             auto reader = client->CreateFileReader(path);
             auto read = reader->ReadAll();
-            UNIT_ASSERT_EQUAL(data + data, read)
+            UNIT_ASSERT_EQUAL(data + data, read);
         }
     }
 }
