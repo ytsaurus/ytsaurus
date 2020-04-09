@@ -148,6 +148,12 @@ class Config(types.ModuleType, client_state.ClientState):
         command_params[param_name] = value
         self.set_option("COMMAND_PARAMS", command_params, client)
 
+    def del_command_param(self, param_name, client):
+        command_params = self.get_option("COMMAND_PARAMS", client)
+        if param_name in command_params:
+            del command_params[param_name]
+        self.set_option("COMMAND_PARAMS", command_params, client)
+
     def get_client_state(self, client):
         object = client if client is not None else self
         return super(type(object), object)
