@@ -452,6 +452,15 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query('select count() from "//tmp/t1" prewhere (value < 3)') == [{'count()': 3}]
             assert clique.make_query('select any(0) from "//tmp/t1" prewhere (value < 3)') == [{'any(0)': 0}]
 
+            create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}]})
+            write_table("//tmp/t2", [
+                {"key": 0, "value": "aaa"},
+                {"key": 1, "value": "bbb"},
+                {"key": 2, "value": "bbb"},
+                {"key": 3, "value": "ddd"}
+            ])
+            assert clique.make_query('select value from "//tmp/t2" prewhere key in (select key from "//tmp/t2" where value = \'bbb\')') == [{"value": "bbb"}, {"value": "bbb"}]
+
 
     @authors("evgenstf")
     def test_acl(self):
