@@ -3862,7 +3862,7 @@ Y_UNIT_TEST_SUITE(Operations)
                 UNIT_ASSERT(reader->IsValid());
                 UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("result", 1));
                 reader->Next();
-                UNIT_ASSERT(!reader->IsValid())
+                UNIT_ASSERT(!reader->IsValid());
         }
 
         {
@@ -3878,7 +3878,7 @@ Y_UNIT_TEST_SUITE(Operations)
                 UNIT_ASSERT(reader->IsValid());
                 UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("result", 2));
                 reader->Next();
-                UNIT_ASSERT(!reader->IsValid())
+                UNIT_ASSERT(!reader->IsValid());
         }
     }
 
@@ -4258,7 +4258,7 @@ Y_UNIT_TEST_SUITE(Operations)
         {
             int i = k;
             for (const auto& cursor : *reader) {
-                UNIT_ASSERT(cursor.GetRow() == TNode()("foo", i))
+                UNIT_ASSERT(cursor.GetRow() == TNode()("foo", i));
                 ++i;
             }
         }
