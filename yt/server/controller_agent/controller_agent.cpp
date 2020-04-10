@@ -237,7 +237,9 @@ public:
             Bootstrap_->GetControlInvoker()))
         , SchedulerProxy_(Bootstrap_->GetMasterClient()->GetSchedulerChannel())
         , ZombieOperationOrchids_(New<TZombieOperationOrchids>(Config_->ZombieOperationOrchids))
-        , MemoryTagQueue_(Config_)
+        , MemoryTagQueue_(
+            Config_,
+            Bootstrap_->GetControlInvoker())
     { }
 
     void Initialize()

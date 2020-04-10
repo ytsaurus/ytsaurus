@@ -2,7 +2,13 @@
 
 #include "public.h"
 
+#include <yt/core/concurrency/public.h>
+
+#include <yt/core/profiling/public.h>
+
 #include <yt/core/ytree/fluent.h>
+
+#include <library/cpp/ytalloc/core/concurrency/rw_spinlock.h>
 
 namespace NYT::NControllerAgent {
 
@@ -20,7 +26,9 @@ constexpr double MemoryTagQueueLoadFactor = 0.5;
 class TMemoryTagQueue
 {
 public:
-    explicit TMemoryTagQueue(TControllerAgentConfigPtr config);
+    TMemoryTagQueue(
+        TControllerAgentConfigPtr config,
+        IInvokerPtr invoker);
 
     NYTAlloc::TMemoryTag AssignTagToOperation(TOperationId operationId);
     void ReclaimTag(NYTAlloc::TMemoryTag tag);
@@ -33,9 +41,11 @@ public:
 
 private:
     TControllerAgentConfigPtr Config_;
+    const IInvokerPtr Invoker_;
+
     int AllocatedTagCount_ = DefaultMemoryTagCount;
 
-    TSpinLock Lock_;
+    NConcurrency::TReaderWriterSpinLock Lock_;
 
     //! A queue of spare tags.
     std::queue<NYTAlloc::TMemoryTag> AvailableTags_;
@@ -53,10 +63,18 @@ private:
     //! Cached total memory usage.
     i64 CachedTotalUsage_;
 
+    //! Cached per-tag memory usage.
+    THashMap<NYTAlloc::TMemoryTag, i64> CachedMemoryUsage_;
+
+    THashMap<NYTAlloc::TMemoryTag, NProfiling::TTagId> ProfilingTags_;
+    const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
+
     void AllocateNewTags();
 
     void UpdateStatistics();
     void UpdateStatisticsIfNeeded();
+
+    void OnProfiling();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
