@@ -633,7 +633,9 @@ def start_clickhouse_clique(instance_count,
     .. seealso::  :ref:`operation_parameters`.
     """
 
-    defaults = get("//sys/clickhouse/defaults", client=client) if exists("//sys/clickhouse/defaults", client=client) else BUNDLED_DEFAULTS
+    defaults = BUNDLED_DEFAULTS
+    if exists("//sys/clickhouse/defaults", client=client):
+        defaults = update(defaults, get("//sys/clickhouse/defaults", client=client))
 
     require(operation_alias.startswith("*"), lambda: YtError("Operation alias should start with '*' character"))
 
