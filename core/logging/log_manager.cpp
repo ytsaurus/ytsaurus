@@ -1020,9 +1020,11 @@ private:
             auto minLogStorageFreeSpace = std::numeric_limits<i64>::max();
 
             for (const auto& [name, writerConfig] : Config_->WriterConfigs) {
-                auto logStorageDiskSpaceStatistics = GetDiskSpaceStatistics(GetDirectoryName(writerConfig->FileName));
-                minLogStorageAvailableSpace = std::min<i64>(minLogStorageAvailableSpace, logStorageDiskSpaceStatistics.AvailableSpace);
-                minLogStorageFreeSpace = std::min<i64>(minLogStorageFreeSpace, logStorageDiskSpaceStatistics.FreeSpace);
+                if (writerConfig->Type == EWriterType::File) {
+                    auto logStorageDiskSpaceStatistics = GetDiskSpaceStatistics(GetDirectoryName(writerConfig->FileName));
+                    minLogStorageAvailableSpace = std::min<i64>(minLogStorageAvailableSpace, logStorageDiskSpaceStatistics.AvailableSpace);
+                    minLogStorageFreeSpace = std::min<i64>(minLogStorageFreeSpace, logStorageDiskSpaceStatistics.FreeSpace);
+                }
             }
 
             if (minLogStorageAvailableSpace != std::numeric_limits<i64>::max()) {
