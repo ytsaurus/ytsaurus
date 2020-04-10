@@ -4991,7 +4991,8 @@ void TOperationControllerBase::FetchInputTables()
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         CreateFetcherChunkScraper(),
         InputClient,
-        Logger);
+        Logger,
+        /*storeChunkStatistics=*/false);
 
     auto chunkSpecFetcher = New<TChunkSpecFetcher>(
         InputClient,
@@ -5814,7 +5815,8 @@ void TOperationControllerBase::ValidateUserFileSizes()
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         CreateFetcherChunkScraper(),
         InputClient,
-        Logger);
+        Logger,
+        /*storeChunkStatistics=*/false);
 
     // Collect columnar statistics for table files with column selectors.
     for (auto& pair : UserJobFiles_) {
