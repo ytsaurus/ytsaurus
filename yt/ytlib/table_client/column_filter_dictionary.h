@@ -15,10 +15,15 @@ namespace NYT::NTableClient {
 class TColumnFilterDictionary
 {
 public:
-    int GetIdOrRegisterAdmittedColumns(std::vector<TString> admitted_columns);
+    TColumnFilterDictionary(bool sortColumns = true);
+
+    int GetIdOrRegisterAdmittedColumns(std::vector<TString> admittedColumns);
+
     const std::vector<TString>& GetAdmittedColumns(int id) const;
 
 private:
+    const bool SortColumns_;
+
     THashMap<std::vector<TString>, int, TRangeHash<>> AdmittedColumnsToId_;
     std::vector<std::vector<TString>> IdToAdmittedColumns_;
 

@@ -21,6 +21,15 @@ TColumnarStatistics TColumnarStatistics::MakeEmpty(int columnCount)
     return TColumnarStatistics{std::vector<i64>(columnCount, 0), std::nullopt, 0};
 }
 
+TLightweightColumnarStatistics TColumnarStatistics::MakeLightweightStatistics() const
+{
+    return TLightweightColumnarStatistics{
+        .ColumnDataWeightsSum = std::accumulate(ColumnDataWeights.begin(), ColumnDataWeights.end(), (i64)0),
+        .TimestampTotalWeight = TimestampTotalWeight,
+        .LegacyChunkDataWeight = LegacyChunkDataWeight
+    };
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
