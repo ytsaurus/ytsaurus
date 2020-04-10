@@ -14,7 +14,7 @@ def sky_share(path, cluster=None, key_columns=[], client=None):
     :param cluster: cluster name [by default it is derived from proxy url]
     :type path: str
 
-    .. seealso:: `get on wiki <https://wiki.yandex-team.ru/yt/userdoc/blob_tables/#skynet>`_
+    .. seealso:: `blob tables in the docs <https://docs.yandex-team.ru/docs/yt/description/storage/blobtables#skynet>`_
     """
     if cluster is None:
         cluster = get_proxy_url(client=client).split(".")[0]

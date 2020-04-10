@@ -154,7 +154,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
                 execution_pool=None, client=None):
     """Executes a SQL-like query on dynamic table.
 
-    .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
+    .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
 
     :param str query: for example \"<columns> [as <alias>], ... from \[<table>\] \
                   [where <predicate> [group by <columns> [as <alias>], ...]]\".
@@ -254,7 +254,7 @@ def explain(query, timestamp=None, input_row_limit=None, output_row_limit=None, 
             format=None, raw=None, execution_pool=None, client=None):
     """Explains a SQL-like query on dynamic table.
 
-    .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
+    .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
 
     :param str query: for example \"<columns> [as <alias>], ... from \[<table>\] \
                   [where <predicate> [group by <columns> [as <alias>], ...]]\".
@@ -395,7 +395,7 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
                 format=None, raw=None, versioned=None, client=None):
     """Lookups rows in dynamic table.
 
-    .. seealso:: `supported features <https://wiki.yandex-team.ru/yt/userdoc/queries>`_
+    .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
 
     :param format: output format.
     :type format: str or descendant of :class:`Format <yt.wrapper.format.Format>`
