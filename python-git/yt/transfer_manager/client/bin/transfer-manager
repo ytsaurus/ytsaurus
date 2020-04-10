@@ -35,7 +35,7 @@ Start it again:
 $ transfer-manager restart-task <task_id>
 
 See also:
-    Transfer Manager wiki page:    https://wiki.yandex-team.ru/yt/userdoc/transfermanager/
+    Transfer Manager wiki page:    https://wiki.yandex-team.ru/transfer-manager/
 """
 
 def _load_and_pop_task_params(kwargs):

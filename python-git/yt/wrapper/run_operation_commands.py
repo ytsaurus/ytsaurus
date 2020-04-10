@@ -1,7 +1,7 @@
 """
 Commands for table working and Map-Reduce operations.
 
-.. seealso:: `operations on wiki <https://wiki.yandex-team.ru/yt/userdoc/operations>`_
+.. seealso:: `operations in the docs <https://yt.yandex-team.ru/docs/description/mr/operations>`_
 
 Python wrapper has some improvements over bare YT operations:
 
@@ -17,13 +17,13 @@ Common operations parameters
 * **spec** : (dict) universal method to set operation parameters.
 
 * **job_io** : (dict) spec for job io of all stages of operation, see  \
-`IO settings doc <https://wiki.yandex-team.ru/yt/userdoc/table_io>`_.
+`IO settings doc <https://yt.yandex-team.ru/docs/description/storage/io_configuration>`_.
 
 * **table_writer** : (dict) spec of `"write_table" command \
-<https://wiki.yandex-team.ru/yt/userdoc/api#writetable>`_.
+<http://doc.yt.yandex.net/api/commands.html#writetable>`_.
 
 * **table_reader** : (dict) spec of `"read_table" command \
-<https://wiki.yandex-team.ru/yt/userdoc/api#readtable>`_.
+<http://doc.yt.yandex.net/api/commands.html#readtable>`_.
 
 * **format** : (str or descendant of :class:`Format <yt.wrapper.format.Format>`) format of input and output \
 data of operation.

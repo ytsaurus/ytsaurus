@@ -76,7 +76,7 @@ class Transaction(object):
 
     Caution: if you use this class then do not use directly methods \*_transaction.
 
-    .. seealso:: `transactions on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
+    .. seealso:: `transactions in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions.html>`_
     """
 
     def __init__(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True, transaction_id=None,

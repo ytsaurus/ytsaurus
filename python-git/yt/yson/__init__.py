@@ -1,7 +1,7 @@
 """
 YSON library.
 
-Package supports `YT YSON format <https://wiki.yandex-team.ru/yt/userdoc/yson>`_.
+Package supports `YT YSON format <https://yt.yandex-team.ru/docs/description/common/yson.html>`_.
 
 Package provides special classes for all yson types, see :mod:`yson_types <yt.yson.yson_types>` module.
 Also it provides methods for serialization and deserialization yson data:

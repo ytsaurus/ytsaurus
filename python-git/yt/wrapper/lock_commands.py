@@ -24,7 +24,7 @@ def lock(path, mode=None, waitable=False, wait_for=None, child_key=None, attribu
     :return: taken lock id (as :class:`YsonString <yt.yson.yson_types.YsonString>`) or throws \
     :class:`YtResponseError <yt.wrapper.errors.YtResponseError>` with 40* code if lock conflict detected.
 
-    .. seealso:: `lock on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions#versionirovanieiloki>`_
+    .. seealso:: `lock in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions#locks>`_
     """
     if wait_for is not None:
         wait_for = timedelta(milliseconds=wait_for)
@@ -69,7 +69,7 @@ def unlock(path, client=None):
     If the node is not locked, succeeds silently. If the locked version of the node
     contains changes compared to its original version, :class:`YtError <yt.common.YtError>` is raised.
 
-    .. seealso:: `unlock on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions#versionirovanieiloki>`_
+    .. seealso:: `unlock in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions#lock_operations>`_
     """
     params = {"path": YPath(path, client=client)}
     _make_transactional_request("unlock", params, client=client)
