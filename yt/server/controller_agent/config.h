@@ -789,6 +789,8 @@ public:
     //! Otherwise, the immediate response is empty, and the result is sent in one of the following heartbeats.
     TDuration HeavyRequestImmediateResponseTimeout;
 
+    TDuration MemoryUsageProfilingPeriod;
+
     TControllerAgentConfig();
 
 private:

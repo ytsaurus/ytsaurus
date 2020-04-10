@@ -5116,9 +5116,10 @@ void TOperationControllerBase::FetchInputTables()
         columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
     }
 
-    YT_LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v)",
+    YT_LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v, MemoryUsage: %v)",
         totalChunkCount,
-        totalExtensionSize);
+        totalExtensionSize,
+        GetMemoryUsage());
 }
 
 void TOperationControllerBase::RegisterInputChunk(const TInputChunkPtr& inputChunk)
