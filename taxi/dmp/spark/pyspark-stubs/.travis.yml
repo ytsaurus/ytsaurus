@@ -1,0 +1,29 @@
+dist: xenial
+sudo: false
+language: python
+python: 3.7
+# cache: pip
+env:
+  - SPARK_BRANCH=master
+before_install:
+- pip install -r requirements-tests-py3.txt
+before_script:
+- git clone --depth 1 --branch $SPARK_BRANCH https://github.com/apache/spark.git spark-source
+- for p in $(ls $PWD/test-data/patches/*patch); do git -C spark-source apply $p; done
+install:
+- pip install .
+script:
+- "./tests/mypy_test.py -p 3.6 3.7"
+- MYPY_TEST_PREFIX=$PWD MYPYPATH=$PWD/third_party/3 pytest
+- MYPYPATH=$PWD/third_party/3 mypy spark-source/examples/src/main/python/ml spark-source/examples/src/main/python/sql spark-source/examples/src/main/python/sql/streaming
+- black --check $PWD/third_party/3/pyspark
+deploy:
+  provider: pypi
+  user: __token__
+  on:
+    tags: true
+    all_branches: true
+  skip_existing: true
+  distributions: "sdist bdist_wheel"
+  password:
+    secure: fx301HQDyrYt5HB3gSW7yFeWtw9ig1q2GVFOVL5BdP6GrsmmNTGHsjQiiPo/3pZa8LatUPVZKP36k+YREU7bI6AmjST8xHS1hCqe8yggPA5n4f+8HZbc871XsWyl86y5DUK5fk1vgjNmIdOiVyYARYqbKpSSyI+t7s6iPRtzSqJ8ylW9BkZU6l/PFK0wKfTx9pE2VCnGTMsZpyZL9Hr9BhyiMoT0N8jb0B4RL0y+BRszjSvRMnIyLqaqgAE5NwL6sz/yYB0qg8Tx8AHjJIldrve7LbuaLuJmw7S5HzuLJ81t33kqP7Lk6omljXgBdJaUI9WeVg0inDct4BnDI55E9lvxbhif2pu/Ez8Fn+BgvDA/YmqUE20McvcKtqaSMamQvtobn19fpFmwNvieMsjstjCmUrwoysw+H6JxxGNlNwRVZB4vCKMWWv+AZNaf47uBxHIuY6uDLBJmh+PrTdUgjAid9ke3Bl1138LO8DsRdCtVta73MTD2qqj0K0DkH4lz01VRJzgDNwjZ/19h+NQqrr6lhF0413aYFVLU2H8HDsbp13GArWCN1kxogEs8AvbStwB7t1oPCy4zLZ0Poy9JF0cXwKFGUTujT+k2otBTYAN6bQx07uD/IWpOXpXT1qEskZhS5dguw9J6ePXOW8psI+451leZOi22/2ELQauFmlA=

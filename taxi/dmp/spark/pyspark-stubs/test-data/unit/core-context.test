@@ -1,0 +1,6 @@
+[case contextInitalization]
+from pyspark import SparkContext
+
+sc: SparkContext = SparkContext()
+
+[out]

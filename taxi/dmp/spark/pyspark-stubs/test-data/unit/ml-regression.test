@@ -1,0 +1,20 @@
+[case loadFMRegressor]
+from pyspark.ml.regression import FMRegressor, FMRegressionModel
+
+fm = FMRegressor.load("/foo")
+fm.setMiniBatchFraction(0.1)
+
+fm_model = FMRegressionModel.load("/bar")
+fm_model.factors.numCols
+
+fm_model.foo()  # E: "FMRegressionModel" has no attribute "foo"
+[out]
+
+[case loadLinearRegressor]
+from pyspark.ml.regression import LinearRegressionModel
+
+lr_model = LinearRegressionModel.load("/foo")
+lr_model.getLabelCol().upper()
+
+lr_model.foo  # E: "LinearRegressionModel" has no attribute "foo"
+[out]

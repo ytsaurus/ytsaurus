@@ -1,0 +1,22 @@
+diff --git a/examples/src/main/python/ml/fm_classifier_example.py b/examples/src/main/python/ml/fm_classifier_example.py
+index 6e7c2cc..b04c9c3 100644
+--- a/examples/src/main/python/ml/fm_classifier_example.py
++++ b/examples/src/main/python/ml/fm_classifier_example.py
+@@ -20,6 +20,8 @@ FMClassifier Example.
+ """
+ from __future__ import print_function
+
++from pyspark.ml.classification import FMClassificationModel
++
+ # $example on$
+ from pyspark.ml import Pipeline
+ from pyspark.ml.classification import FMClassifier
+@@ -68,7 +70,7 @@ if __name__ == "__main__":
+     accuracy = evaluator.evaluate(predictions)
+     print("Test set accuracy = %g" % accuracy)
+
+-    fmModel = model.stages[2]
++    fmModel: FMClassificationModel = model.stages[2]  # type: ignore[assignment]
+     print("Factors: " + str(fmModel.factors))
+     print("Linear: " + str(fmModel.linear))
+     print("Intercept: " + str(fmModel.intercept))

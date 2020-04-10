@@ -1,0 +1,24 @@
+[case stringIndexerOverloads]
+from pyspark.ml.feature import StringIndexer
+
+# No arguments is OK
+StringIndexer()
+
+StringIndexer(inputCol="foo")
+StringIndexer(outputCol="bar")
+StringIndexer(inputCol="foo", outputCol="bar")
+
+StringIndexer(inputCols=["foo"])
+StringIndexer(outputCols=["bar"])
+StringIndexer(inputCols=["foo"], outputCols=["bar"])
+
+StringIndexer(inputCol="foo", outputCols=["bar"]) # E: No overload variant of "StringIndexer" matches argument types "str", "List[str]" \
+                                                  # N: Possible overload variants: \
+                                                  # N:     def __init__(self, *, inputCol: Optional[str] = ..., outputCol: Optional[str] = ..., handleInvalid: str = ..., stringOrderType: str = ...) -> StringIndexer \
+                                                  # N:     def __init__(self, *, inputCols: Optional[List[str]] = ..., outputCols: Optional[List[str]] = ..., handleInvalid: str = ..., stringOrderType: str = ...) -> StringIndexer
+
+StringIndexer(inputCols=["foo"], outputCol="bar") # E: No overload variant of "StringIndexer" matches argument types "List[str]", "str" \
+                                                  # N: Possible overload variants: \
+                                                  # N:     def __init__(self, *, inputCol: Optional[str] = ..., outputCol: Optional[str] = ..., handleInvalid: str = ..., stringOrderType: str = ...) -> StringIndexer \
+                                                  # N:     def __init__(self, *, inputCols: Optional[List[str]] = ..., outputCols: Optional[List[str]] = ..., handleInvalid: str = ..., stringOrderType: str = ...) -> StringIndexer
+[out]

@@ -1,0 +1,21 @@
+[case oneVsRest]
+from pyspark.ml.classification import (
+    OneVsRest, OneVsRestModel, LogisticRegression, LogisticRegressionModel
+)
+
+# Should support
+OneVsRest(classifier=LogisticRegression())
+OneVsRest(classifier=LogisticRegressionModel.load("/foo"))  # E: Argument "classifier" to "OneVsRest" has incompatible type "LogisticRegressionModel"; expected "Estimator[<nothing>]"
+OneVsRest(classifier="foo")  # E: Argument "classifier" to "OneVsRest" has incompatible type "str"; expected "Estimator[<nothing>]"
+[out]
+
+
+[case fitFMClassifier]
+from pyspark.sql import SparkSession
+from pyspark.ml.classification import FMClassifier, FMClassificationModel
+
+spark = SparkSession.builder.getOrCreate()
+fm_model: FMClassificationModel = FMClassifier().fit(spark.read.parquet("/foo"))
+fm_model.linear.toArray()
+fm_model.factors.numRows
+[out]

@@ -1,0 +1,11 @@
+[case readLinearSVCModel]
+from pyspark.ml.classification import LinearSVCModel
+
+model1 = LinearSVCModel.load("dummy")
+model1.coefficients.toArray()
+model1.foo()  # E: "LinearSVCModel" has no attribute "foo"
+
+model2 = LinearSVCModel.read().load("dummy")
+model2.coefficients.toArray()
+model2.foo()  # E: "LinearSVCModel" has no attribute "foo"
+[out]

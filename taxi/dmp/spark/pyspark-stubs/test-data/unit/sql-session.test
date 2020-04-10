@@ -1,0 +1,98 @@
+[case createDataFrameStructsValid]
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+spark = SparkSession.builder.getOrCreate()
+
+data = [('Alice', 1)]
+schema = StructType([
+    StructField("name", StringType(), True),
+    StructField("age", IntegerType(), True)
+])
+
+# Valid structs
+spark.createDataFrame(data)
+spark.createDataFrame(data, samplingRatio=0.1)
+spark.createDataFrame(data, ("name", "age"))
+spark.createDataFrame(data, schema)
+spark.createDataFrame(data, "name string, age integer")
+spark.createDataFrame([(1, ("foo", "bar"))], ("_1", "_2"))
+spark.createDataFrame(data, ("name", "age"), samplingRatio=0.1)  # type: ignore
+
+
+
+[out]
+
+[case createDataFrameScalarsValid]
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+spark = SparkSession.builder.getOrCreate()
+
+# Scalars
+spark.createDataFrame([1, 2, 3], IntegerType())
+spark.createDataFrame(["foo", "bar"], "string")
+[out]
+
+[case createDataFrameScalarsInvalid]
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+spark = SparkSession.builder.getOrCreate()
+
+schema = StructType([
+    StructField("name", StringType(), True),
+    StructField("age", IntegerType(), True)
+])
+
+# Invalid - scalars require schema
+spark.createDataFrame(["foo", "bar"]) # E: Value of type variable "RowLike" of "createDataFrame" of "SparkSession" cannot be "str"
+
+# Invalid - data has to match schema (either product -> struct or scalar -> atomic)
+spark.createDataFrame([1, 2, 3], schema) # E: Value of type variable "RowLike" of "createDataFrame" of "SparkSession" cannot be "int"
+[out]
+
+[case createDataFrameStructsInvalid]
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType
+
+spark = SparkSession.builder.getOrCreate()
+
+data = [('Alice', 1)]
+
+schema = StructType([
+    StructField("name", StringType(), True),
+    StructField("age", IntegerType(), True)
+])
+
+# Invalid product should have StructType schema
+spark.createDataFrame(data, IntegerType()) # E: Argument 1 to "createDataFrame" of "SparkSession" has incompatible type "List[Tuple[str, int]]"; expected "Union[RDD[Union[Union[datetime, date], Union[bool, float, int, str], Decimal]], Iterable[Union[Union[datetime, date], Union[bool, float, int, str], Decimal]]]"
+
+# This shouldn't type check, though is technically speaking valid
+# because  samplingRatio is ignored
+spark.createDataFrame(data, schema, samplingRatio=0.1)  # E: No overload variant of "createDataFrame" of "SparkSession" matches argument types "List[Tuple[str, int]]", "StructType", "float" \
+                                                        # N: Possible overload variants: \
+                                                        # N:     def [RowLike in (List[Any], Tuple[Any, ...], Row)] createDataFrame(self, data: Union[RDD[RowLike], Iterable[RowLike]], samplingRatio: float = ...) -> DataFrame \
+                                                        # N:     def [RowLike in (List[Any], Tuple[Any, ...], Row)] createDataFrame(self, data: Union[RDD[RowLike], Iterable[RowLike]], schema: Union[List[str], Tuple[str, ...]] = ..., verifySchema: bool = ...) -> DataFrame \
+                                                        # N:     <4 more similar overloads not shown, out of 6 total overloads>
+[out]
+
+
+[case readWriterOptions]
+from pyspark.sql import SparkSession
+
+spark = SparkSession.builder.getOrCreate()
+
+spark.read.option("foo", True).option("foo", 1).option("foo", 1.0).option("foo", "1")
+spark.readStream.option("foo", True).option("foo", 1).option("foo", 1.0).option("foo", "1")
+
+spark.read.options(foo=True, bar=1).options(foo=1.0, bar="1")
+spark.readStream.options(foo=True, bar=1).options(foo=1.0, bar="1")
+
+spark.read.load(foo=True)
+spark.readStream.load(foo=True)
+
+spark.read.load(foo=["a"])  # E: Argument "foo" to "load" of "DataFrameReader" has incompatible type "List[str]"; expected "Union[bool, float, int, str]"
+spark.read.option("foo", (1, ))  # E: Argument 2 to "option" of "DataFrameReader" has incompatible type "Tuple[int]"; expected "Union[bool, float, int, str]"
+spark.read.options(bar={1})  # E: Argument "bar" to "options" of "DataFrameReader" has incompatible type "Set[int]"; expected "Union[bool, float, int, str]"
+[out]
