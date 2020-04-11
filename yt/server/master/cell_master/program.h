@@ -5,6 +5,8 @@
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
+#include <yt/ytlib/program/program_setsid_mixin.h>
+#include <yt/ytlib/program/program_cgroup_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
 
 #include <yt/core/logging/log_manager.h>
@@ -25,11 +27,15 @@ namespace NYT {
 class TCellMasterProgram
     : public TProgram
     , public TProgramPdeathsigMixin
+    , public TProgramSetsidMixin
+    , public TProgramCgroupMixin
     , public TProgramConfigMixin<NCellMaster::TCellMasterConfig>
 {
 public:
     TCellMasterProgram()
         : TProgramPdeathsigMixin(Opts_)
+        , TProgramSetsidMixin(Opts_)
+        , TProgramCgroupMixin(Opts_)
         , TProgramConfigMixin(Opts_)
     {
         Opts_
@@ -72,6 +78,9 @@ protected:
         NYTAlloc::EnableStockpile();
         NYTAlloc::MlockallCurrentProcess();
 
+        if (HandleSetsidOptions()) {
+            return;
+        }
         if (HandlePdeathsigOptions()) {
             return;
         }

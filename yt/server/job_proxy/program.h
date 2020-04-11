@@ -4,6 +4,8 @@
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_cgroup_mixin.h>
 #include <yt/ytlib/program/program_config_mixin.h>
+#include <yt/ytlib/program/program_pdeathsig_mixin.h>
+#include <yt/ytlib/program/program_setsid_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
 
 #include <yt/server/lib/job_proxy/config.h>
@@ -24,11 +26,15 @@ class TJobProxyProgram
     : public TProgram
     , public TProgramConfigMixin<TJobProxyConfig>
     , public TProgramCgroupMixin
+    , public TProgramPdeathsigMixin
+    , public TProgramSetsidMixin
 {
 public:
     TJobProxyProgram()
         : TProgramConfigMixin(Opts_, false)
         , TProgramCgroupMixin(Opts_)
+        , TProgramPdeathsigMixin(Opts_)
+        , TProgramSetsidMixin(Opts_)
     {
         // TODO(sandello): IDs here are optional due to tool mixin.
         // One should extract tools into a separate binary!
