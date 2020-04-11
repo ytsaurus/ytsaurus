@@ -9,7 +9,7 @@
 #include <mapreduce/yt/library/table_schema/protobuf.h>
 
 #include <library/cpp/digest/md5/md5.h>
-#include <library/protobuf/yql/descriptor.h>
+#include <library/cpp/protobuf/yql/descriptor.h>
 
 #include <util/generic/buffer.h>
 #include <util/generic/strbuf.h>
