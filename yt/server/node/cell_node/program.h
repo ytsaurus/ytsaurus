@@ -5,6 +5,8 @@
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_tool_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
+#include <yt/ytlib/program/program_setsid_mixin.h>
+#include <yt/ytlib/program/program_cgroup_mixin.h>
 #include <yt/ytlib/program/configure_singletons.h>
 
 #include <yt/library/phdr_cache/phdr_cache.h>
@@ -22,12 +24,16 @@ namespace NYT::NCellNode {
 class TCellNodeProgram
     : public TProgram
     , public TProgramPdeathsigMixin
+    , public TProgramSetsidMixin
+    , public TProgramCgroupMixin
     , public TProgramToolMixin
     , public TProgramConfigMixin<NCellNode::TCellNodeConfig>
 {
 public:
     TCellNodeProgram()
         : TProgramPdeathsigMixin(Opts_)
+        , TProgramSetsidMixin(Opts_)
+        , TProgramCgroupMixin(Opts_)
         , TProgramToolMixin(Opts_)
         , TProgramConfigMixin(Opts_, false)
     {
@@ -55,6 +61,9 @@ protected:
         NYTAlloc::EnableStockpile();
         NYTAlloc::MlockallCurrentProcess();
 
+        if (HandleSetsidOptions()) {
+            return;
+        }
         if (HandlePdeathsigOptions()) {
             return;
         }
