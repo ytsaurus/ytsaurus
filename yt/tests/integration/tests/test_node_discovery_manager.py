@@ -41,13 +41,15 @@ class Base:
             time.sleep(0.5)
             metrics_before = [metric.update().get(verbose=True) or 0 for metric in metrics]
             try:
+                for i in range(len(metrics)):
+                    make_request()
                 make_request()
             except:
                 return False
             time.sleep(0.5)
             metrics_after = [metric.update().get(verbose=True) or 0 for metric in metrics]
 
-            for node_id in xrange(len(metrics_before)):
+            for node_id in xrange(len(metrics)):
                 actual_sign = 1 if metrics_after[node_id] > metrics_before[node_id] else 0
                 expected_sign = 1 if node_id in expected_node_ids else 0
                 if actual_sign != expected_sign:
