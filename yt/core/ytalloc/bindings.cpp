@@ -242,7 +242,8 @@ public:
         RegisterParameter("large_arenas_to_profile", LargeArenasToProfile)
             .Default({});
         RegisterParameter("profiling_backtrace_depth", ProfilingBacktraceDepth)
-            .InRange(1, MaxAllocationProfilingBacktraceDepth);
+            .InRange(1, MaxAllocationProfilingBacktraceDepth)
+            .Default();
         RegisterParameter("min_profiling_bytes_used_to_report", MinProfilingBytesUsedToReport)
             .GreaterThan(0)
             .Default();
