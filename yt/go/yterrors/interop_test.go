@@ -12,7 +12,7 @@ import (
 )
 
 func TestNilError(t *testing.T) {
-	require.Nil(t, FromError(nil))
+	require.NoError(t, FromError(nil))
 }
 
 func TestIsWrapping(t *testing.T) {
