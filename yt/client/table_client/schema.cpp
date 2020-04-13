@@ -712,9 +712,15 @@ TTableSchema TTableSchema::ToSorted(const TKeyColumns& keyColumns) const
             });
 
         if (it == columns.end()) {
-            THROW_ERROR_EXCEPTION("Column %Qv is not found in schema", keyColumns[index])
-                << TErrorAttribute("schema", *this)
-                << TErrorAttribute("key_columns", keyColumns);
+            if (Strict_) {
+                THROW_ERROR_EXCEPTION("Column %Qv is not found in strict schema", keyColumns[index])
+                    << TErrorAttribute("schema", *this)
+                    << TErrorAttribute("key_columns", keyColumns);
+            } else {
+                columns.push_back(TColumnSchema(keyColumns[index], EValueType::Any));
+                it = columns.end();
+                --it;
+            }
         }
 
         if (it->SortOrder()) {
