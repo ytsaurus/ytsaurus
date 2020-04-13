@@ -42,7 +42,7 @@ Table commands:
 Dynamic table commands:
     mount-table, unmount-table, remount-table, freeze-table, unfreeze-table, get-tablet-infos,
     reshard-table, reshard-table-automatic, balance-tablet-cells, trim-rows, alter-table-replica,
-    select-rows, explain, lookup-rows, insert-rows, delete-rows
+    select-rows, explain_query, lookup-rows, insert-rows, delete-rows
 Run operation commands:
     erase, merge, sort, map, reduce, join-reduce, remote-copy, vanilla, map-reduce
 Operation commands:
@@ -755,11 +755,11 @@ def add_select_rows_parser(add_parser):
         parser.add_argument("--format", action=ParseFormat)
 
 @copy_docstring_from(yt.select_rows)
-def explain(**args):
-    write_silently(chunk_iter_stream(yt.explain(raw=True, **args), yt.config["read_buffer_size"]))
+def explain_query(**args):
+    write_silently(chunk_iter_stream(yt.explain_query(raw=True, **args), yt.config["read_buffer_size"]))
 
-def add_explain_parser(add_parser):
-    parser = add_parser("explain", yt.explain)
+def add_explain_query_parser(add_parser):
+    parser = add_parser("explain-query", yt.explain_query)
     add_hybrid_argument(parser, "query")
     parser.add_argument("--timestamp", type=int)
     parser.add_argument("--input-row-limit", type=int)
@@ -1617,7 +1617,7 @@ def main():
     add_alter_table_replica_parser(add_parser)
 
     add_select_rows_parser(add_parser)
-    add_explain_parser(add_parser)
+    add_explain_query_parser(add_parser)
     add_lookup_rows_parser(add_parser)
     add_insert_rows_parser(add_parser)
     add_delete_rows_parser(add_parser)
