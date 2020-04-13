@@ -80,7 +80,7 @@ void WriteUnversionedValue(const TUnversionedValue& value, IOutputStream* output
         case EValueType::TheBottom:
             break;
     }
-    THROW_ERROR_EXCEPTION("Values of type %Qlv are not supported by the chosen format", value.Type)
+    THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Values of type %Qlv are not supported by the chosen format", value.Type)
         << TErrorAttribute("value", ToString(value));
 }
 

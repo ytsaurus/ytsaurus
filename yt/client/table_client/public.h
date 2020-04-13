@@ -118,6 +118,7 @@ DEFINE_ENUM(EErrorCode,
     ((ReaderDeadlineExpired)      (312))
     ((TimestampOutOfRange)        (313))
     ((InvalidSchemaValue)         (314))
+    ((FormatCannotRepresentRow)   (315))
 );
 
 DEFINE_ENUM(EControlAttribute,

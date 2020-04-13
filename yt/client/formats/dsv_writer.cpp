@@ -143,7 +143,7 @@ void TDsvNodeConsumer::OnBooleanScalar(bool value)
 
 void TDsvNodeConsumer::OnEntity()
 {
-    THROW_ERROR_EXCEPTION("Entities are not supported by DSV");
+    THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Entities are not supported by DSV");
 }
 
 void TDsvNodeConsumer::OnBeginList()
@@ -151,7 +151,7 @@ void TDsvNodeConsumer::OnBeginList()
     if (AllowBeginList_) {
         AllowBeginList_ = false;
     } else {
-        THROW_ERROR_EXCEPTION("Embedded lists are not supported by DSV");
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Embedded lists are not supported by DSV");
     }
 }
 
@@ -178,7 +178,7 @@ void TDsvNodeConsumer::OnBeginMap()
         AllowBeginMap_ = false;
         BeforeFirstMapItem_ = true;
     } else {
-        THROW_ERROR_EXCEPTION("Embedded maps are not supported by DSV");
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Embedded maps are not supported by DSV");
     }
 }
 
@@ -205,7 +205,7 @@ void TDsvNodeConsumer::OnEndMap()
 
 void TDsvNodeConsumer::OnBeginAttributes()
 {
-    THROW_ERROR_EXCEPTION("Embedded attributes are not supported by DSV");
+    THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Embedded attributes are not supported by DSV");
 }
 
 void TDsvNodeConsumer::OnEndAttributes()
