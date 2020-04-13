@@ -99,7 +99,7 @@ func TestTextWriter(t *testing.T) {
 
 		testCase.fn(w)
 
-		assert.Nil(t, w.Finish())
+		assert.NoError(t, w.Finish())
 		assert.Equal(t, testCase.output, buf.String())
 	}
 }
@@ -127,7 +127,7 @@ func TestBinaryWriter(t *testing.T) {
 
 		testCase.fn(w)
 
-		assert.Nil(t, w.Finish())
+		assert.NoError(t, w.Finish())
 		assert.Equal(t, testCase.output, buf.Bytes())
 	}
 }
@@ -175,7 +175,7 @@ func TestPrettyWriter(t *testing.T) {
 
 		testCase.fn(w)
 
-		assert.Nil(t, w.Finish())
+		assert.NoError(t, w.Finish())
 		assert.Equal(t, string(testCase.output), buf.String())
 	}
 }
@@ -212,7 +212,7 @@ func TestListFragmentWriter(t *testing.T) {
 
 		testCase.fn(w)
 
-		assert.Nil(t, w.Finish())
+		assert.NoError(t, w.Finish())
 		assert.Equal(t, testCase.output, buf.String())
 	}
 }
@@ -258,7 +258,7 @@ func TestMapFragmentWriter(t *testing.T) {
 
 		testCase.fn(w)
 
-		assert.Nil(t, w.Finish())
+		assert.NoError(t, w.Finish())
 		assert.Equal(t, testCase.output, buf.String())
 	}
 }
