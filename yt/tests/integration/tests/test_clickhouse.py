@@ -2207,10 +2207,14 @@ class TestQueryRegistry(ClickHouseTestBase):
         merge(in_=["//tmp/t"] * 200,
               out="//tmp/t",
               spec={"force_transform": True})  # 800 Mb.
+        clique = Clique(1, config_patch={"memory_watchdog": {"memory_limit": 2 * 1024**3, "period": 50}})
         with pytest.raises(YtError):
-            with Clique(1, config_patch={"memory_watchdog": {"memory_limit": 2 * 1024**3, "period": 50}}) as clique:
-                clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
+            clique.__enter__()
+            clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
+        clique.op.track(False, False)
         assert "OOM" in str(clique.op.get_error())
+        with pytest.raises(YtError):
+            clique.__exit__(None, None, None)
 
     @authors("max42")
     @pytest.mark.skipif(True, reason="temporarily broken")
