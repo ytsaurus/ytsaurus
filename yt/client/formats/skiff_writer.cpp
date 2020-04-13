@@ -138,7 +138,7 @@ void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiff
     if constexpr (wireType != EWireType::Yson32) {
         constexpr auto expectedValueType = WireTypeToValueType<wireType>();
         if (value.Type != expectedValueType) {
-            THROW_ERROR_EXCEPTION("Unexpected type of %Qv column, expected: %Qlv found %Qlv",
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Unexpected type of %Qv column, expected: %Qlv found %Qlv",
                 context->NameTable->GetName(value.Id),
                 expectedValueType,
                 value.Type);
@@ -663,7 +663,7 @@ private:
                         break;
                     case ESkiffWriterColumnType::Unknown:
                         if (!hasOtherColumns) {
-                            THROW_ERROR_EXCEPTION("Column %Qv is not described by Skiff schema and there is no %Qv column",
+                            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Column %Qv is not described by Skiff schema and there is no %Qv column",
                                 NameTable_->GetName(columnId),
                                 OtherColumnsName)
                                 << GetRowPositionErrorAttributes();
