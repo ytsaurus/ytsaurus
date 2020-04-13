@@ -1095,6 +1095,7 @@ private:
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
             actionRequest.set_mount_revision(tablet->GetMountRevision());
+            actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Partitioning));
 
             TStoreIdList storeIdsToRemove;
             for (const auto& store : stores) {
@@ -1537,6 +1538,7 @@ private:
             ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
             actionRequest.set_mount_revision(tablet->GetMountRevision());
             actionRequest.set_retained_timestamp(retainedTimestamp);
+            actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
 
             TStoreIdList storeIdsToRemove;
             for (const auto& store : stores) {

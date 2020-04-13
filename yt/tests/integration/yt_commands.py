@@ -1916,6 +1916,11 @@ def sync_alter_table_replica_mode(replica_id, mode, driver=None):
 def create_dynamic_table(path, **attributes):
     if "dynamic" not in attributes:
         attributes.update({"dynamic": True})
+
+    is_sorted = "schema" in attributes and any(column.get("sort_order") == "ascending" for column in attributes["schema"])
+    if is_sorted and "enable_dynamic_store_read" not in attributes:
+        attributes.update({"enable_dynamic_store_read": True})
+
     create("table", path, attributes=attributes)
 
 def sync_control_chunk_replicator(enabled):

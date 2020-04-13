@@ -6,6 +6,8 @@
 
 #include <yt/client/chunk_client/config.h>
 
+#include <yt/client/tablet_client/config.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -153,6 +155,8 @@ public:
     EUnavailableChunkStrategy UnavailableChunkStrategy;
     std::optional<TDuration> MaxReadDuration;
 
+    NTabletClient::TRemoteDynamicStoreReaderConfigPtr DynamicStoreReader;
+
     TTableReaderConfig()
     {
         RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
@@ -161,6 +165,8 @@ public:
             .Default(EUnavailableChunkStrategy::Restore);
         RegisterParameter("max_read_duration", MaxReadDuration)
             .Default();
+        RegisterParameter("dynamic_store_reader", DynamicStoreReader)
+            .DefaultNew();
     }
 };
 

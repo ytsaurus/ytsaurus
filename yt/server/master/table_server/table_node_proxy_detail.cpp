@@ -301,6 +301,11 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetExternal(isExternal)
         .SetOpaque(true)
         .SetPresent(isSorted && !isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EnableDynamicStoreRead)
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic || trunkTable->GetEnableDynamicStoreRead().has_value()));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -679,6 +684,37 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
         }
 
+        case EInternedAttributeKey::EnableDynamicStoreRead:
+            if (isExternal) {
+                break;
+            }
+
+            if (isDynamic) {
+                bool value;
+
+                if (auto explicitValue = trunkTable->GetEnableDynamicStoreRead()) {
+                    value = *explicitValue;
+                } else if (trunkTable->GetTabletState() == ETabletState::Unmounted) {
+                    value = Bootstrap_->GetConfigManager()->GetConfig()
+                        ->TabletManager->EnableDynamicStoreReadByDefault;
+                } else {
+                    value = trunkTable->GetMountedWithEnabledDynamicStoreRead();
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(value);
+                return true;
+            } else {
+                auto explicitValue = trunkTable->GetEnableDynamicStoreRead();
+                if (explicitValue) {
+                    BuildYsonFluently(consumer)
+                        .Value(*explicitValue);
+                    return true;
+                }
+
+                break;
+            }
+
         default:
             break;
     }
@@ -775,6 +811,17 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
         case EInternedAttributeKey::ForcedCompactionRevision: {
             auto* lockedTable = LockThisImpl();
             lockedTable->SetForcedCompactionRevision(std::nullopt);
+            return true;
+        }
+
+        case EInternedAttributeKey::EnableDynamicStoreRead: {
+            ValidateNoTransaction();
+            auto* lockedTable = LockThisImpl();
+            if (lockedTable->IsDynamic()) {
+                lockedTable->ValidateAllTabletsUnmounted("Cannot change dynamic stores readability");
+            }
+
+            lockedTable->SetEnableDynamicStoreRead(std::nullopt);
             return true;
         }
 
@@ -917,6 +964,22 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 
             auto* lockedTable = LockThisImpl();
             lockedTable->MutableTabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(value);
+            return true;
+        }
+
+        case EInternedAttributeKey::EnableDynamicStoreRead: {
+            ValidateNoTransaction();
+
+            auto* lockedTable = LockThisImpl();
+            if (lockedTable->IsDynamic()) {
+                lockedTable->ValidateAllTabletsUnmounted("Cannot change dynamic stores readability");
+            }
+
+            if (!lockedTable->IsPhysicallySorted()) {
+                THROW_ERROR_EXCEPTION("Readable dynamic stores for ordered tables are not implemented");
+            }
+
+            lockedTable->SetEnableDynamicStoreRead(ConvertTo<bool>(value));
             return true;
         }
 
