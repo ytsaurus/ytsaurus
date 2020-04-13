@@ -565,4 +565,4 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             })
 
         assert read_table("//tmp/t_out") == versioned_rows
-        wait(lambda: get("//tmp/t_out/@chunk_count") == 2)
+        assert get("//tmp/t_out/@chunk_count") == 2

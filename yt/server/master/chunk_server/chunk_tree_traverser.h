@@ -33,14 +33,6 @@ struct IChunkVisitor
      *      or |true| to skip it.
      */
     virtual bool OnChunkView(TChunkView* chunkView) = 0;
-
-    /*!
-     *  \note Return |false| to terminate traversing.
-     */
-    virtual bool OnDynamicStore(
-        TDynamicStore* dynamicStore,
-        const NChunkClient::TReadLimit& startLimit,
-        const NChunkClient::TReadLimit& endLimit) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkVisitor)
@@ -95,10 +87,11 @@ std::vector<TChunk*> EnumerateChunksInChunkTree(
     const NChunkClient::TReadLimit& lowerBound = NChunkClient::TReadLimit(),
     const NChunkClient::TReadLimit& upperBound = NChunkClient::TReadLimit());
 
-// Enumerates chunks, chunk views and dynamic stores.
-void EnumerateStoresInChunkTree(TChunkList* root, std::vector<TChunkTree*>* stores);
+void EnumerateChunksAndChunkViewsInChunkTree(
+    TChunkList* root,
+    std::vector<TChunkTree*>* chunksOrViews);
 
-std::vector<TChunkTree*> EnumerateStoresInChunkTree(TChunkList* root);
+std::vector<TChunkTree*> EnumerateChunksAndChunkViewsInChunkTree(TChunkList* root);
 
 ////////////////////////////////////////////////////////////////////////////////
 

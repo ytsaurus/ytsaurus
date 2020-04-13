@@ -2506,14 +2506,10 @@ private:
                 Logger);
 
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
-                if (!chunk->IsDynamicStore()) {
-                    SamplesFetcher->AddChunk(chunk);
-                }
+                SamplesFetcher->AddChunk(chunk);
             }
             for (const auto& chunk : CollectPrimaryVersionedChunks()) {
-                if (!chunk->IsDynamicStore()) {
-                    SamplesFetcher->AddChunk(chunk);
-                }
+                SamplesFetcher->AddChunk(chunk);
             }
 
             SamplesFetcher->SetCancelableContext(GetCancelableContext());

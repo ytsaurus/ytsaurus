@@ -70,8 +70,6 @@ private:
         TTabletBalancerConfigPtr TabletBalancerConfig;
         THashMap<NTransactionClient::TTransactionId, TDynamicTableLock> DynamicTableLocks;
         int UnconfirmedDynamicTableLockCount = 0;
-        std::optional<bool> EnableDynamicStoreRead;
-        bool MountedWithEnabledDynamicStoreRead = false;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -110,8 +108,6 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, CurrentMountTransactionId);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, DynamicTableLocks);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, UnconfirmedDynamicTableLockCount);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableDynamicStoreRead);
-    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MountedWithEnabledDynamicStoreRead);
 
     // COMPAT(ifsmirnov)
     DECLARE_BYVAL_RW_PROPERTY(std::optional<bool>, EnableTabletBalancer);

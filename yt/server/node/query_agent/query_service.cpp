@@ -11,9 +11,7 @@
 
 #include <yt/server/node/tablet_node/security_manager.h>
 #include <yt/server/node/tablet_node/slot_manager.h>
-#include <yt/server/node/tablet_node/store.h>
 #include <yt/server/node/tablet_node/tablet.h>
-#include <yt/server/node/tablet_node/tablet_reader.h>
 #include <yt/server/node/tablet_node/tablet_slot.h>
 #include <yt/server/node/tablet_node/tablet_manager.h>
 #include <yt/server/node/tablet_node/lookup.h>
@@ -30,9 +28,8 @@
 
 #include <yt/client/query_client/query_statistics.h>
 
-#include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/unversioned_writer.h>
-#include <yt/client/table_client/versioned_reader.h>
+
 #include <yt/client/table_client/wire_protocol.h>
 
 #include <yt/core/compression/codec.h>
@@ -60,13 +57,7 @@ using namespace NYson;
 
 static const auto& Profiler = QueryAgentProfiler;
 
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(ifsmirnov): YT_12491 - move this to reader config and dynamically choose
-// row count based on desired streaming window data size.
-static constexpr size_t MaxRowsPerRemoteDynamicStoreRead = 1024;
-
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 
 bool IsRetriableError(const TError& error)
 {
@@ -102,23 +93,6 @@ T ExecuteRequestWithRetries(
         << errors;
 }
 
-void ValidateColumnFilterContainsAllKeyColumns(
-    const TColumnFilter& columnFilter,
-    const TTableSchema& schema)
-{
-    if (columnFilter.IsUniversal()) {
-        return;
-    }
-
-    for (int columnIndex = 0; columnIndex < schema.GetKeyColumnCount(); ++columnIndex) {
-        if (!columnFilter.ContainsIndex(columnIndex)) {
-            THROW_ERROR_EXCEPTION("Column filter does not contain key column %Qv with index %v",
-                schema.Columns()[columnIndex].Name(),
-                columnIndex);
-        }
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryService
@@ -145,10 +119,6 @@ public:
             .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfo)
             .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadDynamicStore)
-            .SetCancelable(true)
-            .SetStreamingEnabled(true)
-            .SetResponseCodec(NCompression::ECodec::Lz4));
     }
 
 private:
@@ -450,107 +420,6 @@ private:
             }
         }
         context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, ReadDynamicStore)
-    {
-        auto storeId = FromProto<TDynamicStoreId>(request->store_id());
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
-
-        context->SetRequestInfo("StoreId: %v, TabletId: %v, ReadSessionId: %v, Timestamp: %llx",
-            storeId,
-            tabletId,
-            readSessionId,
-            request->timestamp());
-
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-
-        if (tabletSnapshot->IsPreallocatedDynamicStoreId(storeId)) {
-            HandleInputStreamingRequest(context, BIND([] {
-                return MakeFuture(TSharedRef{});
-            }));
-            return;
-        }
-
-        auto dynamicStore = tabletSnapshot->GetDynamicStoreOrThrow(storeId);
-
-        TColumnFilter columnFilter;
-        if (request->has_column_filter()) {
-            columnFilter = TColumnFilter(FromProto<TColumnFilter::TIndexes>(request->column_filter().indexes()));
-            ValidateColumnFilter(columnFilter, tabletSnapshot->PhysicalSchema.GetColumnCount());
-            ValidateColumnFilterContainsAllKeyColumns(columnFilter, tabletSnapshot->PhysicalSchema);
-        }
-
-        auto bandwidthThrottler = Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::UserDynamicStoreRead);
-
-        bool sorted = tabletSnapshot->PhysicalSchema.IsSorted();
-
-        if (sorted) {
-            auto lowerBound = request->has_lower_bound()
-                ? FromProto<TOwningKey>(request->lower_bound())
-                : MinKey();
-            auto upperBound = request->has_upper_bound()
-                ? FromProto<TOwningKey>(request->upper_bound())
-                : MaxKey();
-            TTimestamp timestamp = request->timestamp();
-
-            // NB: Options and throttler are not used by the reader.
-            auto reader = dynamicStore->AsSorted()->CreateReader(
-                tabletSnapshot,
-                MakeSingletonRowRange(lowerBound, upperBound),
-                timestamp,
-                /*produceAllVersions*/ false,
-                columnFilter,
-                TClientBlockReadOptions(),
-                GetUnlimitedThrottler());
-            WaitFor(reader->Open())
-                .ThrowOnError();
-
-            std::vector<TVersionedRow> rows;
-            rows.reserve(MaxRowsPerRemoteDynamicStoreRead);
-
-            TWireProtocolWriter writer;
-            writer.WriteVersionedRowset(rows);
-
-            YT_LOG_DEBUG("Started serving remote dynamic store read request "
-                "(TabletId: %v, StoreId: %v, Timestamp: %v, ReadSessionId: %v, "
-                "LowerBound: %v, UpperBound: %v, ColumnFilter: %v, RequestId: %v)",
-                tabletId,
-                storeId,
-                timestamp,
-                readSessionId,
-                lowerBound,
-                upperBound,
-                columnFilter,
-                context->GetRequestId());
-
-            return HandleInputStreamingRequest(context, BIND([&] {
-                // NB: Dynamic store reader is non-blocking in the sense of ready event.
-                // However, waiting on blocked row may occur. See YT-12492.
-                reader->Read(&rows);
-                if (rows.empty()) {
-                    return MakeFuture(TSharedRef{});
-                }
-
-                TWireProtocolWriter writer;
-                writer.WriteVersionedRowset(rows);
-                auto data = writer.Finish();
-                auto mergedRef = MergeRefsToRef<int>(data);
-
-                auto throttleResult = WaitFor(bandwidthThrottler->Throttle(mergedRef.size()));
-                if (!throttleResult.IsOK()) {
-                    auto error = TError("Failed to throttle out bandwidth in dynamic store reader")
-                        << throttleResult;
-                    error.ThrowOnError();
-                }
-
-                return MakeFuture(mergedRef);
-            }));
-        } else {
-            THROW_ERROR_EXCEPTION("Remote reader for ordered dynamic stores is not implemented");
-        }
     }
 };
 

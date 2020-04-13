@@ -51,7 +51,6 @@ DEFINE_ENUM(EErrorCode,
     ((QueryExpressionDepthLimitExceeded)(1711))
     ((RowIsBlocked)                     (1712))
     ((BlockedRowWaitTimeout)            (1713))
-    ((NoSuchDynamicStore)               (1714))
 );
 
 DEFINE_ENUM(EInMemoryMode,
@@ -77,8 +76,6 @@ extern const TTabletCellBundleId NullTabletCellBundleId;
 
 using TTableReplicaId = NObjectClient::TObjectId;
 using TTabletActionId = NObjectClient::TObjectId;
-
-using TDynamicStoreId = NObjectClient::TObjectId;
 
 DEFINE_BIT_ENUM(EReplicationLogDataFlags,
     ((None)      (0x0000))
@@ -148,7 +145,6 @@ DEFINE_ENUM(ETabletActionState,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TTableMountCacheConfig)
-DECLARE_REFCOUNTED_CLASS(TRemoteDynamicStoreReaderConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TTableMountInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletInfo)
@@ -158,3 +154,4 @@ DECLARE_REFCOUNTED_STRUCT(ITableMountCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletClient
+

@@ -70,17 +70,9 @@ bool TChunkIdsAttributeVisitor::OnChunk(
     return true;
 }
 
-bool TChunkIdsAttributeVisitor::OnChunkView(TChunkView* /*chunkView*/)
+bool TChunkIdsAttributeVisitor::OnChunkView(TChunkView* /* chunkView */)
 {
     return false;
-}
-
-bool TChunkIdsAttributeVisitor::OnDynamicStore(
-    TDynamicStore* /*dynamicStore*/,
-    const NChunkClient::TReadLimit& /*startLimit*/,
-    const NChunkClient::TReadLimit& /*endLimit*/)
-{
-    return true;
 }
 
 void TChunkIdsAttributeVisitor::OnSuccess()

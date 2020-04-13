@@ -56,7 +56,6 @@ using namespace NObjectClient;
 using namespace NScheduler::NProto;
 using namespace NYTree;
 using namespace NYson;
-using namespace NTabletClient;
 
 using NChunkClient::NProto::TChunkSpec;
 
@@ -315,15 +314,13 @@ void ValidateDynamicTableTimestamp(
     if (requested != AsyncLastCommittedTimestamp) {
         auto retained = attributes.Get<TTimestamp>("retained_timestamp");
         auto unflushed = attributes.Get<TTimestamp>("unflushed_timestamp");
-        auto enableDynamicStoreRead = attributes.Get<bool>("enable_dynamic_store_read", false);
-        if (requested < retained || (!enableDynamicStoreRead && requested >= unflushed)) {
+        if (requested < retained || requested >= unflushed) {
             THROW_ERROR_EXCEPTION(EErrorCode::TimestampOutOfRange,
                 "Requested timestamp is out of range for table %v",
                 path.GetPath())
                 << TErrorAttribute("requested_timestamp", requested)
                 << TErrorAttribute("retained_timestamp", retained)
-                << TErrorAttribute("unflushed_timestamp", unflushed)
-                << TErrorAttribute("enable_dynamic_store_read", enableDynamicStoreRead);
+                << TErrorAttribute("unflushed_timestamp", unflushed);
         }
     }
 

@@ -48,7 +48,6 @@ public:
     virtual bool IsFlushNeeded() const override;
     virtual void InitializeRotation() override;
     virtual void ScheduleRotation() override;
-    virtual void UnscheduleRotation() override;
     virtual void Rotate(bool createNewStore) override;
 
     virtual void AddStore(IStorePtr store, bool onMount) override;
@@ -84,8 +83,7 @@ public:
     virtual void BackoffStoreCompaction(IChunkStorePtr store) override;
 
     virtual void Mount(
-        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors,
-        bool createDynamicStore) override;
+        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
     virtual void Remount(
         TTableMountConfigPtr mountConfig,
         TTabletChunkReaderConfigPtr readerConfig,

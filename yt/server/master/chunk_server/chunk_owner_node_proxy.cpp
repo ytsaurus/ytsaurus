@@ -1,5 +1,4 @@
 #include "chunk.h"
-#include "dynamic_store.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
 #include "chunk_owner_node_proxy.h"
@@ -21,8 +20,6 @@
 #include <yt/server/master/object_server/object.h>
 
 #include <yt/server/master/table_server/shared_table_schema.h>
-
-#include <yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/security_tags.h>
@@ -72,8 +69,6 @@ using namespace NSecurityServer;
 using namespace NYson;
 using namespace NYTree;
 using namespace NTableClient;
-using namespace NTabletServer;
-using namespace NCellMaster;
 
 using NChunkClient::NProto::TReqFetch;
 using NChunkClient::NProto::TRspFetch;
@@ -126,180 +121,6 @@ void CanonizeCellTags(TCellTagList* cellTags)
 }
 
 } // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-void BuildChunkSpec(
-    TChunk* chunk,
-    i64 rowIndex,
-    std::optional<i32> tabletIndex,
-    const TReadLimit& lowerLimit,
-    const TReadLimit& upperLimit,
-    TTransactionId timestampTransactionId,
-    bool fetchParityReplicas,
-    bool fetchAllMetaExtensions,
-    const THashSet<int>& extensionTags,
-    NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
-    TBootstrap* bootstrap,
-    NChunkClient::NProto::TChunkSpec* chunkSpec)
-{
-    const auto& configManager = bootstrap->GetConfigManager();
-    const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
-
-    chunkSpec->set_table_row_index(rowIndex);
-    if (tabletIndex.has_value()) {
-        chunkSpec->set_tablet_index(*tabletIndex);
-    }
-
-    SmallVector<TNodePtrWithIndexes, TypicalReplicaCount> replicas;
-
-    auto addJournalReplica = [&] (TNodePtrWithIndexes replica) {
-        // For journal chunks, replica indexes are used to track states.
-        // Hence we must replace index with #GenericChunkReplicaIndex.
-        replicas.push_back(TNodePtrWithIndexes(replica.GetPtr(), GenericChunkReplicaIndex, replica.GetMediumIndex()));
-        return true;
-    };
-
-    auto erasureCodecId = chunk->GetErasureCodec();
-    int firstInfeasibleReplicaIndex = (erasureCodecId == NErasure::ECodec::None || fetchParityReplicas)
-        ? std::numeric_limits<int>::max() // all replicas are feasible
-        : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
-
-    auto addErasureReplica = [&] (TNodePtrWithIndexes replica) {
-        if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
-            return false;
-        }
-        replicas.push_back(replica);
-        return true;
-    };
-
-    auto addRegularReplica = [&] (TNodePtrWithIndexes replica) {
-        replicas.push_back(replica);
-        return true;
-    };
-
-    std::function<bool(TNodePtrWithIndexes)> addReplica;
-    switch (chunk->GetType()) {
-        case EObjectType::Chunk:          addReplica = addRegularReplica; break;
-        case EObjectType::ErasureChunk:   addReplica = addErasureReplica; break;
-        case EObjectType::JournalChunk:   addReplica = addJournalReplica; break;
-        default:                          YT_ABORT();
-    }
-
-    for (auto replica : chunk->StoredReplicas()) {
-        addReplica(replica);
-    }
-
-    int cachedReplicaCount = 0;
-    for (auto replica : chunk->CachedReplicas()) {
-        if (cachedReplicaCount >= dynamicConfig->MaxCachedReplicasPerFetch) {
-            break;
-        }
-        if (addReplica(replica)) {
-            ++cachedReplicaCount;
-        }
-    }
-
-    for (auto replica : replicas) {
-        nodeDirectoryBuilder->Add(replica);
-        chunkSpec->add_replicas(NYT::ToProto<ui64>(replica));
-    }
-
-    ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
-    chunkSpec->set_erasure_codec(ToProto<int>(erasureCodecId));
-
-    chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
-    chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());
-
-    if (fetchAllMetaExtensions) {
-        *chunkSpec->mutable_chunk_meta()->mutable_extensions() = chunk->ChunkMeta().extensions();
-    } else {
-        FilterProtoExtensions(
-            chunkSpec->mutable_chunk_meta()->mutable_extensions(),
-            chunk->ChunkMeta().extensions(),
-            extensionTags);
-    }
-
-    // Try to keep responses small -- avoid producing redundant limits.
-    if (!IsTrivial(lowerLimit)) {
-        ToProto(chunkSpec->mutable_lower_limit(), lowerLimit);
-    }
-    if (!IsTrivial(upperLimit)) {
-        ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
-    }
-
-    i64 lowerRowLimit = 0;
-    if (lowerLimit.HasRowIndex()) {
-        lowerRowLimit = lowerLimit.GetRowIndex();
-    }
-    i64 upperRowLimit = chunk->MiscExt().row_count();
-    if (upperLimit.HasRowIndex()) {
-        upperRowLimit = upperLimit.GetRowIndex();
-    }
-
-    // If one of row indexes is present, then fields row_count_override and
-    // uncompressed_data_size_override estimate the chunk range
-    // instead of the whole chunk.
-    // To ensure the correct usage of this rule, row indexes should be
-    // either both set or not.
-    if (lowerLimit.HasRowIndex() && !upperLimit.HasRowIndex()) {
-        chunkSpec->mutable_upper_limit()->set_row_index(upperRowLimit);
-    }
-
-    if (upperLimit.HasRowIndex() && !lowerLimit.HasRowIndex()) {
-        chunkSpec->mutable_lower_limit()->set_row_index(lowerRowLimit);
-    }
-
-    chunkSpec->set_row_count_override(upperRowLimit - lowerRowLimit);
-    i64 dataWeight = chunk->MiscExt().data_weight() > 0
-        ? chunk->MiscExt().data_weight()
-        : chunk->MiscExt().uncompressed_data_size();
-
-    if (chunkSpec->row_count_override() >= chunk->MiscExt().row_count()) {
-        chunkSpec->set_data_weight_override(dataWeight);
-    } else {
-        chunkSpec->set_data_weight_override(
-            DivCeil(dataWeight, chunk->MiscExt().row_count()) * chunkSpec->row_count_override());
-    }
-
-    if (timestampTransactionId) {
-        const auto& transactionManager = bootstrap->GetTransactionManager();
-        chunkSpec->set_override_timestamp(
-            transactionManager->GetTimestampHolderTimestamp(timestampTransactionId));
-    }
-}
-
-void BuildDynamicStoreSpec(
-    const TDynamicStore* dynamicStore,
-    const TReadLimit& lowerLimit,
-    const TReadLimit& upperLimit,
-    NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
-    TBootstrap* bootstrap,
-    NChunkClient::NProto::TChunkSpec* chunkSpec)
-{
-    const auto& tabletManager = bootstrap->GetTabletManager();
-    auto* tablet = dynamicStore->GetTablet();
-
-    ToProto(chunkSpec->mutable_chunk_id(), dynamicStore->GetId());
-    ToProto(chunkSpec->mutable_tablet_id(), tablet->GetId());
-
-    // Something non-zero.
-    chunkSpec->set_row_count_override(1);
-    chunkSpec->set_data_weight_override(1);
-
-    if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
-        auto replica = TNodePtrWithIndexes(node, 0, 0);
-        nodeDirectoryBuilder->Add(replica);
-        chunkSpec->add_replicas(NYT::ToProto<ui64>(replica));
-    }
-
-    if (!IsTrivial(lowerLimit)) {
-        ToProto(chunkSpec->mutable_lower_limit(), lowerLimit);
-    }
-    if (!IsTrivial(upperLimit)) {
-        ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -447,55 +268,136 @@ private:
 
         auto* chunkSpec = RpcContext_->Response().add_chunks();
 
-        BuildChunkSpec(
-            chunk,
-            rowIndex,
-            tabletIndex,
-            lowerLimit,
-            upperLimit,
-            timestampTransactionId,
-            RpcContext_->Request().fetch_all_meta_extensions(),
-            FetchContext_.FetchParityReplicas,
-            ExtensionTags_,
-            &NodeDirectoryBuilder_,
-            Bootstrap_,
-            chunkSpec);
+        chunkSpec->set_table_row_index(rowIndex);
+        if (tabletIndex.has_value()) {
+            chunkSpec->set_tablet_index(*tabletIndex);
+        }
+
+        SmallVector<TNodePtrWithIndexes, TypicalReplicaCount> replicas;
+
+        auto addJournalReplica = [&] (TNodePtrWithIndexes replica) {
+            // For journal chunks, replica indexes are used to track states.
+            // Hence we must replace index with #GenericChunkReplicaIndex.
+            replicas.push_back(TNodePtrWithIndexes(replica.GetPtr(), GenericChunkReplicaIndex, replica.GetMediumIndex()));
+            return true;
+        };
+
+        auto erasureCodecId = chunk->GetErasureCodec();
+        int firstInfeasibleReplicaIndex = (erasureCodecId == NErasure::ECodec::None || FetchContext_.FetchParityReplicas)
+            ? std::numeric_limits<int>::max() // all replicas are feasible
+            : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
+
+        auto addErasureReplica = [&] (TNodePtrWithIndexes replica) {
+            if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
+                return false;
+            }
+            replicas.push_back(replica);
+            return true;
+        };
+
+        auto addRegularReplica = [&] (TNodePtrWithIndexes replica) {
+            replicas.push_back(replica);
+            return true;
+        };
+
+        std::function<bool(TNodePtrWithIndexes)> addReplica;
+        switch (chunk->GetType()) {
+            case EObjectType::Chunk:          addReplica = addRegularReplica; break;
+            case EObjectType::ErasureChunk:   addReplica = addErasureReplica; break;
+            case EObjectType::JournalChunk:   addReplica = addJournalReplica; break;
+            default:                          YT_ABORT();
+        }
+
+        for (auto replica : chunk->StoredReplicas()) {
+            addReplica(replica);
+        }
+
+        int cachedReplicaCount = 0;
+        for (auto replica : chunk->CachedReplicas()) {
+            if (cachedReplicaCount >= dynamicConfig->MaxCachedReplicasPerFetch) {
+                break;
+            }
+            if (addReplica(replica)) {
+                ++cachedReplicaCount;
+            }
+        }
+
+        for (auto replica : replicas) {
+            NodeDirectoryBuilder_.Add(replica);
+            chunkSpec->add_replicas(NYT::ToProto<ui64>(replica));
+        }
+
+        ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
+        chunkSpec->set_erasure_codec(static_cast<int>(erasureCodecId));
+
+        chunkSpec->mutable_chunk_meta()->set_type(chunk->ChunkMeta().type());
+        chunkSpec->mutable_chunk_meta()->set_version(chunk->ChunkMeta().version());
+
+        if (RpcContext_->Request().fetch_all_meta_extensions()) {
+            *chunkSpec->mutable_chunk_meta()->mutable_extensions() = chunk->ChunkMeta().extensions();
+        } else {
+            FilterProtoExtensions(
+                chunkSpec->mutable_chunk_meta()->mutable_extensions(),
+                chunk->ChunkMeta().extensions(),
+                ExtensionTags_);
+        }
+
+        // Try to keep responses small -- avoid producing redundant limits.
+        if (!IsTrivial(lowerLimit)) {
+            ToProto(chunkSpec->mutable_lower_limit(), lowerLimit);
+        }
+        if (!IsTrivial(upperLimit)) {
+            ToProto(chunkSpec->mutable_upper_limit(), upperLimit);
+        }
+
         chunkSpec->set_range_index(CurrentRangeIndex_);
+
+        i64 lowerRowLimit = 0;
+        if (lowerLimit.HasRowIndex()) {
+            lowerRowLimit = lowerLimit.GetRowIndex();
+        }
+        i64 upperRowLimit = chunk->MiscExt().row_count();
+        if (upperLimit.HasRowIndex()) {
+            upperRowLimit = upperLimit.GetRowIndex();
+        }
+
+        // If one of row indexes is present, then fields row_count_override and
+        // uncompressed_data_size_override estimate the chunk range
+        // instead of the whole chunk.
+        // To ensure the correct usage of this rule, row indexes should be
+        // either both set or not.
+        if (lowerLimit.HasRowIndex() && !upperLimit.HasRowIndex()) {
+            chunkSpec->mutable_upper_limit()->set_row_index(upperRowLimit);
+        }
+
+        if (upperLimit.HasRowIndex() && !lowerLimit.HasRowIndex()) {
+            chunkSpec->mutable_lower_limit()->set_row_index(lowerRowLimit);
+        }
+
+        chunkSpec->set_row_count_override(upperRowLimit - lowerRowLimit);
+        i64 dataWeight = chunk->MiscExt().data_weight() > 0
+            ? chunk->MiscExt().data_weight()
+            : chunk->MiscExt().uncompressed_data_size();
+
+        if (chunkSpec->row_count_override() >= chunk->MiscExt().row_count()) {
+            chunkSpec->set_data_weight_override(dataWeight);
+        } else {
+            chunkSpec->set_data_weight_override(
+                DivCeil(dataWeight, chunk->MiscExt().row_count()) * chunkSpec->row_count_override());
+        }
+
+        if (timestampTransactionId) {
+            const auto& transactionManager = Bootstrap_->GetTransactionManager();
+            chunkSpec->set_override_timestamp(
+                transactionManager->GetTimestampHolderTimestamp(timestampTransactionId));
+        }
+
         return true;
     }
 
     virtual bool OnChunkView(TChunkView* /*chunkView*/) override
     {
         return false;
-    }
-
-    virtual bool OnDynamicStore(
-        TDynamicStore* dynamicStore,
-        const TReadLimit& lowerLimit,
-        const TReadLimit& upperLimit) override
-    {
-        if (dynamicStore->IsFlushed()) {
-            if (auto* chunk = dynamicStore->GetFlushedChunk()) {
-                return OnChunk(
-                    chunk,
-                    /*rowIndex*/ -1,
-                    /*tabletIndex*/ std::nullopt,
-                    lowerLimit,
-                    upperLimit,
-                    /*timestampTransactionId*/ {});
-            }
-        } else {
-            auto* chunkSpec = RpcContext_->Response().add_chunks();
-            BuildDynamicStoreSpec(
-                dynamicStore,
-                lowerLimit,
-                upperLimit,
-                &NodeDirectoryBuilder_,
-                Bootstrap_,
-                chunkSpec);
-            chunkSpec->set_range_index(CurrentRangeIndex_);
-        }
-        return true;
     }
 
     virtual void OnFinish(const TError& error) override

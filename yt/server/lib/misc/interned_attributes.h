@@ -99,7 +99,6 @@
     XX(EnableOperationsProfiling, enable_operations_profiling) \
     XX(EnablePoolStarvation, enable_pool_starvation) \
     XX(EnableTabletBalancer, enable_tablet_balancer) \
-    XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
     XX(EnableSchedulingTags, enable_scheduling_tags) \
     XX(EntranceCellTag, entrance_cell_tag) \
@@ -326,7 +325,6 @@
     XX(TabletErrorCount, tablet_error_count) \
     XX(TabletErrors, tablet_errors) \
     XX(TabletErrorsUntrimmed, tablet_errors_untrimmed) \
-    XX(TabletId, tablet_id) \
     XX(TabletIds, tablet_ids) \
     XX(TabletSlots, tablet_slots) \
     XX(TabletState, tablet_state) \

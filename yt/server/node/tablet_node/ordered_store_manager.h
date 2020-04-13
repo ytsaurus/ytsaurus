@@ -28,8 +28,7 @@ public:
 
     // IStoreManager overrides.
     virtual void Mount(
-        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors,
-        bool createDynamicStore) override;
+        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
 
     virtual bool ExecuteWrites(
         NTableClient::TWireProtocolReader* reader,

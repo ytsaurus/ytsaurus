@@ -140,8 +140,6 @@ public:
 
     bool EnableDataNodeLookup;
 
-    bool EnableDynamicStoreRead;
-
     TTableMountConfig()
     {
         RegisterParameter("tablet_cell_bundle", TabletCellBundle)
@@ -318,9 +316,6 @@ public:
             .Default(false);
 
         RegisterParameter("enable_data_node_lookup", EnableDataNodeLookup)
-            .Default(false);
-
-        RegisterParameter("enable_dynamic_store_read", EnableDynamicStoreRead)
             .Default(false);
 
         RegisterPostprocessor([&] () {
@@ -714,9 +709,6 @@ public:
     //! Controls outcoming bandwidth used by table replication.
     NConcurrency::TThroughputThrottlerConfigPtr ReplicationOutThrottler;
 
-    //! Controls outcoming bandwidth used by dynamic store remote reads.
-    NConcurrency::TThroughputThrottlerConfigPtr DynamicStoreReadOutThrottler;
-
     //! Interval between slots examination.
     TDuration SlotScanPeriod;
 
@@ -780,9 +772,6 @@ public:
             .DefaultNew();
         RegisterParameter("replication_out_throttler", ReplicationOutThrottler)
             .DefaultNew();
-
-        RegisterParameter("dynamic_store_read_out_throttler", DynamicStoreReadOutThrottler)
-            .Default(New<NConcurrency::TThroughputThrottlerConfig>(100_MB));
 
         RegisterParameter("slot_scan_period", SlotScanPeriod)
             .Default(TDuration::Seconds(1));

@@ -1,7 +1,6 @@
 #include "chunk_list_proxy.h"
 #include "private.h"
 #include "chunk_view.h"
-#include "dynamic_store.h"
 #include "chunk_list.h"
 #include "chunk_manager.h"
 #include "helpers.h"
@@ -9,8 +8,6 @@
 #include <yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
-
-#include <yt/server/master/tablet_server/tablet.h>
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
@@ -92,23 +89,6 @@ private:
                             TraverseTree(chunkView->GetUnderlyingChunk(), fluent.GetConsumer());
                         })
                     .EndList();
-                break;
-            }
-
-            case EObjectType::SortedDynamicTabletStore:
-            case EObjectType::OrderedDynamicTabletStore: {
-                const auto* dynamicStore = chunkTree->AsDynamicStore();
-                BuildYsonFluently(consumer)
-                    .BeginAttributes()
-                        .Item("type").Value("dynamic_store")
-                        .Item("flushed").Value(dynamicStore->IsFlushed())
-                        .Item("tablet_id").Value(GetObjectId(dynamicStore->GetTablet()))
-                        .DoIf(dynamicStore->IsFlushed(), [&] (TFluentMap fluent) {
-                            fluent
-                                .Item("chunk_id").Value(GetObjectId(dynamicStore->GetFlushedChunk()));
-                        })
-                    .EndAttributes()
-                    .Value(dynamicStore->GetId());
                 break;
             }
 

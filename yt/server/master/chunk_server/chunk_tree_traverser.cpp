@@ -1,7 +1,6 @@
 #include "chunk_tree_traverser.h"
 #include "chunk.h"
 #include "chunk_view.h"
-#include "dynamic_store.h"
 #include "chunk_list.h"
 #include "helpers.h"
 
@@ -593,16 +592,6 @@ protected:
                 break;
             }
 
-            case EObjectType::SortedDynamicTabletStore:
-            case EObjectType::OrderedDynamicTabletStore: {
-                auto* dynamicStore = child->AsDynamicStore();
-                if (!Visitor_->OnDynamicStore(dynamicStore, subtreeStartLimit, subtreeEndLimit)) {
-                    Shutdown();
-                    return;
-                }
-                break;
-            }
-
             case EObjectType::ChunkList: {
                 auto* childChunkList = child->AsChunkList();
                 YT_VERIFY(childChunkList->GetKind() == EChunkListKind::SortedDynamicSubtablet);
@@ -1144,14 +1133,6 @@ public:
         return false;
     }
 
-    virtual bool OnDynamicStore(
-        TDynamicStore* /*dynamicStore*/,
-        const NChunkClient::TReadLimit& /*startLimit*/,
-        const NChunkClient::TReadLimit& /*endLimit*/) override
-    {
-        return true;
-    }
-
     virtual bool OnChunk(
         TChunk* chunk,
         i64 /*rowIndex*/,
@@ -1204,7 +1185,7 @@ std::vector<TChunk*> EnumerateChunksInChunkTree(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void EnumerateStoresInChunkTree(
+void EnumerateChunksAndChunkViewsInChunkTree(
     TChunkList* root,
     std::vector<TChunkTree*>* chunks)
 {
@@ -1212,22 +1193,13 @@ void EnumerateStoresInChunkTree(
         : public IChunkVisitor
     {
     public:
-        explicit TVisitor(std::vector<TChunkTree*>* stores)
-            : Stores_(stores)
+        explicit TVisitor(std::vector<TChunkTree*>* chunksOrViews)
+            : ChunksOrViews_(chunksOrViews)
         { }
 
         virtual bool OnChunkView(TChunkView* chunkView) override
         {
-            Stores_->push_back(chunkView);
-            return true;
-        }
-
-        virtual bool OnDynamicStore(
-            TDynamicStore* dynamicStore,
-            const NChunkClient::TReadLimit& /*startLimit*/,
-            const NChunkClient::TReadLimit& /*endLimit*/) override
-        {
-            Stores_->push_back(dynamicStore);
+            ChunksOrViews_->push_back(chunkView);
             return true;
         }
 
@@ -1239,7 +1211,7 @@ void EnumerateStoresInChunkTree(
             const NChunkClient::TReadLimit& /*endLimit*/,
             TTransactionId /*timestampTransactionId*/) override
         {
-            Stores_->push_back(chunk);
+            ChunksOrViews_->push_back(chunk);
             return true;
         }
 
@@ -1249,7 +1221,7 @@ void EnumerateStoresInChunkTree(
         }
 
     private:
-        std::vector<TChunkTree*>* const Stores_;
+        std::vector<TChunkTree*>* const ChunksOrViews_;
     };
 
     auto visitor = New<TVisitor>(chunks);
@@ -1259,13 +1231,15 @@ void EnumerateStoresInChunkTree(
         root);
 }
 
-std::vector<TChunkTree*> EnumerateStoresInChunkTree(
+std::vector<TChunkTree*> EnumerateChunksAndChunkViewsInChunkTree(
     TChunkList* root)
 {
-    std::vector<TChunkTree*> stores;
-    stores.reserve(root->Statistics().ChunkCount);
-    EnumerateStoresInChunkTree(root, &stores);
-    return stores;
+    std::vector<TChunkTree*> chunksOrViews;
+    chunksOrViews.reserve(root->Statistics().ChunkCount);
+    EnumerateChunksAndChunkViewsInChunkTree(
+        root,
+        &chunksOrViews);
+    return chunksOrViews;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
