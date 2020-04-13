@@ -103,7 +103,7 @@ def _configure_client_mode(spark_conf,
     spark_conf.set("spark.eventLog.dir", event_log_dir)
     spark_conf.set("spark.hadoop.yt.proxy", yt_proxy)
     spark_conf.set("spark.hadoop.yt.user", yt_user)
-    spark_conf.set("spark.hadoop.yt.token", get_token(client=client))
+    os.environ["SPARK_YT_TOKEN"] = get_token(client=client)
 
 
 def _validate_resources(num_executors, cores_per_executor, executor_memory_per_core):
