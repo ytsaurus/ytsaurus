@@ -8608,7 +8608,10 @@ void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason a
 void TOperationControllerBase::OnSpeculativeJobScheduled(const TJobletPtr& joblet)
 {
     MarkJobHasCompetitors(joblet);
-    MarkJobHasCompetitors(GetJoblet(joblet->JobCompetitionId));
+    // Original job could be finished and another speculative still running.
+    if (auto originalJob = FindJoblet(joblet->JobCompetitionId)) {
+        MarkJobHasCompetitors(originalJob);
+    }
 }
 
 void TOperationControllerBase::MarkJobHasCompetitors(const TJobletPtr& joblet)
@@ -8625,17 +8628,23 @@ void TOperationControllerBase::MarkJobHasCompetitors(const TJobletPtr& joblet)
 
 void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId)
 {
-    if (Spec_->TestingOperationOptions->RegisterSpeculativeJobOnJobScheduledOnce) {
-        const auto& joblet = JobletMap[jobId];
-        if (joblet->JobIndex == 0) {
-            task->TryRegisterSpeculativeJob(joblet);
-        }
+    const auto& joblet = GetOrCrash(JobletMap, jobId);
+    bool needLaunchSpeculativeJob;
+    switch (Spec_->TestingOperationOptions->TestingSpeculativeLaunchMode) {
+        case ETestingSpeculativeLaunchMode::None:
+            needLaunchSpeculativeJob = false;
+            break;
+        case ETestingSpeculativeLaunchMode::Once:
+            needLaunchSpeculativeJob = joblet->JobIndex == 0;
+            break;
+        case ETestingSpeculativeLaunchMode::Always:
+            needLaunchSpeculativeJob = !joblet->Speculative;
+            break;
+        default:
+            YT_ABORT();
     }
-    if (Spec_->TestingOperationOptions->RegisterSpeculativeJobOnJobScheduled) {
-        const auto& joblet = JobletMap[jobId];
-        if (!joblet->Speculative) {
-            task->TryRegisterSpeculativeJob(joblet);
-        }
+    if (needLaunchSpeculativeJob) {
+        task->TryRegisterSpeculativeJob(joblet);
     }
 }
 

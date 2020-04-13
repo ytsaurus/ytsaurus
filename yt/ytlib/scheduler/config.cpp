@@ -180,10 +180,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("fail_get_job_spec", FailGetJobSpec)
         .Default(false);
-    RegisterParameter("register_speculative_job_on_job_scheduled", RegisterSpeculativeJobOnJobScheduled)
-        .Default(false);
-    RegisterParameter("register_speculative_job_on_job_scheduled_once", RegisterSpeculativeJobOnJobScheduledOnce)
-        .Default(false);
+    RegisterParameter("testing_speculative_launch_mode", TestingSpeculativeLaunchMode)
+        .Default(ETestingSpeculativeLaunchMode::None);
     RegisterParameter("allocation_size", AllocationSize)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(1_GB)

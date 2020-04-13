@@ -428,6 +428,12 @@ DEFINE_ENUM(EControllerFailureType,
     (ExceptionThrownInOnJobCompleted)
 )
 
+DEFINE_ENUM(ETestingSpeculativeLaunchMode,
+    (None)
+    (Once)
+    (Always)
+)
+
 class TTestingOperationOptions
     : public NYTree::TYsonSerializable
 {
@@ -468,8 +474,7 @@ public:
 
     bool FailGetJobSpec;
 
-    bool RegisterSpeculativeJobOnJobScheduled;
-    bool RegisterSpeculativeJobOnJobScheduledOnce;
+    ETestingSpeculativeLaunchMode TestingSpeculativeLaunchMode;
 
     bool LogResidualCustomJobMetricsOnTermination;
 
