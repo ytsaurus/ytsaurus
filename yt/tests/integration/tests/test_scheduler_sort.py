@@ -1028,6 +1028,40 @@ class TestSchedulerSortCommands(YTEnvSetup):
                  sort_by="key",
                  spec={"pivot_keys": [["73"], ["37"]]})
 
+    @authors("gritukan")
+    def test_non_existent_sort_by_column(self):
+        create("table", "//tmp/in", attributes={
+            "schema": [{"name": "x", "type": "int64"}]
+        })
+        create("table", "//tmp/out")
+        write_table("//tmp/in", [{"x": 1}])
+
+        with pytest.raises(YtError):
+            sort(in_="//tmp/in", out="//tmp/out", sort_by="foo")
+
+    @authors("gritukan")
+    def test_non_strict_schema(self):
+        create("table", "//tmp/in")
+        create("table", "//tmp/out1")
+        create("table", "//tmp/out2")
+        write_table("<schema=<strict=false>[{name=value;type=string}]>//tmp/in", [{"key": 2, "value": "a"}, {"key": 1, "value": "b"}])
+
+        sort(in_="//tmp/in", out="//tmp/out1", sort_by="key")
+        assert read_table("//tmp/out1") == [{"key": 1, "value": "b"}, {"key": 2, "value": "a"}]
+        schema = make_schema([
+            {"name": "key", "type": "any", "required": False, "sort_order": "ascending"},
+            {"name": "value", "type": "string", "required": False},
+        ], unique_keys=False, strict=False)
+        assert normalize_schema(get("//tmp/out1/@schema")) == schema
+
+        sort(in_="//tmp/in", out="//tmp/out2", sort_by="foo")
+        assert sorted(read_table("//tmp/out1")) == [{"key": 1, "value": "b"}, {"key": 2, "value": "a"}]
+        schema = make_schema([
+            {"name": "foo", "type": "any", "required": False, "sort_order": "ascending"},
+            {"name": "value", "type": "string", "required": False},
+        ], unique_keys=False, strict=False)
+        assert normalize_schema(get("//tmp/out2/@schema")) == schema
+
 ##################################################################
 
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
