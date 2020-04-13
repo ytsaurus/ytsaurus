@@ -8,6 +8,7 @@
 
 namespace NYT {
 
+/// Type of the cypress node.
 enum ENodeType : int
 {
     NT_STRING               /* "string_node" */,
@@ -26,97 +27,143 @@ enum ENodeType : int
     NT_SCHEDULER_POOL       /* "scheduler_pool" */,
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#create
+///
+/// @brief Options for @ref NYT::ICypressClient::Create
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#create
 struct TCreateOptions
 {
     using TSelf = TCreateOptions;
 
-    // Create missing parent directories if required.
+    /// Create missing parent directories if required.
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
 
-    // Do not raise error if node exists already.
-    // Node is not recreated.
-    // Force and IgnoreExisting MUST NOT be used simultaneously.
+    ///
+    /// @brief Do not raise error if node already exists.
+    ///
+    /// Node is not recreated.
+    /// Force and IgnoreExisting MUST NOT be used simultaneously.
     FLUENT_FIELD_DEFAULT(bool, IgnoreExisting, false);
 
-    // Recreate node if it exists.
-    // Force and IgnoreExisting MUST NOT be used simultaneously.
+    ///
+    /// @brief Recreate node if it exists.
+    ///
+    /// Force and IgnoreExisting MUST NOT be used simultaneously.
     FLUENT_FIELD_DEFAULT(bool, Force, false);
 
-    // Set attributes when creating node.
+    /// @brief Set node attributes.
     FLUENT_FIELD_OPTION(TNode, Attributes);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#remove
+///
+/// @brief Options for @ref NYT::ICypressClient::Remove
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#remove
 struct TRemoveOptions
 {
     using TSelf = TRemoveOptions;
 
+    ///
+    /// @brief Remove whole tree when removing composite cypress node (e.g. `map_node`).
+    ///
+    /// Without this option removing nonempty composite node will fail.
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
+
+    /// @brief Do not fail if removing node doesn't exist.
     FLUENT_FIELD_DEFAULT(bool, Force, false);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#get
+///
+/// @brief Options for @ref NYT::ICypressClient::Get
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#get
 struct TGetOptions
 {
     using TSelf = TGetOptions;
 
+    /// Attributes that should be fetched with each node.
     FLUENT_FIELD_OPTION(TAttributeFilter, AttributeFilter);
-    FLUENT_FIELD_OPTION(i64, MaxSize); // TODO: rename to limit
+
+    /// @brief Limit for the number of children node.
+    FLUENT_FIELD_OPTION(i64, MaxSize);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#set
+///
+/// @brief Options for @ref NYT::ICypressClient::Set
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#set
 struct TSetOptions
 {
     using TSelf = TSetOptions;
 
-    // Create all nonexistent intermediate nodes in the path.
+    /// Create missing parent directories if required.
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
 
-    // Allow setting any nodes, not only attribute and document ones.
+    /// Allow setting any nodes, not only attribute and document ones.
     FLUENT_FIELD_OPTION(bool, Force);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#list
+///
+/// @brief Options for @ref NYT::ICypressClient::List
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#list
 struct TListOptions
 {
     using TSelf = TListOptions;
 
+    /// Attributes that should be fetched for each node.
     FLUENT_FIELD_OPTION(TAttributeFilter, AttributeFilter);
-    FLUENT_FIELD_OPTION(i64, MaxSize); // TODO: rename to limit
+
+    /// Limit for the number of children that will be fetched.
+    FLUENT_FIELD_OPTION(i64, MaxSize);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#copy
+///
+/// @brief Options for @ref NYT::ICypressClient::Copy
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#copy
 struct TCopyOptions
 {
     using TSelf = TCopyOptions;
 
+    /// Create missing directories in destination path if required.
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
+
+    /// Allows to use existing node as destination, it will be overwritten.
     FLUENT_FIELD_DEFAULT(bool, Force, false);
+
+    /// Wether to preserves account of source node.
     FLUENT_FIELD_DEFAULT(bool, PreserveAccount, false);
+
+    /// Wether to preserve `expiration_time` attribute of source node.
     FLUENT_FIELD_OPTION(bool, PreserveExpirationTime);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#move
+///
+/// @brief Options for @ref NYT::ICypressClient::Move
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#move
 struct TMoveOptions
 {
     using TSelf = TMoveOptions;
 
-    // Will create missing directories in destination path.
+    /// Create missing directories in destination path if required.
     FLUENT_FIELD_DEFAULT(bool, Recursive, false);
 
-    // Allows to use existing node as destination, it will be overwritten.
+    /// Allows to use existing node as destination, it will be overwritten.
     FLUENT_FIELD_DEFAULT(bool, Force, false);
 
-    // Preserves account of source node.
+    /// Wether to preserves account of source node.
     FLUENT_FIELD_DEFAULT(bool, PreserveAccount, false);
 
-    // Preserve `expiration_time` attribute of existing node.
-    // TODO: Make it FLUENT_FIELD_DEFAULT
+    /// Wether to preserve `expiration_time` attribute of source node.
     FLUENT_FIELD_OPTION(bool, PreserveExpirationTime);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#link
+///
+/// @brief Options for @ref NYT::ICypressClient::Link
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#link
 struct TLinkOptions
 {
     using TSelf = TLinkOptions;
@@ -127,33 +174,34 @@ struct TLinkOptions
     FLUENT_FIELD_OPTION(TNode, Attributes);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#concatenate
+///
+/// @brief Options for @ref NYT::ICypressClient::Concatenate
+///
+/// @see https://yt.yandex-team.ru/docs/api/commands.html#concatenate
 struct TConcatenateOptions
 {
     using TSelf = TConcatenateOptions;
 
-    //
-    // When false current content of result table is discared and replaced by result of concatenation.
-    // When true result of concatenation is appended to current content of result table.
+    /// Wether we should append to destination or rewrite it.
     FLUENT_FIELD_DEFAULT(bool, Append, false);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#readblobtable
+/// https://wiki.yandex-team.ru/yt/userdoc/api/#readblobtable
 struct TBlobTableReaderOptions
 {
     using TSelf = TBlobTableReaderOptions;
 
-    //
-    // Name of the part index column. By default it is part_index.
+    /// Name of the part index column. By default it is part_index.
     FLUENT_FIELD_OPTION(TString, PartIndexColumnName);
 
-    //
-    // Name of the `part index' column. By default it is part_index.
+    /// Name of the `part index' column. By default it is part_index.
     FLUENT_FIELD_OPTION(TString, DataColumnName);
 
-    //
-    // Size of each part. All blob parts except the last part of the blob must be of this size
-    // otherwise blob table reader emits error.
+    ///
+    /// @brief Size of each part.
+    ///
+    /// All blob parts except the last part of the blob must be of this size
+    /// otherwise blob table reader emits error.
     FLUENT_FIELD_DEFAULT(ui64, PartSize, 4 * 1024 * 1024);
 
     /// @brief Offset from which to start reading
@@ -670,13 +718,13 @@ struct TCheckPermissionOptions
     FLUENT_VECTOR_FIELD(TString, Column);
 };
 
-/// this is options for @ref NYT::IClient::GetTabletInfos
+/// Options for @ref NYT::IClient::GetTabletInfos
 struct TGetTabletInfosOptions
 {
     using TSelf = TGetTabletInfosOptions;
 };
 
-/// options for @ref NYT::IClient::SkyShareTable
+/// Options for @ref NYT::IClient::SkyShareTable
 struct TSkyShareTableOptions
 {
     using TSelf = TSkyShareTableOptions;

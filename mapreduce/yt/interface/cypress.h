@@ -36,7 +36,7 @@ public:
     ///
     /// @note The node itself must not exist unless @ref NYT::TCreateOptions::IgnoreExisting or @ref NYT::TCreateOptions::Force are `true`.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#create)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#create)
     virtual TNodeId Create(
         const TYPath& path,
         ENodeType type,
