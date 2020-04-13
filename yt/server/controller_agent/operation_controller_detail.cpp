@@ -5241,7 +5241,8 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 "schema_mode",
                 "schema",
                 "unflushed_timestamp",
-                "content_revision"
+                "content_revision",
+                "enable_dynamic_store_read",
             });
             AddCellTagToSyncWith(req, table->ObjectId);
             SetTransactionId(req, table->ExternalTransactionId);
@@ -5993,6 +5994,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         attributeKeys.push_back("schema");
                         attributeKeys.push_back("retained_timestamp");
                         attributeKeys.push_back("unflushed_timestamp");
+                        attributeKeys.push_back("enable_dynamic_store_read");
                         break;
 
                     default:

@@ -19,6 +19,8 @@
 #include <yt/server/master/table_server/public.h>
 #include <yt/server/master/table_server/table_node.h>
 
+#include <yt/server/master/node_tracker_server/public.h>
+
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/ytlib/table_client/public.h>
@@ -170,13 +172,15 @@ public:
     TTabletCell* GetTabletCellOrThrow(TTabletCellId id);
     void ZombifyTabletCell(TTabletCell* cell);
 
+    NNodeTrackerServer::TNode* FindTabletLeaderNode(const TTablet* tablet) const;
+
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTablet);
     TTablet* GetTabletOrThrow(TTabletId id);
 
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
 
-    // COMPAT(svrus)
+    // COMPAT(savrus)
     NHydra::TEntityMap<TTabletCellBundle>& CompatTabletCellBundleMap();
     NHydra::TEntityMap<TTabletCell>& CompatTabletCellMap();
 

@@ -167,6 +167,11 @@ TFuture<void> TColumnarStatisticsFetcher::Fetch()
 {
     if (StoreChunkStatistics_) {
         ChunkStatistics_.resize(Chunks_.size());
+        for (int chunkIndex = 0; chunkIndex < Chunks_.size(); ++chunkIndex ) {
+            if (Chunks_[chunkIndex ]->IsDynamicStore()) {
+                ChunkStatistics_[chunkIndex] = TColumnarStatistics::MakeEmpty(GetColumnNames(chunkIndex).size());
+            }
+        }
     } else {
         LightweightChunkStatistics_.resize(Chunks_.size());
     }
@@ -176,7 +181,7 @@ TFuture<void> TColumnarStatisticsFetcher::Fetch()
 
 void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TString> columnNames)
 {
-    if (columnNames.empty()) {
+    if (columnNames.empty() || chunk->IsDynamicStore()) {
         // Do not fetch anything. The less rpc requests, the better.
         Chunks_.emplace_back(std::move(chunk));
     } else {

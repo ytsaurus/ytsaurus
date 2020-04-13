@@ -63,6 +63,7 @@ message TReqMountTablet
     optional string path = 19;
     repeated TLockDescriptor locks = 20;
     optional uint64 retained_timestamp = 21;
+    repeated NYT.NProto.TGuid dynamic_store_ids = 22;
 }
 
 message TReqUnmountTablet
@@ -88,6 +89,7 @@ message TReqFreezeTablet
 message TReqUnfreezeTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    repeated NYT.NProto.TGuid dynamic_store_ids = 2;
 }
 
 message TReqReportTabletLocked
@@ -109,6 +111,9 @@ message TReqUnlockTablet
     repeated NTabletNode.NProto.TAddStoreDescriptor stores_to_add = 4;
     optional int32 update_mode = 5 [default = 1]; // EUpdateMode [default = Append]
     optional int64 commit_timestamp = 6;
+
+    // For overwrite mode.
+    repeated NYT.NProto.TGuid dynamic_store_ids = 7;
 }
 
 message TReqSetTabletState
@@ -212,6 +217,13 @@ message TReqReplicateRows
 
 message TReqOnTabletCellDecommissioned
 { }
+
+message TRspAllocateDynamicStore
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid dynamic_store_id = 2;
+    required int64 mount_revision = 3;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

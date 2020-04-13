@@ -104,6 +104,8 @@ message TReqUpdateTabletStores
     repeated NTabletNode.NProto.TAddStoreDescriptor stores_to_add = 2;
     repeated NTabletNode.NProto.TRemoveStoreDescriptor stores_to_remove = 3;
     required uint64 retained_timestamp = 5;
+    optional int32 update_reason = 6 [default = 0]; // ETabletStoresUpdateReason
+    optional bool request_dynamic_store_id = 7 [default = false];
 }
 
 message TReqUpdateTabletTrimmedRowCount
@@ -248,6 +250,12 @@ message TReqAbortPrerequisiteTransaction
 {
     required NYT.NProto.TGuid cell_id = 1;
     required NYT.NProto.TGuid transaction_id = 2;
+}
+
+message TReqAllocateDynamicStore
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int64 mount_revision = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

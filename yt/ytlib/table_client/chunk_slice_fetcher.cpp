@@ -14,6 +14,10 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
+#include <yt/ytlib/tablet_client/helpers.h>
+
+#include <yt/client/object_client/helpers.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
@@ -28,6 +32,8 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NRpc;
+using namespace NObjectClient;
+using namespace NTabletClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -163,7 +169,10 @@ private:
                 const auto& minKey = chunk->BoundaryKeys()->MinKey;
                 const auto& maxKey = chunk->BoundaryKeys()->MaxKey;
 
+                auto type = TypeFromId(chunk->ChunkId());
+
                 if (chunkDataSize < ChunkSliceSize_ ||
+                    IsDynamicTabletStoreType(type) ||
                    (sliceByKeys && CompareRows(minKey, maxKey, keyColumnCount) == 0))
                 {
                     auto slice = CreateInputChunkSlice(chunk);

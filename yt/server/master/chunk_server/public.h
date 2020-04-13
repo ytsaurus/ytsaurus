@@ -13,6 +13,8 @@
 
 #include <yt/ytlib/object_client/public.h>
 
+#include <yt/client/tablet_client/public.h>
+
 #include <yt/library/erasure/public.h>
 
 #include <yt/core/misc/public.h>
@@ -59,10 +61,14 @@ using NObjectClient::NullTransactionId;
 using NNodeTrackerServer::TNode;
 using NNodeTrackerServer::TNodeList;
 
+using TDynamicStoreId = NObjectClient::TObjectId;
+using NTabletClient::TDynamicStoreId;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_ENTITY_TYPE(TChunk, TChunkId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChunkView, TChunkViewId, NObjectClient::TDirectObjectIdHash)
+DECLARE_ENTITY_TYPE(TDynamicStore, TDynamicStoreId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TChunkList, TChunkListId, NObjectClient::TDirectObjectIdHash)
 DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TDirectObjectIdHash)
 

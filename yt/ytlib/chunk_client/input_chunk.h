@@ -12,6 +12,8 @@
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
+#include <yt/client/tablet_client/public.h>
+
 #include <yt/library/erasure/public.h>
 
 #include <yt/core/misc/property.h>
@@ -41,6 +43,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTableClient::ETableChunkFormat, TableChunkFormat);
     DEFINE_BYVAL_RW_PROPERTY(i64, ChunkIndex, -1);
     DEFINE_BYVAL_RW_PROPERTY(i64, TabletIndex, -1);
+    DEFINE_BYREF_RW_PROPERTY(NTabletClient::TTabletId, TabletId)
 
     DEFINE_BYVAL_RW_PROPERTY(i64, TotalUncompressedDataSize, -1);
     DEFINE_BYVAL_RW_PROPERTY(i64, TotalRowCount, -1);
@@ -62,6 +65,8 @@ public:
 
     TChunkReplicaList GetReplicaList() const;
     void SetReplicaList(const TChunkReplicaList& replicas);
+
+    bool IsDynamicStore() const;
 
 private:
     void CheckOffsets();

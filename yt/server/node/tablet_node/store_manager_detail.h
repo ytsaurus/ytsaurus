@@ -33,6 +33,7 @@ public:
     virtual void InitializeRotation() override;
     virtual bool IsRotationScheduled() const override;
     virtual void ScheduleRotation() override;
+    virtual void UnscheduleRotation() override;
 
     virtual void AddStore(IStorePtr store, bool onMount) override;
     virtual void BulkAddStores(TRange<IStorePtr> stores, bool onMount) override;
@@ -63,7 +64,8 @@ public:
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
 
     virtual void Mount(
-        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
+        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors,
+        bool createDynamicStore) override;
     virtual void Remount(
         TTableMountConfigPtr mountConfig,
         TTabletChunkReaderConfigPtr readerConfig,
@@ -109,6 +111,8 @@ protected:
         bool isUnmountWorkflow) = 0;
 
     virtual void CreateActiveStore() = 0;
+
+    TDynamicStoreId GenerateDynamicStoreId();
 
     void CheckForUnlockedStore(IDynamicStore* store);
 

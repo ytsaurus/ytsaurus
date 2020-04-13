@@ -5,6 +5,7 @@
 namespace NYT::NTabletClient {
 
 using namespace NYPath;
+using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,6 +17,18 @@ TYPath GetCypressClustersPath()
 TYPath GetCypressClusterPath(const TString& name)
 {
     return GetCypressClustersPath() + "/" + ToYPathLiteral(name);
+}
+
+bool IsChunkTabletStoreType(NObjectClient::EObjectType type)
+{
+    return type == EObjectType::Chunk ||
+        type == EObjectType::ErasureChunk;
+}
+
+bool IsDynamicTabletStoreType(NObjectClient::EObjectType type)
+{
+    return type == EObjectType::SortedDynamicTabletStore ||
+        type == EObjectType::OrderedDynamicTabletStore;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
