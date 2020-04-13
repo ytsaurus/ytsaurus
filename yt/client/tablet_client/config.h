@@ -27,30 +27,4 @@ DEFINE_REFCOUNTED_TYPE(TTableMountCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRemoteDynamicStoreReaderConfig
-    : public virtual NYTree::TYsonSerializable
-{
-public:
-    TDuration ClientReadTimeout;
-    TDuration ServerReadTimeout;
-    TDuration ClientWriteTimeout;
-    TDuration ServerWriteTimeout;
-
-    TRemoteDynamicStoreReaderConfig()
-    {
-        RegisterParameter("client_read_timeout", ClientReadTimeout)
-            .Default(TDuration::Seconds(20));
-        RegisterParameter("server_read_timeout", ServerReadTimeout)
-            .Default(TDuration::Seconds(20));
-        RegisterParameter("client_write_timeout", ClientWriteTimeout)
-            .Default(TDuration::Seconds(20));
-        RegisterParameter("server_write_timeout", ServerWriteTimeout)
-            .Default(TDuration::Seconds(20));
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TRemoteDynamicStoreReaderConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NTabletClient

@@ -146,8 +146,6 @@ using TTableId = NCypressClient::TNodeId;
 //! certain values need to be dropped. Cf. #TRowBuffer::CaptureAndPermuteRow.
 using TNameTableToSchemaIdMapping = SmallVector<int, TypicalColumnCount>;
 
-using TIdMapping = SmallVector<int, TypicalColumnCount>;
-
 union TUnversionedValueData;
 
 enum class EValueType : ui8;

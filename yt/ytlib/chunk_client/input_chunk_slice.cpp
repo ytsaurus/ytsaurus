@@ -503,9 +503,6 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
 
     // NB(psushin): always setting row_count_override is important for GetJobInputPaths handle to work properly.
     chunkSpec->set_row_count_override(inputSlice->GetRowCount());
-    if (inputSlice->GetInputChunk()->IsDynamicStore()) {
-        ToProto(chunkSpec->mutable_tablet_id(), inputSlice->GetInputChunk()->TabletId());
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

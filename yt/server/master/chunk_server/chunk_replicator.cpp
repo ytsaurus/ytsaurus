@@ -2276,17 +2276,9 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
             return true;
         }
 
-        virtual bool OnChunkView(TChunkView* /*chunkView*/) override
+        virtual bool OnChunkView(TChunkView* /* chunkView */) override
         {
             return false;
-        }
-
-        virtual bool OnDynamicStore(
-            TDynamicStore* /*dynamicStore*/,
-            const NChunkClient::TReadLimit& /*startLimit*/,
-            const NChunkClient::TReadLimit& /*endLimit*/) override
-        {
-            return true;
         }
 
         virtual void OnFinish(const TError& error) override

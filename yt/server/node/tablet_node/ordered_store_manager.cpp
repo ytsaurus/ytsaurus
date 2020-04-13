@@ -80,11 +80,9 @@ TOrderedStoreManager::TOrderedStoreManager(
     }
 }
 
-void TOrderedStoreManager::Mount(
-    const std::vector<TAddStoreDescriptor>& storeDescriptors,
-    bool createDynamicStore)
+void TOrderedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)
 {
-    TStoreManagerBase::Mount(storeDescriptors, createDynamicStore);
+    TStoreManagerBase::Mount(storeDescriptors);
     Tablet_->UpdateTotalRowCount();
 }
 
@@ -135,8 +133,7 @@ i64 TOrderedStoreManager::ComputeStartingRowIndex() const
 
 void TOrderedStoreManager::CreateActiveStore()
 {
-    auto storeId = GenerateDynamicStoreId();
-
+    auto storeId = TabletContext_->GenerateId(EObjectType::OrderedDynamicTabletStore);
     ActiveStore_ = TabletContext_
         ->CreateStore(Tablet_, EStoreType::OrderedDynamic, storeId, nullptr)
         ->AsOrderedDynamic();
@@ -147,22 +144,9 @@ void TOrderedStoreManager::CreateActiveStore()
     Tablet_->AddStore(ActiveStore_);
     Tablet_->SetActiveStore(ActiveStore_);
 
-    if (Tablet_->GetState() == ETabletState::UnmountFlushing ||
-        Tablet_->GetState() == ETabletState::FreezeFlushing)
-    {
-        ActiveStore_->SetStoreState(EStoreState::PassiveDynamic);
-        YT_LOG_INFO_UNLESS(IsRecovery(),
-            "Rotation request received while tablet is in flushing state, "
-            "active store created as passive (StoreId: %v, StartingRowIndex: %v, TabletState: %v)",
-            storeId,
-            startingRowIndex,
-            Tablet_->GetState());
-
-    } else {
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Active store created (StoreId: %v, StartingRowIndex: %v)",
-            storeId,
-            startingRowIndex);
-    }
+    YT_LOG_INFO_UNLESS(IsRecovery(), "Active store created (StoreId: %v, StartingRowIndex: %v)",
+        storeId,
+        startingRowIndex);
 }
 
 void TOrderedStoreManager::ResetActiveStore()

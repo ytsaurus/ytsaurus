@@ -194,16 +194,11 @@ public:
 
     NTableClient::TUnversionedRow ReadUnversionedRow(bool deep);
     NTableClient::TUnversionedRow ReadSchemafulRow(const TSchemaData& schemaData, bool deep);
-    NTableClient::TVersionedRow ReadVersionedRow(
-        const TSchemaData& schemaData,
-        bool deep,
-        const TIdMapping* valueIdMapping = nullptr);
+    NTableClient::TVersionedRow ReadVersionedRow(const TSchemaData& schemaData, bool deep);
 
     TSharedRange<NTableClient::TUnversionedRow> ReadUnversionedRowset(bool deep);
     TSharedRange<NTableClient::TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData, bool deep);
-    TSharedRange<NTableClient::TVersionedRow> ReadVersionedRowset(
-        const TSchemaData& schemaData, bool deep,
-        const TIdMapping* valueIdMapping = nullptr);
+    TSharedRange<NTableClient::TVersionedRow> ReadVersionedRowset(const TSchemaData& schemaData, bool deep);
 
     template <class TRow>
     TSharedRange<TRow> ReadRowset(const TSchemaData& schemaData, bool deep);

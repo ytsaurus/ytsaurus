@@ -351,9 +351,7 @@ void TSortedStoreManager::BuildPivotKeys(
     }
 }
 
-void TSortedStoreManager::Mount(
-    const std::vector<TAddStoreDescriptor>& storeDescriptors,
-    bool createDynamicStore)
+void TSortedStoreManager::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)
 {
     Tablet_->CreateInitialPartition();
 
@@ -468,7 +466,7 @@ void TSortedStoreManager::Mount(
         DoSplitPartition(0, pivotKeys);
     }
 
-    TStoreManagerBase::Mount(storeDescriptors, createDynamicStore);
+    TStoreManagerBase::Mount(storeDescriptors);
 }
 
 void TSortedStoreManager::Remount(
@@ -562,8 +560,7 @@ void TSortedStoreManager::RemoveStore(IStorePtr store)
 
 void TSortedStoreManager::CreateActiveStore()
 {
-    auto storeId = GenerateDynamicStoreId();
-
+    auto storeId = TabletContext_->GenerateId(EObjectType::SortedDynamicTabletStore);
     ActiveStore_ = TabletContext_
         ->CreateStore(Tablet_, EStoreType::SortedDynamic, storeId, nullptr)
         ->AsSortedDynamic();
@@ -573,19 +570,8 @@ void TSortedStoreManager::CreateActiveStore()
     Tablet_->AddStore(ActiveStore_);
     Tablet_->SetActiveStore(ActiveStore_);
 
-    if (Tablet_->GetState() == ETabletState::UnmountFlushing ||
-        Tablet_->GetState() == ETabletState::FreezeFlushing)
-    {
-        ActiveStore_->SetStoreState(EStoreState::PassiveDynamic);
-        YT_LOG_INFO_UNLESS(IsRecovery(),
-            "Rotation request received while tablet is in flushing state, "
-            "active store created as passive (StoreId: %v, TabletState: %v)",
-            storeId,
-            Tablet_->GetState());
-    } else {
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Active store created (StoreId: %v)",
-            storeId);
-    }
+    YT_LOG_INFO_UNLESS(IsRecovery(), "Active store created (StoreId: %v)",
+        storeId);
 }
 
 void TSortedStoreManager::ResetActiveStore()

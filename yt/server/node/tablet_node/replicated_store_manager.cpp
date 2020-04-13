@@ -141,11 +141,6 @@ void TReplicatedStoreManager::ScheduleRotation()
     LogStoreManager_->ScheduleRotation();
 }
 
-void TReplicatedStoreManager::UnscheduleRotation()
-{
-    LogStoreManager_->UnscheduleRotation();
-}
-
 void TReplicatedStoreManager::Rotate(bool createNewStore)
 {
     LogStoreManager_->Rotate(createNewStore);
@@ -255,10 +250,9 @@ void TReplicatedStoreManager::BackoffStoreCompaction(IChunkStorePtr store)
 }
 
 void TReplicatedStoreManager::Mount(
-    const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors,
-    bool createDynamicStore)
+    const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors)
 {
-    LogStoreManager_->Mount(storeDescriptors, createDynamicStore);
+    LogStoreManager_->Mount(storeDescriptors);
 }
 
 void TReplicatedStoreManager::Remount(

@@ -13,8 +13,6 @@
 #include "chunk_view.h"
 #include "chunk_view_proxy.h"
 #include "config.h"
-#include "dynamic_store.h"
-#include "dynamic_store_proxy.h"
 #include "expiration_tracker.h"
 #include "helpers.h"
 #include "job.h"
@@ -47,8 +45,6 @@
 #include <yt/server/master/security_server/group.h>
 #include <yt/server/master/security_server/security_manager.h>
 
-#include <yt/server/master/tablet_server/tablet.h>
-
 #include <yt/server/master/transaction_server/transaction.h>
 #include <yt/server/master/transaction_server/transaction_manager.h>
 
@@ -66,8 +62,6 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
-
-#include <yt/client/tablet_client/public.h>
 
 #include <yt/core/compression/codec.h>
 
@@ -102,8 +96,6 @@ using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJournalClient;
 using namespace NJournalServer;
-using namespace NTabletServer;
-using namespace NTabletClient;
 
 using NChunkClient::TSessionId;
 
@@ -369,30 +361,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkManager::TDynamicStoreTypeHandler
-    : public TObjectTypeHandlerWithMapBase<TDynamicStore>
-{
-public:
-    TDynamicStoreTypeHandler(TImpl* owner, EObjectType type);
-
-    virtual EObjectType GetType() const override
-    {
-        return Type_;
-    }
-
-private:
-    TImpl* const Owner_;
-    const EObjectType Type_;
-
-    virtual IObjectProxyPtr DoGetProxy(TDynamicStore* dynamicStore, TTransaction* transaction) override;
-
-    virtual void DoDestroyObject(TDynamicStore* dynamicStore) override;
-
-    virtual void DoUnstageObject(TDynamicStore* dynamicStore, bool recursive) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TChunkManager::TImpl
     : public TMasterAutomatonPart
 {
@@ -455,8 +423,6 @@ public:
         }
         objectManager->RegisterHandler(New<TJournalChunkTypeHandler>(this));
         objectManager->RegisterHandler(New<TChunkViewTypeHandler>(this));
-        objectManager->RegisterHandler(New<TDynamicStoreTypeHandler>(this, EObjectType::SortedDynamicTabletStore));
-        objectManager->RegisterHandler(New<TDynamicStoreTypeHandler>(this, EObjectType::OrderedDynamicTabletStore));
         objectManager->RegisterHandler(New<TChunkListTypeHandler>(this));
         objectManager->RegisterHandler(New<TMediumTypeHandler>(this));
 
@@ -767,15 +733,6 @@ public:
         return CreateChunkView(chunkView->GetUnderlyingChunk(), readRange, chunkView->GetTransactionId());
     }
 
-    TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, const TTablet* tablet)
-    {
-        auto* dynamicStore = DoCreateDynamicStore(storeId, tablet);
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Dynamic store created (StoreId: %v, TabletId: %v)",
-            dynamicStore->GetId(),
-            tablet->GetId());
-        return dynamicStore;
-    }
-
     TChunkList* CreateChunkList(EChunkListKind kind)
     {
         auto* chunkList = DoCreateChunkList(kind);
@@ -802,7 +759,7 @@ public:
             newChunkList->CumulativeStatistics().TrimFront(chunkList->GetTrimmedChildCount());
         } else if (chunkList->GetKind() == EChunkListKind::SortedDynamicTablet) {
             newChunkList->SetPivotKey(chunkList->GetPivotKey());
-            auto children = EnumerateStoresInChunkTree(chunkList);
+            auto children = EnumerateChunksAndChunkViewsInChunkTree(chunkList);
             AttachToChunkList(newChunkList, children);
         } else {
             YT_ABORT();
@@ -1187,10 +1144,6 @@ public:
                 ScheduleChunkRequisitionUpdate(chunkTree->AsChunkList());
                 break;
 
-            case EObjectType::SortedDynamicTabletStore:
-            case EObjectType::OrderedDynamicTabletStore:
-                break;
-
             default:
                 YT_ABORT();
         }
@@ -1254,18 +1207,6 @@ public:
                 id);
         }
         return chunkView;
-    }
-
-    TDynamicStore* GetDynamicStoreOrThrow(TDynamicStoreId id)
-    {
-        auto* dynamicStore = FindDynamicStore(id);
-        if (!IsObjectAlive(dynamicStore)) {
-             THROW_ERROR_EXCEPTION(
-                 NTabletClient::EErrorCode::NoSuchDynamicStore,
-                 "No such dynamic store %v",
-                 id);
-        }
-        return dynamicStore;
     }
 
     TChunkList* GetChunkListOrThrow(TChunkListId id)
@@ -1430,9 +1371,6 @@ public:
                 return FindChunkList(id);
             case EObjectType::ChunkView:
                 return FindChunkView(id);
-            case EObjectType::SortedDynamicTabletStore:
-            case EObjectType::OrderedDynamicTabletStore:
-                return FindDynamicStore(id);
             default:
                 return nullptr;
         }
@@ -1495,7 +1433,6 @@ public:
 
     DECLARE_ENTITY_MAP_ACCESSORS(Chunk, TChunk);
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkView, TChunkView);
-    DECLARE_ENTITY_MAP_ACCESSORS(DynamicStore, TDynamicStore);
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
 
@@ -1505,7 +1442,6 @@ private:
     friend class TErasureChunkTypeHandler;
     friend class TChunkListTypeHandler;
     friend class TChunkViewTypeHandler;
-    friend class TDynamicStoreTypeHandler;
     friend class TMediumTypeHandler;
 
     const TChunkManagerConfigPtr Config_;
@@ -1540,7 +1476,6 @@ private:
 
     NHydra::TEntityMap<TChunk> ChunkMap_;
     NHydra::TEntityMap<TChunkView> ChunkViewMap_;
-    NHydra::TEntityMap<TDynamicStore> DynamicStoreMap_;
     NHydra::TEntityMap<TChunkList> ChunkListMap_;
 
     NHydra::TEntityMap<TMedium> MediumMap_;
@@ -1737,24 +1672,6 @@ private:
         transactionManager->UnrefTimestampHolder(chunkView->GetTransactionId());
 
         ++ChunkViewsDestroyed_;
-    }
-
-    TDynamicStore* DoCreateDynamicStore(TDynamicStoreId storeId, const TTablet* tablet)
-    {
-        auto holder = std::make_unique<TDynamicStore>(storeId);
-        auto* dynamicStore = DynamicStoreMap_.Insert(storeId, std::move(holder));
-        dynamicStore->SetTablet(tablet);
-        return dynamicStore;
-    }
-
-    void DestroyDynamicStore(TDynamicStore* dynamicStore)
-    {
-        YT_VERIFY(!dynamicStore->GetStagingTransaction());
-
-        if (auto* chunk = dynamicStore->GetFlushedChunk()) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(chunk);
-        }
     }
 
     void OnNodeRegistered(TNode* node)
@@ -2569,7 +2486,6 @@ private:
         ChunkListMap_.SaveKeys(context);
         MediumMap_.SaveKeys(context);
         ChunkViewMap_.SaveKeys(context);
-        DynamicStoreMap_.SaveKeys(context);
     }
 
     void SaveValues(NCellMaster::TSaveContext& context) const
@@ -2580,7 +2496,6 @@ private:
         Save(context, ChunkRequisitionRegistry_);
         Save(context, ChunkListsAwaitingRequisitionTraverse_);
         ChunkViewMap_.SaveValues(context);
-        DynamicStoreMap_.SaveValues(context);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -2589,11 +2504,6 @@ private:
         ChunkListMap_.LoadKeys(context);
         MediumMap_.LoadKeys(context);
         ChunkViewMap_.LoadKeys(context);
-
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::DynamicStoreRead) {
-            DynamicStoreMap_.LoadKeys(context);
-        }
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2607,11 +2517,6 @@ private:
         Load(context, ChunkListsAwaitingRequisitionTraverse_);
 
         ChunkViewMap_.LoadValues(context);
-
-        // COMPAT(ifsmirnov)
-        if (context.GetVersion() >= EMasterReign::DynamicStoreRead) {
-            DynamicStoreMap_.LoadValues(context);
-        }
 
         // COMPAT(ifsmirnov)
         NeedToComputeCumulativeStatisticsForDynamicTables_ = context.GetVersion() <
@@ -3562,7 +3467,6 @@ private:
 
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, Chunk, TChunk, ChunkMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, ChunkView, TChunkView, ChunkViewMap_)
-DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, DynamicStore, TDynamicStore, DynamicStoreMap_)
 DEFINE_ENTITY_MAP_ACCESSORS(TChunkManager::TImpl, ChunkList, TChunkList, ChunkListMap_)
 
 DEFINE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager::TImpl, Medium, Media, TMedium, MediumMap_)
@@ -3680,34 +3584,6 @@ void TChunkManager::TChunkViewTypeHandler::DoUnstageObject(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkManager::TDynamicStoreTypeHandler::TDynamicStoreTypeHandler(TImpl* owner, EObjectType type)
-    : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->DynamicStoreMap_)
-    , Owner_(owner)
-    , Type_(type)
-{ }
-
-IObjectProxyPtr TChunkManager::TDynamicStoreTypeHandler::DoGetProxy(
-    TDynamicStore* dynamicStore,
-    TTransaction* /*transaction*/)
-{
-    return CreateDynamicStoreProxy(Bootstrap_, &Metadata_, dynamicStore);
-}
-
-void TChunkManager::TDynamicStoreTypeHandler::DoDestroyObject(TDynamicStore* dynamicStore)
-{
-    TObjectTypeHandlerWithMapBase::DoDestroyObject(dynamicStore);
-    Owner_->DestroyDynamicStore(dynamicStore);
-}
-
-void TChunkManager::TDynamicStoreTypeHandler::DoUnstageObject(
-    TDynamicStore* /*dynamicStore*/,
-    bool /*recursive*/)
-{
-    YT_ABORT();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChunkManager::TMediumTypeHandler::TMediumTypeHandler(TImpl* owner)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->MediumMap_)
     , Owner_(owner)
@@ -3765,14 +3641,9 @@ TChunk* TChunkManager::GetChunkOrThrow(TChunkId id)
     return Impl_->GetChunkOrThrow(id);
 }
 
-TChunkView* TChunkManager::GetChunkViewOrThrow(TChunkViewId id)
+TChunkView* TChunkManager::GetChunkViewOrThrow(TChunkId id)
 {
     return Impl_->GetChunkViewOrThrow(id);
-}
-
-TDynamicStore* TChunkManager::GetDynamicStoreOrThrow(TDynamicStoreId id)
-{
-    return Impl_->GetDynamicStoreOrThrow(id);
 }
 
 TChunkList* TChunkManager::GetChunkListOrThrow(TChunkListId id)
@@ -3942,11 +3813,6 @@ TChunkView* TChunkManager::CloneChunkView(
     return Impl_->CloneChunkView(chunkView, std::move(readRange));
 }
 
-TDynamicStore* TChunkManager::CreateDynamicStore(TDynamicStoreId storeId, const TTablet* tablet)
-{
-    return Impl_->CreateDynamicStore(storeId, tablet);
-}
-
 void TChunkManager::RebalanceChunkTree(TChunkList* chunkList)
 {
     Impl_->RebalanceChunkTree(chunkList);
@@ -4083,7 +3949,6 @@ TChunkRequisitionRegistry* TChunkManager::GetChunkRequisitionRegistry()
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, Chunk, TChunk, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkView, TChunkView, *Impl_)
-DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, DynamicStore, TDynamicStore, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TChunkManager, ChunkList, TChunkList, *Impl_)
 
 DELEGATE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(TChunkManager, Medium, Media, TMedium, *Impl_)

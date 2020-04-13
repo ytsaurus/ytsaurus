@@ -39,7 +39,6 @@ DEFINE_ENUM(EWorkloadCategory,
     ((UserBatch)                   (3))
     ((UserInteractive)            (11))
     ((UserRealtime)                (4))
-    ((UserDynamicStoreRead)       (15))
 );
 
 struct TWorkloadDescriptor;

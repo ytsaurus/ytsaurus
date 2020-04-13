@@ -70,8 +70,6 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, *TabletBalancerConfig);
     Save(context, DynamicTableLocks);
     Save(context, UnconfirmedDynamicTableLockCount);
-    Save(context, EnableDynamicStoreRead);
-    Save(context, MountedWithEnabledDynamicStoreRead);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -100,11 +98,6 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     if (context.GetVersion() >= EMasterReign::BulkInsert) {
         Load(context, DynamicTableLocks);
         Load(context, UnconfirmedDynamicTableLockCount);
-    }
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::DynamicStoreRead) {
-        Load(context, EnableDynamicStoreRead);
-        Load(context, MountedWithEnabledDynamicStoreRead);
     }
 }
 

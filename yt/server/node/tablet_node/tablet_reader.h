@@ -18,7 +18,7 @@ namespace NYT::NTabletNode {
 //! Creates a range reader that merges data from the relevant stores and
 //! returns a single version of each value.
 
-NTableClient::ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
+ NTableClient::ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<NTableClient::TRowRange>& bounds,

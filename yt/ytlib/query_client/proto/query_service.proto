@@ -1,7 +1,6 @@
 package NYT.NQueryClient.NProto;
 
 import "yt/client/node_tracker_client/proto/node_directory.proto";
-import "yt/client/table_client/proto/wire_protocol.proto";
 import "yt/client/query_client/proto/query_statistics.proto";
 import "yt/ytlib/query_client/proto/query.proto";
 import "yt/ytlib/query_client/proto/functions_cache.proto";
@@ -65,24 +64,6 @@ message TReqMultiread
 message TRspMultiread
 {
     // Attachment contains wire-encoded data.
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqReadDynamicStore
-{
-    required NYT.NProto.TGuid tablet_id = 1;
-    required NYT.NProto.TGuid store_id = 2;
-    required uint64 timestamp = 3;
-    optional bytes lower_bound  = 4;
-    optional bytes upper_bound = 5;
-    required NYT.NProto.TGuid read_session_id = 6;
-    optional NYT.NTableClient.NProto.TColumnFilter column_filter = 7;
-}
-
-message TRspReadDynamicStore
-{
-    // Data is transferred via RPC streaming.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

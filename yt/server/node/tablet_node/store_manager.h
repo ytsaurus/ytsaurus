@@ -59,7 +59,6 @@ struct IStoreManager
     virtual bool IsFlushNeeded() const = 0;
     virtual void InitializeRotation() = 0;
     virtual void ScheduleRotation() = 0;
-    virtual void UnscheduleRotation() = 0;
     virtual void Rotate(bool createNewStore) = 0;
 
     virtual void AddStore(IStorePtr store, bool onMount) = 0;
@@ -95,8 +94,7 @@ struct IStoreManager
     virtual void BackoffStoreCompaction(IChunkStorePtr store) = 0;
 
     virtual void Mount(
-        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors,
-        bool createDynamicStore) = 0;
+        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) = 0;
     virtual void Remount(
         TTableMountConfigPtr mountConfig,
         TTabletChunkReaderConfigPtr readerConfig,

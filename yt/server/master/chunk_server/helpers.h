@@ -9,8 +9,6 @@
 
 #include <yt/ytlib/table_client/public.h>
 
-#include <yt/client/object_client/public.h>
-
 #include <yt/core/yson/public.h>
 
 #include <yt/core/actions/future.h>
@@ -99,8 +97,6 @@ NTableClient::TOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree);
 struct TChunkViewMergeResult;
 
 std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChunkView*> chunkViews);
-
-bool IsPhysicalChunkType(NObjectClient::EObjectType type);
 
 ////////////////////////////////////////////////////////////////////////////////
 

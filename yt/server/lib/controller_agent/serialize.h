@@ -27,7 +27,6 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ControllerWritesJobArchive)           (300233))
     ((SliceForeignChunks)                   (300234))
     ((CompletedRowCount)                    (300235))
-    ((DynamicStoreRead)                     (300300))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

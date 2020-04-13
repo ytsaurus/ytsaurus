@@ -159,11 +159,6 @@ public:
         return false;
     }
 
-    virtual bool OnDynamicStore(TDynamicStore*, const TReadLimit&, const TReadLimit&) override
-    {
-        return true;
-    }
-
     virtual void OnFinish(const TError& error) override
     {
         ASSERT_TRUE(error.IsOK());
@@ -899,10 +894,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
     auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
 
     {
-        auto stores = EnumerateStoresInChunkTree(root);
+        auto chunksAndViews = EnumerateChunksAndChunkViewsInChunkTree(root);
         std::vector<TChunkTree*> correct{view1, chunk2, view2};
 
-        EXPECT_EQ(correct, stores);
+        EXPECT_EQ(correct, chunksAndViews);
     }
 
     {

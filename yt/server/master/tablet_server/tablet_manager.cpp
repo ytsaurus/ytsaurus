@@ -28,7 +28,6 @@
 #include <yt/server/master/chunk_server/chunk_view.h>
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/chunk_tree_traverser.h>
-#include <yt/server/master/chunk_server/dynamic_store.h>
 #include <yt/server/master/chunk_server/helpers.h>
 #include <yt/server/master/chunk_server/medium.h>
 
@@ -76,7 +75,6 @@
 #include <yt/client/table_client/schema.h>
 
 #include <yt/ytlib/tablet_client/config.h>
-#include <yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
@@ -129,7 +127,6 @@ using NNodeTrackerClient::TNodeDescriptor;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
 using NTabletNode::EStoreType;
 using NTabletNode::TTableMountConfigPtr;
-using NTabletNode::DynamicStoreIdPoolSize;
 using NTransactionServer::TTransaction;
 
 using NYT::FromProto;
@@ -197,7 +194,6 @@ public:
         RegisterMethod(BIND(&TImpl::HydraUpdateTableStatistics, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateUpstreamTabletState, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUpdateTabletState, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraAllocateDynamicStore, Unretained(this)));
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
@@ -878,24 +874,24 @@ public:
             THROW_ERROR_EXCEPTION("Cannot mount erasure coded table in memory");
         }
 
-        // Check for store duplicates.
+        // Check for chunk or chunk view duplicates.
         auto* rootChunkList = table->GetChunkList();
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             const auto* tablet = allTablets[index];
             auto* tabletChunkList = rootChunkList->Children()[index]->AsChunkList();
 
-            std::vector<TChunkTree*> stores;
-            EnumerateStoresInChunkTree(tabletChunkList, &stores);
+            std::vector<TChunkTree*> chunksOrViews;
+            EnumerateChunksAndChunkViewsInChunkTree(tabletChunkList, &chunksOrViews);
 
-            THashSet<TObjectId> storeSet;
-            storeSet.reserve(stores.size());
-            for (auto* store : stores) {
-                if (!storeSet.insert(store->GetId()).second) {
-                    THROW_ERROR_EXCEPTION("Cannot mount table: tablet %v contains duplicate store %v of type %Qlv",
+            THashSet<TObjectId> chunkOrViewSet;
+            chunkOrViewSet.reserve(chunksOrViews.size());
+            for (auto* chunkOrView : chunksOrViews) {
+                if (!chunkOrViewSet.insert(chunkOrView->GetId()).second) {
+                    THROW_ERROR_EXCEPTION("Cannot mount table: tablet %v contains duplicate %v %v",
                         tablet->GetId(),
-                        store->GetId(),
-                        store->GetType());
+                        chunkOrView->GetType() == EObjectType::ChunkView ? "chunk view" : "chunk",
+                        chunkOrView->GetId());
                 }
             }
         }
@@ -971,7 +967,6 @@ public:
                 std::move(tabletsToMount));
         }
 
-        table->SetMountedWithEnabledDynamicStoreRead(IsDynamicStoreReadEnabled(table));
 
         DoMountTablets(
             table,
@@ -1059,7 +1054,7 @@ public:
 
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
-        DoUnmountTable(table, force, firstTabletIndex, lastTabletIndex, /*onDestroy*/ false);
+        DoUnmountTable(table, force, firstTabletIndex, lastTabletIndex);
         UpdateTabletState(table);
     }
 
@@ -1471,7 +1466,7 @@ public:
 
             TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "remove");
 
-            DoUnmountTable(table, true, firstTabletIndex, lastTabletIndex, /*onDestroy*/ true);
+            DoUnmountTable(table, true, firstTabletIndex, lastTabletIndex);
 
             const auto& objectManager = Bootstrap_->GetObjectManager();
             for (auto* tablet : table->Tablets()) {
@@ -1590,32 +1585,20 @@ public:
             req.set_mount_revision(tablet->GetMountRevision());
             req.set_commit_timestamp(static_cast<i64>(
                 transactionManager->GetTimestampHolderTimestamp(transaction->GetId())));
-            req.set_update_mode(ToProto<int>(updateMode));
+            req.set_update_mode(static_cast<int>(updateMode));
 
-            auto stores = EnumerateStoresInChunkTree(appendChunkList->AsChunkList());
+            auto chunksOrViews = EnumerateChunksAndChunkViewsInChunkTree(appendChunkList->AsChunkList());
             auto storeType = originatingNode->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
             i64 startingRowIndex = 0;
 
-            for (const auto* store : stores) {
+            for (const auto* chunkOrView : chunksOrViews) {
                 auto* descriptor = req.add_stores_to_add();
-                FillStoreDescriptor(store, storeType, descriptor, &startingRowIndex);
-            }
-
-            if (updateMode == EUpdateMode::Overwrite &&
-                tablet->GetState() == ETabletState::Mounted &&
-                IsDynamicStoreReadEnabled(originatingNode))
-            {
-                CreateAndAttachDynamicStores(tablet, &req);
+                FillStoreDescriptor(chunkOrView, storeType, descriptor, &startingRowIndex);
             }
 
             auto* mailbox = hiveManager->GetMailbox(tablet->GetCell()->GetId());
             hiveManager->PostMessage(mailbox, req);
         }
-
-        // The rest of TChunkOwner::DoMerge later unconditionally replaces statistics of
-        // originating node with the ones of branched node. Since dynamic stores are already
-        // attached, we have to account them this way.
-        branchedNode->SnapshotStatistics() = originatingNode->GetChunkList()->Statistics().ToDataStatistics();
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto resourceUsageDelta = TClusterResources()
@@ -2193,23 +2176,6 @@ public:
         YT_VERIFY(cell->Actions().empty());
     }
 
-    TNode* FindTabletLeaderNode(const TTablet* tablet) const
-    {
-        auto* cell = tablet->GetCell();
-        if (!cell) {
-            return nullptr;
-        }
-
-        int leadingPeerId = cell->GetLeadingPeerId();
-        if (leadingPeerId == InvalidPeerId) {
-            return nullptr;
-        }
-
-        YT_VERIFY(leadingPeerId < cell->Peers().size());
-
-        return cell->Peers()[leadingPeerId].Node;
-    }
-
 
     TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id)
     {
@@ -2517,7 +2483,7 @@ private:
         i64 totalSize = 0;
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto chunksOrViews = EnumerateStoresInChunkTree(
+            auto chunksOrViews = EnumerateChunksAndChunkViewsInChunkTree(
                 table->GetChunkList()->Children()[index]->AsChunkList());
 
             for (const auto* chunkOrView : chunksOrViews) {
@@ -2771,7 +2737,7 @@ private:
             case ETabletActionState::Frozen: {
                 for (auto* tablet : action->Tablets()) {
                     YT_VERIFY(IsObjectAlive(tablet));
-                    DoUnmountTablet(tablet, /*force*/ false, /*onDestroy*/ false);
+                    DoUnmountTablet(tablet, false);
                 }
 
                 ChangeTabletActionState(action, ETabletActionState::Unmounting);
@@ -3119,7 +3085,7 @@ private:
 
                 auto* chunkList = chunkLists[tabletIndex]->AsChunkList();
                 const auto& chunkListStatistics = chunkList->Statistics();
-                auto chunksOrViews = EnumerateStoresInChunkTree(chunkList);
+                auto chunksOrViews = EnumerateChunksAndChunkViewsInChunkTree(chunkList);
                 auto storeType = table->IsPhysicallySorted() ? EStoreType::SortedChunk : EStoreType::OrderedChunk;
                 i64 startingRowIndex = chunkListStatistics.LogicalRowCount - chunkListStatistics.RowCount;
                 for (const auto* chunkOrView : chunksOrViews) {
@@ -3132,10 +3098,6 @@ private:
                     lock->mutable_transaction_id();
                     ToProto(lock->mutable_transaction_id(), pair.first);
                     lock->set_timestamp(static_cast<i64>(pair.second.Timestamp));
-                }
-
-                if (!freeze && IsDynamicStoreReadEnabled(table)) {
-                    CreateAndAttachDynamicStores(tablet, &req);
                 }
 
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
@@ -3228,11 +3190,6 @@ private:
             tablet->SetState(ETabletState::Unfreezing);
 
             TReqUnfreezeTablet request;
-
-            if (IsDynamicStoreReadEnabled(tablet->GetTable())) {
-                CreateAndAttachDynamicStores(tablet, &request);
-            }
-
             ToProto(request.mutable_tablet_id(), tablet->GetId());
 
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
@@ -3486,13 +3443,13 @@ private:
             const auto& tabletChunkTrees = table->GetChunkList()->Children();
 
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                std::vector<TChunkTree*> tabletStores;
-                EnumerateStoresInChunkTree(tabletChunkTrees[index]->AsChunkList(), &tabletStores);
+                std::vector<TChunkTree*> tabletChunksOrViews;
+                EnumerateChunksAndChunkViewsInChunkTree(tabletChunkTrees[index]->AsChunkList(), &tabletChunksOrViews);
 
                 const auto& lowerPivot = oldPivotKeys[index - firstTabletIndex];
                 const auto& upperPivot = oldPivotKeys[index - firstTabletIndex + 1];
 
-                for (auto* chunkTree : tabletStores) {
+                for (auto* chunkTree : tabletChunksOrViews) {
                     if (chunkTree->GetType() == EObjectType::ChunkView) {
                         auto* chunkView = chunkTree->AsChunkView();
                         auto readRange = chunkView->GetCompleteReadRange();
@@ -4442,7 +4399,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Mounting && state != ETabletState::FrozenMounting) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Mounted notification received for a tablet in %Qlv state, xignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -4460,7 +4417,7 @@ private:
             cell->GetId(),
             frozen);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet static memory usage (TableId: %v, TabletMemorySize: %v, TabletStaticUsage: %v, ExternalTabletResourceUsage: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tabet static memory usage (TableId: %v, TabletMemorySize: %v, TabletStaticUsage: %v, ExternalTabletResourceUsage: %v)",
             table->GetId(),
             tablet->GetTabletStaticMemorySize(),
             table->GetTabletResourceUsage().TabletStaticMemory,
@@ -4482,13 +4439,12 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Unmounting) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_WARNING_UNLESS(IsRecovery(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
         }
 
-        DiscardDynamicStores(tablet);
         DoTabletUnmounted(tablet);
         OnTabletActionStateChanged(tablet->GetAction());
     }
@@ -4506,13 +4462,11 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Freezing) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_WARNING_UNLESS(IsRecovery(), "Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
         }
-
-        DiscardDynamicStores(tablet);
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet frozen (TableId: %v, TabletId: %v, CellId: %v)",
             table->GetId(),
@@ -4537,7 +4491,7 @@ private:
 
         auto state = tablet->GetState();
         if (state != ETabletState::Unfreezing) {
-            YT_LOG_ALERT_UNLESS(IsRecovery(), "Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+            YT_LOG_WARNING_UNLESS(IsRecovery(), "Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                 state,
                 tabletId);
             return;
@@ -4706,35 +4660,6 @@ private:
         }
     }
 
-    void DiscardDynamicStores(TTablet* tablet)
-    {
-        auto stores = EnumerateStoresInChunkTree(tablet->GetChunkList());
-        std::vector<TChunkTree*> dynamicStores;
-        for (auto* store : stores) {
-            if (IsDynamicTabletStoreType(store->GetType())) {
-                dynamicStores.push_back(store);
-                store->AsDynamicStore()->SetFlushedChunk(nullptr);
-            }
-        }
-
-        if (dynamicStores.empty()) {
-            return;
-        }
-
-        // NB: Dynamic stores can be detached unambiguously since they are direct children of a tablet.
-        CopyChunkListIfShared(tablet->GetTable(), tablet->GetIndex(), tablet->GetIndex(), /*force*/ false);
-
-        DetachChunksFromTablet(tablet->GetChunkList(), dynamicStores);
-
-        auto* table = tablet->GetTable();
-        table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
-        ScheduleTableStatisticsUpdate(table, /*updateDataStatistics*/ true, /*updateTabletStatistics*/ false);
-
-        TTabletStatistics statisticsDelta;
-        statisticsDelta.ChunkCount = -static_cast<int>(dynamicStores.size());
-        tablet->GetCell()->GossipStatistics().Local() += statisticsDelta;
-    }
-
     void DoTabletUnmounted(TTablet* tablet)
     {
         auto* table = tablet->GetTable();
@@ -4787,52 +4712,6 @@ private:
             table->ConfirmDynamicTableLock(transactionId);
         }
         tablet->UnconfirmedDynamicTableLocks().clear();
-    }
-
-    TDynamicStoreId GenerateDynamicStoreId(const TTablet* tablet, TDynamicStoreId hintId = NullObjectId)
-    {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto type = tablet->GetTable()->IsPhysicallySorted()
-            ? EObjectType::SortedDynamicTabletStore
-            : EObjectType::OrderedDynamicTabletStore;
-        return objectManager->GenerateId(type, hintId);
-    }
-
-    TDynamicStore* CreateDynamicStore(const TTablet* tablet, TDynamicStoreId hintId = NullObjectId)
-    {
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto id = GenerateDynamicStoreId(tablet, hintId);
-        return chunkManager->CreateDynamicStore(id, tablet);
-    }
-
-    void AttachDynamicStoreToTablet(TTablet* tablet, TDynamicStore* dynamicStore)
-    {
-        auto* table = tablet->GetTable();
-
-        CopyChunkListIfShared(table, tablet->GetIndex(), tablet->GetIndex());
-
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager->AttachToChunkList(tablet->GetChunkList(), dynamicStore);
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Dynamic store attached to tablet (TabletId: %v, DynamicStoreId: %v)",
-            tablet->GetId(),
-            dynamicStore->GetId());
-
-        table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
-        ScheduleTableStatisticsUpdate(table, /*updateDataStatistics*/ true, /*updateTabletStatistics*/ false);
-
-        TTabletStatistics statisticsDelta;
-        statisticsDelta.ChunkCount = 1;
-        tablet->GetCell()->GossipStatistics().Local() += statisticsDelta;
-    }
-
-    template <class TRequest>
-    void CreateAndAttachDynamicStores(TTablet* tablet, TRequest* request)
-    {
-        for (int index = 0; index < DynamicStoreIdPoolSize; ++index) {
-            auto* dynamicStore = CreateDynamicStore(tablet);
-            AttachDynamicStoreToTablet(tablet, dynamicStore);
-            ToProto(request->add_dynamic_store_ids(), dynamicStore->GetId());
-        }
     }
 
     void CopyChunkListIfShared(
@@ -4926,29 +4805,6 @@ private:
             THROW_ERROR_EXCEPTION("Stores update for tablet %v is already prepared by transaction %v",
                 tabletId,
                 tablet->GetStoresUpdatePreparedTransaction()->GetId());
-        }
-
-        auto validateStoreType = [&] (TObjectId id, TStringBuf action) {
-            auto type = TypeFromId(id);
-            if (type != EObjectType::Chunk &&
-                type != EObjectType::ErasureChunk &&
-                type != EObjectType::ChunkView &&
-                type != EObjectType::SortedDynamicTabletStore &&
-                type != EObjectType::OrderedDynamicTabletStore)
-            {
-                THROW_ERROR_EXCEPTION("Cannot %v store %v of type %Qlv",
-                    action,
-                    id,
-                    type);
-            }
-        };
-
-        for (auto id : request->stores_to_add()) {
-            validateStoreType(FromProto<TObjectId>(id.store_id()), "attach");
-        }
-
-        for (auto id : request->stores_to_remove()) {
-            validateStoreType(FromProto<TObjectId>(id.store_id()), "detach");
         }
 
         auto mountRevision = request->mount_revision();
@@ -5104,8 +4960,6 @@ private:
             return;
         }
 
-        auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
-
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetModified(table, EModificationType::Content);
 
@@ -5114,14 +4968,12 @@ private:
         std::vector<TChunkTree*> chunksToAttach;
         i64 attachedRowCount = 0;
         auto lastCommitTimestamp = table->GetLastCommitTimestamp();
-
-        TChunk* flushedChunk = nullptr;
-
         for (const auto& descriptor : request->stores_to_add()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
-            auto type = TypeFromId(storeId);
-            YT_VERIFY(type != EObjectType::ChunkView);
-            if (IsChunkTabletStoreType(type)) {
+            YT_VERIFY(TypeFromId(storeId) != EObjectType::ChunkView);
+            if (TypeFromId(storeId) == EObjectType::Chunk ||
+                TypeFromId(storeId) == EObjectType::ErasureChunk)
+            {
                 auto* chunk = chunkManager->GetChunkOrThrow(storeId);
                 if (chunk->HasParents()) {
                     THROW_ERROR_EXCEPTION("Chunk %v cannot be attached since it already has a parent",
@@ -5133,38 +4985,6 @@ private:
                 }
                 attachedRowCount += miscExt.row_count();
                 chunksToAttach.push_back(chunk);
-            } else if (IsDynamicTabletStoreType(type)) {
-                if (IsDynamicStoreReadEnabled(table)) {
-                    YT_LOG_ALERT_UNLESS(IsRecovery(), "Attempting to add dynamic store in UpdateTabletStores to a table "
-                        "with readable dynamic stores (TableId: %v, TabletId: %v, StoreId: %v, Reason: %v)",
-                        table->GetId(),
-                        tablet->GetId(),
-                        storeId,
-                        updateReason);
-                }
-            } else {
-                YT_ABORT();
-            }
-        }
-
-        if (updateReason == ETabletStoresUpdateReason::Flush) {
-            YT_VERIFY(chunksToAttach.size() <= 1);
-            if (chunksToAttach.size() == 1) {
-                flushedChunk = chunksToAttach[0]->AsChunk();
-            }
-
-            if (request->request_dynamic_store_id()) {
-                auto storeId = ReplaceTypeInId(
-                    transaction->GetId(),
-                    table->IsPhysicallySorted()
-                        ? EObjectType::SortedDynamicTabletStore
-                        : EObjectType::OrderedDynamicTabletStore);
-                auto* dynamicStore = CreateDynamicStore(tablet, storeId);
-                chunksToAttach.push_back(dynamicStore);
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Dynamic store attached to tablet during flush (TableId: %v, TabletId: %v, StoreId: %v)",
-                    table->GetId(),
-                    tablet->GetId(),
-                    storeId);
             }
         }
 
@@ -5173,7 +4993,9 @@ private:
         bool flatteningRequired = false;
         for (const auto& descriptor : request->stores_to_remove()) {
             auto storeId = FromProto<TStoreId>(descriptor.store_id());
-            if (IsChunkTabletStoreType(TypeFromId(storeId))) {
+            if (TypeFromId(storeId) == EObjectType::Chunk ||
+                TypeFromId(storeId) == EObjectType::ErasureChunk)
+            {
                 auto* chunk = chunkManager->GetChunkOrThrow(storeId);
                 const auto& miscExt = chunk->MiscExt();
                 detachedRowCount += miscExt.row_count();
@@ -5188,16 +5010,6 @@ private:
                 chunksToDetach.push_back(chunkView);
                 flatteningRequired = flatteningRequired ||
                     !CanUnambiguouslyDetachChunk(tablet->GetChunkList(), chunkView);
-            } else if (IsDynamicTabletStoreType(TypeFromId(storeId))) {
-                const auto& chunkManager = Bootstrap_->GetChunkManager();
-                auto* dynamicStore = chunkManager->FindDynamicStore(storeId);
-                if (dynamicStore) {
-                    YT_VERIFY(updateReason == ETabletStoresUpdateReason::Flush);
-                    dynamicStore->SetFlushedChunk(flushedChunk);
-                    chunksToDetach.push_back(dynamicStore);
-                }
-            } else {
-                YT_ABORT();
             }
         }
 
@@ -5236,9 +5048,7 @@ private:
 
         // Unstage just attached chunks.
         for (auto* chunk : chunksToAttach) {
-            if (IsChunkTabletStoreType(chunk->GetType())) {
-                chunkManager->UnstageChunk(chunk->AsChunk());
-            }
+            chunkManager->UnstageChunk(chunk->AsChunk());
         }
 
         // Requisition update pursues two goals: updating resource usage and
@@ -5266,7 +5076,7 @@ private:
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkOrViewIds: %v, "
-            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %llx, UpdateReason: %v)",
+            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %llx)",
             transaction->GetId(),
             table->GetId(),
             tabletId,
@@ -5274,8 +5084,7 @@ private:
             MakeFormattableView(chunksToDetach, TObjectIdFormatter()),
             attachedRowCount,
             detachedRowCount,
-            retainedTimestamp,
-            updateReason);
+            retainedTimestamp);
     }
 
     void HydraAbortUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
@@ -5325,37 +5134,6 @@ private:
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet trimmed row count updated (TabletId: %v, TrimmedRowCount: %v)",
             tabletId,
             trimmedRowCount);
-    }
-
-    void HydraAllocateDynamicStore(TReqAllocateDynamicStore* request)
-    {
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto* tablet = FindTablet(tabletId);
-        if (!IsObjectAlive(tablet)) {
-            return;
-        }
-
-        auto mountRevision = request->mount_revision();
-        if (tablet->GetMountRevision() != mountRevision) {
-            return;
-        }
-
-        auto* dynamicStore = CreateDynamicStore(tablet);
-        AttachDynamicStoreToTablet(tablet, dynamicStore);
-
-        TRspAllocateDynamicStore rsp;
-        ToProto(rsp.mutable_dynamic_store_id(), dynamicStore->GetId());
-        ToProto(rsp.mutable_tablet_id(), tabletId);
-        rsp.set_mount_revision(tablet->GetMountRevision());
-
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Dynamic store allocated (StoreId: %v, TabletId: %v, TableId: %v)",
-            dynamicStore->GetId(),
-            tabletId,
-            tablet->GetTable()->GetId());
-
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        auto* mailbox = hiveManager->GetMailbox(tablet->GetCell()->GetId());
-        hiveManager->PostMessage(mailbox, rsp);
     }
 
     void HydraCreateTabletAction(TReqCreateTabletAction* request)
@@ -5640,19 +5418,17 @@ private:
         TTableNode* table,
         bool force,
         int firstTabletIndex,
-        int lastTabletIndex,
-        bool onDestroy)
+        int lastTabletIndex)
     {
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
             auto* tablet = table->Tablets()[index];
-            DoUnmountTablet(tablet, force, onDestroy);
+            DoUnmountTablet(tablet, force);
         }
     }
 
     void DoUnmountTablet(
         TTablet* tablet,
-        bool force,
-        bool onDestroy)
+        bool force)
     {
         auto state = tablet->GetState();
         if (state == ETabletState::Unmounted) {
@@ -5696,9 +5472,6 @@ private:
         }
 
         if (force) {
-            if (!onDestroy) {
-                DiscardDynamicStores(tablet);
-            }
             DoTabletUnmounted(tablet);
         }
     }
@@ -5747,24 +5520,6 @@ private:
         }
     }
 
-    bool IsDynamicStoreReadEnabled(const TTableNode* table)
-    {
-        if (table->IsReplicated()) {
-            return false;
-        }
-
-        if (!table->IsSorted()) {
-            return false;
-        }
-
-        if (table->GetActualTabletState() == ETabletState::Unmounted) {
-            return table->GetEnableDynamicStoreRead().value_or(
-                GetDynamicConfig()->EnableDynamicStoreReadByDefault);
-        } else {
-            return table->GetMountedWithEnabledDynamicStoreRead();
-        }
-    }
-
     void GetTableSettings(
         TTableNode* table,
         TTableMountConfigPtr* mountConfig,
@@ -5781,7 +5536,6 @@ private:
         try {
             *mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
             (*mountConfig)->ProfilingMode = dynamicConfig->DynamicTableProfilingMode;
-            (*mountConfig)->EnableDynamicStoreRead = IsDynamicStoreReadEnabled(table);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
                 << ex;
@@ -6299,11 +6053,6 @@ void TTabletManager::DestroyTablet(TTablet* tablet)
 void TTabletManager::ZombifyTabletCell(TTabletCell* cell)
 {
     Impl_->ZombifyTabletCell(cell);
-}
-
-TNode* TTabletManager::FindTabletLeaderNode(const TTablet* tablet) const
-{
-    return Impl_->FindTabletLeaderNode(tablet);
 }
 
 TTableReplica* TTabletManager::CreateTableReplica(

@@ -649,7 +649,7 @@ public:
         return row;
     }
 
-    TVersionedRow ReadVersionedRow(const TSchemaData& schemaData, bool deep, const TIdMapping* valueIdMapping)
+    TVersionedRow ReadVersionedRow(const TSchemaData& schemaData, bool deep)
     {
         union
         {
@@ -679,7 +679,7 @@ public:
         ReadRaw(row.BeginDeleteTimestamps(), sizeof(TTimestamp) * row.GetDeleteTimestampCount());
 
         DoReadSchemafulValueRange(schemaData, deep, row.BeginKeys(), header.value.KeyCount);
-        DoReadVersionedValueRange(deep, row.BeginValues(), header.value.ValueCount, valueIdMapping);
+        DoReadVersionedValueRange(deep, row.BeginValues(), header.value.ValueCount);
 
         return row;
     }
@@ -707,15 +707,12 @@ public:
         return deep ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
     }
 
-    TSharedRange<TVersionedRow> ReadVersionedRowset(
-        const TSchemaData& schemaData,
-        bool deep,
-        const TIdMapping* valueIdMapping)
+    TSharedRange<TVersionedRow> ReadVersionedRowset(const TSchemaData& schemaData, bool deep)
     {
         int rowCount = DoReadRowCount();
         auto* rows = RowBuffer_->GetPool()->AllocateUninitialized<TVersionedRow>(rowCount);
         for (int index = 0; index < rowCount; ++index) {
-            rows[index] = ReadVersionedRow(schemaData, deep, valueIdMapping);
+            rows[index] = ReadVersionedRow(schemaData, deep);
         }
         auto range = TRange<TVersionedRow>(rows, rows + rowCount);
         return deep ? MakeSharedRange(range, RowBuffer_) : MakeSharedRange(range, RowBuffer_, Data_);
@@ -892,30 +889,10 @@ private:
         }
     }
 
-    void DoReadVersionedValueRange(
-        bool deep,
-        TVersionedValue* values,
-        ui32 valueCount,
-        const TIdMapping* valueIdMapping)
+    void DoReadVersionedValueRange(bool deep, TVersionedValue* values, ui32 valueCount)
     {
         for (size_t index = 0; index < valueCount; ++index) {
             DoReadVersionedValue(deep, &values[index]);
-            if (valueIdMapping) {
-                auto valueId = values[index].Id;
-                if (valueId >= valueIdMapping->size()) {
-                    THROW_ERROR_EXCEPTION("Value with index %v has id %v which is out of range [0, %v)",
-                        index,
-                        valueId,
-                        valueIdMapping->size());
-                }
-                int mappedId = (*valueIdMapping)[valueId];
-                if (mappedId == -1) {
-                    THROW_ERROR_EXCEPTION("Id mapping for value with index %v contains unexpected value %Qv",
-                        index,
-                        -1);
-                }
-                values[index].Id = mappedId;
-            }
         }
     }
 };
@@ -995,12 +972,9 @@ TUnversionedRow TWireProtocolReader::ReadSchemafulRow(const TSchemaData& schemaD
     return Impl_->ReadSchemafulRow(schemaData, deep);
 }
 
-TVersionedRow TWireProtocolReader::ReadVersionedRow(
-    const TSchemaData& schemaData,
-    bool deep,
-    const TIdMapping* valueIdMapping)
+TVersionedRow TWireProtocolReader::ReadVersionedRow(const TSchemaData& schemaData, bool deep)
 {
-    return Impl_->ReadVersionedRow(schemaData, deep, valueIdMapping);
+    return Impl_->ReadVersionedRow(schemaData, deep);
 }
 
 TSharedRange<TUnversionedRow> TWireProtocolReader::ReadUnversionedRowset(bool deep)
@@ -1013,12 +987,9 @@ TSharedRange<TUnversionedRow> TWireProtocolReader::ReadSchemafulRowset(const TSc
     return Impl_->ReadSchemafulRowset(schemaData, deep);
 }
 
-TSharedRange<TVersionedRow> TWireProtocolReader::ReadVersionedRowset(
-    const TSchemaData& schemaData,
-    bool deep,
-    const TIdMapping* valueIdMapping)
+TSharedRange<TVersionedRow> TWireProtocolReader::ReadVersionedRowset(const TSchemaData& schemaData, bool deep)
 {
-    return Impl_->ReadVersionedRowset(schemaData, deep, valueIdMapping);
+    return Impl_->ReadVersionedRowset(schemaData, deep);
 }
 
 auto TWireProtocolReader::GetSchemaData(

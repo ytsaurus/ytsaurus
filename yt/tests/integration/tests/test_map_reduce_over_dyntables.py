@@ -180,7 +180,7 @@ class TestMapOnDynamicTables(YTEnvSetup):
     @parametrize_external
     def test_dynamic_table_timestamp(self, external):
         sync_create_cells(1)
-        self._create_simple_dynamic_table("//tmp/t", external=external, enable_dynamic_store_read=False)
+        self._create_simple_dynamic_table("//tmp/t", external=external)
         create("table", "//tmp/t_out")
 
         rows = [{"key": i, "value": str(i)} for i in range(2)]
