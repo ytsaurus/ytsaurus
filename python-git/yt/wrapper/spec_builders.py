@@ -681,10 +681,6 @@ class SpecBuilder(object):
     def resource_limits(self, limits):
         return _set_spec_value(self, "resource_limits", limits)
 
-    @spec_option("The minimum share of the resources of the parent pool that must be allocated to this pool")
-    def min_share_ratio(self, ratio):
-        return _set_spec_value(self, "min_share_ratio", ratio)
-
     @spec_option("The maximum share of the resources of the parent pool that must be allocated to this pool")
     def max_share_ratio(self, ratio):
         return _set_spec_value(self, "max_share_ratio", ratio)
