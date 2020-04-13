@@ -400,6 +400,17 @@ void TNodeShard::UnregisterAndRemoveNodeById(TNodeId nodeId)
     }
 }
 
+void TNodeShard::AbortJobsAtNode(TNodeId nodeId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto it = IdToNode_.find(nodeId);
+    if (it != IdToNode_.end()) {
+        const auto& node = it->second;
+        AbortAllJobsAtNode(node);
+    }
+}
+
 void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
     GetInvoker()->Invoke(
@@ -478,7 +489,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     TLeaseManager::RenewLease(node->GetRegistrationLease());
 
     if (node->GetMasterState() != NNodeTrackerClient::ENodeState::Online || node->GetSchedulerState() != ENodeState::Online) {
-        auto error = TError("Node is not online");
+        auto error = TError("Node is not online (MasterState: %v, SchedulerState: %v)",
+            node->GetMasterState(),
+            node->GetSchedulerState());
         if (!node->GetRegistrationError().IsOK()) {
             error = error << node->GetRegistrationError();
         }
@@ -824,7 +837,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
         }
 
-        if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags) {
+        if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags || !execNode->GetRegistrationError().IsOK()) {
             auto updateResult = WaitFor(Host_->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
                 auto error = TError("Node tags update failed")

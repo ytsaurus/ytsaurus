@@ -217,10 +217,6 @@ public:
 
     void ProcessActivatableOperations();
 
-    void OnTreeRemoveStarted();
-
-    bool IsBeingRemoved();
-
     int GetOperationCount() const;
 
 private:
@@ -351,8 +347,6 @@ private:
     THashMap<TString, std::unique_ptr<NProfiling::TAggregateGauge>> CustomProfilingCounters_;
 
     NProfiling::TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
-
-    bool IsBeingRemoved_ = false;
 
     TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElement* element) const;
 

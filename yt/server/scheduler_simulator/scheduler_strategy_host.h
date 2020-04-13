@@ -50,6 +50,9 @@ public:
 
     virtual NScheduler::TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const NScheduler::TSchedulingTagFilter& filter) const override;
+    
+    virtual void UpdateNodesOnChangedTrees(
+        const THashMap<TString, NScheduler::TSchedulingTagFilter>& treeIdToFilter) override;
 
     virtual TString FormatResources(const NScheduler::TJobResourcesWithQuota& resources) const override;
     virtual TString FormatResourceUsage(

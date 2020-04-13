@@ -2358,19 +2358,6 @@ void TFairShareTree<TFairShareImpl>::ProcessActivatableOperations()
 }
 
 template <class TFairShareImpl>
-auto TFairShareTree<TFairShareImpl>::OnTreeRemoveStarted() -> void
-{
-    YT_LOG_DEBUG("Pool tree %Qv is marked to be removed", TreeId_);
-    IsBeingRemoved_ = true;
-}
-
-template <class TFairShareImpl>
-auto TFairShareTree<TFairShareImpl>::IsBeingRemoved() -> bool
-{
-    return IsBeingRemoved_;
-}
-
-template <class TFairShareImpl>
 auto TFairShareTree<TFairShareImpl>::GetOperationCount() const -> int
 {
     return OperationIdToElement_.size();

@@ -126,6 +126,8 @@ public:
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
     void UnregisterAndRemoveNodeById(NNodeTrackerClient::TNodeId nodeId);
+    void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId);
+
 
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors();
     void UpdateExecNodeDescriptors();
