@@ -249,7 +249,7 @@ def insert_rows(table, input_stream, update=None, aggregate=None, atomicity=None
         data=input_data,
         client=client).run()
 
-def explain(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
+def explain_query(query, timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
             max_subqueries=None, workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None,
             format=None, raw=None, execution_pool=None, client=None):
     """Explains a SQL-like query on dynamic table.
@@ -283,7 +283,7 @@ def explain(query, timestamp=None, input_row_limit=None, output_row_limit=None, 
 
     response = DynamicTableRequestRetrier(
         get_config(client)["dynamic_table_retries"],
-        "explain",
+        "explain_query",
         params,
         client=client).run()
 
