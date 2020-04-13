@@ -136,6 +136,12 @@ TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDes
     return result;
 }
 
+void TSchedulerStrategyHost::UpdateNodesOnChangedTrees(
+    const THashMap<TString, NScheduler::TSchedulingTagFilter>& treeIdToFilter)
+{
+    // Nothing to do.
+}
+
 TString TSchedulerStrategyHost::FormatResources(const TJobResourcesWithQuota& resources) const
 {
     return NScheduler::FormatResources(resources, MediumDirectory_);

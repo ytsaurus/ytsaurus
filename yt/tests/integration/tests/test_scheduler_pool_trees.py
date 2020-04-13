@@ -34,7 +34,8 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         }
     }
 
-    def teardown_method(self, method):
+    def setup_method(self, method):
+        super(TestPoolTreesReconfiguration, self).setup_method(method)
         for node in ls("//sys/cluster_nodes"):
             set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(node), {})
         # TODO(ignat): remove this custom teardown.
@@ -44,8 +45,21 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             remove_pool_tree(tree)
         create_pool_tree("default")
         set("//sys/pool_trees/@default_tree", "default")
+
+    def teardown_method(self, method):
         super(TestPoolTreesReconfiguration, self).teardown_method(method)
         wait(lambda: not get("//sys/scheduler/@alerts"))
+
+    def create_custom_pool_tree_with_one_node(self, pool_tree):
+        tag = pool_tree
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
+        set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
+        create_pool_tree(pool_tree, attributes={"nodes_filter": tag})
+        wait(lambda: tag in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(node)))
+        wait(lambda: pool_tree in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
+        return node
+
 
     @authors("asaitgalin")
     def test_basic_sanity(self):
@@ -74,6 +88,9 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             command="sleep 1000; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
+            spec={
+                "testing": {"delay_inside_abort": 100},
+            },
             track=False)
 
         wait(lambda: op.get_state() == "running")
@@ -84,7 +101,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: op.get_state() in ["aborted", "aborting"])
 
     @authors("ignat")
-    def test_abort_many_orphaned_operations(self):
+    def test_abort_many_orphaned_operations_with_abort(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1}])
 
@@ -115,6 +132,109 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         for op in ops:
             wait(lambda: op.get_state() in ["aborted", "aborting"])
 
+    @authors("ignat")
+    def test_abort_many_orphaned_operations_with_update_runtime_parameters(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": 1}])
+
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(node), {"cpu": 10, "user_slots": 10})
+
+        ops = []
+        for i in xrange(10):
+            create("table", "//tmp/t_out" + str(i))
+            ops.append(map(
+                command="sleep 1000; cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out" + str(i),
+                spec={
+                    "testing": {"delay_inside_abort": 100},
+                },
+                track=False))
+
+        for op in ops:
+            wait(lambda: op.get_state() == "running")
+
+        remove("//sys/pool_trees/@default_tree")
+        remove("//sys/pool_trees/default")
+
+        for op in reversed(ops):
+            try:
+                update_op_parameters(op.id, parameters={
+                    "scheduling_options_per_pool_tree": {
+                        "other1": {
+                            "resource_limits": {
+                                "user_slots": 1
+                            }
+                        }
+                    }
+                })
+            except YtError:
+                pass
+
+        for op in ops:
+            wait(lambda: op.get_state() in ["aborted", "aborting"])
+
+    @authors("ignat")
+    def test_abort_many_orphaned_operations_with_multiple_trees(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": 1}])
+
+        set("//sys/pool_trees/default/@nodes_filter", "!other1 & !other2 & !other3")
+
+        nodes = ls("//sys/cluster_nodes")
+        for index, node in enumerate(nodes):
+            tag = "other" + str(index + 1)
+            set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(node), {"cpu": 10, "user_slots": 10})
+            set("//sys/cluster_nodes/{}/@user_tags".format(node), [tag])
+            wait(lambda: tag in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(node)))
+
+            create_pool_tree(tag, attributes={"nodes_filter": tag})
+            wait(lambda: tag in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
+
+        ops1 = []
+        for i in xrange(10):
+            create("table", "//tmp/t_out" + str(i))
+            ops1.append(map(
+                command="sleep 1000; cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out" + str(i),
+                spec={
+                    "pool_trees": ["other1"],
+                    "testing": {"delay_inside_abort": 100},
+                },
+                track=False))
+        ops12 = []
+        for i in xrange(10, 20):
+            create("table", "//tmp/t_out" + str(i))
+            ops12.append(map(
+                command="sleep 1000; cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out" + str(i),
+                pool_trees=["other1", "other2"],
+                track=False))
+        ops123 = []
+        for i in xrange(20, 30):
+            create("table", "//tmp/t_out" + str(i))
+            ops123.append(map(
+                command="sleep 1000; cat",
+                in_="//tmp/t_in",
+                out="//tmp/t_out" + str(i),
+                pool_trees=["other1", "other2", "other3"],
+                track=False))
+
+        for op in ops1 + ops12 + ops123:
+            wait(lambda: op.get_state() == "running")
+
+        remove("//sys/pool_trees/other1")
+
+        for op in ops1:
+            wait(lambda: op.get_state() in ["aborted", "aborting"])
+
+        for op in ops12 + ops123:
+            assert op.get_state() == "running"
+
+
     @authors("asaitgalin")
     def test_multitree_operations(self):
         create("table", "//tmp/t_in")
@@ -123,8 +243,6 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         self.create_custom_pool_tree_with_one_node(pool_tree="other")
-
-        time.sleep(1.0)
 
         op = map(
             command="cat",
@@ -143,8 +261,6 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         create("table", "//tmp/t_out")
 
         self.create_custom_pool_tree_with_one_node(pool_tree="other")
-
-        time.sleep(1.0)
 
         op = map(
             command="sleep 4; cat",
@@ -186,7 +302,6 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         assert get("//sys/pool_trees/@default_tree") == "default"
 
         remove("//sys/pool_trees/@default_tree")
-        time.sleep(0.5)
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1}])
@@ -293,13 +408,82 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         assert op2.id in other_tree_operations
         assert op2.id not in default_tree_operations
 
-    def create_custom_pool_tree_with_one_node(self, pool_tree):
-        tag = pool_tree
-        node = ls("//sys/cluster_nodes")[0]
-        set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
-        set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
-        create_pool_tree(pool_tree, attributes={"nodes_filter": tag})
-        return node
+    @authors("ignat")
+    def test_node_tags_changed(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"x": 1} for iter in xrange(10)])
+
+        create_pool_tree("other", attributes={"nodes_filter": "other"})
+        set("//sys/pool_trees/default/@nodes_filter", "!other")
+        wait(lambda: "other" in ls("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"))
+
+        nodes = ls("//sys/cluster_nodes")
+        set("//sys/cluster_nodes/" + nodes[0] + "/@user_tags", ["other"])
+        wait(lambda: "other" in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(nodes[0])))
+
+        create("table", "//tmp/t_out1")
+        op1 = map(
+            command="sleep 1000; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out1",
+            spec={
+                "pool_trees": ["default"],
+                "job_count": 10,
+            },
+            track=False)
+        wait(lambda: op1.get_job_count("running") == 2)
+
+        create("table", "//tmp/t_out2")
+        op2 = map(
+            command="sleep 1000; cat",
+            in_="//tmp/t_in",
+            out="//tmp/t_out2",
+            spec={
+                "pool_trees": ["other"],
+                "job_count": 10,
+            },
+            track=False)
+        wait(lambda: op2.get_job_count("running") == 1)
+
+        set("//sys/cluster_nodes/" + nodes[1] + "/@user_tags", ["other"])
+        wait(lambda: "other" in get("//sys/scheduler/orchid/scheduler/nodes/{}/tags".format(nodes[1])))
+
+        wait(lambda: op1.get_job_count("running") == 1)
+        wait(lambda: op1.get_job_count("aborted") == 1)
+        wait(lambda: op2.get_job_count("running") == 2)
+
+    @authors("renadeen")
+    def test_race_between_pool_tree_removal_and_register_operation(self):
+        # Scenario:
+        # 1. operation is running
+        # 2. user updates node_filter of pool tree
+        # 3. scheduler removes and adds that tree
+        # 4. scheduler unregisters and aborts all operations of removed tree before publishing new trees
+        # 5. abort of operation causes fiber switch
+        # 6. new operation registers in old tree that is being removed
+        # 7. all aborts are completed, scheduler publishes new tree structure (without new operation)
+        # 8. operation tries to complete scheduler doesn't know this operation and crashes
+        # NB(ignat): This scenario is not valid anymore since update pool trees is atomic now, but abort is asynchronous.
+
+        node = self.create_custom_pool_tree_with_one_node(pool_tree="other")
+        orchid_root = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
+        set("//sys/pool_trees/@default_tree", "other")
+
+        run_test_vanilla(
+            "sleep 1000",
+            job_count=1,
+            spec={"testing": {"delay_inside_abort": 3000}}
+        )
+
+        remove("//sys/pool_trees/other")
+        set("//sys/pool_trees/@default_tree", "default")
+        wait(lambda: "other" not in ls(orchid_root))
+
+        create_pool_tree("other", attributes={"nodes_filter": "other"})
+        set("//sys/pool_trees/@default_tree", "other")
+        # We actually wait abort here since previous update can actually finish only after abort of all operations.
+        wait(lambda: "other" in ls(orchid_root))
+        run_test_vanilla(":", job_count=1)
 
 @authors("renadeen")
 class TestConfigurablePoolTreeRoot(YTEnvSetup):
@@ -1035,7 +1219,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         wait(lambda: get(op.get_path() + "/@erased_trees") == [])
 
 ##################################################################
-    
+
 class TestPoolTreeOperationLimits(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -1046,7 +1230,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
             "static_orchid_cache_update_period": 100
         }
     }
-    
+
     @authors("eshcherbin")
     def test_enabling_operation_separately_in_each_tree(self):
         nodes = ls("//sys/cluster_nodes")

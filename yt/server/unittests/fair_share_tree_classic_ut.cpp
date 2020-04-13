@@ -103,6 +103,12 @@ struct TSchedulerStrategyHostMock
         YT_ABORT();
     }
 
+    virtual void UpdateNodesOnChangedTrees(
+        const THashMap<TString, NScheduler::TSchedulingTagFilter>& /* treeIdToFilter */) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
         const TSchedulingTagFilter& /* filter */) const override
     {

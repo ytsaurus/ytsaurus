@@ -37,6 +37,8 @@ struct ISchedulerStrategyHost
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
     virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
+    
+    virtual void UpdateNodesOnChangedTrees(const THashMap<TString, TSchedulingTagFilter>& treeIdToFilter) = 0;
 
     virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
     virtual TString FormatResourceUsage(
@@ -171,9 +173,7 @@ struct ISchedulerStrategy
 
     virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode) = 0;
 
-    virtual void ValidatePoolTreesAreNotRemoved(const TOperationPtr& operation) = 0;
-
-    virtual void ValidateNodeTags(const THashSet<TString>& tags, int* treeCount) = 0;
+    virtual std::vector<TString> GetNodeTreeIds(const THashSet<TString>& tags) = 0;
 
     virtual void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) = 0;
 

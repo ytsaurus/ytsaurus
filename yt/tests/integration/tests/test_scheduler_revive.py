@@ -589,46 +589,6 @@ class TestRaceBetweenShardAndStrategy(YTEnvSetup):
         wait(lambda: op.get_state() == "completed")
 
 
-class TestRaceBetweenPoolTreeRemovalAndRegisterOperation(YTEnvSetup):
-    NUM_MASTERS = 1
-    NUM_NODES = 2   # snapshot upload replication factor is 2; unable to configure
-    NUM_SCHEDULERS = 1
-
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "watchers_update_period": 100   # pool trees config update period
-        }
-    }
-
-    @authors("renadeen")
-    def test_race_between_pool_tree_removal_and_register_operation(self):
-        # Scenario:
-        # 1. operation is running
-        # 2. user updates node_filter of pool tree
-        # 3. scheduler removes and adds that tree
-        # 4. scheduler unregisters and aborts all operations of removed tree before publishing new trees
-        # 5. abort of operation causes fiber switch
-        # 6. new operation registers in old tree that is being removed
-        # 7. all aborts are completed, scheduler publishes new tree structure (without new operation)
-        # 8. operation tries to complete scheduler doesn't know this operation and crashes
-
-        set("//sys/cluster_nodes/{}/@user_tags/end".format(ls("//sys/cluster_nodes")[0]), "my_tag")
-        time.sleep(0.5)
-
-        run_test_vanilla(
-            "sleep 1000",
-            job_count=1,
-            spec={"testing": {"delay_inside_abort": 1000}}
-        )
-
-        set("//sys/pool_trees/default/@nodes_filter", "my_tag")
-        time.sleep(0.2)
-        try:
-            run_test_vanilla(":", job_count=1)
-            assert False
-        except YtError as err:
-            assert err.contains_text("tree \"default\" is being removed")
-
 ##################################################################
 
 class OperationReviveBase(YTEnvSetup):

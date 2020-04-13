@@ -103,7 +103,13 @@ struct TSchedulerStrategyHostMock
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const TSchedulingTagFilter& /* filter */) const override
     {
-        YT_ABORT();
+        YT_UNIMPLEMENTED();
+    }
+
+    virtual void UpdateNodesOnChangedTrees(
+        const THashMap<TString, NScheduler::TSchedulingTagFilter>& /* treeIdToFilter */) override
+    {
+        YT_UNIMPLEMENTED();
     }
 
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(
