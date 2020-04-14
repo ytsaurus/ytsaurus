@@ -119,9 +119,11 @@ void TClientReader::TransformYPath()
 
 void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<ui64>& rowIndex)
 {
-    const int lastAttempt = TConfig::Get()->ReadRetryCount - 1;
+    auto retryPolicy = ClientRetryPolicy_->CreatePolicyForGenericRequest();
 
-    for (int attempt = 0; attempt <= lastAttempt; ++attempt) {
+    while (true) {
+        retryPolicy->NotifyNewAttempt();
+
         THttpHeader header("GET", GetReadTableCommand());
         header.SetToken(Auth_.Token);
         auto transactionId = (ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_);
@@ -163,31 +165,36 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             LOG_DEBUG("RSP %s - table stream", Request_->GetRequestId().data());
 
             return;
-        } catch (TErrorResponse& e) {
+        } catch (const TErrorResponse& e) {
             LogRequestError(
                 *Request_,
                 header,
                 e.what(),
-                TStringBuilder() << "attempt " << attempt);
+                retryPolicy->GetAttemptDescription());
 
-            if (!IsRetriable(e) || attempt == lastAttempt) {
+            if (!IsRetriable(e)) {
                 throw;
             }
-            NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e));
-        } catch (yexception& e) {
+            auto backoff = retryPolicy->OnRetriableError(e);
+            if (!backoff) {
+                throw;
+            }
+            NDetail::TWaitProxy::Get()->Sleep(*backoff);
+        } catch (const yexception& e) {
             LogRequestError(
                 *Request_,
                 header,
                 e.what(),
-                TStringBuilder() << "attempt " << attempt);
+                retryPolicy->GetAttemptDescription());
 
             if (Request_) {
                 Request_->InvalidateConnection();
             }
-            if (attempt == lastAttempt) {
+            auto backoff = retryPolicy->OnGenericError(e);
+            if (!backoff) {
                 throw;
             }
-            NDetail::TWaitProxy::Get()->Sleep(GetBackoffDuration(e));
+            NDetail::TWaitProxy::Get()->Sleep(*backoff);
         }
     }
 }
