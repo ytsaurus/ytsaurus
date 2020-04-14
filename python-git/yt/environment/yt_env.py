@@ -12,7 +12,7 @@ try:
 except:
     get_gdb_path = None
 
-from yt.common import YtError, remove_file, makedirp, set_pdeathsig, update
+from yt.common import YtError, remove_file, makedirp, update, which
 from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
@@ -925,19 +925,16 @@ class YTInstance(object):
             if self._capture_stderr_to_file or isinstance(self._subprocess_module, PortoSubprocess):
                 stderr = open(stderr_path, "w")
 
-            def preexec():
-                os.setsid()
-                if self._kill_child_processes:
-                    set_pdeathsig()
-                for cgroup_path in cgroup_paths:
-                    with open(os.path.join(cgroup_path, "tasks"), "at") as handle:
-                        handle.write(str(os.getpid()))
-                        handle.write("\n")
+            if self._kill_child_processes:
+                args += ["--pdeathsig", str(signal.SIGTERM)]
+            for cgroup_path in cgroup_paths:
+                args += ["--cgroup", cgroup_path]
+            args += ["--setsid"]
 
             env = copy.copy(os.environ)
             env = update(env, {"YT_ALLOC_CONFIG": "{enable_eager_memory_release=%true}"})
 
-            p = self._subprocess_module.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.runtime_data_path,
+            p = self._subprocess_module.Popen(args, shell=False, close_fds=True, cwd=self.runtime_data_path,
                                               env=env,
                                               stdout=stdout, stderr=stderr)
 
