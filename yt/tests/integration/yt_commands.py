@@ -134,22 +134,16 @@ def init_drivers(clusters):
 
     for instance in clusters:
         if instance.master_count > 0:
-            prefix = "" if instance.driver_backend == "native" else "rpc_"
-            secondary_driver_configs = [instance.configs[prefix + "driver_secondary_" + str(i)]
+            secondary_driver_configs = [instance.configs[instance.driver_backend + "_driver_secondary_" + str(i)]
                                         for i in xrange(instance.secondary_master_cell_count)]
-            drivers = create_drivers(instance.configs[prefix + "driver"])
+            drivers = create_drivers(instance.configs[instance.driver_backend + "_driver"])
 
             # Setup driver logging for all instances in the environment as in the primary cluster.
             if instance._cluster_name == "primary":
-                # XXX(max42): remove this when Python sync is over.
-                try:
-                    set_environment_driver_logging_config(instance.driver_logging_config, instance.driver_backend)
-                except TypeError:
-                    set_environment_driver_logging_config(instance.driver_logging_config)
+                set_environment_driver_logging_config(instance.driver_logging_config, instance.driver_backend)
 
             secondary_drivers = []
             for secondary_driver_config in secondary_driver_configs:
-
                 secondary_drivers.append(create_drivers(secondary_driver_config))
 
             clusters_drivers[instance._cluster_name] = [drivers] + secondary_drivers

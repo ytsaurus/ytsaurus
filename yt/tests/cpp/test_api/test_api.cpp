@@ -5,7 +5,7 @@
 //%ENABLE_RPC_PROXY=True
 //%DELTA_MASTER_CONFIG={"object_service":{"timeout_backoff_lead_time":100}}
 
-#include "yt/tests/cpp/api_test_base.h"
+#include <yt/tests/cpp/api_test_base.h>
 
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/transaction.h>
@@ -220,7 +220,6 @@ static auto ku2 = "{name=k2;type=int64};";
 static auto v3 = "{name=v3;type=int64};";
 static auto v4 = "{name=v4;type=int64};";
 static auto v5 = "{name=v5;type=int64};";
-
 
 TEST_F(TLookupFilterTest, TestLookupAll)
 {

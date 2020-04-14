@@ -59,11 +59,12 @@ using namespace NRpc;
 
 DEFINE_ENUM(ETransactionState,
     (Active)
-    (Commit)
-    (Abort)
-    (Prepare)
-    (Flush)
-    (Detach)
+    (Committing)
+    (Committed)
+    (Flushing)
+    (Flushed)
+    (Aborted)
+    (Detached)
 );
 
 DECLARE_REFCOUNTED_CLASS(TTransaction)
@@ -134,75 +135,78 @@ public:
 
     virtual TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options) override
     {
-        auto guard = Guard(SpinLock_);
+        bool needsFlush;
+        {
+            auto guard = Guard(SpinLock_);
 
-        if (State_ != ETransactionState::Active) {
-            return MakeFuture<TTransactionCommitResult>(TError("Cannot commit since transaction %v is already in %Qlv state",
-                GetId(),
-                State_));
+            if (State_ != ETransactionState::Active && State_ != ETransactionState::Flushed) {
+                return MakeFuture<TTransactionCommitResult>(TError(
+                    NTransactionClient::EErrorCode::InvalidTransactionState,
+                    "Cannot commit since transaction %v is in %Qlv state",
+                    GetId(),
+                    State_));
+            }
+
+            needsFlush = (State_ == ETransactionState::Active);
+            State_ = ETransactionState::Committing;
         }
 
-        State_ = ETransactionState::Commit;
         return BIND(&TTransaction::DoCommit, MakeStrong(this))
             .AsyncVia(GetThreadPoolInvoker())
-            .Run(options);
+            .Run(options, needsFlush);
     }
 
-    virtual TFuture<void> Abort(const TTransactionAbortOptions& options) override
+    virtual TFuture<void> Abort(const TTransactionAbortOptions& options = {}) override
     {
         auto guard = Guard(SpinLock_);
 
-        if (State_ == ETransactionState::Abort) {
-            return AbortResult_;
-        }
-
-        if (State_ != ETransactionState::Active && State_ != ETransactionState::Flush && State_ != ETransactionState::Prepare) {
-            return MakeFuture<void>(TError("Cannot abort since transaction %v is already in %Qlv state",
+        if (State_ == ETransactionState::Committed || State_ == ETransactionState::Detached) {
+            return MakeFuture<void>(TError(
+                NTransactionClient::EErrorCode::InvalidTransactionState,
+                "Cannot abort since transaction %v is in %Qlv state",
                 GetId(),
                 State_));
         }
 
-        State_ = ETransactionState::Abort;
-        AbortResult_ = Transaction_->Abort(options);
-        return AbortResult_;
+        return DoAbort(&guard, options);
     }
 
     virtual void Detach() override
     {
         auto guard = Guard(SpinLock_);
-        State_ = ETransactionState::Detach;
-        Transaction_->Detach();
-    }
 
-    virtual TFuture<TTransactionPrepareResult> Prepare() override
-    {
-        auto guard = Guard(SpinLock_);
-
-        if (State_ != ETransactionState::Active) {
-            return MakeFuture<TTransactionPrepareResult>(TError("Cannot prepare since transaction %v is already in %Qlv state",
-                GetId(),
-                State_));
+        if (State_ != ETransactionState::Aborted) {
+            State_ = ETransactionState::Detached;
+            Transaction_->Detach();
         }
-
-        YT_LOG_DEBUG("Preparing transaction");
-        State_ = ETransactionState::Prepare;
-        return BIND(&TTransaction::DoPrepare, MakeStrong(this))
-            .AsyncVia(GetThreadPoolInvoker())
-            .Run();
     }
 
     virtual TFuture<TTransactionFlushResult> Flush() override
     {
-        auto guard = Guard(SpinLock_);
+        {
+            auto guard = Guard(SpinLock_);
 
-        if (State_ != ETransactionState::Prepare) {
-            return MakeFuture<TTransactionFlushResult>(TError("Cannot flush since transaction %v is already in %Qlv state",
-                GetId(),
-                State_));
+            if (State_ != ETransactionState::Active) {
+                return MakeFuture<TTransactionFlushResult>(TError(
+                    NTransactionClient::EErrorCode::InvalidTransactionState,
+                    "Cannot flush transaction %v since it is in %Qlv state",
+                    GetId(),
+                    State_));
+            }
+
+            if (!ForeignTransactions_.empty()) {
+                return MakeFuture<TTransactionFlushResult>(TError(
+                    NTransactionClient::EErrorCode::ForeignTransactionsForbidden,
+                    "Cannot flush transaction %v since it has %v foreign transaction(s)",
+                    GetId(),
+                    ForeignTransactions_.size()));
+            }
+
+            State_ = ETransactionState::Flushing;
         }
 
         YT_LOG_DEBUG("Flushing transaction");
-        State_ = ETransactionState::Flush;
+
         return BIND(&TTransaction::DoFlush, MakeStrong(this))
             .AsyncVia(GetThreadPoolInvoker())
             .Run();
@@ -217,13 +221,19 @@ public:
             TypeFromId(cellId) == EObjectType::MasterCell);
 
         if (State_ != ETransactionState::Active) {
-            THROW_ERROR_EXCEPTION("Cannot add action since transaction %v is already in %Qlv state",
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::InvalidTransactionState,
+                "Cannot add action since transaction %v is in %Qlv state",
                 GetId(),
                 State_);
         }
 
         if (GetAtomicity() != EAtomicity::Full) {
-            THROW_ERROR_EXCEPTION("Atomicity must be %Qlv for custom actions",
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::InvalidTransactionAtomicity,
+                "Cannot add action since transaction %v has wrong atomicity: actual %Qlv, expected %Qlv",
+                GetId(),
+                GetAtomicity(),
                 EAtomicity::Full);
         }
 
@@ -236,25 +246,40 @@ public:
     }
 
 
-    virtual TFuture<NApi::ITransactionPtr> StartForeignTransaction(
-        const NApi::IClientPtr& client,
-        const TForeignTransactionStartOptions& options) override
+    virtual void RegisterForeignTransaction(const NApi::ITransactionPtr& transaction) override
     {
-        if (client->GetConnection()->GetCellTag() == GetConnection()->GetCellTag()) {
-            return MakeFuture<NApi::ITransactionPtr>(this);
+        {
+            auto guard = Guard(SpinLock_);
+
+            if (State_ != ETransactionState::Active) {
+                THROW_ERROR_EXCEPTION(
+                    NTransactionClient::EErrorCode::InvalidTransactionState,
+                    "Transaction %v is in %Qlv state",
+                    GetId(),
+                    State_);
+            }
+
+            if (GetType() != ETransactionType::Tablet) {
+                THROW_ERROR_EXCEPTION(
+                    NTransactionClient::EErrorCode::MalformedForeignTransaction,
+                    "Transaction %v is of type %Qlv and hence does not allow foreign transactions",
+                    GetId(),
+                    GetType());
+            }
+
+            if (GetId() != transaction->GetId()) {
+                THROW_ERROR_EXCEPTION(
+                    NTransactionClient::EErrorCode::MalformedForeignTransaction,
+                    "Transaction id mismatch: local %v, foreign %v",
+                    GetId(),
+                    transaction->GetId());
+            }
+
+            ForeignTransactions_.push_back(transaction);
         }
 
-        TTransactionStartOptions adjustedOptions(options);
-        adjustedOptions.Id = GetId();
-        if (options.InheritStartTimestamp) {
-            adjustedOptions.StartTimestamp = GetStartTimestamp();
-        }
-
-        return client->StartTransaction(GetType(), adjustedOptions)
-            .Apply(BIND([this, this_ = MakeStrong(this)] (const NApi::ITransactionPtr& transaction) {
-                RegisterForeignTransaction(transaction);
-                return transaction;
-            }));
+        // TODO(babenko): cell tag
+        YT_LOG_DEBUG("Foreign transaction registered");
     }
 
 
@@ -304,15 +329,8 @@ public:
         TSharedRange<TRowModification> modifications,
         const TModifyRowsOptions& options) override
     {
-        auto guard = Guard(SpinLock_);
-
+        ValidateActive();
         ValidateTabletTransactionId(GetId());
-
-        if (State_ != ETransactionState::Active) {
-            THROW_ERROR_EXCEPTION("Cannot modify rows since transaction %v is already in %Qlv state",
-                GetId(),
-                State_);
-        }
 
         YT_LOG_DEBUG("Buffering client row modifications (Count: %v)",
             modifications.Size());
@@ -496,12 +514,8 @@ private:
 
     TSpinLock SpinLock_;
     ETransactionState State_ = ETransactionState::Active;
-    bool Prepared_ = false;
-    TFuture<void> AbortResult_;
-
-    TSpinLock ForeignTransactionsLock_;
+    TPromise<void> AbortPromise_;
     std::vector<NApi::ITransactionPtr> ForeignTransactions_;
-
 
     class TTableCommitSession;
     using TTableCommitSessionPtr = TIntrusivePtr<TTableCommitSession>;
@@ -546,7 +560,9 @@ private:
         {
             const auto& tableInfo = TableSession_->GetInfo();
             if (Options_.UpstreamReplicaId && tableInfo->IsReplicated()) {
-                THROW_ERROR_EXCEPTION("Replicated table %v cannot act as a replication sink",
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::TableMustNotBeReplicated,
+                    "Replicated table %v cannot act as a replication sink",
                     tableInfo->Path);
             }
 
@@ -554,7 +570,9 @@ private:
                 TableSession_->SyncReplicas().empty() &&
                 Options_.RequireSyncReplica)
             {
-                THROW_ERROR_EXCEPTION("Table %v has no synchronous replicas",
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::NoSyncReplicas,
+                    "Table %v has no synchronous replicas and \"require_sync_replica\" option is set",
                     tableInfo->Path);
             }
 
@@ -634,11 +652,15 @@ private:
 
                     case ERowModificationType::VersionedWrite:
                         if (!tableInfo->IsSorted()) {
-                            THROW_ERROR_EXCEPTION("Cannot perform versioned writes into a non-sorted table %v",
+                            THROW_ERROR_EXCEPTION(
+                                NTabletClient::EErrorCode::TableMustBeSorted,
+                                "Cannot perform versioned writes into a non-sorted table %v",
                                 tableInfo->Path);
                         }
                         if (tableInfo->IsReplicated()) {
-                            THROW_ERROR_EXCEPTION("Cannot perform versioned writes into a replicated table %v",
+                            THROW_ERROR_EXCEPTION(
+                                NTabletClient::EErrorCode::TableMustNotBeReplicated,
+                                "Cannot perform versioned writes into a replicated table %v",
                                 tableInfo->Path);
                         }
                         ValidateClientDataRow(
@@ -650,7 +672,9 @@ private:
 
                     case ERowModificationType::Delete:
                         if (!tableInfo->IsSorted()) {
-                            THROW_ERROR_EXCEPTION("Cannot perform deletes in a non-sorted table %v",
+                            THROW_ERROR_EXCEPTION(
+                                NTabletClient::EErrorCode::TableMustBeSorted,
+                                "Cannot perform deletes in a non-sorted table %v",
                                 tableInfo->Path);
                         }
                         ValidateClientKey(
@@ -662,7 +686,9 @@ private:
 
                     case ERowModificationType::ReadLockWrite:
                         if (!tableInfo->IsSorted()) {
-                            THROW_ERROR_EXCEPTION("Cannot perform lock in a non-sorted table %v",
+                            THROW_ERROR_EXCEPTION(
+                                NTabletClient::EErrorCode::TableMustBeSorted,
+                                "Cannot perform lock in a non-sorted table %v",
                                 tableInfo->Path);
                         }
                         ValidateClientKey(
@@ -1093,7 +1119,9 @@ private:
             if (UserName_ != NSecurityClient::ReplicatorUserName &&
                 TotalBatchedRowCount_ > Config_->MaxRowsPerTransaction)
             {
-                THROW_ERROR_EXCEPTION("Transaction affects too many rows")
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::TooManyRowsInTransaction,
+                    "Transaction affects too many rows")
                     << TErrorAttribute("limit", Config_->MaxRowsPerTransaction);
             }
         }
@@ -1181,7 +1209,6 @@ private:
                 InvokeBatchIndex_,
                 Batches_.size());
 
-            owner->Transaction_->ConfirmParticipant(TabletInfo_->CellId);
             InvokeNextBatch();
         }
     };
@@ -1235,7 +1262,7 @@ private:
 
             auto transaction = Transaction_.Lock();
             if (!transaction) {
-                return MakeFuture(TError("Transaction is no longer available"));
+                return MakeFuture(TError(NYT::EErrorCode::Canceled, "Transaction destroyed"));
             }
 
             YT_LOG_DEBUG("Sending transaction actions (ActionCount: %v)",
@@ -1299,15 +1326,6 @@ private:
                 THROW_ERROR(error);
             }
 
-            auto transaction = Transaction_.Lock();
-            if (!transaction) {
-                THROW_ERROR_EXCEPTION("Transaction is no longer available");
-            }
-
-            if (TypeFromId(CellId_) == EObjectType::TabletCell) {
-                transaction->Transaction_->ConfirmParticipant(CellId_);
-            }
-
             YT_LOG_DEBUG("Transaction actions sent successfully");
         }
     };
@@ -1368,34 +1386,37 @@ private:
 
         auto client = connection->CreateClient(Client_->GetOptions());
 
-        TForeignTransactionStartOptions options;
-        options.InheritStartTimestamp = true;
-        auto transaction = WaitFor(StartForeignTransaction(client, options))
+        TTransactionStartOptions options;
+        options.Id = Transaction_->GetId();
+        options.StartTimestamp = Transaction_->GetStartTimestamp();
+        auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, options))
             .ValueOrThrow();
-
-        YT_VERIFY(ClusterNameToSyncReplicaTransaction_.emplace(replicaInfo->ClusterName, transaction).second);
 
         YT_LOG_DEBUG("Sync replica transaction started (ClusterName: %v)",
             replicaInfo->ClusterName);
 
+        {
+            auto guard = Guard(SpinLock_);
+            ForeignTransactions_.push_back(transaction);
+        }
+
+        YT_VERIFY(ClusterNameToSyncReplicaTransaction_.emplace(replicaInfo->ClusterName, transaction).second);
+
         return transaction;
     }
 
+    
     void DoEnqueueModificationRequest(TModificationRequest* request)
     {
         PendingRequests_.push_back(request);
     }
 
-
-    void EnqueueModificationRequest(
-        std::unique_ptr<TModificationRequest> request)
+    void EnqueueModificationRequest(std::unique_ptr<TModificationRequest> request)
     {
         try {
             GuardedEnqueueModificationRequest(std::move(request));
         } catch (const std::exception& ex) {
-            State_ = ETransactionState::Abort;
-            Transaction_->Abort();
-            // TODO(kiselyovp) abort foreign transactions?
+            Abort();
             throw;
         }
     }
@@ -1403,14 +1424,14 @@ private:
     void GuardedEnqueueModificationRequest(
         std::unique_ptr<TModificationRequest> request)
     {
-        auto sequenceNumber = request->GetSequenceNumber();
-
-        if (sequenceNumber) {
+        if (auto sequenceNumber = request->GetSequenceNumber()) {
             if (*sequenceNumber < 0) {
-                THROW_ERROR_EXCEPTION("Packet sequence number is negative")
+                THROW_ERROR_EXCEPTION(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Packet sequence number is negative")
                     << TErrorAttribute("sequence_number", *sequenceNumber);
             }
-            // this may call DoEnqueueModificationRequest right away
+            // This may call DoEnqueueModificationRequest right away.
             OrderedRequestsSlidingWindow_.AddPacket(*sequenceNumber, request.get(), [&] (TModificationRequest* request) {
                 DoEnqueueModificationRequest(request);
             });
@@ -1420,6 +1441,7 @@ private:
         Requests_.push_back(std::move(request));
     }
 
+    
     TTableCommitSessionPtr GetOrCreateTableSession(const TYPath& path, TTableReplicaId upstreamReplicaId)
     {
         auto it = TablePathToSession_.find(path);
@@ -1443,7 +1465,9 @@ private:
         } else {
             const auto& session = it->second;
             if (session->GetUpstreamReplicaId() != upstreamReplicaId) {
-                THROW_ERROR_EXCEPTION("Mismatched upstream replica is specified for modifications to table %v: %v != !v",
+                THROW_ERROR_EXCEPTION(
+                    NTabletClient::EErrorCode::UpstreamReplicaMismatch,
+                    "Mismatched upstream replica is specified for modifications to table %v: %v != !v",
                     path,
                     upstreamReplicaId,
                     session->GetUpstreamReplicaId());
@@ -1475,12 +1499,36 @@ private:
         return it->second;
     }
 
+    TFuture<void> DoAbort(TGuard<TSpinLock>* guard, const TTransactionAbortOptions& options = {})
+    {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+        
+        if (State_ == ETransactionState::Aborted) {
+            return AbortPromise_.ToFuture();
+        }
+
+        State_ = ETransactionState::Aborted;
+        AbortPromise_ = NewPromise<void>();
+        auto abortFuture = AbortPromise_.ToFuture();
+
+        guard->Release();
+
+        for (const auto& transaction : GetForeignTransactions()) {
+            transaction->Abort();
+        }
+
+        AbortPromise_.SetFrom(Transaction_->Abort(options));
+        return abortFuture;
+    }
+
     void PrepareRequests()
     {
         bool clusterDirectorySynced = false;
 
         if (!OrderedRequestsSlidingWindow_.IsEmpty()) {
-            THROW_ERROR_EXCEPTION("Cannot prepare transaction %v since sequence number %v is missing",
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::ProtocolError,
+                "Cannot prepare transaction %v since sequence number %v is missing",
                 GetId(),
                 OrderedRequestsSlidingWindow_.GetNextSequenceNumber());
         }
@@ -1508,52 +1556,29 @@ private:
             }
         }
 
-        for (const auto& pair : TabletIdToSession_) {
-            const auto& tabletSession = pair.second;
+        for (const auto& [tabletId, tabletSession] : TabletIdToSession_) {
             auto cellId = tabletSession->GetCellId();
             int requestCount = tabletSession->Prepare();
             auto cellSession = GetOrCreateCellCommitSession(cellId);
             cellSession->RegisterRequests(requestCount);
         }
 
-        auto replicatedToCellTags = Transaction_->GetReplicatedToCellTags();
-        for (const auto& pair : CellIdToSession_) {
-            auto cellId = pair.first;
-            bool prepareOnly =
-                TypeFromId(cellId) == EObjectType::MasterCell &&
-                std::find(replicatedToCellTags.begin(), replicatedToCellTags.end(), CellTagFromId(cellId)) != replicatedToCellTags.end();
-            Transaction_->RegisterParticipant(cellId, prepareOnly);
-        }
-
-        {
-            auto guard = Guard(SpinLock_);
-            if (State_ == ETransactionState::Abort) {
-                THROW_ERROR_EXCEPTION("Cannot prepare since transaction %v is already in %Qlv state",
-                    GetId(),
-                    State_);
-            }
-            YT_VERIFY(State_ == ETransactionState::Prepare || State_ == ETransactionState::Commit);
-            YT_VERIFY(!Prepared_);
-            Prepared_ = true;
+        for (const auto& [cellId, session] : CellIdToSession_) {
+            Transaction_->RegisterParticipant(cellId);
         }
     }
 
     TFuture<void> SendRequests()
     {
-        YT_VERIFY(Prepared_);
-
         std::vector<TFuture<void>> asyncResults;
 
-        for (const auto& pair : TabletIdToSession_) {
-            const auto& session = pair.second;
+        for (const auto& [tabletId, session] : TabletIdToSession_) {
             auto cellId = session->GetCellId();
             auto channel = Client_->GetCellChannelOrThrow(cellId);
             asyncResults.push_back(session->Invoke(std::move(channel)));
         }
 
-        for (const auto& pair : CellIdToSession_) {
-            auto cellId = pair.first;
-            const auto& session = pair.second;
+        for (const auto& [cellId, session] : CellIdToSession_) {
             auto channel = Client_->GetCellChannelOrThrow(cellId);
             asyncResults.push_back(session->Invoke(std::move(channel)));
         }
@@ -1563,118 +1588,109 @@ private:
 
     TTransactionCommitOptions AdjustCommitOptions(TTransactionCommitOptions options)
     {
-        for (const auto& pair : TablePathToSession_) {
-            const auto& session = pair.second;
+        for (const auto& [path, session] : TablePathToSession_) {
             if (session->GetInfo()->IsReplicated()) {
                 options.Force2PC = true;
             }
-            if (!session->SyncReplicas().empty()) {
-                options.CoordinatorCellTag = Client_->GetNativeConnection()->GetPrimaryMasterCellTag();
-            }
         }
-
         return options;
     }
 
-    TTransactionCommitResult DoCommit(const TTransactionCommitOptions& options)
+    TFuture<TTransactionCommitResult> DoCommit(const TTransactionCommitOptions& options, bool needsFlush)
     {
-        try {
-            // Gather participants.
-            {
-                PrepareRequests();
-
-                std::vector<TFuture<TTransactionPrepareResult>> asyncPrepareResults;
-                for (const auto& transaction : GetForeignTransactions()) {
-                    asyncPrepareResults.push_back(transaction->Prepare());
-                }
-
-                auto prepareResults = WaitFor(Combine(asyncPrepareResults))
-                    .ValueOrThrow();
-
-                for (const auto& prepareResult : prepareResults) {
-                    for (auto cellId : prepareResult.ParticipantCellIds) {
-                        // XXX(babenko): handle prepare-only participants in cross-cluster commits
-                        Transaction_->RegisterParticipant(cellId, false);
-                    }
-                }
-            }
-
-            // Choose coordinator.
-            auto adjustedOptions = AdjustCommitOptions(options);
-            Transaction_->ChooseCoordinator(adjustedOptions);
-
-            // Validate that all participants are available.
-            WaitFor(Transaction_->ValidateNoDownedParticipants())
-                .ThrowOnError();
-
-            // Send transaction data.
-            {
-                std::vector<TFuture<void>> asyncRequestResults{
-                    SendRequests()
-                };
-
-                std::vector<TFuture<TTransactionFlushResult>> asyncFlushResults;
-                for (const auto& transaction : GetForeignTransactions()) {
-                    asyncFlushResults.push_back(transaction->Flush());
-                }
-
-                auto flushResults = WaitFor(Combine(asyncFlushResults))
-                    .ValueOrThrow();
-
-                for (const auto& flushResult : flushResults) {
-                    asyncRequestResults.push_back(flushResult.AsyncResult);
-                    for (auto cellId : flushResult.ParticipantCellIds) {
-                        Transaction_->ConfirmParticipant(cellId);
-                    }
-                }
-
-                WaitFor(Combine(asyncRequestResults))
-                    .ThrowOnError();
-            }
-
-            // Commit.
-            {
-                auto commitResult = WaitFor(Transaction_->Commit(adjustedOptions))
-                    .ValueOrThrow();
-
-                for (const auto& transaction : GetForeignTransactions()) {
-                    transaction->Detach();
-                }
-
-                return commitResult;
-            }
-        } catch (const std::exception& ex) {
-            // Fire and forget.
-            Transaction_->Abort();
+        std::vector<TFuture<TTransactionFlushResult>> flushFutures;
+        if (needsFlush) {
+            // Issue flush requests first to paralellize local preparation and foreign flushes.
             for (const auto& transaction : GetForeignTransactions()) {
-                transaction->Abort();
+                flushFutures.push_back(transaction->Flush());
             }
-            throw;
+
+            PrepareRequests();
+
+            // NB: The call above could have extended the set of foreign transactions.
+            // Let's flush these new guys as well.
+            for (const auto& [clusterName, transaction] : ClusterNameToSyncReplicaTransaction_) {
+                flushFutures.push_back(transaction->Flush());
+            }
         }
+
+        for (auto cellId : options.AdditionalParticipantCellIds) {
+            Transaction_->RegisterParticipant(cellId);
+        }
+
+        auto adjustedOptions = AdjustCommitOptions(options);
+        Transaction_->ChooseCoordinator(adjustedOptions);
+
+        return Transaction_->ValidateNoDownedParticipants()
+            .Apply(
+                BIND([=, this_ = MakeStrong(this), flushFutures = std::move(flushFutures)] () mutable {
+                    if (needsFlush) {
+                        flushFutures.push_back(SendRequests()
+                            .Apply(BIND([] { return TTransactionFlushResult{}; })));
+                    }
+                    return Combine(std::move(flushFutures));
+                }).AsyncVia(GetCurrentInvoker()))
+            .Apply(
+                BIND([=, this_ = MakeStrong(this)] (const std::vector<TTransactionFlushResult>& results) {
+                    for (const auto& result : results) {
+                        for (auto cellId : result.ParticipantCellIds) {
+                            Transaction_->RegisterParticipant(cellId);
+                        }
+                    }
+
+                    return Transaction_->Commit(adjustedOptions);
+                }).AsyncVia(GetCurrentInvoker()))
+            .Apply(
+                BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TTransactionCommitResult>& resultOrError) {
+                    {
+                        auto guard = Guard(SpinLock_);
+                        if (resultOrError.IsOK() && State_ == ETransactionState::Committing) {
+                            State_ = ETransactionState::Committed;
+                        } else if (!resultOrError.IsOK()) {
+                            DoAbort(&guard);
+                            THROW_ERROR_EXCEPTION("Error committing transaction %v",
+                                GetId())
+                                << resultOrError;
+                        }
+                    }
+
+                    for (const auto& transaction : GetForeignTransactions()) {
+                        transaction->Detach();
+                    }
+
+                    return resultOrError.Value();
+                }).AsyncVia(GetCurrentInvoker()));
     }
 
-    TTransactionPrepareResult DoPrepare()
+    TFuture<TTransactionFlushResult> DoFlush()
     {
         PrepareRequests();
 
-        TTransactionPrepareResult result;
-        result.ParticipantCellIds = GetKeys(CellIdToSession_);
-        return result;
-    }
+        return SendRequests()
+            .Apply(
+                BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                    {
+                        auto guard = Guard(SpinLock_);
+                        if (error.IsOK() && State_ == ETransactionState::Flushing) {
+                            State_ = ETransactionState::Flushed;
+                        } else if (!error.IsOK()) {
+                            YT_LOG_DEBUG(error, "Error flushing transaction");
+                            DoAbort(&guard);
+                            THROW_ERROR_EXCEPTION("Error flushing transaction %v",
+                                GetId())
+                                << error;
+                        }
+                    }
 
-    TTransactionFlushResult DoFlush()
-    {
-        auto asyncResult = SendRequests();
-        asyncResult.Subscribe(BIND([transaction = Transaction_] (const TError& error) {
-            if (!error.IsOK()) {
-                transaction->Abort();
-            }
-        }));
+                    TTransactionFlushResult result{
+                        .ParticipantCellIds = GetKeys(CellIdToSession_)
+                    };
 
-        TTransactionFlushResult result;
-        result.AsyncResult = asyncResult;
-        result.ParticipantCellIds = GetKeys(CellIdToSession_);
-        return result;
+                    YT_LOG_DEBUG("Transaction flushed (ParticipantCellIds: %v)",
+                        result.ParticipantCellIds);
+
+                    return result;
+                }).AsyncVia(GetCurrentInvoker()));
     }
 
 
@@ -1706,16 +1722,61 @@ private:
         }
     }
 
-    void RegisterForeignTransaction(NApi::ITransactionPtr transaction)
+    
+    void DoRegisterForeignTransaction(const NApi::ITransactionPtr& transaction, ETransactionState expectedState)
     {
-        auto guard = Guard(ForeignTransactionsLock_);
-        ForeignTransactions_.emplace_back(std::move(transaction));
+        {
+            auto guard = Guard(SpinLock_);
+
+            if (State_ != expectedState) {
+                THROW_ERROR_EXCEPTION(
+                    NTransactionClient::EErrorCode::InvalidTransactionState,
+                    "Transaction %v is in %Qlv state",
+                    GetId(),
+                    State_);
+            }
+
+            if (GetType() != ETransactionType::Tablet) {
+                THROW_ERROR_EXCEPTION(
+                    NTransactionClient::EErrorCode::MalformedForeignTransaction,
+                    "Transaction %v is of type %Qlv and hence does not allow foreign transactions",
+                    GetId(),
+                    GetType());
+            }
+
+            if (GetId() != transaction->GetId()) {
+                THROW_ERROR_EXCEPTION(
+                    NTransactionClient::EErrorCode::MalformedForeignTransaction,
+                    "Transaction id mismatch: local %v, foreign %v",
+                    GetId(),
+                    transaction->GetId());
+            }
+
+            ForeignTransactions_.push_back(transaction);
+        }
+
+        // TODO(babenko): cell tag
+        YT_LOG_DEBUG("Foreign transaction registered");
     }
 
     std::vector<NApi::ITransactionPtr> GetForeignTransactions()
     {
-        auto guard = Guard(ForeignTransactionsLock_);
+        auto guard = Guard(SpinLock_);
         return ForeignTransactions_;
+    }
+
+
+    void ValidateActive()
+    {
+        auto guard = Guard(SpinLock_);
+        
+        if (State_ != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::InvalidTransactionState,
+                "Cannot modify rows since transaction %v is in %Qlv state",
+                GetId(),
+                State_);
+        }
     }
 };
 

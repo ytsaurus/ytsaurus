@@ -36,6 +36,9 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidTransactionState)          (11003))
     ((ParticipantFailedToPrepare)       (11004))
     ((SomeParticipantsAreDown)          (11005))
+    ((ForeignTransactionsForbidden)     (11006))
+    ((MalformedForeignTransaction)      (11007))
+    ((InvalidTransactionAtomicity)      (11008))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
