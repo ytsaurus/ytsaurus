@@ -510,12 +510,14 @@ def get_value(value, default):
 def filter_dict(predicate, dictionary):
     return dict([(k, v) for (k, v) in iteritems(dictionary) if predicate(k, v)])
 
-def set_pdeathsig():
+def set_pdeathsig(signum=None):
     if sys.platform.startswith("linux"):
         ctypes.cdll.LoadLibrary("libc.so.6")
         libc = ctypes.CDLL("libc.so.6")
         PR_SET_PDEATHSIG = 1
-        libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+        if signum is None:
+            signum = signal.SIGTERM
+        libc.prctl(PR_SET_PDEATHSIG, signum)
 
 def remove_file(path, force=False):
     try:
