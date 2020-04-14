@@ -2510,7 +2510,6 @@ class TestJoinAndIn(ClickHouseTestBase):
     @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_forbidden_non_primitive_join(self):
         # CHYT-323.
-        pytest.xfail("Fix me")
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
         create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
         write_table("//tmp/t1", [{"key": 42}])
