@@ -116,12 +116,6 @@ public:
         Combine(shutdownResults)
             .Get();
 
-        {
-            IPollable* pollable;
-            while (Retry_.Dequeue(&pollable)) {
-            }
-        }
-
         YT_LOG_INFO("Shutting down poller threads");
 
         for (const auto& thread : Threads_) {
@@ -133,7 +127,6 @@ public:
         {
             auto guard = Guard(SpinLock_);
             YT_VERIFY(Pollables_.empty());
-            YT_VERIFY(Retry_.IsEmpty());
             ShutdownFinished_.store(true);
         }
 
@@ -343,10 +336,6 @@ private:
 
         void HandleRetry()
         {
-            if (Poller_->ShutdownStarted_.load()) {
-                return;
-            }
-
             IPollable* pollable;
 
             // Dequeue one by one to let other threads do their job
