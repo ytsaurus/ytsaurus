@@ -171,6 +171,7 @@ void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs)
         auto name = ConvertStringObjectToString(kwargs.keys()[0]);
         throw Py::RuntimeError("Excessive named argument '" + name + "'");
     }
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

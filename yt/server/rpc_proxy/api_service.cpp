@@ -237,7 +237,8 @@ class TApiService
     : public TServiceBase
 {
 public:
-    explicit TApiService(TBootstrap* bootstrap)
+    explicit TApiService(
+        TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetWorkerInvoker(),
             GetDescriptor(),
@@ -260,9 +261,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingTransaction));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortTransaction));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CommitTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FlushTransaction));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AttachTransaction));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(DetachTransaction));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExistsNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetNode));
@@ -445,48 +444,34 @@ private:
         return client;
     }
 
-    ITransactionPtr FindTransaction(
+    ITransactionPtr GetTransactionOrThrow(
         const IServiceContextPtr& context,
         const google::protobuf::Message* request,
         TTransactionId transactionId,
-        const std::optional<TTransactionAttachOptions>& options,
-        bool searchInPool = true)
+        const TTransactionAttachOptions& options,
+        bool searchInPool = true,
+        bool attach = true)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         ITransactionPtr transaction;
         if (searchInPool) {
-            transaction = StickyTransactionPool_->FindTransactionAndRenewLease(transactionId);
+            transaction = StickyTransactionPool_->GetTransactionAndRenewLease(transactionId);
         }
         // Don't waste time trying to attach to tablet transactions.
-        if (!transaction && options && IsMasterTransactionId(transactionId)) {
-            auto newOptions = *options;
+        if (!transaction && attach && IsMasterTransactionId(transactionId)) {
+            auto newOptions = options;
             newOptions.Sticky = false;
             transaction = client->AttachTransaction(transactionId, newOptions);
         }
 
-        return transaction;
-    }
-
-    ITransactionPtr GetTransactionOrThrow(
-        const IServiceContextPtr& context,
-        const google::protobuf::Message* request,
-        TTransactionId transactionId,
-        const std::optional<TTransactionAttachOptions>& options,
-        bool searchInPool = true)
-    {
-        auto transaction = FindTransaction(
-            context,
-            request,
-            transactionId,
-            options,
-            searchInPool);
         if (!transaction) {
             THROW_ERROR_EXCEPTION(
                 NTransactionClient::EErrorCode::NoSuchTransaction,
                 "No such transaction %v",
                 transactionId);
         }
+
         return transaction;
     }
 
@@ -586,13 +571,11 @@ private:
         if (request->has_attributes()) {
             options.Attributes = NYTree::FromProto(request->attributes());
         }
-        options.PrerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
 
-        context->SetRequestInfo("TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, Timeout: %v, Deadline: %v, AutoAbort: %v, "
+        context->SetRequestInfo("TransactionId: %v, ParentId: %v, Timeout: %v, Deadline: %v, AutoAbort: %v, "
             "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v",
             options.Id,
             options.ParentId,
-            options.PrerequisiteTransactionIds,
             options.Timeout,
             options.Deadline,
             options.AutoAbort,
@@ -626,8 +609,8 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
         TTransactionAttachOptions attachOptions;
-        attachOptions.Ping = false;
-        attachOptions.PingAncestors = request->ping_ancestors();
+        attachOptions.Ping = true;
+        attachOptions.PingAncestors = true;
 
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
@@ -651,26 +634,24 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        TTransactionCommitOptions options;
-        options.AdditionalParticipantCellIds = FromProto<std::vector<TCellId>>(request->additional_participant_cell_ids());
+        TTransactionAttachOptions attachOptions;
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
 
-        context->SetRequestInfo("TransactionId: %v, AdditionalParticipantCellIds: %v",
-            transactionId,
-            options.AdditionalParticipantCellIds);
+        context->SetRequestInfo("TransactionId: %v",
+            transactionId);
 
         auto transaction = GetTransactionOrThrow(
             context,
             request,
             transactionId,
-            TTransactionAttachOptions{
-                .Ping = false,
-                .PingAncestors = false
-            });
+            attachOptions);
 
+        // TODO(sandello): Options!
         CompleteCallWith(
             NNative::IClientPtr(),
             context,
-            transaction->Commit(options),
+            transaction->Commit(),
             [] (const auto& context, const TTransactionCommitResult& result) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_commit_timestamps(), result.CommitTimestamps);
@@ -680,39 +661,14 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, FlushTransaction)
-    {
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-
-        context->SetRequestInfo("TransactionId: %v",
-            transactionId);
-
-        auto transaction = GetTransactionOrThrow(
-            context,
-            request,
-            transactionId,
-            TTransactionAttachOptions{
-                .Ping = false,
-                .PingAncestors = false
-            });
-
-        CompleteCallWith(
-            NNative::IClientPtr(),
-            context,
-            transaction->Flush(),
-            [&] (const auto& context, const TTransactionFlushResult& result) {
-                auto* response = &context->Response();
-                ToProto(response->mutable_participant_cell_ids(), result.ParticipantCellIds);
-
-                context->SetResponseInfo("ParticipantCellIds: %v",
-                    result.ParticipantCellIds);
-            });
-    }
-
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbortTransaction)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
+        TTransactionAttachOptions attachOptions;
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
+
         context->SetRequestInfo("TransactionId: %v",
             transactionId);
 
@@ -720,10 +676,7 @@ private:
             context,
             request,
             transactionId,
-            TTransactionAttachOptions{
-                .Ping = false,
-                .PingAncestors = false
-            });
+            attachOptions);
 
         // TODO(sandello): Options!
         CompleteCallWith(
@@ -756,25 +709,14 @@ private:
             request,
             transactionId,
             options,
-            false /* searchInPool */);
+            false /* searchInPool */,
+            true  /* attach */);
 
         response->set_type(static_cast<NApi::NRpcProxy::NProto::ETransactionType>(transaction->GetType()));
         response->set_start_timestamp(transaction->GetStartTimestamp());
         response->set_atomicity(static_cast<NApi::NRpcProxy::NProto::EAtomicity>(transaction->GetAtomicity()));
         response->set_durability(static_cast<NApi::NRpcProxy::NProto::EDurability>(transaction->GetDurability()));
         response->set_timeout(static_cast<i64>(transaction->GetTimeout().GetValue()));
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DetachTransaction)
-    {
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-
-        context->SetRequestInfo("TransactionId: %v",
-            transactionId);
-
-        StickyTransactionPool_->UnregisterTransaction(transactionId);
 
         context->Reply();
     }
@@ -2345,7 +2287,7 @@ private:
     ////////////////////////////////////////////////////////////////////////////////
 
     template <class TContext, class TRequest, class TOptions>
-    static void LookupRowsPrologue(
+    static bool LookupRowsPrologue(
         const TIntrusivePtr<TContext>& context,
         TRequest* request,
         const NApi::NRpcProxy::NProto::TRowsetDescriptor& rowsetDescriptor,
@@ -2358,7 +2300,8 @@ private:
             NApi::NRpcProxy::CurrentWireFormatVersion,
             NApi::NRpcProxy::NProto::RK_UNVERSIONED);
         if (request->Attachments().empty()) {
-            THROW_ERROR_EXCEPTION("Request is missing rowset in attachments");
+            context->Reply(TError("Request is missing rowset in attachments"));
+            return false;
         }
 
         auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
@@ -2387,10 +2330,11 @@ private:
             options->MultiplexingBand = CheckedEnumCast<EMultiplexingBand>(request->multiplexing_band());
         }
 
-        context->SetRequestInfo("Path: %v, Rows: %v, Timestamp: %v",
+        context->SetRequestInfo("Path: %v, Rows: %v",
             request->path(),
-            keys->Size(),
-            options->Timestamp);
+            keys->Size());
+
+        return true;
     }
 
     template <class TResponse, class TRow>
@@ -2413,13 +2357,16 @@ private:
         TNameTablePtr nameTable;
         TSharedRange<TUnversionedRow> keys;
         TLookupRowsOptions options;
-        LookupRowsPrologue(
+        if (!LookupRowsPrologue(
             context,
             request,
             request->rowset_descriptor(),
             &nameTable,
             &keys,
-            &options);
+            &options))
+        {
+            return;
+        }
 
         CompleteCallWith(
             client,
@@ -2447,13 +2394,16 @@ private:
         TNameTablePtr nameTable;
         TSharedRange<TUnversionedRow> keys;
         TVersionedLookupRowsOptions options;
-        LookupRowsPrologue(
+        if (!LookupRowsPrologue(
             context,
             request,
             request->rowset_descriptor(),
             &nameTable,
             &keys,
-            &options);
+            &options))
+        {
+            return;
+        }
 
         if (request->has_retention_config()) {
             options.RetentionConfig = New<TRetentionConfig>();
@@ -2689,7 +2639,7 @@ private:
         for (size_t index = 0; index < rowsetSize; ++index) {
             TLockMask lockMask;
             if (index < request.row_read_locks_size()) {
-                TLockBitmap readLockMask = request.row_read_locks(index);
+                ui32 readLockMask = request.row_read_locks(index);
                 for (int index = 0; index < TLockMask::MaxCount; ++index) {
                     if (readLockMask & (1u << index)) {
                         lockMask.Set(index, ELockType::SharedWeak);
@@ -2729,37 +2679,44 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ModifyRows)
     {
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-
-        context->SetRequestInfo(
-            "TrasactionId: %v, Path: %v, ModificationCount: %v",
-            transactionId,
-            request->path(),
-            request->row_modification_types_size());
+        TTransactionAttachOptions attachOptions;
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
 
         auto transaction = GetTransactionOrThrow(
             context,
             request,
-            transactionId,
-            std::nullopt,
-            /* searchInPool */ true);
+            FromProto<TTransactionId>(request->transaction_id()),
+            attachOptions,
+            true, /* searchInPool */
+            false /* attach */);
 
         DoModifyRows(*request, request->Attachments(), transaction);
+
+        context->SetRequestInfo(
+            "Path: %v, ModificationCount: %v",
+            request->path(),
+            request->row_modification_types_size());
 
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BatchModifyRows)
     {
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-
-        context->SetRequestInfo("TransactionId: %v, BatchSize: %v",
-            transactionId,
-            request->part_counts_size());
+        TTransactionAttachOptions attachOptions;
+        attachOptions.Ping = false;
+        attachOptions.PingAncestors = false;
+        auto transaction = GetTransactionOrThrow(
+            context,
+            request,
+            FromProto<TTransactionId>(request->transaction_id()),
+            attachOptions,
+            true /* searchInPool */,
+            false /* attach */);
 
         i64 attachmentCount = request->Attachments().size();
         i64 expectedAttachmentCount = 0;
-        for (int partCount : request->part_counts()) {
+        for (const auto& partCount: request->part_counts()) {
             if (partCount < 0) {
                 THROW_ERROR_EXCEPTION("Received a negative part count")
                     << TErrorAttribute("partCount", partCount);
@@ -2768,6 +2725,7 @@ private:
                 THROW_ERROR_EXCEPTION("Part count is too large")
                     << TErrorAttribute("partCount", partCount);
             }
+
             expectedAttachmentCount += partCount + 1;
         }
         if (attachmentCount != expectedAttachmentCount) {
@@ -2776,26 +2734,23 @@ private:
                 << TErrorAttribute("expected_attachment_count", expectedAttachmentCount);
         }
 
-        auto transaction = GetTransactionOrThrow(
-            context,
-            request,
-            FromProto<TTransactionId>(request->transaction_id()),
-            std::nullopt,
-            true /* searchInPool */);
-
-        int attachmentIndex = 0;
-        for (int partCount: request->part_counts()) {
+        auto blobIndex = 0;
+        const auto attachmentsStart = request->Attachments().begin();
+        for (const auto& partCount: request->part_counts()) {
             NApi::NRpcProxy::NProto::TReqModifyRows subrequest;
             // TODO(kiselyovp) if this fails, YT_VERIFY happens
-            DeserializeProto(&subrequest, request->Attachments()[attachmentIndex]);
-            ++attachmentIndex;
+            DeserializeProto(&subrequest, request->Attachments()[blobIndex]);
+            ++blobIndex;
             std::vector<TSharedRef> attachments(
-                request->Attachments().begin() + attachmentIndex,
-                request->Attachments().begin() + attachmentIndex + partCount);
+                attachmentsStart + blobIndex,
+                attachmentsStart + blobIndex + partCount);
             DoModifyRows(subrequest, attachments, transaction);
-            attachmentIndex += partCount;
+            blobIndex += partCount;
         }
 
+        context->SetRequestInfo("BatchSize: %v, TransactionId: %v",
+            request->part_counts_size(),
+            transaction->GetId());
         context->Reply();
     }
 
@@ -2816,7 +2771,10 @@ private:
         auto admin = connection->CreateAdmin();
 
         TBuildSnapshotOptions options;
-        options.CellId = FromProto<TCellId>(request->cell_id());
+        if (request->has_cell_id()) {
+            FromProto(&options.CellId, request->cell_id());
+        }
+
         options.SetReadOnly = request->set_read_only();
         options.WaitForSnapshotCompletion = request->wait_for_snapshot_completion();
 
@@ -2853,7 +2811,9 @@ private:
         auto admin = connection->CreateAdmin();
 
         TGCCollectOptions options;
-        options.CellId = FromProto<TCellId>(request->cell_id());
+        if (request->has_cell_id()) {
+            FromProto(&options.CellId, request->cell_id());
+        }
 
         context->SetRequestInfo("CellId: %v", options.CellId);
 

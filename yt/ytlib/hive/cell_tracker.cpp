@@ -13,7 +13,7 @@ std::vector<TCellId> TCellTracker::Select(const std::vector<TCellId>& candidates
     std::vector<TCellId> result;
     result.reserve(candidates.size());
 
-    for (auto id : candidates) {
+    for (const auto& id : candidates) {
         if (CellIds_.find(id) != CellIds_.end()) {
             result.push_back(id);
         }
@@ -26,10 +26,10 @@ void TCellTracker::Update(const std::vector<TCellId>& toRemove, const std::vecto
 {
     auto guard = Guard(SpinLock_);
 
-    for (auto id : toRemove) {
+    for (const auto& id : toRemove) {
         CellIds_.erase(id);
     }
-    for (auto id : toAdd) {
+    for (const auto& id : toAdd) {
         CellIds_.insert(id);
     }
 }

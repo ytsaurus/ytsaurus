@@ -30,10 +30,6 @@ TStartTransactionCommand::TStartTransactionCommand()
         .Optional();
     RegisterParameter("timeout", Options.Timeout)
         .Optional();
-    RegisterParameter("transaction_id_override", Options.Id)
-        .Optional();
-    RegisterParameter("start_timestamp_override", Options.StartTimestamp)
-        .Optional();
     RegisterParameter("transaction_id", Options.ParentId)
         .Optional();
     RegisterParameter("ping_ancestor_transactions", Options.PingAncestors)
@@ -64,10 +60,10 @@ void TStartTransactionCommand::DoExecute(ICommandContextPtr context)
     auto transaction = WaitFor(context->GetClient()->StartTransaction(Type, Options))
         .ValueOrThrow();
 
-    if (Options.Sticky) {
-        context->GetDriver()->GetStickyTransactionPool()->RegisterTransaction(transaction);
-    } else {
+    if (!Options.Sticky) {
         transaction->Detach();
+    } else {
+        context->GetDriver()->GetStickyTransactionPool()->RegisterTransaction(transaction);
     }
 
     ProduceSingleOutputValue(context, "transaction_id", transaction->GetId());

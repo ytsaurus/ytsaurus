@@ -6,16 +6,8 @@
 #include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/core/logging/config.h>
 #include <yt/core/logging/log_manager.h>
-
-#include <yt/core/ypath/token.h>
-
-#include <yt/core/misc/finally.h>
-
-#include <util/system/env.h>
 
 namespace NYT {
 namespace NCppTests {
@@ -30,119 +22,58 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
-using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TString GetEnvOrThrow(const TString& name)
-{
-    auto value = GetEnv(name);
-    if (!value) {
-        THROW_ERROR_EXCEPTION("%v is not set", name);
-    }
-    return value;
-}
-
-IMapNodePtr ReadConfig(const TString& fileName)
-{
-    try {
-        TIFStream configStream(fileName);
-        return ConvertToNode(&configStream)->AsMap();
-    } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Error reading configuration file %v",
-            fileName);
-    }
-}
-
-} // namespace
-
 void TApiTestBase::SetUpTestCase()
 {
-    fprintf(stderr, "SetUpTestCase\n");
+    const auto* configPath = std::getenv("YT_CONSOLE_DRIVER_CONFIG_PATH");
+    TIFStream configStream(configPath);
+    auto config = ConvertToNode(&configStream)->AsMap();
 
-    {
-        auto configPath = GetEnvOrThrow("YT_CONSOLE_DRIVER_CONFIG_PATH");
-
-        fprintf(stderr, "YT_CONSOLE_DRIVER_CONFIG_PATH = %s\n",
-            configPath.c_str());
-
-        auto config = ReadConfig(configPath);
-        if (auto logging = config->FindChild("logging")) {
-            NLogging::TLogManager::Get()->Configure(ConvertTo<NLogging::TLogManagerConfigPtr>(logging));
-        }
+    if (auto logging = config->FindChild("logging")) {
+        NLogging::TLogManager::Get()->Configure(ConvertTo<NLogging::TLogManagerConfigPtr>(logging));
     }
 
-    {
-        auto configPath = GetEnvOrThrow("YT_DRIVER_CONFIG_PATH_PRIMARY");
-
-        fprintf(stderr, "YT_DRIVER_CONFIG_PATH_PRIMARY = %s\n",
-            configPath.c_str());
-
-        auto config = ReadConfig(configPath);
-        Connection_ = NApi::CreateConnection(config);
-        Client_ = CreateClient(NRpc::RootUserName);
-    }
-
-    for (int remoteClusterIndex = 0;; ++remoteClusterIndex) {
-        auto configPath = GetEnv("YT_DRIVER_CONFIG_PATH_REMOTE_" + ToString(remoteClusterIndex));
-        if (!configPath) {
-            break;
-        }
-
-        fprintf(stderr, "YT_DRIVER_CONFIG_PATH_REMOTE_%d = %s\n",
-            remoteClusterIndex,
-            configPath.c_str());
-
-        auto config = ReadConfig(configPath);
-        RemoteConnections_.push_back(NApi::CreateConnection(config));
-        RemoteClients_.push_back(CreateRemoteClient(remoteClusterIndex, NRpc::RootUserName));
-    }
+    Connection_ = NApi::CreateConnection(config->GetChild("driver"));
+    Client_ = CreateClient(NRpc::RootUserName);
 }
 
 void TApiTestBase::TearDownTestCase()
 {
-    fprintf(stderr, "TearDownTestCase\n");
-
-    Connection_.Reset();
     Client_.Reset();
-    RemoteConnections_.clear();
-    RemoteClients_.clear();
+    Connection_.Reset();
 }
 
 IClientPtr TApiTestBase::CreateClient(const TString& userName)
 {
-    return Connection_->CreateClient(TClientOptions(userName));
-}
-
-IClientPtr TApiTestBase::CreateRemoteClient(int remoteClusterIndex, const TString& userName)
-{
-    return RemoteConnections_[remoteClusterIndex]->CreateClient(TClientOptions(userName));
+    TClientOptions clientOptions;
+    clientOptions.PinnedUser = userName;
+    return Connection_->CreateClient(clientOptions);
 }
 
 NApi::IConnectionPtr TApiTestBase::Connection_;
 NApi::IClientPtr TApiTestBase::Client_;
-std::vector<NApi::IConnectionPtr> TApiTestBase::RemoteConnections_;
-std::vector<NApi::IClientPtr> TApiTestBase::RemoteClients_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TDynamicTablesTestBase::TearDownTestCase()
 {
-    auto finallyGuard = Finally([&] {
-        TApiTestBase::TearDownTestCase();
-    });
+    SyncUnmountTable(Table_);
 
     WaitFor(Client_->RemoveNode(TYPath("//tmp/*")))
         .ThrowOnError();
 
     RemoveTabletCells();
 
-    RemoveUserObjects("//sys/tablet_cell_bundles");
+    RemoveSystemObjects("//sys/tablet_cell_bundles", [] (const TString& name) {
+        return name != "default";
+    });
 
     WaitFor(Client_->SetNode(TYPath("//sys/accounts/tmp/@resource_limits/tablet_count"), ConvertToYsonString(0)))
         .ThrowOnError();
+
+    TApiTestBase::TearDownTestCase();
 }
 
 void TDynamicTablesTestBase::SetUpTestCase()
@@ -151,7 +82,7 @@ void TDynamicTablesTestBase::SetUpTestCase()
 
     auto cellId = WaitFor(Client_->CreateObject(EObjectType::TabletCell))
         .ValueOrThrow();
-    WaitUntilEqual(FromObjectId(cellId) + "/@health", "good");
+    WaitUntilEqual(TYPath("#") + ToString(cellId) + "/@health", "good");
 
     WaitFor(Client_->SetNode(TYPath("//sys/accounts/tmp/@resource_limits/tablet_count"), ConvertToYsonString(1000)))
         .ThrowOnError();
@@ -241,13 +172,13 @@ void TDynamicTablesTestBase::WriteUnversionedRow(
     const IClientPtr& client)
 {
     auto preparedRow = PrepareUnversionedRow(names, rowString);
-    WriteUnversionedRows(
+    WriteRows(
         std::get<1>(preparedRow),
         std::get<0>(preparedRow),
         client);
 }
 
-void TDynamicTablesTestBase::WriteUnversionedRows(
+void TDynamicTablesTestBase::WriteRows(
     TNameTablePtr nameTable,
     TSharedRange<TUnversionedRow> rows,
     const IClientPtr& client)
@@ -290,13 +221,13 @@ void TDynamicTablesTestBase::WriteVersionedRow(
     const IClientPtr& client)
 {
     auto preparedRow = PrepareVersionedRow(names, keyYson, valueYson);
-    WriteVersionedRows(
+    WriteRows(
         std::get<1>(preparedRow),
         std::get<0>(preparedRow),
         client);
 }
 
-void TDynamicTablesTestBase::WriteVersionedRows(
+void TDynamicTablesTestBase::WriteRows(
     TNameTablePtr nameTable,
     TSharedRange<TVersionedRow> rows,
     const IClientPtr& client)
@@ -313,24 +244,23 @@ void TDynamicTablesTestBase::WriteVersionedRows(
         .ValueOrThrow();
 }
 
-void TDynamicTablesTestBase::RemoveUserObjects(const TYPath& path)
+void TDynamicTablesTestBase::RemoveSystemObjects(
+    const TYPath& path,
+    std::function<bool(const TString&)> filter)
 {
-    TListNodeOptions options;
-    options.Attributes = std::vector<TString>{"builtin"};
-    auto items = WaitFor(Client_->ListNode(path, options))
+    auto items = WaitFor(Client_->ListNode(path))
          .ValueOrThrow();
-    
     auto itemsList = ConvertTo<IListNodePtr>(items);
-    std::vector<TFuture<void>> futures;
+
+    std::vector<TFuture<void>> asyncWait;
     for (const auto& item : itemsList->GetChildren()) {
-        if (item->Attributes().Get<bool>("builtin")) {
-            continue;
+        const auto& name = item->AsString()->GetValue();
+        if (filter(name)) {
+            asyncWait.push_back(Client_->RemoveNode(path + "/" + name));
         }
-        auto name = item->AsString()->GetValue();
-        futures.push_back(Client_->RemoveNode(path + "/" + ToYPathLiteral(name)));
     }
 
-    WaitFor(Combine(futures))
+    WaitFor(Combine(asyncWait))
         .ThrowOnError();
 }
 
