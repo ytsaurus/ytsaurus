@@ -962,7 +962,7 @@ def run_vanilla_operation(sync, tasks, spec):
     for name, description in iteritems(tasks):
         spec_builder.task(name, description)
     spec_builder.spec(spec)
-    yt.run_operation(spec_builder, sync=sync)
+    return yt.run_operation(spec_builder, sync=sync)
 
 def add_vanilla_parser(add_parser):
     parser = add_parser("vanilla", operation_handler(run_vanilla_operation))
