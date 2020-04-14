@@ -14,8 +14,14 @@ namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTransactionPrepareResult
+{
+    std::vector<NElection::TCellId> ParticipantCellIds;
+};
+
 struct TTransactionFlushResult
 {
+    TFuture<void> AsyncResult;
     std::vector<NElection::TCellId> ParticipantCellIds;
 };
 
@@ -71,8 +77,8 @@ struct ITransaction
     virtual TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options = TTransactionCommitOptions()) = 0;
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
     virtual void Detach() = 0;
+    virtual TFuture<TTransactionPrepareResult> Prepare() = 0;
     virtual TFuture<TTransactionFlushResult> Flush() = 0;
-    virtual void RegisterForeignTransaction(const ITransactionPtr& transaction) = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(), Committed);
     DECLARE_INTERFACE_SIGNAL(void(), Aborted);

@@ -419,9 +419,7 @@ class TestMasterTransactions(YTEnvSetup):
                 tx = start_transaction(tx=tx)
         with pytest.raises(YtError): start_transaction(tx=tx)
 
+##################################################################
+
 class TestMasterTransactionsMulticell(TestMasterTransactions):
     NUM_SECONDARY_MASTER_CELLS = 2
-
-class TestMasterTransactionsRpcProxy(TestMasterTransactions):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True

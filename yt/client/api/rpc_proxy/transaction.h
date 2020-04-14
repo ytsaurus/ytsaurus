@@ -20,7 +20,6 @@ NApi::ITransactionPtr CreateTransaction(
     NTransactionClient::EAtomicity atomicity,
     NTransactionClient::EDurability durability,
     TDuration timeout,
-    bool pingAncestors,
     std::optional<TDuration> pingPeriod,
     bool sticky);
 

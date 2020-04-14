@@ -710,8 +710,6 @@ class YTEnvSetup(object):
                     "cluster_directory_synchronizer": instance.configs["driver"]["cluster_directory_synchronizer"]
                 }
 
-            print clusters
-
             for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
                 driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
                 if driver is None:

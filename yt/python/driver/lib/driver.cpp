@@ -8,9 +8,6 @@
 
 #include <yt/client/driver/config.h>
 
-#include <yt/client/api/sticky_transaction_pool.h>
-#include <yt/client/api/transaction.h>
-
 #include <yt/core/misc/crash_handler.h>
 #include <yt/core/misc/signal_registry.h>
 #include <yt/core/misc/shutdown.h>
@@ -163,38 +160,6 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
         request.AuthenticatedUser);
 
     return pythonResponse;
-}
-
-Py::Object TDriverBase::RegisterForeignTransaction(Py::Tuple& args, Py::Dict& kwargs)
-{
-    try {
-        auto pyTransactionId = ExtractArgument(args, kwargs, "transaction_id");
-        auto transactionId = NTransactionClient::TTransactionId::FromString(ConvertStringObjectToString(pyTransactionId));
-
-        auto pyForeignDriver = ExtractArgument(args, kwargs, "foreign_driver");
-        auto* foreignDriver = dynamic_cast<TDriverBase*>(Py::getPythonExtensionBase(pyForeignDriver.ptr()));
-        if (!foreignDriver) {
-            THROW_ERROR_EXCEPTION("'foreign_driver' does not represent a valid driver instance");
-        }
-
-        const auto& localTransactionPool = UnderlyingDriver_->GetStickyTransactionPool();
-        auto localTransaction = localTransactionPool->FindTransactionAndRenewLease(transactionId);
-        if (!localTransaction) {
-            THROW_ERROR_EXCEPTION("Local transaction %v is not registered",
-                transactionId);
-        }
-
-        const auto& foreignTransactionPool = foreignDriver->UnderlyingDriver_->GetStickyTransactionPool();
-        auto foreignTransaction = foreignTransactionPool->FindTransactionAndRenewLease(transactionId);
-        if (!foreignTransaction) {
-            THROW_ERROR_EXCEPTION("Foreign transaction %v is not registered",
-                transactionId);
-        }
-
-        localTransaction->RegisterForeignTransaction(foreignTransaction);
-
-        return Py::None();
-    } CATCH_AND_CREATE_YT_ERROR("Error registering foreign transaction");
 }
 
 Py::Object TDriverBase::GetCommandDescriptor(Py::Tuple& args, Py::Dict& kwargs)

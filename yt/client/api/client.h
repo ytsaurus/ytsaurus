@@ -383,6 +383,9 @@ struct TTransactionCommitOptions
     //! If not null, then this particular cell will be the coordinator.
     NObjectClient::TCellId CoordinatorCellId;
 
+    //! If not #InvalidCellTag, a random participant from the given cell will be the coordinator.
+    NObjectClient::TCellTag CoordinatorCellTag = NObjectClient::InvalidCellTag;
+
     //! If |true| then two-phase-commit protocol is executed regardless of the number of participants.
     bool Force2PC = false;
 
@@ -400,10 +403,6 @@ struct TTransactionCommitOptions
     //! and also relies on ETransactionCoordinatorCommitMode::Lazy transactions whose commit may be delayed
     //! for an arbitrary period of time in case of replica failure.
     bool GeneratePrepareTimestamp = true;
-
-    //! Cell ids of additional 2PC participants.
-    //! Used to implement cross-cluster commit via RPC proxy.
-    std::vector<NObjectClient::TCellId> AdditionalParticipantCellIds;
 };
 
 struct TTransactionPingOptions

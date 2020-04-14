@@ -12,7 +12,6 @@ namespace NYT::NPython {
 
 #define PYCXX_DECLARE_DRIVER_METHODS(className) \
     PYCXX_KEYWORDS_METHOD_DECL(className, Execute) \
-    PYCXX_KEYWORDS_METHOD_DECL(className, RegisterForeignTransaction) \
     PYCXX_KEYWORDS_METHOD_DECL(className, GetCommandDescriptor) \
     PYCXX_KEYWORDS_METHOD_DECL(className, GetCommandDescriptors) \
     PYCXX_KEYWORDS_METHOD_DECL(className, Terminate) \
@@ -20,33 +19,13 @@ namespace NYT::NPython {
     PYCXX_VARARGS_METHOD_DECL(className, DeepCopy)
 
 #define PYCXX_ADD_DRIVER_METHODS \
-    PYCXX_ADD_KEYWORDS_METHOD( \
-        execute, \
-        Execute, \
-        "Executes the request"); \
-    PYCXX_ADD_KEYWORDS_METHOD( \
-        register_foreign_transaction, \
-        RegisterForeignTransaction, \
-        "Registers a transaction managed by another driver as foreign"); \
-    PYCXX_ADD_KEYWORDS_METHOD( \
-        get_command_descriptor, \
-        GetCommandDescriptor, \
-        "Describes a given command"); \
-    PYCXX_ADD_KEYWORDS_METHOD( \
-        get_command_descriptors, \
-        GetCommandDescriptors, \
-        "Describes all commands"); \
-    PYCXX_ADD_KEYWORDS_METHOD( \
-        terminate, \
-        Terminate, \
-        "Terminate driver instance"); \
-    PYCXX_ADD_KEYWORDS_METHOD( \
-        get_config, \
-        GetConfig, "Get config"); \
-    PYCXX_ADD_VARARGS_METHOD( \
-        __deepcopy__, \
-        DeepCopy, \
-        "Deep copy driver instance");
+    PYCXX_ADD_KEYWORDS_METHOD(execute, Execute, "Executes the request"); \
+    PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptor, GetCommandDescriptor, "Describes the command"); \
+    PYCXX_ADD_KEYWORDS_METHOD(get_command_descriptors, GetCommandDescriptors, "Describes all commands"); \
+    PYCXX_ADD_KEYWORDS_METHOD(terminate, Terminate, "Terminate driver"); \
+    PYCXX_ADD_KEYWORDS_METHOD(get_config, GetConfig, "Get config"); \
+    PYCXX_ADD_VARARGS_METHOD(__deepcopy__, DeepCopy, "Deep copy Driver object");
+
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,7 +40,6 @@ public:
         const NYTree::INodePtr& configNode);
 
     Py::Object Execute(Py::Tuple& args, Py::Dict& kwargs);
-    Py::Object RegisterForeignTransaction(Py::Tuple& args, Py::Dict& kwargs);
     Py::Object GetCommandDescriptor(Py::Tuple& args, Py::Dict& kwargs);
     Py::Object GetCommandDescriptors(Py::Tuple& args, Py::Dict& kwargs);
     Py::Object Terminate(const Py::Tuple& args, const Py::Dict& kwargs);

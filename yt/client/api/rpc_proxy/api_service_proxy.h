@@ -27,10 +27,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StartTransaction);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PingTransaction);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CommitTransaction);
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, FlushTransaction);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbortTransaction);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AttachTransaction);
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DetachTransaction);
 
     // Cypress server
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ExistsNode);
