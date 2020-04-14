@@ -136,7 +136,7 @@ void Serialize(const TColumnSchema& columnSchema, IYsonConsumer* consumer)
 
             // if type is simple return its name otherwise return empty optional
             auto isRequired = [](TStringBuf simpleType) {
-                return simpleType != "null";
+                return simpleType != "null" && simpleType != "void";
             };
             auto getSimple = [] (const TNode& typeV3) -> TMaybe<TString> {
                 static const THashMap<TString,TString> typeV3ToOld = {
