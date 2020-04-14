@@ -329,20 +329,35 @@ public:
         TSharedRange<TRowModification> modifications,
         const TModifyRowsOptions& options) override
     {
-        ValidateActive();
         ValidateTabletTransactionId(GetId());
 
-        YT_LOG_DEBUG("Buffering client row modifications (Count: %v)",
-            modifications.Size());
+        YT_LOG_DEBUG("Buffering client row modifications (Count: %v, SequenceNumber: %v)",
+            modifications.Size(),
+            options.SequenceNumber);
 
-        EnqueueModificationRequest(
-            std::make_unique<TModificationRequest>(
-                this,
-                Client_->GetNativeConnection(),
-                path,
-                std::move(nameTable),
-                std::move(modifications),
-                options));
+        auto guard = Guard(SpinLock_);
+
+        try {
+            if (State_ != ETransactionState::Active) {
+                THROW_ERROR_EXCEPTION(
+                    NTransactionClient::EErrorCode::InvalidTransactionState,
+                    "Cannot modify rows since transaction %v is in %Qlv state",
+                    GetId(),
+                    State_);
+            }
+
+            EnqueueModificationRequest(
+                std::make_unique<TModificationRequest>(
+                    this,
+                    Client_->GetNativeConnection(),
+                    path,
+                    std::move(nameTable),
+                    std::move(modifications),
+                    options));
+        } catch (const std::exception& ex) {
+            DoAbort(&guard);
+            throw;
+        }
     }
 
 
@@ -1413,17 +1428,6 @@ private:
 
     void EnqueueModificationRequest(std::unique_ptr<TModificationRequest> request)
     {
-        try {
-            GuardedEnqueueModificationRequest(std::move(request));
-        } catch (const std::exception& ex) {
-            Abort();
-            throw;
-        }
-    }
-
-    void GuardedEnqueueModificationRequest(
-        std::unique_ptr<TModificationRequest> request)
-    {
         if (auto sequenceNumber = request->GetSequenceNumber()) {
             if (*sequenceNumber < 0) {
                 THROW_ERROR_EXCEPTION(
@@ -1770,13 +1774,6 @@ private:
     {
         auto guard = Guard(SpinLock_);
         
-        if (State_ != ETransactionState::Active) {
-            THROW_ERROR_EXCEPTION(
-                NTransactionClient::EErrorCode::InvalidTransactionState,
-                "Cannot modify rows since transaction %v is in %Qlv state",
-                GetId(),
-                State_);
-        }
     }
 };
 
