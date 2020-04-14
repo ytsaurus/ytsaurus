@@ -87,16 +87,7 @@ public:
 
 
     //! Once a participant is registered, it will be pinged.
-    //! If #prepareOnly is true then this participant will only be contacted
-    //! during prepare phase but not during commit or abort (this is helpful when
-    //! master cell acts as a participant but gets transaction replicated to it
-    //! from another cell).
-    void RegisterParticipant(NObjectClient::TCellId cellId, bool prepareOnly);
-
-    //! Once a participant is confirmed, its pings must succeeded, otherwise
-    //! the transaction fails. The transaction must already be registered prior
-    //! to this call.
-    void ConfirmParticipant(NObjectClient::TCellId cellId);
+    void RegisterParticipant(NObjectClient::TCellId cellId);
 
     //! Choose transaction coordinator.
     void ChooseCoordinator(const TTransactionCommitOptions& options);

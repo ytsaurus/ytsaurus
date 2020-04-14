@@ -51,6 +51,11 @@ DEFINE_ENUM(EErrorCode,
     ((QueryExpressionDepthLimitExceeded)(1711))
     ((RowIsBlocked)                     (1712))
     ((BlockedRowWaitTimeout)            (1713))
+    ((NoSyncReplicas)                   (1714))
+    ((TableMustNotBeReplicated)         (1715))
+    ((TableMustBeSorted)                (1716))
+    ((TooManyRowsInTransaction)         (1717))
+    ((UpstreamReplicaMismatch)          (1718))
 );
 
 DEFINE_ENUM(EInMemoryMode,
