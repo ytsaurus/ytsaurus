@@ -11,14 +11,6 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TForeignTransactionStartOptions
-    : public TTransactionStartOptions
-{
-    //! If |true| then the foreign transaction will use the start timestamp of its originator.
-    //! If |false| then the foreign transaction will generate its own start timestamp.
-    bool InheritStartTimestamp = true;
-};
-
 struct ITransaction
     : public IClientBase
     , public NApi::ITransaction
@@ -26,10 +18,6 @@ struct ITransaction
     virtual void AddAction(
         NElection::TCellId cellId,
         const NTransactionClient::TTransactionActionData& data) = 0;
-
-    virtual TFuture<NApi::ITransactionPtr> StartForeignTransaction(
-        const NApi::IClientPtr& client,
-        const TForeignTransactionStartOptions& options = TForeignTransactionStartOptions()) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransaction)

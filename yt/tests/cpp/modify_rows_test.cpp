@@ -44,7 +44,6 @@ void TModifyRowsTest::TearDown()
     Keys_.clear();
 }
 
-
 void TModifyRowsTest::SetUpTestCase()
 {
     TDynamicTablesTestBase::SetUpTestCase();

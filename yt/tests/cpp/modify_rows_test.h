@@ -2,7 +2,6 @@
 
 #include "api_test_base.h"
 
-
 namespace NYT {
 namespace NCppTests {
 

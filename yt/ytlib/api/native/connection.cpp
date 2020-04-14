@@ -182,7 +182,6 @@ public:
             CellDirectory_,
             GetPrimaryMasterCellId(),
             Logger);
-        DownedCellTracker_ = New<TCellTracker>();
 
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache,
@@ -484,9 +483,9 @@ private:
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
-    NHiveClient::TCellDirectoryPtr CellDirectory_;
-    NHiveClient::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
-    TCellTrackerPtr DownedCellTracker_;
+    TCellDirectoryPtr CellDirectory_;
+    TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+    const TCellTrackerPtr DownedCellTracker_ = New<TCellTracker>();
 
     TClusterDirectoryPtr ClusterDirectory_;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;

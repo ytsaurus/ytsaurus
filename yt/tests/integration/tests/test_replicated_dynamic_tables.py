@@ -177,6 +177,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert len(tablets) == 1
         tablet_id = tablets[0]["tablet_id"]
 
+        def error_contains_message(error, message):
+            if error["message"] == message:
+                return True
+            for inner_error in error["inner_errors"]:
+                if error_contains_message(inner_error, message):
+                    return True
+            return False
+
         def check_error(message=None):
             error_count = get("//tmp/t/@replicas/{}/error_count".format(replica_id))
             if error_count != get("#{}/@error_count".format(replica_id)):
@@ -190,7 +198,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             if message is None:
                 return error_count == 0 and len(errors) == 0
             else:
-                return error_count == 1 and len(errors) == 1 and errors[replica_id]["message"] == message
+                return error_count == 1 and len(errors) == 1 and error_contains_message(errors[replica_id], message)
 
         assert check_error()
 

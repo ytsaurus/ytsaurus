@@ -220,7 +220,6 @@ public:
         PingAncestors_ = options.PingAncestors;
         State_ = ETransactionState::Active;
         YT_VERIFY(RegisteredParticipantIds_.insert(CoordinatorMasterCellId_).second);
-        YT_VERIFY(ConfirmedParticipantIds_.insert(CoordinatorMasterCellId_).second);
 
         Register();
 
@@ -371,7 +370,7 @@ public:
     }
 
 
-    void RegisterParticipant(TCellId cellId, bool prepareOnly)
+    void RegisterParticipant(TCellId cellId)
     {
         YT_VERIFY(
             TypeFromId(cellId) == EObjectType::TabletCell ||
@@ -389,6 +388,9 @@ public:
             }
 
             if (RegisteredParticipantIds_.insert(cellId).second) {
+                bool prepareOnly =
+                    TypeFromId(cellId) == EObjectType::MasterCell &&
+                    std::find(ReplicatedToMasterCellTags_.begin(), ReplicatedToMasterCellTags_.end(), CellTagFromId(cellId)) != ReplicatedToMasterCellTags_.end();
                 YT_LOG_DEBUG("Transaction participant registered (TransactionId: %v, CellId: %v, PrepareOnly: %v)",
                     Id_,
                     cellId,
@@ -396,31 +398,6 @@ public:
                 if (prepareOnly) {
                     YT_VERIFY(PrepareOnlyRegisteredParticipantIds_.insert(cellId).second);
                 }
-            }
-        }
-    }
-
-    void ConfirmParticipant(TCellId cellId)
-    {
-        YT_VERIFY(TypeFromId(cellId) == EObjectType::TabletCell);
-
-
-        if (Atomicity_ != EAtomicity::Full) {
-            return;
-        }
-
-        {
-            auto guard = Guard(SpinLock_);
-
-            if (State_ != ETransactionState::Active) {
-                return;
-            }
-
-            YT_VERIFY(RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end());
-            if (ConfirmedParticipantIds_.insert(cellId).second) {
-                YT_LOG_DEBUG("Transaction participant confirmed (TransactionId: %v, CellId: %v)",
-                    Id_,
-                    cellId);
             }
         }
     }
@@ -433,7 +410,7 @@ public:
             return;
         }
 
-        CoordinatorCellId_ = PickCoordinator(options);
+        CoordinatorCellId_ = DoChooseCoordinator(options);
     }
 
     TFuture<void> ValidateNoDownedParticipants()
@@ -504,7 +481,6 @@ private:
 
     THashSet<TCellId> RegisteredParticipantIds_;
     THashSet<TCellId> PrepareOnlyRegisteredParticipantIds_;
-    THashSet<TCellId> ConfirmedParticipantIds_;
 
     TCellId CoordinatorCellId_;
 
@@ -686,7 +662,6 @@ private:
 
         State_ = ETransactionState::Active;
         YT_VERIFY(RegisteredParticipantIds_.insert(CoordinatorMasterCellId_).second);
-        YT_VERIFY(ConfirmedParticipantIds_.insert(CoordinatorMasterCellId_).second);
 
         const auto& rsp = rspOrError.Value();
         Id_ = FromProto<TTransactionId>(rsp->id());
@@ -834,7 +809,8 @@ private:
         return MakeFuture(result);
     }
 
-    TCellId PickCoordinator(const TTransactionCommitOptions& options)
+    
+    TCellId DoChooseCoordinator(const TTransactionCommitOptions& options)
     {
         if (Type_ == ETransactionType::Master) {
             return CoordinatorMasterCellId_;
@@ -842,26 +818,31 @@ private:
 
         if (options.CoordinatorCellId) {
             if (!IsParticipantRegistered(options.CoordinatorCellId)) {
-                THROW_ERROR_EXCEPTION("Cell %v is not a participant",
+                THROW_ERROR_EXCEPTION("Cell %v is not a participant and thus cannot be explicitly",
                     options.CoordinatorCellId);
             }
             return options.CoordinatorCellId;
         }
 
-        std::vector<TCellId> feasibleParticipantIds;
+        auto connection = Owner_->Connection_.Lock();
+        if (!connection) {
+            THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "Connection destoyred");
+
+        }
+        
+        std::vector<TCellId> candidateIds;
+        auto coordinatorCellTag = connection->GetPrimaryMasterCellTag();
         for (auto cellId : GetRegisteredParticipantIds()) {
-            if (options.CoordinatorCellTag == InvalidCellTag ||
-                CellTagFromId(cellId) == options.CoordinatorCellTag)
-            {
-                feasibleParticipantIds.push_back(cellId);
+            if (CellTagFromId(cellId) == coordinatorCellTag) {
+                candidateIds.push_back(cellId);
             }
         }
 
-        if (feasibleParticipantIds.empty()) {
-            THROW_ERROR_EXCEPTION("No participant matches the coordinator criteria");
+        if (candidateIds.empty()) {
+            THROW_ERROR_EXCEPTION("No coordinator can be chosen");
         }
 
-        return feasibleParticipantIds[RandomNumber(feasibleParticipantIds.size())];
+        return candidateIds[RandomNumber(candidateIds.size())];
     }
 
     void UpdateDownedParticipants()
@@ -870,6 +851,7 @@ private:
         CheckDownedParticipants(participantIds);
     }
 
+    
     TFuture<void> CheckDownedParticipants(std::vector<TCellId> participantIds)
     {
         if (participantIds.empty()) {
@@ -900,10 +882,6 @@ private:
                             "Some transaction participants are known to be down")
                             << TErrorAttribute("downed_participants", downedParticipantIds);
                     }
-                } else if (rspOrError.GetCode() == NYT::NRpc::EErrorCode::NoSuchMethod) {
-                    // COMPAT(savrus)
-                    YT_LOG_DEBUG("Method GetDownedParticipants is not implemented (CellId: %v)",
-                        CoordinatorCellId_);
                 } else {
                     YT_LOG_WARNING("Error updating downed participants (CellId: %v)",
                         CoordinatorCellId_);
@@ -944,8 +922,7 @@ private:
     TFuture<void> SendPing(const TTransactionPingOptions& options)
     {
         std::vector<TFuture<void>> asyncResults;
-        auto participantIds = GetConfirmedParticipantIds();
-        for (auto cellId : participantIds) {
+        for (auto cellId : GetRegisteredParticipantIds()) {
             YT_LOG_DEBUG("Pinging transaction (TransactionId: %v, CellId: %v)",
                 Id_,
                 cellId);
@@ -973,8 +950,12 @@ private:
                             Id_,
                             cellId);
                         return TError();
-                    } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
+                    } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction && 
+                               TypeFromId(cellId) == EObjectType::MasterCell)
+                    {
                         // Hard error.
+                        // NB: For tablet cells transactions are started asynchronously so NoSuchTransaction
+                        // is not considered fatal.
                         YT_LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v, CellId: %v)",
                             Id_,
                             cellId);
@@ -1047,17 +1028,20 @@ private:
 
     TFuture<void> SendAbort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
     {
+        YT_LOG_DEBUG("Aborting transaction (TransactionId: %v)",
+            Id_);
+
         std::vector<TFuture<void>> asyncResults;
         auto participantIds = GetRegisteredParticipantIds();
         for (auto cellId : participantIds) {
-            YT_LOG_DEBUG("Aborting transaction (TransactionId: %v, CellId: %v)",
-                Id_,
-                cellId);
-
             auto channel = Owner_->CellDirectory_->FindChannel(cellId);
             if (!channel) {
                 continue;
             }
+
+            YT_LOG_DEBUG("Sending abort to participant (TransactionId: %v, ParticipantCellId: %v)",
+                Id_,
+                cellId);
 
             auto proxy = Owner_->MakeSupervisorProxy(std::move(channel), Owner_->GetAbortRetryChecker());
             auto req = proxy.AbortTransaction();
@@ -1156,12 +1140,6 @@ private:
             }
         }
         return result;
-    }
-
-    std::vector<TCellId> GetConfirmedParticipantIds()
-    {
-        auto guard = Guard(SpinLock_);
-        return std::vector<TCellId>(ConfirmedParticipantIds_.begin(), ConfirmedParticipantIds_.end());
     }
 
     bool IsParticipantRegistered(TCellId cellId)
@@ -1298,14 +1276,9 @@ TCellTagList TTransaction::GetReplicatedToCellTags() const
     return Impl_->GetReplicatedToCellTags();
 }
 
-void TTransaction::RegisterParticipant(TCellId cellId, bool prepareOnly)
+void TTransaction::RegisterParticipant(TCellId cellId)
 {
-    Impl_->RegisterParticipant(cellId, prepareOnly);
-}
-
-void TTransaction::ConfirmParticipant(TCellId cellId)
-{
-    Impl_->ConfirmParticipant(cellId);
+    Impl_->RegisterParticipant(cellId);
 }
 
 void TTransaction::ChooseCoordinator(const TTransactionCommitOptions& options)

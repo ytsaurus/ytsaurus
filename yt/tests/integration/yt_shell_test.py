@@ -184,7 +184,8 @@ class CppItem(ExecutableItem):
         environment = {}
         environment["PATH"] = os.environ["PATH"]
         if env.master_count > 0:
-            environment["YT_CONSOLE_DRIVER_CONFIG_PATH"] = env.config_paths["console_driver"][0]
+            environment["YT_CONSOLE_DRIVER_CONFIG_PATH"] = env.config_paths["console_driver"]
+            environment["YT_DRIVER_CONFIG_PATH_PRIMARY"] = env.config_paths["driver"]
 
         execs = [self.base_name]
 

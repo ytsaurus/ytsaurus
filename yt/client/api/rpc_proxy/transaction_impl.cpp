@@ -24,10 +24,6 @@ using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = RpcProxyClientLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TTransaction::TTransaction(
     TConnectionPtr connection,
     TClientPtr client,
@@ -38,6 +34,7 @@ TTransaction::TTransaction(
     EAtomicity atomicity,
     EDurability durability,
     TDuration timeout,
+    bool pingAncestors,
     std::optional<TDuration> pingPeriod,
     bool sticky)
     : Connection_(std::move(connection))
@@ -49,18 +46,29 @@ TTransaction::TTransaction(
     , Atomicity_(atomicity)
     , Durability_(durability)
     , Timeout_(timeout)
+    , PingAncestors_(pingAncestors)
     , PingPeriod_(pingPeriod)
     , Sticky_(sticky)
+    , Logger(NLogging::TLogger(RpcProxyClientLogger)
+        .AddTag("TransactionId: %v", GetId()))
+    , Proxy_(Channel_)
 {
-    // TODO(babenko): "started" is only correct as long as we do not support attaching to existing transactions
-    YT_LOG_DEBUG("Transaction started (TransactionId: %v, Type: %v, StartTimestamp: %llx, Atomicity: %v, "
-        "Durability: %v, Timeout: %v, PingPeriod: %v, Sticky: %v)",
-        Id_,
-        Type_,
-        StartTimestamp_,
-        Atomicity_,
-        Durability_,
-        Timeout_,
+    const auto& config = Connection_->GetConfig();
+    Proxy_.SetDefaultTimeout(config->RpcTimeout);
+    Proxy_.SetDefaultRequestCodec(config->RequestCodec);
+    Proxy_.SetDefaultResponseCodec(config->ResponseCodec);
+    Proxy_.SetDefaultEnableLegacyRpcCodecs(config->EnableLegacyRpcCodecs);
+
+   // TODO(babenko): "started" is only correct as long as we do not support attaching to existing transactions
+    YT_LOG_DEBUG("Transaction started (Type: %v, StartTimestamp: %llx, Atomicity: %v, "
+        "Durability: %v, Timeout: %v, PingAncestors: %v, PingPeriod: %v, Sticky: %v)",
+        GetId(),
+        GetType(),
+        GetStartTimestamp(),
+        GetAtomicity(),
+        GetDurability(),
+        GetTimeout(),
+        PingAncestors_,
         PingPeriod_,
         Sticky_);
 
@@ -108,14 +116,40 @@ TDuration TTransaction::GetTimeout() const
     return Timeout_;
 }
 
-TApiServiceProxy TTransaction::CreateApiServiceProxy()
+void TTransaction::RegisterForeignTransaction(const ITransactionPtr& transaction)
 {
-    TApiServiceProxy proxy(Channel_);
-    auto config = Connection_->GetConfig();
-    proxy.SetDefaultRequestCodec(config->RequestCodec);
-    proxy.SetDefaultResponseCodec(config->ResponseCodec);
-    proxy.SetDefaultEnableLegacyRpcCodecs(config->EnableLegacyRpcCodecs);
-    return proxy;
+    {
+        auto guard = Guard(SpinLock_);
+
+        if (State_ != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::InvalidTransactionState,
+                "Transaction %v is in %Qlv state",
+                GetId(),
+                State_);
+        }
+
+        if (GetType() != ETransactionType::Tablet) {
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::MalformedForeignTransaction,
+                "Transaction %v is of type %Qlv and hence does not allow foreign transactions",
+                GetId(),
+                GetType());
+        }
+
+        if (GetId() != transaction->GetId()) {
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::MalformedForeignTransaction,
+                "Transaction id mismatch: native %v, foreign %v",
+                GetId(),
+                transaction->GetId());
+        }
+
+        ForeignTransactions_.push_back(std::move(transaction));
+    }
+
+    // TODO(babenko): cell tag
+    YT_LOG_DEBUG("Foreign transaction registered");
 }
 
 TFuture<void> TTransaction::Ping(const NApi::TTransactionPingOptions& /*options*/)
@@ -127,39 +161,20 @@ void TTransaction::Detach()
 {
     {
         auto guard = Guard(SpinLock_);
-        switch (State_) {
-            case ETransactionState::Committed:
-                THROW_ERROR_EXCEPTION("Transaction %v is already committed",
-                    Id_);
-
-            case ETransactionState::Aborted:
-                THROW_ERROR_EXCEPTION("Transaction %v is already aborted",
-                    Id_);
-
-            case ETransactionState::Active:
-                State_ = ETransactionState::Detached;
-                break;
-
-            case ETransactionState::Detached:
-                return;
-
-            default:
-                YT_ABORT();
+        
+        if (State_ == ETransactionState::Detached) {
+            return;
         }
+
+        State_ = ETransactionState::Detached;
     }
 
-    YT_LOG_DEBUG("Transaction detached (TransactionId: %v)",
-        Id_);
-}
+    YT_LOG_DEBUG("Transaction detached");
 
-TFuture<TTransactionPrepareResult> TTransaction::Prepare()
-{
-    YT_UNIMPLEMENTED();
-}
-
-TFuture<TTransactionFlushResult> TTransaction::Flush()
-{
-    YT_UNIMPLEMENTED();
+    auto req = Proxy_.DetachTransaction();
+    ToProto(req->mutable_transaction_id(), GetId());
+    // Fire-and-forget.
+    req->Invoke();
 }
 
 void TTransaction::SubscribeCommitted(const TCallback<void()>& handler)
@@ -182,100 +197,166 @@ void TTransaction::UnsubscribeAborted(const TCallback<void()>& handler)
     Aborted_.Unsubscribe(handler);
 }
 
-TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions&)
+TFuture<TTransactionFlushResult> TTransaction::Flush()
 {
-    YT_LOG_DEBUG("Committing transaction (TransactionId: %v)",
-        Id_);
-
-    std::vector<TFuture<void>> asyncResults;
+    std::vector<TFuture<void>> futures;
     {
         auto guard = Guard(SpinLock_);
-        if (!Error_.IsOK()) {
-            return MakeFuture<TTransactionCommitResult>(Error_);
+
+        if (State_ != ETransactionState::Active) {
+            return MakeFuture<TTransactionFlushResult>(TError(
+                NTransactionClient::EErrorCode::InvalidTransactionState,
+                "Transaction %v is in %Qlv state",
+                GetId(),
+                State_));
         }
-        switch (State_) {
-            case ETransactionState::Committing:
-                return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already being committed",
-                    Id_));
 
-            case ETransactionState::Committed:
-                return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already committed",
-                    Id_));
-
-            case ETransactionState::Aborted:
-                return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already aborted",
-                    Id_));
-
-            case ETransactionState::Detached:
-                return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is detached",
-                    Id_));
-
-            case ETransactionState::Active:
-                State_ = ETransactionState::Committing;
-                asyncResults = std::move(AsyncResults_);
-                break;
-
-            default:
-                YT_ABORT();
+        if (!ForeignTransactions_.empty()) {
+            return MakeFuture<TTransactionFlushResult>(TError(
+                NTransactionClient::EErrorCode::ForeignTransactionsForbidden,
+                "Cannot flush transaction %v since it has %v foreign transaction(s)",
+                GetId(),
+                ForeignTransactions_.size()));
         }
+
+        State_ = ETransactionState::Flushing;
+        futures = FlushModifyRowsRequests();
     }
 
-    {
-        auto guard = Guard(BatchModifyRowsRequestLock_);
-        if (BatchModifyRowsRequest_) {
-            asyncResults.emplace_back(InvokeBatchModifyRowsRequest());
-        }
-    }
+    YT_LOG_DEBUG("Flushing transaction");
 
-    return Combine(asyncResults).Apply(
-        BIND([this, this_ = MakeStrong(this)] () {
-            {
-                auto guard = Guard(SpinLock_);
-                if (!Error_.IsOK()) {
-                    return MakeFuture<TTransactionCommitResult>(Error_);
-                }
-            }
-
-            const auto& config = Connection_->GetConfig();
-
-            auto proxy = CreateApiServiceProxy();
-
-            auto req = proxy.CommitTransaction();
-            req->SetTimeout(config->RpcTimeout);
-
-            ToProto(req->mutable_transaction_id(), Id_);
-            req->set_sticky(Sticky_);
-
-            return req->Invoke().Apply(
-                BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TApiServiceProxy::TRspCommitTransactionPtr>& rspOrError) -> TErrorOr<TTransactionCommitResult> {
-                    if (rspOrError.IsOK()) {
-                        const auto& rsp = rspOrError.Value();
-                        TTransactionCommitResult result{
-                            FromProto<NHiveClient::TTimestampMap>(rsp->commit_timestamps())
-                        };
-                        auto error = SetCommitted(result);
-                        if (!error.IsOK()) {
-                            return error;
-                        }
-                        return result;
-                    } else {
-                        auto error = TError("Error committing transaction %v ",
-                            Id_) << rspOrError;
-                        OnFailure(error);
-                        return error;
+    return AllSucceeded(futures)
+        .Apply(
+            BIND([=, this_ = MakeStrong(this)] {
+                auto req = Proxy_.FlushTransaction();
+                ToProto(req->mutable_transaction_id(), GetId());
+                return req->Invoke();
+            }))
+        .Apply(
+            BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspFlushTransactionPtr& rspOrError) -> TErrorOr<TTransactionFlushResult> {
+                {
+                    auto guard = Guard(SpinLock_);
+                    if (rspOrError.IsOK() && State_ == ETransactionState::Flushing) {
+                        State_ = ETransactionState::Flushed;
+                    } else if (!rspOrError.IsOK()) {
+                        YT_LOG_DEBUG(rspOrError, "Error flushing transaction");
+                        DoAbort(&guard);
+                        THROW_ERROR_EXCEPTION("Error flushing transaction %v",
+                            GetId())
+                            << rspOrError;
                     }
-                }));
-        }));
+                }
+
+                const auto& rsp = rspOrError.Value();
+                TTransactionFlushResult result{
+                    .ParticipantCellIds = FromProto<std::vector<TCellId>>(rsp->participant_cell_ids())
+                };
+                
+                YT_LOG_DEBUG("Transaction flushed (ParticipantCellIds: %v)",
+                    result.ParticipantCellIds);
+                
+                return result;
+            }));
 }
 
-TFuture<void> TTransaction::Abort(const TTransactionAbortOptions& /*options*/)
+TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions&)
 {
-    // TODO(babenko): options are ignored
-    YT_LOG_DEBUG("Transaction abort requested (TransactionId: %v)",
-        Id_);
-    SetAborted(TError("Transaction aborted by user request"));
+    std::vector<TFuture<void>> futures;
+    std::vector<NApi::ITransactionPtr> foreignTransactions;
+    {
+        auto guard = Guard(SpinLock_);
 
-    return SendAbort();
+        if (State_ != ETransactionState::Active) {
+            return MakeFuture<TTransactionCommitResult>(TError(
+                NTransactionClient::EErrorCode::InvalidTransactionState,
+                "Transaction %v is in %Qlv state",
+                GetId(),
+                State_));
+        }
+
+        State_ = ETransactionState::Committing;
+        futures = FlushModifyRowsRequests();
+        foreignTransactions = std::move(ForeignTransactions_);
+    }
+
+    YT_LOG_DEBUG("Committing transaction (ForeignTransactionCount: %v)",
+        foreignTransactions.size());
+
+    for (const auto& transaction : foreignTransactions) {
+        futures.push_back(
+            transaction->Flush().Apply(
+                BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TTransactionFlushResult>& resultOrError) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Error flushing foreign transaction");
+
+                    const auto& result = resultOrError.Value();
+
+                    // TODO(babenko): cell tag
+                    YT_LOG_DEBUG("Foreign transaction flushed (ParticipantCellIds: %v)",
+                        result.ParticipantCellIds);
+
+                    for (auto cellId : result.ParticipantCellIds) {
+                        AdditionalParticipantCellIds_.insert(cellId);
+                    }
+                })));
+    }
+    if (!foreignTransactions.empty()) {
+        auto req = Proxy_.FlushTransaction();
+        ToProto(req->mutable_transaction_id(), GetId());
+        futures.push_back(req->Invoke().AsVoid());
+    }
+
+    return AllSucceeded(futures)
+        .Apply(
+            BIND([=, this_ = MakeStrong(this)] {
+                auto req = Proxy_.CommitTransaction();
+                ToProto(req->mutable_transaction_id(), GetId());
+                ToProto(req->mutable_additional_participant_cell_ids(), AdditionalParticipantCellIds_);
+                req->set_sticky(Sticky_);
+                return req->Invoke();
+            }))
+        .Apply(
+            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TApiServiceProxy::TRspCommitTransactionPtr>& rspOrError) {
+                {
+                    auto guard = Guard(SpinLock_);
+                    if (rspOrError.IsOK() && State_ == ETransactionState::Committing) {
+                        State_ = ETransactionState::Committed;
+                    } else if (!rspOrError.IsOK()) {
+                        DoAbort(&guard);
+                        THROW_ERROR_EXCEPTION("Error committing transaction %v",
+                            GetId())
+                            << rspOrError;
+                    }
+                }
+
+                for (const auto& transaction : foreignTransactions) {
+                    transaction->Detach();
+                }
+
+                const auto& rsp = rspOrError.Value();
+                TTransactionCommitResult result{
+                    .CommitTimestamps = FromProto<NHiveClient::TTimestampMap>(rsp->commit_timestamps())
+                };
+
+                YT_LOG_DEBUG("Transaction committed (CommitTimestamps: %v)",
+                    result.CommitTimestamps);
+
+                return result;
+            }));
+}
+
+TFuture<void> TTransaction::Abort(const TTransactionAbortOptions& options)
+{
+    auto guard = Guard(SpinLock_);
+
+    if (State_ == ETransactionState::Committed || State_ == ETransactionState::Detached) {
+        return MakeFuture<void>(TError(
+            NTransactionClient::EErrorCode::InvalidTransactionState,
+            "Cannot abort since transaction %v is in %Qlv state",
+            GetId(),
+            State_));
+    }
+
+    return DoAbort(&guard, options);
 }
 
 void TTransaction::ModifyRows(
@@ -295,19 +376,12 @@ void TTransaction::ModifyRows(
             modification.Type == ERowModificationType::ReadLockWrite);
     }
 
-    const auto& config = Connection_->GetConfig();
-
-    auto proxy = CreateApiServiceProxy();
-    auto req = proxy.ModifyRows();
-    req->SetTimeout(config->RpcTimeout);
-
     auto reqSequenceNumber = ModifyRowsRequestSequenceCounter_++;
 
+    auto req = Proxy_.ModifyRows();
     req->set_sequence_number(reqSequenceNumber);
-
-    ToProto(req->mutable_transaction_id(), Id_);
+    ToProto(req->mutable_transaction_id(), GetId());
     req->set_path(path);
-
     req->set_require_sync_replica(options.RequireSyncReplica);
     ToProto(req->mutable_upstream_replica_id(), options.UpstreamReplicaId);
 
@@ -332,13 +406,13 @@ void TTransaction::ModifyRows(
         if (usedStrongLocks) {
             req->add_row_locks(modification.Locks);
         } else {
-            ui32 mask = 0;
+            TLockBitmap bitmap = 0;
             for (int index = 0; index < TLockMask::MaxCount; ++index) {
                 if (modification.Locks.Get(index) == ELockType::SharedWeak) {
-                    mask |= 1u << index;
+                    bitmap |= 1u << index;
                 }
             }
-            req->add_row_read_locks(mask);
+            req->add_row_read_locks(bitmap);
         }
     }
 
@@ -347,40 +421,49 @@ void TTransaction::ModifyRows(
         MakeRange(rows),
         req->mutable_rowset_descriptor());
 
-    TFuture<void> asyncResult;
+    TFuture<void> future;
+    const auto& config = Connection_->GetConfig();
     if (config->ModifyRowsBatchCapacity == 0) {
-        asyncResult = req->Invoke().As<void>();
+        future = req->Invoke().As<void>();
     } else {
         YT_LOG_DEBUG("Pushing a subrequest into a BatchModifyRows rows request (SubrequestAttachmentCount: 1+%v)",
             req->Attachments().size());
 
-        auto guard = Guard(BatchModifyRowsRequestLock_);
-        if (!BatchModifyRowsRequest_) {
-            BatchModifyRowsRequest_ = CreateBatchModifyRowsRequest();
-        }
         auto reqBody = SerializeProtoToRef(*req);
-        BatchModifyRowsRequest_->Attachments().push_back(reqBody);
-        BatchModifyRowsRequest_->Attachments().insert(
-            BatchModifyRowsRequest_->Attachments().end(),
-            req->Attachments().begin(),
-            req->Attachments().end());
-        BatchModifyRowsRequest_->add_part_counts(req->Attachments().size());
-        if (BatchModifyRowsRequest_->part_counts_size() == config->ModifyRowsBatchCapacity) {
-            asyncResult = InvokeBatchModifyRowsRequest();
+
+        {
+            auto guard = Guard(SpinLock_);
+            
+            if (!BatchModifyRowsRequest_) {
+                BatchModifyRowsRequest_ = Proxy_.BatchModifyRows();
+                ToProto(BatchModifyRowsRequest_->mutable_transaction_id(), GetId());
+            }
+            
+            BatchModifyRowsRequest_->Attachments().push_back(reqBody);
+            BatchModifyRowsRequest_->Attachments().insert(
+                BatchModifyRowsRequest_->Attachments().end(),
+                req->Attachments().begin(),
+                req->Attachments().end());
+            BatchModifyRowsRequest_->add_part_counts(req->Attachments().size());
+            
+            if (BatchModifyRowsRequest_->part_counts_size() == config->ModifyRowsBatchCapacity) {
+                future = InvokeBatchModifyRowsRequest();
+            }
         }
     }
 
-    if (asyncResult) {
-        asyncResult
+    if (future) {
+        future
             .Subscribe(BIND([=, this_ = MakeStrong(this)](const TError& error) {
                 if (!error.IsOK()) {
-                    OnFailure(error);
+                    YT_LOG_DEBUG(error, "Error sending row modifications");
+                    Abort();
                 }
             }));
 
         {
             auto guard = Guard(SpinLock_);
-            AsyncResults_.emplace_back(std::move(asyncResult));
+            BatchModifyRowsFutures_.push_back(std::move(future));
         }
     }
 }
@@ -667,140 +750,86 @@ IJournalWriterPtr TTransaction::CreateJournalWriter(
         PatchTransactionId(options));
 }
 
-ETransactionState TTransaction::GetState()
+TFuture<void> TTransaction::DoAbort(TGuard<TSpinLock>* guard, const TTransactionAbortOptions& /*options*/)
 {
-    auto guard = Guard(SpinLock_);
-    return State_;
-}
-
-void TTransaction::FireCommitted()
-{
-    Committed_.Fire();
-}
-
-void TTransaction::FireAborted()
-{
-    Aborted_.Fire();
-}
-
-TError TTransaction::SetCommitted(const NApi::TTransactionCommitResult& result)
-{
-    {
-        auto guard = Guard(SpinLock_);
-        if (State_ != ETransactionState::Committing) {
-            return Error_;
-        }
-        State_ = ETransactionState::Committed;
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    
+    if (State_ == ETransactionState::Aborted) {
+        return AbortFuture_;
     }
 
-    YT_LOG_DEBUG("Transaction committed (TransactionId: %v, CommitTimestamps: %v)",
-        Id_,
-        result.CommitTimestamps);
+    YT_LOG_DEBUG("Aborting transaction");
 
-    FireCommitted();
+    State_ = ETransactionState::Aborted;
 
-    return TError();
-}
-
-bool TTransaction::SetAborted(const TError& error)
-{
-    {
-        auto guard = Guard(SpinLock_);
-        if (State_ == ETransactionState::Aborted) {
-            return false;
-        }
-        State_ = ETransactionState::Aborted;
-        Error_ = error;
-    }
-
-    FireAborted();
-
-    return true;
-}
-
-void TTransaction::OnFailure(const TError& error)
-{
-    // Send abort request just once.
-    if (SetAborted(error)) {
-        // Best-effort, fire-and-forget.
-        SendAbort();
-    }
-}
-
-TFuture<void> TTransaction::SendAbort()
-{
-    YT_LOG_DEBUG(Error_, "Aborting transaction (TransactionId: %v)",
-        Id_);
-
-    const auto& config = Connection_->GetConfig();
-
-    auto proxy = CreateApiServiceProxy();
-
-    auto req = proxy.AbortTransaction();
-    req->SetTimeout(config->RpcTimeout);
-
-    ToProto(req->mutable_transaction_id(), Id_);
+    auto req = Proxy_.AbortTransaction();
+    ToProto(req->mutable_transaction_id(), GetId());
     req->set_sticky(Sticky_);
 
-    return req->Invoke().Apply(
-        BIND([id = Id_, Logger = Logger] (const TApiServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
+    auto abortFuture = AbortFuture_ = req->Invoke().Apply(
+        BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
             if (rspOrError.IsOK()) {
-                YT_LOG_DEBUG("Transaction aborted (TransactionId: %v)",
-                    id);
+                YT_LOG_DEBUG("Transaction aborted");
                 return TError();
             } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
-                YT_LOG_DEBUG("Transaction has expired or was already aborted, ignored (TransactionId: %v)",
-                    id);
+                YT_LOG_DEBUG("Transaction has expired or was already aborted, ignored");
                 return TError();
             } else {
-                YT_LOG_WARNING(rspOrError, "Error aborting transaction (TransactionId: %v)",
-                    id);
+                YT_LOG_WARNING(rspOrError, "Error aborting transaction");
                 return TError("Error aborting transaction %v",
-                    id)
+                    GetId())
                     << rspOrError;
             }
         }));
+
+    auto foreignTransactions = ForeignTransactions_;
+
+    guard->Release();
+
+    for (const auto& transaction : foreignTransactions) {
+        transaction->Abort();
+    }
+
+    Aborted_.Fire();
+
+    return abortFuture;
 }
 
 TFuture<void> TTransaction::SendPing()
 {
-    YT_LOG_DEBUG("Pinging transaction (TransactionId: %v)",
-        Id_);
+    YT_LOG_DEBUG("Pinging transaction");
 
-    const auto& config = Connection_->GetConfig();
-
-    auto proxy = CreateApiServiceProxy();
-
-    auto req = proxy.PingTransaction();
-    req->SetTimeout(config->RpcTimeout);
-
-    ToProto(req->mutable_transaction_id(), Id_);
+    auto req = Proxy_.PingTransaction();
+    ToProto(req->mutable_transaction_id(), GetId());
     req->set_sticky(Sticky_);
+    req->set_ping_ancestors(PingAncestors_);
 
     return req->Invoke().Apply(
         BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspPingTransactionPtr& rspOrError) {
             if (rspOrError.IsOK()) {
-                YT_LOG_DEBUG("Transaction pinged (TransactionId: %v)",
-                    Id_);
+                YT_LOG_DEBUG("Transaction pinged");
                 return TError();
             } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
                 // Hard error.
-                YT_LOG_DEBUG("Transaction has expired or was aborted (TransactionId: %v)",
-                    Id_);
-                auto error = TError(
+                YT_LOG_DEBUG("Transaction has expired or was aborted");
+
+                {
+                    auto guard = Guard(SpinLock_);
+                    if (State_ != ETransactionState::Committed && State_ != ETransactionState::Aborted && State_ != ETransactionState::Detached) {
+                        State_ = ETransactionState::Aborted;
+                        AbortFuture_ = VoidFuture;
+                    }
+                }
+
+                return TError(
                     NTransactionClient::EErrorCode::NoSuchTransaction,
                     "Transaction %v has expired or was aborted",
-                    Id_);
-                if (GetState() == ETransactionState::Active) {
-                    OnFailure(error);
-                }
-                return error;
+                    GetId());
             } else {
                 // Soft error.
-                YT_LOG_DEBUG(rspOrError, "Error pinging transaction (TransactionId: %v)",
-                    Id_);
+                YT_LOG_DEBUG(rspOrError, "Error pinging transaction");
                 return TError("Failed to ping transaction %v",
-                    Id_)
+                    GetId())
                     << rspOrError;
             }
         }));
@@ -826,8 +855,7 @@ void TTransaction::RunPeriodicPings()
             return;
         }
 
-        YT_LOG_DEBUG("Transaction ping scheduled (TransactionId: %v)",
-            Id_);
+        YT_LOG_DEBUG("Transaction ping scheduled");
 
         TDelayedExecutor::Submit(
             BIND(&TTransaction::RunPeriodicPings, MakeWeak(this)),
@@ -837,53 +865,65 @@ void TTransaction::RunPeriodicPings()
 
 bool TTransaction::IsPingableState()
 {
-    auto state = GetState();
-    // NB: We have to continue pinging the transaction while committing.
-    return state == ETransactionState::Active || state == ETransactionState::Committing;
+    auto guard = Guard(SpinLock_);
+    return
+        State_ == ETransactionState::Active ||
+        State_ == ETransactionState::Flushing ||
+        State_ == ETransactionState::Flushed ||
+        State_ == ETransactionState::Committing;
 }
 
 void TTransaction::ValidateActive()
 {
     auto guard = Guard(SpinLock_);
-    ValidateActive(guard);
-}
 
-void TTransaction::ValidateActive(TGuard<TSpinLock>&)
-{
     if (State_ != ETransactionState::Active) {
-        THROW_ERROR_EXCEPTION("Transaction %v is not active",
-            Id_);
+        THROW_ERROR_EXCEPTION(
+            NTransactionClient::EErrorCode::InvalidTransactionState,
+            "Transaction %v is not active",
+            GetId());
     }
 }
 
 TApiServiceProxy::TReqBatchModifyRowsPtr TTransaction::CreateBatchModifyRowsRequest()
 {
-    const auto& config = Connection_->GetConfig();
-    auto proxy = CreateApiServiceProxy();
-    auto req = proxy.BatchModifyRows();
-    ToProto(req->mutable_transaction_id(), Id_);
-    req->SetTimeout(config->RpcTimeout);
+    auto req = Proxy_.BatchModifyRows();
+    ToProto(req->mutable_transaction_id(), GetId());
     return req;
 }
 
 TFuture<void> TTransaction::InvokeBatchModifyRowsRequest()
 {
-    VERIFY_SPINLOCK_AFFINITY(BatchModifyRowsRequestLock_);
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
     YT_VERIFY(BatchModifyRowsRequest_);
+    
     TApiServiceProxy::TReqBatchModifyRowsPtr batchRequest;
     batchRequest.Swap(BatchModifyRowsRequest_);
     if (batchRequest->part_counts_size() == 0) {
         return VoidFuture;
     }
+    
     YT_LOG_DEBUG("Invoking a batch modify rows request (Subrequests: %v)",
         batchRequest->part_counts_size());
+    
     return batchRequest->Invoke().As<void>();
+}
+
+std::vector<TFuture<void>> TTransaction::FlushModifyRowsRequests()
+{
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+    auto futures = std::move(BatchModifyRowsFutures_);
+    if (BatchModifyRowsRequest_) {
+        futures.push_back(InvokeBatchModifyRowsRequest());
+    }
+    return futures;
 }
 
 TTransactionStartOptions TTransaction::PatchTransactionId(const TTransactionStartOptions& options)
 {
     auto copiedOptions = options;
-    copiedOptions.ParentId = Id_;
+    copiedOptions.ParentId = GetId();
     return copiedOptions;
 }
 
