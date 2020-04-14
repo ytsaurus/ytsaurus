@@ -16,6 +16,7 @@ DEFINE_ENUM(ETransactionState,
     (Committed)
     (Flushing)
     (Flushed)
+    (Aborting)
     (Aborted)
     (Detached)
 );

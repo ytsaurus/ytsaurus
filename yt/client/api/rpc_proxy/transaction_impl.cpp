@@ -340,6 +340,8 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
                 YT_LOG_DEBUG("Transaction committed (CommitTimestamps: %v)",
                     result.CommitTimestamps);
 
+                Committed_.Fire();
+
                 return result;
             }));
 }
@@ -754,13 +756,13 @@ TFuture<void> TTransaction::DoAbort(TGuard<TSpinLock>* guard, const TTransaction
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
     
-    if (State_ == ETransactionState::Aborted) {
+    if (State_ == ETransactionState::Aborting || State_ == ETransactionState::Aborted) {
         return AbortFuture_;
     }
 
     YT_LOG_DEBUG("Aborting transaction");
 
-    State_ = ETransactionState::Aborted;
+    State_ = ETransactionState::Aborting;
 
     auto req = Proxy_.AbortTransaction();
     ToProto(req->mutable_transaction_id(), GetId());
@@ -768,18 +770,30 @@ TFuture<void> TTransaction::DoAbort(TGuard<TSpinLock>* guard, const TTransaction
 
     auto abortFuture = AbortFuture_ = req->Invoke().Apply(
         BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
-            if (rspOrError.IsOK()) {
-                YT_LOG_DEBUG("Transaction aborted");
-                return TError();
-            } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
-                YT_LOG_DEBUG("Transaction has expired or was already aborted, ignored");
-                return TError();
-            } else {
-                YT_LOG_WARNING(rspOrError, "Error aborting transaction");
-                return TError("Error aborting transaction %v",
-                    GetId())
-                    << rspOrError;
+            {
+                auto guard = Guard(SpinLock_);
+                
+                if (State_ != ETransactionState::Aborting) {
+                    YT_LOG_DEBUG(rspOrError, "Transaction is no longer aborting, abort response ignored");
+                    return;
+                }
+                
+                if (rspOrError.IsOK()) {
+                    YT_LOG_DEBUG("Transaction aborted");
+                } else if (rspOrError.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
+                    YT_LOG_DEBUG("Transaction has expired or was already aborted, ignored");
+                } else {
+                    YT_LOG_DEBUG(rspOrError, "Error aborting transaction, considered detached");
+                    State_ = ETransactionState::Detached;
+                    THROW_ERROR_EXCEPTION("Error aborting transaction %v",
+                        GetId())
+                        << rspOrError;
+                }
+
+                State_ = ETransactionState::Aborted;
             }
+
+            Aborted_.Fire();
         }));
 
     auto foreignTransactions = ForeignTransactions_;
@@ -789,8 +803,6 @@ TFuture<void> TTransaction::DoAbort(TGuard<TSpinLock>* guard, const TTransaction
     for (const auto& transaction : foreignTransactions) {
         transaction->Abort();
     }
-
-    Aborted_.Fire();
 
     return abortFuture;
 }
@@ -808,27 +820,36 @@ TFuture<void> TTransaction::SendPing()
         BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspPingTransactionPtr& rspOrError) {
             if (rspOrError.IsOK()) {
                 YT_LOG_DEBUG("Transaction pinged");
-                return TError();
-            } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
+            } else if (rspOrError.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
                 // Hard error.
                 YT_LOG_DEBUG("Transaction has expired or was aborted");
 
+                bool fireAborted = false;
                 {
                     auto guard = Guard(SpinLock_);
-                    if (State_ != ETransactionState::Committed && State_ != ETransactionState::Aborted && State_ != ETransactionState::Detached) {
+                    if (State_ != ETransactionState::Committed &&
+                        State_ != ETransactionState::Flushed &&
+                        State_ != ETransactionState::Aborted &&
+                        State_ != ETransactionState::Detached)
+                    {
                         State_ = ETransactionState::Aborted;
                         AbortFuture_ = VoidFuture;
+                        fireAborted = true;
                     }
                 }
 
-                return TError(
+                if (fireAborted) {
+                    Aborted_.Fire();
+                }
+
+                THROW_ERROR_EXCEPTION(
                     NTransactionClient::EErrorCode::NoSuchTransaction,
                     "Transaction %v has expired or was aborted",
                     GetId());
             } else {
                 // Soft error.
                 YT_LOG_DEBUG(rspOrError, "Error pinging transaction");
-                return TError("Failed to ping transaction %v",
+                THROW_ERROR_EXCEPTION("Error pinging transaction %v",
                     GetId())
                     << rspOrError;
             }
