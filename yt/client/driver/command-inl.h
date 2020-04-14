@@ -64,11 +64,13 @@ NApi::ITransactionPtr TTransactionalCommandBase<
         return nullptr;
     }
 
+    const auto& transactionPool = context->GetDriver()->GetStickyTransactionPool();
+
     if (!NTransactionClient::IsMasterTransactionId(transactionId)) {
-        return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLeaseOrThrow(transactionId);
+        return transactionPool->GetTransactionAndRenewLeaseOrThrow(transactionId);
     }
 
-    auto transaction = context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLease(transactionId);
+    auto transaction = transactionPool->FindTransactionAndRenewLease(transactionId);
     if (!transaction) {
         NApi::TTransactionAttachOptions options;
         options.Ping = false;
@@ -186,9 +188,9 @@ NApi::IClientBasePtr TTabletReadCommandBase<
     typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletTransactionOptions&>>::TType
 >::GetClientBase(ICommandContextPtr context)
 {
-    auto transactionId = this->Options.TransactionId;
-    if (transactionId) {
-        return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLeaseOrThrow(transactionId);
+    if (auto transactionId = this->Options.TransactionId) {
+        const auto& transactionPool = context->GetDriver()->GetStickyTransactionPool();
+        return transactionPool->GetTransactionAndRenewLeaseOrThrow(transactionId);
     } else {
         return context->GetClient();
     }
@@ -214,15 +216,15 @@ NApi::ITransactionPtr TTabletWriteCommandBase<
     typename NMpl::TEnableIf<NMpl::TIsConvertible<TOptions&, TTabletWriteOptions&>>::TType
 >::GetTransaction(ICommandContextPtr context)
 {
-    auto transactionId = this->Options.TransactionId;
-    if (transactionId) {
-        return context->GetDriver()->GetStickyTransactionPool()->GetTransactionAndRenewLeaseOrThrow(transactionId);
+    if (auto transactionId = this->Options.TransactionId) {
+        const auto& transactionPool = context->GetDriver()->GetStickyTransactionPool();
+        return transactionPool->GetTransactionAndRenewLeaseOrThrow(transactionId);
     } else {
         NApi::TTransactionStartOptions options;
         options.Atomicity = this->Options.Atomicity;
         options.Durability = this->Options.Durability;
-        auto asyncResult = context->GetClient()->StartTransaction(NTransactionClient::ETransactionType::Tablet, options);
-        return NConcurrency::WaitFor(asyncResult)
+        const auto& client = context->GetClient();
+        return NConcurrency::WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Tablet, options))
             .ValueOrThrow();
     }
 }
@@ -249,6 +251,5 @@ TSelectRowsCommandBase<
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NYT::NDriver

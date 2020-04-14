@@ -181,6 +181,7 @@ ITransactionPtr TClient::AttachTransaction(
         atomicity,
         durability,
         timeout,
+        options.PingAncestors,
         options.PingPeriod,
         options.Sticky);
 }

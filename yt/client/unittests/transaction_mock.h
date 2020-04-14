@@ -9,6 +9,8 @@
 
 namespace NYT::NApi {
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TMockTransaction
     : public ITransaction
 {
@@ -179,8 +181,9 @@ public:
     MOCK_METHOD1(Commit, TFuture<TTransactionCommitResult>(const TTransactionCommitOptions& options));
     MOCK_METHOD1(Abort, TFuture<void>(const TTransactionAbortOptions& options));
     MOCK_METHOD0(Detach, void());
-    MOCK_METHOD0(Prepare, TFuture<TTransactionPrepareResult>());
     MOCK_METHOD0(Flush, TFuture<TTransactionFlushResult>());
+
+    MOCK_METHOD1(RegisterForeignTransaction, void(const NApi::ITransactionPtr& transaction));
 
     MOCK_METHOD1(SubscribeCommitted, void(const TCallback<void()>& callback));
     MOCK_METHOD1(UnsubscribeCommitted, void(const TCallback<void()>& callback));
@@ -195,5 +198,7 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockTransaction)
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi
