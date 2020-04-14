@@ -308,8 +308,13 @@ class Clique(object):
             print_debug("Caught network level error: ", err)
             errors = [YtError("ConnectionError: " + str(err))]
             stderr = "(n/a)"
+            print_debug("Waiting for instance {} to finish".format(str(instance)))
             try:
-                stderr = get_job_stderr(self. op.id, str(instance))
+                wait(lambda: get(self.op.get_path() + "/controller_orchid/running_jobs/" +
+                                 str(instance) + "/state", default=None) != "running")
+                print_debug("Instance {} has failed".format(str(instance)))
+                wait(lambda: exists(self.op.get_path() + "/jobs/" + str(instance) + "/stderr"))
+                stderr = read_file(self.op.get_path() + "/jobs/" + str(instance) + "/stderr")
                 print_debug("Stderr:\n" + stderr)
             except YtError as err2:
                 errors.append(err2)
