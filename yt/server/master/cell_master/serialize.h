@@ -91,7 +91,8 @@ DEFINE_ENUM(EMasterReign,
     ((YT_12365_FixCalculatingStaticMemoryInMounting)                (1305))  // lexolordan
     ((IgnoreTypeMismatch)                                           (1306))  // gritukan
     ((FixTErrorSerialization)                                       (1307))  // ifsmirnov
-);
+    ((DynamicTabletSlotCount)                                       (1308))  // gritukan
+ );
 
 ////////////////////////////////////////////////////////////////////////////////
 
