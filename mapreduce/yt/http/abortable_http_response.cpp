@@ -10,11 +10,11 @@ namespace NYT {
 
 class TAbortableHttpResponseRegistry {
 public:
-    TOutageId StartOutage(TString urlPattern, size_t responseCount)
+    TOutageId StartOutage(TString urlPattern, const TOutageOptions& options)
     {
         auto g = Guard(Lock_);
         auto id = NextId_++;
-        IdToOutage.emplace(id, TOutageEntry{std::move(urlPattern), responseCount});
+        IdToOutage.emplace(id, TOutageEntry{std::move(urlPattern), options.ResponseCount_, options.LengthLimit_});
         return id;
     }
 
@@ -27,10 +27,9 @@ public:
     void Add(TAbortableHttpResponse* response)
     {
         auto g = Guard(Lock_);
-        for (auto& p : IdToOutage) {
-            auto& entry = p.second;
+        for (auto& [id, entry] : IdToOutage) {
             if (entry.Counter > 0 && response->GetUrl().find(entry.Pattern) != TString::npos) {
-                response->Abort();
+                response->SetLengthLimit(entry.LengthLimit);
                 entry.Counter -= 1;
             }
         }
@@ -65,6 +64,7 @@ private:
     {
         TString Pattern;
         size_t Counter;
+        size_t LengthLimit;
     };
 
 private:
@@ -76,10 +76,13 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAbortableHttpResponse::TOutage::TOutage(TString urlPattern, size_t responseCount, TAbortableHttpResponseRegistry& registry)
+TAbortableHttpResponse::TOutage::TOutage(
+    TString urlPattern,
+    TAbortableHttpResponseRegistry& registry,
+    const TOutageOptions& options)
     : UrlPattern_(std::move(urlPattern))
     , Registry_(registry)
-    , Id_(registry.StartOutage(UrlPattern_, responseCount))
+    , Id_(registry.StartOutage(UrlPattern_, options))
 { }
 
 TAbortableHttpResponse::TOutage::~TOutage()
@@ -118,7 +121,13 @@ size_t TAbortableHttpResponse::DoRead(void* buf, size_t len)
     if (Aborted_) {
         ythrow TAbortedForTestPurpose() << "response was aborted";
     }
-    return THttpResponse::DoRead(buf, len);
+    len = std::min(len, LengthLimit_);
+    auto read = THttpResponse::DoRead(buf, len);
+    LengthLimit_ -= read;
+    if (LengthLimit_ == 0) {
+        Abort();
+    }
+    return read;
 }
 
 size_t TAbortableHttpResponse::DoSkip(size_t len)
@@ -134,14 +143,31 @@ void TAbortableHttpResponse::Abort()
     Aborted_ = true;
 }
 
+void TAbortableHttpResponse::SetLengthLimit(size_t limit)
+{
+    LengthLimit_ = limit;
+    if (LengthLimit_ == 0) {
+        Abort();
+    }
+}
+
 int TAbortableHttpResponse::AbortAll(const TString& urlPattern)
 {
     return TAbortableHttpResponseRegistry::Get().AbortAll(urlPattern);
 }
 
-TAbortableHttpResponse::TOutage TAbortableHttpResponse::StartOutage(const TString& urlPattern, size_t responseCount)
+TAbortableHttpResponse::TOutage TAbortableHttpResponse::StartOutage(
+    const TString& urlPattern,
+    const TOutageOptions& options)
 {
-    return TOutage(urlPattern, responseCount, TAbortableHttpResponseRegistry::Get());
+    return TOutage(urlPattern, TAbortableHttpResponseRegistry::Get(), options);
+}
+
+TAbortableHttpResponse::TOutage TAbortableHttpResponse::StartOutage(
+    const TString& urlPattern,
+    size_t responseCount)
+{
+    return StartOutage(urlPattern, TOutageOptions().ResponseCount(responseCount));
 }
 
 const TString& TAbortableHttpResponse::GetUrl() const

@@ -1792,7 +1792,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
             UNIT_ASSERT(!reader->IsValid());
         }
         // Check that there has been much more requests than RetryCount.
-        UNIT_ASSERT(abortedRequestCount >= 10);
+        UNIT_ASSERT_GE(abortedRequestCount, 10);
     }
 
     void TestProtobufSchemaInferring(bool setWriterOptions)
@@ -1955,9 +1955,9 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
         {
             auto writer = client->CreateTableWriter<TNode>(
                 TRichYPath(workingDir + "/table").Schema(TTableSchema()
-                                                             .AddColumn("filename", VT_STRING, SO_ASCENDING)
-                                                             .AddColumn("part_index", VT_INT64, SO_ASCENDING)
-                                                             .AddColumn("data", VT_STRING)));
+                    .AddColumn("filename", VT_STRING, SO_ASCENDING)
+                    .AddColumn("part_index", VT_INT64, SO_ASCENDING)
+                    .AddColumn("data", VT_STRING)));
 
             for (size_t i = 0; i != testDataParts.size(); ++i) {
                 TNode row;
@@ -2000,9 +2000,10 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
 
     Y_UNIT_TEST(WithAbortableHttpResponse)
     {
-        Cout << TConfig::Get()->ReadRetryCount << Endl;
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-        TConfig::Get()->UseAbortableResponse = true;
         const std::vector<TString> testDataParts = {
             TString(1024 * 1024 * 4, 'a'),
             TString(1024 * 1024 * 4, 'b'),
@@ -2010,16 +2011,16 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
             TString(1027, 'd'),
         };
 
-        TTestFixture fixture;
-        auto client = fixture.GetClient();
-        auto workingDir = fixture.GetWorkingDir();
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->RetryInterval = TDuration::MilliSeconds(1);
+        TConfig::Get()->ReadRetryCount = 5;
 
         {
             auto writer = client->CreateTableWriter<TNode>(
                 TRichYPath(workingDir + "/table").Schema(TTableSchema()
-                                                             .AddColumn("filename", VT_STRING, SO_ASCENDING)
-                                                             .AddColumn("part_index", VT_INT64, SO_ASCENDING)
-                                                             .AddColumn("data", VT_STRING)));
+                    .AddColumn("filename", VT_STRING, SO_ASCENDING)
+                    .AddColumn("part_index", VT_INT64, SO_ASCENDING)
+                    .AddColumn("data", VT_STRING)));
 
             for (size_t i = 0; i != testDataParts.size(); ++i) {
                 TNode row;
@@ -2041,34 +2042,28 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
         }
 
         {
+            auto outage = TAbortableHttpResponse::StartOutage("/read_blob_table", TOutageOptions().LengthLimit(3));
             auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_small"});
-            int n = 3;
-            TString buf;
-            buf.resize(n);
-            UNIT_ASSERT_VALUES_EQUAL(reader->Read(buf.Detach(), n), n);
-            UNIT_ASSERT_VALUES_EQUAL(buf, "sma");
-            TAbortableHttpResponse::AbortAll("/read_blob_table");
-            UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "ll");
+            UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "small");
         }
 
+        TString expected;
+        for (const auto& part : testDataParts) {
+            expected += part;
+        }
         {
-            TString expected;
-            for (const auto& part : testDataParts) {
-                expected += part;
-            }
-            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_big"});
-            int firstPartSize = 1e7;
-            TString firstPart;
-            firstPart.resize(firstPartSize);
-            int currentSize = 0;
-            while (currentSize != firstPartSize) {
-                currentSize += reader->Read(firstPart.Detach() + currentSize, firstPartSize - currentSize);
-            }
-
-            TAbortableHttpResponse::AbortAll("/read_blob_table");
-
-            auto secondPart = reader->ReadAll();
-            UNIT_ASSERT_EQUAL(firstPart + secondPart, expected);
+            auto outage = TAbortableHttpResponse::StartOutage(
+                "/read_blob_table",
+                TOutageOptions().LengthLimit(16 * 1024 * 1024));
+            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_big"});;
+            UNIT_ASSERT_EQUAL(reader->ReadAll(), expected);
+        }
+        {
+            auto outage = TAbortableHttpResponse::StartOutage(
+                "/read_blob_table",
+                TOutageOptions().LengthLimit(1 * 1024 * 1024));
+            auto reader = client->CreateBlobTableReader(workingDir + "/table", {"myfile_big"});;
+            UNIT_ASSERT_EQUAL(reader->ReadAll(), expected);
         }
     }
 

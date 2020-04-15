@@ -16,8 +16,10 @@ class TTestReaderFixture
     : public TTestFixture
 {
 public:
+    static constexpr size_t FileSize = 10 * 1024 * 1024;
+
     TTestReaderFixture()
-        : FileData_(GenerateRandomData(10 * 1024 * 1024))
+        : FileData_(GenerateRandomData(FileSize))
     {
         TConfig::Get()->UseAbortableResponse = true;
         TConfig::Get()->RetryInterval = TDuration();
