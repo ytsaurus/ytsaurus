@@ -27,6 +27,12 @@ from copy import deepcopy
 # We cannot use requests.HTTPError in module namespace because of conflict with python3 http library
 from yt.packages.six.moves.http_client import BadStatusLine, IncompleteRead
 
+# Used to distinguish
+try:
+    import yatest.common as yatest_common
+except ImportError:
+    yatest_common = None
+
 RECEIVE_TOKEN_FROM_SSH_SESSION = True
 
 def _format_logging_params(params):
@@ -436,7 +442,8 @@ def _get_token_by_ssh_session(client):
 
     token = lpo.get_token(get_config(client)["oauth_client_id"], get_config(client)["oauth_client_secret"])
     if not token:
-        logger.warning("Failed to receive token using current session ssh keys")
+        if yatest_common is None:
+            logger.warning("Failed to receive token using current ssh session")
         token = None
 
     return token
@@ -490,13 +497,16 @@ def get_token(token=None, client=None):
             token = _get_token_by_ssh_session(client)
             # Update token in default location.
             if get_config(client=client)["token_path"] is None and token is not None:
-                token_dir = os.path.join(os.path.expanduser("~"), ".yt")
-                if not os.path.exists(token_dir):
-                    os.makedirs(token_dir)
-                token_path = os.path.join(token_dir, "token")
-                with open(token_path, "w") as fout:
-                    fout.write(token)
-                os.chmod(token_path, 0o600)
+                try:
+                    token_dir = os.path.join(os.path.expanduser("~"), ".yt")
+                    if not os.path.exists(token_dir):
+                        os.makedirs(token_dir)
+                    token_path = os.path.join(token_dir, "token")
+                    with open(token_path, "w") as fout:
+                        fout.write(token)
+                    os.chmod(token_path, 0o600)
+                except IOError:
+                    pass
 
     # Empty token considered as missing.
     if not token:
