@@ -470,15 +470,17 @@ private:
                 break;
             }
 
+            auto error = TError::FromSystem();
+
             if (++index >= MaxLockRetries) {
                 THROW_ERROR_EXCEPTION(
                     NHydra::EErrorCode::ChangelogIOError,
                     "Cannot flock %Qv",
                     FileName_)
-                    << TError::FromSystem();
+                    << error;
             }
 
-            YT_LOG_WARNING("Error locking data file; backing off and retrying");
+            YT_LOG_WARNING(error, "Error locking data file; backing off and retrying");
             TDelayedExecutor::WaitForDuration(LockBackoffTime);
         }
     }
