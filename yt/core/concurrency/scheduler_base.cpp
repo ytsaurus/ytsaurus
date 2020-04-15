@@ -553,7 +553,7 @@ void SetCurrentScheduler(IScheduler* scheduler)
 
 void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
 {
-    YT_ASSERT(future);
+    YT_VERIFY(future);
     YT_ASSERT(invoker);
 
     if (CurrentScheduler) {
@@ -577,18 +577,14 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
             future = std::move(future),
             fiber = MakeStrong(currentFiber)
         ] () mutable {
-            if (future) {
-                future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([
-                    invoker = std::move(invoker),
-                    fiber = std::move(fiber)
-                ] (const TError&) mutable {
-                    YT_LOG_DEBUG("Waking up fiber (TargetFiberId: %llx)",
-                        fiber->GetId());
-                    invoker->Invoke(BIND(TResumeGuard{std::move(fiber)}));
-                }));
-            } else {
+            future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([
+                invoker = std::move(invoker),
+                fiber = std::move(fiber)
+            ] (const TError&) mutable {
+                YT_LOG_DEBUG("Waking up fiber (TargetFiberId: %llx)",
+                    fiber->GetId());
                 invoker->Invoke(BIND(TResumeGuard{std::move(fiber)}));
-            }
+            }));
         }));
 
         // Switch to resumer.
