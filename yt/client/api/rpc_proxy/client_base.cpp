@@ -781,17 +781,17 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     }));
 }
 
-TFuture<TYsonString> TClientBase::Explain(
+TFuture<TYsonString> TClientBase::ExplainQuery(
     const TString& query,
-    const TExplainOptions& options)
+    const TExplainQueryOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
-    auto req = proxy.Explain();
+    auto req = proxy.ExplainQuery();
     req->set_query(query);
     FillRequestBySelectRowsOptionsBase(options, req);
 
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspExplainPtr& rsp) {
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspExplainQueryPtr& rsp) {
         return TYsonString(rsp->value());
     }));
 }

@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
 
-class TestExplain(YTEnvSetup):
+class TestExplainQuery(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     def _create_test_table(self, path):
@@ -22,13 +22,13 @@ class TestExplain(YTEnvSetup):
         self._create_test_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        response = explain("* from [//tmp/t] group by hash, a, b")
+        response = explain_query("* from [//tmp/t] group by hash, a, b")
         assert "common_prefix_with_primary_key" in response["query"]
 
-        response = explain("* from [//tmp/t] group by a, b")
+        response = explain_query("* from [//tmp/t] group by a, b")
         assert "common_prefix_with_primary_key" in response["query"]
 
-        response = explain("* from [//tmp/t] group by a, c")
+        response = explain_query("* from [//tmp/t] group by a, c")
         assert "common_prefix_with_primary_key" not in response["query"]
 
     @authors("avmatrosov")
@@ -83,7 +83,7 @@ class TestExplain(YTEnvSetup):
         sync_mount_table("//tmp/fourth")
 
         def _check_response(query_string, foreign_key_prefixes, common_key_prefixes):
-            response = explain(query_string)
+            response = explain_query(query_string)
             joins = response["query"]["joins"][0]
             size = len(foreign_key_prefixes)
 
@@ -120,13 +120,13 @@ class TestExplain(YTEnvSetup):
         self._create_test_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        response = explain("* from [//tmp/t] order by hash, a limit 10")
+        response = explain_query("* from [//tmp/t] order by hash, a limit 10")
         assert response["query"]["is_ordered_scan"]
 
-        response = explain("* from [//tmp/t] order by hash, a, b limit 10")
+        response = explain_query("* from [//tmp/t] order by hash, a, b limit 10")
         assert response["query"]["is_ordered_scan"]
 
-        response = explain("* from [//tmp/t] order by a, b limit 10")
+        response = explain_query("* from [//tmp/t] order by a, b limit 10")
         assert not response["query"]["is_ordered_scan"]
 
     @authors("avmatrosov")
@@ -135,7 +135,7 @@ class TestExplain(YTEnvSetup):
         self._create_test_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        response = explain("* from [//tmp/t] where a < b AND b > c")
+        response = explain_query("* from [//tmp/t] where a < b AND b > c")
         assert response["query"]["where_expression"] == "(a < b) AND (b > c)"
 
     @authors("avmatrosov")
@@ -152,7 +152,7 @@ class TestExplain(YTEnvSetup):
         create_dynamic_table("//tmp/t", schema=test_schema)
         sync_mount_table("//tmp/t")
 
-        response = explain("* from [//tmp/t] where a IN (1, 2, 10) AND b BETWEEN (1 and 9)")
+        response = explain_query("* from [//tmp/t] where a IN (1, 2, 10) AND b BETWEEN (1 and 9)")
 
         expected_ranges = [['[0#1, 1#1]', '[0#1, 1#9, 0#<Max>]'],
                            ['[0#2, 1#1]', '[0#2, 1#9, 0#<Max>]'],

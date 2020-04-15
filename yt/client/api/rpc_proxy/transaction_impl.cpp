@@ -518,12 +518,12 @@ TFuture<TSelectRowsResult> TTransaction::SelectRows(
         PatchTransactionTimestamp(options));
 }
 
-TFuture<NYson::TYsonString> TTransaction::Explain(
+TFuture<NYson::TYsonString> TTransaction::ExplainQuery(
     const TString& query,
-    const TExplainOptions& options)
+    const TExplainQueryOptions& options)
 {
     ValidateActive();
-    return Client_->Explain(
+    return Client_->ExplainQuery(
         query,
         PatchTransactionTimestamp(options));
 }

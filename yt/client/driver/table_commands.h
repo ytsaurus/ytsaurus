@@ -227,16 +227,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TExplainOptions
-    : public NApi::TExplainOptions
+struct TExplainQueryOptions
+    : public NApi::TExplainQueryOptions
     , public TTabletTransactionOptions
 { };
 
-class TExplainCommand
-    : public TTypedCommand<TExplainOptions>
+class TExplainQueryCommand
+    : public TTypedCommand<TExplainQueryOptions>
 {
 public:
-    TExplainCommand();
+    TExplainQueryCommand();
 
 private:
     TString Query;

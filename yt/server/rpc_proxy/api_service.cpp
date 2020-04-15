@@ -316,7 +316,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Explain));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ExplainQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
 
@@ -2555,13 +2555,13 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, Explain)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ExplainQuery)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         const auto& query = request->query();
 
-        TExplainOptions options;
+        TExplainQueryOptions options;
         SetTimeoutOptions(&options, context.Get());
         FillSelectRowsOptionsBaseFromRequest(request, &options);
 
@@ -2572,7 +2572,7 @@ private:
         CompleteCallWith(
             client,
             context,
-            client->Explain(query, options),
+            client->ExplainQuery(query, options),
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_value(result.GetData());
