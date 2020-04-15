@@ -143,23 +143,20 @@ public:
 
     void Enqueue(TClosure callback, int index)
     {
-        auto now = GetCpuInstant();
+        auto now = GetInstant();
         {
             TWriterGuard guard(InvokerQueueStatesLock_);
 
             auto& queueState = InvokerQueueStates_[index];
-            ++queueState.EnqueuedActionCount;
-            // NB(eshcherbin): scaling is needed to avoid overflow problems in case too many actions are enqueued.
-            // According to my humble calculations, without it the capacity would be only a few hundred actions per bucket,
-            // which is not reliable enough.
-            queueState.ScaledSumOfEnqueuedAtInstants += now / CpuInstantScalingFactor;
+
+            queueState.ActionEnqueueTimes.push(now);
+            queueState.SumOfActionEnqueueTimes += now.GetValue();
         }
 
         Queue_->Enqueue(std::move(callback), index);
         UnderlyingInvoker_->Invoke(BIND(
             &TFairShareInvokerPool::Run,
-            MakeStrong(this),
-            now));
+            MakeStrong(this)));
     }
 
 protected:
@@ -170,16 +167,14 @@ protected:
     }
 
 private:
-    static constexpr int CpuInstantScalingFactor = 1000;
-
     const IInvokerPtr UnderlyingInvoker_;
 
     std::vector<IInvokerPtr> Invokers_;
 
     struct TInvokerQueueState
     {
-        int EnqueuedActionCount = 0;
-        TCpuInstant ScaledSumOfEnqueuedAtInstants = {};
+        TRingQueue<TInstant> ActionEnqueueTimes;
+        TInstant::TValue SumOfActionEnqueueTimes = {};
     };
 
     NConcurrency::TReaderWriterSpinLock InvokerQueueStatesLock_;
@@ -204,7 +199,7 @@ private:
                 return;
             }
             Accounted_ = true;
-            Queue_->AccountCpuTime(Index_, DurationToCpuDuration(Timer_.GetElapsedTime()));
+            Queue_->AccountCpuTime(Index_, Timer_.GetElapsedCpuTime());
             Timer_.Stop();
         }
 
@@ -240,16 +235,16 @@ private:
 
         virtual TDuration GetAverageWaitTime() const override
         {
+            auto now = GetInstant();
             if (auto strongParent = Parent_.Lock()) {
                 TReaderGuard guard(strongParent->InvokerQueueStatesLock_);
 
-                auto now = GetCpuInstant();
                 auto& queueState = strongParent->InvokerQueueStates_[Index_];
-                auto enqueuedActionCount = queueState.EnqueuedActionCount;
-                auto sumOfEnqueuedAtInstants = queueState.ScaledSumOfEnqueuedAtInstants * CpuInstantScalingFactor;
-                return enqueuedActionCount == 0
-                    ? TDuration::Zero()
-                    : CpuDurationToDuration(now - sumOfEnqueuedAtInstants / enqueuedActionCount);
+
+                auto enqueuedActionCount = queueState.ActionEnqueueTimes.size();
+                return enqueuedActionCount > 0
+                    ? ValueToDuration(now.GetValue() - queueState.SumOfActionEnqueueTimes / enqueuedActionCount)
+                    : TDuration::Zero();
             }
 
             return TDuration::Zero();
@@ -265,7 +260,7 @@ private:
         return 0 <= index && index < Invokers_.size();
     }
 
-    void Run(TCpuInstant enqueuedAt)
+    void Run()
     {
         TClosure callback;
         int bucketIndex = -1;
@@ -278,8 +273,11 @@ private:
             TWriterGuard guard(InvokerQueueStatesLock_);
 
             auto& queueState = InvokerQueueStates_[bucketIndex];
-            --queueState.EnqueuedActionCount;
-            queueState.ScaledSumOfEnqueuedAtInstants -= enqueuedAt / CpuInstantScalingFactor;
+            YT_VERIFY(!queueState.ActionEnqueueTimes.empty());
+
+            auto currentActionEnqueueTime = queueState.ActionEnqueueTimes.front();
+            queueState.ActionEnqueueTimes.pop();
+            queueState.SumOfActionEnqueueTimes -= currentActionEnqueueTime.GetValue();
         }
 
         {

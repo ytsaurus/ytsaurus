@@ -3723,6 +3723,7 @@ void TOperationControllerBase::AnalyzeQueueAverageWaitTime()
     for (auto queue : TEnumTraits<EOperationControllerQueue>::GetDomainValues()) {
         auto invoker = GetCancelableInvoker(queue);
         auto averageWaitTime = invoker->GetAverageWaitTime();
+
         if (averageWaitTime > Config->OperationAlerts->QueueAverageWaitTimeThreshold) {
             queueToAverageWaitTime.emplace(queue, averageWaitTime);
         }
