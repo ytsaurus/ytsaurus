@@ -150,7 +150,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "low_cpu_usage_alert_cpu_usage_threshold": 0.5,
                 "operation_too_long_alert_min_wall_time": 0,
                 "operation_too_long_alert_estimate_duration_threshold": 5000,
-                "queue_average_wait_time_threshold": 5000
+                "queue_average_wait_time_threshold": 1500,
             },
             "map_reduce_operation_options": {
                 "min_uncompressed_block_size": 1
@@ -410,10 +410,10 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             command="echo 'pass' >/dev/null",
             spec={
                 "testing": {
-                    "get_job_spec_delay": 1500,
+                    "get_job_spec_delay": 3000,
                 }
             },
-            job_count=1000,
+            job_count=30,
         )
 
         wait(lambda: "high_queue_average_wait_time" in op.get_alerts())
