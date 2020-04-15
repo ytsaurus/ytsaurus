@@ -925,6 +925,7 @@ private:
                 runtimeParameters->Annotations = annotations;
             }
 
+            auto scheduler = Owner_->Bootstrap_->GetScheduler();
             auto operation = New<TOperation>(
                 operationId,
                 attributes.Get<EOperationType>("operation_type"),
@@ -934,11 +935,12 @@ private:
                 specString,
                 secureVault,
                 runtimeParameters,
-                Owner_->Bootstrap_->GetScheduler()->GetOperationBaseAcl(),
+                scheduler->GetOperationBaseAcl(),
                 user,
                 attributes.Get<TInstant>("start_time"),
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
                 spec->Alias,
+                spec->ScheduleInSingleTree && scheduler->GetConfig()->EnableScheduleInSingleTree,
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
                 /* suspended */ attributes.Get<bool>("suspended", false),
