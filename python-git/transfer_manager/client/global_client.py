@@ -2,6 +2,9 @@ from .client import TransferManager
 
 import os
 
+
+YT_TRANSFER_MANAGER_URL_ENV = "YT_TRANSFER_MANAGER_URL"
+
 _tm_client = None
 
 def init_client(*args, **kwargs):
@@ -9,7 +12,7 @@ def init_client(*args, **kwargs):
 
     url = kwargs.pop("url", None)
     if url is None:
-        url = os.environ.get("YT_TRANSFER_MANAGER_URL", None)
+        url = os.environ.get(YT_TRANSFER_MANAGER_URL_ENV, None)
     kwargs["url"] = url
 
     _tm_client = TransferManager(*args, **kwargs)
