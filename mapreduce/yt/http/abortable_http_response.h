@@ -14,16 +14,27 @@ class TAbortedForTestPurpose
     : public yexception
 { };
 
-//
-// Class extends NYT::THttpResponse with possibility to emulate errors.
+struct TOutageOptions
+{
+    using TSelf = TOutageOptions;
+
+    /// @brief Number of responses to abort.
+    FLUENT_FIELD_DEFAULT(size_t, ResponseCount, std::numeric_limits<size_t>::max())
+
+    /// @brief Number of bytes to read before abortion. If zero, abort immediately.
+    FLUENT_FIELD_DEFAULT(size_t, LengthLimit, 0)
+};
+
+/// @brief Class extends @ref NYT::THttpResponse with possibility to emulate errors.
 class TAbortableHttpResponse
     : public THttpResponse
     , public TIntrusiveListItem<TAbortableHttpResponse>
 {
 public:
-    class TOutage {
+    class TOutage
+    {
     public:
-        TOutage(TString urlPattern, size_t responseCount, TAbortableHttpResponseRegistry& registry);
+        TOutage(TString urlPattern, TAbortableHttpResponseRegistry& registry, const TOutageOptions& options);
         TOutage(TOutage&&) = default;
         TOutage(const TOutage&) = delete;
         ~TOutage();
@@ -46,15 +57,26 @@ public:
 
     ~TAbortableHttpResponse();
 
-    // Aborts any responses which match `urlPattern` (i.e. contain it in url).
-    // Returns number of aborted responses.
+    /// @brief Abort any responses which match `urlPattern` (i.e. contain it in url).
+    ///
+    /// @return number of aborted responses.
     static int AbortAll(const TString& urlPattern);
 
-    // Starts outage. `responseCount` future responses which match `urlPattern` (i.e. contain it in url) will fail.
-    // Outage stops when object is destroyed.
+    /// @brief Start outage. Future responses which match `urlPattern` (i.e. contain it in url) will fail.
+    ///
+    /// @return outage object controlling the lifetime of outage (outage stops when object is destroyed)
     [[nodiscard]] static TOutage StartOutage(
         const TString& urlPattern,
-        size_t responseCount = std::numeric_limits<size_t>::max());
+        const TOutageOptions& options = TOutageOptions());
+
+    /// @brief Start outage. Future `responseCount` responses which match `urlPattern` (i.e. contain it in url) will fail.
+    ///
+    /// @return outage object controlling the lifetime of outage (outage stops when object is destroyed)
+    [[nodiscard]] static TOutage StartOutage(
+        const TString& urlPattern,
+        size_t responseCount);
+
+    void SetLengthLimit(size_t limit);
 
     void Abort();
     const TString& GetUrl() const;
@@ -68,6 +90,7 @@ private:
 private:
     TString Url_;
     std::atomic<bool> Aborted_ = {false};
+    size_t LengthLimit_ = std::numeric_limits<size_t>::max();
 };
 
 } // namespace NYT

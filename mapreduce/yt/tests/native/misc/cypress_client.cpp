@@ -433,21 +433,16 @@ Y_UNIT_TEST_SUITE(CypressClient) {
 
     Y_UNIT_TEST(TestRetries)
     {
-        TConfig::Get()->UseAbortableResponse = true;
-        TConfig::Get()->RetryCount = 4;
-
         TTestFixture fixture;
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
+
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->RetryCount = 4;
         client->Create(workingDir + "/table", NT_MAP);
         {
             auto outage = TAbortableHttpResponse::StartOutage("/set");
-            try {
-                client->Set(workingDir + "/table/@my_attr", 42);
-                UNIT_FAIL("Set() must have been thrown");
-            } catch (const TAbortedForTestPurpose&) {
-                // It's OK
-            }
+            UNIT_ASSERT_EXCEPTION(client->Set(workingDir + "/table/@my_attr", 42), TAbortedForTestPurpose);
         }
         {
             auto outage = TAbortableHttpResponse::StartOutage("/set", TConfig::Get()->RetryCount - 1);
@@ -518,7 +513,7 @@ Y_UNIT_TEST_SUITE(CypressClient) {
         TTestFixture fixture;
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
-        TYPath cachePath = "//tmp/yt_wrapper/file_storage/new_cache";
+        TYPath cachePath = workingDir + "/file_cache";
         client->Create(cachePath, ENodeType::NT_MAP, TCreateOptions().IgnoreExisting(true));
 
         {
@@ -562,6 +557,39 @@ Y_UNIT_TEST_SUITE(CypressClient) {
             maybePath = client->GetFileFromCache(md5, cachePath);
             UNIT_ASSERT(maybePath.Defined());
             UNIT_ASSERT_VALUES_EQUAL(content, client->CreateFileReader(*maybePath)->ReadAll());
+        }
+    }
+
+    Y_UNIT_TEST(AbortableHttpResponse)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->RetryInterval = TDuration();
+        TConfig::Get()->ReadRetryCount = 10;
+
+        auto size = 1000;
+        auto data = GenerateRandomData(size);
+        client->Set(workingDir + "/x", data);
+        {
+            auto outage = TAbortableHttpResponse::StartOutage(
+                "/get",
+                TOutageOptions().LengthLimit(100));
+            UNIT_ASSERT_EXCEPTION(client->Get(workingDir + "/x"), TAbortedForTestPurpose);
+        }
+        {
+            auto outage = TAbortableHttpResponse::StartOutage(
+                "/get",
+                TOutageOptions().LengthLimit(100).ResponseCount(8));
+            UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/x").AsString(), data);
+        }
+        {
+            auto outage = TAbortableHttpResponse::StartOutage(
+                "/get",
+                TOutageOptions().LengthLimit(10000));
+            UNIT_ASSERT_VALUES_EQUAL(client->Get(workingDir + "/x").AsString(), data);
         }
     }
 }
