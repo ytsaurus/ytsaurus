@@ -365,3 +365,66 @@ class TestSkiffFormat(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == [{}, {}, {}]
 
+    @authors("ermolovd")
+    def test_override_intermediate_table_schema(self):
+        schema = [
+            {"name": "key", "type_v3": "string"},
+            {"name": "value", "type_v3": list_type("int64")},
+        ]
+
+        create("table", "//tmp/t_in", attributes={"schema": schema})
+        create("table", "//tmp/t_out_reducer", attributes={"schema": schema})
+        create("table", "//tmp/t_out_mapper", attributes={"schema": schema})
+
+        write_table("//tmp/t_in", [
+            {"key": "foo", "value": [1, 2, 3]},
+            {"key": "bar", "value": []},
+        ])
+
+        format = yson.YsonString("skiff")
+        format.attributes["table_skiff_schemas"] = [
+            skiff_tuple([
+                skiff_simple("string32", name="key"),
+                skiff_repeated_variant8([skiff_simple("int64")], name="value"),
+            ])
+        ]
+
+        mapper_output_format = yson.YsonString("skiff")
+        mapper_output_format.attributes["override_intermediate_table_schema"] = schema
+        mapper_output_format.attributes["table_skiff_schemas"] = [
+            format.attributes["table_skiff_schemas"][0],
+            format.attributes["table_skiff_schemas"][0],
+        ]
+
+        reducer_input_format = yson.YsonString("skiff")
+        reducer_input_format.attributes["override_intermediate_table_schema"] = schema
+        reducer_input_format.attributes["table_skiff_schemas"] = [
+            format.attributes["table_skiff_schemas"][0],
+        ]
+
+        map_reduce(
+            in_="//tmp/t_in",
+            out=["//tmp/t_out_mapper", "//tmp/t_out_reducer"],
+            sort_by=["key"],
+
+            mapper_command=(
+                "cat && echo -en '"
+                "\\x00\\x00"  # table index
+                "\\x03\\x00\\x00\\x00""baz"  # baz string
+                "\\x00""\\x42\\x00\\x00\\x00\\x00\\x00\\x00\\x00"  # list item
+                "\\xFF""' >&4"),
+            reducer_command="cat",
+            spec={
+                "mapper_output_table_count": 1,
+                "mapper": {
+                    "input_format": format,
+                    "output_format": mapper_output_format,
+                },
+                "reducer": {
+                    "input_format": reducer_input_format,
+                    "output_format": format,
+                }
+            }
+        )
+        assert [{"key": "bar", "value": []}, {"key": "foo", "value": [1 ,2 ,3]}] == list(sorted(read_table("//tmp/t_out_reducer"), key=lambda x: x["key"]))
+        assert [{"key": "baz", "value": [0x42]}] == read_table("//tmp/t_out_mapper")
