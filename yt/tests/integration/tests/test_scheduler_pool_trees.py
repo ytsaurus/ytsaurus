@@ -1244,7 +1244,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         op.wait_for_state("materializing")
 
         set("//sys/scheduler/config/enable_schedule_in_single_tree", True)
-        wait(lambda: not get(scheduler_orchid_path() + "/scheduler/config/enable_schedule_in_single_tree"))
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/config/enable_schedule_in_single_tree"))
 
         # Introduce this not to fail due to poor timings.
         # Should always be true because of the delay above.
