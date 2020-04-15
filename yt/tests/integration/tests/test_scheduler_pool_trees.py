@@ -1218,6 +1218,45 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         wait(lambda: len(list_jobs(op.id)["jobs"]) >= job_count)
         wait(lambda: get(op.get_path() + "/@erased_trees") == [])
 
+    @authors("eshcherbin")
+    def test_global_enable_during_operation_materialization(self):
+        set("//sys/scheduler/config/enable_schedule_in_single_tree", False)
+        wait(lambda: not get(scheduler_orchid_path() + "/scheduler/config/enable_schedule_in_single_tree"))
+        set("//sys/scheduler/config/fair_share_update_period", 5000)
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/config/fair_share_update_period") == 5000)
+
+        # TODO(eshcherbin): Remove this sleep in favour of a more stable way to do the same wait.
+        # This sleep is used to ensure the last fair share update before the fair share update period change has finished.
+        time.sleep(1.0)
+
+        job_count = 10
+        possible_trees = ["default", "nirvana", "cloud"]
+        spec = {
+            "pool_trees": possible_trees,
+            "pool": "research",
+            "schedule_in_single_tree": True,
+            "testing": {
+                "delay_inside_materialize": 1500
+            }
+        }
+
+        op = run_test_vanilla("sleep 0.6", job_count=job_count, spec=spec, track=False)
+        op.wait_for_state("materializing")
+
+        set("//sys/scheduler/config/enable_schedule_in_single_tree", True)
+        wait(lambda: not get(scheduler_orchid_path() + "/scheduler/config/enable_schedule_in_single_tree"))
+
+        # Introduce this not to fail due to poor timings.
+        # Should always be true because of the delay above.
+        option_disabled_during_materialization = (op.get_state() == "materializing")
+        if not option_disabled_during_materialization:
+            print_debug("Warning: could not disable \"schedule_in_single_tree\" during "
+                        "materialization, probably due to poor timings.")
+
+        op.track()
+        if option_disabled_during_materialization:
+            wait(lambda: get(op.get_path() + "/@erased_trees") == [])
+
 ##################################################################
 
 class TestPoolTreeOperationLimits(YTEnvSetup):

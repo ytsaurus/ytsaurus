@@ -609,7 +609,8 @@ public:
             user,
             TInstant::Now(),
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
-            spec->Alias);
+            spec->Alias,
+            spec->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree);
 
         if (!spec->Owners.empty()) {
             operation->SetAlert(
@@ -1096,8 +1097,7 @@ public:
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
             asyncMaterializeResult = operation->GetController()->Materialize();
 
-            bool willScheduleInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
-            auto maybeFullFairShareUpdateFinished = willScheduleInSingleTree
+            auto maybeFullFairShareUpdateFinished = operation->IsScheduledInSingleTree()
                 ? Strategy_->GetFullFairShareUpdateFinished()
                 : VoidFuture;
 
@@ -1153,8 +1153,7 @@ public:
         // (a) only one tree was specified for operation, or
         // (b) scheduler failed/disconnected before persisting ErasedTrees to master,
         //     in which case it's safe to choose the tree once again.
-        bool willScheduleInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
-        if (willScheduleInSingleTree && operation->ErasedTrees().empty()) {
+        if (operation->IsScheduledInSingleTree() && operation->ErasedTrees().empty()) {
             auto chosenTree = Strategy_->ChooseBestSingleTreeForOperation(operation->GetId(), neededResources);
 
             std::vector<TString> treeIdsToUnregister;
