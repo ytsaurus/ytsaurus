@@ -25,6 +25,8 @@
 
 #include <yt/core/tracing/trace_context.h>
 
+#include <yt/core/misc/finally.h>
+
 #include <util/system/compiler.h>
 #include <util/system/thread.h>
 
@@ -532,6 +534,32 @@ TEST_F(TSchedulerTest, PropagateFiberCancelationToFuture)
     Sleep(SleepQuantum);
 
     EXPECT_TRUE(p1.IsCanceled());
+}
+
+TEST_F(TSchedulerTest, FiberUnwindOrder)
+{
+    auto p1 = NewPromise<void>();
+    // Add empty callback
+    p1.OnCanceled(BIND([] (const TError& error) { }));
+    auto f1 = p1.ToFuture();
+
+    auto f2 = BIND([=] () mutable {
+        auto finally = Finally([&] {
+            EXPECT_TRUE(f1.IsSet());
+        });
+
+        NYT::NConcurrency::GetCurrentFiberCanceler().Run(TError("Error"));
+
+        WaitUntilSet(f1);
+    }).AsyncVia(Queue1->GetInvoker()).Run();
+
+    Sleep(SleepQuantum);
+    EXPECT_FALSE(f2.IsSet());
+
+    p1.Set();
+    Sleep(SleepQuantum);
+    EXPECT_TRUE(f2.IsSet());
+    EXPECT_FALSE(f2.Get().IsOK());
 }
 
 TEST_F(TSchedulerTest, AsyncViaCanceledBeforeStart)
