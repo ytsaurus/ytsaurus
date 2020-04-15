@@ -133,6 +133,9 @@ public:
     int MaxChunksPerFetch;
     int MaxChunksPerLocateRequest;
 
+    TDuration NestedInputTransactionTimeout;
+    TDuration NestedInputTransactionPingPeriod;
+
     TConnectionConfig();
 };
 

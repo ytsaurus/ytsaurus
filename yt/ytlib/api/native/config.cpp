@@ -181,6 +181,11 @@ TConnectionConfig::TConnectionConfig()
         .Default(10'000)
         .GreaterThan(0);
 
+    RegisterParameter("nested_input_transaction_timeout", NestedInputTransactionTimeout)
+        .Default(TDuration::Minutes(10));
+    RegisterParameter("nested_input_transaction_ping_period", NestedInputTransactionPingPeriod)
+        .Default(TDuration::Minutes(1));
+
     RegisterPreprocessor([&] () {
         FunctionImplCache->Capacity = 100;
 
