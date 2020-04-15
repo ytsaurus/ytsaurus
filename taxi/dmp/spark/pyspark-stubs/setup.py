@@ -33,7 +33,7 @@ setup(
     url="https://github.com/zero323/pyspark-stubs",
     packages=list(list_packages()),
     package_data={"": ["*.pyi", "py.typed"]},
-    install_requires=["pyspark>=3.1.0.dev0,<3.2.0"],
+    install_requires=["yandex-pyspark>=2.4.4.post2"],
     classifiers=[
         "Programming Language :: Python :: 3 :: Only",
         "Development Status :: 4 - Beta",
