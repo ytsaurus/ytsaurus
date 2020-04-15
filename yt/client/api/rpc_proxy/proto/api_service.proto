@@ -451,7 +451,7 @@ message TRspSelectRows
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqExplain
+message TReqExplainQuery
 {
     required string query = 1;
 
@@ -467,7 +467,7 @@ message TReqExplain
     optional string execution_pool = 11;
 }
 
-message TRspExplain
+message TRspExplainQuery
 {
     required bytes value = 1; // YSON
 }

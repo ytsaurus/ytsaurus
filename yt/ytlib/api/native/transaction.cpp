@@ -407,9 +407,9 @@ public:
         const TSelectRowsOptions& options),
         (query, options))
 
-    DELEGATE_TIMESTAMPED_METHOD(TFuture<NYson::TYsonString>, Explain, (
+    DELEGATE_TIMESTAMPED_METHOD(TFuture<NYson::TYsonString>, ExplainQuery, (
         const TString& query,
-        const TExplainOptions& options),
+        const TExplainQueryOptions& options),
         (query, options))
 
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<TYsonString>, GetNode, (

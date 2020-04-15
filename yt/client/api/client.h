@@ -494,7 +494,7 @@ struct TSelectRowsOptions
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
 };
 
-struct TExplainOptions
+struct TExplainQueryOptions
     : public TSelectRowsOptionsBase
 {};
 
@@ -1112,9 +1112,9 @@ struct IClientBase
         const TString& query,
         const TSelectRowsOptions& options = {}) = 0;
 
-    virtual TFuture<NYson::TYsonString> Explain(
+    virtual TFuture<NYson::TYsonString> ExplainQuery(
         const TString& query,
-        const TExplainOptions& options = TExplainOptions()) = 0;
+        const TExplainQueryOptions& options = TExplainQueryOptions()) = 0;
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,

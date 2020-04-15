@@ -645,9 +645,9 @@ def select_rows(query, **kwargs):
     kwargs["verbose_logging"] = True
     return execute_command_with_output_format("select_rows", kwargs)
 
-def explain(query, **kwargs):
+def explain_query(query, **kwargs):
     kwargs["query"] = query
-    return execute_command_with_output_format("explain", kwargs)[0]
+    return execute_command_with_output_format("explain_query", kwargs)[0]
 
 def _prepare_rows_stream(data, is_raw=False):
     # remove surrounding [ ]
