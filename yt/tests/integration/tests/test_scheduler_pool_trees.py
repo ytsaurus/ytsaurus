@@ -1026,10 +1026,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
     def test_two_trees_with_unequal_demand(self):
         for busy_tree, expected_tree in [("default", "nirvana"), ("nirvana", "default")]:
             wait(lambda: get_from_tree_orchid(expected_tree, "fair_share_info/pools/research/resource_demand/cpu") == 0.0)
-            time.sleep(0.5)
             other_op = run_sleeping_vanilla(spec={"pool_trees": [busy_tree], "pool": "research"})
             wait(lambda: get_from_tree_orchid(busy_tree, "fair_share_info/pools/research/resource_demand/cpu") > 0.0)
-            time.sleep(0.5)
 
             spec = {
                 "pool_trees": ["default", "nirvana"],
@@ -1150,7 +1148,6 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             for tree in erased_trees:
                 set("//sys/pool_trees/{}/research/@min_share_resources".format(tree), {"cpu": 3})
                 wait(lambda: get_from_tree_orchid(tree, "fair_share_info/pools/research/min_share_resources/cpu") == 3.0)
-            time.sleep(0.5)
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id), verbose_error=False) == "running")
         op.wait_for_state("running")
@@ -1174,11 +1171,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         for busy_tree, expected_tree in [("default", "nirvana"), ("nirvana", "default")]:
             wait(lambda: get_from_tree_orchid(expected_tree, "fair_share_info/pools/research/resource_demand/cpu") == 0.0)
-            # TODO(eshcherbin): Remove sleep here and above.
-            time.sleep(0.5)
             other_op = run_sleeping_vanilla(spec={"pool_trees": [busy_tree], "pool": "research"})
             wait(lambda: get_from_tree_orchid(busy_tree, "fair_share_info/pools/research/resource_demand/cpu") > 0.0)
-            time.sleep(0.5)
 
             set("//sys/pool_trees/{}/research/@min_share_resources".format(busy_tree), {"cpu": 3})
             wait(lambda: get_from_tree_orchid(busy_tree, "fair_share_info/pools/research/min_share_resources/cpu") == 3.0)
