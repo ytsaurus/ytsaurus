@@ -564,8 +564,6 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
     if (auto* currentFiber = CurrentFiber().Get()) {
         if (currentFiber->IsCanceled()) {
             future.Cancel(currentFiber->GetCancelationError());
-            YT_LOG_DEBUG("Throwing fiber cancelation exception");
-            throw TFiberCanceledException();
         }
 
         currentFiber->SetFuture(future);
