@@ -820,7 +820,8 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (PrerequisiteTransaction_) {
-            YT_LOG_DEBUG("Checking prerequisite transaction");
+            YT_LOG_DEBUG("Checking prerequisite transaction (PrerequisiteTransactionId: %v)",
+                PrerequisiteTransaction_->GetId());
             return PrerequisiteTransaction_->Ping();
         } else {
             return MakeFuture<void>(TError("No prerequisite transaction is attached"));
