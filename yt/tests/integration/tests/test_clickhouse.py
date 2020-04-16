@@ -539,8 +539,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             time.sleep(0.5)
 
-            assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/object_attribute_cache/hit")[-1]['value'] == 50
-            assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/permission_cache/hit")[-1]['value'] == 5
+            assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/object_attribute_cache/hit")[-1]['value'] > 0
+            assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/permission_cache/hit")[-1]['value'] > 0
 
 
     @authors("evgenstf")
