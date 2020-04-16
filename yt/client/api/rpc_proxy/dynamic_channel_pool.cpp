@@ -76,10 +76,8 @@ public:
         }
     }
 
-    virtual TFuture<void> Terminate(const TError& error) override
-    {
-        return VoidFuture;
-    }
+    virtual void Terminate(const TError& error) override
+    { }
 
 private:
     const TDynamicChannelPoolPtr Pool_;
@@ -160,18 +158,12 @@ void TDynamicChannelPool::Terminate()
     }
 
     for (auto channel : aliveChannels) {
-        auto terminateError = WaitFor(channel->Terminate(error));
-        if (!terminateError.IsOK()) {
-            YT_LOG_ERROR(terminateError, "Error while terminating channel pool");
-        }
+        channel->Terminate(error);
     }
 
     auto guard = Guard(OpenChannelsLock_);
     for (auto channel : OpenChannels_) {
-        auto terminateError = WaitFor(channel.second->Terminate(error));
-        if (!terminateError.IsOK()) {
-            YT_LOG_ERROR(terminateError, "Error while terminating channel pool");
-        }
+        channel.second->Terminate(error);
     }
     OpenChannels_.clear();
 }

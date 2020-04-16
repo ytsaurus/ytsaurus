@@ -107,10 +107,12 @@ public:
             }));
     }
 
-    virtual TFuture<void> Terminate(const TError& error) override
+    virtual void Terminate(const TError& error) override
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        return CachedChannel_ ? CachedChannel_->Terminate(error) : VoidFuture;
+        if (CachedChannel_) {
+            CachedChannel_->Terminate(error);
+        }
     }
 
 private:
