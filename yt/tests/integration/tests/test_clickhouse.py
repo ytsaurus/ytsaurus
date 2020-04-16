@@ -76,7 +76,7 @@ class Clique(object):
     core_dump_path = None
     proxy_address = None
 
-    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, enable_core_dump=True, **kwargs):
+    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, enable_core_dump=True, cpu_limit=None, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else copy.deepcopy(Clique.base_config)
         spec = {"pool": None}
         self.is_tracing = False
@@ -109,6 +109,7 @@ class Clique(object):
                                                           cypress_config_paths=cypress_config_paths,
                                                           max_failed_job_count=max_failed_job_count,
                                                           defaults=DEFAULTS,
+                                                          cpu_limit=cpu_limit,
                                                           spec=spec,
                                                           core_dump_destination=core_dump_destination,
                                                           trampoline_log_file=os.path.join(self.log_root, "trampoline.debug.log"),
@@ -460,6 +461,33 @@ def get_schema_from_description(describe_info):
 class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
         self._setup()
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 2,
+                }
+            }
+        }
+    }
+
+    @authors("evgenstf")
+    def test_distinct_one_instance_several_threads(self):
+        with Clique(1, config_patch={"engine": {"settings": {"max_threads": 2}}}, cpu_limit=2) as clique:
+            table_schema = [{"name": "value", "type": "int64"}]
+            create("table", "//tmp/test_table",
+                    attributes={"schema": table_schema})
+
+            write_table(
+                "//tmp/test_table",
+                [{"value": 1}])
+            write_table(
+                "<append=%true>//tmp/test_table",
+                [{"value": 1}])
+
+            assert get("//tmp/test_table/@chunk_count") == 2
+            assert clique.make_query('select distinct value from \"//tmp/test_table\" where value = 1') == [{"value": 1}]
 
     @authors("evgenstf")
     def test_prewhere_actions(self):
