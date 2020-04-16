@@ -1235,8 +1235,7 @@ struct IClient
 {
     //! Terminates all channels.
     //! Aborts all pending uncommitted transactions.
-    //! Returns a async flag indicating completion.
-    virtual TFuture<void> Terminate() = 0;
+    virtual void Terminate() = 0;
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
