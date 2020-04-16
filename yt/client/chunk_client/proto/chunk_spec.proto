@@ -61,6 +61,9 @@ message TChunkSpec
     optional uint64 override_timestamp = 18;
 
     optional int32 tablet_index = 19;
+
+    // Tablet for reading from dynamic store.
+    optional NYT.NProto.TGuid tablet_id = 20;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

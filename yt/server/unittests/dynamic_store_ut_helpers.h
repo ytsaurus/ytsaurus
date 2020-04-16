@@ -382,7 +382,7 @@ protected:
     {
         auto storeManager = GetStoreManager();
         storeManager->StartEpoch(nullptr);
-        storeManager->Mount({});
+        storeManager->Mount({}, true);
     }
 
     void RotateStores()

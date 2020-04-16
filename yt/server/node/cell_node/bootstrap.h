@@ -210,6 +210,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr TabletNodePreloadInThrottler_;
     NConcurrency::IThroughputThrottlerPtr TabletNodeTabletReplicationInThrottler_;
     NConcurrency::IThroughputThrottlerPtr TabletNodeTabletReplicationOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletNodeDynamicStoreReadOutThrottler_;
     NConcurrency::IThroughputThrottlerPtr ReadRpsOutThrottler_;
 
     NTabletNode::TSlotManagerPtr TabletSlotManager_;

@@ -1483,12 +1483,14 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert chunk_tree.attributes["rank"] == 2
         assert len(chunk_tree) == 2
         for tablet in chunk_tree:
-            assert len(tablet) == 1
-            for chunk_view in tablet:
-                assert chunk_view.attributes["id"] in chunk_views
-                assert chunk_view.attributes["type"] == "chunk_view"
-                assert len(chunk_view) == 1
-                assert chunk_view[0] == table_chunks[0]
+            for store in tablet:
+                if store.attributes["type"] == "chunk_view":
+                    assert store.attributes["id"] in chunk_views
+                    assert store.attributes["type"] == "chunk_view"
+                    assert len(store) == 1
+                    assert store[0] == table_chunks[0]
+                else:
+                    assert store.attributes["type"] == "dynamic_store"
 
     @authors("savrus", "ifsmirnov")
     def test_select_rows_access_tracking(self):

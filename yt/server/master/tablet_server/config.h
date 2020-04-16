@@ -439,6 +439,8 @@ public:
     //! This parameter is used only for testing purposes.
     std::optional<TDuration> DecommissionedLeaderReassignmentTimeout;
 
+    bool EnableDynamicStoreReadByDefault;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -488,6 +490,8 @@ public:
         RegisterParameter("decommissioned_leader_reassignment_timeout", DecommissionedLeaderReassignmentTimeout)
             .Default();
         RegisterParameter("abandon_leader_lease_during_recovery", AbandonLeaderLeaseDuringRecovery)
+            .Default(false);
+        RegisterParameter("enable_dynamic_store_read_by_default", EnableDynamicStoreReadByDefault)
             .Default(false);
 
         // COMPAT(savrus) Special parameter to apply old file configs on fly.

@@ -92,7 +92,8 @@ DEFINE_ENUM(EMasterReign,
     ((IgnoreTypeMismatch)                                           (1306))  // gritukan
     ((FixTErrorSerialization)                                       (1307))  // ifsmirnov
     ((DynamicTabletSlotCount)                                       (1308))  // gritukan
- );
+    ((DynamicStoreRead)                                             (1309))  // ifsmirnov
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

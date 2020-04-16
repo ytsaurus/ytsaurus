@@ -175,6 +175,51 @@ std::vector<ISortedStorePtr> TTabletSnapshot::GetEdenStores()
     return stores;
 }
 
+bool TTabletSnapshot::IsPreallocatedDynamicStoreId(TDynamicStoreId storeId) const
+{
+    return std::find(PreallocatedDynamicStoreIds.begin(), PreallocatedDynamicStoreIds.end(), storeId) !=
+        PreallocatedDynamicStoreIds.end();
+}
+
+IDynamicStorePtr TTabletSnapshot::FindDynamicStore(TDynamicStoreId storeId) const
+{
+    if (PhysicalSchema.IsSorted()) {
+        for (const auto& store : Eden->Stores) {
+            if (store->GetId() == storeId) {
+                return store->AsDynamic();
+            }
+        }
+        for (const auto& weakStore : LockedStores) {
+            auto store = weakStore.Lock();
+            if (store && store->GetId() == storeId) {
+                return store->AsDynamic();
+            }
+        }
+    } else {
+        for (const auto& store : OrderedStores) {
+            if (store->GetId() == storeId) {
+                return store->AsDynamic();
+            }
+        }
+    }
+    return nullptr;
+}
+
+IDynamicStorePtr TTabletSnapshot::GetDynamicStoreOrThrow(TDynamicStoreId storeId) const
+{
+    auto dynamicStore = FindDynamicStore(storeId);
+    if (!dynamicStore) {
+        THROW_ERROR_EXCEPTION(
+            NTabletClient::EErrorCode::NoSuchDynamicStore,
+            "No such dynamic store %v",
+            storeId)
+            << TErrorAttribute("store_id", storeId)
+            << TErrorAttribute("tablet_id", TabletId);
+
+    }
+    return dynamicStore;
+}
+
 TTableReplicaSnapshotPtr TTabletSnapshot::FindReplicaSnapshot(TTableReplicaId replicaId)
 {
     auto it = Replicas.find(replicaId);
@@ -521,6 +566,8 @@ void TTablet::Save(TSaveContext& context) const
     }
 
     Save(context, *LockManager_);
+    Save(context, DynamicStoreIdPool_);
+    Save(context, DynamicStoreIdRequested_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -609,6 +656,12 @@ void TTablet::Load(TLoadContext& context)
     // COMPAT(savrus)
     if (context.GetVersion() >= ETabletReign::BulkInsert) {
         Load(context, *LockManager_);
+    }
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::DynamicStoreRead) {
+        Load(context, DynamicStoreIdPool_);
+        Load(context, DynamicStoreIdRequested_);
     }
 
     UpdateOverlappingStoreCount();
@@ -1177,6 +1230,12 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
         }
     }
 
+    if (Config_->EnableDynamicStoreRead) {
+        snapshot->PreallocatedDynamicStoreIds = std::vector<TDynamicStoreId>(
+            DynamicStoreIdPool_.begin(),
+            DynamicStoreIdPool_.end());
+    }
+
     snapshot->RowKeyComparer = RowKeyComparer_;
     snapshot->PerformanceCounters = PerformanceCounters_;
     snapshot->ColumnEvaluator = ColumnEvaluator_;
@@ -1440,8 +1499,27 @@ i64 TTablet::GetTabletLockCount() const
     return TabletLockCount_;
 }
 
-int TTablet::GetEdenStoreCount() const {
+int TTablet::GetEdenStoreCount() const
+{
     return Eden_->Stores().size();
+}
+
+void TTablet::PushDynamicStoreIdToPool(TDynamicStoreId storeId)
+{
+    DynamicStoreIdPool_.push_back(storeId);
+}
+
+TDynamicStoreId TTablet::PopDynamicStoreIdFromPool()
+{
+    YT_VERIFY(!DynamicStoreIdPool_.empty());
+    auto id = DynamicStoreIdPool_.front();
+    DynamicStoreIdPool_.pop_front();
+    return id;
+}
+
+void TTablet::ClearDynamicStoreIdPool()
+{
+    DynamicStoreIdPool_.clear();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

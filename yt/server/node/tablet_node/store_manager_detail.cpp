@@ -24,6 +24,7 @@ using namespace NHydra;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
+using namespace NCypressClient;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
 
@@ -65,15 +66,8 @@ bool TStoreManagerBase::HasActiveLocks() const
 
 bool TStoreManagerBase::HasUnflushedStores() const
 {
-    for (const auto& pair : Tablet_->StoreIdMap()) {
-        const auto& store = pair.second;
-        auto state = store->GetStoreState();
-        // NB: When the table is being frozen we don't flush empty dynamic stores.
-        if (state != EStoreState::Persistent &&
-            !(state == EStoreState::ActiveDynamic &&
-              Tablet_->GetState() == ETabletState::FreezeFlushing &&
-              store->AsDynamic()->GetRowCount() == 0))
-        {
+    for (const auto& [storeId, store] : Tablet_->StoreIdMap()) {
+        if (store->GetStoreState() != EStoreState::Persistent) {
             return true;
         }
     }
@@ -141,6 +135,12 @@ void TStoreManagerBase::ScheduleRotation()
     YT_LOG_INFO("Tablet store rotation scheduled");
 }
 
+void TStoreManagerBase::UnscheduleRotation()
+{
+    YT_LOG_DEBUG("Tablet store rotation allowed after unsuccessful rotation attempt");
+    RotationScheduled_ = false;
+}
+
 void TStoreManagerBase::AddStore(IStorePtr store, bool onMount)
 {
     Tablet_->AddStore(store);
@@ -171,7 +171,10 @@ void TStoreManagerBase::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
 
 void TStoreManagerBase::DiscardAllStores()
 {
-    Rotate(/*createNewStore*/ true);
+    // TODO(ifsmirnov): do not create active store if tablet is frozen
+    // TODO(ifsmirnov): should flush because someone might want to read from this
+    // dynamic store having taken snapshot lock for the table.
+    Rotate(true);
 
     std::vector<IStorePtr> storesToRemove;
 
@@ -385,7 +388,9 @@ EInMemoryMode TStoreManagerBase::GetInMemoryMode() const
     return Tablet_->GetConfig()->InMemoryMode;
 }
 
-void TStoreManagerBase::Mount(const std::vector<TAddStoreDescriptor>& storeDescriptors)
+void TStoreManagerBase::Mount(
+    const std::vector<TAddStoreDescriptor>& storeDescriptors,
+    bool createDynamicStore)
 {
     for (const auto& descriptor : storeDescriptors) {
         auto type = EStoreType(descriptor.store_type());
@@ -408,7 +413,9 @@ void TStoreManagerBase::Mount(const std::vector<TAddStoreDescriptor>& storeDescr
 
     // NB: Active store must be created _after_ chunk stores to make sure it receives
     // the right starting row index (for ordered tablets only).
-    CreateActiveStore();
+    if (createDynamicStore) {
+        CreateActiveStore();
+    }
 
     Tablet_->SetState(ETabletState::Mounted);
 }
@@ -435,25 +442,27 @@ void TStoreManagerBase::Rotate(bool createNewStore)
     LastRotated_ = TInstant::Now() + RandomDuration(config->DynamicStoreFlushPeriodSplay);
 
     auto* activeStore = GetActiveStore();
-    YT_VERIFY(activeStore);
-    activeStore->SetStoreState(EStoreState::PassiveDynamic);
 
-    YT_LOG_INFO_UNLESS(IsRecovery(), "Rotating store (StoreId: %v, DynamicMemoryUsage: %v)",
-        activeStore->GetId(),
-        activeStore->GetDynamicMemoryUsage());
+    if (activeStore) {
+        activeStore->SetStoreState(EStoreState::PassiveDynamic);
 
-    if (activeStore->GetLockCount() > 0) {
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
+        YT_LOG_INFO_UNLESS(IsRecovery(), "Rotating store (StoreId: %v, DynamicMemoryUsage: %v)",
             activeStore->GetId(),
-            activeStore->GetLockCount());
-        YT_VERIFY(LockedStores_.insert(IStorePtr(activeStore)).second);
-    } else {
-        YT_LOG_INFO_UNLESS(IsRecovery(), "Active store is not locked and will be dropped (StoreId: %v)",
-            activeStore->GetId(),
-            activeStore->GetLockCount());
+            activeStore->GetDynamicMemoryUsage());
+
+        if (activeStore->GetLockCount() > 0) {
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Active store is locked and will be kept (StoreId: %v, LockCount: %v)",
+                activeStore->GetId(),
+                activeStore->GetLockCount());
+            YT_VERIFY(LockedStores_.insert(IStorePtr(activeStore)).second);
+        } else {
+            YT_LOG_INFO_UNLESS(IsRecovery(), "Active store is not locked and will be dropped (StoreId: %v)",
+                activeStore->GetId(),
+                activeStore->GetLockCount());
+        }
+
+        OnActiveStoreRotated();
     }
-
-    OnActiveStoreRotated();
 
     if (createNewStore) {
         CreateActiveStore();
@@ -596,6 +605,17 @@ ISortedStoreManagerPtr TStoreManagerBase::AsSorted()
 IOrderedStoreManagerPtr TStoreManagerBase::AsOrdered()
 {
     YT_ABORT();
+}
+
+TDynamicStoreId TStoreManagerBase::GenerateDynamicStoreId()
+{
+    if (Tablet_->GetConfig()->EnableDynamicStoreRead) {
+        return Tablet_->PopDynamicStoreIdFromPool();
+    } else {
+        return TabletContext_->GenerateId(Tablet_->IsPhysicallySorted()
+            ? EObjectType::SortedDynamicTabletStore
+            : EObjectType::OrderedDynamicTabletStore);
+    }
 }
 
 void TStoreManagerBase::CheckForUnlockedStore(IDynamicStore* store)

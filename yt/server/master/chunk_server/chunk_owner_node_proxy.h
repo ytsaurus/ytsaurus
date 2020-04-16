@@ -5,10 +5,36 @@
 
 #include <yt/server/master/cypress_server/node_proxy_detail.h>
 
+#include <yt/server/master/node_tracker_server/public.h>
+
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/client/chunk_client/read_limit.h>
 
 namespace NYT::NChunkServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void BuildChunkSpec(
+    TChunk* chunk,
+    i64 rowIndex,
+    std::optional<i32> tabletIndex,
+    const NChunkClient::TReadLimit& lowerLimit,
+    const NChunkClient::TReadLimit& upperLimit,
+    TTransactionId timestampTransactionId,
+    bool fetchParityReplicas,
+    bool fetchAllMetaExtensions,
+    const THashSet<int>& extensionTags,
+    NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
+    NCellMaster::TBootstrap* bootstrap,
+    NChunkClient::NProto::TChunkSpec* chunkSpec);
+
+void BuildDynamicStoreSpec(
+    const TDynamicStore* dynamicStore,
+    const NChunkClient::TReadLimit& lowerLimit,
+    const NChunkClient::TReadLimit& upperLimit,
+    NNodeTrackerServer::TNodeDirectoryBuilder* nodeDirectoryBuilder,
+    NCellMaster::TBootstrap* bootstrap,
+    NChunkClient::NProto::TChunkSpec* chunkSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

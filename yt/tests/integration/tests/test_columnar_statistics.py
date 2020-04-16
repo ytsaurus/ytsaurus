@@ -163,6 +163,7 @@ class TestColumnarStatistics(YTEnvSetup):
     def test_map_thin_column_dynamic(self):
         sync_create_cells(1)
         self._create_simple_dynamic_table("//tmp/t")
+        set("//tmp/t/@enable_dynamic_store_read", True)
         set("//tmp/t/@optimize_for", "scan")
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_mount_table("//tmp/t")
@@ -170,7 +171,7 @@ class TestColumnarStatistics(YTEnvSetup):
             insert_rows("//tmp/t", [{"key": j, "value": 'y' * 80} for j in range(i * 100, (i + 1) * 100)])
             sync_flush_table("//tmp/t")
         create("table", "//tmp/d")
-        assert get("//tmp/t/@chunk_count") == 10
+        wait(lambda: get("//tmp/t/@chunk_count") == 12)
         assert get("//tmp/t/@data_weight") == (8 + (80 + 8) + 8) * 10**3
         self._expect_statistics(None, None, "key,value", [8 * 10**3, (80 + 8) * 10**3], expected_timestamp_weight=(8 * 1000))
         op = map(in_="//tmp/t{key}",

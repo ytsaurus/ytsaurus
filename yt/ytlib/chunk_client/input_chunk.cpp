@@ -4,12 +4,17 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <yt/core/misc/numeric_helpers.h>
+#include <yt/client/object_client/helpers.h>
 
+#include <yt/library/erasure/codec.h>
+
+#include <yt/core/misc/numeric_helpers.h>
 
 namespace NYT::NChunkClient {
 
 using namespace NTableClient;
+using namespace NTabletClient;
+using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 
 using NYT::FromProto;
@@ -46,8 +51,20 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
         UniqueKeys_ = miscExt->unique_keys();
     }
 
-    YT_VERIFY(EChunkType(chunkMeta.type()) == EChunkType::Table);
-    TableChunkFormat_ = ETableChunkFormat(chunkMeta.version());
+    if (IsDynamicStore()) {
+        // TODO(ifsmirnov): See YT-12212 for reasonable estimates.
+        TableChunkFormat_ = ETableChunkFormat::SchemalessHorizontal;
+        TotalDataWeight_ = 1;
+        TotalRowCount_ = 1;
+        CompressedDataSize_ = 1;
+        MaxBlockSize_ = DefaultMaxBlockSize;
+
+        UniqueKeys_ = TypeFromId(ChunkId_) == EObjectType::SortedDynamicTabletStore;
+        TabletId_ = FromProto<TTabletId>(chunkSpec.tablet_id());
+    } else {
+        YT_VERIFY(EChunkType(chunkMeta.type()) == EChunkType::Table);
+        TableChunkFormat_ = CheckedEnumCast<ETableChunkFormat>(chunkMeta.version());
+    }
 }
 
 TChunkReplicaList TInputChunkBase::GetReplicaList() const
@@ -80,6 +97,13 @@ void TInputChunkBase::SetReplicaList(const TChunkReplicaList& replicas)
     }
 }
 
+bool TInputChunkBase::IsDynamicStore() const
+{
+    auto type = TypeFromId(ChunkId_);
+    return type == EObjectType::SortedDynamicTabletStore ||
+        type == EObjectType::OrderedDynamicTabletStore;
+}
+
 // Intentionally used.
 void TInputChunkBase::CheckOffsets()
 {
@@ -92,14 +116,15 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, TableChunkFormat_) == 100, "invalid offset");
     static_assert(offsetof(TInputChunkBase, ChunkIndex_) == 104, "invalid offset");
     static_assert(offsetof(TInputChunkBase, TabletIndex_) == 112, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalUncompressedDataSize_) == 120, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 128, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 136, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 144, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 152, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 160, "invalid offset");
-    static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 168, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 176, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, TabletId_) == 120, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalUncompressedDataSize_) == 136, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalRowCount_) == 144, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, CompressedDataSize_) == 152, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, TotalDataWeight_) == 160, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, MaxBlockSize_) == 168, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 176, "invalid offset");
+    static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 184, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 192, "invalid sizeof");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,7 +142,13 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec)
         ? std::make_unique<NTableClient::NProto::TPartitionsExt>(
             GetProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions()))
         : nullptr)
-{ }
+{
+    if (TypeFromId(ChunkId_) == EObjectType::SortedDynamicTabletStore) {
+        BoundaryKeys_ = std::make_unique<TOwningBoundaryKeys>();
+        BoundaryKeys_->MinKey = LowerLimit_ && LowerLimit_->HasKey() ? LowerLimit_->GetKey() : MinKey();
+        BoundaryKeys_->MaxKey = UpperLimit_ && UpperLimit_->HasKey() ? UpperLimit_->GetKey() : MaxKey();
+    }
+}
 
 void TInputChunk::Persist(const TStreamPersistenceContext& context)
 {
