@@ -45,12 +45,6 @@ inline TError MakeCanceledError(const TError& error)
         << error;
 }
 
-template <class F, class... As>
-auto RunNoExcept(F&& functor, As&&... args) noexcept -> decltype(functor(std::forward<As>(args)...))
-{
-    return functor(std::forward<As>(args)...);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, TFutureCallbackCookie MinCookie, TFutureCallbackCookie MaxCookie>
@@ -496,7 +490,7 @@ private:
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
         return
             ResultHandlers_.TryRemove(cookie, guard) ||
-            TFutureState<void>::DoUnsubscribe(cookie, guard);  
+            TFutureState<void>::DoUnsubscribe(cookie, guard);
     }
 
 protected:
@@ -1678,7 +1672,7 @@ class TFutureCombinerBase
 {
 protected:
     const std::vector<TFuture<T>> Futures_;
-    
+
     explicit TFutureCombinerBase(std::vector<TFuture<T>> futures)
         : Futures_(std::move(futures))
     { }
@@ -1872,7 +1866,7 @@ private:
             TError error(result);
             Promise_.TrySet(error);
 
-            if (Options_.CancelInputOnShortcut && 
+            if (Options_.CancelInputOnShortcut &&
                 this->Futures_.size() > 1 &&
                 this->TryAcquireFuturesCancelLatch())
             {
