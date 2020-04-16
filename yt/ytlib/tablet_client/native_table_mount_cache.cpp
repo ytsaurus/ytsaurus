@@ -182,12 +182,11 @@ private:
             SetBalancingHeader(batchReq, connection->GetConfig(), options);
             {
                 auto req = TTableYPathProxy::Get(Key_.Path + "/@");
-                std::vector<TString> attributeKeys{
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                     "id",
                     "dynamic",
                     "external_cell_tag"
-                };
-                ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                });
 
                 SetCachingHeader(req, connection->GetConfig(), options, refreshPrimaryRevision);
 

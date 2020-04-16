@@ -2113,13 +2113,12 @@ private:
         YT_LOG_INFO("Requesting exec nodes information");
 
         auto req = TYPathProxy::List(GetClusterNodesPath());
-        std::vector<TString> attributeKeys{
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "id",
             "tags",
             "state",
             "io_weights"
-        };
-        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+        });
         batchReq->AddRequest(req, "get_nodes");
     }
 
