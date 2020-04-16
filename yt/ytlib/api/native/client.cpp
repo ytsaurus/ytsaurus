@@ -375,17 +375,16 @@ TFuture<void> TClient::Terminate()
     TransactionManager_->AbortAll();
 
     auto error = TError("Client terminated");
-    std::vector<TFuture<void>> asyncResults;
 
     for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
         for (const auto& pair : MasterChannels_[kind]) {
             auto channel = pair.second;
-            asyncResults.push_back(channel->Terminate(error));
+            channel->Terminate(error);
         }
     }
-    asyncResults.push_back(SchedulerChannel_->Terminate(error));
+    SchedulerChannel_->Terminate(error);
 
-    return Combine(asyncResults);
+    return VoidFuture;
 }
 
 const IChannelPtr& TClient::GetOperationArchiveChannel(EMasterChannelKind kind)

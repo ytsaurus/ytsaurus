@@ -94,7 +94,7 @@ public:
             options);
     }
 
-    virtual TFuture<void> Terminate(const TError& error) override
+    virtual void Terminate(const TError& error) override
     {
         YT_VERIFY(!error.IsOK());
         VERIFY_THREAD_AFFINITY_ANY();
@@ -104,7 +104,7 @@ public:
             TWriterGuard guard(SpinLock_);
 
             if (!TerminationError_.IsOK()) {
-                return VoidFuture;
+                return;
             }
 
             for (auto& session : Sessions_) {
@@ -123,7 +123,7 @@ public:
 
         Terminated_.Fire(TerminationError_);
 
-        return VoidFuture;
+        return;
     }
 
     virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override
