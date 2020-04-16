@@ -926,7 +926,7 @@ class YTInstance(object):
                 stderr = open(stderr_path, "w")
 
             if self._kill_child_processes:
-                args += ["--pdeathsig", str(signal.SIGTERM)]
+                args += ["--pdeathsig", str(int(signal.SIGTERM))]
             for cgroup_path in cgroup_paths:
                 args += ["--cgroup", cgroup_path]
             args += ["--setsid"]
