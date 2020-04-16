@@ -25,6 +25,7 @@
 
 #include <yt/core/misc/string.h>
 #include <yt/core/misc/tls_cache.h>
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/ytalloc/memory_zone.h>
 
@@ -547,18 +548,16 @@ private:
     {
         DoBeforeRun();
 
+        auto finally = Finally([&] {
+            DoAfterRun();
+        });
+
         try {
             TTraceContextGuard guard(TraceContext_);
             DoGuardedRun(handler);
         } catch (const std::exception& ex) {
             Reply(ex);
-        } catch (const TFiberCanceledException&) {
-            // Request canceled; cleanup and rethrow.
-            DoAfterRun();
-            throw;
         }
-
-        DoAfterRun();
     }
 
     void DoBeforeRun()
