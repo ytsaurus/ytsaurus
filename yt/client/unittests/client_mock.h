@@ -149,7 +149,7 @@ public:
     NTabletClient::ITableMountCachePtr TableMountCache;
     NTransactionClient::ITimestampProviderPtr TimestampProvider;
 
-    MOCK_METHOD0(Terminate, TFuture<void>());
+    MOCK_METHOD0(Terminate, void());
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override
     {

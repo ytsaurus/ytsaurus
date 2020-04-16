@@ -70,7 +70,7 @@ public:
     virtual NRpc::IChannelPtr GetSchedulerChannel() override;
     virtual const NNodeTrackerClient::INodeChannelFactoryPtr& GetChannelFactory() override;
 
-    virtual TFuture<void> Terminate() override;
+    virtual void Terminate() override;
 
     // Transactions
     virtual TFuture<ITransactionPtr> StartNativeTransaction(

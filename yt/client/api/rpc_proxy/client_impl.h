@@ -22,7 +22,7 @@ public:
         TDynamicChannelPoolPtr channelPool,
         const TClientOptions& options);
 
-    virtual TFuture<void> Terminate() override;
+    virtual void Terminate() override;
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() override;
 

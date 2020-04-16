@@ -370,7 +370,7 @@ const INodeChannelFactoryPtr& TClient::GetChannelFactory()
     return ChannelFactory_;
 }
 
-TFuture<void> TClient::Terminate()
+void TClient::Terminate()
 {
     TransactionManager_->AbortAll();
 
@@ -383,8 +383,6 @@ TFuture<void> TClient::Terminate()
         }
     }
     SchedulerChannel_->Terminate(error);
-
-    return VoidFuture;
 }
 
 const IChannelPtr& TClient::GetOperationArchiveChannel(EMasterChannelKind kind)
