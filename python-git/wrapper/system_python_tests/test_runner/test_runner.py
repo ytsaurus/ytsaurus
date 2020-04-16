@@ -8,8 +8,6 @@ import yatest.common
 
 import imp
 import os
-import sys
-import shutil
 
 YT_ROOT, PYTHON_ROOT, _ = arcadia_interop.get_root_paths()
 
@@ -34,27 +32,15 @@ def prepare_python_packages():
         # TODO(ignat): improve prepare_source_tree.
         # yt_root is actually a root to yt repo (we use both bindings and contrib from it).
         # os.path.join(yatest.common.source_path(), YT_ROOT),
-        yt_root=YT_ROOT,
-        arcadia_root=yatest.common.source_path(),
+        yt_root=yatest.common.source_path(),
         prepare_binary_symlinks=False,
         prepare_bindings=False)
-        #prepare_bindings=True)
-
-def prepare_bindings(bindings_build_dir, major_version):
-    for path_part, lib_name in (("yson", "yson"), ("driver/native", "driver"), ("driver/rpc", "driver_rpc")):
-        relpath = "yt/python/{0}_shared/py{1}/{2}_lib.so".format(path_part, major_version, lib_name)
-        shutil.copy(
-            yatest.common.binary_path(os.path.join(YT_ROOT, relpath)),
-            os.path.join(bindings_build_dir))
 
 def run_pytest(python_version):
-    major_version = python_version.split(".")[0]
-
     build_dir = os.path.join(yatest.common.work_path(), "build")
     bindings_build_dir = os.path.join(build_dir, "bindings")
     os.makedirs(bindings_build_dir)
-    # build_bindings(bindings_build_dir, python_version)
-    # prepare_bindings(bindings_build_dir, major_version)
+    build_bindings(bindings_build_dir, python_version)
 
     prepare_python_packages()
 
@@ -62,16 +48,15 @@ def run_pytest(python_version):
     if "PATH" in os.environ:
         path = os.pathsep.join([path, os.environ["PATH"]])
 
-    if yatest.common.ram_drive_path() is None:
-        raise Exception("No RAM drive")
-
     sandbox_dir = os.path.join(yatest.common.output_ram_drive_path(), "sandbox")
     env = {
         "PATH": path,
         "PYTHONPATH": os.pathsep.join([
             os.path.join(yatest.common.source_path(), PYTHON_ROOT),
             os.path.join(yatest.common.source_path(), YT_ROOT, "yt", "python"),
-            #bindings_build_dir,
+            os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "yson_shared"),
+            os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "driver", "native_shared"),
+            os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "driver", "rpc_shared")
         ]),
         "TESTS_SANDBOX": sandbox_dir,
         "TESTS_JOB_CONTROL": "1",
@@ -88,19 +73,12 @@ def run_pytest(python_version):
         if "download_core_dump" not in name
     ]
 
-    test_files = test_files[:1]
-
-    if major_version == "2":
-        source_python_path = PYTHON_ROOT + "yt/wrapper/system_python_tests/arcadia_python2/python"
-    else: # "3"
-        source_python_path = PYTHON_ROOT + "yt/wrapper/system_python_tests/arcadia_python3/python3"
-
     cgroup = None
     try:
         cgroup = cgroups.CGroup("test", subsystems=("cpuacct", "cpu", "blkio", "freezer")).create()
         pytest_runner.run(
             test_files,
-            python_path=yatest.common.binary_path(source_python_path),
+            python_path="/usr/bin/python" + python_version,
             env=env,
             pytest_args=["-v", "-s", "--process-count=10"],
             # Default timeout for large tests is 1 hour.
