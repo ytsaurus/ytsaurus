@@ -367,6 +367,9 @@ private:
     bool Required_ = false;
 };
 
+bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs);
+bool operator!=(const TColumnSchema& lhs, const TColumnSchema& rhs);
+
 class TTableSchema
 {
 public:
@@ -398,6 +401,9 @@ public:
 
     friend void Deserialize(TTableSchema& tableSchema, const TNode& node);
 };
+
+bool operator==(const TTableSchema& lhs, const TTableSchema& rhs);
+bool operator!=(const TTableSchema& lhs, const TTableSchema& rhs);
 
 TTableSchema CreateTableSchema(
     const ::google::protobuf::Descriptor& messageDescriptor,
