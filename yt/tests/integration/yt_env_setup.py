@@ -791,8 +791,9 @@ class YTEnvSetup(object):
             makedirp(SANDBOX_STORAGE_ROOTDIR)
 
             if not arcadia_interop.is_inside_distbuild():
-                # XXX(psushin): unlink all porto volumes.
-                remove_all_volumes(cls.path_to_run)
+                if cls.get_param("USE_PORTO_FOR_SERVERS", False):
+                    # XXX(psushin): unlink all porto volumes.
+                    remove_all_volumes(cls.path_to_run)
 
                 # XXX(asaitgalin): Unmount everything.
                 subprocess.check_call(["sudo", "find", cls.path_to_run, "-type", "d", "-exec",
