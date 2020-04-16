@@ -245,6 +245,23 @@ TColumnSchema TColumnSchema::Type(EValueType type, bool required) &&
     return Type(ToTypeV3(type, required));
 }
 
+bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs)
+{
+    return
+        lhs.Name() == rhs.Name() &&
+        NTi::NEq::TStrictlyEqual()(lhs.TypeV3(), rhs.TypeV3()) &&
+        lhs.SortOrder() == rhs.SortOrder() &&
+        lhs.Lock() == rhs.Lock() &&
+        lhs.Expression() == rhs.Expression() &&
+        lhs.Aggregate() == rhs.Aggregate() &&
+        lhs.Group() == rhs.Group();
+}
+
+bool operator!=(const TColumnSchema& lhs, const TColumnSchema& rhs)
+{
+    return !(lhs == rhs);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 bool TTableSchema::Empty() const
@@ -321,6 +338,19 @@ TNode TTableSchema::ToNode() const
     TNodeBuilder builder(&result);
     Serialize(*this, &builder);
     return result;
+}
+
+bool operator==(const TTableSchema& lhs, const TTableSchema& rhs)
+{
+    return
+        lhs.Columns() == rhs.Columns() &&
+        lhs.Strict() == rhs.Strict() &&
+        lhs.UniqueKeys() == rhs.UniqueKeys();
+}
+
+bool operator!=(const TTableSchema& lhs, const TTableSchema& rhs)
+{
+    return !(lhs == rhs);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,12 +1,29 @@
 #include <mapreduce/yt/interface/common.h>
+#include <mapreduce/yt/interface/serialize.h>
 
 #include <library/yson/node/node_io.h>
+#include <library/yson/node/node_builder.h>
 
 #include <util/generic/xrange.h>
 
 #include <library/unittest/registar.h>
 
 using namespace NYT;
+
+template <typename T>
+TString ToYson(const T& x)
+{
+    TNode result;
+    TNodeBuilder builder(&result);
+    Serialize(x, &builder);
+    return NodeToYsonString(result);
+}
+
+#define ASSERT_SERIALIZABLES_EQUAL(a, b) \
+    UNIT_ASSERT_EQUAL_C(a, b, ToYson(a) << " != " << ToYson(b))
+
+#define ASSERT_SERIALIZABLES_UNEQUAL(a, b) \
+    UNIT_ASSERT_UNEQUAL_C(a, b, ToYson(a) << " == " << ToYson(b))
 
 Y_UNIT_TEST_SUITE(Common)
 {
@@ -38,11 +55,11 @@ Y_UNIT_TEST_SUITE(Common)
         auto checkSortBy = [](TTableSchema schema, const TVector<TString>& columns) {
             auto initialSchema = schema;
             schema.SortBy(columns);
-            for (const auto& i: xrange(columns.size())) {
+            for (auto i: xrange(columns.size())) {
                 UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[i].Name(), columns[i]);
                 UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[i].SortOrder(), ESortOrder::SO_ASCENDING);
             }
-            for (const auto& i: xrange(columns.size(), (size_t)initialSchema.Columns().size())) {
+            for (auto i: xrange(columns.size(), (size_t)initialSchema.Columns().size())) {
                 UNIT_ASSERT_VALUES_EQUAL(schema.Columns()[i].SortOrder(), Nothing());
             }
             UNIT_ASSERT_VALUES_EQUAL(initialSchema.Columns().size(), schema.Columns().size());
@@ -103,5 +120,82 @@ Y_UNIT_TEST_SUITE(Common)
         column = deserialize("{name=bar; type=utf8; required=%true; type_v3=utf8}");
         UNIT_ASSERT_VALUES_EQUAL(column.Name(), "bar");
         UNIT_ASSERT_VALUES_EQUAL(*column.TypeV3(), *NTi::Utf8());
+    }
+
+    Y_UNIT_TEST(ColumnSchemaEquality)
+    {
+        auto base = TColumnSchema()
+            .Name("col")
+            .TypeV3(NTi::Optional(NTi::List(NTi::String())))
+            .SortOrder(ESortOrder::SO_ASCENDING)
+            .Lock("lock")
+            .Expression("x + 12")
+            .Aggregate("sum")
+            .Group("group");
+
+        auto other = base;
+        ASSERT_SERIALIZABLES_EQUAL(other, base);
+        other.Name("other");
+        ASSERT_SERIALIZABLES_UNEQUAL(other, base);
+
+        other = base;
+        other.TypeV3(NTi::List(NTi::String()));
+        ASSERT_SERIALIZABLES_UNEQUAL(other, base);
+
+        other = base;
+        other.ResetSortOrder();
+        ASSERT_SERIALIZABLES_UNEQUAL(other, base);
+
+        other = base;
+        other.Lock("lock1");
+        ASSERT_SERIALIZABLES_UNEQUAL(other, base);
+
+        other = base;
+        other.Expression("x + 13");
+        ASSERT_SERIALIZABLES_UNEQUAL(other, base);
+
+        other = base;
+        other.ResetAggregate();
+        ASSERT_SERIALIZABLES_UNEQUAL(other, base);
+
+        other = base;
+        other.Group("group1");
+        ASSERT_SERIALIZABLES_UNEQUAL(other, base);
+    }
+
+    Y_UNIT_TEST(TableSchemaEquality)
+    {
+        auto col1 = TColumnSchema()
+            .Name("col1")
+            .TypeV3(NTi::Optional(NTi::List(NTi::String())))
+            .SortOrder(ESortOrder::SO_ASCENDING);
+
+        auto col2 = TColumnSchema()
+            .Name("col2")
+            .TypeV3(NTi::Uint32());
+
+        auto schema = TTableSchema()
+            .AddColumn(col1)
+            .AddColumn(col2)
+            .Strict(true)
+            .UniqueKeys(true);
+
+        auto other = schema;
+        ASSERT_SERIALIZABLES_EQUAL(other, schema);
+
+        other.Strict(false);
+        ASSERT_SERIALIZABLES_UNEQUAL(other, schema);
+
+        other = schema;
+        other.MutableColumns()[0].TypeV3(NTi::List(NTi::String()));
+        ASSERT_SERIALIZABLES_UNEQUAL(other, schema);
+
+        other = schema;
+        other.MutableColumns().push_back(col1);
+        ASSERT_SERIALIZABLES_UNEQUAL(other, schema);
+
+        other = schema;
+        other.UniqueKeys(false);
+        ASSERT_SERIALIZABLES_UNEQUAL(other, schema);
     }
 }
