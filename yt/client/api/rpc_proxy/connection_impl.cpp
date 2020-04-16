@@ -124,9 +124,9 @@ TConnection::TConnection(TConnectionConfigPtr config)
 
 TConnection::~TConnection()
 {
-    try {
+    RunNoExcept([&]{
         Terminate();
-    } catch (TFiberCanceledException& ) {}
+    });
 }
 
 NObjectClient::TCellTag TConnection::GetCellTag()
