@@ -52,7 +52,8 @@ public:
     void AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
 
     virtual void Mount(
-        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors) override;
+        const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors,
+        bool createDynamicStore);
 
     virtual void Remount(
         TTableMountConfigPtr mountConfig,

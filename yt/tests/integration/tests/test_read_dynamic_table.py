@@ -57,7 +57,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
     @authors("savrus")
     def test_read_snapshot_lock(self):
         sync_create_cells(1)
-        self._create_simple_table("//tmp/t")
+        self._create_simple_table("//tmp/t", enable_dynamic_store_read=False)
         sync_mount_table("//tmp/t")
 
         table_id = get("//tmp/t/@id")

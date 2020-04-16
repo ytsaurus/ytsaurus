@@ -371,6 +371,30 @@ private:
             actionRequest.set_mount_revision(tablet->GetMountRevision());
             ToProto(actionRequest.mutable_stores_to_add(), flushResult);
             ToProto(actionRequest.add_stores_to_remove()->mutable_store_id(), store->GetId());
+            actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Flush));
+
+            if (tablet->GetConfig()->EnableDynamicStoreRead) {
+                int dynamicStoreCount = tablet->DynamicStoreIdPool().size();
+                for (const auto& store : tablet->GetEden()->Stores()) {
+                    if (store->IsDynamic()) {
+                        ++dynamicStoreCount;
+                    }
+                }
+
+                // NB: Race is possible here. Consider a tablet with an active store, two passive
+                // dynamic stores and empty pool. If both passive stores are flushed concurrently
+                // then both of them might fill transaction actions when there are three dynamic
+                // stores. Hence dynamic store id will not be requested and the pool will remain
+                // empty after the flush.
+                //
+                // However, this is safe because dynamic store id will be requested upon rotation
+                // and the tablet will have two dynamic stores as usual.
+                if (dynamicStoreCount <= DynamicStoreIdPoolSize) {
+                    actionRequest.set_request_dynamic_store_id(true);
+                    YT_LOG_DEBUG("Dynamic store id requested with flush (DynamicStoreCount: %v)",
+                        dynamicStoreCount);
+                }
+            }
 
             if (tabletSnapshot->Config->MergeRowsOnFlush) {
                 actionRequest.set_retained_timestamp(retainedTimestamp);

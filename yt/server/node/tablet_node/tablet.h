@@ -161,6 +161,8 @@ struct TTabletSnapshot
 
     std::vector<TWeakPtr<ISortedStore>> LockedStores;
 
+    std::vector<TDynamicStoreId> PreallocatedDynamicStoreIds;
+
     int StoreCount = 0;
     int PreloadPendingStoreCount = 0;
     int PreloadCompletedStoreCount = 0;
@@ -200,6 +202,16 @@ struct TTabletSnapshot
     //! For sorted tablets only.
     //! This includes both regular and locked Eden stores.
     std::vector<ISortedStorePtr> GetEdenStores();
+
+    //! Returns true if |id| corresponds to a preallocated dynamic store
+    //! which has not been created yet.
+    bool IsPreallocatedDynamicStoreId(TDynamicStoreId storeId) const;
+
+    //! Returns a dynamic store with given |storeId| or |nullptr| if there is none.
+    IDynamicStorePtr FindDynamicStore(TDynamicStoreId storeId) const;
+
+    //! Returns a dynamic store with given |storeId| or throws if there is none.
+    IDynamicStorePtr GetDynamicStoreOrThrow(TDynamicStoreId storeId) const;
 
     TTableReplicaSnapshotPtr FindReplicaSnapshot(TTableReplicaId replicaId);
 
@@ -381,6 +393,9 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TTabletPerformanceCountersPtr, PerformanceCounters, New<TTabletPerformanceCounters>());
     DEFINE_BYREF_RO_PROPERTY(TRuntimeTabletDataPtr, RuntimeData, New<TRuntimeTabletData>());
 
+    DEFINE_BYREF_RO_PROPERTY(std::deque<TDynamicStoreId>, DynamicStoreIdPool);
+    DEFINE_BYVAL_RW_PROPERTY(bool, DynamicStoreIdRequested);
+
 public:
     TTablet(
         TTabletId tabletId,
@@ -500,6 +515,10 @@ public:
     const TString& GetLoggingId() const;
 
     int GetEdenStoreCount() const;
+
+    void PushDynamicStoreIdToPool(TDynamicStoreId storeId);
+    TDynamicStoreId PopDynamicStoreIdFromPool();
+    void ClearDynamicStoreIdPool();
 
 private:
     TTableMountConfigPtr Config_;

@@ -44,6 +44,8 @@
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <yt/ytlib/api/native/transaction.h>
+
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -56,6 +58,7 @@
 #include <yt/client/table_client/proto/wire_protocol.pb.h>
 #include <yt/client/tablet_client/table_mount_cache.h>
 
+#include <yt/ytlib/transaction_client/action.h>
 #include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
 
@@ -78,6 +81,8 @@
 
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/virtual.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NTabletNode {
 
@@ -208,7 +213,8 @@ public:
         RegisterMethod(BIND(&TImpl::HydraSetTableReplicaEnabled, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraAlterTableReplica, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraDecommissionTabletCell, Unretained(this)));
-        RegisterMethod(BIND(&TImpl::HydraOnTabetCellDecommissioned, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnTabletCellDecommissioned, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraOnDynamicStoreAllocated, Unretained(this)));
     }
 
     void Initialize()
@@ -638,6 +644,8 @@ private:
 
     const IYPathServicePtr OrchidService_;
 
+    bool RemoveDynamicStoresFromFrozenTablets_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -688,6 +696,14 @@ private:
         TabletMap_.LoadValues(context);
 
         Load(context, CellLifeStage_);
+
+        // COMPAT(ifsmirnov)
+        // NB. Comparison is correct here. Frozen tablets used to have dynamic stores
+        // before mentioned reign. We want to remove them when compatibility snapshot is
+        // built. For regular snapshots built later this compat is a no-op.
+        if (context.GetVersion() >= ETabletReign::DynamicStoreRead) {
+            RemoveDynamicStoresFromFrozenTablets_ = true;
+        }
     }
 
     void LoadAsync(TLoadContext& context)
@@ -767,6 +783,17 @@ private:
 
             if (transaction->GetState() == ETransactionState::PersistentCommitPrepared) {
                 PrepareLockedRows(transaction);
+            }
+        }
+
+        // COMPAT(ifsmirnov)
+        if (RemoveDynamicStoresFromFrozenTablets_) {
+            for (const auto& [id, tablet] : TabletMap_) {
+                if (tablet->GetState() == ETabletState::Frozen) {
+                    if (auto activeStore = tablet->GetActiveStore()) {
+                        tablet->RemoveStore(activeStore);
+                    }
+                }
             }
         }
     }
@@ -916,7 +943,15 @@ private:
         auto storeManager = CreateStoreManager(tablet);
         tablet->SetStoreManager(storeManager);
 
-        storeManager->Mount(storeDescriptors);
+        PopulateDynamicStoreIdPool(tablet, request);
+
+        // COMPAT(ifsmirnov)
+        auto* mutationContext = GetCurrentMutationContext();
+        storeManager->Mount(
+            storeDescriptors,
+            mutationContext->Request().Reign >= ToUnderlying(ETabletReign::DynamicStoreRead)
+                ? !freeze
+                : true);
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
@@ -1060,7 +1095,7 @@ private:
 
         auto state = tablet->GetState();
         if (IsInUnmountWorkflow(state) || IsInFreezeWorkflow(state)) {
-            YT_LOG_INFO_UNLESS(IsRecovery(), "Requested to freeze a tablet in a wrong state, ignored (State: %v, %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Requested to freeze a tablet in a wrong state, ignored (State: %v, %v)",
                 state,
                 tablet->GetLoggingId());
             return;
@@ -1100,8 +1135,23 @@ private:
 
         tablet->SetState(ETabletState::Mounted);
 
+        auto mutationReign = GetCurrentMutationContext()->Request().Reign;
+
         const auto& storeManager = tablet->GetStoreManager();
+
+        PopulateDynamicStoreIdPool(tablet, request);
+
+        // COMPAT(ifsmirnov)
+        if (mutationReign >= ToUnderlying(ETabletReign::DynamicStoreRead)) {
+            storeManager->Rotate(true);
+        }
+
         storeManager->InitializeRotation();
+
+        // COMPAT(ifsmirnov)
+        if (mutationReign >= ToUnderlying(ETabletReign::DynamicStoreRead)) {
+            UpdateTabletSnapshot(tablet);
+        }
 
         TRspUnfreezeTablet response;
         ToProto(response.mutable_tablet_id(), tabletId);
@@ -1189,6 +1239,9 @@ private:
                 "All stores of tablet are going to be discarded (%v)",
                 tablet->GetLoggingId());
 
+            tablet->ClearDynamicStoreIdPool();
+            PopulateDynamicStoreIdPool(tablet, request);
+
             storeManager->DiscardAllStores();
         }
 
@@ -1236,7 +1289,7 @@ private:
             case ETabletState::FreezeFlushing: {
                 auto state = tablet->GetState();
                 if (IsInUnmountWorkflow(state)) {
-                    YT_LOG_INFO_UNLESS(IsRecovery(), "Improper tablet state transition requested, ignored  (CurrentState: %v, RequestedState: %v, %v)",
+                    YT_LOG_INFO_UNLESS(IsRecovery(), "Improper tablet state transition requested, ignored (CurrentState: %v, RequestedState: %v, %v)",
                         state,
                         requestedState,
                         tablet->GetLoggingId());
@@ -1249,7 +1302,10 @@ private:
                 tablet->SetState(requestedState);
 
                 const auto& storeManager = tablet->GetStoreManager();
-                if (requestedState == ETabletState::UnmountFlushing ||
+                // COMPAT(ifsmirnov)
+                if (GetCurrentMutationContext()->Request().Reign >= ToUnderlying(ETabletReign::DynamicStoreRead)) {
+                    storeManager->Rotate(false);
+                } else if (requestedState == ETabletState::UnmountFlushing ||
                     storeManager->IsFlushNeeded())
                 {
                     storeManager->Rotate(requestedState == ETabletState::FreezeFlushing);
@@ -1299,6 +1355,7 @@ private:
                 }
 
                 tablet->SetState(ETabletState::Frozen);
+                tablet->ClearDynamicStoreIdPool();
 
                 for (const auto& [storeId, store] : tablet->StoreIdMap()) {
                     if (store->IsChunk()) {
@@ -1580,6 +1637,17 @@ private:
         }
 
         const auto& storeManager = tablet->GetStoreManager();
+
+        if (tablet->GetConfig()->EnableDynamicStoreRead && tablet->DynamicStoreIdPool().empty()) {
+            if (!tablet->GetDynamicStoreIdRequested()) {
+                AllocateDynamicStore(tablet);
+            }
+            // TODO(ifsmirnov): Store flusher will try making unsuccessful mutations if response
+            // from master comes late. Maybe should optimize.
+            storeManager->UnscheduleRotation();
+            return;
+        }
+
         storeManager->Rotate(true);
         UpdateTabletSnapshot(tablet);
     }
@@ -1614,11 +1682,14 @@ private:
             store->SetStoreState(EStoreState::RemovePrepared);
         }
 
+        auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
+
         YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet stores update prepared "
-            "(%v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
+            "(%v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, UpdateReason: %v)",
             tablet->GetLoggingId(),
             storeIdsToAdd,
-            storeIdsToRemove);
+            storeIdsToRemove,
+            updateReason);
     }
 
     void HydraAbortUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
@@ -1675,11 +1746,14 @@ private:
             CheckIfTabletFullyFlushed(tablet);
         }
 
+        auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
+
         YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet stores update aborted "
-            "(%v, StoreIdsToAdd: %v, StoreIdsToRemove: %v)",
+            "(%v, StoreIdsToAdd: %v, StoreIdsToRemove: %v, UpdateReason: %v)",
             tablet->GetLoggingId(),
             storeIdsToAdd,
-            storeIdsToRemove);
+            storeIdsToRemove,
+            updateReason);
     }
 
     bool IsBackingStoreRequired(TTablet* tablet)
@@ -1688,7 +1762,7 @@ private:
             tablet->GetConfig()->BackingStoreRetentionTime != TDuration::Zero();
     }
 
-    void HydraCommitUpdateTabletStores(TTransaction* /*transaction*/, TReqUpdateTabletStores* request)
+    void HydraCommitUpdateTabletStores(TTransaction* transaction, TReqUpdateTabletStores* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -1700,6 +1774,8 @@ private:
         if (mountRevision != tablet->GetMountRevision()) {
             return;
         }
+
+        auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
 
         const auto& storeManager = tablet->GetStoreManager();
 
@@ -1753,8 +1829,7 @@ private:
                 const auto& backingStore = GetOrCrash(idToBackingStore, backingStoreId);
                 SetBackingStore(tablet, store, backingStore);
             }
-
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Store added (%v, StoreId: %v, MaxTimestamp: %llx, BackingStoreId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk store added (%v, StoreId: %v, MaxTimestamp: %llx, BackingStoreId: %v)",
                 tablet->GetLoggingId(),
                 storeId,
                 store->GetMaxTimestamp(),
@@ -1766,12 +1841,25 @@ private:
             static_cast<TTimestamp>(request->retained_timestamp()));
         tablet->SetRetainedTimestamp(retainedTimestamp);
 
+        if (updateReason == ETabletStoresUpdateReason::Flush && request->request_dynamic_store_id()) {
+            auto storeId = ReplaceTypeInId(
+                transaction->GetId(),
+                tablet->IsPhysicallySorted()
+                    ? EObjectType::SortedDynamicTabletStore
+                    : EObjectType::OrderedDynamicTabletStore);
+            tablet->PushDynamicStoreIdToPool(storeId);
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Dynamic store id added to the pool (%v, StoreId: %v)",
+                tablet->GetLoggingId(),
+                storeId);
+        }
+
         YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet stores update committed "
-            "(%v, AddedStoreIds: %v, RemovedStoreIds: %v, RetainedTimestamp: %llx)",
+            "(%v, AddedStoreIds: %v, RemovedStoreIds: %v, RetainedTimestamp: %llx, UpdateReason: %v)",
             tablet->GetLoggingId(),
             addedStoreIds,
             removedStoreIds,
-            retainedTimestamp);
+            retainedTimestamp,
+            updateReason);
 
         UpdateTabletSnapshot(tablet);
 
@@ -2188,7 +2276,7 @@ private:
             ->CommitAndLog(Logger);
     }
 
-    void HydraOnTabetCellDecommissioned(TReqOnTabletCellDecommissioned* /*request*/)
+    void HydraOnTabletCellDecommissioned(TReqOnTabletCellDecommissioned* /*request*/)
     {
         if (CellLifeStage_ != ETabletCellLifeStage::DecommissioningOnNode) {
             return;
@@ -2203,6 +2291,55 @@ private:
         TRspDecommissionTabletCellOnNode response;
         ToProto(response.mutable_cell_id(), Slot_->GetCellId());
         hiveManager->PostMessage(mailbox, response);
+    }
+
+
+    template <class TRequest>
+    void PopulateDynamicStoreIdPool(TTablet* tablet, const TRequest* request)
+    {
+        for (const auto& protoStoreId : request->dynamic_store_ids()) {
+            auto storeId = FromProto<TDynamicStoreId>(protoStoreId);
+            tablet->PushDynamicStoreIdToPool(storeId);
+        }
+    }
+
+    void AllocateDynamicStore(TTablet* tablet)
+    {
+        TReqAllocateDynamicStore req;
+        ToProto(req.mutable_tablet_id(), tablet->GetId());
+        req.set_mount_revision(tablet->GetMountRevision());
+        tablet->SetDynamicStoreIdRequested(true);
+        PostMasterMutation(tablet->GetId(), req);
+    }
+
+    void HydraOnDynamicStoreAllocated(TRspAllocateDynamicStore* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto state = tablet->GetState();
+        if (state != ETabletState::Mounted &&
+            state != ETabletState::UnmountFlushPending &&
+            state != ETabletState::UnmountFlushing &&
+            state != ETabletState::FreezeFlushPending &&
+            state != ETabletState::FreezeFlushing)
+        {
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Dynamic store id sent to a tablet in a wrong state, ignored (%v, State: %v)",
+                tablet->GetLoggingId(),
+                state);
+            return;
+        }
+
+        auto dynamicStoreId = FromProto<TDynamicStoreId>(request->dynamic_store_id());
+        tablet->PushDynamicStoreIdToPool(dynamicStoreId);
+        tablet->SetDynamicStoreIdRequested(false);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Dynamic store allocated for a tablet (%v, DynamicStoreId: %v)",
+            tablet->GetLoggingId(),
+            dynamicStoreId);
     }
 
     static void ValidateReplicaWritable(TTablet* tablet, const TTableReplicaInfo& replicaInfo)
@@ -3072,6 +3209,19 @@ private:
                                 .Item(ToString(replicaId)).Value(error);
                         }
                     })
+                .DoIf(tablet->GetConfig()->EnableDynamicStoreRead, [&] (TFluentMap fluent) {
+                    fluent
+                        .Item("dynamic_store_id_pool")
+                            .BeginAttributes()
+                                .Item("opaque").Value(true)
+                            .EndAttributes()
+                            .DoListFor(
+                                tablet->DynamicStoreIdPool(),
+                                [&] (TFluentList fluent, auto dynamicStoreId) {
+                                    fluent
+                                        .Item().Value(dynamicStoreId);
+                                });
+                })
             .EndMap();
     }
 
