@@ -18,6 +18,11 @@ template <class T>
     TFuture<T> future,
     IInvokerPtr invoker = GetCurrentInvoker());
 
+template <class T>
+[[nodiscard]] TErrorOr<T> WaitForUnique(
+    const TFuture<T>& future,
+    IInvokerPtr invoker = GetCurrentInvoker());
+
 void Yield();
 
 void SwitchTo(IInvokerPtr invoker);
