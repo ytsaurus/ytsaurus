@@ -313,39 +313,34 @@ private:
         TransactionRefreshExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TImpl::RefreshTransactions, MakeStrong(this)),
-            Config_->TransactionsRefreshPeriod,
-            EPeriodicExecutorMode::Automatic);
+            Config_->TransactionsRefreshPeriod);
         TransactionRefreshExecutor_->Start();
 
         YT_VERIFY(!SnapshotExecutor_);
         SnapshotExecutor_= New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TImpl::BuildSnapshot, MakeStrong(this)),
-            Config_->SnapshotPeriod,
-            EPeriodicExecutorMode::Automatic);
+            Config_->SnapshotPeriod);
         SnapshotExecutor_->Start();
 
         YT_VERIFY(!UnstageExecutor_);
         UnstageExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TImpl::UnstageChunkTrees, MakeWeak(this)),
-            Config_->ChunkUnstagePeriod,
-            EPeriodicExecutorMode::Automatic);
+            Config_->ChunkUnstagePeriod);
         UnstageExecutor_->Start();
 
         YT_VERIFY(!UpdateConfigExecutor_);
         UpdateConfigExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TImpl::ExecuteUpdateConfig, MakeWeak(this)),
-            Config_->ConfigUpdatePeriod,
-            EPeriodicExecutorMode::Automatic);
+            Config_->ConfigUpdatePeriod);
         UpdateConfigExecutor_->Start();
 
         AlertsExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
-            Config_->AlertsUpdatePeriod,
-            EPeriodicExecutorMode::Automatic);
+            Config_->AlertsUpdatePeriod);
         AlertsExecutor_->Start();
 
         RegisterInstance();

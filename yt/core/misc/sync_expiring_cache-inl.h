@@ -21,8 +21,7 @@ TSyncExpiringCache<TKey, TValue>::TSyncExpiringCache(
     , EvictionExecutor_(New<NConcurrency::TPeriodicExecutor>(
         invoker,
         BIND(&TSyncExpiringCache::DeleteExpiredItems, MakeWeak(this)),
-        expirationTimeout,
-        NConcurrency::EPeriodicExecutorMode::Automatic))
+        expirationTimeout))
 {
     EvictionExecutor_->Start();
 }
