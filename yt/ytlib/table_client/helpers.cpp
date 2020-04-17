@@ -202,40 +202,31 @@ int GetSystemColumnCount(const TChunkReaderOptionsPtr& options)
 }
 
 void ValidateKeyColumnCount(
-    int keyColumnCount,
+    int tableKeyColumnCount,
     int chunkKeyColumnCount,
     bool requireUniqueKeys)
 {
-    if (requireUniqueKeys) {
-        if (chunkKeyColumnCount > keyColumnCount) {
-            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
-                "Chunk has more key columns than requested: chunk has %v key columns, request has %v key columns",
-                chunkKeyColumnCount,
-                keyColumnCount);
-        }
-    } else {
-        if (chunkKeyColumnCount < keyColumnCount) {
-            THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
-                "Chunk has less key columns than requested: chunk has %v key columns, request has %v key columns",
-                chunkKeyColumnCount,
-                keyColumnCount);
-        }
+    if (requireUniqueKeys && chunkKeyColumnCount > tableKeyColumnCount) {
+        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
+            "Chunk has more key columns than requested: chunk has %v key columns, request has %v key columns",
+            chunkKeyColumnCount,
+            tableKeyColumnCount);
     }
 }
 
 void ValidateKeyColumns(
-    const TKeyColumns& keyColumns,
+    const TKeyColumns& tableKeyColumns,
     const TKeyColumns& chunkKeyColumns,
     bool requireUniqueKeys)
 {
-    ValidateKeyColumnCount(keyColumns.size(), chunkKeyColumns.size(), requireUniqueKeys);
+    ValidateKeyColumnCount(tableKeyColumns.size(), chunkKeyColumns.size(), requireUniqueKeys);
 
-    for (int i = 0; i < std::min(keyColumns.size(), chunkKeyColumns.size()); ++i) {
-        if (chunkKeyColumns[i] != keyColumns[i]) {
+    for (int i = 0; i < std::min(tableKeyColumns.size(), chunkKeyColumns.size()); ++i) {
+        if (chunkKeyColumns[i] != tableKeyColumns[i]) {
             THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleKeyColumns,
-                "Incompatible key columns: actual %v, expected %v",
+                "Incompatible key columns: chunk key columns %v, table key columns %v",
                 chunkKeyColumns,
-                keyColumns);
+                tableKeyColumns);
         }
     }
 }
