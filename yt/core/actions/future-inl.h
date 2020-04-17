@@ -98,11 +98,12 @@ public:
             }
         }
         Callbacks_.clear();
+        SpareCookies_.clear();
     }
 
     bool IsEmpty() const
     {
-        return Callbacks_.empty();
+        return Callbacks_.size() == SpareCookies_.size();
     }
 
 private:
@@ -429,7 +430,11 @@ private:
             return false;
         }
 
-        ResultHandlers_.RunAndClear(GetResult());
+        // It is possible that the results has already been moved out by, e.g., GetUnique.
+        // Hence GetResult must only be called when we actually have handlers to invoke.
+        if (!ResultHandlers_.IsEmpty()) {
+            ResultHandlers_.RunAndClear(GetResult());
+        }
 
         if (UniqueResultHandler_) {
             RunNoExcept(UniqueResultHandler_, GetUniqueResult());
