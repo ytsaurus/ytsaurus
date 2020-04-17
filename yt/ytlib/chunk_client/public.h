@@ -171,7 +171,7 @@ using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 // NB: TRefCountedBlocksExt needs weak pointers support.
-using TRefCountedBlocksExt = TRefCountedProto<NChunkClient::NProto::TBlocksExt>;
+using TRefCountedBlocksExt = TRefCountedProto<NChunkClient::NProto::TBlocksExt, true>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedBlocksExt)
 
 using TRefCountedMiscExt = TRefCountedProto<NChunkClient::NProto::TMiscExt>;
