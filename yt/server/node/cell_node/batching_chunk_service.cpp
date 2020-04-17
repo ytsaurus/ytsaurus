@@ -65,10 +65,12 @@ public:
         , FollowerChannel_(CreateMasterChannel(channelFactory, ConnectionConfig_, EPeerKind::Follower))
         , CostThrottler_(CreateReconfigurableThroughputThrottler(ServiceConfig_->CostThrottler))
         , LocateChunksBatcher_(New<TLocateChunksBatcher>(this))
+        , LocateDynamicStoresBatcher_(New<TLocateDynamicStoresBatcher>(this))
         , AllocateWriteTargetsBatcher_(New<TAllocateWriteTargetsBatcher>(this))
         , ExecuteBatchBatcher_(New<TExecuteBatchBatcher>(this))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateDynamicStores));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AllocateWriteTargets));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecuteBatch));
     }
@@ -209,11 +211,20 @@ private:
             }
         }
 
-        static void AddReplicaList(TNodeDirectoryBuilder& builder, const NYT::NChunkClient::NProto::TRspLocateChunks_TSubresponse& subresponse) {
+        static void AddReplicaList(TNodeDirectoryBuilder& builder, const NYT::NChunkClient::NProto::TRspLocateChunks_TSubresponse& subresponse)
+        {
             builder.Add(FromProto<TChunkReplicaList>(subresponse.replicas()));
         }
 
-        static void AddReplicaList(TNodeDirectoryBuilder& builder, const NYT::NChunkClient::NProto::TRspAllocateWriteTargets_TSubresponse& subresponse) {
+        static void AddReplicaList(TNodeDirectoryBuilder& builder, const NYT::NChunkClient::NProto::TRspLocateDynamicStores_TSubresponse& subresponse)
+        {
+            if (subresponse.has_chunk_spec()) {
+                builder.Add(FromProto<TChunkReplicaList>(subresponse.chunk_spec().replicas()));
+            }
+        }
+
+        static void AddReplicaList(TNodeDirectoryBuilder& builder, const NYT::NChunkClient::NProto::TRspAllocateWriteTargets_TSubresponse& subresponse)
+        {
             builder.Add(
                 subresponse.replicas().empty()
                 // COMPAT(aozeritsky)
@@ -350,6 +361,72 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
     {
         LocateChunksBatcher_->HandleRequest(context);
+    }
+
+
+    struct TLocateDynamicStoresState
+    {
+        std::vector<int> Indexes;
+    };
+
+    class TLocateDynamicStoresBatcher
+        : public TBatcherBase<
+            NChunkClient::NProto::TReqLocateDynamicStores,
+            NChunkClient::NProto::TRspLocateDynamicStores,
+            TLocateDynamicStoresState>
+    {
+    public:
+        explicit TLocateDynamicStoresBatcher(TBatchingChunkService* owner)
+            : TBatcherBase(owner)
+        { }
+
+    protected:
+        virtual TChunkServiceProxy::TReqLocateDynamicStoresPtr CreateBatchRequest() override
+        {
+            auto req = FollowerProxy_.LocateDynamicStores();
+            req->SetHeavy(true);
+            return req;
+        }
+
+        virtual void BatchRequest(
+            const NChunkClient::NProto::TReqLocateDynamicStores* request,
+            NChunkClient::NProto::TReqLocateDynamicStores* batchRequest,
+            TLocateDynamicStoresState* state) override
+        {
+            BatchSubrequests(request->subrequests(), batchRequest->mutable_subrequests(), &state->Indexes);
+            if (request->fetch_all_meta_extensions() || batchRequest->fetch_all_meta_extensions()) {
+                batchRequest->set_fetch_all_meta_extensions(true);
+                batchRequest->clear_extension_tags();
+            } else {
+                for (auto extension : request->extension_tags()) {
+                    const auto& batched = batchRequest->extension_tags();
+                    if (std::find(batched.begin(), batched.end(), extension) == batched.end()) {
+                        batchRequest->add_extension_tags(extension);
+                    }
+                }
+            }
+        }
+
+        virtual void UnbatchResponse(
+            NChunkClient::NProto::TRspLocateDynamicStores* response,
+            const NChunkClient::NProto::TRspLocateDynamicStores* batchResponse,
+            const TLocateDynamicStoresState& state) override
+        {
+            UnbatchSubresponses(batchResponse->subresponses(), response->mutable_subresponses(), state.Indexes);
+            BuildResponseNodeDirectory(batchResponse, response);
+        }
+
+        virtual int GetCost(const TRequestPtr& request) const override
+        {
+            return request->subrequests().size();
+        }
+    };
+
+    const TIntrusivePtr<TLocateDynamicStoresBatcher> LocateDynamicStoresBatcher_;
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateDynamicStores)
+    {
+        LocateDynamicStoresBatcher_->HandleRequest(context);
     }
 
 

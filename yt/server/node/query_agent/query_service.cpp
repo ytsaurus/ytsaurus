@@ -468,6 +468,12 @@ private:
         auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
         if (tabletSnapshot->IsPreallocatedDynamicStoreId(storeId)) {
+            YT_LOG_DEBUG("Dynamic store is not created yet, sending nothing (TabletId: %v, StoreId: %v, "
+                "ReadSessionId: %v, RequestId: %v)",
+                tabletId,
+                storeId,
+                readSessionId,
+                context->GetRequestId());
             HandleInputStreamingRequest(context, BIND([] {
                 return MakeFuture(TSharedRef{});
             }));
