@@ -186,7 +186,7 @@ struct TConcatenateOptions
     FLUENT_FIELD_DEFAULT(bool, Append, false);
 };
 
-/// https://wiki.yandex-team.ru/yt/userdoc/api/#readblobtable
+/// https://yt.yandex-team.ru/docs/api/commands.html#read_blob_table
 struct TBlobTableReaderOptions
 {
     using TSelf = TBlobTableReaderOptions;
@@ -208,7 +208,7 @@ struct TBlobTableReaderOptions
     FLUENT_FIELD_DEFAULT(i64, Offset, 0);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/fairshare/#resursy
+// https://yt.yandex-team.ru/docs/description/mr/scheduler_and_pools.html#resursy
 struct TResourceLimits
 {
     using TSelf = TResourceLimits;
@@ -258,7 +258,7 @@ struct TSchedulingOptionsPerPoolTree
     THashMap<TString, TSchedulingOptions> Options_;
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#suspendop
+// https://yt.yandex-team.ru/docs/api/commands.html#suspend_op
 struct TSuspendOperationOptions
 {
     using TSelf = TSuspendOperationOptions;
@@ -266,13 +266,13 @@ struct TSuspendOperationOptions
     FLUENT_FIELD_OPTION(bool, AbortRunningJobs);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#resumeop
+// https://yt.yandex-team.ru/docs/api/commands.html#resume_op
 struct TResumeOperationOptions
 {
     using TSelf = TResumeOperationOptions;
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#updateopparameters
+// https://yt.yandex-team.ru/docs/api/commands.html#update_op_parameters
 struct TUpdateOperationParametersOptions
 {
     using TSelf = TUpdateOperationParametersOptions;
@@ -351,8 +351,6 @@ public:
     // but only few columns are set in any row.
     FLUENT_FIELD_DEFAULT(bool, SkipNullValuesForTNode, false);
 
-    // https://wiki.yandex-team.ru/yt/userdoc/formats/#preobrazovanieprimitivnyxtipovprivzaimodejjstviicherezformaty
-    //
     // Enable type conversions when writing data to static tables
     // or inserting/looking up/deleting data from dynamic tables.
     //
@@ -416,7 +414,7 @@ struct TTableWriterOptions
     FLUENT_FIELD_OPTION(TWriterOptions, WriterOptions);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#starttx
+// https://yt.yandex-team.ru/docs/api/commands.html#start_tx
 struct TStartTransactionOptions
 {
     using TSelf = TStartTransactionOptions;
@@ -465,7 +463,7 @@ enum ELockMode : int
     LM_SNAPSHOT     /* "snapshot" */,
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#lock
+// https://yt.yandex-team.ru/docs/api/commands.html#lock
 struct TLockOptions
 {
     using TSelf = TLockOptions;
@@ -482,7 +480,7 @@ struct TLockOptions
     FLUENT_FIELD_OPTION(TString, ChildKey);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#unlock
+// https://yt.yandex-team.ru/docs/api/commands.html#unlock
 struct TUnlockOptions
 {
     using TSelf = TUnlockOptions;
@@ -537,7 +535,7 @@ struct TAlterTableOptions
     FLUENT_FIELD_OPTION(bool, Dynamic);
 
     // Changes id of upstream replica on metacluster.
-    // https://wiki.yandex-team.ru/yt/userdoc/dynamicreplicatedtables/
+    // https://yt.yandex-team.ru/docs/description/dynamic_tables/replicated_dynamic_tables
     FLUENT_FIELD_OPTION(TReplicaId, UpstreamReplicaId);
 };
 
@@ -617,7 +615,7 @@ struct TTabletTransactionOptions
     FLUENT_FIELD_OPTION(EDurability, Durability);
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#insertrows
+// https://yt.yandex-team.ru/docs/api/commands.html#insert_rows
 struct TInsertRowsOptions
     : public TTabletTransactionOptions<TInsertRowsOptions>
 {
@@ -626,23 +624,22 @@ struct TInsertRowsOptions
     FLUENT_FIELD_OPTION(bool, Update);
 
     // Used with aggregating columns.
-    // https://wiki.yandex-team.ru/yt/userdoc/dynamicsortedtables/#agregirujushhiekolonki
     // By default value in aggregating column will be overwritten.
     // If `Aggregate' is set to true row will be considered as delta and it will be aggregated with currently stored value.
     FLUENT_FIELD_OPTION(bool, Aggregate);
 
-    //Used for insert operation for tables without sync replica
-    //https://wiki.yandex-team.ru/yt/userdoc/dynamicreplicatedtables/#zapis
-    //Default value is 'false'. So insertion into table without sync replias fails
+    // Used for insert operation for tables without sync replica
+    // https://yt.yandex-team.ru/docs/description/dynamic_tables/replicated_dynamic_tables#write
+    // Default value is 'false'. So insertion into table without sync replias fails
     FLUENT_FIELD_OPTION(bool, RequireSyncReplica);
 };
 
 struct TDeleteRowsOptions
     : public TTabletTransactionOptions<TDeleteRowsOptions>
 {
-    //Used for delete operation for tables without sync replica
-    //https://wiki.yandex-team.ru/yt/userdoc/dynamicreplicatedtables/#zapis
-    //Default value is 'false'. So deletion into table without sync replias fails
+    // Used for delete operation for tables without sync replica
+    // https://yt.yandex-team.ru/docs/description/dynamic_tables/replicated_dynamic_tables#write
+    // Default value is 'false'. So deletion into table without sync replias fails
     FLUENT_FIELD_OPTION(bool, RequireSyncReplica);
 };
 
@@ -650,8 +647,8 @@ struct TTrimRowsOptions
     : public TTabletTransactionOptions<TTrimRowsOptions>
 { };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#altertablereplica
-// https://wiki.yandex-team.ru/yt/userdoc/dynamicreplicatedtables/
+// https://yt.yandex-team.ru/docs/api/commands.html#alter_table_replica
+// https://yt.yandex-team.ru/docs/description/dynamic_tables/replicated_dynamic_tables
 struct TAlterTableReplicaOptions
 {
     using TSelf = TAlterTableReplicaOptions;
@@ -709,7 +706,7 @@ enum class ESecurityAction : int
     Deny  /* "deny" */,
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#checkpermission
+// https://yt.yandex-team.ru/docs/api/commands.html#check_permission
 struct TCheckPermissionOptions
 {
     using TSelf = TCheckPermissionOptions;

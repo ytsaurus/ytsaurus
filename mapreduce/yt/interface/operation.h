@@ -477,7 +477,7 @@ struct TUserJobSpec
     FLUENT_FIELD_OPTION(double, CpuLimit);
 
     //
-    // https://wiki.yandex-team.ru/yt/userdoc/operations/#memoryreservefactor
+    // https://yt.yandex-team.ru/docs/description/mr/operations_options#memory_reserve_factor
     //
     // Defines a fraction of MemoryLimit that job gets at start
     FLUENT_FIELD_OPTION(double, MemoryReserveFactor);
@@ -672,7 +672,7 @@ struct TRawMapReduceOperationSpec
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// See https://wiki.yandex-team.ru/yt/userdoc/static_schema/#sxemaisistemnyeoperacii
+// See https://yt.yandex-team.ru/docs/description/storage/static_schema.html#schema_inference
 enum class ESchemaInferenceMode : int
 {
     FromInput   /* "from_input" */,
@@ -738,7 +738,7 @@ struct TEraseOperationSpec
     FLUENT_FIELD_OPTION(ESchemaInferenceMode, SchemaInferenceMode);
 };
 
-// See https://wiki.yandex-team.ru/yt/userdoc/operations/#remotecopy
+// See https://yt.yandex-team.ru/docs/description/mr/remote_copy
 struct TRemoteCopyOperationSpec
     : TOperationSpecBase<TRemoteCopyOperationSpec>
 {
@@ -1239,7 +1239,7 @@ enum class ECursorDirection
     Future /* "future" */,
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#listoperations
+// https://yt.yandex-team.ru/docs/api/commands.html#list_operations
 struct TListOperationsOptions
 {
     using TSelf = TListOperationsOptions;
@@ -1372,7 +1372,7 @@ enum class EJobSortDirection : int
     Descending /* "descending" */,
 };
 
-// https://wiki.yandex-team.ru/yt/userdoc/api/#listjobs
+// https://yt.yandex-team.ru/docs/api/commands.html#list_jobs
 struct TListJobsOptions
 {
     using TSelf = TListJobsOptions;
@@ -1582,7 +1582,7 @@ struct TOperationOptions
     /// @brief Put all files required by the job into tmpfs.
     ///
     /// This option can be set globaly using @ref NYT::TConfig::MountSandboxInTmpfs.
-    /// @see https://wiki.yandex-team.ru/yt/userdoc/woodpeckers/
+    /// @see https://yt.yandex-team.ru/docs/problems/woodpeckers
     FLUENT_FIELD_DEFAULT(bool, MountSandboxInTmpfs, false);
     FLUENT_FIELD_OPTION(TString, FileStorage);
     FLUENT_FIELD_OPTION(TNode, SecureVault);

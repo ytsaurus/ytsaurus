@@ -23,7 +23,7 @@
 ///   - @ref NYT::CreateClient() function that creates client for particular cluster;
 ///   - @ref NYT::IOperationClient ancestor of @ref NYT::IClient containing the set of methods to run operations.
 ///
-/// Tutorial on using this library can be found [here](https://wiki.yandex-team.ru/yt/userdoc/cppapi/tutorial/).
+/// Tutorial on how to use this library can be found [here](https://yt.yandex-team.ru/docs/api/c++/examples).
 
 #include "fwd.h"
 
@@ -92,7 +92,7 @@ struct TCheckPermissionResponse
 {
     /// @brief Results for the table columns access permissions.
     ///
-    /// @see [Columnar ACL doc](https://wiki.yandex-team.ru/yt/userdoc/columnaracl)
+    /// @see [Columnar ACL doc](https://yt.yandex-team.ru/docs/description/common/columnar_acl)
     TVector<TCheckPermissionResult> Columns;
 };
 
@@ -493,7 +493,7 @@ public:
     ///  * `key`: list of key columns values. Empty if `KeyColumns` is not specified.
     ///  * `rbtorrent`: rbtorrent string (with `rbtorrent:` prefix)
     ///
-    /// @see [More info.](https://wiki.yandex-team.ru/yt/userdoc/blob_tables/#shag3.sozdajomrazdachu)
+    /// @see [More info.](https://docs.yandex-team.ru/docs/yt/description/storage/blobtables#sky_share)
     virtual TNode::TListType SkyShareTable(
         const TYPath& tablePath,
         const TSkyShareTableOptions& options) = 0;
@@ -502,13 +502,13 @@ public:
     /// @brief Check if `user` has `permission` to access a Cypress node at `path`.
     ///
     /// For tables access to columns specified in `options.Columns_` can be checked
-    /// (@see [the doc](https://wiki.yandex-team.ru/yt/userdoc/columnaracl)).
+    /// (@see [the doc](https://yt.yandex-team.ru/docs/description/common/columnar_acl)).
     ///
     /// If access is denied (the returned result has `.Action == ESecurityAction::Deny`)
     /// because of a `deny` rule, the "denying" object name and id
     /// and "denied" subject name an id may be returned.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#check-permission)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#check_permission)
     virtual TCheckPermissionResponse CheckPermission(
         const TString& user,
         EPermission permission,
@@ -527,14 +527,14 @@ public:
     ///
     /// Jobs will be aborted.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#suspend-operation)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#suspend_op)
     virtual void SuspendOperation(
         const TOperationId& operationId,
         const TSuspendOperationOptions& options = TSuspendOperationOptions()) = 0;
 
     /// @brief Resume previously suspended operation.
     ///
-    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#resume-operation)
+    /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#resume_op)
     virtual void ResumeOperation(
         const TOperationId& operationId,
         const TResumeOperationOptions& options = TResumeOperationOptions()) = 0;

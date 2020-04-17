@@ -14,7 +14,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 /// @deprecated
-/// @see https://wiki.yandex-team.ru/yt/userdoc/formats/#yamreddsv
 struct TYamredDsvAttributes
 {
     /// Names of key columns.
