@@ -196,15 +196,18 @@ public:
 
         auto limit = config->Limit;
         Limit_ = limit.value_or(-1);
-        LastUpdated_ = NProfiling::GetInstant();
         TDelayedExecutor::CancelAndClear(UpdateCookie_);
+        auto now = NProfiling::GetInstant();
         if (limit) {
             Period_ = config->Period;
-            Available_ = static_cast<i64>(config->Period.SecondsFloat() * (*limit));
+            auto millisecondsPassed = (now - LastUpdated_.load()).MilliSeconds();
+            auto newAvailable = Available_.load() + static_cast<i64>(millisecondsPassed * *limit / 1000);
+            newAvailable = std::min(newAvailable, static_cast<i64>(Period_.load().SecondsFloat()) * *limit);
+            Available_ = newAvailable;
         } else {
             Available_ = 0;
         }
-
+        LastUpdated_ = now;
         ProcessRequests(std::move(guard));
     }
 
@@ -223,7 +226,7 @@ private:
     NProfiling::TMonotonicCounter ValueCounter_;
     NProfiling::TSimpleGauge QueueSizeCounter_;
 
-    std::atomic<TInstant> LastUpdated_;
+    std::atomic<TInstant> LastUpdated_ = TInstant::Zero();
     std::atomic<i64> Available_ = {0};
     std::atomic<i64> QueueTotalCount_ = {0};
 
