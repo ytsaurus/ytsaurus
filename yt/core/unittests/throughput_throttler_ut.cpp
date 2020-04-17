@@ -111,7 +111,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureSchedulesUpdatesProp
         future.Get().ThrowOnError();
     }
 
-    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 3000);
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 4000);
 }
 
 TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureMustRescheduleUpdate)
@@ -128,11 +128,10 @@ TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureMustRescheduleUpdate
 
     throttler->Reconfigure(New<TThroughputThrottlerConfig>(100));
 
-    EXPECT_TRUE(scheduled1.IsSet());  // gets fulfulled in Reconfigure
     EXPECT_FALSE(scheduled2.IsSet()); // must remain waiting in the queue after Reconfigure
 
     scheduled2.Get().ThrowOnError();
-    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 2000); // Reconfigure must have rescheduled the update
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 3000); // Reconfigure must have rescheduled the update
 }
 
 TEST(TReconfigurableThroughputThrottlerTest, TestOverdraft)
