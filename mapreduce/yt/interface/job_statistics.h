@@ -208,7 +208,7 @@ TJobStatisticsEntry<T> TJobStatistics::GetCustomStatisticsAs(TStringBuf name) co
 ////////////////////////////////////////////////////////////////////
 
 //
-// Write custom statistics (see wiki.yandex-team.ru/yt/userdoc/jobs/#polzovatelskiestatistiki)
+// Write custom statistics (see https://yt.yandex-team.ru/docs/description/mr/jobs#user_stats)
 // by given slash-separated path (its length must not exceed 512 bytes).
 // The function must be called in job.
 // Total number of statistics (with different paths) must not exceed 128.

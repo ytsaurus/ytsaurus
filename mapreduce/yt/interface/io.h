@@ -375,7 +375,7 @@ public:
         const TTableWriterOptions& options = TTableWriterOptions()) = 0;
 
     ///
-    /// @brief Create a reader for [blob table](https://wiki.yandex-team.ru/yt/userdoc/blob_tables) at `path`.
+    /// @brief Create a reader for [blob table](https://docs.yandex-team.ru/docs/yt/description/storage/blobtables) at `path`.
     ///
     /// @param path Blob table path.
     /// @param blobId Key identifying the blob.
