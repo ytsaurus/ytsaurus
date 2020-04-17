@@ -50,14 +50,28 @@ TUnversionedValue MakeUnversionedValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateKeyColumnCount(
-    int keyColumnCount,
-    int chunkKeyColumnCount,
-    bool requireUniqueKeys);
+//! Checks whether chunk with `chunkKeyColumns' key columns
+//! can belong to sorted table with `tableKeyColumns' key columns and
+//! given key uniqueness.
+//! Table is sorted without key uniqueness requirement iff all of its
+//! chunks are sorted, boundary keys of neighbouring chunks are properly ordered when
+//! compared by first `tableKeyColumns' values (replacing missing values with nulls if necessary)
+//! and for all chunks `chunkKeyColumns' is prefix of `tableKeyColumns' or
+//! `tableKeyColumns' is prefix of `chunkKeyColumns'.
+//! Table is sorted with key uniqueness requirement iff all of its chunks are sorted
+//! and have unique keys, boundary keys of neighbouring chunks are properly ordered
+//! and different and `chunkKeyColumns' is a prefix of `tableKeyColumns'.
 void ValidateKeyColumns(
-    const TKeyColumns& keyColumns,
+    const TKeyColumns& tableKeyColumns,
     const TKeyColumns& chunkKeyColumns,
     bool requireUniqueKeys);
+
+//! Same as `ValidateKeyColumns' but does not check column names.
+void ValidateKeyColumnCount(
+    int tableKeyColumnCount,
+    int chunkKeyColumnCount,
+    bool requireUniqueKeys);
+
 TColumnFilter CreateColumnFilter(
     const std::optional<std::vector<TString>>& columns,
     const TNameTablePtr& nameTable);
