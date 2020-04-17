@@ -129,7 +129,7 @@ template <
 >
 class SmallDenseMap;
 
-template <class TProto>
+template <class TProto, bool EnableWeak = false>
 class TRefCountedProto;
 
 DECLARE_REFCOUNTED_CLASS(TProcessBase)

@@ -56,25 +56,9 @@ Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const T
 }
 
 template <class T>
-void DestroyRefCountedImpl(T* ptr)
-{
-    auto* base = static_cast<TRefCountedImpl*>(ptr);
-    void** vTablePtr = reinterpret_cast<void**>(base);
-    // Dtor is virtual.
-    ptr->~T();
-    *vTablePtr = ptr;
-
-    base->WeakUnref();
-}
-
-template <class T>
 struct TRefCountedWrapper final
     : public T
 {
-    using TSelf = TRefCountedWrapper;
-
-    friend void DestroyRefCountedImpl<TSelf>(TSelf* ptr);
-
     template <class... TArgs>
     explicit TRefCountedWrapper(TArgs&&... args)
         : T(std::forward<TArgs>(args)...)
@@ -87,7 +71,7 @@ struct TRefCountedWrapper final
 
     void DestroyRefCounted()
     {
-        DestroyRefCountedImpl(this);
+        T::DestroyRefCountedImpl(this);
     }
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
@@ -103,10 +87,6 @@ template <class T>
 struct TRefCountedWrapperWithCookie final
     : public T
 {
-    using TSelf = TRefCountedWrapperWithCookie;
-
-    friend void DestroyRefCountedImpl<TSelf>(TSelf* ptr);
-
     template <class... TArgs>
     explicit TRefCountedWrapperWithCookie(TArgs&&... args)
         : T(std::forward<TArgs>(args)...)
@@ -114,7 +94,7 @@ struct TRefCountedWrapperWithCookie final
 
     void DestroyRefCounted()
     {
-        DestroyRefCountedImpl(this);
+        T::DestroyRefCountedImpl(this);
     }
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
