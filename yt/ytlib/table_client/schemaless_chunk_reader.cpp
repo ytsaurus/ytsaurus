@@ -2887,7 +2887,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         auto type = TypeFromId(chunkId);
 
         if (type == EObjectType::SortedDynamicTabletStore) {
-            return CreateRemoteDynamicStoreReader(
+            return CreateRetryingRemoteDynamicStoreReader(
                 chunkSpec,
                 tableSchema,
                 config->DynamicStoreReader,
@@ -2898,7 +2898,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
                 rpsThrottler,
                 blockReadOptions,
                 columnFilter,
-                timestamp);
+                timestamp,
+                BIND(createVersionedChunkReader));
         } else {
             return createVersionedChunkReader(chunkSpec);
         }

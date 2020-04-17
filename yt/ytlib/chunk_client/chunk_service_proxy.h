@@ -18,6 +18,7 @@ public:
         .SetProtocolVersion(6));
 
     DEFINE_RPC_PROXY_METHOD(NProto, LocateChunks);
+    DEFINE_RPC_PROXY_METHOD(NProto, LocateDynamicStores);
     DEFINE_RPC_PROXY_METHOD(NProto, TouchChunks);
     DEFINE_RPC_PROXY_METHOD(NProto, AllocateWriteTargets);
     DEFINE_RPC_PROXY_METHOD(NProto, ExportChunks);

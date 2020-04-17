@@ -3,15 +3,13 @@ import __builtin__
 
 from test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
-from yt_env_setup import wait
+from yt_env_setup import wait, Restarter, NODES_SERVICE
 from yt_commands import *
 from yt.yson import YsonEntity, loads, dumps
 
 from time import sleep
-from random import randint, choice, sample
+from random import choice
 from string import ascii_lowercase
-
-import random
 
 from yt.environment.helpers import assert_items_equal
 
@@ -58,6 +56,12 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
             return True
 
         wait(_wait_func)
+
+    def _get_node_env_id(self, node):
+        for i in range(self.NUM_NODES):
+            if self.Env.get_node_address(i) == node:
+                return i
+        assert False
 
     @authors("ifsmirnov")
     def test_basic_read1(self):
@@ -289,7 +293,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
 
         with pytest.raises(YtError):
             # We've lost the data, but at least master didn't crash.
-            read_table("//tmp/t", tx=tx)
+            read_table("//tmp/t", tx=tx, table_reader={"dynamic_store_reader": {"retry_count": 1}})
 
         self._validate_tablet_statistics("//tmp/t")
 
@@ -302,7 +306,8 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
 
         empty_statistics = _get_cell_statistics()
 
-        self._create_simple_table("//tmp/t", dynamic_store_auto_flush_period=YsonEntity())
+        self._create_simple_table("//tmp/t")
+        set("//tmp/t/@dynamic_store_auto_flush_period", YsonEntity())
 
         sync_mount_table("//tmp/t")
         self._validate_cell_statistics(tablet_count=1, chunk_count=2, store_count=1)
@@ -328,6 +333,77 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t", force=True)
         wait(lambda: _get_cell_statistics() == empty_statistics)
+
+    @pytest.mark.parametrize("disturbance_type", ["cell_move", "unmount", "unmount_and_delete", "force_unmount"])
+    def test_locate(self, disturbance_type):
+        cell_id = sync_create_cells(1)[0]
+
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        rows = [{"key": 1, "value": "a"}]
+        insert_rows("//tmp/t", rows)
+
+        create("table", "//tmp/out")
+        op = merge(
+            in_="//tmp/t",
+            out="//tmp/out",
+            spec={"testing": {"delay_inside_materialize": 10000}},
+            track=False)
+        wait(lambda: op.get_state() == "materializing")
+
+        if disturbance_type == "cell_move":
+            self._disable_tablet_cells_on_peer(cell_id)
+        elif disturbance_type == "unmount":
+            sync_unmount_table("//tmp/t")
+        elif disturbance_type == "unmount_and_delete":
+            sync_unmount_table("//tmp/t")
+            remove("//tmp/t")
+        elif disturbance_type == "force_unmount":
+            unmount_table("//tmp/t", force=True)
+
+        op.track()
+        if disturbance_type != "force_unmount":
+            assert_items_equal(read_table("//tmp/out"), rows)
+
+    @pytest.mark.parametrize("disturbance_type", ["cell_move", "unmount"])
+    def test_locate_preserves_limits(self, disturbance_type):
+        cell_id = sync_create_cells(1)[0]
+        node = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
+        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(node), True)
+        node_id = self._get_node_env_id(node)
+
+        self._create_simple_table("//tmp/t", attributes={"dynamic_store_auto_flush_period": YsonEntity()})
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i} for i in range(50000)]
+        insert_rows("//tmp/t", rows)
+
+        create("table", "//tmp/out")
+        op = map(
+            in_="//tmp/t[50:49950]",
+            out="//tmp/out",
+            spec={
+                "job_io": {"table_reader": {"dynamic_store_reader": {"window_size": 1}}},
+                "mapper": {"format": "json"},
+                "max_failed_job_count": 1},
+            command='sleep 10; cat',
+            ordered=True,
+            track=False)
+
+        wait(lambda: op.get_state() in ("running", "completed"))
+        sleep(1)
+
+        if disturbance_type == "unmount":
+            sync_unmount_table("//tmp/t")
+
+        with Restarter(self.Env, NODES_SERVICE, [node_id]):
+            op.track()
+
+        # Stupid testing libs require quadratic time to compare lists
+        # of unhashable items.
+        actual = [row["key"] for row in read_table("//tmp/out", verbose=False)]
+        expected = range(50, 49950)
+        assert actual == expected
 
 class TestReadSortedDynamicTablesMulticell(TestReadSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2

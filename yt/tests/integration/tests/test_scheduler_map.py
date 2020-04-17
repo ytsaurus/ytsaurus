@@ -687,7 +687,7 @@ print row + table_index
             in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
             command=with_breakpoint("cat ; BREAKPOINT"),
-            oredered=ordered,
+            ordered=ordered,
             spec={
                 "data_size_per_job": 1,
                 "max_failed_job_count": 1
