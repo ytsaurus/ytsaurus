@@ -25,11 +25,6 @@ TDiskHealthChecker::TDiskHealthChecker(
     : Config_(config)
     , Path_(path)
     , CheckInvoker_(invoker)
-    , PeriodicExecutor_(New<TPeriodicExecutor>(
-        invoker,
-        BIND(&TDiskHealthChecker::OnCheck, Unretained(this)),
-        Config_->CheckPeriod,
-        EPeriodicExecutorMode::Manual))
     , Logger(logger)
     , Profiler(profiler)
 {
@@ -38,7 +33,9 @@ TDiskHealthChecker::TDiskHealthChecker(
 
 void TDiskHealthChecker::Start()
 {
-    PeriodicExecutor_->Start();
+    TDelayedExecutor::Submit(
+        BIND(&TDiskHealthChecker::OnCheck, MakeWeak(this)),
+        Config_->CheckPeriod);
 }
 
 TFuture<void> TDiskHealthChecker::RunCheck()
@@ -57,7 +54,10 @@ void TDiskHealthChecker::OnCheck()
 void TDiskHealthChecker::OnCheckCompleted(const TError& error)
 {
     if (error.IsOK()) {
-        PeriodicExecutor_->ScheduleNext();
+        TDelayedExecutor::Submit(
+            BIND(&TDiskHealthChecker::OnCheck, MakeWeak(this)),
+            Config_->CheckPeriod);
+
         return;
     }
 

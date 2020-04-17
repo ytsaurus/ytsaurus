@@ -44,8 +44,6 @@ private:
     const TString Path_;
     const IInvokerPtr CheckInvoker_;
 
-    NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
-
     NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;
 
