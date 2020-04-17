@@ -5,7 +5,6 @@
 #include "resource_tree.h"
 #include "resource_tree_element.h"
 #include "scheduling_context.h"
-#include "historic_usage_aggregator.h"
 
 #include "operation_log.h"
 
@@ -17,6 +16,8 @@
 #include <yt/core/profiling/timing.h>
 
 #include <util/generic/ymath.h>
+
+#include <yt/core/misc/historic_usage_aggregator.h>
 
 namespace NYT::NScheduler::NClassicScheduler {
 

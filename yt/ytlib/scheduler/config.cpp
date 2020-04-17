@@ -1429,19 +1429,6 @@ TEphemeralSubpoolConfig::TEphemeralSubpoolConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THistoricUsageConfig::THistoricUsageConfig()
-{
-    RegisterParameter("aggregation_mode", AggregationMode)
-        .Default(EHistoricUsageAggregationMode::None);
-
-    RegisterParameter("ema_alpha", EmaAlpha)
-        // TODO(eshcherbin): Adjust.
-        .Default(1.0 / (24.0 * 60.0 * 60.0))
-        .GreaterThanOrEqual(0.0);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TPoolConfig::TPoolConfig()
 {
     RegisterParameter("mode", Mode)

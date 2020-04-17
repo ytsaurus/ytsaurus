@@ -1,10 +1,10 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/scheduler/historic_usage_aggregator.h>
+#include <yt/core/misc/historic_usage_aggregator.h>
 
 #include <util/generic/ymath.h>
 
-namespace NYT::NScheduler {
+namespace NYT {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,4 +102,4 @@ TEST_F(THistoricUsageAggregatorTest, TestExponentialMovingAverageModeUpdateParam
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NScheduler
+} // namespace NYT
