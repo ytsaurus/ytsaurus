@@ -81,6 +81,9 @@ protected:
         if (HandleSetsidOptions()) {
             return;
         }
+        if (HandleCgroupOptions()) {
+            return;
+        }
         if (HandlePdeathsigOptions()) {
             return;
         }
