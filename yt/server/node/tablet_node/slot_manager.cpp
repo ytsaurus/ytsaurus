@@ -61,8 +61,7 @@ public:
         , SlotScanExecutor_(New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
             BIND(&TImpl::OnScanSlots, Unretained(this)),
-            Config_->SlotScanPeriod,
-            EPeriodicExecutorMode::Automatic))
+            Config_->SlotScanPeriod))
         , OrchidService_(TOrchidService::Create(MakeWeak(this), Bootstrap_->GetControlInvoker()))
     { }
 

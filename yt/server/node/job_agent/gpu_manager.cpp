@@ -87,7 +87,6 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
                 Bootstrap_->GetControlInvoker(),
                 BIND(&TGpuManager::FetchDriverLayerInfo, MakeWeak(this)),
                 Config_->DriverLayerFetchPeriod,
-                EPeriodicExecutorMode::Automatic /*mode*/,
                 Config_->DriverLayerFetchPeriod /*splay*/);
             FetchDriverLayerExecutor_->Start();
         } else {

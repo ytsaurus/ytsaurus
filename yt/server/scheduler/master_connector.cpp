@@ -513,21 +513,18 @@ private:
         WatchersExecutor_ = New<TPeriodicExecutor>(
             GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::UpdateWatchers, MakeWeak(this)),
-            Config_->WatchersUpdatePeriod,
-            EPeriodicExecutorMode::Automatic);
+            Config_->WatchersUpdatePeriod);
 
         AlertsExecutor_ = New<TPeriodicExecutor>(
             GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
             BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
-            Config_->AlertsUpdatePeriod,
-            EPeriodicExecutorMode::Automatic);
+            Config_->AlertsUpdatePeriod);
 
         for (const auto& record : CustomGlobalWatcherRecords_) {
             auto executor = New<TPeriodicExecutor>(
                 GetCancelableControlInvoker(EControlQueue::PeriodicActivity),
                 BIND(&TImpl::ExecuteCustomWatcherUpdate, MakeWeak(this), record.Requester, record.Handler),
-                record.Period,
-                EPeriodicExecutorMode::Automatic);
+                record.Period);
             CustomGlobalWatcherExecutors_[record.WatcherType] = executor;
         }
 

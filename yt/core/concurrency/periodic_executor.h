@@ -10,18 +10,11 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Describes if manual calls to #TPeriodicExecutor::ScheduleNext are needed.
-DEFINE_ENUM(EPeriodicExecutorMode,
-    (Automatic)
-    (Manual)
-);
-
 struct TPeriodicExecutorOptions
 {
     static constexpr double DefaultJitter = 0.2;
 
     std::optional<TDuration> Period;
-    EPeriodicExecutorMode Mode = EPeriodicExecutorMode::Automatic;
     TDuration Splay = TDuration::Zero();
     double Jitter = 0.0;
 
@@ -46,9 +39,15 @@ public:
     TPeriodicExecutor(
         IInvokerPtr invoker,
         TClosure callback,
-        std::optional<TDuration> period = std::nullopt,
-        EPeriodicExecutorMode mode = EPeriodicExecutorMode::Automatic,
-        TDuration splay = TDuration::Zero());
+        std::optional<TDuration> period,
+        TDuration splay);
+
+    TPeriodicExecutor(
+        IInvokerPtr invoker,
+        TClosure callback,
+        std::optional<TDuration> period = std::nullopt)
+        : TPeriodicExecutor(invoker, callback, period, TDuration::Zero())
+    { }
 
     TPeriodicExecutor(
         IInvokerPtr invoker,
@@ -67,9 +66,6 @@ public:
     //! Requests an immediate invocation.
     void ScheduleOutOfBand();
 
-    //! Usually called from the callback to schedule the next invocation.
-    void ScheduleNext();
-
     //! Changes execution period.
     void SetPeriod(std::optional<TDuration> period);
 
@@ -81,7 +77,6 @@ private:
     const IInvokerPtr Invoker_;
     const TClosure Callback_;
     std::optional<TDuration> Period_;
-    const EPeriodicExecutorMode Mode_;
     const TDuration Splay_;
     const double Jitter_;
 
