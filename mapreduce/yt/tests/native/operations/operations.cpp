@@ -2435,6 +2435,35 @@ Y_UNIT_TEST_SUITE(Operations)
     {
         TestJobNodeReader(ENodeReaderFormat::Yson, false);
     }
+    Y_UNIT_TEST(JobNodeReader_Skiff_ComplexTypes)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto inTablePath = workingDir + "/in-table";
+        auto outTablePath = workingDir + "/out-table";
+
+        TTableSchema schema;
+        schema.AddColumn("value", NTi::List(NTi::Int64()));
+
+        client->Create(inTablePath, NT_TABLE, TCreateOptions().Attributes(TNode()("schema", schema.ToNode())));
+
+        const auto row = TNode()("value", TNode::CreateList({TNode(1), TNode(2), TNode(3)}));
+        {
+            auto writer = client->CreateTableWriter<TNode>(inTablePath);
+            writer->AddRow(row);
+            writer->Finish();
+        }
+        TConfig::Get()->NodeReaderFormat = ENodeReaderFormat::Auto;
+        client->Map(new TIdMapper(), inTablePath, outTablePath);
+        auto reader = client->CreateTableReader<TNode>(outTablePath);
+        std::vector<TNode> actualRows;
+        for (const auto& cursor : *reader) {
+            actualRows.push_back(cursor.GetRow());
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(std::vector<TNode>{row}, actualRows);
+    }
 
     Y_UNIT_TEST(TestSkiffOperationHint)
     {
