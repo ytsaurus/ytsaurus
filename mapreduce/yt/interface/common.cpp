@@ -291,6 +291,28 @@ TTableSchema TTableSchema::AddColumn(const TString& name, EValueType type, ESort
     return std::move(AddColumn(name, type, sortOrder));
 }
 
+TTableSchema& TTableSchema::AddColumn(const TString& name, const NTi::TTypePtr& type) &
+{
+    Columns_.push_back(TColumnSchema().Name(name).Type(type));
+    return *this;
+}
+
+TTableSchema TTableSchema::AddColumn(const TString& name, const NTi::TTypePtr& type) &&
+{
+    return std::move(AddColumn(name, type));
+}
+
+TTableSchema& TTableSchema::AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &
+{
+    Columns_.push_back(TColumnSchema().Name(name).Type(type).SortOrder(sortOrder));
+    return *this;
+}
+
+TTableSchema TTableSchema::AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &&
+{
+    return std::move(AddColumn(name, type, sortOrder));
+}
+
 TTableSchema& TTableSchema::SortBy(const TVector<TString>& columns) &
 {
     THashMap<TString, ui64> columnsIndex;

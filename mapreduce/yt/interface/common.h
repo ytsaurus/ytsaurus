@@ -391,6 +391,9 @@ public:
     TTableSchema& AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &;
     TTableSchema AddColumn(const TString& name, EValueType type, ESortOrder sortOrder) &&;
 
+    TTableSchema& AddColumn(const TString& name, const NTi::TTypePtr& type) &;
+    TTableSchema AddColumn(const TString& name, const NTi::TTypePtr& type) &&;
+
     TTableSchema& AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &;
     TTableSchema AddColumn(const TString& name, const NTi::TTypePtr& type, ESortOrder sortOrder) &&;
 
