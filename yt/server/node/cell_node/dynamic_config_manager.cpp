@@ -88,9 +88,9 @@ NYTree::IYPathServicePtr TDynamicConfigManager::GetOrchidService()
 
 bool TDynamicConfigManager::IsDynamicConfigLoaded() const
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    return ConfigLoaded_;
+    return ConfigLoaded_.load();
 }
 
 void TDynamicConfigManager::DoFetchConfig()
@@ -184,10 +184,10 @@ void TDynamicConfigManager::TryFetchConfig()
         LastUnrecognizedOptionError_ = TError();
     }
 
-    ConfigLoaded_ = true;
     CurrentConfig_ = newConfigNode;
     ConfigUpdated_.Fire(newConfig);
     LastConfigUpdateTime_ = TInstant::Now();
+    ConfigLoaded_.store(true);
 }
 
 void TDynamicConfigManager::DoBuildOrchid(IYsonConsumer* consumer)

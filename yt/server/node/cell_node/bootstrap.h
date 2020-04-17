@@ -57,6 +57,7 @@ public:
 
     const TCellNodeConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
+    const IInvokerPtr& GetJobInvoker() const;
     IInvokerPtr GetQueryPoolInvoker(
         const TString& poolName,
         double weight,
@@ -102,6 +103,7 @@ public:
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const TDynamicConfigManagerPtr& GetDynamicConfigManager() const;
     const TNodeResourceManagerPtr& GetNodeResourceManager() const;
+    const NContainers::TInstanceLimitsTrackerPtr& GetInstanceLimitsTracker() const;
 
     const NConcurrency::IThroughputThrottlerPtr& GetReplicationInThrottler() const;
     const NConcurrency::IThroughputThrottlerPtr& GetReplicationOutThrottler() const;
@@ -140,7 +142,8 @@ private:
     const TCellNodeConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
-    NConcurrency::TActionQueuePtr ControlQueue_;
+    NConcurrency::TActionQueuePtr ControlActionQueue_;
+    NConcurrency::TActionQueuePtr JobActionQueue_;
     TLazyIntrusivePtr<NConcurrency::ITwoLevelFairShareThreadPool> QueryThreadPool_;
     NConcurrency::TThreadPoolPtr TabletLookupThreadPool_;
     NConcurrency::TThreadPoolPtr TableReplicatorThreadPool_;
@@ -150,7 +153,6 @@ private:
     NConcurrency::TThreadPoolPtr StorageLightThreadPool_;
     NConcurrency::IFairShareThreadPoolPtr StorageLookupThreadPool_;
     NConcurrency::TActionQueuePtr MasterCacheQueue_;
-    NConcurrency::TActionQueuePtr JobThrottlerQueue_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
@@ -238,7 +240,7 @@ private:
     void OnMasterConnected();
     void OnMasterDisconnected();
 
-    void OnDynamicConfigUpdated(TCellNodeDynamicConfigPtr newConfig);
+    void OnDynamicConfigUpdated(const TCellNodeDynamicConfigPtr& newConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,12 +15,18 @@ namespace NYT::NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Manages dynamic configuration of YT node
+//! by pulling it periodically from masters.
+/*!
+ *  \note
+ *  Thread affinity: Control (unless noted otherwise)
+ */
 class TDynamicConfigManager
     : public TRefCounted
 {
 public:
-    //! Raises when dynamic config was updated.
-    DEFINE_SIGNAL(void(TCellNodeDynamicConfigPtr), ConfigUpdated);
+    //! Raises when dynamic config changes.
+    DEFINE_SIGNAL(void(const TCellNodeDynamicConfigPtr&), ConfigUpdated);
 
 public:
     TDynamicConfigManager(
@@ -35,6 +41,10 @@ public:
 
     NYTree::IYPathServicePtr GetOrchidService();
 
+    /*!
+    *  \note
+    *  Thread affinity: any
+    */
     bool IsDynamicConfigLoaded() const;
 
 private:
@@ -58,7 +68,7 @@ private:
 
     TInstant LastConfigUpdateTime_;
 
-    bool ConfigLoaded_ = false;
+    std::atomic<bool> ConfigLoaded_ = false;
 };
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)

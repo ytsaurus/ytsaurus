@@ -390,7 +390,7 @@ public:
         return UserJobReadController_->GetProgress();
     }
 
-    virtual ui64 GetStderrSize() const override
+    virtual i64 GetStderrSize() const override
     {
         if (!Prepared_) {
             return 0;

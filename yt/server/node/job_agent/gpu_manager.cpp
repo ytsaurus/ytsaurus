@@ -19,7 +19,6 @@
 
 #include <yt/library/process/subprocess.h>
 
-
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/data_source.h>
@@ -66,6 +65,15 @@ int TGpuSlot::GetDeviceNumber() const
 TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
     : Bootstrap_(bootstrap)
     , Config_(std::move(config))
+    , HealthCheckExecutor_(New<TPeriodicExecutor>(
+        Bootstrap_->GetJobInvoker(),
+        BIND(&TGpuManager::OnHealthCheck, MakeWeak(this)),
+        Config_->HealthCheckPeriod))
+    , FetchDriverLayerExecutor_(New<TPeriodicExecutor>(
+        Bootstrap_->GetJobInvoker(),
+        BIND(&TGpuManager::OnFetchDriverLayerInfo, MakeWeak(this)),
+        Config_->DriverLayerFetchPeriod,
+        /*splay*/ Config_->DriverLayerFetchPeriod))
 {
     auto descriptors = NJobAgent::ListGpuDevices();
     bool testGpu = Bootstrap_->GetConfig()->ExecAgent->JobController->TestGpuLayers;
@@ -73,7 +81,7 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
         try {
             DriverVersionString_ = Config_->DriverVersion ? *Config_->DriverVersion : GetGpuDriverVersionString();
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Cannot determine driver version");
+            YT_LOG_FATAL(ex, "Cannot determine GPU driver version");
         }
 
         if (Config_->DriverLayerDirectoryPath) {
@@ -83,11 +91,6 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
                 DriverLayerPath_,
                 DriverVersionString_);
 
-            FetchDriverLayerExecutor_ = New<TPeriodicExecutor>(
-                Bootstrap_->GetControlInvoker(),
-                BIND(&TGpuManager::FetchDriverLayerInfo, MakeWeak(this)),
-                Config_->DriverLayerFetchPeriod,
-                Config_->DriverLayerFetchPeriod /*splay*/);
             FetchDriverLayerExecutor_->Start();
         } else {
             YT_LOG_INFO("No GPU driver layer directory specified");
@@ -108,15 +111,13 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
         YT_VERIFY(HealthyGpuInfoMap_.emplace(descriptor.DeviceNumber, info).second);
     }
 
-    HealthCheckExecutor_ = New<TPeriodicExecutor>(
-        Bootstrap_->GetControlInvoker(),
-        BIND(&TGpuManager::OnHealthCheck, MakeWeak(this)),
-        Config_->HealthCheckPeriod);
     HealthCheckExecutor_->Start();
 }
 
 void TGpuManager::OnHealthCheck()
 {
+    VERIFY_THREAD_AFFINITY(JobThread);
+
     try {
         auto gpuInfos = GetGpuInfos(Config_->HealthCheckTimeout);
 
@@ -181,62 +182,70 @@ void TGpuManager::OnHealthCheck()
     }
 }
 
-void TGpuManager::FetchDriverLayerInfo()
+void TGpuManager::OnFetchDriverLayerInfo()
 {
+    VERIFY_THREAD_AFFINITY(JobThread);
+
     try {
-        DoFetchDriverLayerInfo();
+        auto fetchedArtifactKey = FetchLayerArtifactKeyIfRevisionChanged(
+            DriverLayerPath_,
+            DriverLayerRevision_,
+            Bootstrap_,
+            EMasterChannelKind::Cache,
+            Logger);
+
+        if (fetchedArtifactKey.ContentRevision != DriverLayerRevision_) {
+            YT_VERIFY(fetchedArtifactKey.ArtifactKey);
+            auto guard = Guard(SpinLock_);
+            DriverLayerRevision_ = fetchedArtifactKey.ContentRevision;
+            DriverLayerKey_ = std::move(*fetchedArtifactKey.ArtifactKey);
+        }
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to fetch GPU layer");
     }
 }
 
-void TGpuManager::DoFetchDriverLayerInfo()
-{
-    auto fetchedArtifactKey = FetchLayerArtifactKeyIfRevisionChanged(
-        DriverLayerPath_,
-        DriverLayerRevision_,
-        Bootstrap_,
-        EMasterChannelKind::Cache,
-        Logger);
-
-    if (fetchedArtifactKey.ContentRevision != DriverLayerRevision_) {
-        YT_VERIFY(fetchedArtifactKey.ArtifactKey);
-        auto guard = Guard(SpinLock_);
-        DriverLayerRevision_ = fetchedArtifactKey.ContentRevision;
-        DriverLayerKey_ = std::move(*fetchedArtifactKey.ArtifactKey);
-    }
-}
-
 bool TGpuManager::IsDriverLayerMissing() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return DriverLayerPath_ && !DriverLayerKey_;
 }
 
 int TGpuManager::GetTotalGpuCount() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto guard = Guard(SpinLock_);
     return Disabled_ || IsDriverLayerMissing() ? 0 : HealthyGpuInfoMap_.size();
 }
 
 int TGpuManager::GetFreeGpuCount() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto guard = Guard(SpinLock_);
     return Disabled_ || IsDriverLayerMissing() ? 0 : FreeSlots_.size();
 }
 
 THashMap<int, TGpuInfo> TGpuManager::GetGpuInfoMap() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto guard = Guard(SpinLock_);
     return HealthyGpuInfoMap_;
 }
 
 const std::vector<TString>& TGpuManager::ListGpuDevices() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return GpuDevices_;
 }
 
 TGpuManager::TGpuSlotPtr TGpuManager::AcquireGpuSlot()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
     YT_VERIFY(!FreeSlots_.empty());
 
     auto deleter = [this, this_ = MakeStrong(this)] (TGpuSlot* slot) {
@@ -268,6 +277,8 @@ TGpuManager::TGpuSlotPtr TGpuManager::AcquireGpuSlot()
 
 std::vector<TShellCommandConfigPtr> TGpuManager::GetSetupCommands()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (Config_->JobSetupCommand) {
         return {*Config_->JobSetupCommand};
     }
@@ -277,6 +288,8 @@ std::vector<TShellCommandConfigPtr> TGpuManager::GetSetupCommands()
 
 std::vector<TArtifactKey> TGpuManager::GetToppingLayers()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto guard = Guard(SpinLock_);
     if (DriverLayerKey_) {
         return {
@@ -291,6 +304,8 @@ std::vector<TArtifactKey> TGpuManager::GetToppingLayers()
 
 void TGpuManager::VerifyToolkitDriverVersion(const TString& toolkitVersion)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!Config_->ToolkitMinDriverVersion.contains(toolkitVersion)) {
         THROW_ERROR_EXCEPTION("Unknown toolkit version %v", toolkitVersion);
     }
@@ -301,7 +316,7 @@ void TGpuManager::VerifyToolkitDriverVersion(const TString& toolkitVersion)
     auto actualVersion = TGpuDriverVersion::FromString(DriverVersionString_);
 
     if (actualVersion < minVersion) {
-        THROW_ERROR_EXCEPTION("Unsupported driver version for CUDA toolkit %v, required %v, actual %v",
+        THROW_ERROR_EXCEPTION("Unsupported GPU driver version for CUDA toolkit %v: required %v, actual %v",
             toolkitVersion,
             minVersionString,
             DriverVersionString_);

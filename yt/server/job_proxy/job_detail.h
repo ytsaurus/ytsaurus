@@ -40,7 +40,8 @@ public:
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
     virtual void Fail() override;
     virtual TCpuStatistics GetCpuStatistics() const override;
-
+    virtual i64 GetStderrSize() const override;
+ 
 protected:
     const IJobHostPtr Host_;
     const TInstant StartTime_;
@@ -61,8 +62,6 @@ public:
     virtual void Cleanup() override;
 
     virtual double GetProgress() const override;
-
-    virtual ui64 GetStderrSize() const override;
 
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
     virtual NChunkClient::TInterruptDescriptor GetInterruptDescriptor() const override;

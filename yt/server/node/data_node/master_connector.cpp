@@ -12,7 +12,7 @@
 
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
-#include <yt/server/node/cell_node/resource_manager.h>
+#include <yt/server/node/cell_node/node_resource_manager.h>
 
 #include <yt/server/node/data_node/journal_dispatcher.h>
 
@@ -990,14 +990,14 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         auto tags = FromProto<std::vector<TString>>(rsp->tags());
         UpdateTags(std::move(tags));
 
-        auto resourceManager = Bootstrap_->GetNodeResourceManager();
+        const auto& resourceManager = Bootstrap_->GetNodeResourceManager();
         resourceManager->SetResourceLimitsOverride(rsp->resource_limits_overrides());
 
-        auto jobController = Bootstrap_->GetJobController();
+        const auto& jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());
         jobController->SetDisableSchedulerJobs(rsp->disable_scheduler_jobs() || rsp->decommissioned());
 
-        auto sessionManager = Bootstrap_->GetSessionManager();
+        const auto& sessionManager = Bootstrap_->GetSessionManager();
         sessionManager->SetDisableWriteSessions(rsp->disable_write_sessions() || rsp->decommissioned());
 
         auto slotManager = Bootstrap_->GetTabletSlotManager();
@@ -1093,8 +1093,8 @@ void TMasterConnector::ReportJobHeartbeat()
     YT_VERIFY(IsConnected());
 
     auto cellTag = MasterCellTags_[JobHeartbeatCellIndex_];
-    auto Logger = DataNodeLogger;
-    Logger.AddTag("CellTag: %v", cellTag);
+    auto Logger = NLogging::TLogger(DataNodeLogger)
+        .AddTag("CellTag: %v", cellTag);
 
     auto* delta = GetChunksDelta(cellTag);
     if (delta->State == EState::Online) {
@@ -1104,11 +1104,9 @@ void TMasterConnector::ReportJobHeartbeat()
         auto req = proxy.Heartbeat();
         req->SetTimeout(Config_->JobHeartbeatTimeout);
 
-        auto jobController = Bootstrap_->GetJobController();
-        jobController->PrepareHeartbeatRequest(
-            cellTag,
-            EObjectType::MasterJob,
-            req.Get());
+        const auto& jobController = Bootstrap_->GetJobController();
+        WaitFor(jobController->PrepareHeartbeatRequest(cellTag, EObjectType::MasterJob, req))
+            .ThrowOnError();
 
         YT_LOG_INFO("Job heartbeat sent to master (ResourceUsage: %v)",
             FormatResourceUsage(req->resource_usage(), req->resource_limits()));
@@ -1128,7 +1126,8 @@ void TMasterConnector::ReportJobHeartbeat()
         YT_LOG_INFO("Successfully reported job heartbeat to master");
 
         const auto& rsp = rspOrError.Value();
-        jobController->ProcessHeartbeatResponse(rsp, EObjectType::MasterJob);
+        WaitFor(jobController->ProcessHeartbeatResponse(rsp, EObjectType::MasterJob))
+            .ThrowOnError();
     }
 
     if (++JobHeartbeatCellIndex_ >= MasterCellTags_.size()) {

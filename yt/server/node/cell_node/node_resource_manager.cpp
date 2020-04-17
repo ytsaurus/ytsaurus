@@ -1,11 +1,11 @@
-#include "resource_manager.h"
+#include "node_resource_manager.h"
 #include "private.h"
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/server/node/exec_agent/slot_manager.h>
-
 #include <yt/server/node/tablet_node/slot_manager.h>
+
+#include <yt/server/lib/containers/instance_limits_tracker.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
@@ -30,46 +30,44 @@ static const auto& Logger = CellNodeLogger;
 TMemoryLimitPtr GetMemoryLimit(const TResourceLimitsConfigPtr& config, EMemoryCategory category)
 {
     switch (category) {
-    case EMemoryCategory::UserJobs:
-        return config->UserJobs;
-    case EMemoryCategory::TabletStatic:
-        return config->TabletStatic;
-    case EMemoryCategory::TabletDynamic:
-        return config->TabletDynamic;
-    default:
-        return nullptr;
+        case EMemoryCategory::UserJobs:
+            return config->UserJobs;
+        case EMemoryCategory::TabletStatic:
+            return config->TabletStatic;
+        case EMemoryCategory::TabletDynamic:
+            return config->TabletDynamic;
+        default:
+            return nullptr;
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeResourceManager::TNodeResourceManager(
-    IInvokerPtr invoker,
-    TBootstrap* bootstrap,
-    TDuration updatePeriod)
-    : Invoker_(std::move(invoker))
-    , Bootstrap_(bootstrap)
+TNodeResourceManager::TNodeResourceManager(TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
     , Config_(Bootstrap_->GetConfig()->ResourceLimits)
     , UpdateExecutor_(New<TPeriodicExecutor>(
-        Invoker_,
+        Bootstrap_->GetControlInvoker(),
         BIND(&TNodeResourceManager::UpdateLimits, MakeWeak(this)),
-        updatePeriod))
+        Bootstrap_->GetConfig()->ResourceLimitsUpdatePeriod))
     , TotalCpu_(Config_->TotalCpu)
     , TotalMemory_(Config_->TotalMemory)
 { }
 
 void TNodeResourceManager::Start()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
-
-    YT_LOG_INFO("Starting node resource manager");
-
     UpdateExecutor_->Start();
+
+    if (const auto& instanceLimitsTracker = Bootstrap_->GetInstanceLimitsTracker()) {
+        instanceLimitsTracker->SubscribeLimitsUpdated(
+            BIND(&TNodeResourceManager::OnInstanceLimitsUpdated, MakeWeak(this))
+                .Via(Bootstrap_->GetControlInvoker()));
+    }
 }
 
 void TNodeResourceManager::OnInstanceLimitsUpdated(double cpuLimit, i64 memoryLimit)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     YT_LOG_INFO("Instance limits updated (OldCpuLimit: %v, NewCpuLimit: %v, OldMemoryLimit: %v, NewMemoryLimit: %v)",
         TotalCpu_,
@@ -83,21 +81,21 @@ void TNodeResourceManager::OnInstanceLimitsUpdated(double cpuLimit, i64 memoryLi
 
 double TNodeResourceManager::GetJobsCpuLimit() const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     return JobsCpuLimit_;
 }
 
 void TNodeResourceManager::SetResourceLimitsOverride(const TNodeResourceLimitsOverrides& resourceLimitsOverride)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     ResourceLimitsOverride_ = resourceLimitsOverride;
 }
 
 void TNodeResourceManager::UpdateLimits()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     YT_LOG_DEBUG("Updating node resource limits");
 
@@ -108,12 +106,12 @@ void TNodeResourceManager::UpdateLimits()
 
 void TNodeResourceManager::UpdateMemoryLimits()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     int dynamicCategoryCount = 0;
     i64 totalDynamicMemory = TotalMemory_ - *Config_->FreeMemoryWatermark;
 
-    auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
+    const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
 
     memoryUsageTracker->SetTotalLimit(TotalMemory_);
 
@@ -164,7 +162,7 @@ void TNodeResourceManager::UpdateMemoryLimits()
 
 void TNodeResourceManager::UpdateMemoryFootprint()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
 
@@ -178,7 +176,7 @@ void TNodeResourceManager::UpdateMemoryFootprint()
     }
     newFootprint = std::max<i64>(newFootprint, 0);
 
-    auto oldFootprint = Bootstrap_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::Footprint);
+    auto oldFootprint = memoryUsageTracker->GetUsed(EMemoryCategory::Footprint);
 
     YT_LOG_INFO("Memory footprint updated (BytesCommitted: %v, OldFootprint: %v, NewFootprint: %v)",
         bytesCommitted,
@@ -198,7 +196,7 @@ void TNodeResourceManager::UpdateMemoryFootprint()
 
 void TNodeResourceManager::UpdateJobsCpuLimit()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    VERIFY_THREAD_AFFINITY(ControlThread);
 
     double newJobsCpuLimit = 0;
 
@@ -212,21 +210,13 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
             newJobsCpuLimit = Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->Cpu;
         }
 
-        newJobsCpuLimit -= Bootstrap_->GetTabletSlotManager()->GetUsedCpu(*Config_->CpuPerTabletSlot);
+        const auto& tabletSlotManager = Bootstrap_->GetTabletSlotManager();
+        newJobsCpuLimit -= tabletSlotManager->GetUsedCpu(*Config_->CpuPerTabletSlot);
     }
     newJobsCpuLimit = std::max<double>(newJobsCpuLimit, 0);
 
-    auto slotManager = Bootstrap_->GetExecSlotManager();
-    if (slotManager) {
-        try {
-            Bootstrap_->GetExecSlotManager()->UpdateCpuLimit(newJobsCpuLimit);
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to update jobs cpu limit");
-            return;
-        }
-    }
-
-    JobsCpuLimit_ = newJobsCpuLimit;
+    JobsCpuLimit_.store(newJobsCpuLimit);
+    JobsCpuLimitUpdated_.Fire();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
