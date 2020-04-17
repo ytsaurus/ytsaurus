@@ -562,6 +562,21 @@ TEST_F(TSchedulerTest, FiberUnwindOrder)
     EXPECT_FALSE(f2.Get().IsOK());
 }
 
+TEST_F(TSchedulerTest, TestWaitUntilSet)
+{
+    auto p1 = NewPromise<void>();
+    auto f1 = p1.ToFuture();
+
+    BIND([=] () {
+        Sleep(SleepQuantum);
+        p1.Set();
+    }).AsyncVia(Queue1->GetInvoker()).Run();
+
+    WaitUntilSet(f1);
+    EXPECT_TRUE(f1.IsSet());
+    EXPECT_TRUE(f1.Get().IsOK());
+}
+
 TEST_F(TSchedulerTest, AsyncViaCanceledBeforeStart)
 {
     auto invoker = Queue1->GetInvoker();
