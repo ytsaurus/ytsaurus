@@ -10,7 +10,6 @@
 #include "fair_share_tree_element_common.h"
 #include "fair_share_tree_snapshot.h"
 #include "packing.h"
-#include "historic_usage_aggregator.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/scheduling_tag.h>
@@ -19,6 +18,8 @@
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
+
+#include <yt/core/misc/historic_usage_aggregator.h>
 
 namespace NYT::NScheduler::NClassicScheduler {
 

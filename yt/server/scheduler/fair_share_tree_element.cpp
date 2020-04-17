@@ -6,7 +6,6 @@
 #include "resource_tree.h"
 #include "resource_tree_element.h"
 #include "scheduling_context.h"
-#include "historic_usage_aggregator.h"
 
 #include "operation_log.h"
 
@@ -14,6 +13,7 @@
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/historic_usage_aggregator.h>
 
 #include <yt/core/profiling/timing.h>
 
