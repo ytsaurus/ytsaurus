@@ -80,6 +80,10 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchema(
     TVector<TSkiffSchemaPtr> skiffColumns;
     for (const auto& column: schema.Columns()) {
         TSkiffSchemaPtr skiffColumn;
+        if (column.Type() == VT_ANY && *column.TypeV3() != *NTi::Optional(NTi::Yson())) {
+            // We ignore all complex types until YT-12717 is done.
+            return nullptr;
+        }
         if (column.Required()) {
             skiffColumn = CreateSimpleTypeSchema(ValueTypeToSkiffType(column.Type()));
         } else {
@@ -284,13 +288,20 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
             default:
                 Y_FAIL("Unexpected node reader format: %d", static_cast<int>(nodeReaderFormat));
         }
+
+        NSkiff::TSkiffSchemaPtr curSkiffSchema;
         if (tablePaths[tableIndex].RenameColumns_) {
             auto customOptions = options;
             customOptions.RenameColumns(*tablePaths[tableIndex].RenameColumns_);
-            schemas.push_back(CreateSkiffSchema(attributes["schema"], customOptions));
+            curSkiffSchema = CreateSkiffSchema(attributes["schema"], customOptions);
         } else {
-            schemas.push_back(CreateSkiffSchema(attributes["schema"], options));
+            curSkiffSchema = CreateSkiffSchema(attributes["schema"], options);
         }
+
+        if (!curSkiffSchema) {
+            return nullptr;
+        }
+        schemas.push_back(curSkiffSchema);
     }
     return NSkiff::CreateVariant16Schema(std::move(schemas));
 }
