@@ -11,6 +11,7 @@
 #include <yt/client/hydra/public.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 namespace NYT::NJobAgent {
 
@@ -43,6 +44,10 @@ struct TGpuStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
+ * \note
+ * Thread affinity: any
+ */
 class TGpuManager
     : public TRefCounted
 {
@@ -67,8 +72,10 @@ private:
     NCellNode::TBootstrap* const Bootstrap_;
     const TGpuManagerConfigPtr Config_;
 
+    const NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
+
     std::vector<TString> GpuDevices_;
-    NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;
 
     TSpinLock SpinLock_;
     THashMap<int, TGpuInfo> HealthyGpuInfoMap_;
@@ -78,12 +85,12 @@ private:
     NYPath::TYPath DriverLayerPath_;
     NHydra::TRevision DriverLayerRevision_;
     std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
-    NConcurrency::TPeriodicExecutorPtr FetchDriverLayerExecutor_;
     TString DriverVersionString_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
     void OnHealthCheck();
-    void FetchDriverLayerInfo();
-    void DoFetchDriverLayerInfo();
+    void OnFetchDriverLayerInfo();
     bool IsDriverLayerMissing() const;
 };
 

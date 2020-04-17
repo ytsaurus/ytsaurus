@@ -25,9 +25,9 @@ class TJobProberService
     : public TServiceBase
 {
 public:
-    TJobProberService(NCellNode::TBootstrap* bootstrap)
+    explicit TJobProberService(NCellNode::TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetControlInvoker(),
+            bootstrap->GetJobInvoker(),
             TJobProberServiceProxy::GetDescriptor(),
             ExecAgentLogger)
         , Bootstrap_(bootstrap)
@@ -42,18 +42,18 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Interrupt));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Abort));
 
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
+        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
     }
 
 private:
     NCellNode::TBootstrap* const Bootstrap_;
 
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
@@ -68,7 +68,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetStderr)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
@@ -86,7 +86,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetSpec)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
@@ -102,7 +102,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Strace)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
@@ -116,7 +116,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, SignalJob)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         const auto& signalName = request->signal_name();
@@ -149,7 +149,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Interrupt)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
 
@@ -164,7 +164,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Abort)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         auto error = FromProto<TError>(request->error());

@@ -23,6 +23,10 @@ namespace NYT::NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Controls acquisition and release of slots.
+/*!
+ *  \note
+ *  Thread affinity: Job (unless noted otherwise)
+ */
 class TSlotManager
     : public TRefCounted
 {
@@ -44,16 +48,22 @@ public:
 
     bool IsEnabled() const;
 
-    void UpdateCpuLimit(double cpuLimit);
-
     NNodeTrackerClient::NProto::TDiskResources GetDiskResources();
 
     void OnJobFinished(EJobState jobState);
 
     void Disable(const TError& error);
 
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     void InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
 private:
@@ -77,11 +87,12 @@ private:
 
     //! If we observe too much consecutive aborts, we disable user slots on
     //! the node until restart and fire alert.
-    std::atomic<int> ConsecutiveAbortedJobCount_ = {0};
+    std::atomic<int> ConsecutiveAbortedJobCount_ = 0;
 
 
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
+    void OnJobsCpuLimitUpdated();
     void UpdateAliveLocations();
     void ResetTransientAlert();
     void PopulateAlerts(std::vector<TError>* alerts);

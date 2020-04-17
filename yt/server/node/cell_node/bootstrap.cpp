@@ -2,7 +2,7 @@
 #include "config.h"
 #include "batching_chunk_service.h"
 #include "dynamic_config_manager.h"
-#include "resource_manager.h"
+#include "node_resource_manager.h"
 #include "private.h"
 
 #include <yt/server/lib/exec_agent/config.h>
@@ -201,12 +201,14 @@ void TBootstrap::Initialize()
 {
     srand(time(nullptr));
 
-    ControlQueue_ = New<TActionQueue>("Control");
+    ControlActionQueue_ = New<TActionQueue>("Control");
+    JobActionQueue_ = New<TActionQueue>("Job");
 
     BIND(&TBootstrap::DoInitialize, this)
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
+       
         .ThrowOnError();
 }
 void TBootstrap::Run()
@@ -247,7 +249,8 @@ void TBootstrap::DoInitialize()
         Config_->ClusterConnection->PrimaryMaster->Addresses,
         Config_->Tags);
 
-    NodeResourceManager_ = New<TNodeResourceManager>(GetControlInvoker(), this, Config_->ResourceLimitsUpdatePeriod);
+    NodeResourceManager_ = New<TNodeResourceManager>(this);
+
 #ifdef __linux__
     if (Config_->InstanceLimitsUpdatePeriod) {
         auto portoExecutorConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecAgent->SlotManager->JobEnvironment)->PortoExecutor;
@@ -258,8 +261,6 @@ void TBootstrap::DoInitialize()
             portoExecutor,
             GetControlInvoker(),
             *Config_->InstanceLimitsUpdatePeriod);
-        InstanceLimitsTracker_->SubscribeLimitsUpdated(BIND(&TNodeResourceManager::OnInstanceLimitsUpdated, NodeResourceManager_)
-            .Via(GetControlInvoker()));
     }
 #endif
 
@@ -273,7 +274,6 @@ void TBootstrap::DoInitialize()
     MasterClient_ = MasterConnection_->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
 
     MasterCacheQueue_ = New<TActionQueue>("MasterCache");
-    JobThrottlerQueue_ = New<TActionQueue>("JobThrottler");
     TabletLookupThreadPool_ = New<TThreadPool>(
         Config_->QueryAgent->LookupThreadPoolSize,
         "TabletLookup",
@@ -814,7 +814,12 @@ const TCellNodeConfigPtr& TBootstrap::GetConfig() const
 
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
-    return ControlQueue_->GetInvoker();
+    return ControlActionQueue_->GetInvoker();
+}
+
+const IInvokerPtr& TBootstrap::GetJobInvoker() const
+{
+    return JobActionQueue_->GetInvoker();
 }
 
 IInvokerPtr TBootstrap::GetQueryPoolInvoker(
@@ -854,11 +859,6 @@ const IInvokerPtr& TBootstrap::GetStorageLightInvoker() const
 IInvokerPtr TBootstrap::GetStorageLookupInvoker() const
 {
     return StorageLookupThreadPool_->GetInvoker("default");
-}
-
-const IInvokerPtr& TBootstrap::GetJobThrottlerInvoker() const
-{
-    return JobThrottlerQueue_->GetInvoker();
 }
 
 const NNative::IClientPtr& TBootstrap::GetMasterClient() const
@@ -1019,6 +1019,11 @@ const TDynamicConfigManagerPtr& TBootstrap::GetDynamicConfigManager() const
 const TNodeResourceManagerPtr& TBootstrap::GetNodeResourceManager() const
 {
     return NodeResourceManager_;
+}
+
+const NContainers::TInstanceLimitsTrackerPtr& TBootstrap::GetInstanceLimitsTracker() const
+{
+    return InstanceLimitsTracker_;
 }
 
 const IQuerySubexecutorPtr& TBootstrap::GetQueryExecutor() const
@@ -1258,7 +1263,7 @@ void TBootstrap::OnMasterDisconnected()
     }
 }
 
-void TBootstrap::OnDynamicConfigUpdated(TCellNodeDynamicConfigPtr newConfig)
+void TBootstrap::OnDynamicConfigUpdated(const TCellNodeDynamicConfigPtr& newConfig)
 {
     Y_UNUSED(newConfig);
 }

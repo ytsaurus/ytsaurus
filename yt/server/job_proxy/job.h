@@ -91,7 +91,7 @@ struct IJob
 
     virtual double GetProgress() const = 0;
 
-    virtual ui64 GetStderrSize() const = 0;
+    virtual i64 GetStderrSize() const = 0;
 
     virtual std::optional<TString> GetFailContext() = 0;
 

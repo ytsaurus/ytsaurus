@@ -10,6 +10,7 @@
 
 #include <yt/core/actions/signal.h>
 
+
 #include <yt/core/misc/error.h>
 
 namespace NYT::NDataNode {
@@ -25,7 +26,7 @@ struct TArtifactDownloadOptions
 //! Manages chunks cached at Data Node.
 /*!
  *  \note
- *  Thread affinity: ControlThread (unless indicated otherwise)
+ *  Thread affinity: any
  */
 class TChunkCache
     : public TRefCounted
@@ -38,44 +39,28 @@ public:
 
     void Initialize();
 
+    //! Returns |true| if at least one chunk cache location is enabled.
     bool IsEnabled() const;
 
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.
-    /*!
-     *  \note
-     *  Thread affinity: any
-     */
     IChunkPtr FindChunk(TChunkId chunkId);
 
     //! Returns the list of all registered chunks.
-    /*!
-     *  \note
-     *  Thread affinity: any
-     */
     std::vector<IChunkPtr> GetChunks();
 
     //! Returns the number of registered chunks.
-    /*!
-     *  \note
-     *  Thread affinity: any
-     */
     int GetChunkCount();
 
     //! Downloads a single- or multi-chunk artifact into the cache.
     /*!
      *  The download process is asynchronous.
      *  If the chunk is already cached, it returns a pre-set result.
-     *
-     *  Thread affinity: any
      */
     TFuture<IChunkPtr> DownloadArtifact(
         const TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions);
 
     //! Constructs a producer that will download the artifact and feed its content to a stream.
-    /*!
-     *  Thread affinity: any
-     */
     std::function<void(IOutputStream*)> MakeArtifactDownloadProducer(
         const TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions);
