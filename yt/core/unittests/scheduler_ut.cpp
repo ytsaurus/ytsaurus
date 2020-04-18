@@ -727,20 +727,21 @@ TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
     EXPECT_TRUE(result);
 }
 
-void CheckCurrentFiberRunDuration(TDuration lo, TDuration hi)
+void CheckCurrentFiberRunDuration(TDuration actual, TDuration lo, TDuration hi)
 {
-    auto actual = NProfiling::CpuDurationToDuration(GetCurrentFiberRunCpuTime());
     EXPECT_LE(actual, hi);
     EXPECT_GE(actual, lo);
 }
 
 TEST_W(TSchedulerTest, FiberTiming)
 {
-    CheckCurrentFiberRunDuration(TDuration::MilliSeconds(0), TDuration::MilliSeconds(100));
+    NProfiling::TFiberWallTimer timer;
+
+    CheckCurrentFiberRunDuration(timer.GetElapsedTime(), TDuration::MilliSeconds(0), TDuration::MilliSeconds(100));
     Sleep(TDuration::Seconds(1));
-    CheckCurrentFiberRunDuration(TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
+    CheckCurrentFiberRunDuration(timer.GetElapsedTime(),TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
     TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
-    CheckCurrentFiberRunDuration(TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
+    CheckCurrentFiberRunDuration(timer.GetElapsedTime(),TDuration::MilliSeconds(900), TDuration::MilliSeconds(1100));
 }
 
 TEST_W(TSchedulerTest, CancelDelayedFuture)
