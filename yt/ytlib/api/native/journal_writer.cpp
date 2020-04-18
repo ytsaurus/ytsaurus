@@ -1145,14 +1145,15 @@ private:
                 node->InFlightBatches.push_back(batch);
             }
 
-            YT_LOG_DEBUG("Flushing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, DataSize: %v)",
+            YT_LOG_DEBUG("Flushing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, DataSize: %v, LagTime: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 CurrentSession_->Id,
                 node->FirstPendingBlockIndex,
                 node->FirstPendingBlockIndex + flushRowCount - 1,
                 node->FirstPendingRowIndex,
                 node->FirstPendingRowIndex + flushRowCount - 1,
-                flushDataSize);
+                flushDataSize,
+                lagTime);
 
             req->Invoke().Subscribe(
                 BIND(&TImpl::OnBlocksFlushed, MakeWeak(this), CurrentSession_, node, flushRowCount)
