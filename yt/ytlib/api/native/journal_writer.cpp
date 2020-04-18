@@ -1209,7 +1209,7 @@ private:
 
             MaybeFlushBlocks(node);
 
-            for (auto& promise : fulfilledPromises) {
+            for (const auto& promise : fulfilledPromises) {
                 promise.Set();
             }
 
