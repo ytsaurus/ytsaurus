@@ -548,8 +548,10 @@ private:
     {
         DoBeforeRun();
 
+        TFiberWallTimer timer;
+
         auto finally = Finally([&] {
-            DoAfterRun();
+            DoAfterRun(timer.GetElapsedValue());
         });
 
         try {
@@ -585,6 +587,8 @@ private:
         }
 
         if (Cancelable_) {
+            // TODO(lukyan): Wrap in CancelableExecution.
+
             auto fiberCanceler = GetCurrentFiberCanceler();
             if (fiberCanceler) {
                 auto cancelationHandler = BIND([fiberCanceler = std::move(fiberCanceler)] {
@@ -606,12 +610,11 @@ private:
         handler.Run(this, descriptor.Options);
     }
 
-    void DoAfterRun()
+    void DoAfterRun(NProfiling::TValue handlerElapsedValue)
     {
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
 
-        auto handlerFiberTime = CpuDurationToDuration(GetCurrentFiberRunCpuTime());
-        Profiler.Increment(PerformanceCounters_->HandlerFiberTimeCounter, DurationToValue(handlerFiberTime));
+        Profiler.Increment(PerformanceCounters_->HandlerFiberTimeCounter, handlerElapsedValue);
 
         if (TraceContext_) {
             FlushCurrentTraceContextTime();
