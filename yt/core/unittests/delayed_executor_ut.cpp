@@ -45,7 +45,7 @@ TEST(TDelayedExecutorTest, SubmitZeroDelay)
 
     auto cookie2 = TDelayedExecutor::Submit(
         BIND([fired, state, probe = TProbe(state.get())]() { ++*fired; }),
-        TDuration::MilliSeconds(100));
+        TDuration::MilliSeconds(10));
 
     Sleep(TDuration::MilliSeconds(20));
 
