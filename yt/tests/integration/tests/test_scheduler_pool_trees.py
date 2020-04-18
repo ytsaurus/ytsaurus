@@ -36,15 +36,17 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestPoolTreesReconfiguration, self).setup_method(method)
-        for node in ls("//sys/cluster_nodes"):
-            set("//sys/cluster_nodes/{}/@resource_limits_overrides".format(node), {})
-        # TODO(ignat): remove this custom teardown.
-        if exists("//sys/pool_trees/@default_tree"):
-            remove("//sys/pool_trees/@default_tree")
         for tree in ls("//sys/pool_trees"):
-            remove_pool_tree(tree)
+            remove("//sys/pool_trees/" + tree)
         create_pool_tree("default")
         set("//sys/pool_trees/@default_tree", "default")
+
+        orchid_root = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
+        wait(lambda: exists(orchid_root + "/default"))
+        wait(lambda: get(orchid_root + "/default/node_count") == 3)
+
+        wait(lambda: exists("//sys/scheduler/orchid/scheduler/default_pool_tree"))
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/default_pool_tree") == "default")
 
     def teardown_method(self, method):
         super(TestPoolTreesReconfiguration, self).teardown_method(method)
