@@ -3985,7 +3985,9 @@ TYsonString TClient::DoGetJob(
     }
 
     if (!job) {
-        THROW_ERROR_EXCEPTION("Job %v or operation %v not found neither in archive nor in controller agent",
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::NoSuchJob,
+            "Job %v or operation %v not found neither in archive nor in controller agent",
             jobId,
             operationId);
     }
