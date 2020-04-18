@@ -51,6 +51,7 @@ DuplicateMatchingDynamicConfigs = 1402
 UnrecognizedDynamicConfigOption = 1403
 InvalidDynamicConfig = 1405
 NoSuchOperation = 1915
+NoSuchJob = 1916
 NoSuchAttribute = 1920
 TabletNotMounted = 1702
 
