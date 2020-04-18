@@ -7,7 +7,6 @@
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/utilex/random.h>
-#include <yt/core/logging/log.h>
 
 namespace NYT::NConcurrency {
 
@@ -231,7 +230,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
         }
     }
 
-    auto cleanup = [=] () mutable {
+    auto cleanup = [=] {
         TPromise<void> idlePromise;
         {
             TGuard<TSpinLock> guard(SpinLock_);
