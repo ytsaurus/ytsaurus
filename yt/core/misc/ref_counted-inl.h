@@ -75,6 +75,7 @@ void TRefCountedLite::DestroyRefCountedImpl(T* ptr)
 {
     // No virtual call when T is final.
     ptr->~T();
+    NYTAlloc::FreeNonNull(ptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
