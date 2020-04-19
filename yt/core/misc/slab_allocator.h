@@ -7,7 +7,7 @@
 #include "memory_usage_tracker.h"
 #include "allocator_traits.h"
 
-#include <library/ytalloc/api/ytalloc.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <array>
 

@@ -4,7 +4,7 @@
 
 #include <yt/core/actions/public.h>
 
-#include <library/ytalloc/core/misc/preprocessor.h>
+#include <library/cpp/ytalloc/core/misc/preprocessor.h>
 
 #include <atomic>
 

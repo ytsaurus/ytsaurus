@@ -4,7 +4,7 @@
 #include <yt/core/misc/blob.h>
 #include <yt/core/misc/ref.h>
 
-#include <library/erasure/codec.h>
+#include <library/cpp/erasure/codec.h>
 
 #include <bitset>
 

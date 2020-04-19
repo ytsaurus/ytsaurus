@@ -1,6 +1,6 @@
 #include "statistics_producer.h"
 
-#include <library/ytalloc/api/ytalloc.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <yt/core/ytree/fluent.h>
 

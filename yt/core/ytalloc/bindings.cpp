@@ -8,7 +8,7 @@
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/string_builder.h>
 
-#include <library/ytalloc/api/ytalloc.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -227,6 +227,7 @@ public:
     std::optional<int> ProfilingBacktraceDepth;
     std::optional<size_t> MinProfilingBytesUsedToReport;
     std::optional<TDuration> StockpileInterval;
+    std::optional<int> StockpileThreadCount;
     std::optional<size_t> StockpileSize;
 
     TSerializableConfiguration()
@@ -246,6 +247,8 @@ public:
             .GreaterThan(0)
             .Default();
         RegisterParameter("stockpile_interval", StockpileInterval)
+            .Default();
+        RegisterParameter("stockpile_thread_count", StockpileThreadCount)
             .Default();
         RegisterParameter("stockpile_size", StockpileSize)
             .GreaterThan(0)
@@ -309,6 +312,9 @@ void ConfigureFromEnv()
     }
     if (config->StockpileInterval) {
         SetStockpileInterval(*config->StockpileInterval);
+    }
+    if (config->StockpileThreadCount) {
+        SetStockpileThreadCount(*config->StockpileThreadCount);
     }
     if (config->StockpileSize) {
         SetStockpileSize(*config->StockpileSize);
