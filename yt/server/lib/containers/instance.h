@@ -1,9 +1,5 @@
 #pragma once
 
-#ifndef __linux__
-#error Platform must be linux to include this
-#endif
-
 #include "public.h"
 
 #include <yt/core/actions/future.h>
