@@ -64,7 +64,7 @@
 
 #include <yt/core/ytree/public.h>
 
-#include <library/ytalloc/api/ytalloc.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <util/system/fs.h>
 #include <util/system/execpath.h>

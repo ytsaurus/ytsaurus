@@ -10,7 +10,7 @@
 
 #include <yt/core/misc/proc.h>
 
-#include <library/ytalloc/api/ytalloc.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <yt/core/ytalloc/bindings.h>
 
