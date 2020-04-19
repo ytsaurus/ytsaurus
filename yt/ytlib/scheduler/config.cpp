@@ -170,6 +170,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("delay_inside_abort", DelayInsideAbort)
         .Default();
+    RegisterParameter("delay_inside_register_jobs_from_revived_operation", DelayInsideRegisterJobsFromRevivedOperation)
+        .Default();
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
         .Default();
     RegisterParameter("no_delay_on_second_entrance_to_commit", NoDelayOnSecondEntranceToCommit)
