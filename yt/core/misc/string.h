@@ -4,6 +4,8 @@
 
 #include "string_builder.h"
 
+#include <util/string/strip.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -195,15 +197,72 @@ TString DecodeEnumValue(TStringBuf value);
 TString EncodeEnumValue(TStringBuf value);
 
 template <class T>
-T ParseEnum(TStringBuf value, typename TEnumTraits<T>::TType* = 0)
+T ParseEnum(TStringBuf value)
 {
-    return TEnumTraits<T>::FromString(DecodeEnumValue(value));
+    static_assert(TEnumTraits<T>::IsEnum);
+
+    if constexpr (TEnumTraits<T>::IsBitEnum) {
+        T result = {};
+        TStringBuf token;
+        while (value.TrySplit('|', token, value)) {
+            result |= TEnumTraits<T>::FromString(DecodeEnumValue(StripString(token)));
+        }
+        result |= TEnumTraits<T>::FromString(DecodeEnumValue(StripString(value)));
+        return result;
+    } else {
+        return TEnumTraits<T>::FromString(DecodeEnumValue(value));
+    }
 }
 
 template <class T>
-TString FormatEnum(T value, typename TEnumTraits<T>::TType* = 0)
+void FormatEnum(TStringBuilderBase* builder, T value, bool lowerCase)
 {
-    return EncodeEnumValue(ToString(value));
+    static_assert(TEnumTraits<T>::IsEnum);
+
+    auto formatScalarValue = [builder, lowerCase] (T value) {
+        auto* literal = TEnumTraits<T>::FindLiteralByValue(value);
+        if (!literal) {
+            YT_VERIFY(!TEnumTraits<T>::IsBitEnum);
+            builder->AppendFormat("%v(%v)",
+                TEnumTraits<T>::GetTypeName(),
+                static_cast<typename TEnumTraits<T>::TUnderlying>(value));
+            return;
+        }
+
+        if (lowerCase) {
+            CamelCaseToUnderscoreCase(builder, *literal);
+        } else {
+            builder->AppendString(*literal);
+        }
+    };
+
+    if constexpr (TEnumTraits<T>::IsBitEnum) {
+        auto* literal = TEnumTraits<T>::FindLiteralByValue(value);
+        if (literal) {
+            formatScalarValue(value);
+            return;
+        }
+        auto first = true;
+        for (auto scalarValue : TEnumTraits<T>::GetDomainValues()) {
+            if (Any(value & scalarValue)) {
+                if (!first) {
+                    builder->AppendString(AsStringBuf(" | "));
+                }
+                first = false;
+                formatScalarValue(scalarValue);
+            }
+        }
+    } else {
+        formatScalarValue(value);
+    }
+}
+
+template <class T>
+TString FormatEnum(T value, typename TEnumTraits<T>::TType* = nullptr)
+{
+    TStringBuilder b;
+    FormatEnum(&b, value, /* lowerCase */ true);
+    return b.Flush();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
