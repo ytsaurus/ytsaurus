@@ -338,7 +338,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get_in_sync_replicas("//tmp/t", [], timestamp=timestamp0) == [replica_id])
 
     @authors("gridem")
-    def test_in_sync_relicas_expression(self):
+    def test_in_sync_replicas_expression(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", schema=self.EXPRESSION_SCHEMA)
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
