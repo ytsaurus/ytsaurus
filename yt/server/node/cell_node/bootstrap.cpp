@@ -64,8 +64,10 @@
 
 #include <yt/server/lib/admin/admin_service.h>
 
+#ifdef __linux__
 #include <yt/server/lib/containers/instance_limits_tracker.h>
 #include <yt/server/lib/containers/porto_executor.h>
+#endif
 
 #include <yt/server/lib/core_dump/core_dumper.h>
 
@@ -246,6 +248,7 @@ void TBootstrap::DoInitialize()
         Config_->Tags);
 
     NodeResourceManager_ = New<TNodeResourceManager>(GetControlInvoker(), this, Config_->ResourceLimitsUpdatePeriod);
+#ifdef __linux__
     if (Config_->InstanceLimitsUpdatePeriod) {
         auto portoExecutorConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecAgent->SlotManager->JobEnvironment)->PortoExecutor;
         auto portoExecutor = CreatePortoExecutor(
@@ -258,6 +261,7 @@ void TBootstrap::DoInitialize()
         InstanceLimitsTracker_->SubscribeLimitsUpdated(BIND(&TNodeResourceManager::OnInstanceLimitsUpdated, NodeResourceManager_)
             .Via(GetControlInvoker()));
     }
+#endif
 
     MemoryUsageTracker_ = New<TNodeMemoryTracker>(
         Config_->ResourceLimits->TotalMemory,
@@ -666,9 +670,11 @@ void TBootstrap::DoRun()
         Config_->Tags);
 
     NodeResourceManager_->Start();
+#ifdef __linux__
     if (InstanceLimitsTracker_) {
         InstanceLimitsTracker_->Start();
     }
+#endif
 
     // Force start node directory synchronizer.
     MasterConnection_->GetNodeDirectorySynchronizer()->Start();

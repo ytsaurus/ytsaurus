@@ -221,7 +221,10 @@ private:
     NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     NQueryAgent::IQuerySubexecutorPtr QueryExecutor_;
 
+#ifdef __linux__
     NContainers::TInstanceLimitsTrackerPtr InstanceLimitsTracker_;
+#endif
+
     TNodeResourceManagerPtr NodeResourceManager_;
 
     std::vector<NNet::TIP6Address> ResolvedNodeAddresses_;
