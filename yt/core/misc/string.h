@@ -214,6 +214,8 @@ T ParseEnum(TStringBuf value)
     }
 }
 
+void FormatUnknownEnum(TStringBuilderBase* builder, TStringBuf name, i64 value);
+
 template <class T>
 void FormatEnum(TStringBuilderBase* builder, T value, bool lowerCase)
 {
@@ -223,7 +225,8 @@ void FormatEnum(TStringBuilderBase* builder, T value, bool lowerCase)
         auto* literal = TEnumTraits<T>::FindLiteralByValue(value);
         if (!literal) {
             YT_VERIFY(!TEnumTraits<T>::IsBitEnum);
-            builder->AppendFormat("%v(%v)",
+            FormatUnknownEnum(
+                builder,
                 TEnumTraits<T>::GetTypeName(),
                 static_cast<typename TEnumTraits<T>::TUnderlying>(value));
             return;
