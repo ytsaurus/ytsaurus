@@ -227,6 +227,7 @@ public:
     std::optional<int> ProfilingBacktraceDepth;
     std::optional<size_t> MinProfilingBytesUsedToReport;
     std::optional<TDuration> StockpileInterval;
+    std::optional<int> StockpileThreadCount;
     std::optional<size_t> StockpileSize;
     std::optional<bool> EnableEagerMemoryRelease;
 
@@ -248,6 +249,8 @@ public:
             .GreaterThan(0)
             .Default();
         RegisterParameter("stockpile_interval", StockpileInterval)
+            .Default();
+        RegisterParameter("stockpile_thread_count", StockpileThreadCount)
             .Default();
         RegisterParameter("stockpile_size", StockpileSize)
             .GreaterThan(0)
@@ -313,6 +316,9 @@ void ConfigureFromEnv()
     }
     if (config->StockpileInterval) {
         SetStockpileInterval(*config->StockpileInterval);
+    }
+    if (config->StockpileThreadCount) {
+        SetStockpileThreadCount(*config->StockpileThreadCount);
     }
     if (config->StockpileSize) {
         SetStockpileSize(*config->StockpileSize);
