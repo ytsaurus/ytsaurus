@@ -439,6 +439,8 @@ public:
 
     std::optional<TDuration> DelayInsideAbort;
 
+    std::optional<TDuration> DelayInsideRegisterJobsFromRevivedOperation;
+
     std::optional<i64> AllocationSize;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.

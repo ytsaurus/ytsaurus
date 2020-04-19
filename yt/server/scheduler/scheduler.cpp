@@ -859,6 +859,31 @@ public:
             BIND(&ISchedulerStrategy::UnregisterOperationFromTree, GetStrategy(), operation->GetId(), treeId));
     }
 
+    void ValidateOperationRuntimeParametersUpdate(
+        const TOperationPtr& operation,
+        const TOperationRuntimeParametersUpdatePtr& update)
+    {
+        // TODO(renadeen): Remove this someday.
+        if (!Config_->PoolChangeIsAllowed) {
+            if (update->Pool) {
+                THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+            }
+            for (const auto& [treeId, schedulingOptions] : update->SchedulingOptionsPerPoolTree) {
+                if (schedulingOptions->Pool) {
+                    THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+                }
+            }
+        }
+
+        // NB(eshcherbin): We don't want to allow operation pool changes during materialization or revival
+        // because we rely on them being unchanged in |FinishMaterializeOperation|.
+        auto state = operation->GetState();
+        if (state == EOperationState::Materializing || state == EOperationState::RevivingJobs) {
+            THROW_ERROR_EXCEPTION("Operation runtime parameters update is forbidden while "
+                                  "operation is in materializing or reviving jobs state");
+        }
+    }
+
     void DoUpdateOperationParameters(
         TOperationPtr operation,
         const TString& user,
@@ -879,27 +904,7 @@ public:
                 operation->BaseAcl().Entries.end());
         }
 
-        // TODO(renadeen): remove this someday
-        if (!Config_->PoolChangeIsAllowed) {
-            if (update->Pool) {
-                THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
-            }
-            for (const auto& [treeId, schedulingOptions] : update->SchedulingOptionsPerPoolTree) {
-                if (schedulingOptions->Pool) {
-                    THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
-                }
-            }
-        }
-
-        // TODO(escherbin): move this check to some helper and add tests.
-        auto state = operation->GetState();
-        if (state == EOperationState::Materializing ||
-            state == EOperationState::Reviving ||
-            state == EOperationState::RevivingJobs)
-        {
-            THROW_ERROR_EXCEPTION("Operation runtime parameters update is forbidden while "
-                                  "operation is in materializing or reviving state");
-        }
+        ValidateOperationRuntimeParametersUpdate(operation, update);
 
         auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
 
@@ -1089,27 +1094,26 @@ public:
             operation->GetRevivedFromSnapshot());
 
         TFuture<TOperationControllerMaterializeResult> asyncMaterializeResult;
-        TFuture<void> asyncCombineResult;
+        std::vector<TFuture<void>> futures;
         if (operation->GetRevivedFromSnapshot()) {
             operation->SetStateAndEnqueueEvent(EOperationState::RevivingJobs);
-            asyncCombineResult = RegisterJobsFromRevivedOperation(operation);
+            futures.push_back(RegisterJobsFromRevivedOperation(operation));
         } else {
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
             asyncMaterializeResult = operation->GetController()->Materialize();
+            futures.push_back(asyncMaterializeResult.AsVoid());
 
-            auto maybeFullFairShareUpdateFinished = operation->IsScheduledInSingleTree()
-                ? Strategy_->GetFullFairShareUpdateFinished()
-                : VoidFuture;
+            futures.push_back(ResetOperationRevival(operation));
+        }
 
-            asyncCombineResult = Combine(std::vector<TFuture<void>>({
-                asyncMaterializeResult.As<void>(),
-                ResetOperationRevival(operation),
-                maybeFullFairShareUpdateFinished
-            }));
+        if (operation->IsScheduledInSingleTree()) {
+            // NB(eshcherbin): We need to make sure that all necessary information is in fair share tree snapshots
+            // before choosing the best single tree for this operation during |FinishMaterializeOperation| later.
+            futures.push_back(Strategy_->GetFullFairShareUpdateFinished());
         }
 
         auto expectedState = operation->GetState();
-        asyncCombineResult.Subscribe(
+        AllSucceeded(std::move(futures)).Subscribe(
             BIND([=, this_ = MakeStrong(this), asyncMaterializeResult = std::move(asyncMaterializeResult)] (const TError& error) {
                 if (!error.IsOK()) {
                     return;
@@ -2711,6 +2715,10 @@ private:
         YT_LOG_INFO("Registering running jobs from the revived operation (OperationId: %v, JobCount: %v)",
             operation->GetId(),
             jobs.size());
+
+        if (auto delay = operation->Spec()->TestingOperationOptions->DelayInsideRegisterJobsFromRevivedOperation) {
+            TDelayedExecutor::WaitForDuration(*delay);
+        }
 
         // First, unfreeze operation and register jobs in strategy. Do this synchronously as we are in the scheduler control thread.
         Strategy_->RegisterJobsFromRevivedOperation(operation->GetId(), jobs);
