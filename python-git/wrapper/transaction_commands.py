@@ -6,8 +6,10 @@ from .batch_response import apply_function_to_result
 from datetime import datetime
 
 def transaction_params(transaction, client=None):
-    return {"ping_ancestor_transactions": get_command_param("ping_ancestor_transactions", client),
-            "transaction_id": get_value(transaction, get_command_param("transaction_id", client))}
+    params = {}
+    set_param(params, "transaction_id", get_value(transaction, get_command_param("transaction_id", client)))
+    set_param(params, "ping_ancestor_transactions", get_command_param("ping_ancestor_transactions", client))
+    return params
 
 def _make_transactional_request(command_name, params, **kwargs):
     return make_request(command_name, params, **kwargs)
@@ -26,7 +28,7 @@ def start_transaction(parent_transaction=None, timeout=None, deadline=None, attr
     :return: new transaction id.
     :rtype: str
 
-    .. seealso:: `start_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#starttx>`_
+    .. seealso:: `start_tx in the docs <https://yt.yandex-team.ru/docs/api/commands.html#starttx>`_
     """
     params = transaction_params(parent_transaction, client=client)
     timeout = get_value(timeout, get_config(client)["transaction_timeout"])
@@ -49,7 +51,7 @@ def abort_transaction(transaction, client=None):
 
     :param str transaction: transaction id.
 
-    .. seealso:: `abort_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#aborttx>`_
+    .. seealso:: `abort_tx in the docs <https://yt.yandex-team.ru/docs/api/commands.html#aborttx>`_
     """
     params = transaction_params(transaction, client=client)
     command_name = "abort_transaction" if get_api_version(client) == "v4" else "abort_tx"
@@ -60,7 +62,7 @@ def commit_transaction(transaction, client=None):
 
     :param str transaction: transaction id.
 
-    .. seealso:: `commit_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#committx>`_
+    .. seealso:: `commit_tx in the docs <https://yt.yandex-team.ru/docs/api/commands.html#committx>`_
     """
     params = transaction_params(transaction, client=client)
     command_name = "commit_transaction" if get_api_version(client) == "v4" else "commit_tx"
@@ -71,7 +73,7 @@ def ping_transaction(transaction, client=None):
 
     :param str transaction: transaction id.
 
-    .. seealso:: `ping_tx on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#pingtx>`_
+    .. seealso:: `ping_tx in the docs <https://yt.yandex-team.ru/docs/api/commands.html#pingtx>`_
     """
     params = transaction_params(transaction, client=client)
     command_name = "ping_transaction" if get_api_version(client) == "v4" else "ping_tx"

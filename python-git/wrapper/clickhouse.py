@@ -14,7 +14,8 @@ from .yson import dumps, to_yson_type
 
 import yt.logger as logger
 
-from yt.packages.six import iteritems, PY3
+from yt.packages.six import iteritems, itervalues, PY3
+from yt.packages.six.moves import xrange
 from yt.yson import YsonUint64
 
 from copy import deepcopy
@@ -37,6 +38,7 @@ BUNDLED_DEFAULTS = {
     "clickhouse_config": {},
     "max_failed_job_count": 10 * 1000,
     "uncompressed_block_cache_size": 20 * 1000*3,
+    "max_instance_count": 100,
 }
 
 
@@ -93,13 +95,6 @@ def _format_url(url):
     return to_yson_type(url, attributes={"_type_tag": "url"})
 
 
-# Inherit all custom attributes from the ytserver-clickhouse.
-# TODO(max42): YT-11099.
-def _get_user_attributes(path, client=None):
-    attr_keys = get(path + "/@user_attribute_keys", client=client)
-    return get(path + "/@", attributes=attr_keys, client=client)
-
-
 @_patch_defaults
 def _build_description(cypress_ytserver_clickhouse_path=None,
                        cypress_ytserver_log_tailer_path=None,
@@ -112,16 +107,13 @@ def _build_description(cypress_ytserver_clickhouse_path=None,
 
     description = {}
     if cypress_ytserver_clickhouse_path is not None:
-        description = update(description, {"ytserver-clickhouse": _get_user_attributes(cypress_ytserver_clickhouse_path, client=client)})
+        description = update(description, {"ytserver-clickhouse": get(cypress_ytserver_clickhouse_path + "/@user_attributes", client=client)})
 
     if cypress_ytserver_log_tailer_path is not None:
-        description = update(description, {"ytserver-log-tailer": _get_user_attributes(cypress_ytserver_log_tailer_path, client=client)})
+        description = update(description, {"ytserver-log-tailer": get(cypress_ytserver_log_tailer_path + "/@user_attributes", client=client)})
 
     if cypress_clickhouse_trampoline_path is not None:
-        description = update(description, {"clickhouse-trampoline": _get_user_attributes(cypress_clickhouse_trampoline_path, client=client)})
-
-    if artifact_path is not None:
-        description = update(description, {"artifact_path": _format_url()})
+        description = update(description, {"clickhouse-trampoline": get(cypress_clickhouse_trampoline_path + "/@user_attributes", client=client)})
 
     # Put information about previous incarnation of the operation by the given alias (if any).
     if prev_operation_id is not None:
@@ -139,8 +131,11 @@ def _build_description(cypress_ytserver_clickhouse_path=None,
 
     # Put link to monitoring.
     if cluster is not None and operation_alias is not None and enable_monitoring:
-        description["monitoring_url"] = _format_url(
+        description["solomon_root_url"] = _format_url(
             "https://solomon.yandex-team.ru/?project=yt&cluster={}&service=yt_clickhouse&operation_alias={}"
+                .format(cluster, operation_alias[1:]))
+        description["solomon_dashboard_url"] = _format_url(
+            "https://solomon.yandex-team.ru/?project=yt&cluster={}&service=yt_clickhouse&cookie=Aggr&dashboard=chyt&l.operation_alias={}"
                 .format(cluster, operation_alias[1:]))
 
     return description
@@ -168,6 +163,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
                                        enable_log_tailer=None,
                                        uncompressed_block_cache_size=None,
                                        trampoline_log_file=None,
+                                       max_instance_count=None,
                                        spec=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
@@ -193,6 +189,10 @@ def get_clickhouse_clique_spec_builder(instance_count,
             lambda: YtError("At least cypress clickhouse server config.yson path should be specified as cypress_config_"
                             "paths dictionary; consider using prepare_cypress_configs helper"))
 
+    require(instance_count <= max_instance_count,
+            lambda: YtError("Requested instance count exceeds maximum allowed instance count: {} > {}; if you indeed want to run clique of such size, "
+                            "consult with CHYT support in support chat".format(instance_count, max_instance_count)))
+
     spec_base = {
         "annotations": {
             "is_clique": True,
@@ -217,7 +217,7 @@ def get_clickhouse_clique_spec_builder(instance_count,
     spec = update(spec_base, spec)
 
     file_paths = [FilePath(cypress_config_path, file_name=file_name) for cypress_config_path, file_name
-                  in cypress_config_paths.itervalues()]
+                  in itervalues(cypress_config_paths)]
 
     def add_file(cypress_bin_path, host_bin_path, bin_name):
         if cypress_bin_path is not None:
@@ -381,7 +381,7 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_vers
     if log_tailer_version is not None:
         attributes["log_tailer_version"] = log_tailer_version
 
-    for attribute, value in attributes.iteritems():
+    for attribute, value in iteritems(attributes):
         attribute_path = table_path + "/@" + attribute
         logger.debug("Setting %s to %s", attribute_path, value)
         set(attribute_path, value, client=client)
@@ -393,7 +393,7 @@ def set_log_tailer_table_dynamic_attributes(table_kind, table_path, client=None)
         "tablet_balancer_config/desired_tablet_size": 10 * 1024**3,
         "tablet_balancer_config/max_tablet_size": 20 * 1024**3,
     }
-    for attribute, value in attributes.iteritems():
+    for attribute, value in iteritems(attributes):
         attribute_path = table_path + "/@" + attribute
         logger.debug("Setting %s to %s", attribute_path, value)
         set(attribute_path, value, client=client)
@@ -535,25 +535,27 @@ def upload_configs(configs, client=None):
         patched_config["remote_temp_files_directory"] = "//sys/clickhouse/kolkhoz/tmp"
         return YtClient(config=patched_config)
 
-    config_paths = {}
+    cypress_config_paths = {}
 
     logger.info("Uploading configs")
 
-    with NamedTemporaryFile() as temp:
-        temp.write(dumps(configs["clickhouse"], yson_format="pretty"))
-        temp.flush()
-        resulting_clickhouse_config_path = smart_upload_file(temp.name, client=create_client_with_clickhouse_tmp_directory(client))
-        config_paths["clickhouse"] = (resulting_clickhouse_config_path, "config.yson")
+    for config_key, filename in [("clickhouse", "config.yson"), ("log_tailer", "log_tailer_config.yson")]:
+        # We do not use NamedTemporaryFile as a context manager intentionally:
+        # due to weird Windows behaviour one cannot re-open temporary file by
+        # temp_file.name while holding temp_file.
+        # See also: https://docs.python.org/2/library/tempfile.html#tempfile.NamedTemporaryFile.
+        temp_file = NamedTemporaryFile(delete=False)
+        temp_file.write(dumps(configs[config_key], yson_format="pretty"))
+        temp_file.close()
+        logger.debug("Uploading config for %s", config_key)
+        cypress_path = smart_upload_file(temp_file.name, client=create_client_with_clickhouse_tmp_directory(client))
+        cypress_config_paths[config_key] = (cypress_path, filename)
+        os.unlink(temp_file.name)
 
-    with NamedTemporaryFile() as temp:
-        temp.write(dumps(configs["log_tailer"], yson_format="pretty"))
-        temp.flush()
-        resulting_log_tailer_config_path = smart_upload_file(temp.name, client=create_client_with_clickhouse_tmp_directory(client))
-        config_paths["log_tailer"] = (resulting_log_tailer_config_path, "log_tailer_config.yson")
+    logger.info("Configs uploaded")
+    logger.debug("Cypress config paths: %s", cypress_config_paths)
 
-    logger.info("Configs uploaded to %s", config_paths)
-
-    return config_paths
+    return cypress_config_paths
 
 
 def start_clickhouse_clique(instance_count,
@@ -634,7 +636,9 @@ def start_clickhouse_clique(instance_count,
     .. seealso::  :ref:`operation_parameters`.
     """
 
-    defaults = get("//sys/clickhouse/defaults", client=client) if exists("//sys/clickhouse/defaults", client=client) else BUNDLED_DEFAULTS
+    defaults = BUNDLED_DEFAULTS
+    if exists("//sys/clickhouse/defaults", client=client):
+        defaults = update(defaults, get("//sys/clickhouse/defaults", client=client))
 
     require(operation_alias.startswith("*"), lambda: YtError("Operation alias should start with '*' character"))
 
@@ -659,25 +663,22 @@ def start_clickhouse_clique(instance_count,
 
     prev_operation_id = prev_operation["id"] if prev_operation is not None else None
 
-    def resolve_path(cypress_bin_path, host_bin_path, cypress_default_bin_path, bin_name):
+    def resolve_path(cypress_bin_path, host_bin_path, bin_name, client=None):
         if cypress_bin_path is None and host_bin_path is None:
-            cypress_bin_path = cypress_default_bin_path
+            cypress_bin_path = get("//sys/clickhouse/bin/{}&/@target_path".format(bin_name), client=client)
         require(cypress_bin_path is None or host_bin_path is None,
                 lambda: YtError("Cypress {0} binary path and host {0} path "
                                 "cannot be specified at the same time").format(bin_name))
         return cypress_bin_path, host_bin_path
 
     cypress_ytserver_clickhouse_path, host_ytserver_clickhouse_path = \
-        resolve_path(cypress_ytserver_clickhouse_path, host_ytserver_clickhouse_path,
-                     "//sys/clickhouse/bin/ytserver-clickhouse", "ytserver-clickhouse")
+        resolve_path(cypress_ytserver_clickhouse_path, host_ytserver_clickhouse_path, "ytserver-clickhouse", client=client)
 
     cypress_clickhouse_trampoline_path, host_clickhouse_trampoline_path = \
-        resolve_path(cypress_clickhouse_trampoline_path, host_clickhouse_trampoline_path,
-                     "//sys/clickhouse/bin/clickhouse-trampoline", "clickhouse-trampoline")
+        resolve_path(cypress_clickhouse_trampoline_path, host_clickhouse_trampoline_path, "clickhouse-trampoline", client=client)
 
     cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path = \
-        resolve_path(cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path,
-                     "//sys/clickhouse/bin/ytserver-log-tailer", "ytserver-log-tailer")
+        resolve_path(cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path, "ytserver-log-tailer", client=client)
 
     configs = prepare_configs(instance_count,
                               cypress_base_config_path=cypress_base_config_path,

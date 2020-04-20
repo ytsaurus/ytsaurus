@@ -12,7 +12,7 @@ try:
 except:
     get_gdb_path = None
 
-from yt.common import YtError, remove_file, makedirp, set_pdeathsig, update
+from yt.common import YtError, remove_file, makedirp, update, which
 from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
@@ -28,6 +28,7 @@ import yt.packages.requests as requests
 
 import logging
 import os
+import copy
 import time
 import signal
 import socket
@@ -795,8 +796,17 @@ class YTInstance(object):
             processes = self._service_processes["node"]
             for process in processes:
                 if not isinstance(process, PortoSubprocess):
-                    raise  YtError("Cpu limits are not supported for non-porto environment")
+                    raise YtError("Cpu limits are not supported for non-porto environment")
                 process.set_cpu_limit(cpu_limit)
+
+    def set_nodes_memory_limit(self, memory_limit):
+        with self._lock:
+            logger.info("Setting memory limit {0} for nodes".format(memory_limit))
+            processes = self._service_processes["node"]
+            for process in processes:
+                if not isinstance(process, PortoSubprocess):
+                    raise YtError("Memory limits are not supported for non-porto environment")
+                process.set_memory_limit(memory_limit)
 
     def check_liveness(self, callback_func):
         with self._lock:
@@ -915,16 +925,17 @@ class YTInstance(object):
             if self._capture_stderr_to_file or isinstance(self._subprocess_module, PortoSubprocess):
                 stderr = open(stderr_path, "w")
 
-            def preexec():
-                os.setsid()
-                if self._kill_child_processes:
-                    set_pdeathsig()
-                for cgroup_path in cgroup_paths:
-                    with open(os.path.join(cgroup_path, "tasks"), "at") as handle:
-                        handle.write(str(os.getpid()))
-                        handle.write("\n")
+            if self._kill_child_processes:
+                args += ["--pdeathsig", str(int(signal.SIGTERM))]
+            for cgroup_path in cgroup_paths:
+                args += ["--cgroup", cgroup_path]
+            args += ["--setsid"]
 
-            p = self._subprocess_module.Popen(args, shell=False, close_fds=True, preexec_fn=preexec, cwd=self.runtime_data_path,
+            env = copy.copy(os.environ)
+            env = update(env, {"YT_ALLOC_CONFIG": "{enable_eager_memory_release=%true}"})
+
+            p = self._subprocess_module.Popen(args, shell=False, close_fds=True, cwd=self.runtime_data_path,
+                                              env=env,
                                               stdout=stdout, stderr=stderr)
 
             time.sleep(timeout)

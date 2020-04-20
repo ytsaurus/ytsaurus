@@ -62,3 +62,10 @@ class TestPrerequisite(object):
 
         assert not yt.exists(TEST_DIR + "/prerequisite/test")
         assert not yt.exists(TEST_DIR + "/prerequisite_test/test")
+
+@pytest.mark.usefixtures("yt_env")
+class TestTransactionsWithCommandParams(object):
+    def test_read_write(self):
+        client = yt.create_client_with_command_params()
+        client.write_table(TEST_DIR + "/test_table", [{"a": 10}])
+        assert list(client.read_table(TEST_DIR + "/test_table")) == [{"a": 10}]

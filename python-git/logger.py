@@ -17,13 +17,7 @@ def set_log_level_from_config(logger):
 
 logging.getLogger("yt.packages.requests.packages.urllib3").setLevel(logging.WARNING)
 
-try:
-    if yatest_common is not None and not int(yatest_common.get_param("inside_arcadia", True)):
-        LOGGER = logging.getLogger()
-    else:
-        LOGGER = logging.getLogger("Yt")
-except:
-    LOGGER = logging.getLogger("Yt")
+LOGGER = logging.getLogger("Yt")
 
 LOGGER.propagate = False
 

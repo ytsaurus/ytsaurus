@@ -346,7 +346,7 @@ class Format(object):
 class SkiffFormat(Format):
     """Efficient schemaful format
 
-    .. seealso:: `Skiff on wiki <https://wiki.yandex-team.ru/yt/userdoc/skiff/>`_
+    .. seealso:: `Skiff in the docs <https://yt.yandex-team.ru/docs/description/storage/skiff>`_
     """
 
     def __init__(self, schemas=None, schema_registry=None, attributes=None, raw=None):
@@ -418,7 +418,7 @@ class SkiffFormat(Format):
 class DsvFormat(Format):
     """Tabular format widely used in Statistics.
 
-    .. seealso:: `DSV on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats/#dsv>`_
+    .. seealso:: `DSV in the docs <https://yt.yandex-team.ru/docs/description/storage/formats/#DSV>`_
     """
 
     def __init__(self, enable_escaping=None, enable_table_index=None, table_index_column=None,
@@ -561,7 +561,7 @@ class DsvFormat(Format):
 class YsonFormat(Format):
     """Main and default YT data format.
 
-    .. seealso:: `YSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yson>`_
+    .. seealso:: `YSON in the docs <https://yt.yandex-team.ru/docs/description/storage/formats#YSON>`_
     """
 
     def __init__(self, format=None, control_attributes_mode=None,
@@ -732,7 +732,7 @@ class YamrFormat(Format):
     binary mode ('lenval') with length before each field.
 
     .. note:: In delimiter mode implemented just standard delimiter "\\\\t" and terminator "\\\\n".
-    .. seealso:: `YAMR on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yamr>`_
+    .. seealso:: `YAMR in the docs <https://wiki.yandex-team.ru/yt/userdoc/formats#yamr>`_
     """
 
     def __init__(self, has_subkey=None, lenval=None,
@@ -928,7 +928,7 @@ class YamrFormat(Format):
 class JsonFormat(Format):
     """Open standard text data format for attribute-value data.
 
-    .. seealso:: `JSON on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#json>`_
+    .. seealso:: `JSON in the docs <https://yt.yandex-team.ru/docs/description/storage/formats#JSON>`_
     """
     @staticmethod
     def _wrap_json_module(json_module):
@@ -1171,7 +1171,7 @@ class JsonFormat(Format):
 class YamredDsvFormat(YamrFormat):
     """Hybrid of Yamr and DSV formats. It is used to support yamr representations of tabular data.
 
-    .. seealso:: `Yamred DSV on wiki <https://wiki.yandex-team.ru/yt/userdoc/formats#yamreddsv>`_
+    .. seealso:: `Yamred DSV in the docs <https://wiki.yandex-team.ru/yt/userdoc/formats#yamreddsv>`_
     """
 
     def __init__(self, key_column_names=None, subkey_column_names=None,
@@ -1202,7 +1202,7 @@ class YamredDsvFormat(YamrFormat):
 class SchemafulDsvFormat(Format):
     """Schemaful dsv format. It accepts column names and outputs values of these columns.
 
-    .. seealso:: `SchemafulDsvFormat on wiki \
+    .. seealso:: `SchemafulDsvFormat in the docs \
     <https://wiki.yandex-team.ru//yt/userdoc/formats#schemafuldsv>`_
     """
 
