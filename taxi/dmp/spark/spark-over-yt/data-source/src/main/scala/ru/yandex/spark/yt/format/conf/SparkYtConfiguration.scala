@@ -1,6 +1,7 @@
 package ru.yandex.spark.yt.format.conf
 
 import ru.yandex.spark.yt.fs.conf.{DurationSecondsConfigEntry, IntConfigEntry}
+
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
@@ -30,6 +31,7 @@ object SparkYtConfiguration {
     case object Timeout extends DurationSecondsConfigEntry(s"$prefix.timeout", Some(5 minutes))
 
     case object PingInterval extends DurationSecondsConfigEntry(s"$prefix.pingInterval", Some(30 seconds))
+
   }
 
 }

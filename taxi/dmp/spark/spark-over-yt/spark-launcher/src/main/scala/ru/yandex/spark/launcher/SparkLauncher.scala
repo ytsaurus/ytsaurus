@@ -3,12 +3,11 @@ package ru.yandex.spark.launcher
 import java.io.{File, PrintWriter, StringWriter}
 import java.net.InetAddress
 
-import com.google.common.net.HostAndPort
 import io.circe.generic.auto._
 import io.circe.parser._
 import org.apache.log4j.Logger
 import ru.yandex.spark.discovery.{Address, CypressDiscoveryService, DiscoveryService}
-import ru.yandex.spark.yt.utils.YtClientConfiguration
+import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._

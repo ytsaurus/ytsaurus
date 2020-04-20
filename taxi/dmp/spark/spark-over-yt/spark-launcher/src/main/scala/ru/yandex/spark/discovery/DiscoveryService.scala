@@ -11,7 +11,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 trait DiscoveryService extends AutoCloseable {
-  def register(operationId: String, address: Address): Unit
+  def register(operationId: String, address: Address, clusterVersion: String): Unit
 
   def registerSHS(address: Address): Unit
 

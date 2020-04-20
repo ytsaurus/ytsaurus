@@ -3,17 +3,18 @@ package ru.yandex.spark.yt.fs
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.spark.yt.utils.YtTableUtils
-import ru.yandex.spark.yt.utils.YtTableUtils.writeToFile
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.spark.yt.test.TmpDir
+import ru.yandex.spark.yt.wrapper.YtWrapper
 
-import scala.io.Source
 import scala.concurrent.duration._
+import scala.io.Source
 import scala.language.postfixOps
 
 class YtFileSystemTest extends FlatSpec with Matchers with TmpDir {
 
   behavior of "YtFileSystemTest"
+
+  override def testDir: String = "/tmp/test" // should start with single slash
 
   private val conf = {
     val c = new Configuration()
@@ -26,18 +27,18 @@ class YtFileSystemTest extends FlatSpec with Matchers with TmpDir {
   fs.initialize(new Path("/").toUri, conf)
   fs.setConf(conf)
 
-  override def yt: YtClient = fs.yt
-
   def writeBytesToFile(path: String, content: Array[Byte], timeout: Duration = 1 minute): Unit = {
-    val os = writeToFile(path, timeout, transaction = None)
+    val os = YtWrapper.writeFile(path, timeout, transaction = None)
     try os.write(content) finally os.close()
   }
 
   it should "listStatus" in {
-    YtTableUtils.createDir(tmpPath)
-    YtTableUtils.createDir(s"$tmpPath/1")
-    YtTableUtils.createDir(s"$tmpPath/2")
-    YtTableUtils.createFile(s"$tmpPath/3")
+    println(tmpPath)
+    YtWrapper.createDir(tmpPath)
+    println("created")
+    YtWrapper.createDir(s"$tmpPath/1")
+    YtWrapper.createDir(s"$tmpPath/2")
+    YtWrapper.createFile(s"$tmpPath/3")
     writeBytesToFile(s"$tmpPath/3", "123".getBytes())
 
     val res = fs.listStatus(new Path(tmpPath)).map(f => (f.getPath, f.isDirectory, f.getLen))
@@ -50,7 +51,7 @@ class YtFileSystemTest extends FlatSpec with Matchers with TmpDir {
   }
 
   it should "open" in {
-    YtTableUtils.createFile(s"$tmpPath")
+    YtWrapper.createFile(s"$tmpPath")
     writeBytesToFile(s"$tmpPath", ("1" * 1024 * 1024).getBytes())
 
     val in = fs.open(new Path(tmpPath))
@@ -71,31 +72,31 @@ class YtFileSystemTest extends FlatSpec with Matchers with TmpDir {
       out.close()
     }
 
-    val res = YtTableUtils.readFileString(tmpPath)
+    val res = YtWrapper.readFileAsString(tmpPath)
     res shouldEqual "123"
   }
 
   it should "rename" in {
-    YtTableUtils.createDir(tmpPath)
-    YtTableUtils.createFile(s"$tmpPath/1")
+    YtWrapper.createDir(tmpPath)
+    YtWrapper.createFile(s"$tmpPath/1")
     writeBytesToFile(s"$tmpPath/1", "123".getBytes())
 
     fs.rename(new Path(s"$tmpPath/1"), new Path(s"$tmpPath/2"))
 
-    YtTableUtils.exists(s"$tmpPath/1") shouldEqual false
-    YtTableUtils.exists(s"$tmpPath/2") shouldEqual true
-    YtTableUtils.readFileString(s"$tmpPath/2") shouldEqual "123"
+    YtWrapper.exists(s"$tmpPath/1") shouldEqual false
+    YtWrapper.exists(s"$tmpPath/2") shouldEqual true
+    YtWrapper.readFileAsString(s"$tmpPath/2") shouldEqual "123"
   }
 
   it should "delete" in {
-    YtTableUtils.createDir(tmpPath)
+    YtWrapper.createDir(tmpPath)
 
     fs.delete(new Path(tmpPath), recursive = false)
 
-    YtTableUtils.exists(tmpPath) shouldEqual false
+    YtWrapper.exists(tmpPath) shouldEqual false
   }
 
-  it should "consider timeout" in {
+  it should "consider timeout" ignore {
     val out = fs.create(new Path(tmpPath))
     try {
       Thread.sleep((150 seconds).toMillis)
@@ -104,7 +105,7 @@ class YtFileSystemTest extends FlatSpec with Matchers with TmpDir {
       out.close()
     }
 
-    val res = YtTableUtils.readFileString(tmpPath)
+    val res = YtWrapper.readFileAsString(tmpPath)
     res shouldEqual "123"
   }
 

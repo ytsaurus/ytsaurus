@@ -9,17 +9,19 @@ from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.http_helpers import get_proxy_url, get_user_name
 from yt.wrapper.operation_commands import get_operation_url
 
-
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
 class SparkCluster(object):
-    def __init__(self, master_endpoint, master_web_ui_url, master_rest_endpoint, operation_id, shs_url):
+    def __init__(self, master_endpoint, master_web_ui_url, master_rest_endpoint, operation_id, shs_url,
+                 spark_cluster_version):
         self.master_endpoint = master_endpoint
         self.master_web_ui_url = master_web_ui_url
         self.master_rest_endpoint = master_rest_endpoint
         self.operation_id = operation_id
         self.shs_url = shs_url
+        self.spark_cluster_version = spark_cluster_version
 
     def operation_url(self, client=None):
         return get_operation_url(self.operation_id, client=client)
@@ -36,9 +38,9 @@ class SparkDiscovery(object):
         try:
             return yt_list(path, client=client)[0]
         except YtHttpResponseError as e:
-            logger.warning(e.message)
+            logging.warning("Failed to get path {}, message: {}".format(path, e.message))
             for inner in e.inner_errors:
-                logger.warning(inner["message"])
+                logging.warning("Failed to get path {}, inner message {}".format(path, inner["message"]))
 
     def create(self, client):
         create("map_node", self.discovery(), recursive=True, ignore_existing=True, client=client)
@@ -73,6 +75,9 @@ class SparkDiscovery(object):
 
     def stderr(self):
         return self.logs().join("stderr")
+
+    def spark_cluster_version(self):
+        return self.discovery().join("version")
 
 
 def parse_memory(memory):
@@ -117,25 +122,15 @@ def default_token():
 
 
 def base_spark_conf(client, discovery):
-    yt_proxy = get_proxy_url(client=client)
+    yt_proxy = get_proxy_url(required=True, client=client)
     yt_user = get_user_name(client=client)
+    spark_cluster_version = SparkDiscovery.get(discovery.spark_cluster_version(), client=client)
     return {
         "spark.hadoop.yt.proxy": yt_proxy,
         "spark.hadoop.yt.user": yt_user,
         "spark.master.rest.enabled": "true",
         "spark.eventLog.dir": "yt:/{}".format(discovery.event_log()),
-    }
-
-
-def default_spark_conf(is_dynamic):
-    return {
-        "spark.dynamicAllocation.enabled": is_dynamic,
-        "spark.dynamicAllocation.executorIdleTimeout": "10m",
-        "spark.dynamicAllocation.maxExecutors": 5,
-        "spark.cores.max": "20",
-        "spark.driver.maxResultSize": "1G",
-        "spark.driver.memory": "1G",
-        "spark.executor.memory": "8G"
+        "spark.yt.cluster.version": spark_cluster_version
     }
 
 

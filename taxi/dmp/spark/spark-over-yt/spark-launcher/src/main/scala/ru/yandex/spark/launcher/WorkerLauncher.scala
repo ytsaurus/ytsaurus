@@ -3,7 +3,7 @@ package ru.yandex.spark.launcher
 import com.twitter.scalding.Args
 import org.apache.log4j.Logger
 import ru.yandex.spark.discovery.DiscoveryService
-import ru.yandex.spark.yt.utils.YtClientConfiguration
+import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

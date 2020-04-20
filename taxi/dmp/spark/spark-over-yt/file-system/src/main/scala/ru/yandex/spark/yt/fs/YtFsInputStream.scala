@@ -1,7 +1,7 @@
 package ru.yandex.spark.yt.fs
 
 import org.apache.hadoop.fs.FSInputStream
-import ru.yandex.spark.yt.utils.YtFileInputStream
+import ru.yandex.spark.yt.wrapper.file.YtFileInputStream
 
 import scala.annotation.tailrec
 

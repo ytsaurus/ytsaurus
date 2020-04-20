@@ -1,16 +1,22 @@
+from distutils.util import convert_path
+
 import setuptools
+
+ver_path = convert_path('spyt/version.py')
+with open(ver_path) as ver_file:
+    exec(ver_file.read())
 
 setuptools.setup(
     name="yandex-spyt",
-    version="0.0.9",
+    version=__version__,
     author="Alexandra Belousova",
     author_email="sashbel@yandex-team.ru",
     description="Spark over YT high-level client",
     url="https://github.yandex-team.ru/taxi-dwh/spark-over-yt",
     packages=setuptools.find_packages(),
     install_requires=[
-        "yandex-pyspark==2.4.4.post2",
+        "yandex-pyspark==2.4.4.post0.1.0b7",
         "yandex-yt>=0.9.29",
-        "pyyaml>=5.3.1"
+        "pyyaml"
     ],
 )

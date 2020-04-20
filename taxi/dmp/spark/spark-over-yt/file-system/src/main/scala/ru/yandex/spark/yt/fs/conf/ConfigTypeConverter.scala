@@ -3,7 +3,6 @@ package ru.yandex.spark.yt.fs.conf
 import io.circe.parser._
 import io.circe.syntax._
 import org.apache.spark.sql.types._
-import ru.yandex.yt.ytclient.tables.ColumnValueType
 
 object ConfigTypeConverter {
   def sparkType(sType: String): DataType = {

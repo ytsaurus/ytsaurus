@@ -12,11 +12,12 @@ import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
-import org.apache.spark.sql.types.{StringType, StructType}
+import org.apache.spark.sql.types.StructType
 import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration, SparkYtWriteConfiguration, YtTableSparkSettings}
-import ru.yandex.spark.yt.fs.{YtClientConfigurationConverter, YtClientProvider, YtPath}
+import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
+import ru.yandex.spark.yt.fs.{YtClientProvider, YtPath}
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
-import ru.yandex.spark.yt.utils.YtTableUtils
+import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 import scala.util.{Failure, Success, Try}
@@ -27,7 +28,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
                            files: Seq[FileStatus]): Option[StructType] = {
     files.headOption.map { fileStatus =>
       val schemaHint = SchemaConverter.schemaHint(options)
-      implicit val client: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(sparkSession))
+      implicit val client: YtClient = YtClientProvider.ytClient(ytClientConfiguration(sparkSession))
       val path = fileStatus.getPath match {
         case ytPath: YtPath => ytPath.stringPath
         case p =>
@@ -36,7 +37,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
             case Failure(_) => p.toUri.getPath
           }
       }
-      val schemaTree = YtTableUtils.tableAttribute(path, "schema")
+      val schemaTree = YtWrapper.attribute(path, "schema")
       SchemaConverter.sparkSchema(schemaTree, schemaHint)
     }
   }
@@ -54,25 +55,25 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
                                               options: Map[String, String],
                                               hadoopConf: Configuration): PartitionedFile => Iterator[InternalRow] = {
     import ru.yandex.spark.yt.fs.conf._
-    val ytClientConfiguration = YtClientConfigurationConverter(hadoopConf)
+    val ytClientConf = ytClientConfiguration(hadoopConf)
     val readBatch = supportBatch(sparkSession, requiredSchema)
     val vectorizedReaderCapacity = hadoopConf.ytConf(SparkYtConfiguration.Read.VectorizedCapacity)
 
     (file: PartitionedFile) => {
-      implicit val yt: YtClient = YtClientProvider.ytClient(ytClientConfiguration)
+      implicit val yt: YtClient = YtClientProvider.ytClient(ytClientConf)
       val split = YtInputSplit(YtPath.decode(file.filePath), file.start, file.length, requiredSchema)
       if (readBatch) {
-        val ytVectorizedReader = new YtVectorizedReader(vectorizedReaderCapacity, ytClientConfiguration.timeout)
+        val ytVectorizedReader = new YtVectorizedReader(vectorizedReaderCapacity, ytClientConf.timeout)
         val iter = new RecordReaderIterator(ytVectorizedReader)
         if (readBatch) ytVectorizedReader.enableBatch()
         Option(TaskContext.get()).foreach(_.addTaskCompletionListener[Unit](_ => iter.close()))
         ytVectorizedReader.initialize(split, null)
         iter.asInstanceOf[Iterator[InternalRow]]
       } else {
-        val tableIterator = YtTableUtils.readTable(
+        val tableIterator = YtWrapper.readTable(
           split.getFullPath,
           InternalRowDeserializer.getOrCreate(requiredSchema),
-          ytClientConfiguration.timeout
+          ytClientConf.timeout
         )
         val unsafeProjection = UnsafeProjection.create(requiredSchema)
         tableIterator.map(unsafeProjection(_))
@@ -84,7 +85,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
                             job: Job,
                             options: Map[String, String],
                             dataSchema: StructType): OutputWriterFactory = {
-    val ytClientConfiguration = YtClientConfigurationConverter(sparkSession)
+    val ytClientConf = ytClientConfiguration(sparkSession)
     val writeConfiguration = SparkYtWriteConfiguration(sparkSession.sqlContext)
     YtTableSparkSettings.serialize(options, dataSchema, job.getConfiguration)
 
@@ -93,7 +94,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
 
       override def newInstance(path: String, dataSchema: StructType, context: TaskAttemptContext): OutputWriter = {
         val transaction = YtOutputCommitter.getWriteTransaction(context.getConfiguration)
-        new YtOutputWriter(path, dataSchema, ytClientConfiguration, writeConfiguration, transaction, options)
+        new YtOutputWriter(path, dataSchema, ytClientConf, writeConfiguration, transaction, options)
       }
     }
   }

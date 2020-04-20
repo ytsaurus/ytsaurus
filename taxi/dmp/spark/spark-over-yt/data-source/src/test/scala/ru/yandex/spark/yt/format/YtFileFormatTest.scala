@@ -10,11 +10,11 @@ import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.fs.conf.YtLogicalType
-import ru.yandex.spark.yt.test.{TestUtils, TmpTable}
-import ru.yandex.spark.yt.utils.YtTableUtils
+import ru.yandex.spark.yt.test.{TestUtils, TmpDir}
+import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
-class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUtils {
+class YtFileFormatTest extends FlatSpec with Matchers with TmpDir with TestUtils {
 
   import YtFileFormatTest._
   import spark.implicits._
@@ -267,8 +267,8 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUti
 
     Logger.getRootLogger.setLevel(Level.WARN)
 
-    YtTableUtils.exists(tmpPath) shouldEqual false
-    YtTableUtils.exists(s"$tmpPath-tmp") shouldEqual false
+    YtWrapper.exists(tmpPath) shouldEqual false
+    YtWrapper.exists(s"$tmpPath-tmp") shouldEqual false
   }
 
   it should "write dataset with complex types" in {
@@ -363,7 +363,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUti
 
     Seq(1, 2, 3).toDF.coalesce(1).write.optimizeFor(OptimizeMode.Scan).yt(tmpPath)
 
-    YtTableUtils.tableAttribute(tmpPath, "optimize_for").stringValue() shouldEqual "scan"
+    YtWrapper.attribute(tmpPath, "optimize_for").stringValue() shouldEqual "scan"
   }
 
   it should "kill transaction when failed because of timeout" in {
@@ -378,7 +378,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUti
       }
       Logger.getRootLogger.setLevel(Level.WARN)
 
-      YtTableUtils.exists(s"$tmpPath-tmp") shouldEqual false
+      YtWrapper.exists(s"$tmpPath-tmp") shouldEqual false
     } finally {
       spark.sqlContext.setConf("spark.yt.timeout", "300")
       spark.sqlContext.setConf("spark.yt.write.timeout", "120")
@@ -421,11 +421,11 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUti
 
     (1 to 9).toDF.coalesce(3).write.sortedBy("value").yt(tmpPath)
 
-    val sortColumns = YtTableUtils.tableAttribute(tmpPath, "sorted_by").asList().asScala.map(_.stringValue())
+    val sortColumns = YtWrapper.attribute(tmpPath, "sorted_by").asList().asScala.map(_.stringValue())
     sortColumns should contain theSameElementsAs Seq("value")
 
     val schemaCheck = Seq("name", "type", "sort_order")
-    val schema = YtTableUtils.tableAttribute(tmpPath, "schema").asList().asScala.map { field =>
+    val schema = YtWrapper.attribute(tmpPath, "schema").asList().asScala.map { field =>
       val map = field.asMap()
       schemaCheck.map(n => n -> map.getOrThrow(n).stringValue())
     }
@@ -496,16 +496,25 @@ class YtFileFormatTest extends FlatSpec with Matchers with TmpTable with TestUti
       .withColumn("value1", lit(null).cast(StringType))
       .withYsonColumn("info", struct('value1, 'value2))
 
-    df1.union(df2).coalesce(1).write.yt(tmpPath)
+    df1.unionByName(df2).coalesce(1).write.yt(tmpPath)
 
-    spark.read
+    val res = spark.read
       .schemaHint(
         "info" -> StructType(Seq(
           StructField("value1", StringType),
           StructField("value2", StringType)
         ))
       )
-      .yt(tmpPath).show()
+      .yt(tmpPath)
+
+    res.collect() should contain theSameElementsAs Seq(
+      Row("a", null, Row("a", null)),
+      Row("b", null, Row("b", null)),
+      Row("c", null, Row("c", null)),
+      Row(null, "A", Row(null, "A")),
+      Row(null, "B", Row(null, "B")),
+      Row(null, "C", Row(null, "C"))
+    )
   }
 }
 

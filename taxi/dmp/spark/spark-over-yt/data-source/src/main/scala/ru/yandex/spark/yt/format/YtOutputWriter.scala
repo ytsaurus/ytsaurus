@@ -14,11 +14,11 @@ import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.yt.format.conf.SparkYtWriteConfiguration
 import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientProvider}
 import ru.yandex.spark.yt.serializers.InternalRowSerializer
-import ru.yandex.spark.yt.utils._
+import ru.yandex.spark.yt.wrapper.LogLazy
+import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.yt.ytclient.proxy.TableWriter
 import ru.yandex.yt.ytclient.proxy.request.{TransactionalOptions, WriteTable}
 
-import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
 
 class YtOutputWriter(path: String,
@@ -26,7 +26,7 @@ class YtOutputWriter(path: String,
                      ytClientConfiguration: YtClientConfiguration,
                      writeConfiguration: SparkYtWriteConfiguration,
                      transactionGuid: String,
-                     options: Map[String, String]) extends OutputWriter {
+                     options: Map[String, String]) extends OutputWriter with LogLazy {
 
   import writeConfiguration._
 

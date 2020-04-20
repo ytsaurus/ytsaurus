@@ -7,9 +7,10 @@ import org.apache.log4j.Logger
 import org.apache.spark.internal.io.FileCommitProtocol
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration, YtTableSparkSettings}
-import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientConfigurationConverter, YtClientProvider}
-import ru.yandex.spark.yt.utils.YtTableUtils.Cancellable
-import ru.yandex.spark.yt.utils._
+import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
+import ru.yandex.spark.yt.fs.conf._
+import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientProvider}
+import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, YtClient}
 
 import scala.concurrent.ExecutionContext
@@ -29,7 +30,7 @@ class YtOutputCommitter(jobId: String,
     implicit val ytClient: YtClient = yt(conf)
     withTransaction(createTransaction(conf, GlobalTransaction, None)) { transaction =>
       if (YtTableSparkSettings.isTableSorted(conf)) {
-        YtTableUtils.createDir(tmpPath, Some(transaction))
+        YtWrapper.createDir(tmpPath, Some(transaction))
       }
       setupTable(path, conf, transaction)
     }
@@ -37,9 +38,9 @@ class YtOutputCommitter(jobId: String,
 
   private def setupTable(path: String, conf: Configuration, transaction: String)
                         (implicit yt: YtClient): Unit = {
-    if (!YtTableUtils.exists(path)) {
+    if (!YtWrapper.exists(path)) {
       val options = YtTableSparkSettings.deserialize(conf)
-      YtTableUtils.createTable(path, options, transaction)
+      YtWrapper.createTable(path, options, transaction)
       GlobalTableSettings.setTransaction(path, transaction)
     }
   }
@@ -65,12 +66,12 @@ class YtOutputCommitter(jobId: String,
 
   override def commitJob(jobContext: JobContext, taskCommits: Seq[FileCommitProtocol.TaskCommitMessage]): Unit = {
     val conf = jobContext.getConfiguration
-    withTransaction(YtOutputCommitter.getGlobalWriteTransaction(conf)){ transaction =>
+    withTransaction(YtOutputCommitter.getGlobalWriteTransaction(conf)) { transaction =>
       if (YtTableSparkSettings.isTableSorted(conf)) {
-        implicit val yt: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(conf))
+        implicit val yt: YtClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
         implicit val ytHttp: Yt = YtClientProvider.httpClient
-        YtTableUtils.mergeTables(tmpPath, path, sorted = true, Some(transaction))
-        YtTableUtils.removeDir(tmpPath, recursive = true, Some(transaction))
+        YtWrapper.mergeTables(tmpPath, path, sorted = true, Some(transaction))
+        YtWrapper.removeDir(tmpPath, recursive = true, Some(transaction))
       }
       GlobalTableSettings.removeTransaction(path)
       commitTransaction(jobContext.getConfiguration, GlobalTransaction)
@@ -94,13 +95,12 @@ class YtOutputCommitter(jobId: String,
 object YtOutputCommitter {
 
   import ru.yandex.spark.yt.format.conf.SparkYtInternalConfiguration._
-  import ru.yandex.spark.yt.fs.conf._
 
   private val log = Logger.getLogger(getClass)
 
-  private val pingFutures = scala.collection.concurrent.TrieMap.empty[String, (ApiServiceTransaction, Cancellable[Unit])]
+  private val pingFutures = scala.collection.concurrent.TrieMap.empty[String, (ApiServiceTransaction, YtWrapper.Cancellable[Unit])]
 
-  private def yt(conf: Configuration): YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(conf))
+  private def yt(conf: Configuration): YtClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
 
   def withTransaction(transaction: String)(f: String => Unit): Unit = {
     try {
@@ -118,15 +118,15 @@ object YtOutputCommitter {
   }
 
   def createTransaction(conf: Configuration, confEntry: StringConfigEntry, parent: Option[String]): String = {
-    implicit val yt: YtClient = YtClientProvider.ytClient(YtClientConfigurationConverter(conf))
+    implicit val yt: YtClient = YtClientProvider.ytClient(ytClientConfiguration(conf))
     implicit val ytHttp: Yt = YtClientProvider.httpClient
 
     val transactionTimeout = conf.ytConf(SparkYtConfiguration.Transaction.Timeout)
     val pingInterval = conf.ytConf(SparkYtConfiguration.Transaction.PingInterval)
 
-    val transaction = YtTableUtils.createTransaction(parent, transactionTimeout)
+    val transaction = YtWrapper.createTransaction(parent, transactionTimeout)
     try {
-      val pingFuture = YtTableUtils.pingTransaction(transaction, pingInterval)(yt, ExecutionContext.global)
+      val pingFuture = YtWrapper.pingTransaction(transaction, pingInterval)(yt, ExecutionContext.global)
       pingFutures += transaction.getId.toString -> (transaction, pingFuture)
       log.info(s"Create write transaction: ${transaction.getId}")
       conf.setYtConf(confEntry, transaction.getId.toString)
@@ -151,7 +151,7 @@ object YtOutputCommitter {
   }
 
   def commitTransaction(conf: Configuration, confEntry: StringConfigEntry): Unit = {
-    withTransaction(conf.ytConf(confEntry)){transactionGuid =>
+    withTransaction(conf.ytConf(confEntry)) { transactionGuid =>
       log.info(s"Commit write transaction: $transactionGuid")
       pingFutures.remove(transactionGuid).foreach { case (transaction, (cancel, _)) =>
         log.info(s"Cancel ping transaction: $transactionGuid")

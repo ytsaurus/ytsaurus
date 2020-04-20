@@ -6,7 +6,7 @@ import java.util.zip.GZIPOutputStream
 import org.apache.commons.compress.archivers.tar.{TarArchiveEntry, TarArchiveOutputStream}
 import org.apache.commons.compress.utils.IOUtils
 import sbt.PluginTrigger.AllRequirements
-import sbt.{AutoPlugin, Def, File, _}
+import sbt._
 
 import scala.annotation.tailrec
 

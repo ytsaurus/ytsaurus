@@ -3,6 +3,7 @@ import sbt._
 import sbt.plugins.JvmPlugin
 import sbtassembly.AssemblyPlugin.autoImport._
 import ru.yandex.sbt.YtPublishPlugin
+import Dependencies._
 
 object CommonPlugin extends AutoPlugin {
   override def trigger = AllRequirements
@@ -13,7 +14,7 @@ object CommonPlugin extends AutoPlugin {
     resolvers += "YandexMediaReleases" at "http://artifactory.yandex.net/artifactory/yandex_media_releases",
     resolvers += "YandexSparkReleases" at "http://artifactory.yandex.net/artifactory/yandex_spark_releases",
     resolvers += MavenCache("local-maven", Path.userHome / ".m2" / "repository"),
-    version in ThisBuild := "0.0.32-SNAPSHOT",
+    version in ThisBuild := "0.1.0-SNAPSHOT",
     organization := "ru.yandex",
     name := s"spark-yt-${name.value}",
     scalaVersion := "2.12.8",
@@ -30,6 +31,7 @@ object CommonPlugin extends AutoPlugin {
       ShadeRule.zap("META-INF.org.apache.logging.log4j.core.config.plugins.Log4j2Plugins.dat")
         .inLibrary("org.apache.logging.log4j" % "log4j-core" % "2.11.0")
     ),
+    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
     publishTo := {
       val nexus = "http://artifactory.yandex.net/artifactory/"
       if (isSnapshot.value)
@@ -37,6 +39,7 @@ object CommonPlugin extends AutoPlugin {
       else
         Some("releases" at nexus + "yandex_spark_releases")
     },
-    credentials += Credentials(Path.userHome / ".sbt" / ".credentials")
+    credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
+    libraryDependencies ++= testDeps
   )
 }
