@@ -388,9 +388,7 @@ public:
             }
 
             if (RegisteredParticipantIds_.insert(cellId).second) {
-                bool prepareOnly =
-                    TypeFromId(cellId) == EObjectType::MasterCell &&
-                    std::find(ReplicatedToMasterCellTags_.begin(), ReplicatedToMasterCellTags_.end(), CellTagFromId(cellId)) != ReplicatedToMasterCellTags_.end();
+                bool prepareOnly = IsReplicatedToMasterCell(cellId);
                 YT_LOG_DEBUG("Transaction participant registered (TransactionId: %v, CellId: %v, PrepareOnly: %v)",
                     Id_,
                     cellId,
@@ -923,6 +921,10 @@ private:
     {
         std::vector<TFuture<void>> asyncResults;
         for (auto cellId : GetRegisteredParticipantIds()) {
+            if (IsReplicatedToMasterCell(cellId)) {
+                continue;
+            }
+            
             YT_LOG_DEBUG("Pinging transaction (TransactionId: %v, CellId: %v)",
                 Id_,
                 cellId);
@@ -1146,6 +1148,13 @@ private:
     {
         auto guard = Guard(SpinLock_);
         return RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end();
+    }
+    
+    bool IsReplicatedToMasterCell(TCellId cellId)
+    {
+        return
+            TypeFromId(cellId) == EObjectType::MasterCell &&
+            std::find(ReplicatedToMasterCellTags_.begin(), ReplicatedToMasterCellTags_.end(), CellTagFromId(cellId)) != ReplicatedToMasterCellTags_.end();
     }
 };
 
