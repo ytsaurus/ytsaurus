@@ -100,9 +100,25 @@ TTcpConnection::~TTcpConnection()
 
 void TTcpConnection::Close()
 {
-    if (CloseError_.IsOK()) {
-        CloseError_ = TError(NBus::EErrorCode::TransportError, "Bus terminated")
-            << *EndpointAttributes_;
+    {
+        auto guard = Guard(Lock_);
+
+        if (CloseError_.IsOK()) {
+            CloseError_ = TError(NBus::EErrorCode::TransportError, "Bus terminated")
+                << *EndpointAttributes_;
+        }        
+
+        if (Socket_ != INVALID_SOCKET) {
+            if (State_ == EState::Open) {
+                Poller_->Unarm(Socket_);
+                UpdateConnectionCount(-1);
+            }
+            close(Socket_);
+            Socket_ = INVALID_SOCKET;
+        }
+
+        State_ = EState::Closed;
+        Pending_ = EPollControl::Offline;
     }
 
     DiscardOutcomingMessages(CloseError_);
@@ -121,18 +137,6 @@ void TTcpConnection::Close()
     }
 
     EncodedFragments_.clear();
-
-    if (Socket_ != INVALID_SOCKET) {
-        if (State_ == EState::Open) {
-            Poller_->Unarm(Socket_);
-            UpdateConnectionCount(-1);
-        }
-        close(Socket_);
-        Socket_ = INVALID_SOCKET;
-    }
-
-    State_ = EState::Closed;
-    Pending_ = EPollControl::Offline;
 }
 
 void TTcpConnection::Start()
@@ -595,12 +599,8 @@ void TTcpConnection::OnEvent(EPollControl control)
 
 void TTcpConnection::OnShutdown()
 {
-    {
-        auto guard = Guard(Lock_);
-
-        // Perform the initial cleanup (the final one will be in dtor).
-        Close();
-    }
+    // Perform the initial cleanup (the final one will be in dtor).
+    Close();
 
     YT_LOG_DEBUG(CloseError_, "Connection terminated");
 
