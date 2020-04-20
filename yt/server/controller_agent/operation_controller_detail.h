@@ -262,6 +262,8 @@ public:
     // ITaskHost implementation.
 
     virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
+    virtual IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
+        EOperationControllerQueue queue = EOperationControllerQueue::Default) const override;
 
     virtual std::optional<NYPath::TRichYPath> GetStderrTablePath() const override;
     virtual std::optional<NYPath::TRichYPath> GetCoreTablePath() const override;
@@ -396,6 +398,7 @@ protected:
     NApi::NNative::IClientPtr OutputClient;
 
     TCancelableContextPtr CancelableContext;
+    IDiagnosableInvokerPoolPtr DiagnosableInvokerPool;
     IInvokerPoolPtr InvokerPool;
     ISuspendableInvokerPoolPtr SuspendableInvokerPool;
     IInvokerPoolPtr CancelableInvokerPool;
@@ -523,7 +526,7 @@ protected:
     void AnalyzeJobsDuration();
     void AnalyzeOperationDuration();
     void AnalyzeScheduleJobStatistics();
-    void AnalyzeQueueAverageWaitTime();
+    void AnalyzeControllerQueues();
 
     void AnalyzeOperationProgress();
 
@@ -1110,6 +1113,9 @@ private:
     };
 
     THashMap<NChunkClient::TInputChunkPtr, TLivePreviewChunkDescriptor> LivePreviewChunks_;
+
+    using TControllerQueueStatistics = TEnumIndexedVector<EOperationControllerQueue, IDiagnosableInvokerPool::TInvokerStatistics>;
+    TControllerQueueStatistics LastControllerQueueStatistics_;
 
     ssize_t GetMemoryUsage() const;
 

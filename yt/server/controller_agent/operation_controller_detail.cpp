@@ -228,9 +228,10 @@ TOperationControllerBase::TOperationControllerBase(
     })
     , Acl(operation->GetAcl())
     , CancelableContext(New<TCancelableContext>())
-    , InvokerPool(CreateFairShareInvokerPool(
+    , DiagnosableInvokerPool(CreateFairShareInvokerPool(
         CreateMemoryTaggingInvoker(CreateSerializedInvoker(Host->GetControllerThreadPoolInvoker()), operation->GetMemoryTag()),
         TEnumTraits<EOperationControllerQueue>::DomainSize))
+    , InvokerPool(DiagnosableInvokerPool)
     , SuspendableInvokerPool(TransformInvokerPool(InvokerPool, CreateSuspendableInvoker))
     , CancelableInvokerPool(TransformInvokerPool(
         SuspendableInvokerPool,
@@ -3717,29 +3718,44 @@ void TOperationControllerBase::AnalyzeScheduleJobStatistics()
     SetOperationAlert(EOperationAlertType::ExcessiveJobSpecThrottling, error);
 }
 
-void TOperationControllerBase::AnalyzeQueueAverageWaitTime()
+void TOperationControllerBase::AnalyzeControllerQueues()
 {
+    TControllerQueueStatistics currentControllerQueueStatistics;
     THashMap<EOperationControllerQueue, TDuration> queueToAverageWaitTime;
     for (auto queue : TEnumTraits<EOperationControllerQueue>::GetDomainValues()) {
-        auto invoker = GetCancelableInvoker(queue);
-        auto averageWaitTime = invoker->GetAverageWaitTime();
+        auto statistics = DiagnosableInvokerPool->GetInvokerStatistics(queue);
+        const auto& lastStatistics = LastControllerQueueStatistics_[queue];
 
-        if (averageWaitTime > Config->OperationAlerts->QueueAverageWaitTimeThreshold) {
-            queueToAverageWaitTime.emplace(queue, averageWaitTime);
+        auto deltaEnqueuedActionCount = statistics.EnqueuedActionCount - lastStatistics.EnqueuedActionCount;
+        auto deltaDequeuedActionCount = statistics.DequeuedActionCount - lastStatistics.DequeuedActionCount;
+
+        YT_LOG_DEBUG(
+            "Operation controller queue statistics (ControllerQueue: %v, DeltaEnqueuedActionCount: %v, "
+            "DeltaDequeuedActionCount: %v, WaitingActionCount: %v, AverageWaitTime: %v)",
+            queue,
+            deltaEnqueuedActionCount,
+            deltaDequeuedActionCount,
+            statistics.WaitingActionCount,
+            statistics.AverageWaitTime);
+
+        if (statistics.AverageWaitTime > Config->OperationAlerts->QueueAverageWaitTimeThreshold) {
+            queueToAverageWaitTime.emplace(queue, statistics.AverageWaitTime);
         }
-    }
 
-    TError error;
+        currentControllerQueueStatistics[queue] = std::move(statistics);
+    }
+    std::swap(LastControllerQueueStatistics_, currentControllerQueueStatistics);
+
+    TError highQueueAverageWaitTimeError;
     if (!queueToAverageWaitTime.empty()) {
-        error = TError("Found action queues with high average wait time: %v",
+        highQueueAverageWaitTimeError = TError("Found action queues with high average wait time: %v",
             MakeFormattableView(queueToAverageWaitTime, [] (auto* builder, const auto& pair) {
                 const auto& [queue, averageWaitTime] = pair;
                 builder->AppendFormat("%Qlv", queue);
             }))
             << TErrorAttribute("queues_with_high_average_wait_time", queueToAverageWaitTime);
     }
-
-    SetOperationAlert(EOperationAlertType::HighQueueAverageWaitTime, error);
+    SetOperationAlert(EOperationAlertType::HighQueueAverageWaitTime, highQueueAverageWaitTimeError);
 }
 
 void TOperationControllerBase::AnalyzeOperationProgress()
@@ -3757,7 +3773,7 @@ void TOperationControllerBase::AnalyzeOperationProgress()
     AnalyzeJobsDuration();
     AnalyzeOperationDuration();
     AnalyzeScheduleJobStatistics();
-    AnalyzeQueueAverageWaitTime();
+    AnalyzeControllerQueues();
 }
 
 void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
@@ -4335,6 +4351,13 @@ IInvokerPtr TOperationControllerBase::GetCancelableInvoker(EOperationControllerQ
     VERIFY_THREAD_AFFINITY_ANY();
 
     return CancelableInvokerPool->GetInvoker(queue);
+}
+
+IDiagnosableInvokerPool::TInvokerStatistics TOperationControllerBase::GetInvokerStatistics(EOperationControllerQueue queue) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return DiagnosableInvokerPool->GetInvokerStatistics(queue);
 }
 
 TFuture<void> TOperationControllerBase::Suspend()

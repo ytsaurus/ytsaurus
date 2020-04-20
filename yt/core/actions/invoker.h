@@ -14,8 +14,6 @@ struct IInvoker
     //! Schedules invocation of a given callback.
     virtual void Invoke(TClosure callback) = 0;
 
-    virtual TDuration GetAverageWaitTime() const = 0;
-
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     //! Returns the thread id this invoker is bound to.
     //! For invokers not bound to any particular thread,

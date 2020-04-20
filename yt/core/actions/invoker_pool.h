@@ -59,6 +59,41 @@ void ResumeInvokerPool(const ISuspendableInvokerPoolPtr& suspendableInvokerPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class IDiagnosableInvokerPool
+    : public IInvokerPool
+{
+public:
+    struct TInvokerStatistics
+    {
+        ui64 EnqueuedActionCount = 0;
+        ui64 DequeuedActionCount = 0;
+        ui64 WaitingActionCount = 0;
+        TDuration AverageWaitTime = {};
+    };
+
+    //! Returns statistics of the invoker by the integer #index.
+    //! Parameter #index is supposed to take values in the [0, implementation-defined limit) range.
+    TInvokerStatistics GetInvokerStatistics(int index) const
+    {
+        return DoGetInvokerStatistics(index);
+    }
+
+    //! Returns statistics of the invoker by the integer #index.
+    //! Parameter #index is supposed to take values in the [0, implementation-defined limit) range.
+    template <class TEnum, class = typename TEnumTraits<TEnum>::TType>
+    TInvokerStatistics GetInvokerStatistics(TEnum index) const
+    {
+        return DoGetInvokerStatistics(static_cast<int>(index));
+    }
+
+protected:
+    virtual TInvokerStatistics DoGetInvokerStatistics(int index) const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IDiagnosableInvokerPool)
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
 
 //! Helper is provided for step-by-step infering of the TOutputInvoker given template arguments.

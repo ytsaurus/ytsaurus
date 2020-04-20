@@ -1528,9 +1528,10 @@ private:
 
                 auto controller = operation->GetController();
                 auto scheduleJobInvoker = controller->GetCancelableInvoker(Config_->ScheduleJobControllerQueue);
-                auto buildJobSpecInvoker = controller->GetCancelableInvoker(Config_->BuildJobSpecControllerQueue);
-                auto scheduleJobWaitTime = scheduleJobInvoker->GetAverageWaitTime();
-                auto buildJobSpecWaitTime = buildJobSpecInvoker->GetAverageWaitTime();
+                auto scheduleJobInvokerStatistics = controller->GetInvokerStatistics(Config_->ScheduleJobControllerQueue);
+                auto buildJobSpecInvokerStatistics = controller->GetInvokerStatistics(Config_->BuildJobSpecControllerQueue);
+                auto scheduleJobWaitTime = scheduleJobInvokerStatistics.AverageWaitTime;
+                auto buildJobSpecWaitTime = buildJobSpecInvokerStatistics.AverageWaitTime;
                 if (scheduleJobWaitTime + buildJobSpecWaitTime > Config_->ScheduleJobWaitTimeThreshold) {
                     replyWithFailure(operationId, jobId, EScheduleJobFailReason::ControllerThrottling);
                     YT_LOG_DEBUG("Schedule job request skipped since average schedule job wait time is too large "
