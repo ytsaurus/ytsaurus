@@ -53,8 +53,10 @@ def main():
     if options.setsid:
         try:
             os.setsid()
-        except OSError:
-            pass
+        except OSError as e:
+            logger.error(
+                "os.setsid failed: errno = {}({}). pid = {}, pgid = {}"
+                .format(e.errno, e.strerror, os.getpid(), os.getpgid(0)))
 
     if options.cgroup is not None:
         for cgroup_path in options.cgroup:

@@ -29,6 +29,7 @@ import yt.packages.requests as requests
 import logging
 import os
 import copy
+import errno
 import time
 import signal
 import socket
@@ -855,7 +856,13 @@ class YTInstance(object):
             return
 
         logger.info("Sending SIGKILL (pid: {})".format(proc.pid))
-        os.killpg(proc.pid, signal.SIGKILL)
+        os.kill(proc.pid, signal.SIGKILL)
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError as e:
+            logger.error("killpg({}) failed: {}({})".format(proc.pid, e.errno, errno.errorcode[e.errno]))
+            if e.errno != errno.ESRCH:
+                raise
         try:
             wait(lambda: is_dead_or_zombie(proc.pid))
         except WaitFailed:
