@@ -107,7 +107,7 @@ object SparkPackagePlugin extends AutoPlugin {
       val confBasePath = s"${sparkYtBasePath.value}/conf"
       val sparkVersion = version.value
 
-      val launchConfig = SparkLaunchConfig(binBasePath, Map("spark.testVersion" -> "testtesttest"))
+      val launchConfig = SparkLaunchConfig(binBasePath)
       val launchConfigPublish = YtPublishDocument(
         launchConfig.toYson,
         s"$confBasePath/${sparkYtSubdir.value}/$sparkVersion",
