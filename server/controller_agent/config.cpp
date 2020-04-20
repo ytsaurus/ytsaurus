@@ -696,6 +696,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("heavy_request_immediate_response_timeout", HeavyRequestImmediateResponseTimeout)
         .Default(TDuration::Seconds(1));
 
+    RegisterParameter("memory_usage_profiling_period", MemoryUsageProfilingPeriod)
+        .Default(TDuration::Seconds(1));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

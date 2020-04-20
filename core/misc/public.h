@@ -92,6 +92,8 @@ DECLARE_REFCOUNTED_CLASS(TAsyncExpiringCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TLogDigestConfig)
 DECLARE_REFCOUNTED_STRUCT(IDigest)
 
+DECLARE_REFCOUNTED_CLASS(THistoricUsageConfig)
+
 class TSignalRegistry;
 
 class TBloomFilterBuilder;
@@ -127,7 +129,7 @@ template <
 >
 class SmallDenseMap;
 
-template <class TProto>
+template <class TProto, bool EnableWeak = false>
 class TRefCountedProto;
 
 DECLARE_REFCOUNTED_CLASS(TProcessBase)

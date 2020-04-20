@@ -1906,7 +1906,7 @@ private:
     {
         // "guest" is a member of "everyone" group.
         // "root", "job", "scheduler", "replicator", "file_cache", "operations_cleaner", "operations_client",
-        // "tablet_cell_changelogger", "tablet_cell_snapshotter" and "tablet_mount_informer" are members of "superusers" group.
+        // "tablet_cell_changelogger", "tablet_cell_snapshotter" and "table_mount_informer" are members of "superusers" group.
         // others are members of "users" group.
         const auto& id = user->GetId();
         if (id == GuestUserId_) {

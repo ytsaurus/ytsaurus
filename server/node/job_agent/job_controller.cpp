@@ -4,6 +4,7 @@
 
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cell_node/resource_manager.h>
 
 #include <yt/server/node/data_node/master_connector.h>
 #include <yt/server/node/data_node/chunk_cache.h>
@@ -400,28 +401,19 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
         result.set_gpu(Bootstrap_->GetGpuManager()->GetTotalGpuCount());
     }
 
-    const auto& userTracker = Bootstrap_->GetMemoryUsageTracker();
+    const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
+
+    // NB: Some categories can have no explicit limit.
+    // Therefore we need bound memory limit by actually available memory.
     result.set_user_memory(std::min(
-        userTracker->GetLimit(EMemoryCategory::UserJobs),
-        // NB: The sum of per-category limits can be greater than the total memory limit.
-        // Therefore we need bound memory limit by actually available memory.
-        userTracker->GetUsed(EMemoryCategory::UserJobs) + userTracker->GetTotalFree() - Config_->FreeMemoryWatermark));
-
-    const auto& systemTracker = Bootstrap_->GetMemoryUsageTracker();
+        memoryUsageTracker->GetLimit(EMemoryCategory::UserJobs),
+        memoryUsageTracker->GetUsed(EMemoryCategory::UserJobs) + memoryUsageTracker->GetTotalFree() - Config_->FreeMemoryWatermark));
     result.set_system_memory(std::min(
-        systemTracker->GetLimit(EMemoryCategory::SystemJobs),
-        systemTracker->GetUsed(EMemoryCategory::SystemJobs) + systemTracker->GetTotalFree() - Config_->FreeMemoryWatermark));
+        memoryUsageTracker->GetLimit(EMemoryCategory::SystemJobs),
+        memoryUsageTracker->GetUsed(EMemoryCategory::SystemJobs) + memoryUsageTracker->GetTotalFree() - Config_->FreeMemoryWatermark));
 
-    auto optionalCpuLimit = Bootstrap_->GetExecSlotManager()->GetCpuLimit();
-    if (optionalCpuLimit && !ResourceLimitsOverrides_.has_cpu()) {
-        result.set_cpu(*optionalCpuLimit);
-    }
-
-    if (result.has_cpu()) {
-        const auto& tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        auto tabletCpu = tabletSlotManager->GetUsedCpu(Config_->CpuPerTabletSlot);
-        result.set_cpu(std::max(0.0, result.cpu() - tabletCpu));
-    }
+    const auto& nodeResourceManager = Bootstrap_->GetNodeResourceManager();
+    result.set_cpu(nodeResourceManager->GetJobsCpuLimit());
 
     return result;
 }
@@ -443,12 +435,6 @@ TNodeResources TJobController::TImpl::GetResourceUsage(bool includeWaiting) cons
 
 void TJobController::TImpl::AdjustResources()
 {
-    auto optionalMemoryLimit = Bootstrap_->GetExecSlotManager()->GetMemoryLimit();
-    if (optionalMemoryLimit) {
-        const auto& memoryTracker = Bootstrap_->GetMemoryUsageTracker();
-        memoryTracker->SetTotalLimit(*optionalMemoryLimit);
-    }
-
     auto usage = GetResourceUsage(false);
     auto limits = GetResourceLimits();
 
@@ -578,17 +564,6 @@ void TJobController::TImpl::SetResourceLimitsOverrides(const TNodeResourceLimits
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     ResourceLimitsOverrides_ = resourceLimits;
-    if (ResourceLimitsOverrides_.has_user_memory()) {
-        Bootstrap_->GetMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::UserJobs, ResourceLimitsOverrides_.user_memory());
-    } else {
-        Bootstrap_->GetMemoryUsageTracker()->SetCategoryLimit(
-            EMemoryCategory::UserJobs,
-            Config_->ResourceLimits->UserMemory);
-    }
-
-    if (ResourceLimitsOverrides_.has_system_memory()) {
-        Bootstrap_->GetMemoryUsageTracker()->SetCategoryLimit(EMemoryCategory::SystemJobs, ResourceLimitsOverrides_.system_memory());
-    }
 }
 
 void TJobController::TImpl::SetDisableSchedulerJobs(bool value)

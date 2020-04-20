@@ -29,7 +29,7 @@ class TColumnFilterDictionary;
 struct IBlockWriter;
 class TBlockWriter;
 
-class THorizontalSchemalessBlockReader;
+class THorizontalBlockReader;
 
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
 

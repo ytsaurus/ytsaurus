@@ -350,10 +350,10 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
         create_user("a")
         set("//sys/users/a/@banned", True)
         with pytest.raises(YtError):
-            explain("1 from [//tmp/t]", authenticated_user="a")
+            explain_query("1 from [//tmp/t]", authenticated_user="a")
         set("//sys/users/a/@banned", False)
         time.sleep(0.5)
-        explain("1 from [//tmp/t]", authenticated_user="a")
+        explain_query("1 from [//tmp/t]", authenticated_user="a")
 
 ##################################################################
 

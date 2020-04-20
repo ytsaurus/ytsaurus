@@ -28,6 +28,11 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedAnyColumnReader(
     int columnIndex,
     int columnId);
 
+std::unique_ptr<IUnversionedColumnReader> CreateUnversionedComplexColumnReader(
+    const NProto::TColumnMeta& columnMeta,
+    int columnIndex,
+    int columnId);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableChunkFormat

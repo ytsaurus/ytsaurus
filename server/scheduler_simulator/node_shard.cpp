@@ -2,6 +2,8 @@
 #include "node_shard.h"
 #include "operation_controller.h"
 
+#include <yt/ytlib/chunk_client/medium_directory.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/yson/public.h>
@@ -47,6 +49,7 @@ DEFINE_REFCOUNTED_TYPE(TSimulatorNodeShard)
 
 TSimulatorNodeShard::TSimulatorNodeShard(
     const IInvokerPtr& commonNodeShardInvoker,
+    TSchedulerStrategyHost* strategyHost,
     TSharedEventQueue* events,
     TSharedSchedulerStrategy* schedulingStrategy,
     TSharedOperationStatistics* operationStatistics,
@@ -58,6 +61,7 @@ TSimulatorNodeShard::TSimulatorNodeShard(
     TInstant earliestTime,
     int shardId)
     : Events_(events)
+    , StrategyHost_(strategyHost)
     , SchedulingStrategy_(schedulingStrategy)
     , OperationStatistics_(operationStatistics)
     , OperationStatisticsOutput_(operationStatisticsOutput)
@@ -70,6 +74,7 @@ TSimulatorNodeShard::TSimulatorNodeShard(
     , Invoker_(CreateSerializedInvoker(commonNodeShardInvoker))
     , Logger(TLogger(NSchedulerSimulator::Logger)
         .AddTag("ShardId: %v", shardId))
+    , MediumDirectory_(CreateDefaultMediumDirectory())
 {
     if (Config_->RemoteEventLog) {
         RemoteEventLogWriter_ = CreateRemoteEventLogWriter(Config_->RemoteEventLog, Invoker_);
@@ -156,7 +161,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         event.Time,
         event.NodeId,
         node->GetDefaultAddress(),
-        FormatResourceUsage(
+        StrategyHost_->FormatResourceUsage(
             TJobResources(node->GetResourceUsage()),
             TJobResources(node->GetResourceLimits()),
             node->GetDiskResources()),
@@ -167,7 +172,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
     std::vector<TJobPtr> nodeJobs(jobsSet.begin(), jobsSet.end());
     // NB(eshcherbin): We usually create a lot of simulator node shards running over a small thread pool to
     // introduce artificial contention. Thus we need to reduce the shard id to the range [0, MaxNodeShardCount).
-    auto context = New<TSchedulingContext>(ShardId_ % MaxNodeShardCount, SchedulerConfig_, node, nodeJobs);
+    auto context = New<TSchedulingContext>(ShardId_ % MaxNodeShardCount, SchedulerConfig_, node, nodeJobs, MediumDirectory_);
     context->SetNow(NProfiling::InstantToCpuInstant(event.Time));
 
     SchedulingStrategy_->ScheduleJobs(context);

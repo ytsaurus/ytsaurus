@@ -584,15 +584,15 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExplainCommand::TExplainCommand()
+TExplainQueryCommand::TExplainQueryCommand()
 {
     RegisterParameter("query", Query);
 }
 
-void TExplainCommand::DoExecute(ICommandContextPtr context)
+void TExplainQueryCommand::DoExecute(ICommandContextPtr context)
 {
     auto clientBase = GetClientBase(context);
-    auto result = WaitFor(clientBase->Explain(Query, Options))
+    auto result = WaitFor(clientBase->ExplainQuery(Query, Options))
         .ValueOrThrow();
     context->ProduceOutputValue(result);
 }

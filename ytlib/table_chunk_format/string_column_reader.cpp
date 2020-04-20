@@ -51,6 +51,8 @@ protected:
 
         if constexpr (ValueType == EValueType::String) {
             *value = MakeUnversionedStringValue(string, id, aggregate);
+        } else if constexpr (ValueType == EValueType::Composite) {
+            *value = MakeUnversionedCompositeValue(string, id, aggregate);
         } else if constexpr (ValueType == EValueType::Any) {
             if constexpr (UnpackValue) {
                 YT_VERIFY(aggregate == false);
@@ -493,6 +495,17 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedAnyColumnReader(
     int columnId)
 {
     return std::make_unique<TUnversionedStringColumnReader<EValueType::Any>>(
+        columnMeta,
+        columnIndex,
+        columnId);
+}
+
+std::unique_ptr<IUnversionedColumnReader> CreateUnversionedComplexColumnReader(
+    const TColumnMeta& columnMeta,
+    int columnIndex,
+    int columnId)
+{
+    return std::make_unique<TUnversionedStringColumnReader<EValueType::Composite>>(
         columnMeta,
         columnIndex,
         columnId);

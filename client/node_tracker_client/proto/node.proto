@@ -90,6 +90,7 @@ message TDiskLocationResources
 {
     required int64 usage = 1;
     required int64 limit = 2;
+    optional int32 medium_index = 3;
 }
 
 message TDiskResources

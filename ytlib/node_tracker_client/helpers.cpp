@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include <yt/ytlib/chunk_client/medium_directory.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/arithmetic_formula.h>
@@ -74,14 +76,38 @@ TString FormatResourceUsage(
     return Format("{%v}", FormatResources(usage, limits));
 }
 
+void FormatValue(TStringBuilderBase* builder, const NProto::TDiskResources& diskResources, TStringBuf spec)
+{
+    MakeFormattableView(diskResources.disk_location_resources(), [] (TStringBuilderBase* builder, const NProto::TDiskLocationResources& locationResources) {
+        builder->AppendFormat("{usage: %v, limit: %v, medium_index: %v}",
+            locationResources.usage(),
+            locationResources.limit(),
+            locationResources.medium_index());
+    });
+}
+
 TString ToString(const NProto::TDiskResources& diskResources)
 {
-    std::vector<TString> disk;
-    disk.reserve(diskResources.disk_location_resources().size());
-    for (const auto& locationResources : diskResources.disk_location_resources()) {
-        disk.emplace_back(Format("{usage %v, limit %v}", locationResources.usage(), locationResources.limit()));
-    }
-    return Format("%v", disk);
+    return ToStringViaBuilder(diskResources);
+}
+
+TString ToString(const NProto::TDiskResources& diskResources, const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
+{
+    return Format(
+        "%v",
+        MakeFormattableView(diskResources.disk_location_resources(), [&mediumDirectory] (TStringBuilderBase* builder, const NProto::TDiskLocationResources& locationResources) {
+            int mediumIndex = locationResources.medium_index();
+            auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
+            TStringBuf mediumName = mediumDescriptor
+                ? mediumDescriptor->Name
+                : AsStringBuf("unknown");
+            builder->AppendFormat("{usage: %v, limit: %v, medium_index: %v, medium_name: %v}",
+                locationResources.usage(),
+                locationResources.limit(),
+                mediumIndex,
+                mediumName);
+        })
+    );
 }
 
 TString FormatResourceUsage(

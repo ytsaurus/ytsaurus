@@ -11,10 +11,14 @@ namespace NYT::NApi {
 struct IStickyTransactionPool
     : public virtual TRefCounted
 {
-    //! Registers a transaction in the pool.
+    //! Registers transaction in the pool.
     virtual ITransactionPtr RegisterTransaction(ITransactionPtr transaction) = 0;
+
+    //! Unregisters transaction from the pool.
+    virtual void UnregisterTransaction(NTransactionClient::TTransactionId transactionId) = 0;
+
     //! Finds a transaction by id and renews its lease. Returns |nullptr| if transaction is not found.
-    virtual ITransactionPtr GetTransactionAndRenewLease(NTransactionClient::TTransactionId transactionId) = 0;
+    virtual ITransactionPtr FindTransactionAndRenewLease(NTransactionClient::TTransactionId transactionId) = 0;
 
     //! Finds a transaction by id and renews its lease. Throws if transaction is not found.
     ITransactionPtr GetTransactionAndRenewLeaseOrThrow(NTransactionClient::TTransactionId transactionId);

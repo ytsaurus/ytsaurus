@@ -3,25 +3,29 @@
 #include "public.h"
 #include "helpers.h"
 #include "job_resources.h"
+#include "config.h"
 
 #include <yt/ytlib/api/native/config.h>
+
+#include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/helpers.h>
+
+#include <yt/ytlib/security_client/public.h>
+
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/client/formats/format.h>
 #include <yt/client/formats/config.h>
 
 #include <yt/client/table_client/schema.h>
 
-#include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/helpers.h>
+#include <yt/client/transaction_client/public.h>
 
-#include <yt/ytlib/security_client/public.h>
 #include <yt/client/security_client/acl.h>
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
-
 #include <yt/client/ypath/rich.h>
-
-#include <yt/client/transaction_client/public.h>
 
 #include <yt/core/rpc/config.h>
 
@@ -166,30 +170,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TEphemeralSubpoolConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_ENUM(EHistoricUsageAggregationMode,
-    ((None)                     (0))
-    ((ExponentialMovingAverage) (1))
-);
-
-class THistoricUsageConfig
-    : public NYTree::TYsonSerializable
-{
-public:
-    EHistoricUsageAggregationMode AggregationMode;
-
-    //! Parameter of exponential moving average (EMA) of the aggregated usage.
-    //! Roughly speaking, it means that current usage ratio is twice as relevant for the
-    //! historic usage as the usage ratio alpha seconds ago.
-    //! EMA for unevenly spaced time series was adapted from here: https://clck.ru/HaGZs
-    double EmaAlpha;
-
-    THistoricUsageConfig();
-};
-
-DEFINE_REFCOUNTED_TYPE(THistoricUsageConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -424,6 +404,12 @@ DEFINE_ENUM(EControllerFailureType,
     (ExceptionThrownInOnJobCompleted)
 )
 
+DEFINE_ENUM(ETestingSpeculativeLaunchMode,
+    (None)
+    (Once)
+    (Always)
+)
+
 class TTestingOperationOptions
     : public NYTree::TYsonSerializable
 {
@@ -453,6 +439,8 @@ public:
 
     std::optional<TDuration> DelayInsideAbort;
 
+    std::optional<TDuration> DelayInsideRegisterJobsFromRevivedOperation;
+
     std::optional<i64> AllocationSize;
 
     //! Intentionally fails the operation controller. Used only for testing purposes.
@@ -464,8 +452,7 @@ public:
 
     bool FailGetJobSpec;
 
-    bool RegisterSpeculativeJobOnJobScheduled;
-    bool RegisterSpeculativeJobOnJobScheduledOnce;
+    ETestingSpeculativeLaunchMode TestingSpeculativeLaunchMode;
 
     bool LogResidualCustomJobMetricsOnTermination;
 
@@ -508,6 +495,26 @@ DEFINE_REFCOUNTED_TYPE(TTmpfsVolumeConfig)
 
 void ToProto(NScheduler::NProto::TTmpfsVolume* protoTmpfsVolume, const TTmpfsVolumeConfig& tmpfsVolumeConfig);
 void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NScheduler::NProto::TTmpfsVolume& protoTmpfsVolume);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDiskRequestConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    i64 DiskSpace;
+    std::optional<i64> InodeCount;
+    TString MediumName;
+    std::optional<int> MediumIndex;
+
+    TDiskRequestConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiskRequestConfig)
+
+void ToProto(
+    NProto::TDiskRequest* protoDiskRequest,
+    const TDiskRequestConfig& diskRequestConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -717,13 +724,17 @@ public:
 
     i64 CustomStatisticsCountLimit;
 
+    // COMPAT(ignat)
     std::optional<i64> TmpfsSize;
     std::optional<TString> TmpfsPath;
 
     std::vector<TTmpfsVolumeConfigPtr> TmpfsVolumes;
 
+    // COMPAT(ignat)
     std::optional<i64> DiskSpaceLimit;
     std::optional<i64> InodeLimit;
+
+    TDiskRequestConfigPtr DiskRequest;
 
     bool CopyFiles;
 

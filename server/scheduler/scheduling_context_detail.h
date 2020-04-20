@@ -32,7 +32,8 @@ public:
         int nodeShardId,
         TSchedulerConfigPtr config,
         TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs);
+        const std::vector<TJobPtr>& runningJobs,
+        const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
     virtual const TExecNodeDescriptor& GetNodeDescriptor() const override;
 
@@ -59,8 +60,9 @@ private:
     const TExecNodePtr Node_;
     const TExecNodeDescriptor NodeDescriptor_;
     const THashSet<TString> NodeTags_;
+    const NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 
-    std::vector<i64> DiskRequests_;
+    std::vector<TDiskQuota> DiskRequests_;
 
     bool CanSatisfyResourceRequest(const TJobResources& jobResources) const;
 };

@@ -32,6 +32,24 @@ def main():
 
     cpu_limit = 8
 
+    acl = [
+        {
+            "subjects": ["users"],
+            "permissions": ["read"],
+            "action": "allow",
+        }
+    ]
+
+    if args.type == "prestable":
+        # idm-group:29731 is a group corresponding to all staff robots taken from
+        # //sys/clickhouse/acl_nodes/robots/@acl.
+        acl.append({
+            "subjects": ["idm-group:29731"],
+            "permissions": ["read"],
+            "action": "deny",
+        })
+
+
     yt.start_clickhouse_clique(
         16 if args.type != "prestable" else 4,
         alias,
@@ -41,11 +59,7 @@ def main():
         cypress_geodata_path="//sys/clickhouse/geodata/geodata.tgz",
         cypress_ytserver_clickhouse_path=args.bin,
         spec={
-            "acl": [{
-                "subjects": ["yandex"],
-                "permissions": ["read"],
-                "action": "allow"
-            }],
+            "acl": acl,
             "title": args.type.capitalize() + " clique",
             "pool": "chyt",
             "preemption_mode": "graceful" if args.graceful_preemption else "normal",

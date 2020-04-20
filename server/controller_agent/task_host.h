@@ -136,6 +136,8 @@ struct ITaskHost
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) = 0;
 
     virtual void OnSpeculativeJobScheduled(const TJobletPtr& joblet) = 0;
+
+    virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

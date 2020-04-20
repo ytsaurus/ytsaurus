@@ -68,10 +68,6 @@ TMemberPtr TGroup::AddMember(const TMemberInfo& memberInfo, TDuration leaseTimeo
             guard.Release();
             OnGroupEmptied_();
         }
-
-        YT_LOG_DEBUG("Member added (MemberId: %v, LeaseTimeout: %v)",
-            memberId,
-            leaseTimeout);
     });
 
     auto member = New<TMember>(memberInfo.Id, Id_, leaseTimeout, std::move(onMemberLeaseExpired));
@@ -80,6 +76,10 @@ TMemberPtr TGroup::AddMember(const TMemberInfo& memberInfo, TDuration leaseTimeo
 
     Members_.insert(member);
     IdToMember_.emplace(member->GetId(), member);
+
+    YT_LOG_DEBUG("Member added (MemberId: %v, LeaseTimeout: %v)",
+        memberInfo.Id,
+        leaseTimeout);
 
     return member;
 }

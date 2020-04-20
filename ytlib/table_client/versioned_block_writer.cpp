@@ -188,7 +188,10 @@ void TSimpleVersionedBlockWriter::WriteValue(
             nullFlags.Append(true);
             break;
 
-        default:
+        case EValueType::Composite:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
             YT_ABORT();
     }
 }

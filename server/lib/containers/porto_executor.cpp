@@ -37,6 +37,13 @@ EPortoErrorCode ConvertPortoErrorCode(EError portoError)
     return static_cast<EPortoErrorCode>(PortoErrorCodeBase + portoError);
 }
 
+bool IsRetriableErrorCode(EPortoErrorCode error)
+{
+    return
+        error == EPortoErrorCode::Unknown ||
+        error == EPortoErrorCode::SocketError;
+}
+
 std::map<TString, TErrorOr<TString>> ParsePortoGetResponse(
     const TString& name,
     const Porto::TGetResponse& getResponse)
@@ -473,7 +480,7 @@ private:
             command,
             errorMessage);
 
-        if (error != EPortoErrorCode::Unknown || NProfiling::GetInstant() - startTime > Config_->RetriesTimeout) {
+        if (!IsRetriableErrorCode(error) || NProfiling::GetInstant() - startTime > Config_->RetriesTimeout) {
             THROW_ERROR CreatePortoError(error, errorMessage);
         }
     }

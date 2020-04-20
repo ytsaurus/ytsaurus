@@ -8,6 +8,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
+#include <yt/core/misc/config.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/sync_cache.h>
@@ -58,6 +59,11 @@ public:
 
     void Put(const TBlockId& id, const TBlock& data)
     {
+        if (Config_->Capacity == 0) {
+            // Shortcut when cache is disabled.
+            return;
+        }
+
         auto block = New<TCachedBlock>(id, data);
         if (TryInsert(block)) {
             YT_LOG_DEBUG("Block is put into cache (BlockId: %v, BlockType: %v, BlockSize: %v)",
@@ -74,6 +80,11 @@ public:
 
     TBlock Find(const TBlockId& id)
     {
+        if (Config_->Capacity == 0) {
+            // Shortcut when cache is disabled.
+            return TBlock();
+        }
+
         auto block = TSyncSlruCacheBase::Find(id);
         if (block) {
             YT_LOG_TRACE("Block cache hit (BlockId: %v, BlockType: %v)",

@@ -72,11 +72,11 @@ public:
         , Bootstrap_(bootstrap)
     { }
 
-    virtual void Init(int slotCount, double jobsCpuLimit) override
+    virtual void Init(int slotCount, double cpuLimit) override
     {
         // Shutdown all possible processes.
         try {
-            DoInit(slotCount, jobsCpuLimit);
+            DoInit(slotCount, cpuLimit);
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean up processes during initialization")
                 << ex;
@@ -136,15 +136,8 @@ public:
         return Enabled_;
     }
 
-    virtual std::optional<i64> GetMemoryLimit() const override
-    {
-        return std::nullopt;
-    }
-
-    virtual std::optional<double> GetCpuLimit() const override
-    {
-        return std::nullopt;
-    }
+    virtual void UpdateCpuLimit(double /*cpuLimit*/) override
+    { }
 
     virtual TFuture<void> RunSetupCommands(
         int /*slotIndex*/,
@@ -175,7 +168,7 @@ protected:
 
     bool Enabled_ = true;
 
-    virtual void DoInit(int slotCount, double /* jobsCpuLimit */)
+    virtual void DoInit(int slotCount, double /*cpuLimit*/)
     {
         for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
             CleanProcesses(slotIndex);
@@ -320,13 +313,13 @@ private:
 
     std::vector<TString> CGroups_;
 
-    virtual void DoInit(int slotCount, double jobsCpuLimit) override
+    virtual void DoInit(int slotCount, double cpuLimit) override
     {
         if (!HasRootPermissions()) {
             THROW_ERROR_EXCEPTION("Failed to initialize \"cgroup\" job environment: root permissions required");
         }
 
-        TProcessJobEnvironmentBase::DoInit(slotCount, jobsCpuLimit);
+        TProcessJobEnvironmentBase::DoInit(slotCount, cpuLimit);
     }
 
     virtual void AddArguments(TProcessBasePtr process, int slotIndex) override
@@ -396,14 +389,14 @@ private:
     const bool HasRootPermissions_ = HasRootPermissions();
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
 
-    virtual void DoInit(int slotCount, double jobsCpuLimit) override
+    virtual void DoInit(int slotCount, double cpuLimit) override
     {
         if (!HasRootPermissions_ && Config_->EnforceJobControl) {
             THROW_ERROR_EXCEPTION("Failed to initialize \"simple\" job environment: "
                 "\"enforce_job_control\" option set, but no root permissions provided");
         }
 
-        TProcessJobEnvironmentBase::DoInit(slotCount, jobsCpuLimit);
+        TProcessJobEnvironmentBase::DoInit(slotCount, cpuLimit);
     }
 
     virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, TJobId /* jobId */)
@@ -475,18 +468,6 @@ public:
         return CreatePortoJobDirectoryManager(Bootstrap_->GetConfig()->DataNode->VolumeManager, path, locationIndex);
     }
 
-    virtual std::optional<i64> GetMemoryLimit() const override
-    {
-        auto guard = Guard(LimitsLock_);
-        return MemoryLimit_;
-    }
-
-    virtual std::optional<double> GetCpuLimit() const override
-    {
-        auto guard = Guard(LimitsLock_);
-        return CpuLimit_;
-    }
-
     virtual TFuture<void> RunSetupCommands(
         int slotIndex,
         TJobId jobId,
@@ -525,11 +506,7 @@ private:
     IInstancePtr MetaInstance_;
     THashMap<int, IInstancePtr> JobProxyInstances_;
 
-    TSpinLock LimitsLock_;
-    std::optional<double> CpuLimit_;
-    std::optional<i64> MemoryLimit_;
-
-    TPeriodicExecutorPtr LimitsUpdateExecutor_;
+    double CpuLimit_;
 
     TString GetAbsoluteName(const TString& name)
     {
@@ -588,7 +565,7 @@ private:
         }
     }
 
-    virtual void DoInit(int slotCount, double jobsCpuLimit) override
+    virtual void DoInit(int slotCount, double cpuLimit) override
     {
         auto portoFatalErrorHandler = BIND([weakThis_ = MakeWeak(this)](const TError& error) {
             // We use weak ptr to avoid cyclic references between container manager and job environment.
@@ -597,6 +574,8 @@ private:
                 this_->Disable(error);
             }
         });
+
+        CpuLimit_ = cpuLimit;
 
         PortoExecutor_->SubscribeFailed(portoFatalErrorHandler);
         SelfInstance_ = GetSelfPortoInstance(PortoExecutor_);
@@ -618,7 +597,7 @@ private:
                 metaInstanceName,
                 PortoExecutor_);
             instance->SetIOWeight(Config_->JobsIOWeight);
-            instance->SetCpuLimit(jobsCpuLimit);
+            instance->SetCpuLimit(CpuLimit_);
             return instance;
         };
 
@@ -650,15 +629,7 @@ private:
                 << ex;
         }
 
-        TProcessJobEnvironmentBase::DoInit(slotCount, jobsCpuLimit);
-
-        if (Config_->ResourceLimitsUpdatePeriod) {
-            LimitsUpdateExecutor_ = New<TPeriodicExecutor>(
-                ActionQueue_->GetInvoker(),
-                BIND(&TPortoJobEnvironment::UpdateLimits, MakeWeak(this)),
-                *Config_->ResourceLimitsUpdatePeriod);
-            LimitsUpdateExecutor_->Start();
-        }
+        TProcessJobEnvironmentBase::DoInit(slotCount, CpuLimit_);
     }
 
     void InitJobProxyInstance(int slotIndex, TJobId jobId)
@@ -676,37 +647,14 @@ private:
         return New<TPortoProcess>(JobProxyProgramName, JobProxyInstances_.at(slotIndex));
     }
 
-    void UpdateLimits()
+    virtual void UpdateCpuLimit(double cpuLimit)
     {
-        try {
-            auto limits = SelfInstance_->GetResourceLimitsRecursive();
-
-            auto newCpuLimit = std::max<double>(limits.Cpu - Config_->NodeDedicatedCpu, 0);
-            bool cpuLimitChanged = false;
-
-            auto guard = Guard(LimitsLock_);
-            if (!CpuLimit_ || std::abs(*CpuLimit_ - newCpuLimit) > CpuUpdatePrecision) {
-                YT_LOG_INFO("Update porto cpu limit (OldCpuLimit: %v, NewCpuLimit: %v)",
-                    CpuLimit_,
-                    newCpuLimit);
-                CpuLimit_ = newCpuLimit;
-                cpuLimitChanged = true;
-            }
-
-            if (!MemoryLimit_ || *MemoryLimit_ != limits.Memory) {
-                YT_LOG_INFO("Update porto memory limit (OldMemoryLimit: %v, NewMemoryLimit: %v)",
-                    MemoryLimit_,
-                    limits.Memory);
-                MemoryLimit_ = limits.Memory;
-            }
-
-            guard.Release();
-            if (cpuLimitChanged) {
-                MetaInstance_->SetCpuLimit(newCpuLimit);
-            }
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to update resource limits from porto");
+        if (std::abs(CpuLimit_ - cpuLimit) < CpuUpdatePrecision) {
+            return;
         }
+
+        MetaInstance_->SetCpuLimit(cpuLimit);
+        CpuLimit_ = cpuLimit;
     }
 
     IInstancePtr CreateSetupInstance(int slotIndex, TJobId jobId, const TRootFS& rootFS, const TString& user)

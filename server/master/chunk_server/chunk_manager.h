@@ -75,6 +75,9 @@ public:
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkView, TChunkView);
     TChunkView* GetChunkViewOrThrow(TChunkViewId id);
 
+    DECLARE_ENTITY_MAP_ACCESSORS(DynamicStore, TDynamicStore);
+    TDynamicStore* GetDynamicStoreOrThrow(TDynamicStoreId id);
+
     DECLARE_ENTITY_MAP_ACCESSORS(ChunkList, TChunkList);
     TChunkList* GetChunkListOrThrow(TChunkListId id);
 
@@ -130,6 +133,8 @@ public:
 
     TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange);
     TChunkView* CloneChunkView(TChunkView* chunkView, NChunkClient::TReadRange readRange);
+
+    TDynamicStore* CreateDynamicStore(TDynamicStoreId storeId, const NTabletServer::TTablet* tablet);
 
     void RebalanceChunkTree(TChunkList* chunkList);
 
@@ -216,6 +221,7 @@ private:
     class TErasureChunkTypeHandler;
     class TJournalChunkTypeHandler;
     class TChunkViewTypeHandler;
+    class TDynamicStoreTypeHandler;
     class TChunkListTypeHandler;
     class TMediumTypeHandler;
 

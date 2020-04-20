@@ -124,12 +124,14 @@ def run_log_tailer(log_tailer_bin, ytserver_clickhouse_pid, monitoring_port):
 
 
 def move_core_dumps(destination):
-    logger.info("Moving core dumps to %s", destination)
+    logger.info("Hardlinking core dumps to %s", destination)
     for file in glob.glob("./core*"):
-        logger.debug("Moving %s to %s", file, destination)
-        shutil.copy2(file, destination)
-        logger.debug("%s moved")
-    logger.info("Core dumps moved")
+        logger.debug("Hardlinking %s to point to %s", destination, file)
+        logger.debug("Core %s size is %s", file, os.stat(file).st_size)
+        destination_file = os.path.join(destination, file)
+        os.link(file, destination_file)
+        logger.debug("%s moved", file)
+    logger.info("Core dumps hardlinked")
 
 
 def print_version():
@@ -186,7 +188,7 @@ def main():
     log_tailer_process = None
     if args.log_tailer_bin:
         patch_log_tailer_config()
-        log_tailer_process = run_log_tailer(args.log_tailer_bin, \
+        log_tailer_process = run_log_tailer(args.log_tailer_bin,
             ytserver_clickhouse_process.pid, args.log_tailer_monitoring_port)
     logger.info("Waiting for ytserver-clickhouse to finish")
     exit_code = ytserver_clickhouse_process.wait()

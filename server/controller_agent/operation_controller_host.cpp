@@ -5,6 +5,9 @@
 #include "bootstrap.h"
 #include "private.h"
 
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
 namespace NYT::NControllerAgent {
 
 using namespace NChunkClient;
@@ -345,6 +348,14 @@ const NConcurrency::IThroughputThrottlerPtr& TOperationControllerHost::GetJobSpe
 const NJobAgent::TJobReporterPtr& TOperationControllerHost::GetJobReporter()
 {
     return Bootstrap_->GetControllerAgent()->GetJobReporter();
+}
+
+const NChunkClient::TMediumDirectoryPtr& TOperationControllerHost::GetMediumDirectory()
+{
+    return Bootstrap_
+        ->GetMasterClient()
+        ->GetNativeConnection()
+        ->GetMediumDirectory();
 }
 
 void TOperationControllerHost::OnOperationCompleted()

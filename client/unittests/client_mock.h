@@ -49,9 +49,9 @@ public:
         const TString& query,
         const TSelectRowsOptions& options));
 
-    MOCK_METHOD2(Explain, TFuture<NYson::TYsonString>(
+    MOCK_METHOD2(ExplainQuery, TFuture<NYson::TYsonString>(
         const TString& query,
-        const TExplainOptions& options));
+        const TExplainQueryOptions& options));
 
     MOCK_METHOD2(CreateTableReader, TFuture<ITableReaderPtr>(
         const NYPath::TRichYPath& path,
@@ -149,7 +149,7 @@ public:
     NTabletClient::ITableMountCachePtr TableMountCache;
     NTransactionClient::ITimestampProviderPtr TimestampProvider;
 
-    MOCK_METHOD0(Terminate, TFuture<void>());
+    MOCK_METHOD0(Terminate, void());
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() override
     {

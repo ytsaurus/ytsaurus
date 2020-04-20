@@ -236,8 +236,8 @@ public:
             /* enableProfiling =*/true);
         // TODO(gritukan): Move it to NChunkClient::TDispatcher.
         ParallelReaderMemoryManager_ = CreateParallelReaderMemoryManager(
-            parallelReaderMemoryManagerOptions, 
-            NChunkClient::TDispatcher().GetReaderMemoryManagerInvoker());
+            parallelReaderMemoryManagerOptions,
+            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
 
     void Start()

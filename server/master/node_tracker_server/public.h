@@ -51,6 +51,8 @@ DECLARE_ENTITY_TYPE(TDataCenter, TDataCenterId, NObjectClient::TDirectObjectIdHa
 
 using TNodeList = SmallVector<TNode*, NChunkClient::TypicalReplicaCount>;
 
+class TNodeDirectoryBuilder;
+
 constexpr int MaxRackCount = 255;
 // NB: +1 is because of null rack.
 constexpr int RackIndexBound = MaxRackCount + 1;

@@ -102,10 +102,8 @@ const ITimestampProviderPtr& TClient::GetTimestampProvider()
     return TimestampProvider_.Value();
 }
 
-TFuture<void> TClient::Terminate()
-{
-    return VoidFuture;
-}
+void TClient::Terminate()
+{ }
 
 TConnectionPtr TClient::GetRpcProxyConnection()
 {
@@ -181,6 +179,7 @@ ITransactionPtr TClient::AttachTransaction(
         atomicity,
         durability,
         timeout,
+        options.PingAncestors,
         options.PingPeriod,
         options.Sticky);
 }

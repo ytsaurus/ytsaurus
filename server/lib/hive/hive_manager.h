@@ -67,6 +67,7 @@ public:
     TCellId GetSelfCellId() const;
 
     TMailbox* CreateMailbox(TCellId cellId);
+    TMailbox* FindMailbox(TCellId cellId);
     TMailbox* GetOrCreateMailbox(TCellId cellId);
     TMailbox* GetMailboxOrThrow(TCellId cellId);
 

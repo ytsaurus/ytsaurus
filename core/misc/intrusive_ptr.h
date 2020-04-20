@@ -14,19 +14,25 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+Y_FORCE_INLINE T* GetRefCountedBase(T* obj)
+{
+    return obj;
+}
+
 // Default (generic) implementation of Ref/Unref strategy.
 // Assumes the existence of Ref/Unref members.
 // Only works if |T| is fully defined.
 template <class T>
-void Ref(T* obj)
+Y_FORCE_INLINE void Ref(T* obj)
 {
-    obj->Ref();
+    GetRefCountedBase(obj)->Ref();
 }
 
 template <class T>
-void Unref(T* obj)
+Y_FORCE_INLINE void Unref(T* obj)
 {
-    obj->Unref();
+    GetRefCountedBase(obj)->Unref();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -302,25 +308,13 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
  *  are subsequently defined afterwards.
  */
 
-#ifdef __GNUC__
-    // Prevent GCC from throwing out our precious Ref/Unref functions in
-    // release builds.
-    #define REF_UNREF_DECLARATION_ATTRIBUTES __attribute__((used))
-#else
-    #define REF_UNREF_DECLARATION_ATTRIBUTES
-#endif
+class TRefCountedLite;
 
 #define DECLARE_REFCOUNTED_TYPE(type) \
     typedef ::NYT::TIntrusivePtr<type> type ## Ptr; \
     \
-    void Ref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
-    void Ref(const type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
-    void Unref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
-    void Unref(const type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
-    void WeakRef(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
-    void WeakRef(const type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
-    void WeakUnref(type* obj) REF_UNREF_DECLARATION_ATTRIBUTES; \
-    void WeakUnref(const type* obj) REF_UNREF_DECLARATION_ATTRIBUTES;
+    NYT::TRefCountedLite* GetRefCountedBase(type* obj) ATTRIBUTE_USED; \
+    const NYT::TRefCountedLite* GetRefCountedBase(const type* obj) ATTRIBUTE_USED;
 
 //! Forward-declares a class type, defines an intrusive pointer for it, and finally
 //! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
@@ -337,43 +331,13 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
 //! Provides implementations for Ref/Unref overloads. Use this macro right
 //! after the type's full definition.
 #define DEFINE_REFCOUNTED_TYPE(type) \
-    Y_FORCE_INLINE void Ref(type* obj) \
+    Y_FORCE_INLINE NYT::TRefCountedLite* GetRefCountedBase(type* obj) \
     { \
-        obj->Ref(); \
+        return obj; \
     } \
-    \
-    Y_FORCE_INLINE void Ref(const type* obj) \
+    Y_FORCE_INLINE const NYT::TRefCountedLite* GetRefCountedBase(const type* obj) \
     { \
-        obj->Ref(); \
-    } \
-    \
-    Y_FORCE_INLINE void Unref(type* obj) \
-    { \
-        obj->Unref(); \
-    } \
-    \
-    Y_FORCE_INLINE void Unref(const type* obj) \
-    { \
-        obj->Unref(); \
-    } \
-    Y_FORCE_INLINE void WeakRef(type* obj) \
-    { \
-        obj->WeakRef(); \
-    } \
-    \
-    Y_FORCE_INLINE void WeakRef(const type* obj) \
-    { \
-        obj->WeakRef(); \
-    } \
-    \
-    Y_FORCE_INLINE void WeakUnref(type* obj) \
-    { \
-        obj->WeakUnref(); \
-    } \
-    \
-    Y_FORCE_INLINE void WeakUnref(const type* obj) \
-    { \
-        obj->WeakUnref(); \
+        return obj; \
     }
 
 ////////////////////////////////////////////////////////////////////////////////

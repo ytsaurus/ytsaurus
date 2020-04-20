@@ -229,6 +229,7 @@ public:
     std::optional<TDuration> StockpileInterval;
     std::optional<int> StockpileThreadCount;
     std::optional<size_t> StockpileSize;
+    std::optional<bool> EnableEagerMemoryRelease;
 
     TSerializableConfiguration()
     {
@@ -242,7 +243,8 @@ public:
         RegisterParameter("large_arenas_to_profile", LargeArenasToProfile)
             .Default({});
         RegisterParameter("profiling_backtrace_depth", ProfilingBacktraceDepth)
-            .InRange(1, MaxAllocationProfilingBacktraceDepth);
+            .InRange(1, MaxAllocationProfilingBacktraceDepth)
+            .Default();
         RegisterParameter("min_profiling_bytes_used_to_report", MinProfilingBytesUsedToReport)
             .GreaterThan(0)
             .Default();
@@ -252,6 +254,8 @@ public:
             .Default();
         RegisterParameter("stockpile_size", StockpileSize)
             .GreaterThan(0)
+            .Default();
+        RegisterParameter("enable_eager_memory_release", EnableEagerMemoryRelease)
             .Default();
     }
 };
@@ -318,6 +322,9 @@ void ConfigureFromEnv()
     }
     if (config->StockpileSize) {
         SetStockpileSize(*config->StockpileSize);
+    }
+    if (config->EnableEagerMemoryRelease) {
+        SetEnableEagerMemoryRelease(*config->EnableEagerMemoryRelease);
     }
 
     YT_LOG_DEBUG("%v environment variable parsed successfully",

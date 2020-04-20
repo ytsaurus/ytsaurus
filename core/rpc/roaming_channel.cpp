@@ -151,9 +151,9 @@ public:
             options);
     }
 
-    virtual TFuture<void> Terminate(const TError& error) override
+    virtual void Terminate(const TError& error) override
     {
-        return Provider_->Terminate(error);
+        Provider_->Terminate(error);
     }
 
     virtual void SubscribeTerminated(const TCallback<void(const TError&)>& /*callback*/) override

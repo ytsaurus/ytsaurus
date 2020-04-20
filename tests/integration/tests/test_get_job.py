@@ -169,6 +169,11 @@ class TestGetJob(YTEnvSetup):
         job_info = retry(lambda: get_job(op.id, job_id))
         assert job_info["controller_agent_state"] == job_info["state"] == "aborted"
 
+    @authors("levysotsky")
+    def test_not_found(self):
+        with raises_yt_error(NoSuchJob):
+            get_job("1-2-3-4", "5-6-7-8")
+
 ##################################################################
 
 class TestGetJobRpcProxy(TestGetJob):

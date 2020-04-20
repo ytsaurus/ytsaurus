@@ -164,80 +164,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         if (schema is self.SIMPLE_SCHEMA_SORTED):
             delete_rows("//tmp/t", [{"key": 2}], require_sync_replica=False)
 
-    @authors("savrus")
-    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
-    def test_replicated_tablet_node_profiling(self, schema):
-        self._create_cells()
-
-        replicated_table_path = "//tmp/{}".format(generate_uuid())
-        self._create_replicated_table(replicated_table_path, schema, enable_profiling=True, dynamic_store_auto_flush_period=None)
-
-        tablet_profiling = self._get_table_profiling(replicated_table_path)
-        def get_all_counters():
-            return (
-                tablet_profiling.get_counter("write/row_count"),
-                tablet_profiling.get_counter("commit/row_count"),
-                tablet_profiling.get_counter("write/data_weight"),
-                tablet_profiling.get_counter("commit/data_weight"))
-
-        assert get_all_counters() == (0, 0, 0, 0)
-
-        insert_rows(replicated_table_path, [{"key": 1, "value1": "test"}], require_sync_replica=False)
-        wait(lambda: get_all_counters() == (1, 1, 13, 13))
-
-    @authors("gridem")
-    @flaky(max_runs=5)
-    @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
-    def test_replica_tablet_node_profiling(self, schema):
-        self._create_cells()
-
-        replicated_table_path = "//tmp/{}".format(generate_uuid())
-        self._create_replicated_table(replicated_table_path, schema, enable_profiling=True, dynamic_store_auto_flush_period=None)
-
-        replica_table_path = "//tmp/{}".format(generate_uuid())
-        replica_id = create_table_replica(replicated_table_path, self.REPLICA_CLUSTER_NAME, replica_table_path)
-        self._create_replica_table(replica_table_path, replica_id, schema)
-
-        tablet_profiling = self._get_table_profiling(replicated_table_path)
-
-        def get_lag_row_count():
-            return tablet_profiling.get_counter("replica/lag_row_count")
-
-        def get_lag_time():
-            return tablet_profiling.get_counter("replica/lag_time") / 1e6 # conversion from us to s
-
-        sync_enable_table_replica(replica_id)
-        sleep(2)
-
-        assert get_lag_row_count() == 0
-        assert get_lag_time() == 0
-
-        insert_rows(replicated_table_path, [{"key": 0, "value1": "test", "value2": 123}], require_sync_replica=False)
-        sleep(2)
-
-        assert get_lag_row_count() == 0
-        assert get_lag_time() == 0
-
-        sync_unmount_table(replica_table_path, driver=self.replica_driver)
-
-        insert_rows(replicated_table_path, [{"key": 1, "value1": "test", "value2": 123}], require_sync_replica=False)
-        sleep(2)
-
-        assert get_lag_row_count() == 1
-        assert 2 <= get_lag_time() <= 8
-
-        insert_rows(replicated_table_path, [{"key": 2, "value1": "test", "value2": 123}], require_sync_replica=False)
-        sleep(2)
-
-        assert get_lag_row_count() == 2
-        assert 4 <= get_lag_time() <= 10
-
-        sync_mount_table(replica_table_path, driver=self.replica_driver)
-        sleep(2)
-
-        assert get_lag_row_count() == 0
-        assert get_lag_time() == 0
-
     @authors("babenko", "gridem")
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
     def test_replication_error(self, schema):
@@ -250,6 +176,14 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         tablets = get("//tmp/t/@tablets")
         assert len(tablets) == 1
         tablet_id = tablets[0]["tablet_id"]
+
+        def error_contains_message(error, message):
+            if error["message"] == message:
+                return True
+            for inner_error in error["inner_errors"]:
+                if error_contains_message(inner_error, message):
+                    return True
+            return False
 
         def check_error(message=None):
             error_count = get("//tmp/t/@replicas/{}/error_count".format(replica_id))
@@ -264,7 +198,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
             if message is None:
                 return error_count == 0 and len(errors) == 0
             else:
-                return error_count == 1 and len(errors) == 1 and errors[replica_id]["message"] == message
+                return error_count == 1 and len(errors) == 1 and error_contains_message(errors[replica_id], message)
 
         assert check_error()
 
@@ -1160,44 +1094,6 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         insert_rows("//tmp/t", [{"key": 1, "value2": 50}], aggregate=True, update=True, require_sync_replica=False)
         wait(lambda: select_rows("* from [//tmp/r]", driver=self.replica_driver) == [{"key": 1, "value1": "test2", "value2": 150}])
-
-    @authors("babenko", "gridem")
-    @flaky(max_runs=5)
-    def test_replication_lag(self):
-        self._create_cells()
-        self._create_replicated_table("//tmp/t", schema=self.AGGREGATE_SCHEMA)
-        replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r")
-        self._create_replica_table("//tmp/r", replica_id, schema=self.AGGREGATE_SCHEMA)
-
-        def get_lag_time():
-            return get("#{0}/@replication_lag_time".format(replica_id))
-
-        assert get_lag_time() == 0
-
-        insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
-        sleep(1.0)
-        assert 1000000 < get_lag_time()
-
-        sync_enable_table_replica(replica_id)
-        wait(lambda: get_lag_time() == 0)
-
-        sync_disable_table_replica(replica_id)
-        wait(lambda: get_lag_time() == 0)
-
-        insert_rows("//tmp/t", [{"key": 1, "value1": "test1"}], require_sync_replica=False)
-        sleep(1.0)
-
-        base_lag_time = get_lag_time()
-        base_unix_time = time()
-        assert base_lag_time > 2000
-        for i in xrange(10):
-            sleep(1.0)
-            cur_unix_time = time()
-            cur_lag_time = get_lag_time()
-            assert abs((cur_lag_time - base_lag_time) - (cur_unix_time - base_unix_time) * 1000) <= 2000
-
-        sync_enable_table_replica(replica_id)
-        wait(lambda: get_lag_time() == 0)
 
     @authors("babenko", "levysotsky", "gridem")
     @pytest.mark.parametrize("only_replica", [True, False])

@@ -55,7 +55,7 @@ template <class T>
 struct TInstantiatedRegistrar<
     T,
     typename NMpl::TEnableIfC<
-        NMpl::TIsConvertible<T&, TRefCountedImpl&>::Value
+        NMpl::TIsConvertible<T&, TIntrinsicRefCounted&>::Value
     >::TType
 >
 {

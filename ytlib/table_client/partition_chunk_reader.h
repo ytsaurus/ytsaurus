@@ -22,7 +22,7 @@ namespace NYT::NTableClient {
 
 struct TRowDescriptor
 {
-    THorizontalSchemalessBlockReader* BlockReader;
+    THorizontalBlockReader* BlockReader;
     i32 RowIndex;
 };
 
@@ -60,9 +60,9 @@ private:
     std::vector<TColumnIdMapping> IdMapping_;
 
     int CurrentBlockIndex_ = 0;
-    std::vector<std::unique_ptr<THorizontalSchemalessBlockReader>> BlockReaders_;
+    std::vector<std::unique_ptr<THorizontalBlockReader>> BlockReaders_;
 
-    THorizontalSchemalessBlockReader* BlockReader_ = nullptr;
+    THorizontalBlockReader* BlockReader_ = nullptr;
 
 
     TFuture<void> InitializeBlockSequence();

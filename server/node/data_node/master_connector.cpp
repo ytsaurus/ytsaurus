@@ -12,10 +12,13 @@
 
 #include <yt/server/node/cell_node/bootstrap.h>
 #include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cell_node/resource_manager.h>
 
 #include <yt/server/node/data_node/journal_dispatcher.h>
 
 #include <yt/server/node/job_agent/job_controller.h>
+
+#include <yt/server/node/exec_agent/slot_manager.h>
 
 #include <yt/server/node/tablet_node/slot_manager.h>
 #include <yt/server/node/tablet_node/tablet.h>
@@ -23,8 +26,6 @@
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
-
-#include <yt/client/api/transaction.h>
 
 #include <yt/ytlib/election/config.h>
 
@@ -38,11 +39,13 @@
 #include <yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/ytlib/node_tracker_client/node_statistics.h>
 
+#include <yt/client/api/client.h>
+#include <yt/client/api/transaction.h>
+
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/client/api/client.h>
-
 #include <yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -310,20 +313,19 @@ void TMasterConnector::InitMedia()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    YT_LOG_INFO("Requesting medium directory");
+    WaitFor(Bootstrap_
+        ->GetMasterClient()
+        ->GetNativeConnection()
+        ->GetMediumDirectorySynchronizer()
+        ->Sync(/* force */ true))
+        .ThrowOnError();
 
-    const auto& client = Bootstrap_->GetMasterClient();
-    TGetClusterMetaOptions options;
-    options.ReadFrom = EMasterChannelKind::SecondLevelCache;
-    options.PopulateMediumDirectory = true;
-
-    auto result = WaitFor(client->GetClusterMeta(options))
-        .ValueOrThrow();
+    auto mediumDirectory = Bootstrap_
+        ->GetMasterClient()
+        ->GetNativeConnection()
+        ->GetMediumDirectory();
 
     YT_LOG_INFO("Medium directory received");
-
-    auto mediumDirectory = New<NChunkClient::TMediumDirectory>();
-    mediumDirectory->LoadFrom(*result.MediumDirectory);
 
     auto updateLocation = [&] (const TLocationPtr& location) {
         const auto& oldDescriptor = location->GetMediumDescriptor();
@@ -354,6 +356,8 @@ void TMasterConnector::InitMedia()
     for (const auto& location : Bootstrap_->GetChunkCache()->Locations()) {
         updateLocation(location);
     }
+
+    Bootstrap_->GetExecSlotManager()->InitMedia(mediumDirectory);
 }
 
 void TMasterConnector::SyncDirectories()
@@ -979,6 +983,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
         auto tags = FromProto<std::vector<TString>>(rsp->tags());
         UpdateTags(std::move(tags));
+
+        auto resourceManager = Bootstrap_->GetNodeResourceManager();
+        resourceManager->SetResourceLimitsOverride(rsp->resource_limits_overrides());
 
         auto jobController = Bootstrap_->GetJobController();
         jobController->SetResourceLimitsOverrides(rsp->resource_limits_overrides());

@@ -71,11 +71,10 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto req = TYPathProxy::Get(destination + "/@");
     NCypressClient::SetTransactionId(req, options.TransactionId);
-
-    std::vector<TString> attributeKeys{
+    
+    ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
         "md5"
-    };
-    ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+    });
 
     auto rspOrError = WaitFor(proxy->Execute(req));
     if (!rspOrError.IsOK()) {

@@ -1,5 +1,7 @@
 #include "string.h"
+
 #include "error.h"
+#include "format.h"
 #include "guid.h"
 
 #include <util/string/ascii.h>
@@ -338,6 +340,11 @@ TString DecodeEnumValue(TStringBuf value)
 TString EncodeEnumValue(TStringBuf value)
 {
     return CamelCaseToUnderscoreCase(value);
+}
+
+void FormatUnknownEnum(TStringBuilderBase* builder, TStringBuf name, i64 value)
+{
+    builder->AppendFormat("%v(%v)", name, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -106,10 +106,9 @@ public:
         return New<TClientRequestControl>(std::move(service), request->GetRequestId());
     }
 
-    virtual TFuture<void> Terminate(const TError& error) override
+    virtual void Terminate(const TError& error) override
     {
         Terminated_.Fire(error);
-        return VoidFuture;
     }
 
     virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override

@@ -80,7 +80,8 @@ class TestBulkInsert(DynamicTablesBase):
         assert row["key"] == 1
         assert str(row["value"][0]) ==  "1"
 
-        wait(lambda: get("//tmp/t_output/@chunk_count") == 1)
+        expected_chunk_count = 1 if freeze else 3
+        wait(lambda: get("//tmp/t_output/@chunk_count") == expected_chunk_count)
 
         assert lookup_rows("//tmp/t_output", [{"key": 123}]) == []
 
@@ -104,7 +105,7 @@ class TestBulkInsert(DynamicTablesBase):
                 mode="ordered",
                 spec={"max_failed_job_count": 1})
 
-        assert get("//tmp/t_output/@chunk_count") == 0
+        wait(lambda: get("//tmp/t_output/@chunk_count") == 2)
 
     def test_not_unique_keys(self):
         sync_create_cells(1)
@@ -126,7 +127,7 @@ class TestBulkInsert(DynamicTablesBase):
                 mode="ordered",
                 spec={"max_failed_job_count": 1})
 
-        assert get("//tmp/t_output/@chunk_count") == 0
+        wait(lambda: get("//tmp/t_output/@chunk_count") == 2)
 
     def test_write_to_unmounted(self):
         sync_create_cells(1)
@@ -203,8 +204,11 @@ class TestBulkInsert(DynamicTablesBase):
         def _get_chunk_view(table):
             chunk_list_id = get("{}/@chunk_list_id".format(table))
             tree = get("#{}/@tree".format(chunk_list_id))
-            chunk_view_id = tree[0][0][0].attributes["id"]
-            return get("#{}/@".format(chunk_view_id))
+            for child in tree[0]:
+                if child.attributes["type"] == "chunk_list":
+                    chunk_view_id = child[0].attributes["id"]
+                    return get("#{}/@".format(chunk_view_id))
+            assert False
 
         def _read_row_timestamp(table, key, expected_value):
             actual = lookup_rows(table, [{"key": key}], versioned=True)
@@ -353,8 +357,10 @@ class TestBulkInsert(DynamicTablesBase):
 
         root_chunk_list = get("//tmp/t_output/@chunk_list_id")
         tablet_chunk_list = get("#{}/@child_ids/0".format(root_chunk_list))
-        subtablet_chunk_list = get("#{}/@child_ids/0".format(tablet_chunk_list))
-        assert get("#{}/@type".format(subtablet_chunk_list)) == "chunk_list"
+        child_ids = get("#{}/@child_ids".format(tablet_chunk_list))
+        subtablets = [child_id for child_id in child_ids if get("#{}/@type".format(child_id)) == "chunk_list"]
+        assert len(subtablets) == 1
+        subtablet_chunk_list = subtablets[0]
         assert get("#{}/@statistics/chunk_list_count".format(tablet_chunk_list)) == 2
         assert get("#{}/@statistics/chunk_list_count".format(root_chunk_list)) == 3
 
@@ -511,7 +517,7 @@ class TestBulkInsert(DynamicTablesBase):
             command="cat",
             spec={"job_count": 2})
 
-        wait(lambda: get("//tmp/t_output/@chunk_count") == 2)
+        wait(lambda: get("//tmp/t_output/@chunk_count") == 4)
         assert read_table("//tmp/t_output") == sorted(rows)
         assert_items_equal(select_rows("* from [//tmp/t_output]"), sorted(rows))
         wait(lambda: get("//tmp/t_output/@tablet_statistics/overlapping_store_count") == 3)
@@ -558,7 +564,8 @@ class TestBulkInsert(DynamicTablesBase):
         abort_transaction(tx)
         op.wait_for_state("failed")
 
-        assert get("//tmp/t_output/@chunk_count") == 0
+        # The only present chunks are dynamic stores.
+        assert get("//tmp/t_output/@chunk_count") == 2
         assert_items_equal(select_rows("* from [//tmp/t_output]"), [rows[1]])
         insert_rows("//tmp/t_output", [rows[2]])
         assert_items_equal(select_rows("* from [//tmp/t_output]"), rows[1:3])
@@ -649,7 +656,7 @@ class TestBulkInsert(DynamicTablesBase):
 
         chunk_list_id = get("//tmp/t_output/@chunk_list_id")
         tablet_chunk_list_id = get("#{}/@child_ids/0".format(chunk_list_id))
-        assert len(get("#{}/@child_ids".format(tablet_chunk_list_id))) == 2
+        wait(lambda: len(get("#{}/@child_ids".format(tablet_chunk_list_id))) == 4)
 
     @pytest.mark.parametrize("in_memory_mode", ["none", "compressed"])
     def test_accounting(self, in_memory_mode):
@@ -689,7 +696,7 @@ class TestBulkInsert(DynamicTablesBase):
         sync_unmount_table("//tmp/t_output")
         if in_memory_mode != "none":
             wait(lambda: get("//sys/accounts/a/@resource_usage/tablet_static_memory") == 0)
-        
+
         remove("//tmp/t_output")
         wait(lambda: get("//sys/accounts/a/@resource_usage") == usage_before)
 
@@ -824,7 +831,7 @@ class TestBulkInsert(DynamicTablesBase):
     def test_overwrite(self, flush):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
-        self._create_simple_dynamic_table("//tmp/t_output")
+        self._create_simple_dynamic_table("//tmp/t_output", enable_dynamic_store_read=False)
         if not flush:
             set("//tmp/t_output/@enable_store_rotation", False)
         sync_mount_table("//tmp/t_output")

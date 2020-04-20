@@ -272,6 +272,8 @@ message TReqStartTransaction
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 11;
 
     optional uint64 deadline = 12;
+
+    repeated NYT.NProto.TGuid prerequisite_transaction_ids = 13;
 }
 
 message TRspStartTransaction
@@ -287,6 +289,7 @@ message TReqPingTransaction
     required NYT.NProto.TGuid transaction_id = 1;
     // COMPAT(kiselyovp) remove sticky (YT-10654)
     optional bool sticky = 6 [default = false];
+    optional bool ping_ancestors = 7 [default = true];
 }
 
 message TRspPingTransaction
@@ -300,11 +303,24 @@ message TReqCommitTransaction
     required NYT.NProto.TGuid transaction_id = 1;
     // COMPAT(kiselyovp) remove sticky (YT-10654)
     optional bool sticky = 6 [default = false];
+    repeated NYT.NProto.TGuid additional_participant_cell_ids = 7;
 }
 
 message TRspCommitTransaction
 {
     optional NHiveClient.NProto.TTimestampMap commit_timestamps = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFlushTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+}
+
+message TRspFlushTransaction
+{
+    repeated NYT.NProto.TGuid participant_cell_ids = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -435,7 +451,7 @@ message TRspSelectRows
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqExplain
+message TReqExplainQuery
 {
     required string query = 1;
 
@@ -451,7 +467,7 @@ message TReqExplain
     optional string execution_pool = 11;
 }
 
-message TRspExplain
+message TRspExplainQuery
 {
     required bytes value = 1; // YSON
 }
@@ -1041,6 +1057,17 @@ message TRspAttachTransaction
     required EAtomicity atomicity = 3;
     required EDurability durability = 4;
     required int64 timeout = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqDetachTransaction
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+}
+
+message TRspDetachTransaction
+{
 }
 
 ////////////////////////////////////////////////////////////////////////////////

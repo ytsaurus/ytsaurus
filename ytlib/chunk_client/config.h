@@ -230,4 +230,22 @@ DEFINE_REFCOUNTED_TYPE(TChunkTeleporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMediumDirectorySynchronizerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Interval between consequent directory updates.
+    TDuration SyncPeriod;
+
+    TMediumDirectorySynchronizerConfig()
+    {
+        RegisterParameter("sync_period", SyncPeriod)
+            .Default(TDuration::Seconds(60));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkClient

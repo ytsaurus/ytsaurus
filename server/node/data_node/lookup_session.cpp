@@ -43,7 +43,8 @@ TLookupSession::TLookupSession(
     TTimestamp timestamp,
     bool produceAllVersions,
     TCachedTableSchemaPtr tableSchema,
-    const TString& requestedKeysString)
+    const TString& requestedKeysString,
+    NCompression::ECodec codecId)
     : Bootstrap_(bootstrap)
     , ChunkId_(chunkId)
     , ReadSessionId_(readSessionId)
@@ -52,6 +53,7 @@ TLookupSession::TLookupSession(
     , Timestamp_(timestamp)
     , ProduceAllVersions_(produceAllVersions)
     , TableSchema_(std::move(tableSchema))
+    , Codec_(NCompression::GetCodec(codecId))
 {
     // NB: TableSchema is assumed to be set upon calling LookupSession.
     Chunk_ = Bootstrap_->GetChunkRegistry()->GetChunkOrThrow(chunkId);
@@ -233,7 +235,8 @@ TSharedRef TLookupSession::DoRun()
         ProduceAllVersions_);
     rowReaderAdapter->ReadRowset(onRow);
 
-    return MergeRefsToRef<TLookupMergeTag>(writer.Finish());
+    // TODO(akozhikhov): update compression statistics.
+    return Codec_->Compress(writer.Finish());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

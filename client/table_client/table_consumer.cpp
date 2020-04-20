@@ -32,10 +32,6 @@ TYsonToUnversionedValueConverter::TYsonToUnversionedValueConverter(
 {
     SwitchToTable(tableIndex);
 
-    if (complexTypeMode == EComplexTypeMode::Positional) {
-        return;
-    }
-
     for (size_t tableIndex = 0; tableIndex < ValueConsumers_.size(); ++tableIndex) {
         const auto& valueConsumer = ValueConsumers_[tableIndex];
         const auto& nameTable = valueConsumer->GetNameTable();
@@ -46,7 +42,11 @@ TYsonToUnversionedValueConverter::TYsonToUnversionedValueConverter(
             }
             const auto id = nameTable->GetIdOrRegisterName(column.Name());
             auto key = std::pair<int,int>(tableIndex, id);
-            Converters_[key] = CreateNamedToPositionalYsonConverter(TComplexTypeFieldDescriptor(column));
+            if (complexTypeMode == EComplexTypeMode::Positional) {
+                ComplexTypeConverters_[key] = {};
+            } else {
+                ComplexTypeConverters_[key] = CreateNamedToPositionalYsonConverter(TComplexTypeFieldDescriptor(column));
+            }
         }
     }
 }
@@ -183,26 +183,23 @@ void TYsonToUnversionedValueConverter::FlushCurrentValueIfCompleted()
 {
     if (Depth_ == 0) {
         ValueWriter_.Flush();
-        auto it = Converters_.find(std::pair(TableIndex_, ColumnIndex_));
-        if (it == Converters_.end()) {
-            CurrentValueConsumer_->OnValue(
-                MakeUnversionedAnyValue(
-                    TStringBuf(
-                        ValueBuffer_.Begin(),
-                        ValueBuffer_.Begin() + ValueBuffer_.Size()),
-                    ColumnIndex_));
+        auto accumulatedYson = TStringBuf(ValueBuffer_.Begin(), ValueBuffer_.Begin() + ValueBuffer_.Size());
+        auto it = ComplexTypeConverters_.find(std::pair(TableIndex_, ColumnIndex_));
+        TUnversionedValue value;
+        if (it == ComplexTypeConverters_.end()) {
+            value = MakeUnversionedAnyValue(accumulatedYson, ColumnIndex_);
         } else {
             const auto& converter = it->second;
-            ApplyYsonConverter(converter, TStringBuf(ValueBuffer_.Begin(), ValueBuffer_.Size()), &ConvertedWriter_);
-            ConvertedWriter_.Flush();
-            CurrentValueConsumer_->OnValue(
-                MakeUnversionedAnyValue(
-                    TStringBuf(
-                        ConvertedBuffer_.Begin(),
-                        ConvertedBuffer_.Begin() + ConvertedBuffer_.Size()),
-                    ColumnIndex_));
-            ConvertedBuffer_.Clear();
+            if (converter) {
+                ApplyYsonConverter(converter, TStringBuf(ValueBuffer_.Begin(), ValueBuffer_.Size()), &ConvertedWriter_);
+                ConvertedWriter_.Flush();
+                value = MakeUnversionedCompositeValue(ConvertedBuffer_.Blob().ToStringBuf(), ColumnIndex_);
+                ConvertedBuffer_.Clear();
+            } else {
+                value = MakeUnversionedCompositeValue(accumulatedYson, ColumnIndex_);
+            }
         }
+        CurrentValueConsumer_->OnValue(value);
         ValueBuffer_.Clear();
     }
 }

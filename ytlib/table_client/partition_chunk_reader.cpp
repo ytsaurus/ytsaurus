@@ -1,6 +1,8 @@
 #include "partition_chunk_reader.h"
 #include "private.h"
+
 #include "chunk_meta_extensions.h"
+#include "columnar_chunk_meta.h"
 #include "schemaless_chunk_reader.h"
 
 #include <yt/ytlib/chunk_client/config.h>
@@ -61,9 +63,10 @@ TPartitionChunkReader::TPartitionChunkReader(
 
 TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 {
-    std::vector<int> extensionTags = {
+    const std::vector<int> extensionTags = {
         TProtoExtensionTag<TMiscExt>::Value,
         TProtoExtensionTag<NProto::TBlockMetaExt>::Value,
+        TProtoExtensionTag<NProto::TTableSchemaExt>::Value,
         TProtoExtensionTag<NProto::TNameTableExt>::Value,
         TProtoExtensionTag<NProto::TKeyColumnsExt>::Value
     };
@@ -110,9 +113,11 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 void TPartitionChunkReader::InitFirstBlock()
 {
     YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
-    BlockReader_ = new THorizontalSchemalessBlockReader(
+    auto schema = GetTableSchema(*ChunkMeta_);
+    BlockReader_ = new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         BlockMetaExt_.blocks(CurrentBlockIndex_),
+        GetTableSchema(*ChunkMeta_),
         IdMapping_,
         KeyColumns_.size(),
         KeyColumns_.size());

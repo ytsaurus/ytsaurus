@@ -368,6 +368,8 @@ public:
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
     virtual void OnSpeculativeJobScheduled(const TJobletPtr& joblet) override;
 
+    virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -1031,6 +1033,8 @@ private:
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
 
     const NConcurrency::TPeriodicExecutorPtr CheckTentativeTreeEligibilityExecutor_;
+
+    const NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 
     int RetainedJobWithStderrCount_ = 0;
     int RetainedJobsCoreInfoCount_ = 0;

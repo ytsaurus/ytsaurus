@@ -105,10 +105,11 @@ public:
 
     virtual std::pair<i64, i64> GetEqualRange(const TUnversionedValue& value, i64 lowerRowIndex, i64 upperRowIndex) override
     {
-        if (value.Type == EValueType::Null) {
+        if (value.Type < EValueType::Null) {
+            return std::make_pair(lowerRowIndex, lowerRowIndex);
+        } else if (value.Type == EValueType::Null) {
             return std::make_pair(lowerRowIndex, upperRowIndex);
         } else {
-            // Any other value is greater than null.
             return std::make_pair(upperRowIndex, upperRowIndex);
         }
     }

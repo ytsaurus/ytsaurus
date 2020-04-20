@@ -2,6 +2,8 @@
 
 #include <yt/client/scheduler/public.h>
 
+#include <yt/client/chunk_client/public.h>
+
 #include <yt/ytlib/job_tracker_client/public.h>
 
 namespace NYT::NScheduler {
@@ -28,6 +30,9 @@ class TOutputResult;
 class TUserJobSpec;
 class TResourceLimits;
 class TQuerySpec;
+class TDiskQuota;
+class TJobResources;
+class TJobResourcesWithQuota;
 
 } // namespace NProto
 
@@ -61,6 +66,7 @@ DECLARE_REFCOUNTED_CLASS(TSchedulingTagRuleConfig)
 DECLARE_REFCOUNTED_CLASS(TSamplingConfig)
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TTmpfsVolumeConfig)
+DECLARE_REFCOUNTED_CLASS(TDiskRequestConfig)
 DECLARE_REFCOUNTED_CLASS(TOperationSpecBase)
 DECLARE_REFCOUNTED_CLASS(TUserJobSpec)
 DECLARE_REFCOUNTED_CLASS(TOptionalUserJobSpec)
@@ -83,7 +89,6 @@ DECLARE_REFCOUNTED_CLASS(TRemoteCopyOperationSpec)
 DECLARE_REFCOUNTED_CLASS(TVanillaOperationSpec)
 DECLARE_REFCOUNTED_CLASS(TPoolConfig)
 DECLARE_REFCOUNTED_CLASS(TEphemeralSubpoolConfig)
-DECLARE_REFCOUNTED_CLASS(THistoricUsageConfig)
 DECLARE_REFCOUNTED_CLASS(TExtendedSchedulableConfig)
 DECLARE_REFCOUNTED_CLASS(TFairShareStrategyPackingConfig)
 DECLARE_REFCOUNTED_CLASS(TStrategyOperationSpec)
@@ -95,7 +100,9 @@ DECLARE_REFCOUNTED_CLASS(TSchedulerConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TTentativeTreeEligibilityConfig)
 DECLARE_REFCOUNTED_CLASS(TJobCpuMonitorConfig)
 
+struct TDiskQuota;
 class TJobResources;
+class TJobResourcesWithQuota;
 
 class TSchedulerServiceProxy;
 

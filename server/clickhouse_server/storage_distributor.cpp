@@ -244,9 +244,16 @@ public:
         return result;
     }
 
-    virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(const DB::Context& /* context */) const override
+    virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(const DB::Context& context) const override
     {
-        return DB::QueryProcessingStage::WithMergeableState;
+        // If we use WithMergeableState while using single node, caller would process aggregation functions incorrectly.
+        // See also: need_second_distinct_pass at DB::InterpreterSelectQuery::executeImpl().
+        if (!context.getSettingsRef().distributed_group_by_no_merge &&
+            QueryContext_->Bootstrap->GetHost()->GetNodes().size() != 1)
+        {
+            return DB::QueryProcessingStage::WithMergeableState;
+        }
+        return DB::QueryProcessingStage::Complete;
     }
 
     virtual DB::BlockInputStreams read(
@@ -282,11 +289,6 @@ public:
             Subqueries_.size());
 
         const auto& settings = context.getSettingsRef();
-
-        // TODO(max42): wtf?
-        processedStage = settings.distributed_group_by_no_merge
-            ? DB::QueryProcessingStage::Complete
-            : DB::QueryProcessingStage::WithMergeableState;
 
         DB::Context newContext(context);
         newContext.setSettings(PrepareLeafJobSettings(settings));

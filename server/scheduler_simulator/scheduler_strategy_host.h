@@ -50,6 +50,15 @@ public:
 
     virtual NScheduler::TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const NScheduler::TSchedulingTagFilter& filter) const override;
+    
+    virtual void UpdateNodesOnChangedTrees(
+        const THashMap<TString, NScheduler::TSchedulingTagFilter>& treeIdToFilter) override;
+
+    virtual TString FormatResources(const NScheduler::TJobResourcesWithQuota& resources) const override;
+    virtual TString FormatResourceUsage(
+        const NScheduler::TJobResources& usage,
+        const NScheduler::TJobResources& limits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override;
 
     virtual void ValidatePoolPermission(
         const NYPath::TYPath& path,
@@ -85,6 +94,8 @@ private:
 
     NEventLog::IEventLogWriterPtr RemoteEventLogWriter_;
     std::unique_ptr<NYson::IYsonConsumer> RemoteEventLogConsumer_;
+
+    NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

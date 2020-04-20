@@ -1,7 +1,9 @@
 #include "helpers.h"
+#include "private.h"
 #include "chunk_owner_base.h"
 #include "chunk_manager.h"
 #include "chunk_view.h"
+#include "dynamic_store.h"
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 
@@ -80,6 +82,16 @@ TChunkList* GetUniqueParent(const TChunkTree* chunkTree)
             return parents[0];
         }
 
+        case EObjectType::SortedDynamicTabletStore:
+        case EObjectType::OrderedDynamicTabletStore: {
+            const auto& parents = chunkTree->AsDynamicStore()->Parents();
+            if (parents.empty()) {
+                return nullptr;
+            }
+            YT_VERIFY(parents.size() == 1);
+            return parents[0];
+        }
+
         case EObjectType::ChunkList: {
             const auto& parents = chunkTree->AsChunkList()->Parents();
             if (parents.Empty()) {
@@ -105,6 +117,10 @@ int GetParentCount(const TChunkTree* chunkTree)
         case EObjectType::ChunkView:
             return chunkTree->AsChunkView()->Parents().size();
 
+        case EObjectType::SortedDynamicTabletStore:
+        case EObjectType::OrderedDynamicTabletStore:
+            return chunkTree->AsDynamicStore()->Parents().size();
+
         case EObjectType::ChunkList:
             return chunkTree->AsChunkList()->Parents().size();
 
@@ -121,21 +137,21 @@ bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent)
         case EObjectType::JournalChunk:
             return chunkTree->AsChunk()->Parents().contains(potentialParent);
 
-        case EObjectType::ChunkView:
-            for (auto* parent : chunkTree->AsChunkView()->Parents()) {
-                if (parent == potentialParent) {
-                    return true;
-                }
-            }
-            return false;
+        case EObjectType::ChunkView: {
+            const auto& parents = chunkTree->AsChunkView()->Parents();
+            return std::find(parents.begin(), parents.end(), potentialParent) != parents.end();
+        }
 
-        case EObjectType::ChunkList:
-            for (auto* parent : chunkTree->AsChunkList()->Parents()) {
-                if (parent == potentialParent) {
-                    return true;
-                }
-            }
-            return false;
+        case EObjectType::SortedDynamicTabletStore:
+        case EObjectType::OrderedDynamicTabletStore: {
+            const auto& parents = chunkTree->AsDynamicStore()->Parents();
+            return std::find(parents.begin(), parents.end(), potentialParent) != parents.end();
+        }
+
+        case EObjectType::ChunkList: {
+            const auto& parents = chunkTree->AsChunkList()->Parents();
+            return std::find(parents.begin(), parents.end(), potentialParent) != parents.end();
+        }
 
         default:
             YT_ABORT();
@@ -286,6 +302,10 @@ void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
         case EObjectType::ChunkView:
             child->AsChunkView()->AddParent(parent);
             break;
+        case EObjectType::SortedDynamicTabletStore:
+        case EObjectType::OrderedDynamicTabletStore:
+            child->AsDynamicStore()->AddParent(parent);
+            break;
         case EObjectType::ChunkList:
             child->AsChunkList()->AddParent(parent);
             break;
@@ -304,6 +324,10 @@ void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
             break;
         case EObjectType::ChunkView:
             child->AsChunkView()->RemoveParent(parent);
+            break;
+        case EObjectType::SortedDynamicTabletStore:
+        case EObjectType::OrderedDynamicTabletStore:
+            child->AsDynamicStore()->RemoveParent(parent);
             break;
         case EObjectType::ChunkList:
             child->AsChunkList()->RemoveParent(parent);
@@ -325,6 +349,9 @@ TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
             return chunkTree->AsChunk()->GetStatistics();
         case EObjectType::ChunkView:
             return chunkTree->AsChunkView()->GetStatistics();
+        case EObjectType::SortedDynamicTabletStore:
+        case EObjectType::OrderedDynamicTabletStore:
+            return chunkTree->AsDynamicStore()->GetStatistics();
         case EObjectType::ChunkList:
             return chunkTree->AsChunkList()->Statistics();
         default:
@@ -447,6 +474,13 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
             }
             case EObjectType::ChunkView: {
                 for (auto* parent : chunkTree->AsChunkView()->Parents()) {
+                    visit(parent);
+                }
+                break;
+            }
+            case EObjectType::SortedDynamicTabletStore:
+            case EObjectType::OrderedDynamicTabletStore: {
+                for (auto* parent : chunkTree->AsDynamicStore()->Parents()) {
                     visit(parent);
                 }
                 break;
@@ -618,6 +652,8 @@ bool IsEmpty(const TChunkTree* chunkTree)
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
         case EObjectType::ChunkView:
+        case EObjectType::SortedDynamicTabletStore:
+        case EObjectType::OrderedDynamicTabletStore:
             return false;
 
         case EObjectType::ChunkList:
@@ -681,6 +717,12 @@ TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree)
             case EObjectType::ChunkView:
                 return GetUpperBoundKeyOrThrow(currentChunkTree->AsChunkView());
 
+            case EObjectType::SortedDynamicTabletStore:
+                return MaxKey();
+
+            case EObjectType::OrderedDynamicTabletStore:
+                THROW_ERROR_EXCEPTION("Cannot compute max key of ordered dynamic tablet store");
+
             case EObjectType::ChunkList:
                 currentChunkTree = getLastNonemptyChild(currentChunkTree->AsChunkList());
                 break;
@@ -740,6 +782,12 @@ TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree)
 
             case EObjectType::ChunkView:
                 return GetMinKey(currentChunkTree->AsChunkView());
+
+            case EObjectType::SortedDynamicTabletStore:
+                return MinKey();
+
+            case EObjectType::OrderedDynamicTabletStore:
+                THROW_ERROR_EXCEPTION("Cannot compute min key of ordered dynamic tablet store");
 
             case EObjectType::ChunkList:
                 currentChunkTree = getFirstNonemptyChild(currentChunkTree->AsChunkList());
@@ -866,6 +914,13 @@ std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChu
     }
 
     return mergedChunkViews;
+}
+
+bool IsPhysicalChunkType(EObjectType type)
+{
+    return type == EObjectType::Chunk ||
+        type == EObjectType::ErasureChunk ||
+        type == EObjectType::JournalChunk;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

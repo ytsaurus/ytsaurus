@@ -275,6 +275,7 @@ TOperationControllerBase::TOperationControllerBase(
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         BIND(&TThis::CheckTentativeTreeEligibility, MakeWeak(this)),
         Config->CheckTentativeTreeEligibilityPeriod))
+    , MediumDirectory_(Host->GetMediumDirectory())
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -3722,6 +3723,7 @@ void TOperationControllerBase::AnalyzeQueueAverageWaitTime()
     for (auto queue : TEnumTraits<EOperationControllerQueue>::GetDomainValues()) {
         auto invoker = GetCancelableInvoker(queue);
         auto averageWaitTime = invoker->GetAverageWaitTime();
+
         if (averageWaitTime > Config->OperationAlerts->QueueAverageWaitTimeThreshold) {
             queueToAverageWaitTime.emplace(queue, averageWaitTime);
         }
@@ -4126,7 +4128,7 @@ void TOperationControllerBase::DoScheduleLocalJob(
                 bestTask->GetTitle(),
                 address,
                 bestLocality,
-                FormatResources(jobLimits),
+                FormatResources(jobLimits, GetMediumDirectory()),
                 bestTask->GetPendingDataWeight(),
                 bestTask->GetPendingJobCount());
 
@@ -4253,7 +4255,7 @@ void TOperationControllerBase::DoScheduleNonLocalJob(
                     "PendingDataWeight: %v, PendingJobCount: %v)",
                     task->GetTitle(),
                     address,
-                    FormatResources(jobLimits),
+                    FormatResources(jobLimits, GetMediumDirectory()),
                     task->GetPendingDataWeight(),
                     task->GetPendingJobCount());
 
@@ -4419,7 +4421,15 @@ void TOperationControllerBase::UpdateMinNeededJobResources()
             }
 
             auto jobType = task->GetJobType();
-            auto resources = task->GetMinNeededResources();
+            TJobResourcesWithQuota resources;
+            try {
+                resources = task->GetMinNeededResources();
+            } catch (const std::exception& ex) {
+                auto error = TError("Failed to update min nedeeded resources")
+                    << ex;
+                OnOperationFailed(error);
+                return;
+            }
 
             auto resIt = minNeededJobResources.find(jobType);
             if (resIt == minNeededJobResources.end()) {
@@ -4434,7 +4444,7 @@ void TOperationControllerBase::UpdateMinNeededJobResources()
             result.push_back(resources);
             YT_LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
                 jobType,
-                FormatResources(resources));
+                FormatResources(resources, GetMediumDirectory()));
         }
 
         {
@@ -4991,7 +5001,8 @@ void TOperationControllerBase::FetchInputTables()
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         CreateFetcherChunkScraper(),
         InputClient,
-        Logger);
+        Logger,
+        /*storeChunkStatistics=*/false);
 
     auto chunkSpecFetcher = New<TChunkSpecFetcher>(
         InputClient,
@@ -5115,9 +5126,10 @@ void TOperationControllerBase::FetchInputTables()
         columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
     }
 
-    YT_LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v)",
+    YT_LOG_INFO("Finished fetching input tables (TotalChunkCount: %v, TotalExtensionSize: %v, MemoryUsage: %v)",
         totalChunkCount,
-        totalExtensionSize);
+        totalExtensionSize,
+        GetMemoryUsage());
 }
 
 void TOperationControllerBase::RegisterInputChunk(const TInputChunkPtr& inputChunk)
@@ -5230,7 +5242,8 @@ void TOperationControllerBase::GetInputTablesAttributes()
                 "schema_mode",
                 "schema",
                 "unflushed_timestamp",
-                "content_revision"
+                "content_revision",
+                "enable_dynamic_store_read",
             });
             AddCellTagToSyncWith(req, table->ObjectId);
             SetTransactionId(req, table->ExternalTransactionId);
@@ -5814,7 +5827,8 @@ void TOperationControllerBase::ValidateUserFileSizes()
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         CreateFetcherChunkScraper(),
         InputClient,
-        Logger);
+        Logger,
+        /*storeChunkStatistics=*/false);
 
     // Collect columnar statistics for table files with column selectors.
     for (auto& pair : UserJobFiles_) {
@@ -5981,6 +5995,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                         attributeKeys.push_back("schema");
                         attributeKeys.push_back("retained_timestamp");
                         attributeKeys.push_back("unflushed_timestamp");
+                        attributeKeys.push_back("enable_dynamic_store_read");
                         break;
 
                     default:
@@ -7835,11 +7850,22 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         }
     }
 
-    if (config->DiskSpaceLimit) {
-        jobSpec->set_disk_space_limit(*config->DiskSpaceLimit);
-    }
-    if (config->InodeLimit) {
-        jobSpec->set_inode_limit(*config->InodeLimit);
+    if (config->DiskRequest) {
+        auto mediumDirectory = GetMediumDirectory();
+        auto* mediumDescriptor = mediumDirectory->FindByName(config->DiskRequest->MediumName);
+        if (!mediumDescriptor) {
+            THROW_ERROR_EXCEPTION("Unknown medium %Qv", config->DiskRequest->MediumName);
+        }
+
+        config->DiskRequest->MediumIndex = mediumDescriptor->Index;
+
+        ToProto(jobSpec->mutable_disk_request(), *config->DiskRequest);
+
+        // COMPAT(ignat): remove after nodes update.
+        jobSpec->set_disk_space_limit(config->DiskRequest->DiskSpace);
+        if (config->DiskRequest->InodeCount) {
+            jobSpec->set_inode_limit(*config->DiskRequest->InodeCount);
+        }
     }
     if (config->InterruptionSignal) {
         jobSpec->set_interruption_signal(*config->InterruptionSignal);
@@ -8306,6 +8332,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, PathToInputTables_);
     Persist(context, JobMetricsDeltaPerTree_);
     Persist(context, TotalTimePerTree_);
+    Persist(context, CompletedRowCount_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
@@ -8584,7 +8611,10 @@ void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason a
 void TOperationControllerBase::OnSpeculativeJobScheduled(const TJobletPtr& joblet)
 {
     MarkJobHasCompetitors(joblet);
-    MarkJobHasCompetitors(GetJoblet(joblet->JobCompetitionId));
+    // Original job could be finished and another speculative still running.
+    if (auto originalJob = FindJoblet(joblet->JobCompetitionId)) {
+        MarkJobHasCompetitors(originalJob);
+    }
 }
 
 void TOperationControllerBase::MarkJobHasCompetitors(const TJobletPtr& joblet)
@@ -8601,17 +8631,23 @@ void TOperationControllerBase::MarkJobHasCompetitors(const TJobletPtr& joblet)
 
 void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId)
 {
-    if (Spec_->TestingOperationOptions->RegisterSpeculativeJobOnJobScheduledOnce) {
-        const auto& joblet = JobletMap[jobId];
-        if (joblet->JobIndex == 0) {
-            task->TryRegisterSpeculativeJob(joblet);
-        }
+    const auto& joblet = GetOrCrash(JobletMap, jobId);
+    bool needLaunchSpeculativeJob;
+    switch (Spec_->TestingOperationOptions->TestingSpeculativeLaunchMode) {
+        case ETestingSpeculativeLaunchMode::None:
+            needLaunchSpeculativeJob = false;
+            break;
+        case ETestingSpeculativeLaunchMode::Once:
+            needLaunchSpeculativeJob = joblet->JobIndex == 0;
+            break;
+        case ETestingSpeculativeLaunchMode::Always:
+            needLaunchSpeculativeJob = !joblet->Speculative;
+            break;
+        default:
+            YT_ABORT();
     }
-    if (Spec_->TestingOperationOptions->RegisterSpeculativeJobOnJobScheduled) {
-        const auto& joblet = JobletMap[jobId];
-        if (!joblet->Speculative) {
-            task->TryRegisterSpeculativeJob(joblet);
-        }
+    if (needLaunchSpeculativeJob) {
+        task->TryRegisterSpeculativeJob(joblet);
     }
 }
 
@@ -8726,6 +8762,11 @@ void TOperationControllerBase::MaybeCancel(ECancelationStage cancelationStage)
         YT_LOG_INFO("Making test cancelation (CancelationStage: %v)", cancelationStage);
         Cancel();
     }
+}
+
+const NChunkClient::TMediumDirectoryPtr& TOperationControllerBase::GetMediumDirectory() const
+{
+    return MediumDirectory_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

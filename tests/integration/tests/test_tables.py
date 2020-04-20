@@ -1585,6 +1585,58 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/t2") == make_rows([1, 1, 3, 4, 4])
         assert read_table("//tmp/t3") == make_rows([1, 1, 0, 4, 4])
 
+    @authors("gritukan")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.parametrize("unique_keys", [False, True])
+    def test_alter_key_column(self, unique_keys, optimize_for):
+        old_schema = make_schema([
+            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "required": False},
+        ], unique_keys=unique_keys, strict=True)
+        new_schema = make_schema([
+            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "x", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "required": False},
+        ], unique_keys=unique_keys, strict=True)
+        bad_schema_1 = make_schema([
+            {"name": "x", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "required": False},
+        ], unique_keys=unique_keys, strict=True)
+        bad_schema_2 = make_schema([
+            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "value", "type": "int64", "required": False},
+            {"name": "x", "type": "int64", "required": False, "sort_order": "ascending"},
+        ], unique_keys=unique_keys, strict=True)
+
+        create("table", "//tmp/t", attributes={"schema": old_schema, "optimize_for": optimize_for})
+        write_table("//tmp/t", [{"key": 1, "value": 1}])
+        write_table("<append=true>//tmp/t", [{"key": 2, "value": 2}])
+        assert get("//tmp/t/@chunk_count") == 2
+
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", schema=bad_schema_1)
+
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", schema=bad_schema_2)
+
+        alter_table("//tmp/t", schema=new_schema)
+
+        assert read_table("//tmp/t") == [{"key": 1, "value": 1}, {"key": 2, "value": 2}]
+
+        create("table", "//tmp/t_out", attributes={"schema": new_schema})
+        merge(combine_chunks=True,
+              mode="sorted",
+              in_=["//tmp/t"],
+              out="//tmp/t_out")
+
+        assert read_table("//tmp/t_out") == [{"key": 1, "value": 1, "x": yson.YsonEntity()},
+                                             {"key": 2, "value": 2, "x": yson.YsonEntity()}]
+        assert get("//tmp/t_out/@chunk_count") == 1
+
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", schema=old_schema)
+
 ##################################################################
 
 def check_multicell_statistics(path, chunk_count_map):

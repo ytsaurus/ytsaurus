@@ -56,7 +56,7 @@ Y_FORCE_INLINE TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(const T
 }
 
 template <class T>
-struct TRefCountedWrapper
+struct TRefCountedWrapper final
     : public T
 {
     template <class... TArgs>
@@ -69,9 +69,9 @@ struct TRefCountedWrapper
 #endif
     }
 
-    virtual const void* GetDerived() const override
+    void DestroyRefCounted()
     {
-        return this;
+        T::DestroyRefCountedImpl(this);
     }
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
@@ -84,13 +84,7 @@ struct TRefCountedWrapper
 };
 
 template <class T>
-struct TRefCountedWrapper<TRefCountedWrapper<T>>
-{
-    TRefCountedWrapper() = delete;
-};
-
-template <class T>
-struct TRefCountedWrapperWithCookie
+struct TRefCountedWrapperWithCookie final
     : public T
 {
     template <class... TArgs>
@@ -98,9 +92,9 @@ struct TRefCountedWrapperWithCookie
         : T(std::forward<TArgs>(args)...)
     { }
 
-    virtual const void* GetDerived() const override
+    void DestroyRefCounted()
     {
-        return this;
+        T::DestroyRefCountedImpl(this);
     }
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
@@ -148,9 +142,7 @@ template <class T, class... As>
 Y_FORCE_INLINE TIntrusivePtr<T> New(As&&... args)
 {
     auto* ptr = NYTAlloc::AllocateConstSize<sizeof(TRefCountedWrapper<T>)>();
-    auto* instance = NDetail::NewEpilogue<TRefCountedWrapper<T>>(
-        ptr,
-        std::forward<As>(args)...);
+    auto* instance = NDetail::NewEpilogue<TRefCountedWrapper<T>>(ptr, std::forward<As>(args)...);
 
     return TIntrusivePtr<T>(instance, false);
 }
@@ -162,9 +154,7 @@ TIntrusivePtr<T> NewWithExtraSpace(
 {
     auto totalSize = sizeof(TRefCountedWrapper<T>) + extraSpaceSize;
     auto* ptr = NYTAlloc::Allocate(totalSize);
-    auto* instance = NDetail::NewEpilogue<TRefCountedWrapper<T>>(
-        ptr,
-        std::forward<As>(args)...);
+    auto* instance = NDetail::NewEpilogue<TRefCountedWrapper<T>>(ptr, std::forward<As>(args)...);
 
     return TIntrusivePtr<T>(instance, false);
 }
@@ -175,9 +165,7 @@ Y_FORCE_INLINE TIntrusivePtr<T> NewWithLocation(
     As&&... args)
 {
     auto* ptr = NYTAlloc::AllocateConstSize<sizeof(TRefCountedWrapperWithCookie<T>)>();
-    auto* instance = NDetail::NewEpilogue<TRefCountedWrapperWithCookie<T>>(
-        ptr,
-        std::forward<As>(args)...);
+    auto* instance = NDetail::NewEpilogue<TRefCountedWrapperWithCookie<T>>(ptr, std::forward<As>(args)...);
 
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
     instance->InitializeTracking(GetRefCountedTypeCookieWithLocation<T, TTag, Counter>(location));

@@ -276,7 +276,7 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
             writer.OnEntity();
             break;
         default:
-            YT_ABORT();
+            ThrowUnexpectedValueType(value.Type);
     }
     writer.Flush();
 

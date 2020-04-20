@@ -42,6 +42,11 @@ using namespace NProtobufFormatTest;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString ConvertToTextYson(const INodePtr& node)
+{
+    return ConvertToYsonString(node, EYsonFormat::Text).GetData();
+}
+
 // Hardcoded serialization of file descriptor used in old format description.
 TString FileDescriptor = "\x0a\xb6\x03\x0a\x29\x6a\x75\x6e\x6b\x2f\x65\x72\x6d\x6f\x6c\x6f\x76\x64\x2f\x74\x65\x73\x74\x2d\x70\x72\x6f\x74\x6f\x62"
     "\x75\x66\x2f\x6d\x65\x73\x73\x61\x67\x65\x2e\x70\x72\x6f\x74\x6f\x22\x2d\x0a\x0f\x54\x45\x6d\x62\x65\x64\x65\x64\x4d\x65\x73\x73\x61\x67\x65\x12"
@@ -1522,11 +1527,11 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
         .EndList();
 
     TUnversionedRowBuilder builder;
-    builder.AddValue(MakeUnversionedAnyValue(firstYson.GetData(), firstId));
-    builder.AddValue(MakeUnversionedAnyValue(secondYson.GetData(), secondId));
-    builder.AddValue(MakeUnversionedAnyValue(repeatedMessageYson.GetData(), repeatedMessageId));
-    builder.AddValue(MakeUnversionedAnyValue(repeatedInt64Yson.GetData(), repeatedInt64Id));
-    builder.AddValue(MakeUnversionedAnyValue(anotherRepeatedInt64Yson.GetData(), anotherRepeatedInt64Id));
+    builder.AddValue(MakeUnversionedCompositeValue(firstYson.GetData(), firstId));
+    builder.AddValue(MakeUnversionedCompositeValue(secondYson.GetData(), secondId));
+    builder.AddValue(MakeUnversionedCompositeValue(repeatedMessageYson.GetData(), repeatedMessageId));
+    builder.AddValue(MakeUnversionedCompositeValue(repeatedInt64Yson.GetData(), repeatedInt64Id));
+    builder.AddValue(MakeUnversionedCompositeValue(anotherRepeatedInt64Yson.GetData(), anotherRepeatedInt64Id));
     builder.AddValue(MakeUnversionedInt64Value(4321, anyFieldId));
 
     builder.AddValue(MakeUnversionedInt64Value(-64, int64FieldId));
@@ -1541,12 +1546,12 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     const auto HelloWorldInRussian = "\xd0\x9f\xd1\x80\xd0\xb8\xd0\xb2\xd0\xb5\xd1\x82, \xd0\xbc\xd0\xb8\xd1\x80!";
     builder.AddValue(MakeUnversionedStringValue(HelloWorldInRussian, utf8FieldId));
 
-    builder.AddValue(MakeUnversionedAnyValue(repeatedOptionalAnyYson.GetData(), repeatedOptionalAnyFieldId));
+    builder.AddValue(MakeUnversionedCompositeValue(repeatedOptionalAnyYson.GetData(), repeatedOptionalAnyFieldId));
 
-    builder.AddValue(MakeUnversionedAnyValue(otherComplexFieldYson.GetData(), otherComplexFieldId));
+    builder.AddValue(MakeUnversionedCompositeValue(otherComplexFieldYson.GetData(), otherComplexFieldId));
 
-    builder.AddValue(MakeUnversionedAnyValue("[12;-10;123456789000;]", packedRepeatedInt64FieldId));
-    
+    builder.AddValue(MakeUnversionedCompositeValue("[12;-10;123456789000;]", packedRepeatedInt64FieldId));
+
     auto rows = std::vector<TUnversionedRow>(rowCount, builder.GetRow());
     writer->Write(rows);
 
@@ -1820,7 +1825,7 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
     ASSERT_EQ(rowCollector.Size(), rowCount);
 
     for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-        auto firstNode = GetAny(rowCollector.GetRowValue(rowIndex, "first"));
+        auto firstNode = GetComposite(rowCollector.GetRowValue(rowIndex, "first"));
         ASSERT_EQ(firstNode->GetType(), ENodeType::List);
         const auto& firstList = firstNode->AsList();
         ASSERT_EQ(firstList->GetChildCount(), 13);
@@ -1886,11 +1891,11 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
 
         ASSERT_EQ(firstList->GetChild(12)->GetType(), ENodeType::Entity);
 
-        auto secondNode = GetAny(rowCollector.GetRowValue(rowIndex, "second"));
+        auto secondNode = GetComposite(rowCollector.GetRowValue(rowIndex, "second"));
         ASSERT_EQ(secondNode->GetType(), ENodeType::List);
         EXPECT_EQ(ConvertTo<std::vector<i64>>(secondNode), (std::vector<i64>{101, 102, 103}));
 
-        auto repeatedMessageNode = GetAny(rowCollector.GetRowValue(rowIndex, "repeated_message_field"));
+        auto repeatedMessageNode = GetComposite(rowCollector.GetRowValue(rowIndex, "repeated_message_field"));
         ASSERT_EQ(repeatedMessageNode->GetType(), ENodeType::List);
         ASSERT_EQ(repeatedMessageNode->AsList()->GetChildCount(), 2);
 
@@ -1906,10 +1911,10 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         EXPECT_EQ(subNode2->AsList()->GetChild(0)->GetValue<TString>(), "key21");
         EXPECT_EQ(subNode2->AsList()->GetChild(1)->GetValue<TString>(), "value21");
 
-        auto repeatedInt64Node = GetAny(rowCollector.GetRowValue(rowIndex, "repeated_int64_field"));
+        auto repeatedInt64Node = GetComposite(rowCollector.GetRowValue(rowIndex, "repeated_int64_field"));
         EXPECT_EQ(ConvertTo<std::vector<i64>>(repeatedInt64Node), (std::vector<i64>{31, 32, 33}));
 
-        auto anotherRepeatedInt64Node = GetAny(rowCollector.GetRowValue(rowIndex, "another_repeated_int64_field"));
+        auto anotherRepeatedInt64Node = GetComposite(rowCollector.GetRowValue(rowIndex, "another_repeated_int64_field"));
         EXPECT_EQ(ConvertTo<std::vector<i64>>(anotherRepeatedInt64Node), (std::vector<i64>{}));
 
         auto anyValue = rowCollector.GetRowValue(rowIndex, "any_field");
@@ -1926,7 +1931,7 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
 
         EXPECT_EQ(GetString(rowCollector.GetRowValue(rowIndex, "utf8_field")), HelloWorldInChinese);
 
-        auto repeatedRepeatedOptionalAnyNode = GetAny(rowCollector.GetRowValue(rowIndex, "repeated_optional_any_field"));
+        auto repeatedRepeatedOptionalAnyNode = GetComposite(rowCollector.GetRowValue(rowIndex, "repeated_optional_any_field"));
         auto expectedRepeatedOptionalAnyNode = BuildYsonNodeFluently()
             .BeginList()
                 .Item().Entity()
@@ -1936,10 +1941,10 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
             .EndList();
         EXPECT_NODES_EQUAL(repeatedRepeatedOptionalAnyNode, expectedRepeatedOptionalAnyNode);
 
-        auto actualOtherComplexField = GetAny(rowCollector.GetRowValue(rowIndex, "other_complex_field"));
+        auto actualOtherComplexField = GetComposite(rowCollector.GetRowValue(rowIndex, "other_complex_field"));
         EXPECT_NODES_EQUAL(actualOtherComplexField, otherComplexFieldPositional);
 
-        auto actualPackedRepeatedInt64Field = GetAny(rowCollector.GetRowValue(rowIndex, "packed_repeated_int64_field"));
+        auto actualPackedRepeatedInt64Field = GetComposite(rowCollector.GetRowValue(rowIndex, "packed_repeated_int64_field"));
         EXPECT_NODES_EQUAL(
             actualPackedRepeatedInt64Field,
             BuildYsonNodeFluently()
@@ -2095,8 +2100,8 @@ TEST(TProtobufFormat, WriteSeveralTables)
 
     {
         TUnversionedRowBuilder builder;
-        builder.AddValue(MakeUnversionedAnyValue(embeddedYson.GetData(), embeddedId));
-        builder.AddValue(MakeUnversionedAnyValue(repeatedInt64Yson.GetData(), repeatedInt64Id));
+        builder.AddValue(MakeUnversionedCompositeValue(embeddedYson.GetData(), embeddedId));
+        builder.AddValue(MakeUnversionedCompositeValue(repeatedInt64Yson.GetData(), repeatedInt64Id));
         builder.AddValue(MakeUnversionedInt64Value(4321, anyFieldId));
         writer->Write({builder.GetRow()});
     }
@@ -2215,17 +2220,11 @@ TEST(TProtobufFormat, ParseSeveralTables)
         const auto& rowCollector = rowCollectors[0];
         ASSERT_EQ(rowCollector.Size(), 1);
 
-        auto embeddedNode = GetAny(rowCollector.GetRowValue(0, "embedded"));
-        ASSERT_EQ(embeddedNode->GetType(), ENodeType::List);
-        const auto& embeddedList = embeddedNode->AsList();
-        ASSERT_EQ(embeddedList->GetChildCount(), 2);
+        auto embeddedNode = GetComposite(rowCollector.GetRowValue(0, "embedded"));
+        ASSERT_EQ(ConvertToTextYson(embeddedNode), "[\"Two\";44;]");
 
-        EXPECT_EQ(embeddedList->GetChild(0)->GetValue<TString>(), "Two");
-        EXPECT_EQ(embeddedList->GetChild(1)->GetValue<i64>(), 44);
-
-        auto repeatedInt64Node = GetAny(rowCollector.GetRowValue(0, "repeated_int64_field"));
-        ASSERT_EQ(repeatedInt64Node->GetType(), ENodeType::List);
-        EXPECT_EQ(ConvertTo<std::vector<i64>>(repeatedInt64Node), (std::vector<i64>{55, 56, 57}));
+        auto repeatedInt64Node = GetComposite(rowCollector.GetRowValue(0, "repeated_int64_field"));
+        ASSERT_EQ(ConvertToTextYson(repeatedInt64Node), "[55;56;57;]");
 
         auto int64Field = GetInt64(rowCollector.GetRowValue(0, "any_field"));
         EXPECT_EQ(int64Field, 4444);

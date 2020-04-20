@@ -6,7 +6,6 @@
 #include "resource_tree.h"
 #include "resource_tree_element.h"
 #include "scheduling_context.h"
-#include "historic_usage_aggregator.h"
 
 #include "operation_log.h"
 
@@ -14,6 +13,7 @@
 #include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/misc/finally.h>
+#include <yt/core/misc/historic_usage_aggregator.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -3217,7 +3217,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         context->DynamicAttributesFor(this).SatisfactionRatio,
         context->SchedulingContext->GetNodeDescriptor().Id,
         startDescriptor.Id,
-        FormatResources(startDescriptor.ResourceLimits));
+        Host_->FormatResources(startDescriptor.ResourceLimits));
     return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ true);
 }
 
@@ -3537,7 +3537,7 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
             YT_LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, Limits: %v, JobResources: %v)",
                 jobId,
                 FormatResources(*precommittedResources + availableDelta),
-                FormatResources(startDescriptor.ResourceLimits));
+                FormatResources(startDescriptor.ResourceLimits.ToJobResources()));
 
             Controller_->AbortJob(jobId, EAbortReason::SchedulingResourceOvercommit);
 

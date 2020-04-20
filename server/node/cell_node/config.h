@@ -27,18 +27,94 @@ namespace NYT::NCellNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMemoryLimit
+    : public NYTree::TYsonSerializable
+{
+public:
+    // COMPAT(gritukan): Drop optional after configs migration.
+    std::optional<NNodeTrackerClient::EMemoryLimitType> Type;
+
+    std::optional<i64> Value;
+
+    TMemoryLimit()
+    {
+        RegisterParameter("type", Type)
+            .Default();
+
+        RegisterParameter("value", Value)
+            .Default();
+
+        RegisterPostprocessor([&] {
+            if (Type == NNodeTrackerClient::EMemoryLimitType::Static && !Value) {
+                THROW_ERROR_EXCEPTION("Value should be set for static memory limits");
+            }
+            if (Type != NNodeTrackerClient::EMemoryLimitType::Static && Value) {
+                THROW_ERROR_EXCEPTION("Value can be set only for static memory limits");
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryLimit)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TResourceLimitsConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    i64 Memory;
+    //! Total amount of memory available for node.
+    //! This value will be overridden when node runs in
+    //! Porto environment.
+    i64 TotalMemory;
+
+    TMemoryLimitPtr UserJobs;
+    TMemoryLimitPtr TabletStatic;
+    TMemoryLimitPtr TabletDynamic;
+
+    // COMPAT(gritukan): Drop optional after configs migration.
+    std::optional<i64> FreeMemoryWatermark;
+
+    //! Total amount of CPU available for node.
+    //! This value will be overridden when node runs in
+    //! Porto environment.
+    // COMPAT(gritukan): Drop optional after configs migration.
+    std::optional<double> TotalCpu;
+
+    // COMPAT(gritukan): Drop optional after configs migration.
+    std::optional<double> NodeDedicatedCpu;
+
+    // COMPAT(gritukan): Drop optional after configs migration.
+    std::optional<double> CpuPerTabletSlot;
 
     TResourceLimitsConfig()
     {
         // Very low default, override for production use.
-        RegisterParameter("memory", Memory)
+        // COMPAT(gritukan)
+        RegisterParameter("total_memory", TotalMemory)
+            .Alias("memory")
             .GreaterThanOrEqual(0)
             .Default(5_GB);
+
+        RegisterParameter("user_jobs", UserJobs)
+            .DefaultNew();
+        RegisterParameter("tablet_static", TabletStatic)
+            .DefaultNew();
+        RegisterParameter("tablet_dynamic", TabletDynamic)
+            .DefaultNew();
+
+        RegisterParameter("free_memory_watermark", FreeMemoryWatermark)
+            .Default();
+
+        RegisterParameter("total_cpu", TotalCpu)
+            .Default();
+
+        RegisterParameter("node_dedicated_cpu", NodeDedicatedCpu)
+            .Default();
+
+        RegisterParameter("cpu_per_tablet_slot", CpuPerTabletSlot)
+            .Default();
+
     }
 };
 
@@ -142,9 +218,8 @@ public:
     //! Timeout for RPC query in JobBandwidthThrottler.
     NJobProxy::TJobThrottlerConfigPtr JobThrottler;
 
-    i64 FootprintMemorySize;
-
-    TDuration FootprintUpdatePeriod;
+    TDuration ResourceLimitsUpdatePeriod;
+    std::optional<TDuration> InstanceLimitsUpdatePeriod;
 
     int SkynetHttpPort;
 
@@ -183,12 +258,10 @@ public:
         RegisterParameter("job_throttler", JobThrottler)
             .DefaultNew();
 
-        RegisterParameter("footprint_memory_size", FootprintMemorySize)
-            .Default(1_GB)
-            .GreaterThanOrEqual(100 * 1_MB);
-
-        RegisterParameter("footprint_update_period", FootprintUpdatePeriod)
+        RegisterParameter("resource_limits_update_period", ResourceLimitsUpdatePeriod)
             .Default(TDuration::Seconds(1));
+        RegisterParameter("instance_limits_update_period", InstanceLimitsUpdatePeriod)
+            .Default();
 
         RegisterParameter("skynet_http_port", SkynetHttpPort)
             .Default(10080);
@@ -210,6 +283,50 @@ public:
 
         RegisterPostprocessor([&] () {
             NNodeTrackerClient::ValidateNodeTags(Tags);
+
+            // COMPAT(gritukan): Drop this code after configs migration.
+            if (!ResourceLimits->UserJobs->Type) {
+                ResourceLimits->UserJobs->Type = NNodeTrackerClient::EMemoryLimitType::Dynamic;
+            }
+            if (!ResourceLimits->TabletStatic->Type) {
+                if (TabletNode->ResourceLimits->TabletStaticMemory == std::numeric_limits<i64>::max()) {
+                    ResourceLimits->TabletStatic->Type = NNodeTrackerClient::EMemoryLimitType::None;
+                } else {
+                    ResourceLimits->TabletStatic->Type = NNodeTrackerClient::EMemoryLimitType::Static;
+                    ResourceLimits->TabletStatic->Value = TabletNode->ResourceLimits->TabletStaticMemory;
+                }
+            }
+            if (!ResourceLimits->TabletDynamic->Type) {
+                if (TabletNode->ResourceLimits->TabletDynamicMemory == std::numeric_limits<i64>::max()) {
+                    ResourceLimits->TabletDynamic->Type = NNodeTrackerClient::EMemoryLimitType::None;
+                } else {
+                    ResourceLimits->TabletDynamic->Type = NNodeTrackerClient::EMemoryLimitType::Static;
+                    ResourceLimits->TabletDynamic->Value = TabletNode->ResourceLimits->TabletDynamicMemory;
+                }
+            }
+            if (!ResourceLimits->FreeMemoryWatermark) {
+                ResourceLimits->FreeMemoryWatermark = 0;
+                auto freeMemoryWatermarkNode = ExecAgent->SlotManager->JobEnvironment->AsMap()->FindChild("free_memory_watermark");
+                if (freeMemoryWatermarkNode) {
+                    ResourceLimits->FreeMemoryWatermark = freeMemoryWatermarkNode->GetValue<i64>();
+                }
+            }
+            if (!ResourceLimits->NodeDedicatedCpu) {
+                ResourceLimits->NodeDedicatedCpu = 2; // Old default.
+                auto nodeDedicatedCpuNode = ExecAgent->SlotManager->JobEnvironment->AsMap()->FindChild("node_dedicated_cpu");
+                if (nodeDedicatedCpuNode) {
+                    ResourceLimits->NodeDedicatedCpu = nodeDedicatedCpuNode->GetValue<double>();
+                }
+            }
+            if (!ResourceLimits->CpuPerTabletSlot) {
+                ResourceLimits->CpuPerTabletSlot = ExecAgent->JobController->CpuPerTabletSlot;
+            }
+            if (!InstanceLimitsUpdatePeriod) {
+                auto resourceLimitsUpdatePeriodNode = ExecAgent->SlotManager->JobEnvironment->AsMap()->FindChild("resource_limits_update_period");
+                if (resourceLimitsUpdatePeriodNode) {
+                    InstanceLimitsUpdatePeriod = NYTree::ConvertTo<std::optional<TDuration>>(resourceLimitsUpdatePeriodNode);
+                }
+            }
         });
     }
 };

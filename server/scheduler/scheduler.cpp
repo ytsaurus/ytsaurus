@@ -51,6 +51,8 @@
 
 #include <yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
+#include <yt/core/actions/cancelable_context.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/thread_pool.h>
@@ -290,12 +292,6 @@ public:
             BIND(&TImpl::OnNodesInfoLogging, MakeWeak(this)),
             Config_->NodesInfoLoggingPeriod);
         NodesInfoLoggingExecutor_->Start();
-
-        ValidateNodeTagsExecutor_ = New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
-            BIND(&TImpl::ValidateNodeTags, MakeWeak(this)),
-            Config_->ValidateNodeTagsPeriod);
-        ValidateNodeTagsExecutor_->Start();
 
         UpdateExecNodeDescriptorsExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
@@ -613,7 +609,8 @@ public:
             user,
             TInstant::Now(),
             MasterConnector_->GetCancelableControlInvoker(EControlQueue::Operation),
-            spec->Alias);
+            spec->Alias,
+            spec->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree);
 
         if (!spec->Owners.empty()) {
             operation->SetAlert(
@@ -862,6 +859,31 @@ public:
             BIND(&ISchedulerStrategy::UnregisterOperationFromTree, GetStrategy(), operation->GetId(), treeId));
     }
 
+    void ValidateOperationRuntimeParametersUpdate(
+        const TOperationPtr& operation,
+        const TOperationRuntimeParametersUpdatePtr& update)
+    {
+        // TODO(renadeen): Remove this someday.
+        if (!Config_->PoolChangeIsAllowed) {
+            if (update->Pool) {
+                THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+            }
+            for (const auto& [treeId, schedulingOptions] : update->SchedulingOptionsPerPoolTree) {
+                if (schedulingOptions->Pool) {
+                    THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
+                }
+            }
+        }
+
+        // NB(eshcherbin): We don't want to allow operation pool changes during materialization or revival
+        // because we rely on them being unchanged in |FinishMaterializeOperation|.
+        auto state = operation->GetState();
+        if (state == EOperationState::Materializing || state == EOperationState::RevivingJobs) {
+            THROW_ERROR_EXCEPTION("Operation runtime parameters update is forbidden while "
+                                  "operation is in materializing or reviving jobs state");
+        }
+    }
+
     void DoUpdateOperationParameters(
         TOperationPtr operation,
         const TString& user,
@@ -882,27 +904,7 @@ public:
                 operation->BaseAcl().Entries.end());
         }
 
-        // TODO(renadeen): remove this someday
-        if (!Config_->PoolChangeIsAllowed) {
-            if (update->Pool) {
-                THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
-            }
-            for (const auto& [treeId, schedulingOptions] : update->SchedulingOptionsPerPoolTree) {
-                if (schedulingOptions->Pool) {
-                    THROW_ERROR_EXCEPTION("Pool updates temporary disabled");
-                }
-            }
-        }
-
-        // TODO(escherbin): move this check to some helper and add tests.
-        auto state = operation->GetState();
-        if (state == EOperationState::Materializing ||
-            state == EOperationState::Reviving ||
-            state == EOperationState::RevivingJobs)
-        {
-            THROW_ERROR_EXCEPTION("Operation runtime parameters update is forbidden while "
-                                  "operation is in materializing or reviving state");
-        }
+        ValidateOperationRuntimeParametersUpdate(operation, update);
 
         auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
 
@@ -1092,28 +1094,26 @@ public:
             operation->GetRevivedFromSnapshot());
 
         TFuture<TOperationControllerMaterializeResult> asyncMaterializeResult;
-        TFuture<void> asyncCombineResult;
+        std::vector<TFuture<void>> futures;
         if (operation->GetRevivedFromSnapshot()) {
             operation->SetStateAndEnqueueEvent(EOperationState::RevivingJobs);
-            asyncCombineResult = RegisterJobsFromRevivedOperation(operation);
+            futures.push_back(RegisterJobsFromRevivedOperation(operation));
         } else {
             operation->SetStateAndEnqueueEvent(EOperationState::Materializing);
             asyncMaterializeResult = operation->GetController()->Materialize();
+            futures.push_back(asyncMaterializeResult.AsVoid());
 
-            bool willScheduleInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
-            auto maybeFullFairShareUpdateFinished = willScheduleInSingleTree
-                ? Strategy_->GetFullFairShareUpdateFinished()
-                : VoidFuture;
+            futures.push_back(ResetOperationRevival(operation));
+        }
 
-            asyncCombineResult = Combine(std::vector<TFuture<void>>({
-                asyncMaterializeResult.As<void>(),
-                ResetOperationRevival(operation),
-                maybeFullFairShareUpdateFinished
-            }));
+        if (operation->IsScheduledInSingleTree()) {
+            // NB(eshcherbin): We need to make sure that all necessary information is in fair share tree snapshots
+            // before choosing the best single tree for this operation during |FinishMaterializeOperation| later.
+            futures.push_back(Strategy_->GetFullFairShareUpdateFinished());
         }
 
         auto expectedState = operation->GetState();
-        asyncCombineResult.Subscribe(
+        AllSucceeded(std::move(futures)).Subscribe(
             BIND([=, this_ = MakeStrong(this), asyncMaterializeResult = std::move(asyncMaterializeResult)] (const TError& error) {
                 if (!error.IsOK()) {
                     return;
@@ -1157,8 +1157,7 @@ public:
         // (a) only one tree was specified for operation, or
         // (b) scheduler failed/disconnected before persisting ErasedTrees to master,
         //     in which case it's safe to choose the tree once again.
-        bool willScheduleInSingleTree = operation->Spec()->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree;
-        if (willScheduleInSingleTree && operation->ErasedTrees().empty()) {
+        if (operation->IsScheduledInSingleTree() && operation->ErasedTrees().empty()) {
             auto chosenTree = Strategy_->ChooseBestSingleTreeForOperation(operation->GetId(), neededResources);
 
             std::vector<TString> treeIdsToUnregister;
@@ -1226,8 +1225,8 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         std::vector<TNodeId> result;
-        for (const auto& [nodeId, execNode] : NodeIdToInfo_) {
-            if (filter.CanSchedule(execNode.Tags)) {
+        for (const auto& [nodeId, descriptor] : NodeIdToDescriptor_) {
+            if (filter.CanSchedule(descriptor.Tags)) {
                 result.push_back(nodeId);
             }
         }
@@ -1239,7 +1238,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return GetOrCrash(NodeIdToInfo_, nodeId).Address;
+        return GetOrCrash(NodeIdToDescriptor_, nodeId).Address;
     }
 
     virtual IInvokerPtr GetControlInvoker(EControlQueue queue) const override
@@ -1299,27 +1298,15 @@ public:
             BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
                 // NOTE: If node is unregistered from node shard before it becomes online
                 // then its id can be missing in the map.
-                auto it = NodeIdToInfo_.find(nodeId);
-                if (it == NodeIdToInfo_.end()) {
+                auto it = NodeIdToDescriptor_.find(nodeId);
+                if (it == NodeIdToDescriptor_.end()) {
                     YT_LOG_WARNING("Node is not registered at scheduler (Address: %v)", nodeAddress);
                 } else {
-                    NodeIdToInfo_.erase(it);
+                    NodeIdToDescriptor_.erase(it);
                     YT_LOG_INFO("Node unregistered from scheduler (Address: %v)", nodeAddress);
                 }
                 NodeIdsWithoutTree_.erase(nodeId);
             }));
-    }
-
-    void DoValidateNode(TNodeId nodeId, const TString& address, const THashSet<TString>& tags)
-    {
-        int treeCount;
-        Strategy_->ValidateNodeTags(tags, &treeCount);
-
-        if (treeCount == 1) {
-            NodeIdsWithoutTree_.erase(nodeId);
-        } else if (treeCount == 0) {
-            NodeIdsWithoutTree_.insert(nodeId);
-        }
     }
 
     void ProcessNodesWithoutPoolTreeAlert()
@@ -1336,7 +1323,7 @@ public:
                     truncated = true;
                     break;
                 }
-                nodeAddresses.push_back(GetOrCrash(NodeIdToInfo_, nodeId).Address);
+                nodeAddresses.push_back(GetOrCrash(NodeIdToDescriptor_, nodeId).Address);
             }
 
             SetSchedulerAlert(
@@ -1348,6 +1335,39 @@ public:
         }
     }
 
+    void OnNodeChangedFairShareTree(
+        TNodeId nodeId,
+        std::optional<TString> treeId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto it = NodeIdToDescriptor_.find(nodeId);
+        YT_VERIFY(it != NodeIdToDescriptor_.end());
+
+        auto& currentDescriptor = it->second;
+        YT_VERIFY(treeId != currentDescriptor.TreeId);
+
+        YT_LOG_INFO("Node has changed pool tree (NodeId: %v, Address: %v, OldTreeId: %v, NewTreeId: %v)",
+            nodeId,
+            currentDescriptor.Address,
+            currentDescriptor.TreeId,
+            treeId);
+
+        currentDescriptor.CancelableContext->Cancel(
+            TError("Node has changed fair share tree")
+                << TErrorAttribute("old_tree", currentDescriptor.TreeId)
+                << TErrorAttribute("new_tree", treeId));
+
+        currentDescriptor.CancelableContext = New<TCancelableContext>();
+        currentDescriptor.TreeId = treeId;
+
+        auto nodeShard = GetNodeShard(nodeId);
+        BIND(&TNodeShard::AbortJobsAtNode, GetNodeShard(nodeId), nodeId)
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run();
+    }
+
+    // Implementation for INodeShardHost interface.
     void DoRegisterOrUpdateNode(
         TNodeId nodeId,
         const TString& nodeAddress,
@@ -1355,34 +1375,73 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        DoValidateNode(nodeId, nodeAddress, tags);
+        auto treeIds = Strategy_->GetNodeTreeIds(tags);
 
-        auto it = NodeIdToInfo_.find(nodeId);
-        if (it == NodeIdToInfo_.end()) {
-            YT_VERIFY(NodeIdToInfo_.emplace(nodeId, TExecNodeInfo{tags, nodeAddress}).second);
-            YT_LOG_INFO("Node is registered at scheduler (Address: %v, Tags: %v)",
-                nodeAddress,
-                tags);
+        std::optional<TString> treeId;
+        if (treeIds.size() == 0) {
+            NodeIdsWithoutTree_.insert(nodeId);
+        } else if (treeIds.size() == 1) {
+            NodeIdsWithoutTree_.erase(nodeId);
+            treeId = treeIds[0];
         } else {
-            it->second = TExecNodeInfo{tags, nodeAddress};
-            YT_LOG_INFO("Node tags were updated at scheduler (Address: %v, NewTags: %v)",
+            THROW_ERROR_EXCEPTION("Node belongs to more than one fair-share tree")
+                << TErrorAttribute("matched_trees", treeIds);
+        }
+
+        auto it = NodeIdToDescriptor_.find(nodeId);
+        if (it == NodeIdToDescriptor_.end()) {
+            YT_VERIFY(NodeIdToDescriptor_.emplace(
+                nodeId,
+                TExecNodeSchedulerDescriptor{tags, nodeAddress, treeId, New<TCancelableContext>()}
+            ).second);
+            YT_LOG_INFO("Node is registered at scheduler (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
+                nodeId,
                 nodeAddress,
-                tags);
+                tags,
+                treeId);
+        } else {
+            auto& currentDescriptor = it->second;
+            if (treeId != currentDescriptor.TreeId) {
+                OnNodeChangedFairShareTree(nodeId, treeId);
+                currentDescriptor.CancelableContext->Cancel(
+                    TError("Node has changed fair share tree")
+                        << TErrorAttribute("old_tree", currentDescriptor.TreeId)
+                        << TErrorAttribute("new_tree", treeId));
+            }
+            currentDescriptor.Tags = tags;
+            currentDescriptor.Address = nodeAddress;
+            YT_LOG_INFO("Node was updated at scheduler (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
+                nodeId,
+                nodeAddress,
+                tags,
+                treeId);
         }
 
         ProcessNodesWithoutPoolTreeAlert();
     }
 
-    void ValidateNodeTags()
+    virtual void UpdateNodesOnChangedTrees(const THashMap<TString, TSchedulingTagFilter>& treeIdToFilter) override
     {
-        for (const auto& [nodeId, nodeInfo] : NodeIdToInfo_) {
-            try {
-                DoValidateNode(nodeId, nodeInfo.Address, nodeInfo.Tags);
-            } catch (const std::exception& ex) {
-                YT_LOG_FATAL(ex, "Found invalid node that belongs to multiple pool trees");
-                YT_ABORT();
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (auto& [nodeId, descriptor] : NodeIdToDescriptor_) {
+            std::optional<TString> newTreeId;
+            for (const auto& [treeId, filter] : treeIdToFilter) {
+                if (filter.CanSchedule(descriptor.Tags)) {
+                    YT_VERIFY(!newTreeId);
+                    newTreeId = treeId;
+                }
+            }
+            if (newTreeId) {
+                NodeIdsWithoutTree_.erase(nodeId);
+            } else {
+                NodeIdsWithoutTree_.insert(nodeId);
+            }
+            if (newTreeId != descriptor.TreeId) {
+                OnNodeChangedFairShareTree(nodeId, newTreeId);
             }
         }
+
         ProcessNodesWithoutPoolTreeAlert();
     }
 
@@ -1446,6 +1505,27 @@ public:
         return *OperationBaseAcl_;
     }
 
+    virtual TString FormatResources(const TJobResourcesWithQuota& resources) const override
+    {
+        auto mediumDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetMediumDirectory();
+        return NScheduler::FormatResources(resources, mediumDirectory);
+    }
+
+    virtual TString FormatResourceUsage(
+        const TJobResources& usage,
+        const TJobResources& limits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const override
+    {
+        auto mediumDirectory = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetMediumDirectory();
+        return NScheduler::FormatResourceUsage(usage, limits, diskResources, mediumDirectory);
+    }
+
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
@@ -1455,6 +1535,9 @@ private:
 
     const std::unique_ptr<TMasterConnector> MasterConnector_;
     std::atomic<bool> Connected_ = {false};
+
+    mutable TReaderWriterSpinLock MediumDirectoryLock_;
+    NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 
     TOperationsCleanerPtr OperationsCleaner_;
 
@@ -1492,7 +1575,6 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ClusterInfoLoggingExecutor_;
     TPeriodicExecutorPtr NodesInfoLoggingExecutor_;
-    TPeriodicExecutorPtr ValidateNodeTagsExecutor_;
     TPeriodicExecutorPtr UpdateExecNodeDescriptorsExecutor_;
     TPeriodicExecutorPtr JobReporterWriteFailuresChecker_;
     TPeriodicExecutorPtr StrategyUnschedulableOperationsChecker_;
@@ -1505,10 +1587,12 @@ private:
     std::vector<TNodeShardPtr> NodeShards_;
     std::vector<IInvokerPtr> CancelableNodeShardInvokers_;
 
-    struct TExecNodeInfo
+    struct TExecNodeSchedulerDescriptor
     {
         THashSet<TString> Tags;
         TString Address;
+        std::optional<TString> TreeId;
+        TCancelableContextPtr CancelableContext;
     };
 
     struct TOperationProgress
@@ -1518,7 +1602,7 @@ private:
         NYson::TYsonString Alerts;
     };
 
-    THashMap<TNodeId, TExecNodeInfo> NodeIdToInfo_;
+    THashMap<TNodeId, TExecNodeSchedulerDescriptor> NodeIdToDescriptor_;
     THashSet<TNodeId> NodeIdsWithoutTree_;
 
     // Special map to support node consistency between node shards YT-11381.
@@ -1889,7 +1973,7 @@ private:
 
     void DoCleanup()
     {
-        NodeIdToInfo_.clear();
+        NodeIdToDescriptor_.clear();
 
         {
             auto error = TError("Master disconnected");
@@ -2033,13 +2117,12 @@ private:
         YT_LOG_INFO("Requesting exec nodes information");
 
         auto req = TYPathProxy::List(GetClusterNodesPath());
-        std::vector<TString> attributeKeys{
+        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "id",
             "tags",
             "state",
             "io_weights"
-        };
-        ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+        });
         batchReq->AddRequest(req, "get_nodes");
     }
 
@@ -2213,7 +2296,6 @@ private:
             ProfilingExecutor_->SetPeriod(Config_->ProfilingUpdatePeriod);
             ClusterInfoLoggingExecutor_->SetPeriod(Config_->ClusterInfoLoggingPeriod);
             NodesInfoLoggingExecutor_->SetPeriod(Config_->NodesInfoLoggingPeriod);
-            ValidateNodeTagsExecutor_->SetPeriod(Config_->ValidateNodeTagsPeriod);
             UpdateExecNodeDescriptorsExecutor_->SetPeriod(Config_->ExecNodeDescriptorsUpdatePeriod);
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);
@@ -2387,8 +2469,6 @@ private:
 
         bool aliasRegistered = false;
         try {
-            Strategy_->ValidatePoolTreesAreNotRemoved(operation);
-
             if (operation->Alias()) {
                 RegisterOperationAlias(operation);
                 aliasRegistered = true;
@@ -2635,6 +2715,10 @@ private:
         YT_LOG_INFO("Registering running jobs from the revived operation (OperationId: %v, JobCount: %v)",
             operation->GetId(),
             jobs.size());
+
+        if (auto delay = operation->Spec()->TestingOperationOptions->DelayInsideRegisterJobsFromRevivedOperation) {
+            TDelayedExecutor::WaitForDuration(*delay);
+        }
 
         // First, unfreeze operation and register jobs in strategy. Do this synchronously as we are in the scheduler control thread.
         Strategy_->RegisterJobsFromRevivedOperation(operation->GetId(), jobs);
@@ -3401,6 +3485,12 @@ private:
                                 fluent.Item(filter.GetBooleanFormula().GetFormula()).Value(record.second);
                             }
                         })
+                    .Item("medium_directory").Value(
+                        Bootstrap_
+                        ->GetMasterClient()
+                        ->GetNativeConnection()
+                        ->GetMediumDirectory()
+                    )
                 .EndMap()
                 .Item("suspicious_jobs").BeginMap()
                     .Items(BuildSuspiciousJobsYson())
@@ -4067,6 +4157,22 @@ int TScheduler::GetOperationArchiveVersion() const
 bool TScheduler::IsJobReporterEnabled() const
 {
     return Impl_->IsJobReporterEnabled();
+}
+
+TString TScheduler::FormatResources(const TJobResourcesWithQuota& resources) const
+{
+    return Impl_->FormatResources(resources);
+}
+
+TString TScheduler::FormatResourceUsage(
+    const TJobResources& usage,
+    const TJobResources& limits,
+    const NNodeTrackerClient::NProto::TDiskResources& diskResources) const
+{
+    return Impl_->FormatResourceUsage(
+        usage,
+        limits,
+        diskResources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

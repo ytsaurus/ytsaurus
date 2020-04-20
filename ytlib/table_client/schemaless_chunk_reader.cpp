@@ -11,6 +11,7 @@
 #include "schemaless_block_reader.h"
 #include "schemaless_chunk_reader.h"
 #include "versioned_chunk_reader.h"
+#include "remote_dynamic_store_reader.h"
 
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
@@ -29,14 +30,20 @@
 #include <yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 
+#include <yt/ytlib/tablet_client/helpers.h>
+
 #include <yt/ytlib/query_client/column_evaluator.h>
 
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_base.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/versioned_reader.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/action_queue.h>
@@ -51,6 +58,7 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NTabletClient;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 using namespace NYPath;
@@ -335,7 +343,7 @@ protected:
     // For filtered out columns maps id to -1.
     std::vector<TColumnIdMapping> IdMapping_;
 
-    std::unique_ptr<THorizontalSchemalessBlockReader> BlockReader_;
+    std::unique_ptr<THorizontalBlockReader> BlockReader_;
 
     TRefCountedBlockMetaPtr BlockMetaExt_;
 
@@ -621,9 +629,10 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     const auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
 
     YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
-    BlockReader_.reset(new THorizontalSchemalessBlockReader(
+    BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
+        ChunkMeta_->ChunkSchema(),
         IdMapping_,
         ChunkKeyColumnCount_,
         KeyColumns_.size(),
@@ -946,9 +955,10 @@ void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
     const auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
 
-    BlockReader_.reset(new THorizontalSchemalessBlockReader(
+    BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
+        ChunkMeta_->ChunkSchema(),
         IdMapping_,
         ChunkKeyColumnCount_,
         KeyColumns_.size(),
@@ -2692,6 +2702,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         columnFilter = TColumnFilter(std::move(transformedIndexes));
     }
 
+    ValidateColumnFilter(columnFilter, tableSchema.GetColumnCount());
+
     TTableSchema versionedReadSchema;
     TColumnFilter versionedColumnFilter;
     std::tie(versionedReadSchema, versionedColumnFilter) = CreateVersionedReadParameters(
@@ -2719,15 +2731,19 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     boundaries.reserve(chunkSpecs.size());
 
     auto extractMinKey = [] (const TChunkSpec& chunkSpec) {
-        YT_VERIFY(chunkSpec.has_chunk_meta());
+        auto type = TypeFromId(FromProto<TChunkId>(chunkSpec.chunk_id()));
+
         if (chunkSpec.has_lower_limit()) {
             auto limit = FromProto<TReadLimit>(chunkSpec.lower_limit());
             if (limit.HasKey()) {
                 return limit.GetKey();
             }
-        } else if (FindProtoExtension<NProto::TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions())) {
-            auto boundaryKeysExt = GetProtoExtension<NProto::TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions());
-            return FromProto<TOwningKey>(boundaryKeysExt.min());
+        } else if (IsChunkTabletStoreType(type)) {
+            YT_VERIFY(chunkSpec.has_chunk_meta());
+            if (FindProtoExtension<NProto::TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions())) {
+                auto boundaryKeysExt = GetProtoExtension<NProto::TBoundaryKeysExt>(chunkSpec.chunk_meta().extensions());
+                return FromProto<TOwningKey>(boundaryKeysExt.min());
+            }
         }
         return TOwningKey();
     };
@@ -2737,7 +2753,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         boundaries.push_back(minKey);
     }
 
-    YT_LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Chunks: %v, ColumnFilter: %v)",
+    YT_LOG_DEBUG("Create overlapping range reader (Boundaries: %v, Stores: %v, ColumnFilter: %v)",
         boundaries,
         MakeFormattableView(chunkSpecs, [] (TStringBuilderBase* builder, const TChunkSpec& chunkSpec) {
             FormatValue(builder, FromProto<TChunkId>(chunkSpec.chunk_id()), TStringBuf());
@@ -2753,7 +2769,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             0),
         NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
 
-    auto createVersionedReader = [
+    auto createVersionedChunkReader = [
         config,
         options,
         client,
@@ -2763,6 +2779,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         nodeDirectory,
         blockReadOptions,
         chunkSpecs,
+        tableSchema,
         versionedReadSchema,
         performanceCounters,
         timestamp,
@@ -2772,8 +2789,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         renameDescriptors,
         parallelReaderMemoryManager,
         Logger
-    ] (int index) -> IVersionedReaderPtr {
-        const auto& chunkSpec = chunkSpecs[index];
+    ] (TChunkSpec chunkSpec) -> IVersionedReaderPtr {
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
         auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
@@ -2845,6 +2861,47 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             timestamp,
             false,
             chunkReaderMemoryManager);
+    };
+
+    auto createVersionedReader = [
+        config,
+        options,
+        client,
+        blockCache,
+        nodeDirectory,
+        blockReadOptions,
+        chunkSpecs,
+        tableSchema,
+        columnFilter,
+        performanceCounters,
+        timestamp,
+        trafficMeter,
+        bandwidthThrottler,
+        rpsThrottler,
+        renameDescriptors,
+        Logger,
+        createVersionedChunkReader
+    ] (int index) -> IVersionedReaderPtr {
+        const auto& chunkSpec = chunkSpecs[index];
+        auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
+        auto type = TypeFromId(chunkId);
+
+        if (type == EObjectType::SortedDynamicTabletStore) {
+            return CreateRemoteDynamicStoreReader(
+                chunkSpec,
+                tableSchema,
+                config->DynamicStoreReader,
+                client,
+                nodeDirectory,
+                trafficMeter,
+                bandwidthThrottler,
+                rpsThrottler,
+                blockReadOptions,
+                columnFilter,
+                timestamp);
+        } else {
+            return createVersionedChunkReader(chunkSpec);
+        }
     };
 
     struct TSchemalessMergingMultiChunkReaderBufferTag

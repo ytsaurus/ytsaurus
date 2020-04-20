@@ -1084,9 +1084,9 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     return TSelectRowsResult{rowset, statistics};
 }
 
-NYson::TYsonString TClient::DoExplain(
+NYson::TYsonString TClient::DoExplainQuery(
     const TString& queryString,
-    const TExplainOptions& options)
+    const TExplainQueryOptions& options)
 {
     auto parsedQuery = ParseSource(queryString, EParseMode::Query);
 
@@ -1122,7 +1122,7 @@ NYson::TYsonString TClient::DoExplain(
         fetchFunctions,
         options.Timestamp);
 
-    return BuildExplainYson(queryString, fragment, udfRegistryPath);
+    return BuildExplainQueryYson(queryString, fragment, udfRegistryPath);
 }
 
 std::unique_ptr<IAttributeDictionary> TClient::ResolveExternalTable(

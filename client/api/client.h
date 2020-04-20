@@ -383,9 +383,6 @@ struct TTransactionCommitOptions
     //! If not null, then this particular cell will be the coordinator.
     NObjectClient::TCellId CoordinatorCellId;
 
-    //! If not #InvalidCellTag, a random participant from the given cell will be the coordinator.
-    NObjectClient::TCellTag CoordinatorCellTag = NObjectClient::InvalidCellTag;
-
     //! If |true| then two-phase-commit protocol is executed regardless of the number of participants.
     bool Force2PC = false;
 
@@ -403,6 +400,10 @@ struct TTransactionCommitOptions
     //! and also relies on ETransactionCoordinatorCommitMode::Lazy transactions whose commit may be delayed
     //! for an arbitrary period of time in case of replica failure.
     bool GeneratePrepareTimestamp = true;
+
+    //! Cell ids of additional 2PC participants.
+    //! Used to implement cross-cluster commit via RPC proxy.
+    std::vector<NObjectClient::TCellId> AdditionalParticipantCellIds;
 };
 
 struct TTransactionPingOptions
@@ -493,7 +494,7 @@ struct TSelectRowsOptions
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
 };
 
-struct TExplainOptions
+struct TExplainQueryOptions
     : public TSelectRowsOptionsBase
 {};
 
@@ -1111,9 +1112,9 @@ struct IClientBase
         const TString& query,
         const TSelectRowsOptions& options = {}) = 0;
 
-    virtual TFuture<NYson::TYsonString> Explain(
+    virtual TFuture<NYson::TYsonString> ExplainQuery(
         const TString& query,
-        const TExplainOptions& options = TExplainOptions()) = 0;
+        const TExplainQueryOptions& options = TExplainQueryOptions()) = 0;
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
@@ -1234,8 +1235,7 @@ struct IClient
 {
     //! Terminates all channels.
     //! Aborts all pending uncommitted transactions.
-    //! Returns a async flag indicating completion.
-    virtual TFuture<void> Terminate() = 0;
+    virtual void Terminate() = 0;
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;

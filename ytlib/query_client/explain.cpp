@@ -97,7 +97,7 @@ void GetFrontQueryInfo(
         .EndMap();
 }
 
-NYson::TYsonString BuildExplainYson(
+NYson::TYsonString BuildExplainQueryYson(
     const TString& queryString,
     const std::unique_ptr<TPlanFragment>& fragment,
     TStringBuf udfRegistryPath)

@@ -370,22 +370,19 @@ const INodeChannelFactoryPtr& TClient::GetChannelFactory()
     return ChannelFactory_;
 }
 
-TFuture<void> TClient::Terminate()
+void TClient::Terminate()
 {
     TransactionManager_->AbortAll();
 
     auto error = TError("Client terminated");
-    std::vector<TFuture<void>> asyncResults;
 
     for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
         for (const auto& pair : MasterChannels_[kind]) {
             auto channel = pair.second;
-            asyncResults.push_back(channel->Terminate(error));
+            channel->Terminate(error);
         }
     }
-    asyncResults.push_back(SchedulerChannel_->Terminate(error));
-
-    return Combine(asyncResults);
+    SchedulerChannel_->Terminate(error);
 }
 
 const IChannelPtr& TClient::GetOperationArchiveChannel(EMasterChannelKind kind)
@@ -3988,7 +3985,9 @@ TYsonString TClient::DoGetJob(
     }
 
     if (!job) {
-        THROW_ERROR_EXCEPTION("Job %v or operation %v not found neither in archive nor in controller agent",
+        THROW_ERROR_EXCEPTION(
+            EErrorCode::NoSuchJob,
+            "Job %v or operation %v not found neither in archive nor in controller agent",
             jobId,
             operationId);
     }

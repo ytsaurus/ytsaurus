@@ -4,33 +4,48 @@
 
 #include <yt/server/controller_agent/controller_agent.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
+
+#include <yt/core/profiling/profile_manager.h>
 
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using namespace NConcurrency;
+using namespace NProfiling;
 using namespace NYTree;
 using namespace NYTAlloc;
 
 static const auto& Logger = ControllerLogger;
+static const TProfiler MemoryTagQueueProfiler("/memory_tag_queue");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMemoryTagQueue::TMemoryTagQueue(TControllerAgentConfigPtr config)
+TMemoryTagQueue::TMemoryTagQueue(
+    TControllerAgentConfigPtr config,
+    IInvokerPtr invoker)
     : Config_(std::move(config))
+    , Invoker_(std::move(invoker))
     , TagToLastOperationId_(AllocatedTagCount_)
+    , ProfilingExecutor_(New<TPeriodicExecutor>(
+        Invoker_,
+        BIND(&TMemoryTagQueue::OnProfiling, this),
+        Config_->MemoryUsageProfilingPeriod))
 {
     for (TMemoryTag tag = 1; tag < AllocatedTagCount_; ++tag) {
         AvailableTags_.push(tag);
+        YT_VERIFY(ProfilingTags_.emplace(tag, TProfileManager::Get()->RegisterTag("tag", tag)).second);
     }
+    ProfilingExecutor_->Start();
 }
 
 TMemoryTag TMemoryTagQueue::AssignTagToOperation(TOperationId operationId)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(Lock_);
+    TWriterGuard guard(Lock_);
 
     if (UsedTags_.size() > MemoryTagQueueLoadFactor * AllocatedTagCount_) {
         AllocateNewTags();
@@ -54,7 +69,7 @@ void TMemoryTagQueue::ReclaimTag(TMemoryTag tag)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TGuard<TSpinLock> guard(Lock_);
+    TWriterGuard guard(Lock_);
 
     YT_VERIFY(UsedTags_.erase(tag));
 
@@ -86,6 +101,7 @@ void TMemoryTagQueue::AllocateNewTags()
     TagToLastOperationId_.resize(2 * AllocatedTagCount_);
     for (TMemoryTag tag = AllocatedTagCount_; tag < 2 * AllocatedTagCount_; ++tag) {
         AvailableTags_.push(tag);
+        YT_VERIFY(ProfilingTags_.emplace(tag, TProfileManager::Get()->RegisterTag("tag", tag)).second);
     }
 
     AllocatedTagCount_ *= 2;
@@ -93,7 +109,7 @@ void TMemoryTagQueue::AllocateNewTags()
 
 void TMemoryTagQueue::UpdateStatisticsIfNeeded()
 {
-    TGuard<TSpinLock> guard(Lock_);
+    TReaderGuard guard(Lock_);
 
     auto now = NProfiling::GetInstant();
     if (CachedTaggedMemoryStatisticsLastUpdateTime_ + Config_->TaggedMemoryStatisticsUpdatePeriod < now) {
@@ -109,7 +125,7 @@ void TMemoryTagQueue::UpdateStatistics()
     std::vector<TMemoryTag> tags;
     std::vector<size_t> usages;
     {
-        TGuard<TSpinLock> guard(Lock_);
+        TReaderGuard guard(Lock_);
         tags.resize(AllocatedTagCount_ - 1);
         std::iota(tags.begin(), tags.end(), 1);
         usages.resize(AllocatedTagCount_ - 1);
@@ -120,7 +136,7 @@ void TMemoryTagQueue::UpdateStatistics()
     YT_LOG_INFO("Finished building tagged memory statistics (EntryCount: %v)", tags.size());
 
     {
-        TGuard<TSpinLock> guard(Lock_);
+        TWriterGuard guard(Lock_);
         CachedTotalUsage_ = 0;
         for (int index = 0; index < tags.size(); ++index) {
             auto tag = tags[index];
@@ -134,7 +150,8 @@ void TMemoryTagQueue::UpdateStatistics()
                     .Item("alive").Value(alive)
                 .EndMap();
 
-            CachedTotalUsage_ += usage;
+            CachedTotalUsage_ += std::max<i64>(0, usage);
+            CachedMemoryUsage_[tag] = std::max<i64>(0, usage);
         }
 
         CachedTaggedMemoryStatistics_ = fluent.Finish();
@@ -146,10 +163,28 @@ i64 TMemoryTagQueue::GetTotalUsage()
 {
     UpdateStatisticsIfNeeded();
 
-    {
-        TGuard<TSpinLock> guard(Lock_);
+    TReaderGuard guard(Lock_);
 
-        return CachedTotalUsage_;
+    return CachedTotalUsage_;
+}
+
+void TMemoryTagQueue::OnProfiling()
+{
+    UpdateStatisticsIfNeeded();
+
+    THashMap<TMemoryTag, i64> cachedMemoryUsage;
+    {
+        TReaderGuard guard(Lock_);
+
+        cachedMemoryUsage = CachedMemoryUsage_;
+    }
+
+    for (int tag = 1; tag < AllocatedTagCount_; ++tag) {
+        MemoryTagQueueProfiler.Enqueue(
+            "/memory_usage",
+            cachedMemoryUsage[tag],
+            EMetricType::Gauge,
+            {GetOrCrash(ProfilingTags_, tag)});
     }
 }
 

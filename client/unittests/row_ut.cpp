@@ -77,6 +77,22 @@ TEST(TUnversionedValueTest, CompareNaN)
     EXPECT_NO_THROW(CompareRowValues(stringValue, doubleValue));
 }
 
+TEST(TUnversionedValueTest, CompareComposite)
+{
+    auto compositeValue = MakeUnversionedCompositeValue("[]");
+    auto stringValue = MakeUnversionedStringValue("foo");
+    auto anyValue = MakeUnversionedAnyValue("[]");
+    auto nullValue = MakeUnversionedSentinelValue(EValueType::Null);
+    EXPECT_THROW_WITH_SUBSTRING(CompareRowValues(compositeValue, stringValue), "Cannot compare values of types");
+    EXPECT_THROW_WITH_SUBSTRING(CompareRowValues(stringValue, compositeValue), "Cannot compare values of types");
+
+    EXPECT_THROW_WITH_SUBSTRING(CompareRowValues(compositeValue, anyValue), "Cannot compare values of types");
+    EXPECT_THROW_WITH_SUBSTRING(CompareRowValues(anyValue, compositeValue), "Cannot compare values of types");
+
+    EXPECT_TRUE(CompareRowValues(compositeValue, nullValue) > 0);
+    EXPECT_TRUE(CompareRowValues(nullValue, compositeValue) < 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

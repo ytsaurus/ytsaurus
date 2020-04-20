@@ -15,12 +15,14 @@ public:
         int nodeShardId,
         TSchedulerConfigPtr config,
         TExecNodePtr node,
-        const std::vector<TJobPtr>& runningJobs)
+        const std::vector<TJobPtr>& runningJobs,
+        const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
         : TSchedulingContextBase(
             nodeShardId,
             std::move(config),
             std::move(node),
-            runningJobs)
+            runningJobs,
+            mediumDirectory)
     { }
 
     virtual NProfiling::TCpuInstant GetNow() const override
@@ -35,13 +37,15 @@ ISchedulingContextPtr CreateSchedulingContext(
     int nodeShardId,
     TSchedulerConfigPtr config,
     TExecNodePtr node,
-    const std::vector<TJobPtr>& runningJobs)
+    const std::vector<TJobPtr>& runningJobs,
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
 {
     return New<TSchedulingContext>(
         nodeShardId,
         std::move(config),
         std::move(node),
-        runningJobs);
+        runningJobs,
+        mediumDirectory);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

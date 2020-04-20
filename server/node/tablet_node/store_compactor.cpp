@@ -157,6 +157,12 @@ private:
             ->Via(Bootstrap_->GetControlInvoker());
     }
 
+    template <typename T>
+    static auto GetOrderingTuple(const T& task)
+    {
+        return std::make_tuple(task->Slack + task->FutureEffect, -task->Effect, -task->GetStoreCount(), task->Random);
+    }
+
     struct TTask
     {
         TTabletSlotPtr Slot;
@@ -211,9 +217,9 @@ private:
             }
         }
 
-        auto GetOrderingTuple()
+        auto GetStoreCount()
         {
-            return std::make_tuple(Slack + FutureEffect, -Effect, -StoreIds.size(), Random);
+            return StoreIds.size();
         }
 
         void Prepare(TStoreCompactor* owner, TAsyncSemaphoreGuard&& semaphoreGuard)
@@ -228,7 +234,7 @@ private:
             const std::unique_ptr<TTask>& lhs,
             const std::unique_ptr<TTask>& rhs)
         {
-            return lhs->GetOrderingTuple() < rhs->GetOrderingTuple();
+            return TStoreCompactor::GetOrderingTuple(lhs) < TStoreCompactor::GetOrderingTuple(rhs);
         }
     };
 
@@ -270,6 +276,8 @@ private:
             auto finishedTaskQueue = FinishedTaskQueue_;
             guard.Release();
 
+            std::sort(taskQueue.begin(), taskQueue.end(), Comparer);
+
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("task_count").Value(taskQueue.size())
@@ -300,6 +308,7 @@ private:
                 , Slack(task.Slack)
                 , Effect(task.Effect)
                 , FutureEffect(task.FutureEffect)
+                , Random(task.Random)
             { }
 
             TTabletId TabletId;
@@ -309,6 +318,12 @@ private:
             int Slack;
             int Effect;
             int FutureEffect;
+            ui64 Random;
+
+            auto GetStoreCount()
+            {
+                return StoreCount;
+            }
 
             void Serialize(TFluentList fluent) const
             {
@@ -322,6 +337,7 @@ private:
                             .Item("slack").Value(Slack)
                             .Item("future_effect").Value(FutureEffect)
                             .Item("effect").Value(Effect)
+                            .Item("random").Value(Random)
                         .EndMap()
                  .EndMap();
             }
@@ -332,6 +348,11 @@ private:
         TSpinLock QueueSpinLock_;
         std::deque<TTaskInfoPtr> TaskQueue_;
         std::deque<TTaskInfoPtr> FinishedTaskQueue_;
+
+        static inline bool Comparer(const TTaskInfoPtr& lhs, const TTaskInfoPtr& rhs)
+        {
+            return TStoreCompactor::GetOrderingTuple(lhs) < TStoreCompactor::GetOrderingTuple(rhs);
+        }
     };
 
     using TOrchidServiceManagerPtr = TIntrusivePtr<TOrchidServiceManager>;
@@ -1074,6 +1095,7 @@ private:
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
             actionRequest.set_mount_revision(tablet->GetMountRevision());
+            actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Partitioning));
 
             TStoreIdList storeIdsToRemove;
             for (const auto& store : stores) {
@@ -1516,6 +1538,7 @@ private:
             ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
             actionRequest.set_mount_revision(tablet->GetMountRevision());
             actionRequest.set_retained_timestamp(retainedTimestamp);
+            actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
 
             TStoreIdList storeIdsToRemove;
             for (const auto& store : stores) {
