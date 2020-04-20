@@ -43,6 +43,7 @@ using ISuspendableInvokerPool = IGenericInvokerPool<ISuspendableInvoker>;
 DECLARE_REFCOUNTED_TYPE(IInvokerPool)
 DECLARE_REFCOUNTED_TYPE(IPrioritizedInvokerPool)
 DECLARE_REFCOUNTED_TYPE(ISuspendableInvokerPool)
+DECLARE_REFCOUNTED_CLASS(IDiagnosableInvokerPool)
 
 DECLARE_REFCOUNTED_CLASS(TCancelableContext)
 

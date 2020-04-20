@@ -44,13 +44,6 @@ public:
 
     virtual void Invoke(TClosure callback) override;
 
-    // NB(eshcherbin): WARNING! This implementation is incorrect because it returns the wait time of
-    // the latest action and not the average wait time. Please do implement this method correctly if you really need it.
-    virtual TDuration GetAverageWaitTime() const override
-    {
-        return CpuDurationToDuration(WaitTime);
-    }
-
     void Drain()
     {
         Queue.clear();

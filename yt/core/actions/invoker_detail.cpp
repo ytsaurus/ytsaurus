@@ -15,11 +15,6 @@ void TInvokerWrapper::Invoke(TClosure callback)
     return UnderlyingInvoker_->Invoke(std::move(callback));
 }
 
-TDuration TInvokerWrapper::GetAverageWaitTime() const
-{
-    return UnderlyingInvoker_->GetAverageWaitTime();
-}
-
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
 NConcurrency::TThreadId TInvokerWrapper::GetThreadId() const
 {

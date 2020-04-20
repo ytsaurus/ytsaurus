@@ -40,11 +40,6 @@ private:
             }));
         }
 
-        TDuration GetAverageWaitTime() const
-        {
-            YT_UNIMPLEMENTED();
-        }
-
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
         virtual NConcurrency::TThreadId GetThreadId() const override
         {
