@@ -21,7 +21,7 @@ public:
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override;
 
-    virtual TFuture<void> Terminate(const TError& error) override;
+    virtual void Terminate(const TError& error) override;
 
     virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override;
     virtual void UnsubscribeTerminated(const TCallback<void(const TError&)>& callback) override;

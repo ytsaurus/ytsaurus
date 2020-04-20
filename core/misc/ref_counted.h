@@ -17,19 +17,6 @@ class TSourceLocation;
 
 class TRefCountedBase;
 
-class TRefCountedImpl;
-
-//! Default base class for all ref-counted types.
-/*!
- *  Supports weak pointers.
- *
- *  Instances are created with a single memory allocation.
- */
-using TRefCounted = TRefCountedImpl;
-
-// COMPAT(lukyan): Both versions are lightweight and support weak pointers.
-using TIntrinsicRefCounted = TRefCountedImpl;
-
 using TRefCountedTypeCookie = int;
 const int NullRefCountedTypeCookie = -1;
 
@@ -62,7 +49,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A technical base class for TRefCountedImpl and promise states.
+//! A technical base class for ref-counted objects and promise states.
 class TRefCountedBase
 {
 public:
@@ -70,8 +57,6 @@ public:
     virtual ~TRefCountedBase() noexcept = default;
 
     void operator delete(void* ptr) noexcept;
-
-    virtual const void* GetDerived() const = 0;
 
 private:
     TRefCountedBase(const TRefCountedBase&) = delete;
@@ -85,15 +70,15 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Base class for all reference-counted objects.
-class TRefCountedImpl
+class TRefCountedLite
     : public TRefCountedBase
 {
 public:
-    TRefCountedImpl() = default;
-    ~TRefCountedImpl() noexcept = default;
+    TRefCountedLite() = default;
+    ~TRefCountedLite() noexcept = default;
 
     //! Increments the strong reference counter.
-    void Ref() const noexcept;
+    int Ref() const noexcept;
 
     //! Decrements the strong reference counter.
     void Unref() const;
@@ -101,21 +86,12 @@ public:
     //! Increments the strong reference counter if it is not null.
     bool TryRef() const noexcept;
 
-    //! Increments the weak reference counter.
-    void WeakRef() const noexcept;
-
-    //! Decrements the weak reference counter.
-    void WeakUnref() const;
-
     //! Returns current number of strong references to the object.
     /*!
      * Note that you should never ever use this method in production code.
      * This method is mainly for debugging purposes.
      */
     int GetRefCount() const noexcept;
-
-    //! Returns current number of weak references to the object.
-    int GetWeakRefCount() const noexcept;
 
     //! Tries to obtain an intrusive pointer for an object that may had
     //! already lost all of its references and, thus, is about to be deleted.
@@ -138,12 +114,61 @@ public:
 
 private:
     //! Number of strong references.
-    mutable std::atomic<int> StrongCount_ = {1};
+    mutable std::atomic<int> StrongCount_ = 1;
 
-    //! Number of weak references plus one if there is at least one strong reference.
-    mutable std::atomic<int> WeakCount_ = {1};
+    virtual void DestroyRefCounted() = 0;
 
+protected:
+    template <class T>
+    void DestroyRefCountedImpl(T* ptr);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRefCounted
+    : public TRefCountedLite
+{
+public:
+    //! Increments the strong reference counter.
+    void Ref() const noexcept;
+
+    //! Increments the strong reference counter if it is not null.
+    bool TryRef() const noexcept;
+
+    //! Increments the weak reference counter.
+    void WeakRef() const noexcept;
+
+    //! Decrements the weak reference counter.
+    void WeakUnref() const;
+
+    //! Returns current number of weak references to the object.
+    int GetWeakRefCount() const noexcept;
+
+private:
+    //! Number of weak references plus one if there is at least one strong reference.
+    mutable std::atomic<int> WeakCount_ = 1;
+
+protected:
+    template <class T>
+    void DestroyRefCountedImpl(T* ptr);
+};
+
+using TIntrinsicRefCounted = TRefCountedLite;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <bool EnableWeak>
+class TGenericRefCounted;
+
+template <>
+class TGenericRefCounted<false>
+    : public TRefCountedLite
+{ };
+
+template <>
+class TGenericRefCounted<true>
+    : public TRefCounted
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

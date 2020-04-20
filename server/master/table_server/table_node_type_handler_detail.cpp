@@ -261,6 +261,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
         clonedTrunkNode->SetUpstreamReplicaId(trunkSourceNode->GetUpstreamReplicaId());
         clonedTrunkNode->SetLastCommitTimestamp(trunkSourceNode->GetLastCommitTimestamp());
         clonedTrunkNode->MutableTabletBalancerConfig() = CloneYsonSerializable(trunkSourceNode->TabletBalancerConfig());
+        clonedTrunkNode->SetEnableDynamicStoreRead(trunkSourceNode->GetEnableDynamicStoreRead());
     }
 
     tabletManager->SetTabletCellBundle(clonedTrunkNode, trunkSourceNode->GetTabletCellBundle());
@@ -303,6 +304,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
         Save(*context, trunkNode->GetUpstreamReplicaId());
         Save(*context, trunkNode->GetLastCommitTimestamp());
         Save(*context, ConvertToYsonString(trunkNode->TabletBalancerConfig()));
+        Save(*context, trunkNode->GetEnableDynamicStoreRead());
     }
 }
 
@@ -340,6 +342,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
         node->SetUpstreamReplicaId(Load<TTableReplicaId>(*context));
         node->SetLastCommitTimestamp(Load<TTimestamp>(*context));
         node->MutableTabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(Load<TYsonString>(*context));
+        node->SetEnableDynamicStoreRead(Load<std::optional<bool>>(*context));
     }
 }
 

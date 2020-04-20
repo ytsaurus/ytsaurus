@@ -34,7 +34,7 @@ public:
         , Id_(std::move(memberId))
         , GroupId_(std::move(groupId))
         , PeriodicExecutor_(New<TPeriodicExecutor>(
-            invoker,
+            std::move(invoker),
             BIND(&TImpl::OnHeartbeat, MakeWeak(this)),
             Config_->HeartbeatPeriod))
         , ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
@@ -84,7 +84,7 @@ private:
     const NLogging::TLogger Logger;
     const TServerAddressPoolPtr AddressPool_;
 
-    std::atomic<i64> Priority_;
+    std::atomic<i64> Priority_ = std::numeric_limits<i64>::max();
     i64 Revision_ = 0;
 
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;

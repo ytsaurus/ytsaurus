@@ -40,7 +40,7 @@ public:
         : TServiceBase(
             std::move(invoker),
             TDiscoveryClientServiceProxy::GetDescriptor(),
-            DiscoverServerLogger)
+            DiscoveryServerLogger)
         , RpcServer_(std::move(rpcServer))
         , GroupManager_(std::move(groupManager))
     {
@@ -161,7 +161,7 @@ public:
         : TServiceBase(
             std::move(invoker),
             TDiscoveryServerServiceProxy::GetDescriptor(),
-            DiscoverServerLogger)
+            DiscoveryServerLogger)
         , RpcServer_(std::move(rpcServer))
         , GroupManager_(std::move(groupManager))
         , GossipBatchSize_(config->GossipBatchSize)
@@ -223,7 +223,7 @@ public:
         , SelfAddress_(std::move(selfAddress))
         , Config_(std::move(config))
         , ChannelFactory_(CreateCachingChannelFactory(channelFactory))
-        , Logger(NLogging::TLogger(DiscoverServerLogger)
+        , Logger(NLogging::TLogger(DiscoveryServerLogger)
             .AddTag("SelfAddress: %v", SelfAddress_))
         , GroupManager_(New<TGroupManager>(Logger))
         , GossipPeriodicExecutor_(New<TPeriodicExecutor>(

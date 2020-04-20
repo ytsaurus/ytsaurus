@@ -1,10 +1,10 @@
 #pragma once
 
+#include "config.h"
+
 #include <util/datetime/base.h>
 
-#include <yt/ytlib/scheduler/config.h>
-
-namespace NYT::NScheduler {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,4 +52,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT

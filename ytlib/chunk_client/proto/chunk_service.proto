@@ -7,6 +7,7 @@ import "yt/ytlib/chunk_client/proto/session_id.proto";
 import "yt/ytlib/chunk_client/proto/chunk_info.proto";
 import "yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt/client/chunk_client/proto/data_statistics.proto";
+import "yt/client/chunk_client/proto/chunk_spec.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

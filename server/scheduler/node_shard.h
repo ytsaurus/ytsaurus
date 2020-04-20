@@ -36,6 +36,12 @@ struct INodeShardHost
 
     virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
 
+    virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
+    virtual TString FormatResourceUsage(
+        const TJobResources& usage,
+        const TJobResources& limits,
+        const NNodeTrackerClient::NProto::TDiskResources& diskResources) const = 0;
+
     virtual TFuture<void> RegisterOrUpdateNode(
         NNodeTrackerClient::TNodeId nodeId,
         const TString& nodeAddress,
@@ -120,6 +126,8 @@ public:
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
     void UnregisterAndRemoveNodeById(NNodeTrackerClient::TNodeId nodeId);
+    void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId);
+
 
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors();
     void UpdateExecNodeDescriptors();

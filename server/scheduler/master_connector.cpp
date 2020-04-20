@@ -13,26 +13,27 @@
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/file_client/file_ypath_proxy.h>
 
-#include <yt/client/security_client/acl.h>
-
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
 #include <yt/ytlib/hive/cluster_directory_synchronizer.h>
-
-#include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/ytlib/api/native/connection.h>
+
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/security_client/acl.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -595,6 +596,7 @@ private:
             AssumeControl();
             UpdateGlobalWatchers();
             SyncClusterDirectory();
+            SyncMediumDirectory();
             ListOperations();
             RequestOperationAttributes();
             SubmitOperationsToCleaner();
@@ -735,6 +737,17 @@ private:
                 ->GetMasterClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectorySynchronizer()
+                ->Sync())
+                .ThrowOnError();
+        }
+
+        void SyncMediumDirectory()
+        {
+            WaitFor(Owner_
+                ->Bootstrap_
+                ->GetMasterClient()
+                ->GetNativeConnection()
+                ->GetMediumDirectorySynchronizer()
                 ->Sync())
                 .ThrowOnError();
         }
@@ -912,6 +925,7 @@ private:
                 runtimeParameters->Annotations = annotations;
             }
 
+            auto scheduler = Owner_->Bootstrap_->GetScheduler();
             auto operation = New<TOperation>(
                 operationId,
                 attributes.Get<EOperationType>("operation_type"),
@@ -921,11 +935,12 @@ private:
                 specString,
                 secureVault,
                 runtimeParameters,
-                Owner_->Bootstrap_->GetScheduler()->GetOperationBaseAcl(),
+                scheduler->GetOperationBaseAcl(),
                 user,
                 attributes.Get<TInstant>("start_time"),
                 Owner_->Bootstrap_->GetControlInvoker(EControlQueue::Operation),
                 spec->Alias,
+                spec->ScheduleInSingleTree && scheduler->GetConfig()->EnableScheduleInSingleTree,
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
                 /* suspended */ attributes.Get<bool>("suspended", false),
@@ -1157,10 +1172,9 @@ private:
                 for (auto transactionId : possibleTransactions)
                 {
                     auto req = TYPathProxy::Get(GetOperationPath(operation->GetId()) + "/@");
-                    std::vector<TString> attributeKeys{
+                    ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                         "committed"
-                    };
-                    ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
+                    });
                     SetTransactionId(req, transactionId);
                     batchReq->AddRequest(req, getBatchKey(operation));
                 }
@@ -1540,7 +1554,6 @@ private:
             YT_LOG_WARNING(rspOrError, "Error updating scheduler alerts");
         }
     }
-
 
     void OnClusterDirectorySynchronized(const TError& error)
     {

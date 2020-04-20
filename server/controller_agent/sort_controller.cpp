@@ -2506,10 +2506,14 @@ private:
                 Logger);
 
             for (const auto& chunk : CollectPrimaryUnversionedChunks()) {
-                SamplesFetcher->AddChunk(chunk);
+                if (!chunk->IsDynamicStore()) {
+                    SamplesFetcher->AddChunk(chunk);
+                }
             }
             for (const auto& chunk : CollectPrimaryVersionedChunks()) {
-                SamplesFetcher->AddChunk(chunk);
+                if (!chunk->IsDynamicStore()) {
+                    SamplesFetcher->AddChunk(chunk);
+                }
             }
 
             SamplesFetcher->SetCancelableContext(GetCancelableContext());
@@ -2678,7 +2682,7 @@ private:
             PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
             stat.DataWeight);
 
-        outputBufferSize += THorizontalSchemalessBlockWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
+        outputBufferSize += THorizontalBlockWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
 
         outputBufferSize = std::min(
             outputBufferSize,
@@ -3345,7 +3349,7 @@ private:
     {
         auto stat = AggregateStatistics(statistics).front();
 
-        i64 reserveSize = THorizontalSchemalessBlockWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
+        i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * static_cast<i64>(Partitions.size());
         i64 bufferSize = std::min(
             reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(Partitions.size()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);

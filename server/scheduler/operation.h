@@ -339,6 +339,8 @@ public:
     void SetErasedTrees(std::vector<TString> erasedTrees) override;
     const std::vector<TString>& ErasedTrees() const override;
 
+    bool IsScheduledInSingleTree() const;
+
     TOperation(
         TOperationId operationId,
         EOperationType type,
@@ -353,6 +355,7 @@ public:
         TInstant startTime,
         IInvokerPtr controlInvoker,
         const std::optional<TString>& alias,
+        bool isScheduledInSingleTree,
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},
         bool suspended = false,
@@ -383,6 +386,8 @@ private:
     TWeakPtr<TControllerAgent> Agent_;
 
     std::vector<TString> ErasedTrees_;
+
+    bool IsScheduledInSingleTree_ = false;
 
     void EraseTree(const TString& treeId) override;
 };

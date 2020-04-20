@@ -24,6 +24,10 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedAnyColumnWriter(
     int columnIndex,
     TDataBlockWriter* dataBlockWriter);
 
+std::unique_ptr<IValueColumnWriter> CreateUnversionedComplexColumnWriter(
+    int columnIndex,
+    TDataBlockWriter* dataBlockWriter);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableChunkFormat

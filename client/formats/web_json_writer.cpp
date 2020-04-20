@@ -396,7 +396,8 @@ public:
     void WriteValue(int tableIndex, TStringBuf columnName, TUnversionedValue value)
     {
         switch (value.Type) {
-            case EValueType::Any: {
+            case EValueType::Any:
+            case EValueType::Composite: {
                 const auto data = TStringBuf(value.Data.String, value.Length);
                 auto key = std::pair<int,int>(tableIndex, value.Id);
                 auto it = YsonConverters_.find(key);
@@ -436,7 +437,7 @@ public:
             case EValueType::Max:
                 break;
         }
-        YT_ABORT();
+        ThrowUnexpectedValueType(value.Type);
     }
 
     void WriteMetaInfo()

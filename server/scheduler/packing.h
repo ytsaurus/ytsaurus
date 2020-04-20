@@ -18,16 +18,18 @@ class TPackingNodeResourcesSnapshot
 public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, Usage);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, Limits);
-    DEFINE_BYREF_RO_PROPERTY(i64, DiskQuota);
+    DEFINE_BYREF_RO_PROPERTY(TDiskQuota, DiskQuota);
 
 public:
     TPackingNodeResourcesSnapshot() = default;
-    TPackingNodeResourcesSnapshot(const TJobResources& usage, const TJobResources& limits, i64 diskQuota);
+    TPackingNodeResourcesSnapshot(const TJobResources& usage, const TJobResources& limits, TDiskQuota diskQuota);
 
 
-    Y_FORCE_INLINE TJobResources Free() const
+    Y_FORCE_INLINE TJobResourcesWithQuota Free() const
     {
-        return Limits_ - Usage_;
+        TJobResourcesWithQuota availableResources = Limits_ - Usage_;
+        availableResources.SetDiskQuota(DiskQuota_);
+        return availableResources;
     }
 };
 

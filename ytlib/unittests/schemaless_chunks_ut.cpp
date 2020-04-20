@@ -467,9 +467,14 @@ protected:
                 return CreateString(rowIndex, id);
             case EValueType::Any:
                 return CreateAny(rowIndex, id);
-            default:
-                YT_ABORT();
+            case EValueType::Null:
+            case EValueType::Composite:
+            case EValueType::TheBottom:
+            case EValueType::Min:
+            case EValueType::Max:
+                break;
         }
+        YT_ABORT();
     }
 
     TUnversionedRow CreateRow(int rowIndex, const TTableSchema& schema, TNameTablePtr nameTable)

@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/ytlib/chunk_client/medium_directory.h>
+
 #include <yt/client/security_client/acl.h>
 #include <yt/client/security_client/helpers.h>
 
@@ -168,6 +170,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("delay_inside_abort", DelayInsideAbort)
         .Default();
+    RegisterParameter("delay_inside_register_jobs_from_revived_operation", DelayInsideRegisterJobsFromRevivedOperation)
+        .Default();
     RegisterParameter("delay_inside_operation_commit_stage", DelayInsideOperationCommitStage)
         .Default();
     RegisterParameter("no_delay_on_second_entrance_to_commit", NoDelayOnSecondEntranceToCommit)
@@ -178,10 +182,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("fail_get_job_spec", FailGetJobSpec)
         .Default(false);
-    RegisterParameter("register_speculative_job_on_job_scheduled", RegisterSpeculativeJobOnJobScheduled)
-        .Default(false);
-    RegisterParameter("register_speculative_job_on_job_scheduled_once", RegisterSpeculativeJobOnJobScheduledOnce)
-        .Default(false);
+    RegisterParameter("testing_speculative_launch_mode", TestingSpeculativeLaunchMode)
+        .Default(ETestingSpeculativeLaunchMode::None);
     RegisterParameter("allocation_size", AllocationSize)
         .GreaterThanOrEqual(0)
         .LessThanOrEqual(1_GB)
@@ -304,6 +306,29 @@ void FromProto(TTmpfsVolumeConfig* tmpfsVolumeConfig, const NScheduler::NProto::
 {
     tmpfsVolumeConfig->Size = protoTmpfsVolume.size();
     tmpfsVolumeConfig->Path = protoTmpfsVolume.path();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDiskRequestConfig::TDiskRequestConfig()
+{
+    RegisterParameter("disk_space", DiskSpace);
+    RegisterParameter("inode_count", InodeCount)
+        .Default();
+    RegisterParameter("medium_name", MediumName)
+        .Default(NChunkClient::DefaultSlotsMediumName);
+}
+
+void ToProto(
+    NProto::TDiskRequest* protoDiskRequest,
+    const TDiskRequestConfig& diskRequestConfig)
+{
+    YT_VERIFY(diskRequestConfig.MediumIndex);
+    protoDiskRequest->set_disk_space(diskRequestConfig.DiskSpace);
+    if (diskRequestConfig.InodeCount) {
+        protoDiskRequest->set_inode_count(*diskRequestConfig.InodeCount);
+    }
+    protoDiskRequest->set_medium_index(*diskRequestConfig.MediumIndex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -586,6 +611,8 @@ TUserJobSpec::TUserJobSpec()
     RegisterParameter("inode_limit", InodeLimit)
         .Default()
         .GreaterThanOrEqual(0);
+    RegisterParameter("disk_request", DiskRequest)
+        .Default();
     RegisterParameter("copy_files", CopyFiles)
         .Default(false);
     RegisterParameter("deterministic", Deterministic)
@@ -686,6 +713,27 @@ TUserJobSpec::TUserJobSpec()
 
         for (auto& path : FilePaths) {
             path = path.Normalize();
+        }
+
+        if (!DiskSpaceLimit && InodeLimit) {
+            THROW_ERROR_EXCEPTION("Option \"inode_limit\" can be specified only with \"disk_space_limit\"");
+        }
+
+        if (DiskSpaceLimit && DiskRequest) {
+            THROW_ERROR_EXCEPTION(
+                "Options \"disk_space_limit\" and \"inode_limit\" cannot be specified "
+                "together with \"disk_request\"")
+                << TErrorAttribute("disk_space_limit", DiskSpaceLimit)
+                << TErrorAttribute("inode_limit", InodeLimit)
+                << TErrorAttribute("disk_request", DiskRequest);
+        }
+
+        if (DiskSpaceLimit) {
+            DiskRequest = New<TDiskRequestConfig>();
+            DiskRequest->DiskSpace = *DiskSpaceLimit;
+            DiskRequest->InodeCount = InodeLimit;
+            DiskSpaceLimit = std::nullopt;
+            InodeLimit = std::nullopt;
         }
     });
 }
@@ -1379,19 +1427,6 @@ TEphemeralSubpoolConfig::TEphemeralSubpoolConfig()
     RegisterParameter("max_operation_count", MaxOperationCount)
         .Default()
         .GreaterThanOrEqual(0);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-THistoricUsageConfig::THistoricUsageConfig()
-{
-    RegisterParameter("aggregation_mode", AggregationMode)
-        .Default(EHistoricUsageAggregationMode::None);
-
-    RegisterParameter("ema_alpha", EmaAlpha)
-        // TODO(eshcherbin): Adjust.
-        .Default(1.0 / (24.0 * 60.0 * 60.0))
-        .GreaterThanOrEqual(0.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

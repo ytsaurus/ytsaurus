@@ -127,6 +127,7 @@ public:
         std::atomic<i64>* /*uncompressedDataSize*/,
         const NTableClient::TColumnFilter& /*columnFilter*/,
         NTableClient::TTimestamp /*timestamp*/,
+        NCompression::ECodec /*codecId*/,
         bool /*produceAllVersions*/) override
     {
         YT_UNIMPLEMENTED();

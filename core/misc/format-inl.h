@@ -169,15 +169,6 @@ struct TValueFormatter<TEnum, typename std::enable_if<TEnumTraits<TEnum>::IsEnum
 {
     static void Do(TStringBuilderBase* builder, TEnum value, TStringBuf format)
     {
-        // Obtain literal.
-        auto* literal = TEnumTraits<TEnum>::FindLiteralByValue(value);
-        if (!literal) {
-            builder->AppendFormat("%v(%v)",
-                TEnumTraits<TEnum>::GetTypeName(),
-                static_cast<typename TEnumTraits<TEnum>::TUnderlying>(value));
-            return;
-        }
-
         // Parse custom flags.
         bool lowercase = false;
         const char* current = format.begin();
@@ -187,15 +178,12 @@ struct TValueFormatter<TEnum, typename std::enable_if<TEnumTraits<TEnum>::IsEnum
                 lowercase = true;
             } else if (IsQuotationSpecSymbol(*current)) {
                 ++current;
-            } else
+            } else {
                 break;
+            }
         }
 
-        if (lowercase) {
-            CamelCaseToUnderscoreCase(builder, *literal);
-        } else {
-            builder->AppendString(*literal);
-        }
+        FormatEnum(builder, value, lowercase);
     }
 };
 

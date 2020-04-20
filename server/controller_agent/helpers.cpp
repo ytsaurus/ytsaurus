@@ -344,5 +344,21 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDiskQuota CreateDiskQuota(
+    const TDiskRequestConfigPtr& diskRequestConfig,
+    const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
+{
+    if (!diskRequestConfig->MediumIndex) {
+        auto* mediumDescriptor = mediumDirectory->FindByName(diskRequestConfig->MediumName);
+        if (!mediumDescriptor) {
+            THROW_ERROR_EXCEPTION("Unknown medium %Qv", diskRequestConfig->MediumName);
+        }
+        diskRequestConfig->MediumIndex = mediumDescriptor->Index;
+    }
+    return NScheduler::CreateDiskQuota(*diskRequestConfig->MediumIndex, diskRequestConfig->DiskSpace);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent
 

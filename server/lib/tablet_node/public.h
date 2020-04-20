@@ -39,6 +39,7 @@ using NTabletClient::NullTabletCellId;
 using NTabletClient::TTabletId;
 using NTabletClient::NullTabletId;
 using NTabletClient::TStoreId;
+using NTabletClient::TDynamicStoreId;
 using NTabletClient::NullStoreId;
 using NTabletClient::TPartitionId;
 using NTabletClient::NullPartitionId;
@@ -200,6 +201,9 @@ constexpr i64 HardRevisionsPerDynamicStoreLimit = 1ULL << 26;
 constexpr i64 SoftRevisionsPerDynamicStoreLimit = 1ULL << 25;
 
 constexpr int DefaultMaxOverlappingStoreCount = 30;
+
+// Changing this constant requires promoting master reign.
+constexpr int DynamicStoreIdPoolSize = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 

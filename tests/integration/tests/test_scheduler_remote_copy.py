@@ -255,15 +255,19 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
     @authors("ignat")
     def test_revive(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
-        write_table("//tmp/t1", [{"a" : i} for i in range(100)],
-                    max_row_buffer_size=1,
-                    table_writer={"desired_chunk_size": 1},
-                    driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
         create("table", "//tmp/t2")
 
         op = remote_copy(track=False, in_="//tmp/t1", out="//tmp/t2",
-                         spec={"cluster_name": self.REMOTE_CLUSTER_NAME})
+                         spec={
+                             "cluster_name": self.REMOTE_CLUSTER_NAME,
+                             "job_io": {
+                                 "table_writer": {
+                                     "testing_delay": 5000,
+                                 }
+                             }
+                         })
 
         wait(lambda: op.get_state() == "running")
         wait(lambda: exists(op.get_path() + "/snapshot"))
@@ -277,7 +281,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
         assert input_tx == get(op.get_path() + "/@input_transaction_id")
 
-        assert read_table("//tmp/t2") == [{"a" : i} for i in xrange(100)]
+        assert read_table("//tmp/t2") == [{"a": "b"}]
 
     @authors("ignat")
     def test_revive_with_specified_connection(self):

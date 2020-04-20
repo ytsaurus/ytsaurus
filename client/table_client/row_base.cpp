@@ -86,6 +86,7 @@ void ValidateDataValueType(EValueType type)
         type != EValueType::Boolean &&
         type != EValueType::String &&
         type != EValueType::Any &&
+        type != EValueType::Composite &&
         type != EValueType::Null)
     {
         THROW_ERROR_EXCEPTION("Invalid data value type %Qlv", type);

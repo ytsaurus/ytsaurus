@@ -262,7 +262,7 @@ private:
     void BuildPoolNameMapRecursively(TSchedulerPool* schedulerPool, THashMap<TString, TSchedulerPool*>* map)
     {
         for (const auto& [_, child] : schedulerPool->KeyToChild()) {
-            YT_VERIFY(map->emplace(child->GetName(), schedulerPool).second);
+            YT_VERIFY(map->emplace(child->GetName(), child).second);
             BuildPoolNameMapRecursively(child, map);
         }
     }

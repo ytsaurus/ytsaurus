@@ -706,7 +706,7 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
                 MakeRow(
                     {
                         MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
-                        MakeUnversionedAnyValue("[#]", nameTable->GetIdOrRegisterName("opt_null")),
+                        MakeUnversionedCompositeValue("[#]", nameTable->GetIdOrRegisterName("opt_null")),
                     }).Get(),
             });
         writer->Close()
@@ -1377,7 +1377,7 @@ TEST(TSkiffWriter, TestComplexType)
         // Row 0.
         writer->Write({
             MakeRow({
-                MakeUnversionedAnyValue("[foo;[[0; 1];[2;3]]]", nameTable->GetIdOrRegisterName("value")),
+                MakeUnversionedCompositeValue("[foo;[[0; 1];[2;3]]]", nameTable->GetIdOrRegisterName("value")),
                 MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
             }).Get(),
         });
@@ -1479,7 +1479,7 @@ TEST(TSkiffWriter, TestSparseComplexType)
         // Row 0.
         writer->Write({
             MakeRow({
-                MakeUnversionedAnyValue("[foo;bar;]", nameTable->GetIdOrRegisterName("value")),
+                MakeUnversionedCompositeValue("[foo;bar;]", nameTable->GetIdOrRegisterName("value")),
                 MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
             }).Get(),
         });
@@ -1532,7 +1532,7 @@ TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
     // Row 0.
     writer->Write({
         MakeRow({
-            MakeUnversionedAnyValue("[foo;bar;]", nameTable->GetIdOrRegisterName("value")),
+            MakeUnversionedCompositeValue("[foo;bar;]", nameTable->GetIdOrRegisterName("value")),
             MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
         }).Get(),
     });
@@ -1921,7 +1921,7 @@ TEST(TSkiffParser, TestComplexColumn)
     parser->Finish();
 
     ASSERT_EQ(collectedRows.Size(), 1);
-    ASSERT_EQ(ConvertToYsonTextStringStable(GetAny(collectedRows.GetRowValue(0, "column"))), "[\"row_0\";42;]");
+    ASSERT_EQ(ConvertToYsonTextStringStable(GetComposite(collectedRows.GetRowValue(0, "column"))), "[\"row_0\";42;]");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2027,7 +2027,7 @@ TEST(TSkiffParser, TestSparseComplexType)
     parser->Finish();
 
     ASSERT_EQ(collectedRows.Size(), 2);
-    EXPECT_EQ(ConvertToYsonTextStringStable(GetAny(collectedRows.GetRowValue(0, "value"))), "[\"row_0\";10;]");
+    EXPECT_EQ(ConvertToYsonTextStringStable(GetComposite(collectedRows.GetRowValue(0, "value"))), "[\"row_0\";10;]");
     EXPECT_FALSE(collectedRows.FindRowValue(1, "value"));
 }
 
@@ -2077,7 +2077,7 @@ TEST(TSkiffParser, TestSparseComplexTypeWithExtraOptional)
     parser->Finish();
 
     ASSERT_EQ(collectedRows.Size(), 2);
-    ASSERT_EQ(ConvertToYsonTextStringStable(GetAny(collectedRows.GetRowValue(0, "column"))), "[\"row_0\";42;]");
+    ASSERT_EQ(ConvertToYsonTextStringStable(GetComposite(collectedRows.GetRowValue(0, "column"))), "[\"row_0\";42;]");
     ASSERT_FALSE(collectedRows.FindRowValue(1, "column"));
 }
 

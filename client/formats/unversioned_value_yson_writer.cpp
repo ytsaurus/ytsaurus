@@ -60,7 +60,10 @@ void TUnversionedValueYsonWriter::WriteValue(const TUnversionedValue& value, IYs
         case EValueType::Null:
             consumer->OnEntity();
             return;
-        case EValueType::Any: {
+        case EValueType::Any:
+            consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+            return;
+        case EValueType::Composite: {
             auto data = TStringBuf(value.Data.String, value.Length);
             auto it = ColumnConverters_.find(value.Id);
             if (it != ColumnConverters_.end()) {

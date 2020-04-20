@@ -910,16 +910,61 @@ void TClient::DoConcatenateNodes(
 
     bool append = dstPath.GetAppend();
 
+    std::vector<NApi::ITransactionPtr> nestedInputTransactions;
+
     try {
+        auto transactionId = GetTransactionId(options, /* allowNullTransaction */ true);
         std::vector<TUserObject> srcObjects;
-        for (const auto& srcPath : srcPaths) {
-            srcObjects.emplace_back(srcPath);
+        TUserObject dstObject(dstPath, transactionId);
+
+        // Starting nested input trascations.
+        {
+            THashMap<TTransactionId, int> transactionIdToIndex;
+            for (const auto& srcPath : srcPaths) {
+                auto objectTransactionId = srcPath.GetTransactionId().value_or(transactionId);
+                if (transactionIdToIndex.find(objectTransactionId) == transactionIdToIndex.end()) {
+                    auto nextTransactionIndex = transactionIdToIndex.size();
+                    YT_VERIFY(transactionIdToIndex.emplace(objectTransactionId, nextTransactionIndex).second);
+                }
+            }
+
+            std::vector<TFuture<NApi::ITransactionPtr>> asyncTransactions;
+            asyncTransactions.resize(transactionIdToIndex.size());
+            for (auto [transactionId, index] : transactionIdToIndex) {
+                TTransactionStartOptions options;
+                options.Ping = true;
+                options.PingAncestors = false;
+                options.Timeout = Connection_->GetConfig()->NestedInputTransactionTimeout;
+                options.PingPeriod = Connection_->GetConfig()->NestedInputTransactionPingPeriod;
+                options.ParentId = transactionId;
+
+                asyncTransactions[index] = StartTransaction(ETransactionType::Master, options);
+
+                YT_LOG_DEBUG("Starting nested input transaction (ParentTransactionId: %v, TransactionIndex: %v)",
+                    transactionId,
+                    index);
+            }
+
+            auto transactionsOrError = WaitFor(Combine(asyncTransactions));
+            THROW_ERROR_EXCEPTION_IF_FAILED(transactionsOrError, "Failed to start nested input transactions");
+
+            nestedInputTransactions = transactionsOrError.Value();
+
+            YT_VERIFY(nestedInputTransactions.size() == transactionIdToIndex.size());
+
+            for (const auto& srcPath : srcPaths) {
+                auto objectTransactionId = srcPath.GetTransactionId().value_or(transactionId);
+                auto transactionIndex = GetOrCrash(transactionIdToIndex, objectTransactionId);
+                auto nestedTransactionId = nestedInputTransactions[transactionIndex]->GetId();
+                YT_LOG_DEBUG("Setting nested input transaction id for source object (ObjectPath: %v, NestedTransactionId: %v)",
+                    srcPath,
+                    nestedTransactionId);
+                srcObjects.emplace_back(srcPath, nestedTransactionId);
+            }
         }
 
         std::vector<i64> chunkCounts;
         chunkCounts.reserve(srcObjects.size());
-
-        TUserObject dstObject(dstPath);
 
         std::unique_ptr<IOutputSchemaInferer> outputSchemaInferer;
         std::vector<TSecurityTag> inferredSecurityTags;
@@ -932,14 +977,14 @@ void TClient::DoConcatenateNodes(
                 auto req = TObjectYPathProxy::GetBasicAttributes(srcObject.GetPath());
                 req->set_populate_security_tags(true);
                 req->Tag() = &srcObject;
-                SetTransactionId(req, options, true);
+                NCypressClient::SetTransactionId(req, *srcObject.TransactionId);
                 batchReq->AddRequest(req, "get_src_attributes");
             }
 
             {
                 auto req = TObjectYPathProxy::GetBasicAttributes(dstObject.GetPath());
                 req->Tag() = &dstObject;
-                SetTransactionId(req, options, true);
+                NCypressClient::SetTransactionId(req, *dstObject.TransactionId);
                 batchReq->AddRequest(req, "get_dst_attributes");
             }
 
@@ -978,15 +1023,16 @@ void TClient::DoConcatenateNodes(
                     srcObject->ExternalCellTag = rsp->external_cell_tag();
                     srcObject->ExternalTransactionId = rsp->has_external_transaction_id()
                         ? FromProto<TTransactionId>(rsp->external_transaction_id())
-                        : options.TransactionId;
+                        : *srcObject->TransactionId;
                     srcObject->SecurityTags = FromProto<std::vector<TSecurityTag>>(rsp->security_tags().items());
                     inferredSecurityTags.insert(inferredSecurityTags.end(), srcObject->SecurityTags.begin(), srcObject->SecurityTags.end());
 
-                    YT_LOG_DEBUG("Source table attributes received (Path: %v, ObjectId: %v, ExternalCellTag: %v, SecurityTags: %v)",
+                    YT_LOG_DEBUG("Source table attributes received (Path: %v, ObjectId: %v, ExternalCellTag: %v, SecurityTags: %v, ExternalTransactionId: %v)",
                         srcObject->GetPath(),
                         srcObject->ObjectId,
                         srcObject->ExternalCellTag,
-                        srcObject->SecurityTags);
+                        srcObject->SecurityTags,
+                        srcObject->ExternalTransactionId);
 
                     checkType(*srcObject);
                 }
@@ -1018,7 +1064,7 @@ void TClient::DoConcatenateNodes(
                 auto createGetChunkCountRequest = [&] (const TUserObject& object) {
                     auto req = TYPathProxy::Get(object.GetObjectIdPath() + "/@");
                     AddCellTagToSyncWith(req, object.ObjectId);
-                    SetTransactionId(req, options, true);
+                    NCypressClient::SetTransactionId(req, *object.TransactionId);
                     req->mutable_attributes()->add_keys("chunk_count");
                     return req;
                 };
@@ -1048,7 +1094,7 @@ void TClient::DoConcatenateNodes(
                     auto req = TYPathProxy::Get(object.GetObjectIdPath() + "/@");
                     req->Tag() = &object;
                     AddCellTagToSyncWith(req, object.ObjectId);
-                    SetTransactionId(req, options, true);
+                    NCypressClient::SetTransactionId(req, *object.TransactionId);
                     req->mutable_attributes()->add_keys("schema");
                     req->mutable_attributes()->add_keys("schema_mode");
                     req->mutable_attributes()->add_keys("dynamic");
@@ -1317,7 +1363,7 @@ void TClient::DoConcatenateNodes(
 
                 auto request = TTableYPathProxy::Get(dstObject.GetObjectIdPath() + "/@boundary_keys");
                 AddCellTagToSyncWith(request, dstObject.ObjectId);
-                SetTransactionId(request, options, true);
+                NCypressClient::SetTransactionId(request, *dstObject.TransactionId);
 
                 auto rspOrError = WaitFor(proxy->Execute(request));
                 THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Failed to fetch boundary keys of destination table %v",

@@ -414,6 +414,22 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         with pytest.raises(YtError):
             create_pool("prod", pool_tree="my_tree")
 
+    def test_creation_works_after_load_from_snapshot(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool("nirvana", pool_tree="my_tree")
+
+        build_snapshot(cell_id=None)
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        create_pool("prod", pool_tree="my_tree", parent_name="nirvana")
+
+        assert get("//sys/pool_trees") == {
+            "my_tree": {
+                "nirvana": {"prod": {}}
+            }
+        }
+
     def test_set_and_get_pool_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree")
@@ -592,6 +608,18 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config/max_operation_count", 5)
         assert get("//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config/max_operation_count") == 5
 
+    def test_exist_attribute(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool("nirvana", pool_tree="my_tree")
+
+        assert not exists("//sys/pool_trees/my_tree/nirvana/@max_operation_count")
+        set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", 10)
+        assert exists("//sys/pool_trees/my_tree/nirvana/@max_operation_count")
+
+        assert not exists("//sys/pool_trees/my_tree/nirvana/@custom_attr")
+        set("//sys/pool_trees/my_tree/nirvana/@custom_attr", 10)
+        assert exists("//sys/pool_trees/my_tree/nirvana/@custom_attr")
+
     def test_set_using_different_attribute_aliases_is_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree")
@@ -607,6 +635,12 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set(attribute_alias, True)
         with pytest.raises(YtError):
             set(attribute_key, True)
+
+    def test_set_inexistent_path_fails_with_correct_error(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+
+        with raises_yt_error(ResolveErrorCode):
+            set("//sys/pool_trees/my_tree/nirvana/@mode", "fifo")
 
     def test_pool_tree_and_pool_common_attributes(self):
         create_pool_tree("my_tree", wait_for_orchid=False)

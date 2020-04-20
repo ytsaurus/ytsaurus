@@ -32,6 +32,8 @@
 
 #include <yt/ytlib/job_proxy/public.h>
 
+#include <yt/ytlib/scheduler/proto/job.pb.h>
+
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
@@ -153,12 +155,20 @@ public:
 
             InitializeArtifacts();
 
-            i64 diskSpaceLimit = Config_->MinRequiredDiskSpace;
+            NScheduler::NProto::TDiskRequest diskRequest;
+            diskRequest.set_disk_space(Config_->MinRequiredDiskSpace);
+            diskRequest.set_medium_index(NChunkClient::DefaultSlotsMediumIndex);
 
             if (SchedulerJobSpecExt_->has_user_job_spec()) {
                 const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
+
+                // COMPAT(ignat).
                 if (userJobSpec.has_disk_space_limit()) {
-                    diskSpaceLimit = userJobSpec.disk_space_limit();
+                    diskRequest.set_disk_space(userJobSpec.disk_space_limit());
+                }
+
+                if (userJobSpec.has_disk_request()) {
+                    diskRequest = userJobSpec.disk_request();
                 }
 
                 if (userJobSpec.has_prepare_time_limit()) {
@@ -191,8 +201,12 @@ public:
                 }
             }
 
+            YT_LOG_INFO("Acquiring slot (DiskRequest: %v)", diskRequest);
+
             auto slotManager = Bootstrap_->GetExecSlotManager();
-            Slot_ = slotManager->AcquireSlot(diskSpaceLimit);
+            Slot_ = slotManager->AcquireSlot(diskRequest);
+
+            YT_LOG_INFO("Slot acquired (SlotIndex: %v)", Slot_->GetSlotIndex());
 
             SetJobPhase(EJobPhase::PreparingNodeDirectory);
             // This is a heavy part of preparation, offload it to compression invoker.
@@ -1378,12 +1392,23 @@ private:
                 options.TmpfsVolumes.push_back(tmpfsVolume);
             }
 
+            // COMPAT(ignat).
+            if (userJobSpec.has_disk_space_limit()) {
+                options.DiskSpaceLimit = userJobSpec.disk_space_limit();
+            }
+
+            // COMPAT(ignat).
             if (userJobSpec.has_inode_limit()) {
                 options.InodeLimit = userJobSpec.inode_limit();
             }
 
-            if (userJobSpec.has_disk_space_limit()) {
-                options.DiskSpaceLimit = userJobSpec.disk_space_limit();
+            if (userJobSpec.has_disk_request()) {
+                if (userJobSpec.disk_request().has_disk_space()) {
+                    options.DiskSpaceLimit = userJobSpec.disk_request().disk_space();
+                }
+                if (userJobSpec.disk_request().has_inode_count()) {
+                    options.InodeLimit = userJobSpec.disk_request().inode_count();
+                }
             }
         }
 

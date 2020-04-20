@@ -148,7 +148,11 @@ void TNonversionedMapObjectProxyBase<TObject>::SetRecursive(
     TRspSet* response,
     const TCtxSetPtr& context)
 {
-    TSupportsSet::SetRecursive(path, request, response, context);
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Literal);
+
+    ThrowNoSuchChildKey(this, tokenizer.GetLiteralValue());
 }
 
 template <class TObject>

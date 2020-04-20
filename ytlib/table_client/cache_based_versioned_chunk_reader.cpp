@@ -336,6 +336,7 @@ TCacheBasedVersionedChunkReaderBase<THorizontalSchemalessVersionedBlockReader>::
     return THorizontalSchemalessVersionedBlockReader(
         block,
         meta,
+        ChunkState_->ChunkMeta->Schema(),
         SchemaIdMapping_,
         ChunkState_->ChunkMeta->GetChunkKeyColumnCount(),
         ChunkState_->ChunkMeta->GetKeyColumnCount(),
@@ -372,6 +373,7 @@ TCacheBasedVersionedChunkReaderBase<THorizontalSchemalessVersionedBlockReader>::
     return new THorizontalSchemalessVersionedBlockReader(
         block,
         meta,
+        ChunkState_->ChunkMeta->Schema(),
         SchemaIdMapping_,
         ChunkState_->ChunkMeta->GetChunkKeyColumnCount(),
         ChunkState_->ChunkMeta->GetKeyColumnCount(),

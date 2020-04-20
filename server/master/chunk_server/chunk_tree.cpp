@@ -2,10 +2,15 @@
 #include "chunk.h"
 #include "chunk_view.h"
 #include "chunk_list.h"
+#include "dynamic_store.h"
+#include "helpers.h"
+
+#include <yt/ytlib/tablet_client/helpers.h>
 
 namespace NYT::NChunkServer {
 
 using namespace NObjectServer;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,6 +46,18 @@ const TChunkView* TChunkTree::AsChunkView() const
 {
     YT_ASSERT(GetType() == EObjectType::ChunkView);
     return As<TChunkView>();
+}
+
+TDynamicStore* TChunkTree::AsDynamicStore()
+{
+    YT_ASSERT(IsDynamicTabletStoreType(GetType()));
+    return As<TDynamicStore>();
+}
+
+const TDynamicStore* TChunkTree::AsDynamicStore() const
+{
+    YT_ASSERT(IsDynamicTabletStoreType(GetType()));
+    return As<TDynamicStore>();
 }
 
 TChunkList* TChunkTree::AsChunkList()

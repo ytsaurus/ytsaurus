@@ -168,7 +168,7 @@ private:
             }
 
             auto filePath = path + "/" + ToYPathLiteral(key);
-            YT_LOG_INFO("Janitor is removing Hydra file (Path: %v)", filePath);
+            YT_LOG_DEBUG("Janitor is removing Hydra file (Path: %v)", filePath);
 
             --(*budget);
 
@@ -176,9 +176,9 @@ private:
             ExecuteVerb(rootService, removeReq)
                 .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspRemovePtr& removeRspOrError) {
                     if (removeRspOrError.IsOK()) {
-                        YT_LOG_INFO("Janitor has successfully removed Hydra file (Path: %v)", filePath);
+                        YT_LOG_DEBUG("Janitor has successfully removed Hydra file (Path: %v)", filePath);
                     } else {
-                        YT_LOG_INFO(removeRspOrError, "Janitor has failed to remove Hydra file (Path: %v)", filePath);
+                        YT_LOG_WARNING(removeRspOrError, "Janitor has failed to remove Hydra file (Path: %v)", filePath);
                     }
                 }));
         }

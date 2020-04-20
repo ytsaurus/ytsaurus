@@ -18,6 +18,25 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TColumnarStatisticsFetcher::TColumnarStatisticsFetcher(
+    TFetcherConfigPtr config,
+    TNodeDirectoryPtr nodeDirectory,
+    IInvokerPtr invoker,
+    IFetcherChunkScraperPtr chunkScraper,
+    NNative::IClientPtr client,
+    const TLogger& logger,
+    bool storeChunkStatistics)
+    : TFetcherBase(
+        config,
+        nodeDirectory,
+        invoker,
+        chunkScraper,
+        client,
+        logger)
+    , StoreChunkStatistics_(storeChunkStatistics)
+    , ColumnFilterDictionary_(/*sortColumns=*/false)
+{ }
+
 TFuture<void> TColumnarStatisticsFetcher::FetchFromNode(
     TNodeId nodeId,
     std::vector<int> chunkIndexes)
@@ -40,7 +59,7 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
 
     for (int chunkIndex : chunkIndexes) {
         auto* subrequest = req->add_subrequests();
-        for (const auto& columnName : ChunkColumnNames_[chunkIndex]) {
+        for (const auto& columnName : GetColumnNames(chunkIndex)) {
             auto columnId = nameTable->GetIdOrRegisterName(columnName);
             subrequest->add_column_ids(columnId);
         }
@@ -74,27 +93,35 @@ void TColumnarStatisticsFetcher::OnResponse(
     for (int index = 0; index < chunkIndexes.size(); ++index) {
         int chunkIndex = chunkIndexes[index];
         const auto& subresponse = rsp->subresponses(index);
+        TColumnarStatistics statistics;
         if (subresponse.has_error()) {
             auto error = NYT::FromProto<TError>(subresponse.error());
             if (error.FindMatching(NChunkClient::EErrorCode::MissingExtension)) {
                 // This is an old chunk. Process it somehow.
-                ChunkStatistics_[chunkIndex] = TColumnarStatistics::MakeEmpty(ChunkColumnNames_[chunkIndex].size());
-                ChunkStatistics_[chunkIndex].LegacyChunkDataWeight = Chunks_[chunkIndex]->GetDataWeight();
+                statistics = TColumnarStatistics::MakeEmpty(GetColumnNames(chunkIndex).size());
+                statistics.LegacyChunkDataWeight = Chunks_[chunkIndex]->GetDataWeight();
             } else {
                 OnChunkFailed(nodeId, chunkIndex, error);
             }
         } else {
-            ChunkStatistics_[chunkIndex].ColumnDataWeights = NYT::FromProto<std::vector<i64>>(subresponse.data_weights());
+            statistics.ColumnDataWeights = NYT::FromProto<std::vector<i64>>(subresponse.data_weights());
+            YT_VERIFY(statistics.ColumnDataWeights.size() == GetColumnNames(chunkIndex).size());
             if (subresponse.has_timestamp_total_weight()) {
-                ChunkStatistics_[chunkIndex].TimestampTotalWeight = subresponse.timestamp_total_weight();
+                statistics.TimestampTotalWeight = subresponse.timestamp_total_weight();
             }
-            YT_VERIFY(ChunkStatistics_[chunkIndex].ColumnDataWeights.size() == ChunkColumnNames_[chunkIndex].size());
+        }
+        if (StoreChunkStatistics_) {
+            ChunkStatistics_[chunkIndex] = statistics;
+        } else {
+            LightweightChunkStatistics_[chunkIndex] = statistics.MakeLightweightStatistics();
         }
     }
 }
 
 const std::vector<TColumnarStatistics>& TColumnarStatisticsFetcher::GetChunkStatistics() const
 {
+    YT_VERIFY(StoreChunkStatistics_);
+
     return ChunkStatistics_;
 }
 
@@ -102,7 +129,12 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
 {
     for (int index = 0; index < Chunks_.size(); ++index) {
         const auto& chunk = Chunks_[index];
-        const auto& statistics = ChunkStatistics_[index];
+        TLightweightColumnarStatistics statistics;
+        if (StoreChunkStatistics_) {
+            statistics = ChunkStatistics_[index].MakeLightweightStatistics();
+        } else {
+            statistics = LightweightChunkStatistics_[index];
+        }
         if (statistics.LegacyChunkDataWeight == 0) {
             // We have columnar statistics, so we can adjust input chunk data weight by setting column selectivity factor.
             i64 totalColumnDataWeight = 0;
@@ -124,9 +156,7 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
                     << TErrorAttribute("chunk_id", chunk->ChunkId())
                     << TErrorAttribute("table_chunk_format", chunk->GetTableChunkFormat());
             }
-            for (i64 dataWeight : statistics.ColumnDataWeights) {
-                totalColumnDataWeight += dataWeight;
-            }
+            totalColumnDataWeight += statistics.ColumnDataWeightsSum;
             auto totalDataWeight = chunk->GetTotalDataWeight();
             chunk->SetColumnSelectivityFactor(std::min(static_cast<double>(totalColumnDataWeight) / totalDataWeight, 1.0));
         }
@@ -135,20 +165,34 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
 
 TFuture<void> TColumnarStatisticsFetcher::Fetch()
 {
-    ChunkStatistics_.resize(Chunks_.size());
+    if (StoreChunkStatistics_) {
+        ChunkStatistics_.resize(Chunks_.size());
+        for (int chunkIndex = 0; chunkIndex < Chunks_.size(); ++chunkIndex ) {
+            if (Chunks_[chunkIndex ]->IsDynamicStore()) {
+                ChunkStatistics_[chunkIndex] = TColumnarStatistics::MakeEmpty(GetColumnNames(chunkIndex).size());
+            }
+        }
+    } else {
+        LightweightChunkStatistics_.resize(Chunks_.size());
+    }
 
     return TFetcherBase::Fetch();
 }
 
 void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TString> columnNames)
 {
-    if (columnNames.empty()) {
+    if (columnNames.empty() || chunk->IsDynamicStore()) {
         // Do not fetch anything. The less rpc requests, the better.
         Chunks_.emplace_back(std::move(chunk));
     } else {
         TFetcherBase::AddChunk(std::move(chunk));
     }
-    ChunkColumnNames_.emplace_back(std::move(columnNames));
+    ChunkColumnFilterIds_.emplace_back(ColumnFilterDictionary_.GetIdOrRegisterAdmittedColumns(columnNames));
+}
+
+const std::vector<TString>& TColumnarStatisticsFetcher::GetColumnNames(int chunkIndex) const
+{
+    return ColumnFilterDictionary_.GetAdmittedColumns(ChunkColumnFilterIds_[chunkIndex]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

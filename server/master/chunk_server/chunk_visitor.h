@@ -57,6 +57,11 @@ private:
 
     virtual bool OnChunkView(TChunkView* /*chunkView*/) override;
 
+    virtual bool OnDynamicStore(
+        TDynamicStore* /*dynamicStore*/,
+        const NChunkClient::TReadLimit& /*startLimit*/,
+        const NChunkClient::TReadLimit& /*endLimit*/) override;
+
     virtual void OnSuccess() override;
 };
 

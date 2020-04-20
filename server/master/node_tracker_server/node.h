@@ -295,9 +295,6 @@ public:
 
     void DetachTabletCell(const NCellServer::TCellBase* cell);
 
-    void InitTabletSlots();
-    void ClearTabletSlots();
-
     void ShrinkHashTables();
 
     void Reset();

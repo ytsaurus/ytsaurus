@@ -23,6 +23,24 @@ message TJobResources
     optional int32 gpu = 5;
 }
 
+message TDiskLocationQuota
+{
+    optional int64 disk_space = 1;
+    optional int32 medium_index = 2;
+}
+
+message TDiskQuota
+{
+    repeated TDiskLocationQuota disk_location_quota = 1;
+}
+
+message TDiskRequest
+{
+    optional int64 disk_space = 1;
+    optional int64 inode_count = 2;
+    optional int32 medium_index = 3;
+}
+
 // TODO(babenko): consider renaming
 message TJobResourcesWithQuota
 {
@@ -30,8 +48,10 @@ message TJobResourcesWithQuota
     optional double cpu = 2;
     optional int64 memory = 3;
     optional int32 network = 4;
-    optional int64 disk_quota = 5;
+    // COMPAT(ignat)
+    optional int64 disk_quota_legacy = 5;
     optional int32 gpu = 6;
+    optional TDiskQuota disk_quota = 7;
 }
 
 message TFileDescriptor
@@ -115,8 +135,11 @@ message TUserJobSpec
     optional TTableBlobSpec core_table_spec = 30;
     optional bool force_core_dump = 40 [default = false];
 
+    // COMPAT(ignat)
     optional int64 disk_space_limit = 31;
     optional int64 inode_limit = 32;
+
+    optional TDiskRequest disk_request = 51;
 
     // Number of requested ports.
     required int32 port_count = 35;

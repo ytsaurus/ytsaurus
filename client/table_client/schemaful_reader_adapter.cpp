@@ -140,6 +140,13 @@ private:
             case EValueType::Null:
                 writer.OnEntity();
                 break;
+            case EValueType::Composite:
+                writer.OnRaw(TStringBuf(value.Data.String, value.Length));
+                break;
+
+            case EValueType::Min:
+            case EValueType::Max:
+            case EValueType::TheBottom:
             default:
                 YT_ABORT();
         }

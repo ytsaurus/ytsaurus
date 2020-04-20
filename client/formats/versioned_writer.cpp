@@ -33,28 +33,32 @@ bool TVersionedWriter::Write(TRange<TVersionedRow> rows)
         switch (value.Type) {
             case EValueType::Int64:
                 Consumer_->OnInt64Scalar(value.Data.Int64);
-                break;
+                return;
             case EValueType::Uint64:
                 Consumer_->OnUint64Scalar(value.Data.Uint64);
-                break;
+                return;
             case EValueType::Double:
                 Consumer_->OnDoubleScalar(value.Data.Double);
-                break;
+                return;
             case EValueType::Boolean:
                 Consumer_->OnBooleanScalar(value.Data.Boolean);
-                break;
+                return;
             case EValueType::String:
                 Consumer_->OnStringScalar(TStringBuf(value.Data.String, value.Length));
-                break;
+                return;
             case EValueType::Null:
                 Consumer_->OnEntity();
-                break;
+                return;
             case EValueType::Any:
                 Consumer_->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+                return;
+            case EValueType::Composite:
+            case EValueType::Min:
+            case EValueType::Max:
+            case EValueType::TheBottom:
                 break;
-            default:
-                YT_ABORT();
         }
+        ThrowUnexpectedValueType(value.Type);
     };
 
     for (auto row : rows) {

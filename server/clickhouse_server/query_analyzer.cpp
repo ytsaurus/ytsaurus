@@ -107,9 +107,12 @@ void TQueryAnalyzer::ValidateKeyColumns()
     auto extractColumnNames = [] (const DB::ASTs& keyAsts) {
         std::vector<TString> result;
         for (const auto& keyAst : keyAsts) {
-            auto* identifier = keyAst->as<DB::ASTIdentifier>();
-            YT_VERIFY(identifier);
-            result.emplace_back(identifier->shortName());
+            if (auto* identifier = keyAst->as<DB::ASTIdentifier>()) {
+                result.emplace_back(identifier->shortName());
+            } else {
+                THROW_ERROR_EXCEPTION("Invalid sorted JOIN: CHYT does not support compound expressions in ON/USING clause")
+                    << TErrorAttribute("expression", ToString(keyAst));
+            }
         }
         return result;
     };

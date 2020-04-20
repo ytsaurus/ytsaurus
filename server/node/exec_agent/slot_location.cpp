@@ -534,6 +534,21 @@ TString TSlotLocation::GetSlotPath(int slotIndex) const
     return NFS::CombinePaths(Config_->Path, Format("%v", slotIndex));
 }
 
+TString TSlotLocation::GetMediumName() const
+{
+    return Config_->MediumName;
+}
+
+NChunkClient::TMediumDescriptor TSlotLocation::GetMediumDescriptor() const
+{
+    return MediumDescriptor_.Load();
+}
+
+void TSlotLocation::SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor)
+{
+    MediumDescriptor_.Store(descriptor);
+}
+
 TString TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const
 {
     const auto& sandboxName = SandboxDirectoryNames[sandboxKind];
@@ -595,6 +610,11 @@ void TSlotLocation::Disable(const TError& error)
     }
 }
 
+void TSlotLocation::InvokeUpdateDiskResources()
+{
+    DiskResourcesUpdateExecutor_->ScheduleOutOfBand();
+}
+
 void TSlotLocation::UpdateDiskResources()
 {
     if (!IsEnabled()) {
@@ -642,15 +662,19 @@ void TSlotLocation::UpdateDiskResources()
 
         diskLimit -= Config_->DiskUsageWatermark;
 
-        YT_LOG_DEBUG("Disk info (Path: %v, Usage: %v, Limit: %v)",
+        YT_LOG_DEBUG("Disk info (Path: %v, Usage: %v, Limit: %v, Medium: %v)",
             Config_->Path,
             diskUsage,
-            diskLimit);
+            diskLimit,
+            Config_->MediumName);
 
-        {
+
+        auto mediumDescriptor = GetMediumDescriptor();
+        if (mediumDescriptor.Index != NChunkClient::InvalidMediumIndex) {
             auto guard = TWriterGuard(DiskResourcesLock_);
             DiskResources_.set_usage(diskUsage);
             DiskResources_.set_limit(diskLimit);
+            DiskResources_.set_medium_index(mediumDescriptor.Index);
         }
     } catch (const std::exception& ex) {
         auto error = TError("Failed to get disk info") << ex;

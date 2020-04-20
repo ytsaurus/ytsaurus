@@ -723,17 +723,6 @@ void TNode::DetachTabletCell(const TCellBase* cell)
     }
 }
 
-void TNode::InitTabletSlots()
-{
-    YT_VERIFY(TabletSlots_.empty());
-    TabletSlots_.resize(Statistics_.available_tablet_slots() + Statistics_.used_tablet_slots());
-}
-
-void TNode::ClearTabletSlots()
-{
-    TabletSlots_.clear();
-}
-
 void TNode::ShrinkHashTables()
 {
     for (auto& [mediumIndex, replicas] : Replicas_) {

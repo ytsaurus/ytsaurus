@@ -60,10 +60,13 @@ DEFAULTS = {
     "enable_monitoring": False,
     "clickhouse_config": {},
     "uncompressed_block_cache_size": 0,
+    "max_instance_count": 100,
 }
 
 QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show", "exists")
 
+QueryFailedError = 2200
+InstanceUnavailableCode = 2201
 
 class Clique(object):
     base_config = None
@@ -73,7 +76,7 @@ class Clique(object):
     core_dump_path = None
     proxy_address = None
 
-    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, enable_core_dump=True, **kwargs):
+    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, enable_core_dump=True, cpu_limit=None, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else copy.deepcopy(Clique.base_config)
         spec = {"pool": None}
         self.is_tracing = False
@@ -106,6 +109,7 @@ class Clique(object):
                                                           cypress_config_paths=cypress_config_paths,
                                                           max_failed_job_count=max_failed_job_count,
                                                           defaults=DEFAULTS,
+                                                          cpu_limit=cpu_limit,
                                                           spec=spec,
                                                           core_dump_destination=core_dump_destination,
                                                           trampoline_log_file=os.path.join(self.log_root, "trampoline.debug.log"),
@@ -118,7 +122,8 @@ class Clique(object):
     def get_active_instances(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
             instances = ls("//sys/clickhouse/cliques/{0}".format(self.op.id),
-                           attributes=["locks", "host", "http_port", "monitoring_port", "job_cookie"], verbose=False)
+                           attributes=["locks", "host", "http_port", "monitoring_port", "job_cookie"],
+                           verbose=False)
 
             def is_active(instance):
                 if not instance.attributes["locks"]:
@@ -268,7 +273,9 @@ class Clique(object):
             return result
 
         if result.status_code != 200:
-            raise YtError("ClickHouse query failed\n" + output, attributes={"query": query, "query_id": result.headers.get("query_id", "(n/a)")})
+            raise YtError("ClickHouse query failed. Output:\n" + output,
+                          attributes={"query": query, "query_id": result.headers.get("query_id", "(n/a)")},
+                          code=QueryFailedError)
         else:
             if output_present:
                 if format == "JSON":
@@ -290,13 +297,30 @@ class Clique(object):
         print_debug("Querying {0}:{1} with the following data:\n> {2}".format(host, port, query))
         print_debug("Query id: {}".format(query_id))
 
-        return self.make_request("http://{}:{}/query".format(host, port), query, format=format, verbose=verbose,
-                                 only_rows=only_rows, full_response=full_response, headers={
-                                     "X-ClickHouse-User": user,
-                                     "X-Yt-Trace-Id": query_id,
-                                     "X-Yt-Span-Id": "0",
-                                     "X-Yt-Sampled": str(int(self.is_tracing))
-                                 })
+        try:
+            return self.make_request("http://{}:{}/query".format(host, port), query, format=format, verbose=verbose,
+                                     only_rows=only_rows, full_response=full_response, headers={
+                                         "X-ClickHouse-User": user,
+                                         "X-Yt-Trace-Id": query_id,
+                                         "X-Yt-Span-Id": "0",
+                                         "X-Yt-Sampled": str(int(self.is_tracing))
+                                     })
+        except requests.ConnectionError as err:
+            print_debug("Caught network level error: ", err)
+            errors = [YtError("ConnectionError: " + str(err))]
+            stderr = "(n/a)"
+            print_debug("Waiting for instance {} to finish".format(str(instance)))
+            try:
+                wait(lambda: get(self.op.get_path() + "/controller_orchid/running_jobs/" +
+                                 str(instance) + "/state", default=None) != "running")
+                print_debug("Instance {} has failed".format(str(instance)))
+                wait(lambda: exists(self.op.get_path() + "/jobs/" + str(instance) + "/stderr"))
+                stderr = read_file(self.op.get_path() + "/jobs/" + str(instance) + "/stderr")
+                print_debug("Stderr:\n" + stderr)
+            except YtError as err2:
+                errors.append(err2)
+            raise YtError("Instance unavailable, stderr:\n" + stderr, inner_errors=errors,
+                          code=InstanceUnavailableCode)
 
     def make_query_via_proxy(self, query, format="JSON", verbose=True, only_rows=True, full_response=False, headers=None):
         if headers is None:
@@ -438,6 +462,33 @@ class TestClickHouseCommon(ClickHouseTestBase):
     def setup(self):
         self._setup()
 
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 2,
+                }
+            }
+        }
+    }
+
+    @authors("evgenstf")
+    def test_distinct_one_instance_several_threads(self):
+        with Clique(1, config_patch={"engine": {"settings": {"max_threads": 2}}}, cpu_limit=2) as clique:
+            table_schema = [{"name": "value", "type": "int64"}]
+            create("table", "//tmp/test_table",
+                    attributes={"schema": table_schema})
+
+            write_table(
+                "//tmp/test_table",
+                [{"value": 1}])
+            write_table(
+                "<append=%true>//tmp/test_table",
+                [{"value": 1}])
+
+            assert get("//tmp/test_table/@chunk_count") == 2
+            assert clique.make_query('select distinct value from \"//tmp/test_table\" where value = 1') == [{"value": 1}]
+
     @authors("evgenstf")
     def test_prewhere_actions(self):
         with Clique(1) as clique:
@@ -450,6 +501,15 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query('select count(value) from "//tmp/t1" prewhere (value < 3)') == [{'count(value)': 3}]
             assert clique.make_query('select count() from "//tmp/t1" prewhere (value < 3)') == [{'count()': 3}]
             assert clique.make_query('select any(0) from "//tmp/t1" prewhere (value < 3)') == [{'any(0)': 0}]
+
+            create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}]})
+            write_table("//tmp/t2", [
+                {"key": 0, "value": "aaa"},
+                {"key": 1, "value": "bbb"},
+                {"key": 2, "value": "bbb"},
+                {"key": 3, "value": "ddd"}
+            ])
+            assert clique.make_query('select value from "//tmp/t2" prewhere key in (select key from "//tmp/t2" where value = \'bbb\')') == [{"value": "bbb"}, {"value": "bbb"}]
 
 
     @authors("evgenstf")
@@ -474,10 +534,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 make_ace('deny',  'user_with_denied_column', 'read', columns='a'),
             ])
 
-            with pytest.raises(Exception):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('select * from "//tmp/t1"', user='user_with_denied_column')
 
-            with pytest.raises(Exception):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('select a from "//tmp/t1"', user='user_with_denied_column')
 
             assert clique.make_query('select b from "//tmp/t1"', user='user_with_denied_column') == [{'b': 'value2'}]
@@ -489,9 +549,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 make_ace('allow', 'user_with_allowed_all_columns', 'read', columns='b'),
             ])
 
-            with pytest.raises(Exception):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('select * from "//tmp/t2"', user='user_with_allowed_one_column')
-            with pytest.raises(Exception):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('select a from "//tmp/t2"', user='user_with_allowed_one_column')
             assert clique.make_query('select b from "//tmp/t2"', user='user_with_allowed_one_column') == [{'b': 'value2'}]
             assert clique.make_query('select * from "//tmp/t2"', user='user_with_allowed_all_columns') == [{'a': 'value1', 'b': 'value2'}]
@@ -507,8 +567,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             time.sleep(0.5)
 
-            assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/object_attribute_cache/hit")[-1]['value'] == 50
-            assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/permission_cache/hit")[-1]['value'] == 5
+            assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/object_attribute_cache/hit")[-1]['value'] > 0
+            assert clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/permission_cache/hit")[-1]['value'] > 0
 
 
     @authors("evgenstf")
@@ -526,7 +586,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             make_ace("deny", "test_user", "create"),
         ])
 
-        with pytest.raises(Exception):
+        with pytest.raises(YtError):
             with Clique(1, config_patch={"user": "test_user"}, enable_core_dump=False) as clique:
                 pass
 
@@ -558,7 +618,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch=patch) as clique:
             assert exists("//tmp/t") == False
             assert clique.make_query('exists "//tmp/t"') == [{'result': 0}]
-            with pytest.raises(Exception):
+            with raises_yt_error(QueryFailedError):
                 assert clique.make_query('drop table "//tmp/t"')
 
 
@@ -580,7 +640,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1, config_patch={"engine": {"subquery": {"max_data_weight_per_subquery": 0}}}) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
-            with pytest.raises(Exception):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('select CAST(a as datetime) from "//tmp/t"')
 
     @authors("evgenstf")
@@ -622,7 +682,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 write_table("<append=%true>//tmp/t", [{"a": 2 * i}, {"a": 2 * i + 1}])
 
             assert abs(clique.make_query('select avg(a) from "//tmp/t"')[0]["avg(a)"] - 4.5) < 1e-6
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('select avg(b) from "//tmp/t"')
 
             assert abs(clique.make_query('select avg(a) from "//tmp/t[#2:#9]"')[0]["avg(a)"] - 5.0) < 1e-6
@@ -696,7 +756,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             remove("//tmp/t")
             time.sleep(0.5)
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 cached_description = clique.make_query('describe "//tmp/t"')
 
             create("table", "//tmp/t", attributes={"schema": [{"name": "b", "type": "int64"}]})
@@ -938,7 +998,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert len(clique.get_active_instances()) == 0
             assert clique.make_direct_query(instances[0], "select 1", full_response=True).status_code == 301
             time.sleep(0.6)
-            with pytest.raises(Exception):
+            with raises_yt_error(InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
             clique.resize(1)
@@ -962,7 +1022,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_direct_query(instances[0], "select 1", full_response=True).status_code == 301
             signal_job(instances[0], "SIGINT")
             time.sleep(0.2)
-            with pytest.raises(Exception):
+            with raises_yt_error(InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
             clique.resize(1)
@@ -989,7 +1049,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             assert clique.make_direct_query(instances[0], "select sleep(3)") == [{"sleep(3)": 0}]
             time.sleep(0.2)
-            with pytest.raises(Exception):
+            with raises_yt_error(InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
             clique.resize(1)
@@ -1028,13 +1088,13 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 {func: yson.dumps(value2, yson_format='pretty')},
                 {func: yson.dumps(value3, yson_format='text')},
                 {func: None}]
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query("select ConvertYson('{key=[1;2]}', NULL)")
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query("select ConvertYson('{key=[1;2]}', 'xxx')")
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query("select ConvertYson('{{{{', 'binary')")
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query("select ConvertYson(1, 'text')")
 
     @authors("dakovalkov")
@@ -1080,7 +1140,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             # Table doesn't exist.
             assert clique.make_query('exists table "//tmp/t123456"') == [{"result": 0}]
             # Not a table.
-            with pytest.raises(Exception):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('exists table "//sys"')
 
 
@@ -1375,11 +1435,11 @@ class TestMutations(ClickHouseTestBase):
         with Clique(1) as clique:
             clique.make_query('insert into "//tmp/t"(i64) values (1), (-2)')
             clique.make_query('insert into "//tmp/t"(ui64) values (7), (8)')
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('insert into "//tmp/t"(str) values (2)')
             clique.make_query('insert into "//tmp/t"(i64, ui64, str, dbl, bool) values (-1, 1, \'abc\', 3.14, 1)')
             clique.make_query('insert into "//tmp/t"(i64, ui64, str, dbl, bool) values (NULL, NULL, NULL, NULL, NULL)')
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('insert into "//tmp/t"(bool) values (3)')
             # This insert leads to NULL insertion.
             clique.make_query('insert into "//tmp/t"(bool) values (2.4)')
@@ -1435,7 +1495,7 @@ class TestMutations(ClickHouseTestBase):
             ]
 
             # Number of columns does not match.
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('insert into "//tmp/t" select i64, ui64 from "//tmp/s1"')
 
             # Columns are matched according to positions. Values are best-effort casted due to CH logic.
@@ -1474,7 +1534,7 @@ class TestMutations(ClickHouseTestBase):
             ], strict=True, unique_keys=False)
 
             # Table already exists.
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('create table "//tmp/t"(i64 Int64, ui64 UInt64, str String, dbl Float64, i32 Int32) '
                                   'engine YtTable() order by (str, i64)')
 
@@ -1492,11 +1552,11 @@ class TestMutations(ClickHouseTestBase):
             ], strict=True, unique_keys=False)
 
             # No non-trivial expressions.
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('create table "//tmp/t2"(i64 Int64) engine YtTable() order by (i64 * i64)')
 
             # Missing key column.
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('create table "//tmp/t2"(i Int64) engine YtTable() order by j')
 
             clique.make_query('create table "//tmp/t_snappy"(i Int64) engine YtTable(\'{compression_codec=snappy}\')')
@@ -1508,7 +1568,7 @@ class TestMutations(ClickHouseTestBase):
             assert get("//tmp/t_snappy/@foo") == 42
 
             # Empty schema.
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('create table "//tmp/t2" engine YtTable()')
 
             # Underscore indicates that the columns should be ignored and schema from attributes should
@@ -1657,7 +1717,7 @@ class TestCompositeTypes(ClickHouseTestBase):
             for i in xrange(4):
                 query = "select YPathInt64Strict(v, '/i64') from \"//tmp/t\" where i = {}".format(i)
                 if i != 0:
-                    with pytest.raises(YtError):
+                    with raises_yt_error(QueryFailedError):
                         clique.make_query(query)
                 else:
                     result = clique.make_query(query)
@@ -1786,7 +1846,7 @@ class TestCompositeTypes(ClickHouseTestBase):
             assert result == [{"i": yson.dumps(object, "text")}]
             result = clique.make_query("select YPathRaw(a, '/b') as i from \"//tmp/s1\"")
             assert result == [{"i": None}]
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query("select YPathRawStrict(a, '/b') as i from \"//tmp/s1\"")
 
     @authors("dakovlkov")
@@ -1984,7 +2044,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
         write_table("//tmp/t", [{"key": 42, "value": "x"}])
 
         with Clique(1) as clique:
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query("select * from \"//tmp/t\"")
 
     def _strip_description(self, rows):
@@ -2019,7 +2079,7 @@ class TestClickHouseSchema(ClickHouseTestBase):
             assert clique.make_query('select * from concatYtTables("//tmp/t1", "//tmp/t2") order by a') == \
                 [{"a": 17}, {"a": 42}]
 
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query('describe concatYtTables("//tmp/t1", "//tmp/t2", "//tmp/t3")')
 
             assert self._strip_description(clique.make_query('describe concatYtTables("//tmp/t3", "//tmp/t4")')) == \
@@ -2093,7 +2153,7 @@ class TestClickHouseAccess(ClickHouseTestBase):
             assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
 
         with Clique(1, config_patch={"validate_operation_access": True}) as clique:
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query("select * from \"//tmp/t\"", user="u1")
 
         allow_g = {"subjects": ["g"], "action": "allow", "permissions": ["read"]}
@@ -2110,14 +2170,14 @@ class TestClickHouseAccess(ClickHouseTestBase):
             update_op_parameters(clique.op.id, parameters={"acl": [allow_g, deny_u2]})
             time.sleep(1)
             assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query("select * from \"//tmp/t\"", user="u2")
 
             update_op_parameters(clique.op.id, parameters={"acl": []})
             time.sleep(1)
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query("select * from \"//tmp/t\"", user="u1")
-            with pytest.raises(YtError):
+            with raises_yt_error(QueryFailedError):
                 clique.make_query("select * from \"//tmp/t\"", user="u2")
 
 
@@ -2180,10 +2240,14 @@ class TestQueryRegistry(ClickHouseTestBase):
         merge(in_=["//tmp/t"] * 200,
               out="//tmp/t",
               spec={"force_transform": True})  # 800 Mb.
+        clique = Clique(1, config_patch={"memory_watchdog": {"memory_limit": 2 * 1024**3, "period": 50}})
         with pytest.raises(YtError):
-            with Clique(1, config_patch={"memory_watchdog": {"memory_limit": 2 * 1024**3, "period": 50}}) as clique:
-                clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
-                assert "OOM" in str(clique.op.get_error())
+            clique.__enter__()
+            clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
+        clique.op.track(False, False)
+        assert "OOM" in str(clique.op.get_error())
+        with pytest.raises(YtError):
+            clique.__exit__(None, None, None)
 
     @authors("max42")
     @pytest.mark.skipif(True, reason="temporarily broken")
@@ -2470,6 +2534,19 @@ class TestJoinAndIn(ClickHouseTestBase):
                                          "A.key = 1")) == 0
 
 
+    @authors("max42")
+    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
+    def test_forbidden_non_primitive_join(self):
+        # CHYT-323.
+        create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
+        write_table("//tmp/t1", [{"key": 42}])
+        write_table("//tmp/t2", [{"key": 43}])
+        with Clique(1) as clique:
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("select * from \"//tmp/t1\" A inner join \"//tmp/t2\" B on A.key + 1 = B.key")
+
+
 class TestClickHouseHttpProxy(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -2565,7 +2642,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             for instance in clique.get_active_instances():
                 if str(instance) == jobs[0]:
-                    with pytest.raises(Exception):
+                    with raises_yt_error(QueryFailedError):
                         clique.make_direct_query(instance, "select 1")
                 else:
                     assert clique.make_direct_query(instance, "select 1") == [{"1": 1}]

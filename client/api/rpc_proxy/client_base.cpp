@@ -90,8 +90,8 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     auto client = GetRpcProxyClient();
     bool sticky = (type == ETransactionType::Tablet) || options.Sticky;
     auto channel = sticky ? GetStickyChannel() : GetChannel();
-    const auto& config = connection->GetConfig();
 
+    const auto& config = connection->GetConfig();
     auto timeout = options.Timeout.value_or(config->DefaultTransactionTimeout);
     auto pingPeriod = options.PingPeriod.value_or(config->DefaultPingPeriod);
 
@@ -101,7 +101,7 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     req->SetTimeout(config->RpcTimeout);
 
     req->set_type(static_cast<NProto::ETransactionType>(type));
-    req->set_timeout(NYT::ToProto<i64>(timeout));
+    req->set_timeout(ToProto<i64>(timeout));
     if (options.Deadline) {
         req->set_deadline(ToProto<ui64>(*options.Deadline));
     }
@@ -111,8 +111,8 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
     if (options.ParentId) {
         ToProto(req->mutable_parent_id(), options.ParentId);
     }
+    ToProto(req->mutable_prerequisite_transaction_ids(), options.PrerequisiteTransactionIds);
     // XXX(sandello): Better? Remove these fields from the protocol at all?
-    // TODO(babenko): prerequisite transactions are not supported
     // COMPAT(kiselyovp): remove auto_abort from the protocol
     req->set_auto_abort(false);
     req->set_sticky(sticky);
@@ -126,34 +126,27 @@ TFuture<ITransactionPtr> TClientBase::StartTransaction(
 
     return req->Invoke().Apply(BIND(
         [
+            =,
             connection = std::move(connection),
             client = std::move(client),
-            channel = std::move(channel),
-            type = type,
-            atomicity = options.Atomicity,
-            durability = options.Durability,
-            timeout,
-            pingPeriod,
-            sticky
+            channel = std::move(channel)
         ]
-        (const TErrorOr<TApiServiceProxy::TRspStartTransactionPtr>& rspOrError) -> ITransactionPtr {
-            const auto& rsp = rspOrError.ValueOrThrow();
+        (const TApiServiceProxy::TRspStartTransactionPtr& rsp) {
             auto transactionId = FromProto<TTransactionId>(rsp->id());
-            auto startTimestamp = static_cast<TTimestamp>(rsp->start_timestamp());
-            auto transaction = CreateTransaction(
+            auto startTimestamp = FromProto<TTimestamp>(rsp->start_timestamp());
+            return CreateTransaction(
                 std::move(connection),
                 std::move(client),
                 std::move(channel),
                 transactionId,
                 startTimestamp,
                 type,
-                atomicity,
-                durability,
+                options.Atomicity,
+                options.Durability,
                 timeout,
+                options.PingAncestors,
                 pingPeriod,
                 sticky);
-
-            return transaction;
         }));
 }
 
@@ -244,7 +237,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::CreateNode(
     SetTimeoutOptions(*req, options);
 
     req->set_path(path);
-    req->set_type(static_cast<int>(type));
+    req->set_type(ToProto<int>(type));
 
     if (options.Attributes) {
         ToProto(req->mutable_attributes(), *options.Attributes);
@@ -319,7 +312,7 @@ TFuture<TLockNodeResult> TClientBase::LockNode(
     SetTimeoutOptions(*req, options);
 
     req->set_path(path);
-    req->set_mode(static_cast<int>(mode));
+    req->set_mode(ToProto<int>(mode));
 
     req->set_waitable(options.Waitable);
     if (options.ChildKey) {
@@ -510,7 +503,7 @@ TFuture<NObjectClient::TObjectId> TClientBase::CreateObject(
     auto proxy = CreateApiServiceProxy();
     auto req = proxy.CreateObject();
 
-    req->set_type(static_cast<i32>(type));
+    req->set_type(ToProto<int>(type));
     req->set_ignore_existing(options.IgnoreExisting);
     if (options.Attributes) {
         ToProto(req->mutable_attributes(), *options.Attributes);
@@ -694,8 +687,7 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
 
     ToProto(req->mutable_tablet_read_options(), options);
 
-    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspLookupRowsPtr>& rspOrError) {
-        const auto& rsp = rspOrError.ValueOrThrow();
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspLookupRowsPtr& rsp) {
         return DeserializeRowset<TUnversionedRow>(
             rsp->rowset_descriptor(),
             MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
@@ -730,8 +722,7 @@ TFuture<IVersionedRowsetPtr> TClientBase::VersionedLookupRows(
         ToProto(req->mutable_retention_config(), *options.RetentionConfig);
     }
 
-    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspVersionedLookupRowsPtr>& rspOrError) {
-        const auto& rsp = rspOrError.ValueOrThrow();
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspVersionedLookupRowsPtr& rsp) {
         return DeserializeRowset<TVersionedRow>(
             rsp->rowset_descriptor(),
             MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
@@ -780,8 +771,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     req->set_memory_limit_per_node(options.MemoryLimitPerNode);
     ToProto(req->mutable_suppressable_access_tracking_options(), options);
 
-    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspSelectRowsPtr>& rspOrError) {
-        const auto& rsp = rspOrError.ValueOrThrow();
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspSelectRowsPtr& rsp) {
         TSelectRowsResult result;
         result.Rowset = DeserializeRowset<TUnversionedRow>(
             rsp->rowset_descriptor(),
@@ -791,18 +781,18 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
     }));
 }
 
-TFuture<TYsonString> TClientBase::Explain(
+TFuture<TYsonString> TClientBase::ExplainQuery(
     const TString& query,
-    const TExplainOptions& options)
+    const TExplainQueryOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
-    auto req = proxy.Explain();
+    auto req = proxy.ExplainQuery();
     req->set_query(query);
     FillRequestBySelectRowsOptionsBase(options, req);
 
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspExplainPtr& rsp) {
-        return static_cast<TYsonString>(rsp->value());
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspExplainQueryPtr& rsp) {
+        return TYsonString(rsp->value());
     }));
 }
 

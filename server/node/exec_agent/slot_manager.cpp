@@ -13,6 +13,8 @@
 #include <yt/server/node/data_node/master_connector.h>
 #include <yt/server/node/data_node/volume_manager.h>
 
+#include <yt/ytlib/chunk_client/medium_directory.h>
+
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/utilex/random.h>
@@ -125,17 +127,24 @@ void TSlotManager::UpdateAliveLocations()
     }
 }
 
-ISlotPtr TSlotManager::AcquireSlot(i64 diskSpaceRequest)
+ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     UpdateAliveLocations();
 
     int feasibleSlotCount = 0;
+    int skippedByDiskSpace = 0;
+    int skippedByMedium = 0;
     TSlotLocationPtr bestLocation;
     for (const auto& location : AliveLocations_) {
         auto diskResources = location->GetDiskResources();
-        if (diskResources.usage() + diskSpaceRequest > diskResources.limit()) {
+        if (diskResources.usage() + diskRequest.disk_space() > diskResources.limit()) {
+            ++skippedByDiskSpace;
+            continue;
+        }
+        if (diskResources.medium_index() != diskRequest.medium_index()) {
+            ++skippedByMedium;
             continue;
         }
         ++feasibleSlotCount;
@@ -147,7 +156,9 @@ ISlotPtr TSlotManager::AcquireSlot(i64 diskSpaceRequest)
     if (!bestLocation) {
         THROW_ERROR_EXCEPTION(EErrorCode::SlotNotFound, "No feasible slot found")
             << TErrorAttribute("alive_slot_count", AliveLocations_.size())
-            << TErrorAttribute("feasible_slot_count", feasibleSlotCount);
+            << TErrorAttribute("feasible_slot_count", feasibleSlotCount)
+            << TErrorAttribute("skipped_by_disk_space", skippedByDiskSpace)
+            << TErrorAttribute("skipped_by_medium", skippedByMedium);
     }
 
     YT_VERIFY(!FreeSlots_.empty());
@@ -186,6 +197,11 @@ bool TSlotManager::IsEnabled() const
     return isEnabled && !PersistentAlert_ && !TransientAlert_;
 }
 
+void TSlotManager::UpdateCpuLimit(double cpuLimit)
+{
+    JobEnvironment_->UpdateCpuLimit(cpuLimit);
+}
+
 void TSlotManager::Disable(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -200,20 +216,6 @@ void TSlotManager::Disable(const TError& error)
 
     YT_LOG_WARNING(errorWrapper);
     PersistentAlert_ = errorWrapper;
-}
-
-std::optional<i64> TSlotManager::GetMemoryLimit() const
-{
-    return JobEnvironment_ && JobEnvironment_->IsEnabled()
-        ? JobEnvironment_->GetMemoryLimit()
-        : std::nullopt;
-}
-
-std::optional<double> TSlotManager::GetCpuLimit() const
-{
-    return JobEnvironment_ && JobEnvironment_->IsEnabled()
-       ? JobEnvironment_->GetCpuLimit()
-       : std::nullopt;
 }
 
 void TSlotManager::OnJobFinished(EJobState jobState)
@@ -272,6 +274,29 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
        });
 }
 
+void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
+{
+    for (const auto& location : Locations_) {
+        auto oldDescriptor = location->GetMediumDescriptor();
+        auto newDescriptor = mediumDirectory->FindByName(location->GetMediumName());
+        if (!newDescriptor) {
+            THROW_ERROR_EXCEPTION("Location %Qv refers to unknown medium %Qv",
+                location->GetId(),
+                location->GetMediumName());
+        }
+        if (oldDescriptor.Index != NChunkClient::InvalidMediumIndex &&
+            oldDescriptor.Index != newDescriptor->Index)
+        {
+            THROW_ERROR_EXCEPTION("Medium %Qv has changed its index from %v to %v",
+                location->GetMediumName(),
+                oldDescriptor.Index,
+                newDescriptor->Index);
+        }
+        location->SetMediumDescriptor(*newDescriptor);
+        location->InvokeUpdateDiskResources();
+    }
+}
+
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -287,6 +312,7 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
             auto* locationResources = result.add_disk_location_resources();
             locationResources->set_usage(info.usage());
             locationResources->set_limit(info.limit());
+            locationResources->set_medium_index(info.medium_index());
         } catch (const std::exception& ex) {
             auto alert = TError("Failed to get disk info of location")
                 << ex;

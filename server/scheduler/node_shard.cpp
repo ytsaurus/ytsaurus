@@ -15,13 +15,15 @@
 
 #include <yt/server/lib/shell/config.h>
 
-#include <yt/ytlib/job_proxy/public.h>
+#include <yt/ytlib/api/native/connection.h>
 
-#include <yt/client/object_client/helpers.h>
+#include <yt/ytlib/job_proxy/public.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/finally.h>
 
@@ -398,6 +400,17 @@ void TNodeShard::UnregisterAndRemoveNodeById(TNodeId nodeId)
     }
 }
 
+void TNodeShard::AbortJobsAtNode(TNodeId nodeId)
+{
+    VERIFY_INVOKER_AFFINITY(GetInvoker());
+
+    auto it = IdToNode_.find(nodeId);
+    if (it != IdToNode_.end()) {
+        const auto& node = it->second;
+        AbortAllJobsAtNode(node);
+    }
+}
+
 void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
     GetInvoker()->Invoke(
@@ -436,7 +449,11 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     context->SetRequestInfo("NodeId: %v, NodeAddress: %v, ResourceUsage: %v, JobCount: %v, Confirmation: {C: %v, U: %v}",
         nodeId,
         descriptor.GetDefaultAddress(),
-        FormatResourceUsage(TJobResources(resourceUsage), TJobResources(resourceLimits), request->disk_resources()),
+        Host_->FormatResourceUsage(
+            TJobResources(resourceUsage),
+            TJobResources(resourceLimits),
+            request->disk_resources()
+        ),
         request->jobs().size(),
         request->confirmed_job_count(),
         request->unconfirmed_jobs().size());
@@ -472,7 +489,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
     TLeaseManager::RenewLease(node->GetRegistrationLease());
 
     if (node->GetMasterState() != NNodeTrackerClient::ENodeState::Online || node->GetSchedulerState() != ENodeState::Online) {
-        auto error = TError("Node is not online");
+        auto error = TError("Node is not online (MasterState: %v, SchedulerState: %v)",
+            node->GetMasterState(),
+            node->GetSchedulerState());
         if (!node->GetRegistrationError().IsOK()) {
             error = error << node->GetRegistrationError();
         }
@@ -556,11 +575,16 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         }
     }
 
+    auto mediumDirectory = Bootstrap_
+        ->GetMasterClient()
+        ->GetNativeConnection()
+        ->GetMediumDirectory();
     auto schedulingContext = CreateSchedulingContext(
         Id_,
         Config_,
         node,
-        runningJobs);
+        runningJobs,
+        mediumDirectory);
 
     PROFILE_AGGREGATED_TIMING (GracefulPreemptionTimeCounter) {
         for (const auto& job : runningJobs) {
@@ -813,7 +837,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
             UpdateNodeState(execNode, newState, execNode->GetSchedulerState());
         }
 
-        if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags) {
+        if ((oldState != NNodeTrackerClient::ENodeState::Online && newState == NNodeTrackerClient::ENodeState::Online) || execNode->Tags() != tags || !execNode->GetRegistrationError().IsOK()) {
             auto updateResult = WaitFor(Host_->RegisterOrUpdateNode(nodeId, address, tags));
             if (!updateResult.IsOK()) {
                 auto error = TError("Node tags update failed")

@@ -185,6 +185,13 @@ public:
         return mailbox;
     }
 
+    TMailbox* FindMailbox(TCellId cellId)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return MailboxMap_.Find(cellId);
+    }
+
     TMailbox* GetOrCreateMailbox(TCellId cellId)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1526,6 +1533,11 @@ TCellId THiveManager::GetSelfCellId() const
 TMailbox* THiveManager::CreateMailbox(TCellId cellId)
 {
     return Impl_->CreateMailbox(cellId);
+}
+
+TMailbox* THiveManager::FindMailbox(TCellId cellId)
+{
+    return Impl_->FindMailbox(cellId);
 }
 
 TMailbox* THiveManager::GetOrCreateMailbox(TCellId cellId)

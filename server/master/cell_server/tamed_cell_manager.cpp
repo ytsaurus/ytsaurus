@@ -171,7 +171,6 @@ public:
     {
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeIncrementalHeartbeat(BIND(&TImpl::OnIncrementalHeartbeat, MakeWeak(this)));
-        nodeTracker->SubscribeNodeRegistered(BIND(&TImpl::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND(&TImpl::OnNodeUnregistered, MakeWeak(this)));
 
         const auto& configManager = Bootstrap_->GetConfigManager();
@@ -972,24 +971,41 @@ private:
         }
     }
 
-    void OnNodeRegistered(TNode* node)
+    void UpdateNodeTabletSlotCount(TNode* node, int newSlotCount)
     {
-        node->InitTabletSlots();
+        if (node->TabletSlots().size() == newSlotCount) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Node tablet slot count changed (Address: %v, OldTabletCellCount: %v, NewTabletCellCount: %v)",
+            node->GetDefaultAddress(),
+            node->TabletSlots().size(),
+            newSlotCount);
+
+        if (newSlotCount < node->TabletSlots().size()) {
+            for (int slotIndex = newSlotCount; slotIndex < node->TabletSlots().size(); ++slotIndex) {
+                const auto& slot = node->TabletSlots()[slotIndex];
+                auto* cell = slot.Cell;
+                if (cell) {
+                    YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot destroyed, detaching tablet cell peer (Address: %v, CellId: %v, PeerId: %v)",
+                        node->GetDefaultAddress(),
+                        cell->GetId(),
+                        slot.PeerId);
+
+                    cell->DetachPeer(node);
+                }
+            }
+        }
+
+        node->TabletSlots().resize(newSlotCount);
     }
 
     void OnNodeUnregistered(TNode* node)
     {
-        for (const auto& slot : node->TabletSlots()) {
-            auto* cell = slot.Cell;
-            if (cell) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer offline: node unregistered (Address: %v, CellId: %v, PeerId: %v)",
-                    node->GetDefaultAddress(),
-                    cell->GetId(),
-                    slot.PeerId);
-                cell->DetachPeer(node);
-            }
-        }
-        node->ClearTabletSlots();
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node unregistered (Address: %v)",
+            node->GetDefaultAddress());
+
+        UpdateNodeTabletSlotCount(node, 0);
     }
 
     void OnIncrementalHeartbeat(
@@ -1111,6 +1127,8 @@ private:
         auto mutationTimestamp = mutationContext->GetTimestamp();
 
         const auto& address = node->GetDefaultAddress();
+
+        UpdateNodeTabletSlotCount(node, request->tablet_slots_size());
 
         // Our expectations.
         THashSet<TCellBase*> expectedCells;

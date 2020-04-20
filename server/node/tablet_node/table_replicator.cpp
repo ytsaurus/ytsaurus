@@ -238,16 +238,18 @@ private:
                     .ValueOrThrow();
 
                 auto foreignClient = foreignConnection->CreateClient(TClientOptions(NSecurityClient::ReplicatorUserName));
-                auto transactionStartOptions = NNative::TForeignTransactionStartOptions();
 
+                TTransactionStartOptions transactionStartOptions;
+                transactionStartOptions.Id = localTransaction->GetId();
                 if (!isVersioned) {
                     transactionStartOptions.Atomicity = replicaRuntimeData->Atomicity;
                 }
 
-                foreignTransaction = WaitFor(localTransaction->StartForeignTransaction(foreignClient, transactionStartOptions))
+                foreignTransaction = WaitFor(foreignClient->StartTransaction(ETransactionType::Tablet, transactionStartOptions))
                     .ValueOrThrow();
 
-                YT_VERIFY(localTransaction->GetId() == foreignTransaction->GetId());
+                localTransaction->RegisterForeignTransaction(foreignTransaction);
+
                 YT_LOG_DEBUG("Replication transactions started (TransactionId: %v)",
                     localTransaction->GetId());
             }

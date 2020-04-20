@@ -11,6 +11,8 @@
 #include <yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
 #include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/medium_directory.h>
+#include <yt/ytlib/chunk_client/medium_directory_synchronizer.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cell_directory_synchronizer.h>
@@ -159,6 +161,12 @@ public:
             this,
             ClusterDirectory_);
 
+        MediumDirectory_ = New<TMediumDirectory>();
+        MediumDirectorySynchronizer_ = New<TMediumDirectorySynchronizer>(
+            Config_->MediumDirectorySynchronizer,
+            this,
+            MediumDirectory_);
+
         CellDirectory_ = New<NHiveClient::TCellDirectory>(
             Config_->CellDirectory,
             ChannelFactory_,
@@ -174,7 +182,6 @@ public:
             CellDirectory_,
             GetPrimaryMasterCellId(),
             Logger);
-        DownedCellTracker_ = New<TCellTracker>();
 
         BlockCache_ = CreateClientBlockCache(
             Config_->BlockCache,
@@ -363,6 +370,16 @@ public:
         return ClusterDirectorySynchronizer_;
     }
 
+    virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override
+    {
+        return MediumDirectory_;
+    }
+
+    virtual const NChunkClient::TMediumDirectorySynchronizerPtr& GetMediumDirectorySynchronizer() override
+    {
+        return MediumDirectorySynchronizer_;
+    }
+
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) override
     {
@@ -401,6 +418,9 @@ public:
 
         CellDirectory_->Clear();
         CellDirectorySynchronizer_->Stop();
+
+        MediumDirectory_->Clear();
+        MediumDirectorySynchronizer_->Stop();
 
         NodeDirectorySynchronizer_->Stop();
     }
@@ -463,12 +483,15 @@ private:
     TEvaluatorPtr QueryEvaluator_;
     TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
 
-    NHiveClient::TCellDirectoryPtr CellDirectory_;
-    NHiveClient::TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
-    TCellTrackerPtr DownedCellTracker_;
+    TCellDirectoryPtr CellDirectory_;
+    TCellDirectorySynchronizerPtr CellDirectorySynchronizer_;
+    const TCellTrackerPtr DownedCellTracker_ = New<TCellTracker>();
 
     TClusterDirectoryPtr ClusterDirectory_;
     TClusterDirectorySynchronizerPtr ClusterDirectorySynchronizer_;
+
+    TMediumDirectoryPtr MediumDirectory_;
+    TMediumDirectorySynchronizerPtr MediumDirectorySynchronizer_;
 
     TNodeDirectoryPtr NodeDirectory_;
     TNodeDirectorySynchronizerPtr NodeDirectorySynchronizer_;

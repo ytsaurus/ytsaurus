@@ -43,6 +43,7 @@ SortOrderViolation = 301
 UniqueKeyViolation = 306
 SchemaViolation = 307
 InvalidSchemaValue = 314
+ResolveErrorCode = 500
 AuthorizationErrorCode = 901
 UnrecognizedConfigOption = 1400
 FailedToFetchDynamicConfig = 1401
@@ -50,6 +51,7 @@ DuplicateMatchingDynamicConfigs = 1402
 UnrecognizedDynamicConfigOption = 1403
 InvalidDynamicConfig = 1405
 NoSuchOperation = 1915
+NoSuchJob = 1916
 NoSuchAttribute = 1920
 TabletNotMounted = 1702
 
@@ -644,9 +646,9 @@ def select_rows(query, **kwargs):
     kwargs["verbose_logging"] = True
     return execute_command_with_output_format("select_rows", kwargs)
 
-def explain(query, **kwargs):
+def explain_query(query, **kwargs):
     kwargs["query"] = query
-    return execute_command_with_output_format("explain", kwargs)[0]
+    return execute_command_with_output_format("explain_query", kwargs)[0]
 
 def _prepare_rows_stream(data, is_raw=False):
     # remove surrounding [ ]
@@ -1915,6 +1917,11 @@ def sync_alter_table_replica_mode(replica_id, mode, driver=None):
 def create_dynamic_table(path, **attributes):
     if "dynamic" not in attributes:
         attributes.update({"dynamic": True})
+
+    is_sorted = "schema" in attributes and any(column.get("sort_order") == "ascending" for column in attributes["schema"])
+    if is_sorted and "enable_dynamic_store_read" not in attributes:
+        attributes.update({"enable_dynamic_store_read": True})
+
     create("table", path, attributes=attributes)
 
 def sync_control_chunk_replicator(enabled):

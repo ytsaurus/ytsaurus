@@ -12,9 +12,15 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TColumnFilterDictionary::TColumnFilterDictionary(bool sortColumns)
+    : SortColumns_(sortColumns)
+{ }
+
 int TColumnFilterDictionary::GetIdOrRegisterAdmittedColumns(std::vector<TString> admittedColumns)
 {
-    std::sort(admittedColumns.begin(), admittedColumns.end());
+    if (SortColumns_) {
+        std::sort(admittedColumns.begin(), admittedColumns.end());
+    }
     auto admittedColumnsIterator = AdmittedColumnsToId_.find(admittedColumns);
     if (admittedColumnsIterator == AdmittedColumnsToId_.end()) {
         int id = IdToAdmittedColumns_.size();

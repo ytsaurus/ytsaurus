@@ -105,7 +105,7 @@ public:
         return ChannelPromise_;
     }
 
-    virtual TFuture<void> Terminate(const TError& error) override
+    virtual void Terminate(const TError& error) override
     {
         {
             auto guard = Guard(Lock_);
@@ -115,15 +115,12 @@ public:
                     const auto& channelOrError = ChannelPromise_.Get();
                     if (channelOrError.IsOK()) {
                         const auto& channel = channelOrError.Value();
-                        TerminationFuture_ = channel->Terminate(error);
-                    } else {
-                        TerminationFuture_ = VoidFuture;
+                        channel->Terminate(error);
                     }
                 }
             }
         }
         SyncExecutor_->Stop();
-        return TerminationFuture_;
     }
 
 private:
@@ -139,7 +136,6 @@ private:
     mutable bool Started_ = false;
     TPromise<IChannelPtr> ChannelPromise_ = NewPromise<IChannelPtr>();
     TError TerminationError_;
-    TFuture<void> TerminationFuture_;
 
     std::optional<std::vector<TString>> Addresses_;
 

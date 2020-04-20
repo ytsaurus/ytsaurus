@@ -21,6 +21,12 @@ class TestRuntimeParameters(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 1000
+        }
+    }
+
     @authors("renadeen")
     def test_update_runtime_parameters(self):
         create_test_tables()
@@ -146,7 +152,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("renadeen")
     def test_change_pool_during_prepare_phase_bug(self):
-        op = run_test_vanilla(":", spec={"testing": {"delay_inside_prepare": 2000}})
+        op = run_test_vanilla(":", spec={"testing": {"delay_inside_prepare": 3000}})
         wait(lambda: op.get_state() == "preparing", sleep_backoff=0.1)
         update_op_parameters(op.id, parameters={"pool": "another_pool"})
         assert op.get_state() == "preparing"
@@ -263,14 +269,15 @@ class TestRuntimeParameters(YTEnvSetup):
 
         op = run_sleeping_vanilla(spec={
             "pool": "initial_pool",
-            # Use "delay_inside_prepare" because revival from scratch is preparation.
-            "testing": {"delay_inside_prepare": 10000}
+            "testing": {"delay_inside_register_jobs_from_revived_operation": 10000}
         })
+
+        op.wait_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        wait(lambda: op.get_state() in ["revive_initializing", "reviving", "reviving_jobs"], iter=10)
+        wait(lambda: op.get_state() in ["reviving_jobs"], iter=10)
 
         with pytest.raises(YtError):
             update_op_parameters(op.id, parameters={"pool": "changed_pool"})

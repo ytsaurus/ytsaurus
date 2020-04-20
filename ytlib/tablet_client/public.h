@@ -34,6 +34,13 @@ DEFINE_ENUM(ETabletCellLifeStage,
     (Decommissioned)
 );
 
+DEFINE_ENUM(ETabletStoresUpdateReason,
+    ((Flush)            (1))
+    ((Compaction)       (2))
+    ((Partitioning)     (3))
+    ((Trim)             (4))
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int TypicalTabletSlotCount = 10;

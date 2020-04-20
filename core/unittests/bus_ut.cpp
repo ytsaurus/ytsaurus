@@ -178,6 +178,34 @@ TEST(TBusTest, OK)
         .ThrowOnError();
 }
 
+TEST(TBusTest, Terminate)
+{
+    auto server = StartBusServer(New<TEmptyBusHandler>());
+    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000"));
+    auto bus = client->CreateBus(New<TEmptyBusHandler>());
+    auto message = CreateMessage(1);
+
+    auto terminated = NewPromise<void>();
+    bus->SubscribeTerminated(
+        BIND([&] (const TError& error) {
+            terminated.Set(error);
+        }));
+    auto error = TError(54321, "Terminated");
+    bus->Terminate(error);
+    bus->Terminate(TError(12345, "Ignored"));
+    EXPECT_EQ(terminated.Get().GetCode(), error.GetCode());
+    bus->Terminate(TError(12345, "Ignored"));
+
+    auto result = bus->Send(message, NBus::TSendOptions(EDeliveryTrackingLevel::Full));
+    EXPECT_FALSE(result.IsSet());
+    bus.Reset(); // Destructor discards message queue
+    EXPECT_EQ(result.Get().GetCode(), error.GetCode());
+
+    server->Stop()
+        .Get()
+        .ThrowOnError();
+}
+
 TEST(TBusTest, Failed)
 {
     auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000"));

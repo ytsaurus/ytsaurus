@@ -35,7 +35,7 @@ public:
     void Initialize();
 
     //! Acquires a free slot, thows on error.
-    ISlotPtr AcquireSlot(i64 diskSpaceRequest);
+    ISlotPtr AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest);
 
     void ReleaseSlot(int slotIndex);
 
@@ -44,17 +44,17 @@ public:
 
     bool IsEnabled() const;
 
-    std::optional<i64> GetMemoryLimit() const;
-
-    std::optional<double> GetCpuLimit() const;
+    void UpdateCpuLimit(double cpuLimit);
 
     NNodeTrackerClient::NProto::TDiskResources GetDiskResources();
 
     void OnJobFinished(EJobState jobState);
 
-    void Disable(const TError& error );
+    void Disable(const TError& error);
 
     void BuildOrchidYson(NYTree::TFluentMap fluent) const;
+
+    void InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
 private:
     const TSlotManagerConfigPtr Config_;

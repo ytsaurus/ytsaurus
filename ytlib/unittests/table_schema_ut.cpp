@@ -632,6 +632,16 @@ TEST_F(TTableSchemaTest, ValidateTableSchemaCompatibilityTest)
         /*ignoreSortOrder*/ true
     ).IsOK());
 
+    EXPECT_FALSE(ValidateTableSchemaCompatibility(
+        TTableSchema({
+            TColumnSchema("a", ListLogicalType(SimpleLogicalType((ESimpleLogicalValueType::Int64)))),
+            TColumnSchema("b", ESimpleLogicalValueType::Int64),
+        }, /*strict*/ true),
+        TTableSchema({
+            TColumnSchema("b", ESimpleLogicalValueType::Int64),
+        }, /*strict*/ false),
+        /*ignoreSortOrder*/ true
+    ).IsOK());
 
     //
     // ignoreSortOrder = false

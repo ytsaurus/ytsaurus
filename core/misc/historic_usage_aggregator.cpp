@@ -1,10 +1,9 @@
 #include "historic_usage_aggregator.h"
-
-#include <yt/core/misc/assert.h>
+#include "assert.h"
 
 #include <util/generic/ymath.h>
 
-namespace NYT::NScheduler {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,4 +73,4 @@ double THistoricUsageAggregator::GetHistoricUsage() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NScheduler
+} // namespace NYT

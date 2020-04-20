@@ -575,6 +575,50 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
             {"name": "value", "type": "string"}])
         with pytest.raises(YtError): alter_table("//tmp/t2", dynamic=True)
 
+    @authors("gritukan")
+    def test_alter_key_column(self):
+        old_schema = make_schema([
+            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "value", "type": "string", "required": False},
+        ])
+        new_schema = make_schema([
+            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "x", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "value", "type": "string", "required": False},
+        ])
+        bad_schema_1 = make_schema([
+            {"name": "x", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "value", "type": "string", "required": False},
+        ])
+        bad_schema_2 = make_schema([
+            {"name": "key", "type": "int64", "required": False, "sort_order": "ascending"},
+            {"name": "value", "type": "string", "required": False},
+            {"name": "x", "type": "int64", "required": False, "sort_order": "ascending"},
+        ])
+
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+        insert_rows("//tmp/t", [{"key": 2, "value": "2"}])
+        sync_unmount_table("//tmp/t")
+
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", schema=bad_schema_1)
+
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", schema=bad_schema_2)
+
+        alter_table("//tmp/t", schema=new_schema)
+
+        sync_mount_table("//tmp/t")
+        assert read_table("//tmp/t") == [{"key": 1, "value": "1", "x": yson.YsonEntity()}, {"key": 2, "value": "2", "x": yson.YsonEntity()}]
+        sync_unmount_table("//tmp/t")
+
+        with pytest.raises(YtError):
+            alter_table("//tmp/t", schema=old_schema)
+
 class TestSortedDynamicTablesCopyReshardMulticell(TestSortedDynamicTablesCopyReshard):
     NUM_SECONDARY_MASTER_CELLS = 2
 

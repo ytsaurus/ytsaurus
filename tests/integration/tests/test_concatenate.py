@@ -291,6 +291,25 @@ class TestConcatenate(YTEnvSetup):
         assert get("//tmp/union/@schema_mode") == "weak"
         assert get("//tmp/union/@schema") == orig_schema
 
+    @authors("ermolovd")
+    def test_lost_complex_column(self):
+        create("table", "//tmp/t1",
+           attributes = {
+               "schema": make_schema([
+                   {"name": "list_column", "type_v3": list_type("int64")},
+                   {"name": "int_column", "type_v3": "int64"},
+               ])
+           })
+
+        create("table", "//tmp/union",
+           attributes = {
+               "schema": make_schema([
+                   {"name": "int_column", "type_v3": "int64"},
+               ], strict=False)
+           })
+        with raises_yt_error("is missing in strict part of output schema"):
+            concatenate(["//tmp/t1"], "//tmp/union")
+
     @authors("gritukan")
     def test_sorted_concatenation(self):
         def make_rows(values):
@@ -560,10 +579,52 @@ class TestConcatenate(YTEnvSetup):
         concatenate(["//tmp/in3"], "//tmp/out2")
         assert read_table("//tmp/out2") == make_rows([2, 3, 4])
 
+    @authors("gritukan")
+    def test_input_with_custom_transaction(self):
+        custom_tx = start_transaction()
+
+        create("table", "//tmp/in", tx=custom_tx)
+        write_table("//tmp/in", {"foo": "bar"}, tx=custom_tx)
+
+        create("table", "//tmp/out")
+
+        with pytest.raises(YtError):
+            concatenate(["//tmp/in"], "//tmp/out")
+        concatenate(['<transaction_id="{}">//tmp/in'.format(custom_tx)], "//tmp/out")
+
+        assert read_table("//tmp/out") == [{"foo": "bar"}]
+
 ##################################################################
 
 class TestConcatenateMulticell(TestConcatenate):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    @authors("gritukan")
+    def test_concatenate_imported_chunks(self):
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 1})
+        write_table("//tmp/t1", [{"a": "b"}])
+
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 2})
+        op = merge(mode="unordered",
+              in_=["//tmp/t1"],
+              out="//tmp/t2")
+        op.track()
+        chunk_id = get_singular_chunk_id("//tmp/t2")
+        assert len(get("#" + chunk_id + "/@exports")) > 0
+
+        tx1 = start_transaction()
+        lock("//tmp/t2", mode="exclusive", tx=tx1)
+        remove("//tmp/t2", tx=tx1)
+
+        create("table", "//tmp/t3", attributes={"external_cell_tag": 1})
+
+        tx2 = start_transaction()
+        concatenate(['<transaction_id="{}">//tmp/t2'.format(tx2)], "//tmp/t3")
+
+        assert read_table("//tmp/t3") == [{"a": "b"}]
+
+        abort_transaction(tx1)
+        assert read_table("//tmp/t3") == [{"a": "b"}]
 
 class TestConcatenateRpcProxy(TestConcatenate):
     DRIVER_BACKEND = "rpc"

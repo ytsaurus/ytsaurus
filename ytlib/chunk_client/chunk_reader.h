@@ -3,13 +3,15 @@
 #include "block.h"
 #include "public.h"
 
-#include <yt/core/actions/future.h>
-
 #include <yt/client/hydra/public.h>
 
 #include <yt/client/table_client/public.h>
 
 #include <yt/client/misc/workload.h>
+
+#include <yt/core/actions/future.h>
+
+#include <yt/core/compression/public.h>
 
 namespace NYT::NChunkClient {
 
@@ -60,6 +62,7 @@ struct IChunkReader
         std::atomic<i64>* uncompressedDataSize,
         const NTableClient::TColumnFilter& columnFilter,
         NTableClient::TTimestamp timestamp,
+        NCompression::ECodec codecId,
         bool produceAllVersions) = 0;
 
     virtual bool IsLookupSupported() const = 0;

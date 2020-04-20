@@ -104,6 +104,7 @@ DECLARE_REFCOUNTED_CLASS(TRemoteWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TBlockCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkScraperConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporterConfig)
+DECLARE_REFCOUNTED_CLASS(TMediumDirectorySynchronizerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IFetcherChunkScraper)
 
@@ -146,6 +147,7 @@ DECLARE_REFCOUNTED_CLASS(TScraperTask)
 DECLARE_REFCOUNTED_CLASS(TThrottlerManager)
 DECLARE_REFCOUNTED_CLASS(TChunkTeleporter)
 DECLARE_REFCOUNTED_CLASS(TMediumDirectory)
+DECLARE_REFCOUNTED_CLASS(TMediumDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(TChunkMetaFetcher)
 
@@ -169,7 +171,7 @@ using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
 // NB: TRefCountedBlocksExt needs weak pointers support.
-using TRefCountedBlocksExt = TRefCountedProto<NChunkClient::NProto::TBlocksExt>;
+using TRefCountedBlocksExt = TRefCountedProto<NChunkClient::NProto::TBlocksExt, true>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedBlocksExt)
 
 using TRefCountedMiscExt = TRefCountedProto<NChunkClient::NProto::TMiscExt>;

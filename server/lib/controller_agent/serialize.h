@@ -26,6 +26,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RetainedJobsCoreInfoCount)            (300232))
     ((ControllerWritesJobArchive)           (300233))
     ((SliceForeignChunks)                   (300234))
+    ((CompletedRowCount)                    (300235))
+    ((DynamicStoreRead)                     (300300))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

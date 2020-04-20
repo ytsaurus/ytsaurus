@@ -234,104 +234,103 @@ public:
         state->SetEnabled(false);
     }
 
-    virtual void ValidatePoolTreesAreNotRemoved(const TOperationPtr& operation) override
-    {
-        for (const auto& [treeId, _] : operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
-            if (GetOrCrash(IdToTree_, treeId)->IsBeingRemoved()) {
-                THROW_ERROR_EXCEPTION("Failed to register operation: tree %Qv is being removed", treeId)
-                    << TErrorAttribute("operation_id", operation->GetId());
-            }
-        }
-    }
-
     virtual void UpdatePoolTrees(const INodePtr& poolTreesNode) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        YT_LOG_INFO("Updating pool trees");
+        std::vector<TOperationId> orphanedOperationIds;
+        {
+            // No context switches allowed while fair share trees update.
+            TForbidContextSwitchGuard contextSwitchGuard;
 
-        if (poolTreesNode->GetType() != NYTree::ENodeType::Map) {
-            auto error = TError("Pool trees node has invalid type")
-                << TErrorAttribute("expected_type", NYTree::ENodeType::Map)
-                << TErrorAttribute("actual_type", poolTreesNode->GetType());
-            YT_LOG_WARNING(error);
-            Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
-            return;
-        }
+            YT_LOG_INFO("Updating pool trees");
 
-        auto poolsMap = poolTreesNode->AsMap();
+            if (poolTreesNode->GetType() != NYTree::ENodeType::Map) {
+                auto error = TError("Pool trees node has invalid type")
+                    << TErrorAttribute("expected_type", NYTree::ENodeType::Map)
+                    << TErrorAttribute("actual_type", poolTreesNode->GetType());
+                YT_LOG_WARNING(error);
+                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
+                return;
+            }
 
-        std::vector<TError> errors;
+            auto poolsMap = poolTreesNode->AsMap();
 
-        // Collect trees to add and remove.
-        THashSet<TString> treeIdsToAdd;
-        THashSet<TString> treeIdsToRemove;
-        CollectTreesToAddAndRemove(poolsMap, &treeIdsToAdd, &treeIdsToRemove);
+            std::vector<TError> errors;
 
-        // Populate trees map. New trees are not added to global map yet.
-        auto idToTree = ConstructUpdatedTreeMap(
-            poolsMap,
-            treeIdsToAdd,
-            treeIdsToRemove,
-            &errors);
+            // Collect trees to add and remove.
+            THashSet<TString> treeIdsToAdd;
+            THashSet<TString> treeIdsToRemove;
+            THashSet<TString> treesWithChangedFilter;
+            THashMap<TString, TSchedulingTagFilter> treeIdToFilter;
+            CollectTreeChanges(poolsMap, &treeIdsToAdd, &treeIdsToRemove, &treesWithChangedFilter, &treeIdToFilter);
 
-        // Check default tree pointer. It should point to some valid tree,
-        // otherwise pool trees are not updated.
-        auto defaultTreeId = poolsMap->Attributes().Find<TString>(DefaultTreeAttributeName);
+            // Populate trees map. New trees are not added to global map yet.
+            auto idToTree = ConstructUpdatedTreeMap(
+                poolsMap,
+                treeIdsToAdd,
+                treeIdsToRemove,
+                &errors);
 
-        if (defaultTreeId && idToTree.find(*defaultTreeId) == idToTree.end()) {
-            errors.emplace_back("Default tree is missing");
-            auto error = TError("Error updating pool trees")
-                << std::move(errors);
-            Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
-            return;
-        }
+            // Check default tree pointer. It should point to some valid tree,
+            // otherwise pool trees are not updated.
+            auto defaultTreeId = poolsMap->Attributes().Find<TString>(DefaultTreeAttributeName);
 
-        // Check that after adding or removing trees each node will belong exactly to one tree.
-        // Check is skipped if trees configuration did not change.
-        bool treeSetChanged = !(treeIdsToAdd.empty() && treeIdsToRemove.empty());
-        if (treeSetChanged) {
-            if (!CheckTreesConfiguration(idToTree, &errors)) {
+            if (defaultTreeId && idToTree.find(*defaultTreeId) == idToTree.end()) {
+                errors.emplace_back("Default tree is missing");
                 auto error = TError("Error updating pool trees")
                     << std::move(errors);
                 Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
                 return;
             }
-        }
 
-        for (const auto& tree : treeIdsToRemove) {
-            IdToTree_[tree]->OnTreeRemoveStarted();
-        }
+            // Check that after adding or removing trees each node will belong exactly to one tree.
+            // Check is skipped if trees configuration did not change.
+            bool shouldCheckConfiguration = !treeIdsToAdd.empty() || !treeIdsToRemove.empty() || !treesWithChangedFilter.empty();
 
-        // Update configs and pools structure of all trees.
-        std::vector<TString> updatedTreeIds;
-        UpdateTreesConfigs(poolsMap, idToTree, &errors, &updatedTreeIds);
-
-        // Abort orphaned operations.
-        AbortOrphanedOperations(treeIdsToRemove);
-
-        // Updating default fair-share tree and global tree map.
-        DefaultTreeId_ = defaultTreeId;
-        std::swap(IdToTree_, idToTree);
-
-        // Setting alerts.
-        if (!errors.empty()) {
-            auto error = TError("Error updating pool trees")
-                << std::move(errors);
-            Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
-        } else {
-            Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, TError());
-            if (!updatedTreeIds.empty() || !treeIdsToRemove.empty() || !treeIdsToAdd.empty()) {
-                Host->LogEventFluently(ELogEventType::PoolsInfo)
-                    .Item("pools").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& value) {
-                        const auto& treeId = value.first;
-                        const auto& tree = value.second;
-                        fluent
-                            .Item(treeId).Do(BIND(&TTree::BuildStaticPoolsInformation, tree));
-                    });
+            if (shouldCheckConfiguration && !CheckTreesConfiguration(treeIdToFilter, &errors)) {
+                auto error = TError("Error updating pool trees")
+                    << std::move(errors);
+                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
+                return;
             }
-            YT_LOG_INFO("Pool trees updated");
+
+            // Update configs and pools structure of all trees.
+            // NB: it updates already existing trees inplace.
+            std::vector<TString> updatedTreeIds;
+            UpdateTreesConfigs(poolsMap, idToTree, &errors, &updatedTreeIds);
+
+            // Update node at scheduler.
+            UpdateNodesOnChangedTrees(idToTree);
+
+            // Abort orphaned operations.
+            RemoveTreesFromOperationStates(treeIdsToRemove, &orphanedOperationIds);
+
+            // Updating default fair-share tree and global tree map.
+            DefaultTreeId_ = defaultTreeId;
+            std::swap(IdToTree_, idToTree);
+
+            // Setting alerts.
+            if (!errors.empty()) {
+                auto error = TError("Error updating pool trees")
+                    << std::move(errors);
+                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
+            } else {
+                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, TError());
+                if (!updatedTreeIds.empty() || !treeIdsToRemove.empty() || !treeIdsToAdd.empty()) {
+                    Host->LogEventFluently(ELogEventType::PoolsInfo)
+                        .Item("pools").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& value) {
+                            const auto& treeId = value.first;
+                            const auto& tree = value.second;
+                            fluent
+                                .Item(treeId).Do(BIND(&TTree::BuildStaticPoolsInformation, tree));
+                        });
+                }
+                YT_LOG_INFO("Pool trees updated");
+            }
         }
+
+        AbortOrphanedOperations(orphanedOperationIds);
     }
 
     virtual void BuildOperationAttributes(TOperationId operationId, TFluentMap fluent) override
@@ -569,7 +568,9 @@ public:
         }
 
         fluent
+            // COMAPT(ignat)
             .OptionalItem("default_fair_share_tree", DefaultTreeId_)
+            .OptionalItem("default_pool_tree", DefaultTreeId_)
             .Item("scheduling_info_per_pool_tree").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& pair) {
                 const auto& [treeId, tree] = pair;
                 const auto& treeNodeDescriptor = GetOrCrash(descriptorsPerPoolTree, treeId);
@@ -842,25 +843,19 @@ public:
         }
     }
 
-    virtual void ValidateNodeTags(const THashSet<TString>& tags, int* treeCount) override
+    virtual std::vector<TString> GetNodeTreeIds(const THashSet<TString>& tags) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
-        // Trees this node falls into.
-        std::vector<TString> trees;
+        std::vector<TString> treeIds;
 
         for (const auto& [treeId, tree] : IdToTree_) {
             if (tree->GetNodesFilter().CanSchedule(tags)) {
-                trees.push_back(treeId);
+                treeIds.push_back(treeId);
             }
         }
 
-        *treeCount = trees.size();
-
-        if (trees.size() > 1) {
-            THROW_ERROR_EXCEPTION("Node belongs to more than one fair-share tree")
-                << TErrorAttribute("matched_trees", trees);
-        }
+        return treeIds;
     }
 
     virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) override
@@ -1069,8 +1064,6 @@ private:
         auto snapshots = TreeIdToSnapshot_.Load();
         for (const auto& [treeId, snapshot] : snapshots) {
             if (snapshot->GetNodesFilter().CanSchedule(descriptor.Tags)) {
-                // NB: ValidateNodeTags does not guarantee that this check will not success,
-                // since node filters of snapshots updated asynchronously.
                 if (matchingSnapshot) {
                     // Found second matching snapshot, skip scheduling.
                     YT_LOG_INFO("Node belong to multiple fair-share trees, scheduling skipped (Address: %v)",
@@ -1174,14 +1167,25 @@ private:
         }
     }
 
-    void CollectTreesToAddAndRemove(
+    void CollectTreeChanges(
         const IMapNodePtr& poolsMap,
         THashSet<TString>* treesToAdd,
-        THashSet<TString>* treesToRemove) const
+        THashSet<TString>* treesToRemove,
+        THashSet<TString>* treesWithChangedFilter,
+        THashMap<TString, TSchedulingTagFilter>* treeIdToFilter) const
     {
         for (const auto& key : poolsMap->GetKeys()) {
             if (IdToTree_.find(key) == IdToTree_.end()) {
                 treesToAdd->insert(key);
+                try {
+                    auto child = poolsMap->FindChild(key);
+                    auto configMap = child->Attributes().ToMap();
+                    auto config = ConvertTo<TFairShareStrategyTreeConfigPtr>(configMap);
+                    treeIdToFilter->emplace(key, config->NodesFilter);
+                } catch (const std::exception&) {
+                    // Do nothing, alert will be set later.
+                    continue;
+                }
             }
         }
 
@@ -1192,14 +1196,13 @@ private:
                 continue;
             }
 
-            // Nodes filter update is equivalent to remove-add operation.
             try {
                 auto configMap = child->Attributes().ToMap();
                 auto config = ConvertTo<TFairShareStrategyTreeConfigPtr>(configMap);
+                treeIdToFilter->emplace(treeId, config->NodesFilter);
 
                 if (config->NodesFilter != tree->GetNodesFilter()) {
-                    treesToRemove->insert(treeId);
-                    treesToAdd->insert(treeId);
+                    treesWithChangedFilter->insert(treeId);
                 }
             } catch (const std::exception&) {
                 // Do nothing, alert will be set later.
@@ -1242,12 +1245,12 @@ private:
         return trees;
     }
 
-    bool CheckTreesConfiguration(const TFairShareTreeMap& trees, std::vector<TError>* errors) const
+    bool CheckTreesConfiguration(const THashMap<TString, TSchedulingTagFilter>& treeIdToFilter, std::vector<TError>* errors) const
     {
         THashMap<NNodeTrackerClient::TNodeId, THashSet<TString>> nodeIdToTreeSet;
 
-        for (const auto& [treeId, tree] : trees) {
-            auto nodes = Host->GetExecNodeIds(tree->GetNodesFilter());
+        for (const auto& [treeId, filter] : treeIdToFilter) {
+            auto nodes = Host->GetExecNodeIds(filter);
 
             for (const auto& node : nodes) {
                 nodeIdToTreeSet[node].insert(treeId);
@@ -1298,7 +1301,7 @@ private:
         }
     }
 
-    void AbortOrphanedOperations(const THashSet<TString>& treesToRemove)
+    void RemoveTreesFromOperationStates(const THashSet<TString>& treesToRemove, std::vector<TOperationId>* orphanedOperationIds)
     {
         if (treesToRemove.empty()) {
             return;
@@ -1334,15 +1337,31 @@ private:
             }
         }
 
-        // Aborting orphaned operations.
         for (const auto& [operationId, treeSet] : operationIdToTreeSet) {
-            bool isOperationExists = OperationIdToOperationState_.find(operationId) != OperationIdToOperationState_.end();
-            if (treeSet.empty() && isOperationExists) {
+            if (treeSet.empty()) {
+                orphanedOperationIds->push_back(operationId);
+            }
+        }
+    }
+
+    void AbortOrphanedOperations(const std::vector<TOperationId>& operationIds)
+    {
+        for (auto operationId : operationIds) {
+            if (OperationIdToOperationState_.find(operationId) != OperationIdToOperationState_.end()) {
                 Host->AbortOperation(
                     operationId,
                     TError("No suitable fair-share trees to schedule operation"));
             }
         }
+    }
+
+    void UpdateNodesOnChangedTrees(const TFairShareTreeMap& idToTree)
+    {
+        THashMap<TString, TSchedulingTagFilter> treeIdToFilter;
+        for (const auto& [treeId, tree] : idToTree) {
+            treeIdToFilter.emplace(treeId, tree->GetNodesFilter());
+        }
+        Host->UpdateNodesOnChangedTrees(treeIdToFilter);
     }
 
     static void BuildTreeOrchid(

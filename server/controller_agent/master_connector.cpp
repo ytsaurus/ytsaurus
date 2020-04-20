@@ -15,18 +15,12 @@
 
 #include <yt/server/lib/misc/update_executor.h>
 
-#include <yt/client/api/operation_archive_schema.h>
-#include <yt/client/api/transaction.h>
-
-#include <yt/client/object_client/helpers.h>
-
-#include <yt/client/table_client/row_buffer.h>
-
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -41,6 +35,13 @@
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
+
+#include <yt/client/api/operation_archive_schema.h>
+#include <yt/client/api/transaction.h>
+
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
 

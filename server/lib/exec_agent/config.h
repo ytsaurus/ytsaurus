@@ -12,6 +12,8 @@
 
 #include <yt/ytlib/cgroup/config.h>
 
+#include <yt/ytlib/chunk_client/public.h>
+
 #include <yt/core/ytree/node.h>
 
 #include <yt/core/ytree/yson_serializable.h>
@@ -95,8 +97,6 @@ public:
 
     TDuration BlockIOWatchdogPeriod;
 
-    std::optional<TDuration> ResourceLimitsUpdatePeriod;
-
     THashMap<TString, TString> ExternalBinds;
 
     double JobsIOWeight;
@@ -110,8 +110,6 @@ public:
         RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)
             .Default(TDuration::Seconds(60));
 
-        RegisterParameter("resource_limits_update_period", ResourceLimitsUpdatePeriod)
-            .Default();
         RegisterParameter("external_binds", ExternalBinds)
             .Default();
 
@@ -134,6 +132,8 @@ public:
     std::optional<i64> DiskQuota;
     i64 DiskUsageWatermark;
 
+    TString MediumName;
+
     TSlotLocationConfig()
     {
         RegisterParameter("disk_quota", DiskQuota)
@@ -142,6 +142,9 @@ public:
         RegisterParameter("disk_usage_watermark", DiskUsageWatermark)
             .Default(10_GB)
             .GreaterThanOrEqual(0);
+
+        RegisterParameter("medium_name", MediumName)
+            .Default(NChunkClient::DefaultSlotsMediumName);
     }
 };
 

@@ -730,7 +730,7 @@ TStoreLocation::TStoreLocation(
         Config_->TrashCheckPeriod,
         EPeriodicExecutorMode::Automatic))
 {
-    auto diskThrottlerProfiler = GetProfiler().AppendPath("/location/disk_throttler");
+    auto diskThrottlerProfiler = GetProfiler().AppendPath("/disk_throttler");
     auto createThrottler = [&] (const auto& config, const auto& name) {
         return CreateNamedReconfigurableThroughputThrottler(config, name, Logger, diskThrottlerProfiler);
     };

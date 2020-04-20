@@ -333,7 +333,8 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
             "dynamic",
             "retained_timestamp",
             "schema",
-            "unflushed_timestamp"
+            "unflushed_timestamp",
+            "enable_dynamic_store_read",
         });
 
         auto rspOrError = WaitFor(proxy.Execute(req));

@@ -586,10 +586,13 @@ private:
         for (auto row : rows) {
             const auto& unversionedValue = GetUnversionedValue(row, ColumnIndex_);
                 if (unversionedValue.Type != EValueType::Null) {
-                    if (ValueType == EValueType::String) {
+                    if constexpr (
+                        ValueType == EValueType::String ||
+                        ValueType == EValueType::Composite)
+                    {
                         cumulativeSize += unversionedValue.Length;
                     } else {
-                        // ValueType == EValueType::Any.
+                        static_assert(ValueType == EValueType::Any);
                         cumulativeSize += GetYsonSize(unversionedValue);
                     }
                 }
@@ -627,6 +630,13 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedAnyColumnWriter(
     TDataBlockWriter* blockWriter)
 {
     return std::make_unique<TUnversionedStringColumnWriter<EValueType::Any>>(columnIndex, blockWriter);
+}
+
+std::unique_ptr<IValueColumnWriter> CreateUnversionedComplexColumnWriter(
+    int columnIndex,
+    TDataBlockWriter* blockWriter)
+{
+    return std::make_unique<TUnversionedStringColumnWriter<EValueType::Composite>>(columnIndex, blockWriter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

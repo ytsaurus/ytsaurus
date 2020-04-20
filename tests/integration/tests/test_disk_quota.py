@@ -52,7 +52,7 @@ class TestDiskQuota(QuotaMixin):
                 in_=tables[0],
                 out=tables[1],
                 command="/bin/bash -c 'touch {1..200}.txt'",
-                spec={"mapper": {"inode_limit": 100}, "max_failed_job_count": 1}
+                spec={"mapper": {"disk_space_limit": 1024 * 1024, "inode_limit": 100}, "max_failed_job_count": 1}
             )
         except YtError as err:
             message = str(err)
@@ -196,7 +196,6 @@ class BaseTestDiskUsage(object):
         op1.ensure_running()
         wait(lambda: op1.get_job_count("running") == 1)
 
-
         op2 = map(track=False, command="sleep 1000", in_="//tmp/t1", out="//tmp/t3",
                   spec={"mapper": {"disk_space_limit": 2 * 1024 * 1024 / 3}, "max_failed_job_count": 1})
         op2.ensure_running()
@@ -239,3 +238,387 @@ class TestDiskUsagePorto(BaseTestDiskUsage, YTEnvSetup):
             shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
 
 ##################################################################
+
+class TestDiskMediumsPorto(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG_BASE = {
+        "exec_agent": {
+            "slot_manager": {
+                "disk_resources_update_period": 100,
+            },
+            "job_controller": {
+                "waiting_jobs_timeout": 1000,
+                "resource_limits": {
+                    "user_slots": 3,
+                    "cpu": 3.0
+                }
+            },
+            "min_required_disk_space": 0,
+        }
+    }
+
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        DELTA_NODE_CONFIG_BASE
+    )
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "safe_scheduler_online_time": 60000,
+        }
+    }
+
+    USE_PORTO_FOR_SERVERS = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+
+    @classmethod
+    def modify_node_config(cls, config):
+        cls.run_name = os.path.basename(cls.path_to_run)
+        cls.default_disk_path = os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name, "disk_default")
+        cls.ssd_disk_path = os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name, "disk_ssd")
+
+        for disk in (cls.default_disk_path, cls.ssd_disk_path):
+            os.makedirs(disk)
+
+        config["exec_agent"]["slot_manager"]["locations"] = [
+            {
+                "path": cls.default_disk_path,
+                "disk_quota": 10 * 1024 * 1024,
+                "disk_usage_watermark": 0,
+            },
+            {
+                "path": cls.ssd_disk_path,
+                "disk_quota": 2 * 1024 * 1024,
+                "disk_usage_watermark": 0,
+                "medium_name": "ssd",
+            }
+        ]
+
+    @classmethod
+    def teardown_class(cls):
+        super(TestDiskMediumsPorto, cls).teardown_class()
+        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
+            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
+
+    @classmethod
+    def on_masters_started(cls):
+        create_medium("ssd")
+
+    @authors("ignat")
+    def test_ssd_request(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        create("table", "//tmp/out")
+
+        op = map(
+            command="cat; echo $(pwd) >&2",
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={
+                "mapper": {
+                    "disk_request": {
+                        "disk_space": 2 * 1024 * 1024,
+                        "medium_name": "ssd"
+                    },
+                },
+                "max_failed_job_count": 1,
+            }
+        )
+
+        assert read_table("//tmp/out") == [{"foo": "bar"}]
+
+        jobs = ls(op.get_path() + "/jobs")
+        assert len(jobs) == 1
+        assert op.read_stderr(jobs[0]).startswith(self.ssd_disk_path)
+
+    @authors("ignat")
+    def test_unfeasible_ssd_request(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        create("table", "//tmp/out")
+
+        op = map(
+            command="cat; echo $(pwd) >&2",
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={
+                "mapper": {
+                    "disk_request": {
+                        "disk_space": 3 * 1024 * 1024,
+                        "medium_name": "ssd"
+                    },
+                },
+                "max_failed_job_count": 1,
+            },
+            track=False
+        )
+
+        wait(lambda: exists(op.get_path() + "/controller_orchid/progress/jobs"))
+        for type in ("running", "aborted", "failed"):
+            assert op.get_job_count(type) == 0
+        op.abort()
+
+    @authors("ignat")
+    def test_unknown_medium(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        create("table", "//tmp/out")
+
+        with pytest.raises(YtError):
+            map(
+                command="cat; echo $(pwd) >&2",
+                in_="//tmp/in",
+                out="//tmp/out",
+                spec={
+                    "mapper": {
+                        "disk_request": {
+                            "disk_space": 1024 * 1024,
+                            "medium_name": "unknown"
+                        },
+                    },
+                    "max_failed_job_count": 1,
+                },
+            )
+
+    @authors("ignat")
+    def test_multiple_feasible_disk_requests(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 1
+
+        node = nodes[0]
+        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 0)
+
+        def start_op(index):
+            output_table = "//tmp/out" + str(index)
+            create("table", output_table)
+            return map(
+                command="cat; echo $(pwd) >&2",
+                in_="//tmp/in",
+                out=output_table,
+                spec={
+                    "mapper": {
+                        "disk_request": {
+                            "disk_space": 1 * 1024 * 1024,
+                            "medium_name": "ssd"
+                        },
+                    },
+                    "max_failed_job_count": 1,
+                },
+                track=False
+            )
+
+        op1 = start_op(1)
+        op2 = start_op(2)
+
+        for op in (op1, op2):
+            wait(lambda: exists(op.get_path() + "/controller_orchid/progress/jobs"))
+            for type in ("running", "aborted", "failed"):
+                assert op.get_job_count(type) == 0
+
+        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 3.0)
+
+        op1.track()
+        op2.track()
+
+    @authors("ignat")
+    def test_multiple_unfeasible_disk_requests(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 1
+
+        node = nodes[0]
+        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 0)
+
+        def start_op(index, medium_type, disk_space_gb):
+            output_table = "//tmp/out" + str(index)
+            create("table", output_table)
+            return map(
+                command="cat; echo $(pwd) >&2",
+                in_="//tmp/in",
+                out=output_table,
+                spec={
+                    "mapper": {
+                        "disk_request": {
+                            "disk_space": disk_space_gb * 1024 * 1024,
+                            "medium_name": medium_type
+                        },
+                    },
+                    "max_failed_job_count": 1,
+                },
+                track=False
+            )
+
+        op1 = start_op(1, "ssd", 1)
+        op2 = start_op(2, "ssd", 2)
+        op3 = start_op(3, "ssd", 3)
+        op4 = start_op(4, "default", 5)
+        op5 = start_op(5, "default", 5)
+        op6 = start_op(6, "default", 6)
+
+        for op in (op1, op2, op3, op4, op5, op6):
+            wait(lambda: exists(op.get_path() + "/controller_orchid/progress/jobs"))
+            for type in ("running", "aborted", "failed"):
+                assert op.get_job_count(type) == 0
+
+        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 3.0)
+
+        op1.track()
+        op2.track()
+        op4.track()
+        op5.track()
+        op6.track()
+
+        assert op3.get_state() == "running"
+        for type in ("running", "aborted", "failed"):
+            assert op3.get_job_count(type) == 0
+
+class TestDiskMediumRenamePorto(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG_BASE = {
+        "exec_agent": {
+            "slot_manager": {
+                "disk_resources_update_period": 100,
+            },
+            "job_controller": {
+                "waiting_jobs_timeout": 1000,
+                "resource_limits": {
+                    "user_slots": 3,
+                    "cpu": 3.0
+                }
+            },
+            "min_required_disk_space": 0,
+        }
+    }
+
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        DELTA_NODE_CONFIG_BASE
+    )
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "safe_scheduler_online_time": 60000,
+        },
+        "cluster_connection": {
+            "medium_directory_synchronizer": {
+                "sync_period": 100,
+            }
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "cluster_connection": {
+            "medium_directory_synchronizer": {
+                "sync_period": 100,
+            }
+        },
+    }
+
+    USE_PORTO_FOR_SERVERS = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+
+    @classmethod
+    def modify_node_config(cls, config):
+        cls.run_name = os.path.basename(cls.path_to_run)
+        cls.default_disk_path = os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name, "disk_default")
+        cls.ssd_disk_path = os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name, "disk_ssd")
+
+        for disk in (cls.default_disk_path, cls.ssd_disk_path):
+            os.makedirs(disk)
+
+        config["exec_agent"]["slot_manager"]["locations"] = [
+            {
+                "path": cls.default_disk_path,
+                "disk_quota": 10 * 1024 * 1024,
+                "disk_usage_watermark": 0,
+            },
+            {
+                "path": cls.ssd_disk_path,
+                "disk_quota": 2 * 1024 * 1024,
+                "disk_usage_watermark": 0,
+                "medium_name": "ssd",
+            }
+        ]
+
+    @classmethod
+    def teardown_class(cls):
+        super(TestDiskMediumRenamePorto, cls).teardown_class()
+        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
+            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
+
+    @classmethod
+    def on_masters_started(cls):
+        create_medium("ssd")
+
+    @authors("ignat")
+    def test_media_rename(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+
+        nodes = ls("//sys/nodes")
+        assert len(nodes) == 1
+
+        node = nodes[0]
+        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 0)
+
+        def start_op(index, medium_type, track):
+            output_table = "//tmp/out" + str(index)
+            create("table", output_table)
+            return map(
+                command="cat; echo $(pwd) >&2",
+                in_="//tmp/in",
+                out=output_table,
+                spec={
+                    "mapper": {
+                        "disk_request": {
+                            "disk_space": 1024 * 1024,
+                            "medium_name": medium_type
+                        },
+                    },
+                    "max_failed_job_count": 1,
+                },
+                track=track
+            )
+
+        op = start_op(1, "ssd", track=False)
+        op.ensure_running()
+
+        set("//sys/media/ssd/@name", "ssd_renamed")
+
+        wait(lambda: "ssd_renamed" in ls("//sys/scheduler/orchid/scheduler/cluster/medium_directory"))
+
+        controller_agents = ls("//sys/controller_agents/instances")
+        assert len(controller_agents) == 1
+        controller_agent = controller_agents[0]
+        wait(lambda: "ssd_renamed" in ls("//sys/controller_agents/instances/{}/orchid/controller_agent/medium_directory".format(controller_agent)))
+
+        with pytest.raises(YtError):
+            start_op(2, "ssd", track=True)
+
+        set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(node), 3.0)
+        op.track()
+
+        start_op(3, "ssd_renamed", track=True)

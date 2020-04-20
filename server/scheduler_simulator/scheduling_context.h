@@ -20,8 +20,9 @@ public:
         int shardId,
         NScheduler::TSchedulerConfigPtr schedulerConfig,
         NScheduler::TExecNodePtr node,
-        const std::vector<NScheduler::TJobPtr>& runningJobs)
-        : TSchedulingContextBase(shardId, schedulerConfig, node, runningJobs)
+        const std::vector<NScheduler::TJobPtr>& runningJobs,
+        const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
+        : TSchedulingContextBase(shardId, schedulerConfig, node, runningJobs, mediumDirectory)
     { }
 
     void SetDurationForStartedJob(NScheduler::TJobId jobId, const TDuration& duration)

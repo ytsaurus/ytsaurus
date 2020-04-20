@@ -26,7 +26,7 @@ struct IRoamingChannelProvider
     virtual TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& request) = 0;
 
     //! Terminates the cached channels, if any.
-    virtual TFuture<void> Terminate(const TError& error) = 0;
+    virtual void Terminate(const TError& error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRoamingChannelProvider)

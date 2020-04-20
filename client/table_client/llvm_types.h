@@ -48,9 +48,16 @@ public:
                 return TStringType::Get(context);
             case EValueType::Any:
                 return TAny::Get(context);
-            default:
-                YT_ABORT();
+
+            case EValueType::Composite:
+            case EValueType::Null:
+
+            case EValueType::Min:
+            case EValueType::Max:
+            case EValueType::TheBottom:
+                break;
         }
+        YT_ABORT();
     }
 
     static_assert(

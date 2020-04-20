@@ -100,13 +100,13 @@ public:
             std::move(responseHandler));
     }
 
-    virtual TFuture<void> Terminate(const TError& error) override
+    virtual void Terminate(const TError& error) override
     {
         {
             TWriterGuard guard(SpinLock_);
 
             if (!TerminationError_.IsOK()) {
-                return VoidFuture;
+                return;
             }
 
             TerminationError_ = error;
@@ -115,8 +115,6 @@ public:
         }
 
         Terminated_.Fire(TerminationError_);
-
-        return VoidFuture;
     }
 
     virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override

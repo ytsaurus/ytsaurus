@@ -40,9 +40,9 @@ IClientRequestControlPtr TChannelWrapper::Send(
         options);
 }
 
-TFuture<void> TChannelWrapper::Terminate(const TError& error)
+void TChannelWrapper::Terminate(const TError& error)
 {
-    return UnderlyingChannel_->Terminate(error);
+    UnderlyingChannel_->Terminate(error);
 }
 
 void TChannelWrapper::SubscribeTerminated(const TCallback<void(const TError&)>& callback)

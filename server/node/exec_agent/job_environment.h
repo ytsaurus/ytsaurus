@@ -24,7 +24,7 @@ namespace NYT::NExecAgent {
 struct IJobEnvironment
     : public virtual TRefCounted
 {
-    virtual void Init(int slotCount, double jobsCpuLimit) = 0;
+    virtual void Init(int slotCount, double cpuLimit) = 0;
 
     virtual TFuture<void> RunJobProxy(
         int slotIndex,
@@ -41,9 +41,7 @@ struct IJobEnvironment
 
     virtual bool IsEnabled() const = 0;
 
-    virtual std::optional<i64> GetMemoryLimit() const = 0;
-
-    virtual std::optional<double> GetCpuLimit() const = 0;
+    virtual void UpdateCpuLimit(double cpuLimit) = 0;
 
     virtual TFuture<void> RunSetupCommands(
         int slotIndex,

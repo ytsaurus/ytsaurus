@@ -40,7 +40,8 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         TCachedTableSchemaPtr tableSchema,
-        const TString& requestedKeysString);
+        const TString& requestedKeysString,
+        NCompression::ECodec codecId);
 
     TSharedRef Run();
 
@@ -54,7 +55,6 @@ public:
         const TTableSchemaCachePtr& tableSchemaCache);
 
 private:
-    struct TLookupMergeTag { };
     struct TKeyReaderBufferTag { };
 
     TBootstrap const* Bootstrap_;
@@ -65,6 +65,7 @@ private:
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
     const TCachedTableSchemaPtr TableSchema_;
+    NCompression::ICodec* const Codec_;
 
     IChunkPtr Chunk_;
     TBlockReadOptions Options_;

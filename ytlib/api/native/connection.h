@@ -47,6 +47,9 @@ struct IConnection
     virtual const NHiveClient::TClusterDirectoryPtr& GetClusterDirectory() = 0;
     virtual const NHiveClient::TClusterDirectorySynchronizerPtr& GetClusterDirectorySynchronizer() = 0;
 
+    virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() = 0;
+    virtual const NChunkClient::TMediumDirectorySynchronizerPtr& GetMediumDirectorySynchronizer() = 0;
+
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() = 0;
     virtual const NNodeTrackerClient::TNodeDirectorySynchronizerPtr& GetNodeDirectorySynchronizer() = 0;
 

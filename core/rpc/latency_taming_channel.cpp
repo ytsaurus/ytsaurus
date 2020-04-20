@@ -319,12 +319,10 @@ public:
         return session;
     }
 
-    virtual TFuture<void> Terminate(const TError& error) override
+    virtual void Terminate(const TError& error) override
     {
-        return Combine(std::vector<TFuture<void>>{
-            PrimaryChannel_->Terminate(error),
-            BackupChannel_->Terminate(error)
-        });
+        PrimaryChannel_->Terminate(error);
+        BackupChannel_->Terminate(error);
     }
 
     virtual void SubscribeTerminated(const TCallback<void(const TError&)>& callback) override

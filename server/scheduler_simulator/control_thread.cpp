@@ -104,6 +104,7 @@ TSimulatorControlThread::TSimulatorControlThread(
     for (int shardId = 0; shardId < config->NodeShardCount; ++shardId) {
         auto nodeShard = New<TSimulatorNodeShard>(
             NodeShardThreadPool_->GetInvoker(),
+            &StrategyHost_,
             &NodeShardEventQueue_,
             &SchedulerStrategyForNodeShards_,
             &OperationStatistics_,

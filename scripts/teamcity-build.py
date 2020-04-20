@@ -96,7 +96,7 @@ YT_ROOT = os.path.abspath(os.path.dirname(os.path.dirname(os.path.dirname(__file
 
 NANNY_RELEASELIB_PATH = os.path.join(os.path.dirname(__file__), "nanny-releaselib", "src")
 if not os.path.exists(NANNY_RELEASELIB_PATH):
-    NANNY_RELEASELIB_PATH = os.path.join(os.getcwd(), "yt/nanny-releaselib/src")
+    NANNY_RELEASELIB_PATH = os.path.join(os.getcwd(), "yt/python/contrib/python-nanny-releaselib/src")
 
 sys.path.insert(0, NANNY_RELEASELIB_PATH)
 try:
@@ -144,7 +144,7 @@ def process_core_dumps(options, suite_name, suite_path):
         archive_dir=sandbox_archive)
 
 def python_package_path(options):
-    return os.path.join(options.checkout_directory, get_relative_yt_root(options), "yt/scripts/teamcity-build/python/python_packaging/package.py")
+    return os.path.join(TEAMCITY_BUILD_LIBRARY_PATH, "python_packaging/package.py")
 
 def only_for_projects(*projects):
     def decorator(func):
@@ -760,6 +760,8 @@ def perform_python_packaging(options, packages_path, args, configurations):
             "--package-path", os.path.join(packages_path, package_path),
             "--package-name", package_name,
         ]
+        if options.arc:
+            run_args += ["--arc"]
         run(run_args, cwd=options.working_directory)
 
 
@@ -1047,12 +1049,16 @@ def run_unit_tests(options, build_context):
                 "--gtest_death_test_style=threadsafe",
                 "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_" + unittest_binary + ".xml"),
             ]
+            if options.arc:
+                gdb_command = os.path.join(options.checkout_directory, "yt/teamcity-build/teamcity-gdb-script")
+            else:
+                gdb_command = YT_ROOT + "/yt/scripts/teamcity-build/teamcity-gdb-script"
             if not options.use_asan:
                 args = [
                     "gdb",
                     "--batch",
                     "--return-child-result",
-                    "--command={0}/yt/scripts/teamcity-build/teamcity-gdb-script".format(YT_ROOT),
+                    "--command=" + gdb_command,
                     "--args",
                 ] + args
             run(args, cwd=sandbox_current, timeout=20 * 60)

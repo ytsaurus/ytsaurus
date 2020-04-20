@@ -86,7 +86,7 @@ public:
             BIND(&TBalancingChannelSubprovider::GetChannelAfterDiscovery, MakeStrong(this), request));
     }
 
-    TFuture<void> Terminate(const TError& error)
+    void Terminate(const TError& error)
     {
         decltype(AddressToIndex_) addressToIndex;
         decltype(ViablePeers_) viablePeers;
@@ -100,12 +100,9 @@ public:
             HashToViableChannel_.swap(hashToViableChannel);
         }
 
-        std::vector<TFuture<void>> asyncResults;
         for (const auto& peer : viablePeers) {
-            asyncResults.push_back(peer.Channel->Terminate(error));
+            peer.Channel->Terminate(error);
         }
-
-        return Combine(asyncResults);
     }
 
 private:
@@ -754,7 +751,7 @@ public:
         }
     }
 
-    virtual TFuture<void> Terminate(const TError& error)
+    virtual void Terminate(const TError& error)
     {
         std::vector<TBalancingChannelSubproviderPtr> subproviders;
         {
@@ -764,12 +761,9 @@ public:
             }
         }
 
-        std::vector<TFuture<void>> asyncResults;
         for (const auto& subprovider : subproviders) {
-            asyncResults.push_back(subprovider->Terminate(error));
+            subprovider->Terminate(error);
         }
-
-        return Combine(asyncResults);
     }
 
 private:

@@ -39,7 +39,7 @@ public:
         return entry->RequestControlThunk;
     }
 
-    virtual TFuture<void> Terminate(const TError& /*error*/) override
+    virtual void Terminate(const TError& /*error*/) override
     {
         YT_ABORT();
     }

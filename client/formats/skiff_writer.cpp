@@ -287,14 +287,14 @@ TUnversionedValueToSkiffConverter CreateComplexValueConverter(
     auto ysonToSkiff = CreateYsonToSkiffConverter(std::move(descriptor), skiffSchema, config);
     return [ysonToSkiff=ysonToSkiff] (const TUnversionedValue& value, TCheckedInDebugSkiffWriter* skiffWriter, TWriteContext* context) {
         TMemoryInput input;
-        if (value.Type == EValueType::Any) {
+        if (value.Type == EValueType::Composite) {
             input.Reset(value.Data.String, value.Length);
         } else if (value.Type == EValueType::Null) {
             static const auto empty = AsStringBuf("#");
             input.Reset(empty.Data(), empty.Size());
         } else {
             THROW_ERROR_EXCEPTION("Internal error: unexpected value type; expected: %Qlv or %Qlv actual: %Qlv",
-                EValueType::Any,
+                EValueType::Composite,
                 EValueType::Null,
                 value.Type);
         }

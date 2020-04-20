@@ -126,6 +126,7 @@ public:
     THorizontalSchemalessVersionedBlockReader(
         const TSharedRef& block,
         const NProto::TBlockMeta& meta,
+        const TTableSchema&,
         const std::vector<TColumnIdMapping>& idMapping,
         int chunkKeyColumnCount,
         int keyColumnCount,
@@ -142,7 +143,7 @@ public:
     virtual i64 GetRowIndex() const override;
 
 private:
-    std::unique_ptr<THorizontalSchemalessBlockReader> UnderlyingReader_;
+    std::unique_ptr<THorizontalBlockReader> UnderlyingReader_;
     TTimestamp Timestamp_;
 };
 

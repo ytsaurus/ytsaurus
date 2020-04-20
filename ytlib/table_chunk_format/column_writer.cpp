@@ -19,7 +19,12 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
     int columnIndex,
     TDataBlockWriter* blockWriter)
 {
-    switch (columnSchema.GetPhysicalType()) {
+    auto simplifiedLogicalType = columnSchema.SimplifiedLogicalType();
+    if (!simplifiedLogicalType) {
+        return CreateUnversionedComplexColumnWriter(columnIndex, blockWriter);
+    }
+
+    switch (GetPhysicalType(*simplifiedLogicalType)) {
         case EValueType::Int64:
             return CreateUnversionedInt64ColumnWriter(columnIndex, blockWriter);
 
@@ -41,6 +46,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
         case EValueType::Null:
             return CreateUnversionedNullColumnWriter(blockWriter);
 
+        case EValueType::Composite:
         case EValueType::Min:
         case EValueType::TheBottom:
         case EValueType::Max:
@@ -93,9 +99,14 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                 static_cast<bool>(columnSchema.Aggregate()),
                 blockWriter);
 
-        default:
-            YT_UNIMPLEMENTED();
+        case EValueType::Null:
+        case EValueType::Composite:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            break;
     }
+    ThrowUnexpectedValueType(columnSchema.GetPhysicalType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

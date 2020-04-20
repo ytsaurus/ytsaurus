@@ -9,20 +9,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Default (generic) implementation of Ref/Unref strategy.
-// Assumes the existence of Ref/Unref members.
-// Only works if |T| is fully defined.
-template <class T>
-void WeakRef(T* obj)
-{
-    obj->WeakRef();
-}
-
-template <class T>
-void WeakUnref(T* obj)
-{
-    obj->WeakUnref();
-}
+class TRefCounted;
 
 template <class T>
 class TWeakPtr
@@ -45,7 +32,7 @@ public:
         : T_(p)
     {
         if (T_) {
-            WeakRef(T_);
+            T_->WeakRef();
         }
     }
 
@@ -57,7 +44,7 @@ public:
         : T_(p.Get())
     {
         if (T_) {
-            WeakRef(T_);
+            T_->WeakRef();
         }
     }
 
@@ -66,7 +53,7 @@ public:
         : T_(other.T_)
     {
         if (T_) {
-            WeakRef(T_);
+            T_->WeakRef();
         }
     }
 
@@ -79,7 +66,7 @@ public:
         TIntrusivePtr<U> strongOther = other.Lock();
         if (strongOther) {
             T_ = strongOther.Get();
-            WeakRef(T_);
+            T_->WeakRef();
         }
     }
 
@@ -108,7 +95,8 @@ public:
     ~TWeakPtr()
     {
         if (T_) {
-            WeakUnref(T_);
+            // Support incomplete type.
+            static_cast<const TRefCounted*>(GetRefCountedBase(T_))->WeakUnref();
         }
     }
 

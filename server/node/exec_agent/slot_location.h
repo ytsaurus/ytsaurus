@@ -9,8 +9,11 @@
 
 #include <yt/server/node/job_agent/job.h>
 
+#include <yt/ytlib/chunk_client/medium_directory.h>
+
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/atomic_object.h>
 
 #include <yt/core/logging/log.h>
 
@@ -71,12 +74,19 @@ public:
 
     TString GetSlotPath(int slotIndex) const;
 
+    TString GetMediumName() const;
+
+    NChunkClient::TMediumDescriptor GetMediumDescriptor() const;
+    void SetMediumDescriptor(const NChunkClient::TMediumDescriptor& descriptor);
+
     void IncreaseSessionCount();
     void DecreaseSessionCount();
 
     NNodeTrackerClient::NProto::TDiskLocationResources GetDiskResources() const;
 
     void Disable(const TError& error);
+
+    void InvokeUpdateDiskResources();
 
 private:
     const TSlotLocationConfigPtr Config_;
@@ -85,6 +95,8 @@ private:
     const IJobDirectoryManagerPtr JobDirectoryManager_;
 
     NConcurrency::TActionQueuePtr LocationQueue_;
+
+    TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
     const bool EnableTmpfs_;
     const bool HasRootPermissions_;

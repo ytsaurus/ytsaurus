@@ -12,6 +12,8 @@
 
 #include <yt/server/node/tablet_node/public.h>
 
+#include <yt/server/lib/containers/public.h>
+
 #include <yt/server/lib/job_proxy/public.h>
 
 #include <yt/ytlib/api/native/public.h>
@@ -99,6 +101,7 @@ public:
     const NQueryAgent::IQuerySubexecutorPtr& GetQueryExecutor() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const TDynamicConfigManagerPtr& GetDynamicConfigManager() const;
+    const TNodeResourceManagerPtr& GetNodeResourceManager() const;
 
     const NConcurrency::IThroughputThrottlerPtr& GetReplicationInThrottler() const;
     const NConcurrency::IThroughputThrottlerPtr& GetReplicationOutThrottler() const;
@@ -120,6 +123,7 @@ public:
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks();
     std::optional<TString> GetDefaultNetworkName();
+    NExecAgent::EJobEnvironmentType GetEnvironmentType() const;
     const std::vector<NNet::TIP6Address>& GetResolvedNodeAddresses() const;
 
     NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;
@@ -206,6 +210,7 @@ private:
     NConcurrency::IThroughputThrottlerPtr TabletNodePreloadInThrottler_;
     NConcurrency::IThroughputThrottlerPtr TabletNodeTabletReplicationInThrottler_;
     NConcurrency::IThroughputThrottlerPtr TabletNodeTabletReplicationOutThrottler_;
+    NConcurrency::IThroughputThrottlerPtr TabletNodeDynamicStoreReadOutThrottler_;
     NConcurrency::IThroughputThrottlerPtr ReadRpsOutThrottler_;
 
     NTabletNode::TSlotManagerPtr TabletSlotManager_;
@@ -216,7 +221,11 @@ private:
     NQueryClient::TColumnEvaluatorCachePtr ColumnEvaluatorCache_;
     NQueryAgent::IQuerySubexecutorPtr QueryExecutor_;
 
-    NConcurrency::TPeriodicExecutorPtr FootprintUpdateExecutor_;
+#ifdef __linux__
+    NContainers::TInstanceLimitsTrackerPtr InstanceLimitsTracker_;
+#endif
+
+    TNodeResourceManagerPtr NodeResourceManager_;
 
     std::vector<NNet::TIP6Address> ResolvedNodeAddresses_;
 
@@ -230,9 +239,6 @@ private:
     void OnMasterDisconnected();
 
     void OnDynamicConfigUpdated(TCellNodeDynamicConfigPtr newConfig);
-
-    void UpdateFootprintMemoryUsage();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

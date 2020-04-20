@@ -23,6 +23,8 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EValueType, ui8,
     ((String)      (0x10))
     ((Any)         (0x11))
 
+    ((Composite)   (0x12))
+
     ((Max)         (0xef))
 );
 
@@ -131,7 +133,7 @@ inline constexpr bool IsArithmeticType(EValueType type)
 
 inline constexpr bool IsStringLikeType(EValueType type)
 {
-    return type == EValueType::String || type == EValueType::Any;
+    return type == EValueType::String || type == EValueType::Any || type == EValueType::Composite;
 }
 
 inline constexpr bool IsValueType(EValueType type)
@@ -275,11 +277,11 @@ TValue MakeBooleanValue(bool value, int id = 0, bool aggregate = false)
 }
 
 template <class TValue>
-TValue MakeStringValue(TStringBuf value, int id = 0, bool aggregate = false)
+TValue MakeStringLikeValue(EValueType valueType, TStringBuf value, int id = 0, bool aggregate = false)
 {
     TValue result{};
     result.Id = id;
-    result.Type = EValueType::String;
+    result.Type = valueType;
     result.Aggregate = aggregate;
     result.Length = value.length();
     result.Data.String = value.begin();
@@ -287,15 +289,21 @@ TValue MakeStringValue(TStringBuf value, int id = 0, bool aggregate = false)
 }
 
 template <class TValue>
+TValue MakeStringValue(TStringBuf value, int id = 0, bool aggregate = false)
+{
+    return MakeStringLikeValue<TValue>(EValueType::String, value, id, aggregate);
+}
+
+template <class TValue>
 TValue MakeAnyValue(TStringBuf value, int id = 0, bool aggregate = false)
 {
-    TValue result{};
-    result.Id = id;
-    result.Type = EValueType::Any;
-    result.Aggregate = aggregate;
-    result.Length = value.length();
-    result.Data.String = value.begin();
-    return result;
+    return MakeStringLikeValue<TValue>(EValueType::Any, value, id, aggregate);
+}
+
+template <class TValue>
+TValue MakeCompositeValue(TStringBuf value, int id = 0, bool aggregate = false)
+{
+    return MakeStringLikeValue<TValue>(EValueType::Composite, value, id, aggregate);
 }
 
 [[noreturn]] void ThrowUnexpectedValueType(EValueType valueType);

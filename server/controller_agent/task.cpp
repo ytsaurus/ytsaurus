@@ -346,16 +346,16 @@ void TTask::ScheduleJob(
     joblet->EstimatedResourceUsage = estimatedResourceUsage;
     joblet->ResourceLimits = neededResources.ToJobResources();
     if (auto userJobSpec = GetUserJobSpec()) {
-        if (userJobSpec->DiskSpaceLimit) {
-            neededResources.SetDiskQuota(*userJobSpec->DiskSpaceLimit);
+        if (userJobSpec->DiskRequest) {
+            neededResources.SetDiskQuota(CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory()));
         }
     }
 
     // Check the usage against the limits. This is the last chance to give up.
     if (!Dominates(jobLimits, neededResources)) {
         YT_LOG_DEBUG("Job actual resource demand is not met (Limits: %v, Demand: %v)",
-                  FormatResources(jobLimits),
-                  FormatResources(neededResources));
+            FormatResources(jobLimits, TaskHost_->GetMediumDirectory()),
+            FormatResources(neededResources, TaskHost_->GetMediumDirectory()));
         CheckResourceDemandSanity(nodeResourceLimits, neededResources);
         abortJob(EScheduleJobFailReason::NotEnoughResources, EAbortReason::SchedulingOther);
         // Seems like cached min needed resources are too optimistic.
@@ -427,7 +427,7 @@ void TTask::ScheduleJob(
         FormatResources(estimatedResourceUsage),
         joblet->JobProxyMemoryReserveFactor,
         joblet->UserJobMemoryReserveFactor,
-        FormatResources(neededResources),
+        FormatResources(neededResources, TaskHost_->GetMediumDirectory()),
         joblet->Speculative,
         joblet->JobSpeculationTimeout);
 
@@ -1044,8 +1044,8 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
     }
     auto resultWithQuota = TJobResourcesWithQuota(result);
     if (auto userJobSpec = GetUserJobSpec()) {
-        if (userJobSpec->DiskSpaceLimit) {
-            resultWithQuota.SetDiskQuota(*userJobSpec->DiskSpaceLimit);
+        if (userJobSpec->DiskRequest) {
+            resultWithQuota.SetDiskQuota(CreateDiskQuota(userJobSpec->DiskRequest, TaskHost_->GetMediumDirectory()));
         }
     }
     return resultWithQuota;

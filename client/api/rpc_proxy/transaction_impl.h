@@ -12,9 +12,12 @@ namespace NYT::NApi::NRpcProxy {
 
 DEFINE_ENUM(ETransactionState,
     (Active)
-    (Aborted)
     (Committing)
     (Committed)
+    (Flushing)
+    (Flushed)
+    (Aborting)
+    (Aborted)
     (Detached)
 );
 
@@ -32,6 +35,7 @@ public:
         NTransactionClient::EAtomicity atomicity,
         NTransactionClient::EDurability durability,
         TDuration timeout,
+        bool pingAncestors,
         std::optional<TDuration> pingPeriod,
         bool sticky);
 
@@ -47,11 +51,11 @@ public:
     virtual TDuration GetTimeout() const override;
 
     virtual TFuture<void> Ping(const NApi::TTransactionPingOptions& options = {}) override;
-    virtual TFuture<NApi::TTransactionCommitResult> Commit(const NApi::TTransactionCommitOptions&) override;
-    virtual TFuture<void> Abort(const NApi::TTransactionAbortOptions& options) override;
-    virtual void Detach() override;
-    virtual TFuture<NApi::TTransactionPrepareResult> Prepare() override;
     virtual TFuture<NApi::TTransactionFlushResult> Flush() override;
+    virtual TFuture<NApi::TTransactionCommitResult> Commit(const NApi::TTransactionCommitOptions&) override;
+    virtual TFuture<void> Abort(const NApi::TTransactionAbortOptions& options = {}) override;
+    virtual void Detach() override;
+    virtual void RegisterForeignTransaction(const ITransactionPtr& transaction) override;
 
     virtual void SubscribeCommitted(const TClosure&) override;
     virtual void UnsubscribeCommitted(const TClosure&) override;
@@ -84,9 +88,9 @@ public:
         const TString& query,
         const NApi::TSelectRowsOptions& options) override;
 
-    virtual TFuture<NYson::TYsonString> Explain(
+    virtual TFuture<NYson::TYsonString> ExplainQuery(
         const TString& query,
-        const NApi::TExplainOptions& options) override;
+        const NApi::TExplainQueryOptions& options) override;
 
     virtual TFuture<ITableReaderPtr> CreateTableReader(
         const NYPath::TRichYPath& path,
@@ -190,52 +194,45 @@ private:
     const NTransactionClient::EAtomicity Atomicity_;
     const NTransactionClient::EDurability Durability_;
     const TDuration Timeout_;
+    const bool PingAncestors_;
     const std::optional<TDuration> PingPeriod_;
     // COMPAT(kiselyovp) remove Sticky_ (YT-10654)
     const bool Sticky_;
 
-    std::atomic<i64> ModifyRowsRequestSequenceCounter_ = {0};
-    std::vector<TFuture<void>> AsyncResults_;
-    TApiServiceProxy::TReqBatchModifyRowsPtr BatchModifyRowsRequest_;
+    const NLogging::TLogger Logger;
+
+    TApiServiceProxy Proxy_;
+
+    std::atomic<i64> ModifyRowsRequestSequenceCounter_ = 0;
 
     TSpinLock SpinLock_;
-    TSpinLock BatchModifyRowsRequestLock_;
-    TError Error_;
     ETransactionState State_ = ETransactionState::Active;
+    TFuture<void> AbortFuture_;
+    std::vector<NApi::ITransactionPtr> ForeignTransactions_;
+    
+    THashSet<NObjectClient::TCellId> AdditionalParticipantCellIds_;
+
+    TApiServiceProxy::TReqBatchModifyRowsPtr BatchModifyRowsRequest_;
+    std::vector<TFuture<void>> BatchModifyRowsFutures_;
 
     TSingleShotCallbackList<void()> Committed_;
     TSingleShotCallbackList<void()> Aborted_;
-
-    ETransactionState GetState();
-
-    TApiServiceProxy CreateApiServiceProxy();
 
     TFuture<void> SendPing();
     void RunPeriodicPings();
     bool IsPingableState();
 
-    void FireCommitted();
-    void FireAborted();
-
-    TError SetCommitted(const NApi::TTransactionCommitResult& result);
-    // Returns true if the transaction has been aborted as a result of this call, false otherwise.
-    bool SetAborted(const TError& error);
-    void OnFailure(const TError& error);
-
-    TFuture<void> SendAbort();
+    TFuture<void> DoAbort(TGuard<TSpinLock>* guard, const TTransactionAbortOptions& options = {});
 
     void ValidateActive();
-    void ValidateActive(TGuard<TSpinLock>&);
 
-    //! Returns a fresh batch modify rows request.
     TApiServiceProxy::TReqBatchModifyRowsPtr CreateBatchModifyRowsRequest();
-    //! Invokes the stored batch modify rows request and replaces it with a null one.
     TFuture<void> InvokeBatchModifyRowsRequest();
+    std::vector<TFuture<void>> FlushModifyRowsRequests();
 
     template <class T>
     T PatchTransactionId(const T& options);
-    NApi::TTransactionStartOptions PatchTransactionId(
-        const NApi::TTransactionStartOptions& options);
+    NApi::TTransactionStartOptions PatchTransactionId(const NApi::TTransactionStartOptions& options);
     template <class T>
     T PatchTransactionTimestamp(const T& options);
 };

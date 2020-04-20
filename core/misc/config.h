@@ -175,4 +175,37 @@ DEFINE_REFCOUNTED_TYPE(TLogDigestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EHistoricUsageAggregationMode,
+    ((None)                     (0))
+    ((ExponentialMovingAverage) (1))
+);
+
+class THistoricUsageConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    EHistoricUsageAggregationMode AggregationMode;
+
+    //! Parameter of exponential moving average (EMA) of the aggregated usage.
+    //! Roughly speaking, it means that current usage ratio is twice as relevant for the
+    //! historic usage as the usage ratio alpha seconds ago.
+    //! EMA for unevenly spaced time series was adapted from here: https://clck.ru/HaGZs
+    double EmaAlpha;
+
+    THistoricUsageConfig()
+    {
+        RegisterParameter("aggregation_mode", AggregationMode)
+            .Default(EHistoricUsageAggregationMode::None);
+
+        RegisterParameter("ema_alpha", EmaAlpha)
+            // TODO(eshcherbin): Adjust.
+            .Default(1.0 / (24.0 * 60.0 * 60.0))
+            .GreaterThanOrEqual(0.0);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(THistoricUsageConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

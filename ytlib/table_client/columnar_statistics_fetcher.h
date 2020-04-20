@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "column_filter_dictionary.h"
 
 #include <yt/client/table_client/columnar_statistics.h>
 
@@ -18,7 +19,14 @@ class TColumnarStatisticsFetcher
     : public NChunkClient::TFetcherBase
 {
 public:
-    using TFetcherBase::TFetcherBase;
+    TColumnarStatisticsFetcher(
+        NChunkClient::TFetcherConfigPtr config,
+        NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+        IInvokerPtr invoker,
+        NChunkClient::IFetcherChunkScraperPtr chunkScraper,
+        NApi::NNative::IClientPtr client,
+        const NLogging::TLogger& logger,
+        bool storeChunkStatistics = true);
 
     //! Return per-chunk columnar statistics.
     const std::vector<TColumnarStatistics>& GetChunkStatistics() const;
@@ -30,8 +38,14 @@ public:
     void AddChunk(NChunkClient::TInputChunkPtr chunk, std::vector<TString> columnNames);
 
 private:
+    bool StoreChunkStatistics_;
+
     std::vector<TColumnarStatistics> ChunkStatistics_;
-    std::vector<std::vector<TString>> ChunkColumnNames_;
+    std::vector<TLightweightColumnarStatistics> LightweightChunkStatistics_;
+
+    std::vector<int> ChunkColumnFilterIds_;
+
+    TColumnFilterDictionary ColumnFilterDictionary_;
 
     // Columnar statistics fetcher does not support adding pure chunks as each chunk should be provided with
     // a column list to fetch statistics for.
@@ -40,6 +54,8 @@ private:
     virtual TFuture<void> FetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<int> chunkIndexes) override;
 
     TFuture<void> DoFetchFromNode(NNodeTrackerClient::TNodeId nodeId, std::vector<int> chunkIndexes);
+
+    const std::vector<TString>& GetColumnNames(int chunkIndex) const;
 
     void OnResponse(
         NNodeTrackerClient::TNodeId nodeId,

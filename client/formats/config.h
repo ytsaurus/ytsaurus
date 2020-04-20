@@ -168,6 +168,7 @@ class TDsvFormatConfig
 public:
 
     TString TableIndexColumn;
+    bool SkipUnsupportedTypes = false;
 
     TDsvFormatConfig()
     {
@@ -188,6 +189,8 @@ public:
         RegisterParameter("table_index_column", TableIndexColumn)
             .Default("@table_index")
             .NonEmpty();
+        RegisterParameter("skip_unsupported_types", SkipUnsupportedTypes)
+            .Default(false);
     }
 };
 
@@ -204,6 +207,8 @@ public:
 
     std::vector<TString> KeyColumnNames;
     std::vector<TString> SubkeyColumnNames;
+
+    bool SkipUnsupportedTypesInValue = false;
 
     TYamredDsvFormatConfig()
     {
@@ -231,6 +236,8 @@ public:
         RegisterParameter("yamr_keys_separator", YamrKeysSeparator)
             .Default(' ');
         RegisterParameter("enable_eom", EnableEom)
+            .Default(false);
+        RegisterParameter("skip_unsupported_types_in_value", SkipUnsupportedTypesInValue)
             .Default(false);
 
         RegisterPreprocessor([&] {

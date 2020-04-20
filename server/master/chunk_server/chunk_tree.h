@@ -25,6 +25,9 @@ public:
     TChunkView* AsChunkView();
     const TChunkView* AsChunkView() const;
 
+    TDynamicStore* AsDynamicStore();
+    const TDynamicStore* AsDynamicStore() const;
+
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
