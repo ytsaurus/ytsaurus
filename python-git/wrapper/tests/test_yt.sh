@@ -489,6 +489,8 @@ test_brotli_write()
 test_vanilla_operations()
 {
     $YT vanilla --tasks '{sample={command="echo AAA >&2";job_count=1}}'
+    op_id=$($YT vanilla --tasks '{sample={command="echo AAA >&2";job_count=1}}' --async)
+    $YT get-operation "$op_id"
 }
 
 test_ping_ancestor_transactions_in_operations()

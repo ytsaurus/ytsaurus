@@ -11,7 +11,7 @@ def check_permission(user, permission, path, format=None, read_from=None, cache_
     :param str permission: one of ["read", "write", "administer", "create", "use"].
     :return: permission in specified format (YSON by default).
 
-    .. seealso:: `permissions on wiki <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
+    .. seealso:: `permissions in the docs <https://yt.yandex-team.ru/docs/description/common/access_control>`_
     """
     params = {
         "user": user,
@@ -32,7 +32,7 @@ def add_member(member, group, client=None):
     :param str member: member to add.
     :param str group: group to add member to.
 
-    .. seealso:: `permissions on wiki <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
+    .. seealso:: `permissions in the docs <https://yt.yandex-team.ru/docs/description/common/access_control>`_
     """
     return make_request(
         "add_member",
@@ -48,7 +48,7 @@ def remove_member(member, group, client=None):
     :param str member: member to remove.
     :param str group: group to remove member from.
 
-    .. seealso:: `permissions on wiki <https://wiki.yandex-team.ru/yt/userdoc/accesscontrol#polzovateligruppyisubekty>`_
+    .. seealso:: `permissions in the docs <https://yt.yandex-team.ru/docs/description/common/access_control>`_
     """
     return make_request(
         "remove_member",

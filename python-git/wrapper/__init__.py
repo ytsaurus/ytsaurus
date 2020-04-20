@@ -1,7 +1,7 @@
 """
 Python wrapper for HTTP-interface of YT system.
 
-Package supports `YT API <https://wiki.yandex-team.ru/yt/pythonwrapper>`_.
+Package supports `YT API <https://yt.yandex-team.ru/docs/api/python/python_wrapper.html>`_.
 
 Be ready to catch :class:`YtError <yt.common.YtError>` after all commands!
 """

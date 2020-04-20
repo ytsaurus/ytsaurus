@@ -44,7 +44,7 @@ def get(path, max_size=None, attributes=None, format=None, read_from=None, cache
 
     Be careful: attributes have specific representation in JSON format.
 
-    .. seealso:: `get on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#get>`_
+    .. seealso:: `get in the docs <https://yt.yandex-team.ru/docs/api/commands.html#get>`_
     """
     if max_size is None:
         max_size = 65535
@@ -73,7 +73,7 @@ def set(path, value, format=None, recursive=False, force=None, client=None):
     object that can be dumped to JSON of YSON. Otherwise it should be string.
     :param bool recursive: recursive.
 
-    .. seealso:: `set on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#set>`_
+    .. seealso:: `set in the docs <https://yt.yandex-team.ru/docs/api/commands.html#set>`_
     """
     if format is None:
         value = yson.dumps(value)
@@ -116,7 +116,7 @@ def copy(source_path, destination_path,
     :param bool force: force.
     :param bool pessimistic_quota_check: pessimistic quota check.
 
-    .. seealso:: `copy on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#copy>`_
+    .. seealso:: `copy in the docs <https://yt.yandex-team.ru/docs/api/commands.html#copy>`_
     """
     params = {"source_path": YPath(source_path, client=client),
               "destination_path": YPath(destination_path, client=client)}
@@ -150,7 +150,7 @@ def move(source_path, destination_path,
     :param bool force: force.
     :param bool pessimistic_quota_check: pessimistic quota check.
 
-    .. seealso:: `move on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#move>`_
+    .. seealso:: `move in the docs <https://yt.yandex-team.ru/docs/api/commands.html#move>`_
     """
     params = {"source_path": YPath(source_path, client=client),
               "destination_path": YPath(destination_path, client=client)}
@@ -223,7 +223,7 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, lock_ex
     :param bool ignore_existing: ignore existing.
     :param bool lock_existing: lock existing node.
 
-    .. seealso:: `link on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#link>`_
+    .. seealso:: `link in the docs <https://yt.yandex-team.ru/docs/api/commands.html#link>`_
     """
     params = {
         "target_path": YPath(target_path, client=client),
@@ -258,7 +258,7 @@ def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=
 
     :return: raw YSON (string) by default, parsed YSON or JSON if format is not specified (= `None`).
 
-    .. seealso:: `list on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#list>`_
+    .. seealso:: `list in the docs <https://yt.yandex-team.ru/docs/api/commands.html#list>`_
     """
 
     def _process_result(request_result):
@@ -300,7 +300,7 @@ def exists(path, read_from=None, cache_sticky_group_size=None, client=None):
     :param path: path.
     :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
 
-    .. seealso:: `exists on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#exists>`_
+    .. seealso:: `exists in the docs <https://yt.yandex-team.ru/docs/api/commands.html#exists>`_
     """
     def _process_result(result):
         return result["value"] if get_api_version(client) == "v4" else result
@@ -321,7 +321,7 @@ def remove(path, recursive=False, force=False, client=None):
     :param bool recursive: recursive.
     :param bool force: force.
 
-    .. seealso:: `remove on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#remove>`_
+    .. seealso:: `remove in the docs <https://yt.yandex-team.ru/docs/api/commands.html#remove>`_
     """
     params = {
         "path": YPath(path, client=client),
@@ -341,7 +341,7 @@ def create(type, path=None, recursive=False, ignore_existing=False, lock_existin
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
     :param dict attributes: attributes.
 
-    .. seealso:: `create on wiki <https://wiki.yandex-team.ru/yt/userdoc/api#create>`_
+    .. seealso:: `create in the docs <https://yt.yandex-team.ru/docs/api/commands.html#create>`_
     """
     recursive = get_value(recursive, get_config(client)["yamr_mode"]["create_recursive"])
     params = {

@@ -42,7 +42,7 @@ Table commands:
 Dynamic table commands:
     mount-table, unmount-table, remount-table, freeze-table, unfreeze-table, get-tablet-infos,
     reshard-table, reshard-table-automatic, balance-tablet-cells, trim-rows, alter-table-replica,
-    select-rows, explain, lookup-rows, insert-rows, delete-rows
+    select-rows, explain_query, lookup-rows, insert-rows, delete-rows
 Run operation commands:
     erase, merge, sort, map, reduce, join-reduce, remote-copy, vanilla, map-reduce
 Operation commands:
@@ -82,7 +82,7 @@ $ export YT_PROXY=hume.yt.yandex.net
 $  yt create table //tmp/sepulki
 >> [...] Access denied: "write" permission for node //tmp is not allowed by any matching ACE [...]
 
-Oops! Forgotten token. Follow https://wiki.yandex-team.ru/yt/gettingstarted
+Oops! Forgotten token. Follow https://yt.yandex-team.ru/docs/gettingstarted.html
 
 $  yt create table //tmp/sepulki
 >> 1-2-3-4
@@ -96,7 +96,7 @@ $ yt get "//tmp/sepulki/@"
     }
 
 You can use GUID of object #1-2-3-4 instead path.
-See also https://wiki.yandex-team.ru/yt/userdoc/ypath
+See also https://yt.yandex-team.ru/docs/description/common/ypath.html
 
 Note! Create parent directory of table before writing to it. Recursive path creating is not available during operation.
 
@@ -126,15 +126,15 @@ $ echo '{host=abc.com}' | yt lookup-rows //my/dynamic/table
 
 
 See also:
-    YT CLI client           https://wiki.yandex-team.ru/yt/userdoc/ytbinary
+    YT CLI client           https://doc.yt.yandex.net/api/cli/cli.html
 
     YT system               https://wiki.yandex-team.ru/yt
-    access to the system    https://wiki.yandex-team.ru/yt/gettingstarted
+    access to the system    https://yt.yandex-team.ru/docs/gettingstarted.html
     tutorial                https://wiki.yandex-team.ru/yt/userdoc/forbeginners
-    user documentations     https://wiki.yandex-team.ru/yt/userdoc
-    command specification   https://wiki.yandex-team.ru/yt/userdoc/api
-    ACL                     https://wiki.yandex-team.ru/yt/userdoc/accesscontrol
-    transactions            https://wiki.yandex-team.ru/yt/userdoc/transactions
+    user documentations     https://yt.yandex-team.ru/docs
+    command specification   https://doc.yt.yandex.net/api/commands.html
+    ACL                     https://yt.yandex-team.ru/docs/description/common/access_control
+    transactions            https://yt.yandex-team.ru/docs/description/storage/transactions.html
 '''
 
 def fix_parser(parser):
@@ -238,7 +238,7 @@ def add_hybrid_argument(parser, name, help=None, description=None, group_require
     return positional, optional
 
 def add_ypath_argument(parser, name, help="address in Cypress", hybrid=False, **kwargs):
-    description = "See also: https://wiki.yandex-team.ru/yt/userdoc/ypath"
+    description = "See also: https://yt.yandex-team.ru/docs/description/common/ypath.html"
 
     if hybrid:
         positional, optional = add_hybrid_argument(parser, name, help=help, description=description, **kwargs)
@@ -249,11 +249,11 @@ def add_ypath_argument(parser, name, help="address in Cypress", hybrid=False, **
         argument.completer = completers.complete_ypath
 
 def add_structured_format_argument(parser, name="--format", help="", **kwargs):
-    description = 'response or input format: yson or json, for example: "<format=binary>yson". See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
+    description = 'response or input format: yson or json, for example: "<format=binary>yson". See also: https://yt.yandex-team.ru/docs/description/storage/formats.html'
     add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
 
 def add_format_argument(parser, name="--format", help="", **kwargs):
-    description = '(yson string), one of "yson", "json", "yamr", "dsv", "yamred_dsv", "schemaful_dsv" with modifications. See also: https://wiki.yandex-team.ru/yt/userdoc/formats'
+    description = '(yson string), one of "yson", "json", "yamr", "dsv", "yamred_dsv", "schemaful_dsv" with modifications. See also: https://yt.yandex-team.ru/docs/description/storage/formats.html'
     add_argument(parser, name, help, description=description, action=ParseFormat, **kwargs)
 
 def add_structured_argument(parser, name, help="", **kwargs):
@@ -736,7 +736,7 @@ def select_rows(**kwargs):
 def add_select_rows_parser(add_parser):
     # TODO(ignat): remake by alias system
     for name in ("select", "select-rows"):
-        parser = add_parser(name, select_rows, epilog="Supported features: https://wiki.yandex-team.ru/yt/userdoc/queries")
+        parser = add_parser(name, select_rows, epilog="Supported features: https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language.html")
         add_hybrid_argument(parser, "query")
         parser.add_argument("--timestamp", type=int)
         parser.add_argument("--input-row-limit", type=int)
@@ -755,11 +755,11 @@ def add_select_rows_parser(add_parser):
         parser.add_argument("--format", action=ParseFormat)
 
 @copy_docstring_from(yt.select_rows)
-def explain(**args):
-    write_silently(chunk_iter_stream(yt.explain(raw=True, **args), yt.config["read_buffer_size"]))
+def explain_query(**args):
+    write_silently(chunk_iter_stream(yt.explain_query(raw=True, **args), yt.config["read_buffer_size"]))
 
-def add_explain_parser(add_parser):
-    parser = add_parser("explain", yt.explain)
+def add_explain_query_parser(add_parser):
+    parser = add_parser("explain-query", yt.explain_query)
     add_hybrid_argument(parser, "query")
     parser.add_argument("--timestamp", type=int)
     parser.add_argument("--input-row-limit", type=int)
@@ -856,7 +856,7 @@ def show_spec(operation):
     spec_description = get_spec_description(SPEC_BUILDERS[operation])
     print("Spec options for {0} operation\n".format(operation))
     print(spec_description)
-    print("\nSee more in the documentation: https://wiki.yandex-team.ru/yt/userdoc/operations/")
+    print("\nSee more in the documentation: https://yt.yandex-team.ru/docs/description/mr/operations")
 
 def add_show_spec_parser(add_parser):
     parser = add_parser("show-spec", show_spec)
@@ -962,7 +962,7 @@ def run_vanilla_operation(sync, tasks, spec):
     for name, description in iteritems(tasks):
         spec_builder.task(name, description)
     spec_builder.spec(spec)
-    yt.run_operation(spec_builder, sync=sync)
+    return yt.run_operation(spec_builder, sync=sync)
 
 def add_vanilla_parser(add_parser):
     parser = add_parser("vanilla", operation_handler(run_vanilla_operation))
@@ -1617,7 +1617,7 @@ def main():
     add_alter_table_replica_parser(add_parser)
 
     add_select_rows_parser(add_parser)
-    add_explain_parser(add_parser)
+    add_explain_query_parser(add_parser)
     add_lookup_rows_parser(add_parser)
     add_insert_rows_parser(add_parser)
     add_delete_rows_parser(add_parser)

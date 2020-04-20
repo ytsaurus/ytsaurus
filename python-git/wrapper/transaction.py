@@ -1,5 +1,5 @@
 from .config import (get_option, set_option, get_config, get_total_request_timeout,
-                     get_request_retry_count, get_command_param, set_command_param)
+                     get_request_retry_count, get_command_param, set_command_param, del_command_param)
 from .common import get_value
 from .errors import YtResponseError, YtError, YtTransactionPingError
 from .transaction_commands import start_transaction, commit_transaction, abort_transaction, ping_transaction
@@ -76,7 +76,7 @@ class Transaction(object):
 
     Caution: if you use this class then do not use directly methods \*_transaction.
 
-    .. seealso:: `transactions on wiki <https://wiki.yandex-team.ru/yt/userdoc/transactions>`_
+    .. seealso:: `transactions in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions.html>`_
     """
 
     def __init__(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True, transaction_id=None,
@@ -179,8 +179,14 @@ class Transaction(object):
         enable_params_logging = get_config(self._client)["enable_logging_for_params_changes"]
         if enable_params_logging:
             logger.debug("Setting \"transaction_id\" and \"ping_ancestor_transactions\" to params (pid: %d)", os.getpid())
-        set_command_param("transaction_id", self.transaction_id, self._client)
-        set_command_param("ping_ancestor_transactions", self._ping_ancestor_transactions, self._client)
+        if self.transaction_id is None:
+            del_command_param("transaction_id", self._client)
+        else:
+            set_command_param("transaction_id", self.transaction_id, self._client)
+        if self._ping_ancestor_transactions is None:
+            del_command_param("ping_ancestor_transactions", self._client)
+        else:
+            set_command_param("ping_ancestor_transactions", self._ping_ancestor_transactions, self._client)
         if enable_params_logging:
             logger.debug("Set finished (pid: %d)", os.getpid())
         self._used_with_statement = True
@@ -227,8 +233,14 @@ class Transaction(object):
             enable_params_logging = get_config(self._client)["enable_logging_for_params_changes"]
             if enable_params_logging:
                 logger.debug("Setting \"transaction_id\" and \"ping_ancestor_transactions\" to params (pid: %d)", os.getpid())
-            set_command_param("transaction_id", transaction_id, self._client)
-            set_command_param("ping_ancestor_transactions", ping_ancestor_transactions, self._client)
+            if transaction_id is None:
+                del_command_param("transaction_id", self._client)
+            else:
+                set_command_param("transaction_id", transaction_id, self._client)
+            if ping_ancestor_transactions is None:
+                del_command_param("ping_ancestor_transactions", self._client)
+            else:
+                set_command_param("ping_ancestor_transactions", ping_ancestor_transactions, self._client)
             if enable_params_logging:
                 logger.debug("Set finished (pid: %d)", os.getpid())
 

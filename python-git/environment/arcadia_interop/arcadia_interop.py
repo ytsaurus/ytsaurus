@@ -139,6 +139,8 @@ def prepare_yt_environment(destination, **kwargs):
     if yatest_common is not None:
         yt_logger.LOGGER = logging.getLogger()
         yt_logger.LOGGER.setLevel(logging.DEBUG)
+        if yatest_common.context.test_stderr:
+            yt_logger.LOGGER.addHandler(logging.StreamHandler())
         yt_logger.set_formatter(yt_logger.BASIC_FORMATTER)
 
     return bin_dir

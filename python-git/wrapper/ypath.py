@@ -114,7 +114,7 @@ def escape_ypath_literal(literal):
 class YPath(object):
     """Represents path with attributes (YPath).
 
-    .. seealso:: `YPath on wiki <https://wiki.yandex-team.ru/yt/userdoc/ypath>`_
+    .. seealso:: `YPath in the docs <https://yt.yandex-team.ru/docs/description/common/ypath.html>`_
     """
     def __init__(self,
                  path,
@@ -241,11 +241,11 @@ class TablePath(YPathSupportingAppend):
     * columns -- list of string (column) or string pairs (column range).
     * exact_key, lower_key, upper_key -- tuple of strings to identify range of rows.
     * exact_index, start_index, end_index -- tuple of indexes to identify range of rows.
-    * ranges -- list of dicts, allows to specify arbitrary ranges on the table, see more details on wiki.
+    * ranges -- list of dicts, allows to specify arbitrary ranges on the table, see more details in the docs.
     * schema -- dict with schema, see \
-    `static schema doc <https://wiki.yandex-team.ru/yt/userdoc/staticschema/#kakzadat/izmenitsxemustaticheskojjtablicy>`_
+    `static schema doc <https://yt.yandex-team.ru/docs/description/storage/static_schema.html#create>`_
 
-    .. seealso:: `YPath on wiki <https://wiki.yandex-team.ru/yt/userdoc/ypath>`_
+    .. seealso:: `YPath in the docs <https://yt.yandex-team.ru/docs/description/common/ypath.html>`_
     """
     def __init__(self,
                  # TODO(ignat): rename to path
@@ -292,7 +292,7 @@ class TablePath(YPathSupportingAppend):
         :param bool foreign: table is foreign for sorted reduce and joinreduce operations.
         :param dict attributes: attributes, it updates attributes specified in name.
 
-        .. seealso:: `usage example <https://wiki.yandex-team.ru/yt/userdoc/ypath/#raspoznavaemyesistemojjatributy>`_
+        .. seealso:: `usage example <https://yt.yandex-team.ru/docs/description/common/ypath.html#known_attributes>`_
         .. note:: don't specify lower_key (upper_key) and start_index (end_index) simultaneously.
         """
 

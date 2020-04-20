@@ -1,7 +1,7 @@
 """
 Python client for HTTP-interface of Transfer Manager.
 
-Package supports `Transfer Manager API <https://wiki.yandex-team.ru/yt/userdoc/transfermanager>`_.
+Package supports `Transfer Manager API <https://wiki.yandex-team.ru/transfer-manager/>`_.
 
 Be ready to catch :py:exc:`yt.wrapper.errors.YtError` after all commands!
 """
