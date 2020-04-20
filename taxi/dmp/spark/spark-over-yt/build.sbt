@@ -5,81 +5,77 @@ import com.typesafe.sbt.packager.linux.{LinuxPackageMapping, LinuxSymlink}
 import TarArchiverPlugin.autoImport._
 import ru.yandex.sbt.DebianPackagePlugin
 import ru.yandex.sbt.DebianPackagePlugin.autoImport._
+import ZipPlugin.autoImport._
 
-lazy val `data-source` = (project in file("data-source"))
-  .dependsOn(`yt-utils`, `file-system`, `test-utils` % Test)
+lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .settings(
-    libraryDependencies ++= circe,
-    libraryDependencies ++= testDeps,
-    libraryDependencies ++= spark,
     libraryDependencies ++= yandexIceberg,
-    libraryDependencies += organization.value %% "spark-yt-common-utils" % "0.0.1",
-    libraryDependencies ++= logging.map(_ % Provided),
-    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
-    test in assembly := {}
+    libraryDependencies ++= logging.map(_ % Provided)
   )
 
 lazy val `spark-launcher` = (project in file("spark-launcher"))
-  .dependsOn(`yt-utils`)
+  .dependsOn(`yt-wrapper`)
   .settings(
     libraryDependencies ++= circe,
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= logging,
-    assemblyJarName in assembly := s"spark-yt-launcher.jar"
-  )
-
-lazy val benchmark = (project in file("benchmark"))
-  .dependsOn(`data-source`)
-  .settings(
-    libraryDependencies ++= testDeps,
     libraryDependencies ++= spark,
-    libraryDependencies ++= yandexIceberg
+    assemblyJarName in assembly := s"spark-yt-launcher.jar",
+    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = true)
   )
 
-lazy val `test-job` = (project in file("test-job"))
-  .dependsOn(`data-source`)
+lazy val commonDependencies = yandexIceberg ++ spark ++ circe ++ logging.map(_ % Provided)
+
+lazy val `data-source` = (project in file("data-source"))
+  .dependsOn(`yt-wrapper`, `file-system`, `file-system` % "test->test")
   .settings(
-    libraryDependencies ++= testDeps,
-    libraryDependencies ++= spark,
-    libraryDependencies ++= yandexIceberg.map(_ % Provided),
-    libraryDependencies ++= logging.map(_ % Provided),
-    libraryDependencies ++= scaldingArgs,
-    excludeDependencies += ExclusionRule(organization = "org.slf4j"),
-    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
-    mainClass in assembly := Some("ru.yandex.spark.test.Test")
+    version := "0.1.0-SNAPSHOT",
+    libraryDependencies ++= commonDependencies,
+    libraryDependencies += organization.value %% "spark-yt-common-utils" % "0.0.1",
+    assemblyJarName in assembly := "spark-yt-data-source.jar",
+    zipPath := Some(target.value / "spyt.zip"),
+    zipMapping += sourceDirectory.value / "main" / "python" / "spyt" -> "",
+    zipIgnore := { file: File =>
+      file.getName.contains("__pycache__") || file.getName.endsWith(".pyc")
+    },
+    publishYtArtifacts ++= {
+      val subdir = if (isSnapshot.value) "snapshots" else "releases"
+      val publishDir = s"//sys/spark/spyt/$subdir/${version.value}"
+      Seq(
+        YtPublishFile(assembly.value, publishDir, proxy = None),
+        YtPublishFile(zip.value, publishDir, proxy = None)
+      )
+    },
+    test in assembly := {}
   )
 
-lazy val `yt-utils` = (project in file("yt-utils"))
+lazy val `common-utils` = (project in file("common-utils"))
+  .dependsOn(`data-source` % Provided)
   .settings(
-    libraryDependencies ++= yandexIceberg,
-    libraryDependencies ++= logging.map(_ % Provided)
+    version := "0.0.2-SNAPSHOT",
+    libraryDependencies ++= commonDependencies
   )
 
 lazy val `file-system` = (project in file("file-system"))
-  .dependsOn(`yt-utils`)
+  .dependsOn(`yt-wrapper`)
   .settings(
-    libraryDependencies ++= testDeps,
-    libraryDependencies ++= spark,
-    libraryDependencies ++= circe,
-    libraryDependencies ++= logging.map(_ % Provided)
+    libraryDependencies ++= commonDependencies
   )
-
-lazy val `test-utils` = (project in file("test-utils"))
-  .dependsOn(`yt-utils`, `file-system`)
   .settings(
-    libraryDependencies ++= Seq(
-      "org.scalacheck" %% "scalacheck" % "1.14.1",
-      "org.scalactic" %% "scalactic" % scalatestVersion,
-      "org.scalatest" %% "scalatest" % scalatestVersion
+    assemblyShadeRules in assembly ++= Seq(
+      ShadeRule.rename(
+        "ru.yandex.spark.yt.fs.YtFileSystem" -> "ru.yandex.spark.yt.fs.YtFileSystem",
+        "ru.yandex.**" -> "shadedyandex.@1"
+      ).inAll
     ),
-    libraryDependencies ++= spark
+    test in assembly := {}
   )
 
 lazy val `client` = (project in file("client"))
   .enablePlugins(SparkPackagePlugin, DebianPackagePlugin)
   .settings(
     sparkAdditionalJars := Seq(
-      (assembly in `data-source`).value
+      (assembly in `file-system`).value
     ),
     sparkAdditionalPython := Seq(
       (sourceDirectory in `data-source`).value / "main" / "python"
@@ -130,14 +126,26 @@ lazy val `client` = (project in file("client"))
     publishYtArtifacts ++= sparkYtConfigs.value
   )
 
-lazy val `common-utils` = (project in file("common-utils"))
-  .dependsOn(`data-source` % Provided, `test-utils` % Test)
+// benchmark and test ----
+
+lazy val benchmark = (project in file("benchmark"))
+  .dependsOn(`data-source`)
   .settings(
-    version := "0.0.2-SNAPSHOT",
     libraryDependencies ++= spark,
-    libraryDependencies ++= testDeps,
-    libraryDependencies ++= logging.map(_ % Provided)
+    libraryDependencies ++= yandexIceberg
   )
+
+lazy val `test-job` = (project in file("test-job"))
+  .settings(
+    libraryDependencies += "ru.yandex" %% "spark-yt-data-source" % "0.1.0-SNAPSHOT" % Provided,
+    libraryDependencies ++= spark,
+    libraryDependencies ++= logging.map(_ % Provided),
+    libraryDependencies ++= scaldingArgs,
+    excludeDependencies += ExclusionRule(organization = "org.slf4j"),
+    mainClass in assembly := Some("ru.yandex.spark.test.Test")
+  )
+
+// -----
 
 lazy val root = (project in file("."))
   .aggregate(`data-source`)

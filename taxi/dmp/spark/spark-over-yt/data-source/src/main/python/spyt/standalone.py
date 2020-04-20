@@ -2,7 +2,7 @@ import logging
 import os
 import re
 import subprocess
-from yt.wrapper import get
+
 from yt.wrapper.common import update_inplace
 from yt.wrapper.cypress_commands import exists
 from yt.wrapper.http_helpers import get_token, get_user_name, get_proxy_url
@@ -10,6 +10,9 @@ from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsucce
 from yt.wrapper.run_operation_commands import run_operation
 from yt.wrapper.spec_builders import VanillaSpecBuilder
 
+from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spyt_python_path,\
+    validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version,\
+    latest_cluster_version, update_config_inplace
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster
 
 logger = logging.getLogger(__name__)
@@ -23,8 +26,14 @@ class SparkDefaultArguments(object):
     SPARK_WORKER_TIMEOUT = "5m"
 
     @staticmethod
-    def get_operation_spec():
-        return {"annotations": {"is_spark": True}, "max_failed_job_count": 5, "max_stderr_count": 150}
+    def get_params():
+        return {
+            "operation_spec": {
+                "annotations": {"is_spark": True},
+                "max_failed_job_count": 5,
+                "max_stderr_count": 150
+            }
+        }
 
 
 def _add_conf(spark_conf, spark_args):
@@ -58,7 +67,8 @@ def _create_spark_env(client, spark_home):
     spark_env["SPARK_USER"] = yt_user
     spark_env["SPARK_YT_TOKEN"] = yt_token
     spark_env["SPARK_YT_PROXY"] = yt_proxy
-    spark_env["SPARK_HOME"] = spark_home
+    if spark_home:
+        spark_env["SPARK_HOME"] = spark_home
     return spark_env
 
 
@@ -126,41 +136,55 @@ def submit_python(discovery_path, spark_home, deploy_mode, spark_conf, main_py_p
                client=client)
 
 
-def raw_submit(discovery_path, spark_home, spark_args, client=None, spark_id=None):
-    spark_base_args = ["/usr/local/bin/spark-submit"]
+def raw_submit(discovery_path, spark_home, spark_args, spyt_version=None, client=None, spark_id=None):
+    spark_submit_path = "{}/bin/spark-submit".format(spark_home)
+    spark_base_args = [spark_submit_path]
     discovery = SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
     _add_master(discovery, spark_base_args, rest=True, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
+    _add_spyt_deps(spyt_version, spark_base_args, discovery, client)
     spark_env = _create_spark_env(client, spark_home)
 
     # replace stdin to avoid https://bugs.openjdk.java.net/browse/JDK-8211842
     return subprocess.call(spark_base_args + spark_args, env=spark_env, stdin=subprocess.PIPE)
 
 
-def shell(discovery_path, spark_home, spark_args, client=None, spark_id=None):
-    spark_base_args = ["/usr/local/bin/spark-shell"]
+def _add_spyt_deps(spyt_version, spark_args, discovery, client):
+    spark_cluster_version = SparkDiscovery.get(discovery.spark_cluster_version(), client=client)
+    if spyt_version is not None:
+        validate_spyt_version(spyt_version, client=client)
+        validate_versions_compatibility(spyt_version, spark_cluster_version)
+    else:
+        spyt_version = latest_compatible_spyt_version(spark_cluster_version, client=client)
+    _add_conf({
+        "spark.yt.version": spyt_version,
+        "spark.yt.jars": "yt:/{}".format(spyt_jar_path(spyt_version)),
+        "spark.yt.pyFiles": "yt:/{}".format(spyt_python_path(spyt_version))
+    }, spark_args)
+
+
+def shell(discovery_path, spark_home, spark_args, spyt_version=None, client=None, spark_id=None):
+    spark_shell_path = "{}/bin/spark-shell".format(spark_home)
+    spark_base_args = [spark_shell_path]
     discovery = SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
     _add_master(discovery, spark_base_args, rest=False, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
+    _add_spyt_deps(spyt_version, spark_base_args, discovery, client)
     spark_env = _create_spark_env(client, spark_home)
 
-    os.execve("/usr/local/bin/spark-shell", spark_base_args + spark_args, spark_env)
+    os.execve(spark_shell_path, spark_base_args + spark_args, spark_env)
 
 
-def _read_launch_config(dynamic_config_path, client=None):
-    return get(dynamic_config_path, client=client)
-
-
-def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
+def build_spark_operation_spec(operation_alias, spark_discovery, config,
                                worker_cores, worker_memory, worker_num, worker_timeout,
                                tmpfs_limit, master_memory_limit, history_server_memory_limit,
-                               pool, operation_spec, client):
+                               pool, client):
     def _launcher_command(component):
         unpack_tar = "tar --warning=no-unknown-keyword -xf spark.tgz -C ./tmpfs"
         move_java = "cp -r /opt/jdk8 ./tmpfs/jdk8"
         run_launcher = "./tmpfs/jdk8/bin/java -Xmx512m -cp spark-yt-launcher.jar"
         spark_conf = []
-        for key, value in dynamic_config["spark_conf"].items():
+        for key, value in config["spark_conf"].items():
             spark_conf.append("-D{}={}".format(key, value))
         spark_conf = " ".join(spark_conf)
 
@@ -172,26 +196,25 @@ def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
         "--cores {0} --memory {1} --wait-master-timeout {2}".format(worker_cores, worker_memory, worker_timeout)
     history_command = _launcher_command("HistoryServer") + "--log-path yt:/{}".format(spark_discovery.event_log())
 
-    environment = dynamic_config["environment"]
+    environment = config["environment"]
     environment["YT_PROXY"] = get_proxy_url(required=True, client=client)
     environment["SPARK_DISCOVERY_PATH"] = str(spark_discovery.discovery())
     environment["JAVA_HOME"] = "$HOME/tmpfs/jdk8"
     environment["SPARK_HOME"] = "$HOME/tmpfs/spark"
+    environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]
 
     user = get_user_name(client=client)
 
-    custom_operation_spec = operation_spec or {}
-    operation_spec = SparkDefaultArguments.get_operation_spec()
+    operation_spec = config["operation_spec"]
     operation_spec["stderr_table_path"] = str(spark_discovery.stderr())
     operation_spec["pool"] = pool
-    update_inplace(operation_spec, custom_operation_spec)
     if "title" not in operation_spec:
         operation_spec["title"] = operation_alias or "spark_{}".format(user)
 
     common_task_spec = {
         "restart_completed_jobs": True,
-        "file_paths": dynamic_config["file_paths"],
-        "layer_paths": dynamic_config["layer_paths"],
+        "file_paths": config["file_paths"],
+        "layer_paths": config["layer_paths"],
         "environment": environment,
         "memory_reserve_factor": 1.0,
         "tmpfs_path": "tmpfs"
@@ -225,11 +248,13 @@ def build_spark_operation_spec(operation_alias, spark_discovery, dynamic_config,
         .spec(operation_spec)
 
 
-def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_timeout="5m",
+def start_spark_cluster(worker_cores, worker_memory, worker_num,
+                        worker_timeout=SparkDefaultArguments.SPARK_WORKER_TIMEOUT,
                         operation_alias=None, discovery_path=None, pool=None,
-                        tmpfs_limit="150G", master_memory_limit="2G", history_server_memory_limit="8G",
-                        dynamic_config_path="//sys/spark/conf/releases/spark-launch-conf",
-                        operation_spec=None, client=None):
+                        tmpfs_limit=SparkDefaultArguments.SPARK_WORKER_TMPFS_LIMIT,
+                        master_memory_limit=SparkDefaultArguments.SPARK_MASTER_MEMORY_LIMIT,
+                        history_server_memory_limit=SparkDefaultArguments.SPARK_HISTORY_SERVER_MEMORY_LIMIT,
+                        params=None, spark_cluster_version=None, client=None):
     """Start Spark cluster
     :param operation_alias: alias for the underlying YT operation
     :param pool: pool for the underlying YT operation
@@ -241,17 +266,23 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_timeout=
     :param tmpfs_limit: limit of tmpfs usage, default 150G
     :param master_memory_limit: memory limit for master, default 2G
     :param history_server_memory_limit: memory limit for history server, default 8G
-    :param dynamic_config_path: YT path of dynamic config
-    :param operation_spec: YT operation spec
+    :param spark_cluster_version: Spark cluster version
+    :param params: YT operation params: file_paths, layer_paths, operation_spec, environment, spark_conf
     :param client: YtClient
     :return:
     """
     spark_discovery = SparkDiscovery(discovery_path=discovery_path)
-    dynamic_config = _read_launch_config(dynamic_config_path=dynamic_config_path, client=client)
+
+    spark_cluster_version = spark_cluster_version or latest_cluster_version(client=client)
+    validate_cluster_version(spark_cluster_version, client=client)
+
+    dynamic_config = SparkDefaultArguments.get_params()
+    update_config_inplace(dynamic_config, read_remote_conf(cluster_version=spark_cluster_version, client=client))
+    update_config_inplace(dynamic_config, params)
 
     spec_builder = build_spark_operation_spec(operation_alias=operation_alias,
                                               spark_discovery=spark_discovery,
-                                              dynamic_config=dynamic_config,
+                                              config=dynamic_config,
                                               worker_cores=worker_cores,
                                               worker_memory=worker_memory,
                                               worker_num=worker_num,
@@ -260,7 +291,6 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num, worker_timeout=
                                               master_memory_limit=master_memory_limit,
                                               history_server_memory_limit=history_server_memory_limit,
                                               pool=pool,
-                                              operation_spec=operation_spec,
                                               client=client)
 
     spark_discovery.create(client)
@@ -284,5 +314,6 @@ def find_spark_cluster(discovery_path=None, client=None):
         master_web_ui_url=SparkDiscovery.get(discovery.master_webui(), client=client),
         master_rest_endpoint=SparkDiscovery.get(discovery.master_rest(), client=client),
         operation_id=SparkDiscovery.get(discovery.operation(), client=client),
-        shs_url=SparkDiscovery.get(discovery.shs(), client=client)
+        shs_url=SparkDiscovery.get(discovery.shs(), client=client),
+        spark_cluster_version=SparkDiscovery.get(discovery.spark_cluster_version(), client=client)
     )

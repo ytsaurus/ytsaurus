@@ -5,7 +5,8 @@ import org.apache.log4j.Logger
 import org.joda.time.{Duration => JDuration}
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
-import ru.yandex.spark.yt.utils.{YtClientConfiguration, YtClientUtils}
+import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType, RemoveNode, TransactionalOptions}
 
 import scala.annotation.tailrec
@@ -16,7 +17,7 @@ import scala.util.Try
 class CypressDiscoveryService(config: YtClientConfiguration,
                               discoveryPath: String) extends DiscoveryService {
   private val log = Logger.getLogger(getClass)
-  private val client = YtClientUtils.createRpcClient(config)
+  private val client = YtWrapper.createRpcClient(config)
   private val yt = client.yt
 
   private def addressPath: String = s"$discoveryPath/spark_address"
@@ -29,7 +30,9 @@ class CypressDiscoveryService(config: YtClientConfiguration,
 
   private def shsPath: String = s"$discoveryPath/shs"
 
-  override def register(operationId: String, address: Address): Unit = {
+  private def clusterVersionPath: String = s"$discoveryPath/version"
+
+  override def register(operationId: String, address: Address, clusterVersion: String): Unit = {
     discoverAddress() match {
       case Some(address) if DiscoveryService.isAlive(address.hostAndPort) && operation.exists(_ != operationId) =>
         throw new IllegalStateException(s"Spark instance with path $discoveryPath already exists")
@@ -47,6 +50,7 @@ class CypressDiscoveryService(config: YtClientConfiguration,
       createNode(s"$webUiPath/${address.webUiHostAndPort}", transaction)
       createNode(s"$restPath/${address.restHostAndPort}", transaction)
       createNode(s"$operationPath/$operationId", transaction)
+      createNode(s"$clusterVersionPath/$clusterVersion", transaction)
     } catch {
       case e: Throwable =>
         yt.abortTransaction(transaction, true)
@@ -73,10 +77,11 @@ class CypressDiscoveryService(config: YtClientConfiguration,
 
   private def removeNode(path: String, transaction: Option[GUID] = None): Unit = {
     if (yt.existsNode(path).join()) {
-      val request = new RemoveNode(path)
-        .setRecursive(true)
+      log.info(s"Removing $path")
+      val request = new RemoveNode(path).setRecursive(true)
       transaction.foreach(t => request.setTransactionalOptions(new TransactionalOptions(t)))
       yt.removeNode(request).join()
+      log.info(s"Removed $path")
     }
   }
 
@@ -123,6 +128,7 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     removeNode(webUiPath)
     removeNode(restPath)
     removeNode(operationPath)
+    removeNode(clusterVersionPath)
   }
 
   override def close(): Unit = {

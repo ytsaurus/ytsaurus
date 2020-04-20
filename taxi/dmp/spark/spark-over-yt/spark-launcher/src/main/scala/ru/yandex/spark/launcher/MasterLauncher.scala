@@ -2,7 +2,7 @@ package ru.yandex.spark.launcher
 
 import com.twitter.scalding.Args
 import org.apache.log4j.Logger
-import ru.yandex.spark.yt.utils.YtClientConfiguration
+import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -21,7 +21,7 @@ object MasterLauncher extends App with SparkLauncher {
     log.info(s"Master started at port ${masterAddress.port}")
 
     log.info("Register master")
-    discoveryService.register(masterArgs.operationId, masterAddress)
+    discoveryService.register(masterArgs.operationId, masterAddress, masterArgs.clusterVersion)
     log.info("Master registered")
 
     checkPeriodically(sparkThreadIsAlive)
@@ -31,13 +31,15 @@ object MasterLauncher extends App with SparkLauncher {
 
 case class MasterLauncherArgs(ytConfig: YtClientConfiguration,
                               discoveryPath: String,
-                              operationId: String)
+                              operationId: String,
+                              clusterVersion: String)
 
 object MasterLauncherArgs {
   def apply(args: Args): MasterLauncherArgs = MasterLauncherArgs(
     YtClientConfiguration(args.optional),
     args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
-    args.optional("operation-id").getOrElse(sys.env("YT_OPERATION_ID"))
+    args.optional("operation-id").getOrElse(sys.env("YT_OPERATION_ID")),
+    args.optional("cluster-version").getOrElse(sys.env("SPARK_CLUSTER_VERSION"))
   )
 
   def apply(args: Array[String]): MasterLauncherArgs = MasterLauncherArgs(Args(args))

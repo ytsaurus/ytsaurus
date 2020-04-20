@@ -9,7 +9,7 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YsonEncoder
-import ru.yandex.spark.yt.utils._
+import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.yt.ytclient.`object`.{WireProtocolWriteable, WireRowSerializer}
 import ru.yandex.yt.ytclient.proxy.TableWriter
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
@@ -19,7 +19,7 @@ import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import scala.concurrent.{ExecutionContext, Future}
 
-class InternalRowSerializer(schema: StructType) extends WireRowSerializer[InternalRow] {
+class InternalRowSerializer(schema: StructType) extends WireRowSerializer[InternalRow] with LogLazy {
   private val log = Logger.getLogger(getClass)
 
   private val tableSchema = SchemaConverter.tableSchema(schema, Nil)

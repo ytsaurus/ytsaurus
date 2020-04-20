@@ -11,13 +11,11 @@ trait SparkApp extends App {
 
   def run(args: Array[String])(implicit spark: SparkSession, yt: YtClient): Unit
 
-  def sparkConf: SparkConf = SessionUtils.prepareSparkConf(remoteConfigPath)
-
-  def remoteConfigPath: String = SessionUtils.remoteConfigPath
+  def sparkConf: SparkConf = SessionUtils.prepareSparkConf()
 
   override def main(args: Array[String]): Unit = {
     try {
-      val spark = SparkSession.builder.config(sparkConf).getOrCreate()
+      val spark = SessionUtils.buildSparkSession(sparkConf)
       try {
         run(args)(spark, yt)
       } finally {

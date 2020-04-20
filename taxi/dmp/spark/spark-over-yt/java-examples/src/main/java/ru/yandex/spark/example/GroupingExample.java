@@ -28,11 +28,6 @@ public class GroupingExample extends SparkAppJava {
     }
 
     @Override
-    protected String getRemoteConfigPath() {
-        return "//sys/spark/conf/snapshots/spark-launch-conf";
-    }
-
-    @Override
     protected SparkConf getSparkConf() {
         return super.getSparkConf().setAppName("Custom name");
     }

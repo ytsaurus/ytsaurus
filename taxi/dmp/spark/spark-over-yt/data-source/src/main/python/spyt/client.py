@@ -2,19 +2,63 @@ import logging
 import os
 import sys
 from contextlib import contextmanager
-from yt.wrapper import YtClient, get
-from yt.wrapper.http_helpers import get_token, get_user_name, get_proxy_url
+
+from yt.wrapper import YtClient
+from yt.wrapper.http_helpers import get_token
 
 logger = logging.getLogger(__name__)
 
-
 from .utils import default_token, default_discovery_dir, get_spark_master, set_conf, \
-    SparkDiscovery, parse_memory, format_memory
+    SparkDiscovery, parse_memory, format_memory, base_spark_conf
+from .conf import read_remote_conf, spyt_jar_path, spyt_python_path, validate_versions_compatibility
+from .version import __version__
 
 
 class Defaults(object):
     LOCAL_CONF_PATH = os.path.join(os.getenv("HOME"), "spyt.yaml") if os.getenv("HOME") else None
-    REMOTE_CONF_PATH = "//sys/spark/conf/releases/spark-launch-conf"
+
+
+class SparkInfo(object):
+    def __init__(self, spark):
+        self.spark = spark
+        pass
+
+    def _repr_html_(self):
+        yt_proxy = self.spark.conf.get("spark.hadoop.yt.proxy")
+        yt_token = self.spark.conf.get("spark.hadoop.yt.token")
+        client = YtClient(proxy=yt_proxy, token=yt_token)
+        discovery_path = self.spark.conf.get("spark.yt.master.discoveryPath")
+        discovery = SparkDiscovery(discovery_path=discovery_path)
+        master_web_ui = SparkDiscovery.get(discovery.master_webui(), client=client)
+        spyt_version = self.spark.conf.get("spark.yt.version")
+        spyt_cluster_version = self.spark.conf.get("spark.yt.cluster.version")
+        return """
+            <div>
+                <p><b>SPYT</b></p>
+                
+                <p><a href="{master_web_ui}">Master Web UI</a></p>
+                <dl>
+                  <dt>Yt Cluster</dt>
+                    <dd><code>{yt_proxy}</code></dd>
+                  <dt>SPYT Cluster version</dt>
+                    <dd><code>{spyt_cluster_version}</code></dd>
+                  <dt>SPYT Library version</dt>
+                    <dd><code>{spyt_version}</code></dd>
+                </dl>
+                
+                {sc_HTML}
+            </div>
+        """.format(
+            yt_proxy=yt_proxy,
+            master_web_ui=master_web_ui,
+            spyt_cluster_version=spyt_cluster_version,
+            spyt_version=spyt_version,
+            sc_HTML=self.spark.sparkContext._repr_html_()
+        )
+
+
+def info(spark):
+    return SparkInfo(spark)
 
 
 @contextmanager
@@ -28,7 +72,6 @@ def spark_session(num_executors=None,
                   dynamic_allocation=False,
                   spark_conf_args=None,
                   local_conf_path=Defaults.LOCAL_CONF_PATH,
-                  remote_conf_path=Defaults.REMOTE_CONF_PATH,
                   spark_id=None,
                   client=None):
     spark = connect(
@@ -42,7 +85,6 @@ def spark_session(num_executors=None,
         dynamic_allocation=dynamic_allocation,
         spark_conf_args=spark_conf_args,
         local_conf_path=local_conf_path,
-        remote_conf_path=remote_conf_path,
         spark_id=spark_id,
         client=client
     )
@@ -90,20 +132,21 @@ def create_yt_client_spark_conf(yt_proxy, spark_conf):
 def _configure_client_mode(spark_conf,
                            discovery_path,
                            local_conf,
-                           remote_conf,
                            spark_id,
                            client=None):
-    _configure_python(remote_conf["python_cluster_paths"])
     discovery = get_spark_discovery(discovery_path, spark_id, local_conf)
     master = get_spark_master(discovery, rest=False, yt_client=client)
-    event_log_dir = discovery.event_log()
-    yt_proxy = get_proxy_url(required=True, client=client)
-    yt_user = get_user_name(client=client)
+    set_conf(spark_conf, base_spark_conf(client=client, discovery=discovery))
     spark_conf.set("spark.master", master)
-    spark_conf.set("spark.eventLog.dir", event_log_dir)
-    spark_conf.set("spark.hadoop.yt.proxy", yt_proxy)
-    spark_conf.set("spark.hadoop.yt.user", yt_user)
     os.environ["SPARK_YT_TOKEN"] = get_token(client=client)
+    spark_conf.set("spark.yt.master.discoveryPath", str(discovery.base_discovery_path))
+
+    spyt_version = __version__ if "b" not in __version__ else "{}-SNAPSHOT".format(__version__.split("b")[0])
+    spark_cluster_version = spark_conf.get("spark.yt.cluster.version")
+    validate_versions_compatibility(spyt_version, spark_cluster_version)
+    spark_conf.set("spark.yt.version", spyt_version)
+    spark_conf.set("spark.yt.jars", "yt:/{}".format(spyt_jar_path(spyt_version)))
+    spark_conf.set("spark.yt.pyFiles", "yt:/{}".format(spyt_python_path(spyt_version)))
 
 
 def _validate_resources(num_executors, cores_per_executor, executor_memory_per_core):
@@ -129,10 +172,6 @@ def _configure_python(python_cluster_paths):
     os.environ["PYSPARK_PYTHON"] = python_cluster_paths[python_version]
 
 
-def _read_remote_conf(path, client=None):
-    return get(path, client=client) if path else None
-
-
 def _read_local_conf(conf_path):
     import yaml
     if conf_path and os.path.isfile(conf_path):
@@ -151,7 +190,6 @@ def _build_spark_conf(num_executors=None,
                       dynamic_allocation=None,
                       spark_conf_args=None,
                       local_conf_path=None,
-                      remote_conf_path=None,
                       spark_id=None,
                       client=None):
     from pyspark import SparkConf
@@ -164,14 +202,17 @@ def _build_spark_conf(num_executors=None,
         local_conf = _read_local_conf(local_conf_path)
         app_name = app_name or "PySpark for {}".format(os.getenv("USER"))
         client = client or create_yt_client(yt_proxy, local_conf)
+        _configure_client_mode(spark_conf, discovery_path, local_conf, spark_id, client)
+        spark_cluster_version = spark_conf.get("spark.yt.cluster.version")
     else:
         client = client or create_yt_client_spark_conf(yt_proxy, spark_conf)
+        spark_cluster_version = os.getenv("SPARK_CLUSTER_VERSION")
 
-    remote_conf = _read_remote_conf(remote_conf_path, client=client)
+    remote_conf = read_remote_conf(spark_cluster_version, client=client)
     set_conf(spark_conf, remote_conf["spark_conf"])
 
     if is_client_mode:
-        _configure_client_mode(spark_conf, discovery_path, local_conf, remote_conf, spark_id, client)
+        _configure_python(remote_conf["python_cluster_paths"])
 
     num_executors = num_executors or local_conf.get("num_executors")
     cores_per_executor = cores_per_executor or local_conf.get("cores_per_executor")
@@ -205,7 +246,6 @@ def connect(num_executors=5,
             dynamic_allocation=True,
             spark_conf_args=None,
             local_conf_path=Defaults.LOCAL_CONF_PATH,
-            remote_conf_path=Defaults.REMOTE_CONF_PATH,
             spark_id=None,
             client=None):
     from pyspark.sql import SparkSession
@@ -220,9 +260,12 @@ def connect(num_executors=5,
         dynamic_allocation=dynamic_allocation,
         spark_conf_args=spark_conf_args,
         local_conf_path=local_conf_path,
-        remote_conf_path=remote_conf_path,
         spark_id=spark_id,
         client=client
     )
 
-    return SparkSession.builder.config(conf=conf).getOrCreate()
+    spark = SparkSession.builder.config(conf=conf).getOrCreate()
+    logger.info("SPYT Cluster version: {}".format(spark.conf.get("spark.yt.cluster.version", default=None)))
+    logger.info("SPYT library version: {}".format(spark.conf.get("spark.yt.version", default=None)))
+
+    return spark

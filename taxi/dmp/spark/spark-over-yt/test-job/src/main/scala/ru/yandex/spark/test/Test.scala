@@ -6,9 +6,9 @@ import ru.yandex.yt.ytclient.proxy.YtClient
 import org.apache.spark.sql.functions._
 
 object Test extends SparkApp {
-  override def sparkConf = super.sparkConf.set("spark.test", "test_app")
-
-  override def remoteConfigPath = "//sys/spark/conf/snapshots/spark-launch-conf"
+  override def sparkConf = super.sparkConf
+    .set("spark.test", "test_app")
+    .set("spark.jars", "yt:///home/sashbel/postgresql-42.2.11.jar")
 
   override def run(args: Array[String])(implicit spark: SparkSession, yt: YtClient): Unit = {
     import spark.implicits._

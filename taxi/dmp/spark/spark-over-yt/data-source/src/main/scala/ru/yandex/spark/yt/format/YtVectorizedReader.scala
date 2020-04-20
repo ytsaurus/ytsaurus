@@ -5,7 +5,7 @@ import org.apache.spark.sql.execution.vectorized.{OnHeapColumnVector, WritableCo
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch}
 import ru.yandex.spark.yt.serializers.ArrayAnyDeserializer
-import ru.yandex.spark.yt.utils.YtTableUtils
+import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.YtClient
 
 import scala.concurrent.duration.Duration
@@ -28,7 +28,7 @@ class YtVectorizedReader(capacity: Int, timeout: Duration)(implicit yt: YtClient
         _totalRowCount = ys.length
 
         if (_columnVectors.nonEmpty) {
-          _iterator = YtTableUtils.readTable(ys.getFullPath, ArrayAnyDeserializer.getOrCreate(ys.schema), timeout)
+          _iterator = YtWrapper.readTable(ys.getFullPath, ArrayAnyDeserializer.getOrCreate(ys.schema), timeout)
         }
     }
   }
