@@ -1198,7 +1198,7 @@ void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
             return;
 
         for (auto* rawContext : it->second) {
-            auto context = TServiceContext::DangerousGetPtr(rawContext);
+            auto context = DangerousGetPtr(rawContext);
             if (context) {
                 contexts.push_back(context);
             }
@@ -1333,7 +1333,7 @@ TServiceBase::TServiceContextPtr TServiceBase::FindRequest(TRequestId requestId)
 TServiceBase::TServiceContextPtr TServiceBase::DoFindRequest(TRequestId requestId)
 {
     auto it = RequestIdToContext_.find(requestId);
-    return it == RequestIdToContext_.end() ? nullptr : TServiceContext::DangerousGetPtr(it->second);
+    return it == RequestIdToContext_.end() ? nullptr : DangerousGetPtr(it->second);
 }
 
 TServiceBase::TPendingPayloadsEntry* TServiceBase::DoGetOrCreatePendingPayloadsEntry(TRequestId requestId)

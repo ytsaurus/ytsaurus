@@ -222,6 +222,31 @@ TIntrusivePtr<T> MakeStrong(T* p)
     return TIntrusivePtr<T>(p);
 }
 
+//! Tries to obtain an intrusive pointer for an object that may had
+//! already lost all of its references and, thus, is about to be deleted.
+/*!
+ * You may call this method at any time provided that you have a valid
+ * raw pointer to an object. The call either returns an intrusive pointer
+ * for the object (thus ensuring that the object won't be destroyed until
+ * you're holding this pointer) or NULL indicating that the last reference
+ * had already been lost and the object is on its way to heavens.
+ * All these steps happen atomically.
+ *
+ * Under all circumstances it is caller's responsibility the make sure that
+ * the object is not destroyed during the call to #DangerousGetPtr.
+ * Typically this is achieved by keeping a (lock-protected) collection of
+ * raw pointers, taking a lock in object's destructor, and unregistering
+ * its raw pointer from the collection there.
+ */
+
+template <class T>
+Y_FORCE_INLINE TIntrusivePtr<T> DangerousGetPtr(T* object)
+{
+    return object->TryRef()
+        ? TIntrusivePtr<T>(object, false)
+        : TIntrusivePtr<T>();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
