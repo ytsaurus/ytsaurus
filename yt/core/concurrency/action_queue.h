@@ -69,7 +69,7 @@ IInvokerPtr CreateFixedPriorityInvoker(
 IInvokerPtr CreateBoundedConcurrencyInvoker(
     IInvokerPtr underlyingInvoker,
     int maxConcurrentInvocations,
-    const TString& invokerName = "<BCI>");
+    const TString& invokerName = "BCI");
 
 ////////////////////////////////////////////////////////////////////////////////
 
