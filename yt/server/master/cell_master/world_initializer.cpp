@@ -369,6 +369,16 @@ private:
                 /* force */ true);
 
             ScheduleCreateNode(
+                "//sys/timestamp_providers",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                    .EndMap(),
+                /* force */ true);
+
+            ScheduleCreateNode(
                 "//sys/locks",
                 transactionId,
                 EObjectType::LockMap);
@@ -554,20 +564,24 @@ private:
                 transactionId,
                 EObjectType::MapNode);
 
+            auto createOrchidNode = [&] (const TYPath& addressPath, const TString& address) {
+                ScheduleCreateNode(
+                    addressPath + "/orchid",
+                    transactionId,
+                    EObjectType::Orchid,
+                    BuildYsonStringFluently()
+                        .BeginMap()
+                            .Item("remote_addresses").Value(NNodeTrackerClient::TAddressMap{
+                                {NNodeTrackerClient::DefaultNetworkName, address}
+                            })
+                        .EndMap());
+            };
+
             auto createMasters = [&] (const TYPath& rootPath, NElection::TCellConfigPtr cellConfig) {
                 for (const auto& peer : cellConfig->Peers) {
                     const auto& address = *peer.Address;
-                    auto addressPath = "/" + ToYPathLiteral(address);
-                    ScheduleCreateNode(
-                        rootPath + addressPath + "/orchid",
-                        transactionId,
-                        EObjectType::Orchid,
-                        BuildYsonStringFluently()
-                            .BeginMap()
-                                .Item("remote_addresses").Value(NNodeTrackerClient::TAddressMap{
-                                    {NNodeTrackerClient::DefaultNetworkName, address}
-                                })
-                            .EndMap());
+                    auto addressPath = rootPath + "/" + ToYPathLiteral(address);
+                    createOrchidNode(addressPath, address);
                 }
             };
 
@@ -577,6 +591,11 @@ private:
                 auto cellTag = CellTagFromId(cellConfig->CellId);
                 auto cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
                 createMasters(cellPath, cellConfig);
+            }
+
+            for (const auto& timestampProviderAddress : Config_->TimestampProvider->Addresses) {
+                auto addressPath = "//sys/timestamp_providers/" + ToYPathLiteral(timestampProviderAddress);
+                createOrchidNode(addressPath, timestampProviderAddress);
             }
 
             FlushScheduled();
