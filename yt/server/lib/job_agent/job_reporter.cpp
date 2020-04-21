@@ -461,6 +461,10 @@ private:
             if (GetSharedData()->GetOperationArchiveVersion() >= 33 && statistics.HasCompetitors().has_value()) {
                 builder.AddValue(MakeUnversionedBooleanValue(statistics.HasCompetitors().value(), Table_.Index.HasCompetitors));
             }
+            // COMPAT(gritukan)
+            if (GetSharedData()->GetOperationArchiveVersion() >= 34 && statistics.ExecAttributes()) {
+                builder.AddValue(MakeUnversionedAnyValue(*statistics.ExecAttributes(), Table_.Index.ExecAttributes));
+            }
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());
         }

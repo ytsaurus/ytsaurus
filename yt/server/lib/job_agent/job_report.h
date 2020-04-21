@@ -12,6 +12,8 @@
 
 #include <yt/core/yson/string.h>
 
+#include <yt/core/ytree/yson_serializable.h>
+
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/property.h>
 
@@ -71,6 +73,7 @@ struct TJobReport
     DEFINE_BYREF_RO_PROPERTY(std::optional<NCoreDump::TCoreInfos>, CoreInfos)
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobCompetitionId)
     DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasCompetitors)
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ExecAttributes);
 
 protected:
     TJobReport() = default;
@@ -103,11 +106,61 @@ struct TNodeJobReport
     TNodeJobReport FailContext(const TString& failContext);
     TNodeJobReport Profile(const TJobProfile& profile);
     TNodeJobReport CoreInfos(NCoreDump::TCoreInfos coreInfos);
+    TNodeJobReport ExecAttributes(const NYson::TYsonString& execAttributes);
 
     void SetStatistics(const NYson::TYsonString& statistics);
     void SetStartTime(TInstant startTime);
     void SetFinishTime(TInstant finishTime);
     void SetJobCompetitionId(NJobTrackerClient::TJobId jobCompetitionId);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TExecAttributes
+    : public NYTree::TYsonSerializableLite
+{
+    //! Job slot index.
+    int SlotIndex = -1;
+
+    //! Job container IP addresses.
+    //! If empty, job is not using network isolation and its IPs
+    //! coincide with node's IPs.
+    std::vector<TString> IPAddresses;
+
+    //! Absolute path to job sandbox directory.
+    TString SandboxPath;
+
+    struct TGpuDevice
+        : public NYTree::TYsonSerializable
+    {
+        int DeviceNumber;
+
+        TString DeviceName;
+
+        TGpuDevice()
+        {
+            RegisterParameter("device_number", DeviceNumber)
+                .Default();
+            RegisterParameter("device_name", DeviceName)
+                .Default();
+        }
+    };
+    DEFINE_REFCOUNTED_TYPE(TGpuDevice);
+
+    //! GPU devices used by job.
+    std::vector<TIntrusivePtr<TGpuDevice>> GpuDevices;
+
+    TExecAttributes()
+    {
+        RegisterParameter("slot_index", SlotIndex)
+            .Default(-1);
+        RegisterParameter("ip_addresses", IPAddresses)
+            .Default();
+        RegisterParameter("sandbox_path", SandboxPath)
+            .Default();
+        RegisterParameter("gpu_devices", GpuDevices)
+            .Default();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

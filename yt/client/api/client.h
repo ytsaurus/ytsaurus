@@ -1043,6 +1043,7 @@ struct TJob
     NYson::TYsonString CoreInfos;
     NYson::TYsonString Events;
     std::optional<bool> IsStale;
+    NYson::TYsonString ExecAttributes;
 };
 
 void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey);
