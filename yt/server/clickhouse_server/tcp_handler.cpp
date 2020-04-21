@@ -27,7 +27,7 @@ public:
     TTcpHandlerFactory(TBootstrap* bootstrap, IServer& server)
         : Bootstrap_(bootstrap)
         , Server(server)
-    {}
+    { }
 
     Poco::Net::TCPServerConnection* createConnection(
         const Poco::Net::StreamSocket& socket) override;

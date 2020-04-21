@@ -96,8 +96,7 @@ static const auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail
-{
+namespace NDetail {
 
 /////////////////////////////////////////////////////////////////////////////
 
@@ -256,8 +255,7 @@ void TBootstrap::DoRun()
         orchidRoot,
         GetControlInvoker()));
 
-    RpcServer_->RegisterService(CreateClickHouseService(
-        this, InstanceId_));
+    RpcServer_->RegisterService(CreateClickHouseService(this, InstanceId_));
 
     RpcServer_->Configure(Config_->RpcServer);
 

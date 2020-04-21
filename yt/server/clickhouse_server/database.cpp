@@ -285,7 +285,7 @@ ASTPtr TDatabase::tryGetCreateTableQuery(const Context& context, const std::stri
 ASTPtr TDatabase::getCreateDatabaseQuery(
     const Context& /* context */) const
 {
-     throw Exception(
+    throw Exception(
         "TDatabase: getCreateDatabaseQuery() is not supported",
         ErrorCodes::NOT_IMPLEMENTED);
 }

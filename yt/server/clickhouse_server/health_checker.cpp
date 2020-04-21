@@ -36,8 +36,7 @@ std::vector<NProfiling::TTagId> RegisterQueryTags(size_t queryCount)
 {
     std::vector<NProfiling::TTagId> queryTags;
     for (size_t queryIndex = 0; queryIndex < queryCount; ++queryIndex) {
-        queryTags.emplace_back(
-            NProfiling::TProfileManager::Get()->RegisterTag("query_index", queryIndex));
+        queryTags.emplace_back(NProfiling::TProfileManager::Get()->RegisterTag("query_index", queryIndex));
     }
     return queryTags;
 }
@@ -50,8 +49,10 @@ DB::Context PrepareContextForQuery(
 {
     DB::Context contextForQuery = *databaseContext;
 
-    contextForQuery.setUser(
-        dataBaseUser, /*password =*/"", Poco::Net::SocketAddress(), /*quotaKey =*/"");
+    contextForQuery.setUser(dataBaseUser,
+        /*password =*/"",
+        Poco::Net::SocketAddress(),
+        /*quotaKey =*/"");
 
     contextForQuery.getSettingsRef().max_execution_time.set(
         Poco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond()));
@@ -143,8 +144,7 @@ void THealthChecker::ExecuteQueries()
         const auto& query = Config_->Queries[queryIndex];
         YT_LOG_DEBUG("Executing health checker query (Index: %v, Query: %v)", queryIndex, query);
 
-        auto error = WaitFor(BIND(
-            &THealthChecker::ExecuteQuery, MakeWeak(this), query)
+        auto error = WaitFor(BIND(&THealthChecker::ExecuteQuery, MakeWeak(this), query)
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
             .WithTimeout(Config_->Timeout));

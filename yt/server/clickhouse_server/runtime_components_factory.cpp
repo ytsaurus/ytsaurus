@@ -20,7 +20,7 @@ public:
         : UsersManager_(std::move(usersManager))
         , DictionariesConfigRepository_(std::move(dictionariesConfigRepository))
         , GeoDictionariesLoader_(std::move(geoDictionariesLoader))
-    {}
+    { }
 
     std::unique_ptr<DB::IUsersManager> createUsersManager() override
     {
