@@ -172,6 +172,10 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         for i in xrange(10):
             assert select_rows("a from [//tmp/t] where [$tablet_index] = " + str(i)) == [{"a": i}]
 
+        # Check range inference YT-12099
+        assert select_rows("a from [//tmp/t] where [$tablet_index] >= -1 limit 10") == [{"a": i} for i in xrange(10)]
+        assert select_rows("a from [//tmp/t] where [$tablet_index] >= null limit 10") == [{"a": i} for i in xrange(10)]
+
     @authors("babenko")
     @pytest.mark.parametrize("dynamic", [True, False])
     def test_select_from_single_tablet(self, dynamic):
