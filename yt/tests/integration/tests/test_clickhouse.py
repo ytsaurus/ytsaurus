@@ -322,12 +322,12 @@ class Clique(object):
             raise YtError("Instance unavailable, stderr:\n" + stderr, inner_errors=errors,
                           code=InstanceUnavailableCode)
 
-    def make_query_via_proxy(self, query, format="JSON", verbose=True, only_rows=True, full_response=False, headers=None):
+    def make_query_via_proxy(self, query, format="JSON", verbose=True, only_rows=True, full_response=False, headers=None, alias_and_instance_cookie=None):
         if headers is None:
             headers = {}
         assert self.proxy_address is not None
         url = self.proxy_address + "/query"
-        params = {"database": self.op.id}
+        params = {"database": alias_and_instance_cookie or self.op.id}
         print_debug()
         print_debug("Querying proxy {0} with the following data:\n> {1}".format(url, query))
         return self.make_request(url, query, headers, params=params, format=format, verbose=verbose, only_rows=only_rows, full_response=full_response)
@@ -2553,6 +2553,25 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
     def _get_proxy_metric(self, metric_name):
         return Metric.at_proxy(self.Env.get_http_proxy_address(), metric_name)
+
+    @authors("evgenstf")
+    def test_instance_choice(self):
+        with Clique(5, spec={ "alias": "*test_alias" }) as clique:
+            for job_cookie in range(5):
+                proxy_response = clique.make_query_via_proxy(
+                        "select * from system.clique",
+                        alias_and_instance_cookie="*test_alias@" + str(job_cookie))
+                for response_index in range(5):
+                    assert proxy_response[response_index]['self'] == 1 if proxy_response[response_index]['job_cookie'] == job_cookie else proxy_response[response_index]['self'] == 0
+
+                proxy_response = clique.make_query_via_proxy(
+                        "select * from system.clique",
+                        alias_and_instance_cookie=clique.op.id + '@' + str(job_cookie))
+                for instanse_response in proxy_response:
+                    assert instanse_response['self'] == 1 if instanse_response['job_cookie'] == job_cookie else instanse_response['self'] == 0
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("select * from system.clique", alias_and_instance_cookie="*test_alias@aaa")
 
     @authors("dakovalkov")
     def test_http_proxy(self):
