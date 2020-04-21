@@ -90,8 +90,8 @@ public:
     const T& operator*() const;
     const T* operator->() const;
 
-    void* ToRaw() const;
-    static TInternedObject<T> FromRaw(void* raw);
+    TInternedObjectDataPtr<T> ToData() const;
+    static TInternedObject<T> FromData(TInternedObjectDataPtr<T> data);
 
     static bool RefEqual(const TInternedObject<T>& lhs, const TInternedObject<T>& rhs);
 

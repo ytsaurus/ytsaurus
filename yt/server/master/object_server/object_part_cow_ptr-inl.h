@@ -84,13 +84,10 @@ void TObjectPartCoWPtr<TObjectPart>::Save(NCellMaster::TSaveContext& context) co
     using NYT::Save;
 
     if (ObjectPart_) {
-        auto it = context.SavedInternedObjects().find(ObjectPart_);
-        if (it == context.SavedInternedObjects().end()) {
-            Save(context, InlineKey);
+        auto key = context.RegisterEntity(ObjectPart_);
+        Save(context, key);
+        if (key == TEntityStreamSaveContext::InlineKey) {
             Save(context, *ObjectPart_);
-            YT_VERIFY(context.SavedInternedObjects().emplace(ObjectPart_, context.GenerateSerializationKey()).second);
-        } else {
-            Save(context, it->second);
         }
     } else {
         Save(context, TEntitySerializationKey());
@@ -107,7 +104,7 @@ void TObjectPartCoWPtr<TObjectPart>::Load(NCellMaster::TLoadContext& context)
     auto key = Load<TEntitySerializationKey>(context);
     if (!key) {
         SERIALIZATION_DUMP_WRITE(context, "objref <null>");
-    } else if (key == InlineKey) {
+    } else if (key == TEntityStreamSaveContext::InlineKey) {
         ResetToDefaultConstructed();
         SERIALIZATION_DUMP_INDENT(context) {
             Load(context, *ObjectPart_);

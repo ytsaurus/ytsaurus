@@ -160,11 +160,17 @@ class TEntityStreamSaveContext
 public:
     TEntitySerializationKey GenerateSerializationKey();
 
-    using TSavedInternedObjectsMap = THashMap<const void*, TEntitySerializationKey>;
-    DEFINE_BYREF_RW_PROPERTY(TSavedInternedObjectsMap, SavedInternedObjects);
+    static inline const TEntitySerializationKey InlineKey = TEntitySerializationKey(-3);
+
+    template <class T>
+    TEntitySerializationKey RegisterEntity(T* entity);
+    template <class T>
+    TEntitySerializationKey RegisterRefCountedEntity(const TIntrusivePtr<T>& entity);
 
 private:
     int SerializationKeyIndex_ = 0;
+    THashMap<void*, TEntitySerializationKey> RawPtrs_;
+    THashMap<TIntrusivePtr<TIntrinsicRefCounted>, TEntitySerializationKey> RefCountedPtrs_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,13 +179,19 @@ class TEntityStreamLoadContext
     : public TStreamLoadContext
 {
 public:
-    TEntitySerializationKey RegisterEntity(void* entity);
+    template <class T>
+    TEntitySerializationKey RegisterEntity(T* entity);
+    template <class T>
+    TEntitySerializationKey RegisterRefCountedEntity(const TIntrusivePtr<T>& entity);
 
     template <class T>
     T* GetEntity(TEntitySerializationKey key) const;
+    template <class T>
+    TIntrusivePtr<T> GetRefCountedEntity(TEntitySerializationKey key) const;
 
 private:
-    std::vector<void*> Entities_;
+    std::vector<void*> RawPtrs_;
+    std::vector<TIntrusivePtr<TIntrinsicRefCounted>> RefCountedPtrs_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
