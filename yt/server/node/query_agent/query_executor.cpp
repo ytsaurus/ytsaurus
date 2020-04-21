@@ -923,13 +923,6 @@ private:
 
             isSortedTable = true;
 
-            YT_QL_CHECK(std::is_sorted(
-                ranges.Begin(),
-                ranges.End(),
-                [] (const TRowRange& lhs, const TRowRange& rhs) {
-                    return lhs.first < rhs.first;
-                }));
-
             for (auto it = ranges.begin(), itEnd = ranges.end(); it + 1 < itEnd; ++it) {
                 YT_QL_CHECK(it->second <= (it + 1)->first);
             }
@@ -959,13 +952,6 @@ private:
 
         if (isSortedTable) {
             for (const auto& split : groupedSplits) {
-                YT_QL_CHECK(std::is_sorted(
-                    split.Ranges.Begin(),
-                    split.Ranges.End(),
-                    [] (const TRowRange& lhs, const TRowRange& rhs) {
-                        return lhs.second <= rhs.first;
-                    }));
-
                 for (auto it = split.Ranges.begin(), itEnd = split.Ranges.end(); it + 1 < itEnd; ++it) {
                     YT_QL_CHECK(it->second <= (it + 1)->first);
                 }
