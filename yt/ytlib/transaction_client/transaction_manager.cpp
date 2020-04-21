@@ -807,7 +807,7 @@ private:
         return MakeFuture(result);
     }
 
-    
+
     TCellId DoChooseCoordinator(const TTransactionCommitOptions& options)
     {
         if (Type_ == ETransactionType::Master) {
@@ -827,7 +827,7 @@ private:
             THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "Connection destoyred");
 
         }
-        
+
         std::vector<TCellId> candidateIds;
         auto coordinatorCellTag = connection->GetPrimaryMasterCellTag();
         for (auto cellId : GetRegisteredParticipantIds()) {
@@ -849,7 +849,7 @@ private:
         CheckDownedParticipants(participantIds);
     }
 
-    
+
     TFuture<void> CheckDownedParticipants(std::vector<TCellId> participantIds)
     {
         if (participantIds.empty()) {
@@ -952,7 +952,7 @@ private:
                             Id_,
                             cellId);
                         return TError();
-                    } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction && 
+                    } else if (rspOrError.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction &&
                                TypeFromId(cellId) == EObjectType::MasterCell)
                     {
                         // Hard error.
@@ -1205,7 +1205,7 @@ void TTransactionManager::TImpl::AbortAll()
     {
         auto guard = Guard(SpinLock_);
         for (auto* rawTransaction : AliveTransactions_) {
-            auto transaction = TRefCounted::DangerousGetPtr(rawTransaction);
+            auto transaction = DangerousGetPtr(rawTransaction);
             if (transaction) {
                 transactions.push_back(transaction);
             }
