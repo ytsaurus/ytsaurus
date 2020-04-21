@@ -1205,6 +1205,11 @@ private:
     {
         return Spec_;
     }
+
+    virtual TError GetAutoMergeError() const override
+    {
+        return TError();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TNewReduceController);
