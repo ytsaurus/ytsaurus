@@ -743,7 +743,7 @@ class TestCoreTable(YTEnvSetup):
         release_breakpoint()
 
         if fail_job_on_core_dump:
-            with pytest.raises(YtError):
+            with raises_yt_error(UserJobProducedCoreFiles):
                 op.track()
         else:
             op.track()

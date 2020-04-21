@@ -45,6 +45,7 @@ SchemaViolation = 307
 InvalidSchemaValue = 314
 ResolveErrorCode = 500
 AuthorizationErrorCode = 901
+UserJobProducedCoreFiles = 1206
 UnrecognizedConfigOption = 1400
 FailedToFetchDynamicConfig = 1401
 DuplicateMatchingDynamicConfigs = 1402
