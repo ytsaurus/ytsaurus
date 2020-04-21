@@ -908,7 +908,7 @@ protected:
 
     NChunkClient::IFetcherChunkScraperPtr CreateFetcherChunkScraper() const;
 
-    int GetForeignInputTableCount() const;
+    int GetPrimaryInputTableCount() const;
 
     virtual void InitOutputTables();
 
