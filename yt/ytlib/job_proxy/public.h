@@ -7,12 +7,13 @@ namespace NYT::NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
-    ((MemoryLimitExceeded)     (1200))
-    ((MemoryCheckFailed)       (1201))
-    ((JobTimeLimitExceeded)    (1202))
-    ((UnsupportedJobType)      (1203))
-    ((JobNotPrepared)          (1204))
-    ((UserJobFailed)           (1205))
+    ((MemoryLimitExceeded)       (1200))
+    ((MemoryCheckFailed)         (1201))
+    ((JobTimeLimitExceeded)      (1202))
+    ((UnsupportedJobType)        (1203))
+    ((JobNotPrepared)            (1204))
+    ((UserJobFailed)             (1205))
+    ((UserJobProducedCoreFiles)  (1206))
 );
 
 DECLARE_REFCOUNTED_STRUCT(IJobSpecHelper)
