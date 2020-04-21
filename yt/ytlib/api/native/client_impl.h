@@ -428,6 +428,7 @@ public:
 
 private:
     friend class TTransaction;
+    friend class TNodeConcatenator;
 
     const IConnectionPtr Connection_;
     const TClientOptions Options_;

@@ -162,6 +162,7 @@ struct TUserObject
     NHydra::TRevision ContentRevision = NHydra::NullRevision;
     std::vector<TString> OmittedInaccessibleColumns;
     std::vector<NSecurityClient::TSecurityTag> SecurityTags;
+    i64 ChunkCount = -1;
 
     virtual ~TUserObject() = default;
 

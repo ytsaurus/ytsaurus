@@ -82,7 +82,6 @@ void TUserFile::Persist(const TPersistenceContext& context)
     Persist<TAttributeDictionaryRefSerializer>(context, Attributes);
     Persist(context, FileName);
     Persist(context, ChunkSpecs);
-    Persist(context, ChunkCount);
     Persist(context, Type);
     Persist(context, Executable);
     Persist(context, Format);

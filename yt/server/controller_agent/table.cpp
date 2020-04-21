@@ -36,7 +36,6 @@ void TInputTable::Persist(const TPersistenceContext& context)
     TUserObject::Persist(context);
 
     using NYT::Persist;
-    Persist(context, ChunkCount);
     Persist(context, Chunks);
     Persist(context, Schema);
     Persist(context, SchemaMode);
@@ -75,7 +74,6 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, PivotKeys);
     Persist(context, TabletChunkListIds);
     Persist(context, OutputChunks);
-    Persist(context, ChunkCount);
 }
 
 TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate(int tableIndex)

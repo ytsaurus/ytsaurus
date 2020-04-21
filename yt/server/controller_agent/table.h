@@ -42,7 +42,6 @@ struct TInputTable
     using NChunkClient::TUserObject::TUserObject;
 
     //! Number of chunks in the whole table (without range selectors).
-    int ChunkCount = -1;
     std::vector<NChunkClient::TInputChunkPtr> Chunks;
     NTableClient::TColumnRenameDescriptors ColumnRenameDescriptors;
     NTableClient::TTableSchema Schema;
@@ -110,7 +109,6 @@ struct TOutputTable
     std::vector<NChunkClient::TChunkListId> TabletChunkListIds;
 
     std::vector<NChunkClient::TInputChunkPtr> OutputChunks;
-    int ChunkCount = -1;
 
     TEdgeDescriptor GetEdgeDescriptorTemplate(int tableIndex = -1);
 
