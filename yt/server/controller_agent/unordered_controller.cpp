@@ -638,6 +638,11 @@ private:
     {
         return Spec;
     }
+
+    virtual TError GetAutoMergeError() const override
+    {
+        return TError();
+    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController);

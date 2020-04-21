@@ -1372,6 +1372,12 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
         return false;
     }
 
+    auto autoMergeError = GetAutoMergeError();
+    if (!autoMergeError.IsOK()) {
+        SetOperationAlert(EOperationAlertType::AutoMergeDisabled, autoMergeError);
+        return false;
+    }
+
     AutoMergeTasks.reserve(OutputTables_.size());
     i64 maxIntermediateChunkCount;
     i64 chunkCountPerMergeJob;
@@ -6325,6 +6331,11 @@ void TOperationControllerBase::CollectTotals()
 
 void TOperationControllerBase::CustomPrepare()
 { }
+
+TError TOperationControllerBase::GetAutoMergeError() const
+{
+    return TError("Automatic output merge is not supported for %lv operations", OperationType);
+}
 
 void TOperationControllerBase::FillPrepareResult(TOperationControllerPrepareResult* result)
 {

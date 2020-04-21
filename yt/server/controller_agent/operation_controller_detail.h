@@ -598,6 +598,9 @@ protected:
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
 
+    //! If auto-merge is not possible for operation, returns error with a reason.
+    virtual TError GetAutoMergeError() const;
+
     //! If auto-merge is needed, init auto-merge tasks and auto-merge director and return true, otherwise return false.
     bool TryInitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio);
 

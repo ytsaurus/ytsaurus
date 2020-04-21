@@ -566,3 +566,21 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
         assert read_table("//tmp/t_out") == versioned_rows
         wait(lambda: get("//tmp/t_out/@chunk_count") == 2)
+
+    @authors("gritukan")
+    def test_auto_merge_disabled_in_unordered_merge(self):
+        create("table", "//tmp/in")
+        create("table", "//tmp/out")
+        write_table("//tmp/in", [{"x": 1}, {"x": 2}])
+
+        op = merge(mode="unordered",
+              in_=["//tmp/in"],
+              out="//tmp/out",
+              spec={
+                  "auto_merge": {
+                    "mode": "relaxed",
+                  },
+              })
+        op.track()
+        assert read_table("//tmp/out") == [{"x": 1}, {"x": 2}]
+        assert "auto_merge_disabled" in op.get_alerts()
