@@ -1991,6 +1991,7 @@ message TJob
     optional NYT.NProto.TGuid job_competition_id = 18;
     optional bool has_competitors = 19;
     optional bool is_stale = 20;
+    optional bytes exec_attributes = 21; // YSON
 }
 
 message TListJobsStatistics

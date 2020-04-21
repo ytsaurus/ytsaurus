@@ -73,6 +73,8 @@ struct ISlot
 
     virtual int GetSlotIndex() const = 0;
 
+    virtual TString GetSandboxPath(ESandboxKind sandbox) const = 0;
+
     virtual TFuture<void> RunSetupCommands(
         TJobId jobId,
         const std::vector<NJobAgent::TShellCommandConfigPtr>& commands,

@@ -85,6 +85,7 @@ TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
     , CoreInfos(n->RegisterName("core_infos"))
     , JobCompetitionId(n->RegisterName("job_competition_id"))
     , HasCompetitors(n->RegisterName("has_competitors"))
+    , ExecAttributes(n->RegisterName("exec_attributes"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

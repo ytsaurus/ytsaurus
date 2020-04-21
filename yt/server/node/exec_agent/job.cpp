@@ -751,6 +751,8 @@ private:
     TYsonString Statistics_ = TYsonString("{}");
     TInstant StatisticsLastSendTime_ = TInstant::Now();
 
+    TExecAttributes ExecAttributes_;
+
     bool Signaled_ = false;
 
     std::optional<TJobResult> JobResult_;
@@ -1372,6 +1374,23 @@ private:
                 Bootstrap_->GetConfig()->Addresses[0].second);
         }
 
+        {
+            ExecAttributes_.SlotIndex = Slot_->GetSlotIndex();
+            ExecAttributes_.SandboxPath = Slot_->GetSandboxPath(ESandboxKind::User);
+
+            ExecAttributes_.IPAddresses.reserve(proxyConfig->NetworkAddresses.size());
+            for (const auto& address : proxyConfig->NetworkAddresses) {
+                ExecAttributes_.IPAddresses.push_back(ToString(address));
+            }
+
+            ExecAttributes_.GpuDevices.reserve(GpuSlots_.size());
+            for (const auto& gpuSlot : GpuSlots_) {
+                auto& gpuDevice = ExecAttributes_.GpuDevices.emplace_back(New<TExecAttributes::TGpuDevice>());
+                gpuDevice->DeviceNumber = gpuSlot->GetDeviceNumber();
+                gpuDevice->DeviceName = gpuSlot->GetDeviceName();
+            }
+        }
+
         return proxyConfig;
     }
 
@@ -1841,7 +1860,8 @@ private:
             .StartTime(GetStartTime())
             .SpecVersion(0) // TODO: fill correct spec version.
             .Events(JobEvents_)
-            .CoreInfos(CoreInfos_);
+            .CoreInfos(CoreInfos_)
+            .ExecAttributes(ConvertToYsonString(ExecAttributes_));
         if (FinishTime_) {
             statistics.SetFinishTime(*FinishTime_);
         }
