@@ -1171,12 +1171,12 @@ TInputStreamDirectory TOperationControllerBase::GetInputStreamDirectory() const
     return TInputStreamDirectory(std::move(inputStreams));
 }
 
-int TOperationControllerBase::GetForeignInputTableCount() const
+int TOperationControllerBase::GetPrimaryInputTableCount() const
 {
     return std::count_if(
         InputTables_.begin(),
         InputTables_.end(),
-        [] (const TInputTablePtr& table) { return table->IsForeign(); });
+        [] (const TInputTablePtr& table) { return table->IsPrimary(); });
 }
 
 IFetcherChunkScraperPtr TOperationControllerBase::CreateFetcherChunkScraper() const

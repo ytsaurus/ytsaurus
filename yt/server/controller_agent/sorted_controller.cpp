@@ -292,7 +292,7 @@ protected:
                     DataWeightRatio,
                     InputCompressionRatio,
                     InputTables_.size(),
-                    GetForeignInputTableCount());
+                    GetPrimaryInputTableCount());
                 break;
             default:
                 JobSizeConstraints_ = CreateUserJobSizeConstraints(
@@ -306,7 +306,8 @@ protected:
                     std::numeric_limits<i64>::max() /* InputRowCount */, // It is not important in sorted operations.
                     GetForeignInputDataWeight(),
                     InputTables_.size(),
-                    GetForeignInputTableCount());
+                    GetPrimaryInputTableCount(),
+                    /*sortedOperation=*/true);
                 break;
         }
 
