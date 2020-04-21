@@ -150,7 +150,7 @@ TConnectionConfig::TConnectionConfig()
         .Default(TDuration::Seconds(60));
 
     RegisterParameter("cache_sticky_group_size_override", CacheStickyGroupSizeOverride)
-        .Default();
+        .Default(1);
 
     RegisterParameter("idle_channel_ttl", IdleChannelTtl)
         .Default(TDuration::Minutes(30));
