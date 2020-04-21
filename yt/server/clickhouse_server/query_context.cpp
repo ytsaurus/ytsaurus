@@ -216,7 +216,7 @@ struct THostContext
 
     THostContext(TBootstrap* bootstrap, TQueryContextPtr queryContext)
         : Bootstrap(bootstrap)
-          , QueryContext(std::move(queryContext))
+        , QueryContext(std::move(queryContext))
     { }
 
     // Destruction of query context should be done in control invoker as
@@ -231,7 +231,11 @@ struct THostContext
     }
 };
 
-void SetupHostContext(TBootstrap* bootstrap, DB::Context& context, TQueryId queryId, TTraceContextPtr traceContext, std::optional<TString> dataLensRequestId)
+void SetupHostContext(TBootstrap* bootstrap,
+    DB::Context& context,
+    TQueryId queryId,
+    TTraceContextPtr traceContext,
+    std::optional<TString> dataLensRequestId)
 {
     YT_VERIFY(traceContext);
 

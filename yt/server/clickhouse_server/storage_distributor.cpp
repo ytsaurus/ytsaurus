@@ -311,7 +311,10 @@ public:
         });
 
         for (const auto& cliqueNode : cliqueNodes) {
-            YT_LOG_DEBUG("Clique node (Host: %v, Port: %v, IsLocal: %v)", cliqueNode->GetName().Host, cliqueNode->GetName().Port, cliqueNode->IsLocal());
+            YT_LOG_DEBUG("Clique node (Host: %v, Port: %v, IsLocal: %v)",
+                cliqueNode->GetName().Host,
+                cliqueNode->GetName().Port,
+                cliqueNode->IsLocal());
         }
 
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
@@ -572,7 +575,11 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         .ValueOrThrow();
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
 
-    auto table = FetchTables(queryContext->Client(), queryContext->Bootstrap->GetHost(), {path}, /* skipUnsuitableNodes */ false, queryContext->Logger);
+    auto table = FetchTables(queryContext->Client(),
+        queryContext->Bootstrap->GetHost(),
+        {path},
+        /* skipUnsuitableNodes */ false,
+        queryContext->Logger);
 
     return std::make_shared<TStorageDistributor>(
         queryContext,

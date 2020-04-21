@@ -42,7 +42,10 @@ public:
             const auto& user = queryStatusInfo.client_info.current_user;
             TQueryId queryId;
             if (!TQueryId::FromString(queryIdString, &queryId)) {
-                YT_LOG_DEBUG("Process list contains query without proper YT query id, skipping it in query registry (QueryId: %v, User: %v)", queryIdString, user);
+                YT_LOG_DEBUG("Process list contains query without proper YT query id, skipping it in query registry "
+                    "(QueryId: %v, User: %v)",
+                    queryIdString,
+                    user);
             }
             QueryStatusInfos_.emplace_back(std::move(queryStatusInfo));
             QueryIdToQueryStatusInfo_[queryId] = &QueryStatusInfos_.back();
@@ -220,8 +223,7 @@ public:
         YT_VERIFY(QueryContexts_.insert(queryContext.Get()).second);
 
         auto& userProfilingEntry = GetOrRegisterUserProfilingEntry(queryContext->User);
-        switch (queryContext->QueryKind)
-        {
+        switch (queryContext->QueryKind) {
             case EQueryKind::InitialQuery:
                 ++userProfilingEntry.HistoricalInitialQueryCount;
                 ++userProfilingEntry.RunningInitialQueryCount;
@@ -255,8 +257,7 @@ public:
         YT_VERIFY(QueryContexts_.erase(queryContext));
 
         auto& userProfilingEntry = GetOrCrash(UserToUserProfilingEntry_, queryContext->User);
-        switch (queryContext->QueryKind)
-        {
+        switch (queryContext->QueryKind) {
             case EQueryKind::InitialQuery:
                 --userProfilingEntry.RunningInitialQueryCount;
                 --userProfilingEntry.PerPhaseRunningInitialQueryCount[queryContext->GetQueryPhase()];

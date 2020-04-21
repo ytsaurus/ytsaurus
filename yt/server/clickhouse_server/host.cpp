@@ -437,8 +437,7 @@ public:
         for (const auto& [_, attributes] : nodeList) {
             auto host = attributes.at("host")->AsString()->GetValue();
             auto tcpPort = attributes.at("tcp_port")->AsUint64()->GetValue();
-            result.push_back(CreateClusterNode(
-                TClusterNodeName{host, tcpPort}, DatabaseContext_->getSettingsRef(), TcpPort_));
+            result.push_back(CreateClusterNode(TClusterNodeName{host, tcpPort}, DatabaseContext_->getSettingsRef(), TcpPort_));
         }
         return result;
     }

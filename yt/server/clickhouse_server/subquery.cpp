@@ -366,7 +366,9 @@ std::vector<TSubquery> BuildSubqueries(
         if (maxJobCount < jobCount) {
             jobCount = maxJobCount;
             dataWeightPerJob = std::max<i64>(1, inputStripeList->TotalDataWeight / maxJobCount);
-            YT_LOG_INFO("Query is small and without sampling; forcing new contraints (JobCount: %v, DataWeightPerJob: %v)", jobCount, dataWeightPerJob);
+            YT_LOG_INFO("Query is small and without sampling; forcing new contraints (JobCount: %v, DataWeightPerJob: %v)",
+                jobCount,
+                dataWeightPerJob);
         }
     }
 
@@ -491,7 +493,9 @@ std::vector<TSubquery> BuildSubqueries(
 
     if (samplingRate && *samplingRate != 1.0) {
         double sampledSubqueryCount = std::round(*samplingRate * subqueries.size());
-        YT_LOG_INFO("Leaving random subqueries to perform sampling (SubqueryCount: %v, SampledSubqueryCount: %v)", subqueries.size(), sampledSubqueryCount);
+        YT_LOG_INFO("Leaving random subqueries to perform sampling (SubqueryCount: %v, SampledSubqueryCount: %v)",
+            subqueries.size(),
+            sampledSubqueryCount);
         std::mt19937 gen;
         std::shuffle(subqueries.begin(), subqueries.end(), gen);
         subqueries.resize(std::min<int>(subqueries.size(), sampledSubqueryCount));
@@ -513,7 +517,10 @@ std::vector<TSubquery> BuildSubqueries(
             if (leftIndex + 1 == rightIndex) {
                 enlargedSubqueries.emplace_back(std::move(subqueries[leftIndex]));
             } else {
-                YT_LOG_DEBUG("Joining several subqueries together (LeftIndex: %v, RightIndex: %v, DataWeight: %v)", leftIndex, rightIndex, dataWeight);
+                YT_LOG_DEBUG("Joining several subqueries together (LeftIndex: %v, RightIndex: %v, DataWeight: %v)",
+                    leftIndex,
+                    rightIndex,
+                    dataWeight);
                 auto& enlargedSubquery = enlargedSubqueries.emplace_back();
                 enlargedSubquery.StripeList = New<TChunkStripeList>();
                 std::vector<TChunkStripePtr> stripes(subqueries[leftIndex].StripeList->Stripes.size());
