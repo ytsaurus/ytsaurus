@@ -313,8 +313,8 @@ class TRefCountedLite;
 #define DECLARE_REFCOUNTED_TYPE(type) \
     typedef ::NYT::TIntrusivePtr<type> type ## Ptr; \
     \
-    NYT::TRefCountedLite* GetRefCountedBase(type* obj) ATTRIBUTE_USED; \
-    const NYT::TRefCountedLite* GetRefCountedBase(const type* obj) ATTRIBUTE_USED;
+    ::NYT::TRefCountedLite* GetRefCountedBase(type* obj) ATTRIBUTE_USED; \
+    const ::NYT::TRefCountedLite* GetRefCountedBase(const type* obj) ATTRIBUTE_USED;
 
 //! Forward-declares a class type, defines an intrusive pointer for it, and finally
 //! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
@@ -331,11 +331,11 @@ class TRefCountedLite;
 //! Provides implementations for Ref/Unref overloads. Use this macro right
 //! after the type's full definition.
 #define DEFINE_REFCOUNTED_TYPE(type) \
-    Y_FORCE_INLINE NYT::TRefCountedLite* GetRefCountedBase(type* obj) \
+    Y_FORCE_INLINE ::NYT::TRefCountedLite* GetRefCountedBase(type* obj) \
     { \
         return obj; \
     } \
-    Y_FORCE_INLINE const NYT::TRefCountedLite* GetRefCountedBase(const type* obj) \
+    Y_FORCE_INLINE const ::NYT::TRefCountedLite* GetRefCountedBase(const type* obj) \
     { \
         return obj; \
     }
