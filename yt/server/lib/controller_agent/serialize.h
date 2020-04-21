@@ -30,6 +30,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // 20.2 starts here
     ((DynamicStoreRead)                     (300300))
     ((SortedOperationsSliceSize)            (300301))
+    ((ChunkCountInUserObject)               (300302))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

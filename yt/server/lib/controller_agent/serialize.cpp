@@ -13,7 +13,7 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::SortedOperationsSliceSize) &&
+    return version >= ToUnderlying(ESnapshotVersion::ChunkCountInUserObject) &&
         version <= GetCurrentSnapshotVersion();
 }
 
