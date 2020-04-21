@@ -1,3 +1,5 @@
+from cpython.version cimport PY_MAJOR_VERSION
+
 from util.generic.vector cimport TVector
 from util.generic.hash cimport THashMap
 from util.generic.string cimport TString
@@ -118,7 +120,8 @@ cdef TNode _pyobj_to_TNode(obj):
         return TNode(<float>obj)
     elif isinstance(obj, dict):
         node = TNode.CreateMap()
-        for k, v in obj.iteritems():
+        items_iterator = (obj.iteritems() if PY_MAJOR_VERSION < 3 else obj.items())
+        for k, v in items_iterator:
             node(_to_TString(k), _pyobj_to_TNode(v))
         return node
     elif isinstance(obj, list):
