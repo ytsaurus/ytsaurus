@@ -398,16 +398,16 @@ private:
         };
 
         SmallSet<TStringBuf, 16> seenAddresses;
-        randomIndex %= ViablePeers_.size();
+        auto currentRandomIndex = randomIndex % ViablePeers_.size();
         while (true) {
             rebaseIt();
             const auto& address = it->first.second;
             if (seenAddresses.count(address) == 0) {
-                if (randomIndex == 0) {
+                if (currentRandomIndex == 0) {
                     break;
                 }
                 seenAddresses.insert(address);
-                --randomIndex;
+                --currentRandomIndex;
             } else {
                 ++it;
             }
