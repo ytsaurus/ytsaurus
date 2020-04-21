@@ -299,6 +299,22 @@ class TestColumnarStatistics(YTEnvSetup):
 
         wait(operation_disposed)
 
+    @authors("gritukan")
+    def test_estimated_input_statistics(self):
+        create("table", "//tmp/in", attributes={"optimize_for": "scan", "compression_codec": "none"})
+        create("table", "//tmp/out")
+        for i in range(10):
+            write_table("<append=%true>//tmp/in", [{"a": 'x' * 90, "b": 'y' * 10} for j in range(100)])
+
+        op = map(in_="//tmp/in{b}",
+                 out="//tmp/out",
+                 command="echo '{a=1}'")
+        op.track()
+
+        statistics = get(op.get_path() + "/@progress/estimated_input_statistics")
+        assert 10000 <= statistics["uncompressed_data_size"] <= 12000
+        assert 10000 <= statistics["compressed_data_size"] <= 12000
+
 ##################################################################
 
 class TestColumnarStatisticsRpcProxy(TestColumnarStatistics):

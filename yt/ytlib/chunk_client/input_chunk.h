@@ -116,8 +116,12 @@ public:
     i64 GetRowCount() const;
     i64 GetDataWeight() const;
     i64 GetUncompressedDataSize() const;
+    i64 GetCompressedDataSize() const;
 
     friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk, EDataSourceType dataSourceType);
+
+private:
+    i64 ApplySelectivityFactors(i64 dataSize) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputChunk)

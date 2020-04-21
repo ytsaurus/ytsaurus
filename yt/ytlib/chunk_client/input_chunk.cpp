@@ -227,15 +227,25 @@ i64 TInputChunk::GetDataWeight() const
 
 i64 TInputChunk::GetUncompressedDataSize() const
 {
+    return ApplySelectivityFactors(TotalUncompressedDataSize_);
+}
+
+i64 TInputChunk::GetCompressedDataSize() const
+{
+    return ApplySelectivityFactors(CompressedDataSize_);
+}
+
+i64 TInputChunk::ApplySelectivityFactors(i64 dataSize) const
+{
     auto rowCount = GetRowCount();
     auto rowSelectivityFactor = static_cast<double>(rowCount) / TotalRowCount_;
     i64 result;
     if (TableChunkFormat_ == ETableChunkFormat::UnversionedColumnar ||
         TableChunkFormat_ == ETableChunkFormat::VersionedColumnar)
     {
-        result = std::ceil(TotalUncompressedDataSize_ * ColumnSelectivityFactor_ * rowSelectivityFactor);
+        result = std::ceil(dataSize * ColumnSelectivityFactor_ * rowSelectivityFactor);
     } else {
-        result = std::ceil(TotalUncompressedDataSize_ * rowSelectivityFactor);
+        result = std::ceil(dataSize * rowSelectivityFactor);
     }
     result = std::max<i64>(result, 1);
     return result;
