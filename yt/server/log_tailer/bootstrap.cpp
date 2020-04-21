@@ -29,7 +29,7 @@ TBootstrap::TBootstrap(
     NYT::NLogTailer::TLogTailerBootstrapConfigPtr config,
     ui16 monitoringPort)
     : Config_(std::move(config))
-    , LogTailerQueue_(New<TActionQueue>())
+    , LogTailerQueue_(New<TActionQueue>("LogTailer"))
     , LogTailer_(New<TLogTailer>(this, Config_->LogTailer))
     , MonitoringPort_(monitoringPort)
 { }
