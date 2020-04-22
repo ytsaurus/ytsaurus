@@ -27,7 +27,10 @@ void TThreadAffinitySlot::Check()
 
 bool VerifyInvokerAffinity(const IInvokerPtr& invoker)
 {
-    return GetCurrentInvoker()->CheckAffinity(invoker);
+    auto currentInvoker = GetCurrentInvoker();
+    return
+        currentInvoker->CheckAffinity(invoker) ||
+        invoker->CheckAffinity(currentInvoker);
 }
 
 bool VerifyInvokerPoolAffinity(const IInvokerPoolPtr& invokerPool)
