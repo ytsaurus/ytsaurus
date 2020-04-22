@@ -605,7 +605,6 @@ private:
         const TAddressMap ServiceAddresses_;
 
         std::vector<TOperationId> OperationIds_;
-        std::vector<TOperationId> OperationIdsToSync_;
         std::vector<TOperationId> OperationIdsToArchive_;
         std::vector<TOperationId> OperationIdsToRemove_;
 
@@ -773,7 +772,6 @@ private:
 
             OperationIdsToArchive_ = std::move(listOperationsResult.OperationsToArchive);
             OperationIdsToRemove_ = std::move(listOperationsResult.OperationsToRemove);
-            OperationIdsToSync_ = std::move(listOperationsResult.OperationsToSync);
 
             YT_LOG_INFO("Finished listing existing operations");
         }
