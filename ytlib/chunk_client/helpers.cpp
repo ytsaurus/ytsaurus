@@ -682,6 +682,10 @@ void TUserObject::Persist(const TStreamPersistenceContext& context)
     Persist(context, TransactionId);
     Persist(context, OmittedInaccessibleColumns);
     Persist(context, SecurityTags);
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= 300302) {
+        Persist(context, ChunkCount);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

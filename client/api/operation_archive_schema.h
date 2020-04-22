@@ -99,6 +99,7 @@ struct TJobTableDescriptor
         const int CoreInfos;
         const int JobCompetitionId;
         const int HasCompetitors;
+        const int ExecAttributes;
     };
 
     const NTableClient::TNameTablePtr NameTable;

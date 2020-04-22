@@ -46,7 +46,6 @@ struct TUserFile
     std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
     TString FileName;
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
-    i64 ChunkCount = -1;
     bool Executable = false;
     NYson::TYsonString Format;
     NTableClient::TTableSchema Schema;

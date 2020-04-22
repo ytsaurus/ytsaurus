@@ -519,6 +519,9 @@ class TestListJobs(YTEnvSetup):
             assert completed_map_job["controller_agent_state"] == "completed"
             assert completed_map_job["archive_state"] == "running"
             assert completed_map_job["type"] == "partition_map"
+            assert "slot_index" in completed_map_job["exec_attributes"]
+            assert len(completed_map_job["exec_attributes"]["sandbox_path"]) > 0
+
             stderr_size = len("STDERR-OUTPUT\n")
             assert completed_map_job["stderr_size"] == stderr_size
 

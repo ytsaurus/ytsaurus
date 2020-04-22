@@ -26,6 +26,7 @@
 #include <util/string/vector.h>
 
 #include <util/random/random.h>
+#include <util/string/cast.h>
 
 namespace NYT::NHttpProxy::NClickHouse {
 
@@ -95,7 +96,26 @@ public:
                 return false;
             }
 
-            CliqueIdOrAlias_ = CgiParameters_.Get("database");
+            auto cliqueAndInstanceCookie = CgiParameters_.Get("database");
+
+            if (cliqueAndInstanceCookie.Contains("@")) {
+                auto separatorIndex = cliqueAndInstanceCookie.find_last_of("@");
+                CliqueIdOrAlias_ = cliqueAndInstanceCookie.substr(0, separatorIndex);
+
+                auto jobCookieString = cliqueAndInstanceCookie.substr(
+                    separatorIndex + 1, cliqueAndInstanceCookie.size() - separatorIndex - 1);
+                size_t jobCookie = 0;
+                if (!TryIntFromString<10>(jobCookieString, jobCookie)) {
+                    ReplyWithError(
+                        EStatusCode::BadRequest,
+                        TError("Error while parsing job cookie %v", jobCookieString));
+                    return false;
+                }
+                JobCookie_ = jobCookie;
+                YT_LOG_DEBUG("Found instance job cookie (JobCookie: %v)", *JobCookie_);
+            } else {
+                CliqueIdOrAlias_ = cliqueAndInstanceCookie;
+            }
 
             if (CliqueIdOrAlias_.empty()) {
                 ReplyWithError(
@@ -160,53 +180,26 @@ public:
         return true;
     }
 
-    bool TryPickRandomInstance(bool forceUpdate)
+    bool TryPickInstance(bool forceUpdate)
     {
-        try {
-            if (!TryFindDiscovery()) {
-                return false;
-            }
-
-            Discovery_->UpdateList(Config_->CliqueCache->SoftAgeThreshold);
-            auto updatedFuture = Discovery_->UpdateList(forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Config_->CliqueCache->HardAgeThreshold);
-            if (!updatedFuture.IsSet()) {
-                ClickHouseProfiler.Increment(Metrics_.ForceUpdateCount);
-                PROFILE_AGGREGATED_TIMING(Metrics_.DiscoveryForceUpdateTime) {
-                    WaitFor(updatedFuture)
-                        .ThrowOnError();
-                }
-            }
-
-            auto instances = Discovery_->List();
-            if (instances.empty()) {
-                RequestErrors_.emplace_back("Clique %v has no running instances", CliqueIdOrAlias_);
-                return false;
-            }
-            auto it = instances.begin();
-            std::advance(it, RandomNumber(instances.size()));
-            const auto& [id, attributes] = *it;
-            InstanceId_ = id;
-            InstanceHost_ = attributes.at("host")->GetValue<TString>();
-            auto port = attributes.at("http_port");
-            InstanceHttpPort_ = (port->GetType() == ENodeType::String ? port->GetValue<TString>() : ToString(port->GetValue<ui64>()));
-
-            YT_LOG_DEBUG("Forwarding query to a randomly chosen instance (InstanceId: %v, Host: %v, HttpPort: %v)",
-                InstanceId_,
-                InstanceHost_,
-                InstanceHttpPort_);
-
-            ProxiedRequestUrl_ = Format("http://%v:%v%v?%v",
-                InstanceHost_,
-                InstanceHttpPort_,
-                Request_->GetUrl().Path,
-                CgiParameters_.Print());
-
-            return true;
-        } catch (const std::exception& ex) {
-            RequestErrors_.push_back(TError("Failed to pick an instance")
-                << ex);
+        if (!TryDiscoverInstances(forceUpdate)) {
             return false;
         }
+
+        if (JobCookie_.has_value()) {
+            for (const auto& [id, attributes] : Instances_) {
+                if (*JobCookie_ == attributes.at("job_cookie")->GetValue<size_t>()) {
+                    InitializeInstance(id, attributes);
+                    return true;
+                }
+            }
+        } else {
+            auto instanceIterator = Instances_.begin();
+            std::advance(instanceIterator, RandomNumber(Instances_.size()));
+            InitializeInstance(instanceIterator->first, instanceIterator->second);
+            return true;
+        }
+        return false;
     }
 
     bool TryIssueProxiedRequest(int retryIndex)
@@ -300,10 +293,13 @@ private:
     // These fields contain the request details after parsing CGI params and headers.
     TCgiParameters CgiParameters_;
     // CliqueId or alias.
+
     TString CliqueIdOrAlias_;
-    // Do TryResolveAliase() to set up this value.
+    // Do TryResolveAlias() to set up this values.
     // Will be set automatically after finding Discovery in cache.
     std::optional<TString> CliqueId_;
+    std::optional<size_t> JobCookie_;
+
     TString Token_;
     TString User_;
     TString InstanceId_;
@@ -322,6 +318,8 @@ private:
     std::vector<TError> RequestErrors_;
 
     TClickHouseHandler::TClickHouseProxyMetrics& Metrics_;
+
+    THashMap<TString, NYTree::TAttributeMap> Instances_;
 
     void SetCliqueId(TString cliqueId)
     {
@@ -396,8 +394,8 @@ private:
             ReplyWithError(
                 EStatusCode::Unauthorized,
                 TError("Unsupported type of authorization header (AuthorizationType: %v, TokenCount: %v)",
-                       authorizationType,
-                       authorizationTypeAndCredentials.size()));
+                    authorizationType,
+                    authorizationTypeAndCredentials.size()));
             return;
         }
         YT_LOG_DEBUG("Token parsed (AuthorizationType: %v)", authorizationType);
@@ -415,7 +413,7 @@ private:
         } else if (!Config_->IgnoreMissingCredentials) {
             ReplyWithError(EStatusCode::Unauthorized,
                 TError("Authorization should be perfomed either by setting `Authorization` header (`Basic` or `OAuth` schemes) "
-                       "or `password` CGI parameter"));
+                    "or `password` CGI parameter"));
             return false;
         }
 
@@ -488,7 +486,7 @@ private:
                     config,
                     Client_,
                     ControlInvoker_,
-                    std::vector<TString>{"host", "http_port"},
+                    std::vector<TString>{"host", "http_port", "job_cookie"},
                     Logger));
             }
 
@@ -508,6 +506,59 @@ private:
         }
 
         return true;
+    }
+
+    bool TryDiscoverInstances(bool forceUpdate)
+    {
+        try {
+            if (!TryFindDiscovery()) {
+                return false;
+            }
+
+            Discovery_->UpdateList(Config_->CliqueCache->SoftAgeThreshold);
+            auto updatedFuture = Discovery_->UpdateList(
+                forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Config_->CliqueCache->HardAgeThreshold);
+            if (!updatedFuture.IsSet()) {
+                ClickHouseProfiler.Increment(Metrics_.ForceUpdateCount);
+                PROFILE_AGGREGATED_TIMING(Metrics_.DiscoveryForceUpdateTime) {
+                    WaitFor(updatedFuture)
+                        .ThrowOnError();
+                }
+            }
+
+            auto instances = Discovery_->List();
+            if (instances.empty()) {
+                RequestErrors_.emplace_back("Clique %v has no running instances", CliqueIdOrAlias_);
+                return false;
+            }
+
+            Instances_ = instances;
+            return true;
+        } catch (const std::exception& ex) {
+            RequestErrors_.push_back(TError("Failed to get discovery instances")
+                << ex);
+            return false;
+        }
+    }
+
+    void InitializeInstance(const TString& id, const NYTree::TAttributeMap& attributes)
+    {
+        InstanceId_ = id;
+        InstanceHost_ = attributes.at("host")->GetValue<TString>();
+        auto port = attributes.at("http_port");
+        InstanceHttpPort_ = (port->GetType() == ENodeType::String ? port->GetValue<TString>() : ToString(port->GetValue<ui64>()));
+
+        ProxiedRequestUrl_ = Format("http://%v:%v%v?%v",
+            InstanceHost_,
+            InstanceHttpPort_,
+            Request_->GetUrl().Path,
+            CgiParameters_.Print());
+
+        YT_LOG_DEBUG("Forwarding query to an instance (InstanceId: %v, Host: %v, HttpPort: %v, ProxiedRequestUrl: %v)",
+            InstanceId_,
+            InstanceHost_,
+            InstanceHttpPort_,
+            ProxiedRequestUrl_);
     }
 };
 
@@ -593,7 +644,7 @@ void TClickHouseHandler::HandleRequest(
                 state = ERetryState::ForceUpdated;
             }
 
-            if (!context->TryPickRandomInstance(needForceUpdate)) {
+            if (!context->TryPickInstance(needForceUpdate)) {
                 // There is no chance to invoke the request if we can not pick an instance even after deleting from cache.
                 if (state == ERetryState::CacheRemoved) {
                     break;

@@ -287,6 +287,8 @@ class TestDiskMediumsPorto(YTEnvSetup):
         cls.ssd_disk_path = os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name, "disk_ssd")
 
         for disk in (cls.default_disk_path, cls.ssd_disk_path):
+            if os.path.exists(disk):
+                shutil.rmtree(disk)
             os.makedirs(disk)
 
         config["exec_agent"]["slot_manager"]["locations"] = [
@@ -547,6 +549,8 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
         cls.ssd_disk_path = os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name, "disk_ssd")
 
         for disk in (cls.default_disk_path, cls.ssd_disk_path):
+            if os.path.exists(disk):
+                shutil.rmtree(disk)
             os.makedirs(disk)
 
         config["exec_agent"]["slot_manager"]["locations"] = [

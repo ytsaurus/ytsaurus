@@ -42,7 +42,9 @@ public:
         return Poco::Timestamp::TIMEVAL_MAX;
     }
 
-    virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& configFile, const std::string & /* preprocessed_dir = "" */) const override
+    virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(
+        const std::string& configFile,
+        const std::string & /* preprocessed_dir = "" */) const override
     {
         return ConvertToPocoConfig(NYTree::BuildYsonNodeFluently()
             .BeginMap()
@@ -88,7 +90,9 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& /* configFile */, const std::string & /* preprocessed_dir = "" */) const override
+    virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(
+        const std::string& /* configFile */,
+        const std::string & /* preprocessed_dir = "" */) const override
     {
         YT_UNIMPLEMENTED();
     }

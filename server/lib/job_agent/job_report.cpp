@@ -394,6 +394,12 @@ TNodeJobReport TNodeJobReport::CoreInfos(TCoreInfos coreInfos)
     return std::move(*this);
 }
 
+TNodeJobReport TNodeJobReport::ExecAttributes(const TYsonString& execAttributes)
+{
+    ExecAttributes_ = StripAttributes(execAttributes).GetData();
+    return std::move(*this);
+}
+
 void TNodeJobReport::SetStatistics(const TYsonString& statistics)
 {
     Statistics_ = StripAttributes(statistics).GetData();

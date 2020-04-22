@@ -16,7 +16,6 @@ struct TTable
     : public TIntrinsicRefCounted
     , public NChunkClient::TUserObject
 {
-    int ChunkCount = 0;
     NTableClient::TTableSchema Schema;
     //! Table index according to JOIN clause (if any):
     //! - SELECT * FROM AAA: AAA.TableIndex = 0.

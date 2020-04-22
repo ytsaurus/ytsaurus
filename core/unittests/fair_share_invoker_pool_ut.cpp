@@ -138,7 +138,7 @@ protected:
         return InvocationOrder_.InvokerIndexes_;
     }
 
-    IInvokerPoolPtr CreateInvokerPool(IInvokerPtr underlyingInvoker, int invokerCount)
+    IDiagnosableInvokerPoolPtr CreateInvokerPool(IInvokerPtr underlyingInvoker, int invokerCount)
     {
         auto result = CreateFairShareInvokerPool(
             std::move(underlyingInvoker),
@@ -338,7 +338,7 @@ protected:
             // Collect average wait times.
             std::vector<TDuration> averageWaitTimes(invokerCount);
             for (int invokerIndex = 0; invokerIndex < invokerCount; ++invokerIndex) {
-                averageWaitTimes[invokerIndex] = invokerPool->GetInvoker(invokerIndex)->GetAverageWaitTime();
+                averageWaitTimes[invokerIndex] = invokerPool->GetInvokerStatistics(invokerIndex).AverageWaitTime;
             }
             auto averageWaitTimesCollectedTime = NProfiling::GetInstant();
 
@@ -549,13 +549,13 @@ TEST_F(TFairShareInvokerPoolTest, GetAverageWaitTimeIsZeroForEmptyPool)
 {
     auto invokerPool = CreateInvokerPool(Queues_[0]->GetInvoker(), 1);
 
-    EXPECT_EQ(TDuration::Zero(), invokerPool->GetInvoker(0)->GetAverageWaitTime());
+    EXPECT_EQ(TDuration::Zero(), invokerPool->GetInvokerStatistics(0).AverageWaitTime);
 
     WaitFor(BIND([] {
         Spin(Quantum);
     }).AsyncVia(invokerPool->GetInvoker(0)).Run()).ThrowOnError();
 
-    EXPECT_EQ(TDuration::Zero(), invokerPool->GetInvoker(0)->GetAverageWaitTime());
+    EXPECT_EQ(TDuration::Zero(), invokerPool->GetInvokerStatistics(0).AverageWaitTime);
 }
 
 TEST_F(TFairShareInvokerPoolTest, GetAverageWaitTimeOneBucketOneWaitingAction)

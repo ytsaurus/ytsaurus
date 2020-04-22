@@ -40,7 +40,6 @@ from teamcity.pytest_helpers import (
     get_sandbox_dirs,
     save_failed_test,
     clean_failed_tests_directory,
-    prepare_python_bindings,
 )
 
 from teamcity.ya import run_ya_command_with_retries
@@ -128,7 +127,9 @@ def get_relative_python_root(options):
 
 def yt_processes_cleanup():
     kill_by_name("^ytserver")
-    kill_by_name("^node")
+
+def drop_caches():
+    run(["sudo", "bash", "-c", "echo 3 > /proc/sys/vm/drop_caches"])
 
 def comma_separated_set(s):
     return set(el for el in s.split(",") if el)
@@ -146,11 +147,31 @@ def process_core_dumps(options, suite_name, suite_path):
 def python_package_path(options):
     return os.path.join(TEAMCITY_BUILD_LIBRARY_PATH, "python_packaging/package.py")
 
+def perform_python_packaging(options, packages_path, args, configurations):
+    for build_type, python_type, platform, library_path, package_path, package_name in configurations:
+        if python_type == "2" and not options.build_enable_python_2_7:
+            continue
+        if python_type == "3" and not options.build_enable_python_3_4:
+            continue
+        # NB: skynet enabled by default.
+
+        run_args = args + [
+            "--build-type", build_type,
+            "--python-type", python_type,
+            "--platform", platform,
+            "--library-path", os.path.join(options.working_directory, library_path),
+            "--package-path", os.path.join(packages_path, package_path),
+            "--package-name", package_name,
+        ]
+        if options.arc:
+            run_args += ["--arc"]
+        run(run_args, cwd=options.working_directory)
+
 def only_for_projects(*projects):
     def decorator(func):
         @functools.wraps(func)
         def wrapped_function(options, build_context):
-            if not any(p in options.build_project for p in projects):
+            if options.build_project not in projects:
                 teamcity_message("Skipping step {0} due to build_project configuration".format(func.__name__))
                 return
             func(options, build_context)
@@ -165,6 +186,20 @@ def get_bin_dir(options):
 
 def get_yt_token_file(options):
     return os.path.join(options.working_directory, "yt_token")
+
+def sky_share(resource, cwd):
+    run_result = run(
+        ["sky", "share", resource],
+        cwd=cwd,
+        shell=False,
+        timeout=600,
+        capture_output=True)
+
+    rbtorrent = run_result.stdout.splitlines()[0].strip()
+    # simple sanity check
+    if urlparse.urlparse(rbtorrent).scheme != "rbtorrent":
+        raise RuntimeError("Failed to parse rbtorrent url: {0}".format(rbtorrent))
+    return rbtorrent
 
 @contextlib.contextmanager
 def temporary_yt_token_file(options):
@@ -272,6 +307,7 @@ def ya_make_args(options, include_target_platform=True):
 def prepare(options, build_context):
     os.environ["LANG"] = "en_US.UTF-8"
     os.environ["LC_ALL"] = "en_US.UTF-8"
+    os.environ["ARC_TOKEN"] = os.environ.get("TEAMCITY_ARC_TOKEN")
 
     options.build_number = os.environ["BUILD_NUMBER"]
     options.build_vcs_number = os.environ["BUILD_VCS_NUMBER"]
@@ -281,7 +317,6 @@ def prepare(options, build_context):
     options.build_enable_python_skynet = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
     options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
     options.build_enable_ya_yt_store = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_YA_YT_STORE", "NO"))
-    options.package_enable_python_yp = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_PYTHON_YP", "NO"))
     options.package_enable_yson_bingings = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_YSON_BINDINGS", "NO"))
     options.package_enable_rpc_bingings = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_RPC_BINDINGS", "NO"))
     options.package_enable_driver_bingings = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_DRIVER_BINDINGS", "NO"))
@@ -312,14 +347,10 @@ def prepare(options, build_context):
             cwd=options.checkout_directory
         )
 
+    # Sanity check
     codename = run_captured(["lsb_release", "-c"])
     codename = re.sub(r"^Codename:\s*", "", codename)
-
-    if codename not in ["precise", "trusty"]:
-        raise RuntimeError("Unknown LSB distribution code name: {0}".format(codename))
-
-    if codename in ["precise", "trusty"]:
-        options.build_enable_python = options.build_enable_python_2_7
+    assert codename == "precise"
 
     options.codename = codename
     extra_repositories = filter(lambda x: x != "", map(str.strip, os.environ.get("EXTRA_REPOSITORIES", "").split(",")))
@@ -373,7 +404,7 @@ def prepare(options, build_context):
     teamcity_message(pprint.pformat(options.__dict__))
 
 @build_step
-@only_for_projects("yt", "yp")
+@only_for_projects("yt", "yp", "python")
 def build(options, build_context):
     if options.arc:
         env = ya_make_env(options)
@@ -397,8 +428,6 @@ def build(options, build_context):
         ]
 
         all_args = dist_cache_args + dist_cache_put_args + install_args
-        if options.use_asan:
-            all_args += ["--sanitize=address"]
         if options.build_enable_dist_build:
             all_args += ["--dist"]
 
@@ -409,6 +438,9 @@ def build(options, build_context):
         server_args = copy.copy(all_args)
         if options.ya_target_platform:
             server_args += ["--target-platform", options.ya_target_platform]
+        if options.use_asan:
+            # NB: python bindings should be built without ASAN.
+            server_args += ["--sanitize=address"]
 
         run([
                 get_ya(options),
@@ -422,9 +454,11 @@ def build(options, build_context):
 
         # Build python libraries.
         if not options.ya_target_platform:
-            platforms = ("linux", "darwin")
+            platforms = ["linux",]
+            if not options.use_asan:
+                platforms.append("darwin")
         else:
-            platforms = (options.ya_target_platform)
+            platforms = (options.ya_target_platform,)
 
         for version in iter_enabled_python_versions(options, enable_skynet=True):
             for platform in platforms:
@@ -538,7 +572,7 @@ def gather_build_info(options, build_context):
 
 
 @build_step
-@only_for_projects("yt", "yp")
+@only_for_projects("yt", "yp", "python")
 def set_suid_bit(options, build_context):
     for binary in ["ytserver-node", "ytserver-exec", "ytserver-job-proxy", "ytserver-tools"]:
         path = os.path.join(get_bin_dir(options), binary)
@@ -554,7 +588,7 @@ def set_suid_bit(options, build_context):
         run(["sudo", "chmod", "4755", path])
 
 @build_step
-@only_for_projects("yt", "yp")
+@only_for_projects("yt", "yp", "python")
 def import_yt_wrapper(options, build_context):
     python_source = os.path.join(options.checkout_directory, get_relative_python_root(options), "python")
     python_destination = os.path.join(options.working_directory, "python")
@@ -578,14 +612,7 @@ def import_yt_wrapper(options, build_context):
         prepare_binary_symlinks=False,
         prepare_bindings=True)
 
-    pythonpaths = [python_destination]
-    for bindings_type in ["yson", "driver", "driver_rpc"]:
-        lib_path = os.path.join(
-            options.working_directory,
-            "lib",
-            "pyshared-2-7")
-        pythonpaths.append(lib_path)
-
+    pythonpaths = [python_destination, get_lib_dir_for_python(options, "2.7")]
     for pythonpath in pythonpaths:
         sys.path.insert(0, pythonpath)
 
@@ -598,27 +625,8 @@ def import_yt_wrapper(options, build_context):
     build_context["pythonpaths"] = pythonpaths
     build_context["prepared_python_path"] = os.path.join(options.working_directory, "python")
 
-def sky_get(resource):
-    run(
-        ["sky", "get", resource],
-        timeout=300
-    )
-
-def sky_share(resource, cwd):
-    run_result = run(
-        ["sky", "share", resource],
-        cwd=cwd,
-        shell=False,
-        timeout=600,
-        capture_output=True)
-
-    rbtorrent = run_result.stdout.splitlines()[0].strip()
-    # simple sanity check
-    if urlparse.urlparse(rbtorrent).scheme != "rbtorrent":
-        raise RuntimeError("Failed to parse rbtorrent url: {0}".format(rbtorrent))
-    return rbtorrent
-
 @build_step
+@only_for_projects("yt")
 def package_python_proto(options, build_context):
     if not options.package:
         teamcity_message("Skipping packaging yandex-yt-python-proto")
@@ -736,33 +744,14 @@ def package_yp(options, build_context):
     if not options.package:
         return
 
-    if not options.package_enable_python_yp:
-        teamcity_message("Building yandex-yp-package is disabled")
-        return
+    run(["./resign.sh"],
+        cwd=os.path.join(options.checkout_directory, "yp", "python", "yandex-yp-python"))
+    run(["./build_yandex_yp.sh"],
+        cwd=os.path.join(options.checkout_directory, "yp", "python"),
+        env={
+            "PYTHON_ROOT": os.path.join(options.checkout_directory, get_relative_python_root(options), "python")
+        })
 
-    run(["./resign.sh"], cwd=os.path.join(options.checkout_directory, "yp", "python", "yandex-yp-python"))
-    run(["./build_yandex_yp.sh"], cwd=os.path.join(options.checkout_directory, "yp", "python"))
-
-
-def perform_python_packaging(options, packages_path, args, configurations):
-    for build_type, python_type, platform, library_path, package_path, package_name in configurations:
-        if python_type == "2" and not options.build_enable_python_2_7:
-            continue
-        if python_type == "3" and not options.build_enable_python_3_4:
-            continue
-        # NB: skynet enabled by default.
-
-        run_args = args + [
-            "--build-type", build_type,
-            "--python-type", python_type,
-            "--platform", platform,
-            "--library-path", os.path.join(options.working_directory, library_path),
-            "--package-path", os.path.join(packages_path, package_path),
-            "--package-name", package_name,
-        ]
-        if options.arc:
-            run_args += ["--arc"]
-        run(run_args, cwd=options.working_directory)
 
 
 @build_step
@@ -909,6 +898,7 @@ def package_driver_bindings(options, build_context):
 
 
 @build_step
+@only_for_projects("yt", "yp")
 def run_sandbox_upload(options, build_context):
     if not options.package:
         return
@@ -936,7 +926,7 @@ def run_sandbox_upload(options, build_context):
         os.symlink(source_path, destination_path)
         processed_files.add(filename)
 
-    if options.target_build_project == "yt":
+    if options.build_project == "yt":
         yt_binary_upload_list = set((
             "ytserver-job-proxy",
             "ytserver-scheduler",
@@ -951,7 +941,7 @@ def run_sandbox_upload(options, build_context):
             "ytserver-http-proxy",
             "yt_local",
         ))
-    else:
+    else: # "yp"
         yt_binary_upload_list = set((
             "ypserver-master",
         ))
@@ -961,7 +951,7 @@ def run_sandbox_upload(options, build_context):
         missing_file_string = ", ".join(yt_binary_upload_list - processed_files)
         raise StepFailedWithNonCriticalError("Missing files in sandbox upload: {0}".format(missing_file_string))
 
-    if options.target_build_project == "yt":
+    if options.build_project == "yt":
         # Also, inject python libraries and bindings as debs
         artifacts_directory = os.path.join(options.working_directory, "./ARTIFACTS")
         inject_packages = [
@@ -986,7 +976,7 @@ def run_sandbox_upload(options, build_context):
         sandbox_ctx["git_branch"] = options.git_branch
         sandbox_ctx["build_number"] = options.build_number
         sandbox_ctx["full_build_type"] = options.btid
-        sandbox_ctx["build_project"] = options.target_build_project
+        sandbox_ctx["build_project"] = options.build_project
 
         #
         # Start sandbox task
@@ -1003,7 +993,7 @@ def run_sandbox_upload(options, build_context):
         Git branch: {6}
         Git commit: {7}
         """.format(
-            options.target_build_project,
+            options.build_project,
             build_context["yt_version"],
             options.build_number,
             options.type,
@@ -1069,6 +1059,7 @@ def run_unit_tests(options, build_context):
         rmtree(sandbox_current)
 
 def run_ya_tests(options, suite_name, test_paths, dist=True):
+    # TODO(ignat): enable it again.
     # NB: tests are disabled under ASAN because random hangups in python, see YT-11297.
     if options.disable_tests or (options.use_asan and dist):
         teamcity_message("Skipping ya make tests since tests are disabled")
@@ -1132,18 +1123,21 @@ def run_ya_tests(options, suite_name, test_paths, dist=True):
 @build_step
 @only_for_projects("yt_fast")
 def run_ya_all_tests_dist(options, build_context):
-    run_ya_tests(options, "ya_all_dist",
-                 [
-                     os.path.join(get_relative_yt_root(options), "yt/tests"),
-                     "yp/tests/py2",
-                     "yp/tests/py3",
-                     "python/yt/local/tests",
-                     "python/yt/skiff/tests",
-                     "python/yt/yson/tests/py2",
-                     "python/yt/yson/tests/py3",
-                     "python/yt/wrapper/tests/py2",
-                     "python/yt/wrapper/tests/py3",
-                 ])
+    python_targets = [
+        "python/yt/local/tests",
+        "python/yt/skiff/tests",
+        "python/yt/yson/tests/py2",
+        "python/yt/yson/tests/py3",
+        "python/yt/wrapper/tests/py2",
+        "python/yt/wrapper/tests/py3",
+    ]
+    python_targets = [os.path.join(get_relative_python_root(options), target) for target in python_targets]
+    other_targets = [
+        os.path.join(get_relative_yt_root(options), "yt/tests"),
+        "yp/tests/py2",
+        "yp/tests/py3",
+    ]
+    run_ya_tests(options, "ya_all_dist", python_targets + other_targets)
 
 @build_step
 @only_for_projects("yt")
@@ -1157,11 +1151,8 @@ def run_ya_integration_tests_locally(options, build_context):
 
 def run_pytest(options, build_context, suite_name, suite_path, pytest_args=None, env=None, python_version=None):
     yt_processes_cleanup()
+    drop_caches()
 
-    if not options.build_enable_python:
-        return
-
-    # TODO(ignat): revert support for python3.4
     if python_version is None:
         if not options.build_enable_python_2_7:
             teamcity_message("Skip test suite '{0}' since python2.7 build is disabled".format(suite_name))
@@ -1181,57 +1172,41 @@ def run_pytest(options, build_context, suite_name, suite_path, pytest_args=None,
         env = {}
 
     env["PATH"] = "{0}:/usr/sbin:{1}".format(get_bin_dir(options), os.environ.get("PATH", ""))
-    env["PYTHONPATH"] = ":".join(build_context["pythonpaths"])
+    env["PYTHONPATH"] = ":".join([build_context["prepared_python_path"], get_lib_dir_for_python(options, python_version)])
     env["TESTS_SANDBOX"] = sandbox_current
     env["TESTS_SANDBOX_STORAGE"] = sandbox_storage
     env["PYTEST_LOG_FILENAME"] = os.path.join(sandbox_current, "pytest_runner.log")
     env["YT_CAPTURE_STDERR_TO_FILE"] = "1"
     env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
+    env["YT_ENABLE_REQUEST_LOGGING"] = "1"
     env["YT_CORE_PATH"] = options.core_path
     for var in ["TEAMCITY_YT_TOKEN", "TEAMCITY_SANDBOX_TOKEN"]:
         if var in os.environ:
             env[var] = os.environ[var]
 
-    with tempfile.NamedTemporaryFile() as handle:
-        try:
-            run([
-                "python" + python_version,
-                "-m",
-                "pytest",
-                "-r", "x",
-                "--verbose",
-                "--verbose",
-                "--capture=fd",
-                "--tb=native",
-                "--timeout=3000",
-                "--debug",
-                "--junitxml={0}".format(handle.name)]
-                + pytest_args,
-                cwd=suite_path,
-                env=env)
-        except ChildHasNonZeroExitCode as err:
-            teamcity_interact("buildProblem", description="Pytest '{}' failed, exit code {}".format(
-                suite_name, err.return_code))
-            teamcity_message("(ignoring child failure since we are reading test results from XML)")
-            failed = True
+    junit_path = "{0}/junit_python_{1}.xml".format(options.working_directory, suite_name)
+    try:
+        run([
+            "python" + python_version,
+            "-m",
+            "pytest",
+            "-r", "x",
+            "--verbose",
+            "--verbose",
+            "--capture=fd",
+            "--tb=native",
+            "--timeout=3000",
+            "--debug",
+            "--junitxml={0}".format(junit_path)]
+            + pytest_args,
+            cwd=suite_path,
+            env=env)
+    except ChildHasNonZeroExitCode as err:
+        teamcity_interact("buildProblem", description="Pytest '{}' failed, exit code {}".format(
+            suite_name, err.return_code))
+        teamcity_message("(ignoring child failure since we are reading test results from XML)")
+        failed = True
 
-        try:
-            result = etree.parse(handle)
-            for node in (result.iter() if hasattr(result, "iter") else result.getiterator()):
-                if isinstance(node.text, str):
-                    node.text = node.text \
-                        .replace("&quot;", "\"") \
-                        .replace("&apos;", "\'") \
-                        .replace("&amp;", "&") \
-                        .replace("&lt;", "<") \
-                        .replace("&gt;", ">")
-
-            with open("{0}/junit_python_{1}.xml".format(options.working_directory, suite_name), "w+b") as handle:
-                result.write(handle, encoding="utf-8")
-
-        except (UnicodeDecodeError, etree.ParseError, xml.parsers.expat.ExpatError):
-            failed = True
-            teamcity_message("Failed to parse pytest output:\n" + open(handle.name).read())
 
     cores_found = process_core_dumps(options, suite_name, suite_path)
 
@@ -1317,23 +1292,73 @@ def run_python_libraries_tests(options, build_context):
                pytest_args=pytest_args,
                env={
                    "TESTS_JOB_CONTROL": "1",
-                   "YT_ENABLE_REQUEST_LOGGING": "1",
                })
 
-# @build_step
-@only_for_projects("yt")
-def run_perl_tests(options, build_context):
-    if not options.build_enable_perl:
-        teamcity_message("Perl tests are skipped since they are not enabled")
-        return
-    if options.disable_tests:
-        teamcity_message("Perl tests are skipped since all tests are disabled")
-        return
-    if options.use_asan:
-        teamcity_message("Perl tests are skipped since they don't play well with ASAN")
-        return
-    run_pytest(options, build_context, "perl", "{0}/perl/tests".format(options.checkout_directory))
+def _run_tests_for_python_version(options, build_context, python_version):
+    run_pytest(options,
+               build_context,
+               "python" + python_version,
+               os.path.join(build_context["prepared_python_path"], "yt"),
+               python_version=python_version,
+               pytest_args=["--process-count=10"],
+               env={
+                   "TESTS_JOB_CONTROL": "1",
+               })
 
+@build_step
+@only_for_projects("python")
+def run_python_2_7_tests(options, build_context):
+    if options.disable_tests:
+        teamcity_message("Python2.7 tests are skipped since all tests are disabled")
+        return
+    _run_tests_for_python_version(options, build_context, "2.7")
+
+@build_step
+@only_for_projects("python")
+def run_python_3_4_tests(options, build_context):
+    # TODO(ignat): move disable_tests check to decorator
+    if options.disable_tests:
+        teamcity_message("Python3.4 tests are skipped since all tests are disabled")
+        return
+    _run_tests_for_python_version(options, build_context, "3.4")
+
+@build_step
+@only_for_projects("python")
+def build_python_packages(options, build_context):
+    if not options.package:
+        teamcity_message("Skipping python packaging")
+        return
+
+    packages = [
+        "yandex-yt-python",
+        "yandex-yt-local",
+        "yandex-yt-python-tools",
+        "yandex-yt-transfer-manager-client"]
+
+    with inside_temporary_directory(dir=options.working_directory):
+        python_src_copy = os.path.realpath("python_src_copy")
+
+        shutil.copytree(
+            build_context["prepared_python_path"],
+            python_src_copy,
+            symlinks=True)
+
+        shutil.copytree(os.path.join(python_src_copy, "yt"), os.path.join(python_src_copy, "packages/yt"))
+        with cwd(os.path.join(python_src_copy, "packages")):
+            for package in packages:
+                package_version = run_captured(
+                    "dpkg-parsechangelog | grep Version | awk '{print $2}'",
+                    shell=True,
+                    cwd=package,
+                ).strip()
+                run(["dch", "-r", package_version, "'Resigned by teamcity'"],
+                    cwd=package)
+                run(["./deploy.sh", package],
+                    env={
+                        "TMPDIR": options.working_directory,
+                        # Used to access ya.
+                        "YT_SRC_DIR": options.checkout_directory
+                    })
 
 def log_sandbox_upload(options, build_context, task_id):
     client = requests.Session()
@@ -1387,7 +1412,11 @@ def log_sandbox_upload(options, build_context, task_id):
 
 @build_step
 def wait_for_sandbox_upload(options, build_context):
-    if not options.package or sys.version_info < (2, 7):
+    if not options.package:
+        return
+
+    if "sandbox_upload_task" not in build_context:
+        teamcity_message("No sandbox upload task")
         return
 
     task_id = build_context["sandbox_upload_task"]
@@ -1458,6 +1487,13 @@ def main():
         if s == "NO":
             return False
         raise argparse.ArgumentTypeError("Expected YES or NO")
+
+    def parse_project(s):
+        supported_projects = ("yt", "yt_fast", "yp", "python")
+        if s not in supported_projects:
+            raise argparse.ArgumentTypeError("Expected one of {}".format(supported_projects))
+        return s
+
     parser = argparse.ArgumentParser(description="YT Build Script")
 
     parser.add_argument("--btid", type=str, action="store", required=True)
@@ -1499,8 +1535,9 @@ def main():
 
     parser.add_argument(
         "--build_project",
-        type=comma_separated_set, action="store", default={"yt", "yp"})
+        type=parse_project, action="store", default="yt")
 
+    # TODO(ignat): Drop this option after migration to arcadia.
     parser.add_argument("--arc", action="store_true", default=False)
 
     options = parser.parse_args()
@@ -1509,8 +1546,6 @@ def main():
     options.is_bare_metal = socket.getfqdn().endswith("tc.yt.yandex.net")
     # NB: parallel testing is enabled by default only for bare metal machines.
     options.enable_parallel_testing = options.is_bare_metal
-    # Determine main project of current build.
-    options.target_build_project = "yt" if "yt" in options.build_project else "yp"
 
     teamcity_main(options)
 

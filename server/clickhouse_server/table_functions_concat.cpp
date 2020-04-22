@@ -101,7 +101,8 @@ T EvaluateArgument(ASTPtr& argument, const Context& context)
 }
 
 // TODO(max42): move to core.
-TString BaseName(const TYPath& path) {
+TString BaseName(const TYPath& path)
+{
     return TString(path.begin() + path.rfind('/') + 1, path.end());
 }
 
@@ -118,7 +119,7 @@ class TConcatenateTablesList
 {
 public:
     TConcatenateTablesList()
-    {}
+    { }
 
     static std::string GetName()
     {
@@ -301,7 +302,7 @@ class TConcatenateTablesRegexp
 public:
     TConcatenateTablesRegexp()
         : TListFilterAndConcatenateTables()
-    {}
+    { }
 
     static std::string GetName()
     {
@@ -341,7 +342,7 @@ class TConcatenateTablesLike
 public:
     TConcatenateTablesLike()
         : TListFilterAndConcatenateTables()
-    {}
+    { }
 
     static std::string GetName()
     {

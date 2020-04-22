@@ -40,8 +40,7 @@ TTimestamp TTimestampProviderBase::GetLatestTimestamp()
         LatestTimestampExecutor_ = New<TPeriodicExecutor>(
             GetSyncInvoker(),
             BIND(&TTimestampProviderBase::UpdateLatestTimestamp, MakeWeak(this)),
-            *LatestTimestampUpdatePeriod_,
-            EPeriodicExecutorMode::Automatic);
+            *LatestTimestampUpdatePeriod_);
         LatestTimestampExecutor_->Start();
     }
 

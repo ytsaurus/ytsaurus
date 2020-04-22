@@ -95,7 +95,8 @@ public:
     }
 
 private:
-    static TYPath PocoPathToYPath(const std::string& key) {
+    static TYPath PocoPathToYPath(const std::string& key)
+    {
         if (key.empty()) {
             return "";
         }

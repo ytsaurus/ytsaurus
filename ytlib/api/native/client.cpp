@@ -647,6 +647,7 @@ static const THashSet<TString> SupportedJobAttributes = {
     "has_spec",
     "job_competition_id",
     "has_competitors",
+    "exec_attributes",
 };
 
 // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
@@ -2621,6 +2622,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
     auto failContextSizeIndex = builder.AddSelectExpression("fail_context_size");
     auto jobCompetitionIdIndex = builder.AddSelectExpression("job_competition_id");
     auto hasCompetitorsIndex = builder.AddSelectExpression("has_competitors");
+    auto execAttributesIndex = builder.AddSelectExpression("exec_attributes");
 
     int coreInfosIndex = -1;
     {
@@ -2826,6 +2828,10 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
                             fluent.Item("job_proxy_cpu_usage").Value(jobProxyCpuUsage->AsInt64()->GetValue());
                         })
                     .EndMap();
+            }
+
+            if (row[execAttributesIndex].Type != EValueType::Null) {
+                job.ExecAttributes = TYsonString(TString(row[execAttributesIndex].Data.String, row[execAttributesIndex].Length));
             }
 
             // We intentionally mark stderr as missing if job has no spec since
@@ -3280,7 +3286,7 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
         "error",
         "brief_statistics",
         "job_competition_id",
-        "has_competitors"
+        "has_competitors",
     };
 
     TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
@@ -3406,6 +3412,7 @@ static void MergeJob(TSourceJob&& source, TJob* target)
     MERGE_NULLABLE_FIELD(CoreInfos);
     MERGE_NULLABLE_FIELD(JobCompetitionId);
     MERGE_NULLABLE_FIELD(HasCompetitors);
+    MERGE_NULLABLE_FIELD(ExecAttributes);
 #undef MERGE_NULLABLE_FIELD
     if (source.StderrSize && target->StderrSize.value_or(0) < source.StderrSize) {
         target->StderrSize = source.StderrSize;

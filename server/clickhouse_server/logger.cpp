@@ -23,7 +23,7 @@ private:
 public:
     TLogChannel(const TLogger& logger)
         : Logger(logger)
-    {}
+    { }
 
     void log(const Poco::Message& message) override
     {

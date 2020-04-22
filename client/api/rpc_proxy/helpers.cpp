@@ -757,6 +757,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.IsStale) {
         protoJob->set_is_stale(*job.IsStale);
     }
+    if (job.ExecAttributes) {
+        protoJob->set_exec_attributes(job.ExecAttributes.GetData());
+    }
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -860,6 +863,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->IsStale = protoJob.is_stale();
     } else {
         job->IsStale.reset();
+    }
+    if (protoJob.has_exec_attributes()) {
+        job->ExecAttributes = NYson::TYsonString(protoJob.exec_attributes());
+    } else {
+        job->ExecAttributes = NYson::TYsonString();
     }
 }
 

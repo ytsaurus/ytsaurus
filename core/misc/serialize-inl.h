@@ -286,21 +286,58 @@ inline TEntitySerializationKey TEntityStreamSaveContext::GenerateSerializationKe
     return TEntitySerializationKey(SerializationKeyIndex_++);
 }
 
+template <class T>
+TEntitySerializationKey TEntityStreamSaveContext::RegisterEntity(T* entity)
+{
+    if (auto it = RawPtrs_.find(entity)) {
+        return it->second;
+    }
+    auto key = GenerateSerializationKey();
+    YT_VERIFY(RawPtrs_.emplace(entity, key).second);
+    return InlineKey;
+}
+
+template <class T>
+TEntitySerializationKey TEntityStreamSaveContext::RegisterRefCountedEntity(const TIntrusivePtr<T>& entity)
+{
+    if (auto it = RefCountedPtrs_.find(entity)) {
+        return it->second;
+    }
+    auto key = GenerateSerializationKey();
+    YT_VERIFY(RefCountedPtrs_.emplace(entity, key).second);
+    return InlineKey;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-inline TEntitySerializationKey TEntityStreamLoadContext::RegisterEntity(void* entity)
+template <class T>
+inline TEntitySerializationKey TEntityStreamLoadContext::RegisterEntity(T* entity)
 {
-    auto key = TEntitySerializationKey(static_cast<int>(Entities_.size()));
-    Entities_.push_back(entity);
+    auto key = TEntitySerializationKey(static_cast<int>(RawPtrs_.size()));
+    RawPtrs_.push_back(entity);
     return key;
+}
+
+template <class T>
+TEntitySerializationKey TEntityStreamLoadContext::RegisterRefCountedEntity(const TIntrusivePtr<T>& entity)
+{
+    auto* ptr = entity.Get();
+    RefCountedPtrs_.push_back(entity);
+    return RegisterEntity(ptr);
 }
 
 template <class T>
 T* TEntityStreamLoadContext::GetEntity(TEntitySerializationKey key) const
 {
     YT_ASSERT(key.Index >= 0);
-    YT_ASSERT(key.Index < static_cast<int>(Entities_.size()));
-    return static_cast<T*>(Entities_[key.Index]);
+    YT_ASSERT(key.Index < static_cast<int>(RawPtrs_.size()));
+    return static_cast<T*>(RawPtrs_[key.Index]);
+}
+
+template <class T>
+TIntrusivePtr<T> TEntityStreamLoadContext::GetRefCountedEntity(TEntitySerializationKey key) const
+{
+    return TIntrusivePtr<T>(GetEntity<T>(key));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

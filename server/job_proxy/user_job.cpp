@@ -354,7 +354,7 @@ public:
                         coreInfo.size());
                 }
                 if (UserJobSpec_.fail_job_on_core_dump()) {
-                    innerErrors.push_back(TError("User job produced core files")
+                    innerErrors.push_back(TError(EErrorCode::UserJobProducedCoreFiles, "User job produced core files")
                         << TErrorAttribute("core_infos", coreResult.CoreInfos));
                 }
             }

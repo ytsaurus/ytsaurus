@@ -155,15 +155,15 @@ const T* TInternedObject<T>::operator->() const
 }
 
 template <class T>
-void* TInternedObject<T>::ToRaw() const
+TInternedObjectDataPtr<T> TInternedObject<T>::ToData() const
 {
-    return Data_.Get();
+    return Data_;
 }
 
 template <class T>
-TInternedObject<T> TInternedObject<T>::FromRaw(void* raw)
+TInternedObject<T> TInternedObject<T>::FromData(TInternedObjectDataPtr<T> data)
 {
-    return TInternedObject<T>(static_cast<TInternedObjectData<T>*>(raw));
+    return TInternedObject<T>(std::move(data));
 }
 
 template<class T>
@@ -181,20 +181,16 @@ TInternedObject<T>::TInternedObject(TInternedObjectDataPtr<T> data)
 
 struct TInternedObjectSerializer
 {
-    static inline const TEntitySerializationKey InlineKey = TEntitySerializationKey(-3);
-
     template <class C, class T>
     static void Save(C& context, const TInternedObject<T>& object)
     {
         using NYT::Save;
 
-        auto it = context.SavedInternedObjects().find(object.ToRaw());
-        if (it == context.SavedInternedObjects().end()) {
-            Save(context, InlineKey);
+        auto data = object.ToData();
+        auto key = context.RegisterRefCountedEntity(data);
+        Save(context, key);
+        if (key == TEntityStreamSaveContext::InlineKey) {
             Save(context, *object);
-            YT_VERIFY(context.SavedInternedObjects().emplace(object.ToRaw(), context.GenerateSerializationKey()).second);
-        } else {
-            Save(context, it->second);
         }
     }
 
@@ -204,16 +200,16 @@ struct TInternedObjectSerializer
         using NYT::Load;
 
         auto key = NYT::LoadSuspended<TEntitySerializationKey>(context);
-        if (key == InlineKey) {
+        if (key == TEntityStreamSaveContext::InlineKey) {
             SERIALIZATION_DUMP_INDENT(context) {
                 auto value = Load<T>(context);
                 const auto& registry = context.template GetInternRegistry<T>();
                 object = registry->Intern(std::move(value));
-                auto key = context.RegisterEntity(object.ToRaw());
+                auto key = context.RegisterRefCountedEntity(object.ToData());
                 SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);
             }
         } else {
-            object = TInternedObject<T>::FromRaw(context.template GetEntity<void*>(key));
+            object = TInternedObject<T>::FromData(context.template GetRefCountedEntity<TInternedObjectData<T>>(key));
             SERIALIZATION_DUMP_WRITE(context, "objref %v", key.Index);
         }
     }

@@ -228,10 +228,12 @@ void TQueryAnalyzer::ParseQuery()
     for (const auto& tableExpression : TableExpressions_) {
         auto& storage = Storages_.emplace_back(GetStorage(tableExpression));
         if (storage) {
-            YT_LOG_DEBUG("Table expression corresponds to TStorageDistributor (TableExpression: %v)", static_cast<DB::IAST&>(*tableExpression));
+            YT_LOG_DEBUG("Table expression corresponds to TStorageDistributor (TableExpression: %v)",
+                static_cast<DB::IAST&>(*tableExpression));
             ++YtTableCount_;
         } else {
-            YT_LOG_DEBUG("Table expression does not correspond to TStorageDistributor (TableExpression: %v)", static_cast<DB::IAST&>(*tableExpression));
+            YT_LOG_DEBUG("Table expression does not correspond to TStorageDistributor (TableExpression: %v)",
+                static_cast<DB::IAST&>(*tableExpression));
         }
     }
 

@@ -247,11 +247,6 @@ public:
 
     using TInvokerWrapper::Invoke;
 
-    virtual TDuration GetAverageWaitTime() const override
-    {
-        return UnderlyingInvoker_->GetAverageWaitTime();
-    }
-
     virtual void Invoke(TClosure callback, i64 priority) override
     {
         {

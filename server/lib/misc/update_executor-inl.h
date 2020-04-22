@@ -26,8 +26,7 @@ TUpdateExecutor<TKey, TUpdateParameters>::TUpdateExecutor(
     , UpdateExecutor_(New<NConcurrency::TPeriodicExecutor>(
         Invoker_,
         BIND(&TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates, MakeWeak(this)),
-        period,
-        NConcurrency::EPeriodicExecutorMode::Automatic))
+        period))
 { }
 
 template <class TKey, class TUpdateParameters>

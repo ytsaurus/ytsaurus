@@ -26,14 +26,12 @@ TPeriodicExecutor::TPeriodicExecutor(
     IInvokerPtr invoker,
     TClosure callback,
     std::optional<TDuration> period,
-    EPeriodicExecutorMode mode,
     TDuration splay)
     : TPeriodicExecutor(
         std::move(invoker),
         std::move(callback),
         {
             period,
-            mode,
             splay,
             0.0,
         })
@@ -49,7 +47,6 @@ TPeriodicExecutor::TPeriodicExecutor(
     : Invoker_(std::move(invoker))
     , Callback_(std::move(callback))
     , Period_(options.Period)
-    , Mode_(options.Mode)
     , Splay_(options.Splay)
     , Jitter_(options.Jitter)
 {
@@ -155,34 +152,6 @@ void TPeriodicExecutor::ScheduleOutOfBand()
     }
 }
 
-void TPeriodicExecutor::ScheduleNext()
-{
-    TGuard<TSpinLock> guard(SpinLock_);
-
-    // There several reasons why this may fail:
-    // 1) Calling ScheduleNext outside of the periodic action
-    // 2) Calling ScheduleNext more than once
-    // 3) Calling ScheduleNext for an executor in automatic mode
-    YT_VERIFY(Busy_);
-    Busy_ = false;
-
-    if (!Started_) {
-        return;
-    }
-
-    if (IdlePromise_ && IdlePromise_.IsSet()) {
-        IdlePromise_ = TPromise<void>();
-    }
-
-    if (OutOfBandRequested_) {
-        OutOfBandRequested_ = false;
-        guard.Release();
-        PostCallback();
-    } else if (Period_) {
-        PostDelayedCallback(NextDelay());
-    }
-}
-
 void TPeriodicExecutor::PostDelayedCallback(TDuration delay)
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
@@ -247,8 +216,21 @@ void TPeriodicExecutor::OnCallbackSuccess()
             executedPromise.TrySet();
         }
 
-        if (Mode_ == EPeriodicExecutorMode::Automatic) {
-            ScheduleNext();
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        YT_VERIFY(Busy_);
+        Busy_ = false;
+
+        if (!Started_) {
+            return;
+        }
+
+        if (OutOfBandRequested_) {
+            OutOfBandRequested_ = false;
+            guard.Release();
+            PostCallback();
+        } else if (Period_) {
+            PostDelayedCallback(NextDelay());
         }
     };
 

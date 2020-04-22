@@ -172,6 +172,11 @@ public:
         return SlotIndex_;
     }
 
+    virtual TString GetSandboxPath(ESandboxKind sandbox) const override
+    {
+        return Location_->GetSandboxPath(SlotIndex_, sandbox);
+    }
+
     virtual TTcpBusServerConfigPtr GetBusServerConfig() const override
     {
         return TTcpBusServerConfig::CreateUnixDomain(JobProxyUnixDomainSocketPath_);

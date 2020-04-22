@@ -76,8 +76,6 @@ private:
     static TObjectPart DefaultObjectPart;
 
     void MaybeCopyOnWrite(const NObjectServer::TObjectManagerPtr& objectManager);
-
-    static inline const TEntitySerializationKey InlineKey = TEntitySerializationKey(-3);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -114,7 +114,7 @@ public:
     TDuration DefaultGetJobTimeout;
     TDuration DefaultListOperationsTimeout;
 
-    std::optional<int> CacheStickyGroupSizeOverride;
+    int CacheStickyGroupSizeOverride;
 
     TDuration IdleChannelTtl;
 

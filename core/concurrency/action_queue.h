@@ -19,7 +19,7 @@ class TActionQueue
 {
 public:
     explicit TActionQueue(
-        const TString& threadName = "<ActionQueue>",
+        const TString& threadName = "ActionQueue",
         bool enableLogging = true,
         bool enableProfiling = true);
 
@@ -69,7 +69,7 @@ IInvokerPtr CreateFixedPriorityInvoker(
 IInvokerPtr CreateBoundedConcurrencyInvoker(
     IInvokerPtr underlyingInvoker,
     int maxConcurrentInvocations,
-    const TString& invokerName = "<BCI>");
+    const TString& invokerName = "BCI");
 
 ////////////////////////////////////////////////////////////////////////////////
 
