@@ -29,7 +29,7 @@ protected:
     const TString Id_;
 
     mutable NLogging::TLogger Logger;
-    std::atomic<bool> Enabled_ = {false};
+    std::atomic<bool> Enabled_ = false;
 
     void ValidateMinimumSpace() const;
     void ValidateLockFile() const;
@@ -42,5 +42,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NDataNode
 

@@ -122,7 +122,6 @@ private:
             Underlying_->Write(buf, len);
         } catch (const std::exception& ex) {
             Location_->Disable(ex);
-            YT_ABORT();
         }
     }
 
@@ -132,7 +131,6 @@ private:
             Underlying_->Write(parts, count);
         } catch (const std::exception& ex) {
             Location_->Disable(ex);
-            YT_ABORT();
         }
     }
 
@@ -142,7 +140,6 @@ private:
             Underlying_->Flush();
         } catch (const std::exception& ex) {
             Location_->Disable(ex);
-            YT_ABORT();
         }
     }
 
@@ -152,7 +149,6 @@ private:
             Underlying_->Finish();
         } catch (const std::exception& ex) {
             Location_->Disable(ex);
-            YT_ABORT();
         }
     }
 };
@@ -233,7 +229,6 @@ private:
         return result.Apply(BIND([location = Location_] (const TError& error) {
             if (!error.IsOK()) {
                 location->Disable(error);
-                YT_ABORT();
             }
         }));
     }
@@ -270,19 +265,15 @@ public:
             DataNodeProfiler.AppendPath("/chunk_cache"))
         , Config_(config)
         , Bootstrap_(bootstrap)
-    {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
-    }
+    { }
 
     void Initialize()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         YT_LOG_INFO("Initializing chunk cache");
 
-        std::vector<TFuture<std::vector<TChunkDescriptor>>> asyncDescriptors;
-        asyncDescriptors.reserve(Config_->CacheLocations.size());
-
+        std::vector<TFuture<void>> futures;
         for (int i = 0; i < Config_->CacheLocations.size(); ++i) {
             auto locationConfig = Config_->CacheLocations[i];
 
@@ -291,26 +282,16 @@ public:
                 locationConfig,
                 Bootstrap_);
 
-            asyncDescriptors.push_back(
-                BIND(&TCacheLocation::Scan, location)
+            futures.push_back(
+                BIND(&TImpl::InitializeLocation, MakeStrong(this))
                     .AsyncVia(location->GetWritePoolInvoker())
-                    .Run());
+                    .Run(location));
 
             Locations_.push_back(location);
         }
 
-        auto allDescriptors = WaitFor(Combine(asyncDescriptors))
-            .ValueOrThrow();
-
-        for (int index = 0; index < Config_->CacheLocations.size(); ++index) {
-            const auto& location = Locations_[index];
-
-            for (const auto& descriptor : allDescriptors[index]) {
-                RegisterChunk(location, descriptor);
-            }
-
-            location->Start();
-        }
+        WaitFor(Combine(futures))
+            .ThrowOnError();
 
         if (!Locations_.empty()) {
             const auto& mediumName = Locations_.front()->GetMediumName();
@@ -334,7 +315,7 @@ public:
 
     bool IsEnabled() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         for (const auto& location : Locations_) {
             if (location->IsEnabled()) {
@@ -433,8 +414,18 @@ private:
     DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
     DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
 
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
+    void InitializeLocation(const TCacheLocationPtr& location)
+    {
+        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+
+        auto descriptors = location->Scan();
+        for (const auto& descriptor : descriptors) {
+            RegisterChunk(location, descriptor);
+        }
+
+        location->Start();
+    }
 
     std::optional<TRegisteredChunkDescriptor> ExtractRegisteredChunk(const TArtifactKey& key)
     {
@@ -455,6 +446,8 @@ private:
         const TClientBlockReadOptions& blockReadOptions,
         const NLogging::TLogger& Logger)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         YT_LOG_INFO("Loading artifact into cache");
 
         auto cookieValue = cookie.GetValue();
@@ -510,6 +503,8 @@ private:
         const TRegisteredChunkDescriptor& descriptor,
         NLogging::TLogger Logger)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto chunkId = descriptor.Descriptor.Id;
         const auto& location = descriptor.Location;
 
@@ -547,6 +542,8 @@ private:
         // files on power loss. To detect corrupted chunks we validate their size against value in misc extension.
         auto chunkId = descriptor.Descriptor.Id;
         const auto& location = descriptor.Location;
+
+        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
 
         try {
             YT_LOG_INFO("Chunk validation started");
@@ -592,14 +589,12 @@ private:
 
             location->RemoveChunkFilesPermanently(chunkId);
 
-            Bootstrap_->GetControlInvoker()->Invoke(BIND(
-                &TImpl::DoDownloadArtifact,
-                MakeStrong(this),
-                Passed(std::move(cookie)),
+            DoDownloadArtifact(
+                std::move(cookie),
                 key,
                 artifactDownloadOptions,
                 blockReadOptions,
-                Logger));
+                Logger);
         }
     }
 
@@ -608,28 +603,28 @@ private:
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         YT_LOG_DEBUG("Cached chunk object created (ChunkId: %v, LocationId: %v)",
             descriptor.Id,
             location->GetId());
 
-        Bootstrap_->GetControlInvoker()->Invoke(BIND([=] () {
-            location->UpdateChunkCount(+1);
-            location->UpdateUsedSpace(+descriptor.DiskSpace);
-        }));
+        location->UpdateChunkCount(+1);
+        location->UpdateUsedSpace(+descriptor.DiskSpace);
     }
 
     void OnChunkDestroyed(
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         YT_LOG_DEBUG("Cached chunk object destroyed (ChunkId: %v, LocationId: %v)",
             descriptor.Id,
             location->GetId());
 
-        Bootstrap_->GetControlInvoker()->Invoke(BIND([=] () {
-            location->UpdateChunkCount(-1);
-            location->UpdateUsedSpace(-descriptor.DiskSpace);
-        }));
+        location->UpdateChunkCount(-1);
+        location->UpdateUsedSpace(-descriptor.DiskSpace);
 
         location->GetWritePoolInvoker()->Invoke(BIND(
             &TCacheLocation::RemoveChunkFilesPermanently,
@@ -644,6 +639,8 @@ private:
         const TChunkDescriptor& descriptor,
         const NChunkClient::TRefCountedChunkMetaPtr& meta = nullptr)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto chunk = New<TCachedBlobChunk>(
             Bootstrap_,
             location,
@@ -659,6 +656,8 @@ private:
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
+        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+
         auto chunkId = descriptor.Id;
 
         auto optionalKey = TryParseArtifactMeta(location, chunkId);
@@ -726,6 +725,8 @@ private:
 
     TCacheLocationPtr FindNewChunkLocation() const
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         std::vector<TCacheLocationPtr> candidates;
         for (const auto& location : Locations_) {
             if (location->IsEnabled()) {
@@ -748,7 +749,7 @@ private:
             });
     }
 
-    TChunkId GetOrCreateArtifactId(const TArtifactKey& key, bool canPrepareSingleChunk)
+    static TChunkId GetOrCreateArtifactId(const TArtifactKey& key, bool canPrepareSingleChunk)
     {
         if (canPrepareSingleChunk) {
             YT_VERIFY(key.chunk_specs_size() == 1);
@@ -763,7 +764,7 @@ private:
         }
     }
 
-    bool CanPrepareSingleChunk(const TArtifactKey& key)
+    static bool CanPrepareSingleChunk(const TArtifactKey& key)
     {
         if (CheckedEnumCast<EDataSourceType>(key.data_source().type()) != EDataSourceType::File) {
             return false;
@@ -799,6 +800,8 @@ private:
 
     TClientBlockReadOptions MakeClientBlockReadOptions()
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return TClientBlockReadOptions{
             .WorkloadDescriptor = Config_->ArtifactCacheReader->WorkloadDescriptor,
             .ChunkReaderStatistics = New<TChunkReaderStatistics>(),
@@ -817,6 +820,8 @@ private:
         TInsertCookie cookie,
         const TTrafficMeterPtr& trafficMeter)
     {
+        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+
         const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
@@ -944,6 +949,8 @@ private:
         TInsertCookie cookie,
         const TTrafficMeterPtr& trafficMeter)
     {
+        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+
         try {
             auto producer = MakeFileProducer(
                 key,
@@ -969,6 +976,8 @@ private:
         const TClientBlockReadOptions& blockReadOptions,
         const IThroughputThrottlerPtr& throttler)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         std::vector<TChunkSpec> chunkSpecs(key.chunk_specs().begin(), key.chunk_specs().end());
 
         auto readerOptions = New<TMultiChunkReaderOptions>();
@@ -1013,6 +1022,8 @@ private:
         TInsertCookie cookie,
         const TTrafficMeterPtr& trafficMeter)
     {
+        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+
         try {
             auto producer = MakeTableProducer(
                 key,
@@ -1040,6 +1051,8 @@ private:
         const TClientBlockReadOptions& blockReadOptions,
         const IThroughputThrottlerPtr& throttler)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         static const TString CachedSourcePath = "<cached_data_source>";
 
         auto nameTable = New<TNameTable>();
@@ -1132,6 +1145,8 @@ private:
         TChunkId chunkId,
         const std::function<void(IOutputStream*)>& producer)
     {
+        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+
         YT_LOG_INFO("Producing artifact file (ChunkId: %v, Location: %v)",
             chunkId,
             location->GetId());
@@ -1188,6 +1203,8 @@ private:
         const TCacheLocationPtr& location,
         TChunkId chunkId)
     {
+        VERIFY_INVOKER_AFFINITY(location->GetWritePoolInvoker());
+
         if (!IsArtifactChunkId(chunkId)) {
             return TArtifactKey(chunkId);
         }

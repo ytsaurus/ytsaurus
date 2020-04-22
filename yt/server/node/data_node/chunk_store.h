@@ -23,7 +23,7 @@ namespace NYT::NDataNode {
 //! Manages stored chunks.
 /*!
  *  \note
- *  Thread affinity: ControlThread (unless indicated otherwise)
+ *  Thread affinity: any (unless indicated otherwise)
  */
 class TChunkStore
     : public TRefCounted
@@ -33,13 +33,15 @@ public:
         TDataNodeConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
 
+    //! Scans locations for chunks and registers them.
+    /*!
+     *  \note
+     *  Thread affinity: Control
+     */
     void Initialize();
 
     //! Registers a just-written chunk.
-    void RegisterNewChunk(IChunkPtr chunk);
-
-    //! Registers a chunk found during startup.
-    void RegisterExistingChunk(IChunkPtr chunk);
+    void RegisterNewChunk(const IChunkPtr& chunk);
 
     //! Triggers another round of master notification for a chunk that is already registered.
     /*!
@@ -48,10 +50,10 @@ public:
      *  with the session finishes. Finally, when such a chunk is sealed it gets re-registered again
      *  (with "sealed" replica type).
      */
-    void UpdateExistingChunk(IChunkPtr chunk);
+    void UpdateExistingChunk(const IChunkPtr& chunk);
 
     //! Unregisters the chunk but does not remove any of its files.
-    void UnregisterChunk(IChunkPtr chunk);
+    void UnregisterChunk(const IChunkPtr& chunk);
 
     //! Finds a chunk by id on the specified medium (or on the highest priority
     //! medium if #mediumIndex == AllMediaIndex).
@@ -92,7 +94,7 @@ public:
     /*!
      *  This call also evicts the reader from the cache thus hopefully closing the file.
      */
-    TFuture<void> RemoveChunk(IChunkPtr chunk);
+    TFuture<void> RemoveChunk(const IChunkPtr& chunk);
 
     //! Finds a suitable storage location for a new chunk.
     /*!
@@ -107,6 +109,9 @@ public:
      *  placement id is returned.
      *
      *  Throws exception if no suitable location could be found.
+     *
+     *  \note
+     *  Thread affinity: any
      */
     TStoreLocationPtr GetNewChunkLocation(
         TSessionId sessionId,
@@ -116,10 +121,10 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TStoreLocationPtr>, Locations);
 
     //! Raised when a chunk is added to the store.
-    DEFINE_SIGNAL(void(IChunkPtr), ChunkAdded);
+    DEFINE_SIGNAL(void(const IChunkPtr&), ChunkAdded);
 
     //! Raised when a chunk is removed from the store.
-    DEFINE_SIGNAL(void(IChunkPtr), ChunkRemoved);
+    DEFINE_SIGNAL(void(const IChunkPtr&), ChunkRemoved);
 
 private:
     const TDataNodeConfigPtr Config_;
@@ -132,45 +137,47 @@ private:
         i64 DiskSpace = 0;
     };
 
-    NConcurrency::TReaderWriterSpinLock ChunkMapLock_;
-
     struct TPlacementInfo
     {
         int CurrentLocationIndex;
         std::multimap<TInstant, NChunkClient::TPlacementId>::iterator DeadlineIterator;
     };
 
+    TSpinLock PlacementLock_;
     THashMap<NChunkClient::TPlacementId, TPlacementInfo> PlacementIdToInfo_;
     std::multimap<TInstant, NChunkClient::TPlacementId> DeadlineToPlacementId_;
 
+    NConcurrency::TReaderWriterSpinLock ChunkMapLock_;
     // A chunk may have multiple copies present on one node - as long as those
     // copies are placed on distinct media.
     // Such copies may have different sizes, too.
     THashMultiMap<TChunkId, TChunkEntry> ChunkMap_;
 
-    using TChunkIdEntryPair = decltype(ChunkMap_)::value_type;
+    void InitializeLocation(const TStoreLocationPtr& location);
 
     bool CanStartNewSession(
         const TStoreLocationPtr& location,
         int mediumIndex,
         const TWorkloadDescriptor& workloadDescriptor);
 
-    void DoRegisterChunk(const IChunkPtr& chunk);
+    void DoRegisterExistingChunk(const IChunkPtr& chunk);
+
+    void OnChunkRegistered(const IChunkPtr& chunk);
 
     //! Returns an already stored chunk that has same ID and location medium
     //! name as #chunk. Returns |nullptr| if there's no such chunk.
     //! NB. Unlike #FindChunk(), this doesn't use medium name-to-index mapping.
-    TChunkEntry FindExistingChunk(IChunkPtr chunk) const;
+    TChunkEntry DoFindExistingChunk(const IChunkPtr& chunk) const;
 
     //! Updates #oldChunk's entry with info about #newChunk and returns that info.
-    TChunkEntry DoUpdateChunk(IChunkPtr oldChunk, IChunkPtr newChunk);
+    TChunkEntry DoUpdateChunk(const IChunkPtr& oldChunk, const IChunkPtr& newChunk);
 
-    TChunkEntry DoEraseChunk(IChunkPtr chunk);
+    TChunkEntry DoEraseChunk(const IChunkPtr& chunk);
 
-    static TChunkEntry BuildEntry(IChunkPtr chunk);
+    static TChunkEntry BuildChunkEntry(const IChunkPtr& chunk);
     IChunkPtr CreateFromDescriptor(const TStoreLocationPtr& location, const TChunkDescriptor& descriptor);
 
-    TPlacementInfo* GetOrCreatePlacementInfo(const NChunkClient::TPlacementId& placementId);
+    TPlacementInfo* GetOrCreatePlacementInfo(NChunkClient::TPlacementId placementId);
     void ExpirePlacementInfos();
 
     void OnProfiling();

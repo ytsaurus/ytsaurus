@@ -262,14 +262,14 @@ private:
      *  Places the chunk into a list and reports its arrival
      *  to the master upon a next heartbeat.
      */
-    void OnChunkAdded(IChunkPtr chunk);
+    void OnChunkAdded(const IChunkPtr& chunk);
 
     //! Handles removal of existing chunks.
     /*!
      *  Places the chunk into a list and reports its removal
      *  to the master upon a next heartbeat.
      */
-    void OnChunkRemoved(IChunkPtr chunk);
+    void OnChunkRemoved(const IChunkPtr& chunk);
 
     //! Returns the channel used for registering at and reporting heartbeats
     //! to the leader of a given cell.

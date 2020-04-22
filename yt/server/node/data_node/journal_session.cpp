@@ -2,6 +2,7 @@
 #include "chunk_store.h"
 #include "journal_chunk.h"
 #include "journal_dispatcher.h"
+#include "location.h"
 
 #include <yt/server/node/cell_node/bootstrap.h>
 
@@ -19,25 +20,10 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkInfo TJournalSession::GetChunkInfo() const
-{
-    TChunkInfo info;
-    info.set_disk_space(Chunk_->GetDataSize());
-    info.set_sealed(Chunk_->IsSealed());
-    return info;
-}
-
 TFuture<void> TJournalSession::DoStart()
 {
-    Chunk_ = New<TJournalChunk>(
-        Bootstrap_,
-        Location_,
-        TChunkDescriptor(GetChunkId()));
-    Chunk_->SetActive(true);
-
-    const auto& chunkStore = Bootstrap_->GetChunkStore();
-    chunkStore->RegisterNewChunk(Chunk_);
-
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
     auto asyncChangelog = dispatcher->CreateChangelog(
         Location_,
@@ -46,42 +32,57 @@ TFuture<void> TJournalSession::DoStart()
         Options_.WorkloadDescriptor);
 
     return asyncChangelog.Apply(BIND([=, this_ = MakeStrong(this)] (const IChangelogPtr& changelog) {
-        if (Chunk_->IsRemoveScheduled()) {
-            THROW_ERROR_EXCEPTION("Chunk %v is scheduled for removal",
-                GetId());
-        }
-        Chunk_->AttachChangelog(changelog);
-    }).AsyncVia(Bootstrap_->GetControlInvoker()));
+        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+        Changelog_ = changelog;
+        Chunk_ = New<TJournalChunk>(
+            Bootstrap_,
+            Location_,
+            TChunkDescriptor(GetChunkId()));
+        Chunk_->SetActive(true);
+        ChunkUpdateGuard_ = TChunkUpdateGuard::Acquire(Chunk_);
+
+        const auto& chunkStore = Bootstrap_->GetChunkStore();
+        chunkStore->RegisterNewChunk(Chunk_);
+    }).AsyncVia(SessionInvoker_));
 }
 
 void TJournalSession::DoCancel(const TError& /*error*/)
 {
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
     OnFinished();
 }
 
-TFuture<IChunkPtr> TJournalSession::DoFinish(
+TFuture<TChunkInfo> TJournalSession::DoFinish(
     const TRefCountedChunkMetaPtr& /*chunkMeta*/,
     std::optional<int> blockCount)
 {
-    auto changelog = Chunk_->GetAttachedChangelog();
-    auto result = changelog->Close();
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+    auto result = Changelog_->Close();
 
     if (blockCount) {
-        if (*blockCount != changelog->GetRecordCount()) {
+        if (*blockCount != Changelog_->GetRecordCount()) {
             THROW_ERROR_EXCEPTION("Block count mismatch in journal session %v: expected %v, got %v",
                 SessionId_,
-                changelog->GetRecordCount(),
+                Changelog_->GetRecordCount(),
                 *blockCount);
         }
         result = result.Apply(BIND(&TJournalChunk::Seal, Chunk_)
-            .AsyncVia(Bootstrap_->GetControlInvoker()));
+            .AsyncVia(SessionInvoker_));
     }
 
-    return result.Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) -> IChunkPtr {
+    return result.Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
         OnFinished();
+
         error.ThrowOnError();
-        return IChunkPtr(Chunk_);
-    }).AsyncVia(Bootstrap_->GetControlInvoker()));
+
+        TChunkInfo info;
+        info.set_disk_space(Chunk_->GetCachedDataSize());
+        info.set_sealed(Chunk_->IsSealed());
+        return info;
+    }).AsyncVia(SessionInvoker_));
 }
 
 TFuture<void> TJournalSession::DoPutBlocks(
@@ -89,8 +90,9 @@ TFuture<void> TJournalSession::DoPutBlocks(
     const std::vector<TBlock>& blocks,
     bool /*enableCaching*/)
 {
-    auto changelog = Chunk_->GetAttachedChangelog();
-    int recordCount = changelog->GetRecordCount();
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+    int recordCount = Changelog_->GetRecordCount();
 
     if (startBlockIndex > recordCount) {
         THROW_ERROR_EXCEPTION("Missing blocks %v:%v-%v",
@@ -100,7 +102,7 @@ TFuture<void> TJournalSession::DoPutBlocks(
     }
 
     if (startBlockIndex < recordCount) {
-        YT_LOG_DEBUG("Skipped duplicate blocks %v:%v-%v",
+        YT_LOG_DEBUG("Skipped duplicate blocks (BlockIds: %v:%v-%v)",
             GetId(),
             startBlockIndex,
             recordCount - 1);
@@ -111,12 +113,14 @@ TFuture<void> TJournalSession::DoPutBlocks(
          index < static_cast<int>(blocks.size());
          ++index)
     {
-        lastAppendResult = changelog->Append(blocks[index].Data);
+        lastAppendResult = Changelog_->Append(blocks[index].Data);
     }
 
     if (lastAppendResult) {
         LastAppendResult_ = lastAppendResult;
     }
+
+    Chunk_->UpdateCachedParams(Changelog_);
 
     return VoidFuture;
 }
@@ -126,13 +130,16 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TJournalSession::DoSendBlocks(
     int /*blockCount*/,
     const TNodeDescriptor& /*target*/)
 {
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
     THROW_ERROR_EXCEPTION("Sending blocks is not supported for journal chunks");
 }
 
 TFuture<void> TJournalSession::DoFlushBlocks(int blockIndex)
 {
-    auto changelog = Chunk_->GetAttachedChangelog();
-    int recordCount = changelog->GetRecordCount();
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+    int recordCount = Changelog_->GetRecordCount();
 
     if (blockIndex > recordCount) {
         THROW_ERROR_EXCEPTION("Missing blocks %v:%v-%v",
@@ -146,7 +153,12 @@ TFuture<void> TJournalSession::DoFlushBlocks(int blockIndex)
 
 void TJournalSession::OnFinished()
 {
-    Chunk_->DetachChangelog();
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+
+    if (Changelog_) {
+        Chunk_->UpdateCachedParams(Changelog_);
+    }
+    
     Chunk_->SetActive(false);
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();

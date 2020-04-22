@@ -38,20 +38,13 @@ struct IChunk
     virtual NChunkClient::NProto::TChunkInfo GetInfo() const = 0;
 
     virtual int GetVersion() const = 0;
-    virtual void IncrementVersion() = 0;
+    virtual int IncrementVersion() = 0;
 
     //! Returns |true| iff there is an active session for this chunk.
-    virtual bool IsActive() const = 0;
-
-    //! Marks the chunk as dead, e.g. removed.
-    virtual void SetDead() = 0;
-
-    //! Returns |true| if the chunk is still registered.
     /*!
-     *  \note
-     *  Thread affinity: any
+     *  For blob chunks this is always |false|.
      */
-    virtual bool IsAlive() const = 0;
+    virtual bool IsActive() const = 0;
 
     //! Returns the full path to the chunk data file.
     virtual TString GetFileName() const = 0;
@@ -85,15 +78,16 @@ struct IChunk
         int blockCount,
         const TBlockReadOptions& options) = 0;
 
-    //! Tries to acquire a read lock and increments the lock counter.
+    //! Tries to acquire a read lock; throws on failure.
     /*!
      *  Succeeds if removal is not scheduled yet.
+     *  Concurrent update locks do not interfere with read locks.
      *  Returns |true| on success, |false| on failure.
      *
      *  \note
      *  Thread affinity: any
      */
-    virtual bool TryAcquireReadLock() = 0;
+    virtual void AcquireReadLock() = 0;
 
     //! Releases an earlier acquired read lock, decrements the lock counter.
     /*!
@@ -105,13 +99,26 @@ struct IChunk
      */
     virtual void ReleaseReadLock() = 0;
 
-    //! Returns |true| iff a read lock is acquired.
+    //! Tries to acquire an update lock; throws on failure.
     /*!
+     *  Succeeds if removal is not scheduled yet and no other update lock is
+     *  currently taken.
+     *
      *  \note
      *  Thread affinity: any
      */
-    virtual bool IsReadLockAcquired() const = 0;
+    virtual void AcquireUpdateLock() = 0;
 
+    //! Releases an earlier acquired update lock.
+    /*!
+     *  If this was the last lock and chunk removal is pending,
+     *  enqueues removal actions to the appropriate thread.
+     *
+     *  \note
+     *  Thread affinity: any
+     */
+    virtual void ReleaseUpdateLock() = 0;
+ 
     //! Marks the chunk as pending for removal.
     /*!
      *  After this call, no new read locks can be taken.
@@ -153,20 +160,37 @@ public:
     TChunkReadGuard(TChunkReadGuard&& other) = default;
     ~TChunkReadGuard();
 
-    TChunkReadGuard& operator = (TChunkReadGuard&& other);
+    TChunkReadGuard& operator = (TChunkReadGuard&& other) = default;
 
     explicit operator bool() const;
 
-    friend void swap(TChunkReadGuard& lhs, TChunkReadGuard& rhs);
-
-    static TChunkReadGuard TryAcquire(IChunkPtr chunk);
-    static TChunkReadGuard AcquireOrThrow(IChunkPtr chunk);
+    static TChunkReadGuard Acquire(IChunkPtr chunk);
 
 private:
     explicit TChunkReadGuard(IChunkPtr chunk);
 
     IChunkPtr Chunk_;
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkUpdateGuard
+{
+public:
+    TChunkUpdateGuard() = default;
+    TChunkUpdateGuard(TChunkUpdateGuard&& other) = default;
+    ~TChunkUpdateGuard();
+
+    TChunkUpdateGuard& operator = (TChunkUpdateGuard&& other) = default;
+
+    explicit operator bool() const;
+
+    static TChunkUpdateGuard Acquire(IChunkPtr chunk);
+
+private:
+    explicit TChunkUpdateGuard(IChunkPtr chunk);
+
+    IChunkPtr Chunk_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

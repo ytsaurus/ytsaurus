@@ -37,6 +37,8 @@ const TString& TDiskLocation::GetId() const
 
 bool TDiskLocation::IsEnabled() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Enabled_.load();
 }
 

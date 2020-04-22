@@ -732,10 +732,10 @@ struct TNode
     : public TRefCounted
 {
     const TNodeDescriptor Descriptor;
-    TInMemorySessionId SessionId;
-    TInMemoryServiceProxy Proxy;
+    const TInMemorySessionId SessionId;
     const TDuration ControlRpcTimeout;
 
+    TInMemoryServiceProxy Proxy;
     TPeriodicExecutorPtr PingExecutor;
 
     TNode(
@@ -745,18 +745,9 @@ struct TNode
         const TDuration controlRpcTimeout)
         : Descriptor(descriptor)
         , SessionId(sessionId)
-        , Proxy(std::move(channel))
         , ControlRpcTimeout(controlRpcTimeout)
+        , Proxy(std::move(channel))
     { }
-
-    void OnPingSent(const TInMemoryServiceProxy::TErrorOrRspPingSessionPtr& rspOrError)
-    {
-        if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Ping failed (Address: %v, SessionId: %v)",
-                Descriptor.GetDefaultAddress(),
-                SessionId);
-        }
-    }
 
     void SendPing()
     {
@@ -768,8 +759,13 @@ struct TNode
         req->SetTimeout(ControlRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId);
         req->Invoke().Subscribe(
-            BIND(&TNode::OnPingSent, MakeWeak(this))
-                .Via(NChunkClient::TDispatcher::Get()->GetWriterInvoker()));
+            BIND([=, this_ = MakeStrong(this)] (const TInMemoryServiceProxy::TErrorOrRspPingSessionPtr& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    YT_LOG_WARNING(rspOrError, "Ping failed (Address: %v, SessionId: %v)",
+                        Descriptor.GetDefaultAddress(),
+                        SessionId);
+                }
+            }));
     }
 };
 

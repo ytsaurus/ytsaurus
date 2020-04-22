@@ -27,14 +27,8 @@ TJournalChunkPtr IChunk::AsJournalChunk()
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkReadGuard::TChunkReadGuard(IChunkPtr chunk)
-    : Chunk_(chunk)
+    : Chunk_(std::move(chunk))
 { }
-
-TChunkReadGuard& TChunkReadGuard::operator=(TChunkReadGuard&& other)
-{
-    swap(*this, other);
-    return *this;
-}
 
 TChunkReadGuard::~TChunkReadGuard()
 {
@@ -48,29 +42,34 @@ TChunkReadGuard::operator bool() const
     return Chunk_.operator bool();
 }
 
-void swap(TChunkReadGuard& lhs, TChunkReadGuard& rhs)
+TChunkReadGuard TChunkReadGuard::Acquire(IChunkPtr chunk)
 {
-    using std::swap;
-    swap(lhs.Chunk_, rhs.Chunk_);
+    chunk->AcquireReadLock();
+    return TChunkReadGuard(std::move(chunk));
 }
 
-TChunkReadGuard TChunkReadGuard::TryAcquire(IChunkPtr chunk)
-{
-    return chunk->TryAcquireReadLock()
-        ? TChunkReadGuard(chunk)
-        : TChunkReadGuard();
-}
+////////////////////////////////////////////////////////////////////////////////
 
-TChunkReadGuard TChunkReadGuard::AcquireOrThrow(IChunkPtr chunk)
+TChunkUpdateGuard::TChunkUpdateGuard(IChunkPtr chunk)
+    : Chunk_(std::move(chunk))
+{ }
+
+TChunkUpdateGuard::~TChunkUpdateGuard()
 {
-    auto guard = TryAcquire(chunk);
-    if (!guard) {
-        THROW_ERROR_EXCEPTION(
-            NChunkClient::EErrorCode::NoSuchChunk,
-            "Cannot read chunk %v since it is scheduled for removal",
-            chunk->GetId());
+    if (Chunk_) {
+        Chunk_->ReleaseUpdateLock();
     }
-    return guard;
+}
+
+TChunkUpdateGuard::operator bool() const
+{
+    return Chunk_.operator bool();
+}
+
+TChunkUpdateGuard TChunkUpdateGuard::Acquire(IChunkPtr chunk)
+{
+    chunk->AcquireUpdateLock();
+    return TChunkUpdateGuard(std::move(chunk));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

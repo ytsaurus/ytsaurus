@@ -22,6 +22,7 @@
 
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/optional.h>
+
 #include <yt/core/ytalloc/memory_zone.h>
 
 namespace NYT::NTabletNode {
@@ -59,7 +60,7 @@ public:
         TInMemoryManagerConfigPtr config,
         NCellNode::TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetControlInvoker(),
+            bootstrap->GetStorageLightInvoker(),
             TInMemoryServiceProxy::GetDescriptor(),
             TabletNodeLogger)
         , Config_(config)
@@ -75,14 +76,12 @@ private:
     const TInMemoryManagerConfigPtr Config_;
     NCellNode::TBootstrap* const Bootstrap_;
 
+    TReaderWriterSpinLock SessionMapLock_;
     THashMap<TInMemorySessionId, TInMemorySessionPtr> SessionMap_;
 
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     DECLARE_RPC_SERVICE_METHOD(NTabletNode::NProto, StartSession)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         auto inMemoryMode = FromProto<EInMemoryMode>(request->in_memory_mode());
 
         context->SetRequestInfo("InMemoryMode: %v", inMemoryMode);
@@ -92,7 +91,7 @@ private:
         auto lease = TLeaseManager::CreateLease(
             Config_->InterceptedDataRetentionTime,
             BIND(&TInMemoryService::OnSessionLeaseExpired, MakeStrong(this), sessionId)
-                .Via(Bootstrap_->GetControlInvoker()));
+                .Via(Bootstrap_->GetStorageLightInvoker()));
 
         auto interceptingBlockCache = Bootstrap_->GetInMemoryManager()->CreateInterceptingBlockCache(
             inMemoryMode);
@@ -103,7 +102,7 @@ private:
 
         YT_LOG_DEBUG("In-memory session started (SessionId: %v)", sessionId);
 
-        YT_VERIFY(SessionMap_.emplace(sessionId, session).second);
+        RegisterSession(sessionId, std::move(session));
 
         ToProto(response->mutable_session_id(), sessionId);
 
@@ -114,8 +113,6 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletNode::NProto, FinishSession)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         auto sessionId = FromProto<TInMemorySessionId>(request->session_id());
         context->SetRequestInfo("SessionId: %v, TabletIds: %v, ChunkIds: %v",
             sessionId,
@@ -148,13 +145,17 @@ private:
                 .ThrowOnError();
         }
 
-        if (auto session = FindSession(sessionId)) {
-            TLeaseManager::CloseLease(session->Lease);
-            YT_VERIFY(SessionMap_.erase(sessionId));
+        {
+            TWriterGuard guard(SessionMapLock_);
+            if (auto it = SessionMap_.find(sessionId)) {
+                const auto& session = it->second;
+                TLeaseManager::CloseLease(session->Lease);
+                YT_VERIFY(SessionMap_.erase(sessionId));
 
-            YT_LOG_DEBUG("In-memory session finished (SessionId: %v)", sessionId);
-        } else {
-            YT_LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
+                YT_LOG_DEBUG("In-memory session finished (SessionId: %v)", sessionId);
+            } else {
+                YT_LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
+            }
         }
 
         context->Reply();
@@ -162,78 +163,94 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTabletNode::NProto, PutBlocks)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
         auto sessionId = FromProto<TInMemorySessionId>(request->session_id());
-        context->SetRequestInfo("SessionId: %v", sessionId);
 
-        auto session = FindSession(sessionId);
+        context->SetRequestInfo("SessionId: %v, BlockCount: %v",
+            sessionId,
+            request->block_ids_size());
 
-        if (!session) {
-            YT_LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
+        if (auto session = FindSession(sessionId)) {
+            RenewSessionLease(session);
 
+            for (int index = 0; index < request->block_ids_size(); ++index) {
+                auto blockId = FromProto<TBlockId>(request->block_ids(index));
+
+                session->InterceptingBlockCache->Put(
+                    blockId,
+                    session->InterceptingBlockCache->GetSupportedBlockTypes(),
+                    TBlock(request->Attachments()[index]),
+                    std::nullopt);
+            }
+
+            bool dropped = Bootstrap_->GetMemoryUsageTracker()->IsExceeded(
+                NNodeTrackerClient::EMemoryCategory::TabletStatic);
+
+            response->set_dropped(dropped);
+        } else {
+            YT_LOG_DEBUG("In-memory session does not exist, blocks dropped (SessionId: %v)",
+                sessionId);
             response->set_dropped(true);
-
-            context->SetResponseInfo("Dropped: %v", true);
-            context->Reply();
-
-            return;
         }
 
-        TLeaseManager::RenewLease(session->Lease);
 
-        for (size_t index = 0; index < request->block_ids_size(); ++index) {
-            auto blockId = FromProto<TBlockId>(request->block_ids(index));
-
-            session->InterceptingBlockCache->Put(
-                blockId,
-                session->InterceptingBlockCache->GetSupportedBlockTypes(),
-                TBlock(request->Attachments()[index]),
-                std::nullopt);
-        }
-
-        bool dropped = Bootstrap_->GetMemoryUsageTracker()->IsExceeded(
-            NNodeTrackerClient::EMemoryCategory::TabletStatic);
-
-        response->set_dropped(dropped);
-
-        context->SetResponseInfo("Dropped: %v", dropped);
+        context->SetResponseInfo("Dropped: %v", response->dropped());
         context->Reply();
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletNode::NProto, PingSession)
     {
         auto sessionId = FromProto<TInMemorySessionId>(request->session_id());
+        
         context->SetRequestInfo("SessionId: %v", sessionId);
 
-        if (auto session = FindSession(sessionId)) {
-            TLeaseManager::RenewLease(session->Lease);
-        } else {
-            YT_LOG_DEBUG("In-memory session does not exist (SessionId: %v)", sessionId);
-        }
+        auto session = GetSessionOrThrow(sessionId);
+        RenewSessionLease(session);
 
         context->Reply();
     }
 
+    
     void OnSessionLeaseExpired(TInMemorySessionId sessionId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        TWriterGuard guard(SessionMapLock_);
 
-        auto session = FindSession(sessionId);
-        if (!session) {
+        auto it = SessionMap_.find(sessionId);
+        if (it == SessionMap_.end()) {
             return;
         }
 
         YT_LOG_INFO("Session lease expired (SessionId: %v)",
             sessionId);
 
-        YT_VERIFY(SessionMap_.erase(sessionId));
+        YT_VERIFY(SessionMap_.erase(sessionId) == 1);
+    }
+
+    void RegisterSession(TInMemorySessionId sessionId, TInMemorySessionPtr session)
+    {
+        TWriterGuard guard(SessionMapLock_);
+        YT_VERIFY(SessionMap_.emplace(sessionId, std::move(session)).second);
     }
 
     TInMemorySessionPtr FindSession(TInMemorySessionId sessionId)
     {
+        TReaderGuard guard(SessionMapLock_);
         auto it = SessionMap_.find(sessionId);
         return it == SessionMap_.end() ? nullptr : it->second;
+    }
+
+    TInMemorySessionPtr GetSessionOrThrow(TInMemorySessionId sessionId)
+    {
+        auto session = FindSession(sessionId);
+        if (!session) {
+            THROW_ERROR_EXCEPTION("In-memory session %v does not exist",
+                sessionId);
+        }
+        return session;
+    }
+
+    void RenewSessionLease(const TInMemorySessionPtr& session)
+    {
+        TLeaseManager::RenewLease(session->Lease);
     }
 };
 

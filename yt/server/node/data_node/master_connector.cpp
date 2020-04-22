@@ -656,6 +656,9 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 
     *request->mutable_statistics() = ComputeStatistics();
 
+    const auto& sessionManager = Bootstrap_->GetSessionManager();
+    request->set_write_sessions_disabled(sessionManager->GetDisableWriteSessions());
+
     TMediumIntMap chunkCounts;
 
     int storedChunkCount = 0;
@@ -754,8 +757,8 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     WaitFor(IncrementalHeartbeatThrottler_[cellTag]->Throttle(1))
         .ThrowOnError();
 
-    auto Logger = DataNodeLogger;
-    Logger.AddTag("CellTag: %v", cellTag);
+    auto Logger = NLogging::TLogger(DataNodeLogger)
+        .AddTag("CellTag: %v", cellTag);
 
     auto primaryCellTag = CellTagFromId(Bootstrap_->GetCellId());
 
@@ -770,6 +773,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
     request->set_node_id(GetNodeId());
 
     *request->mutable_statistics() = ComputeStatistics();
+
+    const auto& sessionManager = Bootstrap_->GetSessionManager();
+    request->set_write_sessions_disabled(sessionManager->GetDisableWriteSessions());
 
     ToProto(request->mutable_alerts(), GetAlerts());
 
@@ -1163,7 +1169,7 @@ void TMasterConnector::Reset()
     YT_LOG_INFO("Master disconnected");
 }
 
-void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
+void TMasterConnector::OnChunkAdded(const IChunkPtr& chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1182,7 +1188,7 @@ void TMasterConnector::OnChunkAdded(IChunkPtr chunk)
         chunk->GetLocation()->GetId());
 }
 
-void TMasterConnector::OnChunkRemoved(IChunkPtr chunk)
+void TMasterConnector::OnChunkRemoved(const IChunkPtr& chunk)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
