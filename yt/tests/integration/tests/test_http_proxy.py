@@ -135,6 +135,13 @@ class TestHttpProxy(HttpProxyTestBase):
         assert "summary" in versions
 
     @authors("prime")
+    def test_cache_control(self):
+        rsp = requests.get(self.proxy_address() + "/api/v4/get?path=//@")
+        rsp.raise_for_status()
+
+        assert rsp.headers['cache-control'] == 'no-cache'
+
+    @authors("prime")
     def test_dynamic_config(self):
         monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
         config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
