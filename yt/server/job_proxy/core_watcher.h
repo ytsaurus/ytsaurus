@@ -17,6 +17,8 @@
 #include <yt/core/concurrency/async_rw_lock.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <yt/core/net/public.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,6 +30,26 @@ struct TCoreResult
 
     TCoreResult();
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGpuCoreReader
+    : public TRefCounted
+{
+public:
+    explicit TGpuCoreReader(const TString& corePipePath);
+
+    //! Returns number of bytes available to read.
+    i64 GetBytesAvailable() const;
+
+    NNet::IConnectionReaderPtr CreateAsyncReader();
+
+private:
+    const TString Path_;
+    int Fd_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TGpuCoreReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,11 +108,15 @@ private:
     TCoreResult CoreResult_;
     TSpinLock CoreInfosLock_;
 
+    TGpuCoreReaderPtr GpuCoreReader_;
+
     NLogging::TLogger Logger;
 
     void DoWatchCores();
 
-    NCoreDump::NProto::TCoreInfo DoProcessCore(const TString& coreName, int coreIndex);
+    NCoreDump::NProto::TCoreInfo DoProcessLinuxCore(const TString& coreName, int coreIndex);
+    NCoreDump::NProto::TCoreInfo DoProcessGpuCore(NConcurrency::IAsyncInputStreamPtr coreStream, int coreIndex);
+    i64 DoReadCore(const NConcurrency::IAsyncInputStreamPtr& coreStream, const TString& coreName, int coreIndex);
     void DoAddCoreInfo(const TErrorOr<NCoreDump::NProto::TCoreInfo>& coreInfo);
 };
 

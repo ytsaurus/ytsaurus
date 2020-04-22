@@ -92,6 +92,12 @@ IConnectionPtr CreateConnectionFromFD(
     const TNetworkAddress& remoteAddress,
     const NConcurrency::IPollerPtr& poller);
 
+IConnectionReaderPtr CreateInputConnectionFromFD(
+    int fd,
+    const TString& pipePath,
+    const NConcurrency::IPollerPtr& poller,
+    const TIntrusivePtr<TRefCounted>& pipeHolder);
+
 IConnectionReaderPtr CreateInputConnectionFromPath(
     const TString& pipePath,
     const NConcurrency::IPollerPtr& poller,

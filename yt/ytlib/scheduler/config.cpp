@@ -819,6 +819,9 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
         .Alias("core_table_writer_config")
         .DefaultNew();
 
+    RegisterParameter("enable_cuda_gpu_core_dump", EnableCudaGpuCoreDump)
+        .Default(false);
+
     RegisterPostprocessor([&] {
         if (StderrTablePath) {
             *StderrTablePath = StderrTablePath->Normalize();
@@ -826,6 +829,10 @@ TOperationWithUserJobSpec::TOperationWithUserJobSpec()
 
         if (CoreTablePath) {
             *CoreTablePath = CoreTablePath->Normalize();
+        }
+
+        if (EnableCudaGpuCoreDump && !CoreTablePath) {
+            THROW_ERROR_EXCEPTION("\"enable_cuda_gpu_core_dump\" option requires \"core_table_path\" options to be set");
         }
     });
 }

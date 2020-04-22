@@ -287,6 +287,11 @@ public:
         return Spec_->CoreTableWriter;
     }
 
+    virtual bool GetEnableCudaGpuCoreDump() const override
+    {
+        return Spec_->EnableCudaGpuCoreDump;
+    }
+
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const
     {
         return TStringBuf();

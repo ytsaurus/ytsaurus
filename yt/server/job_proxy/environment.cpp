@@ -1,5 +1,7 @@
 #include "environment.h"
 
+#include <yt/server/lib/core_dump/public.h>
+
 #include <yt/server/lib/exec_agent/config.h>
 
 #include <yt/server/lib/job_agent/gpu_helpers.h>
@@ -21,6 +23,8 @@
 #include <yt/core/misc/proc.h>
 
 #include <yt/core/ytree/convert.h>
+
+#include <sys/stat.h>
 
 namespace NYT::NJobProxy {
 
@@ -504,6 +508,8 @@ public:
         int uid,
         const TUserJobProcessOptions& options) override
     {
+        TString gpuCorePipeFile;
+
         if (options.CoreWatcherDirectory) {
             // NB: Core watcher expects core info file to be created before
             // core pipe file.
@@ -523,6 +529,17 @@ public:
             YT_LOG_DEBUG("Enabling core forwarding for Porto container (CoreHandler: %v)",
                 coreHandler);
             Instance_->SetCoreDumpHandler(coreHandler);
+
+            if (options.EnableCudaGpuCoreDump) {
+                gpuCorePipeFile = NFS::CombinePaths(coreDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
+                YT_LOG_DEBUG("Creating pipe for GPU core dumps (GpuCorePipeFile: %v)",
+                    gpuCorePipeFile);
+                if (mkfifo(gpuCorePipeFile.c_str(), 0666) == -1) {
+                    THROW_ERROR_EXCEPTION("Failed to create CUDA GPU core dump pipe")
+                        << TErrorAttribute("path", gpuCorePipeFile)
+                        << TError::FromSystem();
+                }
+            }
         }
 
         Instance_->SetEnablePorto(options.EnablePorto);
@@ -542,6 +559,10 @@ public:
         UserId_ = uid;
         Process_ = New<TPortoProcess>(adjustedPath, Instance_, false);
         Process_->AddArguments({"--uid", ::ToString(uid)});
+        if (options.EnableCudaGpuCoreDump) {
+            Process_->AddArguments({"--env", "CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1"});
+            Process_->AddArguments({"--env", Format("CUDA_COREDUMP_FILE=%v", gpuCorePipeFile)});
+        }
 
         return Process_;
     }
