@@ -42,6 +42,7 @@ default_api_version = 4
 SortOrderViolation = 301
 UniqueKeyViolation = 306
 SchemaViolation = 307
+IncompatibleKeyColumns = 311
 InvalidSchemaValue = 314
 ResolveErrorCode = 500
 AuthorizationErrorCode = 901
