@@ -169,11 +169,6 @@ private:
     void RequestBlockSet(TReadBlockSetSessionPtr session)
     {
         try {
-            if (!Chunk_->IsAlive()) {
-                ThrowError(TError("Local chunk %v is no longer available",
-                    Chunk_->GetId()));
-            }
-
             std::vector<int> localIndexes;
             std::vector<int> blockIndexes;
             for (int index = 0; index < session->Blocks.size(); ++index) {

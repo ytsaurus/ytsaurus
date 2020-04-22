@@ -17,7 +17,6 @@ TCallback<T()> TLocation::DisableOnError(const TCallback<T()> callback)
             return callback.Run();
         } catch (const std::exception& ex) {
             Disable(ex);
-            YT_ABORT(); // Disable() exits the process.
         }
     });
 }

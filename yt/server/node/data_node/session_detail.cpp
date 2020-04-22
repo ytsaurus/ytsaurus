@@ -33,7 +33,7 @@ TSessionBase::TSessionBase(
     , Options_(options)
     , Location_(location)
     , Lease_(std::move(lease))
-    , WriteInvoker_(CreateSerializedInvoker(Location_->GetWritePoolInvoker()))
+    , SessionInvoker_(CreateBoundedConcurrencyInvoker(Location_->GetWritePoolInvoker(), 1))
     , Logger(NLogging::TLogger(DataNodeLogger)
         .AddTag("LocationId: %v, ChunkId: %v",
             Location_->GetId(),
@@ -43,21 +43,26 @@ TSessionBase::TSessionBase(
     YT_VERIFY(Bootstrap_);
     YT_VERIFY(Location_);
     YT_VERIFY(Lease_);
-    VERIFY_THREAD_AFFINITY(ControlThread);
 }
 
 TChunkId TSessionBase::GetChunkId() const&
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return SessionId_.ChunkId;
 }
 
 TSessionId TSessionBase::GetId() const&
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return SessionId_;
 }
 
 ESessionType TSessionBase::GetType() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     switch (Options_.WorkloadDescriptor.Category) {
         case EWorkloadCategory::SystemRepair:
             return ESessionType::Repair;
@@ -70,10 +75,12 @@ ESessionType TSessionBase::GetType() const
 
 const TWorkloadDescriptor& TSessionBase::GetWorkloadDescriptor() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Options_.WorkloadDescriptor;
 }
 
-TStoreLocationPtr TSessionBase::GetStoreLocation() const
+const TStoreLocationPtr& TSessionBase::GetStoreLocation() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -82,77 +89,90 @@ TStoreLocationPtr TSessionBase::GetStoreLocation() const
 
 TFuture<void> TSessionBase::Start()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     YT_LOG_DEBUG("Starting session");
 
-    return DoStart()
+    return
+        BIND(&TSessionBase::DoStart, MakeStrong(this))
+            .AsyncVia(SessionInvoker_)
+            .Run()
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            VERIFY_THREAD_AFFINITY(ControlThread);
+                VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-            YT_VERIFY(!Active_);
-            Active_ = true;
+                YT_VERIFY(!Active_);
+                Active_ = true;
 
-            if (error.IsOK()) {
+                if (!error.IsOK()) {
+                    YT_LOG_DEBUG(error, "Session has failed to start");
+                    Cancel(error);
+                    THROW_ERROR(error);
+                }
+
                 YT_LOG_DEBUG("Session started");
+
                 if (!PendingCancelationError_.IsOK()) {
                     Cancel(PendingCancelationError_);
                 }
-            } else {
-                YT_LOG_DEBUG(error, "Session has failed to start");
-                Cancel(error);
-            }
-        }).AsyncVia(Bootstrap_->GetControlInvoker()))
-        // TODO(babenko): session start cancelation is not properly supported
-        .ToUncancelable();
+            }).AsyncVia(SessionInvoker_))
+            // TODO(babenko): session start cancelation is not properly supported
+            .ToUncancelable();
 }
 
 void TSessionBase::Ping()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     // Let's be generous and accept pings in any state.
-    if (Lease_) {
-        TLeaseManager::RenewLease(Lease_);
-    }
+    TLeaseManager::RenewLease(Lease_);
 }
 
 void TSessionBase::Cancel(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
     YT_VERIFY(!error.IsOK());
 
-    if (!Active_) {
-        YT_LOG_DEBUG(error, "Session will be canceled after becoming active");
-        PendingCancelationError_ = error;
-        return;
-    }
+    SessionInvoker_->Invoke(
+        BIND([=, this_ = MakeStrong(this)] {
+            VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-    YT_LOG_DEBUG(error, "Canceling session");
+            if (!Active_) {
+                YT_LOG_DEBUG(error, "Session will be canceled after becoming active");
+                PendingCancelationError_ = error;
+                return;
+            }
 
-    TLeaseManager::CloseLease(Lease_);
-    Active_ = false;
-    Canceled_.store(true);
+            YT_LOG_DEBUG(error, "Canceling session");
 
-    DoCancel(error);
+            TLeaseManager::CloseLease(Lease_);
+            Active_ = false;
+            Canceled_.store(true);
+
+            DoCancel(error);
+        }));
 }
 
-TFuture<IChunkPtr> TSessionBase::Finish(const TRefCountedChunkMetaPtr& chunkMeta, std::optional<int> blockCount)
+TFuture<NChunkClient::NProto::TChunkInfo> TSessionBase::Finish(
+    const TRefCountedChunkMetaPtr& chunkMeta,
+    std::optional<int> blockCount)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    try {
-        ValidateActive();
+    return
+        BIND([=, this_ = MakeStrong(this)] {
+            VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-        YT_LOG_DEBUG("Finishing session");
+            ValidateActive();
 
-        TLeaseManager::CloseLease(Lease_);
-        Active_ = false;
+            YT_LOG_DEBUG("Finishing session");
 
-        return DoFinish(chunkMeta, blockCount);
-    } catch (const std::exception& ex) {
-        return MakeFuture<IChunkPtr>(ex);
-    }
+            TLeaseManager::CloseLease(Lease_);
+            Active_ = false;
+
+            return DoFinish(chunkMeta, blockCount);
+        })
+        .AsyncVia(SessionInvoker_)
+        .Run();
 }
 
 TFuture<void> TSessionBase::PutBlocks(
@@ -160,16 +180,19 @@ TFuture<void> TSessionBase::PutBlocks(
     const std::vector<TBlock>& blocks,
     bool enableCaching)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    try {
-        ValidateActive();
-        Ping();
+    return
+        BIND([=, this_ = MakeStrong(this)] {
+            VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-        return DoPutBlocks(startBlockIndex, blocks, enableCaching);
-    } catch (const std::exception& ex) {
-        return MakeFuture<void>(ex);
-    }
+            ValidateActive();
+            Ping();
+
+            return DoPutBlocks(startBlockIndex, blocks, enableCaching);
+        })
+        .AsyncVia(SessionInvoker_)
+        .Run();
 }
 
 TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
@@ -177,35 +200,41 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
     int blockCount,
     const TNodeDescriptor& targetDescriptor)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    try {
-        ValidateActive();
-        Ping();
+    return
+        BIND([=, this_ = MakeStrong(this)] {
+            VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-        return DoSendBlocks(startBlockIndex, blockCount, targetDescriptor);
-    } catch (const std::exception& ex) {
-        return MakeFuture<TDataNodeServiceProxy::TRspPutBlocksPtr>(ex);
-    }
+            ValidateActive();
+            Ping();
+
+            return DoSendBlocks(startBlockIndex, blockCount, targetDescriptor);
+        })
+        .AsyncVia(SessionInvoker_)
+        .Run();
 }
 
 TFuture<void> TSessionBase::FlushBlocks(int blockIndex)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    try {
-        ValidateActive();
-        Ping();
+    return
+        BIND([=, this_ = MakeStrong(this)] {
+            VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+            
+            ValidateActive();
+            Ping();
 
-        return DoFlushBlocks(blockIndex);
-    } catch (const std::exception& ex) {
-        return MakeFuture<void>(ex);
-    }
+            return DoFlushBlocks(blockIndex);
+        })
+        .AsyncVia(SessionInvoker_)
+        .Run();
 }
 
 void TSessionBase::ValidateActive() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
     if (!Active_) {
         THROW_ERROR_EXCEPTION("Session is not active");

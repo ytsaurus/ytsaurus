@@ -33,6 +33,11 @@ struct TSessionOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Represents a chunk upload session.
+/*!
+ *  \note
+ *  Thread affinity: any
+ */
 struct ISession
     : public virtual TRefCounted
 {
@@ -49,10 +54,7 @@ struct ISession
     virtual const TWorkloadDescriptor& GetWorkloadDescriptor() const = 0;
 
     //! Returns the target chunk location.
-    virtual TStoreLocationPtr GetStoreLocation() const = 0;
-
-    //! Returns the chunk info.
-    virtual NChunkClient::NProto::TChunkInfo GetChunkInfo() const = 0;
+    virtual const TStoreLocationPtr& GetStoreLocation() const = 0;
 
     //! Starts the session.
     /*!
@@ -66,7 +68,7 @@ struct ISession
     virtual void Cancel(const TError& error) = 0;
 
     //! Finishes the session.
-    virtual TFuture<IChunkPtr> Finish(
+    virtual TFuture<NChunkClient::NProto::TChunkInfo> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) = 0;
 

@@ -96,7 +96,7 @@ public:
         TDataNodeConfigPtr config,
         TBootstrap* bootstrap)
         : TServiceBase(
-            bootstrap->GetControlInvoker(),
+            bootstrap->GetStorageLightInvoker(),
             TDataNodeServiceProxy::GetDescriptor(),
             DataNodeLogger)
         , Config_(config)
@@ -119,7 +119,6 @@ public:
             .SetConcurrencyLimit(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PopulateCache)
-            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000)
             .SetCancelable(true));
@@ -129,40 +128,32 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
-            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockRange)
-            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows)
-            .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
             .SetCancelable(true)
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkMeta)
-            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000)
             .SetHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer)
-            .SetInvoker(Bootstrap_->GetStorageLightInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdatePeer));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableSamples)
-            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetHeavy(true)
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetChunkSlices)
-            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true)
             .SetHeavy(true)
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics)
-            .SetInvoker(Bootstrap_->GetStorageLightInvoker())
             .SetCancelable(true));
     }
 
@@ -193,13 +184,10 @@ private:
             options.PlacementId);
 
         ValidateConnected();
-        ValidateNoSession(sessionId);
-        ValidateNoChunk(sessionId);
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->StartSession(sessionId, options);
-        auto result = session->Start();
-        context->ReplyFrom(result);
+        context->ReplyFrom(session->Start());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk)
@@ -220,15 +208,14 @@ private:
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
             : nullptr;
         session->Finish(meta, blockCount)
-            .Subscribe(BIND([=] (const TErrorOr<IChunkPtr>& chunkOrError) {
-                if (chunkOrError.IsOK()) {
-                    auto chunk = chunkOrError.Value();
-                    const auto& chunkInfo = session->GetChunkInfo();
-                    *response->mutable_chunk_info() = chunkInfo;
-                    context->Reply();
-                } else {
-                    context->Reply(chunkOrError);
+            .Subscribe(BIND([=] (const TErrorOr<TChunkInfo>& chunkInfoOrError) {
+                if (!chunkInfoOrError.IsOK()) {
+                    context->Reply(chunkInfoOrError);
+                    return;
                 }
+
+                *response->mutable_chunk_info() = chunkInfoOrError.Value();
+                context->Reply();
             }));
     }
 
@@ -255,14 +242,14 @@ private:
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
-        auto location = session->GetStoreLocation();
+        const auto& location = session->GetStoreLocation();
+        
         session->Ping();
 
         response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
 
         context->Reply();
     }
-
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PutBlocks)
     {
@@ -277,7 +264,7 @@ private:
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = sessionManager->GetSessionOrThrow(sessionId);
-        auto location = session->GetStoreLocation();
+        const auto& location = session->GetStoreLocation();
 
         context->SetRequestInfo("BlockIds: %v:%v-%v, PopulateCache: %v, FlushBlocks: %v, Medium: %v",
             sessionId,
@@ -1347,25 +1334,6 @@ private:
         }
     }
 
-    void ValidateNoSession(TSessionId sessionId)
-    {
-        if (Bootstrap_->GetSessionManager()->FindSession(sessionId)) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::SessionAlreadyExists,
-                "Session %v already exists",
-                sessionId);
-        }
-    }
-
-    void ValidateNoChunk(TSessionId sessionId)
-    {
-        if (Bootstrap_->GetChunkStore()->FindChunk(sessionId.ChunkId, sessionId.MediumIndex)) {
-            THROW_ERROR_EXCEPTION(
-                NChunkClient::EErrorCode::ChunkAlreadyExists,
-                "Chunk %v already exists",
-                sessionId);
-        }
-    }
 
     static bool ShouldUseDirectIO(EDirectIOPolicy policy, bool writerRequestedDirectIO)
     {

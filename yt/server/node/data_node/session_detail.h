@@ -33,7 +33,7 @@ public:
     virtual TSessionId GetId() const& override;
     virtual ESessionType GetType() const override;
     virtual const TWorkloadDescriptor& GetWorkloadDescriptor() const override;
-    TStoreLocationPtr GetStoreLocation() const override;
+    const TStoreLocationPtr& GetStoreLocation() const override;
 
     virtual TFuture<void> Start() override;
 
@@ -41,7 +41,7 @@ public:
 
     virtual void Cancel(const TError& error) override;
 
-    virtual TFuture<IChunkPtr> Finish(
+    virtual TFuture<NChunkClient::NProto::TChunkInfo> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) override;
 
@@ -67,21 +67,21 @@ protected:
     const TStoreLocationPtr Location_;
     const NConcurrency::TLease Lease_;
 
-    const IInvokerPtr WriteInvoker_;
+    const IInvokerPtr SessionInvoker_;
 
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
 
+    // Affinity: session invoker.
     bool Active_ = false;
     TError PendingCancelationError_;
-    std::atomic<bool> Canceled_ = {false};
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    
+    std::atomic<bool> Canceled_ = false;
 
 
     virtual TFuture<void> DoStart() = 0;
     virtual void DoCancel(const TError& error) = 0;
-    virtual TFuture<IChunkPtr> DoFinish(
+    virtual TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) = 0;
     virtual TFuture<void> DoPutBlocks(

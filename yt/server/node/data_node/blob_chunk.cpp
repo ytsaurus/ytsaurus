@@ -68,11 +68,15 @@ TBlobChunkBase::TBlobChunkBase(
 
 TChunkInfo TBlobChunkBase::GetInfo() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Info_;
 }
 
 bool TBlobChunkBase::IsActive() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return false;
 }
 
@@ -115,6 +119,8 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
 
 TRefCountedBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TReaderGuard guard(BlocksExtLock_);
     return WeakBlocksExt_.Lock();
 }
@@ -132,6 +138,8 @@ bool TBlobChunkBase::IsFatalError(const TError& error)
 
 NChunkClient::TFileReaderPtr TBlobChunkBase::GetReader()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     {
         auto guard = Guard(CachedReaderSpinLock_);
         auto reader = CachedWeakReader_.Lock();
@@ -151,6 +159,8 @@ NChunkClient::TFileReaderPtr TBlobChunkBase::GetReader()
 
 void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     ProfileReadBlockSetLatency(session);
 
     std::vector<TBlock> blocks;
@@ -165,6 +175,8 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 
 void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];
         if (!entry.Cached) {
@@ -187,6 +199,8 @@ void TBlobChunkBase::DoReadMeta(
     const TReadMetaSessionPtr& session,
     TCachedChunkMetaCookie cookie)
 {
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetStorageHeavyInvoker());
+    
     YT_LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
         Id_,
         Location_->GetId(),
@@ -224,6 +238,8 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     const TReadBlockSetSessionPtr& session,
     const TRefCountedBlocksExtPtr& blocksExt)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     // Run async cache lookup.
     i64 pendingDataSize = 0;
     int pendingBlockCount = 0;
@@ -308,6 +324,8 @@ void TBlobChunkBase::DoReadSession(
     const TBlobChunkBase::TReadBlockSetSessionPtr& session,
     i64 pendingDataSize)
 {
+    VERIFY_INVOKER_AFFINITY(session->Invoker);
+
     auto pendingIOGuard = Location_->IncreasePendingIOSize(
         EIODirection::Read,
         session->Options.WorkloadDescriptor,
@@ -319,6 +337,8 @@ void TBlobChunkBase::DoReadBlockSet(
     const TReadBlockSetSessionPtr& session,
     TPendingIOGuard&& pendingIOGuard)
 {
+    VERIFY_INVOKER_AFFINITY(session->Invoker);
+
     if (session->CurrentEntryIndex > 0 && TInstant::Now() > session->Options.Deadline) {
         YT_LOG_DEBUG(
             "Read session trimmed due to deadline (Deadline: %v, TrimmedBlockCount: %v)",
@@ -396,6 +416,8 @@ void TBlobChunkBase::OnBlocksRead(
     TPendingIOGuard&& pendingIOGuard,
     const TErrorOr<std::vector<TBlock>>& blocksOrError)
 {
+    VERIFY_INVOKER_AFFINITY(session->Invoker);
+
     if (!blocksOrError.IsOK()) {
         auto error = TError(
             NChunkClient::EErrorCode::IOError,
@@ -405,16 +427,15 @@ void TBlobChunkBase::OnBlocksRead(
         if (error.FindMatching(NChunkClient::EErrorCode::IncorrectChunkFileChecksum)) {
             if (ShouldSyncOnClose()) {
                 Location_->Disable(error);
-                YT_ABORT();
             } else {
-                YT_LOG_DEBUG("Block in chunk without sync_on_close has checksum mismatch, removing it (ChunkId: %v, LocationId: %v)",
+                YT_LOG_DEBUG("Block in chunk without \"sync_on_close\" has checksum mismatch, removing it (ChunkId: %v, LocationId: %v)",
                     Id_,
                     Location_->GetId());
-                Bootstrap_->GetChunkStore()->RemoveChunk(MakeStrong(this));
+                const auto& chunkStore = Bootstrap_->GetChunkStore();
+                chunkStore->RemoveChunk(this);
             }
         } else if (IsFatalError(blocksOrError)) {
             Location_->Disable(error);
-            YT_ABORT();
         }
 
         FailSession(session, error);
@@ -477,6 +498,8 @@ void TBlobChunkBase::OnBlocksRead(
 
 bool TBlobChunkBase::ShouldSyncOnClose() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto blocksExt = WeakBlocksExt_.Lock();
     if (!blocksExt) {
         return true;
@@ -589,6 +612,8 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockRange(
 
 void TBlobChunkBase::SyncRemove(bool force)
 {
+    VERIFY_INVOKER_AFFINITY(Location_->GetWritePoolInvoker());
+
     const auto& readerCache = Bootstrap_->GetBlobReaderCache();
     readerCache->EvictReader(this);
 
@@ -597,6 +622,8 @@ void TBlobChunkBase::SyncRemove(bool force)
 
 TFuture<void> TBlobChunkBase::AsyncRemove()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return BIND(&TBlobChunkBase::SyncRemove, MakeStrong(this), false)
         .AsyncVia(Location_->GetWritePoolInvoker())
         .Run();
@@ -636,6 +663,8 @@ TCachedBlobChunk::TCachedBlobChunk(
 
 TCachedBlobChunk::~TCachedBlobChunk()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     DestroyedHandler_.Run();
 }
 

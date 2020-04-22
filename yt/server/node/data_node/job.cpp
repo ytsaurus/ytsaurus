@@ -811,29 +811,18 @@ private:
         }
 
         auto journalChunk = chunk->AsJournalChunk();
-        if (journalChunk->IsActive()) {
-            THROW_ERROR_EXCEPTION("Cannot seal an active journal chunk %v",
-                chunkId);
-        }
-
-        auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
-
-        auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
-        auto location = journalChunk->GetStoreLocation();
-        auto changelog = WaitFor(journalDispatcher->OpenChangelog(location, chunkId))
-            .ValueOrThrow();
-
-        if (journalChunk->HasAttachedChangelog()) {
-            THROW_ERROR_EXCEPTION("Journal chunk %v is already being written",
-                chunkId);
-        }
-
         if (journalChunk->IsSealed()) {
             YT_LOG_INFO("Chunk is already sealed");
             return;
         }
 
-        TJournalChunkChangelogGuard changelogGuard(journalChunk, changelog);
+        auto updateGuard = TChunkUpdateGuard::Acquire(chunk);
+
+        const auto& journalDispatcher = Bootstrap_->GetJournalDispatcher();
+        const auto& location = journalChunk->GetStoreLocation();
+        auto changelog = WaitFor(journalDispatcher->OpenChangelog(location, chunkId))
+            .ValueOrThrow();
+
         i64 currentRowCount = changelog->GetRecordCount();
         if (currentRowCount < sealRowCount) {
             YT_LOG_INFO("Started downloading missing journal chunk rows (Rows: %v-%v)",
@@ -901,6 +890,8 @@ private:
             .ThrowOnError();
 
         YT_LOG_INFO("Finished sealing journal chunk");
+
+        journalChunk->UpdateCachedParams(changelog);
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->UpdateExistingChunk(chunk);

@@ -372,7 +372,6 @@ public:
             auto error = TError("Failed to compute available space")
                 << ex;
             Disable(error);
-            YT_ABORT(); // Disable() exits the process.
         }
 
         i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - UsedSpace_);
@@ -400,7 +399,7 @@ private:
     const TString LayersPath_;
     const TString LayersMetaPath_;
 
-    std::atomic<int> LayerImportsInProgress_ = { 0 };
+    std::atomic<int> LayerImportsInProgress_ = 0;
 
     THashMap<TLayerId, TLayerMeta> Layers_;
     THashMap<TVolumeId, TVolumeMeta> Volumes_;

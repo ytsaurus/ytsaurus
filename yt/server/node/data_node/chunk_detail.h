@@ -14,8 +14,7 @@ namespace NYT::NDataNode {
 //! Chunk properties that can be obtained during the filesystem scan.
 struct TChunkDescriptor
 {
-    TChunkDescriptor()
-    { }
+    TChunkDescriptor() = default;
 
     explicit TChunkDescriptor(TChunkId id)
         : Id(id)
@@ -41,14 +40,13 @@ public:
     virtual TString GetFileName() const override;
 
     virtual int GetVersion() const override;
-    virtual void IncrementVersion() override;
+    virtual int IncrementVersion() override;
 
-    virtual bool IsAlive() const override;
-    virtual void SetDead() override;
-
-    virtual bool TryAcquireReadLock() override;
+    virtual void AcquireReadLock() override;
     virtual void ReleaseReadLock() override;
-    virtual bool IsReadLockAcquired() const override;
+
+    virtual void AcquireUpdateLock() override;
+    virtual void ReleaseUpdateLock() override;
 
     virtual TFuture<void> ScheduleRemove() override;
     virtual bool IsRemoveScheduled() const override;
@@ -58,14 +56,13 @@ protected:
     const TLocationPtr Location_;
     const TChunkId Id_;
 
-    int Version_ = 0;
-
-    std::atomic<bool> Alive_ = {true};
+    std::atomic<int> Version_ = 0;
 
     TSpinLock SpinLock_;
     TFuture<void> RemovedFuture_;  // if not null then remove is scheduled
     TPromise<void> RemovedPromise_;
     int ReadLockCounter_ = 0;
+    int UpdateLockCounter_ = 0;
     bool Removing_ = false;
 
 
@@ -73,11 +70,12 @@ protected:
         : public TIntrinsicRefCounted
     {
         NProfiling::TWallTimer SessionTimer;
-        std::optional<TChunkReadGuard> ReadGuard;
+        std::optional<TChunkReadGuard> ChunkReadGuard;
         TBlockReadOptions Options;
     };
 
     using TReadSessionBasePtr = TIntrusivePtr<TReadSessionBase>;
+
 
     struct TReadMetaSession
         : public TReadSessionBase

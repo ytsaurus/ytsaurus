@@ -46,38 +46,40 @@ TJournalChunk::TJournalChunk(
         location,
         descriptor.Id)
     , StoreLocation_(location)
-    , Meta_(New<TRefCountedChunkMeta>())
 {
-    CachedRowCount_ = descriptor.RowCount;
-    CachedDataSize_ = descriptor.DiskSpace;
-    Sealed_ = descriptor.Sealed;
-
-    Meta_->set_type(static_cast<int>(EChunkType::Journal));
-    Meta_->set_version(0);
+    CachedRowCount_.store(descriptor.RowCount);
+    CachedDataSize_.store(descriptor.DiskSpace);
+    Sealed_.store(descriptor.Sealed);
 }
 
-TStoreLocationPtr TJournalChunk::GetStoreLocation() const
+const TStoreLocationPtr& TJournalChunk::GetStoreLocation() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return StoreLocation_;
 }
 
 void TJournalChunk::SetActive(bool value)
 {
-    Active_ = value;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    Active_.store(value);
 }
 
 bool TJournalChunk::IsActive() const
 {
-    return Active_;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Active_.load();
 }
 
 TChunkInfo TJournalChunk::GetInfo() const
 {
-    UpdateCachedParams();
+    VERIFY_THREAD_AFFINITY_ANY();
 
     TChunkInfo info;
-    info.set_sealed(Sealed_);
-    info.set_disk_space(CachedDataSize_);
+    info.set_sealed(IsSealed());
+    info.set_disk_space(GetCachedDataSize());
     return info;
 }
 
@@ -94,33 +96,28 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
         return MakeFuture<TRefCountedChunkMetaPtr>(ex);
     }
 
-    return BIND(&TJournalChunk::DoReadMeta, MakeStrong(this), session, extensionTags)
-        .AsyncVia(Bootstrap_->GetControlInvoker())
-        .Run();
-}
-
-TRefCountedChunkMetaPtr TJournalChunk::DoReadMeta(
-    const TReadMetaSessionPtr& session,
-    const std::optional<std::vector<int>>& extensionTags)
-{
-    UpdateCachedParams();
-
     TMiscExt miscExt;
-    miscExt.set_row_count(CachedRowCount_);
-    miscExt.set_uncompressed_data_size(CachedDataSize_);
-    miscExt.set_compressed_data_size(CachedDataSize_);
-    miscExt.set_sealed(Sealed_);
-    SetProtoExtension(Meta_->mutable_extensions(), miscExt);
+    miscExt.set_row_count(GetCachedRowCount());
+    miscExt.set_uncompressed_data_size(GetCachedDataSize());
+    miscExt.set_compressed_data_size(miscExt.uncompressed_data_size());
+    miscExt.set_sealed(IsSealed());
+
+    auto meta = New<TRefCountedChunkMeta>();
+    meta->set_type(ToProto<int>(EChunkType::Journal));
+    meta->set_version(0);
+    SetProtoExtension(meta->mutable_extensions(), miscExt);
 
     ProfileReadMetaLatency(session);
 
-    return FilterMeta(Meta_, extensionTags);
+    return MakeFuture(FilterMeta(meta, extensionTags));
 }
 
 TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockSet(
     const std::vector<int>& blockIndexes,
     const TBlockReadOptions& options)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     // Extract the initial contiguous segment of blocks.
     if (blockIndexes.empty()) {
         return MakeFuture(std::vector<TBlock>());
@@ -172,7 +169,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
 
 void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 {
-    auto config = Bootstrap_->GetConfig()->DataNode;
+    const auto& config = Bootstrap_->GetConfig()->DataNode;
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
 
     try {
@@ -206,7 +203,6 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
                 THROW_ERROR error;
             }
             Location_->Disable(error);
-            YT_ABORT(); // Disable() exits the process.
         }
 
         auto readTime = timer.GetElapsedTime();
@@ -241,123 +237,59 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
     }
 }
 
-void TJournalChunk::UpdateCachedParams() const
-{
-    if (Changelog_) {
-        CachedRowCount_ = Changelog_->GetRecordCount();
-        CachedDataSize_ = Changelog_->GetDataSize();
-    }
-}
-
 void TJournalChunk::SyncRemove(bool force)
 {
-    if (Changelog_) {
-        try {
-            YT_LOG_DEBUG("Started closing journal chunk (ChunkId: %v)", Id_);
-            WaitFor(Changelog_->Close())
-                .ThrowOnError();
-            YT_LOG_DEBUG("Finished closing journal chunk (ChunkId: %v)", Id_);
-            Changelog_.Reset();
-        } catch (const std::exception& ex) {
-            auto error = TError(ex);
-            Location_->Disable(error);
-            YT_ABORT(); // Disable() exits the process.
-        }
-    }
-
     Location_->RemoveChunkFiles(Id_, force);
 }
 
 TFuture<void> TJournalChunk::AsyncRemove()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
     return dispatcher->RemoveChangelog(this, true);
 }
 
-void TJournalChunk::AttachChangelog(IChangelogPtr changelog)
+void TJournalChunk::UpdateCachedParams(const IChangelogPtr& changelog)
 {
-    YT_VERIFY(!Removing_);
-    YT_VERIFY(!Changelog_);
-    Changelog_ = changelog;
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    UpdateCachedParams();
+    CachedRowCount_.store(changelog->GetRecordCount());
+    CachedDataSize_.store(changelog->GetDataSize());
 }
 
-void TJournalChunk::DetachChangelog()
+i64 TJournalChunk::GetCachedRowCount() const
 {
-    YT_VERIFY(!Removing_);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    UpdateCachedParams();
-    Changelog_.Reset();
+    return CachedRowCount_.load();
 }
 
-bool TJournalChunk::HasAttachedChangelog() const
+i64 TJournalChunk::GetCachedDataSize() const
 {
-    YT_VERIFY(!Removing_);
+    VERIFY_THREAD_AFFINITY_ANY();
 
-    return Changelog_.operator bool();
-}
-
-IChangelogPtr TJournalChunk::GetAttachedChangelog() const
-{
-    YT_VERIFY(!IsRemoveScheduled());
-
-    return Changelog_;
-}
-
-i64 TJournalChunk::GetRowCount() const
-{
-    UpdateCachedParams();
-    return CachedRowCount_;
-}
-
-i64 TJournalChunk::GetDataSize() const
-{
-    UpdateCachedParams();
-    return CachedDataSize_;
+    return CachedDataSize_.load();
 }
 
 bool TJournalChunk::IsSealed() const
 {
-    return Sealed_;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Sealed_.load();
 }
 
 TFuture<void> TJournalChunk::Seal()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
     return dispatcher->SealChangelog(this).Apply(
-        BIND([this, this_ = MakeStrong(this)] () {
-            Sealed_ = true;
-        }).AsyncVia(Bootstrap_->GetControlInvoker()));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJournalChunkChangelogGuard::TJournalChunkChangelogGuard(
-    TJournalChunkPtr chunk,
-    IChangelogPtr changelog)
-    : Chunk_(chunk)
-{
-    Chunk_->AttachChangelog(changelog);
-}
-
-TJournalChunkChangelogGuard& TJournalChunkChangelogGuard::operator=(TJournalChunkChangelogGuard&& other)
-{
-    swap(*this, other);
-    return *this;
-}
-
-TJournalChunkChangelogGuard::~TJournalChunkChangelogGuard()
-{
-    if (Chunk_) {
-        Chunk_->DetachChangelog();
-    }
-}
-
-void swap(TJournalChunkChangelogGuard& lhs, TJournalChunkChangelogGuard& rhs)
-{
-    using std::swap;
-    swap(lhs.Chunk_, rhs.Chunk_);
+        BIND([this, this_ = MakeStrong(this)] {
+            YT_LOG_DEBUG("Chunk is marked as sealed (ChunkId: %v)",
+                Id_);
+            Sealed_.store(true);
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
