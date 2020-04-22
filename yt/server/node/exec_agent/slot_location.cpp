@@ -419,6 +419,9 @@ TFuture<void> TSlotLocation::FinalizeSandboxPreparation(
 
         // Tmp is accessible for everyone.
         chownChmod(ESandboxKind::Tmp, 0777);
+
+        // CUDA library should have an access to cores directory to write GPU core dump into it.
+        chownChmod(ESandboxKind::Cores, 0777);
     })
     .AsyncVia(LocationQueue_->GetInvoker())
     .Run();

@@ -979,6 +979,11 @@ public:
         return Spec_->CoreTableWriter;
     }
 
+    virtual bool GetEnableCudaGpuCoreDump() const override
+    {
+        return Spec_->EnableCudaGpuCoreDump;
+    }
+
     virtual ELegacyLivePreviewMode GetLegacyOutputLivePreviewMode() const override
     {
         return ToLegacyLivePreviewMode(Spec_->EnableLegacyLivePreview);

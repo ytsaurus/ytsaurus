@@ -970,6 +970,15 @@ IConnectionPtr CreateConnectionFromFD(
     return New<TFDConnection>(fd, localAddress, remoteAddress, poller);
 }
 
+IConnectionReaderPtr CreateInputConnectionFromFD(
+    int fd,
+    const TString& pipePath,
+    const IPollerPtr& poller,
+    const TIntrusivePtr<TRefCounted>& pipeHolder)
+{
+    return New<TFDConnection>(fd, pipePath, poller, pipeHolder);
+}
+
 IConnectionReaderPtr CreateInputConnectionFromPath(
     const TString& pipePath,
     const IPollerPtr& poller,

@@ -216,6 +216,7 @@ public:
                 options.CoreWatcherDirectory = NFS::GetRealPath(NFS::CombinePaths({Host_->GetSlotPath(), "cores"}));
             }
             options.EnablePorto = TranslateEnablePorto(CheckedEnumCast<NScheduler::EEnablePorto>(UserJobSpec_.enable_porto()));
+            options.EnableCudaGpuCoreDump = UserJobSpec_.enable_cuda_gpu_core_dump();
 
             Process_ = UserJobEnvironment_->CreateUserJobProcess(
                 ExecProgramName,

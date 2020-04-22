@@ -18,6 +18,7 @@ DECLARE_REFCOUNTED_STRUCT(IResourceTracker)
 DECLARE_REFCOUNTED_STRUCT(IJobProxyEnvironment)
 DECLARE_REFCOUNTED_STRUCT(IUserJobEnvironment)
 
+DECLARE_REFCOUNTED_CLASS(TGpuCoreReader)
 DECLARE_REFCOUNTED_CLASS(TCoreWatcher)
 
 ////////////////////////////////////////////////////////////////////////////////

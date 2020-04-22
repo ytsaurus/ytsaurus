@@ -50,6 +50,7 @@ struct IUserJobEnvironment
     {
         std::optional<TString> CoreWatcherDirectory;
         NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
+        bool EnableCudaGpuCoreDump = false;
     };
 
     virtual TProcessBasePtr CreateUserJobProcess(

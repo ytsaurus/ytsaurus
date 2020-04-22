@@ -7961,6 +7961,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
 
     jobSpec->set_enable_porto(static_cast<int>(config->EnablePorto.value_or(Config->DefaultEnablePorto)));
     jobSpec->set_fail_job_on_core_dump(config->FailJobOnCoreDump);
+    jobSpec->set_enable_cuda_gpu_core_dump(GetEnableCudaGpuCoreDump());
 
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {
@@ -8450,6 +8451,11 @@ TBlobTableWriterConfigPtr TOperationControllerBase::GetCoreTableWriterConfig() c
 std::optional<TRichYPath> TOperationControllerBase::GetCoreTablePath() const
 {
     return std::nullopt;
+}
+
+bool TOperationControllerBase::GetEnableCudaGpuCoreDump() const
+{
+    return false;
 }
 
 void TOperationControllerBase::OnChunksReleased(int /* chunkCount */)
