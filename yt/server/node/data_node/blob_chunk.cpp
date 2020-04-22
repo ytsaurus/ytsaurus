@@ -155,10 +155,17 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 
     std::vector<TBlock> blocks;
     blocks.reserve(session->EntryCount);
-    for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
+    for (int entryIndex = 0; entryIndex < session->CurrentEntryIndex; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];
         blocks.push_back(std::move(entry.Block));
     }
+    for (int entryIndex = session->CurrentEntryIndex; entryIndex < session->EntryCount; ++entryIndex) {
+        auto& entry = session->Entries[entryIndex];
+        if (!entry.Cached) {
+            entry.Cookie.Cancel(TError(NYT::EErrorCode::Canceled, "Block was not fetched"));
+        }
+    }
+
     session->SessionPromise.TrySet(std::move(blocks));
 }
 
@@ -254,9 +261,12 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         pendingDataSize += blocksExt->blocks(entry.BlockIndex).size();
         pendingBlockCount += 1;
         if (pendingDataSize >= config->MaxBytesPerRead ||
-            pendingBlockCount >= config->MaxBlocksPerRead) {
+            pendingBlockCount >= config->MaxBlocksPerRead)
+        {
             session->EntryCount = entryIndex + 1;
-            YT_LOG_DEBUG("Read session trimmed (PendingDataSize: %v, PendingBlockCount: %v, TrimmedBlockCount: %v)",
+            YT_LOG_DEBUG(
+                "Read session trimmed due to read constraints "
+                "(PendingDataSize: %v, PendingBlockCount: %v, TrimmedBlockCount: %v)",
                 pendingDataSize,
                 pendingBlockCount,
                 session->EntryCount);
@@ -308,30 +318,39 @@ void TBlobChunkBase::DoReadSession(
         EIODirection::Read,
         session->Options.WorkloadDescriptor,
         pendingDataSize);
-    DoReadBlockSet(session, 0, std::move(pendingIOGuard));
+    DoReadBlockSet(session, std::move(pendingIOGuard));
 }
 
 void TBlobChunkBase::DoReadBlockSet(
     const TReadBlockSetSessionPtr& session,
-    int currentEntryIndex,
     TPendingIOGuard&& pendingIOGuard)
 {
+    if (session->CurrentEntryIndex > 0 && TInstant::Now() > session->Options.LeadTimeDeadline) {
+        YT_LOG_DEBUG(
+            "Read session trimmed due to lead time deadline "
+            "(LeadTimeDeadline: %v, TrimmedBlockCount: %v)",
+            session->Options.LeadTimeDeadline,
+            session->CurrentEntryIndex);
+        session->DiskFetchPromise.TrySet();
+        return;
+    }
+
     while (true) {
-        if (currentEntryIndex >= session->EntryCount) {
+        if (session->CurrentEntryIndex >= session->EntryCount) {
             session->DiskFetchPromise.TrySet();
             return;
         }
 
-        if (!session->Entries[currentEntryIndex].Cached) {
+        if (!session->Entries[session->CurrentEntryIndex].Cached) {
             break;
         }
 
-        ++currentEntryIndex;
+        ++session->CurrentEntryIndex;
     }
 
     // Extract the maximum contiguous run of blocks.
-    int beginEntryIndex = currentEntryIndex;
-    int endEntryIndex = currentEntryIndex;
+    int beginEntryIndex = session->CurrentEntryIndex;
+    int endEntryIndex = session->CurrentEntryIndex;
     int firstBlockIndex = session->Entries[beginEntryIndex].BlockIndex;
     while (
         endEntryIndex < session->EntryCount &&
@@ -458,7 +477,9 @@ void TBlobChunkBase::OnBlocksRead(
 
     Location_->IncreaseCompletedIOSize(EIODirection::Read, session->Options.WorkloadDescriptor, bytesRead);
 
-    DoReadBlockSet(session, endEntryIndex, std::move(pendingIOGuard));
+    session->CurrentEntryIndex = endEntryIndex;
+
+    DoReadBlockSet(session, std::move(pendingIOGuard));
 }
 
 bool TBlobChunkBase::ShouldSyncOnClose() const
