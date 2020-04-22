@@ -121,8 +121,8 @@ public:
         const auto& prewhereInfo = queryInfo.prewhere_info;
 
         for (int threadIndex = 0;
-             threadIndex < static_cast<int>(perThreadDataSliceDescriptors.size());
-             ++threadIndex)
+            threadIndex < static_cast<int>(perThreadDataSliceDescriptors.size());
+            ++threadIndex)
         {
             const auto& threadDataSliceDescriptors = perThreadDataSliceDescriptors[threadIndex];
 

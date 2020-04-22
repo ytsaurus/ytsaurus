@@ -48,9 +48,9 @@ void ApplyMembership(DB::IAST& ast, const INodePtr& hintNode, TString path, TMod
     auto validateType = [&] (ENodeType expected) {
         if (hintNode->GetType() != expected) {
             THROW_ERROR_EXCEPTION("Wrong hint node type at '%v': expected = %Qlv, actual = %Qlv",
-                 path,
-                 expected,
-                 hintNode->GetType());
+                path,
+                expected,
+                hintNode->GetType());
         }
     };
 

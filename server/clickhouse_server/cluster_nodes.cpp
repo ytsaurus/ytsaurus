@@ -50,10 +50,10 @@ IClusterNodePtr CreateClusterNode(const TClusterNodeName& name, const DB::Settin
     // This is really weird...
 
     DB::Cluster::Address address(
-       /*host_port=*/ name.ToString(),
-       /*user=*/ "",
-       /*password=*/ "",
-       /*clickhouse_port=*/ clickhouse_port);
+        /*host_port=*/ name.ToString(),
+        /*user=*/ "",
+        /*password=*/ "",
+        /*clickhouse_port=*/ clickhouse_port);
 
     ConnectionPoolPtrs pools;
     ConnectionTimeouts timeouts(Cluster::saturate(settings.connect_timeout, settings.max_execution_time),

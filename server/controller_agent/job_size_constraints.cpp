@@ -40,9 +40,9 @@ public:
         , PrimaryInputDataWeight_(primaryInputDataWeight)
         , InputChunkCount_(inputChunkCount)
         , InputRowCount_(inputRowCount)
-        , Logger(logger)
         , MergeInputTableCount_(mergeInputTableCount)
         , MergePrimaryInputTableCount_(mergePrimaryInputTableCount)
+        , Logger(logger)
         , InitialInputDataWeight_(inputDataWeight)
         , Options_(std::move(options))
         , Spec_(std::move(spec))
@@ -158,11 +158,29 @@ protected:
     i64 InputChunkCount_ = -1;
     i64 JobCount_ = -1;
     i64 InputRowCount_ = -1;
+    int MergeInputTableCount_ = -1; 
+    int MergePrimaryInputTableCount_ = -1;
     TLogger Logger;
 
+    i64 GetSortedOperationInputSliceDataWeight() const
+    {
+        auto dataWeightPerJob = GetDataWeightPerJob();
+
+        i64 sliceDataSize = Clamp<i64>(
+            Options_->SliceDataWeightMultiplier * dataWeightPerJob / std::max<int>(1, MergePrimaryInputTableCount_),
+            1,
+            Options_->MaxSliceDataWeight);
+
+        if (sliceDataSize < Options_->MinSliceDataWeight) {
+            sliceDataSize = dataWeightPerJob;
+        }
+
+        sliceDataSize = std::max<i64>(sliceDataSize, DivCeil<i64>(GetDataWeightPerJob(), GetMaxDataSlicesPerJob()));
+
+        return std::max<i64>(sliceDataSize, 1);
+    }
+
 private:
-    int MergeInputTableCount_ = -1;
-    int MergePrimaryInputTableCount_ = -1;
     i64 InitialInputDataWeight_ = -1;
     TOperationOptionsPtr Options_;
     TOperationSpecBasePtr Spec_;
@@ -223,7 +241,8 @@ public:
         i64 inputRowCount,
         i64 foreignInputDataWeight,
         int inputTableCount,
-        int primaryInputTableCount)
+        int primaryInputTableCount,
+        bool sortedOperation)
         : TJobSizeConstraintsBase(
             primaryInputDataWeight + foreignInputDataWeight,
             primaryInputDataWeight,
@@ -237,6 +256,7 @@ public:
             spec->Sampling)
         , Spec_(spec)
         , Options_(options)
+        , SortedOperation_(sortedOperation)
     {
         if (Spec_->JobCount) {
             JobCount_ = *Spec_->JobCount;
@@ -319,6 +339,15 @@ public:
             : 1);
     }
 
+    virtual i64 GetInputSliceDataWeight() const override
+    {
+        if (!SortedOperation_ || GetSamplingRate()) {
+            return TJobSizeConstraintsBase::GetInputSliceDataWeight();
+        }
+
+        return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
+    }
+
     virtual void Persist(const NPhoenix::TPersistenceContext& context) override
     {
         TJobSizeConstraintsBase::Persist(context);
@@ -327,6 +356,7 @@ public:
 
         Persist(context, Spec_);
         Persist(context, Options_);
+        Persist(context, SortedOperation_);
     }
 
 private:
@@ -334,6 +364,7 @@ private:
 
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
+    bool SortedOperation_;
 
     double GetForeignDataRatio() const
     {
@@ -454,6 +485,15 @@ public:
     virtual i64 GetInputSliceRowCount() const override
     {
         return std::numeric_limits<i64>::max();
+    }
+
+    virtual i64 GetInputSliceDataWeight() const override
+    {
+        if (GetSamplingRate()) {
+            return TJobSizeConstraintsBase::GetInputSliceDataWeight();
+        }
+
+        return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
     }
 
     virtual void Persist(const NPhoenix::TPersistenceContext& context) override
@@ -675,7 +715,8 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     i64 inputRowCount,
     i64 foreignInputDataSize,
     int mergeInputTableCount,
-    int mergePrimaryInputTableCount)
+    int mergePrimaryInputTableCount,
+    bool sortedOperation)
 {
     return New<TUserJobSizeConstraints>(
         spec,
@@ -688,7 +729,8 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
         inputRowCount,
         foreignInputDataSize,
         mergeInputTableCount,
-        mergePrimaryInputTableCount);
+        mergePrimaryInputTableCount,
+        sortedOperation);
 }
 
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(

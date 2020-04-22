@@ -88,6 +88,8 @@ public:
 
     void InvokeUpdateDiskResources();
 
+    TString GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
+
 private:
     const TSlotLocationConfigPtr Config_;
     const NCellNode::TBootstrap* Bootstrap_;
@@ -125,7 +127,6 @@ private:
 
     void UpdateDiskResources();
 
-    TString GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) const;
     TString GetConfigPath(int slotIndex) const;
 
     TFuture<void> DoMakeSandboxFile(

@@ -14,8 +14,6 @@ public:
     //! Schedules invocation of a given callback.
     virtual void Invoke(TClosure callback) override;
 
-    virtual TDuration GetAverageWaitTime() const override;
-
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
     virtual NConcurrency::TThreadId GetThreadId() const override;
     virtual bool CheckAffinity(const IInvokerPtr& invoker) const override;

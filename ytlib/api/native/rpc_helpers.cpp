@@ -49,7 +49,7 @@ void SetBalancingHeader(
     }
     auto* balancingHeaderExt = request->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
     balancingHeaderExt->set_enable_stickness(true);
-    balancingHeaderExt->set_sticky_group_size(config->CacheStickyGroupSizeOverride.value_or(options.CacheStickyGroupSize));
+    balancingHeaderExt->set_sticky_group_size(std::max(config->CacheStickyGroupSizeOverride, options.CacheStickyGroupSize));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

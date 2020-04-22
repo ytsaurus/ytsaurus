@@ -24,7 +24,8 @@ IJobSizeConstraintsPtr CreateUserJobSizeConstraints(
     i64 inputRowCount = std::numeric_limits<i64>::max(),
     i64 foreignInputDataWeight = 0,
     int inputTableCount = 1,
-    int primaryInputTableCount = 1);
+    int primaryInputTableCount = 1,
+    bool sortedOperation = false);
 
 //! Fits for system operations like merge or erase.
 IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(

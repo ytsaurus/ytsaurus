@@ -1492,6 +1492,61 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 spec={'schema_inference_mode': 'from_output'})
 
 
+##################################################################
+
+class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "operations_update_period": 10,
+            "running_jobs_update_period": 10,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 10,
+            "sorted_merge_operation_options": {
+                "min_slice_data_weight": 1,
+            },
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "scheduler_connector": {
+            "heartbeat_period": 100  # 100 msec
+        }
+    }
+
+    @authors("gritukan")
+    @pytest.mark.parametrize("tables_intersect", [False, True])
+    def test_chunk_slice_size(self, tables_intersect):
+        for i in range(10):
+            create("table", "//tmp/in{}".format(i), attributes={
+                "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}],
+                "chunk_writer": {"block_size": 1}, # Each block should have exactly one row to make precise slices.
+                "compression_codec": "none"})
+            if tables_intersect:
+                write_table("//tmp/in{}".format(i), [{"key": ("%04d" % (10 * x + i))} for x in range(10)])
+            else:
+                # Last row ensures that chunk won't be teleported.
+                write_table("//tmp/in{}".format(i), [{"key": ("%04d" % (10 * i + x))} for x in range(9)] + [{"key": ("%04d" % (9000 + i))}])
+        create("table", "//tmp/out")
+
+        op = merge(
+            mode="sorted",
+            in_=["//tmp/in{}".format(i) for i in range(10)],
+            out="//tmp/out",
+            spec={
+                "job_count": 10,
+                "enable_job_splitting": False})
+        op.track()
+        for chunk_id in get("//tmp/out/@chunk_ids"):
+            assert 5 <= get("#" + chunk_id + "/@row_count") <= 15
 
 ##################################################################
 

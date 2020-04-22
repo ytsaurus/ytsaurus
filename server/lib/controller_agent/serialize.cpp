@@ -13,8 +13,8 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::DynamicStoreRead) &&
-           version <= GetCurrentSnapshotVersion();
+    return version >= ToUnderlying(ESnapshotVersion::ChunkCountInUserObject) &&
+        version <= GetCurrentSnapshotVersion();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

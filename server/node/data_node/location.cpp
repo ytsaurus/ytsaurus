@@ -727,8 +727,7 @@ TStoreLocation::TStoreLocation(
     , TrashCheckExecutor_(New<TPeriodicExecutor>(
         TrashCheckQueue_->GetInvoker(),
         BIND(&TStoreLocation::OnCheckTrash, MakeWeak(this)),
-        Config_->TrashCheckPeriod,
-        EPeriodicExecutorMode::Automatic))
+        Config_->TrashCheckPeriod))
 {
     auto diskThrottlerProfiler = GetProfiler().AppendPath("/disk_throttler");
     auto createThrottler = [&] (const auto& config, const auto& name) {

@@ -119,7 +119,7 @@ IFairShareCallbackQueuePtr CreateFairShareCallbackQueue(int bucketCount)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareInvokerPool
-    : public IInvokerPool
+    : public IDiagnosableInvokerPool
 {
 public:
     TFairShareInvokerPool(
@@ -151,6 +151,7 @@ public:
 
             queueState.ActionEnqueueTimes.push(now);
             queueState.SumOfActionEnqueueTimes += now.GetValue();
+            ++queueState.EnqueuedActionCount;
         }
 
         Queue_->Enqueue(std::move(callback), index);
@@ -166,6 +167,29 @@ protected:
         return Invokers_[index];
     }
 
+    virtual TInvokerStatistics DoGetInvokerStatistics(int index) const override
+    {
+        YT_VERIFY(IsValidInvokerIndex(index));
+
+        auto now = GetInstant();
+
+        TReaderGuard guard(InvokerQueueStatesLock_);
+
+        const auto& queueState = InvokerQueueStates_[index];
+
+        auto waitingActionCount = queueState.ActionEnqueueTimes.size();
+        auto averageWaitTime = waitingActionCount > 0
+            ? ValueToDuration(now.GetValue() - queueState.SumOfActionEnqueueTimes / waitingActionCount)
+            : TDuration::Zero();
+
+        return {
+            queueState.EnqueuedActionCount,
+            queueState.DequeuedActionCount,
+            waitingActionCount,
+            averageWaitTime,
+        };
+    }
+
 private:
     const IInvokerPtr UnderlyingInvoker_;
 
@@ -175,6 +199,8 @@ private:
     {
         TRingQueue<TInstant> ActionEnqueueTimes;
         TInstant::TValue SumOfActionEnqueueTimes = {};
+        ui64 EnqueuedActionCount = 0;
+        ui64 DequeuedActionCount = 0;
     };
 
     NConcurrency::TReaderWriterSpinLock InvokerQueueStatesLock_;
@@ -233,23 +259,6 @@ private:
             }
         }
 
-        virtual TDuration GetAverageWaitTime() const override
-        {
-            auto now = GetInstant();
-            if (auto strongParent = Parent_.Lock()) {
-                TReaderGuard guard(strongParent->InvokerQueueStatesLock_);
-
-                auto& queueState = strongParent->InvokerQueueStates_[Index_];
-
-                auto enqueuedActionCount = queueState.ActionEnqueueTimes.size();
-                return enqueuedActionCount > 0
-                    ? ValueToDuration(now.GetValue() - queueState.SumOfActionEnqueueTimes / enqueuedActionCount)
-                    : TDuration::Zero();
-            }
-
-            return TDuration::Zero();
-        }
-
     private:
         const int Index_;
         const TWeakPtr<TFairShareInvokerPool> Parent_;
@@ -278,6 +287,7 @@ private:
             auto currentActionEnqueueTime = queueState.ActionEnqueueTimes.front();
             queueState.ActionEnqueueTimes.pop();
             queueState.SumOfActionEnqueueTimes -= currentActionEnqueueTime.GetValue();
+            ++queueState.DequeuedActionCount;
         }
 
         {
@@ -289,7 +299,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IInvokerPoolPtr CreateFairShareInvokerPool(
+IDiagnosableInvokerPoolPtr CreateFairShareInvokerPool(
     IInvokerPtr underlyingInvoker,
     int invokerCount,
     TFairShareCallbackQueueFactory callbackQueueFactory)

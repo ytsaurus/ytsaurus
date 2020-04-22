@@ -429,11 +429,6 @@ private:
             WakeupHandle_.Raise();
         }
 
-        virtual TDuration GetAverageWaitTime() const override
-        {
-            YT_UNIMPLEMENTED();
-        }
-
         TClosure ExecuteCallbacks()
         {
             TClosure callback;

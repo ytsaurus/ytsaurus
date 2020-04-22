@@ -24,6 +24,7 @@
 #include <yt/ytlib/scheduler/job_resources.h>
 
 #include <yt/core/actions/future.h>
+#include <yt/core/actions/invoker_pool.h>
 
 #include <yt/core/misc/error.h>
 
@@ -413,6 +414,8 @@ struct IOperationController
 {
     virtual IInvokerPtr GetInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
     virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
+    virtual IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
+        EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
     /*!
      *  \note Invoker affinity: Cancellable controller invoker

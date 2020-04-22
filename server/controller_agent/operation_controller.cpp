@@ -247,6 +247,11 @@ public:
         return Underlying_->GetCancelableInvoker(queue);
     }
 
+    virtual IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(EOperationControllerQueue queue) const override
+    {
+        return Underlying_->GetInvokerStatistics(queue);
+    }
+
     virtual TFuture<void> Suspend() override
     {
         return Underlying_->Suspend();
