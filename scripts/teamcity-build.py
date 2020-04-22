@@ -315,7 +315,6 @@ def prepare(options, build_context):
     options.build_enable_python_2_7 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_2_7", "YES"))
     options.build_enable_python_3_4 = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_3_4", "YES"))
     options.build_enable_python_skynet = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PYTHON_SKYNET", "YES"))
-    options.build_enable_perl = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_PERL", "YES"))
     options.build_enable_ya_yt_store = parse_yes_no_bool(os.environ.get("BUILD_ENABLE_YA_YT_STORE", "NO"))
     options.package_enable_yson_bingings = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_YSON_BINDINGS", "NO"))
     options.package_enable_rpc_bingings = parse_yes_no_bool(os.environ.get("PACKAGE_ENABLE_RPC_BINDINGS", "NO"))
@@ -684,8 +683,6 @@ def package(options, build_context):
             "yandex-yt-clock.json",
             "yandex-yt-node.json",
             "yandex-yt-proxy.json",
-#            "yandex-yt-perl.json",
-#            "yandex-yt-perl-abi.json",
             "yandex-yt-scheduler.json",
         ]
         artifacts_dir = get_artifacts_dir(options)
