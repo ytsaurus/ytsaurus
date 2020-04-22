@@ -164,6 +164,16 @@ class TestJournals(YTEnvSetup):
 
         assert(read_journal("//tmp/j1") == self.DATA)
 
+    @authors("ifsmirnov")
+    def test_data_node_orchid(self):
+        create("journal", "//tmp/j")
+        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+        chunk_id = get("//tmp/j/@chunk_ids/0")
+        replica = get("#{}/@last_seen_replicas/0".format(chunk_id))
+        orchid = get("//sys/cluster_nodes/{}/orchid/stored_chunks/{}".format(replica, chunk_id))
+        assert "location" in orchid
+        assert "disk_space" in orchid
+
 ##################################################################
 
 class TestJournalsChangeMedia(YTEnvSetup):
