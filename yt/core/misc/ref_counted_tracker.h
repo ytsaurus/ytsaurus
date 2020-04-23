@@ -4,8 +4,6 @@
 #include "source_location.h"
 #include "singleton.h"
 
-#include <yt/core/actions/callback.h>
-
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 
 namespace NYT {

@@ -1,5 +1,6 @@
 #include "ref_counted_tracker.h"
 #include "demangle.h"
+#include "format.h"
 
 #include <yt/core/concurrency/thread_affinity.h>
 

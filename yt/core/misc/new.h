@@ -1,11 +1,10 @@
 #pragma once
 
-#include "ref_counted.h"
+#include "intrusive_ptr.h"
+#include "ref_tracked.h"
 #include "source_location.h"
 
 #include <util/system/defaults.h>
-
-#include <typeinfo>
 
 namespace NYT {
 
@@ -16,8 +15,6 @@ namespace NYT {
  * \ingroup yt_new
  *
  * This is collection of safe smart pointer constructors.
- *
- * \{
  *
  * \page yt_new_rationale Rationale
  * New<T> function family was designed to prevent the following problem.
@@ -68,18 +65,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-TRefCountedTypeKey GetRefCountedTypeKey();
-
-template <class T>
-TRefCountedTypeCookie GetRefCountedTypeCookie();
-
-template <class T, class TTag, int Counter>
-TRefCountedTypeCookie GetRefCountedTypeCookieWithLocation(
-    const TSourceLocation& location);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Allocates a new instance of |T|.
 template <class T, class... As>
 TIntrusivePtr<T> New(As&&... args);
@@ -118,8 +103,6 @@ protected:
     void* GetExtraSpacePtr();
 
 };
-
-/*! \} */
 
 ////////////////////////////////////////////////////////////////////////////////
 
