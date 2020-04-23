@@ -155,15 +155,9 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 
     std::vector<TBlock> blocks;
     blocks.reserve(session->EntryCount);
-    for (int entryIndex = 0; entryIndex < session->CurrentEntryIndex; ++entryIndex) {
+    for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];
         blocks.push_back(std::move(entry.Block));
-    }
-    for (int entryIndex = session->CurrentEntryIndex; entryIndex < session->EntryCount; ++entryIndex) {
-        auto& entry = session->Entries[entryIndex];
-        if (!entry.Cached) {
-            entry.Cookie.Cancel(TError(NYT::EErrorCode::Canceled, "Block was not fetched"));
-        }
     }
 
     session->SessionPromise.TrySet(std::move(blocks));
