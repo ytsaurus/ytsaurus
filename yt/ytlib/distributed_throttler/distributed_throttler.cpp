@@ -65,8 +65,8 @@ public:
     {
         RpcServer_->RegisterService(this);
 
-        UpdatePeriodicExecutor_->Start();
         UpdateUniformLimitDistribution();
+        UpdatePeriodicExecutor_->Start();
     }
 
     void Finalize()
@@ -147,7 +147,7 @@ private:
             return;
         }
 
-        UniformLimit_ = TotalLimit_.load() / totalCount;
+        UniformLimit_ = std::max<i64>(1, TotalLimit_.load() / totalCount);
         YT_LOG_DEBUG("Uniform distribution limit updated (Value: %v)", UniformLimit_);
     }
 
