@@ -319,11 +319,10 @@ void TBlobChunkBase::DoReadBlockSet(
     const TReadBlockSetSessionPtr& session,
     TPendingIOGuard&& pendingIOGuard)
 {
-    if (session->CurrentEntryIndex > 0 && TInstant::Now() > session->Options.LeadTimeDeadline) {
+    if (session->CurrentEntryIndex > 0 && TInstant::Now() > session->Options.Deadline) {
         YT_LOG_DEBUG(
-            "Read session trimmed due to lead time deadline "
-            "(LeadTimeDeadline: %v, TrimmedBlockCount: %v)",
-            session->Options.LeadTimeDeadline,
+            "Read session trimmed due to deadline (Deadline: %v, TrimmedBlockCount: %v)",
+            session->Options.Deadline,
             session->CurrentEntryIndex);
         session->DiskFetchPromise.TrySet();
         return;

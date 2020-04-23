@@ -493,7 +493,7 @@ private:
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
             options.ChunkReaderStatistics = chunkReaderStatistics;
             if (context->GetTimeout() && context->GetStartTime()) {
-                options.LeadTimeDeadline = *context->GetStartTime() + *context->GetTimeout() - Config_->BlockReadTimeoutLeadTime;
+                options.Deadline = *context->GetStartTime() + *context->GetTimeout() * Config_->BlockReadTimeoutFraction;
             }
 
             const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
@@ -614,7 +614,7 @@ private:
             options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
             options.ChunkReaderStatistics = chunkReaderStatistics;
             if (context->GetTimeout() && context->GetStartTime()) {
-                options.LeadTimeDeadline = *context->GetStartTime() + *context->GetTimeout() - Config_->BlockReadTimeoutLeadTime;
+                options.Deadline = *context->GetStartTime() + *context->GetTimeout() * Config_->BlockReadTimeoutFraction;
             }
 
             const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
