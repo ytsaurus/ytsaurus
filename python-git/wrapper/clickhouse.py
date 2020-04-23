@@ -516,7 +516,7 @@ def prepare_artifacts(artifact_path,
 
         for table_path in (stderr_table_path, core_table_path):
             if not exists(table_path, client=client):
-                create("table", table_path)
+                create("table", table_path, client=client)
             elif dump_tables:
                 new_path = table_path + "." + dump_suffix
                 logger.info("Dumping %s into %s", table_path, new_path)
