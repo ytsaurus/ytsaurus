@@ -11,7 +11,7 @@
 
 #include <yt/core/misc/proc.h>
 
-#include <library/string_utils/base64/base64.h>
+#include <library/cpp/string_utils/base64/base64.h>
 
 #include <library/cgiparam/cgiparam.h>
 
