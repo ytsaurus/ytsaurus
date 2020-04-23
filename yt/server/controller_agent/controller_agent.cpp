@@ -517,18 +517,20 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
-        auto operation = GetOperationOrThrow(operationId);
-        const auto& controller = operation->GetController();
         TOperationControllerUnregisterResult result;
-        if (controller) {
-            WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
-                // It is called in regular invoker since controller is canceled
-                // but we want to make some final actions.
-                .AsyncVia(controller->GetInvoker())
-                .Run())
-                .ThrowOnError();
+        {
+            auto operation = GetOperationOrThrow(operationId);
+            auto controller = operation->GetController();
+            if (controller) {
+                WaitFor(BIND(&IOperationControllerSchedulerHost::Dispose, controller)
+                    // It is called in regular invoker since controller is canceled
+                    // but we want to make some final actions.
+                    .AsyncVia(controller->GetInvoker())
+                    .Run())
+                    .ThrowOnError();
 
-            result.ResidualJobMetrics = controller->PullJobMetricsDelta(/* force */ true);
+                result.ResidualJobMetrics = controller->PullJobMetricsDelta(/* force */ true);
+            }
         }
 
         UnregisterOperation(operationId);
