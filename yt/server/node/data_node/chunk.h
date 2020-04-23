@@ -22,7 +22,7 @@ struct TBlockReadOptions
     bool FetchFromDisk = true;
     //! By this moment read routine is advised to return at least anything in best-effort manner.
     //! Failure to do so may result in RPC timeout or other kind of lower-level error.
-    TInstant LeadTimeDeadline = TInstant::Max();
+    TInstant Deadline = TInstant::Max();
 };
 
 //! Represents a chunk stored locally at Data Node.
