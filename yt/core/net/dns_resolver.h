@@ -16,7 +16,8 @@ public:
         int retries,
         TDuration resolveTimeout,
         TDuration maxResolveTimeout,
-        TDuration warningTimeout);
+        TDuration warningTimeout,
+        std::optional<double> jitter);
     ~TDnsResolver();
 
     void Start();
