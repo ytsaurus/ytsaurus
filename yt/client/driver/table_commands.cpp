@@ -862,6 +862,7 @@ void TDeleteRowsCommand::DoExecute(ICommandContextPtr context)
         .ValueOrThrow();
 
     tableInfo->ValidateDynamic();
+    tableInfo->ValidateSorted();
 
     struct TDeleteRowsBufferTag
     { };
