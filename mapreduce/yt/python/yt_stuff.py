@@ -305,6 +305,7 @@ class YtStuff(object):
         ])
         self.env["YT_ENABLE_VERBOSE_LOGGING"] = "1"
         self.env["YT_LOG_LEVEL"] = "DEBUG"
+        self.env["RECEIVE_TOKEN_FROM_SSH_SESSION"] = "0"
         self.env.update({x: os.environ[x] for x in _ADMISSIBLE_ENV_VARS if x in os.environ})
 
     def _import_wrapper(self):
