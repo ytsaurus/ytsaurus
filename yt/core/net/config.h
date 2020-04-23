@@ -58,7 +58,9 @@ public:
     int Retries;
     TDuration ResolveTimeout;
     TDuration MaxResolveTimeout;
+    double Jitter;
     TDuration WarningTimeout;
+
 
     TAddressResolverConfig()
     {
@@ -76,6 +78,8 @@ public:
             .Default(TDuration::Seconds(15));
         RegisterParameter("warning_timeout", WarningTimeout)
             .Default(TDuration::Seconds(3));
+        RegisterParameter("jitter", Jitter)
+            .Default(0.5);
 
         RegisterPreprocessor([this] () {
             RefreshTime = TDuration::Seconds(60);
