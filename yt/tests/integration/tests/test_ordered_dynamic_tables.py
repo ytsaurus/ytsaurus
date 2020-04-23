@@ -992,6 +992,16 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [dict(key=1)])
 
+    @authors("akozhikhov")
+    def test_delete_rows_error(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        try:
+            delete_rows("//tmp/t", [{"key": 0}])
+        except YtError as err:
+            if "Table //tmp/t is not sorted" != err.inner_errors[0]["message"]:
+                raise
+
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
 
