@@ -20,7 +20,7 @@
 #include <TableFunctions/ITableFunction.h>
 #include <TableFunctions/TableFunctionFactory.h>
 
-#include <library/string_utils/base64/base64.h>
+#include <library/cpp/string_utils/base64/base64.h>
 
 #include <string>
 

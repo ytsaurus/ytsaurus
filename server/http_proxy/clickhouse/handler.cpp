@@ -20,7 +20,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-#include <library/string_utils/base64/base64.h>
+#include <library/cpp/string_utils/base64/base64.h>
 
 #include <library/cgiparam/cgiparam.h>
 #include <util/string/vector.h>
