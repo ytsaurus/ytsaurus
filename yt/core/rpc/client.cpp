@@ -34,7 +34,8 @@ TClientContext::TClientContext(
     bool heavy,
     EMemoryZone memoryZone,
     TAttachmentsOutputStreamPtr requestAttachmentsStream,
-    TAttachmentsInputStreamPtr responseAttachmentsStream)
+    TAttachmentsInputStreamPtr responseAttachmentsStream,
+    TMemoryTag responseMemoryTag)
     : RequestId_(requestId)
     , TraceContext_(std::move(traceContext))
     , Service_(service)
@@ -43,6 +44,7 @@ TClientContext::TClientContext(
     , MemoryZone_(memoryZone)
     , RequestAttachmentsStream_(std::move(requestAttachmentsStream))
     , ResponseAttachmentsStream_(std::move(responseAttachmentsStream))
+    , ResponseMemoryTag_(responseMemoryTag)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -289,7 +291,8 @@ TClientContextPtr TClientRequest::CreateClientContext()
         Heavy_,
         MemoryZone_,
         RequestAttachmentsStream_,
-        ResponseAttachmentsStream_);
+        ResponseAttachmentsStream_,
+        GetResponseMemoryTag().value_or(GetCurrentMemoryTag()));
 }
 
 void TClientRequest::OnPullRequestAttachmentsStream()

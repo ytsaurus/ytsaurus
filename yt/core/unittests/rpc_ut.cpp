@@ -1178,6 +1178,31 @@ TYPED_TEST(TNotGrpcTest, Compression)
     }
 }
 
+TYPED_TEST(TRpcTest, ResponseMemoryTag)
+{
+    constexpr TMemoryTag TestMemoryTag = 1234;
+    auto initialMemoryUsage = GetMemoryUsageForTag(TestMemoryTag);
+
+    std::vector<TMyProxy::TRspPassCallPtr> rsps;
+    {
+        TMyProxy proxy(this->CreateChannel());
+        TString longString(1000, 'a');
+
+        NYTAlloc::TMemoryTagGuard guard(TestMemoryTag);
+        
+        for (int i = 0; i < 100; ++i) {
+            auto req = proxy.PassCall();
+            req->SetUser(longString);
+            req->SetMutationId(TGuid::Create());
+            req->SetRetry(false);
+            auto err = req->Invoke().Get();
+            rsps.push_back(err.ValueOrThrow());
+        }
+    }
+
+    EXPECT_GE(GetMemoryUsageForTag(TestMemoryTag) - initialMemoryUsage, 100'000);
+}
+
 // Now test different types of errors
 
 TYPED_TEST(TRpcTest, OK)
