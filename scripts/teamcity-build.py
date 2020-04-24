@@ -526,38 +526,6 @@ def build(options, build_context):
 
         run(args, env=env, cwd=options.checkout_directory)
 
-@build_step
-@only_for_projects("yt_fast")
-def build_unittests(options, build_context):
-    env = ya_make_env(options)
-
-    # Do it always whenever options.build_enable_dist_build specified or not.
-    dist_cache_args = [
-        "--dist",
-        "--download-artifacts",
-    ]
-
-    install_args = [
-        "--install", os.path.join(options.working_directory, "bin")
-    ]
-
-    all_args = dist_cache_args + install_args
-    if options.use_asan:
-        all_args += ["--sanitize=address"]
-
-    all_args += ya_make_args(options)
-    all_args += ya_make_definition_args(options)
-
-    targets = []
-    for root, directores, files in os.walk(os.path.join(options.checkout_directory, get_relative_yt_root(options))):
-        for dir in directores:
-            if dir == "unittests":
-                targets.append(root[len(options.checkout_directory):].strip("/") + "/unittests")
-
-    run([get_ya(options), "make"] + targets + all_args,
-        env=env,
-        cwd=options.checkout_directory,
-    )
 
 @build_step
 @only_for_projects("yt", "yp")
@@ -1017,44 +985,6 @@ def run_sandbox_upload(options, build_context):
     except Exception as err:
         raise StepFailedWithNonCriticalError("Failed to create YT_UPLOAD_RESOURCES task in sandbox - {0}".format(err))
 
-@build_step
-def run_unit_tests(options, build_context):
-    if options.disable_tests:
-        teamcity_message("Skipping unit tests since tests are disabled")
-        return
-
-    sandbox_current = os.path.join(options.sandbox_directory, "unit_tests")
-
-    all_unittests = fnmatch.filter(os.listdir(get_bin_dir(options)), "unittester*")
-
-    mkdirp(sandbox_current)
-    try:
-        for unittest_binary in all_unittests:
-            args = [
-                os.path.join(get_bin_dir(options), unittest_binary),
-                "--gtest_color=no",
-                "--gtest_death_test_style=threadsafe",
-                "--gtest_output=xml:" + os.path.join(options.working_directory, "gtest_" + unittest_binary + ".xml"),
-            ]
-            if options.arc:
-                gdb_command = os.path.join(options.checkout_directory, "yt/teamcity-build/teamcity-gdb-script")
-            else:
-                gdb_command = YT_ROOT + "/yt/scripts/teamcity-build/teamcity-gdb-script"
-            if not options.use_asan:
-                args = [
-                    "gdb",
-                    "--batch",
-                    "--return-child-result",
-                    "--command=" + gdb_command,
-                    "--args",
-                ] + args
-            run(args, cwd=sandbox_current, timeout=20 * 60)
-    except ChildHasNonZeroExitCode as err:
-        raise StepFailedWithNonCriticalError(str(err))
-    finally:
-        process_core_dumps(options, "unit_tests", sandbox_current)
-        rmtree(sandbox_current)
-
 def run_ya_tests(options, suite_name, test_paths, dist=True):
     # TODO(ignat): enable it again.
     # NB: tests are disabled under ASAN because random hangups in python, see YT-11297.
@@ -1130,11 +1060,15 @@ def run_ya_all_tests_dist(options, build_context):
     ]
     python_targets = [os.path.join(get_relative_python_root(options), target) for target in python_targets]
     other_targets = [
-        os.path.join(get_relative_yt_root(options), "yt/tests"),
+        os.path.join(get_relative_yt_root(options), "yt"),
         "yp/tests/py2",
         "yp/tests/py3",
     ]
     run_ya_tests(options, "ya_all_dist", python_targets + other_targets)
+
+@only_for_projects("yt")
+def run_ya_unittests_local(options, build_context):
+    run_ya_tests(options, "ya_unittests_local", [os.path.join(get_relative_yt_root(options), "yt/server/unittests")], dist=False)
 
 @build_step
 @only_for_projects("yt")
