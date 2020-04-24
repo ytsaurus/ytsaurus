@@ -1265,8 +1265,6 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
             }
 
             multicellManager->PostToMaster(startRequest, dstCellTag);
-
-            YT_LOG_DEBUG("MARK101 StartTransaction replication posted (UploadTransactionId: %v, DstCellTag: %v)", uploadTransactionId, dstCellTag);
         }
     }
 
