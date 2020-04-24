@@ -1055,6 +1055,12 @@ private:
                 return;
             }
 
+            const auto& rsp = rspOrError.Value();
+            if (rsp->close_demanded()) {
+                OnReplicaCloseDemanded(node, session);
+                return;
+            }
+
             YT_LOG_DEBUG("Ping succeeded (Address: %v, SessionId: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->Id);
@@ -1235,6 +1241,18 @@ private:
         {
             const auto& address = node->Descriptor.GetDefaultAddress();
             YT_LOG_WARNING(error, "Journal replica failed; requesting chunk switch (Address: %v, SessionId: %v)",
+                address,
+                session->Id);
+            ScheduleSwitch(session);
+            BanNode(address);
+        }
+
+        void OnReplicaCloseDemanded(
+            const TNodePtr& node,
+            const TChunkSessionPtr& session)
+        {
+            const auto& address = node->Descriptor.GetDefaultAddress();
+            YT_LOG_DEBUG("Journal replica has demanded to close the session; requesting chunk switch (Address: %v, SessionId: %v)",
                 address,
                 session->Id);
             ScheduleSwitch(session);
