@@ -631,13 +631,16 @@ class TestConcatenateMulticell(TestConcatenate):
         create("table", "//tmp/src1", attributes={"external": False})
         write_table("//tmp/src1", [{"a": "b"}])
         create("table", "//tmp/src2", attributes={"external_cell_tag": 1})
-        write_table("//tmp/src2", [{"a": "b"}])
+        write_table("//tmp/src2", [{"c": "d"}])
 
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
         create("table", "//tmp/p/dst", attributes={"exit_cell_tag": 1})
 
         tx = start_transaction()
         concatenate(["//tmp/src1", "//tmp/src2"], "//tmp/p/dst", tx=tx)
+        commit_transaction(tx)
+
+        assert read_table("//tmp/p/dst") == [{"a": "b"}, {"c": "d"}]
 
 class TestConcatenatePortal(TestConcatenateMulticell):
     ENABLE_TMP_PORTAL = True
@@ -648,13 +651,16 @@ class TestConcatenatePortal(TestConcatenateMulticell):
         create("table", "//tmp/src1", attributes={"external_cell_tag": 1})
         write_table("//tmp/src1", [{"a": "b"}])
         create("table", "//tmp/src2", attributes={"external_cell_tag": 2})
-        write_table("//tmp/src2", [{"a": "b"}])
+        write_table("//tmp/src2", [{"c": "d"}])
 
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 3})
         create("table", "//tmp/p/dst", attributes={"external_cell_tag": 1})
 
         tx = start_transaction()
         concatenate(["//tmp/src1", "//tmp/src2"], "//tmp/p/dst", tx=tx)
+        commit_transaction(tx)
+
+        assert read_table("//tmp/p/dst") == [{"a": "b"}, {"c": "d"}]
 
 class TestConcatenateRpcProxy(TestConcatenate):
     DRIVER_BACKEND = "rpc"

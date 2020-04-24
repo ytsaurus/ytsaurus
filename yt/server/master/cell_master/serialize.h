@@ -93,6 +93,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixTErrorSerialization)                                       (1307))  // ifsmirnov
     ((DynamicTabletSlotCount)                                       (1308))  // gritukan
     ((DynamicStoreRead)                                             (1309))  // ifsmirnov
+    ((BeginUploadConcatenateFixes)                                  (1310))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
