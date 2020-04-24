@@ -14,16 +14,10 @@ namespace {
 
 TEST(TFarmHashTest, Test)
 {
+    // NB: At the time of creation of this test, FarmHash function relied on
+    // FarmFingerprint, however we do not require it, so this test is more or less a sanity check.
     static_assert(std::is_same<ui64, decltype(FarmHash(42ULL))>::value);
     EXPECT_EQ(17355217915646310598ULL, FarmHash(42ULL));
-
-    TString buf = "MDwhat?";
-
-    static_assert(std::is_same<ui64, decltype(FarmHash(buf.Data(), buf.Size()))>::value);
-    EXPECT_EQ(4563404214573070240ULL, FarmHash(buf.Data(), buf.Size()));
-
-    static_assert(std::is_same<ui64, decltype(FarmHash(buf.Data(), buf.Size(), 42))>::value);
-    EXPECT_EQ(4649748257165393602ULL, FarmHash(buf.Data(), buf.Size(), 42ULL));
 }
 
 TEST(TFarmFingerprintTest, Test)
