@@ -256,7 +256,7 @@ void TBootstrap::DoInitialize()
         auto portoExecutorConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecAgent->SlotManager->JobEnvironment)->PortoExecutor;
         auto portoExecutor = CreatePortoExecutor(
             portoExecutorConfig,
-            "limits_tracker");
+            "limits");
         InstanceLimitsTracker_ = CreateSelfPortoInstanceLimitsTracker(
             portoExecutor,
             GetControlInvoker(),
