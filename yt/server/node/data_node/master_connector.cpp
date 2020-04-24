@@ -53,6 +53,7 @@
 
 #include <yt/core/misc/serialize.h>
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/collection_helpers.h>
 
 #include <yt/core/utilex/random.h>
 
@@ -132,7 +133,7 @@ void TMasterConnector::Start()
 
     auto initializeCell = [&] (TCellTag cellTag) {
         MasterCellTags_.push_back(cellTag);
-        YT_VERIFY(ChunksDeltaMap_.insert(std::make_pair(cellTag, TChunksDelta())).second);
+        YT_VERIFY(ChunksDeltaMap_.emplace(cellTag, std::make_unique<TChunksDelta>()).second);
     };
     const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     initializeCell(connection->GetPrimaryMasterCellTag());
@@ -233,6 +234,8 @@ TNodeDescriptor TMasterConnector::GetLocalDescriptor() const
 
 void TMasterConnector::ScheduleNodeHeartbeat(TCellTag cellTag, bool immedately)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     BIND(&TMasterConnector::DoScheduleNodeHeartbeat, MakeStrong(this), cellTag, immedately)
         .AsyncVia(ControlInvoker_)
         .Run();
@@ -254,6 +257,8 @@ void TMasterConnector::DoScheduleNodeHeartbeat(TCellTag cellTag, bool immedately
 
 void TMasterConnector::ScheduleJobHeartbeat(bool immediately)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     // NB: Job heartbeats are sent in round-robin fashion,
     // adjust the period accordingly. Also handle #immediately flag.
     auto period = immediately
@@ -268,6 +273,8 @@ void TMasterConnector::ScheduleJobHeartbeat(bool immediately)
 
 void TMasterConnector::ResetAndScheduleRegisterAtMaster()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     Reset();
 
     TDelayedExecutor::Submit(
@@ -449,6 +456,8 @@ void TMasterConnector::OnLeaseTransactionAborted()
 
 TNodeStatistics TMasterConnector::ComputeStatistics()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     TNodeStatistics result;
     ComputeTotalStatistics(&result);
     ComputeLocationSpecificStatistics(&result);
@@ -458,6 +467,8 @@ TNodeStatistics TMasterConnector::ComputeStatistics()
 
 void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     i64 totalAvailableSpace = 0;
     i64 totalLowWatermarkSpace = 0;
     i64 totalUsedSpace = 0;
@@ -524,6 +535,8 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
 
 void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     const auto& chunkStore = Bootstrap_->GetChunkStore();
 
     struct TMediumStatistics
@@ -566,6 +579,8 @@ void TMasterConnector::ComputeLocationSpecificStatistics(TNodeStatistics* result
 
 bool TMasterConnector::IsLocationWriteable(const TStoreLocationPtr& location)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (!location->IsEnabled()) {
         return false;
     }
@@ -622,15 +637,15 @@ void TMasterConnector::ReportNodeHeartbeat(TCellTag cellTag)
 
 bool TMasterConnector::CanSendFullNodeHeartbeat(TCellTag cellTag)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     const auto& connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
     if (cellTag != connection->GetPrimaryMasterCellTag()) {
         return true;
     }
 
-    for (const auto& pair : ChunksDeltaMap_) {
-        auto cellTag = pair.first;
-        const auto& delta = pair.second;
-        if (cellTag != connection->GetPrimaryMasterCellTag() && delta.State != EMasterConnectorState::Online) {
+    for (const auto& [cellTag, delta] : ChunksDeltaMap_) {
+        if (cellTag != connection->GetPrimaryMasterCellTag() && delta->State != EMasterConnectorState::Online) {
             return false;
         }
     }
@@ -738,7 +753,9 @@ void TMasterConnector::ReportFullNodeHeartbeat(TCellTag cellTag)
 
 TFuture<void> TMasterConnector::GetHeartbeatBarrier(TCellTag cellTag)
 {
-    return GetChunksDelta(cellTag)->HeartbeatBarrier;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return GetChunksDelta(cellTag)->HeartbeatBarrier.Load();
 }
 
 void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
@@ -781,8 +798,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
     auto* delta = GetChunksDelta(cellTag);
 
-    auto barrierPromise = std::move(delta->HeartbeatBarrier);
-    delta->HeartbeatBarrier = NewPromise<void>();
+    auto barrierPromise = delta->HeartbeatBarrier.Exchange(NewPromise<void>());
 
     delta->ReportedAdded.clear();
     for (const auto& chunk : delta->AddedSinceLastSuccess) {
@@ -936,8 +952,9 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
     auto rspOrError = WaitFor(request->Invoke());
     if (!rspOrError.IsOK()) {
-        delta->HeartbeatBarrier.SetFrom(barrierPromise.ToFuture());
-        delta->HeartbeatBarrier = std::move(barrierPromise);
+        auto barrierFuture = barrierPromise.ToFuture();
+        auto heartbeatBarrier = delta->HeartbeatBarrier.Exchange(std::move(barrierPromise));
+        heartbeatBarrier.SetFrom(barrierFuture);
 
         YT_LOG_WARNING(rspOrError, "Error reporting incremental node heartbeat to master");
         if (NRpc::IsRetriableError(rspOrError)) {
@@ -1071,6 +1088,8 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
 TChunkAddInfo TMasterConnector::BuildAddChunkInfo(IChunkPtr chunk)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     TChunkAddInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
     result.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
@@ -1081,6 +1100,8 @@ TChunkAddInfo TMasterConnector::BuildAddChunkInfo(IChunkPtr chunk)
 
 TChunkRemoveInfo TMasterConnector::BuildRemoveChunkInfo(IChunkPtr chunk)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     TChunkRemoveInfo result;
     ToProto(result.mutable_chunk_id(), chunk->GetId());
     result.set_medium_index(chunk->GetLocation()->GetMediumDescriptor().Index);
@@ -1210,6 +1231,8 @@ void TMasterConnector::OnChunkRemoved(const IChunkPtr& chunk)
 
 IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto cellId = Bootstrap_->GetCellId(cellTag);
     const auto& client = Bootstrap_->GetMasterClient();
     const auto& connection = client->GetNativeConnection();
@@ -1219,6 +1242,8 @@ IChannelPtr TMasterConnector::GetMasterChannel(TCellTag cellTag)
 
 void TMasterConnector::UpdateRack(const std::optional<TString>& rack)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TGuard<TSpinLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
@@ -1229,6 +1254,8 @@ void TMasterConnector::UpdateRack(const std::optional<TString>& rack)
 
 void TMasterConnector::UpdateDataCenter(const std::optional<TString>& dc)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TGuard<TSpinLock> guard(LocalDescriptorLock_);
     LocalDescriptor_ = TNodeDescriptor(
         RpcAddresses_,
@@ -1249,13 +1276,15 @@ void TMasterConnector::UpdateTags(std::vector<TString> tags)
 
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TCellTag cellTag)
 {
-    auto it = ChunksDeltaMap_.find(cellTag);
-    YT_ASSERT(it != ChunksDeltaMap_.end());
-    return &it->second;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return GetOrCrash(ChunksDeltaMap_, cellTag).get();
 }
 
 TMasterConnector::TChunksDelta* TMasterConnector::GetChunksDelta(TObjectId id)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return GetChunksDelta(CellTagFromId(id));
 }
 
