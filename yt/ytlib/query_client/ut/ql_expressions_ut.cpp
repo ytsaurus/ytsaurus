@@ -22,6 +22,7 @@
 // TCompareWithNullTest
 // TEvaluateExpressionTest
 // TEvaluateAggregationTest
+// TExpressionStrConvTest
 
 namespace NYT::NQueryClient {
 namespace {
@@ -1805,6 +1806,104 @@ TEST_F(TExpressionErrorTest, ConvertFromAny)
         [&] {
             auto expr = PrepareExpression("int64(any)", schema);
             EvaluateExpression(expr, "any=%true", schema, &result, buffer);
+        }(),
+        HasSubstr("Can not convert value"));
+}
+
+class TExpressionStrConvTest
+    : public ::testing::Test
+    , public ::testing::WithParamInterface<std::tuple<const char*, const char*, TUnversionedValue>>
+{ };
+
+TEST_P(TExpressionStrConvTest, Basic)
+{
+    const auto& param = GetParam();
+    const auto& rowString = std::get<0>(param);
+    const auto& exprString = std::get<1>(param);
+    const auto& expected = std::get<2>(param);
+
+    TTableSchema schema({
+        TColumnSchema("int64", EValueType::Int64),
+        TColumnSchema("uint64", EValueType::Uint64),
+        TColumnSchema("double", EValueType::Double),
+        TColumnSchema("string", EValueType::String)
+    });
+
+    auto expr = PrepareExpression(exprString, schema);
+
+    auto buffer = New<TRowBuffer>();
+    TUnversionedValue result;
+    EvaluateExpression(expr, rowString, schema, &result, buffer);
+
+    EXPECT_EQ(result, expected);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ExpressionStrConvTest,
+    TExpressionStrConvTest,
+    ::testing::Values(
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "int64=1",
+            "numeric_to_string(int64)",
+            MakeString("1")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "uint64=1",
+            "numeric_to_string(uint64)",
+            MakeString("1u")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "double=0",
+            "numeric_to_string(double)",
+            MakeString("0.")),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "string=\"1\"",
+            "parse_int64(string)",
+            MakeInt64(1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "string=\"1u\"",
+            "parse_int64(string)",
+            MakeInt64(1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "string=\"1.0\"",
+            "parse_int64(string)",
+            MakeInt64(1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "string=\"1u\"",
+            "parse_uint64(string)",
+            MakeUint64(1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "string=\"1\"",
+            "parse_uint64(string)",
+            MakeUint64(1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "string=\"1.0\"",
+            "parse_uint64(string)",
+            MakeUint64(1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "string=\"3.1415\"",
+            "parse_double(string)",
+            MakeUnversionedDoubleValue(3.1415)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "string=\"1\"",
+            "parse_double(string)",
+            MakeDouble(1)),
+        std::tuple<const char*, const char*, TUnversionedValue>(
+            "string=\"1u\"",
+            "parse_double(string)",
+            MakeDouble(1))
+));
+
+TEST_F(TExpressionStrConvTest, ErrorConvertStringToNumericTest) {
+    TTableSchema schema({
+        TColumnSchema("string", EValueType::String)
+    });
+
+    auto buffer = New<TRowBuffer>();
+    TUnversionedValue result;
+
+    EXPECT_THROW_THAT(
+        [&] {
+            auto expr = PrepareExpression("parse_int64(string)", schema);
+            EvaluateExpression(expr, "string=\"hello\"", schema, &result, buffer);
         }(),
         HasSubstr("Can not convert value"));
 }
