@@ -21,6 +21,8 @@
 
 #include <yt/server/master/transaction_server/transaction.h>
 
+#include <yt/server/lib/hive/hive_manager.h>
+
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/session_id.h>
 
@@ -33,7 +35,9 @@ namespace NYT::NChunkServer {
 using namespace NHydra;
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NConcurrency;
 using namespace NNodeTrackerServer;
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NHydra;
@@ -86,6 +90,8 @@ private:
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
+        // TODO(shakurov): only sync with the leader is really needed,
+        // not with the primary cell.
         SyncWithUpstream();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -328,7 +334,7 @@ private:
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
-        SyncWithUpstream();
+        SyncWithTransactionCoordinatorCell(context, transactionId);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
@@ -346,7 +352,7 @@ private:
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
-        SyncWithUpstream();
+        SyncWithTransactionCoordinatorCell(context, transactionId);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
@@ -415,6 +421,23 @@ private:
         chunkManager
             ->CreateExecuteBatchMutation(context)
             ->CommitAndReply(context);
+    }
+
+    void SyncWithTransactionCoordinatorCell(const IServiceContextPtr& context, TTransactionId transactionId)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+
+        auto cellTag = CellTagFromId(transactionId);
+        auto cellId = multicellManager->GetCellId(cellTag);
+        auto syncFuture = hiveManager->SyncWith(cellId, true);
+
+        YT_LOG_DEBUG("Request will synchronize with another cell (RequestId: %v, CellTag: %v)",
+            context->GetRequestId(),
+            cellTag);
+
+        WaitFor(syncFuture)
+            .ThrowOnError();
     }
 };
 

@@ -6,6 +6,7 @@
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/config.h>
 
+#include <yt/ytlib/object_client/helpers.h>
 #include <yt/ytlib/object_client/object_ypath_proxy.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -75,9 +76,10 @@ int TChunkTeleporter::GetExportedObjectCount(TCellTag cellTag)
     auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TObjectServiceProxy proxy(channel);
 
-    auto req = TObjectYPathProxy::Get(FromObjectId(TransactionId_) + "/@exported_object_count");
-    // NB: This transaction is only needed to force cell sync.
-    SetTransactionId(req, TransactionId_);
+    // TODO(shakurov): replace this with a newer syntax for "#OBJECT_ID" redirect suppression.
+    auto req = TObjectYPathProxy::Get("//sys/transactions/" + ToString(TransactionId_) + "/@exported_object_count");
+
+    AddCellTagToSyncWith(req, CellTagFromId(TransactionId_));
 
     auto rspOrError = WaitFor(proxy.Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting exported object count for transaction %v in cell %v",
@@ -150,9 +152,10 @@ int TChunkTeleporter::GetImportedObjectCount(TCellTag cellTag)
     auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TObjectServiceProxy proxy(channel);
 
-    auto req = TObjectYPathProxy::Get(FromObjectId(TransactionId_) + "/@imported_object_count");
-    // NB: This transaction is only needed to force cell sync.
-    SetTransactionId(req, TransactionId_);
+    // TODO(shakurov): replace this with a newer syntax for "#OBJECT_ID" redirect suppression.
+    auto req = TObjectYPathProxy::Get("//sys/transactions/" + ToString(TransactionId_) + "/@imported_object_count");
+
+    AddCellTagToSyncWith(req, CellTagFromId(TransactionId_));
 
     auto rspOrError = WaitFor(proxy.Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting imported object count for transaction %v in cell %v",

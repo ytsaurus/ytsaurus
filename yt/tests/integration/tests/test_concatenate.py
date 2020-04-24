@@ -626,6 +626,36 @@ class TestConcatenateMulticell(TestConcatenate):
         abort_transaction(tx1)
         assert read_table("//tmp/t3") == [{"a": "b"}]
 
+    @authors("shakurov")
+    def test_concatenate_between_primary_and_secondary_shards(self):
+        create("table", "//tmp/src1", attributes={"external": False})
+        write_table("//tmp/src1", [{"a": "b"}])
+        create("table", "//tmp/src2", attributes={"external_cell_tag": 1})
+        write_table("//tmp/src2", [{"a": "b"}])
+
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+        create("table", "//tmp/p/dst", attributes={"exit_cell_tag": 1})
+
+        tx = start_transaction()
+        concatenate(["//tmp/src1", "//tmp/src2"], "//tmp/p/dst", tx=tx)
+
+class TestConcatenatePortal(TestConcatenateMulticell):
+    ENABLE_TMP_PORTAL = True
+    NUM_SECONDARY_MASTER_CELLS = 3
+
+    @authors("shakurov")
+    def test_concatenate_between_secondary_shards(self):
+        create("table", "//tmp/src1", attributes={"external_cell_tag": 1})
+        write_table("//tmp/src1", [{"a": "b"}])
+        create("table", "//tmp/src2", attributes={"external_cell_tag": 2})
+        write_table("//tmp/src2", [{"a": "b"}])
+
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 3})
+        create("table", "//tmp/p/dst", attributes={"external_cell_tag": 1})
+
+        tx = start_transaction()
+        concatenate(["//tmp/src1", "//tmp/src2"], "//tmp/p/dst", tx=tx)
+
 class TestConcatenateRpcProxy(TestConcatenate):
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
