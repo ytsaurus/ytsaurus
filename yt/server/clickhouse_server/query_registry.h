@@ -18,7 +18,7 @@ public:
     ~TQueryRegistry();
 
     void Register(TQueryContextPtr queryContext);
-    void Unregister(TQueryContext* queryContext);
+    void Unregister(TQueryContextPtr queryContext);
 
     void AccountPhaseCounter(TQueryContextPtr queryContext, EQueryPhase fromPhase, EQueryPhase toPhase);
 
