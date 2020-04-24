@@ -39,6 +39,11 @@ try:
 except ImportError:
     yatest_common = None
 
+if yatest_common is not None:
+    from yatest.common import network as yatest_common_network
+else:
+    yatest_common_network = None
+
 logger = logging.getLogger("Yt.local")
 
 def _dump_netstat(dump_file_path):
@@ -46,7 +51,38 @@ def _dump_netstat(dump_file_path):
     with open(dump_file_path, "wb") as dump_file:
         subprocess.check_call(["netstat", "-v", "-p", "-a", "-ee"], stdout=dump_file)
 
+
 class OpenPortIterator(Iterator):
+    def __init__(self, port_locks_path=None, local_port_range=None):
+        if yatest_common_network is None:
+            self._impl = OpenPortIteratorNonArcadia(port_locks_path, local_port_range)
+        else:
+            self._impl = OpenPortIteratorArcadia()
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self._impl.__next__()
+
+    def release(self):
+        return self._impl.release()
+
+
+class OpenPortIteratorArcadia(Iterator):
+    def __init__(self):
+        if yatest_common_network is None:
+            raise RuntimeError("Cannot use OpenPortIteratorArcadia outside arcadia")
+        self.port_manager = yatest_common_network.PortManager()
+
+    def release(self):
+        self.port_manager.release()
+
+    def __next__(self):
+        return self.port_manager.get_port()
+
+
+class OpenPortIteratorNonArcadia(Iterator):
     GEN_PORT_ATTEMPTS = 10
     START_PORT = 10000
 
@@ -64,7 +100,7 @@ class OpenPortIterator(Iterator):
                 start, end = list(imap(int, f.read().split()))
                 self.local_port_range = start, min(end, start + 10000)
 
-    def release_locks(self):
+    def release(self):
         for lock_path, lock_fd in self.lock_fds:
             try:
                 os.close(lock_fd)

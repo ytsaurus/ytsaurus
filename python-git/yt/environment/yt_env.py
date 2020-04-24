@@ -627,7 +627,7 @@ class YTInstance(object):
         remove_file(self.pids_filename, force=True)
 
         if self._open_port_iterator is not None:
-            self._open_port_iterator.release_locks()
+            self._open_port_iterator.release()
             self._open_port_iterator = None
 
         wait_for_removing_file_lock(os.path.join(self.path, "lock_file"))
