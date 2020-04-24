@@ -304,6 +304,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         assert get("//sys/pool_trees/@default_tree") == "default"
 
         remove("//sys/pool_trees/@default_tree")
+        wait(lambda: not exists(scheduler_orchid_path() + "/scheduler/default_pool_tree"))
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": 1}])
