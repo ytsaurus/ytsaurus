@@ -206,8 +206,16 @@ private:
             }
 
             const auto& blocks = blocksOrError.Value();
-            for (int index = 0; index < localIndexes.size(); ++index) {
-                session->Blocks[localIndexes[index]] = blocks[index];
+            for (int responseIndex = 0; responseIndex < blocks.size(); ++responseIndex) {
+                const auto& block = blocks[responseIndex];
+                int localIndex = localIndexes[responseIndex];
+                int blockIndex =  session->BlockIndexes[localIndex];
+                if (!block) {
+                    ThrowError(TError("Block %v:%v cannot be read",
+                        Chunk_->GetId(),
+                        blockIndex));
+                }
+                session->Blocks[localIndex] = block;
             }
 
             RequestBlockSet(session);
