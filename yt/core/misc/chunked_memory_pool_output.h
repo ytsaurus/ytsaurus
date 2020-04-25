@@ -12,10 +12,11 @@ class TChunkedMemoryPoolOutput
     : public IZeroCopyOutput
 {
 public:
-    static constexpr size_t DefaultChunkSize = 36_KB - 512;
+    static constexpr size_t DefaultChunkSize = 4_KB;
 
-public:
-    explicit TChunkedMemoryPoolOutput(TChunkedMemoryPool* pool, size_t chunkSize = DefaultChunkSize);
+    explicit TChunkedMemoryPoolOutput(
+        TChunkedMemoryPool* pool,
+        size_t chunkSize = DefaultChunkSize);
 
     std::vector<TMutableRef> FinishAndGetRefs();
 
@@ -26,7 +27,9 @@ private:
 private:
     TChunkedMemoryPool* const Pool_;
     const size_t ChunkSize_;
+    
     char* Begin_ = nullptr;
+    char* Current_ = nullptr;
     char* End_ = nullptr;
     std::vector<TMutableRef> Refs_;
 };

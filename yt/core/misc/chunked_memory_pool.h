@@ -53,8 +53,8 @@ class TChunkedMemoryPool
     : private TNonCopyable
 {
 public:
-    static const size_t DefaultStartChunkSize;
-    static const size_t RegularChunkSize;
+    static constexpr size_t DefaultStartChunkSize = 4_KB;
+    static constexpr size_t RegularChunkSize = 36_KB - 512;
 
     TChunkedMemoryPool(
         TRefCountedTypeCookie tagCookie,
@@ -101,6 +101,10 @@ public:
 
     //! Returns the number of reserved bytes.
     size_t GetCapacity() const;
+
+    //! Returns the number of bytes that can be acquired in the current chunk
+    //! without additional allocations.
+    size_t GetCurrentChunkSpareSize() const;
 
 private:
     const TRefCountedTypeCookie TagCookie_;

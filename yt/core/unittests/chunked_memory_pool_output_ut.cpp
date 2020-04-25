@@ -8,35 +8,32 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TChunkedMemoryPool, TestBasic)
+TEST(TChunkedMemoryPoolOutputTest, Basic)
 {
     constexpr size_t PoolChunkSize = 10;
     constexpr size_t PoolOutputChunkSize = 7;
     TChunkedMemoryPool pool(NullRefCountedTypeCookie, PoolChunkSize);
     TChunkedMemoryPoolOutput output(&pool, PoolOutputChunkSize);
-    output.Write("Short."); // 1 chunk.
-    output.Write("Quite a long string."); // 3 chunks.
-    output.Write('.'); // 1 chunk.
+
+    output.Write("Short.");
+    output.Write("Quite a long string.");
 
     char* buf;
     auto len = output.Next(&buf);
-    ASSERT_EQ(len, PoolOutputChunkSize);
-    const auto Foo = AsStringBuf("foo");
-    ::memcpy(buf, Foo.data(), Foo.length());
-    output.Undo(7 - Foo.length());
-
+    ASSERT_EQ(4, len);
+    output.Undo(len);
+    
     auto chunks = output.FinishAndGetRefs();
-    ASSERT_EQ(chunks.size(), 6);
+    ASSERT_EQ(chunks.size(), 5);
 
     auto toString = [] (TRef ref) {
         return TString(ref.Begin(), ref.End());
     };
-    EXPECT_EQ(toString(chunks[0]), "Short.");
-    EXPECT_EQ(toString(chunks[1]), "Quite a");
-    EXPECT_EQ(toString(chunks[2]), " long s");
-    EXPECT_EQ(toString(chunks[3]), "tring.");
-    EXPECT_EQ(toString(chunks[4]), ".");
-    EXPECT_EQ(toString(chunks[5]), "foo");
+    EXPECT_EQ("Short.Q", toString(chunks[0]));
+    EXPECT_EQ("uite a ", toString(chunks[1]));
+    EXPECT_EQ("lo",      toString(chunks[2]));
+    EXPECT_EQ("ng stri", toString(chunks[3]));
+    EXPECT_EQ("ng.",     toString(chunks[4]));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
