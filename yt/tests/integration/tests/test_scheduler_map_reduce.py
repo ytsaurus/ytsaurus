@@ -408,6 +408,7 @@ print "x={0}\ty={1}".format(x, y)
         operation_path = op.get_path()
         wait(lambda: exists(operation_path + "/@async_scheduler_transaction_id"))
         async_transaction_id = get(operation_path + "/@async_scheduler_transaction_id")
+        wait(lambda: exists(operation_path + "/intermediate", tx=async_transaction_id))
         assert "brotli_3" == get(operation_path + "/intermediate/@compression_codec", tx=async_transaction_id)
         op.abort()
 
