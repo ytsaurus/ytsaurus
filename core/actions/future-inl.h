@@ -1459,16 +1459,16 @@ struct TAsyncViaHelper<R(TArgs...)>
         const TPromise<TUnderlying>& promise,
         TArgs... args)
     {
+        auto canceler = NConcurrency::GetCurrentFiberCanceler();
+        if (canceler) {
+            promise.OnCanceled(std::move(canceler));
+        }
+
         if (promise.IsCanceled()) {
             promise.Set(TError(
                 NYT::EErrorCode::Canceled,
                 "Computation was canceled before it was started"));
             return;
-        }
-
-        auto canceler = NConcurrency::GetCurrentFiberCanceler();
-        if (canceler) {
-            promise.OnCanceled(std::move(canceler));
         }
 
         NYT::NDetail::TPromiseSetter<TUnderlying, R(TArgs...)>::Do(promise, this_, args...);
