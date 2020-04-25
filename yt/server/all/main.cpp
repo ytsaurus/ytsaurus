@@ -16,7 +16,7 @@ int main(int argc, const char** argv)
         {"ytserver-master", [&] { return NYT::TCellMasterProgram().Run(argc, argv); }},
         {"ytserver-clock", [&] { return NYT::TClusterClockProgram().Run(argc, argv); }},
         {"ytserver-http-proxy", [&] { return NYT::THttpProxyProgram().Run(argc, argv); }},
-        {"ytserver-proxy", [&] { return NYT::NCellProxy::TCellProxyProgram().Run(argc, argv); }},
+        {"ytserver-proxy", [&] { return NYT::NRpcProxy::TRpcProxyProgram().Run(argc, argv); }},
         {"ytserver-node", [&] { return NYT::NCellNode::TCellNodeProgram().Run(argc, argv); }},
         {"ytserver-job-proxy", [&] { return NYT::NJobProxy::TJobProxyProgram().Run(argc, argv); }},
         {"ytserver-exec", [&] { return NYT::NExec::TExecProgram().Run(argc, argv); }},
