@@ -34,7 +34,7 @@ using namespace NDiscoveryServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDistributedThrottlerTestSuite
+class TDistributedThrottlerTest
     : public ::testing::Test
 {
 public:
@@ -111,7 +111,7 @@ private:
     }
 };
 
-TEST_F(TDistributedThrottlerTestSuite, TestLimitUniform)
+TEST_F(TDistributedThrottlerTest, DISABLED_TestLimitUniform)
 {
     int throttlersCount = 4;
     auto leaderThrottlerConfig = New<TThroughputThrottlerConfig>(100);
@@ -186,7 +186,7 @@ TEST_F(TDistributedThrottlerTestSuite, TestLimitUniform)
     EXPECT_LE(duration, 7000);
 }
 
-TEST_F(TDistributedThrottlerTestSuite, TestLimitAdaptive)
+TEST_F(TDistributedThrottlerTest, DISABLED_TestLimitAdaptive)
 {
     auto throttlerConfig = New<TThroughputThrottlerConfig>(100);
     auto config = GenerateThrottlerConfig();
