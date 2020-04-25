@@ -93,12 +93,12 @@ const NProfiling::TTagIdList& TChunkReaderMemoryManager::GetProfilingTagList() c
 
 void TChunkReaderMemoryManager::AddChunkReaderInfo(TGuid chunkReaderId)
 {
-    Logger.AddTag("chunk_reader_id", chunkReaderId);
+    YT_LOG_DEBUG("Chunk reader info added (ChunkReaderId: %v)", chunkReaderId);
 }
 
 void TChunkReaderMemoryManager::AddReadSessionInfo(TGuid readSessionId)
 {
-    Logger.AddTag("read_session_id", readSessionId);
+    YT_LOG_DEBUG("Read session info added (ReadSessionId: %v)", readSessionId);
 }
 
 TGuid TChunkReaderMemoryManager::GetId() const

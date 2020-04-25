@@ -209,12 +209,12 @@ public:
 
     virtual void AddChunkReaderInfo(TGuid chunkReaderId) override
     {
-        Logger.AddTag("chunk_reader_id", chunkReaderId);
+        YT_LOG_DEBUG("Chunk reader info added (ChunkReaderId: %v)", chunkReaderId);
     }
 
     virtual void AddReadSessionInfo(TGuid readSessionId) override
     {
-        Logger.AddTag("read_session_id", readSessionId);
+        YT_LOG_DEBUG("Read session info added (ReadSessionId: %v)", readSessionId);
     }
 
     virtual TGuid GetId() const override
