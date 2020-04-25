@@ -1178,6 +1178,8 @@ TYPED_TEST(TNotGrpcTest, Compression)
     }
 }
 
+#ifndef _asan_enabled_
+
 TYPED_TEST(TRpcTest, ResponseMemoryTag)
 {
     constexpr TMemoryTag TestMemoryTag = 1234;
@@ -1189,7 +1191,7 @@ TYPED_TEST(TRpcTest, ResponseMemoryTag)
         TString longString(1000, 'a');
 
         NYTAlloc::TMemoryTagGuard guard(TestMemoryTag);
-        
+
         for (int i = 0; i < 100; ++i) {
             auto req = proxy.PassCall();
             req->SetUser(longString);
@@ -1202,6 +1204,8 @@ TYPED_TEST(TRpcTest, ResponseMemoryTag)
 
     EXPECT_GE(GetMemoryUsageForTag(TestMemoryTag) - initialMemoryUsage, 100'000);
 }
+
+#endif
 
 // Now test different types of errors
 
