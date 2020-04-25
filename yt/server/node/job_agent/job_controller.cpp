@@ -78,6 +78,7 @@ class TJobController::TImpl
 {
 public:
     DEFINE_SIGNAL(void(), ResourcesUpdated);
+    DEFINE_SIGNAL(void(const IJobPtr& job), JobFinished);
 
 public:
     TImpl(
@@ -942,6 +943,8 @@ void TJobController::TImpl::OnJobFinished(const TWeakPtr<IJob>& weakJob)
 
     auto* jobFinalStateCounter = GetJobFinalStateCounter(job->GetState(), origin);
     Profiler_.Increment(*jobFinalStateCounter);
+
+    JobFinished_.Fire(job);
 }
 
 bool TJobController::TImpl::CheckMemoryOverdraft(const TNodeResources& delta)
@@ -1551,6 +1554,7 @@ IYPathServicePtr TJobController::GetOrchidService()
 }
 
 DELEGATE_SIGNAL(TJobController, void(), ResourcesUpdated, *Impl_)
+DELEGATE_SIGNAL(TJobController, void(const IJobPtr&), JobFinished, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////
 

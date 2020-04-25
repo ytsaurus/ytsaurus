@@ -1292,9 +1292,7 @@ private:
 
         SetJobPhase(EJobPhase::Finished);
 
-        YT_LOG_INFO("Job finalized (JobState: %v)", GetState());
-
-        Bootstrap_->GetExecSlotManager()->OnJobFinished(GetState());
+        YT_LOG_INFO("Job finished (JobState: %v)", GetState());
     }
 
     // Preparation.
