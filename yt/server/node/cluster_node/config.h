@@ -23,7 +23,7 @@
 
 #include <yt/core/concurrency/config.h>
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -174,7 +174,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConfigManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellNodeConfig
+class TClusterNodeConfig
     : public TServerConfig
 {
 public:
@@ -232,7 +232,7 @@ public:
     //! Dynamic config manager config.
     TDynamicConfigManagerConfigPtr DynamicConfigManager;
 
-    TCellNodeConfig()
+    TClusterNodeConfig()
     {
         RegisterParameter("orchid_cache_update_period", OrchidCacheUpdatePeriod)
             .Default(TDuration::Seconds(5));
@@ -331,26 +331,26 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellNodeConfig)
+DEFINE_REFCOUNTED_TYPE(TClusterNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellNodeDynamicConfig
+class TClusterNodeDynamicConfig
     : public NYTree::TYsonSerializable
 {
 public:
     //! Dynamic config annotation.
     TString ConfigAnnotation;
 
-    TCellNodeDynamicConfig()
+    TClusterNodeDynamicConfig()
     {
         RegisterParameter("config_annotation", ConfigAnnotation)
             .Optional();
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellNodeDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TClusterNodeDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellNode
+} // namespace NYT::NClusterNode

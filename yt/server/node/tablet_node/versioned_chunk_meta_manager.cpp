@@ -1,7 +1,7 @@
 #include "versioned_chunk_meta_manager.h"
 #include "private.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/lib/tablet_node/config.h>
 
@@ -17,7 +17,7 @@ namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NTableClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +51,7 @@ class TVersionedChunkMetaManager::TImpl
 public:
     TImpl(
         TTabletNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             config->VersionedChunkMetaCache,
             TabletNodeProfiler.AppendPath("/versioned_chunk_meta_cache"))
@@ -104,7 +104,7 @@ private:
 
 TVersionedChunkMetaManager::TVersionedChunkMetaManager(
     TTabletNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(std::move(config), bootstrap))
 { }
 

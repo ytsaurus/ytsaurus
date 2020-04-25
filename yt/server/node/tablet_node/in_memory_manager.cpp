@@ -9,7 +9,7 @@
 #include "tablet_profiling.h"
 #include "tablet_slot.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/lib/tablet_node/config.h>
 
@@ -135,7 +135,7 @@ class TInMemoryManager
 public:
     TInMemoryManager(
         TInMemoryManagerConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
         , CompressionInvoker_(CreateFixedPriorityInvoker(
@@ -206,7 +206,7 @@ public:
 
 private:
     const TInMemoryManagerConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     const IInvokerPtr CompressionInvoker_;
 
@@ -463,7 +463,7 @@ private:
 
         auto chunkData = New<TInMemoryChunkData>();
         chunkData->InMemoryMode = mode;
-        chunkData->MemoryTrackerGuard = NCellNode::TNodeMemoryTrackerGuard::Acquire(
+        chunkData->MemoryTrackerGuard = NClusterNode::TNodeMemoryTrackerGuard::Acquire(
             Bootstrap_->GetMemoryUsageTracker(),
             EMemoryCategory::TabletStatic,
             0,
@@ -501,7 +501,7 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryManager)
 
 IInMemoryManagerPtr CreateInMemoryManager(
     TInMemoryManagerConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
 {
     return New<TInMemoryManager>(config, bootstrap);
 }
@@ -619,7 +619,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     chunkData->InMemoryMode = mode;
     chunkData->StartBlockIndex = startBlockIndex;
     if (memoryTracker) {
-        chunkData->MemoryTrackerGuard = NCellNode::TNodeMemoryTrackerGuard::Acquire(
+        chunkData->MemoryTrackerGuard = NClusterNode::TNodeMemoryTrackerGuard::Acquire(
             memoryTracker,
             EMemoryCategory::TabletStatic,
             preallocatedMemory,

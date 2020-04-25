@@ -3,7 +3,7 @@
 #include "serialize.h"
 #include "tablet_slot.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/lib/hydra/hydra_manager.h>
 
@@ -15,7 +15,7 @@ namespace NYT::NTabletNode {
 
 using namespace NHydra;
 using namespace NTableClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

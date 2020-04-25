@@ -6,7 +6,7 @@
 #include <yt/server/node/tablet_node/in_memory_manager.h>
 #include <yt/server/node/tablet_node/slot_manager.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/lib/tablet_node/config.h>
 
@@ -58,7 +58,7 @@ class TInMemoryService
 public:
     TInMemoryService(
         TInMemoryManagerConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetStorageLightInvoker(),
             TInMemoryServiceProxy::GetDescriptor(),
@@ -74,7 +74,7 @@ public:
 
 private:
     const TInMemoryManagerConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     TReaderWriterSpinLock SessionMapLock_;
     THashMap<TInMemorySessionId, TInMemorySessionPtr> SessionMap_;
@@ -256,7 +256,7 @@ private:
 
 IServicePtr CreateInMemoryService(
     TInMemoryManagerConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
 {
     return New<TInMemoryService>(config, bootstrap);
 }

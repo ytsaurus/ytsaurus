@@ -8,8 +8,8 @@
 #include "journal_manager.h"
 #include "master_connector.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/hydra/changelog.h>
 #include <yt/server/lib/hydra/private.h>
@@ -33,7 +33,7 @@
 namespace NYT::NDataNode {
 
 using namespace NChunkClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NProfiling;

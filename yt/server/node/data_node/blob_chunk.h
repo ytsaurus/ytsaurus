@@ -46,7 +46,7 @@ public:
 
 protected:
     TBlobChunkBase(
-        NCellNode::TBootstrap* bootstrap,
+        NClusterNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta);
@@ -129,7 +129,7 @@ class TStoredBlobChunk
 {
 public:
     TStoredBlobChunk(
-        NCellNode::TBootstrap* bootstrap,
+        NClusterNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta = nullptr);
@@ -147,7 +147,7 @@ class TCachedBlobChunk
 {
 public:
     TCachedBlobChunk(
-        NCellNode::TBootstrap* bootstrap,
+        NClusterNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta,

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 namespace NYT::NDataNode {
 
@@ -20,7 +20,7 @@ class TChunkRegistry
     : public TRefCounted
 {
 public:
-    explicit TChunkRegistry(NCellNode::TBootstrap* bootstrap);
+    explicit TChunkRegistry(NClusterNode::TBootstrap* bootstrap);
 
     //! Finds chunk by id. Returns |nullptr| if no chunk exists.
     IChunkPtr FindChunk(TChunkId chunkId, int mediumIndex = NChunkClient::AllMediaIndex);
@@ -29,7 +29,7 @@ public:
     IChunkPtr GetChunkOrThrow(TChunkId chunkId, int mediumIndex = NChunkClient::AllMediaIndex);
 
 private:
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
 };
 

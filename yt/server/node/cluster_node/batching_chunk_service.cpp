@@ -27,7 +27,7 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 using namespace NRpc;
 using namespace NConcurrency;
@@ -56,7 +56,7 @@ public:
         : TServiceBase(
             NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             TChunkServiceProxy::GetDescriptor(),
-            NLogging::TLogger(CellNodeLogger)
+            NLogging::TLogger(ClusterNodeLogger)
                 .AddTag("CellTag: %v", CellTagFromId(cellId)),
             cellId)
         , ServiceConfig_(std::move(serviceConfig))
@@ -566,4 +566,4 @@ IServicePtr CreateBatchingChunkService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellNode
+} // namespace NYT::NClusterNode

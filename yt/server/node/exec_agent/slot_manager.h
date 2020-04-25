@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/node/data_node/public.h>
 
@@ -33,7 +33,7 @@ class TSlotManager
 public:
     TSlotManager(
         TSlotManagerConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     //! Initializes slots etc.
     void Initialize();
@@ -70,7 +70,7 @@ public:
 
 private:
     const TSlotManagerConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
     const int SlotCount_;
     const TString NodeTag_;
 

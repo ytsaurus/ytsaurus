@@ -3,7 +3,7 @@
 #include "dynamic_store_bits.h"
 #include "tablet_profiling.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/table_client/public.h>
 

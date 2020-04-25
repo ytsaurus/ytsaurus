@@ -1,8 +1,8 @@
 #include "gpu_manager.h"
 #include "private.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/node/data_node/master_connector.h>
 #include <yt/server/node/data_node/helpers.h>
@@ -31,7 +31,7 @@
 namespace NYT::NJobAgent {
 
 using namespace NConcurrency;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NApi;
 using namespace NObjectClient;
 using namespace NFileClient;

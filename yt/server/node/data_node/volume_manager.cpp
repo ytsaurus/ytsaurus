@@ -8,7 +8,7 @@ namespace NYT::NDataNode {
 
 IVolumeManagerPtr CreatePortoVolumeManager(
     TVolumeManagerConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
 {
     THROW_ERROR_EXCEPTION("Volume manager is not supported");
 }
@@ -28,8 +28,8 @@ IVolumeManagerPtr CreatePortoVolumeManager(
 
 #include <yt/server/node/data_node/volume.pb.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/containers/instance.h>
 #include <yt/server/lib/containers/porto_executor.h>
@@ -72,7 +72,7 @@ namespace NYT::NDataNode {
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NContainers;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NTools;

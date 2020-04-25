@@ -3,7 +3,7 @@
 #include "public.h"
 #include "serialize.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/lib/hydra/composite_automaton.h>
 
@@ -62,12 +62,12 @@ class TTabletAutomatonPart
 {
 protected:
     const TTabletSlotPtr Slot_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
 
     TTabletAutomatonPart(
         TTabletSlotPtr slot,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     virtual bool ValidateSnapshotVersion(int version) override;
     virtual int GetCurrentSnapshotVersion() override;

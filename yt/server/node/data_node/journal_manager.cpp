@@ -6,7 +6,7 @@
 #include "journal_dispatcher.h"
 #include "location.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/lib/hydra/changelog.h>
 #include <yt/server/lib/hydra/file_changelog_dispatcher.h>
@@ -826,7 +826,7 @@ public:
     TImpl(
         TDataNodeConfigPtr config,
         TStoreLocation* location,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : MultiplexedChangelogConfig_(UpdateYsonSerializable(config->MultiplexedChangelog, location->GetConfig()->MultiplexedChangelog))
         , HighLatencySplitChangelogConfig_(UpdateYsonSerializable(config->HighLatencySplitChangelog, location->GetConfig()->HighLatencySplitChangelog))
         , LowLatencySplitChangelogConfig_(UpdateYsonSerializable(config->LowLatencySplitChangelog, location->GetConfig()->LowLatencySplitChangelog))
@@ -969,7 +969,7 @@ private:
     const TFileChangelogConfigPtr HighLatencySplitChangelogConfig_;
     const TFileChangelogConfigPtr LowLatencySplitChangelogConfig_;
     TStoreLocation* const Location_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     const NLogging::TLogger Logger;
 
@@ -1187,7 +1187,7 @@ private:
 TJournalManager::TJournalManager(
     TDataNodeConfigPtr config,
     TStoreLocation* location,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, location, bootstrap))
 { }
 

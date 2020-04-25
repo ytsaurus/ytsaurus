@@ -12,7 +12,7 @@
 #include "tablet_reader.h"
 #include "tablet_slot.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
@@ -98,7 +98,7 @@ class TStoreCompactor
 public:
     TStoreCompactor(
        TTabletNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->StoreCompactor->ThreadPoolSize, "StoreCompact"))
@@ -127,7 +127,7 @@ public:
 
 private:
     const TTabletNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     TThreadPoolPtr ThreadPool_;
 
@@ -1752,7 +1752,7 @@ DEFINE_REFCOUNTED_TYPE(TStoreCompactor)
 
 TStoreCompactorPtr CreateStoreCompactor(
     TTabletNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
 {
     return New<TStoreCompactor>(config, bootstrap);
 }

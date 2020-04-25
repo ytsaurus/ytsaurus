@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
@@ -64,7 +64,7 @@ public:
         const NNodeTrackerClient::TAddressMap& skynetHttpAddresses,
         const NNodeTrackerClient::TAddressMap& monitoringHttpAddresses,
         const std::vector<TString>& nodeTags,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     //! Starts interaction with master.
     void Start();
@@ -101,7 +101,7 @@ private:
     const NNodeTrackerClient::TAddressMap MonitoringHttpAddresses_;
 
     const std::vector<TString> NodeTags_;
-    const NCellNode::TBootstrap* Bootstrap_;
+    const NClusterNode::TBootstrap* Bootstrap_;
     const IInvokerPtr ControlInvoker_;
 
     bool Started_ = false;

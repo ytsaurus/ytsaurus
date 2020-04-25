@@ -6,9 +6,9 @@
 
 #include <yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/node_resource_manager.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/node_resource_manager.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/node/data_node/chunk_cache.h>
 #include <yt/server/node/data_node/master_connector.h>
@@ -24,7 +24,7 @@
 
 namespace NYT::NExecAgent {
 
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NDataNode;
 using namespace NJobAgent;
 using namespace NConcurrency;

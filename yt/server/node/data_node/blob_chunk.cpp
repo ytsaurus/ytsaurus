@@ -7,8 +7,8 @@
 #include "chunk_meta_manager.h"
 #include "chunk_store.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -29,7 +29,7 @@
 namespace NYT::NDataNode {
 
 using namespace NConcurrency;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;

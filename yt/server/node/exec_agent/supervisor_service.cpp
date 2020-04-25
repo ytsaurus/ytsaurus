@@ -4,8 +4,8 @@
 
 #include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/node/job_agent/job_controller.h>
 #include <yt/server/node/job_agent/public.h>
@@ -25,7 +25,7 @@ namespace NYT::NExecAgent {
 
 using namespace NJobAgent;
 using namespace NNodeTrackerClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NJobProxy;
@@ -37,7 +37,7 @@ class TSupervisorService
     : public NRpc::TServiceBase
 {
 public:
-    explicit TSupervisorService(NCellNode::TBootstrap* bootstrap)
+    explicit TSupervisorService(NClusterNode::TBootstrap* bootstrap)
         : NRpc::TServiceBase(
             bootstrap->GetJobInvoker(),
             TSupervisorServiceProxy::GetDescriptor(),
@@ -61,7 +61,7 @@ public:
     }
 
 private:
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
 
@@ -305,7 +305,7 @@ private:
     }
 };
 
-NRpc::IServicePtr CreateSupervisorService(NCellNode::TBootstrap* bootstrap)
+NRpc::IServicePtr CreateSupervisorService(NClusterNode::TBootstrap* bootstrap)
 {
     return New<TSupervisorService>(bootstrap);
 }

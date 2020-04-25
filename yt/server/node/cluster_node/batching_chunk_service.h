@@ -8,7 +8,7 @@
 
 #include <yt/core/rpc/public.h>
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,4 +20,4 @@ NRpc::IServicePtr CreateBatchingChunkService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellNode
+} // namespace NYT::NClusterNode

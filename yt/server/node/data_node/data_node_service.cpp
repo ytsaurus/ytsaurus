@@ -16,7 +16,7 @@
 #include "session_manager.h"
 #include "table_schema_cache.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -74,7 +74,7 @@ using namespace NRpc;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NTableClient::NProto;

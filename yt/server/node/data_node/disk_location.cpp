@@ -2,7 +2,7 @@
 
 #include "config.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/node/data_node/master_connector.h>
 
@@ -14,7 +14,7 @@
 
 namespace NYT::NDataNode {
 
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NYTree;
 using namespace NYson;
 

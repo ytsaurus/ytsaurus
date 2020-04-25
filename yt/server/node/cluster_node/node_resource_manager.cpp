@@ -15,7 +15,7 @@
 
 #include <limits>
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
@@ -23,7 +23,7 @@ using namespace NNodeTrackerClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CellNodeLogger;
+static const auto& Logger = ClusterNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,4 +221,4 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellNode
+} // namespace NYT::NClusterNode

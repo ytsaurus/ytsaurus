@@ -3,7 +3,7 @@
 #include "public.h"
 #include "job.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job_spec_service.pb.h>
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
@@ -41,7 +41,7 @@ class TJobController
 public:
     TJobController(
         TJobControllerConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     ~TJobController();
 

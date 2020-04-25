@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/chunk_client/file_reader.h>
 #include <yt/client/chunk_client/chunk_replica.h>
@@ -31,7 +31,7 @@ class TChunkStore
 public:
     TChunkStore(
         TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     //! Scans locations for chunks and registers them.
     /*!
@@ -128,7 +128,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
     const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     struct TChunkEntry

@@ -3,7 +3,7 @@
 #include "location.h"
 #include "session_detail.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/block.h>
@@ -41,7 +41,7 @@ private:
         ESlotState State = ESlotState::Empty;
         NChunkClient::TBlock Block;
         TPromise<void> WrittenPromise = NewPromise<void>();
-        NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
+        NClusterNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
         TPendingIOGuard PendingIOGuard;
     };
 

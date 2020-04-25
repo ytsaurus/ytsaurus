@@ -3,8 +3,8 @@
 #include "slot.h"
 #include "slot_manager.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/containers/public.h>
 
@@ -66,9 +66,9 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NFileClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NDataNode;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobAgent;
@@ -107,7 +107,7 @@ public:
         TOperationId operationId,
         const TNodeResources& resourceUsage,
         TJobSpec&& jobSpec,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : Id_(jobId)
         , OperationId_(operationId)
         , Bootstrap_(bootstrap)
@@ -744,7 +744,7 @@ public:
 private:
     const TJobId Id_;
     const TOperationId OperationId_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     const TExecAgentConfigPtr Config_;
     const IInvokerPtr Invoker_;
@@ -1985,7 +1985,7 @@ NJobAgent::IJobPtr CreateUserJob(
     TOperationId operationId,
     const TNodeResources& resourceUsage,
     TJobSpec&& jobSpec,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
 {
     return New<TJob>(
         jobId,

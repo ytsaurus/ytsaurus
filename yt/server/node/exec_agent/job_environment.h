@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/node/data_node/artifact.h>
 #include <yt/server/node/data_node/public.h>
@@ -57,7 +57,7 @@ DEFINE_REFCOUNTED_TYPE(IJobEnvironment)
 
 IJobEnvironmentPtr CreateJobEnvironment(
     NYTree::INodePtr config,
-    NCellNode::TBootstrap* bootstrap);
+    NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

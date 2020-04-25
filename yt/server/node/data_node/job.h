@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/node/job_agent/public.h>
 
@@ -19,7 +19,7 @@ NJobAgent::IJobPtr CreateChunkJob(
     NJobTrackerClient::NProto::TJobSpec&& jobSpec,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
     TDataNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap);
+    NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

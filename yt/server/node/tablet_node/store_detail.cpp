@@ -16,8 +16,8 @@
 #include <yt/server/node/data_node/chunk_registry.h>
 #include <yt/server/node/data_node/local_chunk_reader.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/client/table_client/row_buffer.h>
 

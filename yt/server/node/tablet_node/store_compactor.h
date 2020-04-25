@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 namespace NYT::NTabletNode {
 
@@ -10,7 +10,7 @@ namespace NYT::NTabletNode {
 
 TStoreCompactorPtr CreateStoreCompactor(
     TTabletNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap);
+    NClusterNode::TBootstrap* bootstrap);
 
 void StartStoreCompactor(
     TStoreCompactorPtr storeCompactor);

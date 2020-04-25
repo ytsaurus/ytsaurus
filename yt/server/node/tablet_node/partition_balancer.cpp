@@ -8,7 +8,7 @@
 #include "tablet_manager.h"
 #include "tablet_slot.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/lib/hydra/hydra_manager.h>
 #include <yt/server/lib/hydra/mutation.h>
@@ -65,7 +65,7 @@ class TPartitionBalancer
 public:
     TPartitionBalancer(
         TPartitionBalancerConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Semaphore_(New<TAsyncSemaphore>(Config_->MaxConcurrentSamplings))
@@ -82,7 +82,7 @@ public:
 
 private:
     TPartitionBalancerConfigPtr Config_;
-    NCellNode::TBootstrap* Bootstrap_;
+    NClusterNode::TBootstrap* Bootstrap_;
     TAsyncSemaphorePtr Semaphore_;
     TThrottlerManagerPtr ThrottlerManager_;
 
@@ -722,7 +722,7 @@ private:
 
 void StartPartitionBalancer(
     TTabletNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
 {
     if (config->EnablePartitionBalancer) {
         New<TPartitionBalancer>(config->PartitionBalancer, bootstrap);

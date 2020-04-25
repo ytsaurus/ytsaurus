@@ -5,8 +5,8 @@
 
 #include <yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/node/data_node/master_connector.h>
 
@@ -42,7 +42,7 @@ using namespace NYTree;
 
 TSlotLocation::TSlotLocation(
     const TSlotLocationConfigPtr& config,
-    const NCellNode::TBootstrap* bootstrap,
+    const NClusterNode::TBootstrap* bootstrap,
     const TString& id,
     const IJobDirectoryManagerPtr& jobDirectoryManager,
     bool enableTmpfs,

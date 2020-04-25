@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/client/chunk_client/chunk_replica.h>
 
@@ -34,7 +34,7 @@ class TChunkCache
 public:
     TChunkCache(
         TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
     ~TChunkCache();
 
     void Initialize();

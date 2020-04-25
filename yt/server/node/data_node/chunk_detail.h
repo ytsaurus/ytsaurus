@@ -3,7 +3,7 @@
 #include "public.h"
 #include "chunk.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/core/profiling/timing.h>
 
@@ -52,7 +52,7 @@ public:
     virtual bool IsRemoveScheduled() const override;
 
 protected:
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
     const TLocationPtr Location_;
     const TChunkId Id_;
 
@@ -85,7 +85,7 @@ protected:
 
 
     TChunkBase(
-        NCellNode::TBootstrap* bootstrap,
+        NClusterNode::TBootstrap* bootstrap,
         TLocationPtr location,
         TChunkId id);
     ~TChunkBase();

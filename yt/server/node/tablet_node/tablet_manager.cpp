@@ -19,7 +19,7 @@
 #include "table_replicator.h"
 #include "tablet_profiling.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/server/node/data_node/master_connector.h>
@@ -91,7 +91,7 @@ using namespace NConcurrency;
 using namespace NYson;
 using namespace NYTree;
 using namespace NHydra;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 using namespace NTabletNode::NProto;

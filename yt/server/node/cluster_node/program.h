@@ -1,5 +1,5 @@
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
@@ -17,20 +17,20 @@
 
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellNodeProgram
+class TClusterNodeProgram
     : public TProgram
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
     , public TProgramCgroupMixin
     , public TProgramToolMixin
-    , public TProgramConfigMixin<NCellNode::TCellNodeConfig>
+    , public TProgramConfigMixin<NClusterNode::TClusterNodeConfig>
 {
 public:
-    TCellNodeProgram()
+    TClusterNodeProgram()
         : TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
         , TProgramCgroupMixin(Opts_)
@@ -88,7 +88,7 @@ protected:
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NCellNode::TBootstrap(std::move(config), std::move(configNode));
+        auto* bootstrap = new NClusterNode::TBootstrap(std::move(config), std::move(configNode));
         bootstrap->Initialize();
 
         if (ValidateSnapshot_) {
@@ -104,4 +104,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellNode
+} // namespace NYT::NClusterNode

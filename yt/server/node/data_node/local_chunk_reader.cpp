@@ -2,7 +2,7 @@
 #include "chunk_block_manager.h"
 #include "chunk_store.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/node/data_node/chunk.h>
 
@@ -19,7 +19,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NDataNode;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 

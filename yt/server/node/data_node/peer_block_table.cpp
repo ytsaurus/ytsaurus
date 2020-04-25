@@ -2,7 +2,7 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -18,7 +18,7 @@ namespace NYT::NDataNode {
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NConcurrency;
-using namespace NCellNode;
+using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

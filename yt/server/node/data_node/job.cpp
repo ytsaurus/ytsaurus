@@ -9,8 +9,8 @@
 #include "location.h"
 #include "master_connector.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/hydra/changelog.h>
 
@@ -53,7 +53,7 @@ using namespace NJobTrackerClient;
 using namespace NJobAgent;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;

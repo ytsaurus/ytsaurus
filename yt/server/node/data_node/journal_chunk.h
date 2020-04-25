@@ -13,7 +13,7 @@ class TJournalChunk
 {
 public:
     TJournalChunk(
-        NCellNode::TBootstrap* bootstrap,
+        NClusterNode::TBootstrap* bootstrap,
         TStoreLocationPtr location,
         const TChunkDescriptor& descriptor);
 
