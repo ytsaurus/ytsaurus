@@ -39,8 +39,6 @@ class TJobController
     : public TRefCounted
 {
 public:
-    DECLARE_SIGNAL(void(), ResourcesUpdated)
-
     TJobController(
         TJobControllerConfigPtr config,
         NCellNode::TBootstrap* bootstrap);
@@ -98,6 +96,9 @@ public:
         NObjectClient::EObjectType jobObjectType);
 
     NYTree::IYPathServicePtr GetOrchidService();
+
+    DECLARE_SIGNAL(void(), ResourcesUpdated)
+    DECLARE_SIGNAL(void(const IJobPtr&), JobFinished);
 
 private:
     class TImpl;

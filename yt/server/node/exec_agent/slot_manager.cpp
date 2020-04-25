@@ -14,6 +14,8 @@
 #include <yt/server/node/data_node/master_connector.h>
 #include <yt/server/node/data_node/volume_manager.h>
 
+#include <yt/server/node/job_agent/job_controller.h>
+
 #include <yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -24,6 +26,7 @@ namespace NYT::NExecAgent {
 
 using namespace NCellNode;
 using namespace NDataNode;
+using namespace NJobAgent;
 using namespace NConcurrency;
 using namespace NYTree;
 
@@ -46,9 +49,10 @@ TSlotManager::TSlotManager(
 
 void TSlotManager::Initialize()
 {
-    Bootstrap_->GetMasterConnector()->SubscribePopulateAlerts(BIND(
-        &TSlotManager::PopulateAlerts,
-        MakeStrong(this)));
+    Bootstrap_->GetMasterConnector()->SubscribePopulateAlerts(
+        BIND(&TSlotManager::PopulateAlerts, MakeStrong(this)));
+    Bootstrap_->GetJobController()->SubscribeJobFinished(
+        BIND(&TSlotManager::OnJobFinished, MakeStrong(this)));
 
     YT_LOG_INFO("Initializing exec slots (Count: %v)", SlotCount_);
 
@@ -237,18 +241,19 @@ void TSlotManager::Disable(const TError& error)
     PersistentAlert_ = errorWrapper;
 }
 
-void TSlotManager::OnJobFinished(EJobState jobState)
+void TSlotManager::OnJobFinished(const IJobPtr& job)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (jobState == EJobState::Aborted) {
+    TGuard guard(SpinLock_);
+
+    if (job->GetState() == EJobState::Aborted) {
         ++ConsecutiveAbortedJobCount_;
     } else {
         ConsecutiveAbortedJobCount_ = 0;
     }
 
     if (ConsecutiveAbortedJobCount_ > Config_->MaxConsecutiveAborts) {
-        TGuard guard(SpinLock_);
         if (!TransientAlert_) {
             auto delay = Config_->DisableJobsTimeout + RandomDuration(Config_->DisableJobsTimeout);
             TransientAlert_ = TError("Too many consecutive job abortions; scheduler jobs disabled until %v",
