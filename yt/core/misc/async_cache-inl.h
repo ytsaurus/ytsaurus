@@ -314,8 +314,7 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, con
 
     guard.Release();
 
-    promise.Set(TError(NYT::EErrorCode::Canceled, "Cache item insertion canceled")
-        << error);
+    promise.Set(error);
 }
 
 template <class TKey, class TValue, class THash>
