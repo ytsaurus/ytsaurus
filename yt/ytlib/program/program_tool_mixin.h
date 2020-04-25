@@ -9,7 +9,7 @@ namespace NYT {
 class TProgramToolMixin
 {
 protected:
-    TProgramToolMixin(NLastGetopt::TOpts& opts);
+    explicit TProgramToolMixin(NLastGetopt::TOpts& opts);
 
     bool HandleToolOptions();
 
