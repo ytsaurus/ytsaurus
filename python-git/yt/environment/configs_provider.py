@@ -825,6 +825,8 @@ class ConfigsProvider_19(ConfigsProvider):
                 },
                 "grpc_server": grpc_server_config,
                 "monitoring_port": next(ports_generator),
+                "yt_alloc_dump_period": 15000,
+                "ref_counted_tracker_dump_period": 15000,
                 "enable_authentication": False,
                 "address_resolver": {"localhost_fqdn": provision["fqdn"]},
                 "api_service": {
