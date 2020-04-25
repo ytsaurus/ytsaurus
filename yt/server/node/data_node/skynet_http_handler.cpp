@@ -5,7 +5,7 @@
 #include <yt/server/node/data_node/chunk_store.h>
 #include <yt/server/node/data_node/chunk.h>
 
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -33,7 +33,7 @@ using namespace NApi;
 using namespace NChunkClient;
 using namespace NChunkClient;
 using namespace NTableClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NConcurrency;
 
 using NChunkClient::NProto::TMiscExt;

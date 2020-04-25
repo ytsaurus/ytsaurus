@@ -8,7 +8,7 @@
 #include "location.h"
 #include "master_connector.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/client/formats/config.h>
 
@@ -60,7 +60,7 @@ using namespace NObjectClient;
 using namespace NFileClient;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NRpc;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;

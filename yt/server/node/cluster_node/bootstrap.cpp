@@ -149,7 +149,7 @@
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 using namespace NAdmin;
 using namespace NBus;
@@ -187,7 +187,7 @@ static const NLogging::TLogger Logger("Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(TCellNodeConfigPtr config, INodePtr configNode)
+TBootstrap::TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
     , QueryThreadPool_(BIND([this] () {
@@ -268,7 +268,7 @@ void TBootstrap::DoInitialize()
         Config_->ResourceLimits->TotalMemory,
         std::vector<std::pair<EMemoryCategory, i64>>{},
         Logger,
-        TProfiler("/cell_node/memory_usage"));
+        TProfiler("/cluster_node/memory_usage"));
 
     MasterConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
     MasterClient_ = MasterConnection_->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
@@ -619,7 +619,7 @@ void TBootstrap::DoInitialize()
     auto cache = New<TObjectServiceCache>(
         Config_->MasterCacheService,
         Logger,
-        TProfiler("/cell_node/master_cache"));
+        TProfiler("/cluster_node/master_cache"));
 
     {
         auto result = GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::MasterCache, Config_->MasterCacheService->Capacity);
@@ -807,7 +807,7 @@ void TBootstrap::DoValidateSnapshot(const TString& fileName)
     GetTabletSlotManager()->ValidateCellSnapshot(reader);
 }
 
-const TCellNodeConfigPtr& TBootstrap::GetConfig() const
+const TClusterNodeConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
 }
@@ -1263,11 +1263,11 @@ void TBootstrap::OnMasterDisconnected()
     }
 }
 
-void TBootstrap::OnDynamicConfigUpdated(const TCellNodeDynamicConfigPtr& newConfig)
+void TBootstrap::OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newConfig)
 {
     Y_UNUSED(newConfig);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellNode
+} // namespace NYT::NClusterNode

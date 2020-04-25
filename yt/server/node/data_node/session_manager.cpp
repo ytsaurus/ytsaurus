@@ -8,7 +8,7 @@
 #include "journal_session.h"
 #include "location.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/client/chunk_client/chunk_replica.h>
@@ -31,7 +31,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/lib/hydra/public.h>
 
@@ -22,7 +22,7 @@ public:
     TJournalManager(
         TDataNodeConfigPtr config,
         TStoreLocation* location,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
     ~TJournalManager();
 
     void Initialize();

@@ -2,7 +2,7 @@
 
 #include "disk_location.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/ytlib/chunk_client/medium_directory.h>
@@ -89,7 +89,7 @@ public:
         ELocationType type,
         const TString& id,
         TStoreLocationConfigBasePtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     //! Returns the type.
     ELocationType GetType() const;
@@ -213,7 +213,7 @@ public:
     bool IsSick() const;
 
 protected:
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
     NProfiling::TProfiler Profiler_;
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
@@ -296,7 +296,7 @@ public:
     TStoreLocation(
         const TString& id,
         TStoreLocationConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     //! Returns the location's config.
     const TStoreLocationConfigPtr& GetConfig() const;
@@ -380,7 +380,7 @@ public:
     TCacheLocation(
         const TString& id,
         TCacheLocationConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     const NConcurrency::IThroughputThrottlerPtr& GetInThrottler() const;
 

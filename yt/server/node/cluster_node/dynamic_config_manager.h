@@ -11,7 +11,7 @@
 
 #include <yt/core/ytree/public.h>
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,7 +26,7 @@ class TDynamicConfigManager
 {
 public:
     //! Raises when dynamic config changes.
-    DEFINE_SIGNAL(void(const TCellNodeDynamicConfigPtr&), ConfigUpdated);
+    DEFINE_SIGNAL(void(const TClusterNodeDynamicConfigPtr&), ConfigUpdated);
 
 public:
     TDynamicConfigManager(
@@ -75,4 +75,4 @@ DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellNode
+} // namespace NYT::NClusterNode

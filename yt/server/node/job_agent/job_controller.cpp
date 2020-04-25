@@ -2,9 +2,9 @@
 #include "private.h"
 #include "gpu_manager.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
-#include <yt/server/node/cell_node/node_resource_manager.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/server/node/data_node/master_connector.h>
 #include <yt/server/node/data_node/chunk_cache.h>
@@ -56,7 +56,7 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NYson;
 using namespace NYTree;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NScheduler;
@@ -115,7 +115,7 @@ public:
 
 private:
     const TJobControllerConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     THashMap<EJobType, TJobFactory> JobFactoryMap_;
 

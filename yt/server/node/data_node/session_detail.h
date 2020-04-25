@@ -3,7 +3,7 @@
 #include "public.h"
 #include "session.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -23,7 +23,7 @@ class TSessionBase
 public:
     TSessionBase(
         TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap,
+        NClusterNode::TBootstrap* bootstrap,
         TSessionId sessionId,
         const TSessionOptions& options,
         TStoreLocationPtr location,
@@ -61,7 +61,7 @@ public:
 
 protected:
     const TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
     const TSessionId SessionId_;
     const TSessionOptions Options_;
     const TStoreLocationPtr Location_;

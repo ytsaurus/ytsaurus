@@ -4,7 +4,7 @@
 #include "journal_dispatcher.h"
 #include "location.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/lib/hydra/changelog.h>
 

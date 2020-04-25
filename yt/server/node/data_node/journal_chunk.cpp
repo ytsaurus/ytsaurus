@@ -4,8 +4,8 @@
 #include "location.h"
 #include "session.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/hydra/changelog.h>
 #include <yt/server/lib/hydra/sync_file_changelog.h>
@@ -24,7 +24,7 @@
 namespace NYT::NDataNode {
 
 using namespace NConcurrency;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NHydra;

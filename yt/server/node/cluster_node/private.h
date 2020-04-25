@@ -2,12 +2,12 @@
 
 #include <yt/core/logging/log.h>
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const NLogging::TLogger CellNodeLogger;
+extern const NLogging::TLogger ClusterNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellNode
+} // namespace NYT::NClusterNode

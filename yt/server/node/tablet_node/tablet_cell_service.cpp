@@ -4,7 +4,7 @@
 
 #include <yt/client/object_client/helpers.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/data_node/master_connector.h>
 
 #include <yt/server/lib/hydra/hydra_service.h>
@@ -13,7 +13,7 @@
 
 namespace NYT::NTabletNode {
 
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NObjectClient;
 using namespace NRpc;
 
@@ -48,7 +48,7 @@ private:
     }
 };
 
-IServicePtr CreateTabletCellService(NCellNode::TBootstrap* bootstrap)
+IServicePtr CreateTabletCellService(NClusterNode::TBootstrap* bootstrap)
 {
     return New<TTabletCellService>(bootstrap);
 }

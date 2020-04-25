@@ -2,8 +2,8 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/server/node/data_node/chunk.h>
@@ -102,7 +102,7 @@ TRange<TRow> GetSampleKeys(const NTabletNode::TPartitionSnapshotPtr& shard)
 
 namespace NYT::NQueryAgent {
 
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NDataNode;

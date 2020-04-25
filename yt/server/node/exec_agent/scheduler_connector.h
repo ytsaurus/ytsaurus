@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
@@ -20,13 +20,13 @@ class TSchedulerConnector
 public:
     TSchedulerConnector(
         TSchedulerConnectorConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     void Start();
 
 private:
     const TSchedulerConnectorConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
     
     const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
 

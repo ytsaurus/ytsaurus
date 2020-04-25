@@ -12,7 +12,7 @@
 
 #include <yt/core/ytree/ypath_service.h>
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -22,7 +22,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TLogger& Logger = CellNodeLogger;
+static const TLogger& Logger = ClusterNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,7 +119,7 @@ void TDynamicConfigManager::TryFetchConfig()
     const auto& client = Bootstrap_->GetMasterClient();
     auto configOrError = WaitFor(client->GetNode("//sys/cluster_nodes/@config", options));
     THROW_ERROR_EXCEPTION_IF_FAILED(configOrError,
-        NCellNode::EErrorCode::FailedToFetchDynamicConfig,
+        NClusterNode::EErrorCode::FailedToFetchDynamicConfig,
         "Failed to fetch dynamic config from Cypress")
 
     auto configNode = ConvertTo<IMapNodePtr>(configOrError.Value());
@@ -138,7 +138,7 @@ void TDynamicConfigManager::TryFetchConfig()
     for (int configIndex = 0; configIndex < configs.size(); ++configIndex) {
         if (MakeBooleanFormula(configs[configIndex].first).IsSatisfiedBy(CurrentNodeTagList_)) {
             if (matchingConfigIndex) {
-                THROW_ERROR_EXCEPTION(NCellNode::EErrorCode::DuplicateMatchingDynamicConfigs,
+                THROW_ERROR_EXCEPTION(NClusterNode::EErrorCode::DuplicateMatchingDynamicConfigs,
                     "Found duplicate matching dynamic configs")
                     << TErrorAttribute("first_config_filter", configs[*matchingConfigIndex].first)
                     << TErrorAttribute("second_config_filter", configs[configIndex].first);
@@ -164,18 +164,18 @@ void TDynamicConfigManager::TryFetchConfig()
 
     YT_LOG_INFO("Node dynamic config has changed, reconfiguring");
 
-    auto newConfig = New<TCellNodeDynamicConfig>();
+    auto newConfig = New<TClusterNodeDynamicConfig>();
     newConfig->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
     try {
         newConfig->Load(newConfigNode);
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION(NCellNode::EErrorCode::InvalidDynamicConfig, "Invalid dynamic node config")
+        THROW_ERROR_EXCEPTION(NClusterNode::EErrorCode::InvalidDynamicConfig, "Invalid dynamic node config")
             << ex;
     }
 
     auto unrecognizedOptions = newConfig->GetUnrecognizedRecursively();
     if (unrecognizedOptions && unrecognizedOptions->GetChildCount() > 0 && Config_->EnableUnrecognizedOptionsAlert) {
-        auto error = TError(NCellNode::EErrorCode::UnrecognizedDynamicConfigOption,
+        auto error = TError(NClusterNode::EErrorCode::UnrecognizedDynamicConfigOption,
             "Found unrecognized options in dynamic config")
             << TErrorAttribute("unrecognized_options", ConvertToYsonString(unrecognizedOptions, EYsonFormat::Text));
         YT_LOG_WARNING(error);
@@ -205,5 +205,5 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConfigManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellNode
+} // namespace NYT::NClusterNode
 

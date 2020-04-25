@@ -5,7 +5,7 @@
 #include <yt/server/lib/job_agent/config.h>
 #include <yt/server/lib/job_agent/gpu_helpers.h>
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 #include <yt/server/node/data_node/artifact.h>
 
 #include <yt/client/hydra/public.h>
@@ -53,7 +53,7 @@ class TGpuManager
 {
 public:
     TGpuManager(
-        NCellNode::TBootstrap* bootstrap,
+        NClusterNode::TBootstrap* bootstrap,
         TGpuManagerConfigPtr config);
 
     int GetTotalGpuCount() const;
@@ -69,7 +69,7 @@ public:
     void VerifyToolkitDriverVersion(const TString& toolkitVersion);
 
 private:
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
     const TGpuManagerConfigPtr Config_;
 
     const NConcurrency::TPeriodicExecutorPtr HealthCheckExecutor_;

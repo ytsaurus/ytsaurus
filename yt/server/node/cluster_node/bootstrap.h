@@ -45,17 +45,17 @@
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/lazy_ptr.h>
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
 {
 public:
-    TBootstrap(TCellNodeConfigPtr config, NYTree::INodePtr configNode);
+    TBootstrap(TClusterNodeConfigPtr config, NYTree::INodePtr configNode);
     ~TBootstrap();
 
-    const TCellNodeConfigPtr& GetConfig() const;
+    const TClusterNodeConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetJobInvoker() const;
     IInvokerPtr GetQueryPoolInvoker(
@@ -139,7 +139,7 @@ public:
     bool IsReadOnly() const;
 
 private:
-    const TCellNodeConfigPtr Config_;
+    const TClusterNodeConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
     NConcurrency::TActionQueuePtr ControlActionQueue_;
@@ -240,7 +240,7 @@ private:
     void OnMasterConnected();
     void OnMasterDisconnected();
 
-    void OnDynamicConfigUpdated(const TCellNodeDynamicConfigPtr& newConfig);
+    void OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

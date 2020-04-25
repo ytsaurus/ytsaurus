@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 namespace NYT::NTabletNode {
 
@@ -14,7 +14,7 @@ class TVersionedChunkMetaManager
 public:
     TVersionedChunkMetaManager(
         TTabletNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     ~TVersionedChunkMetaManager();
 

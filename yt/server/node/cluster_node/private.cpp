@@ -1,11 +1,11 @@
 #include "private.h"
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger CellNodeLogger("CellNode");
+const NLogging::TLogger ClusterNodeLogger("CellNode");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellNode
+} // namespace NYT::NClusterNode

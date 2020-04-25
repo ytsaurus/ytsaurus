@@ -5,7 +5,7 @@
 #include "location.h"
 #include "chunk_meta_manager.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/ytlib/chunk_client/file_reader.h>
 
@@ -88,7 +88,7 @@ class TBlobReaderCache::TImpl
 public:
     TImpl(
         const TDataNodeConfigPtr& config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             config->BlobReaderCache,
             DataNodeProfiler.AppendPath("/block_reader_cache"))
@@ -145,7 +145,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
 };
 
@@ -153,7 +153,7 @@ private:
 
 TBlobReaderCache::TBlobReaderCache(
     TDataNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         std::move(config),
         bootstrap))

@@ -10,9 +10,9 @@
 #include "session_manager.h"
 #include "network_statistics.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
-#include <yt/server/node/cell_node/node_resource_manager.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
+#include <yt/server/node/cluster_node/node_resource_manager.h>
 
 #include <yt/server/node/data_node/journal_dispatcher.h>
 
@@ -85,7 +85,7 @@ using namespace NHiveClient;
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NApi;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NYTree;
 
 using NNodeTrackerClient::TAddressMap;

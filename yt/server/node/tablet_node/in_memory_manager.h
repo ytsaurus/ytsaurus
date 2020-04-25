@@ -3,7 +3,7 @@
 #include "public.h"
 #include "tablet_profiling.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/api/native/public.h>
 
@@ -39,7 +39,7 @@ struct TInMemoryChunkData
     std::vector<NChunkClient::TBlock> Blocks;
     NTableClient::TCachedVersionedChunkMetaPtr ChunkMeta;
     NTableClient::IChunkLookupHashTablePtr LookupHashTable;
-    NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
+    NClusterNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
     std::atomic<bool> Finalized = {false};
 };
 
@@ -75,7 +75,7 @@ DEFINE_REFCOUNTED_TYPE(IInMemoryManager)
 
 IInMemoryManagerPtr CreateInMemoryManager(
     TInMemoryManagerConfigPtr config,
-    NCellNode::TBootstrap* bootstrap);
+    NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

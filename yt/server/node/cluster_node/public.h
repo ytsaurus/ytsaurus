@@ -6,7 +6,7 @@
 
 #include <yt/core/misc/public.h>
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,8 +14,8 @@ class TBootstrap;
 
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TCellNodeConfig)
-DECLARE_REFCOUNTED_CLASS(TCellNodeDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TClusterNodeConfig)
+DECLARE_REFCOUNTED_CLASS(TClusterNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TBatchingChunkServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 DECLARE_REFCOUNTED_CLASS(TNodeResourceManager)
@@ -38,4 +38,4 @@ DEFINE_ENUM(EErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellNode
+} // namespace NYT::NClusterNode

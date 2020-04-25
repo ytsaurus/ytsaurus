@@ -2,8 +2,8 @@
 #include "private.h"
 #include "chunk_block_manager.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
@@ -27,7 +27,7 @@ class TServerBlockCache
 public:
     TServerBlockCache(
         TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
         , UnderlyingCache_(CreateClientBlockCache(
@@ -80,7 +80,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     const IBlockCachePtr UnderlyingCache_;
 
@@ -88,7 +88,7 @@ private:
 
 IBlockCachePtr CreateServerBlockCache(
     TDataNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
 {
     return New<TServerBlockCache>(config, bootstrap);
 }

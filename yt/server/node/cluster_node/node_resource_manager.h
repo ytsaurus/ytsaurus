@@ -8,7 +8,7 @@
 
 #include <yt/core/concurrency/thread_affinity.h>
 
-namespace NYT::NCellNode {
+namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -58,4 +58,4 @@ DEFINE_REFCOUNTED_TYPE(TNodeResourceManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellNode
+} // namespace NYT::NClusterNode

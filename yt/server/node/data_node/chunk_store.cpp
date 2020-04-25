@@ -9,7 +9,7 @@
 #include "session.h"
 #include "session_manager.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -26,7 +26,7 @@ namespace NYT::NDataNode {
 
 using namespace NObjectClient;
 using namespace NChunkClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NRpc;
 using namespace NConcurrency;
 

@@ -5,7 +5,7 @@
 
 #include <yt/server/lib/misc/profiling_helpers.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/node/query_agent/config.h>
 
@@ -43,7 +43,7 @@
 
 namespace NYT::NQueryAgent {
 
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NChunkClient;
 using namespace NCompression;
 using namespace NConcurrency;
@@ -127,7 +127,7 @@ class TQueryService
 public:
     TQueryService(
         TQueryAgentConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetQueryPoolInvoker({}, 1.0, {}),
             TQueryServiceProxy::GetDescriptor(),
@@ -153,7 +153,7 @@ public:
 
 private:
     const TQueryAgentConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Execute)
@@ -562,7 +562,7 @@ private:
 
 IServicePtr CreateQueryService(
     TQueryAgentConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
 {
     return New<TQueryService>(config, bootstrap);
 }

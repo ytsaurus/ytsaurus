@@ -4,7 +4,7 @@
 #include "session_manager.h"
 #include "chunk_meta_manager.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
@@ -14,7 +14,7 @@
 
 namespace NYT::NDataNode {
 
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 

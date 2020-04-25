@@ -2,13 +2,13 @@
 
 #include <yt/core/http/public.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NHttp::IHttpHandlerPtr MakeSkynetHttpHandler(NCellNode::TBootstrap* bootstrap);
+NHttp::IHttpHandlerPtr MakeSkynetHttpHandler(NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

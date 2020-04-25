@@ -43,7 +43,7 @@
 
 #include <yt/server/lib/tablet_node/config.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/node/data_node/master_connector.h>
 
@@ -111,7 +111,7 @@ public:
         int slotIndex,
         TTabletNodeConfigPtr config,
         const TCreateTabletSlotInfo& createInfo,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : Owner_(owner)
         , SlotIndex_(slotIndex)
         , Config_(config)
@@ -636,7 +636,7 @@ private:
     TTabletSlot* const Owner_;
     const int SlotIndex_;
     const TTabletNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     const TFairShareActionQueuePtr AutomatonQueue_;
     const TActionQueuePtr SnapshotQueue_;
@@ -889,7 +889,7 @@ TTabletSlot::TTabletSlot(
     int slotIndex,
     TTabletNodeConfigPtr config,
     const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         this,
         slotIndex,

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -27,13 +27,13 @@ public:
     TCachedChunkMeta(
         TChunkId chunkId,
         NChunkClient::TRefCountedChunkMetaPtr meta,
-        NCellNode::TNodeMemoryTrackerPtr memoryTracker);
+        NClusterNode::TNodeMemoryTrackerPtr memoryTracker);
 
     i64 GetSize() const;
 
 private:
     // NB: Avoid including TMemoryUsageTracker here.
-    std::unique_ptr<NCellNode::TNodeMemoryTrackerGuard> MemoryTrackerGuard_;
+    std::unique_ptr<NClusterNode::TNodeMemoryTrackerGuard> MemoryTrackerGuard_;
 
 };
 
@@ -54,13 +54,13 @@ public:
     TCachedBlocksExt(
         TChunkId chunkId,
         NChunkClient::TRefCountedBlocksExtPtr blocksExt,
-        NCellNode::TNodeMemoryTrackerPtr memoryTracker);
+        NClusterNode::TNodeMemoryTrackerPtr memoryTracker);
 
     i64 GetSize() const;
 
 private:
     // NB: Avoid including TMemoryUsageTracker here.
-    std::unique_ptr<NCellNode::TNodeMemoryTrackerGuard> MemoryTrackerGuard_;
+    std::unique_ptr<NClusterNode::TNodeMemoryTrackerGuard> MemoryTrackerGuard_;
 
 };
 
@@ -81,7 +81,7 @@ class TChunkMetaManager
 public:
     TChunkMetaManager(
         TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     ~TChunkMetaManager();
 

@@ -4,7 +4,7 @@
 
 #include <yt/ytlib/chunk_client/session_id.h>
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/core/concurrency/rw_spinlock.h>
 
@@ -24,7 +24,7 @@ class TSessionManager
 public:
     TSessionManager(
         TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     //! Starts a new chunk upload session.
     /*!
@@ -51,7 +51,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     NConcurrency::TReaderWriterSpinLock SessionMapLock_;
     THashMap<TSessionId, ISessionPtr> SessionMap_;

@@ -6,7 +6,7 @@
 
 #include <yt/server/lib/job_agent/job_reporter.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/node/data_node/master_connector.h>
 
@@ -25,7 +25,7 @@ namespace NYT::NExecAgent {
 using namespace NNodeTrackerClient;
 using namespace NJobTrackerClient;
 using namespace NObjectClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/core/actions/future.h>
 
@@ -36,7 +36,7 @@ DEFINE_REFCOUNTED_TYPE(IVolumeManager)
 
 IVolumeManagerPtr CreatePortoVolumeManager(
     TVolumeManagerConfigPtr config,
-    NCellNode::TBootstrap* bootstrap);
+    NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

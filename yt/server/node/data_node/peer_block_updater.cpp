@@ -4,7 +4,7 @@
 #include "config.h"
 #include "master_connector.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 
@@ -18,7 +18,7 @@
 
 namespace NYT::NDataNode {
 
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NChunkClient;
 using namespace NConcurrency;
 

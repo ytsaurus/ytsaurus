@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/lib/misc/public.h>
 
@@ -40,7 +40,7 @@ DEFINE_REFCOUNTED_TYPE(IQuerySubexecutor)
 
 IQuerySubexecutorPtr CreateQuerySubexecutor(
     TQueryAgentConfigPtr config,
-    NCellNode::TBootstrap* bootstrap);
+    NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
