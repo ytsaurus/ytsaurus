@@ -1563,14 +1563,14 @@ input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar";};'
 print "tskv" + "\\t" + "hello=world"
 """
-        create("file", "//tmp/mapper.sh")
-        write_file("//tmp/mapper.sh", mapper)
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
 
         create("table", "//tmp/t_out")
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.sh",
-            file="//tmp/mapper.sh",
+            command="python mapper.py",
+            file="//tmp/mapper.py",
             spec={"mapper": {
                 "enable_input_table_index": True,
                 "input_format": yson.loads("<format=text>yson"),
@@ -1622,14 +1622,14 @@ assert input == ['key', 'subkey', 'value']
 print '{hello=world}'
 
 """
-        create("file", "//tmp/mapper.sh")
-        write_file("//tmp/mapper.sh", mapper)
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
 
         create("table", "//tmp/t_out")
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.sh",
-            file="//tmp/mapper.sh",
+            command="python mapper.py",
+            file="//tmp/mapper.py",
             spec={"mapper": {"input_format": yson.loads("<has_subkey=true>yamr")}})
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
