@@ -6,7 +6,7 @@
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/program_setsid_mixin.h>
-#include <yt/ytlib/program/configure_singletons.h>
+#include <yt/ytlib/program/helpers.h>
 
 #include <yt/server/lib/job_proxy/config.h>
 
@@ -80,6 +80,7 @@ protected:
         auto config = GetConfig();
 
         ConfigureSingletons(config);
+        StartDiagnosticDump(config);
 
         if (HandleCgroupOptions()) {
             return;

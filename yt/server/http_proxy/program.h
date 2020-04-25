@@ -6,7 +6,7 @@
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/program_setsid_mixin.h>
 #include <yt/ytlib/program/program_cgroup_mixin.h>
-#include <yt/ytlib/program/configure_singletons.h>
+#include <yt/ytlib/program/helpers.h>
 
 #include <yt/core/json/json_parser.h>
 
@@ -90,7 +90,7 @@ protected:
         }
 
         ConfigureSingletons(config);
-
+        StartDiagnosticDump(config);
 
         auto bootstrap = New<NHttpProxy::TBootstrap>(std::move(config), std::move(configNode));
         bootstrap->Run();
