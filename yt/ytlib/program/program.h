@@ -80,6 +80,7 @@ void ConfigureSignals();
 //! Intercepts standard crash signals (see signal_registry.h for full list) with a nice handler.
 void ConfigureCrashHandler();
 
+//! Intercepts SIGTERM and terminates the process immediately with zero exit code.
 void ConfigureExitZeroOnSigterm();
 
 ////////////////////////////////////////////////////////////////////////////////
