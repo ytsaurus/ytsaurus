@@ -15,7 +15,7 @@
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
-#include <yt/ytlib/program/configure_singletons.h>
+#include <yt/ytlib/program/helpers.h>
 
 #include <yt/ytlib/job_tracker_client/public.h>
 
@@ -242,7 +242,9 @@ protected:
         }
 
         auto config = LoadConfig<TSchedulerSimulatorConfig>(/* configFilename */ parseResult.GetFreeArgs()[0]);
+
         ConfigureSingletons(config);
+        StartDiagnosticDump(config);
 
         {
             config->MonitoringServer->Port = config->MonitoringPort;

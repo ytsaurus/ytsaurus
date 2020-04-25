@@ -7,7 +7,7 @@
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/program_setsid_mixin.h>
 #include <yt/ytlib/program/program_cgroup_mixin.h>
-#include <yt/ytlib/program/configure_singletons.h>
+#include <yt/ytlib/program/helpers.h>
 
 #include <yt/core/logging/log_manager.h>
 #include <yt/core/logging/config.h>
@@ -102,6 +102,7 @@ protected:
         }
 
         ConfigureSingletons(config);
+        StartDiagnosticDump(config);
 
         if (dumpSnapshot || validateSnapshot || exportSnapshot) {
             NLogging::TLogManager::Get()->ConfigureFromEnv();

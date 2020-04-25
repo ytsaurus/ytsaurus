@@ -6,7 +6,7 @@
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_cgroup_mixin.h>
 #include <yt/ytlib/program/program_tool_mixin.h>
-#include <yt/ytlib/program/configure_singletons.h>
+#include <yt/ytlib/program/helpers.h>
 
 #include <yt/core/logging/formatter.h>
 #include <yt/core/logging/log_manager.h>

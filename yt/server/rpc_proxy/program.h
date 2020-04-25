@@ -6,7 +6,7 @@
 #include <yt/ytlib/program/program_pdeathsig_mixin.h>
 #include <yt/ytlib/program/program_setsid_mixin.h>
 #include <yt/ytlib/program/program_cgroup_mixin.h>
-#include <yt/ytlib/program/configure_singletons.h>
+#include <yt/ytlib/program/helpers.h>
 
 #include <yt/library/phdr_cache/phdr_cache.h>
 
@@ -68,6 +68,7 @@ protected:
         auto configNode = GetConfigNode();
 
         ConfigureSingletons(config);
+        StartDiagnosticDump(config);
 
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems

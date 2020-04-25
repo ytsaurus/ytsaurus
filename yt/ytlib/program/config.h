@@ -55,6 +55,26 @@ DEFINE_REFCOUNTED_TYPE(TSingletonsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDiagnosticDumpConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    std::optional<TDuration> YTAllocDumpPeriod;
+    std::optional<TDuration> RefCountedTrackerDumpPeriod;
+
+    TDiagnosticDumpConfig()
+    {
+        RegisterParameter("yt_alloc_dump_period", YTAllocDumpPeriod)
+            .Default();
+        RegisterParameter("ref_counted_tracker_dump_period", RefCountedTrackerDumpPeriod)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiagnosticDumpConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 // NB: These functions should not be called from bootstrap
 // config validator since logger is not set up yet.
 void WarnForUnrecognizedOptions(

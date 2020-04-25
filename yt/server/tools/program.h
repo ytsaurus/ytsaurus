@@ -1,5 +1,5 @@
 #include <yt/ytlib/program/program.h>
-#include <yt/ytlib/program/configure_singletons.h>
+#include <yt/ytlib/program/helpers.h>
 
 #include <yt/ytlib/tools/registry.h>
 #include <yt/ytlib/tools/tools.h>

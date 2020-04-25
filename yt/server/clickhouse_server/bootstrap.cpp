@@ -21,7 +21,7 @@
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
 #include <yt/ytlib/program/build_attributes.h>
-#include <yt/ytlib/program/configure_singletons.h>
+#include <yt/ytlib/program/helpers.h>
 
 #include <yt/ytlib/api/connection.h>
 #include <yt/ytlib/api/native/client.h>
