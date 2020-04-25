@@ -70,7 +70,7 @@ void TSlotManager::Initialize()
     }
 
     int locationIndex = 0;
-    for (auto locationConfig : Config_->Locations) {
+    for (const auto& locationConfig : Config_->Locations) {
         try {
             Locations_.push_back(New<TSlotLocation>(
                 std::move(locationConfig),
@@ -222,7 +222,7 @@ void TSlotManager::OnJobsCpuLimitUpdated()
 
 void TSlotManager::Disable(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    VERIFY_THREAD_AFFINITY_ANY();
     
     TGuard<TSpinLock> guard(SpinLock_);
 
@@ -251,7 +251,8 @@ void TSlotManager::OnJobFinished(EJobState jobState)
         TGuard guard(SpinLock_);
         if (!TransientAlert_) {
             auto delay = Config_->DisableJobsTimeout + RandomDuration(Config_->DisableJobsTimeout);
-            TransientAlert_ = TError("Too many consecutive job abortions; scheduler jobs disabled until %v", TInstant::Now() + delay)
+            TransientAlert_ = TError("Too many consecutive job abortions; scheduler jobs disabled until %v",
+                TInstant::Now() + delay)
                 << TErrorAttribute("max_consecutive_aborts", Config_->MaxConsecutiveAborts);
             TDelayedExecutor::Submit(BIND(&TSlotManager::ResetTransientAlert, MakeStrong(this)), delay);
         }
@@ -339,7 +340,7 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
     // Make a copy, since GetDiskResources is async and iterator over AliveLocations_
     // may have been invalidated between iterations.
     auto locations = AliveLocations_;
-    for (auto& location : locations) {
+    for (const auto& location : locations) {
         try {
             auto info = location->GetDiskResources();
             auto* locationResources = result.add_disk_location_resources();

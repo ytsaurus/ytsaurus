@@ -52,6 +52,10 @@ public:
 
     void OnJobFinished(EJobState jobState);
 
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     void Disable(const TError& error);
 
     /*!
