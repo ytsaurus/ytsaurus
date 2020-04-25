@@ -578,7 +578,7 @@ private:
 
         private:
             TString Name_;
-            TLogger Logger;
+            const TLogger Logger;
             TStringBuilder Builder_;
             int RecordCount_ = 0;
         };
@@ -657,7 +657,7 @@ private:
 
     const TGuid Id_;
 
-    TLogger Logger;
+    const TLogger Logger;
 
     mutable TInstant LastFullStateLoggingTime_ = TInstant::Now();
 };
