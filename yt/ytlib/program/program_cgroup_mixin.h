@@ -9,7 +9,7 @@ namespace NYT {
 class TProgramCgroupMixin
 {
 protected:
-    TProgramCgroupMixin(NLastGetopt::TOpts& opts);
+    explicit TProgramCgroupMixin(NLastGetopt::TOpts& opts);
 
     bool HandleCgroupOptions();
 
