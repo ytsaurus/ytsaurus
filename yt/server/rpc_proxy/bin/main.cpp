@@ -2,5 +2,5 @@
 
 int main(int argc, const char** argv)
 {
-    return NYT::NCellProxy::TCellProxyProgram().Run(argc, argv);
+    return NYT::NRpcProxy::TRpcProxyProgram().Run(argc, argv);
 }

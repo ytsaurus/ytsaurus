@@ -14,19 +14,19 @@
 
 #include <yt/core/ytalloc/bindings.h>
 
-namespace NYT::NCellProxy {
+namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellProxyProgram
+class TRpcProxyProgram
     : public TProgram
     , public TProgramCgroupMixin
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
-    , public TProgramConfigMixin<NRpcProxy::TCellProxyConfig>
+    , public TProgramConfigMixin<NRpcProxy::TRpcProxyConfig>
 {
 public:
-    TCellProxyProgram()
+    TRpcProxyProgram()
         : TProgramCgroupMixin(Opts_)
         , TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
@@ -79,4 +79,4 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCellProxy
+} // namespace NYT::NRpcProxy
