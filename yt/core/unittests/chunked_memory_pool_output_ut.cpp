@@ -15,25 +15,22 @@ TEST(TChunkedMemoryPoolOutputTest, Basic)
     TChunkedMemoryPool pool(NullRefCountedTypeCookie, PoolChunkSize);
     TChunkedMemoryPoolOutput output(&pool, PoolOutputChunkSize);
 
-    output.Write("Short.");
-    output.Write("Quite a long string.");
+    TString s1("Short.");
+    output.Write(s1);
+
+    TString s2("Quite a long string.");
+    output.Write(s2);
 
     char* buf;
     auto len = output.Next(&buf);
-    ASSERT_EQ(4, len);
     output.Undo(len);
     
     auto chunks = output.FinishAndGetRefs();
-    ASSERT_EQ(chunks.size(), 5);
-
-    auto toString = [] (TRef ref) {
-        return TString(ref.Begin(), ref.End());
-    };
-    EXPECT_EQ("Short.Q", toString(chunks[0]));
-    EXPECT_EQ("uite a ", toString(chunks[1]));
-    EXPECT_EQ("lo",      toString(chunks[2]));
-    EXPECT_EQ("ng stri", toString(chunks[3]));
-    EXPECT_EQ("ng.",     toString(chunks[4]));
+    TString s;
+    for (auto chunk : chunks) {
+        s += TString(chunk.Begin(), chunk.End());
+    }
+    ASSERT_EQ(s1 + s2, s);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
