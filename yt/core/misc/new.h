@@ -65,34 +65,49 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T, class = void>
+struct THasAllocator
+{
+    using TFalse = void;
+};
+
+template <class T>
+struct THasAllocator<T, TAcceptor<typename T::TAllocator>>
+{
+    using TTrue = void;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Allocates a new instance of |T|.
-template <class T, class... As>
+template <class T, class... As, class = typename THasAllocator<T>::TFalse>
 TIntrusivePtr<T> New(As&&... args);
+
+template <class T, class... As, class = typename THasAllocator<T>::TTrue>
+TIntrusivePtr<T> New(typename T::TAllocator* allocator, As&&... args);
+
+//! Allocates an instance of |T| with additional storage of #extraSpaceSize bytes.
+template <class T, class... As, class = typename THasAllocator<T>::TFalse>
+TIntrusivePtr<T> NewWithExtraSpace(size_t extraSpaceSize, As&&... args);
+
+template <class T, class... As, class = typename THasAllocator<T>::TTrue>
+TIntrusivePtr<T> NewWithExtraSpace(typename T::TAllocator* allocator, size_t extraSpaceSize, As&&... args);
+
+//! Allocates a new instance of |T| with user deleter.
+template <class T, class TDeleter, class... As>
+TIntrusivePtr<T> NewWithDelete(const TDeleter& deleter, As&&... args);
 
 //! Allocates a new instance of |T|.
 //! The allocation is additionally marked with #location.
 template <class T, class TTag, int Counter, class... As>
-inline TIntrusivePtr<T> NewWithLocation(
-    const TSourceLocation& location,
-    As&&... args);
+TIntrusivePtr<T> NewWithLocation(const TSourceLocation& location, As&&... args);
 
 //! Enables calling #New and co for types with private ctors.
 #define DECLARE_NEW_FRIEND() \
-    template <class DECLARE_NEW_FRIEND_T, class... DECLARE_NEW_FRIEND_As> \
-    friend ::NYT::TIntrusivePtr<DECLARE_NEW_FRIEND_T> NYT::NDetail::NewEpilogue( \
-        void* ptr, \
-        ::NYT::TRefCountedTypeCookie cookie, \
-        DECLARE_NEW_FRIEND_As&& ... args); \
     template <class DECLARE_NEW_FRIEND_T> \
     friend struct NYT::TRefCountedWrapper;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-//! Allocates an instance of |T| with additional storage of #extraSpaceSize bytes.
-template <class T, class... As>
-TIntrusivePtr<T> NewWithExtraSpace(
-    size_t extraSpaceSize,
-    As&&... args);
 
 //! CRTP mixin enabling access to instance's extra space.
 template <class T>

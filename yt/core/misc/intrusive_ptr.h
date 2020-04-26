@@ -1,8 +1,7 @@
 #pragma once
 
-#include "assert.h"
+#include "ref_counted.h"
 #include "mpl.h"
-#include "port.h"
 
 #include <util/generic/hash.h>
 #include <util/generic/utility.h>
@@ -11,29 +10,6 @@
 #include <utility>
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-Y_FORCE_INLINE T* GetRefCountedBase(T* obj)
-{
-    return obj;
-}
-
-// Default (generic) implementation of Ref/Unref strategy.
-// Assumes the existence of Ref/Unref members.
-// Only works if |T| is fully defined.
-template <class T>
-Y_FORCE_INLINE void Ref(T* obj)
-{
-    GetRefCountedBase(obj)->Ref();
-}
-
-template <class T>
-Y_FORCE_INLINE void Unref(T* obj)
-{
-    GetRefCountedBase(obj)->Unref();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,16 +33,7 @@ public:
      * Note that it notoriously hard to make this constructor explicit
      * given the current amount of code written.
      */
-    TIntrusivePtr(T* obj) noexcept
-        : T_(obj)
-    {
-        if (T_) {
-            Ref(T_);
-        }
-    }
-
-    //! Constructor from an unqualified reference.
-    TIntrusivePtr(T* obj, bool addReference) noexcept
+    TIntrusivePtr(T* obj, bool addReference = true) noexcept
         : T_(obj)
     {
         if (T_ && addReference) {
@@ -75,7 +42,7 @@ public:
     }
 
     //! Copy constructor.
-    explicit TIntrusivePtr(const TIntrusivePtr& other) noexcept
+    TIntrusivePtr(const TIntrusivePtr& other) noexcept
         : T_(other.Get())
     {
         if (T_) {
@@ -84,31 +51,33 @@ public:
     }
 
     //! Copy constructor with an upcast.
-    template <class U>
-    TIntrusivePtr(
-        const TIntrusivePtr<U>& other,
-        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) noexcept
+    template <class U, class = typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType>
+    TIntrusivePtr(const TIntrusivePtr<U>& other) noexcept
         : T_(other.Get())
     {
+        static_assert(
+            std::is_base_of_v<TRefCountedBase, T>,
+            "Cast allowed only for types derived from TRefCountedBase");
         if (T_) {
             Ref(T_);
         }
     }
 
     //! Move constructor.
-    explicit TIntrusivePtr(TIntrusivePtr&& other) noexcept
+    TIntrusivePtr(TIntrusivePtr&& other) noexcept
         : T_(other.Get())
     {
         other.T_ = nullptr;
     }
 
     //! Move constructor with an upcast.
-    template <class U>
-    TIntrusivePtr(
-        TIntrusivePtr<U>&& other,
-        typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType = 0) noexcept
+    template <class U, class = typename NMpl::TEnableIf<NMpl::TIsConvertible<U*, T*>, int>::TType>
+    TIntrusivePtr(TIntrusivePtr<U>&& other) noexcept
         : T_(other.Get())
     {
+        static_assert(
+            std::is_base_of_v<TRefCountedBase, T>,
+            "Cast allowed only for types derived from TRefCountedBase");
         other.T_ = nullptr;
     }
 
@@ -133,7 +102,10 @@ public:
     {
         static_assert(
             NMpl::TIsConvertible<U*, T*>::Value,
-            "U* have to be convertible to T*");
+            "U* must be convertible to T*");
+        static_assert(
+            std::is_base_of_v<TRefCountedBase, T>,
+            "Cast allowed only for types derived from TRefCountedBase");
         TIntrusivePtr(other).Swap(*this);
         return *this;
     }
@@ -151,7 +123,10 @@ public:
     {
         static_assert(
             NMpl::TIsConvertible<U*, T*>::Value,
-            "U* have to be convertible to T*");
+            "U* must be convertible to T*");
+        static_assert(
+            std::is_base_of_v<TRefCountedBase, T>,
+            "Cast allowed only for types derived from TRefCountedBase");
         TIntrusivePtr(std::move(other)).Swap(*this);
         return *this;
     }
@@ -266,7 +241,7 @@ bool operator==(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<U>& rhs)
 {
     static_assert(
         NMpl::TIsConvertible<U*, T*>::Value,
-        "U* have to be convertible to T*");
+        "U* must be convertible to T*");
     return lhs.Get() == rhs.Get();
 }
 
@@ -275,7 +250,7 @@ bool operator!=(const TIntrusivePtr<T>& lhs, const TIntrusivePtr<U>& rhs)
 {
     static_assert(
         NMpl::TIsConvertible<U*, T*>::Value,
-        "U* have to be convertible to T*");
+        "U* must be convertible to T*");
     return lhs.Get() != rhs.Get();
 }
 
@@ -284,7 +259,7 @@ bool operator==(const TIntrusivePtr<T>& lhs, U* rhs)
 {
     static_assert(
         NMpl::TIsConvertible<U*, T*>::Value,
-        "U* have to be convertible to T*");
+        "U* must be convertible to T*");
     return lhs.Get() == rhs;
 }
 
@@ -293,7 +268,7 @@ bool operator!=(const TIntrusivePtr<T>& lhs, U* rhs)
 {
     static_assert(
         NMpl::TIsConvertible<U*, T*>::Value,
-        "U* have to be convertible to T*");
+        "U* must be convertible to T*");
     return lhs.Get() != rhs;
 }
 
@@ -302,7 +277,7 @@ bool operator==(T* lhs, const TIntrusivePtr<U>& rhs)
 {
     static_assert(
         NMpl::TIsConvertible<U*, T*>::Value,
-        "U* have to be convertible to T*");
+        "U* must be convertible to T*");
     return lhs == rhs.Get();
 }
 
@@ -311,59 +286,9 @@ bool operator!=(T* lhs, const TIntrusivePtr<U>& rhs)
 {
     static_assert(
         NMpl::TIsConvertible<U*, T*>::Value,
-        "U* have to be convertible to T*");
+        "U* must be convertible to T*");
     return lhs != rhs.Get();
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-// A bunch of helpful macros that enable working with intrusive pointers to incomplete types.
-/*
- *  Typically when you have a forward-declared type |T| and an instance
- *  of |TIntrusivePtr<T>| you need the complete definition of |T| to work with
- *  the pointer even if you're not actually using the members of |T|.
- *  E.g. the dtor of |TIntrusivePtr<T>|, should you ever need it, must be able
- *  to unref an instance of |T| and eventually destroy it.
- *  This may force #inclusion of way more headers than really seems necessary.
- *
- *  |DECLARE_REFCOUNTED_STRUCT|, |DECLARE_REFCOUNTED_CLASS|, and |DEFINE_REFCOUNTED_TYPE|
- *  alleviate this issue by forcing TIntrusivePtr to work with the free-standing overloads
- *  of |Ref| and |Unref| instead of their template version.
- *  These overloads are declared together with the forward declaration of |T| and
- *  are subsequently defined afterwards.
- */
-
-class TRefCountedLite;
-
-#define DECLARE_REFCOUNTED_TYPE(type) \
-    typedef ::NYT::TIntrusivePtr<type> type ## Ptr; \
-    \
-    ::NYT::TRefCountedLite* GetRefCountedBase(type* obj) ATTRIBUTE_USED; \
-    const ::NYT::TRefCountedLite* GetRefCountedBase(const type* obj) ATTRIBUTE_USED;
-
-//! Forward-declares a class type, defines an intrusive pointer for it, and finally
-//! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
-#define DECLARE_REFCOUNTED_CLASS(type) \
-    class type; \
-    DECLARE_REFCOUNTED_TYPE(type)
-
-//! Forward-declares a struct type, defines an intrusive pointer for it, and finally
-//! declares Ref/Unref overloads. Use this macro in |public.h|-like files.
-#define DECLARE_REFCOUNTED_STRUCT(type) \
-    struct type; \
-    DECLARE_REFCOUNTED_TYPE(type)
-
-//! Provides implementations for Ref/Unref overloads. Use this macro right
-//! after the type's full definition.
-#define DEFINE_REFCOUNTED_TYPE(type) \
-    Y_FORCE_INLINE ::NYT::TRefCountedLite* GetRefCountedBase(type* obj) \
-    { \
-        return obj; \
-    } \
-    Y_FORCE_INLINE const ::NYT::TRefCountedLite* GetRefCountedBase(const type* obj) \
-    { \
-        return obj; \
-    }
 
 ////////////////////////////////////////////////////////////////////////////////
 

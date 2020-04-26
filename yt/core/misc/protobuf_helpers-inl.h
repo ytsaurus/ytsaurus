@@ -436,42 +436,42 @@ TOriginal FromProto(const TSerialized& serialized, TArgs&&... args)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TProto, bool EnableWeak>
-TRefCountedProto<TProto, EnableWeak>::TRefCountedProto(const TRefCountedProto<TProto, EnableWeak>& other)
+template <class TProto>
+TRefCountedProto<TProto>::TRefCountedProto(const TRefCountedProto<TProto>& other)
 {
     TProto::CopyFrom(other);
     RegisterExtraSpace();
 }
 
-template <class TProto, bool EnableWeak>
-TRefCountedProto<TProto, EnableWeak>::TRefCountedProto(TRefCountedProto<TProto, EnableWeak>&& other)
+template <class TProto>
+TRefCountedProto<TProto>::TRefCountedProto(TRefCountedProto<TProto>&& other)
 {
     TProto::Swap(&other);
     RegisterExtraSpace();
 }
 
-template <class TProto, bool EnableWeak>
-TRefCountedProto<TProto, EnableWeak>::TRefCountedProto(const TProto& other)
+template <class TProto>
+TRefCountedProto<TProto>::TRefCountedProto(const TProto& other)
 {
     TProto::CopyFrom(other);
     RegisterExtraSpace();
 }
 
-template <class TProto, bool EnableWeak>
-TRefCountedProto<TProto, EnableWeak>::TRefCountedProto(TProto&& other)
+template <class TProto>
+TRefCountedProto<TProto>::TRefCountedProto(TProto&& other)
 {
     TProto::Swap(&other);
     RegisterExtraSpace();
 }
 
-template <class TProto, bool EnableWeak>
-TRefCountedProto<TProto, EnableWeak>::~TRefCountedProto()
+template <class TProto>
+TRefCountedProto<TProto>::~TRefCountedProto()
 {
     UnregisterExtraSpace();
 }
 
-template <class TProto, bool EnableWeak>
-void TRefCountedProto<TProto, EnableWeak>::RegisterExtraSpace()
+template <class TProto>
+void TRefCountedProto<TProto>::RegisterExtraSpace()
 {
     auto spaceUsed = TProto::SpaceUsed();
     YT_ASSERT(static_cast<size_t>(spaceUsed) >= sizeof(TProto));
@@ -481,17 +481,17 @@ void TRefCountedProto<TProto, EnableWeak>::RegisterExtraSpace()
     TRefCountedTrackerFacade::AllocateSpace(cookie, ExtraSpace_);
 }
 
-template <class TProto, bool EnableWeak>
-void TRefCountedProto<TProto, EnableWeak>::UnregisterExtraSpace()
+template <class TProto>
+void TRefCountedProto<TProto>::UnregisterExtraSpace()
 {
     if (ExtraSpace_ != 0) {
-        auto cookie = GetRefCountedTypeCookie<TRefCountedProto<TProto, EnableWeak>>();
+        auto cookie = GetRefCountedTypeCookie<TRefCountedProto<TProto>>();
         TRefCountedTrackerFacade::FreeSpace(cookie, ExtraSpace_);
     }
 }
 
-template <class TProto, bool EnableWeak>
-i64 TRefCountedProto<TProto, EnableWeak>::GetSize() const
+template <class TProto>
+i64 TRefCountedProto<TProto>::GetSize() const
 {
     return sizeof(this) + ExtraSpace_;
 }

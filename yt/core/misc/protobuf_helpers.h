@@ -304,15 +304,15 @@ void FilterProtoExtensions(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Wrapper that makes proto message ref-counted.
-template <class TProto, bool EnableWeak>
+template <class TProto>
 class TRefCountedProto
-    : public TGenericRefCounted<EnableWeak>
+    : public TRefCounted
     , public TProto
 {
 public:
     TRefCountedProto() = default;
-    TRefCountedProto(const TRefCountedProto<TProto, EnableWeak>& other);
-    TRefCountedProto(TRefCountedProto<TProto, EnableWeak>&& other);
+    TRefCountedProto(const TRefCountedProto<TProto>& other);
+    TRefCountedProto(TRefCountedProto<TProto>&& other);
     explicit TRefCountedProto(const TProto& other);
     explicit TRefCountedProto(TProto&& other);
     ~TRefCountedProto();

@@ -61,6 +61,26 @@ private:
     TObjectWithRC& operator=(TObjectWithRC&&);
 };
 
+void Ref(const TObjectWithRC* obj)
+{
+    obj->Ref();
+}
+
+void Ref(TObjectWithRC* obj)
+{
+    obj->Ref();
+}
+
+void Unref(const TObjectWithRC* obj)
+{
+    obj->Unref();
+}
+
+void Unref(TObjectWithRC* obj)
+{
+    obj->Unref();
+}
+
 typedef TIntrusivePtr<TObjectWithRC> TObjectWithRCPtr;
 
 // A simple mock object which mocks Ref()/Unref() and prohibits
