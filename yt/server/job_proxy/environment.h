@@ -56,6 +56,8 @@ struct IUserJobEnvironment
         const TString& path,
         int uid,
         const TUserJobProcessOptions& options) = 0;
+
+    virtual NContainers::IInstancePtr GetUserJobInstance() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobEnvironment)

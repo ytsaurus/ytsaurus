@@ -13,8 +13,6 @@
 
 #include <yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
-#include <yt/server/lib/shell/config.h>
-
 #include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/job_proxy/public.h>
@@ -48,7 +46,6 @@ using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NProfiling;
-using namespace NShell;
 using namespace NYTree;
 using namespace NYson;
 

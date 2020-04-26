@@ -3,6 +3,8 @@
 #include "private.h"
 #include "config.h"
 
+#include <yt/server/lib/containers/instance.h>
+
 #include <yt/server/lib/misc/public.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -23,6 +25,7 @@ namespace NYT::NShell {
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
+using namespace NContainers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -57,14 +60,16 @@ class TShellManager
 {
 public:
     TShellManager(
+        IPortoExecutorPtr portoExecutor,
+        IInstancePtr rootInstance,
         const TString& workingDir,
         std::optional<int> userId,
-        std::optional<TString> freezerFullPath,
         std::optional<TString> messageOfTheDay,
         std::vector<TString> environment)
-        : WorkingDir_(workingDir)
+        : PortoExecutor_(std::move(portoExecutor))
+        , RootInstance_(std::move(rootInstance))
+        , WorkingDir_(workingDir)
         , UserId_(userId)
-        , FreezerFullPath_(freezerFullPath)
         , MessageOfTheDay_(messageOfTheDay)
         , Environment_(std::move(environment))
     {
@@ -95,7 +100,6 @@ public:
         switch (parameters.Operation) {
             case EShellOperation::Spawn: {
                 auto options = std::make_unique<TShellOptions>();
-                options->ExePath = ExecProgramName;
                 if (parameters.Term && !parameters.Term->empty()) {
                     options->Term = *parameters.Term;
                 }
@@ -106,7 +110,6 @@ public:
                 if (options->Width != 0) {
                     options->Width = parameters.Width;
                 }
-                options->CGroupBasePath = FreezerFullPath_;
                 Environment_.insert(
                     Environment_.end(),
                     parameters.Environment.begin(),
@@ -120,8 +123,10 @@ public:
                     options->MessageOfTheDay = MessageOfTheDay_;
                     options->InactivityTimeout = parameters.InactivityTimeout;
                 }
+                options->Id = TGuid::Create();
+                options->ContainerName = Format("%v/job-shell-%v", RootInstance_->GetAbsoluteName(), options->Id);
 
-                shell = CreateShell(std::move(options));
+                shell = CreateShell(PortoExecutor_, std::move(options));
                 Register(shell);
                 shell->ResizeWindow(parameters.Height, parameters.Width);
                 break;
@@ -140,6 +145,10 @@ public:
             case EShellOperation::Poll: {
                 auto pollResult = WaitFor(shell->Poll());
                 if (pollResult.FindMatching(NYT::EErrorCode::Timeout)) {
+                    if (shell->Terminated()) {
+                        THROW_ERROR_EXCEPTION(EErrorCode::ShellExited, "Shell exited")
+                            << TErrorAttribute("shell_id", parameters.ShellId);
+                    }
                     result.Output = "";
                     break;
                 }
@@ -200,9 +209,10 @@ public:
     }
 
 private:
+    const IPortoExecutorPtr PortoExecutor_;
+    const IInstancePtr RootInstance_;
     const TString WorkingDir_;
     std::optional<int> UserId_;
-    std::optional<TString> FreezerFullPath_;
     std::optional<TString> MessageOfTheDay_;
 
     std::vector<TString> Environment_;
@@ -241,21 +251,29 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IShellManagerPtr CreateShellManager(
+    IPortoExecutorPtr portoExecutor,
+    IInstancePtr rootInstance,
     const TString& workingDir,
     std::optional<int> userId,
-    std::optional<TString> freezerFullPath,
     std::optional<TString> messageOfTheDay,
     std::vector<TString> environment)
 {
-    return New<TShellManager>(workingDir, userId, freezerFullPath, messageOfTheDay, std::move(environment));
+    return New<TShellManager>(
+        std::move(portoExecutor),
+        std::move(rootInstance),
+        workingDir,
+        userId,
+        messageOfTheDay,
+        std::move(environment));
 }
 
 #else
 
 IShellManagerPtr CreateShellManager(
+    IPortoExecutorPtr portoExecutor,
+    IInstancePtr rootInstance,
     const TString& workingDir,
     std::optional<int> userId,
-    std::optional<TString> freezerFullPath,
     std::optional<TString> messageOfTheDay,
     std::vector<TString> environment)
 {

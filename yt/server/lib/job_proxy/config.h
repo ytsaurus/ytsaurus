@@ -140,6 +140,8 @@ public:
 
     TCoreWatcherConfigPtr CoreWatcher;
 
+    bool TestPollJobShell;
+
     TJobProxyConfig()
     {
         RegisterParameter("slot_index", SlotIndex);
@@ -200,6 +202,9 @@ public:
 
         RegisterParameter("core_watcher", CoreWatcher)
             .DefaultNew();
+
+        RegisterParameter("test_poll_job_shell", TestPollJobShell)
+            .Default(false);
     }
 };
 

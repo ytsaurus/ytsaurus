@@ -6,8 +6,6 @@
 
 #include <yt/server/lib/job_satellite_connection/job_satellite_connection.h>
 
-#include <yt/server/lib/shell/shell_manager.h>
-
 #include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
@@ -60,7 +58,6 @@ using namespace NYT::NBus;
 using namespace NConcurrency;
 using namespace NJobProber;
 using namespace NJobSatelliteConnection;
-using namespace NShell;
 using namespace NTools;
 using namespace NUserJobSynchronizerClient;
 
@@ -170,38 +167,28 @@ class TJobProbeTools
     : public TRefCounted
 {
 public:
-    ~TJobProbeTools();
     static TJobProbeToolsPtr Create(
         TJobId jobId,
         pid_t rootPid,
         int uid,
-        const std::vector<TString>& env,
-        EJobEnvironmentType environmentType,
-        bool enableSecureVaultVariablesInJobShell);
+        EJobEnvironmentType environmentType);
 
     TYsonString StraceJob();
     void SignalJob(const TString& signalName);
-    TYsonString PollJobShell(const TYsonString& parameters);
-    TFuture<void> AsyncGracefulShutdown(const TError& error);
 
 private:
     const EJobEnvironmentType EnvironmentType_;
-    const bool EnableSecureVaultVariablesInJobShell_;
     const pid_t RootPid_;
     const int Uid_;
-    const std::vector<TString> Environment_;
     const NConcurrency::TActionQueuePtr AuxQueue_;
 
     std::unique_ptr<IPidsHolder> PidsHolder_;
 
     std::atomic_flag Stracing_ = ATOMIC_FLAG_INIT;
-    IShellManagerPtr ShellManager_;
 
     TJobProbeTools(pid_t rootPid,
         int uid,
-        const std::vector<TString>& env,
-        EJobEnvironmentType environmentType,
-        bool enableSecureVaultVariablesInJobShell);
+        EJobEnvironmentType environmentType);
     void Init(TJobId jobId);
 
     DECLARE_NEW_FRIEND();
@@ -214,14 +201,10 @@ DEFINE_REFCOUNTED_TYPE(TJobProbeTools)
 TJobProbeTools::TJobProbeTools(
     pid_t rootPid,
     int uid,
-    const std::vector<TString>& env,
-    EJobEnvironmentType environmentType,
-    bool enableSecureVaultVariablesInJobShell)
+    EJobEnvironmentType environmentType)
     : EnvironmentType_(environmentType)
-    , EnableSecureVaultVariablesInJobShell_(enableSecureVaultVariablesInJobShell)
     , RootPid_(rootPid)
     , Uid_(uid)
-    , Environment_(env)
     , AuxQueue_(New<TActionQueue>("JobAux"))
 { }
 
@@ -229,11 +212,9 @@ TJobProbeToolsPtr TJobProbeTools::Create(
     TJobId jobId,
     pid_t rootPid,
     int uid,
-    const std::vector<TString>& env,
-    EJobEnvironmentType environmentType,
-    bool enableSecureVaultVariablesInJobShell)
+    EJobEnvironmentType environmentType)
 {
-    auto tools = New<TJobProbeTools>(rootPid, uid, env, environmentType, enableSecureVaultVariablesInJobShell);
+    auto tools = New<TJobProbeTools>(rootPid, uid, environmentType);
     try {
         tools->Init(jobId);
     } catch (const std::exception& ex) {
@@ -265,42 +246,6 @@ void TJobProbeTools::Init(TJobId jobId)
 
         default:
             YT_ABORT();
-    }
-
-    auto currentWorkDir = NFs::CurrentWorkingDirectory();
-    currentWorkDir = currentWorkDir.substr(0, currentWorkDir.find_last_of("/"));
-
-    // Copy environment to process arguments
-    std::vector<TString> shellEnvironment;
-    shellEnvironment.reserve(Environment_.size());
-
-    std::vector<TString> visibleEnvironment;
-    visibleEnvironment.reserve(Environment_.size());
-
-    for (const auto& var : Environment_) {
-        bool allowSecureVaultVariable = (EnableSecureVaultVariablesInJobShell_ || !var.StartsWith("YT_SECURE_VAULT_"));
-        if (var.StartsWith("YT_") && allowSecureVaultVariable) {
-            shellEnvironment.emplace_back(var);
-        }
-        if (allowSecureVaultVariable) {
-            visibleEnvironment.emplace_back(var);
-        }
-    }
-
-    ShellManager_ = CreateShellManager(
-        NFS::CombinePaths(currentWorkDir, NExecAgent::SandboxDirectoryNames[NExecAgent::ESandboxKind::Home]),
-        Uid_,
-        EnvironmentType_ == EJobEnvironmentType::Cgroups ? std::optional<TString>("user_job_" + ToString(jobId)) : std::optional<TString>(),
-        Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, AsStringBuf("\n"))),
-        std::move(shellEnvironment));
-}
-
-TJobProbeTools::~TJobProbeTools()
-{
-    if (ShellManager_) {
-        BIND(&IShellManager::Terminate, ShellManager_, TError())
-            .Via(AuxQueue_->GetInvoker())
-            .Run();
     }
 }
 
@@ -364,20 +309,6 @@ void TJobProbeTools::SignalJob(const TString& signalName)
     THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error running job signaler tool");
 }
 
-TYsonString TJobProbeTools::PollJobShell(const TYsonString& parameters)
-{
-    return WaitFor(BIND([=, this_ = MakeStrong(this)] () {
-        return ShellManager_->PollJobShell(parameters);
-    }).AsyncVia(AuxQueue_->GetInvoker()).Run()).ValueOrThrow();
-}
-
-TFuture<void> TJobProbeTools::AsyncGracefulShutdown(const TError& error)
-{
-    return BIND(&IShellManager::GracefulShutdown, ShellManager_, error)
-        .AsyncVia(AuxQueue_->GetInvoker())
-        .Run();
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobSatelliteWorker
@@ -387,16 +318,13 @@ public:
     TJobSatelliteWorker(
         pid_t rootPid,
         int uid,
-        const std::vector<TString>& env,
         TJobId jobId,
-        EJobEnvironmentType environmentType,
-        bool enableSecureVaultVariablesInJobShell);
-    void GracefulShutdown(const TError& error);
+        EJobEnvironmentType environmentType);
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual TYsonString StraceJob() override;
     virtual void SignalJob(const TString& signalName) override;
-    virtual TYsonString PollJobShell(const TYsonString& parameters) override;
+    virtual TYsonString PollJobShell(const TYsonString& /*parameters*/) override;
     virtual TString GetStderr() override;
     virtual void Interrupt() override;
     virtual void Fail() override;
@@ -404,10 +332,8 @@ public:
 private:
     const pid_t RootPid_;
     const int Uid_;
-    const std::vector<TString> Env_;
     const TJobId JobId_;
     const EJobEnvironmentType EnvironmentType_;
-    const bool EnableSecureVaultVariablesInJobShell_;
 
     const NLogging::TLogger Logger;
 
@@ -419,16 +345,12 @@ private:
 TJobSatelliteWorker::TJobSatelliteWorker(
     pid_t rootPid,
     int uid,
-    const std::vector<TString>& env,
     TJobId jobId,
-    EJobEnvironmentType environmentType,
-    bool enableSecureVaultVariablesInJobShell)
+    EJobEnvironmentType environmentType)
     : RootPid_(rootPid)
     , Uid_(uid)
-    , Env_(env)
     , JobId_(jobId)
     , EnvironmentType_(environmentType)
-    , EnableSecureVaultVariablesInJobShell_(enableSecureVaultVariablesInJobShell)
     , Logger(NLogging::TLogger(JobSatelliteLogger)
         .AddTag("JobId: %v", JobId_))
 {
@@ -439,7 +361,7 @@ TJobSatelliteWorker::TJobSatelliteWorker(
 void TJobSatelliteWorker::EnsureJobProbe()
 {
     if (!JobProbe_) {
-        JobProbe_ = TJobProbeTools::Create(JobId_, RootPid_, Uid_, Env_, EnvironmentType_, EnableSecureVaultVariablesInJobShell_);
+        JobProbe_ = TJobProbeTools::Create(JobId_, RootPid_, Uid_, EnvironmentType_);
     }
 }
 
@@ -454,6 +376,11 @@ TYsonString TJobSatelliteWorker::StraceJob()
     return JobProbe_->StraceJob();
 }
 
+TYsonString TJobSatelliteWorker::PollJobShell(const TYsonString& /*parameters*/)
+{
+    YT_ABORT();
+}
+
 TString TJobSatelliteWorker::GetStderr()
 {
     YT_ABORT();
@@ -463,12 +390,6 @@ void TJobSatelliteWorker::SignalJob(const TString& signalName)
 {
     EnsureJobProbe();
     JobProbe_->SignalJob(signalName);
-}
-
-TYsonString TJobSatelliteWorker::PollJobShell(const TYsonString& parameters)
-{
-    EnsureJobProbe();
-    return JobProbe_->PollJobShell(parameters);
 }
 
 void TJobSatelliteWorker::Interrupt()
@@ -481,14 +402,6 @@ void TJobSatelliteWorker::Fail()
     YT_ABORT();
 }
 
-void TJobSatelliteWorker::GracefulShutdown(const TError &error)
-{
-    if (JobProbe_) {
-        WaitFor(JobProbe_->AsyncGracefulShutdown(error))
-            .ThrowOnError();
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobSatellite
@@ -499,7 +412,6 @@ public:
         TJobSatelliteConnectionConfigPtr config,
         pid_t rootPid,
         int uid,
-        const std::vector<TString>& env,
         TJobId jobId);
     void Run();
     void Stop(const TError& error);
@@ -508,30 +420,25 @@ private:
     const TJobSatelliteConnectionConfigPtr SatelliteConnectionConfig_;
     const pid_t RootPid_;
     const int Uid_;
-    const std::vector<TString> Env_;
     const TJobId JobId_;
     const NConcurrency::TActionQueuePtr JobSatelliteMainThread_;
     NRpc::IServerPtr RpcServer_;
     IUserJobSynchronizerClientPtr JobProxyControl_;
-    TCallback<void(const TError& error)> StopCalback_;
 };
 
 TJobSatellite::TJobSatellite(TJobSatelliteConnectionConfigPtr config,
     pid_t rootPid,
     int uid,
-    const std::vector<TString>& env,
     TJobId jobId)
     : SatelliteConnectionConfig_(config)
     , RootPid_(rootPid)
     , Uid_(uid)
-    , Env_(env)
     , JobId_(jobId)
     , JobSatelliteMainThread_(New<TActionQueue>("JobSatelliteMain"))
 { }
 
 void TJobSatellite::Stop(const TError& error)
 {
-    StopCalback_.Run(error);
     JobProxyControl_->NotifyUserJobFinished(error);
     RpcServer_->Stop().Get();
 }
@@ -545,17 +452,12 @@ void TJobSatellite::Run()
     auto jobSatelliteService = New<TJobSatelliteWorker>(
         RootPid_,
         Uid_,
-        Env_,
         JobId_,
-        SatelliteConnectionConfig_->EnvironmentType,
-        SatelliteConnectionConfig_->EnableSecureVaultVariablesInJobShell
+        SatelliteConnectionConfig_->EnvironmentType
     );
 
     RpcServer_->RegisterService(CreateJobProberService(jobSatelliteService, JobSatelliteMainThread_->GetInvoker()));
     RpcServer_->Start();
-
-    StopCalback_ = BIND(&TJobSatelliteWorker::GracefulShutdown,
-        MakeWeak(jobSatelliteService));
 
     i64 rss = 0;
     try {
@@ -572,7 +474,6 @@ void TJobSatellite::Run()
 void RunJobSatellite(
     TJobSatelliteConnectionConfigPtr config,
     const int uid,
-    const std::vector<TString>& env,
     const TString& jobId)
 {
     pid_t pid = fork();
@@ -594,7 +495,7 @@ void RunJobSatellite(
         siginfo_t processInfo;
         memset(&processInfo, 0, sizeof(siginfo_t));
         try {
-            auto jobSatellite = New<TJobSatellite>(config, pid, uid, env, TJobId::FromString(jobId));
+            auto jobSatellite = New<TJobSatellite>(config, pid, uid, TJobId::FromString(jobId));
             jobSatellite->Run();
 
             YT_VERIFY(HandleEintr(::waitid, P_PID, pid, &processInfo, WEXITED) == 0);

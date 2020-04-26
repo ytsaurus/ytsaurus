@@ -34,8 +34,7 @@ TJobSatelliteConnection::TJobSatelliteConnection(
     const TString& slotPath,
     TJobId jobId,
     TTcpBusServerConfigPtr jobProxyRpcServerConfig,
-    EJobEnvironmentType environmentType,
-    bool enableSecureVaultVariablesInJobShell)
+    EJobEnvironmentType environmentType)
     : JobId_(jobId)
 {
     ConnectionConfig_ = New<TJobSatelliteConnectionConfig>();
@@ -45,7 +44,6 @@ TJobSatelliteConnection::TJobSatelliteConnection(
         ConnectionConfig_->JobProxyRpcClientConfig->UnixDomainSocketPath = *jobProxyRpcServerConfig->UnixDomainSocketPath;
     }
     ConnectionConfig_->EnvironmentType = environmentType;
-    ConnectionConfig_->EnableSecureVaultVariablesInJobShell = enableSecureVaultVariablesInJobShell;
 }
 
 TString TJobSatelliteConnection::GetConfigPath() const
