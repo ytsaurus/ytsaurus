@@ -306,7 +306,7 @@ private:
                     if (rspOrError.IsOK()) {
                         YT_LOG_DEBUG("Gossip succeeded (Address: %v)", address);
                     } else {
-                        YT_LOG_INFO(rspOrError, "Gossip failed (Address: %v)", address);
+                        YT_LOG_DEBUG(rspOrError, "Gossip failed (Address: %v)", address);
                     }
                 }));
         }
