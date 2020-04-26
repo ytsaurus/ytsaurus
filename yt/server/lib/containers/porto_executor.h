@@ -71,25 +71,34 @@ DEFINE_ENUM(EPortoErrorCode,
 struct IPortoExecutor
     : public TRefCounted
 {
-    virtual TFuture<void> CreateContainer(const TString& name) = 0;
+    virtual TFuture<void> CreateContainer(const TString& container) = 0;
     virtual TFuture<void> SetContainerProperty(
-        const TString& name,
-        const TString& key,
+        const TString& container,
+        const TString& property,
         const TString& value) = 0;
-    virtual TFuture<std::map<TString, TErrorOr<TString>>> GetContainerProperties(
-        const TString& name,
-        const std::vector<TString>& value) = 0;
-    virtual TFuture<void> DestroyContainer(const TString& name) = 0;
-    virtual TFuture<void> StopContainer(const TString& name) = 0;
-    virtual TFuture<void> StartContainer(const TString& name) = 0;
-    virtual TFuture<void> KillContainer(const TString& name, int signal) = 0;
+    virtual TFuture<THashMap<TString, TErrorOr<TString>>> GetContainerProperties(
+        const TString& container,
+        const std::vector<TString>& properties) = 0;
+    virtual TFuture<THashMap<TString, THashMap<TString, TErrorOr<TString>>>> GetContainerProperties(
+        const std::vector<TString>& containers,
+        const std::vector<TString>& properties) = 0;
+    virtual TFuture<THashMap<TString, i64>> GetContainerMetrics(
+        const std::vector<TString>& containers,
+        const TString& metric) = 0; 
+    virtual TFuture<void> DestroyContainer(const TString& container) = 0;
+    virtual TFuture<void> StopContainer(const TString& container) = 0;
+    virtual TFuture<void> StartContainer(const TString& container) = 0;
+    virtual TFuture<void> KillContainer(const TString& container, int signal) = 0;
     virtual TFuture<std::vector<TString>> ListContainers() = 0;
+    virtual TFuture<std::vector<TString>> ListSubcontainers(
+        const TString& rootContainer,
+        bool includeRoot) = 0;
     // Starts polling a given container, returns future with exit code of finished process.
-    virtual TFuture<int> PollContainer(const TString& name) = 0;
+    virtual TFuture<int> PollContainer(const TString& container) = 0;
 
     virtual TFuture<TString> CreateVolume(
         const TString& path,
-        const std::map<TString, TString>& properties) = 0;
+        const THashMap<TString, TString>& properties) = 0;
     virtual TFuture<void> LinkVolume(
         const TString& path,
         const TString& name) = 0;

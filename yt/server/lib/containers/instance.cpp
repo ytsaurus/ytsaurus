@@ -81,7 +81,7 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
         BIND([] (const TString& in) { return std::stol(in);                     } ) } },
     { EStatField::CpuUsageSystem,   { "cpu_usage_system",
         BIND([] (const TString& in) { return std::stol(in);                     } ) } },
-    { EStatField::CpuWaitTime,      { "cpu_wait_time",
+    { EStatField::CpuWait,          { "cpu_wait",
         BIND([] (const TString& in) { return std::stol(in);                     } ) } },
     { EStatField::CpuThrottled,     { "cpu_throttled",
         BIND([] (const TString& in) { return std::stol(in);                     } ) } },
@@ -129,7 +129,7 @@ public:
     ~TPortoInstance()
     {
         // We can't wait here, but even if this request fails
-        // it is not a big issue - porto has its own GC.
+        // it is not a big issue - Porto has its own GC.
         if (!Destroyed_ && AutoDestroy_) {
             Executor_->DestroyContainer(Name_);
         }
@@ -183,7 +183,7 @@ public:
             return;
         }
         if (!error.IsOK()) {
-            THROW_ERROR_EXCEPTION("Failed to send signal to porto instance")
+            THROW_ERROR_EXCEPTION("Failed to send signal to Porto instance")
                 << TErrorAttribute("signal", signal)
                 << TErrorAttribute("container", Name_)
                 << error;
@@ -280,32 +280,43 @@ public:
         }
     }
 
-    virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const override
+    virtual TResourceUsage GetResourceUsage(const std::vector<EStatField>& fields) const override
     {
         std::vector<TString> properties;
+        properties.push_back("absolute_name");
+
+        bool contextSwitchesRequested = false;
         for (auto field : fields) {
             if (auto it = PortoStatRules.find(field)) {
                 const auto& rule = it->second;
                 properties.push_back(rule.first);
+            } else if (field == EStatField::ContextSwitches) {
+                contextSwitchesRequested = true;
             } else {
                 THROW_ERROR_EXCEPTION("Unknown resource field %Qlv requested", field)
                     << TErrorAttribute("container", Name_);
             }
         }
 
-        auto response = WaitFor(Executor_->GetContainerProperties(Name_, properties))
+        auto propertyMap = WaitFor(Executor_->GetContainerProperties(Name_, properties))
             .ValueOrThrow();
 
-        TUsage result;
+        TResourceUsage result;
+        
         for (auto field : fields) {
-            const auto& rule = GetOrCrash(PortoStatRules, field);
+            auto ruleIt = PortoStatRules.find(field);
+            if (ruleIt == PortoStatRules.end()) {
+                continue;
+            }
+
+            const auto& [property, callback] = ruleIt->second;
             auto& record = result[field];
-            if (auto it = response.find(rule.first); it != response.end()) {
-                const auto& valueOrError = it->second;
+            if (auto responseIt = propertyMap.find(property); responseIt != propertyMap.end()) {
+                const auto& valueOrError = responseIt->second;
                 if (valueOrError.IsOK()) {
                     const auto& value = valueOrError.Value();
                     try {
-                        record = rule.second(value);
+                        record = callback(value);
                     } catch (const std::exception& ex) {
                         record = TError("Error parsing Porto property %Qlv", field)
                             << TErrorAttribute("container", Name_)
@@ -322,6 +333,33 @@ public:
                     << TErrorAttribute("container", Name_);
             }
         }
+
+        // We should maintain context switch information even if this field
+        // is not requested since metrics of individual containers can go up and down.
+        
+        auto selfAbsoluteName = GetOrCrash(propertyMap, "absolute_name")
+            .ValueOrThrow();
+
+        auto subcontainers = WaitFor(Executor_->ListSubcontainers(selfAbsoluteName, true))
+            .ValueOrThrow();
+
+        auto metricMap = WaitFor(Executor_->GetContainerMetrics(subcontainers, "ctxsw"))
+            .ValueOrThrow();
+
+        {
+            auto guard = Guard(ContextSwitchMapLock_);
+
+            for (const auto& [container, newValue] : metricMap) {
+                auto& prevValue = ContextSwitchMap_[container];
+                TotalContextSwitches_ += std::max<i64>(0LL, newValue - prevValue);
+                prevValue = newValue;
+            }
+
+            if (contextSwitchesRequested) {
+                result[EStatField::ContextSwitches] = TotalContextSwitches_;
+            }
+        }
+        
         return result;
     }
 
@@ -332,30 +370,30 @@ public:
         properties.push_back("cpu_limit");
 
         auto responseOrError = WaitFor(Executor_->GetContainerProperties(Name_, properties));
-        THROW_ERROR_EXCEPTION_IF_FAILED(responseOrError, "Failed to get porto container resource limits");
+        THROW_ERROR_EXCEPTION_IF_FAILED(responseOrError, "Failed to get Porto container resource limits");
 
         const auto& response = responseOrError.Value();
         const auto& memoryLimitRsp = response.at("memory_limit");
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(memoryLimitRsp, "Failed to get memory limit from porto");
+        THROW_ERROR_EXCEPTION_IF_FAILED(memoryLimitRsp, "Failed to get memory limit from Porto");
 
         i64 memoryLimit;
 
         if (!TryFromString<i64>(memoryLimitRsp.Value(), memoryLimit)) {
-            THROW_ERROR_EXCEPTION("Failed to parse memory limit value from porto")
+            THROW_ERROR_EXCEPTION("Failed to parse memory limit value from Porto")
                 << TErrorAttribute("memory_limit", memoryLimitRsp.Value());
         }
 
         const auto& cpuLimitRsp = response.at("cpu_limit");
 
-        THROW_ERROR_EXCEPTION_IF_FAILED(cpuLimitRsp, "Failed to get CPU limit from porto");
+        THROW_ERROR_EXCEPTION_IF_FAILED(cpuLimitRsp, "Failed to get CPU limit from Porto");
 
         double cpuLimit;
 
         YT_VERIFY(cpuLimitRsp.Value().EndsWith('c'));
         auto cpuLimitValue = TStringBuf(cpuLimitRsp.Value().begin(), cpuLimitRsp.Value().size() - 1);
         if (!TryFromString<double>(cpuLimitValue, cpuLimit)) {
-            THROW_ERROR_EXCEPTION("Failed to parse CPU limit value from porto")
+            THROW_ERROR_EXCEPTION("Failed to parse CPU limit value from orto")
                 << TErrorAttribute("cpu_limit", cpuLimitRsp.Value());
         }
 
@@ -478,7 +516,7 @@ public:
         }
         auto command = commandBuilder.Flush();
 
-        YT_LOG_DEBUG("Executing porto container (Command: %v)", command);
+        YT_LOG_DEBUG("Executing Porto container (Command: %v)", command);
         SetProperty("command", command);
 
         if (User_) {
@@ -547,6 +585,10 @@ private:
     EEnablePorto EnablePorto_ = EEnablePorto::Full;
     bool RequireMemoryController_ = false;
     std::optional<TString> User_;
+
+    mutable TSpinLock ContextSwitchMapLock_;
+    mutable i64 TotalContextSwitches_ = 0;
+    mutable THashMap<TString, i64> ContextSwitchMap_;
 
     TPortoInstance(
         const TString& name,

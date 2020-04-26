@@ -1063,7 +1063,7 @@ private:
                 auto cpuStatistics = UserJobEnvironment_->GetCpuStatistics();
                 statistics.AddSample("/user_job/cpu", cpuStatistics);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Unable to get cpu statistics for user job");
+                YT_LOG_WARNING(ex, "Unable to get CPU statistics for user job");
             }
 
             try {

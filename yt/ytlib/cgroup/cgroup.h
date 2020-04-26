@@ -120,6 +120,7 @@ public:
         TDuration SystemTime;
         TDuration WaitTime;
         TDuration ThrottledTime;
+        ui64 ContextSwitches = 0;
     };
 
     explicit TCpuAccounting(const TString& name);
