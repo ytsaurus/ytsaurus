@@ -753,9 +753,9 @@ private:
             NFS::MakeDirRecursive(storagePath, 0755);
             NFS::MakeDirRecursive(mountPath, 0755);
 
-            std::map<TString, TString> parameters;
-            parameters["backend"] = "overlay";
-            parameters["storage"] = storagePath;
+            THashMap<TString, TString> properties;
+            properties["backend"] = "overlay";
+            properties["storage"] = storagePath;
 
             TStringBuilder builder;
             for (const auto& layer : layers) {
@@ -764,9 +764,9 @@ private:
                 }
                 builder.AppendString(layer.Path);
             }
-            parameters["layers"] = builder.Flush();
+            properties["layers"] = builder.Flush();
 
-            auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, parameters))
+            auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, properties))
                 .ValueOrThrow();
 
             YT_VERIFY(volumePath == mountPath);
@@ -1127,7 +1127,7 @@ private:
 
             NFS::MakeDirRecursive(path, 0777);
 
-            std::map<TString, TString> volumeProperties;
+            THashMap<TString, TString> volumeProperties;
             volumeProperties["backend"] = "tmpfs";
             volumeProperties["permissions"] = "0777";
             volumeProperties["space_limit"] = ToString(Config_->TmpfsLayerCache->Capacity);

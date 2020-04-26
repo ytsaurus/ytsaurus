@@ -14,8 +14,9 @@ DEFINE_ENUM(EErrorCode,
 DEFINE_ENUM(EStatField,
     (CpuUsageUser)
     (CpuUsageSystem)
-    (CpuWaitTime)
+    (CpuWait)
     (CpuThrottled)
+    (ContextSwitches)
     (Rss)
     (MappedFiles)
     (MajorFaults)

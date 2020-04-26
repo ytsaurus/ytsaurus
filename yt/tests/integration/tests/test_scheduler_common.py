@@ -1740,6 +1740,8 @@ class TestNewLivePreview(YTEnvSetup):
                                       authenticated_user=authenticated_user,
                                       index=i) == (live_preview_created, suppression_alert_set)
 
+##################################################################
+
 class TestConnectToMaster(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -1914,4 +1916,34 @@ class TestEventLog(YTEnvSetup):
 
         wait(check_structured)
 
+##################################################################
 
+@patch_porto_env_only(YTEnvSetup)
+class TestJobStatisticsPorto(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    USE_PORTO_FOR_SERVERS = True
+
+    @authors("babenko")
+    def test_statistics(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+        op = map(
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null')
+
+        statistics = get(op.get_path() + "/@progress/job_statistics")
+
+        for component in ["user_job", "job_proxy"]:
+            print(component)
+            assert get_statistics(statistics, component + ".cpu.user.$.completed.map.sum") > 0
+            assert get_statistics(statistics, component + ".cpu.system.$.completed.map.sum") > 0
+            assert get_statistics(statistics, component + ".cpu.context_switches.$.completed.map.sum") > 0
+            assert get_statistics(statistics, component + ".cpu.wait.$.completed.map.sum") is not None
+            assert get_statistics(statistics, component + ".cpu.throttled.$.completed.map.sum") is not None
+            assert get_statistics(statistics, component + ".block_io.bytes_read.$.completed.map.sum") is not None
+            assert get_statistics(statistics, component + ".max_memory.$.completed.map.sum") > 0
+
+        assert get_statistics(statistics, "user_job.cumulative_memory_mb_sec.$.completed.map.sum") > 0
