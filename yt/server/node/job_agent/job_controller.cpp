@@ -951,7 +951,7 @@ bool TJobController::TImpl::CheckMemoryOverdraft(const TNodeResources& delta)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    // Only cpu and user_memory can be increased.
+    // Only "cpu" and "user_memory" can be increased.
     // Network decreases by design. Cpu increasing is handled in AdjustResources.
     // Others are not reported by job proxy (see TSupervisorService::UpdateResourceUsage).
 

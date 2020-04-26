@@ -160,7 +160,7 @@ protected:
     void ExpectTotalCpuTime(int bucketIndex, TDuration expectedCpuTime, TDuration precision = Quantum / 2)
     {
         // Push dummy callback to the scheduler queue and synchronously wait for it
-        // to ensure that all possible cpu time accounters were destroyed during fiber stack unwinding.
+        // to ensure that all possible CPU time accounters were destroyed during fiber stack unwinding.
         for (int i = 0; i < Queues_.size(); ++i) {
             if (Queues_[i]) {
                 auto invoker = Queues_[i]->GetInvoker();
@@ -537,9 +537,9 @@ TEST_F(TFairShareInvokerPoolTest, CpuTimeAccountingBetweenContextSwitchesIsNotSu
     YT_VERIFY(started.Wait(TInstant::Now() + Quantum * 100));
 
     // After 10 quantums of time (see notification of the #started variable) we start Fairness test in the second thread.
-    // In case of better implementation we expect to have non-fair cpu time distribution between first and second invokers,
-    // because first invoker is given more cpu time in the first thread (at least within margin of 10 quantums).
-    // But cpu accounting is not supported for running callbacks, therefore we expect Fairness test to pass.
+    // In case of better implementation we expect to have non-fair CPU time distribution between first and second invokers,
+    // because first invoker is given more CPU time in the first thread (at least within margin of 10 quantums).
+    // But CPU accounting is not supported for running callbacks, therefore we expect Fairness test to pass.
     DoTestFairness(invokerPool, 2);
 
     future.Get().ThrowOnError();

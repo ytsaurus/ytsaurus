@@ -3586,7 +3586,7 @@ void TOperationControllerBase::AnalyzeJobsCpuUsage()
     };
 
     const TString alertMessage =
-        "Average cpu usage of some of your job types is significantly lower than requested 'cpu_limit'. "
+        "Average CPU usage of some of your job types is significantly lower than requested 'cpu_limit'. "
         "Consider decreasing cpu_limit in spec of your operation";
 
     AnalyzeProcessingUnitUsage(
