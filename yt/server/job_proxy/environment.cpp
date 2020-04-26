@@ -240,6 +240,11 @@ public:
         }
         return Process_;
     }
+
+    virtual IInstancePtr GetUserJobInstance() const override
+    {
+        return nullptr;
+    }
 };
 
 DECLARE_REFCOUNTED_CLASS(TCGroupsUserJobEnvironment);
@@ -555,6 +560,11 @@ public:
         }
 
         return Process_;
+    }
+
+    virtual IInstancePtr GetUserJobInstance() const override
+    {
+        return Instance_;
     }
 
 private:

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/lib/containers/public.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/intrusive_ptr.h>
@@ -26,9 +28,10 @@ DEFINE_REFCOUNTED_TYPE(IShellManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 IShellManagerPtr CreateShellManager(
+    NContainers::IPortoExecutorPtr portoExecutor,
+    NContainers::IInstancePtr rootInstnace,
     const TString& workingDir,
     std::optional<int> userId,
-    std::optional<TString> freezerFullPath,
     std::optional<TString> messageOfTheDay,
     std::vector<TString> environment);
 

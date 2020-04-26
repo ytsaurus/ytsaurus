@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/server/lib/containers/public.h>
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/misc/optional.h>
@@ -19,12 +21,13 @@ struct TShellOptions
     int Height = 24;
     int Width = 80;
     TString WorkingDir = "/";
-    std::optional<TString> CGroupBasePath;
     std::vector<TString> Environment;
     std::optional<TString> Bashrc;
     std::optional<TString> MessageOfTheDay;
     TDuration InactivityTimeout;
     std::optional<TString> Command;
+    TString ContainerName;
+    TGuid Id;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,13 +47,17 @@ struct IShell
     virtual void Terminate(const TError& error) = 0;
     //! Asynchronously wait for inactivity timeout and terminate.
     virtual TFuture<void> Shutdown(const TError& error) = 0;
+    //! Whether shell has terminated.
+    virtual bool Terminated() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IShell)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IShellPtr CreateShell(std::unique_ptr<TShellOptions> options);
+IShellPtr CreateShell(
+    NContainers::IPortoExecutorPtr portoExecutor,
+    std::unique_ptr<TShellOptions> options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

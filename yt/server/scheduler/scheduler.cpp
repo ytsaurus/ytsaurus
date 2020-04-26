@@ -19,8 +19,6 @@
 #include <yt/server/lib/scheduler/event_log.h>
 #include <yt/server/lib/scheduler/helpers.h>
 
-#include <yt/server/lib/shell/config.h>
-
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -100,7 +98,6 @@ using namespace NTableClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NSecurityClient;
-using namespace NShell;
 using namespace NEventLog;
 
 using NNodeTrackerClient::TNodeId;

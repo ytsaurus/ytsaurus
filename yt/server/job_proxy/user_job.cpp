@@ -9,6 +9,9 @@
 #include "environment.h"
 #include "core_watcher.h"
 
+#include <yt/server/lib/containers/instance.h>
+#include <yt/server/lib/containers/porto_executor.h>
+
 #include <yt/server/lib/job_proxy/config.h>
 
 #include <yt/server/lib/job_satellite_connection/job_satellite_connection.h>
@@ -98,6 +101,7 @@ using namespace NTableClient;
 using namespace NFormats;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
+using namespace NShell;
 using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NCGroup;
@@ -170,8 +174,7 @@ public:
             Host_->GetSlotPath(),
             jobId,
             host->GetConfig()->BusServer,
-            JobEnvironmentType_,
-            UserJobSpec_.enable_secure_vault_variables_in_job_shell())
+            JobEnvironmentType_)
         , MaximumTmpfsSizes_(Config_->TmpfsPaths.size())
     {
         Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, Synchronizer_, AuxQueue_->GetInvoker()));
@@ -367,6 +370,13 @@ public:
             ToProto(schedulerResultExt->mutable_core_table_boundary_keys(), coreResult.BoundaryKeys);
         }
 
+        if (ShellManager_) {
+            WaitFor(BIND(&IShellManager::GracefulShutdown, ShellManager_, TError("Job completed"))
+                .AsyncVia(Host_->GetControlInvoker())
+                .Run())
+                .ThrowOnError();
+        }
+
         auto jobError = innerErrors.empty()
             ? TError()
             : TError(EErrorCode::UserJobFailed, "User job failed") << innerErrors;
@@ -466,6 +476,8 @@ private:
     // It redirects data to both ErrorOutput_ and stderr table writer.
     std::unique_ptr<TTeeOutput> StderrCombined_;
 
+    IShellManagerPtr ShellManager_;
+
 #ifdef _asan_enabled_
     std::unique_ptr<TAsanWarningFilter> AsanWarningFilter_;
 #endif
@@ -545,13 +557,49 @@ private:
             Environment_.push_back(Format("YT_ROOT_FS=%v", *Host_->GetConfig()->RootPath));
         }
 
+        for (int index = 0; index < Ports_.size(); ++index) {
+            Environment_.push_back(Format("YT_PORT_%v=%v", index, Ports_[index]));
+        }
+
         // Copy environment to process arguments
         for (const auto& var : Environment_) {
             Process_->AddArguments({"--env", var});
         }
 
-        for (int index = 0; index < Ports_.size(); ++index) {
-            Process_->AddArguments({"--env", Format("YT_PORT_%v=%v", index, Ports_[index])});
+        if (JobEnvironmentType_ == EJobEnvironmentType::Porto) {
+#ifdef _linux_
+            auto portoJobEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+            auto portoExecutor = NContainers::CreatePortoExecutor(portoJobEnvironmentConfig->PortoExecutor, "job-shell");
+
+            std::vector<TString> shellEnvironment;
+            shellEnvironment.reserve(Environment_.size());
+            std::vector<TString> visibleEnvironment;
+            visibleEnvironment.reserve(Environment_.size());
+
+            for (const auto& variable : Environment_) {
+                if (variable.StartsWith("YT_SECURE_VAULT") && !UserJobSpec_.enable_secure_vault_variables_in_job_shell()) {
+                    continue;
+                }
+                if (variable.StartsWith("YT_")) {
+                    shellEnvironment.push_back(variable);
+                }
+                visibleEnvironment.push_back(variable);
+            }
+
+            auto shellManagerUid = UserId_;
+            if (Config_->TestPollJobShell) {
+                shellManagerUid = std::nullopt;
+            }
+
+            ShellManager_ = CreateShellManager(
+                portoExecutor,
+                UserJobEnvironment_->GetUserJobInstance(),
+                Host_->GetSlotPath(),
+                shellManagerUid,
+                Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, AsStringBuf("\n"))),
+                std::move(shellEnvironment)
+            );
+#endif
         }
     }
 
@@ -762,7 +810,10 @@ private:
 
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
     {
-        return JobProberClient_->PollJobShell(parameters);
+        if (!ShellManager_) {
+            THROW_ERROR_EXCEPTION("Job shell polling is not supported in non-Porto environment");
+        }
+        return ShellManager_->PollJobShell(parameters);
     }
 
     virtual void Interrupt() override
