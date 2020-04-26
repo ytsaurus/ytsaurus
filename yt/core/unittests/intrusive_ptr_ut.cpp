@@ -43,6 +43,16 @@ struct TIntricateObject
 
 typedef TIntrusivePtr<TIntricateObject> TIntricateObjectPtr;
 
+void Ref(TIntricateObject* obj)
+{
+    obj->Ref();
+}
+
+void Unref(TIntricateObject* obj)
+{
+    obj->Unref();
+}
+
 MATCHER_P3(HasRefCounts, increments, decrements, zeros,
     "Reference counter " \
     "was incremented " + ::testing::PrintToString(increments) + " times, " +

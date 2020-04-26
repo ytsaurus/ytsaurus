@@ -144,7 +144,7 @@ public:
         auto oldCount = CancelableRefCount_--;
         YT_ASSERT(oldCount > 0);
         if (oldCount == 1) {
-            OnLastCancelableRefLost();
+            DestroyRefCounted();
         }
     }
 
@@ -154,10 +154,12 @@ protected:
     //! Number of cancelables plus one if FutureRefCount_ > 0.
     std::atomic<int> CancelableRefCount_;
 
-private:
-    void OnLastCancelableRefLost()
+    template <class T>
+    static void DestroyRefCountedImpl(T* ptr)
     {
-        delete this;
+        // No virtual call when T is final.
+        ptr->~T();
+        NYTAlloc::FreeNonNull(ptr);
     }
 };
 
