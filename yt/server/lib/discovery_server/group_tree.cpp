@@ -441,7 +441,7 @@ public:
 
                 auto group = New<TGroup>(
                     id,
-                    BIND(&TImpl::OnGroupEmptied, MakeWeak(this), id, currentNode),
+                    BIND(&TImpl::OnGroupEmptied, MakeWeak(this), id, MakeWeak(currentNode)),
                     Logger);
                 currentNode->SetGroup(group);
                 YT_VERIFY(result.emplace(id, group).second);
@@ -521,8 +521,13 @@ private:
         return it == IdToNode_.end() ? nullptr : it->second->GetGroup();
     }
 
-    void OnGroupEmptied(const TGroupId& groupId, TGroupNodePtr node)
+    void OnGroupEmptied(const TGroupId& groupId, const TWeakPtr<TGroupNode>& weakNode)
     {
+        auto node = weakNode.Lock();
+        if (!node) {
+            return;
+        }
+        
         NConcurrency::TWriterGuard guard(Lock_);
 
         if (!DoFindGroup(groupId)) {
@@ -534,7 +539,7 @@ private:
         while (node != Root_ && node->GetChildCount() > 0) {
             YT_VERIFY(IdToNode_.erase(currentPath) > 0);
 
-            const auto& key = node->GetKey();
+            auto key = node->GetKey();
             node = node->GetParent().Lock();
             if (!node) {
                 YT_LOG_WARNING("Parent node was already deleted (Path: %v)", currentPath);
