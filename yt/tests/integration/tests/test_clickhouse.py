@@ -2561,8 +2561,8 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 proxy_response = clique.make_query_via_proxy(
                         "select * from system.clique",
                         alias_and_instance_cookie="*test_alias@" + str(job_cookie))
-                for response_index in range(5):
-                    assert proxy_response[response_index]['self'] == 1 if proxy_response[response_index]['job_cookie'] == job_cookie else proxy_response[response_index]['self'] == 0
+                for instanse_response in proxy_response:
+                    assert instanse_response['self'] == 1 if instanse_response['job_cookie'] == job_cookie else instanse_response['self'] == 0
 
                 proxy_response = clique.make_query_via_proxy(
                         "select * from system.clique",
