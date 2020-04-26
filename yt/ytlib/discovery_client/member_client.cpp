@@ -87,7 +87,9 @@ public:
             Config_->HeartbeatPeriod))
         , ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
         , Logger(NLogging::TLogger(DiscoveryClientLogger)
-            .AddTag("MemberId: %v", Id_))
+            .AddTag("GroupId: %v, MemberId: %v",
+                GroupId_,
+                Id_))
         , AddressPool_(New<TServerAddressPool>(
             Config_->ServerBanTimeout,
             Logger,
