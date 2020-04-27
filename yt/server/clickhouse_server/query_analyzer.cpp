@@ -20,7 +20,7 @@
 #include <Interpreters/DatabaseAndTableWithAlias.h>
 #include <Interpreters/SyntaxAnalyzer.h>
 
-#include <library/string_utils/base64/base64.h>
+#include <library/cpp/string_utils/base64/base64.h>
 
 namespace NYT::NClickHouseServer {
 
