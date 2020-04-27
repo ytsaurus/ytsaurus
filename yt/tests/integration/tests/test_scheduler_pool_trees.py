@@ -968,6 +968,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         assert op_tree not in erased_trees
         assert (frozenset(erased_trees) | {op_tree}) == frozenset(spec_trees)
 
+    # XXX(eshcherbin): until YT-12740 is done.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_one_empty_tree(self):
         spec = {
@@ -980,6 +982,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         ]
         self._run_vanilla_and_check_tree(spec, possible_trees)
 
+    # XXX(eshcherbin): until YT-12740 is done.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_one_empty_tree_ephemeral(self):
         spec = {
@@ -990,6 +994,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         ]
         self._run_vanilla_and_check_tree(spec, possible_trees)
 
+    # XXX(eshcherbin): until YT-12740 is done.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_two_empty_trees(self):
         spec = {
@@ -1003,6 +1009,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         ]
         self._run_vanilla_and_check_tree(spec, possible_trees)
 
+    # XXX(eshcherbin): until YT-12740 is done.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_two_trees_with_unequal_demand(self):
         for busy_tree, expected_tree in [("default", "nirvana"), ("nirvana", "default")]:
@@ -1023,6 +1031,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             other_op.abort()
             other_op.wait_for_state("aborted")
 
+    # XXX(eshcherbin): until YT-12740 is done.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_two_trees_with_unequal_min_share_resources(self):
         for other_tree, expected_tree in [("default", "nirvana"), ("nirvana", "default")]:
@@ -1041,6 +1051,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
             set("//sys/pool_trees/{}/research/@min_share_resources".format(expected_tree), {"cpu": 0})
 
+    # XXX(eshcherbin): until YT-12740 is done.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_two_trees_with_unequal_total_resources(self):
         spare_node = ls("//sys/cluster_nodes")[2]
@@ -1061,6 +1073,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
             set("//sys/cluster_nodes/{}/@user_tags".format(spare_node), [])
 
+    # XXX(eshcherbin): until YT-12740 is done.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_prefer_tree_with_min_share_resources(self):
         set("//sys/pool_trees/nirvana/research/@min_share_resources", {"cpu": 3})
@@ -1081,6 +1095,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         other_op.wait_for_state("aborted")
         set("//sys/pool_trees/nirvana/research/@min_share_resources", {"cpu": 0})
 
+    # XXX(eshcherbin): until YT-12740 is done.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_revive_scheduler(self):
         job_count = 10
@@ -1109,6 +1125,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         assert op_tree not in erased_trees
         assert (frozenset(erased_trees) | {op_tree}) == frozenset(possible_trees)
 
+    # XXX(eshcherbin): until YT-12740 is done.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_revive_controller_agent(self):
         job_count = 10
@@ -1144,6 +1162,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         for tree in erased_trees:
             set("//sys/pool_trees/{}/research/@min_share_resources".format(tree), {"cpu": 0})
 
+    # XXX(eshcherbin): until YT-12740 is done.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_ignore_trees_where_operation_is_not_running(self):
         for tree in ["default", "nirvana"]:
@@ -1176,6 +1196,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             set("//sys/pool_trees/{}/research/@max_running_operation_count".format(tree), 8)
             wait(lambda: get_from_tree_orchid(tree, "fair_share_info/pools/research/max_running_operation_count") == 8)
 
+    # XXX(eshcherbin): until YT-12740 is done.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_global_disable(self):
         set("//sys/scheduler/config/enable_schedule_in_single_tree", False)
@@ -1193,6 +1215,8 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         wait(lambda: len(list_jobs(op.id)["jobs"]) >= job_count)
         wait(lambda: get(op.get_path() + "/@erased_trees") == [])
 
+    # XXX(eshcherbin): until YT-12740 is done.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_global_enable_during_operation_materialization(self):
         set("//sys/scheduler/config/enable_schedule_in_single_tree", False)
