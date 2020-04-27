@@ -1234,7 +1234,7 @@ void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeI
     --runtimeInfo->ConcurrencySemaphore;
 }
 
-static PER_THREAD bool ScheduleRequestsLatch = false;
+static thread_local bool ScheduleRequestsLatch;
 
 void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
@@ -1243,17 +1243,21 @@ void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
         return;
     }
     ScheduleRequestsLatch = true;
+    auto latchGuard = Finally([&] {
+        ScheduleRequestsLatch = false;
+    });
 
     while (TryAcquireRequestSemaphore(runtimeInfo)) {
         TServiceContextPtr context;
         if (!runtimeInfo->RequestQueue.Dequeue(&context)) {
             ReleaseRequestSemaphore(runtimeInfo);
+            if (!runtimeInfo->RequestQueue.IsEmpty()) {
+                continue;
+            }
             break;
         }
         RunRequest(std::move(context));
     }
-
-    ScheduleRequestsLatch = false;
 }
 
 void TServiceBase::RunRequest(const TServiceContextPtr& context)
