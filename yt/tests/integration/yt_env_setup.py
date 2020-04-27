@@ -183,28 +183,47 @@ def _remove_objects(enable_secondary_cells_cleanup, driver=None):
 
     _retry_with_gc_collect(do, driver=driver)
 
-def _restore_globals(scheduler_count, driver=None):
+def _restore_globals(scheduler_count, scheduler_pool_trees_root, driver=None):
     def do():
         for response in yt_commands.execute_batch([
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
                 yt_commands.make_batch_request("set", path="//sys/@config", input=get_dynamic_master_config()),
-                # TODO(renadeen): remove
-                # yt_commands.make_batch_request("remove", path="//sys/pool_trees/default/*", force=True)
             ], driver=driver):
             assert not yt_commands.get_batch_output(response)
 
-        wait_for_orchid = scheduler_count > 0
-
-        # TODO(ignat): batch these actions and make proper waiting of actual state inside scheduler.
-        if yt_commands.exists("//sys/pool_trees/default"):
-            yt_commands.remove("//sys/pool_trees/default/*")
-        if not yt_commands.exists("//sys/pool_trees/default"):
-            yt_commands.create_pool_tree("default", wait_for_orchid=wait_for_orchid)
-        yt_commands.set("//sys/pool_trees/@default_tree", "default")
-        for pool_tree in yt_commands.ls("//sys/pool_trees"):
+        default_exists = yt_commands.exists(scheduler_pool_trees_root + "/default", driver=driver)
+        restore_pool_trees_requests = []
+        if default_exists:
+            restore_pool_trees_requests.extend([
+                yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/default/*"),
+                yt_commands.make_batch_request("set", path=scheduler_pool_trees_root + "/@default_tree", input="default"),
+                yt_commands.make_batch_request("set", path=scheduler_pool_trees_root + "/default/@nodes_filter", input=""),
+            ])
+        else:
+            # XXX(eshcherbin, renadeen): Remove when map_node pool trees are not a thing.
+            if yt_commands.get(scheduler_pool_trees_root + "/@type") == "map_node":
+                restore_pool_trees_requests.append(
+                    yt_commands.make_batch_request("create", type="map_node", path=scheduler_pool_trees_root + "/default"))
+            else :
+                restore_pool_trees_requests.append(
+                    yt_commands.make_batch_request("create", type="scheduler_pool_tree", attributes={"name": "default"}))
+        for pool_tree in yt_commands.ls(scheduler_pool_trees_root):
             if pool_tree != "default":
-                yt_commands.remove_pool_tree(pool_tree, wait_for_orchid=wait_for_orchid)
+                restore_pool_trees_requests.append(
+                    yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/" + pool_tree))
+        for response in yt_commands.execute_batch(restore_pool_trees_requests, driver=driver):
+            assert not yt_commands.get_batch_error(response)
+        if default_exists:
+            # Could not add this to the batch request because of possible races at scheduler.
+            yt_commands.set(scheduler_pool_trees_root + "/@default_tree", "default", driver=driver)
+
+        if scheduler_count > 0:
+            wait(lambda: yt_commands.ls(yt_commands.scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree", driver=driver) == ["default"])
+            wait(lambda: yt_commands.get(yt_commands.scheduler_orchid_path() + "/scheduler/default_pool_tree", driver=driver) == "default")
+            wait(lambda: yt_commands.ls(yt_commands.scheduler_orchid_default_pool_tree_path() + "/pools", driver=driver) == ["<Root>"])
+            node_count = len(yt_commands.ls("//sys/cluster_nodes", driver=driver))
+            wait(lambda: yt_commands.get(yt_commands.scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/default/node_count", driver=driver) == node_count)
 
     _retry_with_gc_collect(do, driver=driver)
 
@@ -924,8 +943,14 @@ class YTEnvSetup(object):
 
             yt_commands.gc_collect(driver=driver)
 
+            scheduler_count = cls.get_param("NUM_SCHEDULERS", cluster_index)
+            if scheduler_count > 0:
+                scheduler_pool_trees_root = cls.Env.configs["scheduler"][0]["scheduler"].get("pool_trees_root", "//sys/pool_trees")
+            else:
+                scheduler_pool_trees_root = "//sys/pool_trees"
             _restore_globals(
-                scheduler_count=cls.get_param("NUM_SCHEDULERS", cluster_index),
+                scheduler_count=scheduler_count,
+                scheduler_pool_trees_root=scheduler_pool_trees_root,
                 driver=driver)
 
             _remove_objects(

@@ -674,6 +674,8 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
         create_pool("test_pool_1")
         create_pool("test_pool_2")
+        # TODO(eshcherbin): Add wait_for_orchid to create_pool.
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool_1"))
 
         op1 = map(
             track=False,
@@ -683,6 +685,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             spec={"pool": "test_pool_1"})
         wait_breakpoint()
 
+        # TODO(ignat): Stabilize this part.
         remove("//sys/pools/test_pool_1")
         create_pool("test_pool_1", parent_name="test_pool_2")
         time.sleep(0.5)
@@ -1799,15 +1802,13 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         wait_breakpoint()
 
         remove("//sys/pools/custom_pool")
-        time.sleep(0.2)
-        assert exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool")
-        assert exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool"))
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root"))
 
         release_breakpoint()
         op.track()
-        time.sleep(0.2)  # wait orchid update
-        assert not exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool")
-        assert not exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
+        wait(lambda: not exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool"))
+        wait(lambda: not exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root"))
 
     @authors("renadeen")
     def test_custom_ephemeral_pool_scheduling_mode(self):

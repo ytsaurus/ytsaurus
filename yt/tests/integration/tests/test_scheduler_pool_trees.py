@@ -34,20 +34,6 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         }
     }
 
-    def setup_method(self, method):
-        super(TestPoolTreesReconfiguration, self).setup_method(method)
-        for tree in ls("//sys/pool_trees"):
-            remove("//sys/pool_trees/" + tree)
-        create_pool_tree("default")
-        set("//sys/pool_trees/@default_tree", "default")
-
-        orchid_root = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
-        wait(lambda: exists(orchid_root + "/default"))
-        wait(lambda: get(orchid_root + "/default/node_count") == 3)
-
-        wait(lambda: exists("//sys/scheduler/orchid/scheduler/default_pool_tree"))
-        wait(lambda: get("//sys/scheduler/orchid/scheduler/default_pool_tree") == "default")
-
     def teardown_method(self, method):
         super(TestPoolTreesReconfiguration, self).teardown_method(method)
         wait(lambda: not get("//sys/scheduler/@alerts"))
@@ -552,10 +538,6 @@ class TestTentativePoolTrees(YTEnvSetup):
         super(TestTentativePoolTrees, self).setup_method(method)
         set("//sys/controller_agents/config/check_tentative_tree_eligibility_period", 100 * 1000)
 
-    def teardown_method(self, method):
-        remove_pool_tree("other")
-        super(TestTentativePoolTrees, self).teardown_method(method)
-
     # Creates and additional pool tree called "other", configures tag filters,
     # tags some nodes as "other" and returns a list of those nodes.
     def _prepare_pool_trees(self):
@@ -886,10 +868,6 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
         assert jobs[jobs.keys()[0]]["address"] == runnable_custom_node
 
         release_breakpoint()
-
-    def teardown_method(self, method):
-        remove_pool_tree("custom_pool_tree")
-        super(TestSchedulingTagFilterOnPerPoolTreeConfiguration, self).teardown_method(method)
 
 ##################################################################
 
@@ -1273,8 +1251,9 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         for node in nodes[:-1]:
             set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["other"])
         set("//sys/pool_trees/default/@nodes_filter", "!other")
-        create_pool_tree("other", attributes={"nodes_filter": "other", "max_running_operation_count_per_pool": 1})
-        time.sleep(0.5)
+        create_pool_tree("other",
+                         attributes={"nodes_filter": "other", "max_running_operation_count_per_pool": 1},
+                         wait_for_orchid=True)
 
         blocking_op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool_trees": ["other"]})
         wait_breakpoint()
@@ -1292,9 +1271,6 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
         release_breakpoint()
         blocking_op.track()
         op.track()
-
-        remove_pool_tree("other")
-        set("//sys/pool_trees/default/@nodes_filter", "")
 
     @authors("mrkastep")
     def test_ignoring_tentative_pool_operation_limit(self):
