@@ -36,7 +36,7 @@ static size_t EstimateOutputSize(size_t totalInputSize)
 void ZstdLegacyCompress(StreamSource* source, TBlob* output)
 {
     ui64 totalInputSize = source->Available();
-    output->Resize(EstimateOutputSize(totalInputSize) + sizeof(totalInputSize));
+    output->Resize(EstimateOutputSize(totalInputSize) + sizeof(totalInputSize), /* initializeStorage */ false);
     size_t curOutputPos = 0;
 
     // Write input size that will be used during decompression.
@@ -151,7 +151,7 @@ void ZstdLegacyDecompress(StreamSource* source, TBlob* output)
 {
     ui64 outputSize;
     ReadPod(source, outputSize);
-    output->Resize(outputSize);
+    output->Resize(outputSize, /* initializeStorage */ false);
     void* outputPtr = output->Begin();
 
     TBlob input;
