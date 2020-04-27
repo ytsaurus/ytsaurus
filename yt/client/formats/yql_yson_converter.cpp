@@ -9,7 +9,7 @@
 #include <yt/core/yson/pull_parser.h>
 #include <yt/core/yson/token_writer.h>
 
-#include <library/string_utils/base64/base64.h>
+#include <library/cpp/string_utils/base64/base64.h>
 
 #include <util/charset/utf8.h>
 
