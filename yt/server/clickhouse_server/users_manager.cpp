@@ -36,9 +36,9 @@ using namespace NYTree;
 using namespace NSecurityClient;
 using namespace NYson;
 
-TLogger Logger("UsersManager");
-
 ////////////////////////////////////////////////////////////////////////////////
+
+TLogger Logger("UsersManager");
 
 class TUsersManager
     : public DB::IUsersManager

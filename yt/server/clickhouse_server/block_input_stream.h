@@ -83,4 +83,4 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NClickHouseServer
