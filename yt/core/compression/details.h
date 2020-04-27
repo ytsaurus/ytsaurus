@@ -82,7 +82,7 @@ inline void Read(StreamSource* source, char* buffer, size_t length)
 inline void Read(StreamSource* source, TBlob& output)
 {
     size_t length = source->Available();
-    output.Resize(length);
+    output.Resize(length, /* initializeStorage */ false);
     Read(source, output.Begin(), length);
 }
 
