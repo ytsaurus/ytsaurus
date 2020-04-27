@@ -37,8 +37,6 @@ class TestJobCommands(object):
                 return output
             raise
 
-    # Remove after YT-8596
-    @flaky(max_runs=5)
     def test_job_shell(self, job_events):
         if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
@@ -67,8 +65,6 @@ class TestJobCommands(object):
         assert output.startswith(expected) == True
 
         ids = re.match(b"(\\d+)\r\n(\\d+)\r\n", output[len(expected):])
-        if ENABLE_JOB_CONTROL:
-            assert int(ids.group(1)) != os.getuid()
 
         shell.make_request("terminate")
         with pytest.raises(yt.YtError):
@@ -77,8 +73,6 @@ class TestJobCommands(object):
         job_events.release_breakpoint()
         op.wait()
 
-    # Remove after YT-8596
-    @flaky(max_runs=5)
     def test_job_shell_command(self, yt_env_with_rpc, job_events):
         if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
@@ -106,8 +100,6 @@ class TestJobCommands(object):
         job_events.release_breakpoint()
         op.wait()
 
-    # Remove after YT-8596
-    @flaky(max_runs=5)
     def test_secure_vault_variables_in_job_shell(self):
         if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
