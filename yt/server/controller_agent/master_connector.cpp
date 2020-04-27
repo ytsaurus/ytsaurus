@@ -47,6 +47,8 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
+#include <yt/core/misc/finally.h>
+
 namespace NYT::NControllerAgent {
 
 using namespace NApi;
@@ -209,9 +211,16 @@ public:
             .Run();
     }
 
+    ui64 GetConfigRevision() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        return ConfigRevision_;
+    }
+
 private:
     TControllerAgentConfigPtr Config_;
     TControllerAgentConfigPtr InitialConfig_;
+    ui64 ConfigRevision_ = 0;
 
     TBootstrap* const Bootstrap_;
 
@@ -1340,6 +1349,9 @@ private:
             }
 
             SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, TError());
+            auto incrementRevision = Finally([this]() {
+                ++ConfigRevision_;
+            });
 
             auto oldConfigNode = ConvertToNode(Config_);
             auto newConfigNode = ConvertToNode(newConfig);
@@ -1462,6 +1474,11 @@ void TMasterConnector::AddChunkTreesToUnstageList(std::vector<TChunkId> chunkTre
 TFuture<void> TMasterConnector::UpdateConfig()
 {
     return Impl_->UpdateConfig();
+}
+
+ui64 TMasterConnector::GetConfigRevision() const
+{
+    return Impl_->GetConfigRevision();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -887,11 +887,29 @@ class YTEnvSetup(object):
 
                 if cls.ENABLE_BULK_INSERT:
                     yt_commands.set("//sys/controller_agents/config/enable_bulk_insert_for_everyone", True)
-                    for instance in yt_commands.ls("//sys/controller_agents/instances"):
-                        def _wait_func():
-                            config = yt_commands.get("//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(instance))
-                            return config.get("enable_bulk_insert_for_everyone", False)
-                        wait(_wait_func)
+
+                def _get_config_versions(orchids):
+                    requests = [yt_commands.make_batch_request("get", path=orchid + "/config_revision") for orchid in orchids]
+                    res = yt_commands.execute_batch(requests, driver=driver)
+                    return list(map(lambda r: yt_commands.get_batch_output(r)["value"], res))
+
+                def _wait_for_configs(orchids):
+                    old_versions = _get_config_versions(orchids)
+
+                    def _wait_func():
+                        new_versions = _get_config_versions(orchids)
+                        return all(new >= old+2 for old, new in zip(old_versions, new_versions))
+
+                    wait(_wait_func)
+
+                orchids = []
+                for instance in yt_commands.ls("//sys/controller_agents/instances"):
+                    orchids.append("//sys/controller_agents/instances/{}/orchid/controller_agent".format(instance))
+
+                orchids.append("//sys/scheduler/orchid/scheduler")
+                _wait_for_configs(orchids)
+
+
 
             if cls.ENABLE_TMP_PORTAL and cluster_index == 0:
                 yt_commands.create("portal_entrance", "//tmp",
@@ -930,7 +948,6 @@ class YTEnvSetup(object):
             if cls.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 _remove_operations(driver=driver)
                 _wait_for_jobs_to_vanish(driver=driver)
-                # TODO(ignat): wait that empty configs are really loaded by tests.
                 yt_commands.remove("//sys/scheduler/config", force=True, driver=driver)
                 yt_commands.remove("//sys/controller_agents/config", force=True, driver=driver)
 

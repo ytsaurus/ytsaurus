@@ -1645,6 +1645,7 @@ private:
                         .Item("incarnation_id").Value(IncarnationId_);
                 })
                 .Item("config").Value(Config_)
+                .Item("config_revision").Value(MasterConnector_->GetConfigRevision())
                 .Item("tagged_memory_statistics")
                     .BeginAttributes()
                         .Item("opaque").Value(true)
