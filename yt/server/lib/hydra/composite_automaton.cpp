@@ -230,6 +230,21 @@ void TCompositeAutomaton::SetSerializationDumpEnabled(bool value)
     SerializationDumpEnabled_ = value;
 }
 
+void TCompositeAutomaton::SetLowerWriteCountDumpLimit(i64 lowerLimit)
+{
+    LowerWriteCountDumpLimit_ = lowerLimit;
+}
+
+void TCompositeAutomaton::SetUpperWriteCountDumpLimit(i64 upperLimit)
+{
+    UpperWriteCountDumpLimit_ = upperLimit;
+}
+
+void TCompositeAutomaton::SetEnableTotalWriteCountReport(bool enableTotalWriteCountReport)
+{
+    EnableTotalWriteCountReport_ = enableTotalWriteCountReport;
+}
+
 void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
 {
     YT_VERIFY(part);
@@ -264,6 +279,9 @@ void TCompositeAutomaton::InitLoadContext(
     context.SetInput(input);
     context.SetCheckpointableInput(input);
     context.Dumper().SetEnabled(SerializationDumpEnabled_);
+    context.Dumper().SetLowerWriteCountDumpLimit(LowerWriteCountDumpLimit_);
+    context.Dumper().SetUpperWriteCountDumpLimit(UpperWriteCountDumpLimit_);
+    context.SetEnableTotalWriteCountReport(EnableTotalWriteCountReport_);
 }
 
 TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
@@ -389,6 +407,10 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
                         }
                     }
                 }
+            }
+
+            if (context.GetEnableTotalWriteCountReport()) {
+                context.Dumper().ReportWriteCount();
             }
 
             for (const auto& part : parts) {

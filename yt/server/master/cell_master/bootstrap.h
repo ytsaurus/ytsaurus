@@ -107,7 +107,11 @@ public:
 
     void Initialize();
     void Run();
-    void TryLoadSnapshot(const TString& fileName, bool dump);
+    void TryLoadSnapshot(
+        const TString& fileName,
+        bool dump,
+        bool EnableTotalWriteCountReport,
+        const TString& dumpConfigString);
 
 private:
     const TCellMasterConfigPtr Config_;
@@ -177,7 +181,17 @@ private:
 
     void DoInitialize();
     void DoRun();
-    void DoLoadSnapshot(const TString& fileName, bool dump);
+    void DoLoadSnapshot(
+        const TString& fileName,
+        bool dump,
+        bool enableTotalWriteCountReport,
+        const TSerializationDumperConfigPtr& dumpConfig);
+
+    void ValidateLoadSnapshotParameters(
+        bool dump,
+        bool enableTotalWriteCountReport,
+        const TString& dumpConfigString,
+        TSerializationDumperConfigPtr* dumpConfig);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
