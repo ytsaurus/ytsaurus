@@ -784,7 +784,7 @@ private:
                         auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Index, version);
                         rows.push_back(row);
                         orderedByIdRowsDataWeight += GetDataWeight(row);
-                    } catch (const TErrorException& ex) {
+                    } catch (const std::exception& ex) {
                         THROW_ERROR_EXCEPTION("Failed to build row for operation %v", operationId)
                             << ex;
                     }
