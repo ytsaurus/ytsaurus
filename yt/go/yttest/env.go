@@ -14,6 +14,7 @@ import (
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 type Env struct {
@@ -77,7 +78,7 @@ func UploadSlice(ctx context.Context, c yt.Client, path ypath.YPath, slice inter
 	_, err = c.CreateNode(ctx, path, yt.NodeTable, &yt.CreateNodeOptions{
 		Attributes: map[string]interface{}{"schema": tableSchema},
 	})
-	if err != nil {
+	if err != nil && !yterrors.ContainsAlreadyExistsError(err) {
 		return err
 	}
 
@@ -100,7 +101,7 @@ func (e *Env) UploadSlice(path ypath.YPath, slice interface{}) error {
 	return UploadSlice(e.Ctx, e.YT, path, slice)
 }
 
-func DownloadSlice(ctx context.Context, c yt.Client, path ypath.YPath, value interface{}) error {
+func DownloadSlice(ctx context.Context, c yt.TableClient, path ypath.YPath, value interface{}) error {
 	sliceValue := reflect.ValueOf(value).Elem()
 
 	r, err := c.ReadTable(ctx, path, nil)

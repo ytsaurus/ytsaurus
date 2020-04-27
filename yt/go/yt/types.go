@@ -220,6 +220,7 @@ func (id *JobID) UnmarshalYSON(data []byte) (err error) {
 type LockMode string
 
 const (
+	LockSnapshot  LockMode = "snapshot"
 	LockShared    LockMode = "shared"
 	LockExclusive LockMode = "exclusive"
 )
