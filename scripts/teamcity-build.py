@@ -339,7 +339,14 @@ def prepare(options, build_context):
             ["arc", "log", branch_commit + "..HEAD", "--oneline"],
             cwd=options.checkout_directory
         )
-        options.patch_number = len(log.split("\n"))
+        branch_commit_info = json.loads(
+            run_captured(
+                ["arc", "show", branch_commit, "--json"],
+                cwd=options.checkout_directory
+            )
+        )[0]["commits"][0]
+
+        options.patch_number = len(log.split("\n")) + branch_commit_info["revision"]
     else:
         options.patch_number = run_captured(
             [os.path.join(YT_ROOT, "yt/scripts/git-depth.py")],

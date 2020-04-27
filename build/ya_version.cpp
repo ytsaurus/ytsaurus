@@ -11,10 +11,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString CreateYTVersion(int major, int minor, TStringBuf branch)
+TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch)
 {
-    auto patch = GetArcadiaGitPatchNumber();
-
     TStringStream out;
     out << major << "." << minor << "." << patch;
     out << "-" << branch;
@@ -28,7 +26,10 @@ TString CreateYTVersion(int major, int minor, TStringBuf branch)
     out << "-asan";
 #endif
 
-    TString commit = GetProgramCommitId();
+    TString commit = GetProgramHash();
+    if (commit.empty()) {
+        commit = GetProgramCommitId();
+    }
     TString buildUser = GetProgramBuildUser();
 
     // When we use `ya make --dist` distbuild makes mess instead of svn revision:
