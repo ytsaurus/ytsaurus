@@ -65,6 +65,11 @@ func ContainsResolveError(err error) bool {
 	return ContainsErrorCode(err, CodeResolveError)
 }
 
+// ContainsAlreadyExistsError is convenient helper for checking AlreadyExistsError.
+func ContainsAlreadyExistsError(err error) bool {
+	return ContainsErrorCode(err, CodeAlreadyExists)
+}
+
 // FindErrorCode examines error and all nested errors, returning first YT error with given error code.
 func FindErrorCode(err error, code ErrorCode) *Error {
 	if err == nil {

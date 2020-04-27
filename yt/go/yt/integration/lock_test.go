@@ -3,12 +3,11 @@ package integration
 import (
 	"testing"
 
-	"a.yandex-team.ru/yt/go/yterrors"
-
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 	"a.yandex-team.ru/yt/go/yttest"
 )
 
@@ -81,4 +80,30 @@ func TestLocks(t *testing.T) {
 			require.True(t, yterrors.ContainsErrorCode(err, yterrors.ErrorCode(402)))
 		})
 	})
+}
+
+func TestSnapshotLock(t *testing.T) {
+	t.Parallel()
+
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	tmpName := env.TmpPath()
+	_, err := env.YT.CreateNode(env.Ctx, tmpName, yt.NodeTable, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, env.UploadSlice(tmpName, []testRow{{Key: "a", Value: "1"}}))
+
+	tx, err := env.YT.BeginTx(env.Ctx, nil)
+	require.NoError(t, err)
+	defer tx.Abort()
+
+	lock, err := tx.LockNode(env.Ctx, tmpName, yt.LockSnapshot, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, env.UploadSlice(tmpName, []testRow{{Key: "b", Value: "2"}}))
+
+	var result []testRow
+	require.NoError(t, yttest.DownloadSlice(env.Ctx, tx, lock.NodeID.YPath(), &result))
+	require.Equal(t, []testRow{{Key: "a", Value: "1"}}, result)
 }
