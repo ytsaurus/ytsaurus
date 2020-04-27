@@ -51,9 +51,18 @@ public:
             .StoreMappedResult(&ExportSnapshot_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
         Opts_
-            .AddLongOption("export-config", "user config for master snapshot exporting\nexpects yson which may have keys 'attributes', 'first_key', 'last_key', 'types'")
+            .AddLongOption("export-config", "user config for master snapshot exporting\nexpects yson which may have keys "
+                           "'attributes', 'first_key', 'last_key', 'types', 'job_index', 'job_count'")
             .StoreResult(&ExportSnapshotConfig_)
             .RequiredArgument("CONFIG_YSON");
+        Opts_
+            .AddLongOption("dump-config", "config for snapshot dumping, which contains 'lower_limit' and 'upper_limit'")
+            .StoreResult(&DumpConfig_)
+            .RequiredArgument("CONFIG_YSON");
+        Opts_
+            .AddLongOption("report-total-write-count")
+            .SetFlag(&EnableTotalWriteCountReport_)
+            .NoArgument();
     }
 
 protected:
@@ -115,9 +124,9 @@ protected:
         bootstrap->Initialize();
 
         if (dumpSnapshot) {
-            bootstrap->TryLoadSnapshot(DumpSnapshot_, true);
+            bootstrap->TryLoadSnapshot(DumpSnapshot_, true, false, DumpConfig_);
         } else if (validateSnapshot) {
-            bootstrap->TryLoadSnapshot(ValidateSnapshot_, false);
+            bootstrap->TryLoadSnapshot(ValidateSnapshot_, false, EnableTotalWriteCountReport_, TString());
         } else if (exportSnapshot) {
             ExportSnapshot(bootstrap, ExportSnapshot_, ExportSnapshotConfig_);
         } else {
@@ -130,6 +139,8 @@ private:
     TString ValidateSnapshot_;
     TString ExportSnapshot_;
     TString ExportSnapshotConfig_;
+    TString DumpConfig_;
+    bool EnableTotalWriteCountReport_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

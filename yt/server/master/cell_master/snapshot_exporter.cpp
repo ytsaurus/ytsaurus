@@ -286,7 +286,7 @@ void ExportSnapshot(TBootstrap* bootstrap, const TString& snapshotPath, const TS
 
     ParseAndValidate(configPath, &searchedTypes, &searchedAttributes, &lowerIndex, &upperIndex, &jobIndex, &jobCount);
 
-    bootstrap->TryLoadSnapshot(snapshotPath, false);
+    bootstrap->TryLoadSnapshot(snapshotPath, false, false, TString());
     BIND(&DoExportSnapshot, bootstrap, lowerIndex, upperIndex, jobIndex, jobCount, searchedAttributes, searchedTypes)
         .AsyncVia(bootstrap->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()
