@@ -1526,6 +1526,8 @@ public:
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
+    ui64 ConfigRevision_ = 0;
+
     TBootstrap* const Bootstrap_;
 
     NYTree::INodePtr SpecTemplate_;
@@ -2310,6 +2312,8 @@ private:
 
             EventLogWriter_->UpdateConfig(Config_->EventLog);
         }
+
+        ++ConfigRevision_;
     }
 
 
@@ -3528,6 +3532,7 @@ private:
                         .EndMap();
                 })
                 .Item("config").Value(Config_)
+                .Item("config_revision").Value(ConfigRevision_)
                 .Item("operations_cleaner").BeginMap()
                     .Do(std::bind(&TOperationsCleaner::BuildOrchid, OperationsCleaner_, _1))
                 .EndMap()
