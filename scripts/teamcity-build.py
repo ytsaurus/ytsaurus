@@ -1073,9 +1073,23 @@ def run_ya_all_tests_dist(options, build_context):
     ]
     run_ya_tests(options, "ya_all_dist", python_targets + other_targets)
 
+@build_step
 @only_for_projects("yt")
 def run_ya_unittests_local(options, build_context):
-    run_ya_tests(options, "ya_unittests_local", [os.path.join(get_relative_yt_root(options), "yt/server/unittests")], dist=False)
+    dirs_with_unittests = [
+        "client",
+        "core",
+        "experiments",
+        "library",
+        "python",
+        "server",
+        "ytlib",
+    ]
+    run_ya_tests(
+        options,
+        "ya_unittests_local",
+        [os.path.join(get_relative_yt_root(options), "yt/" + dir) for dir in dirs_with_unittests],
+        dist=False)
 
 @build_step
 @only_for_projects("yt")
