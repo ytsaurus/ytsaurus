@@ -1,4 +1,4 @@
 #pragma once
 
 // Backward compatibility.
-#include <library/yson/node/node_builder.h>
+#include <library/cpp/yson/node/node_builder.h>

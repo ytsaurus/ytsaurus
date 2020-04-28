@@ -110,8 +110,8 @@
 #include "common.h"
 #include "serialize.h"
 
-#include <library/yson/node/serialize.h>
-#include <library/yson/node/node_builder.h>
+#include <library/cpp/yson/node/serialize.h>
+#include <library/cpp/yson/node/node_builder.h>
 
 #include <library/yson/consumer.h>
 #include <library/yson/writer.h>

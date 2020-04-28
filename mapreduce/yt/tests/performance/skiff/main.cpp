@@ -6,7 +6,7 @@
 #include <mapreduce/yt/io/skiff_table_reader.h>
 #include <mapreduce/yt/io/stream_table_reader.h>
 
-#include <library/yson/node/node_io.h>
+#include <library/cpp/yson/node/node_io.h>
 
 #include <mapreduce/yt/skiff/skiff_schema.h>
 

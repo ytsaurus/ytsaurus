@@ -8,8 +8,8 @@
 
 #include <mapreduce/yt/interface/serialize.h>
 
-#include <library/yson/node/node_builder.h>
-#include <library/yson/node/node_io.h>
+#include <library/cpp/yson/node/node_builder.h>
+#include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/type_info/type.h>
 
 #include <util/generic/xrange.h>

@@ -18,7 +18,7 @@
 
 #include <mapreduce/yt/io/proto_table_reader.h>
 
-#include <library/yson/node/node_io.h>
+#include <library/cpp/yson/node/node_io.h>
 
 #include <library/unittest/registar.h>
 

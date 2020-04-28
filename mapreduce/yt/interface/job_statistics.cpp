@@ -2,8 +2,8 @@
 
 #include "operation.h"
 
-#include <library/yson/node/node.h>
-#include <library/yson/node/serialize.h>
+#include <library/cpp/yson/node/node.h>
+#include <library/cpp/yson/node/serialize.h>
 
 #include <library/yson/writer.h>
 

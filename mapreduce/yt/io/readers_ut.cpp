@@ -7,7 +7,7 @@
 #include <mapreduce/yt/skiff/checked_parser.h>
 #include <mapreduce/yt/skiff/skiff_schema.h>
 
-#include <library/yson/node/node_io.h>
+#include <library/cpp/yson/node/node_io.h>
 
 #include <mapreduce/yt/io/ut_row.pb.h>
 

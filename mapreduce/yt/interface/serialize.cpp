@@ -3,8 +3,8 @@
 #include "fluent.h"
 
 #include <library/yson/parser.h>
-#include <library/yson/node/node_io.h>
-#include <library/yson/node/serialize.h>
+#include <library/cpp/yson/node/node_io.h>
+#include <library/cpp/yson/node/serialize.h>
 
 #include <library/cpp/type_info/type_io.h>
 
