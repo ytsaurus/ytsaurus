@@ -199,7 +199,9 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
                 command="sleep 1000; cat",
                 in_="//tmp/t_in",
                 out="//tmp/t_out" + str(i),
-                pool_trees=["other1", "other2"],
+                spec={
+                    "pool_trees": ["other1", "other2"]
+                },
                 track=False))
         ops123 = []
         for i in xrange(20, 30):
@@ -208,7 +210,9 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
                 command="sleep 1000; cat",
                 in_="//tmp/t_in",
                 out="//tmp/t_out" + str(i),
-                pool_trees=["other1", "other2", "other3"],
+                spec={
+                    "pool_trees": ["other1", "other2", "other3"]
+                },
                 track=False))
 
         for op in ops1 + ops12 + ops123:
