@@ -284,8 +284,8 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
         time.sleep(1)
 
         if self.DELTA_SCHEDULER_CONFIG["scheduler"].get("use_classic_scheduler", True):
-	    wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0))
-	    wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0))
+            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0))
+            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0))
         else:
             wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 3.0))
             wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_2"), 0))
@@ -325,7 +325,7 @@ class TestResourceUsageClassic(BaseTestResourceUsage):
 class TestResourceUsageVector(BaseTestResourceUsage):
     DELTA_SCHEDULER_CONFIG = yt.common.update(
         BaseTestResourceUsage.BASE_DELTA_SCHEDULER_CONFIG,
-        {"use_classic_scheduler": True}
+        {"use_classic_scheduler": False}
     )
 
 ##################################################################
@@ -1247,7 +1247,7 @@ class TestSchedulerPreemptionClassic(BaseTestSchedulerPreemption):
 class TestSchedulerPreemptionVector(BaseTestSchedulerPreemption):
     DELTA_SCHEDULER_CONFIG = yt.common.update(
         BaseTestSchedulerPreemption.BASE_DELTA_SCHEDULER_CONFIG,
-        {"use_classic_scheduler": True}
+        {"use_classic_scheduler": False}
     )
 
 class TestInferWeightFromMinShare(YTEnvSetup):
@@ -1412,7 +1412,7 @@ class TestResourceLimitsOverdraftPreemptionClassic(BaseTestResourceLimitsOverdra
 class TestResourceLimitsOverdraftPreemptionVector(BaseTestResourceLimitsOverdraftPreemption):
     DELTA_SCHEDULER_CONFIG = yt.common.update(
         BaseTestResourceLimitsOverdraftPreemption.BASE_DELTA_SCHEDULER_CONFIG,
-        {"use_classic_scheduler": True}
+        {"use_classic_scheduler": False}
     )
 
 ##################################################################
@@ -1535,7 +1535,7 @@ class TestSchedulerAggressivePreemptionClassic(BaseTestSchedulerAggressivePreemp
 class TestSchedulerAggressivePreemptionVector(BaseTestSchedulerAggressivePreemption):
     DELTA_SCHEDULER_CONFIG = yt.common.update(
         BaseTestSchedulerAggressivePreemption.BASE_DELTA_SCHEDULER_CONFIG,
-        {"use_classic_scheduler": True}
+        {"use_classic_scheduler": False}
     )
 
 ##################################################################
@@ -1649,7 +1649,7 @@ class TestSchedulerAggressiveStarvationPreemptionClassic(BaseTestSchedulerAggres
 class TestSchedulerAggressiveStarvationPreemptionVector(BaseTestSchedulerAggressiveStarvationPreemption):
     DELTA_SCHEDULER_CONFIG = yt.common.update(
         BaseTestSchedulerAggressiveStarvationPreemption.BASE_DELTA_SCHEDULER_CONFIG,
-        {"use_classic_scheduler": True}
+        {"use_classic_scheduler": False}
     )
 
 ##################################################################
