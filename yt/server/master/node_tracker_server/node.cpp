@@ -751,7 +751,8 @@ void TNode::Reset()
     ChunkSealQueue_.clear();
     FillFactorIterators_.clear();
     LoadFactorIterators_.clear();
-
+    DisableWriteSessionsSentToNode_ = false;
+    DisableWriteSessionsReportedByNode_ = false;
     ClearCellStatistics();
 }
 
@@ -891,9 +892,24 @@ void TNode::SetDecommissioned(bool value)
     Decommissioned_ = value;
 }
 
+bool TNode::GetEffectiveDisableWriteSessions() const
+{
+    return DisableWriteSessions_ || DisableWriteSessionsSentToNode_ || DisableWriteSessionsReportedByNode_;
+}
+
 void TNode::SetDisableWriteSessions(bool value)
 {
     DisableWriteSessions_ = value;
+}
+
+void TNode::SetDisableWriteSessionsSentToNode(bool value)
+{
+    DisableWriteSessionsSentToNode_ = value;
+}
+
+void TNode::SetDisableWriteSessionsReportedByNode(bool value)
+{
+    DisableWriteSessionsReportedByNode_ = value;
 }
 
 void TNode::SetNodeTags(const std::vector<TString>& tags)

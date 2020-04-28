@@ -126,11 +126,14 @@ public:
     void SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter);
 
     DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessions);
-
-    // Used for graceful restart.
     DEFINE_BYVAL_RW_PROPERTY(bool, DisableSchedulerJobs);
-
     DEFINE_BYVAL_RW_PROPERTY(bool, DisableTabletCells);
+
+    bool GetEffectiveDisableWriteSessions() const;
+
+    // Transient copies of DisableWriteSessions.
+    DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessionsSentToNode);
+    DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessionsReportedByNode);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TMediumReplicaSet = THashSet<TChunkPtrWithIndexes>;
@@ -349,6 +352,8 @@ private:
     void SetBanned(bool value);
     void SetDecommissioned(bool value);
     void SetDisableWriteSessions(bool value);
+    void SetDisableWriteSessionsSentToNode(bool value);
+    void SetDisableWriteSessionsReportedByNode(bool value);
 
     void SetNodeTags(const std::vector<TString>& tags);
     void SetUserTags(const std::vector<TString>& tags);
