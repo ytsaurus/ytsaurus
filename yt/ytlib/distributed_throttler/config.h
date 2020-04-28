@@ -24,6 +24,10 @@ public:
     TDuration LimitUpdatePeriod;
     TDuration LeaderUpdatePeriod;
 
+    TDuration ThrottlerExpirationTime;
+
+    int ShardCount;
+
     bool DistributeLimitsUniformly;
     double ExtraLimitRatio;
     double EmaAlpha;

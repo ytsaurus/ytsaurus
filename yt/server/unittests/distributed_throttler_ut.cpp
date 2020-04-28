@@ -111,7 +111,7 @@ private:
     }
 };
 
-TEST_F(TDistributedThrottlerTest, DISABLED_TestLimitUniform)
+TEST_F(TDistributedThrottlerTest, TestLimitUniform)
 {
     int throttlersCount = 4;
     auto leaderThrottlerConfig = New<TThroughputThrottlerConfig>(100);
@@ -124,21 +124,28 @@ TEST_F(TDistributedThrottlerTest, DISABLED_TestLimitUniform)
     channelFactory->Add(address, CreateLocalChannel(rpcServer));
 
     std::vector<TActionQueuePtr> actionQueues;
+
+    std::vector<TDistributedThrottlerFactoryPtr> factories;
     std::vector<IReconfigurableThroughputThrottlerPtr> throttlers;
-    for (int i = 0; i < throttlersCount; ++i) {
+
+    for (int i = 0; i < 4; ++i) {
         auto memberActionQueue = New<TActionQueue>("MemberClient" + ToString(i));
         actionQueues.push_back(memberActionQueue);
 
-        throttlers.push_back(CreateDistributedThrottler(
+        auto factory = New<TDistributedThrottlerFactory>(
             config,
-            i == 0 ? leaderThrottlerConfig : throttlerConfig,
             channelFactory,
             memberActionQueue->GetInvoker(),
             "/group",
             "throttler" + ToString(i),
             rpcServer,
             address,
-            DiscoveryServerLogger));
+            DiscoveryServerLogger);
+        factories.push_back(factory);
+
+        throttlers.push_back(factory->GetOrCreateThrottler(
+            "throttlerId",
+            i == 0 ? leaderThrottlerConfig : throttlerConfig));
     }
 
 
@@ -186,7 +193,7 @@ TEST_F(TDistributedThrottlerTest, DISABLED_TestLimitUniform)
     EXPECT_LE(duration, 7000);
 }
 
-TEST_F(TDistributedThrottlerTest, DISABLED_TestLimitAdaptive)
+TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
 {
     auto throttlerConfig = New<TThroughputThrottlerConfig>(100);
     auto config = GenerateThrottlerConfig();
@@ -198,21 +205,28 @@ TEST_F(TDistributedThrottlerTest, DISABLED_TestLimitAdaptive)
     channelFactory->Add(address, CreateLocalChannel(rpcServer));
 
     std::vector<TActionQueuePtr> actionQueues;
+
+    std::vector<TDistributedThrottlerFactoryPtr> factories;
     std::vector<IReconfigurableThroughputThrottlerPtr> throttlers;
+
     for (int i = 0; i < 4; ++i) {
         auto memberActionQueue = New<TActionQueue>("MemberClient" + ToString(i));
         actionQueues.push_back(memberActionQueue);
 
-        throttlers.push_back(CreateDistributedThrottler(
+        auto factory = New<TDistributedThrottlerFactory>(
             config,
-            throttlerConfig,
             channelFactory,
             memberActionQueue->GetInvoker(),
             "/group",
             "throttler" + ToString(i),
             rpcServer,
             address,
-            DiscoveryServerLogger));
+            DiscoveryServerLogger);
+        factories.push_back(factory);
+
+        throttlers.push_back(factory->GetOrCreateThrottler(
+            "throttlerId",
+            throttlerConfig));
     }
 
     Sleep(TDuration::Seconds(3));
