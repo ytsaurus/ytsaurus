@@ -586,7 +586,7 @@ bool TChunkPlacement::IsValidWriteTargetCore(TNode* node)
         return false;
     }
 
-    if (node->GetDisableWriteSessions()) {
+    if (node->GetEffectiveDisableWriteSessions()) {
         // Do not start new sessions if they are explicitly disabled.
         return false;
     }
