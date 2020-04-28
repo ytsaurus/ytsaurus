@@ -1,7 +1,7 @@
 #include <mapreduce/yt/interface/job_statistics.h>
 #include <mapreduce/yt/interface/operation.h>
 
-#include <library/yson/node/node_io.h>
+#include <library/cpp/yson/node/node_io.h>
 
 #include <library/unittest/registar.h>
 

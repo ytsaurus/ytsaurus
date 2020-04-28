@@ -11,7 +11,7 @@
 #include <util/generic/yexception.h>
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
-#include <library/yson/node/node.h>
+#include <library/cpp/yson/node/node.h>
 
 namespace NJson {
     class TJsonValue;

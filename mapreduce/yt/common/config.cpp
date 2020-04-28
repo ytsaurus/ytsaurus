@@ -3,7 +3,7 @@
 #include "helpers.h"
 
 #include <mapreduce/yt/interface/logging/log.h>
-#include <library/yson/node/node_builder.h>
+#include <library/cpp/yson/node/node_builder.h>
 #include <mapreduce/yt/interface/operation.h>
 
 #include <library/json/json_reader.h>

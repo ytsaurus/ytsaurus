@@ -3,7 +3,7 @@
 #include "fwd.h"
 
 #include <library/cpp/type_info/type_info.h>
-#include <library/yson/node/node.h>
+#include <library/cpp/yson/node/node.h>
 
 #include <util/generic/guid.h>
 #include <util/generic/map.h>

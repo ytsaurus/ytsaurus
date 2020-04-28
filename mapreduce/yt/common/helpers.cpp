@@ -5,8 +5,8 @@
 #include <mapreduce/yt/interface/serialize.h>
 #include <mapreduce/yt/interface/fluent.h>
 
-#include <library/yson/node/node_builder.h>
-#include <library/yson/node/node_visitor.h>
+#include <library/cpp/yson/node/node_builder.h>
+#include <library/cpp/yson/node/node_visitor.h>
 
 #include <library/yson/parser.h>
 #include <library/yson/writer.h>

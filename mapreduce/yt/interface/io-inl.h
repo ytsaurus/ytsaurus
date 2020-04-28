@@ -14,7 +14,7 @@
 #include <util/system/mutex.h>
 #include <util/system/spinlock.h>
 
-#include <library/yson/node/node_builder.h>
+#include <library/cpp/yson/node/node_builder.h>
 
 #include <mapreduce/yt/interface/serialize.h>
 

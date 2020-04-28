@@ -1,6 +1,6 @@
 #pragma once
 
-#include <library/yson/node/node_io.h> // backward compatibility
+#include <library/cpp/yson/node/node_io.h> // backward compatibility
 
 #include <mapreduce/yt/interface/node.h>
 #include <mapreduce/yt/interface/common.h>

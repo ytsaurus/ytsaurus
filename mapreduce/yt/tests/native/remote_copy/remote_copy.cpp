@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/interface/client.h>
 
-#include <library/yson/node/node_io.h>
+#include <library/cpp/yson/node/node_io.h>
 
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 

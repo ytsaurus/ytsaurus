@@ -9,8 +9,8 @@
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/serialize.h>
 
-#include <library/yson/node/node_builder.h>
-#include <library/yson/node/node_io.h>
+#include <library/cpp/yson/node/node_builder.h>
+#include <library/cpp/yson/node/node_io.h>
 
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>

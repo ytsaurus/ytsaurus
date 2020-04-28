@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/interface/logging/log.h>
 
-#include <library/yson/node/node_io.h>
+#include <library/cpp/yson/node/node_io.h>
 
 #include <mapreduce/yt/skiff/wire_type.h>
 #include <mapreduce/yt/skiff/skiff_schema.h>

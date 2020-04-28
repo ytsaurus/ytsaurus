@@ -1,7 +1,7 @@
 #include <mapreduce/yt/client/skiff.h>
 #include <mapreduce/yt/interface/client.h>
 
-#include <library/yson/node/node_io.h>
+#include <library/cpp/yson/node/node_io.h>
 
 #include <library/yson/writer.h>
 

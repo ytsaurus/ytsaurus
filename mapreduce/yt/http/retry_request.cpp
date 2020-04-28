@@ -8,7 +8,7 @@
 
 #include <mapreduce/yt/interface/logging/log.h>
 
-#include <library/yson/node/node_io.h>
+#include <library/cpp/yson/node/node_io.h>
 
 namespace NYT {
 namespace NDetail {
