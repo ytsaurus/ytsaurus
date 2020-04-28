@@ -23,6 +23,12 @@ TDistributedThrottlerConfig::TDistributedThrottlerConfig()
     RegisterParameter("leader_update_period", LeaderUpdatePeriod)
         .Default(TDuration::Seconds(10));
 
+    RegisterParameter("throttler_expiration_time", ThrottlerExpirationTime)
+        .Default(TDuration::Seconds(30));
+
+    RegisterParameter("shard_count", ShardCount)
+        .Default(16);
+
     RegisterParameter("distribute_limits_uniformly", DistributeLimitsUniformly)
         .Default(true);
     RegisterParameter("extra_limit_ratio", ExtraLimitRatio)
