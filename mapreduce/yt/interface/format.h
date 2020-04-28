@@ -66,6 +66,11 @@ public:
     /// @see [the doc](https://yt.yandex-team.ru/docs/api/c++/protobuf.html).
     static TFormat Protobuf(const TVector<const ::google::protobuf::Descriptor*>& descriptors);
 
+    /// @brief Create JSON format.
+    ///
+    /// @see [the doc](https://yt.yandex-team.ru/docs/description/storage/formats.html#JSON)
+    static TFormat Json();
+
     /// @brief Create protobuf format for the message specified in template parameter.
     ///
     /// `T` must be inherited from `Message`.

@@ -537,6 +537,12 @@ int RunRawJob(size_t outputTableCount, IInputStream& jobStateStream)
     return 0;
 }
 
+template <>
+inline int RunRawJob<TCommandRawJob>(size_t /* outputTableCount */, IInputStream& /* jobStateStream */)
+{
+    Y_FAIL();
+}
+
 template <class TVanillaJob>
 int RunVanillaJob(size_t outputTableCount, IInputStream& jobStateStream)
 {
@@ -559,6 +565,12 @@ int RunVanillaJob(size_t outputTableCount, IInputStream& jobStateStream)
         writer->Finish();
     }
     return 0;
+}
+
+template <>
+inline int RunVanillaJob<TCommandVanillaJob>(size_t /* outputTableCount */, IInputStream& /* jobStateStream */)
+{
+    Y_FAIL();
 }
 
 template <class TJob>

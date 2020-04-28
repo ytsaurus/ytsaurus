@@ -1082,11 +1082,38 @@ public:
     virtual void Do(const TRawJobContext& jobContext) = 0;
 };
 
+class ICommandJob
+    : public IJob
+{
+public:
+    virtual const TString& GetCommand() const = 0;
+};
+
+/// @brief Raw job executing given bash command.
+///
+/// The binary will not be uploaded.
+class TCommandRawJob
+    : public IRawJob
+    , public ICommandJob
+{
+public:
+    explicit TCommandRawJob(TStringBuf command = {});
+
+    const TString& GetCommand() const override;
+    void Do(const TRawJobContext& jobContext) override;
+
+private:
+    TString Command_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class IVanillaJobBase
    : public virtual IStructuredJob
-{ };
+{
+public:
+    static constexpr EType JobType = EType::VanillaJob;
+};
 
 template <class TW = void>
 class IVanillaJob;
@@ -1096,12 +1123,27 @@ class IVanillaJob<void>
     : public IVanillaJobBase
 {
 public:
-    static constexpr EType JobType = EType::VanillaJob;
-
     virtual void Do() = 0;
 
     virtual TStructuredRowStreamDescription GetInputRowStreamDescription() const override;
     virtual TStructuredRowStreamDescription GetOutputRowStreamDescription() const override;
+};
+
+/// @brief Vanilla job executing given bash command.
+///
+/// The binary will not be uploaded.
+class TCommandVanillaJob
+    : public IVanillaJob<>
+    , public ICommandJob
+{
+public:
+    explicit TCommandVanillaJob(TStringBuf command = {});
+
+    const TString& GetCommand() const override;
+    void Do() override;
+
+private:
+    TString Command_;
 };
 
 template <class TW>
@@ -1109,7 +1151,6 @@ class IVanillaJob
     : public IVanillaJobBase
 {
 public:
-    static constexpr EType JobType = EType::VanillaJob;
     using TWriter = TW;
 
     virtual void Start(TWriter* /* writer */)

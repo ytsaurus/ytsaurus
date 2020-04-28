@@ -2803,7 +2803,7 @@ Y_UNIT_TEST_SUITE(Operations)
         client->Create(workingDir + "/file_storage", NT_MAP);
         CreateTableWithFooColumn(client, workingDir + "/input");
 
-        TTempFile tempFile("/tmp/yt-cpp-api-testing");
+        TTempFile tempFile(MakeTempName());
         {
             TOFStream os(tempFile.Name());
             // Create a file with unique contents to get cache miss
@@ -2846,8 +2846,7 @@ Y_UNIT_TEST_SUITE(Operations)
         auto workingDir = fixture.GetWorkingDir();
         CreateTableWithFooColumn(client, workingDir + "/input");
 
-        auto fileName = MakeTempName(NFs::CurrentWorkingDirectory().c_str());
-        TTempFile tempFile(fileName);
+        TTempFile tempFile(MakeTempName());
         {
             TOFStream os(tempFile.Name());
             // Create a file with unique contents to get cache miss
@@ -2885,21 +2884,23 @@ Y_UNIT_TEST_SUITE(Operations)
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
 
-        TString fileName = MakeTempName(NFs::CurrentWorkingDirectory().c_str());
+        TTempFile tempFile(MakeTempName());
+        Chmod(tempFile.Name().c_str(), 0777);
+
         TString message = "Hello world!";
         ui64 firstJobCount = 2, secondJobCount = 3;
 
         client->RunVanilla(TVanillaOperationSpec()
             .AddTask(TVanillaTask()
                 .Name("first")
-                .Job(new TVanillaAppendingToFile(fileName, message))
+                .Job(new TVanillaAppendingToFile(tempFile.Name(), message))
                 .JobCount(firstJobCount))
             .AddTask(TVanillaTask()
                 .Name("second")
-                .Job(new TVanillaAppendingToFile(fileName, message))
+                .Job(new TVanillaAppendingToFile(tempFile.Name(), message))
                 .JobCount(secondJobCount)));
 
-        TIFStream stream(fileName);
+        TIFStream stream(tempFile.Name());
         UNIT_ASSERT_VALUES_EQUAL(stream.ReadAll().size(), (firstJobCount + secondJobCount) * message.size());
     }
 
@@ -2964,9 +2965,10 @@ Y_UNIT_TEST_SUITE(Operations)
         auto workingDir = fixture.GetWorkingDir();
         auto outputTable = TRichYPath(workingDir + "/output");
 
-        TString fileName = MakeTempName(NFs::CurrentWorkingDirectory().c_str());
+        TTempFile tempFile(MakeTempName());
+        Chmod(tempFile.Name().c_str(), 0777);
+
         TString message = "Hello world!";
-        ui64 firstJobCount = 2, secondJobCount = 3;
 
         UNIT_ASSERT_EXCEPTION(
             client->RunVanilla(TVanillaOperationSpec()
@@ -2974,20 +2976,20 @@ Y_UNIT_TEST_SUITE(Operations)
                     .Job(new TVanillaWithTableOutput)
                     .JobCount(1)
                     .Name("vanilla"))),
-            yexception);
+            TApiUsageError);
 
         UNIT_ASSERT_EXCEPTION(
             client->RunVanilla(TVanillaOperationSpec()
                 .AddTask(TVanillaTask()
                     .Name("first")
-                    .Job(new TVanillaAppendingToFile(fileName, message))
-                    .JobCount(firstJobCount))
+                    .Job(new TVanillaAppendingToFile(tempFile.Name(), message))
+                    .JobCount(1))
                 .AddTask(TVanillaTask()
                     .Name("second")
-                    .Job(new TVanillaAppendingToFile(fileName, message))
-                    .JobCount(secondJobCount)
+                    .Job(new TVanillaAppendingToFile(tempFile.Name(), message))
+                    .JobCount(1)
                     .AddOutput<TNode>(outputTable))),
-            yexception);
+            TApiUsageError);
     }
 
     Y_UNIT_TEST(LazySort)
@@ -3992,17 +3994,19 @@ Y_UNIT_TEST_SUITE(Operations)
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
 
-        TString fileName = MakeTempName(NFs::CurrentWorkingDirectory().c_str());
+        TTempFile tempFile(MakeTempName());
+        Chmod(tempFile.Name().c_str(), 0777);
+
         const ui16 portCount = 7;
 
         client->RunVanilla(TVanillaOperationSpec()
             .AddTask(TVanillaTask()
                 .Name("first")
-                .Job(new TVanillaWithPorts(fileName, portCount))
+                .Job(new TVanillaWithPorts(tempFile.Name(), portCount))
                 .Spec(TUserJobSpec{}.PortCount(portCount))
                 .JobCount(1)));
 
-        TFileInput stream(fileName);
+        TFileInput stream(tempFile.Name());
         TString line;
         for ([[maybe_unused]] const auto _: xrange(portCount)) {
             UNIT_ASSERT(stream.ReadLine(line));
@@ -4071,8 +4075,8 @@ Y_UNIT_TEST_SUITE(Operations)
             writer->Finish();
         }
 
-        auto fileName = MakeTempName(NFs::CurrentWorkingDirectory().c_str());
-        TTempFile tempFile(fileName);
+        TTempFile tempFile(MakeTempName());
+        Chmod(tempFile.Name().c_str(), 0777);
 
         auto operation = client->Map(
             TMapOperationSpec()
@@ -4287,7 +4291,7 @@ Y_UNIT_TEST_SUITE(Operations)
         {
             int i = k;
             for (const auto& cursor : *reader) {
-                UNIT_ASSERT(cursor.GetRow() == TNode()("foo", i));
+                UNIT_ASSERT_VALUES_EQUAL(cursor.GetRow(), TNode()("foo", i));
                 ++i;
             }
         }
@@ -4319,6 +4323,56 @@ Y_UNIT_TEST_SUITE(Operations)
                     .Spec(TNode()("input_query", "foo AS foo WHERE foo >= " + ToString(k)))),
             TOperationFailedError,
             "Column filter and QL filter cannot appear in the same operation");
+    }
+
+    Y_UNIT_TEST(CommandRawJob)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto outputTable = TRichYPath(workingDir + "/output");
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable);
+            writer->AddRow(TNode()("a", "foo")("b", "bar"));
+            writer->AddRow(TNode()("a", "koo")("b", "kindzadza"));
+            writer->Finish();
+        }
+        client->RawMap(
+            TRawMapOperationSpec()
+                .AddInput(inputTable)
+                .AddOutput(outputTable)
+                .Format(TFormat::Json()),
+            new TCommandRawJob("grep dza"));
+
+        auto reader = client->CreateTableReader<TNode>(outputTable);
+        TVector<TNode> rows;
+        for (const auto& cursor : *reader) {
+            rows.push_back(cursor.GetRow());
+        }
+        UNIT_ASSERT_VALUES_EQUAL(rows.size(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(rows[0], TNode()("a", "koo")("b", "kindzadza"));
+    }
+
+    Y_UNIT_TEST(CommandVanillaJob)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        TTempFile tempFile(MakeTempName());
+        Chmod(tempFile.Name().c_str(), 0777);
+
+        client->RunVanilla(
+            TVanillaOperationSpec()
+                .AddTask(TVanillaTask()
+                    .Name("Hello world")
+                    .Job(new TCommandVanillaJob("echo \"Hello world!\" > " + tempFile.Name()))
+                    .JobCount(1)));
+
+        TIFStream is(tempFile.Name());
+        UNIT_ASSERT_VALUES_EQUAL(is.ReadAll(), "Hello world!\n");
     }
 
 } // Y_UNIT_TEST_SUITE(Operations)
