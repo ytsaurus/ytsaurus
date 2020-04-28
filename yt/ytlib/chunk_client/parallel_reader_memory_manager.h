@@ -53,15 +53,6 @@ DEFINE_REFCOUNTED_TYPE(IReaderMemoryManagerHost)
 
 struct TParallelReaderMemoryManagerOptions
 {
-    TParallelReaderMemoryManagerOptions(
-        i64 totalReservedMemorySize,
-        i64 maxInitialReaderReservedMemory,
-        i64 minRequiredMemorySize,
-        NProfiling::TTagIdList profilingTagList = {},
-        bool enableDetailedLogging = false,
-        bool enableProfiling = false,
-        TDuration profilingPeriod = TDuration::Seconds(1));
-
     //! Amount of memory reserved for this memory manager at the moment of creation.
     //! This amount can be changed later using `SetReservedMemorySize' call.
     i64 TotalReservedMemorySize;
@@ -69,11 +60,7 @@ struct TParallelReaderMemoryManagerOptions
     //! Maximum (and default) amount of reserved memory for created reader.
     i64 MaxInitialReaderReservedMemory;
 
-    //! Required memory size of memory manager will never become less than this value until
-    //! destruction.
-    i64 MinRequiredMemorySize;
-
-    const NProfiling::TTagIdList ProfilingTagList;
+    const NProfiling::TTagIdList ProfilingTagList = {};
 
     bool EnableProfiling = false;
 

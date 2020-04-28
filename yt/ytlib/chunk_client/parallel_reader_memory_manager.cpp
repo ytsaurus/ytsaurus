@@ -28,25 +28,6 @@ constexpr auto FullStateLogPeriod = TDuration::Seconds(30);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TParallelReaderMemoryManagerOptions::TParallelReaderMemoryManagerOptions(
-    i64 totalReservedMemorySize,
-    i64 maxInitialReaderReservedMemory,
-    i64 minRequiredMemorySize,
-    TTagIdList profilingTagList,
-    bool enableDetailedLogging,
-    bool enableProfiling,
-    TDuration profilingPeriod)
-    : TotalReservedMemorySize(totalReservedMemorySize)
-    , MaxInitialReaderReservedMemory(maxInitialReaderReservedMemory)
-    , MinRequiredMemorySize(minRequiredMemorySize)
-    , ProfilingTagList(std::move(profilingTagList))
-    , EnableProfiling(enableProfiling)
-    , ProfilingPeriod(profilingPeriod)
-    , EnableDetailedLogging(enableDetailedLogging)
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TParallelReaderMemoryManager
     : public IMultiReaderMemoryManager
     , public IReaderMemoryManagerHost
@@ -74,11 +55,10 @@ public:
             ProfilingExecutor_->Start();
         }
 
-        YT_LOG_DEBUG("Parallel reader memory manager created (TotalReservedMemory: %v, MaxInitialReaderReservedMemory: %v, MinRequiredMemorySize: %v, "
+        YT_LOG_DEBUG("Parallel reader memory manager created (TotalReservedMemory: %v, MaxInitialReaderReservedMemory: %v, "
             "ProfilingEnabled: %v, ProfilingPeriod: %v, DetailedLoggingEnabled: %v)",
             TotalReservedMemory_.load(),
             Options_.MaxInitialReaderReservedMemory,
-            Options_.MinRequiredMemorySize,
             Options_.EnableProfiling,
             Options_.ProfilingPeriod,
             Options_.EnableDetailedLogging);
@@ -116,23 +96,22 @@ public:
     {
         YT_VERIFY(!Finalized_);
 
-        auto minRequiredMemorySize = std::min<i64>(requiredMemorySize.value_or(0), FreeMemory_);
-        minRequiredMemorySize = std::max<i64>(minRequiredMemorySize, 0);
+        auto initialReservedMemory = std::min<i64>(requiredMemorySize.value_or(0), FreeMemory_);
+        initialReservedMemory = std::max<i64>(initialReservedMemory, 0);
 
         TParallelReaderMemoryManagerOptions options{
-            minRequiredMemorySize,
+            initialReservedMemory,
             Options_.MaxInitialReaderReservedMemory,
-            minRequiredMemorySize,
             std::move(profilingTagList),
             Options_.EnableDetailedLogging
         };
         auto memoryManager = New<TParallelReaderMemoryManager>(options, MakeWeak(this), Invoker_);
-        FreeMemory_ -= minRequiredMemorySize;
+        FreeMemory_ -= initialReservedMemory;
 
         Invoker_->Invoke(BIND(&TParallelReaderMemoryManager::DoAddReaderInfo, MakeStrong(this), memoryManager, true, false));
-        YT_LOG_DEBUG("Created child parallel reader memory manager (ChildId: %v, InitialManagerMemorySize: %v, FreeMemorySize: %v)",
+        YT_LOG_DEBUG("Created child parallel reader memory manager (ChildId: %v, InitialReservedMemory: %v, FreeMemorySize: %v)",
             memoryManager->GetId(),
-            minRequiredMemorySize,
+            initialReservedMemory,
             FreeMemory_.load());
 
         ScheduleRebalancing();
@@ -223,12 +202,59 @@ public:
     }
 
 private:
+    const TParallelReaderMemoryManagerOptions Options_;
+    const TWeakPtr<IReaderMemoryManagerHost> Host_;
+    const IInvokerPtr Invoker_;
+
+    std::atomic<int> RebalancingsScheduled_ = 0;
+
+    //! Sum of required_memory over all child memory managers.
+    std::atomic<i64> TotalRequiredMemory_ = 0;
+
+    //! Sum of desired_memory over all child memory managers.
+    std::atomic<i64> TotalDesiredMemory_ = 0;
+
+    //! Amount of memory reserved for this memory manager.
+    std::atomic<i64> TotalReservedMemory_ = 0;
+
+    std::atomic<i64> FreeMemory_ = 0;
+
     struct TMemoryManagerState
     {
         i64 RequiredMemorySize;
         i64 DesiredMemorySize;
         i64 ReservedMemorySize;
     };
+    THashMap<IReaderMemoryManagerPtr, TMemoryManagerState> State_;
+
+    THashMap<TTagIdList, i64> ReservedMemoryByProfilingTags_;
+
+    std::atomic<bool> Finalized_ = false;
+
+    bool Unregistered_ = false;
+
+    //! Memory managers with reserved_memory < required_memory ordered by required_memory - reserved_memory.
+    std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithUnsatisfiedMemoryRequirement_;
+
+    //! Sum of required_memory - reserved_memory over all memory managers with reserved_memory < required_memory.
+    i64 RequiredMemoryDeficit_ = 0;
+
+    //! Memory managers with reserved_memory >= required_memory ordered by reserved_memory - required_memory.
+    std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithSatisfiedMemoryRequirement_;
+
+    //! Memory managers with reserved_memory >= required_memory and reserved_memory < desired_memory
+    //! ordered by desired_memory - reserved_memory.
+    std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithoutDesiredMemoryAmount_;
+
+    const TTagIdList ProfilingTagList_;
+
+    const TPeriodicExecutorPtr ProfilingExecutor_;
+
+    const TGuid Id_;
+
+    TLogger Logger;
+
+    mutable TInstant LastFullStateLoggingTime_ = TInstant::Now();
 
     void ScheduleRebalancing()
     {
@@ -612,54 +638,6 @@ private:
             }
         }
     }
-
-    const TParallelReaderMemoryManagerOptions Options_;
-    const TWeakPtr<IReaderMemoryManagerHost> Host_;
-    const IInvokerPtr Invoker_;
-
-    std::atomic<int> RebalancingsScheduled_ = 0;
-
-    //! Sum of required_memory over all child memory managers.
-    std::atomic<i64> TotalRequiredMemory_ = 0;
-
-    //! Sum of desired_memory over all child memory managers.
-    std::atomic<i64> TotalDesiredMemory_ = 0;
-
-    //! Amount of memory reserved for this memory manager.
-    std::atomic<i64> TotalReservedMemory_ = 0;
-
-    std::atomic<i64> FreeMemory_ = 0;
-
-    THashMap<IReaderMemoryManagerPtr, TMemoryManagerState> State_;
-
-    THashMap<TTagIdList, i64> ReservedMemoryByProfilingTags_;
-
-    std::atomic<bool> Finalized_ = false;
-
-    bool Unregistered_ = false;
-
-    //! Memory managers with reserved_memory < required_memory ordered by required_memory - reserved_memory.
-    std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithUnsatisfiedMemoryRequirement_;
-
-    //! Sum of required_memory - reserved_memory over all memory managers with reserved_memory < required_memory.
-    i64 RequiredMemoryDeficit_ = 0;
-
-    //! Memory managers with reserved_memory >= required_memory ordered by reserved_memory - required_memory.
-    std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithSatisfiedMemoryRequirement_;
-
-    //! Memory managers with reserved_memory >= required_memory and reserved_memory < desired_memory
-    //! ordered by desired_memory - reserved_memory.
-    std::set<std::pair<i64, IReaderMemoryManagerPtr>> ReadersWithoutDesiredMemoryAmount_;
-
-    const TTagIdList ProfilingTagList_;
-
-    const TPeriodicExecutorPtr ProfilingExecutor_;
-
-    const TGuid Id_;
-
-    const TLogger Logger;
-
-    mutable TInstant LastFullStateLoggingTime_ = TInstant::Now();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
