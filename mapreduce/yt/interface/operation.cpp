@@ -12,6 +12,55 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCommandRawJob::TCommandRawJob(TStringBuf command)
+    : Command_(command)
+{ }
+
+const TString& TCommandRawJob::GetCommand() const
+{
+    return Command_;
+}
+
+void TCommandRawJob::Do(const TRawJobContext& /* jobContext */)
+{
+    Y_FAIL("TCommandRawJob::Do must not be called");
+}
+
+REGISTER_NAMED_RAW_JOB("NYT::TCommandRawJob", TCommandRawJob);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCommandVanillaJob::TCommandVanillaJob(TStringBuf command)
+    : Command_(command)
+{ }
+
+const TString& TCommandVanillaJob::GetCommand() const
+{
+    return Command_;
+}
+
+void TCommandVanillaJob::Do()
+{
+    Y_FAIL("TCommandVanillaJob::Do must not be called");
+}
+
+REGISTER_NAMED_VANILLA_JOB("NYT::TCommandVanillaJob", TCommandVanillaJob);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStructuredRowStreamDescription IVanillaJob<>::GetInputRowStreamDescription() const
+{
+    return TVoidStructuredRowStream();
+}
+
+TStructuredRowStreamDescription IVanillaJob<>::GetOutputRowStreamDescription() const
+{
+    return TVoidStructuredRowStream();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+
 const TVector<TStructuredTablePath>& TOperationInputSpecBase::GetStructuredInputs() const
 {
     return StructuredInputs_;
@@ -40,16 +89,6 @@ TVanillaTask& TVanillaTask::AddStructuredOutput(TStructuredTablePath path)
 {
     TOperationOutputSpecBase::AddStructuredOutput(std::move(path));
     return *this;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TStructuredRowStreamDescription IVanillaJob<void>::GetInputRowStreamDescription() const {
-    return TVoidStructuredRowStream();
-}
-
-TStructuredRowStreamDescription IVanillaJob<void>::GetOutputRowStreamDescription() const {
-    return TVoidStructuredRowStream();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

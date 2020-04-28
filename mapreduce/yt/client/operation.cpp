@@ -435,30 +435,6 @@ public:
         , Spec_(spec)
         , Options_(options)
     {
-        auto jobBinary = TJobBinaryConfig();
-        if (!HoldsAlternative<TJobBinaryDefault>(Spec_.GetJobBinary())) {
-            jobBinary = Spec_.GetJobBinary();
-        }
-        TString binaryPathInsideJob;
-        if (HoldsAlternative<TJobBinaryDefault>(jobBinary)) {
-            if (GetInitStatus() != EInitStatus::FullInitialization) {
-                ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
-            }
-
-            const bool isLocalMode = UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy());
-            const TMaybe<TString> md5 = !isLocalMode ? MakeMaybe(GetPersistentExecPathMd5()) : Nothing();
-            jobBinary = TJobBinaryLocalPath{GetPersistentExecPath(), md5};
-
-            if (isLocalMode) {
-                binaryPathInsideJob = GetExecPath();
-            }
-        } else if (HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
-            if (UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy())) {
-                binaryPathInsideJob = TFsPath(::Get<TJobBinaryLocalPath>(jobBinary).Path).RealPath();
-            }
-        }
-        Y_ASSERT(!HoldsAlternative<TJobBinaryDefault>(jobBinary));
-
         CreateStorage();
         auto cypressFileList = CanonizePaths(OperationPreparer_.GetAuth(), spec.Files_);
         for (const auto& file : cypressFileList) {
@@ -475,33 +451,12 @@ public:
             UploadSmallFile(smallFile);
         }
 
-        // binaryPathInsideJob is only set when LocalModeOptimization option is on, so upload is not needed
-        if (!binaryPathInsideJob) {
-            binaryPathInsideJob = "./cppbinary";
-            UploadBinary(jobBinary);
+        if (auto commandJob = dynamic_cast<const ICommandJob*>(&job)) {
+            ClassName_ = TJobFactory::Get()->GetJobName(&job);
+            Command_ = commandJob->GetCommand();
+        } else {
+            PrepareJobBinary(job, outputTableCount, jobStateSmallFile.Defined());
         }
-
-        TString jobCommandPrefix = options.JobCommandPrefix_;
-        if (!spec.JobCommandPrefix_.empty()) {
-            jobCommandPrefix = spec.JobCommandPrefix_;
-        }
-
-        TString jobCommandSuffix = options.JobCommandSuffix_;
-        if (!spec.JobCommandSuffix_.empty()) {
-            jobCommandSuffix = spec.JobCommandSuffix_;
-        }
-
-        ClassName_ = TJobFactory::Get()->GetJobName(&job);
-        Command_ = TStringBuilder() <<
-            jobCommandPrefix <<
-            (TConfig::Get()->UseClientProtobuf ? "YT_USE_CLIENT_PROTOBUF=1" : "YT_USE_CLIENT_PROTOBUF=0") << " " <<
-            binaryPathInsideJob << " " <<
-            // This argument has no meaning, but historically is checked in job initialization.
-            "--yt-map " <<
-            "\"" << ClassName_ << "\" " <<
-            outputTableCount << " " <<
-            jobStateSmallFile.Defined() <<
-            jobCommandSuffix;
 
         if (LockCachedFilesWhenStartingOperation) {
             operationPreparer.LockFiles(&CachedFiles_, LockedFileSignatures_, GetCachePath());
@@ -553,6 +508,7 @@ private:
     TString Command_;
     ui64 TotalFileSize_ = 0;
 
+private:
     TString GetFileStorage() const
     {
         return Options_.FileStorage_ ?
@@ -808,6 +764,62 @@ private:
             TotalFileSize_ += RoundUpFileSize(smallFile.Data.size());
         }
     }
+
+    void PrepareJobBinary(const IJob& job, int outputTableCount, bool hasState)
+    {
+        auto jobBinary = TJobBinaryConfig();
+        if (!HoldsAlternative<TJobBinaryDefault>(Spec_.GetJobBinary())) {
+            jobBinary = Spec_.GetJobBinary();
+        }
+        TString binaryPathInsideJob;
+        if (HoldsAlternative<TJobBinaryDefault>(jobBinary)) {
+            if (GetInitStatus() != EInitStatus::FullInitialization) {
+                ythrow yexception() << "NYT::Initialize() must be called prior to any operation";
+            }
+
+            const bool isLocalMode = UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy());
+            const TMaybe<TString> md5 = !isLocalMode ? MakeMaybe(GetPersistentExecPathMd5()) : Nothing();
+            jobBinary = TJobBinaryLocalPath{GetPersistentExecPath(), md5};
+
+            if (isLocalMode) {
+                binaryPathInsideJob = GetExecPath();
+            }
+        } else if (HoldsAlternative<TJobBinaryLocalPath>(jobBinary)) {
+            if (UseLocalModeOptimization(OperationPreparer_.GetAuth(), OperationPreparer_.GetClientRetryPolicy())) {
+                binaryPathInsideJob = TFsPath(::Get<TJobBinaryLocalPath>(jobBinary).Path).RealPath();
+            }
+        }
+        Y_ASSERT(!HoldsAlternative<TJobBinaryDefault>(jobBinary));
+
+        // binaryPathInsideJob is only set when LocalModeOptimization option is on, so upload is not needed
+        if (!binaryPathInsideJob) {
+            binaryPathInsideJob = "./cppbinary";
+            UploadBinary(jobBinary);
+        }
+
+        TString jobCommandPrefix = Options_.JobCommandPrefix_;
+        if (!Spec_.JobCommandPrefix_.empty()) {
+            jobCommandPrefix = Spec_.JobCommandPrefix_;
+        }
+
+        TString jobCommandSuffix = Options_.JobCommandSuffix_;
+        if (!Spec_.JobCommandSuffix_.empty()) {
+            jobCommandSuffix = Spec_.JobCommandSuffix_;
+        }
+
+        ClassName_ = TJobFactory::Get()->GetJobName(&job);
+        Command_ = TStringBuilder() <<
+            jobCommandPrefix <<
+            (TConfig::Get()->UseClientProtobuf ? "YT_USE_CLIENT_PROTOBUF=1" : "YT_USE_CLIENT_PROTOBUF=0") << " " <<
+            binaryPathInsideJob << " " <<
+            // This argument has no meaning, but historically is checked in job initialization.
+            "--yt-map " <<
+            "\"" << ClassName_ << "\" " <<
+            outputTableCount << " " <<
+            hasState <<
+            jobCommandSuffix;
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////
@@ -2175,8 +2187,8 @@ TOperationId ExecuteVanilla(
     auto addTask = [&](TFluentMap fluent, const TVanillaTask& task) {
         Y_VERIFY(task.Job_.Get());
         if (HoldsAlternative<TVoidStructuredRowStream>(task.Job_->GetOutputRowStreamDescription())) {
-            Y_ENSURE(task.Outputs_.empty(),
-                "Vanilla task with void IVanillaJob doesn't expect output tables");
+            Y_ENSURE_EX(task.Outputs_.empty(),
+                TApiUsageError() << "Vanilla task with void IVanillaJob doesn't expect output tables");
             TJobPreparer jobPreparer(
                 preparer,
                 task.Spec_,
@@ -2201,8 +2213,8 @@ TOperationId ExecuteVanilla(
                 task,
                 options,
                 false);
-            Y_ENSURE(operationIo.Outputs.size(),
-                "Vanilla task with IVanillaJob that has table writer expects output tables");
+            Y_ENSURE_EX(operationIo.Outputs.size() > 0,
+                TApiUsageError() << "Vanilla task with IVanillaJob that has table writer expects output tables");
             if (options.CreateOutputTables_) {
                 CreateOutputTables(preparer, operationIo.Outputs);
             }
@@ -2251,7 +2263,7 @@ TOperationId ExecuteVanilla(
     auto operationId = preparer.StartOperation(
         "vanilla",
         MergeSpec(std::move(specNode), options),
-        /* useStartOperationRequest = */ true);
+        /* useStartOperationRequest */ true);
 
     return operationId;
 }

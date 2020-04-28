@@ -490,6 +490,11 @@ TFormat TFormat::YaMRLenval()
     return TFormat(config);
 }
 
+TFormat TFormat::Json()
+{
+    return TFormat(TNode("json"));
+}
+
 bool TFormat::IsTextYson() const
 {
     if (!Config.IsString() || Config.AsString() != "yson") {
