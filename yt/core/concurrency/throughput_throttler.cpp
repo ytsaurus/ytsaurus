@@ -277,7 +277,7 @@ private:
             return;
         }
 
-        current = lastUpdated + TDuration::MilliSeconds(deltaAvailable * period.MilliSeconds() / limit);
+        current = lastUpdated + TDuration::MilliSeconds(deltaAvailable * 1000 / limit);
         if (LastUpdated_.compare_exchange_strong(lastUpdated, current)) {
             auto available = Available_.load();
             auto throughputPerPeriod = static_cast<i64>(period.SecondsFloat()) * limit;
