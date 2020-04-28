@@ -229,14 +229,10 @@ public:
             DatabaseContext_.get(),
             Bootstrap_))
     {
-        TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions(
-            /* totalReservedMemorySize =*/Config_->TotalReaderMemoryLimit,
-            /* maxInitialReaderReservedMemory =*/Config_->TotalReaderMemoryLimit,
-            /* minRequiredMemorySize =*/0,
-            /* profilingTagList =*/{},
-            /* enableDetailedLogging =*/false,
-            /* enableProfiling =*/true);
-        // TODO(gritukan): Move it to NChunkClient::TDispatcher.
+        TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = Config_->TotalReaderMemoryLimit,
+            .MaxInitialReaderReservedMemory = Config_->TotalReaderMemoryLimit,
+            .EnableProfiling = true};
         ParallelReaderMemoryManager_ = CreateParallelReaderMemoryManager(
             parallelReaderMemoryManagerOptions,
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
