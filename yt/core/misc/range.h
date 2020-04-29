@@ -6,6 +6,7 @@
 #include <vector>
 #include <array>
 #include <optional>
+#include <initializer_list>
 
 // For size_t.
 #include <stddef.h>
@@ -103,6 +104,12 @@ public:
         , Length_(N)
     { }
 
+    //! Constructs a TRange from std::initializer_list.
+    TRange(std::initializer_list<T> elements)
+        : Data_(elements.begin())
+        , Length_(elements.size())
+    { }
+
     //! Constructs a TRange from std::array.
     template <size_t N>
     TRange(const std::array<T, N>& elements)
@@ -112,7 +119,7 @@ public:
 
     //! Constructs a TRange from std::optional.
     //! Range will contain 0-1 elements.
-    TRange(const std::optional<T>& element)
+    explicit TRange(const std::optional<T>& element)
         : Data_(element ? &*element : nullptr)
         , Length_(element ? 1 : 0)
     { }
@@ -334,8 +341,8 @@ public:
 
     //! Construct a TMutableRange from an std::optional
     //! Range will contain 0-1 elements.
-    TMutableRange(std::optional<T>& nullable)
-        : TRange<T>(nullable)
+    explicit TMutableRange(std::optional<T>& optional)
+        : TRange<T>(optional)
     { }
 
     //! Constructs a TMutableRange from a C array.
