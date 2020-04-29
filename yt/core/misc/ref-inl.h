@@ -195,13 +195,19 @@ Y_FORCE_INLINE size_t GetByteSize(TRef ref)
 }
 
 template <class T>
-size_t GetByteSize(const std::vector<T>& parts)
+size_t GetByteSize(TRange<T> parts)
 {
     size_t size = 0;
     for (const auto& part : parts) {
         size += part.Size();
     }
     return size;
+}
+
+template <class T>
+size_t GetByteSize(const std::vector<T>& parts)
+{
+    return GetByteSize(MakeRange(parts));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
