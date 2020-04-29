@@ -114,6 +114,11 @@ void SetCurrentMutationContext(TMutationContext* context)
     *CurrentMutationContext = context;
 }
 
+TError SanitizeWithCurrentMutationContext(const TError& error)
+{
+    return error.Sanitize(GetCurrentMutationContext()->GetTimestamp());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMutationContextGuard::TMutationContextGuard(TMutationContext* context)
