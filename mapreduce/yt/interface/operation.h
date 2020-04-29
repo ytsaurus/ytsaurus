@@ -12,7 +12,7 @@
 #include "io.h"
 #include "job_statistics.h"
 
-#include <library/threading/future/future.h>
+#include <library/cpp/threading/future/future.h>
 #include <library/cpp/type_info/type_info.h>
 
 #include <util/datetime/base.h>

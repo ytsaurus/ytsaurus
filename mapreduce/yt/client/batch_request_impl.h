@@ -6,7 +6,7 @@
 
 #include <mapreduce/yt/http/requests.h>
 
-#include <library/threading/future/future.h>
+#include <library/cpp/threading/future/future.h>
 
 #include <util/generic/ptr.h>
 #include <util/generic/deque.h>

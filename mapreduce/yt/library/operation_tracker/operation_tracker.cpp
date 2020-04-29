@@ -1,7 +1,7 @@
 #include "operation_tracker.h"
 
 #include <mapreduce/yt/interface/operation.h>
-#include <library/threading/future/future.h>
+#include <library/cpp/threading/future/future.h>
 
 #include <util/generic/hash_set.h>
 
