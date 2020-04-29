@@ -11,6 +11,8 @@
 
 #include <yt/server/lib/cell_server/proto/cell_manager.pb.h>
 
+#include <yt/server/lib/hydra/mutation_context.h>
+
 #include <yt/ytlib/tablet_client/config.h>
 
 #include <yt/core/ytree/fluent.h>
@@ -64,6 +66,9 @@ void TCellBase::TPeer::Persist(NCellMaster::TPersistenceContext& context)
     Persist(context, Descriptor);
     Persist(context, Node);
     Persist(context, LastSeenTime);
+    if (context.GetVersion() >= EMasterReign::CellPeerRevocationReason) {
+        Persist(context, LastRevocationReason);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,12 +170,22 @@ void TCellBase::AssignPeer(const TCellPeerDescriptor& descriptor, TPeerId peerId
     peer.Descriptor = descriptor;
 }
 
-void TCellBase::RevokePeer(TPeerId peerId)
+void TCellBase::RevokePeer(TPeerId peerId, const TError& reason)
 {
     auto& peer = Peers_[peerId];
     YT_VERIFY(!peer.Descriptor.IsNull());
     peer.Descriptor = TCellPeerDescriptor();
     peer.Node = nullptr;
+    peer.LastRevocationReason = NHydra::SanitizeWithCurrentMutationContext(reason);
+}
+
+void TCellBase::ExpirePeerRevocationReasons(TInstant deadline)
+{
+    for (auto& peer : Peers_) {
+        if (!peer.LastRevocationReason.IsOK() && peer.LastRevocationReason.GetDatetime() < deadline) {
+            peer.LastRevocationReason = {};
+        }
+    }
 }
 
 void TCellBase::AttachPeer(TNode* node, TPeerId peerId)

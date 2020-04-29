@@ -57,6 +57,7 @@ public:
         NNodeTrackerServer::TNode* Node = nullptr;
         TInstant LastSeenTime;
         EPeerState LastSeenState = EPeerState::None;
+        TError LastRevocationReason;
 
         void Persist(NCellMaster::TPersistenceContext& context);
     };
@@ -96,7 +97,8 @@ public:
     TPeerId GetPeerId(NNodeTrackerServer::TNode* node) const;
 
     void AssignPeer(const NHiveClient::TCellPeerDescriptor& descriptor, TPeerId peerId);
-    void RevokePeer(TPeerId peerId);
+    void RevokePeer(TPeerId peerId, const TError& reason);
+    void ExpirePeerRevocationReasons(TInstant deadline);
 
     void AttachPeer(NNodeTrackerServer::TNode* node, TPeerId peerId);
     void DetachPeer(NNodeTrackerServer::TNode* node);
