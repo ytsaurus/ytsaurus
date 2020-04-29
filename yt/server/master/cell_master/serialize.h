@@ -95,6 +95,7 @@ DEFINE_ENUM(EMasterReign,
     ((DynamicTabletSlotCount)                                       (1308))  // gritukan
     ((DynamicStoreRead)                                             (1309))  // ifsmirnov
     ((BeginUploadConcatenateFixes)                                  (1310))  // shakurov
+    ((CellPeerRevocationReason)                                     (1311))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

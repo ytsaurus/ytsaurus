@@ -345,6 +345,8 @@ void TCellTrackerImplOld::SchedulePeerRevocation(TCellBase* cell)
     if (request.peer_ids_size() == 0)
         return;
 
+    ToProto(request.mutable_reason(), TError("Revoked by old cell tracker"));
+
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     CreateMutation(hydraManager, request)
         ->CommitAndLog(Logger);
