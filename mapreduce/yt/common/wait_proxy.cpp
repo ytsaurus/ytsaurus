@@ -1,7 +1,7 @@
 #include "wait_proxy.h"
 
 
-#include <library/threading/future/future.h>
+#include <library/cpp/threading/future/future.h>
 
 #include <util/system/event.h>
 #include <util/system/condvar.h>

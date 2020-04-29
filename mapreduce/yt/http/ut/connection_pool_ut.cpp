@@ -3,7 +3,7 @@
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/common/config.h>
 
-#include <library/threading/future/async.h>
+#include <library/cpp/threading/future/async.h>
 
 #include <library/http/io/stream.h>
 

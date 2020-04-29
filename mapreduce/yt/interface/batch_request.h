@@ -4,7 +4,7 @@
 
 #include "client_method_options.h"
 
-#include <library/threading/future/future.h>
+#include <library/cpp/threading/future/future.h>
 #include <util/generic/ptr.h>
 
 namespace NYT {
