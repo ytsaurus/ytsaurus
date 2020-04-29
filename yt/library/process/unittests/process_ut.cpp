@@ -32,11 +32,10 @@ TEST(TProcessTest, Basic)
     EXPECT_TRUE(p->IsFinished());
 }
 
-#ifndef YT_IN_ARCADIA
 // NB: We cannot rely on 'ls' and 'sleep' in arcadia tests.
 TEST(TProcessTest, RunFromPathEnv)
 {
-    auto p = New<TSimpleProcess>("ls", false);
+    auto p = New<TSimpleProcess>("/bin/ls", false);
     TFuture<void> finished;
 
     ASSERT_NO_THROW(finished = p->Spawn());
@@ -55,7 +54,6 @@ TEST(TProcessTest, PollDuration)
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p->IsFinished());
 }
-#endif
 
 TEST(TProcessTest, InvalidPath)
 {
