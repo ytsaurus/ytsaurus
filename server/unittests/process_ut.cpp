@@ -28,6 +28,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#if !defined(AUTOCHECK)
+
 static TString GetUniqueName()
 {
     return "yt_ut_" + ToString(TGuid::Create());
@@ -280,6 +282,9 @@ TEST(TPortoProcessTest, PollDuration)
     EXPECT_TRUE(p->IsFinished());
     portoInstance->Destroy();
 }
+
+#endif
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
