@@ -252,7 +252,7 @@ private:
 
     const TGuid Id_;
 
-    TLogger Logger;
+    const TLogger Logger;
 
     mutable TInstant LastFullStateLoggingTime_ = TInstant::Now();
 

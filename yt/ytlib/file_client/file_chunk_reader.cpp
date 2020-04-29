@@ -375,7 +375,8 @@ IFileReaderPtr CreateFileMultiChunkReader(
         multiReaderMemoryManager = CreateParallelReaderMemoryManager(
             TParallelReaderMemoryManagerOptions{
                 .TotalReservedMemorySize = config->MaxBufferSize,
-                .MaxInitialReaderReservedMemory = config->WindowSize},
+                .MaxInitialReaderReservedMemory = config->WindowSize
+            },
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
 
