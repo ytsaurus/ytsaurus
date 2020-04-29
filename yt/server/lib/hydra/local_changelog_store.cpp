@@ -84,12 +84,12 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    virtual TFuture<void> Append(const TSharedRef& data) override
+    virtual TFuture<void> Append(TRange<TSharedRef> records) override
     {
         if (auto future = CheckLock()) {
             return future;
         }
-        return UnderlyingChangelog_->Append(data);
+        return UnderlyingChangelog_->Append(records);
     }
 
     virtual TFuture<void> Flush() override
@@ -171,9 +171,9 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    virtual TFuture<void> Append(const TSharedRef& data) override
+    virtual TFuture<void> Append(TRange<TSharedRef> records) override
     {
-        return UnderlyingChangelog_->Append(data);
+        return UnderlyingChangelog_->Append(records);
     }
 
     virtual TFuture<void> Flush() override

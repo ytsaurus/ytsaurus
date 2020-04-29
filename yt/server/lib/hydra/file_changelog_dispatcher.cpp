@@ -54,15 +54,17 @@ public:
         return Changelog_;
     }
 
-    TFuture<void> AsyncAppend(TSharedRef data)
+    TFuture<void> AsyncAppend(TRange<TSharedRef> records, i64 byteSize)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         TFuture<void> result;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            AppendQueue_.push_back(std::move(data));
-            ByteSize_ += data.Size();
+            for (const auto& record : records) {
+                AppendQueue_.push_back(record);
+            }
+            ByteSize_ += byteSize;
             YT_VERIFY(FlushPromise_);
             result = FlushPromise_;
         }
@@ -317,22 +319,22 @@ public:
         return New<TFileChangelogQueue>(std::move(syncChangelog), Profiler, GetInvoker());
     }
 
-    void RegisterQueue(TFileChangelogQueuePtr queue)
+    void RegisterQueue(const TFileChangelogQueuePtr& queue)
     {
         queue->GetInvoker()->Invoke(BIND(&TImpl::DoRegisterQueue, MakeStrong(this), queue));
     }
 
-    void UnregisterQueue(TFileChangelogQueuePtr queue)
+    void UnregisterQueue(const TFileChangelogQueuePtr& queue)
     {
         queue->GetInvoker()->Invoke(BIND(&TImpl::DoUnregisterQueue, MakeStrong(this), queue));
     }
 
-    TFuture<void> Append(TFileChangelogQueuePtr queue, const TSharedRef& record)
+    TFuture<void> Append(const TFileChangelogQueuePtr& queue, TRange<TSharedRef> records, i64 byteSize)
     {
-        auto result = queue->AsyncAppend(record);
+        auto result = queue->AsyncAppend(records, byteSize);
         queue->Wakeup();
-        Profiler.Increment(RecordCounter_);
-        Profiler.Increment(ByteCounter_, record.Size());
+        Profiler.Increment(RecordCounter_, records.Size());
+        Profiler.Increment(ByteCounter_, byteSize);
         return result;
     }
 
@@ -531,12 +533,13 @@ public:
         return DataSize_;
     }
 
-    virtual TFuture<void> Append(const TSharedRef& data) override
+    virtual TFuture<void> Append(TRange<TSharedRef> records) override
     {
         YT_VERIFY(!Closed_ && !Truncated_);
-        RecordCount_ += 1;
-        DataSize_ += data.Size();
-        return DispatcherImpl_->Append(Queue_, data);
+        i64 byteSize = GetByteSize(records);
+        RecordCount_ += records.Size();
+        DataSize_ += byteSize;
+        return DispatcherImpl_->Append(Queue_, records, byteSize);
     }
 
     virtual TFuture<void> Flush() override

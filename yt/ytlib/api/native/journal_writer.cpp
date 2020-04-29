@@ -691,8 +691,6 @@ private:
                 auto* req = batchReq->add_confirm_chunk_subrequests();
                 ToProto(req->mutable_chunk_id(), chunkId);
                 req->mutable_chunk_info();
-                // COMPAT(aozeritsky)
-                ToProto(req->mutable_replicas_old(), replicas);
                 ToProto(req->mutable_replicas(), replicas);
                 auto* meta = req->mutable_chunk_meta();
                 meta->set_type(static_cast<int>(EChunkType::Journal));

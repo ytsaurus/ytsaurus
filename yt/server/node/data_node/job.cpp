@@ -937,9 +937,12 @@ private:
                     currentRowCount,
                     currentRowCount + blockCount - 1);
 
+                std::vector<TSharedRef> records;
+                records.reserve(blocks.size());
                 for (const auto& block : blocks) {
-                    changelog->Append(block.Data);
+                    records.push_back(block.Data);
                 }
+                changelog->Append(records);
 
                 currentRowCount += blockCount;
             }

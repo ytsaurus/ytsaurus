@@ -39,10 +39,10 @@ public:
         const TJournalChunkPtr& chunk,
         bool enableMultiplexing);
 
-    TFuture<void> AppendMultiplexedRecord(
+    TFuture<void> AppendMultiplexedRecords(
         TChunkId chunkId,
-        int recordId,
-        const TSharedRef& recordData,
+        int firstRecordId,
+        TRange<TSharedRef> records,
         TFuture<void> splitResult);
 
     TFuture<bool> IsChangelogSealed(TChunkId chunkId);
