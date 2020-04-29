@@ -87,6 +87,7 @@ TMutationContext* TryGetCurrentMutationContext();
 TMutationContext* GetCurrentMutationContext();
 bool HasMutationContext();
 void SetCurrentMutationContext(TMutationContext* context);
+TError SanitizeWithCurrentMutationContext(const TError& error);
 
 ////////////////////////////////////////////////////////////////////////////////
 
