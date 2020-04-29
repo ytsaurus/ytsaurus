@@ -367,9 +367,17 @@ private:
             tableInfo->SecondaryRevision});
     }
 
-    virtual void OnEvicted(const TTableMountCacheKey& key) noexcept override
+    virtual void OnAdded(const TTableMountCacheKey& key) noexcept override
     {
-        YT_LOG_DEBUG("Table mount info evicted from cache (Path: %Qv, PrimaryRevision: %v, SecondaryRevision: %v)",
+        YT_LOG_DEBUG("Table mount info added to cache (Path: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
+            key.Path,
+            key.RefreshPrimaryRevision,
+            key.RefreshSecondaryRevision);
+    }
+
+    virtual void OnRemoved(const TTableMountCacheKey& key) noexcept override
+    {
+        YT_LOG_DEBUG("Table mount info removed from cache (Path: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
             key.Path,
             key.RefreshPrimaryRevision,
             key.RefreshSecondaryRevision);

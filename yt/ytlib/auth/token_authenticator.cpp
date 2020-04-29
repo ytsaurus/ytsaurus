@@ -238,9 +238,27 @@ ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTokenAuthenticatorCacheKey
+{
+    TTokenCredentials Credentials;
+
+    operator size_t() const
+    {
+        size_t result;
+        HashCombine(result, Credentials.Token);
+        return result;
+    }
+
+    bool operator == (const TTokenAuthenticatorCacheKey& other) const
+    {
+        return
+            Credentials.Token == other.Credentials.Token;
+    }
+};
+
 class TCachingTokenAuthenticator
     : public ITokenAuthenticator
-    , public TAsyncExpiringCache<TString, TAuthenticationResult>
+    , public TAsyncExpiringCache<TTokenAuthenticatorCacheKey, TAuthenticationResult>
 {
 public:
     TCachingTokenAuthenticator(
@@ -253,28 +271,24 @@ public:
 
     virtual TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
     {
-        {
-            auto guard = Guard(Lock_);
-            LastUserIP_[credentials.Token] = credentials.UserIP;
-        }
-
-        return Get(credentials.Token);
+        return Get(TTokenAuthenticatorCacheKey{credentials});
     }
 
 private:
     const ITokenAuthenticatorPtr TokenAuthenticator_;
 
-    TSpinLock Lock_;
-    THashMap<TString, NNet::TNetworkAddress> LastUserIP_;
+    TSpinLock LastUserIPLock_;
+    THashMap<TTokenAuthenticatorCacheKey, NNet::TNetworkAddress> LastUserIP_;
 
-    virtual TFuture<TAuthenticationResult> DoGet(const TString& token, bool /*isPeriodicUpdate*/) noexcept override
+    virtual TFuture<TAuthenticationResult> DoGet(
+        const TTokenAuthenticatorCacheKey& key,
+        bool isPeriodicUpdate) noexcept override
     {
-        TTokenCredentials credentials;
-        credentials.Token = token;
-        {
-            auto guard = Guard(Lock_);
-            auto it = LastUserIP_.find(token);
-            if (it != LastUserIP_.end()) {
+        auto credentials = key.Credentials;
+
+        if (isPeriodicUpdate) {
+            auto guard = Guard(LastUserIPLock_);
+            if (auto it = LastUserIP_.find(key); it != LastUserIP_.end()) {
                 credentials.UserIP = it->second;
             }
         }
@@ -282,10 +296,21 @@ private:
         return TokenAuthenticator_->Authenticate(credentials);
     }
 
-    virtual void OnEvicted(const TString& token) noexcept override
+    virtual void OnAdded(const TTokenAuthenticatorCacheKey& key) noexcept override
     {
-        auto guard = Guard(Lock_);
-        LastUserIP_.erase(token);
+        auto guard = Guard(LastUserIPLock_);
+        LastUserIP_[key] = key.Credentials.UserIP;
+    }
+
+    virtual void OnHit(const TTokenAuthenticatorCacheKey& key) noexcept override
+    {
+        OnAdded(key);
+    }
+
+    virtual void OnRemoved(const TTokenAuthenticatorCacheKey& key) noexcept override
+    {
+        auto guard = Guard(LastUserIPLock_);
+        LastUserIP_.erase(key);
     }
 };
 
