@@ -613,9 +613,9 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         create_pool("unique_pool")
         pool_path = "//sys/pools/unique_pool"
         set(pool_path + "/@max_operation_count", 50)
-        wait(lambda: get(pool_path + "/@max_operation_count") == 50)
+        wait(lambda: get(scheduler_orchid_pool_path("unique_pool") + "/max_operation_count") == 50)
         set(pool_path + "/@max_running_operation_count", 8)
-        wait(lambda: get(pool_path + "/@max_running_operation_count") == 8)
+        wait(lambda: get(scheduler_orchid_pool_path("unique_pool") + "/max_running_operation_count") == 8)
 
         metric_prefix = "scheduler/pools/"
         fair_share_ratio_max = Metric.at_scheduler(
@@ -1003,7 +1003,6 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     def test_operation_completed(self):
         self._prepare_tables()
         create_pool("unique_pool")
-        time.sleep(1)
 
         map_cmd = """python -c "import os; os.write(5, '{value_completed=117};')"; sleep 0.5 ; cat ; sleep 5; echo done > /dev/stderr"""
 

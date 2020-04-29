@@ -32,7 +32,7 @@ class TestSchedulerAlerts(YTEnvSetup):
         assert get("//sys/scheduler/@alerts") == []
 
         # Incorrect pool configuration.
-        create_pool("poolA", attributes={"min_share_resources": {"cpu": 100}})
+        create_pool("poolA", attributes={"min_share_resources": {"cpu": 100}}, wait_for_orchid=False)
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
 
         set("//sys/pools/poolA/@min_share_resources/cpu", 0)

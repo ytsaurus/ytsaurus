@@ -931,7 +931,6 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         set("//sys/pool_trees/default/@nodes_filter", "default_tag")
         set("//sys/pool_trees/default/@total_resource_limits_consider_delay", 1000)
-        pool_orchid = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{}/fair_share_info/pools/{}"
         for tree in ["default", "nirvana", "cloud"]:
             if tree != "default":
                 create_pool_tree(tree, attributes={"nodes_filter": tree + "_tag",
@@ -940,9 +939,6 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
             # Create "prodX" pools to spread guaranteed resources ratio.
             for i in range(9):
                 create_pool("prod" + str(i), pool_tree=tree)
-            wait(lambda: exists(pool_orchid.format(tree, "research"), verbose_error=True))
-            for i in range(9):
-                wait(lambda: exists(pool_orchid.format(tree, "prod" + str(i)), verbose_error=True))
 
     def _get_tree_for_job(self, job):
         node = job["address"]
