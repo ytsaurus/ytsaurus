@@ -260,15 +260,15 @@ private:
             return DataSize_;
         }
 
-        virtual TFuture<void> Append(const TSharedRef& data) override
+        virtual TFuture<void> Append(TRange<TSharedRef> records) override
         {
             if (!Writer_) {
                 return MakeFuture<void>(TError("Changelog is read-only"));
             }
 
-            DataSize_ += data.Size();
-            RecordCount_ += 1;
-            FlushResult_ = Writer_->Write(std::vector<TSharedRef>(1, data));
+            DataSize_ += GetByteSize(records);
+            RecordCount_ += records.Size();
+            FlushResult_ = Writer_->Write(records);
             return FlushResult_;
         }
 

@@ -139,22 +139,22 @@ public:
         return UnderlyingChangelog_->GetDataSize();
     }
 
-    virtual TFuture<void> Append(const TSharedRef& data) override
+    virtual TFuture<void> Append(TRange<TSharedRef> records) override
     {
-        TFuture<void> asyncResult;
+        TFuture<void> future;
         if (EnableMultiplexing_) {
-            int recordId = UnderlyingChangelog_->GetRecordCount();
-            auto flushResult = UnderlyingChangelog_->Append(data);
+            int firstRecordId = UnderlyingChangelog_->GetRecordCount();
+            auto flushResult = UnderlyingChangelog_->Append(records);
             const auto& journalManager = Location_->GetJournalManager();
-            asyncResult = journalManager->AppendMultiplexedRecord(
+            future = journalManager->AppendMultiplexedRecords(
                 ChunkId_,
-                recordId,
-                data,
+                firstRecordId,
+                records,
                 flushResult);
         } else {
-            asyncResult = UnderlyingChangelog_->Append(data);
+            future = UnderlyingChangelog_->Append(records);
         }
-        return asyncResult.ToUncancelable();
+        return future.ToUncancelable();
     }
 
     virtual TFuture<void> Flush() override

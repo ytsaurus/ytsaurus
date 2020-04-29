@@ -828,7 +828,7 @@ const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogLeaderMutat
     }
 
     *recordData = SerializeMutationRecord(MutationHeader_, pendingMutation.Request.Data);
-    *localFlushFuture = Changelog_->Append(*recordData);
+    *localFlushFuture = Changelog_->Append({*recordData});
 
     auto newLoggedVersion = version.Advance();
     YT_VERIFY(EpochContext_->ReachableVersion < newLoggedVersion);
@@ -890,7 +890,8 @@ const TDecoratedAutomaton::TPendingMutation& TDecoratedAutomaton::LogFollowerMut
         nullptr);
 
     if (Changelog_) {
-        auto future = Changelog_->Append(recordData);
+        // XXX(babenko): append multiple records a time.
+        auto future = Changelog_->Append({recordData});
         if (localFlushFuture) {
             *localFlushFuture = std::move(future);
         }

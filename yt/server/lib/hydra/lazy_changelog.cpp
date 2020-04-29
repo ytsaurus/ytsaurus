@@ -38,7 +38,7 @@ public:
             : BacklogDataSize_;
     }
 
-    virtual TFuture<void> Append(const TSharedRef& data) override
+    virtual TFuture<void> Append(TRange<TSharedRef> records) override
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
@@ -48,9 +48,11 @@ public:
 
         if (UnderlyingChangelog_) {
             guard.Release();
-            return UnderlyingChangelog_->Append(data);
+            return UnderlyingChangelog_->Append(records);
         } else {
-            BacklogRecords_.push_back(data);
+            for (const auto& record : records) {
+                BacklogRecords_.push_back(record);
+            }
             return BacklogAppendPromise_;
         }
     }
@@ -150,21 +152,14 @@ private:
         YT_VERIFY(!UnderlyingChangelog_);
         UnderlyingChangelog_ = changelogOrError.Value();
 
-        TFuture<void> lastBacklogAppendResult;
-        for (const auto& record : BacklogRecords_) {
-            lastBacklogAppendResult = UnderlyingChangelog_->Append(record);
-        }
+        auto future = UnderlyingChangelog_->Append(BacklogRecords_);
         BacklogRecords_.clear();
 
         auto promise = BacklogAppendPromise_;
 
         guard.Release();
 
-        if (lastBacklogAppendResult) {
-            promise.SetFrom(std::move(lastBacklogAppendResult));
-        } else {
-            promise.Set(TError());
-        }
+        promise.SetFrom(std::move(future));
     }
 
     IChangelogPtr GetUnderlyingChangelog() const

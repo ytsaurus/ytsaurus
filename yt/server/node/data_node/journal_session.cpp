@@ -108,16 +108,17 @@ TFuture<void> TJournalSession::DoPutBlocks(
             recordCount - 1);
     }
 
-    TFuture<void> lastAppendResult;
+    std::vector<TSharedRef> records;
+    records.reserve(blocks.size() - recordCount + startBlockIndex);
     for (int index = recordCount - startBlockIndex;
          index < static_cast<int>(blocks.size());
          ++index)
     {
-        lastAppendResult = Changelog_->Append(blocks[index].Data);
+        records.push_back(blocks[index].Data);
     }
 
-    if (lastAppendResult) {
-        LastAppendResult_ = lastAppendResult;
+    if (!records.empty()) {
+        LastAppendResult_ = Changelog_->Append(records);
     }
 
     Chunk_->UpdateCachedParams(Changelog_);

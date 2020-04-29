@@ -79,17 +79,17 @@ void DoDownloadChangelog(
             const auto& attachments = rsp->Attachments();
             YT_VERIFY(attachments.size() == 1);
 
-            std::vector<TSharedRef> recordsData;
-            UnpackRefs(rsp->Attachments()[0], &recordsData);
+            std::vector<TSharedRef> records;
+            UnpackRefs(rsp->Attachments()[0], &records);
 
-            if (recordsData.empty()) {
+            if (records.empty()) {
                 THROW_ERROR_EXCEPTION("Peer %v does not have %v records of changelog %v anymore",
                     changelogInfo.PeerId,
                     recordCount,
                     changelogId);
             }
 
-            int actualChunkSize = static_cast<int>(recordsData.size());
+            int actualChunkSize = static_cast<int>(records.size());
             if (actualChunkSize != desiredChunkSize) {
                 YT_LOG_DEBUG("Received records %v-%v while %v records were requested",
                     downloadedRecordCount,
@@ -102,16 +102,11 @@ void DoDownloadChangelog(
                     downloadedRecordCount + actualChunkSize - 1);
             }
 
-            TFuture<void> asyncResult;
-            for (const auto& data : recordsData) {
-                asyncResult = changelog->Append(data);
-                ++downloadedRecordCount;
-            }
+            auto future = changelog->Append(records);
+            downloadedRecordCount += records.size();
 
-            if (asyncResult) {
-                WaitFor(asyncResult)
-                    .ThrowOnError();
-            }
+            WaitFor(future)
+                .ThrowOnError();
         }
 
         WaitFor(changelog->Flush())

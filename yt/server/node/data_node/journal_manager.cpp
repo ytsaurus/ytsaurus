@@ -425,7 +425,7 @@ private:
             splitEntry.AppendLogged = true;
         }
 
-        splitEntry.Changelog->Append(record.Data);
+        splitEntry.Changelog->Append({record.Data});
         ++splitEntry.RecordsAdded;
     }
 
@@ -502,7 +502,7 @@ public:
         record.Header.Type = EMultiplexedRecordType::Create;
         record.Header.ChunkId = chunkId;
         record.Header.RecordId = -1;
-        return WriteMultiplexedRecord(record);
+        return WriteMultiplexedRecords({record});
     }
 
     TFuture<void> WriteRemoveRecord(TChunkId chunkId)
@@ -511,20 +511,26 @@ public:
         record.Header.Type = EMultiplexedRecordType::Remove;
         record.Header.ChunkId = chunkId;
         record.Header.RecordId = -1;
-        return WriteMultiplexedRecord(record);
+        return WriteMultiplexedRecords({record});
     }
 
-    TFuture<void> WriteAppendRecord(
+    TFuture<void> WriteAppendRecords(
         TChunkId chunkId,
-        int recordId,
-        const TSharedRef& recordData)
+        int firstRecordId,
+        TRange<TSharedRef> records)
     {
-        TMultiplexedRecord record;
-        record.Header.Type = EMultiplexedRecordType::Append;
-        record.Header.RecordId = recordId;
-        record.Header.ChunkId = chunkId;
-        record.Data = recordData;
-        return WriteMultiplexedRecord(record);
+        std::vector<TMultiplexedRecord> multiplexedRecords;
+        multiplexedRecords.reserve(records.size());
+        auto currentRecordId = firstRecordId;
+        for (const auto& record : records) {
+            TMultiplexedRecord multiplexedRecord;
+            multiplexedRecord.Header.Type = EMultiplexedRecordType::Append;
+            multiplexedRecord.Header.RecordId = currentRecordId++;
+            multiplexedRecord.Header.ChunkId = chunkId;
+            multiplexedRecord.Data = record;
+            multiplexedRecords.push_back(multiplexedRecord);
+        }
+        return WriteMultiplexedRecords(multiplexedRecords);
     }
 
     TPromise<void> RegisterBarrier()
@@ -614,27 +620,46 @@ private:
     TPeriodicExecutorPtr BarrierCleanupExecutor_;
 
 
-    TFuture<void> WriteMultiplexedRecord(const TMultiplexedRecord& record)
+    TFuture<void> WriteMultiplexedRecords(TRange<TMultiplexedRecord> multiplexedRecords)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         // Construct the multiplexed data record and append it.
         struct TMultiplexedRecordTag { };
-        auto multiplexedData = TSharedMutableRef::Allocate<TMultiplexedRecordTag>(
-            record.Data.Size() +
-            sizeof (TMultiplexedRecordHeader));
-        std::copy(
-            reinterpret_cast<const char*>(&record.Header),
-            reinterpret_cast<const char*>(&record.Header) + sizeof (TMultiplexedRecordHeader),
-            multiplexedData.Begin());
-        std::copy(
-            record.Data.Begin(),
-            record.Data.End(),
-            multiplexedData.Begin() + sizeof (TMultiplexedRecordHeader));
+
+        i64 totalSize = 0;
+        for (const auto& multiplexedRecord : multiplexedRecords) {
+            totalSize += sizeof (TMultiplexedRecordHeader);
+            totalSize += multiplexedRecord.Data.Size();
+        }
+
+        std::vector<TSharedRef> changelogRecords;
+        changelogRecords.reserve(multiplexedRecords.size());
+
+        auto multiplexedData = TSharedMutableRef::Allocate<TMultiplexedRecordTag>(totalSize, false);
+        char* currentDataPtr = multiplexedData.Begin();
+
+        for (const auto& multiplexedRecord : multiplexedRecords) {
+            char* changelogRecordPtr = currentDataPtr;
+
+            std::copy(
+                reinterpret_cast<const char*>(&multiplexedRecord.Header),
+                reinterpret_cast<const char*>(&multiplexedRecord.Header) + sizeof (TMultiplexedRecordHeader),
+                currentDataPtr);
+            currentDataPtr += sizeof (TMultiplexedRecordHeader);
+
+            std::copy(
+                multiplexedRecord.Data.Begin(),
+                multiplexedRecord.Data.End(),
+                currentDataPtr);
+            currentDataPtr += multiplexedRecord.Data.Size();
+
+            changelogRecords.push_back(multiplexedData.Slice(changelogRecordPtr, currentDataPtr));
+        }
 
         TGuard<TSpinLock> guard(SpinLock_);
 
-        auto appendResult = MultiplexedChangelog_->Append(multiplexedData);
+        auto appendResult = MultiplexedChangelog_->Append(changelogRecords);
 
         // Check if it is time to rotate.
         if (MultiplexedChangelog_->GetRecordCount() >= Config_->MaxRecordCount ||
@@ -935,18 +960,15 @@ public:
         return asyncResult.ToUncancelable();
     }
 
-    TFuture<void> AppendMultiplexedRecord(
+    TFuture<void> AppendMultiplexedRecords(
         TChunkId chunkId,
-        int recordId,
-        const TSharedRef& recordData,
+        int firstRecordId,
+        TRange<TSharedRef> records,
         TFuture<void> splitResult)
     {
         auto barrier = MultiplexedWriter_->RegisterBarrier();
         barrier.SetFrom(splitResult);
-        return MultiplexedWriter_->WriteAppendRecord(
-            chunkId,
-            recordId,
-            recordData);
+        return MultiplexedWriter_->WriteAppendRecords(chunkId, firstRecordId, records);
     }
 
     TFuture<bool> IsChangelogSealed(TChunkId chunkId)
@@ -1219,16 +1241,16 @@ TFuture<void> TJournalManager::RemoveChangelog(
     return Impl_->RemoveChangelog(chunk, enableMultiplexing);
 }
 
-TFuture<void> TJournalManager::AppendMultiplexedRecord(
+TFuture<void> TJournalManager::AppendMultiplexedRecords(
     TChunkId chunkId,
-    int recordId,
-    const TSharedRef& recordData,
+    int firstRecordId,
+    TRange<TSharedRef> records,
     TFuture<void> splitResult)
 {
-    return Impl_->AppendMultiplexedRecord(
+    return Impl_->AppendMultiplexedRecords(
         chunkId,
-        recordId,
-        recordData,
+        firstRecordId,
+        records,
         std::move(splitResult));
 }
 
