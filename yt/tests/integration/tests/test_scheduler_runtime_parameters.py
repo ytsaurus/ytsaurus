@@ -95,22 +95,19 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("renadeen", "ignat")
     def test_running_operation_counts_on_change_pool(self):
-        pools_path = scheduler_orchid_default_pool_tree_path() + "/pools"
-
         create_pool("initial_pool")
         create_pool("changed_pool")
-        wait(lambda: exists(pools_path + "/changed_pool"))
 
         op = run_sleeping_vanilla(spec={"pool": "initial_pool"})
         wait(lambda: op.get_state() == "running", iter=10)
 
-        wait(lambda: get(pools_path + "/initial_pool/running_operation_count") == 1)
-        wait(lambda: get(pools_path + "/changed_pool/running_operation_count") == 0)
+        wait(lambda: get(scheduler_orchid_pool_path("initial_pool") + "/running_operation_count") == 1)
+        wait(lambda: get(scheduler_orchid_pool_path("changed_pool") + "/running_operation_count") == 0)
 
         update_op_parameters(op.id, parameters={"pool": "changed_pool"})
 
-        wait(lambda: get(pools_path + "/initial_pool/running_operation_count") == 0)
-        wait(lambda: get(pools_path + "/changed_pool/running_operation_count") == 1)
+        wait(lambda: get(scheduler_orchid_pool_path("initial_pool") + "/running_operation_count") == 0)
+        wait(lambda: get(scheduler_orchid_pool_path("changed_pool") + "/running_operation_count") == 1)
 
     @authors("renadeen")
     def test_change_pool_of_multitree_operation(self):
@@ -118,7 +115,6 @@ class TestRuntimeParameters(YTEnvSetup):
         create_pool("default_pool")
         create_pool("custom_pool1", pool_tree="custom")
         create_pool("custom_pool2", pool_tree="custom")
-        time.sleep(0.1)
 
         op = run_sleeping_vanilla(
             spec={
@@ -173,7 +169,6 @@ class TestRuntimeParameters(YTEnvSetup):
 
         create_pool("parent", attributes={"max_running_operation_count": 0})
         create_pool("child", parent_name="parent")
-        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/child"))
 
         op = run_test_vanilla(":", spec={"pool": "child"})
         op.wait_for_state("pending")
@@ -193,7 +188,6 @@ class TestRuntimeParameters(YTEnvSetup):
 
         create_pool("free")
         create_pool("busy", attributes={"max_running_operation_count": 0})
-        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/busy"))
 
         op = run_test_vanilla(":", spec={"pool": "busy"})
         op.wait_for_state("pending")
@@ -223,7 +217,6 @@ class TestRuntimeParameters(YTEnvSetup):
         create_pool("pool2", pool_tree="other")
         create_pool("pool1")
         create_pool("pool2")
-        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/pool2"))
 
         op = run_sleeping_vanilla(
             spec={
