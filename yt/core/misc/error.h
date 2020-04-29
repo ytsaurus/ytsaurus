@@ -108,6 +108,7 @@ public:
     std::vector<TError>& InnerErrors();
 
     TError Sanitize() const;
+    TError Sanitize(TInstant datetime) const;
 
     TError Truncate() const;
 
