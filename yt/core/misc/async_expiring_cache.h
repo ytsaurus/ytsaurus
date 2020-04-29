@@ -51,7 +51,14 @@ protected:
         const std::vector<TKey>& keys,
         bool isPeriodicUpdate) noexcept;
 
-    virtual void OnEvicted(const TKey& key) noexcept;
+    //! Called under write lock.
+    virtual void OnAdded(const TKey& key) noexcept;
+
+    //! Called under write lock.
+    virtual void OnRemoved(const TKey& key) noexcept;
+
+    //! Called under read or write lock.
+    virtual void OnHit(const TKey& key) noexcept;
 
 private:
     const NProfiling::TProfiler Profiler_;
