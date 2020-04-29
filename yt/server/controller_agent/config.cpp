@@ -688,7 +688,7 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(false);
 
     RegisterParameter("default_enable_porto", DefaultEnablePorto)
-        .Default(NScheduler::EEnablePorto::Isolate);
+        .Default(NScheduler::EEnablePorto::None);
 
     RegisterParameter("job_reporter", JobReporter)
         .DefaultNew();
