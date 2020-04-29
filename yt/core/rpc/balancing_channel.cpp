@@ -79,7 +79,7 @@ public:
 
         const auto& session = sessionOrError.Value();
         const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
-        auto future = balancingExt.enable_stickness()
+        auto future = balancingExt.enable_stickiness()
             ? session->GetFinished()
             : session->GetFirstPeerDiscovered();
         return future.Apply(
@@ -374,7 +374,7 @@ private:
     IChannelPtr PickViableChannel(const IClientRequestPtr& request)
     {
         const auto& balancingExt = request->Header().GetExtension(NProto::TBalancingExt::balancing_ext);
-        return balancingExt.enable_stickness()
+        return balancingExt.enable_stickiness()
             ? PickStickyViableChannel(request, balancingExt.sticky_group_size())
             : PickRandomViableChannel(request);
     }
