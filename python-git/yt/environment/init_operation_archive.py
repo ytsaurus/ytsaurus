@@ -2,7 +2,10 @@
 
 import yt.yson as yson
 from yt.wrapper import YtClient, TablePath, config, ypath_join
-from yt.tools.dynamic_tables import make_dynamic_table_attributes, unmount_table_new, mount_table_new
+from yt.tools.dynamic_tables import (
+    make_dynamic_table_attributes, unmount_table_new, mount_table_new,
+    wait_for_state_new
+)
 
 from yt.environment.init_cluster import get_default_resource_limits
 
@@ -87,7 +90,7 @@ class TableInfo(object):
         for attr, value in self.attributes.items():
             client.set("{0}/@{1}".format(path, attr), value)
 
-    def alter_table(self, client, path, shards, mount=True):
+    def alter_table(self, client, path, shard_count, mount=True):
         logging.info("Altering table %s", path)
         unmount_table(client, path)
         attributes = make_dynamic_table_attributes(client, self.schema, self.key_columns, "scan")
@@ -98,7 +101,7 @@ class TableInfo(object):
             client.set("{0}/@{1}".format(path, attr), value)
 
         if self.get_pivot_keys:
-            client.reshard_table(path, self.get_pivot_keys(shards))
+            client.reshard_table(path, self.get_pivot_keys(shard_count))
 
         if mount:
             mount_table(client, path)
@@ -191,7 +194,7 @@ def create_operations_archive_account(client):
     logging.info("Setting account limits %s", limits)
     client.set("//sys/accounts/{0}/@{1}".format(OPERATIONS_ARCHIVE_ACCOUNT_NAME, RESOURCE_LIMITS_ATTRIBUTE), limits)
 
-def _create_table(client, table_info, table_path):
+def _create_table(client, table_info, table_path, shard_count=None):
     logging.info("Creating dynamic table %s", table_path)
     table_info = copy.deepcopy(table_info)
 
@@ -206,12 +209,14 @@ def _create_table(client, table_info, table_path):
     ):
         table_info.attributes["tablet_cell_bundle"] = DEFAULT_BUNDLE_NAME
 
-    table_info.create_dynamic_table(client, table_path)
+    if shard_count is None:
+        bundle = table_info.attributes.get("tablet_cell_bundle", DEFAULT_BUNDLE_NAME)
+        shard_count = 5 * client.get("//sys/tablet_cell_bundles/{}/@tablet_cell_count".format(bundle))
+    if table_info.get_pivot_keys is not None:
+        table_info.attributes["pivot_keys"] = table_info.get_pivot_keys(shard_count)
     if table_info.in_memory:
-        client.set(table_path + "/@in_memory_mode", "compressed")
-    bundle = client.get(table_path + "/@tablet_cell_bundle")
-    shard_count = 5 * client.get("//sys/tablet_cell_bundles/{}/@tablet_cell_count".format(bundle))
-    table_info.alter_table(client, table_path, shard_count, mount=False)
+        table_info.attributes["in_memory_mode"] = "compressed"
+    table_info.create_dynamic_table(client, table_path)
 
 INITIAL_TABLE_INFOS = {
     "jobs": TableInfo([
@@ -353,10 +358,19 @@ INITIAL_TABLE_INFOS = {
 
 INITIAL_VERSION = 26
 
-def _initialize_archive(client, archive_path):
+def _initialize_archive(client, archive_path, version=INITIAL_VERSION, tablet_cell_bundle=None, shard_count=1, mount=False):
     create_operations_archive_account(client)
-    for table_name, table_info in INITIAL_TABLE_INFOS.items():
-        _create_table(client, table_info, ypath_join(archive_path, table_name))
+
+    table_infos = copy.deepcopy(INITIAL_TABLE_INFOS)
+    for version in xrange(INITIAL_VERSION + 1, version + 1):
+        for conversion in TRANSFORMS.get(version, []):
+            if conversion.table_info:
+                table_infos[conversion.table] = conversion.table_info
+
+    for table_name, table_info in table_infos.items():
+        if tablet_cell_bundle is not None:
+            table_info.attributes["tablet_cell_bundle"] = tablet_cell_bundle
+        _create_table(client, table_info, ypath_join(archive_path, table_name), shard_count=shard_count)
 
     one_day = 1000 * 3600 * 24
     one_week = one_day * 7
@@ -370,7 +384,13 @@ def _initialize_archive(client, archive_path):
         table = ypath_join(archive_path, name)
         set_table_ttl(client, table, ttl=two_years, auto_compaction_period=one_month, forbid_obsolete_rows=True)
 
-    client.set_attribute(archive_path, "version", INITIAL_VERSION)
+    if mount:
+        for table_name in table_infos.keys():
+            client.mount_table(ypath_join(archive_path, table_name), sync=False)
+        for table_name in table_infos.keys():
+            wait_for_state_new(client, ypath_join(archive_path, table_name), "mounted")
+
+    client.set(archive_path + "/@version", version)
 
 
 TRANSFORMS = {}
@@ -669,21 +689,33 @@ def transform_archive(client, transform_begin, transform_end, force, archive_pat
         if client.get(path + "/@tablet_state") != "mounted":
             mount_table(client, path)
 
-def create_tables(client, target_version, override_tablet_cell_bundle="default", shards=1, archive_path=DEFAULT_ARCHIVE_PATH):
+def _get_latest_version():
+    latest_version = max(TRANSFORMS.keys())
+    if ACTIONS:
+        latest_version = max(latest_version, max(ACTIONS.keys()))
+    return latest_version
+
+def create_tables(client, target_version, override_tablet_cell_bundle="default", shard_count=1, archive_path=DEFAULT_ARCHIVE_PATH):
     """ Creates operation archive tables of given version """
     assert target_version in TRANSFORMS
     assert target_version >= INITIAL_VERSION
 
-    table_infos = {}
-    if client.exists(archive_path):
-        current_version = client.get("{0}/@".format(archive_path)).get("version", INITIAL_VERSION)
-    else:
-        _initialize_archive(client, archive_path)
-        table_infos = copy.deepcopy(INITIAL_TABLE_INFOS)
-        current_version = INITIAL_VERSION
+    if not client.exists(archive_path):
+        _initialize_archive(
+            client,
+            archive_path=archive_path,
+            version=target_version,
+            tablet_cell_bundle=override_tablet_cell_bundle,
+            shard_count=shard_count,
+            mount=True,
+        )
+        return
+
+    current_version = client.get("{0}/@".format(archive_path)).get("version", INITIAL_VERSION)
     assert current_version >= INITIAL_VERSION, \
         "Expected archive version to be >= {}, got {}".format(INITIAL_VERSION, current_version)
 
+    table_infos = {}
     for version in xrange(current_version + 1, target_version + 1):
         for conversion in TRANSFORMS.get(version, []):
             if conversion.table_info:
@@ -695,17 +727,14 @@ def create_tables(client, target_version, override_tablet_cell_bundle="default",
             table_info.attributes["tablet_cell_bundle"] = override_tablet_cell_bundle
         if not client.exists(table_path):
             table_info.create_dynamic_table(client, table_path)
-        table_info.alter_table(client, table_path, shards)
+        table_info.alter_table(client, table_path, shard_count)
 
     client.set(archive_path + "/@version", target_version)
 
 # Warning! This function does NOT perform actual transformations, it only creates tables with latest schemas.
-def create_tables_latest_version(client, override_tablet_cell_bundle="default", shards=1, archive_path=DEFAULT_ARCHIVE_PATH):
+def create_tables_latest_version(client, override_tablet_cell_bundle="default", shard_count=1, archive_path=DEFAULT_ARCHIVE_PATH):
     """ Creates operation archive tables of latest version """
-    latest_version = max(TRANSFORMS.keys())
-    if ACTIONS:
-        latest_version = max(latest_version, max(ACTIONS.keys()))
-    create_tables(client, latest_version, override_tablet_cell_bundle, shards=shards, archive_path=archive_path)
+    create_tables(client, _get_latest_version(), override_tablet_cell_bundle, shard_count=shard_count, archive_path=archive_path)
 
 def main():
     parser = argparse.ArgumentParser(description="Transform operations archive")
@@ -731,7 +760,7 @@ def main():
     if client.exists(archive_path):
         current_version = client.get("{0}/@".format(archive_path)).get("version", INITIAL_VERSION)
     else:
-        _initialize_archive(client, archive_path)
+        _initialize_archive(client, archive_path=archive_path)
         current_version = INITIAL_VERSION
     assert current_version >= INITIAL_VERSION, \
         "Expected archive version to be >= {}, got {}".format(INITIAL_VERSION, current_version)
