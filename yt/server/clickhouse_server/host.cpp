@@ -232,7 +232,8 @@ public:
         TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = Config_->TotalReaderMemoryLimit,
             .MaxInitialReaderReservedMemory = Config_->TotalReaderMemoryLimit,
-            .EnableProfiling = true};
+            .EnableProfiling = true
+        };
         ParallelReaderMemoryManager_ = CreateParallelReaderMemoryManager(
             parallelReaderMemoryManagerOptions,
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
