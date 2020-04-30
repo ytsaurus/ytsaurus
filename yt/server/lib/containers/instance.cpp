@@ -465,6 +465,11 @@ public:
         EnablePorto_ = enablePorto;
     }
 
+    virtual void SetIsolate(bool isolate) override
+    {
+        Isolate_ = isolate;
+    }
+
     virtual void EnableMemoryTracking() override
     {
         RequireMemoryController_ = true;
@@ -545,7 +550,7 @@ public:
         SetProperty("controllers", JoinToString(controllers, AsStringBuf(";")));
 
         SetProperty("enable_porto", FormatEnablePorto(EnablePorto_));
-        SetProperty("isolate", EnablePorto_ != EEnablePorto::Full ? "true" : "false");
+        SetProperty("isolate", Isolate_ ? "true" : "false");
 
         TStringBuilder envBuilder;
         for (const auto* arg : env) {
@@ -583,6 +588,7 @@ private:
     bool Destroyed_ = false;
     bool HasRoot_ = false;
     EEnablePorto EnablePorto_ = EEnablePorto::Full;
+    bool Isolate_ = false;
     bool RequireMemoryController_ = false;
     std::optional<TString> User_;
 
