@@ -27,7 +27,7 @@
 #include <yt/core/tracing/trace_manager.h>
 
 #include <util/string/vector.h>
-#include <library/cgiparam/cgiparam.h>
+#include <library/cpp/cgiparam/cgiparam.h>
 
 namespace NYT::NMonitoring {
 
