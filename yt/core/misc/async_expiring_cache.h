@@ -68,6 +68,9 @@ private:
         //! Some latest known value (possibly not yet set).
         TPromise<TValue> Promise;
 
+        //! Uncancelable version of #Promise.
+        TFuture<TValue> Future;
+
         //! Corresponds to a future probation request.
         NConcurrency::TDelayedExecutorCookie ProbationCookie;
 
