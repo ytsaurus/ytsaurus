@@ -1296,7 +1296,7 @@ void TTablet::Initialize()
             LookupCacheSize_,
             CreateMemoryTrackerForCategory(
                 Context_->GetMemoryUsageTracker(),
-                NNodeTrackerClient::EMemoryCategory::TabletStatic));
+                NNodeTrackerClient::EMemoryCategory::LookupRowsCache));
     }
 }
 

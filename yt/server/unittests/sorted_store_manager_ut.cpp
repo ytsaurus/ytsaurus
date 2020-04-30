@@ -144,6 +144,7 @@ protected:
                 Tablet_->BuildSnapshot(nullptr),
                 timestamp,
                 "ut",
+                false,
                 BlockReadOptions_,
                 &reader,
                 &writer);

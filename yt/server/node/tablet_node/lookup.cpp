@@ -97,12 +97,14 @@ public:
         TTimestamp timestamp,
         const TString& user,
         bool produceAllVersions,
+        bool useLookupCache,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         TSharedRange<TUnversionedRow> lookupKeys)
         : TabletSnapshot_(std::move(tabletSnapshot))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
+        , UseLookupCache_(useLookupCache && TabletSnapshot_->RowCache)
         , ColumnFilter_(columnFilter)
         , BlockReadOptions_(blockReadOptions)
         , LookupKeys_(std::move(lookupKeys))
@@ -138,7 +140,7 @@ public:
         std::vector<TUnversionedRow> chunkLookupKeys;
 
         // Lookup in dynamic stores always and merge with cache.
-        if (TabletSnapshot_->RowCache) {
+        if (UseLookupCache_) {
             YT_LOG_DEBUG("Looking up in row cache");
             auto accessor = TabletSnapshot_->RowCache->Cache.GetLookupAccessor();
             for (auto key : LookupKeys_) {
@@ -284,6 +286,7 @@ private:
     const TTabletSnapshotPtr TabletSnapshot_;
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
+    const bool UseLookupCache_;
     const TColumnFilter& ColumnFilter_;
     const TClientBlockReadOptions& BlockReadOptions_;
     const TSharedRange<TUnversionedRow> LookupKeys_;
@@ -324,7 +327,7 @@ private:
         for (const auto& store : stores) {
             YT_LOG_DEBUG("Creating reader (Store: %v, KeysCount: %v)", store->GetId(), keys.Size());
 
-            bool populateCache = static_cast<bool>(TabletSnapshot_->RowCache);
+            bool populateCache = UseLookupCache_;
             auto reader = store->CreateReader(
                 TabletSnapshot_,
                 keys,
@@ -378,7 +381,7 @@ private:
 
         std::optional<TConcurrentCache<TCachedRow>::TInsertAccessor> accessor;
 
-        bool populateCache = static_cast<bool>(TabletSnapshot_->RowCache);
+        bool populateCache = UseLookupCache_;
 
         if (populateCache) {
             accessor.emplace(TabletSnapshot_->RowCache->Cache.GetInsertAccessor());
@@ -444,6 +447,7 @@ void LookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     const TString& user,
+    bool useLookupCache,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TWireProtocolReader* reader,
     TWireProtocolWriter* writer)
@@ -473,6 +477,7 @@ void LookupRows(
         timestamp,
         user,
         false,
+        useLookupCache,
         columnFilter,
         blockReadOptions,
         std::move(lookupKeys));
@@ -490,6 +495,7 @@ void VersionedLookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     const TString& user,
+    bool useLookupCache,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
@@ -527,6 +533,7 @@ void VersionedLookupRows(
         timestamp,
         user,
         true,
+        useLookupCache,
         UniversalColumnFilter,
         blockReadOptions,
         std::move(lookupKeys));
@@ -544,6 +551,7 @@ void ExecuteSingleRead(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     const TString& user,
+    bool useLookupCache,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
@@ -556,6 +564,7 @@ void ExecuteSingleRead(
                 std::move(tabletSnapshot),
                 timestamp,
                 user,
+                useLookupCache,
                 blockReadOptions,
                 reader,
                 writer);
@@ -566,6 +575,7 @@ void ExecuteSingleRead(
                 std::move(tabletSnapshot),
                 timestamp,
                 user,
+                useLookupCache,
                 blockReadOptions,
                 std::move(retentionConfig),
                 reader,
@@ -582,6 +592,7 @@ void LookupRead(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
     const TString& user,
+    bool useLookupCache,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TRetentionConfigPtr retentionConfig,
     TWireProtocolReader* reader,
@@ -599,6 +610,7 @@ void LookupRead(
             tabletSnapshot,
             timestamp,
             user,
+            useLookupCache,
             blockReadOptions,
             retentionConfig,
             reader,
