@@ -6,7 +6,7 @@
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schema.h>
 
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_sorted_merging_reader.h>
 
 #include <yt/core/misc/protobuf_helpers.h>

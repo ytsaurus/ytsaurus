@@ -1,7 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "schemaless_chunk_reader.h"
+#include "schemaless_multi_chunk_reader.h"
 
 namespace NYT::NTableClient {
 

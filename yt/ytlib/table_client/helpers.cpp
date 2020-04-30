@@ -1,7 +1,7 @@
 #include "helpers.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
-#include "schemaless_chunk_reader.h"
+#include "schemaless_multi_chunk_reader.h"
 #include "schemaless_chunk_writer.h"
 #include "private.h"
 

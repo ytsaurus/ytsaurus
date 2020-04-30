@@ -3,7 +3,7 @@
 #include "config.h"
 #include "private.h"
 #include "schemaful_chunk_reader.h"
-#include "schemaless_chunk_reader.h"
+#include "schemaless_multi_chunk_reader.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
