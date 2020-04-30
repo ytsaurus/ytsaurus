@@ -29,8 +29,8 @@ else:
     TEST_DIR = arcadia_interop.yatest_common.source_path(test_dir)
     assert os.path.exists(TEST_DIR)
 
-    YT_LOG_TAILER_BINARY = arcadia_interop.yatest_common.binary_path("ytserver-log-tailer")
-    YT_DUMMY_LOGGER_BINARY = arcadia_interop.yatest_common.binary_path("dummy_logger")
+    YT_LOG_TAILER_BINARY = arcadia_interop.search_binary_path("ytserver-log-tailer")
+    YT_DUMMY_LOGGER_BINARY = arcadia_interop.search_binary_path("dummy_logger")
 
 #################################################################
 
