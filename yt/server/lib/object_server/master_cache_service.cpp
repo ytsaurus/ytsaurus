@@ -216,7 +216,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 THROW_ERROR_EXCEPTION("Cannot cache responses for requests with attachments");
             }
 
-            YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex:  %v, Key: %v)",
+            YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
                 requestId,
                 subrequestIndex,
                 key);
