@@ -553,6 +553,8 @@ private:
 
         DatabaseContext_->setDefaultProfiles(*EngineConfig_);
 
+        YT_LOG_INFO("Profiles, processes & uncompressed cache set up");
+
         std::string path = GetCanonicalPath(Config_->Engine->DataPath);
         Poco::File(path).createDirectories();
         DatabaseContext_->setPath(path);
@@ -572,14 +574,19 @@ private:
                 }
             }
         }
+        YT_LOG_INFO("Temporary directory set up");
 
         // This object will periodically calculate asynchronous metrics.
         AsynchronousMetrics_ = std::make_unique<DB::AsynchronousMetrics>(*DatabaseContext_);
+
+        YT_LOG_INFO("Asynchronouse metrics set up");
 
         // This object will periodically cleanup sessions.
         SessionCleaner.reset(new DB::SessionCleaner(*DatabaseContext_));
 
         DatabaseContext_->initializeSystemLogs();
+
+        YT_LOG_INFO("System logs initialized");
 
         // Database for system tables.
         {
@@ -594,21 +601,26 @@ private:
             DatabaseContext_->addDatabase("system", systemDatabase);
         }
 
+        YT_LOG_INFO("Creating YT database");
+
         // Default database that wraps connection to YT cluster.
         {
             auto defaultDatabase = CreateDatabase();
             DatabaseContext_->addDatabase("default", defaultDatabase);
             DatabaseContext_->addDatabase(CliqueId_, defaultDatabase);
         }
-
         std::string defaultDatabase = EngineConfig_->getString("default_database", "default");
         DatabaseContext_->setCurrentDatabase(defaultDatabase);
+        YT_LOG_INFO("Finished setting up context");
     }
 
     void WarmupDictionaries()
     {
+        YT_LOG_INFO("Warming up dictionaries");
         DatabaseContext_->getEmbeddedDictionaries();
+        YT_LOG_INFO("Embedded dictionaries warmed up");
         DatabaseContext_->getExternalDictionaries();
+        YT_LOG_INFO("Finished warming up");
     }
 
     void SetupHandlers()
