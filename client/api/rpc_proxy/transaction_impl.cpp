@@ -757,18 +757,22 @@ TFuture<void> TTransaction::DoAbort(TGuard<TSpinLock>* guard, const TTransaction
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
     
     if (State_ == ETransactionState::Aborting || State_ == ETransactionState::Aborted) {
-        return AbortFuture_;
+        return AbortPromise_.ToFuture();
     }
 
     YT_LOG_DEBUG("Aborting transaction");
 
     State_ = ETransactionState::Aborting;
 
+    auto foreignTransactions = ForeignTransactions_;
+
+    guard->Release();
+
     auto req = Proxy_.AbortTransaction();
     ToProto(req->mutable_transaction_id(), GetId());
     req->set_sticky(Sticky_);
 
-    auto abortFuture = AbortFuture_ = req->Invoke().Apply(
+    AbortPromise_.TrySetFrom(req->Invoke().Apply(
         BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
             {
                 auto guard = Guard(SpinLock_);
@@ -794,17 +798,13 @@ TFuture<void> TTransaction::DoAbort(TGuard<TSpinLock>* guard, const TTransaction
             }
 
             Aborted_.Fire();
-        }));
-
-    auto foreignTransactions = ForeignTransactions_;
-
-    guard->Release();
+        })));
 
     for (const auto& transaction : foreignTransactions) {
         transaction->Abort();
     }
 
-    return abortFuture;
+    return AbortPromise_.ToFuture();
 }
 
 TFuture<void> TTransaction::SendPing()
@@ -833,7 +833,7 @@ TFuture<void> TTransaction::SendPing()
                         State_ != ETransactionState::Detached)
                     {
                         State_ = ETransactionState::Aborted;
-                        AbortFuture_ = VoidFuture;
+                        AbortPromise_.TrySet();
                         fireAborted = true;
                     }
                 }
