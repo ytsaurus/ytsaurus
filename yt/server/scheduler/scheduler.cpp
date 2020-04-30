@@ -920,9 +920,6 @@ public:
                 .ThrowOnError();
         }
 
-        WaitFor(MasterConnector_->FlushOperationRuntimeParameters(operation, newParams))
-            .ThrowOnError();
-
         LogEventFluently(ELogEventType::RuntimeParametersInfo)
             .Item("runtime_params").Value(newParams);
 
@@ -1189,11 +1186,6 @@ public:
                 // Result is ignored since failure causes scheduler disconnection.
                 auto expectedState = operation->GetState();
                 Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
-                if (operation->GetState() != expectedState) {
-                    return;
-                }
-
-                Y_UNUSED(MasterConnector_->FlushOperationRuntimeParameters(operation, updatedRuntimeParameters));
                 if (operation->GetState() != expectedState) {
                     return;
                 }

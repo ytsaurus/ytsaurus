@@ -305,45 +305,6 @@ public:
         }
     }
 
-    TFuture<void> FlushOperationRuntimeParameters(
-        TOperationPtr operation,
-        const TOperationRuntimeParametersPtr& params)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return BIND(&TImpl::DoFlushOperationRuntimeParameters, MakeStrong(this))
-            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
-            .Run(operation, params);
-    }
-
-    void DoFlushOperationRuntimeParameters(
-        const TOperationPtr& operation,
-        const TOperationRuntimeParametersPtr& params)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
-
-        YT_LOG_INFO("Flushing operation runtime parameters (OperationId: %v)",
-            operation->GetId());
-
-        auto strategy = Bootstrap_->GetScheduler()->GetStrategy();
-
-        auto batchReq = StartObjectBatchRequest();
-
-        auto mapNode = ConvertToNode(params)->AsMap();
-
-        auto req = TYPathProxy::Set(GetOperationPath(operation->GetId()) + "/@runtime_parameters");
-        req->set_value(ConvertToYsonString(mapNode).GetData());
-        batchReq->AddRequest(req);
-
-        auto rspOrError = WaitFor(batchReq->Invoke());
-        auto error = GetCumulativeError(rspOrError);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error updating operation %v runtime params", operation->GetId());
-
-        YT_LOG_INFO("Flushed operation runtime parameters (OperationId: %v)",
-            operation->GetId());
-    }
-
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1670,13 +1631,6 @@ void TMasterConnector::AttachJobContext(
     const TString& user)
 {
     return Impl_->AttachJobContext(path, chunkId, operationId, jobId, user);
-}
-
-TFuture<void> TMasterConnector::FlushOperationRuntimeParameters(
-    TOperationPtr operation,
-    const TOperationRuntimeParametersPtr& params)
-{
-    return Impl_->FlushOperationRuntimeParameters(operation, params);
 }
 
 void TMasterConnector::SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
