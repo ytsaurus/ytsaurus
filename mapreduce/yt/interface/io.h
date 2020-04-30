@@ -411,7 +411,7 @@ private:
         const TTableReaderOptions& /*options*/,
         NTi::TTypePtr /*type*/)
     {
-        Y_FAIL("Uimplemented");
+        Y_FAIL("Unimplemented");
     }
 
     virtual ::TIntrusivePtr<INodeWriterImpl> CreateNodeWriter(
@@ -430,7 +430,7 @@ private:
         const TTableWriterOptions& /*options*/,
         NTi::TTypePtr /*type*/)
     {
-        Y_FAIL("Uimplemented");
+        Y_FAIL("Unimplemented");
     }
 };
 

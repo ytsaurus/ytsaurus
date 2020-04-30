@@ -343,7 +343,7 @@ bool HasNameExtension(const FieldDescriptor& fieldDescriptor)
     return options.HasExtension(column_name) || options.HasExtension(key_column_name);
 }
 
-TVariant<TNode, TOtherColumns> CreateFieldRawTypeV2(
+TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
     const FieldDescriptor& fieldDescriptor,
     const TProtobufFieldOptions& defaultOptions)
 {
@@ -356,7 +356,7 @@ TVariant<TNode, TOtherColumns> CreateFieldRawTypeV2(
         ValidateProtobufType(fieldDescriptor, *options.Type);
     }
 
-    TNode type;
+    NTi::TTypePtr type;
     if (fieldDescriptor.type() == FieldDescriptor::TYPE_MESSAGE &&
         options.SerializationMode == EProtobufSerializationMode::Yt)
     {
@@ -366,10 +366,10 @@ TVariant<TNode, TOtherColumns> CreateFieldRawTypeV2(
             messageDescriptor.options().GetRepeatedExtension(default_field_flags),
             &embeddedMessageDefaultOptions);
 
-        auto fields = TNode::CreateList();
+        TVector<NTi::TStructType::TOwnedMember> members;
         for (int fieldIndex = 0; fieldIndex < messageDescriptor.field_count(); ++fieldIndex) {
             const auto& innerFieldDescriptor = *messageDescriptor.field(fieldIndex);
-            auto type = CreateFieldRawTypeV2(
+            auto type = GetFieldType(
                 innerFieldDescriptor,
                 embeddedMessageDefaultOptions);
 
@@ -379,23 +379,21 @@ TVariant<TNode, TOtherColumns> CreateFieldRawTypeV2(
                     "embedded message field " << fieldDescriptor.name() << " " <<
                     "(note that " << EWrapperFieldFlag::OTHER_COLUMNS << " fields " <<
                     "are not allowed inside embedded messages)";
-            } else if (HoldsAlternative<TNode>(type)) {
-                fields.Add(TNode()
-                    ("name", GetColumnName(innerFieldDescriptor))
-                    ("type", Get<TNode>(type)));
+            } else if (HoldsAlternative<NTi::TTypePtr>(type)) {
+                members.push_back(NTi::TStructType::TOwnedMember(
+                    GetColumnName(innerFieldDescriptor),
+                    Get<NTi::TTypePtr>(type)));
             } else {
                 Y_FAIL();
             }
         }
-        type = TNode()
-            ("metatype", "struct")
-            ("fields", std::move(fields));
+        type = NTi::Struct(std::move(members));
     } else {
         auto scalarType = GetScalarFieldType(fieldDescriptor, options);
         if (HoldsAlternative<TOtherColumns>(scalarType)) {
             return TOtherColumns{};
         } else if (HoldsAlternative<EValueType>(scalarType)) {
-            type = NDetail::ToString(Get<EValueType>(scalarType));
+            type = ToTypeV3(Get<EValueType>(scalarType), true);
         } else {
             Y_FAIL();
         }
@@ -405,13 +403,9 @@ TVariant<TNode, TOtherColumns> CreateFieldRawTypeV2(
         case FieldDescriptor::Label::LABEL_REPEATED:
             Y_ENSURE(options.SerializationMode == EProtobufSerializationMode::Yt,
                 "Repeated fields are supported only for YT serialization mode");
-            return TNode()
-                ("metatype", "list")
-                ("element", std::move(type));
+            return NTi::TTypePtr(NTi::List(std::move(type)));
         case FieldDescriptor::Label::LABEL_OPTIONAL:
-            return TNode()
-                ("metatype", "optional")
-                ("element", std::move(type));
+            return NTi::TTypePtr(NTi::Optional(std::move(type)));
         case FieldDescriptor::LABEL_REQUIRED:
             return type;
     }
@@ -440,14 +434,14 @@ TTableSchema CreateTableSchema(
             continue;
         }
 
-        auto type = CreateFieldRawTypeV2(fieldDescriptor, defaultOptions);
+        auto type = GetFieldType(fieldDescriptor, defaultOptions);
         if (HoldsAlternative<TOtherColumns>(type)) {
             result.Strict(false);
             continue;
-        } else if (HoldsAlternative<TNode>(type)) {
+        } else if (HoldsAlternative<NTi::TTypePtr>(type)) {
             TColumnSchema column;
             column.Name(GetColumnName(fieldDescriptor));
-            column.RawTypeV2(std::move(Get<TNode>(type)));
+            column.Type(std::move(Get<NTi::TTypePtr>(type)));
             result.AddColumn(std::move(column));
         } else {
             Y_FAIL();

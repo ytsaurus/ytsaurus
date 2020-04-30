@@ -1,4 +1,5 @@
 #include "common.h"
+#include "common_ut.h"
 
 #include <mapreduce/yt/interface/protobuf_table_schema_ut.pb.h>
 
@@ -7,37 +8,6 @@
 #include <algorithm>
 
 using namespace NYT;
-
-TNode MakeLogicalType(EValueType type, bool required)
-{
-    TNode node = NYT::NDetail::ToString(type);
-    if (!required) {
-        node = TNode()
-            ("metatype", "optional")
-            ("element", std::move(node));
-    }
-    return node;
-}
-
-TTableSchema Canonize(TTableSchema schema)
-{
-    for (auto& columnSchema : schema.MutableColumns()) {
-        if (!columnSchema.RawTypeV2()) {
-            columnSchema.RawTypeV2(MakeLogicalType(columnSchema.Type(), columnSchema.Required()));
-        }
-    }
-    return schema;
-}
-
-#define TEST_FIELD(field, name, type) \
-    UNIT_ASSERT_VALUES_EQUAL(name, field.Name());\
-    UNIT_ASSERT_VALUES_EQUAL(type, field.RawTypeV2());\
-    UNIT_ASSERT(!field.SortOrder());
-
-#define TEST_FIELD_SORTED(field, name, type) \
-    UNIT_ASSERT_VALUES_EQUAL(name, field.Name());\
-    UNIT_ASSERT_VALUES_EQUAL(type, field.RawTypeV2());\
-    UNIT_ASSERT_VALUES_EQUAL(SO_ASCENDING, field.SortOrder());
 
 bool IsFieldPresent(const TTableSchema& schema, TStringBuf name)
 {
@@ -53,100 +23,99 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
 {
     Y_UNIT_TEST(TIntegral)
     {
-        const auto schema = Canonize(CreateTableSchema<NTesting::TIntegral>());
+        const auto schema = CreateTableSchema<NTesting::TIntegral>();
 
-        UNIT_ASSERT_VALUES_EQUAL(14, schema.Columns().size());
-
-        TEST_FIELD(schema.Columns()[0], "DoubleField", MakeLogicalType(EValueType::VT_DOUBLE, false));
-        TEST_FIELD(schema.Columns()[1], "FloatField", MakeLogicalType(EValueType::VT_DOUBLE, false));
-        TEST_FIELD(schema.Columns()[2], "Int32Field", MakeLogicalType(EValueType::VT_INT32, false));
-        TEST_FIELD(schema.Columns()[3], "Int64Field", MakeLogicalType(EValueType::VT_INT64, false));
-        TEST_FIELD(schema.Columns()[4], "Uint32Field", MakeLogicalType(EValueType::VT_UINT32, false));
-        TEST_FIELD(schema.Columns()[5], "Uint64Field", MakeLogicalType(EValueType::VT_UINT64, false));
-        TEST_FIELD(schema.Columns()[6], "Sint32Field", MakeLogicalType(EValueType::VT_INT32, false));
-        TEST_FIELD(schema.Columns()[7], "Sint64Field", MakeLogicalType(EValueType::VT_INT64, false));
-        TEST_FIELD(schema.Columns()[8], "Fixed32Field", MakeLogicalType(EValueType::VT_UINT32, false));
-        TEST_FIELD(schema.Columns()[9], "Fixed64Field", MakeLogicalType(EValueType::VT_UINT64, false));
-        TEST_FIELD(schema.Columns()[10], "Sfixed32Field", MakeLogicalType(EValueType::VT_INT32, false));
-        TEST_FIELD(schema.Columns()[11], "Sfixed64Field", MakeLogicalType(EValueType::VT_INT64, false));
-        TEST_FIELD(schema.Columns()[12], "BoolField", MakeLogicalType(EValueType::VT_BOOLEAN, false));
-        TEST_FIELD(schema.Columns()[13], "EnumField", MakeLogicalType(EValueType::VT_STRING, false));
-        UNIT_ASSERT(schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("DoubleField").Type(ToTypeV3(EValueType::VT_DOUBLE, false)))
+            .AddColumn(TColumnSchema().Name("FloatField").Type(ToTypeV3(EValueType::VT_DOUBLE, false)))
+            .AddColumn(TColumnSchema().Name("Int32Field").Type(ToTypeV3(EValueType::VT_INT32, false)))
+            .AddColumn(TColumnSchema().Name("Int64Field").Type(ToTypeV3(EValueType::VT_INT64, false)))
+            .AddColumn(TColumnSchema().Name("Uint32Field").Type(ToTypeV3(EValueType::VT_UINT32, false)))
+            .AddColumn(TColumnSchema().Name("Uint64Field").Type(ToTypeV3(EValueType::VT_UINT64, false)))
+            .AddColumn(TColumnSchema().Name("Sint32Field").Type(ToTypeV3(EValueType::VT_INT32, false)))
+            .AddColumn(TColumnSchema().Name("Sint64Field").Type(ToTypeV3(EValueType::VT_INT64, false)))
+            .AddColumn(TColumnSchema().Name("Fixed32Field").Type(ToTypeV3(EValueType::VT_UINT32, false)))
+            .AddColumn(TColumnSchema().Name("Fixed64Field").Type(ToTypeV3(EValueType::VT_UINT64, false)))
+            .AddColumn(TColumnSchema().Name("Sfixed32Field").Type(ToTypeV3(EValueType::VT_INT32, false)))
+            .AddColumn(TColumnSchema().Name("Sfixed64Field").Type(ToTypeV3(EValueType::VT_INT64, false)))
+            .AddColumn(TColumnSchema().Name("BoolField").Type(ToTypeV3(EValueType::VT_BOOLEAN, false)))
+            .AddColumn(TColumnSchema().Name("EnumField").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 
     Y_UNIT_TEST(TOneOf)
     {
-        const auto schema = Canonize(CreateTableSchema<NTesting::TOneOf>());
+        const auto schema = CreateTableSchema<NTesting::TOneOf>();
 
-        UNIT_ASSERT_VALUES_EQUAL(3, schema.Columns().size());
-
-        TEST_FIELD(schema.Columns()[0], "DoubleField", MakeLogicalType(EValueType::VT_DOUBLE, false));
-        TEST_FIELD(schema.Columns()[1], "Int32Field", MakeLogicalType(EValueType::VT_INT32, false));
-        TEST_FIELD(schema.Columns()[2], "BoolField", MakeLogicalType(EValueType::VT_BOOLEAN, false));
-        UNIT_ASSERT(schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("DoubleField").Type(ToTypeV3(EValueType::VT_DOUBLE, false)))
+            .AddColumn(TColumnSchema().Name("Int32Field").Type(ToTypeV3(EValueType::VT_INT32, false)))
+            .AddColumn(TColumnSchema().Name("BoolField").Type(ToTypeV3(EValueType::VT_BOOLEAN, false))));
     }
 
     Y_UNIT_TEST(TWithRequired)
     {
-        const auto schema = Canonize(CreateTableSchema<NTesting::TWithRequired>());
+        const auto schema = CreateTableSchema<NTesting::TWithRequired>();
 
-        UNIT_ASSERT_VALUES_EQUAL(2, schema.Columns().size());
-
-        TEST_FIELD(schema.Columns()[0], "RequiredField", MakeLogicalType(EValueType::VT_STRING, true));
-        TEST_FIELD(schema.Columns()[1], "NotRequiredField", MakeLogicalType(EValueType::VT_STRING, false));
-        UNIT_ASSERT(schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("RequiredField").Type(ToTypeV3(EValueType::VT_STRING, true)))
+            .AddColumn(TColumnSchema().Name("NotRequiredField").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 
     Y_UNIT_TEST(TAggregated)
     {
-        const auto schema = Canonize(CreateTableSchema<NTesting::TAggregated>());
+        const auto schema = CreateTableSchema<NTesting::TAggregated>();
 
         UNIT_ASSERT_VALUES_EQUAL(6, schema.Columns().size());
-
-        TEST_FIELD(schema.Columns()[0], "StringField", MakeLogicalType(EValueType::VT_STRING, false));
-        TEST_FIELD(schema.Columns()[1], "BytesField", MakeLogicalType(EValueType::VT_STRING, false));
-        TEST_FIELD(schema.Columns()[2], "NestedField", MakeLogicalType(EValueType::VT_STRING, false));
-        TEST_FIELD(schema.Columns()[3], "NestedRepeatedField", MakeLogicalType(EValueType::VT_STRING, false));
-        TEST_FIELD(schema.Columns()[4], "NestedOneOfField", MakeLogicalType(EValueType::VT_STRING, false));
-        TEST_FIELD(schema.Columns()[5], "NestedRecursiveField", MakeLogicalType(EValueType::VT_STRING, false));
-        UNIT_ASSERT(schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("StringField").Type(ToTypeV3(EValueType::VT_STRING, false)))
+            .AddColumn(TColumnSchema().Name("BytesField").Type(ToTypeV3(EValueType::VT_STRING, false)))
+            .AddColumn(TColumnSchema().Name("NestedField").Type(ToTypeV3(EValueType::VT_STRING, false)))
+            .AddColumn(TColumnSchema().Name("NestedRepeatedField").Type(ToTypeV3(EValueType::VT_STRING, false)))
+            .AddColumn(TColumnSchema().Name("NestedOneOfField").Type(ToTypeV3(EValueType::VT_STRING, false)))
+            .AddColumn(TColumnSchema().Name("NestedRecursiveField").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 
     Y_UNIT_TEST(TAliased)
     {
-        const auto schema = Canonize(CreateTableSchema<NTesting::TAliased>());
+        const auto schema = CreateTableSchema<NTesting::TAliased>();
 
-        UNIT_ASSERT_VALUES_EQUAL(3, schema.Columns().size());
-
-        TEST_FIELD(schema.Columns()[0], "key", MakeLogicalType(EValueType::VT_INT32, false));
-        TEST_FIELD(schema.Columns()[1], "subkey", MakeLogicalType(EValueType::VT_DOUBLE, false));
-        TEST_FIELD(schema.Columns()[2], "Data", MakeLogicalType(EValueType::VT_STRING, false));
-        UNIT_ASSERT(schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("key").Type(ToTypeV3(EValueType::VT_INT32, false)))
+            .AddColumn(TColumnSchema().Name("subkey").Type(ToTypeV3(EValueType::VT_DOUBLE, false)))
+            .AddColumn(TColumnSchema().Name("Data").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 
     Y_UNIT_TEST(KeyColumns)
     {
         const TKeyColumns keys = {"key", "subkey"};
 
-        const auto schema = Canonize(CreateTableSchema<NTesting::TAliased>(keys));
+        const auto schema = CreateTableSchema<NTesting::TAliased>(keys);
 
-        TEST_FIELD_SORTED(schema.Columns()[0], "key", MakeLogicalType(EValueType::VT_INT32, false));
-        TEST_FIELD_SORTED(schema.Columns()[1], "subkey", MakeLogicalType(EValueType::VT_DOUBLE, false));
-        TEST_FIELD(schema.Columns()[2], "Data", MakeLogicalType(EValueType::VT_STRING, false));
-        UNIT_ASSERT(schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema()
+                .Name("key")
+                .Type(ToTypeV3(EValueType::VT_INT32, false))
+                .SortOrder(ESortOrder::SO_ASCENDING))
+            .AddColumn(TColumnSchema()
+                .Name("subkey")
+                .Type(ToTypeV3(EValueType::VT_DOUBLE, false))
+                .SortOrder(ESortOrder::SO_ASCENDING))
+            .AddColumn(TColumnSchema().Name("Data").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 
     Y_UNIT_TEST(KeyColumnsReordered)
     {
         const TKeyColumns keys = {"subkey"};
 
-        const auto schema = Canonize(CreateTableSchema<NTesting::TAliased>(keys));
+        const auto schema = CreateTableSchema<NTesting::TAliased>(keys);
 
-        TEST_FIELD_SORTED(schema.Columns()[0], "subkey", MakeLogicalType(EValueType::VT_DOUBLE, false));
-        TEST_FIELD(schema.Columns()[1], "key", MakeLogicalType(EValueType::VT_INT32, false));
-        TEST_FIELD(schema.Columns()[2], "Data", MakeLogicalType(EValueType::VT_STRING, false));
-        UNIT_ASSERT_VALUES_EQUAL(schema.Columns().size(), 3);
-        UNIT_ASSERT(schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema()
+                .Name("subkey")
+                .Type(ToTypeV3(EValueType::VT_DOUBLE, false))
+                .SortOrder(ESortOrder::SO_ASCENDING))
+            .AddColumn(TColumnSchema().Name("key").Type(ToTypeV3(EValueType::VT_INT32, false)))
+            .AddColumn(TColumnSchema().Name("Data").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 
     Y_UNIT_TEST(KeyColumnsInvalid)
@@ -157,7 +126,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
 
     Y_UNIT_TEST(KeepFieldsWithoutExtensionTrue)
     {
-        const auto schema = Canonize(CreateTableSchema<NTesting::TAliased>({}, true));
+        const auto schema = CreateTableSchema<NTesting::TAliased>({}, true);
         UNIT_ASSERT(IsFieldPresent(schema, "key"));
         UNIT_ASSERT(IsFieldPresent(schema, "subkey"));
         UNIT_ASSERT(IsFieldPresent(schema, "Data"));
@@ -166,7 +135,7 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
 
     Y_UNIT_TEST(KeepFieldsWithoutExtensionFalse)
     {
-        const auto schema = Canonize(CreateTableSchema<NTesting::TAliased>({}, false));
+        const auto schema = CreateTableSchema<NTesting::TAliased>({}, false);
         UNIT_ASSERT(IsFieldPresent(schema, "key"));
         UNIT_ASSERT(IsFieldPresent(schema, "subkey"));
         UNIT_ASSERT(!IsFieldPresent(schema, "Data"));
@@ -175,36 +144,19 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Simple)
 
     Y_UNIT_TEST(ProtobufTypeOption)
     {
-        const auto schema = Canonize(CreateTableSchema<NTesting::TWithTypeOptions>({}));
-        UNIT_ASSERT_VALUES_EQUAL(schema.Columns().size(), 5);
-        TEST_FIELD(schema.Columns()[0], "ColorIntField", MakeLogicalType(EValueType::VT_INT64, false));
-        TEST_FIELD(schema.Columns()[1], "ColorStringField", MakeLogicalType(EValueType::VT_STRING, false));
-        TEST_FIELD(schema.Columns()[2], "AnyField", MakeLogicalType(EValueType::VT_ANY, false));
-        TEST_FIELD(
-            schema.Columns()[3],
-            "EmbeddedField",
-            TNode()
-                ("metatype", "optional")
-                ("element", TNode()
-                    ("metatype", "struct")
-                    ("fields", TNode()
-                        .Add(TNode()
-                            ("name", "ColorIntField")
-                            ("type", MakeLogicalType(EValueType::VT_INT64, false)))
-                        .Add(TNode()
-                            ("name", "ColorStringField")
-                            ("type", MakeLogicalType(EValueType::VT_STRING, false)))
-                        .Add(TNode()
-                            ("name", "AnyField")
-                            ("type", MakeLogicalType(EValueType::VT_ANY, false))))));
-        TEST_FIELD(
-            schema.Columns()[4],
-            "RepeatedEnumIntField",
-            TNode()
-                ("metatype", "list")
-                ("element", "int64"));
+        const auto schema = CreateTableSchema<NTesting::TWithTypeOptions>({});
 
-        UNIT_ASSERT(!schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .Strict(false)
+            .AddColumn(TColumnSchema().Name("ColorIntField").Type(ToTypeV3(EValueType::VT_INT64, false)))
+            .AddColumn(TColumnSchema().Name("ColorStringField").Type(ToTypeV3(EValueType::VT_STRING, false)))
+            .AddColumn(TColumnSchema().Name("AnyField").Type(ToTypeV3(EValueType::VT_ANY, false)))
+            .AddColumn(TColumnSchema().Name("EmbeddedField").Type(
+                NTi::Optional(NTi::Struct({
+                    {"ColorIntField", ToTypeV3(EValueType::VT_INT64, false)},
+                    {"ColorStringField", ToTypeV3(EValueType::VT_STRING, false)},
+                    {"AnyField", ToTypeV3(EValueType::VT_ANY, false)}}))))
+            .AddColumn(TColumnSchema().Name("RepeatedEnumIntField").Type(NTi::List(NTi::Int64()))));
     }
 
     Y_UNIT_TEST(ProtobufTypeOption_TypeMismatch)
@@ -230,193 +182,87 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
     {
         UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TRepeated>(), yexception);
 
-        const auto schema = Canonize(CreateTableSchema<NTesting::TRepeatedYtMode>());
-        UNIT_ASSERT_VALUES_EQUAL(1, schema.Columns().size());
-        TEST_FIELD(
-            schema.Columns()[0],
-            "Int32Field",
-            TNode()("metatype", "list")("element", MakeLogicalType(EValueType::VT_INT32, true)));
-        UNIT_ASSERT(schema.Strict());
+        const auto schema = CreateTableSchema<NTesting::TRepeatedYtMode>();
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("Int32Field").Type(NTi::List(ToTypeV3(EValueType::VT_INT32, true)))));
     }
 
-    const TNode& GetUrlRowType(bool required)
+    NTi::TTypePtr GetUrlRowType(bool required)
     {
-        static auto node = TNode()
-            ("metatype", "struct")
-            ("fields", TNode()
-                .Add(TNode()("name", "Host")("type", MakeLogicalType(EValueType::VT_STRING, false)))
-                .Add(TNode()("name", "Path")("type", MakeLogicalType(EValueType::VT_STRING, false)))
-                .Add(TNode()("name", "HttpCode")("type", MakeLogicalType(EValueType::VT_INT32, false))));
-        static auto optionalNode = TNode()
-            ("metatype", "optional")
-            ("element", node);
-        return required ? node : optionalNode;
+        static const NTi::TTypePtr structType = NTi::Struct({
+            {"Host", ToTypeV3(EValueType::VT_STRING, false)},
+            {"Path", ToTypeV3(EValueType::VT_STRING, false)},
+            {"HttpCode", ToTypeV3(EValueType::VT_INT32, false)}});
+        return required ? structType : NTi::TTypePtr(NTi::Optional(structType));
     }
 
     Y_UNIT_TEST(TRowFieldSerializationOption)
     {
-        const auto schema = Canonize(CreateTableSchema<NTesting::TRowFieldSerializationOption>());
+        const auto schema = CreateTableSchema<NTesting::TRowFieldSerializationOption>();
 
-        UNIT_ASSERT_VALUES_EQUAL(2, schema.Columns().size());
-
-        TEST_FIELD(
-            schema.Columns()[0],
-            "UrlRow_1",
-            GetUrlRowType(false));
-
-        TEST_FIELD(
-            schema.Columns()[1],
-            "UrlRow_2",
-            MakeLogicalType(EValueType::VT_STRING, false));
-
-        UNIT_ASSERT(schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("UrlRow_1").Type(GetUrlRowType(false)))
+            .AddColumn(TColumnSchema().Name("UrlRow_2").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 
     Y_UNIT_TEST(TRowMessageSerializationOption)
     {
-        const auto schema = Canonize(CreateTableSchema<NTesting::TRowMessageSerializationOption>());
+        const auto schema = CreateTableSchema<NTesting::TRowMessageSerializationOption>();
 
-        UNIT_ASSERT_VALUES_EQUAL(2, schema.Columns().size());
-
-        TEST_FIELD(
-            schema.Columns()[0],
-            "UrlRow_1",
-            GetUrlRowType(false));
-
-        TEST_FIELD(
-            schema.Columns()[1],
-            "UrlRow_2",
-            GetUrlRowType(false));
-
-        UNIT_ASSERT(schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("UrlRow_1").Type(GetUrlRowType(false)))
+            .AddColumn(TColumnSchema().Name("UrlRow_2").Type(GetUrlRowType(false))));
     }
 
     Y_UNIT_TEST(TRowMixedSerializationOptions)
     {
-        const auto schema = Canonize(CreateTableSchema<NTesting::TRowMixedSerializationOptions>());
+        const auto schema = CreateTableSchema<NTesting::TRowMixedSerializationOptions>();
 
-        UNIT_ASSERT_VALUES_EQUAL(2, schema.Columns().size());
-
-        TEST_FIELD(
-            schema.Columns()[0],
-            "UrlRow_1",
-            GetUrlRowType(false));
-
-        TEST_FIELD(
-            schema.Columns()[1],
-            "UrlRow_2",
-            MakeLogicalType(EValueType::VT_STRING, false));
-
-        UNIT_ASSERT(schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("UrlRow_1").Type(GetUrlRowType(false)))
+            .AddColumn(TColumnSchema().Name("UrlRow_2").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 
-    const TNode& GetUrlRowType_ColumnNames(bool required)
+    NTi::TTypePtr GetUrlRowType_ColumnNames(bool required)
     {
-        static auto node = TNode()
-            ("metatype", "struct")
-            ("fields", TNode()
-                .Add(TNode()("name", "Host_ColumnName")("type", MakeLogicalType(EValueType::VT_STRING, false)))
-                .Add(TNode()("name", "Path_KeyColumnName")("type", MakeLogicalType(EValueType::VT_STRING, false)))
-                .Add(TNode()("name", "HttpCode")("type", MakeLogicalType(EValueType::VT_INT32, false))));
-        static auto optionalNode = TNode()
-            ("metatype", "optional")
-            ("element", node);
-        return required ? node : optionalNode;
+        static const NTi::TTypePtr type = NTi::Struct({
+            {"Host_ColumnName", ToTypeV3(EValueType::VT_STRING, false)},
+            {"Path_KeyColumnName", ToTypeV3(EValueType::VT_STRING, false)},
+            {"HttpCode", ToTypeV3(EValueType::VT_INT32, false)},
+        });
+        return required ? type : NTi::TTypePtr(NTi::Optional(type));
     }
 
     Y_UNIT_TEST(TRowMixedSerializationOptions_ColumnNames)
     {
-        const auto schema = Canonize(CreateTableSchema<NTesting::TRowMixedSerializationOptions_ColumnNames>());
+        const auto schema = CreateTableSchema<NTesting::TRowMixedSerializationOptions_ColumnNames>();
 
-        UNIT_ASSERT_VALUES_EQUAL(2, schema.Columns().size());
-
-        TEST_FIELD(
-            schema.Columns()[0],
-            "UrlRow_1",
-            GetUrlRowType_ColumnNames(false));
-
-        TEST_FIELD(
-            schema.Columns()[1],
-            "UrlRow_2",
-            MakeLogicalType(EValueType::VT_STRING, false));
-
-        UNIT_ASSERT(schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("UrlRow_1").Type(GetUrlRowType_ColumnNames(false)))
+            .AddColumn(TColumnSchema().Name("UrlRow_2").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 
     Y_UNIT_TEST(NoOptionInheritance)
     {
-        auto deepestEmbedded = TNode()
-            ("metatype", "optional")
-            ("element", TNode()
-                ("metatype", "struct")
-                ("fields", TNode()
-                    .Add(TNode()
-                        ("name", "x")
-                        ("type", MakeLogicalType(EValueType::VT_INT64, false)))));
+        auto deepestEmbedded = NTi::Optional(NTi::Struct({{"x", ToTypeV3(EValueType::VT_INT64, false)}}));
 
-        const auto schema = Canonize(CreateTableSchema<NTesting::TNoOptionInheritance>());
-        UNIT_ASSERT_VALUES_EQUAL(schema.Columns().size(), 9);
+        const auto schema = CreateTableSchema<NTesting::TNoOptionInheritance>();
 
-        TEST_FIELD(
-            schema.Columns()[0],
-            "EmbeddedYt_YtOption",
-            TNode()
-                ("metatype", "optional")
-                ("element", TNode()
-                    ("metatype", "struct")
-                    ("fields", TNode()
-                        .Add(TNode()
-                            ("name", "embedded")
-                            ("type", deepestEmbedded)))));
-        TEST_FIELD(
-            schema.Columns()[1],
-            "EmbeddedYt_ProtobufOption",
-            MakeLogicalType(EValueType::VT_STRING, false));
-        TEST_FIELD(
-            schema.Columns()[2],
-            "EmbeddedYt_NoOption",
-            MakeLogicalType(EValueType::VT_STRING, false));
-
-        TEST_FIELD(
-            schema.Columns()[3],
-            "EmbeddedProtobuf_YtOption",
-            TNode()
-                ("metatype", "optional")
-                ("element", TNode()
-                    ("metatype", "struct")
-                    ("fields", TNode()
-                        .Add(TNode()
-                            ("name", "embedded")
-                            ("type", MakeLogicalType(EValueType::VT_STRING, false))))));
-        TEST_FIELD(
-            schema.Columns()[4],
-            "EmbeddedProtobuf_ProtobufOption",
-            MakeLogicalType(EValueType::VT_STRING, false));
-        TEST_FIELD(
-            schema.Columns()[5],
-            "EmbeddedProtobuf_NoOption",
-            MakeLogicalType(EValueType::VT_STRING, false));
-
-        TEST_FIELD(
-            schema.Columns()[6],
-            "Embedded_YtOption",
-            TNode()
-                ("metatype", "optional")
-                ("element", TNode()
-                    ("metatype", "struct")
-                    ("fields", TNode()
-                        .Add(TNode()
-                            ("name", "embedded")
-                            ("type", MakeLogicalType(EValueType::VT_STRING, false))))));
-        TEST_FIELD(
-            schema.Columns()[7],
-            "Embedded_ProtobufOption",
-            MakeLogicalType(EValueType::VT_STRING, false));
-        TEST_FIELD(
-            schema.Columns()[8],
-            "Embedded_NoOption",
-            MakeLogicalType(EValueType::VT_STRING, false));
-
-        UNIT_ASSERT(schema.Strict());
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema()
+                .Name("EmbeddedYt_YtOption")
+                .Type(NTi::Optional(NTi::Struct({{"embedded", deepestEmbedded}}))))
+            .AddColumn(TColumnSchema().Name("EmbeddedYt_ProtobufOption").Type(ToTypeV3(EValueType::VT_STRING, false)))
+            .AddColumn(TColumnSchema().Name("EmbeddedYt_NoOption").Type(ToTypeV3(EValueType::VT_STRING, false)))
+            .AddColumn(TColumnSchema()
+                .Name("EmbeddedProtobuf_YtOption")
+                .Type(NTi::Optional(NTi::Struct({{"embedded",  ToTypeV3(EValueType::VT_STRING, false)}}))))
+            .AddColumn(TColumnSchema().Name("EmbeddedProtobuf_ProtobufOption").Type(ToTypeV3(EValueType::VT_STRING, false)))
+            .AddColumn(TColumnSchema().Name("EmbeddedProtobuf_NoOption").Type(ToTypeV3(EValueType::VT_STRING, false)))
+            .AddColumn(TColumnSchema()
+                .Name("Embedded_YtOption")
+                .Type(NTi::Optional(NTi::Struct({{"embedded",  ToTypeV3(EValueType::VT_STRING, false)}}))))
+            .AddColumn(TColumnSchema().Name("Embedded_ProtobufOption").Type(ToTypeV3(EValueType::VT_STRING, false)))
+            .AddColumn(TColumnSchema().Name("Embedded_NoOption").Type(ToTypeV3(EValueType::VT_STRING, false))));
     }
 }

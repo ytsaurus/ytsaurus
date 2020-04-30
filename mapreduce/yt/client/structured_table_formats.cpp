@@ -148,7 +148,7 @@ TStructuredJobTableList CanonizeStructuredTableList(const TAuth& auth, const TVe
 
 TVector<TRichYPath> GetPathList(
     const TStructuredJobTableList& tableList,
-    const TMaybe<TSchemaInferenceResult>& jobSchemaInferenceResult,
+    const TMaybe<TVector<TTableSchema>>& jobSchemaInferenceResult,
     bool inferSchemaFromDescriptions)
 {
     Y_VERIFY(!jobSchemaInferenceResult || tableList.size() == jobSchemaInferenceResult->size());
@@ -501,7 +501,8 @@ std::pair<TFormat, TMaybe<TSmallJobFile>> TFormatBuilder::CreateProtobufFormat(
             ThrowUnsupportedStructureDescription(direction, table, job);
         }
         if (!descriptor) {
-            // It must be intermediate table, because there is no proper way to add such table to spec (AddInput requires to specify proper message).
+            // It must be intermediate table, because there is no proper way to add such table to spec
+            // (AddInput requires to specify proper message).
             Y_VERIFY(!table.RichYPath, "Descriptors for all tables except intermediate must be known");
             if (jobDescriptor) {
                 descriptor = jobDescriptor;

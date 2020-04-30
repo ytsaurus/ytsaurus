@@ -904,6 +904,112 @@ REGISTER_MAPPER(TIdMapperFailingFirstJob);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGrepperOld
+    : public IMapper<TTableReader<TGrepperRecord>, TTableWriter<TGrepperRecord>>
+{
+public:
+    TGrepperOld() = default;
+    TGrepperOld(TString pattern)
+        : Pattern_(pattern)
+    { }
+
+    void Do(TReader* reader, TWriter* writer)
+    {
+        for (const auto& cursor : *reader) {
+            auto row = cursor.GetRow();
+            if (row.GetKey() == Pattern_) {
+                writer->AddRow(row);
+            }
+        }
+    }
+
+    Y_SAVELOAD_JOB(Pattern_);
+
+private:
+    TString Pattern_;
+};
+REGISTER_MAPPER(TGrepperOld);
+
+class TGrepper
+    : public IMapper<TTableReader<TGrepperRecord>, TTableWriter<TGrepperRecord>>
+{
+public:
+    TGrepper() = default;
+    TGrepper(TString column, TString pattern)
+        : Pattern_(pattern)
+        , Column_(column)
+    { }
+
+    void Do(TReader* reader, TWriter* writer)
+    {
+        for (const auto& cursor : *reader) {
+            auto row = cursor.GetRow();
+            if (row.GetKey() == Pattern_) {
+                writer->AddRow(row);
+            }
+        }
+    }
+
+    void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& preparer) const override
+    {
+        preparer
+            .InputColumnRenaming(0, {{Column_, "Key"}})
+            .InputDescription<TGrepperRecord>(0)
+            .OutputDescription<TGrepperRecord>(0, /* inferSchema */ false);
+        auto schema = context.GetInputSchema(0);
+        for (auto& column : schema.MutableColumns()) {
+            if (column.Name() == Column_) {
+                column.Name("Key");
+            }
+        }
+        preparer.OutputSchema(0, schema);
+    }
+
+    Y_SAVELOAD_JOB(Pattern_, Column_);
+
+private:
+    TString Pattern_;
+    TString Column_;
+};
+REGISTER_MAPPER(TGrepper);
+
+class TReducerCount : public IReducer<TTableReader<TNode>, TTableWriter<TNode>>
+{
+public:
+    explicit TReducerCount(TString keyColumn = {})
+        : KeyColumn_(keyColumn)
+    {}
+
+    virtual void Do(TReader* reader, TWriter* writer) override
+    {
+        TString key;
+        i64 count = 0;
+        for (const auto& cursor : *reader) {
+            const auto& row = cursor.GetRow();
+            if (key.empty()) {
+                key = row[KeyColumn_].AsString();
+            }
+            ++count;
+        }
+        writer->AddRow(TNode()(KeyColumn_, key)("count", count));
+    }
+
+    void PrepareOperation(const IOperationPreparationContext& /* context */, TJobOperationPreparer& preparer) const override
+    {
+        preparer
+            .OutputSchema(0, TTableSchema().AddColumn(KeyColumn_, VT_STRING).AddColumn("count", VT_INT64))
+            .InputColumnFilter(0, {KeyColumn_});
+    }
+
+    Y_SAVELOAD_JOB(KeyColumn_);
+
+private:
+    TString KeyColumn_;
+};
+REGISTER_REDUCER(TReducerCount);
+
+/////////////////////////////////////////////////////////////////////////////
+
 Y_UNIT_TEST_SUITE(Operations)
 {
     void TestRenameColumns(ENodeReaderFormat nodeReaderFormat)
@@ -4375,6 +4481,149 @@ Y_UNIT_TEST_SUITE(Operations)
         UNIT_ASSERT_VALUES_EQUAL(is.ReadAll(), "Hello world!\n");
     }
 
+    Y_UNIT_TEST(JobPreparerOldWay)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto outputTable = TRichYPath(workingDir + "/output");
+
+        TVector<TNode> data = {
+            TNode()("keyColumn", "we want it")("value", ":)"),
+            TNode()("keyColumn", "not interested")("value", ":("),
+            TNode()("keyColumn", "we want it")("value", ":-)"),
+            TNode()("keyColumn", ":-(")("value", ":-(")
+        };
+        TVector<TNode> expected = {
+            TNode()("Key", "we want it")("value", ":)"),
+            TNode()("Key", "we want it")("value", ":-)"),
+        };
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable.Schema(
+                TTableSchema().AddColumn("keyColumn", VT_STRING).AddColumn("value", VT_STRING)));
+            for (const auto& row : data) {
+                writer->AddRow(row);
+            }
+            writer->Finish();
+        }
+
+        auto pattern = "we want it";
+        client->Map(
+            new TGrepperOld(pattern),
+            TStructuredTablePath(inputTable.RenameColumns({{"keyColumn", "Key"}}), TGrepperRecord::descriptor()),
+            TStructuredTablePath(outputTable.RenameColumns({{"keyColumn", "Key"}}), TGrepperRecord::descriptor()));
+
+        auto reader = client->CreateTableReader<TNode>(outputTable);
+        TVector<TNode> result;
+        for (const auto& cursor : *reader) {
+            result.push_back(cursor.GetRow());
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(expected, result);
+    }
+
+    Y_UNIT_TEST(JobPreparer)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto outputTable = TRichYPath(workingDir + "/output");
+
+        TVector<TNode> data = {
+            TNode()("keyColumn", "we want it")("value", ":)"),
+            TNode()("keyColumn", "not interested")("value", ":("),
+            TNode()("keyColumn", "we want it")("value", ":-)"),
+            TNode()("keyColumn", ":-(")("value", ":-(")
+        };
+        TVector<TNode> expected = {
+            TNode()("Key", "we want it")("value", ":)"),
+            TNode()("Key", "we want it")("value", ":-)"),
+        };
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable.Schema(
+                TTableSchema().AddColumn("keyColumn", VT_STRING).AddColumn("value", VT_STRING)));
+            for (const auto& row : data) {
+                writer->AddRow(row);
+            }
+            writer->Finish();
+        }
+
+        auto keyColumn = "keyColumn";
+        auto pattern = "we want it";
+        client->Map(
+            new TGrepper(keyColumn, pattern),
+            inputTable,
+            outputTable);
+
+        auto reader = client->CreateTableReader<TNode>(outputTable);
+        TVector<TNode> result;
+        for (const auto& cursor : *reader) {
+            result.push_back(cursor.GetRow());
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(expected, result);
+
+        TTableSchema schema;
+        Deserialize(schema, client->Get(outputTable.Path_ + "/@schema"));
+        UNIT_ASSERT_EQUAL(schema, TTableSchema()
+            .AddColumn("Key", EValueType::VT_STRING)
+            .AddColumn("value", EValueType::VT_STRING));
+    }
+
+    Y_UNIT_TEST(ReducerCount)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = TRichYPath(workingDir + "/input");
+        auto outputTable = TRichYPath(workingDir + "/output");
+
+        TVector<TNode> data = {
+            TNode()("keyColumn", "we want it")("value", ":)"),
+            TNode()("keyColumn", "we want it")("value", ":-)"),
+        };
+        TVector<TNode> expected = {
+            TNode()("keyColumn", "we want it")("count", 2),
+        };
+
+        auto inputSchema = TTableSchema()
+            .AddColumn("keyColumn", VT_STRING)
+            .AddColumn("value", VT_STRING);
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable.Schema(inputSchema));
+            for (const auto& row : data) {
+                writer->AddRow(row);
+            }
+            writer->Finish();
+        }
+
+        client->MapReduce(
+            new TIdMapper(),
+            new TReducerCount("keyColumn"),
+            inputTable,
+            outputTable,
+            "keyColumn");
+
+        TTableSchema outputSchema;
+        Deserialize(outputSchema, client->Get(outputTable.Path_ + "/@schema"));
+        UNIT_ASSERT_EQUAL(outputSchema, TTableSchema()
+            .AddColumn("keyColumn", EValueType::VT_STRING)
+            .AddColumn("count", EValueType::VT_INT64));
+
+        auto reader = client->CreateTableReader<TNode>(outputTable);
+        TVector<TNode> result;
+        for (const auto& cursor : *reader) {
+            result.push_back(cursor.GetRow());
+        }
+
+        UNIT_ASSERT_VALUES_EQUAL(expected, result);
+    }
+
 } // Y_UNIT_TEST_SUITE(Operations)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4870,10 +5119,10 @@ public:
         }
     }
 
-    void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& builder) const override
+    void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& builder) const override
     {
-        for (int i = 0; i < context.GetInputTableCount(); ++i) {
-            auto schema = context.GetInputTableSchema(i);
+        for (int i = 0; i < context.GetInputCount(); ++i) {
+            auto schema = context.GetInputSchema(i);
             schema.AddColumn(TColumnSchema().Name("even").Type(EValueType::VT_INT64));
             builder.OutputSchema(2 * i, schema);
             schema.MutableColumns().back() = TColumnSchema().Name("odd").Type(EValueType::VT_INT64);
@@ -4898,13 +5147,13 @@ public:
         }
     }
 
-    void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& builder) const override
+    void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& builder) const override
     {
-        UNIT_ASSERT_VALUES_EQUAL(context.GetInputTableCount() + 1, context.GetOutputTableCount());
+        UNIT_ASSERT_VALUES_EQUAL(context.GetInputCount() + 1, context.GetOutputCount());
 
         TTableSchema bigSchema;
-        for (int i = 0; i < context.GetInputTableCount(); ++i) {
-            auto schema = context.GetInputTableSchema(i);
+        for (int i = 0; i < context.GetInputCount(); ++i) {
+            auto schema = context.GetInputSchema(i);
             UNIT_ASSERT(!schema.Empty());
             builder.OutputSchema(i + 1, schema);
             for (const auto& column : schema.Columns()) {
@@ -4940,14 +5189,14 @@ public:
         }
     }
 
-    void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& builder) const override
+    void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& builder) const override
     {
-        UNIT_ASSERT_VALUES_EQUAL(context.GetInputTableCount(), 1);
-        UNIT_ASSERT_VALUES_EQUAL(context.GetOutputTableCount(), 1);
-        UNIT_ASSERT(!context.GetInputTableSchema(0).Empty());
+        UNIT_ASSERT_VALUES_EQUAL(context.GetInputCount(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(context.GetOutputCount(), 1);
+        UNIT_ASSERT(!context.GetInputSchema(0).Empty());
 
         TTableSchema result;
-        for (const auto& column : context.GetInputTableSchema(0).Columns()) {
+        for (const auto& column : context.GetInputSchema(0).Columns()) {
             if (ColumnsToRetain_.contains(column.Name())) {
                 result.AddColumn(column);
             }
@@ -4966,12 +5215,12 @@ REGISTER_REDUCER(TInferringReduceCombiner);
 class TInferringIdReducer : public TIdReducer
 {
 public:
-    void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& builder) const override
+    void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& builder) const override
     {
-        UNIT_ASSERT_VALUES_EQUAL(context.GetInputTableCount(), 1);
-        UNIT_ASSERT_VALUES_EQUAL(context.GetOutputTableCount(), 1);
-        UNIT_ASSERT(!context.GetInputTableSchema(0).Empty());
-        builder.OutputSchema(0, context.GetInputTableSchema(0));
+        UNIT_ASSERT_VALUES_EQUAL(context.GetInputCount(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(context.GetOutputCount(), 1);
+        UNIT_ASSERT(!context.GetInputSchema(0).Empty());
+        builder.OutputSchema(0, context.GetInputSchema(0));
     }
 };
 REGISTER_REDUCER(TInferringIdReducer);
@@ -4981,12 +5230,12 @@ template<class TBase>
 class TInferringMapper : public TBase
 {
 public:
-    void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& builder) const override
+    void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& builder) const override
     {
-        UNIT_ASSERT_VALUES_EQUAL(context.GetInputTableCount(), 1);
-        UNIT_ASSERT_VALUES_EQUAL(context.GetOutputTableCount(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(context.GetInputCount(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(context.GetOutputCount(), 1);
 
-        auto schema = context.GetInputTableSchema(0);
+        auto schema = context.GetInputSchema(0);
         UNIT_ASSERT(!schema.Empty());
 
         schema.AddColumn("extra", EValueType::VT_DOUBLE);

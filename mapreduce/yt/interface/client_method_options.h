@@ -369,6 +369,11 @@ public:
 
     // Shortcut for enabling all type conversions.
     FLUENT_FIELD_OPTION(bool, EnableTypeConversion);
+
+    /// @brief Apply the patch to the fields.
+    ///
+    /// Non-default and non-empty values replace the default and empty ones.
+    void Merge(const TFormatHints& patch);
 };
 
 struct TTableReaderOptions
