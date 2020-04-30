@@ -394,24 +394,13 @@ const IChannelPtr& TClient::GetOperationArchiveChannel(EMasterChannelKind kind)
         }
     }
 
-    // COMPAT(levysotsky): If user "operations_client" does not exist, fallback to "application_operations".
-    TString operationsClientUserName;
-    {
-        auto path = GetUserPath(OperationsClientUserName);
-        if (DoNodeExists(path, TNodeExistsOptions())) {
-            operationsClientUserName = OperationsClientUserName;
-        } else {
-            operationsClientUserName = "application_operations";
-        }
-    }
-
     TEnumIndexedVector<EMasterChannelKind, NRpc::IChannelPtr> channels;
     for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
         // NOTE(asaitgalin): Cache is tied to user so to utilize cache properly all Cypress
         // requests for operations archive should be performed under the same user.
         channels[kind] = CreateAuthenticatedChannel(
             Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
-            operationsClientUserName);
+            OperationsClientUserName);
     }
 
     {
