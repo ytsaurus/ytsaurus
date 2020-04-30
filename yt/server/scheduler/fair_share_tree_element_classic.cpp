@@ -643,11 +643,6 @@ TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
     }
 }
 
-TJobResources TSchedulerElement::GetTotalResourceLimits() const
-{
-    return TotalResourceLimits_;
-}
-
 void TSchedulerElement::LogDetailedInfo() const
 {
     auto maxPossibleResourceUsage = Min(TotalResourceLimits_, MaxPossibleResourceUsage_);

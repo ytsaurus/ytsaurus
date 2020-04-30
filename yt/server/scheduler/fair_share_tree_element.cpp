@@ -713,11 +713,6 @@ TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
     }
 }
 
-TJobResources TSchedulerElement::GetTotalResourceLimits() const
-{
-    return TotalResourceLimits_;
-}
-
 TResourceVector TSchedulerElement::GetVectorSuggestion(double suggestion) const
 {
     // TODO(ignat): move this YT_VERIFY to another place.
