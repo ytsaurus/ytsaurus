@@ -14,7 +14,7 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/table_reader.h>
 
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
 #include <Common/Exception.h>
 #include <DataStreams/IBlockInputStream.h>

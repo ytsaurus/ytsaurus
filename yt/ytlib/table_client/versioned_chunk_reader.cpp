@@ -5,7 +5,7 @@
 #include "columnar_chunk_reader_base.h"
 #include "config.h"
 #include "private.h"
-#include "schemaless_chunk_reader.h"
+#include "schemaless_multi_chunk_reader.h"
 #include "versioned_block_reader.h"
 #include "versioned_chunk_reader.h"
 #include "versioned_reader_adapter.h"

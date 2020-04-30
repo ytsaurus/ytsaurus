@@ -3,7 +3,7 @@
 
 #include "chunk_meta_extensions.h"
 #include "columnar_chunk_meta.h"
-#include "schemaless_chunk_reader.h"
+#include "schemaless_multi_chunk_reader.h"
 
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>

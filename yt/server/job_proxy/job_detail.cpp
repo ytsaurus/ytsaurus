@@ -11,7 +11,7 @@
 #include <yt/ytlib/job_proxy/helpers.h>
 
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <yt/client/table_client/unversioned_writer.h>
