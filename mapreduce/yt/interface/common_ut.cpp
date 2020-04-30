@@ -1,29 +1,15 @@
-#include <mapreduce/yt/interface/common.h>
-#include <mapreduce/yt/interface/serialize.h>
+#include "common_ut.h"
 
 #include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/yson/node/node_builder.h>
+
+#include <mapreduce/yt/interface/common.h>
 
 #include <util/generic/xrange.h>
 
 #include <library/unittest/registar.h>
 
 using namespace NYT;
-
-template <typename T>
-TString ToYson(const T& x)
-{
-    TNode result;
-    TNodeBuilder builder(&result);
-    Serialize(x, &builder);
-    return NodeToYsonString(result);
-}
-
-#define ASSERT_SERIALIZABLES_EQUAL(a, b) \
-    UNIT_ASSERT_EQUAL_C(a, b, ToYson(a) << " != " << ToYson(b))
-
-#define ASSERT_SERIALIZABLES_UNEQUAL(a, b) \
-    UNIT_ASSERT_UNEQUAL_C(a, b, ToYson(a) << " == " << ToYson(b))
 
 Y_UNIT_TEST_SUITE(Common)
 {
@@ -50,8 +36,7 @@ Y_UNIT_TEST_SUITE(Common)
         schema
             .AddColumn(TColumnSchema().Name("a").Type(EValueType::VT_STRING).SortOrder(SO_ASCENDING))
             .AddColumn(TColumnSchema().Name("b").Type(EValueType::VT_UINT64))
-            .AddColumn(TColumnSchema().Name("c").Type(EValueType::VT_INT64))
-            ;
+            .AddColumn(TColumnSchema().Name("c").Type(EValueType::VT_INT64));
         auto checkSortBy = [](TTableSchema schema, const TVector<TString>& columns) {
             auto initialSchema = schema;
             schema.SortBy(columns);

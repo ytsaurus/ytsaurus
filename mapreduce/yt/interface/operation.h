@@ -47,6 +47,10 @@ using TTableStructure = ::TVariant<
     TYdlTableStructure
 >;
 
+bool operator==(const TUnspecifiedTableStructure&, const TUnspecifiedTableStructure&);
+bool operator==(const TProtobufTableStructure& lhs, const TProtobufTableStructure& rhs);
+bool operator==(const TYdlTableStructure& lhs, const TYdlTableStructure& rhs);
+
 struct TStructuredTablePath
 {
     TStructuredTablePath(TRichYPath richYPath = TRichYPath(), TTableStructure description = TUnspecifiedTableStructure())
@@ -102,11 +106,12 @@ struct TYdlStructuredRowStream
 
 struct TProtobufStructuredRowStream
 {
-    // If descriptor is nullptr, then mapper works with multiple message types
+    // If descriptor is nullptr, then operation works with multiple message types
     const ::google::protobuf::Descriptor* Descriptor = nullptr;
 };
 
-using TStructuredRowStreamDescription = ::TVariant<
+using
+TStructuredRowStreamDescription = ::TVariant<
     TVoidStructuredRowStream,
     TTNodeStructuredRowStream,
     TTYaMRRowStructuredRowStream,
@@ -803,7 +808,7 @@ const TNode& GetJobSecureVault();
 class TRawJobContext
 {
 public:
-    TRawJobContext(size_t outputTableCount);
+    explicit TRawJobContext(size_t outputTableCount);
 
     const TFile& GetInputFile() const;
     const TVector<TFile>& GetOutputFileList() const;
@@ -828,76 +833,231 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// This interface provides the user with information about operation inputs/outputs
-// during schema inference (in `IJob::InferSchemas`).
-class ISchemaInferenceContext
+/// @brief Provider of information about operation inputs/outputs during @ref NYT::IJob::PrepareOperation.
+class IOperationPreparationContext
 {
 public:
-    virtual ~ISchemaInferenceContext() = default;
+    virtual ~IOperationPreparationContext() = default;
 
-    virtual int GetInputTableCount() const = 0;
-    virtual int GetOutputTableCount() const = 0;
+    /// @brief Get the number of input tables.
+    virtual int GetInputCount() const = 0;
 
-    virtual const TTableSchema& GetInputTableSchema(int index) const = 0;
-    virtual const TVector<TTableSchema>& GetInputTableSchemas() const = 0;
+    /// @brief Get the number of output tables.
+    virtual int GetOutputCount() const = 0;
 
-    // The below methods can return `Nothing()` if an input or output
-    // doesn't correspond to a real table in Cypress (i.e. it's itermediate table of map_reduce).
-    virtual TMaybe<TYPath> GetInputTablePath(int index) const = 0;
-    virtual TMaybe<TYPath> GetOutputTablePath(int index) const = 0;
+    /// @brief Get the schema of input table no. `index`.
+    virtual const TTableSchema& GetInputSchema(int index) const = 0;
+
+    /// @brief Get all the input table schemas.
+    virtual const TVector<TTableSchema>& GetInputSchemas() const = 0;
+
+    /// @brief Path to the input table if available (`Nothing()` for intermediate tables).
+    virtual TMaybe<TYPath> GetInputPath(int index) const = 0;
+
+    /// @brief Path to the output table if available (`Nothing()` for intermediate tables).
+    virtual TMaybe<TYPath> GetOutputPath(int index) const = 0;
 };
 
-using TSchemaInferenceResult = TVector<TMaybe<TTableSchema>>;
-
-// This class is used to build result of `IJob::InferSchemas`.
-// Calls to building methods can be chained.
-class TSchemaInferenceResultBuilder
+/// @brief Fluent builder class for @ref NYT::IJob::PrepareOperation.
+///
+/// @note Method calls are supposed to be chained.
+class TJobOperationPreparer
 {
 public:
-    explicit TSchemaInferenceResultBuilder(const ISchemaInferenceContext& context);
 
-    //
-    // Set the schema of table with index `tableIndex`.
-    TSchemaInferenceResultBuilder& OutputSchema(int tableIndex, TTableSchema schema);
+    /// @brief Group of input tables that allows to specify properties on all of them at once.
+    ///
+    /// The instances are created with @ref NYT::TJobOperationPreparer::StartInputGroup, not directly.
+    class TInputGroup
+    {
+    public:
+        TInputGroup(TJobOperationPreparer& preparer, TVector<int> indices);
 
-    //
-    // Set schemas for tables with indices from STL-like container `indices` to `schema`.
+        /// @brief Specify the type of input rows.
+        template <typename TRow>
+        TInputGroup& Description();
+
+        /// @brief Specify renaming of input columns.
+        TInputGroup& ColumnRenaming(const THashMap<TString, TString>& renaming);
+
+        /// @brief Specify what input columns to send to job 
+        ///
+        /// @note Filter is applied before renaming, so it must specify original column names.
+        TInputGroup& ColumnFilter(const TVector<TString>& columns);
+
+        /// @brief Finish describing the input group.
+        TJobOperationPreparer& EndInputGroup();
+
+    private:
+        TJobOperationPreparer& Preparer_;
+        TVector<int> Indices_;
+    };
+
+    /// @brief Group of output tables that allows to specify properties on all of them at once.
+    ///
+    /// The instances are created with @ref NYT::TJobOperationPreparer::StartOutputGroup, not directly.
+    class TOutputGroup
+    {
+    public:
+        TOutputGroup(TJobOperationPreparer& preparer, TVector<int> indices);
+
+        /// @brief Specify the type of output rows.
+        ///
+        /// @tparam TRow type of output rows from tables of this group.
+        /// @param inferSchema Infer schema from `TRow` and specify it for these output tables.
+        template <typename TRow>
+        TOutputGroup& Description(bool inferSchema = true);
+
+        /// @brief Specify schema for these tables.
+        TOutputGroup& Schema(const TTableSchema& schema);
+
+        /// @brief Specify that all the the tables in this group are unschematized.
+        ///
+        /// It is equivalent of `.Schema(TTableSchema().Strict(false)`.
+        TOutputGroup& NoSchema();
+
+        /// @brief Finish describing the output group.
+        TJobOperationPreparer& EndOutputGroup();
+
+    private:
+        TJobOperationPreparer& Preparer_;
+        TVector<int> Indices_;
+    };
+
+public:
+    explicit TJobOperationPreparer(const IOperationPreparationContext& context);
+
+    /// @brief Begin input group consisting of tables with indices `[begin, end)`.
+    ///
+    /// @param begin First index.
+    /// @param end Index after the last one.
+    TInputGroup BeginInputGroup(int begin, int end);
+
+    /// @brief Begin input group consisting of tables with indices from `indices`.
+    ///
+    /// @tparam TCont Container with integers. Must suppport `std::begin` and `std::end` functions.
+    /// @param indices Indices of tables to include in the group.
     template <typename TCont>
-    TSchemaInferenceResultBuilder& OutputSchemas(const TCont& indices, const TTableSchema& schema);
+    TInputGroup BeginInputGroup(const TCont& indices);
 
-    //
-    // Set schemas for tables with indices from `[begin, end)` to `schema`.
-    TSchemaInferenceResultBuilder& OutputSchemas(int begin, int end, const TTableSchema& schema);
+    /// @brief Begin output group consisting of tables with indices `[begin, end)`.
+    ///
+    /// @param begin First index.
+    /// @param end Index after the last one.
+    TOutputGroup BeginOutputGroup(int begin, int end);
 
-    //
-    // Mark the schema of table with index `tableIndex` intentionally missing.
-    TSchemaInferenceResultBuilder& IntentionallyMissingOutputSchema(int tableIndex);
+    /// @brief Begin input group consisting of tables with indices from `indices`.
+    ///
+    /// @tparam TCont Container with integers. Must suppport `std::begin` and `std::end` functions.
+    /// @param indices Indices of tables to include in the group.
+    template <typename TCont>
+    TOutputGroup BeginOutputGroup(const TCont& indices);
 
-    //
-    // Set all not-yet-marked schemas to `schema`.
-    TSchemaInferenceResultBuilder& RemainingOutputSchemas(const TTableSchema& schema);
+    /// @brief Specify the schema for output table no `tableIndex`.
+    ///
+    /// @note All the output schemas must be specified either with this method, `NoOutputSchema` or `OutputDescription` with `inferSchema == true`
+    TJobOperationPreparer& OutputSchema(int tableIndex, TTableSchema schema);
 
-    //
-    // The following methods are usually not used by clients.
-    TSchemaInferenceResult Build();
+    /// @brief Mark the output table no. `tableIndex` as unschematized.
+    TJobOperationPreparer& NoOutputSchema(int tableIndex);
 
+    /// @brief Specify renaming of input columns for table no. `tableIndex`.
+    TJobOperationPreparer& InputColumnRenaming(int tableIndex, const THashMap<TString, TString>& renaming);
+
+    /// @brief Specify what input columns of table no. `tableIndex` to send to job 
+    ///
+    /// @note Filter is applied before renaming, so it must specify original column names.
+    TJobOperationPreparer& InputColumnFilter(int tableIndex, const TVector<TString>& columns);
+
+    /// @brief Specify the type of input rows for table no. `tableIndex`.
+    ///
+    /// @tparam TRow type of input rows.
+    template <typename TRow>
+    TJobOperationPreparer& InputDescription(int tableIndex);
+
+    /// @brief Specify the type of output rows for table no. `tableIndex`.
+    ///
+    /// @tparam TRow type of output rows.
+    /// @param inferSchema Infer schema from `TRow` and specify it for the output tables.
+    template <typename TRow>
+    TJobOperationPreparer& OutputDescription(int tableIndex, bool inferSchema = true);
+
+    /// @brief Specify input format hints.
+    ///
+    /// These hints have lower priority than ones specified in spec.
+    TJobOperationPreparer& InputFormatHints(TFormatHints hints);
+
+    /// @brief Specify output format hints.
+    ///
+    /// These hints have lower priority than ones specified in spec.
+    TJobOperationPreparer& OutputFormatHints(TFormatHints hints);
+
+    /// @brief Specify format hints.
+    ///
+    /// These hints have lower priority than ones specified in spec.
+    TJobOperationPreparer& FormatHints(TUserJobFormatHints newFormatHints);
+
+    /// @name "Private" members
+    /// The following methods should not be used by clients in @ref NYT::IJob::PrepareOperation
+    ///@{
+
+    /// @brief Finish the building process.
+    void Finish();
+
+    /// @brief Get output table schemas as specified by the user.
+    TVector<TTableSchema> GetOutputSchemas();
+
+    /// @brief Get input column renamings as specified by the user.
+    const TVector<THashMap<TString, TString>>& GetInputColumnRenamings() const;
+
+    /// @brief Get input column filters as specified by the user.
+    const TVector<TMaybe<TVector<TString>>>& GetInputColumnFilters() const;
+
+    /// @brief Get input column descrpiptions as specified by the user.
+    const TVector<TMaybe<TTableStructure>>& GetInputDescriptions() const;
+
+    /// @brief Get output column descriptions as specified by the user.
+    const TVector<TMaybe<TTableStructure>>& GetOutputDescriptions() const;
+
+    /// @brief Get format hints as specified by the user.
+    const TUserJobFormatHints& GetFormatHints() const;
+
+    ///@}
 private:
-    void ValidateIllegallyMissing(int tableIndex) const;
+
+    /// @brief Validate that schema for output table no. `tableIndex` has not been set yet.
+    void ValidateMissingOutputSchema(int tableIndex) const;
+
+    /// @brief Validate that description for input table no. `tableIndex` has not been set yet.
+    void ValidateMissingInputDescription(int tableIndex) const;
+
+    /// @brief Validate that description for output table no. `tableIndex` has not been set yet.
+    void ValidateMissingOutputDescription(int tableIndex) const;
+
+    /// @brief Validate that `tableIndex` is in correct range for input table indices.
+    ///
+    /// @param message Message to add to the exception in case of violation.
+    void ValidateInputTableIndex(int tableIndex, TStringBuf message) const;
+
+    /// @brief Validate that `tableIndex` is in correct range for output table indices.
+    ///
+    /// @param message Message to add to the exception in case of violation.
+    void ValidateOutputTableIndex(int tableIndex, TStringBuf message) const;
+
+    /// @brief Validate that all the output schemas has been set.
     void FinallyValidate() const;
 
+    static TTableSchema EmptyNonstrictSchema();
+
 private:
-    struct TIllegallyMissingSchema
-    { };
-    struct TIntentionallyMissingSchema
-    { };
+    const IOperationPreparationContext& Context_;
 
-    using TEntry = ::TVariant<
-        TTableSchema,
-        TIllegallyMissingSchema,
-        TIntentionallyMissingSchema>;
-
-    const ISchemaInferenceContext& Context_;
-    TVector<TEntry> Schemas_;
+    TVector<TMaybe<TTableSchema>> OutputSchemas_;
+    TVector<THashMap<TString, TString>> InputColumnRenamings_;
+    TVector<TMaybe<TVector<TString>>> InputColumnFilters_;
+    TVector<TMaybe<TTableStructure>> InputTableDescriptions_;
+    TVector<TMaybe<TTableStructure>> OutputTableDescriptions_;
+    TUserJobFormatHints FormatHints_ = {};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -937,13 +1097,38 @@ public:
         return NDetail::OutputTableCount;
     }
 
-    // User can override this method in their job class
-    // to enable output table schema inference.
-    //
-    // All the output schemas must be either set or marked as intentionally missing.
-    //
-    // By default all the schemas are marked as intentionally missing.
-    virtual void InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& resultBuilder) const;
+    /// @brief Method allowing user to control some properties of input and output tables and formats.
+    ///
+    /// User can override this method in their job class to:
+    ///   - specify output table schemas.
+    ///     The most natural way is usually through @ref NYT::TJobOperationPreparer::OutputDescription (especially for protobuf),
+    ///     but you can use @ref NYT::TJobOperationPreparer::OutputSchema directly
+    ///   - specify output row type (@ref NYT::TJobOperationPreparer::OutputDescription)
+    ///   - specify input row type (@ref NYT::TJobOperationPreparer::InputDescription)
+    ///   - specify input column filter and renaming (@ref NYT::TJobOperationPreparer::InputColumnFilter and @ref NYT::TJobOperationPreparer::InputColumnRenaming)
+    ///   - specify format hints (@ref NYT::TJobOperationPreparer::InputFormatHints,
+    ///     NYT::TJobOperationPreparer::OutputFormatHints and @ref NYT::TJobOperationPreparer::FormatHints)
+    ///   - maybe something more, cf. the methods of @ref NYT::TJobOperationPreparer.
+    ///
+    /// If one has several similar tables, groups can be used.
+    /// Groups are delimited by @ref NYT::TJobOperationPreparer::BeginInputGroup /
+    /// @ref NYT::TJobOperationPreparer::TInputGroup::EndInputGroup and
+    /// @ref NYT::TJobOperationPreparer::BeginOutputGroup /
+    /// @ref NYT::TJobOperationPreparer::TOutputGroup::EndOutputGroup.
+    /// Example:
+    /// @code{.cpp}
+    ///   preparer
+    ///     .BeginInputGroup({1,2,4,8})
+    ///       .ColumnRenaming({{"a", "b"}, {"c", "d"}})
+    ///       .ColumnFilter({"a", "c"})
+    ///     .EndInputGroup();
+    /// @endcode
+    ///
+    /// @note All the output table schemas must be set
+    /// (possibly as empty nonstrict using @ref NYT::TJobOperationPreparer::NoOutputSchema or
+    /// @ref NYT::TJobOperationPreparer::TOutputGroup::NoOutputSchema).
+    /// By default all the output table schemas are marked as empty nonstrict.
+    virtual void PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& preparer) const;
 };
 
 #define Y_SAVELOAD_JOB(...) \

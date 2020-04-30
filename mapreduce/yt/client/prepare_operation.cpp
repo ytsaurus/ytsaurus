@@ -1,4 +1,4 @@
-#include "job_schema_inference.h"
+#include "prepare_operation.h"
 
 #include <mapreduce/yt/interface/serialize.h>
 
@@ -9,7 +9,7 @@ namespace NYT::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemaInferenceContext::TSchemaInferenceContext(
+TOperationPreparationContext::TOperationPreparationContext(
     TStructuredJobTableList structuredInputs,
     TStructuredJobTableList structuredOutputs,
     const TAuth& auth,
@@ -24,17 +24,17 @@ TSchemaInferenceContext::TSchemaInferenceContext(
     , InputSchemasLoaded_(Inputs_.size(), false)
 { }
 
-int TSchemaInferenceContext::GetInputTableCount() const
+int TOperationPreparationContext::GetInputCount() const
 {
     return static_cast<int>(Inputs_.size());
 }
 
-int TSchemaInferenceContext::GetOutputTableCount() const
+int TOperationPreparationContext::GetOutputCount() const
 {
     return static_cast<int>(Outputs_.size());
 }
 
-const TVector<TTableSchema>& TSchemaInferenceContext::GetInputTableSchemas() const
+const TVector<TTableSchema>& TOperationPreparationContext::GetInputSchemas() const
 {
     NRawClient::TRawBatchRequest batchRequest;
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputSchemas_.size()); ++tableIndex) {
@@ -58,7 +58,7 @@ const TVector<TTableSchema>& TSchemaInferenceContext::GetInputTableSchemas() con
     return InputSchemas_;
 }
 
-const TTableSchema& TSchemaInferenceContext::GetInputTableSchema(int index) const
+const TTableSchema& TOperationPreparationContext::GetInputSchema(int index) const
 {
     auto& schema = InputSchemas_[index];
     if (!InputSchemasLoaded_[index]) {
@@ -73,7 +73,7 @@ const TTableSchema& TSchemaInferenceContext::GetInputTableSchema(int index) cons
     return schema;
 }
 
-TMaybe<TYPath> TSchemaInferenceContext::GetInputTablePath(int index) const
+TMaybe<TYPath> TOperationPreparationContext::GetInputPath(int index) const
 {
     Y_VERIFY(index < static_cast<int>(Inputs_.size()));
     if (Inputs_[index].RichYPath) {
@@ -82,7 +82,7 @@ TMaybe<TYPath> TSchemaInferenceContext::GetInputTablePath(int index) const
     return Nothing();
 }
 
-TMaybe<TYPath> TSchemaInferenceContext::GetOutputTablePath(int index) const
+TMaybe<TYPath> TOperationPreparationContext::GetOutputPath(int index) const
 {
     Y_VERIFY(index < static_cast<int>(Outputs_.size()));
     if (Outputs_[index].RichYPath) {
@@ -93,42 +93,39 @@ TMaybe<TYPath> TSchemaInferenceContext::GetOutputTablePath(int index) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSpeculativeSchemaInferenceContext::TSpeculativeSchemaInferenceContext(
-    const TSchemaInferenceResult& previousResult,
+TSpeculativeOperationPreparationContext::TSpeculativeOperationPreparationContext(
+    const TVector<TTableSchema>& previousResult,
     TStructuredJobTableList inputs,
     TStructuredJobTableList outputs)
-    : Inputs_(std::move(inputs))
+    : InputSchemas_(previousResult)
+    , Inputs_(std::move(inputs))
     , Outputs_(std::move(outputs))
 {
     Y_VERIFY(Inputs_.size() == previousResult.size());
-    InputSchemas_.reserve(previousResult.size());
-    for (const auto& maybeSchema : previousResult) {
-        InputSchemas_.push_back(maybeSchema.GetOrElse(TTableSchema{}));
-    }
 }
 
-int TSpeculativeSchemaInferenceContext::GetInputTableCount() const
+int TSpeculativeOperationPreparationContext::GetInputCount() const
 {
     return static_cast<int>(Inputs_.size());
 }
 
-int TSpeculativeSchemaInferenceContext::GetOutputTableCount() const
+int TSpeculativeOperationPreparationContext::GetOutputCount() const
 {
     return static_cast<int>(Outputs_.size());
 }
 
-const TVector<TTableSchema>& TSpeculativeSchemaInferenceContext::GetInputTableSchemas() const
+const TVector<TTableSchema>& TSpeculativeOperationPreparationContext::GetInputSchemas() const
 {
     return InputSchemas_;
 }
 
-const TTableSchema& TSpeculativeSchemaInferenceContext::GetInputTableSchema(int index) const
+const TTableSchema& TSpeculativeOperationPreparationContext::GetInputSchema(int index) const
 {
     Y_VERIFY(index < static_cast<int>(InputSchemas_.size()));
     return InputSchemas_[index];
 }
 
-TMaybe<TYPath> TSpeculativeSchemaInferenceContext::GetInputTablePath(int index) const
+TMaybe<TYPath> TSpeculativeOperationPreparationContext::GetInputPath(int index) const
 {
     Y_VERIFY(index < static_cast<int>(Inputs_.size()));
     if (Inputs_[index].RichYPath) {
@@ -137,7 +134,7 @@ TMaybe<TYPath> TSpeculativeSchemaInferenceContext::GetInputTablePath(int index) 
     return Nothing();
 }
 
-TMaybe<TYPath> TSpeculativeSchemaInferenceContext::GetOutputTablePath(int index) const
+TMaybe<TYPath> TSpeculativeOperationPreparationContext::GetOutputPath(int index) const
 {
     Y_VERIFY(index < static_cast<int>(Outputs_.size()));
     if (Outputs_[index].RichYPath) {
@@ -148,13 +145,63 @@ TMaybe<TYPath> TSpeculativeSchemaInferenceContext::GetOutputTablePath(int index)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemaInferenceResult InferJobSchemas(
+TVector<TTableSchema> PrepareOperation(
     const IJob& job,
-    const ISchemaInferenceContext& context)
+    const IOperationPreparationContext& context,
+    TStructuredJobTableList* inputsPtr,
+    TStructuredJobTableList* outputsPtr,
+    TUserJobFormatHints& hints)
 {
-    TSchemaInferenceResultBuilder builder(context);
-    job.InferSchemas(context, builder);
-    return builder.Build();
+    TJobOperationPreparer preparer(context);
+    job.PrepareOperation(context, preparer);
+    preparer.Finish();
+
+    const auto& inputDescriptions = preparer.GetInputDescriptions();
+    const auto& columnRenamings = preparer.GetInputColumnRenamings();
+    const auto& columnFilters = preparer.GetInputColumnFilters();
+    if (inputsPtr) {
+        auto& inputs = *inputsPtr;
+        for (int i = 0; i < static_cast<int>(inputs.size()); ++i) {
+            Y_VERIFY(inputs[i].RichYPath);
+            if (inputDescriptions[i] && HoldsAlternative<TUnspecifiedTableStructure>(inputs[i].Description)) {
+                inputs[i].Description = *inputDescriptions[i];
+            }
+            if (!columnRenamings[i].empty()) {
+                inputs[i].RichYPath->RenameColumns(columnRenamings[i]);
+            }
+            if (columnFilters[i]) {
+                inputs[i].RichYPath->Columns(*columnFilters[i]);
+            }
+        }
+    }
+
+    if (outputsPtr) {
+        auto& outputs = *outputsPtr;
+        const auto& outputDescriptions = preparer.GetOutputDescriptions();
+        for (int i = 0; i < static_cast<int>(outputs.size()); ++i) {
+            Y_VERIFY(outputs[i].RichYPath);
+            if (outputDescriptions[i] && HoldsAlternative<TUnspecifiedTableStructure>(outputs[i].Description)) {
+                outputs[i].Description = *outputDescriptions[i];
+            }
+        }
+    }
+
+    auto applyPatch = [](TMaybe<TFormatHints>& origin, const TMaybe<TFormatHints>& patch) {
+        if (origin) {
+            if (patch) {
+                origin->Merge(*patch);
+            }
+        } else {
+            origin = patch;
+        }
+    };
+
+    auto preparerHints = preparer.GetFormatHints();
+    applyPatch(preparerHints.InputFormatHints_, hints.InputFormatHints_);
+    applyPatch(preparerHints.OutputFormatHints_, hints.OutputFormatHints_);
+    hints = std::move(preparerHints);
+
+    return preparer.GetOutputSchemas();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -2,6 +2,8 @@
 
 #include "fwd.h"
 
+#include <statbox/ydl/runtime/cpp/gen_support/traits.h>
+
 #include <library/cpp/type_info/type_info.h>
 #include <library/cpp/yson/node/node.h>
 
@@ -413,14 +415,14 @@ TTableSchema CreateTableSchema(
     const TKeyColumns& keyColumns = TKeyColumns(),
     bool keepFieldsWithoutExtension = true);
 
-template<class TProtoType>
+template <class TProtoType, typename = std::enable_if_t<std::is_base_of_v<::google::protobuf::Message, TProtoType>>>
 inline TTableSchema CreateTableSchema(
     const TKeyColumns& keyColumns = TKeyColumns(),
     bool keepFieldsWithoutExtension = true)
 {
     static_assert(
         std::is_base_of_v<::google::protobuf::Message, TProtoType>,
-        "Should be base of google::protobuf::Message");
+        "Template argument must be derived from ::google::protobuf::Message");
 
     return CreateTableSchema(
         *TProtoType::descriptor(),
@@ -429,6 +431,16 @@ inline TTableSchema CreateTableSchema(
 }
 
 TTableSchema CreateTableSchema(NTi::TTypePtr type);
+
+template <class TYdlType, typename = std::enable_if_t<NYdl::TIsYdlGenerated<TYdlType>::value>>
+inline TTableSchema CreateTableSchema()
+{
+    static_assert(
+        NYdl::TIsYdlGenerated<TYdlType>::value,
+        "Template argument must be YDL generated type");
+
+    return CreateTableSchema(NYdl::TYdlTraits<TYdlType>::Reflect());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

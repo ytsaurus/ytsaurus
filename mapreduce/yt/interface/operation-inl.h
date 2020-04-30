@@ -386,14 +386,60 @@ TDerived& TOperationIOSpec<TDerived>::AddProtobufOutput_VerySlow_Deprecated(cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TCont>
-TSchemaInferenceResultBuilder& TSchemaInferenceResultBuilder::OutputSchemas(const TCont& indices, const TTableSchema& schema)
+template <typename TRow>
+TJobOperationPreparer::TInputGroup& TJobOperationPreparer::TInputGroup::Description()
 {
-    for (ui32 index : indices) {
-        ValidateIllegallyMissing(index);
+    for (auto i : Indices_) {
+        Preparer_.InputDescription<TRow>(i);
     }
-    for (ui32 index : indices) {
-        Schemas_[index] = schema;
+    return *this;
+}
+
+template <typename TRow>
+TJobOperationPreparer::TOutputGroup& TJobOperationPreparer::TOutputGroup::Description(bool inferSchema)
+{
+    for (auto i : Indices_) {
+        Preparer_.OutputDescription<TRow>(i, inferSchema);
+    }
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TCont>
+TJobOperationPreparer::TInputGroup TJobOperationPreparer::BeginInputGroup(const TCont& indices)
+{
+    for (auto i : indices) {
+        ValidateInputTableIndex(i, AsStringBuf("BeginInputGroup()"));
+    }
+    return TInputGroup(*this, TVector<int>(std::begin(indices), std::end(indices)));
+}
+
+template <typename TCont>
+TJobOperationPreparer::TOutputGroup TJobOperationPreparer::BeginOutputGroup(const TCont& indices)
+{
+    for (auto i : indices) {
+        ValidateOutputTableIndex(i, AsStringBuf("BeginOutputGroup()"));
+    }
+    return TOutputGroup(*this, indices);
+}
+
+
+template <typename TRow>
+TJobOperationPreparer& TJobOperationPreparer::InputDescription(int tableIndex)
+{
+    ValidateMissingInputDescription(tableIndex);
+    InputTableDescriptions_[tableIndex] = StructuredTableDescription<TRow>();
+    return *this;
+}
+
+template <typename TRow>
+TJobOperationPreparer& TJobOperationPreparer::OutputDescription(int tableIndex, bool inferSchema)
+{
+    ValidateMissingOutputDescription(tableIndex);
+    OutputTableDescriptions_[tableIndex] = StructuredTableDescription<TRow>();
+    if (inferSchema && !OutputSchemas_[tableIndex]) {
+        OutputSchemas_[tableIndex] = CreateTableSchema<TRow>();
     }
     return *this;
 }

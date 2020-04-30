@@ -48,18 +48,22 @@ REGISTER_NAMED_VANILLA_JOB("NYT::TCommandVanillaJob", TCommandVanillaJob);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStructuredRowStreamDescription IVanillaJob<>::GetInputRowStreamDescription() const
+bool operator==(const TUnspecifiedTableStructure&, const TUnspecifiedTableStructure&)
 {
-    return TVoidStructuredRowStream();
+    return true;
 }
 
-TStructuredRowStreamDescription IVanillaJob<>::GetOutputRowStreamDescription() const
+bool operator==(const TProtobufTableStructure& lhs, const TProtobufTableStructure& rhs)
 {
-    return TVoidStructuredRowStream();
+    return lhs.Descriptor == rhs.Descriptor;
+}
+
+bool operator==(const TYdlTableStructure& lhs, const TYdlTableStructure& rhs)
+{
+    return NTi::NEq::TStrictlyEqual()(lhs.Type, rhs.Type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 const TVector<TStructuredTablePath>& TOperationInputSpecBase::GetStructuredInputs() const
 {
@@ -89,6 +93,18 @@ TVanillaTask& TVanillaTask::AddStructuredOutput(TStructuredTablePath path)
 {
     TOperationOutputSpecBase::AddStructuredOutput(std::move(path));
     return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStructuredRowStreamDescription IVanillaJob<void>::GetInputRowStreamDescription() const
+{
+    return TVoidStructuredRowStream();
+}
+
+TStructuredRowStreamDescription IVanillaJob<void>::GetOutputRowStreamDescription() const
+{
+    return TVoidStructuredRowStream();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,71 +161,152 @@ TVector<std::tuple<TLocalFilePath, TAddLocalFileOptions>> TUserJobSpec::GetLocal
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemaInferenceResultBuilder::TSchemaInferenceResultBuilder(const ISchemaInferenceContext& context)
-    : Context_(context)
-    , Schemas_(context.GetOutputTableCount(), TIllegallyMissingSchema{})
+TJobOperationPreparer::TInputGroup::TInputGroup(TJobOperationPreparer& preparer, TVector<int> indices)
+    : Preparer_(preparer)
+    , Indices_(std::move(indices))
 { }
 
-TSchemaInferenceResultBuilder& TSchemaInferenceResultBuilder::OutputSchema(int tableIndex, TTableSchema schema)
+TJobOperationPreparer::TInputGroup& TJobOperationPreparer::TInputGroup::ColumnRenaming(const THashMap<TString, TString>& renaming)
 {
-    Y_ENSURE(tableIndex < static_cast<int>(Schemas_.size()));
-    ValidateIllegallyMissing(tableIndex);
-    Schemas_[tableIndex] = std::move(schema);
-    return *this;
-}
-
-TSchemaInferenceResultBuilder& TSchemaInferenceResultBuilder::OutputSchemas(int begin, int end, const TTableSchema& schema)
-{
-    Y_ENSURE(begin <= end);
-    for (auto i = begin; i < end; ++i) {
-        ValidateIllegallyMissing(i);
-    }
-    for (auto i = begin; i < end; ++i) {
-        Schemas_[i] = schema;
+    for (auto i : Indices_) {
+        Preparer_.InputColumnRenaming(i, renaming);
     }
     return *this;
 }
 
-TSchemaInferenceResultBuilder& TSchemaInferenceResultBuilder::IntentionallyMissingOutputSchema(int tableIndex)
+TJobOperationPreparer::TInputGroup& TJobOperationPreparer::TInputGroup::ColumnFilter(const TVector<TString>& columns)
 {
-    Y_ENSURE(tableIndex < static_cast<int>(Schemas_.size()));
-    ValidateIllegallyMissing(tableIndex);
-    Schemas_[tableIndex] = TIntentionallyMissingSchema{};
-    return *this;
-}
-
-TSchemaInferenceResultBuilder& TSchemaInferenceResultBuilder::RemainingOutputSchemas(const TTableSchema& schema)
-{
-    for (auto& entry : Schemas_) {
-        if (HoldsAlternative<TIllegallyMissingSchema>(entry)) {
-            entry = schema;
-        }
+    for (auto i : Indices_) {
+        Preparer_.InputColumnFilter(i, columns);
     }
     return *this;
 }
 
-TSchemaInferenceResult TSchemaInferenceResultBuilder::Build()
+TJobOperationPreparer& TJobOperationPreparer::TInputGroup::EndInputGroup()
+{
+    return Preparer_;
+}
+
+TJobOperationPreparer::TOutputGroup::TOutputGroup(TJobOperationPreparer& preparer, TVector<int> indices)
+    : Preparer_(preparer)
+    , Indices_(std::move(indices))
+{ }
+
+TJobOperationPreparer::TOutputGroup& TJobOperationPreparer::TOutputGroup::Schema(const TTableSchema &schema)
+{
+    for (auto i : Indices_) {
+        Preparer_.OutputSchema(i, schema);
+    }
+    return *this;
+}
+
+TJobOperationPreparer::TOutputGroup& TJobOperationPreparer::TOutputGroup::NoSchema()
+{
+    for (auto i : Indices_) {
+        Preparer_.NoOutputSchema(i);
+    }
+    return *this;
+}
+
+TJobOperationPreparer& TJobOperationPreparer::TOutputGroup::EndOutputGroup()
+{
+    return Preparer_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobOperationPreparer::TJobOperationPreparer(const IOperationPreparationContext& context)
+    : Context_(context)
+    , OutputSchemas_(context.GetOutputCount())
+    , InputColumnRenamings_(context.GetInputCount())
+    , InputColumnFilters_(context.GetInputCount())
+    , InputTableDescriptions_(context.GetInputCount())
+    , OutputTableDescriptions_(context.GetOutputCount())
+{ }
+
+TJobOperationPreparer::TInputGroup TJobOperationPreparer::BeginInputGroup(int begin, int end)
+{
+    Y_ENSURE_EX(begin <= end, TApiUsageError()
+        << "BeginInputGroup(): begin must not exceed end, got " << begin << ", " << end);
+    TVector<int> indices;
+    for (int i = begin; i < end; ++i) {
+        ValidateInputTableIndex(i, AsStringBuf("BeginInputGroup()"));
+        indices.push_back(i);
+    }
+    return TInputGroup(*this, std::move(indices));
+}
+
+
+TJobOperationPreparer::TOutputGroup TJobOperationPreparer::BeginOutputGroup(int begin, int end)
+{
+    Y_ENSURE_EX(begin <= end, TApiUsageError()
+        << "BeginOutputGroup(): begin must not exceed end, got " << begin << ", " << end);
+    TVector<int> indices;
+    for (int i = begin; i < end; ++i) {
+        ValidateOutputTableIndex(i, AsStringBuf("BeginOutputGroup()"));
+        indices.push_back(i);
+    }
+    return TOutputGroup(*this, std::move(indices));
+}
+
+TJobOperationPreparer& TJobOperationPreparer::OutputSchema(int tableIndex, TTableSchema schema)
+{
+    ValidateMissingOutputSchema(tableIndex);
+    OutputSchemas_[tableIndex] = std::move(schema);
+    return *this;
+}
+
+TJobOperationPreparer& TJobOperationPreparer::NoOutputSchema(int tableIndex)
+{
+    ValidateMissingOutputSchema(tableIndex);
+    OutputSchemas_[tableIndex] = EmptyNonstrictSchema();
+    return *this;
+}
+
+TJobOperationPreparer& TJobOperationPreparer::InputColumnRenaming(
+    int tableIndex,
+    const THashMap<TString,TString>& renaming)
+{
+    ValidateInputTableIndex(tableIndex, AsStringBuf("InputColumnRenaming()"));
+    InputColumnRenamings_[tableIndex] = renaming;
+    return *this;
+}
+
+TJobOperationPreparer& TJobOperationPreparer::InputColumnFilter(int tableIndex, const TVector<TString>& columns)
+{
+    ValidateInputTableIndex(tableIndex, AsStringBuf("InputColumnFilter()"));
+    InputColumnFilters_[tableIndex] = columns;
+    return *this;
+}
+
+TJobOperationPreparer& TJobOperationPreparer::FormatHints(TUserJobFormatHints newFormatHints)
+{
+    FormatHints_ = newFormatHints;
+    return *this;
+}
+
+void TJobOperationPreparer::Finish()
 {
     FinallyValidate();
+}
 
-    TSchemaInferenceResult result;
-    result.reserve(Schemas_.size());
-    for (auto& schema : Schemas_) {
-        if (HoldsAlternative<TTableSchema>(schema)) {
-            result.push_back(std::move(Get<TTableSchema>(schema)));
-        } else {
-            result.emplace_back();
-        }
-        schema = TIllegallyMissingSchema();
+TVector<TTableSchema> TJobOperationPreparer::GetOutputSchemas()
+{
+    TVector<TTableSchema> result;
+    result.reserve(OutputSchemas_.size());
+    for (auto& schema : OutputSchemas_) {
+        Y_VERIFY(schema.Defined());
+        result.push_back(std::move(*schema));
+        schema.Clear();
     }
     return result;
 }
 
-void TSchemaInferenceResultBuilder::FinallyValidate() const
+void TJobOperationPreparer::FinallyValidate() const
 {
     TVector<int> illegallyMissingSchemaIndices;
-    for (int i = 0; i < static_cast<int>(Schemas_.size()); ++i) {
-        if (HoldsAlternative<TIllegallyMissingSchema>(Schemas_[i])) {
+    for (int i = 0; i < static_cast<int>(OutputSchemas_.size()); ++i) {
+        if (!OutputSchemas_[i]) {
             illegallyMissingSchemaIndices.push_back(i);
         }
     }
@@ -217,32 +314,116 @@ void TSchemaInferenceResultBuilder::FinallyValidate() const
         return;
     }
     TApiUsageError error;
-    error << "Output table schemas are missing and not marked as intentionally missing: ";
+    error << "Output table schemas are missing: ";
     for (auto i : illegallyMissingSchemaIndices) {
         error << "no. " << i;
-        if (auto path = Context_.GetInputTablePath(i)) {
+        if (auto path = Context_.GetInputPath(i)) {
             error << "(" << *path << ")";
         }
         error << "; ";
     }
-    ythrow error;
-}
-
-void TSchemaInferenceResultBuilder::ValidateIllegallyMissing(int tableIndex) const
-{
-    Y_ENSURE_EX(HoldsAlternative<TIllegallyMissingSchema>(Schemas_[tableIndex]),
-        TApiUsageError() <<
-        "Output table schema no. " << tableIndex << " " <<
-        "(" << Context_.GetOutputTablePath(tableIndex).GetOrElse("<unknown path>") << ") " <<
-        "is already set or marked as intentionally missing");
+    ythrow std::move(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void IJob::InferSchemas(const ISchemaInferenceContext& context, TSchemaInferenceResultBuilder& resultBuilder) const
+void TJobOperationPreparer::ValidateInputTableIndex(int tableIndex, TStringBuf message) const
 {
-    for (int i = 0; i < context.GetOutputTableCount(); ++i) {
-        resultBuilder.IntentionallyMissingOutputSchema(i);
+    Y_ENSURE_EX(
+        0 <= tableIndex && tableIndex < static_cast<int>(Context_.GetInputCount()),
+        TApiUsageError() <<
+        message << ": input table index " << tableIndex << " us out of range [0;" <<
+        OutputSchemas_.size() << ")");
+}
+
+void TJobOperationPreparer::ValidateOutputTableIndex(int tableIndex, TStringBuf message) const
+{
+    Y_ENSURE_EX(
+        0 <= tableIndex && tableIndex < static_cast<int>(Context_.GetOutputCount()),
+        TApiUsageError() <<
+        message << ": output table index " << tableIndex << " us out of range [0;" <<
+        OutputSchemas_.size() << ")");
+}
+
+void TJobOperationPreparer::ValidateMissingOutputSchema(int tableIndex) const
+{
+    ValidateOutputTableIndex(tableIndex, "ValidateMissingOutputSchema()");
+    Y_ENSURE_EX(!OutputSchemas_[tableIndex],
+        TApiUsageError() <<
+        "Output table schema no. " << tableIndex << " " <<
+        "(" << Context_.GetOutputPath(tableIndex).GetOrElse("<unknown path>") << ") " <<
+        "is already set");
+}
+
+void TJobOperationPreparer::ValidateMissingInputDescription(int tableIndex) const
+{
+    ValidateOutputTableIndex(tableIndex, "ValidateMissingInputDescription()");
+    Y_ENSURE_EX(!InputTableDescriptions_[tableIndex],
+        TApiUsageError() <<
+        "Description for input no. " << tableIndex << " " <<
+        "(" << Context_.GetOutputPath(tableIndex).GetOrElse("<unknown path>") << ") " <<
+        "is already set");
+}
+
+void TJobOperationPreparer::ValidateMissingOutputDescription(int tableIndex) const
+{
+    ValidateOutputTableIndex(tableIndex, "ValidateMissingOutputDescription()");
+    Y_ENSURE_EX(!OutputTableDescriptions_[tableIndex],
+        TApiUsageError() <<
+        "Description for output no. " << tableIndex << " " <<
+        "(" << Context_.GetOutputPath(tableIndex).GetOrElse("<unknown path>") << ") " <<
+        "is already set");
+}
+
+TTableSchema TJobOperationPreparer::EmptyNonstrictSchema() {
+    return TTableSchema().Strict(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TVector<THashMap<TString, TString>>& TJobOperationPreparer::GetInputColumnRenamings() const
+{
+    return InputColumnRenamings_;
+}
+
+const TVector<TMaybe<TVector<TString>>>& TJobOperationPreparer::GetInputColumnFilters() const
+{
+    return InputColumnFilters_;
+}
+
+const TVector<TMaybe<TTableStructure>>& TJobOperationPreparer::GetInputDescriptions() const
+{
+    return InputTableDescriptions_;
+}
+
+const TVector<TMaybe<TTableStructure>>& TJobOperationPreparer::GetOutputDescriptions() const
+{
+    return OutputTableDescriptions_;
+}
+
+const TUserJobFormatHints& TJobOperationPreparer::GetFormatHints() const
+{
+    return FormatHints_;
+}
+
+TJobOperationPreparer& TJobOperationPreparer::InputFormatHints(TFormatHints hints)
+{
+    FormatHints_.InputFormatHints(hints);
+    return *this;
+}
+
+TJobOperationPreparer& TJobOperationPreparer::OutputFormatHints(TFormatHints hints)
+{
+    FormatHints_.OutputFormatHints(hints);
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void IJob::PrepareOperation(const IOperationPreparationContext& context, TJobOperationPreparer& resultBuilder) const
+{
+    for (int i = 0; i < context.GetOutputCount(); ++i) {
+        resultBuilder.NoOutputSchema(i);
     }
 }
 

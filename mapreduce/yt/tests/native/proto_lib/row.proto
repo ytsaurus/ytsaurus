@@ -91,3 +91,9 @@ message TRowWithTypeOptions
     optional Embedded EmbeddedField = 5 [(NYT.flags) = SERIALIZATION_YT];
     repeated Color RepeatedEnumIntField = 6 [(NYT.flags) = SERIALIZATION_YT, (NYT.flags) = ENUM_INT];
 }
+
+message TGrepperRecord
+{
+    optional string Key = 1;
+    optional bytes Other = 2 [(NYT.flags) = OTHER_COLUMNS];
+};

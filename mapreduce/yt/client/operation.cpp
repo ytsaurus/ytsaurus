@@ -4,7 +4,7 @@
 #include "file_reader.h"
 #include "file_writer.h"
 #include "init.h"
-#include "job_schema_inference.h"
+#include "prepare_operation.h"
 #include "operation_tracker.h"
 #include "retry_heavy_write_request.h"
 #include "skiff.h"
@@ -255,8 +255,23 @@ TSimpleOperationIo CreateSimpleOperationIo(
         VerifyHasElements(GetStructuredOutputs(spec), "output");
     }
 
-    const auto structuredInputs= CanonizeStructuredTableList(preparer.GetAuth(), GetStructuredInputs(spec));
-    const auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), GetStructuredOutputs(spec));
+    auto structuredInputs = CanonizeStructuredTableList(preparer.GetAuth(),  GetStructuredInputs(spec));
+    auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), GetStructuredOutputs(spec));
+    TUserJobFormatHints hints;
+    hints.InputFormatHints_ = GetInputFormatHints(spec);
+    hints.OutputFormatHints_ = GetOutputFormatHints(spec);
+
+    auto jobSchemaInferenceResult = PrepareOperation(
+        structuredJob,
+        TOperationPreparationContext(
+            structuredInputs,
+            structuredOutputs,
+            preparer.GetAuth(),
+            preparer.GetClientRetryPolicy(),
+            preparer.GetTransactionId()),
+        &structuredInputs,
+        &structuredOutputs,
+        hints);
 
     ENodeReaderFormat nodeReaderFormat = GetNodeReaderFormat(spec, allowSkiff);
 
@@ -268,7 +283,7 @@ TSimpleOperationIo CreateSimpleOperationIo(
         structuredJob,
         EIODirection::Input,
         structuredInputs,
-        GetInputFormatHints(spec),
+        hints.InputFormatHints_,
         nodeReaderFormat,
         /* allowFormatFromTableAttribute = */ true);
 
@@ -277,20 +292,11 @@ TSimpleOperationIo CreateSimpleOperationIo(
         structuredJob,
         EIODirection::Output,
         structuredOutputs,
-        GetOutputFormatHints(spec),
+        hints.OutputFormatHints_,
         ENodeReaderFormat::Yson,
         /* allowFormatFromTableAttribute = */ false);
 
     const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
-
-    auto jobSchemaInferenceResult = InferJobSchemas(
-        structuredJob,
-        TSchemaInferenceContext(
-            structuredInputs,
-            structuredOutputs,
-            preparer.GetAuth(),
-            preparer.GetClientRetryPolicy(),
-            preparer.GetTransactionId()));
 
     auto outputPaths = GetPathList(structuredOutputs, jobSchemaInferenceResult, inferOutputSchema);
 
@@ -1754,16 +1760,13 @@ TOperationId ExecuteMapReduce(
     TMapReduceOperationSpec spec = spec_;
 
     TMapReduceOperationIo operationIo;
-    const auto structuredInputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredInputs());
-    const auto structuredMapOutputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredMapOutputs());
-    const auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredOutputs());
+    auto structuredInputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredInputs());
+    auto structuredMapOutputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredMapOutputs());
+    auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), spec.GetStructuredOutputs());
 
     const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
 
-    operationIo.Inputs = GetPathList(structuredInputs, /*jobSchemaInferenceResult*/ Nothing(), /*inferSchema*/ false);
-    VerifyHasElements(operationIo.Inputs, "inputs");
-
-    TSchemaInferenceResult currentInferenceResult;
+    TVector<TTableSchema> currentInferenceResult;
 
     auto fixSpec = [&] (const TFormat& format) {
         if (format.IsYamredDsv()) {
@@ -1781,6 +1784,8 @@ TOperationId ExecuteMapReduce(
         }
     };
 
+    VerifyHasElements(structuredInputs, "inputs");
+
     TFormatBuilder formatBuilder(
         preparer.GetClientRetryPolicy(),
         preparer.GetAuth(),
@@ -1788,31 +1793,46 @@ TOperationId ExecuteMapReduce(
         options);
 
     if (mapper) {
-        auto nodeReaderFormat = NodeReaderFormatFromHintAndGlobalConfig(spec.MapperFormatHints_);
-
-        auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
-           *mapper,
-           EIODirection::Input,
-           structuredInputs,
-           spec.MapperFormatHints_.InputFormatHints_,
-           nodeReaderFormat,
-           /* allowFormatFromTableAttribute */ true);
-
         auto mapperOutputDescription =
             spec.GetIntermediateMapOutputDescription()
             .GetOrElse(TUnspecifiedTableStructure());
         TStructuredJobTableList mapperOutput = {
             TStructuredJobTable::Intermediate(mapperOutputDescription),
         };
+
         for (const auto& table : structuredMapOutputs) {
             mapperOutput.push_back(TStructuredJobTable{table.Description, table.RichYPath});
         }
+
+        auto hints = spec.MapperFormatHints_;
+
+        auto mapperInferenceResult = PrepareOperation(
+            *mapper,
+            TOperationPreparationContext(
+                structuredInputs,
+                mapperOutput,
+                preparer.GetAuth(),
+                preparer.GetClientRetryPolicy(),
+                preparer.GetTransactionId()),
+            &structuredInputs,
+            /* outputs */ nullptr,
+            hints);
+
+        auto nodeReaderFormat = NodeReaderFormatFromHintAndGlobalConfig(spec.MapperFormatHints_);
+
+        auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
+           *mapper,
+           EIODirection::Input,
+           structuredInputs,
+           hints.InputFormatHints_,
+           nodeReaderFormat,
+           /* allowFormatFromTableAttribute */ true);
 
         auto [outputFormat, outputFormatConfig] = formatBuilder.CreateFormat(
             *mapper,
             EIODirection::Output,
             mapperOutput,
-            spec.MapperFormatHints_.OutputFormatHints_,
+            hints.OutputFormatHints_,
             ENodeReaderFormat::Yson,
             /* allowFormatFromTableAttribute */ false);
 
@@ -1820,19 +1840,10 @@ TOperationId ExecuteMapReduce(
         operationIo.MapperInputFormat = inputFormat;
         operationIo.MapperOutputFormat = outputFormat;
 
-        auto mapperInferenceResult = InferJobSchemas(
-            *mapper,
-            TSchemaInferenceContext(
-                structuredInputs,
-                mapperOutput,
-                preparer.GetAuth(),
-                preparer.GetClientRetryPolicy(),
-                preparer.GetTransactionId()));
-
         Y_VERIFY(mapperInferenceResult.size() >= 1);
-        currentInferenceResult = TSchemaInferenceResult{mapperInferenceResult[0]};
+        currentInferenceResult = TVector<TTableSchema>{mapperInferenceResult[0]};
         // The first output as it corresponds to the intermediate data.
-        TSchemaInferenceResult additionalOutputsInferenceResult(mapperInferenceResult.begin() + 1, mapperInferenceResult.end());
+        TVector<TTableSchema> additionalOutputsInferenceResult(mapperInferenceResult.begin() + 1, mapperInferenceResult.end());
 
         operationIo.MapOutputs = GetPathList(
             structuredMapOutputs,
@@ -1853,13 +1864,6 @@ TOperationId ExecuteMapReduce(
                 TStructuredJobTable::Intermediate(reduceCombinerIntermediateInput),
             };
         }
-        auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
-            *reduceCombiner,
-            EIODirection::Input,
-            inputs,
-            spec.ReduceCombinerFormatHints_.InputFormatHints_,
-            ENodeReaderFormat::Yson,
-            /* allowFormatFromTableAttribute = */ isFirstStep);
 
         auto reduceCombinerOutputDescription = spec.GetIntermediateReduceCombinerOutputDescription()
             .GetOrElse(TUnspecifiedTableStructure());
@@ -1867,11 +1871,46 @@ TOperationId ExecuteMapReduce(
         TStructuredJobTableList outputs = {
             TStructuredJobTable::Intermediate(reduceCombinerOutputDescription),
         };
+
+        auto hints = spec.ReduceCombinerFormatHints_;
+
+        if (isFirstStep) {
+            currentInferenceResult = PrepareOperation(
+                *reduceCombiner,
+                TOperationPreparationContext(
+                    inputs,
+                    outputs,
+                    preparer.GetAuth(),
+                    preparer.GetClientRetryPolicy(),
+                    preparer.GetTransactionId()),
+                &inputs,
+                /* outputs */ nullptr,
+                hints);
+        } else {
+            currentInferenceResult = PrepareOperation(
+                *reduceCombiner,
+                TSpeculativeOperationPreparationContext(
+                    currentInferenceResult,
+                    inputs,
+                    outputs),
+                /* inputs */ nullptr,
+                /* outputs */ nullptr,
+                hints);
+        }
+
+        auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
+            *reduceCombiner,
+            EIODirection::Input,
+            inputs,
+            hints.InputFormatHints_,
+            ENodeReaderFormat::Yson,
+            /* allowFormatFromTableAttribute = */ isFirstStep);
+
         auto [outputFormat, outputFormatConfig] = formatBuilder.CreateFormat(
             *reduceCombiner,
             EIODirection::Output,
             outputs,
-            spec.ReduceCombinerFormatHints_.OutputFormatHints_,
+            hints.OutputFormatHints_,
             ENodeReaderFormat::Yson,
             /* allowFormatFromTableAttribute = */ false);
 
@@ -1881,24 +1920,6 @@ TOperationId ExecuteMapReduce(
 
         if (isFirstStep) {
             fixSpec(*operationIo.ReduceCombinerInputFormat);
-        }
-
-        if (isFirstStep) {
-            currentInferenceResult = InferJobSchemas(
-                *reduceCombiner,
-                TSchemaInferenceContext(
-                    inputs,
-                    outputs,
-                    preparer.GetAuth(),
-                    preparer.GetClientRetryPolicy(),
-                    preparer.GetTransactionId()));
-        } else {
-            currentInferenceResult = InferJobSchemas(
-                *reduceCombiner,
-                TSpeculativeSchemaInferenceContext(
-                    currentInferenceResult,
-                    inputs,
-                    outputs));
         }
     }
 
@@ -1914,11 +1935,39 @@ TOperationId ExecuteMapReduce(
             TStructuredJobTable::Intermediate(reducerInputDescription),
         };
     }
+
+    auto hints = spec.ReducerFormatHints_;
+
+    TVector<TTableSchema> reducerInferenceResult;
+    if (isFirstStep) {
+        reducerInferenceResult = PrepareOperation(
+            reducer,
+            TOperationPreparationContext(
+                structuredInputs,
+                structuredOutputs,
+                preparer.GetAuth(),
+                preparer.GetClientRetryPolicy(),
+                preparer.GetTransactionId()),
+            &structuredInputs,
+            &structuredOutputs,
+            hints);
+    } else {
+        reducerInferenceResult = PrepareOperation(
+            reducer,
+            TSpeculativeOperationPreparationContext(
+                currentInferenceResult,
+                reducerInputs,
+                structuredOutputs),
+            /* inputs */ nullptr,
+            &structuredOutputs,
+            hints);
+    }
+
     auto [inputFormat, inputFormatConfig] = formatBuilder.CreateFormat(
         reducer,
         EIODirection::Input,
         reducerInputs,
-        spec.ReducerFormatHints_.InputFormatHints_,
+        hints.InputFormatHints_,
         ENodeReaderFormat::Yson,
         /* allowFormatFromTableAttribute = */ isFirstStep);
 
@@ -1926,7 +1975,7 @@ TOperationId ExecuteMapReduce(
         reducer,
         EIODirection::Output,
         ToStructuredJobTableList(spec.GetStructuredOutputs()),
-        spec.ReducerFormatHints_.OutputFormatHints_,
+        hints.OutputFormatHints_,
         ENodeReaderFormat::Yson,
         /* allowFormatFromTableAttribute = */ false);
     operationIo.ReducerJobFiles = CreateFormatConfig(inputFormatConfig, outputFormatConfig);
@@ -1937,24 +1986,7 @@ TOperationId ExecuteMapReduce(
         fixSpec(operationIo.ReducerInputFormat);
     }
 
-    TSchemaInferenceResult reducerInferenceResult;
-    if (isFirstStep) {
-        reducerInferenceResult = InferJobSchemas(
-            reducer,
-            TSchemaInferenceContext(
-                structuredInputs,
-                structuredOutputs,
-                preparer.GetAuth(),
-                preparer.GetClientRetryPolicy(),
-                preparer.GetTransactionId()));
-    } else {
-        reducerInferenceResult = InferJobSchemas(
-            reducer,
-            TSpeculativeSchemaInferenceContext(
-                currentInferenceResult,
-                reducerInputs,
-                structuredOutputs));
-    }
+    operationIo.Inputs = GetPathList(structuredInputs, /*jobSchemaInferenceResult*/ Nothing(), /*inferSchema*/ false);
 
     operationIo.Outputs = GetPathList(structuredOutputs, reducerInferenceResult, inferOutputSchema);
     VerifyHasElements(operationIo.Outputs, "outputs");
@@ -3002,7 +3034,7 @@ TOperationPtr CreateOperationAndWaitIfRequired(const TOperationId& operationId, 
 void ResetUseClientProtobuf(const char* methodName)
 {
     Cerr << "WARNING! OPTION `TConfig::UseClientProtobuf' IS RESET TO `true'; "
-        << "IT CAN DETERIORIATE YOUR CODE PERFORMANCE!!! DON'T USE DEPRECATED METHOD `"
+        << "IT CAN DETERIORATE YOUR CODE PERFORMANCE!!! DON'T USE DEPRECATED METHOD `"
         << "TOperationIOSpec::" << methodName << "' TO AVOID THIS RESET" << Endl;
     // Give users some time to contemplate about usage of deprecated functions.
     Cerr << "Sleeping for 5 seconds..." << Endl;
