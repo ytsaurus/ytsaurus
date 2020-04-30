@@ -538,6 +538,11 @@ public:
         }
 
         Instance_->SetEnablePorto(options.EnablePorto);
+        if (options.EnablePorto == EEnablePorto::Full) {
+            Instance_->SetIsolate(false);
+        } else {
+            Instance_->SetIsolate(true);
+        }
 
         if (UsePortoMemoryTracking_) {
             // NB(psushin): typically we don't use memory cgroups for memory usage tracking, since memory cgroups are expensive and

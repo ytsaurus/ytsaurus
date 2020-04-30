@@ -100,6 +100,9 @@ public:
         // so we pass uid instead.
         Instance_->SetUser(ToString(uid));
 
+        Instance_->SetEnablePorto(EEnablePorto::None);
+        Instance_->SetIsolate(false);
+
         Process_ = New<TPortoProcess>("/bin/bash", Instance_, false);
         if (Options_->Command) {
             Process_->AddArguments({"-c", *Options_->Command});

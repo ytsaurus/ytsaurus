@@ -47,6 +47,7 @@ struct IInstance
     virtual TString GetAbsoluteName() const = 0;
     virtual TString GetStderr() const = 0;
     virtual void SetEnablePorto(EEnablePorto enablePorto) = 0;
+    virtual void SetIsolate(bool isolate) = 0;
     virtual void EnableMemoryTracking() = 0;
     virtual void SetUser(const TString& user) = 0;
     virtual void SetNet(const TString& net) = 0;
