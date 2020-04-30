@@ -349,6 +349,7 @@ message TReqLookupRows
     optional bool keep_missing_rows = 4 [default = true];
 
     optional bool enable_partial_result = 7 [default = false];
+    optional bool use_lookup_cache = 9 [default = false];
 
     optional TTabletReadOptions tablet_read_options = 106;
 
@@ -386,6 +387,7 @@ message TReqVersionedLookupRows
     optional TRetentionConfig retention_config = 6;
 
     optional bool enable_partial_result = 7 [default = false];
+    optional bool use_lookup_cache = 9 [default = false];
 
     optional TTabletReadOptions tablet_read_options = 106;
 

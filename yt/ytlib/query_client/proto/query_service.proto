@@ -58,6 +58,7 @@ message TReqMultiread
     repeated NYT.NProto.TGuid tablet_ids = 5;
     repeated int64 mount_revisions = 6;
     optional bool enable_partial_result = 7 [default=false];
+    optional bool use_lookup_cache = 8 [default=false];
 
     // Attachment contains wire-encoded data.
 }

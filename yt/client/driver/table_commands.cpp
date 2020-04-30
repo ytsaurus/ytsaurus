@@ -699,6 +699,8 @@ TLookupRowsCommand::TLookupRowsCommand()
         .Optional();
     RegisterParameter("enable_partial_result", Options.EnablePartialResult)
         .Optional();
+    RegisterParameter("use_lookup_cache", Options.UseLookupCache)
+        .Optional();
 }
 
 void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
@@ -767,6 +769,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         TVersionedLookupRowsOptions versionedOptions;
         versionedOptions.ColumnFilter = Options.ColumnFilter;
         versionedOptions.KeepMissingRows = Options.KeepMissingRows;
+        versionedOptions.UseLookupCache = Options.UseLookupCache;
         versionedOptions.Timestamp = Options.Timestamp;
         versionedOptions.RetentionConfig = RetentionConfig;
         auto asyncRowset = clientBase->VersionedLookupRows(Path.GetPath(), std::move(nameTable), std::move(keyRange), versionedOptions);
