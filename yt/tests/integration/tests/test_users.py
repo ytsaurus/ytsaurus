@@ -1,6 +1,8 @@
 import pytest
 import __builtin__
 
+from test_dynamic_tables import DynamicTablesBase
+
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
 
@@ -368,23 +370,7 @@ class TestUsers(YTEnvSetup):
             create("table", "//tmp/t4", attributes={"external": False}, authenticated_user="u")
 
 
-class TestBuiltinTabletSystemUsers(YTEnvSetup):
-    USE_DYNAMIC_TABLES = True
-
-    DELTA_MASTER_CONFIG = {
-        "tablet_manager": {
-            "peer_revocation_timeout" : 3000,
-        }
-    }
-
-    def _create_sorted_table(self, path, **attributes):
-        if "schema" not in attributes:
-            attributes.update({"schema": [
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "int64"}]
-            })
-        create_dynamic_table(path, **attributes)
-
+class TestBuiltinTabletSystemUsers(DynamicTablesBase):
     @authors("akozhikhov")
     def test_new_tablet_system_users(self):
         cell_id = sync_create_cells(1)[0]
@@ -397,34 +383,22 @@ class TestBuiltinTabletSystemUsers(YTEnvSetup):
 
         def _check_rows(last):
             keys = [{"key": i} for i in xrange(last)]
-            rows = [{"key": i, "value": i} for i in xrange(last)]
+            rows = [{"key": i, "value": str(i)} for i in xrange(last)]
             assert lookup_rows("//tmp/t", keys) == rows
 
-        def _check_health_after_decommission(cell_id, old_peer_addr):
-            def _check():
-                peers = get("#{0}/@peers".format(cell_id))
-                if len(peers) == 0 or peers[0].get("address", old_peer_addr) == old_peer_addr:
-                    return False
-
-                if get("#{0}/@health".format(cell_id)) != "good":
-                    return False
-
-                return True
-            wait(_check)
-
         sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": 0, "value": 0}])
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
         build_snapshot(cell_id=cell_id)
-        insert_rows("//tmp/t", [{"key": 1, "value": 1}])
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
 
         wait(_check_snapshot_and_changelog)
         _check_rows(2)
 
         old_peer_addr = get("#{0}/@peers".format(cell_id))[0]["address"]
         set_node_decommissioned(old_peer_addr, True)
-        _check_health_after_decommission(cell_id, old_peer_addr)
+        self._check_health_after_decommission(cell_id, old_peer_addr)
 
-        insert_rows("//tmp/t", [{"key": 2, "value": 2}])
+        insert_rows("//tmp/t", [{"key": 2, "value": "2"}])
         _check_rows(3)
 
 

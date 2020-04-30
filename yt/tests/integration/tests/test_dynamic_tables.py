@@ -145,6 +145,18 @@ class DynamicTablesBase(YTEnvSetup):
             return True
         wait(check)
 
+    def _check_health_after_decommission(self, cell_id, old_peer_addr):
+        def _check():
+            peers = get("#{0}/@peers".format(cell_id))
+            if len(peers) == 0 or peers[0].get("address", old_peer_addr) == old_peer_addr:
+                return False
+
+            if get("#{0}/@health".format(cell_id)) != "good":
+                return False
+
+            return True
+        wait(_check)
+
 
 ##################################################################
 
