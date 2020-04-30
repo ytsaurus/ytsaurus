@@ -769,6 +769,12 @@ func writeLocateSkynetShareOptions(w *yson.Writer, o *yt.LocateSkynetShareOption
 	}
 }
 
+func writeGenerateTimestampOptions(w *yson.Writer, o *yt.GenerateTimestampOptions) {
+	if o == nil {
+		return
+	}
+}
+
 type CreateNodeParams struct {
 	verb    Verb
 	path    ypath.YPath
@@ -2926,6 +2932,37 @@ func (p *AlterTableReplicaParams) MarshalHTTP(w *yson.Writer) {
 	w.MapKeyString("replica_id")
 	w.Any(p.id)
 	writeAlterTableReplicaOptions(w, p.options)
+}
+
+type GenerateTimestampParams struct {
+	verb    Verb
+	options *yt.GenerateTimestampOptions
+}
+
+func NewGenerateTimestampParams(
+	options *yt.GenerateTimestampOptions,
+) *GenerateTimestampParams {
+	if options == nil {
+		options = &yt.GenerateTimestampOptions{}
+	}
+	return &GenerateTimestampParams{
+		Verb("generate_timestamp"),
+		options,
+	}
+}
+
+func (p *GenerateTimestampParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *GenerateTimestampParams) YPath() (ypath.YPath, bool) {
+	return nil, false
+}
+func (p *GenerateTimestampParams) Log() []log.Field {
+	return []log.Field{}
+}
+
+func (p *GenerateTimestampParams) MarshalHTTP(w *yson.Writer) {
+	writeGenerateTimestampOptions(w, p.options)
 }
 
 type LocateSkynetShareParams struct {

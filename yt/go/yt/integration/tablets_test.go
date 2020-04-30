@@ -140,3 +140,12 @@ func TestAbortCommittedTx(t *testing.T) {
 
 	require.Empty(t, recorded.All())
 }
+
+func TestGenerateTimestamp(t *testing.T) {
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	ts, err := env.YT.GenerateTimestamp(env.Ctx, nil)
+	require.NoError(t, err)
+	require.NotZero(t, ts)
+}

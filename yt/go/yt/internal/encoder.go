@@ -6,10 +6,8 @@ import (
 	"io"
 
 	"a.yandex-team.ru/yt/go/guid"
-
-	"a.yandex-team.ru/yt/go/yson"
-
 	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 )
 
@@ -604,6 +602,19 @@ func (e *Encoder) LocateSkynetShare(
 		e.newCall(NewLocateSkynetShareParams(path, options)),
 		func(res *CallResult) error {
 			return res.decode(&l)
+		})
+	return
+}
+
+func (e *Encoder) GenerateTimestamp(
+	ctx context.Context,
+	options *yt.GenerateTimestampOptions,
+) (ts yt.Timestamp, err error) {
+	err = e.do(
+		ctx,
+		e.newCall(NewGenerateTimestampParams(options)),
+		func(res *CallResult) error {
+			return res.decodeSingle("timestamp", &ts)
 		})
 	return
 }
