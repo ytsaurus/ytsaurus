@@ -84,10 +84,6 @@ public:
         TJobId jobId,
         const TString& usrt);
 
-    TFuture<void> FlushOperationRuntimeParameters(
-        TOperationPtr operation,
-        const TOperationRuntimeParametersPtr& params);
-
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert);
 
     void AddGlobalWatcherRequester(TWatcherRequester requester);
