@@ -6,6 +6,7 @@ namespace NYT::NSchedulerSimulator {
 
 using namespace NScheduler;
 using namespace NConcurrency;
+using namespace NEventLog;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,6 +40,11 @@ IInvokerPtr TSchedulerStrategyHost::GetControlInvoker(NYT::NScheduler::EControlQ
     return GetCurrentInvoker();
 }
 
+IInvokerPtr TSchedulerStrategyHost::GetFairShareLoggingInvoker() const
+{
+    return GetCurrentInvoker();
+}
+
 IInvokerPtr TSchedulerStrategyHost::GetFairShareProfilingInvoker() const
 {
     return GetCurrentInvoker();
@@ -47,6 +53,11 @@ IInvokerPtr TSchedulerStrategyHost::GetFairShareProfilingInvoker() const
 IInvokerPtr TSchedulerStrategyHost::GetFairShareUpdateInvoker() const
 {
     return GetCurrentInvoker();
+}
+
+TFluentLogEvent TSchedulerStrategyHost::LogFairShareEventFluently(TInstant now)
+{
+    return LogEventFluently(ELogEventType::FairShareInfo, now);
 }
 
 TJobResources TSchedulerStrategyHost::GetResourceLimits(const TSchedulingTagFilter& filter)

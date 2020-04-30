@@ -60,6 +60,11 @@ public:
         , FeasibleInvokers(feasibleInvokers)
         , Logger(SchedulerLogger)
     {
+        FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
+            Host->GetFairShareLoggingInvoker(),
+            BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
+            Config->FairShareLogPeriod);
+
         FairShareProfilingExecutor_ = New<TPeriodicExecutor>(
             Host->GetFairShareProfilingInvoker(),
             BIND(&TFairShareStrategy::OnFairShareProfiling, MakeWeak(this)),
@@ -69,11 +74,6 @@ public:
             Host->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnFairShareUpdate, MakeWeak(this)),
             Config->FairShareUpdatePeriod);
-
-        FairShareLoggingExecutor_ = New<TPeriodicExecutor>(
-            Host->GetControlInvoker(EControlQueue::FairShareStrategy),
-            BIND(&TFairShareStrategy::OnFairShareLogging, MakeWeak(this)),
-            Config->FairShareLogPeriod);
 
         MinNeededJobResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
             Host->GetControlInvoker(EControlQueue::FairShareStrategy),
@@ -134,8 +134,6 @@ public:
 
     void OnFairShareLogging()
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-
         OnFairShareLoggingAt(TInstant::Now());
     }
 
@@ -727,19 +725,25 @@ public:
 
     virtual void OnFairShareEssentialLoggingAt(TInstant now) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKER_AFFINITY(Host->GetFairShareLoggingInvoker());
 
-        for (const auto& [treeId, tree] : IdToTree_) {
-            tree->OnFairShareEssentialLoggingAt(now);
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        auto snapshots = TreeIdToSnapshot_.Load();
+        for (const auto& [_, treeSnapshot] : snapshots) {
+            treeSnapshot->EssentialLogFairShare(Host->LogFairShareEventFluently(now));
         }
     }
 
     virtual void OnFairShareLoggingAt(TInstant now) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+        VERIFY_INVOKER_AFFINITY(Host->GetFairShareLoggingInvoker());
 
-        for (const auto& [treeId, tree] : IdToTree_) {
-            tree->OnFairShareLoggingAt(now);
+        TForbidContextSwitchGuard contextSwitchGuard;
+
+        auto snapshots = TreeIdToSnapshot_.Load();
+        for (const auto& [_, treeSnapshot] : snapshots) {
+            treeSnapshot->LogFairShare(Host->LogFairShareEventFluently(now));
         }
     }
 

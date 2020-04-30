@@ -32,8 +32,11 @@ public:
         const TRemoteEventLogConfigPtr& remoteEventLogConfig);
 
     virtual IInvokerPtr GetControlInvoker(NScheduler::EControlQueue queue) const override;
+    virtual IInvokerPtr GetFairShareLoggingInvoker() const override;
     virtual IInvokerPtr GetFairShareProfilingInvoker() const override;
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override;
+
+    virtual NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) override;
 
     virtual NScheduler::TJobResources GetResourceLimits(const NScheduler::TSchedulingTagFilter& filter) override;
 
