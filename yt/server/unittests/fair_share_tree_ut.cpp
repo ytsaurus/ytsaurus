@@ -52,11 +52,6 @@ struct TSchedulerStrategyHostMock
         YT_UNIMPLEMENTED();
     }
 
-    virtual IInvokerPtr GetFairShareLoggingInvoker() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     virtual IInvokerPtr GetFairShareProfilingInvoker() const override
     {
         YT_UNIMPLEMENTED();
@@ -65,11 +60,6 @@ struct TSchedulerStrategyHostMock
     virtual IInvokerPtr GetFairShareUpdateInvoker() const override
     {
         return GetCurrentInvoker();
-    }
-
-    virtual NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) override
-    {
-        YT_UNIMPLEMENTED();
     }
 
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) override

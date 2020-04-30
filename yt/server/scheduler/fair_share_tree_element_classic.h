@@ -361,8 +361,6 @@ public:
 
     TJobResources ComputeResourceLimits() const;
 
-    TJobResources GetTotalResourceLimits() const;
-
     // XXX(ignat)
     void LogDetailedInfo() const;
 

@@ -57,8 +57,8 @@ struct TPoolsUpdateResult
 //!   * Snapshot of the tree with scheduling attributes (fair share ratios, best leaf descendants et. c).
 //!     It is built repeatedly from actual tree by taking snapshot and calculating scheduling attributes.
 //!     Clones of this tree are used in heartbeats for scheduling. Also, element attributes from this tree
-//!     are used in orchid, for logging and for profiling.
-//!     This tree represented by #RootElementSnapshot_.
+//!     are used in orchid and for profiling.
+//!     This tree represented by fields #GlobalDynamicAttributes_, #ElementIndexes_, #RootElementSnapshot_.
 //!     NB: elements of this tree may be invalidated by #Alive flag in resource tree. In this case element cannot be safely used
 //!     (corresponding operation or pool can be already deleted from all other scheduler structures).
 //!
@@ -171,17 +171,32 @@ public:
 
     void BuildUserToEphemeralPoolsInDefaultPool(NYTree::TFluentAny fluent);
 
+    void LogOperationsInfo();
+
+    void LogPoolsInfo();
+
     // NB: This function is public for scheduler simulator.
     TFuture<std::pair<IFairShareTreeSnapshotPtr, TError>> OnFairShareUpdateAt(TInstant now);
+
     void FinishFairShareUpdate();
 
+    // NB: This function is public for scheduler simulator.
+    void OnFairShareLoggingAt(TInstant now);
+
+    // NB: This function is public for scheduler simulator.
+    void OnFairShareEssentialLoggingAt(TInstant now);
+
     void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs);
+
+    void BuildPoolsInformation(NYTree::TFluentMap fluent);
 
     void BuildStaticPoolsInformation(NYTree::TFluentAny fluent);
 
     void BuildOrchid(NYTree::TFluentMap fluent);
 
     void BuildFairShareInfo(NYTree::TFluentMap fluent);
+
+    void BuildEssentialFairShareInfo(NYTree::TFluentMap fluent);
 
     void ResetState();
 
@@ -260,8 +275,6 @@ private:
         TRawOperationElementMap OperationIdToElement;
         TRawOperationElementMap DisabledOperationIdToElement;
         TRawPoolMap PoolNameToElement;
-        TDynamicAttributesList DynamicAttributes;
-        THashMap<TString, int> ElementIndexes;
         TFairShareStrategyTreeConfigPtr Config;
 
         TOperationElement* FindOperationElement(TOperationId operationId) const;
@@ -294,10 +307,6 @@ private:
 
         virtual void ProfileFairShare() const override;
 
-        virtual void LogFairShare(NEventLog::TFluentLogEvent fluent) const override;
-
-        virtual void EssentialLogFairShare(NEventLog::TFluentLogEvent fluent) const override;
-
         virtual bool HasOperation(TOperationId operationId) const override;
 
         virtual bool IsOperationRunningInTree(TOperationId operationId) const override;
@@ -318,6 +327,10 @@ private:
         const NLogging::TLogger Logger;
     };
 
+    NConcurrency::TReaderWriterSpinLock GlobalDynamicAttributesLock_;
+    TDynamicAttributesList GlobalDynamicAttributes_;
+    THashMap<TString, int> ElementIndexes_;
+
     TRootElementSnapshotPtr RootElementSnapshot_;
     TRootElementSnapshotPtr RootElementSnapshotPrecommit_;
 
@@ -325,16 +338,17 @@ private:
     TFairShareSchedulingStage PreemptiveSchedulingStage_;
     TFairShareSchedulingStage PackingFallbackSchedulingStage_;
 
-    mutable NProfiling::TAggregateGauge FairSharePreUpdateTimeCounter_;
-    mutable NProfiling::TAggregateGauge FairShareUpdateTimeCounter_;
-    mutable NProfiling::TAggregateGauge FairShareFluentLogTimeCounter_;
-    mutable NProfiling::TAggregateGauge FairShareTextLogTimeCounter_;
-    mutable NProfiling::TAggregateGauge AnalyzePreemptableJobsTimeCounter_;
+    NProfiling::TAggregateGauge FairSharePreUpdateTimeCounter_;
+    NProfiling::TAggregateGauge FairShareUpdateTimeCounter_;
+    NProfiling::TAggregateGauge FairShareLogTimeCounter_;
+    NProfiling::TAggregateGauge AnalyzePreemptableJobsTimeCounter_;
 
     TSpinLock CustomProfilingCountersLock_;
     THashMap<TString, std::unique_ptr<NProfiling::TAggregateGauge>> CustomProfilingCounters_;
 
     NProfiling::TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
+
+    TDynamicAttributes GetGlobalDynamicAttributes(const TSchedulerElement* element) const;
 
     std::pair<IFairShareTreeSnapshotPtr, TError> DoFairShareUpdateAt(TInstant now);
 
@@ -365,25 +379,6 @@ private:
         const TRootElementSnapshotPtr& rootElementSnapshot);
 
     void DoProfileFairShare(const TRootElementSnapshotPtr& rootElementSnapshot) const;
-    void DoLogFairShare(const TRootElementSnapshotPtr& rootElementSnapshot, NEventLog::TFluentLogEvent fluent) const;
-    void DoEssentialLogFairShare(const TRootElementSnapshotPtr& rootElementSnapshot, NEventLog::TFluentLogEvent fluent) const;
-
-    void DoBuildFairShareInfo(const TRootElementSnapshotPtr& rootElementSnapshot, NYTree::TFluentMap fluent) const;
-    void DoBuildPoolsInformation(const TRootElementSnapshotPtr& rootElementSnapshot, NYTree::TFluentMap fluent) const;
-    void DoBuildOperationProgress(const TOperationElement* element, const TRootElementSnapshotPtr& rootElementSnapshot, NYTree::TFluentMap fluent) const;
-    void DoBuildElementYson(const TSchedulerElement* element, const TRootElementSnapshotPtr& rootElementSnapshot, NYTree::TFluentMap fluent) const;
-
-    void DoBuildEssentialFairShareInfo(const TRootElementSnapshotPtr& rootElementSnapshot, NYTree::TFluentMap fluent) const;
-    void DoBuildEssentialPoolsInformation(const TRootElementSnapshotPtr& rootElementSnapshot, NYTree::TFluentMap fluent) const;
-    void DoBuildEssentialOperationProgress(const TOperationElement* element, const TRootElementSnapshotPtr& rootElementSnapshot, NYTree::TFluentMap fluent) const;
-    void DoBuildEssentialElementYson(const TSchedulerElement* element, const TRootElementSnapshotPtr& rootElementSnapshot, NYTree::TFluentMap fluent) const;
-
-    void LogOperationsInfo(const TRootElementSnapshotPtr& rootElementSnapshot) const;
-    void LogPoolsInfo(const TRootElementSnapshotPtr& rootElementSnapshot) const;
-
-    TDynamicAttributes GetDynamicAttributes(
-        const TRootElementSnapshotPtr& rootElementSnapshot,
-        const TSchedulerElement* element) const;
 
     void PreemptJob(
         const TJobPtr& job,
@@ -402,6 +397,8 @@ private:
 
     void AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName);
     void ReleaseOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName);
+
+    void BuildEssentialOperationProgress(TOperationId operationId, NYTree::TFluentMap fluent);
 
     int RegisterSchedulingTagFilter(const TSchedulingTagFilter& filter);
 
@@ -423,6 +420,12 @@ private:
     TOperationElement* FindRecentOperationElementSnapshot(TOperationId operationId) const;
 
     TCompositeSchedulerElement* GetRecentRootSnapshot() const;
+
+    void BuildEssentialPoolsInformation(NYTree::TFluentMap fluent);
+    void BuildElementYson(const TSchedulerElement* element, NYTree::TFluentMap fluent);
+    void BuildEssentialElementYson(const TSchedulerElement* element, NYTree::TFluentMap fluent, bool shouldPrintResourceUsage);
+    void BuildEssentialPoolElementYson(const TSchedulerElement* element, NYTree::TFluentMap fluent);
+    void BuildEssentialOperationElementYson(const TSchedulerElement* element, NYTree::TFluentMap fluent);
 
     NYTree::TYPath GetPoolPath(const TCompositeSchedulerElementPtr& element);
     TCompositeSchedulerElementPtr GetDefaultParentPool();

@@ -273,8 +273,7 @@ public:
             Config_->EventLog,
             GetMasterClient(),
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity));
-        ControlEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
-        FairShareEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
+        EventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
 
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
@@ -1244,11 +1243,6 @@ public:
         return Bootstrap_->GetControlInvoker(queue);
     }
 
-    virtual IInvokerPtr GetFairShareLoggingInvoker() const override
-    {
-        return FairShareLoggingActionQueue_->GetInvoker();
-    }
-
     virtual IInvokerPtr GetFairShareProfilingInvoker() const override
     {
         return FairShareProfilingActionQueue_->GetInvoker();
@@ -1259,43 +1253,18 @@ public:
         return FairShareUpdatePool_->GetInvoker();
     }
 
-    IYsonConsumer* GetControlEventLogConsumer()
+    virtual IYsonConsumer* GetEventLogConsumer() override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return ControlEventLogWriterConsumer_.get();
-    }
-
-    IYsonConsumer* GetFairShareEventLogConsumer()
-    {
-        VERIFY_INVOKER_AFFINITY(GetFairShareLoggingInvoker());
-
-        return FairShareEventLogWriterConsumer_.get();
-    }
-
-    virtual IYsonConsumer* GetEventLogConsumer() override
-    {
-        // By default, the control thread's consumer is used.
-        return GetControlEventLogConsumer();
+        return EventLogWriterConsumer_.get();
     }
 
     virtual const NLogging::TLogger* GetEventLogger() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         return &SchedulerEventLogger;
-    }
-
-    // NB(eshcherbin): Separate method due to separate invoker.
-    virtual TFluentLogEvent LogFairShareEventFluently(TInstant now) override
-    {
-        VERIFY_INVOKER_AFFINITY(GetFairShareLoggingInvoker());
-
-        return LogEventFluently(
-            ELogEventType::FairShareInfo,
-            GetFairShareEventLogConsumer(),
-            GetEventLogger(),
-            now);
     }
 
     // INodeShardHost implementation
@@ -1572,7 +1541,6 @@ private:
     TOperationsCleanerPtr OperationsCleaner_;
 
     const TThreadPoolPtr OrchidWorkerPool_;
-    const TActionQueuePtr FairShareLoggingActionQueue_ = New<TActionQueue>("FSLogging");
     const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
     const TThreadPoolPtr FairShareUpdatePool_;
 
@@ -1644,8 +1612,7 @@ private:
     THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
     IEventLogWriterPtr EventLogWriter_;
-    std::unique_ptr<IYsonConsumer> ControlEventLogWriterConsumer_;
-    std::unique_ptr<IYsonConsumer> FairShareEventLogWriterConsumer_;
+    std::unique_ptr<IYsonConsumer> EventLogWriterConsumer_;
 
     std::atomic<int> OperationArchiveVersion_ = {-1};
 

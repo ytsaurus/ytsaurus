@@ -47,12 +47,6 @@ public:
     virtual NEventLog::TFluentLogEvent LogEventFluently(ELogEventType eventType, TInstant now) override;
 
 protected:
-    NEventLog::TFluentLogEvent LogEventFluently(
-        ELogEventType eventType,
-        NYson::IYsonConsumer* eventLogConsumer,
-        const NLogging::TLogger* eventLogger,
-        TInstant now);
-
     virtual NYson::IYsonConsumer* GetEventLogConsumer() = 0;
     virtual const NLogging::TLogger* GetEventLogger() = 0;
 };
