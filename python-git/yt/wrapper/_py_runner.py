@@ -64,6 +64,9 @@ def main():
     import pickle as standard_pickle
     import platform
 
+    # Exclude _py_runner.py directory from sys.path
+    sys.path.pop(0)
+
     start_time = time.time()
 
     # Variable names start with "__" to avoid accidental intersection with scope of user function.
