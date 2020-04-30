@@ -28,7 +28,7 @@
 
 #include <yt/build/build.h>
 
-#include <library/cgiparam/cgiparam.h>
+#include <library/cpp/cgiparam/cgiparam.h>
 #include <util/string/split.h>
 
 #include <util/generic/vector.h>

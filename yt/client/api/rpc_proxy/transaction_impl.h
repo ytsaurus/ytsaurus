@@ -207,7 +207,7 @@ private:
 
     TSpinLock SpinLock_;
     ETransactionState State_ = ETransactionState::Active;
-    TFuture<void> AbortFuture_;
+    const TPromise<void> AbortPromise_ = NewPromise<void>();
     std::vector<NApi::ITransactionPtr> ForeignTransactions_;
     
     THashSet<NObjectClient::TCellId> AdditionalParticipantCellIds_;
