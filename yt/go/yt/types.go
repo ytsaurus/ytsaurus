@@ -34,24 +34,6 @@ func (n NodeType) String() string {
 	return string(n)
 }
 
-func (n NodeType) MarshalYSON(w *yson.Writer) error {
-	w.String(string(n))
-	return nil
-}
-
-func (n *NodeType) UnmarshalYSON(data []byte) error {
-	var value string
-	if err := yson.Unmarshal(data, &value); err != nil {
-		return err
-	}
-
-	// TODO(prime@): validate
-	*n = NodeType(value)
-	return nil
-}
-
-var _ yson.StreamMarshaler = NodeType("")
-
 type OperationType string
 
 const (
@@ -65,22 +47,6 @@ const (
 	OperationRemoteCopy OperationType = "remote_copy"
 	OperationVanilla    OperationType = "vanilla"
 )
-
-func (o OperationType) MarshalYSON(w *yson.Writer) error {
-	w.String(string(o))
-	return nil
-}
-
-func (o *OperationType) UnmarshalYSON(data []byte) error {
-	var value string
-	if err := yson.Unmarshal(data, &value); err != nil {
-		return err
-	}
-
-	// TODO(prime@): validate
-	*o = OperationType(value)
-	return nil
-}
 
 type OperationState string
 
@@ -225,15 +191,6 @@ const (
 	LockExclusive LockMode = "exclusive"
 )
 
-func (m LockMode) MarshalText() ([]byte, error) {
-	return []byte(m), nil
-}
-
-func (m *LockMode) UnmarshalText(b []byte) error {
-	*m = LockMode(b)
-	return nil
-}
-
 // LockState type holds available lock states.
 type LockState string
 
@@ -243,15 +200,6 @@ const (
 	// LockAcquired is a state of an acquired lock.
 	LockAcquired LockState = "acquired"
 )
-
-func (s LockState) MarshalText() ([]byte, error) {
-	return []byte(s), nil
-}
-
-func (s *LockState) UnmarshalText(b []byte) error {
-	*s = LockState(b)
-	return nil
-}
 
 type JobSortField string
 
@@ -267,30 +215,12 @@ const (
 	IDSortField         JobSortField = "id"
 )
 
-func (m JobSortField) MarshalText() ([]byte, error) {
-	return []byte(m), nil
-}
-
-func (m *JobSortField) UnmarshalText(b []byte) error {
-	*m = JobSortField(b)
-	return nil
-}
-
 type JobSortOrder string
 
 const (
 	Ascending  JobSortOrder = "ascending"
 	Descending JobSortOrder = "descending"
 )
-
-func (m JobSortOrder) MarshalText() ([]byte, error) {
-	return []byte(m), nil
-}
-
-func (m *JobSortOrder) UnmarshalText(b []byte) error {
-	*m = JobSortOrder(b)
-	return nil
-}
 
 type TableReplicaMode string
 
@@ -299,11 +229,5 @@ var (
 	AsyncMode TableReplicaMode = "async"
 )
 
-func (m TableReplicaMode) MarshalText() ([]byte, error) {
-	return []byte(m), nil
-}
-
-func (m *TableReplicaMode) UnmarshalText(b []byte) error {
-	*m = TableReplicaMode(b)
-	return nil
-}
+// Timestamp is a cluster-wide unique monotonically increasing number used to implement the MVCC.
+type Timestamp uint64

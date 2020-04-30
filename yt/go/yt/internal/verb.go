@@ -47,6 +47,8 @@ const (
 	VerbRemountTable Verb = "remount_table"
 	VerbReshardTable Verb = "reshard_table"
 
+	VerbGenerateTimestamp Verb = "generate_timestamp"
+
 	VerbLocateSkynetShare Verb = "locate_skynet_share"
 )
 
@@ -86,6 +88,9 @@ func (v Verb) volatile() bool {
 		return false
 
 	case VerbSelectRows, VerbLookupRows:
+		return false
+
+	case VerbGenerateTimestamp:
 		return false
 	}
 

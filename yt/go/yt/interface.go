@@ -969,8 +969,9 @@ type TabletTx interface {
 	Abort() error
 }
 
-type LocateSkynetShareOptions struct {
-}
+type LocateSkynetShareOptions struct{}
+
+type GenerateTimestampOptions struct{}
 
 type Client interface {
 	CypressClient
@@ -986,6 +987,9 @@ type Client interface {
 
 	TabletClient
 	MountClient
+
+	// http:verb:"generate_timestamp"
+	GenerateTimestamp(ctx context.Context, options *GenerateTimestampOptions) (ts Timestamp, err error)
 
 	LowLevelTxClient
 	LowLevelSchedulerClient
