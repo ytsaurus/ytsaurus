@@ -1125,7 +1125,7 @@ TYsonString TClient::DoGetOperation(
         // The operation is missing from Cypress and the archive request finished with errors.
         // If it is timeout error, we retry without timeout.
         // Otherwise we throw the error as there is no hope.
-        if (archiveResultOrError.GetCode() != NYT::EErrorCode::Timeout) {
+        if (!archiveResultOrError.FindMatching(NYT::EErrorCode::Timeout)) {
             archiveResultOrError.ThrowOnError();
         }
         archiveResult = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
