@@ -1,5 +1,4 @@
 #pragma once
-#include "schemaless_multi_chunk_reader.h"
 
 #include "public.h"
 #include "schemaless_chunk_reader.h"
