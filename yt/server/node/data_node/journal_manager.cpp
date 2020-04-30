@@ -834,7 +834,7 @@ private:
             NFS::Rename(dataFileName + "." + ChangelogIndexExtension, cleanDataFileName + "." + ChangelogIndexExtension);
             YT_LOG_INFO("Multiplexed changelog is marked as clean (ChangelogId: %v)", changelogId);
         } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Error marking multiplexed changelog as clean (ChangelogId: %v) ", changelogId);
+            YT_LOG_FATAL(ex, "Error marking multiplexed changelog as clean (ChangelogId: %v)", changelogId);
         }
     }
 
