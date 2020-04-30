@@ -528,7 +528,7 @@ public:
         YT_LOG_DEBUG("Pool permission successfully validated");
     }
 
-    void ValidateOperationAccess(
+    TFuture<void> ValidateOperationAccess(
         const TString& user,
         TOperationId operationId,
         EPermissionSet permissions) override
@@ -547,10 +547,9 @@ public:
                 Logger);
         });
 
-        WaitFor(doValidateOperationAccess
+        return doValidateOperationAccess
             .AsyncVia(GetControlInvoker(EControlQueue::Operation))
-            .Run())
-            .ThrowOnError();
+            .Run();
     }
 
     TFuture<TParseOperationSpecResult> ParseSpec(TYsonString specString) const
@@ -655,7 +654,8 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage));
+        WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
+            .ThrowOnError();
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             YT_LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
@@ -679,7 +679,8 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage));
+        WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
+            .ThrowOnError();
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             return MakeFuture(TError(
@@ -705,7 +706,8 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage));
+        WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
+            .ThrowOnError();
 
         if (!operation->GetSuspended()) {
             return MakeFuture(TError(
@@ -741,7 +743,8 @@ public:
 
         auto codicilGuard = operation->MakeCodicilGuard();
 
-        ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage));
+        WaitFor(ValidateOperationAccess(user, operation->GetId(), EPermissionSet(EPermission::Manage)))
+            .ThrowOnError();
 
         if (operation->IsFinishingState() || operation->IsFinishedState()) {
             YT_LOG_INFO(error, "Operation is already shutting down (OperationId: %v, State: %v)",
@@ -893,7 +896,8 @@ public:
 
         auto update = ConvertTo<TOperationRuntimeParametersUpdatePtr>(parameters);
 
-        ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions());
+        WaitFor(ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions()))
+            .ThrowOnError();
 
         if (update->Acl.has_value()) {
             update->Acl->Entries.insert(

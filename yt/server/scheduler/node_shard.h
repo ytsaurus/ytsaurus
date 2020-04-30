@@ -53,7 +53,7 @@ struct INodeShardHost
 
     virtual const ISchedulerStrategyPtr& GetStrategy() const = 0;
 
-    virtual void ValidateOperationAccess(
+    virtual TFuture<void> ValidateOperationAccess(
         const TString& user,
         TOperationId operationId,
         NYTree::EPermission permission) = 0;
