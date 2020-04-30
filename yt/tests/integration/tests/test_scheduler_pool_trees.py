@@ -474,6 +474,32 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         wait(lambda: "other" in ls(orchid_root))
         run_test_vanilla(":", job_count=1)
 
+    @authors("renadeen")
+    def test_operation_failed_on_tree_remove_when_scheduler_is_down(self):
+        self.create_custom_pool_tree_with_one_node(pool_tree="other")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool_trees": ["other"]})
+        op.wait_for_state("running")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            remove_pool_tree("other", wait_for_orchid=False)
+
+        with pytest.raises(YtError):
+            op.track()
+
+    @authors("renadeen")
+    def test_operation_completed_on_tree_remove_when_scheduler_is_down(self):
+        self.create_custom_pool_tree_with_one_node(pool_tree="other")
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool_trees": ["default", "other"]})
+        op.wait_for_state("running")
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            remove_pool_tree("other", wait_for_orchid=False)
+
+        release_breakpoint()
+        op.track()
+
 @authors("renadeen")
 class TestConfigurablePoolTreeRoot(YTEnvSetup):
     NUM_MASTERS = 1

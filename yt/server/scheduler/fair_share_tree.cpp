@@ -54,12 +54,6 @@ TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& t
     return GetOrCrash(TreeIdToPoolNameMap_, treeId);
 }
 
-void TFairShareStrategyOperationState::EraseTree(const TString& treeId)
-{
-    Host_->EraseTree(treeId);
-    YT_VERIFY(TreeIdToPoolNameMap_.erase(treeId) == 1);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -103,19 +97,6 @@ THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParameters
         pools.emplace(treeId, options->Pool);
     }
     return pools;
-}
-
-TFairShareStrategyOperationStatePtr CreateFairShareStrategyOperationState(IOperationStrategyHost* host)
-{
-    auto state = New<TFairShareStrategyOperationState>(host);
-    auto treeIdToPoolNameMap = GetOperationPools(host->GetRuntimeParameters());
-
-    for (const auto& treeId : host->ErasedTrees()) {
-        treeIdToPoolNameMap.erase(treeId);
-    }
-
-    state->TreeIdToPoolNameMap() = std::move(treeIdToPoolNameMap);
-    return std::move(state);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

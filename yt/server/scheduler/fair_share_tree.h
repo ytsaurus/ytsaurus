@@ -25,16 +25,11 @@ public:
     explicit TFairShareStrategyOperationState(IOperationStrategyHost* host);
 
     TPoolName GetPoolNameByTreeId(const TString& treeId) const;
-
-    void EraseTree(const TString& treeId);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationState)
 
 THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParametersPtr& runtimeParameters);
-
-TFairShareStrategyOperationStatePtr
-CreateFairShareStrategyOperationState(IOperationStrategyHost* host);
 
 ////////////////////////////////////////////////////////////////////////////////
 
