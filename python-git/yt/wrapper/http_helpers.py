@@ -33,7 +33,9 @@ try:
 except ImportError:
     yatest_common = None
 
-RECEIVE_TOKEN_FROM_SSH_SESSION = True
+RECEIVE_TOKEN_FROM_SSH_SESSION = \
+    int(os.environ.get("RECEIVE_TOKEN_FROM_SSH_SESSION", True)) and \
+    "TEST_TOOL" not in os.environ
 
 def _format_logging_params(params):
     return ", ".join(["{}: {}".format(key, value) for key, value in iteritems(params)])
@@ -434,16 +436,21 @@ def get_fqdn(client=None):
     return fqdn
 
 def _get_token_by_ssh_session(client):
+    if yatest_common is not None:
+        return None
+
     try:
         import library.python.oauth as lpo
     except ImportError:
         logger.warning("Module library.python.oauth not found, cannot receive token by ssh session")
         return
 
-    token = lpo.get_token(get_config(client)["oauth_client_id"], get_config(client)["oauth_client_secret"])
+    try:
+        token = lpo.get_token(get_config(client)["oauth_client_id"], get_config(client)["oauth_client_secret"])
+    except Exception:
+        token = None
     if not token:
-        if yatest_common is None:
-            logger.warning("Failed to receive token using current ssh session")
+        logger.warning("Failed to receive token using current ssh session")
         token = None
 
     return token
