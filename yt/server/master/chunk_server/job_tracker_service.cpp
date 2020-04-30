@@ -189,7 +189,7 @@ private:
 
                     auto* jobSpecExt = jobSpec.MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
                     jobSpecExt->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
-                    ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
+                    ToProto(jobSpecExt->mutable_chunk_id(), chunkIdWithIndexes.Id);
 
                     NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
 
