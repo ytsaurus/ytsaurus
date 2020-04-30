@@ -906,12 +906,15 @@ public:
                 operation->BaseAcl().Entries.end());
         }
 
-        ValidateOperationRuntimeParametersUpdate(operation, update);
-
+        // Make update validation.
+        {
+            ValidateOperationRuntimeParametersUpdate(operation, update);
+            auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
+            WaitFor(Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams, /* validatePools */ update->ContainsPool()))
+                .ThrowOnError();
+        }
+            
         auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
-
-        Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams, /* validatePools */ update->ContainsPool());
-
         operation->SetRuntimeParameters(newParams);
         Strategy_->ApplyOperationRuntimeParameters(operation.Get());
 

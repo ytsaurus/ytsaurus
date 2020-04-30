@@ -180,7 +180,7 @@ struct ISchedulerStrategy
 
     virtual void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) = 0;
 
-    virtual void ValidateOperationRuntimeParameters(
+    virtual TFuture<void> ValidateOperationRuntimeParameters(
         IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters,
         bool validatePools) = 0;
