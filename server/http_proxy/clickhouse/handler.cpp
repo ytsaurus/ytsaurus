@@ -22,7 +22,7 @@
 
 #include <library/cpp/string_utils/base64/base64.h>
 
-#include <library/cgiparam/cgiparam.h>
+#include <library/cpp/cgiparam/cgiparam.h>
 #include <util/string/vector.h>
 
 #include <util/random/random.h>
