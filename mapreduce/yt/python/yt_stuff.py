@@ -1,5 +1,5 @@
 from yt.common import update
-from yt.environment.arcadia_interop import prepare_yt_binaries, collect_cores
+from yt.environment.arcadia_interop import prepare_yt_binaries, collect_cores, search_binary_path
 
 import yt.yson as yson
 
@@ -267,7 +267,7 @@ class YtStuff(object):
         source_prefix = ""
         prepare_yt_binaries(self.yt_bins_path, source_prefix, use_ytserver_all=True, use_from_package=True)
 
-        self.yt_local_exec = [yatest.common.binary_path("yt_local")]
+        self.yt_local_exec = [search_binary_path("yt_local")]
 
         user_yt_work_dir_base = self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
         if user_yt_work_dir_base:
