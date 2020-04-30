@@ -144,9 +144,9 @@ class TestNodeDynamicConfig(YTEnvSetup):
         wait(check_alert)
         wait(lambda: len(get("//sys/cluster_nodes/{0}/@alerts".format(nodes[1]))) == 0)
 
-        assert self.get_dynamic_config_annotation(nodes[0]) == "boo"
+        wait(lambda: self.get_dynamic_config_annotation(nodes[0]) == "boo")
         assert self.get_dynamic_config(nodes[0])["some_unrecognized_option"] == 42
-        assert self.get_dynamic_config_annotation(nodes[1]) == "foo"
+        wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "foo")
 
     @authors("gritukan")
     def test_invalid_config(self):
