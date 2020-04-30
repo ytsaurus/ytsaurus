@@ -566,7 +566,7 @@ class TestGetJobStderr(YTEnvSetup):
 
         job_id = wait_breakpoint()[0]
 
-        wait(lambda: retry(get_job_stderr(op.id, job_id)) == "STDERR-OUTPUT\n")
+        wait(lambda: retry(lambda: get_job_stderr(op.id, job_id)) == "STDERR-OUTPUT\n")
         release_breakpoint()
         op.track()
         res = get_job_stderr(op.id, job_id)
@@ -618,7 +618,7 @@ class TestGetJobStderr(YTEnvSetup):
             job_id = job_ids[0]
 
             # We should use 'wait' since job can be still in prepare phase in the opinion of the node.
-            wait(lambda: retry(get_job_stderr(op.id, job_id, authenticated_user="u")) == "STDERR-OUTPUT\n")
+            wait(lambda: retry(lambda: get_job_stderr(op.id, job_id, authenticated_user="u")) == "STDERR-OUTPUT\n")
             with pytest.raises(YtError):
                 get_job_stderr(op.id, job_id, authenticated_user="other")
 
