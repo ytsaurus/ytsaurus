@@ -1,9 +1,7 @@
 // Package schema defines schema of YT tables.
 package schema
 
-import (
-	"reflect"
-)
+import "reflect"
 
 type Type string
 
@@ -125,14 +123,31 @@ func (s Schema) Copy() Schema {
 	return s
 }
 
+// KeyColumns returns list of columns names marked as sorted.
+func (s Schema) KeyColumns() []string {
+	var keys []string
+	for _, c := range s.Columns {
+		if c.SortOrder != SortNode {
+			keys = append(keys, c.Name)
+		}
+	}
+	return keys
+}
+
+// SortedBy returns copy of the schema, with keyColumns (and only them) marked as sorted.
 func (s Schema) SortedBy(keyColumns ...string) Schema {
 	s = s.Copy()
 
-	for _, keyName := range keyColumns {
-		for i := range s.Columns {
-			if s.Columns[i].Name == keyName {
-				s.Columns[i].SortOrder = SortAscending
-			}
+	allKeys := map[string]struct{}{}
+	for _, k := range keyColumns {
+		allKeys[k] = struct{}{}
+	}
+
+	for i := range s.Columns {
+		if _, ok := allKeys[s.Columns[i].Name]; ok {
+			s.Columns[i].SortOrder = SortAscending
+		} else {
+			s.Columns[i].SortOrder = SortNode
 		}
 	}
 

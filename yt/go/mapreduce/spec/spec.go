@@ -97,6 +97,7 @@ type Spec struct {
 	OutputTablePath        ypath.YPath   `yson:"output_table_path,omitempty"`
 	MapperOutputTableCount int           `yson:"mapper_output_table_count,omitempty"`
 
+	Atomicity string          `yson:"atomicity,omitempty"`
 	Ordered   bool            `yson:"ordered,omitempty"`
 	ReduceBy  []string        `yson:"reduce_by,omitempty"`
 	SortBy    []string        `yson:"sort_by,omitempty"`

@@ -3,6 +3,7 @@ package migrate
 
 import (
 	"context"
+	"fmt"
 
 	"golang.org/x/xerrors"
 
@@ -29,6 +30,8 @@ func ensureTabletState(ctx context.Context, yc yt.Client, path ypath.Path, state
 		inProgressState = yt.TabletMounting
 	case yt.TabletUnmounted:
 		inProgressState = yt.TabletUnmounting
+	case yt.TabletFrozen:
+		inProgressState = yt.TabletFreezing
 	default:
 		return xerrors.Errorf("tablet state %q is invalid", state)
 	}
@@ -45,11 +48,23 @@ func ensureTabletState(ctx context.Context, yc yt.Client, path ypath.Path, state
 			if err != nil {
 				return err
 			}
-		case state == yt.TabletMounted:
+		case state == yt.TabletMounted && currentState == yt.TabletUnmounted:
 			err := yc.MountTable(ctx, path, nil)
 			if err != nil {
 				return err
 			}
+		case state == yt.TabletMounted && currentState == yt.TabletFrozen:
+			err := yc.UnfreezeTable(ctx, path, nil)
+			if err != nil {
+				return err
+			}
+		case state == yt.TabletFrozen:
+			err := yc.FreezeTable(ctx, path, nil)
+			if err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("can't transition tablet state: %q => %q", currentState, state)
 		}
 	} else if currentState == state {
 		return nil
@@ -95,6 +110,11 @@ func ensureTabletState(ctx context.Context, yc yt.Client, path ypath.Path, state
 // MountAndWait mounts dynamic table and waits for a table to become mounted.
 func MountAndWait(ctx context.Context, yc yt.Client, path ypath.Path) error {
 	return ensureTabletState(ctx, yc, path, yt.TabletMounted)
+}
+
+// FreezeAndWait freezes dynamic table and waits for a table to become freezed.
+func FreezeAndWait(ctx context.Context, yc yt.Client, path ypath.Path) error {
+	return ensureTabletState(ctx, yc, path, yt.TabletFrozen)
 }
 
 // MountAndWait unmounts dynamic table and waits for a table to become unmounted.
