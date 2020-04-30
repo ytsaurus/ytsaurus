@@ -513,7 +513,7 @@ public:
         }
     }
 
-    virtual void ValidateOperationRuntimeParameters(
+    virtual TFuture<void> ValidateOperationRuntimeParameters(
         IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters,
         bool validatePools) override
@@ -530,13 +530,16 @@ public:
         }
 
         if (validatePools) {
-            ValidateOperationPoolsCanBeUsed(operation, runtimeParameters);
             ValidateMaxRunningOperationsCountOnPoolChange(operation, runtimeParameters);
 
             auto poolLimitViolations = GetPoolLimitViolations(operation, runtimeParameters);
             if (!poolLimitViolations.empty()) {
                 THROW_ERROR poolLimitViolations.begin()->second;
             }
+
+            return ValidateOperationPoolsCanBeUsed(operation, runtimeParameters);
+        } else {
+            return VoidFuture;
         }
     }
 
@@ -602,11 +605,7 @@ public:
 
     virtual TFuture<void> ValidateOperationStart(const IOperationStrategyHost* operation) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
-
-        return BIND(&TFairShareStrategy::ValidateOperationPoolsCanBeUsed, Unretained(this))
-            .AsyncVia(GetCurrentInvoker())
-            .Run(operation, operation->GetRuntimeParameters());
+        return ValidateOperationPoolsCanBeUsed(operation, operation->GetRuntimeParameters());
     }
 
     virtual THashMap<TString, TError> GetPoolLimitViolations(
@@ -1087,7 +1086,7 @@ private:
         return matchingSnapshot;
     }
 
-    void ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TOperationRuntimeParametersPtr& runtimeParameters)
+    TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TOperationRuntimeParametersPtr& runtimeParameters)
     {
         if (IdToTree_.empty()) {
             THROW_ERROR_EXCEPTION("Scheduler strategy does not have configured fair-share trees");
@@ -1109,8 +1108,7 @@ private:
             futures.push_back(tree->ValidateOperationPoolsCanBeUsed(operation, pool));
         }
 
-        WaitFor(Combine(futures))
-            .ThrowOnError();
+        return Combine(futures);
     }
 
     TFairShareStrategyOperationStatePtr FindOperationState(TOperationId operationId) const
