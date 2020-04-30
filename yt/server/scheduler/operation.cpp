@@ -136,6 +136,7 @@ TOperation::TOperation(
     , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , Alias_(alias)
     , BaseAcl_(std::move(baseAcl))
+    , ErasedTrees_(std::move(erasedTrees))
     , Id_(id)
     , Type_(type)
     , StartTime_(startTime)
@@ -144,7 +145,6 @@ TOperation::TOperation(
     , CodicilData_(MakeOperationCodicilString(Id_))
     , ControlInvoker_(std::move(controlInvoker))
     , RuntimeParameters_(std::move(runtimeParameters))
-    , ErasedTrees_(std::move(erasedTrees))
     , IsScheduledInSingleTree_(isScheduledInSingleTree)
 {
     // COMPAT(gritukan)
@@ -417,24 +417,20 @@ TControllerAgentPtr TOperation::GetAgentOrThrow()
     return agent;
 }
 
-void TOperation::SetErasedTrees(std::vector<TString> erasedTrees)
-{
-    ErasedTrees_ = std::move(erasedTrees);
-}
-
-const std::vector<TString>& TOperation::ErasedTrees() const
-{
-    return ErasedTrees_;
-}
-
-void TOperation::EraseTree(const TString& treeId)
-{
-    ErasedTrees_.push_back(treeId);
-}
-
 bool TOperation::IsScheduledInSingleTree() const
 {
     return IsScheduledInSingleTree_;
+}
+
+void TOperation::EraseTrees(const std::vector<TString>& treeIds)
+{
+    if (!treeIds.empty()) {
+        ShouldFlush_ = true;
+    }
+    for (const auto& treeId : treeIds) {
+        ErasedTrees_.push_back(treeId);
+        YT_VERIFY(RuntimeParameters_->SchedulingOptionsPerPoolTree.erase(treeId));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

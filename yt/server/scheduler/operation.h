@@ -136,14 +136,11 @@ struct IOperationStrategyHost
 
     virtual bool GetActivated() const = 0;
 
-    virtual void SetErasedTrees(std::vector<TString> erasedTrees) = 0;
-    virtual const std::vector<TString>& ErasedTrees() const = 0;
+    virtual void EraseTrees(const std::vector<TString>& treeIds) = 0;
 
 protected:
     friend class TFairShareStrategyOperationState;
     friend class NClassicScheduler::TFairShareStrategyOperationState;
-
-    virtual void EraseTree(const TString& treeId) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -259,6 +256,9 @@ public:
     //! regardless any ACL specification and any ACL changes made by user.
     DEFINE_BYREF_RO_PROPERTY(NSecurityClient::TSerializableAccessControlList, BaseAcl);
 
+    //! Erased trees of operation, should be used only for information purposes.
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, ErasedTrees);
+
 public:
     //! Returns operation id.
     TOperationId GetId() const override;
@@ -336,10 +336,9 @@ public:
     TControllerAgentPtr FindAgent();
     TControllerAgentPtr GetAgentOrThrow();
 
-    void SetErasedTrees(std::vector<TString> erasedTrees) override;
-    const std::vector<TString>& ErasedTrees() const override;
-
     bool IsScheduledInSingleTree() const;
+
+    virtual void EraseTrees(const std::vector<TString>& treeIds) override;
 
     TOperation(
         TOperationId operationId,
@@ -385,11 +384,7 @@ private:
 
     TWeakPtr<TControllerAgent> Agent_;
 
-    std::vector<TString> ErasedTrees_;
-
     bool IsScheduledInSingleTree_ = false;
-
-    void EraseTree(const TString& treeId) override;
 };
 
 #undef DEFINE_BYVAL_RW_PROPERTY_FORCE_FLUSH

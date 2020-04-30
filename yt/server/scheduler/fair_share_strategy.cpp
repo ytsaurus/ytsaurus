@@ -159,19 +159,30 @@ public:
         }
     }
 
-    virtual void RegisterOperation(IOperationStrategyHost* operation) override
+    virtual void RegisterOperation(IOperationStrategyHost* operation, std::vector<TString>* unknownTreeIds) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         auto spec = ParseSpec(operation);
 
-        auto state = CreateFairShareStrategyOperationState(operation);
+        YT_VERIFY(unknownTreeIds->empty());
+
+        auto treeIdToPoolNameMap = GetOperationPools(operation->GetRuntimeParameters());
+        for (const auto& [treeId, _] : treeIdToPoolNameMap) {
+            if (!FindTree(treeId)) {
+                unknownTreeIds->push_back(treeId);
+            }
+        }
+        for (const auto& treeId : *unknownTreeIds) {
+            treeIdToPoolNameMap.erase(treeId);
+        }
+        auto state = New<TFairShareStrategyOperationState>(operation);
+        state->TreeIdToPoolNameMap() = std::move(treeIdToPoolNameMap);
 
         YT_VERIFY(OperationIdToOperationState_.insert(
             std::make_pair(operation->GetId(), state)).second);
 
         auto runtimeParameters = operation->GetRuntimeParameters();
-
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
             const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
             GetTree(treeId)->RegisterOperation(state, spec, treeParams);
@@ -204,7 +215,7 @@ public:
 
         DoUnregisterOperationFromTree(state, treeId);
 
-        state->EraseTree(treeId);
+        YT_VERIFY(state->TreeIdToPoolNameMap().erase(treeId) == 1);
 
         YT_LOG_INFO("Operation removed from a tree (OperationId: %v, TreeId: %v)", operationId, treeId);
     }
@@ -237,6 +248,7 @@ public:
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
         std::vector<TOperationId> orphanedOperationIds;
+        std::vector<TOperationId> changedOperationIds;
         {
             // No context switches allowed while fair share trees update.
             TForbidContextSwitchGuard contextSwitchGuard;
@@ -301,8 +313,8 @@ public:
             // Update node at scheduler.
             UpdateNodesOnChangedTrees(idToTree);
 
-            // Abort orphaned operations.
-            RemoveTreesFromOperationStates(treeIdsToRemove, &orphanedOperationIds);
+            // Remove trees from operation states.
+            RemoveTreesFromOperationStates(treeIdsToRemove, &orphanedOperationIds, &changedOperationIds);
 
             // Updating default fair-share tree and global tree map.
             DefaultTreeId_ = defaultTreeId;
@@ -328,6 +340,10 @@ public:
             }
         }
 
+        // Invokes operation node flushes.
+        FlushOperationNodes(changedOperationIds);
+
+        // Perform abort of orphaned operations one by one.
         AbortOrphanedOperations(orphanedOperationIds);
     }
 
@@ -461,11 +477,6 @@ public:
         auto newPools = GetOperationPools(operation->GetRuntimeParameters());
 
         YT_VERIFY(newPools.size() == state->TreeIdToPoolNameMap().size());
-
-        // Tentative trees can be removed from state, we must apply these changes to new state.
-        for (const auto& erasedTree : state->GetHost()->ErasedTrees()) {
-            newPools.erase(erasedTree);
-        }
 
         for (const auto& [treeId, oldPool] : state->TreeIdToPoolNameMap()) {
             const auto& newPool = GetOrCrash(newPools, treeId);
@@ -1303,7 +1314,10 @@ private:
         }
     }
 
-    void RemoveTreesFromOperationStates(const THashSet<TString>& treesToRemove, std::vector<TOperationId>* orphanedOperationIds)
+    void RemoveTreesFromOperationStates(
+        const THashSet<TString>& treesToRemove,
+        std::vector<TOperationId>* orphanedOperationIds,
+        std::vector<TOperationId>* operationsToFlush)
     {
         if (treesToRemove.empty()) {
             return;
@@ -1340,6 +1354,24 @@ private:
         }
 
         for (const auto& [operationId, treeSet] : operationIdToTreeSet) {
+            const auto& state = GetOperationState(operationId);
+
+            std::vector<TString> treeIdsToErase;
+            for (auto [treeId, options] : state->GetHost()->GetRuntimeParameters()->SchedulingOptionsPerPoolTree) {
+                if (treeSet.find(treeId) == treeSet.end()) {
+                    treeIdsToErase.push_back(treeId);
+                }
+            }
+
+            if (!treeIdsToErase.empty()) {
+                YT_LOG_INFO("Removing operation from deleted trees (OperationId: %v, TreeIds: %v)",
+                    operationId,
+                    treeIdsToErase);
+
+                state->GetHost()->EraseTrees(treeIdsToErase);
+                operationsToFlush->push_back(operationId);
+            }
+
             if (treeSet.empty()) {
                 orphanedOperationIds->push_back(operationId);
             }
@@ -1354,6 +1386,13 @@ private:
                     operationId,
                     TError("No suitable fair-share trees to schedule operation"));
             }
+        }
+    }
+
+    void FlushOperationNodes(const std::vector<TOperationId>& operationIds)
+    {
+        for (auto operationId : operationIds) {
+            Host->FlushOperationNode(operationId);
         }
     }
 

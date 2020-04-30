@@ -101,6 +101,9 @@ struct TSchedulerStrategyHostMock
     virtual void AbortOperation(TOperationId /* operationId */, const TError& /* error */) override
     { }
 
+    virtual void FlushOperationNode(TOperationId operationId) override
+    { }
+
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const override
     {
         TMemoryDistribution result;
@@ -326,20 +329,8 @@ public:
         return *Controller_.Get();
     }
 
-    void SetErasedTrees(std::vector<TString> erasedTrees) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    const std::vector<TString>& ErasedTrees() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void EraseTree(const TString& treeId) override
-    {
-        YT_UNIMPLEMENTED();
-    }
+    virtual void EraseTrees(const std::vector<TString>& treeIds) override
+    { }
 
 private:
     TInstant StartTime_;

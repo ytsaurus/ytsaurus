@@ -857,7 +857,18 @@ public:
         }
 
         GetControlInvoker(EControlQueue::Operation)->Invoke(
-            BIND(&ISchedulerStrategy::UnregisterOperationFromTree, GetStrategy(), operation->GetId(), treeId));
+            BIND(&TImpl::UnregisterOperationFromTree, MakeStrong(this), operation, treeId));
+    }
+
+    void UnregisterOperationFromTree(const TOperationPtr& operation, const TString& treeId)
+    {
+        YT_LOG_INFO("Unregistering operation from tree (OperationId: %v, TreeId: %v)",
+            operation->GetId(),
+            treeId);
+
+        Strategy_->UnregisterOperationFromTree(operation->GetId(), treeId);
+
+        operation->EraseTrees({treeId});
     }
 
     void ValidateOperationRuntimeParametersUpdate(
@@ -906,14 +917,15 @@ public:
                 operation->BaseAcl().Entries.end());
         }
 
-        // Make update validation.
+        // Perform asynchronous validation of the new runtime parameters.
         {
             ValidateOperationRuntimeParametersUpdate(operation, update);
             auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
             WaitFor(Strategy_->ValidateOperationRuntimeParameters(operation.Get(), newParams, /* validatePools */ update->ContainsPool()))
                 .ThrowOnError();
         }
-            
+
+        // We recalculate params, since original runtime params may change during asynchronous validation.
         auto newParams = UpdateRuntimeParameters(operation->GetRuntimeParameters(), update);
         operation->SetRuntimeParameters(newParams);
         Strategy_->ApplyOperationRuntimeParameters(operation.Get());
@@ -1083,6 +1095,13 @@ public:
         DoAbortOperation(operation, error);
     }
 
+    virtual void FlushOperationNode(TOperationId operationId) override
+    {
+        auto operation = GetOperation(operationId);
+
+        Y_UNUSED(MasterConnector_->FlushOperationNode(operation));
+    }
+
     void MaterializeOperation(const TOperationPtr& operation)
     {
 
@@ -1155,11 +1174,7 @@ public:
             neededResources = operation->GetRuntimeData()->GetNeededResources();
         }
 
-        // NB(eshcherbin): if ErasedTrees is empty then
-        // (a) only one tree was specified for operation, or
-        // (b) scheduler failed/disconnected before persisting ErasedTrees to master,
-        //     in which case it's safe to choose the tree once again.
-        if (operation->IsScheduledInSingleTree() && operation->ErasedTrees().empty()) {
+        if (operation->IsScheduledInSingleTree()) {
             auto chosenTree = Strategy_->ChooseBestSingleTreeForOperation(operation->GetId(), neededResources);
 
             std::vector<TString> treeIdsToUnregister;
@@ -1175,17 +1190,9 @@ public:
             // (2) Remove each tree from operation's runtime parameters.
             // (3) Flush all these changes to master.
             if (!treeIdsToUnregister.empty()) {
-                auto updatedRuntimeParameters = CloneYsonSerializable(operation->GetRuntimeParameters());
                 for (const auto& treeId : treeIdsToUnregister) {
-                    Strategy_->UnregisterOperationFromTree(operation->GetId(), treeId);
-                    YT_VERIFY(updatedRuntimeParameters->SchedulingOptionsPerPoolTree.erase(treeId));
+                    UnregisterOperationFromTree(operation, treeId);
                 }
-
-                // NB(eshcherbin): Normally the runtime parameters should be updated in |DoUpdateOperationParameters|, however,
-                // here we perform very custom changes (removing erased trees) and we can omit all validations and updates
-                // in strategy and controller agent.
-                // Flushes to master are performed below.
-                operation->SetRuntimeParameters(updatedRuntimeParameters);
 
                 // NB(eshcherbin): Persist info about erased trees to master. This flush is safe because nothing should
                 // happen to |operation| until its state is set to EOperationState::Running. The only possible exception
@@ -2513,22 +2520,21 @@ private:
 
             auto poolLimitViolations = Strategy_->GetPoolLimitViolations(operation.Get(), operation->GetRuntimeParameters());
 
-            std::vector<TString> erasedTrees;
+            std::vector<TString> erasedTreeIds;
             for (const auto& [treeId, error] : poolLimitViolations) {
                 if (GetSchedulingOptionsPerPoolTree(operation.Get(), treeId)->Tentative) {
                     YT_LOG_INFO(
                         error,
                         "Tree is erased for operation since pool limits are violated (OperationId: %v)",
                         operation->GetId());
-                    erasedTrees.push_back(treeId);
+                    erasedTreeIds.push_back(treeId);
                     // No need to throw now.
                     continue;
                 }
 
                 THROW_ERROR error;
             }
-
-            operation->SetErasedTrees(std::move(erasedTrees));
+            operation->EraseTrees(erasedTreeIds);
         } catch (const std::exception& ex) {
             if (aliasRegistered) {
                 auto it = OperationAliases_.find(*operation->Alias());
@@ -2546,6 +2552,12 @@ private:
         ValidateOperationState(operation, EOperationState::Starting);
 
         RegisterOperation(operation, /* jobsReady */ true);
+
+        if (operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree.empty()) {
+            operation->SetStarted(TError("No pool trees found for operation"));
+            UnregisterOperation(operation);
+            return;
+        }
 
         try {
             WaitFor(MasterConnector_->CreateOperationNode(operation))
@@ -2703,7 +2715,10 @@ private:
                     // However, I believe that this way the code is simpler and more concise.
                     // NB(eshcherbin): this procedure won't abort jobs that are running in banned tentative trees.
                     // So in case of an unfortunate scheduler failure, these jobs will continue running.
-                    Strategy_->UnregisterOperationFromTree(operation->GetId(), bannedTreeId);
+                    const auto& schedulingOptionsPerPoolTree = operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree;
+                    if (schedulingOptionsPerPoolTree.find(bannedTreeId) != schedulingOptionsPerPoolTree.end()) {
+                        UnregisterOperationFromTree(operation, bannedTreeId);
+                    }
                 }
                 // NB(eshcherbin): RuntimeData is used to pass NeededResources to MaterializeOperation().
                 operation->GetRuntimeData()->SetNeededResources(result.NeededResources);
@@ -2836,7 +2851,15 @@ private:
         auto controller = agentTracker->CreateController(operation);
         operation->SetController(controller);
 
-        Strategy_->RegisterOperation(operation.Get());
+        std::vector<TString> unknownTreeIds;
+        Strategy_->RegisterOperation(operation.Get(), &unknownTreeIds);
+        operation->EraseTrees(unknownTreeIds);
+        YT_LOG_DEBUG_UNLESS(
+            unknownTreeIds.empty(),
+            "Operation has unknown pool trees after registration (OperationId: %v, TreeIds: %v)",
+            operation->GetId(),
+            unknownTreeIds);
+
         operation->PoolTreeControllerSettingsMap() = Strategy_->GetOperationPoolTreeControllerSettingsMap(operation->GetId());
 
         for (const auto& nodeShard : NodeShards_) {
@@ -3675,6 +3698,13 @@ private:
                 AbortOperationWithoutRevival(
                     operation,
                     TError("Operation aborted since it was found in \"aborting\" state during scheduler revival"));
+                return;
+            }
+
+            if (operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree.empty()) {
+                AbortOperationWithoutRevival(
+                    operation,
+                    TError("Operation aborted since it has no active trees after revival"));
                 return;
             }
 

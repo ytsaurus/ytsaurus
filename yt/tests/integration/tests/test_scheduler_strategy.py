@@ -1084,12 +1084,12 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         get_pool_tolerance = lambda pool: \
             get(scheduler_orchid_pool_path(pool) + "/adjusted_fair_share_starvation_tolerance")
 
-        assert get_pool_tolerance("p1") == 0.7
-        assert get_pool_tolerance("p2") == 0.6
-        assert get_pool_tolerance("p3") == 0.5
-        assert get_pool_tolerance("p4") == 0.6
-        assert get_pool_tolerance("p5") == 0.8
-        assert get_pool_tolerance("p6") == 0.8
+        wait(lambda: get_pool_tolerance("p1") == 0.7)
+        wait(lambda: get_pool_tolerance("p2") == 0.6)
+        wait(lambda: get_pool_tolerance("p3") == 0.5)
+        wait(lambda: get_pool_tolerance("p4") == 0.6)
+        wait(lambda: get_pool_tolerance("p5") == 0.8)
+        wait(lambda: get_pool_tolerance("p6") == 0.8)
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -1126,15 +1126,13 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
             out="//tmp/t_out4",
             spec={"pool": "p6", "fair_share_starvation_tolerance": 0.9})
 
-        time.sleep(1)
-
         get_operation_tolerance = lambda op_id: \
             get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/adjusted_fair_share_starvation_tolerance".format(op_id))
 
-        assert get_operation_tolerance(op1.id) == 0.4
-        assert get_operation_tolerance(op2.id) == 0.6
-        assert get_operation_tolerance(op3.id) == 0.8
-        assert get_operation_tolerance(op4.id) == 0.9
+        wait(lambda: get_operation_tolerance(op1.id) == 0.4)
+        wait(lambda: get_operation_tolerance(op2.id) == 0.6)
+        wait(lambda: get_operation_tolerance(op3.id) == 0.8)
+        wait(lambda: get_operation_tolerance(op4.id) == 0.9)
 
         op1.abort()
         op2.abort()

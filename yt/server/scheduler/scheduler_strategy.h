@@ -53,6 +53,7 @@ struct ISchedulerStrategyHost
 
     virtual void ActivateOperation(TOperationId operationId) = 0;
     virtual void AbortOperation(TOperationId operationId, const TError& error) = 0;
+    virtual void FlushOperationNode(TOperationId operationId) = 0;
 
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const = 0;
 
@@ -141,7 +142,7 @@ struct ISchedulerStrategy
     /*!
      *  The implementation must throw no exceptions.
      */
-    virtual void RegisterOperation(IOperationStrategyHost* operation) = 0;
+    virtual void RegisterOperation(IOperationStrategyHost* operation, std::vector<TString>* unknownTreeIds) = 0;
 
     //! Disable operation. Remove all operation jobs from tree.
     /*!
