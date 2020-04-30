@@ -253,7 +253,8 @@ def _remove_operations(driver=None):
 
     requests = []
     for operation_id in operations_from_orchid:
-        requests.append(yt_commands.make_batch_request(command_name, operation_id=operation_id))
+        if not operation_id.startswith("*"):
+            requests.append(yt_commands.make_batch_request(command_name, operation_id=operation_id))
 
     responses = yt_commands.execute_batch(requests, driver=driver)
     for response in responses:
