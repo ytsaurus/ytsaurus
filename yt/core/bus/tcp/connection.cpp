@@ -1119,6 +1119,13 @@ void TTcpConnection::OnMessagePacketSent(const TPacket& packet)
         packet.PacketId);
 
     PendingOutPayloadBytes_.fetch_sub(packet.PayloadSize);
+
+    // Arm read stall timeout for incoming ACK.
+    if (Any(packet.Flags & EPacketFlags::RequestAcknowledgement) &&
+        LastIncompleteReadTime_ == std::numeric_limits<NProfiling::TCpuInstant>::max())
+    {
+        LastIncompleteReadTime_ = NProfiling::GetCpuInstant();
+    }
 }
 
 void TTcpConnection::OnTerminate()
