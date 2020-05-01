@@ -1212,7 +1212,19 @@ bool TTcpConnection::IsSocketError(ssize_t result)
 
 void TTcpConnection::InitSocketTosLevel(TTosLevel tosLevel)
 {
-    if (TrySetSocketTosLevel(Socket_, tosLevel)) {
+    if (TosLevel_ == BlackHoleTosLevel && tosLevel != BlackHoleTosLevel) {
+        if (!TrySetSocketInputFilter(Socket_, false)) {
+            YT_LOG_DEBUG("Failed to remove socket input filter");
+        }
+    }
+
+    if (tosLevel == BlackHoleTosLevel) {
+        if (TrySetSocketInputFilter(Socket_, true)) {
+            YT_LOG_DEBUG("Socket TOS level set to BlackHole");
+        } else {
+            YT_LOG_DEBUG("Failed to set socket input filter");
+        }
+    } else if (TrySetSocketTosLevel(Socket_, tosLevel)) {
         YT_LOG_DEBUG("Socket TOS level set (TosLevel: %x)",
             tosLevel);
     } else {
