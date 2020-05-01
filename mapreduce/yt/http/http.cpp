@@ -10,7 +10,7 @@
 
 #include <library/json/json_writer.h>
 #include <library/cpp/string_utils/base64/base64.h>
-#include <library/string_utils/quote/quote.h>
+#include <library/cpp/string_utils/quote/quote.h>
 
 #include <util/generic/singleton.h>
 
