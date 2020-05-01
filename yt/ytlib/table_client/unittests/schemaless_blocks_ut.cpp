@@ -1,8 +1,10 @@
 #include <yt/core/test_framework/framework.h>
-#include "table_client_helpers.h"
 
 #include <yt/ytlib/table_client/schemaless_block_reader.h>
 #include <yt/ytlib/table_client/schemaless_block_writer.h>
+
+#include <yt/ytlib/unittests/table_client_helpers/table_client_helpers.h>
+
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/logical_type.h>
 
