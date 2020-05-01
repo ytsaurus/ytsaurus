@@ -665,7 +665,7 @@ def start_clickhouse_clique(instance_count,
 
     def resolve_path(cypress_bin_path, host_bin_path, bin_name, client=None):
         if cypress_bin_path is None and host_bin_path is None:
-            cypress_bin_path = get("//sys/clickhouse/bin/{}&/@target_path".format(bin_name), client=client)
+            cypress_bin_path = get("//sys/bin/{0}/{0}/@path".format(bin_name), client=client)
         require(cypress_bin_path is None or host_bin_path is None,
                 lambda: YtError("Cypress {0} binary path and host {0} path "
                                 "cannot be specified at the same time").format(bin_name))
