@@ -651,6 +651,8 @@ def start_clickhouse_clique(instance_count,
     if operation_alias is not None:
         if prev_operation is not None:
             logger.info("Previous operation with alias %s is %s with state %s", operation_alias, prev_operation["id"], prev_operation["state"])
+            if not abort_existing:
+                raise YtError("There is already an operation with alias {}; abort it or specify --abort-existing command-line flag".format(operation_alias))
         else:
             logger.info("There was no operation with alias %s before", operation_alias)
 
