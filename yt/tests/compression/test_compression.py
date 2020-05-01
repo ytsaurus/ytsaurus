@@ -3,7 +3,9 @@ import hashlib
 import json
 import subprocess
 import pytest
-import yatest.common
+
+
+from yt.environment import arcadia_interop
 
 
 def get_shasum(data):
@@ -49,7 +51,7 @@ def test_compression(caching_file_getter):
         assert get_shasum(compressed_data) == testcase_info.compressed_file["shasum"]
 
         process = subprocess.Popen(
-            [yatest.common.binary_path("run_codec"), "decompress", testcase_info.compressed_file["codec"]],
+            [arcadia_interop.search_binary_path("run_codec"), "decompress", testcase_info.compressed_file["codec"]],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE)
         stdout, stderr = process.communicate(compressed_data)
