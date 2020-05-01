@@ -1,6 +1,4 @@
-#include <util/random/shuffle.h>
 #include <yt/core/test_framework/framework.h>
-#include "table_client_helpers.h"
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -12,18 +10,23 @@
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_state.h>
 #include <yt/ytlib/table_client/config.h>
-#include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schema.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/ytlib/table_client/versioned_chunk_writer.h>
+
+#include <yt/ytlib/transaction_client/public.h>
+
+#include <yt/ytlib/unittests/table_client_helpers/table_client_helpers.h>
+
+#include <yt/client/table_client/row_buffer.h>
+#include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/versioned_writer.h>
 
-#include <yt/ytlib/transaction_client/public.h>
-
 #include <yt/core/compression/public.h>
 #include <yt/core/misc/random.h>
+
+#include <util/random/shuffle.h>
 
 namespace NYT::NTableClient {
 namespace {
