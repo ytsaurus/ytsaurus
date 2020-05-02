@@ -851,7 +851,10 @@ class YTEnvSetup(object):
             for dir in runtime_data:
                 if os.path.exists(dir):
                     shutil.rmtree(dir, ignore_errors=True)
+
+            print >>sys.stderr, "Moving test artifacts from", cls.path_to_run, "to", destination_path
             shutil.move(cls.path_to_run, destination_path)
+            print >>sys.stderr, "Move completed"
 
 
     @classmethod
