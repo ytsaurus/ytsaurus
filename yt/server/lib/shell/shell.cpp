@@ -1,9 +1,13 @@
 #include "shell.h"
 #include "private.h"
 
+#ifdef _linux_
+
 #include <yt/server/lib/containers/instance.h>
 
 #include <yt/server/lib/misc/process.h>
+
+#endif
 
 #include <yt/ytlib/cgroup/cgroup.h>
 
@@ -34,7 +38,7 @@ using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _unix_
+#ifdef _linux_
 
 ////////////////////////////////////////////////////////////////////////////////
 

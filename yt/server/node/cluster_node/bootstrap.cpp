@@ -1023,10 +1023,12 @@ const TNodeResourceManagerPtr& TBootstrap::GetNodeResourceManager() const
     return NodeResourceManager_;
 }
 
+#ifdef __linux__
 const NContainers::TInstanceLimitsTrackerPtr& TBootstrap::GetInstanceLimitsTracker() const
 {
     return InstanceLimitsTracker_;
 }
+#endif
 
 const IQuerySubexecutorPtr& TBootstrap::GetQueryExecutor() const
 {
