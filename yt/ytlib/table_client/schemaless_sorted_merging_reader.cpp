@@ -671,7 +671,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessJoinReduceJoiningReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& foreignReaders,
     int foreignKeyColumnCount)
 {
-    YT_VERIFY(primaryKeyColumnCount == reduceKeyColumnCount && reduceKeyColumnCount == foreignKeyColumnCount);
+    YT_VERIFY(primaryKeyColumnCount >= reduceKeyColumnCount && reduceKeyColumnCount == foreignKeyColumnCount);
     if (foreignReaders.empty()) {
         return primaryReaders[0];
     } else {
