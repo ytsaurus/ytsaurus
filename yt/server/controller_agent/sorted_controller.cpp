@@ -1093,6 +1093,15 @@ public:
                     << TErrorAttribute("operation_type", OperationType);
             }
             SortKeyColumns_ = ForeignKeyColumns_ = PrimaryKeyColumns_;
+
+            if (!Spec_->SortBy.empty()) {
+                if (!CheckKeyColumnsCompatible(Spec_->SortBy, Spec_->JoinBy)) {
+                    THROW_ERROR_EXCEPTION("Join key columns are not compatible with sort key columns")
+                        << TErrorAttribute("join_by", Spec_->JoinBy)
+                        << TErrorAttribute("sort_by", Spec_->SortBy);
+                }
+                SortKeyColumns_ = Spec_->SortBy;
+            }
         }
         if (Spec_->ValidateKeyColumnTypes) {
             CheckInputTableKeyColumnTypes(ForeignKeyColumns_);

@@ -1859,6 +1859,62 @@ done
                spec={"job_count": 1})
         assert get("//tmp/t_out/@row_count") == 0
 
+    @authors("gritukan")
+    def test_sort_by_without_key_guarantee(self):
+        create("table", "//tmp/in1", attributes = {
+            "schema": make_schema([
+                {"name": "k1", "type": "string", "sort_order": "ascending"},
+                {"name": "k2", "type": "string", "sort_order": "ascending"}])
+            })
+        create("table", "//tmp/in2", attributes = {
+            "schema": make_schema([
+                {"name": "k1", "type": "string", "sort_order": "ascending"},
+                {"name": "k2", "type": "string", "sort_order": "ascending"}])
+            })
+        create("table", "//tmp/f", attributes = {
+            "schema": make_schema([
+                {"name": "k1", "type": "string", "sort_order": "ascending"},
+                {"name": "k2", "type": "string", "sort_order": "ascending"}])
+            })
+        create("table", "//tmp/out", attributes = {
+            "schema": make_schema([
+                {"name": "k1", "type": "string", "sort_order": "ascending"},
+                {"name": "k2", "type": "string", "sort_order": "ascending"}])
+            })
+
+        write_table("//tmp/in1", [{"k1": "1", "k2": "1"}, {"k1": "1", "k2": "3"}])
+        write_table("//tmp/in2", [{"k1": "1", "k2": "2"}, {"k1": "1", "k2": "4"}])
+        write_table("//tmp/f", [{"k1": "1", "k2": "0"}])
+
+        reduce(
+            in_=["//tmp/in1", "//tmp/in2", "<foreign=true>//tmp/f"],
+            out="//tmp/out",
+            command = "cat | grep -v 0", # Skip foreign row.
+            sort_by=["k1", "k2"],
+            join_by=["k1"],
+            spec={
+                "reducer": {
+                    "format": "dsv"
+                },
+                "enable_key_guarantee": False
+            })
+
+        assert read_table("//tmp/out") == [{"k1": "1", "k2": str(i)} for i in range(1, 5)]
+
+        with pytest.raises(YtError):
+            reduce(
+                in_=["//tmp/in1", "//tmp/in2", "<foreign=true>//tmp/f"],
+                out="//tmp/out",
+                command = "cat | grep -v 0", # Skip foreign row.
+                sort_by=["k1"],
+                join_by=["k1", "k2"],
+                spec={
+                    "reducer": {
+                        "format": "dsv"
+                    },
+                    "enable_key_guarantee": False
+                })
+
 ##################################################################
 
 class TestSchedulerReduceCommandsSliceSize(YTEnvSetup):
