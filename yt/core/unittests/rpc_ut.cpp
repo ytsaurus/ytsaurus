@@ -498,12 +498,14 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <bool ForceTcp>
 class TRpcOverBusImpl
 {
 public:
     static IChannelPtr CreateChannel(const TString& address)
     {
-        auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(address));
+        TString network = ForceTcp ? TString("non-local") : DefaultNetworkName;
+        auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(address, network));
         return NRpc::NBus::CreateBusChannel(client);
     }
 
@@ -726,15 +728,19 @@ public:
 using TAllTransports = ::testing::Types<
 #ifdef _linux_
     TRpcOverBus<TRpcOverUnixDomainImpl>,
+    TRpcOverBus<TRpcOverBusImpl<true>>,
 #endif
+    TRpcOverBus<TRpcOverBusImpl<false>>,
     TRpcOverGrpcImpl<false>,
     TRpcOverGrpcImpl<true>
 >;
+
 using TWithoutGrpc = ::testing::Types<
 #ifdef _linux_
     TRpcOverBus<TRpcOverUnixDomainImpl>,
+    TRpcOverBus<TRpcOverBusImpl<true>>,
 #endif
-    TRpcOverBus<TRpcOverBusImpl>
+    TRpcOverBus<TRpcOverBusImpl<false>>
 >;
 
 template <class TImpl>
