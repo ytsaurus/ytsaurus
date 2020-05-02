@@ -58,11 +58,13 @@ void TNodeResourceManager::Start()
 {
     UpdateExecutor_->Start();
 
+#ifdef __linux__
     if (const auto& instanceLimitsTracker = Bootstrap_->GetInstanceLimitsTracker()) {
         instanceLimitsTracker->SubscribeLimitsUpdated(
             BIND(&TNodeResourceManager::OnInstanceLimitsUpdated, MakeWeak(this))
                 .Via(Bootstrap_->GetControlInvoker()));
     }
+#endif
 }
 
 void TNodeResourceManager::OnInstanceLimitsUpdated(double cpuLimit, i64 memoryLimit)

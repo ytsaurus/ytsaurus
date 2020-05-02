@@ -9,8 +9,10 @@
 #include "environment.h"
 #include "core_watcher.h"
 
+#ifdef __linux__
 #include <yt/server/lib/containers/instance.h>
 #include <yt/server/lib/containers/porto_executor.h>
+#endif
 
 #include <yt/server/lib/job_proxy/config.h>
 
