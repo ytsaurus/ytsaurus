@@ -138,7 +138,7 @@ void ConvertSimpleValueImpl(const TUnversionedValue& value, TCheckedInDebugSkiff
     if constexpr (wireType != EWireType::Yson32) {
         constexpr auto expectedValueType = WireTypeToValueType<wireType>();
         if (value.Type != expectedValueType) {
-            THROW_ERROR_EXCEPTION("Unexpected type of %Qv column, expected: %Qlv found %Qlv",
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Unexpected type of %Qv column, expected: %Qlv found %Qlv",
                 context->NameTable->GetName(value.Id),
                 expectedValueType,
                 value.Type);
@@ -287,7 +287,8 @@ TUnversionedValueToSkiffConverter CreateComplexValueConverter(
     auto ysonToSkiff = CreateYsonToSkiffConverter(std::move(descriptor), skiffSchema, config);
     return [ysonToSkiff=ysonToSkiff] (const TUnversionedValue& value, TCheckedInDebugSkiffWriter* skiffWriter, TWriteContext* context) {
         TMemoryInput input;
-        if (value.Type == EValueType::Composite) {
+        if (value.Type == EValueType::Any || value.Type == EValueType::Composite) {
+            // NB. value.Type might be EValueType::Any if user has used override_intermediate_table_schema
             input.Reset(value.Data.String, value.Length);
         } else if (value.Type == EValueType::Null) {
             static const auto empty = AsStringBuf("#");
@@ -475,34 +476,40 @@ public:
                 knownFields[id] = TSkiffEncodingInfo::Dense(i);
 
                 TUnversionedValueToSkiffConverter converter;
-                if (denseField.Name() == RowIndexColumnName) {
-                    auto method =
-                        commonTableDescription.RowIndexMode == ERowRangeIndexMode::Incremental
-                        ? (&TRowAndRangeIndexWriter::WriteRowIndex<ERowRangeIndexMode::Incremental>)
-                        : (&TRowAndRangeIndexWriter::WriteRowIndex<ERowRangeIndexMode::IncrementalWithError>);
+                try {
+                    if (denseField.Name() == RowIndexColumnName) {
+                        auto method =
+                            commonTableDescription.RowIndexMode == ERowRangeIndexMode::Incremental
+                            ? (&TRowAndRangeIndexWriter::WriteRowIndex<ERowRangeIndexMode::Incremental>)
+                            : (&TRowAndRangeIndexWriter::WriteRowIndex<ERowRangeIndexMode::IncrementalWithError>);
 
-                    converter = std::bind(
-                        method,
-                        &RowAndRangeIndexWriter_,
-                        std::placeholders::_1,
-                        std::placeholders::_2,
-                        std::placeholders::_3);
-                } else if (denseField.Name() == RangeIndexColumnName) {
-                    auto method =
-                        commonTableDescription.RangeIndexMode == ERowRangeIndexMode::Incremental
-                        ? (&TRowAndRangeIndexWriter::WriteRangeIndex<ERowRangeIndexMode::Incremental>)
-                        : (&TRowAndRangeIndexWriter::WriteRangeIndex<ERowRangeIndexMode::IncrementalWithError>);
+                        converter = std::bind(
+                            method,
+                            &RowAndRangeIndexWriter_,
+                            std::placeholders::_1,
+                            std::placeholders::_2,
+                            std::placeholders::_3);
+                    } else if (denseField.Name() == RangeIndexColumnName) {
+                        auto method =
+                            commonTableDescription.RangeIndexMode == ERowRangeIndexMode::Incremental
+                            ? (&TRowAndRangeIndexWriter::WriteRangeIndex<ERowRangeIndexMode::Incremental>)
+                            : (&TRowAndRangeIndexWriter::WriteRangeIndex<ERowRangeIndexMode::IncrementalWithError>);
 
-                    converter = std::bind(
-                        method,
-                        &RowAndRangeIndexWriter_,
-                        std::placeholders::_1,
-                        std::placeholders::_2,
-                        std::placeholders::_3);
-                } else if (auto complexConverter = createComplexValueConverter(denseField, /*sparse*/ false)) {
-                    converter = *complexConverter;
-                } else {
-                    converter = CreateSimpleValueConverter(denseField.ValidatedSimplify(), denseField.IsRequired());
+                        converter = std::bind(
+                            method,
+                            &RowAndRangeIndexWriter_,
+                            std::placeholders::_1,
+                            std::placeholders::_2,
+                            std::placeholders::_3);
+                    } else if (auto complexConverter = createComplexValueConverter(denseField, /*sparse*/ false)) {
+                        converter = *complexConverter;
+                    } else {
+                        converter = CreateSimpleValueConverter(denseField.ValidatedSimplify(), denseField.IsRequired());
+                    }
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Cannot create skiff writer for table #%v",
+                        tableIndex)
+                        << ex;
                 }
                 denseFieldWriterInfos.emplace_back(converter, id);
             }
@@ -514,13 +521,19 @@ public:
                 ResizeToContainIndex(&knownFields, id);
                 YT_VERIFY(knownFields[id].EncodingPart == ESkiffWriterColumnType::Unknown);
 
-                TUnversionedValueToSkiffConverter converter;
-                if (auto complexConverter = createComplexValueConverter(sparseField, /*sparse*/ true)) {
-                    converter = *complexConverter;
-                } else {
-                    converter = CreateSimpleValueConverter(sparseField.ValidatedSimplify(), true);
+                try {
+                    TUnversionedValueToSkiffConverter converter;
+                    if (auto complexConverter = createComplexValueConverter(sparseField, /*sparse*/ true)) {
+                        converter = *complexConverter;
+                    } else {
+                        converter = CreateSimpleValueConverter(sparseField.ValidatedSimplify(), true);
+                    }
+                    knownFields[id] = TSkiffEncodingInfo::Sparse(converter, i);
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Cannot create skiff writer for table #%v",
+                        tableIndex)
+                        << ex;
                 }
-                knownFields[id] = TSkiffEncodingInfo::Sparse(converter, i);
             }
 
             const auto systemColumnMaxId = Max(GetTableIndexColumnId(), GetRangeIndexColumnId(), GetRowIndexColumnId());
@@ -650,7 +663,7 @@ private:
                         break;
                     case ESkiffWriterColumnType::Unknown:
                         if (!hasOtherColumns) {
-                            THROW_ERROR_EXCEPTION("Column %Qv is not described by Skiff schema and there is no %Qv column",
+                            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Column %Qv is not described by Skiff schema and there is no %Qv column",
                                 NameTable_->GetName(columnId),
                                 OtherColumnsName)
                                 << GetRowPositionErrorAttributes();
@@ -782,10 +795,21 @@ ISchemalessFormatWriterPtr CreateWriterForSkiff(
 {
     auto config = NYTree::ConvertTo<TSkiffFormatConfigPtr>(attributes);
     auto skiffSchemas = ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
+
+    std::vector<NTableClient::TTableSchema> copySchemas = schemas;
+    if (config->OverrideIntermediateTableSchema) {
+        Y_VERIFY(schemas.size() > 0);
+        if (!IsTrivialIntermediateSchema(schemas[0])) {
+            THROW_ERROR_EXCEPTION("Cannot use \"override_intermediate_table_schema\" since input table #0 has nontrivial schema")
+                << TErrorAttribute("schema", schemas[0]);
+        }
+        copySchemas[0] = *config->OverrideIntermediateTableSchema;
+    }
+
     return CreateWriterForSkiff(
         skiffSchemas,
         std::move(nameTable),
-        schemas,
+        copySchemas,
         std::move(output),
         enableContextSaving,
         std::move(controlAttributesConfig),

@@ -6,7 +6,7 @@
 
 #include <yt/server/lib/job_agent/job_reporter.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/node/data_node/master_connector.h>
 
@@ -18,13 +18,14 @@
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/core/concurrency/scheduler.h>
+#include <yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NExecAgent {
 
 using namespace NNodeTrackerClient;
 using namespace NJobTrackerClient;
 using namespace NObjectClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -39,26 +40,25 @@ TSchedulerConnector::TSchedulerConnector(
     TBootstrap* bootstrap)
     : Config_(config)
     , Bootstrap_(bootstrap)
-    , ControlInvoker_(bootstrap->GetControlInvoker())
+    , HeartbeatExecutor_(New<TPeriodicExecutor>(
+        Bootstrap_->GetControlInvoker(),
+        BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
+        Config_->HeartbeatPeriod,
+        Config_->HeartbeatSplay))
     , TimeBetweenSentHeartbeatsCounter_("/scheduler_connector/time_between_send_heartbeats")
     , TimeBetweenAcknowledgedHeartbeatsCounter_("/scheduler_connector/time_between_acknowledged_heartbeats")
     , TimeBetweenFullyProcessedHeartbeatsCounter_("/scheduler_connector/time_between_fully_processed_heartbeats")
 {
     YT_VERIFY(config);
     YT_VERIFY(bootstrap);
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
 
 void TSchedulerConnector::Start()
 {
-    HeartbeatExecutor_ = New<TPeriodicExecutor>(
-        ControlInvoker_,
-        BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
-        Config_->HeartbeatPeriod,
-        Config_->HeartbeatSplay);
-
     // Schedule an out-of-order heartbeat whenever a job finishes
     // or its resource usage is updated.
-    auto jobController = Bootstrap_->GetJobController();
+    const auto& jobController = Bootstrap_->GetJobController();
     jobController->SubscribeResourcesUpdated(BIND(
         &TPeriodicExecutor::ScheduleOutOfBand,
         HeartbeatExecutor_));
@@ -68,6 +68,8 @@ void TSchedulerConnector::Start()
 
 void TSchedulerConnector::SendHeartbeat()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     const auto& masterConnector = Bootstrap_->GetMasterConnector();
     if (!masterConnector->IsConnected()) {
         return;
@@ -85,14 +87,12 @@ void TSchedulerConnector::SendHeartbeat()
     req->SetRequestCodec(NCompression::ECodec::Lz4);
 
     const auto& jobController = Bootstrap_->GetJobController();
-    const auto masterConnection = client->GetNativeConnection();
-    jobController->PrepareHeartbeatRequest(
+    const auto& masterConnection = client->GetNativeConnection();
+    WaitFor(jobController->PrepareHeartbeatRequest(
         masterConnection->GetPrimaryMasterCellTag(),
         EObjectType::SchedulerJob,
-        req.Get());
-
-    YT_LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
-        FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_resources()));
+        req))
+        .ThrowOnError();
 
     auto profileInterval = [&] (TInstant lastTime, NProfiling::TAggregateGauge& counter) {
         if (lastTime != TInstant::Zero()) {
@@ -104,8 +104,10 @@ void TSchedulerConnector::SendHeartbeat()
     profileInterval(LastSentHeartbeatTime_, TimeBetweenSentHeartbeatsCounter_);
     LastSentHeartbeatTime_ = TInstant::Now();
 
-    auto rspOrError = WaitFor(req->Invoke());
+    YT_LOG_INFO("Scheduler heartbeat sent (ResourceUsage: %v)",
+        FormatResourceUsage(req->resource_usage(), req->resource_limits(), req->disk_resources()));
 
+    auto rspOrError = WaitFor(req->Invoke());
     if (!rspOrError.IsOK()) {
         LastFailedHeartbeatTime_ = TInstant::Now();
         if (FailedHeartbeatBackoffTime_ == TDuration::Zero()) {
@@ -154,7 +156,8 @@ void TSchedulerConnector::SendHeartbeat()
         reporter->SetOperationArchiveVersion(rsp->operation_archive_version());
     }
 
-    jobController->ProcessHeartbeatResponse(rsp, EObjectType::SchedulerJob);
+    WaitFor(jobController->ProcessHeartbeatResponse(rsp, EObjectType::SchedulerJob))
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

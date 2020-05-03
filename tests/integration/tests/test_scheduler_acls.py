@@ -1,7 +1,12 @@
 import yt.environment.init_operation_archive as init_operation_archive
 
-from yt_env_setup import YTEnvSetup, unix_only, Restarter, SCHEDULERS_SERVICE
+from yt_env_setup import (
+    YTEnvSetup, unix_only, Restarter, SCHEDULERS_SERVICE,
+    get_porto_delta_node_config
+)
 from yt_commands import *
+
+import yt.common
 
 import pytest
 
@@ -23,6 +28,18 @@ class TestSchedulerAcls(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     REQUIRE_SUID_TOOL = True
+
+    USE_PORTO_FOR_SERVERS = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        {
+            "exec_agent": {
+                "test_poll_job_shell": True,
+            },
+        }
+    )
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -196,7 +213,6 @@ class TestSchedulerAcls(YTEnvSetup):
         def _dump_job_context(operation_id, job_id, **kwargs):
             dump_job_context(job_id, "//tmp/job_context", **kwargs)
         actions = [
-            strace_job,
             _dump_job_context,
             get_job_input,
             get_job_stderr,

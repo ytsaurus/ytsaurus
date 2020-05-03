@@ -1,6 +1,6 @@
-#include <yt/server/node/cell_node/program.h>
+#include <yt/server/node/cluster_node/program.h>
 
 int main(int argc, const char** argv)
 {
-    return NYT::NCellNode::TCellNodeProgram().Run(argc, argv);
+    return NYT::NClusterNode::TClusterNodeProgram().Run(argc, argv);
 }

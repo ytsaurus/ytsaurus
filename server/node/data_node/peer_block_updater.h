@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/core/concurrency/public.h>
 
@@ -16,7 +16,7 @@ class TPeerBlockUpdater
 public:
     TPeerBlockUpdater(
         TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     void Start();
     void Stop();
@@ -25,7 +25,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
     void Update();

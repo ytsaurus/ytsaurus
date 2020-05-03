@@ -113,29 +113,28 @@ private:
 
         TTableMountInfoPtr Run()
         {
-            WaitFor(RequestTableAttributes(Key_.RefreshPrimaryRevision))
-                .ThrowOnError();
-
-            auto mountInfoOrError = WaitFor(RequestMountInfo(Key_.RefreshSecondaryRevision));
-            if (!mountInfoOrError.IsOK() && PrimaryRevision_) {
-                WaitFor(RequestTableAttributes(PrimaryRevision_))
+            try {
+                WaitFor(RequestTableAttributes(Key_.RefreshPrimaryRevision))
                     .ThrowOnError();
-                mountInfoOrError = WaitFor(RequestMountInfo(NHydra::NullRevision));
-            }
 
-            if (!mountInfoOrError.IsOK() && SecondaryRevision_) {
-                mountInfoOrError = WaitFor(RequestMountInfo(SecondaryRevision_));
-            }
+                auto mountInfoOrError = WaitFor(RequestMountInfo(Key_.RefreshSecondaryRevision));
+                if (!mountInfoOrError.IsOK() && PrimaryRevision_) {
+                    WaitFor(RequestTableAttributes(PrimaryRevision_))
+                        .ThrowOnError();
+                    mountInfoOrError = WaitFor(RequestMountInfo(NHydra::NullRevision));
+                }
 
-            if (!mountInfoOrError.IsOK()) {
-                auto wrappedError = TError("Error getting mount info for %v",
+                if (!mountInfoOrError.IsOK() && SecondaryRevision_) {
+                    mountInfoOrError = WaitFor(RequestMountInfo(SecondaryRevision_));
+                }
+
+                return mountInfoOrError.ValueOrThrow();
+            } catch (const std::exception& ex) {
+                YT_LOG_DEBUG(ex, "Error getting table mount info");
+                THROW_ERROR_EXCEPTION("Error getting mount info for %v",
                     Key_.Path)
-                    << mountInfoOrError;
-                YT_LOG_WARNING(wrappedError);
-                THROW_ERROR wrappedError;
+                    << ex;
             }
-
-            return mountInfoOrError.Value();
         }
 
     private:

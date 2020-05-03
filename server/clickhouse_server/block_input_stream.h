@@ -3,7 +3,7 @@
 #include "private.h"
 
 #include <yt/ytlib/table_client/public.h>
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
@@ -83,4 +83,4 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NClickHouseServer

@@ -34,7 +34,7 @@ void ZlibCompress(int level, StreamSource* source, TBlob* output)
 
     // Write out header.
     output->Reserve(sizeof(ui64) + totalCompressedSize);
-    output->Resize(sizeof(ui64), false);
+    output->Resize(sizeof(ui64), /* initializeStorage */ false);
     {
         TMemoryOutput memoryOutput(output->Begin(), sizeof(ui64));
         WritePod(memoryOutput, static_cast<ui64>(totalUncompressedSize)); // Force serialization type.
@@ -70,7 +70,7 @@ void ZlibCompress(int level, StreamSource* source, TBlob* output)
             // We should not throw exception here since caller does not expect such behavior.
             YT_VERIFY(returnCode == Z_OK || returnCode == Z_STREAM_END);
 
-            output->Resize(output->Size() + outputAvailable - stream.avail_out, false);
+            output->Resize(output->Size() + outputAvailable - stream.avail_out, /* initializeStorage */ false);
         } while (stream.avail_out == 0);
 
         // Entire input was consumed.
@@ -127,7 +127,7 @@ void ZlibDecompress(StreamSource* source, TBlob* output)
 
         source->Skip(inputAvailable - stream.avail_in);
 
-        output->Resize(output->Size() + outputAvailable - stream.avail_out, false);
+        output->Resize(output->Size() + outputAvailable - stream.avail_out, /* initializeStorage */ false);
     } while (returnCode != Z_STREAM_END);
 
     YT_VERIFY(source->Available() == 0);

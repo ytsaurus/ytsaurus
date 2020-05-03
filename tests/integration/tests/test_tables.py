@@ -1520,13 +1520,14 @@ class TestTables(YTEnvSetup):
     @authors("gritukan")
     def test_chunk_unique_keys(self):
         def make_rows(values):
-            return [{"a": value} for value in values]
+            return [{"a": value, "b": 0} for value in values]
 
         create("table", "//tmp/t1",
            attributes={
                "schema": make_schema(
                    [
                        {"name": "a", "type": "int64", "sort_order": "ascending"},
+                       {"name": "b", "type": "int64"},
                    ],
                    unique_keys=True)
            })
@@ -1534,13 +1535,18 @@ class TestTables(YTEnvSetup):
            attributes={
                "schema": make_schema(
                    [
-                       {"name": "a", "type": "int64", "sort_order": "ascending"}
+                       {"name": "a", "type": "int64", "sort_order": "ascending"},
+                       {"name": "b", "type": "int64"},
                    ],
                    unique_keys=False)
            })
         create("table", "//tmp/t3",
            attributes={
-               "schema": make_schema([{"name": "a", "type": "int64"}])
+               "schema": make_schema(
+               [
+                   {"name": "a", "type": "int64"},
+                   {"name": "b", "type": "int64"},
+               ])
            })
 
         # Write simple chunk.
@@ -1581,9 +1587,14 @@ class TestTables(YTEnvSetup):
         write_table("<chunk_key_column_count=1;chunk_unique_keys=false;append=true>//tmp/t2", make_rows([4, 4]))
         write_table("<chunk_key_column_count=1;chunk_unique_keys=false;append=true>//tmp/t3", make_rows([4, 4]))
 
+        with raises_yt_error(IncompatibleKeyColumns):
+            write_table("<chunk_key_column_count=2;chunk_unique_keys=true;append=true>//tmp/t1", [{"a": 5, "b": 1}, {"a": 5, "b": 2}])
+        write_table("<chunk_key_column_count=2;chunk_unique_keys=true;append=true>//tmp/t2", [{"a": 5, "b": 1}, {"a": 5, "b": 2}])
+        write_table("<chunk_key_column_count=2;chunk_unique_keys=true;append=true>//tmp/t3", [{"a": 5, "b": 1}, {"a": 5, "b": 2}])
+
         assert read_table("//tmp/t1") == make_rows([1, 3])
-        assert read_table("//tmp/t2") == make_rows([1, 1, 3, 4, 4])
-        assert read_table("//tmp/t3") == make_rows([1, 1, 0, 4, 4])
+        assert read_table("//tmp/t2") == make_rows([1, 1, 3, 4, 4]) + [{"a": 5, "b": 1}, {"a": 5, "b": 2}]
+        assert read_table("//tmp/t3") == make_rows([1, 1, 0, 4, 4]) + [{"a": 5, "b": 1}, {"a": 5, "b": 2}]
 
     @authors("gritukan")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])

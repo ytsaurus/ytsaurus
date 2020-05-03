@@ -1,5 +1,7 @@
 #include "environment.h"
 
+#include <yt/server/lib/core_dump/public.h>
+
 #include <yt/server/lib/exec_agent/config.h>
 
 #include <yt/server/lib/job_agent/gpu_helpers.h>
@@ -21,6 +23,8 @@
 #include <yt/core/misc/proc.h>
 
 #include <yt/core/ytree/convert.h>
+
+#include <sys/stat.h>
 
 namespace NYT::NJobProxy {
 
@@ -236,6 +240,11 @@ public:
         }
         return Process_;
     }
+
+    virtual IInstancePtr GetUserJobInstance() const override
+    {
+        return nullptr;
+    }
 };
 
 DECLARE_REFCOUNTED_CLASS(TCGroupsUserJobEnvironment);
@@ -271,159 +280,149 @@ public:
     }
 };
 
-DECLARE_REFCOUNTED_CLASS(TCGroupsJobProxyEnvironment);
-DEFINE_REFCOUNTED_TYPE(TCGroupsJobProxyEnvironment);
+DECLARE_REFCOUNTED_CLASS(TCGroupsJobProxyEnvironment)
+DEFINE_REFCOUNTED_TYPE(TCGroupsJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
 
-template <class ...Args>
-static TError CheckErrors(const TUsage& stats, const Args&... args)
-{
-    std::vector<EStatField> fields = {args...};
-    TError error;
-    for (const auto& field : fields) {
-        if (!stats[field].IsOK()) {
-            if (error.IsOK()) {
-                error = stats[field];
-            } else {
-                error = error << stats[field];
-            }
-        }
-    }
-    return error;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TPortoResourceTracker
     : public virtual IResourceTracker
 {
 public:
-    TPortoResourceTracker(IInstancePtr instance, TDuration statUpdatePeriod)
+    TPortoResourceTracker(IInstancePtr instance, TDuration updatePeriod)
         : Instance_(std::move(instance))
-        , StatUpdatePeriod_(statUpdatePeriod)
+        , UpdatePeriod_(updatePeriod)
     { }
 
     virtual TCpuStatistics GetCpuStatistics() const override
     {
-        UpdateResourceUsage();
-
-        auto guard = Guard(SpinLock_);
-
-        auto error = CheckErrors(
-            ResourceUsage_,
-            EStatField::CpuUsageSystem,
-            EStatField::CpuUsageUser,
-            EStatField::CpuWaitTime,
-            EStatField::CpuThrottled);
-        if (!error.IsOK()) {
-            if (CpuStatistics_) {
-                YT_LOG_WARNING(error, "Unable to get CPU statistics; using the last one");
-                return *CpuStatistics_;
-            } else {
-                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get CPU statistics");
-            }
-        }
-
-        // Porto reports times in ns.
-        TCpuStatistics cpuStatistics{
-            .UserTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuUsageUser].Value() / 1000),
-            .SystemTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuUsageSystem].Value() / 1000),
-            .WaitTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuWaitTime].Value() / 1000),
-            .ThrottledTime = TDuration::MicroSeconds(ResourceUsage_[EStatField::CpuThrottled].Value() / 1000)
-        };
-        CpuStatistics_ = cpuStatistics;
-        return cpuStatistics;
+        return GetStatistics(
+            CachedCpuStatistics_,
+            "CPU",
+            [&] {
+                return TCpuStatistics{
+                    .UserTime = TDuration::MicroSeconds(GetFieldOrThrow(ResourceUsage_, EStatField::CpuUsageUser) / 1000),
+                    .SystemTime = TDuration::MicroSeconds(GetFieldOrThrow(ResourceUsage_, EStatField::CpuUsageSystem) / 1000),
+                    .WaitTime = TDuration::MicroSeconds(GetFieldOrThrow(ResourceUsage_, EStatField::CpuWait) / 1000),
+                    .ThrottledTime = TDuration::MicroSeconds(GetFieldOrThrow(ResourceUsage_, EStatField::CpuThrottled) / 1000),
+                    .ContextSwitches = GetFieldOrThrow(ResourceUsage_, EStatField::ContextSwitches)
+                };
+            });
     }
 
     virtual TBlockIOStatistics GetBlockIOStatistics() const override
     {
-        UpdateResourceUsage();
-
-        auto guard = Guard(SpinLock_);
-
-        auto error = CheckErrors(ResourceUsage_,
-            EStatField::IOReadByte,
-            EStatField::IOWriteByte,
-            EStatField::IOOperations);
-        if (!error.IsOK()) {
-            if (BlockIOStatistics_) {
-                YT_LOG_WARNING(error, "Unable to get IO statistics; using the last one");
-                return *BlockIOStatistics_;
-            } else {
-                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get IO statistics");
-            }
-        }
-
-        TBlockIOStatistics blockIOStatistics{
-            .BytesRead = ResourceUsage_[EStatField::IOReadByte].Value(),
-            .BytesWritten = ResourceUsage_[EStatField::IOWriteByte].Value(),
-            .IOTotal = ResourceUsage_[EStatField::IOOperations].Value()
-        };
-        BlockIOStatistics_ = blockIOStatistics;
-        return blockIOStatistics;
+        return GetStatistics(
+            CachedBlockIOStatistics_,
+            "block IO",
+            [&] {
+                return TBlockIOStatistics{
+                    .BytesRead = GetFieldOrThrow(ResourceUsage_, EStatField::IOReadByte),
+                    .BytesWritten = GetFieldOrThrow(ResourceUsage_, EStatField::IOWriteByte),
+                    .IOTotal = GetFieldOrThrow(ResourceUsage_, EStatField::IOOperations)
+                };
+            });
     }
 
     TMemoryStatistics GetMemoryStatistics() const
     {
-        UpdateResourceUsage();
-
-        auto guard = Guard(SpinLock_);
-
-        auto error = CheckErrors(ResourceUsage_,
-            EStatField::Rss,
-            EStatField::MappedFiles,
-            EStatField::MajorFaults);
-        if (!error.IsOK()) {
-            if (MemoryStatistics_) {
-                YT_LOG_WARNING(error, "Unable to get memory statistics; using the last one");
-                return *MemoryStatistics_;
-            } else {
-                THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to get memory statistics");
-            }
-        }
-
-        TMemoryStatistics memoryStatistics{
-            .Rss = ResourceUsage_[EStatField::Rss].Value(),
-            .MappedFile = ResourceUsage_[EStatField::MappedFiles].Value(),
-            .MajorPageFaults = ResourceUsage_[EStatField::MajorFaults].Value()
-        };
-        MemoryStatistics_ = memoryStatistics;
-        return memoryStatistics;
+        return GetStatistics(
+            CachedMemoryStatistics_,
+            "memory",
+            [&] {
+                return TMemoryStatistics{
+                    .Rss = GetFieldOrThrow(ResourceUsage_, EStatField::Rss),
+                    .MappedFile = GetFieldOrThrow(ResourceUsage_, EStatField::MappedFiles),
+                    .MajorPageFaults = GetFieldOrThrow(ResourceUsage_, EStatField::MajorFaults)
+                };
+            });
     }
 
 private:
     const IInstancePtr Instance_;
-    const TDuration StatUpdatePeriod_;
+    const TDuration UpdatePeriod_;
 
-    TSpinLock SpinLock_;
-    mutable TInstant LastUpdateTime_ = TInstant::Zero();
-    mutable TUsage ResourceUsage_;
+    mutable std::atomic<TInstant> LastUpdateTime_ = {};
 
-    mutable std::optional<TCpuStatistics> CpuStatistics_;
-    mutable std::optional<TMemoryStatistics> MemoryStatistics_;
-    mutable std::optional<TBlockIOStatistics> BlockIOStatistics_;
+    mutable TSpinLock SpinLock_;
+    mutable TResourceUsage ResourceUsage_;
+    mutable std::optional<TCpuStatistics> CachedCpuStatistics_;
+    mutable std::optional<TMemoryStatistics> CachedMemoryStatistics_;
+    mutable std::optional<TBlockIOStatistics> CachedBlockIOStatistics_;
+
+    static ui64 GetFieldOrThrow(const TResourceUsage& usage, EStatField field)
+    {
+        auto it = usage.find(field);
+        if (it == usage.end()) {
+            THROW_ERROR_EXCEPTION("Resource usage is missing %Qlv field",
+                field);
+        }
+        const auto& errorOrValue = it->second;
+        if (errorOrValue.FindMatching(NContainers::EPortoErrorCode::NotSupported)) {
+            return 0;
+        }
+        if (!errorOrValue.IsOK()) {
+            THROW_ERROR_EXCEPTION("Error getting %Qlv resource usage field",
+                field)
+                << errorOrValue;
+        }
+        return errorOrValue.Value();
+    }
+
+    template <class T, class F>
+    T GetStatistics(
+        std::optional<T>& cachedStatistics,
+        const TString& statisticsKind,
+        F func) const
+    {
+        UpdateResourceUsage();
+
+        auto guard = Guard(SpinLock_);
+        try {
+            auto newStatistics = func();
+            cachedStatistics = newStatistics;
+            return newStatistics;
+        } catch (const std::exception& ex) {
+            if (!cachedStatistics) {
+                THROW_ERROR_EXCEPTION("Unable to get %v statistics",
+                    statisticsKind)
+                    << ex;
+            }
+            YT_LOG_WARNING(ex, "Unable to get %v statistics; using the last one",
+                statisticsKind);
+            return *cachedStatistics;
+        }
+    }
 
     void UpdateResourceUsage() const
     {
-        auto now = TInstant::Now();
-        if (now > LastUpdateTime_ && now - LastUpdateTime_ > StatUpdatePeriod_) {
-            auto resourceUsage = Instance_->GetResourceUsage({
-                EStatField::CpuUsageUser,
-                EStatField::CpuUsageSystem,
-                EStatField::IOReadByte,
-                EStatField::IOWriteByte,
-                EStatField::IOOperations,
-                EStatField::Rss,
-                EStatField::MappedFiles,
-                EStatField::MajorFaults
-            });
+        if (TInstant::Now() - LastUpdateTime_.load() > UpdatePeriod_) {
+            DoUpdateResourceUsage();
+            LastUpdateTime_.store(TInstant::Now());
+        }
+    }
 
+    void DoUpdateResourceUsage() const
+    {
+        auto resourceUsage = Instance_->GetResourceUsage({
+            EStatField::CpuUsageUser,
+            EStatField::CpuUsageSystem,
+            EStatField::CpuWait,
+            EStatField::CpuThrottled,
+            EStatField::ContextSwitches,
+            EStatField::IOReadByte,
+            EStatField::IOWriteByte,
+            EStatField::IOOperations,
+            EStatField::Rss,
+            EStatField::MappedFiles,
+            EStatField::MajorFaults
+        });
+
+        {
             auto guard = Guard(SpinLock_);
             ResourceUsage_ = resourceUsage;
-            LastUpdateTime_ = now;
         }
     }
 };
@@ -504,6 +503,8 @@ public:
         int uid,
         const TUserJobProcessOptions& options) override
     {
+        TString gpuCorePipeFile;
+
         if (options.CoreWatcherDirectory) {
             // NB: Core watcher expects core info file to be created before
             // core pipe file.
@@ -523,9 +524,25 @@ public:
             YT_LOG_DEBUG("Enabling core forwarding for Porto container (CoreHandler: %v)",
                 coreHandler);
             Instance_->SetCoreDumpHandler(coreHandler);
+
+            if (options.EnableCudaGpuCoreDump) {
+                gpuCorePipeFile = NFS::CombinePaths(coreDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
+                YT_LOG_DEBUG("Creating pipe for GPU core dumps (GpuCorePipeFile: %v)",
+                    gpuCorePipeFile);
+                if (mkfifo(gpuCorePipeFile.c_str(), 0666) == -1) {
+                    THROW_ERROR_EXCEPTION("Failed to create CUDA GPU core dump pipe")
+                        << TErrorAttribute("path", gpuCorePipeFile)
+                        << TError::FromSystem();
+                }
+            }
         }
 
         Instance_->SetEnablePorto(options.EnablePorto);
+        if (options.EnablePorto == EEnablePorto::Full) {
+            Instance_->SetIsolate(false);
+        } else {
+            Instance_->SetIsolate(true);
+        }
 
         if (UsePortoMemoryTracking_) {
             // NB(psushin): typically we don't use memory cgroups for memory usage tracking, since memory cgroups are expensive and
@@ -542,8 +559,17 @@ public:
         UserId_ = uid;
         Process_ = New<TPortoProcess>(adjustedPath, Instance_, false);
         Process_->AddArguments({"--uid", ::ToString(uid)});
+        if (options.EnableCudaGpuCoreDump) {
+            Process_->AddArguments({"--env", "CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1"});
+            Process_->AddArguments({"--env", Format("CUDA_COREDUMP_FILE=%v", gpuCorePipeFile)});
+        }
 
         return Process_;
+    }
+
+    virtual IInstancePtr GetUserJobInstance() const override
+    {
+        return Instance_;
     }
 
 private:
@@ -617,11 +643,11 @@ public:
         if (RootFS_) {
             auto newPath = NFS::CombinePaths(RootFS_->RootPath, "slot");
             YT_LOG_INFO("Mount slot directory into container (Path: %v)", newPath);
-            std::map<TString, TString> parameters;
-            parameters["backend"] = "rbind";
-            parameters["storage"] = NFs::CurrentWorkingDirectory();
 
-            auto volumePath = WaitFor(PortoExecutor_->CreateVolume(newPath, parameters))
+            THashMap<TString, TString> properties;
+            properties["backend"] = "rbind";
+            properties["storage"] = NFs::CurrentWorkingDirectory();
+            auto volumePath = WaitFor(PortoExecutor_->CreateVolume(newPath, properties))
                 .ValueOrThrow();
 
             RootFS_->Binds.emplace_back(TBind {

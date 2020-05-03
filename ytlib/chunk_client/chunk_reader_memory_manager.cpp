@@ -93,12 +93,12 @@ const NProfiling::TTagIdList& TChunkReaderMemoryManager::GetProfilingTagList() c
 
 void TChunkReaderMemoryManager::AddChunkReaderInfo(TGuid chunkReaderId)
 {
-    Logger.AddTag("chunk_reader_id", chunkReaderId);
+    YT_LOG_DEBUG("Chunk reader info added (ChunkReaderId: %v)", chunkReaderId);
 }
 
 void TChunkReaderMemoryManager::AddReadSessionInfo(TGuid readSessionId)
 {
-    Logger.AddTag("read_session_id", readSessionId);
+    YT_LOG_DEBUG("Read session info added (ReadSessionId: %v)", readSessionId);
 }
 
 TGuid TChunkReaderMemoryManager::GetId() const
@@ -108,14 +108,18 @@ TGuid TChunkReaderMemoryManager::GetId() const
 
 TMemoryUsageGuardPtr TChunkReaderMemoryManager::Acquire(i64 size)
 {
-    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Force acquiring memory (MemorySize: %v, FreeMemorySize: %v)", size, GetFreeMemorySize());
+    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Force acquiring memory (MemorySize: %v, FreeMemorySize: %v)",
+        size,
+        GetFreeMemorySize());
 
     return New<TMemoryUsageGuard>(TAsyncSemaphoreGuard::Acquire(AsyncSemaphore_, size), MakeWeak(this));
 }
 
 TFuture<TMemoryUsageGuardPtr> TChunkReaderMemoryManager::AsyncAquire(i64 size)
 {
-    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Acquiring memory (MemorySize: %v, FreeMemorySize: %v)", size, GetFreeMemorySize());
+    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Acquiring memory (MemorySize: %v, FreeMemorySize: %v)",
+        size,
+        GetFreeMemorySize());
 
     auto memoryPromise = NewPromise<TMemoryUsageGuardPtr>();
     auto memoryFuture = memoryPromise.ToFuture();
@@ -129,7 +133,9 @@ TFuture<TMemoryUsageGuardPtr> TChunkReaderMemoryManager::AsyncAquire(i64 size)
 
 void TChunkReaderMemoryManager::Release(i64 size)
 {
-    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Releasing memory (MemorySize: %v, FreeMemorySize: %v)", size, GetFreeMemorySize());
+    YT_LOG_DEBUG_IF(Options_.EnableDetailedLogging, "Releasing memory (MemorySize: %v, FreeMemorySize: %v)",
+        size,
+        GetFreeMemorySize());
 
     AsyncSemaphore_->Release(size);
     TryUnregister();
@@ -192,7 +198,8 @@ void TChunkReaderMemoryManager::SetPrefetchMemorySize(i64 size)
 
 void TChunkReaderMemoryManager::Finalize()
 {
-    YT_LOG_DEBUG("Finalizing chunk reader memory manager (AlreadyFinalized: %v)", Finalized_.load());
+    YT_LOG_DEBUG("Finalizing chunk reader memory manager (AlreadyFinalized: %v)",
+        Finalized_.load());
 
     Finalized_ = true;
     TryUnregister();

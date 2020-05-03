@@ -53,6 +53,7 @@ public:
         bool recursive);
 
     TFuture<void> UpdateConfig();
+    ui64 GetConfigRevision() const;
 
 private:
     class TImpl;

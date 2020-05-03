@@ -1,9 +1,9 @@
 #pragma once
-#include "public.h"
+
 #include "location.h"
 #include "session_detail.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/ytlib/chunk_client/block.h>
@@ -33,8 +33,6 @@ class TBlobSession
 public:
     using TSessionBase::TSessionBase;
 
-    NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;
-
 private:
     using ESlotState = EBlobSessionSlotState;
 
@@ -43,22 +41,18 @@ private:
         ESlotState State = ESlotState::Empty;
         NChunkClient::TBlock Block;
         TPromise<void> WrittenPromise = NewPromise<void>();
-        NCellNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
+        NClusterNode::TNodeMemoryTrackerGuard MemoryTrackerGuard;
         TPendingIOGuard PendingIOGuard;
     };
 
-    // Thread affinity: WriterThread
     TError Error_;
     NChunkClient::TFileWriterPtr Writer_;
 
-    // Thread affinity: ControlThread
     std::vector<TSlot> Window_;
     int WindowStartBlockIndex_ = 0;
     int WindowIndex_ = 0;
     i64 Size_ = 0;
     int BlockCount_ = 0;
-
-    const IInvokerPtr WriteInvoker_ = NConcurrency::CreateBoundedConcurrencyInvoker(TSessionBase::WriteInvoker_, 1);
 
     virtual TFuture<void> DoStart() override;
     void DoOpenWriter();
@@ -77,7 +71,7 @@ private:
 
     virtual void DoCancel(const TError& error) override;
 
-    virtual TFuture<IChunkPtr> DoFinish(
+    virtual TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) override;
 
@@ -88,13 +82,8 @@ private:
     NChunkClient::TBlock GetBlock(int blockIndex);
     void MarkAllSlotsWritten(const TError& error);
 
-    TFuture<void> AbortWriter();
-    void DoAbortWriter();
-    void OnWriterAborted(const TError& error);
-
-    TFuture<void> CloseWriter(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
-    void DoCloseWriter(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
-    IChunkPtr OnWriterClosed(const TError& error);
+    void AbortWriter();
+    NChunkClient::NProto::TChunkInfo CloseWriter(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta);
 
     void DoWriteBlocks(
         const std::vector<NChunkClient::TBlock>& blocks,
@@ -109,7 +98,6 @@ private:
     void SetFailed(const TError& error, bool fatal = true);
 
     void OnSlotCanceled(int blockIndex, const TError& error);
-    void OnFinishCanceled(const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlobSession)

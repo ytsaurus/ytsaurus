@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
 
@@ -23,7 +23,7 @@
 namespace NYT::NDataNode {
 
 using namespace NApi;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NCypressClient;
@@ -39,7 +39,7 @@ static constexpr int MaxChunksPerLocateRequest = 10000;
 TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     const NYPath::TYPath& path,
     NHydra::TRevision contentRevision,
-    NCellNode::TBootstrap const* bootstrap,
+    NClusterNode::TBootstrap const* bootstrap,
     EMasterChannelKind masterChannelKind,
     const NLogging::TLogger& logger)
 {

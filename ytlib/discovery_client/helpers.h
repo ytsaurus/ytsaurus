@@ -29,13 +29,25 @@ struct TMemberInfo
     i64 Revision = 0;
 };
 
+struct TGroupMeta
+{
+    int MemberCount = 0;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ToProto(NProto::TMemberInfo* protoMemberInfo, const TMemberInfo& MemberInfo);
 void FromProto(TMemberInfo* memberInfo, const NProto::TMemberInfo& protoMemberInfo);
 
+void ToProto(NProto::TGroupMeta* protoGroupMeta, const TGroupMeta& groupMeta);
+void FromProto(TGroupMeta* groupMeta, const NProto::TGroupMeta& protoGroupMeta);
+
 void ToProto(NProto::TListMembersOptions* protoListMembersOptions, const TListMembersOptions& listMembersOptions);
 void FromProto(TListMembersOptions* listMembersOptions, const NProto::TListMembersOptions& protoListMembersOptions);
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsMemberSystemAttribute(const TString& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

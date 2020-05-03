@@ -7,7 +7,7 @@
 #include "journal_manager.h"
 #include "location.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/lib/hydra/changelog.h>
 
@@ -274,7 +274,7 @@ TFuture<void> TJournalDispatcher::TImpl::RemoveChangelog(
     const TJournalChunkPtr& chunk,
     bool enableMultiplexing)
 {
-    auto location = chunk->GetStoreLocation();
+    const auto& location = chunk->GetStoreLocation();
 
     TAsyncSlruCacheBase::TryRemove({location, chunk->GetId()});
 
@@ -292,7 +292,7 @@ TFuture<bool> TJournalDispatcher::TImpl::IsChangelogSealed(
 
 TFuture<void> TJournalDispatcher::TImpl::SealChangelog(TJournalChunkPtr chunk)
 {
-    auto location = chunk->GetStoreLocation();
+    const auto& location = chunk->GetStoreLocation();
     const auto& journalManager = location->GetJournalManager();
     return journalManager->SealChangelog(chunk);
 }

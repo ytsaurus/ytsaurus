@@ -92,9 +92,6 @@ class TestPoolMetrics(YTEnvSetup):
         create_pool("child1", parent_name="parent")
         create_pool("child2", parent_name="parent")
 
-        # Give scheduler some time to apply new pools.
-        time.sleep(1)
-
         create("table", "//t_input")
         create("table", "//t_output")
 
@@ -176,9 +173,6 @@ class TestPoolMetrics(YTEnvSetup):
         create_pool("parent")
         create_pool("child", parent_name="parent")
 
-        # Give scheduler some time to apply new pools.
-        time.sleep(1)
-
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
 
@@ -224,10 +218,8 @@ class TestPoolMetrics(YTEnvSetup):
     @authors("eshcherbin")
     def test_total_time_operation_by_state(self):
         create_pool("parent")
-        wait(lambda: "parent" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
         for i in xrange(3):
             create_pool("child" + str(i + 1), parent_name="parent")
-            wait(lambda: ("child" + str(i + 1)) in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
 
 
         create("table", "//tmp/t_input")
@@ -287,9 +279,6 @@ class TestPoolMetrics(YTEnvSetup):
     @authors("eshcherbin")
     def test_total_time_operation_completed_several_jobs(self):
         create_pool("unique_pool")
-
-        # Give scheduler some time to apply new pools.
-        time.sleep(1)
 
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -353,9 +342,6 @@ class TestPoolMetrics(YTEnvSetup):
     @authors("eshcherbin")
     def test_total_time_operation_failed_several_jobs(self):
         create_pool("unique_pool")
-
-        # Give scheduler some time to apply new pools.
-        time.sleep(1)
 
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")
@@ -439,7 +425,6 @@ class TestPoolMetrics(YTEnvSetup):
     @authors("eshcherbin")
     def test_revive(self):
         create_pool("unique_pool")
-        wait(lambda: "unique_pool" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
 
         create("table", "//tmp/t_input")
         create("table", "//tmp/t_output")

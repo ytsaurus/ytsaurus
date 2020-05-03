@@ -8,17 +8,17 @@
 #include "journal_session.h"
 #include "location.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/client/chunk_client/chunk_replica.h>
-#include <yt/ytlib/chunk_client/file_writer.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/assert.h>
 
 #include <yt/core/profiling/profile_manager.h>
 
@@ -31,7 +31,7 @@ using namespace NObjectClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,27 +43,26 @@ static const auto& Logger = DataNodeLogger;
 TSessionManager::TSessionManager(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
-    : Config_(config)
+    : Config_(std::move(config))
     , Bootstrap_(bootstrap)
 {
-    YT_VERIFY(config);
-    YT_VERIFY(bootstrap);
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
+    YT_VERIFY(Config_);
+    YT_VERIFY(Bootstrap_);
 }
 
 ISessionPtr TSessionManager::FindSession(TSessionId sessionId)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
+    VERIFY_THREAD_AFFINITY_ANY();
     YT_VERIFY(sessionId.MediumIndex != AllMediaIndex);
 
+    TReaderGuard guard(SessionMapLock_);
     auto it = SessionMap_.find(sessionId);
     return it == SessionMap_.end() ? nullptr : it->second;
 }
 
 ISessionPtr TSessionManager::GetSessionOrThrow(TSessionId sessionId)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     auto session = FindSession(sessionId);
     if (!session) {
@@ -79,26 +78,38 @@ ISessionPtr TSessionManager::StartSession(
     TSessionId sessionId,
     const TSessionOptions& options)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TWriterGuard guard(SessionMapLock_);
 
     if (SessionMap_.size() >= Config_->MaxWriteSessions) {
-        auto error = TError("Maximum concurrent write session limit %v has been reached",
+        THROW_ERROR_EXCEPTION("Maximum concurrent write session limit %v has been reached",
             Config_->MaxWriteSessions);
-        YT_LOG_ERROR(error);
-        THROW_ERROR(error);
+    }
+
+    if (SessionMap_.contains(sessionId)) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::SessionAlreadyExists,
+            "Write session %v is already registered",
+            sessionId);
+    }
+
+    if (Bootstrap_->GetChunkStore()->FindChunk(sessionId.ChunkId, sessionId.MediumIndex)) {
+        THROW_ERROR_EXCEPTION(
+            NChunkClient::EErrorCode::ChunkAlreadyExists,
+            "Chunk %v already exists",
+            sessionId);
     }
 
     if (DisableWriteSessions_) {
-        auto error = TError("Write sessions are disabled");
-        YT_LOG_ERROR(error);
-        THROW_ERROR(error);
+        THROW_ERROR_EXCEPTION("Write sessions are disabled");
     }
 
     auto session = CreateSession(sessionId, options);
 
     session->SubscribeFinished(
         BIND(&TSessionManager::OnSessionFinished, MakeStrong(this), MakeWeak(session))
-            .Via(Bootstrap_->GetControlInvoker()));
+            .Via(Bootstrap_->GetStorageLightInvoker()));
 
     RegisterSession(session);
 
@@ -109,7 +120,7 @@ ISessionPtr TSessionManager::CreateSession(
     TSessionId sessionId,
     const TSessionOptions& options)
 {
-    auto chunkType = TypeFromId(DecodeChunkId(sessionId.ChunkId).Id);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     auto location = chunkStore->GetNewChunkLocation(sessionId, options);
@@ -117,13 +128,13 @@ ISessionPtr TSessionManager::CreateSession(
     auto lease = TLeaseManager::CreateLease(
         Config_->SessionTimeout,
         BIND(&TSessionManager::OnSessionLeaseExpired, MakeStrong(this), sessionId)
-            .Via(Bootstrap_->GetControlInvoker()));
+            .Via(Bootstrap_->GetStorageLightInvoker()));
 
-    ISessionPtr session;
+    auto chunkType = TypeFromId(DecodeChunkId(sessionId.ChunkId).Id);
     switch (chunkType) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-            session = New<TBlobSession>(
+            return New<TBlobSession>(
                 Config_,
                 Bootstrap_,
                 sessionId,
@@ -133,7 +144,7 @@ ISessionPtr TSessionManager::CreateSession(
             break;
 
         case EObjectType::JournalChunk:
-            session = New<TJournalSession>(
+            return New<TJournalSession>(
                 Config_,
                 Bootstrap_,
                 sessionId,
@@ -146,13 +157,11 @@ ISessionPtr TSessionManager::CreateSession(
             THROW_ERROR_EXCEPTION("Invalid session chunk type %Qlv",
                 chunkType);
     }
-
-    return session;
 }
 
 void TSessionManager::OnSessionLeaseExpired(TSessionId sessionId)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetStorageLightInvoker());
 
     auto session = FindSession(sessionId);
     if (!session) {
@@ -165,19 +174,22 @@ void TSessionManager::OnSessionLeaseExpired(TSessionId sessionId)
     session->Cancel(TError("Session lease expired"));
 }
 
-void TSessionManager::OnSessionFinished(const TWeakPtr<ISession>& session, const TError& /*error*/)
+void TSessionManager::OnSessionFinished(const TWeakPtr<ISession>& weakSession, const TError& /*error*/)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetStorageLightInvoker());
 
-    auto session_ = session.Lock();
-    if (!session_) {
+    auto session = weakSession.Lock();
+    if (!session) {
         return;
     }
 
     YT_LOG_DEBUG("Session finished (ChunkId: %v)",
-        session_->GetId());
+        session->GetId());
 
-    UnregisterSession(session_);
+    {
+        TWriterGuard guard(SessionMapLock_);
+        UnregisterSession(session);
+    }
 }
 
 int TSessionManager::GetSessionCount(ESessionType type)
@@ -192,9 +204,23 @@ int TSessionManager::GetSessionCount(ESessionType type)
     return result;
 }
 
+bool TSessionManager::GetDisableWriteSessions()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return DisableWriteSessions_.load();
+}
+
+void TSessionManager::SetDisableWriteSessions(bool value)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    DisableWriteSessions_.store(value);
+}
+
 void TSessionManager::RegisterSession(const ISessionPtr& session)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_SPINLOCK_AFFINITY(SessionMapLock_);
 
     YT_VERIFY(SessionMap_.emplace(session->GetId(), session).second);
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), +1);
@@ -202,7 +228,7 @@ void TSessionManager::RegisterSession(const ISessionPtr& session)
 
 void TSessionManager::UnregisterSession(const ISessionPtr& session)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_SPINLOCK_AFFINITY(SessionMapLock_);
 
     YT_VERIFY(SessionMap_.erase(session->GetId()) == 1);
     session->GetStoreLocation()->UpdateSessionCount(session->GetType(), -1);

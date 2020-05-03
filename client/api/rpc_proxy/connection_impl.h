@@ -53,11 +53,11 @@ private:
     friend class TTimestampProvider;
 
     const TConnectionConfigPtr Config_;
+
+    const NLogging::TLogger Logger;
     const NConcurrency::TActionQueuePtr ActionQueue_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const TDynamicChannelPoolPtr ChannelPool_;
-
-    const NLogging::TLogger Logger;
 
     const NConcurrency::TPeriodicExecutorPtr UpdateProxyListExecutor_;
     NRpc::IChannelPtr DiscoveryChannel_;

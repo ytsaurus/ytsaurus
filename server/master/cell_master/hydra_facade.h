@@ -28,7 +28,11 @@ public:
     ~THydraFacade();
 
     void Initialize();
-    void LoadSnapshot(NHydra::ISnapshotReaderPtr reader, bool dump);
+    void LoadSnapshot(
+        NHydra::ISnapshotReaderPtr reader,
+        bool dump,
+        bool enableTotalWriteCountReport,
+        const TSerializationDumperConfigPtr& dumpConfig);
 
     const TMasterAutomatonPtr& GetAutomaton() const;
     const NElection::IElectionManagerPtr& GetElectionManager() const;

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "public.h"
 #include "session_detail.h"
+#include "chunk.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/lib/hydra/public.h>
 
@@ -17,10 +17,10 @@ class TJournalSession
 public:
     using TSessionBase::TSessionBase;
 
-    virtual NChunkClient::NProto::TChunkInfo GetChunkInfo() const override;
-
 private:
     TJournalChunkPtr Chunk_;
+    NHydra::IChangelogPtr Changelog_;
+    TChunkUpdateGuard ChunkUpdateGuard_;
     TFuture<void> LastAppendResult_ = VoidFuture;
 
 
@@ -35,7 +35,7 @@ private:
         const NNodeTrackerClient::TNodeDescriptor& target) override;
     virtual TFuture<void> DoFlushBlocks(int blockIndex) override;
     virtual void DoCancel(const TError& error) override;
-    virtual TFuture<IChunkPtr> DoFinish(
+    virtual TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) override;
 

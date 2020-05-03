@@ -3,6 +3,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "public.h"
+#include "group_tree.h"
 
 #include <yt/core/rpc/server.h>
 
@@ -28,15 +29,15 @@ public:
         TDuration leaseTimeout);
 
     TGroupPtr GetGroupOrThrow(const TGroupId& id);
-    std::vector<TGroupPtr> ListGroups();
 
     THashSet<TMemberPtr> GetModifiedMembers();
 
+    NYTree::IYPathServicePtr GetYPathService();
+
 private:
     const NLogging::TLogger Logger;
-
-    NConcurrency::TReaderWriterSpinLock GroupsLock_;
-    THashMap<TGroupId, TGroupPtr> IdToGroup_;
+    const TGroupTreePtr GroupTree_;
+    const NYTree::IYPathServicePtr YPathService_;
 
     TSpinLock ModifiedMembersLock_;
     THashSet<TMemberPtr> ModifiedMembers_;

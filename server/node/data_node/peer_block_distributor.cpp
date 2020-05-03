@@ -3,7 +3,7 @@
 #include "peer_block_table.h"
 #include "private.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/node/data_node/chunk_block_manager.h>
 #include <yt/server/node/data_node/config.h>
@@ -32,7 +32,7 @@
 
 namespace NYT::NDataNode {
 
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;

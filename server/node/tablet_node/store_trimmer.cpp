@@ -8,8 +8,8 @@
 #include "tablet_slot.h"
 #include "private.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
@@ -48,7 +48,7 @@ class TStoreTrimmer
 public:
     TStoreTrimmer(
         TTabletNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
     {
@@ -58,7 +58,7 @@ public:
 
 private:
     const TTabletNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
 
     void OnScanSlot(const TTabletSlotPtr& slot)
@@ -252,7 +252,7 @@ private:
 
 void StartStoreTrimmer(
     TTabletNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
 {
     if (config->EnableStoreTrimmer) {
         New<TStoreTrimmer>(config, bootstrap);

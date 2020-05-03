@@ -34,6 +34,8 @@ struct ITaskHost
     virtual std::optional<NYPath::TRichYPath> GetStderrTablePath() const = 0;
     //! Called to extract core table path from the spec.
     virtual std::optional<NYPath::TRichYPath> GetCoreTablePath() const = 0;
+    //! Called to extract `enable_cuda_gpu_core_dump' from the spec.
+    virtual bool GetEnableCudaGpuCoreDump() const = 0;
 
     virtual void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) = 0;
     virtual void AddTaskLocalityHint(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) = 0;

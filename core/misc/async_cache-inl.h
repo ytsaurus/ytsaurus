@@ -117,7 +117,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::GetAll()
     std::vector<TValuePtr> result;
     result.reserve(ValueMap_.size());
     for (const auto& pair : ValueMap_) {
-        auto value = TRefCounted::DangerousGetPtr<TValue>(pair.second);
+        auto value = DangerousGetPtr<TValue>(pair.second);
         if (value) {
             result.push_back(value);
         }
@@ -158,7 +158,7 @@ TAsyncSlruCacheBase<TKey, TValue, THash>::Lookup(const TKey& key)
             return TValueFuture();
         }
 
-        auto value = TRefCounted::DangerousGetPtr(valueIt->second);
+        auto value = DangerousGetPtr(valueIt->second);
 
         readerGuard.Release();
 
@@ -235,7 +235,7 @@ auto TAsyncSlruCacheBase<TKey, TValue, THash>::BeginInsert(const TKey& key) -> T
                 true);
         }
 
-        auto value = TRefCounted::DangerousGetPtr(valueIt->second);
+        auto value = DangerousGetPtr(valueIt->second);
         if (value) {
             auto* item = new TItem(value);
 

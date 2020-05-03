@@ -913,7 +913,8 @@ TAddressResolver::TImpl::TImpl(TAddressResolverConfigPtr config)
         config->Retries,
         config->ResolveTimeout,
         config->MaxResolveTimeout,
-        config->WarningTimeout)
+        config->WarningTimeout,
+        config->Jitter)
 {
     DnsResolver_.Start();
     Configure(std::move(config));

@@ -41,7 +41,7 @@ public:
     //! Runs the job. Blocks until the job is complete.
     void Run();
 
-    IInvokerPtr GetControlInvoker() const;
+    virtual IInvokerPtr GetControlInvoker() const override;
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual TString GetStderr() override;

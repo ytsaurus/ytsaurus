@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/lib/hydra/distributed_hydra_manager.h>
 
@@ -50,7 +50,7 @@ public:
         int slotIndex,
         TTabletNodeConfigPtr config,
         const NTabletClient::NProto::TCreateTabletSlotInfo& createInfo,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     ~TTabletSlot();
 

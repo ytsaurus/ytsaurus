@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/chunk_client/block.h>
 #include <yt/ytlib/chunk_client/block_id.h>
@@ -50,7 +50,7 @@ class TChunkBlockManager
 public:
     TChunkBlockManager(
         TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     ~TChunkBlockManager();
 

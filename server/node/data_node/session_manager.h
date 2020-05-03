@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/session_id.h>
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
-#include <yt/core/concurrency/public.h>
-#include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/rw_spinlock.h>
+
+#include <atomic>
 
 namespace NYT::NDataNode {
 
@@ -16,19 +16,15 @@ namespace NYT::NDataNode {
 
 //! Manages chunk uploads.
 /*!
- *  Thread affinity: ControlThread
+ *  Thread affinity: any
  */
 class TSessionManager
     : public TRefCounted
 {
-    DEFINE_BYVAL_RW_PROPERTY(bool, DisableWriteSessions, false);
-
 public:
-    using TSessionPtrList = SmallVector<ISessionPtr, 1>;
-
     TSessionManager(
         TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     //! Starts a new chunk upload session.
     /*!
@@ -47,22 +43,28 @@ public:
     //! Returns the number of currently active sessions of a given type.
     int GetSessionCount(ESessionType type);
 
+    //! Returns the flags indicating if new write sessions are disabled.
+    bool GetDisableWriteSessions();
+
+    //! Updates the flags indicating if new write sessions are disabled.
+    void SetDisableWriteSessions(bool value);
+
 private:
     const TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
+    NConcurrency::TReaderWriterSpinLock SessionMapLock_;
     THashMap<TSessionId, ISessionPtr> SessionMap_;
+
+    std::atomic<bool> DisableWriteSessions_ = false;
 
     ISessionPtr CreateSession(TSessionId sessionId, const TSessionOptions& options);
 
     void OnSessionLeaseExpired(TSessionId sessionId);
-    void OnSessionFinished(const TWeakPtr<ISession>& session, const TError& error);
+    void OnSessionFinished(const TWeakPtr<ISession>& weakSession, const TError& error);
 
     void RegisterSession(const ISessionPtr& session);
     void UnregisterSession(const ISessionPtr& session);
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TSessionManager)

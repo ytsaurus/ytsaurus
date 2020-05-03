@@ -162,7 +162,9 @@
     XX(Key, key) \
     XX(KeyColumns, key_columns) \
     XX(Kind, kind) \
+    XX(LastAttributesUpdateTime, last_attributes_update_time) \
     XX(LastCommitTimestamp, last_commit_timestamp) \
+    XX(LastHeartbeatTime, last_heartbeat_time) \
     XX(LastMountTransactionId, last_mount_transaction_id) \
     XX(LastPingTime, last_ping_time) \
     XX(LastSeenReplicas, last_seen_replicas) \

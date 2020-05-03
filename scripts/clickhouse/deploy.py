@@ -86,7 +86,7 @@ def main():
         platform_suffix = "." + platform if is_multiplatform_bin(args.kind) else ""
         platform_ext = ".exe" if platform == "windows" else ""
         filename = "{0}{1}-{2}{3}{4}".format(args.kind, platform_suffix, version, tags, platform_ext)
-        cypress_path = "//sys/clickhouse/bin/" + filename
+        cypress_path = "//sys/bin/{}/{}".format(args.kind, filename)
         bin_path = get_bin_path(args.src_dir, args.kind, platform=platform)
         print >>sys.stderr, "[{}] Deploying {} to {}".format(platform, bin_path, cypress_path)
         upload_client.create("file", cypress_path, attributes=attrs, force=True)

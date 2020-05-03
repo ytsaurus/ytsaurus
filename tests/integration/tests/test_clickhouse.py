@@ -27,6 +27,7 @@ import pytest
 import random
 import threading
 import pprint
+import signal
 
 if arcadia_interop.yatest_common is None:
     TEST_DIR = os.path.join(os.path.dirname(__file__))
@@ -122,7 +123,7 @@ class Clique(object):
     def get_active_instances(self):
         if exists("//sys/clickhouse/cliques/{0}".format(self.op.id), verbose=False):
             instances = ls("//sys/clickhouse/cliques/{0}".format(self.op.id),
-                           attributes=["locks", "host", "http_port", "monitoring_port", "job_cookie"],
+                           attributes=["locks", "host", "http_port", "monitoring_port", "job_cookie", "pid"],
                            verbose=False)
 
             def is_active(instance):
@@ -402,6 +403,15 @@ class ClickHouseTestBase(YTEnvSetup):
 
     def _get_proxy_address(self):
         return "http://" + self.Env.get_http_proxy_address()
+
+    def _signal_instance(self, pid, signal):
+        kill_cmd = "kill -s {0} {1}".format(signal, pid)
+        # Try to execute `kill_cmd` both with sudo and without sudo.
+        # To prevent freeze on sudo password reading we pass fake empty
+        # password through stdin.
+        cmd = "echo | sudo -S {0} || {0}".format(kill_cmd)
+        print_debug("Killing instance with {0}".format(cmd))
+        os.system(cmd)
 
     def _setup(self):
         Clique.path_to_run = self.path_to_run
@@ -993,11 +1003,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
             update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
             instances = clique.get_active_instances()
             assert len(instances) == 1
-            signal_job(instances[0], "SIGINT")
+            self._signal_instance(instances[0].attributes["pid"], "INT")
             time.sleep(0.5)
             assert len(clique.get_active_instances()) == 0
             assert clique.make_direct_query(instances[0], "select 1", full_response=True).status_code == 301
-            time.sleep(0.6)
+            time.sleep(0.8)
             with raises_yt_error(InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
@@ -1016,11 +1026,12 @@ class TestClickHouseCommon(ClickHouseTestBase):
             update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=0))
             instances = clique.get_active_instances()
             assert len(instances) == 1
-            signal_job(instances[0], "SIGINT")
+            pid = instances[0].attributes["pid"]
+            self._signal_instance(pid, "INT")
             time.sleep(0.2)
             assert len(clique.get_active_instances()) == 0
             assert clique.make_direct_query(instances[0], "select 1", full_response=True).status_code == 301
-            signal_job(instances[0], "SIGINT")
+            self._signal_instance(pid, "INT")
             time.sleep(0.2)
             with raises_yt_error(InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
@@ -1042,13 +1053,13 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert len(instances) == 1
 
             def signal_job_later():
-                time.sleep(0.2)
-                signal_job(instances[0], "SIGINT")
+                time.sleep(0.3)
+                self._signal_instance(instances[0].attributes["pid"], "INT")
             signal_thread = threading.Thread(target=signal_job_later)
             signal_thread.start()
 
             assert clique.make_direct_query(instances[0], "select sleep(3)") == [{"sleep(3)": 0}]
-            time.sleep(0.2)
+            time.sleep(0.3)
             with raises_yt_error(InstanceUnavailableCode):
                 clique.make_direct_query(instances[0], "select 1")
 
@@ -1122,7 +1133,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
             print_debug(result.text)
             assert result.status_code == 200
 
-            signal_job(instance, "SIGINT")
+            self._signal_instance(instance.attributes["pid"], "INT")
 
             result = requests.post("http://{}:{}/query?query_id={}".format(host, port, query_id),
                                 data="select 1",
@@ -2561,8 +2572,8 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 proxy_response = clique.make_query_via_proxy(
                         "select * from system.clique",
                         alias_and_instance_cookie="*test_alias@" + str(job_cookie))
-                for response_index in range(5):
-                    assert proxy_response[response_index]['self'] == 1 if proxy_response[response_index]['job_cookie'] == job_cookie else proxy_response[response_index]['self'] == 0
+                for instanse_response in proxy_response:
+                    assert instanse_response['self'] == 1 if instanse_response['job_cookie'] == job_cookie else instanse_response['self'] == 0
 
                 proxy_response = clique.make_query_via_proxy(
                         "select * from system.clique",
@@ -2653,18 +2664,15 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             proxy_responses = []
             proxy_responses += [clique.make_query_via_proxy("select 1", full_response=True)]
 
-            jobs = list(clique.op.get_running_jobs())
-            assert len(jobs) == 2
+            instances = clique.get_active_instances()
+            assert len(instances) == 2
 
             update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
-            signal_job(jobs[0], "SIGINT")
+            self._signal_instance(instances[0].attributes["pid"], "INT")
 
-            for instance in clique.get_active_instances():
-                if str(instance) == jobs[0]:
-                    with raises_yt_error(QueryFailedError):
-                        clique.make_direct_query(instance, "select 1")
-                else:
-                    assert clique.make_direct_query(instance, "select 1") == [{"1": 1}]
+            with raises_yt_error(QueryFailedError):
+                clique.make_direct_query(instances[0], "select 1")
+            assert clique.make_direct_query(instances[1], "select 1") == [{"1": 1}]
 
             for i in range(50):
                 print_debug("Iteration:", i)
@@ -2716,7 +2724,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             update_op_parameters(clique.op.id, parameters=get_scheduling_options(user_slots=1))
 
-            signal_job(instances[0], "SIGINT")
+            self._signal_instance(instances[0].attributes["pid"], "INT")
 
             wait(lambda: clique.get_active_instance_count() == 1, iter=10)
             clique.resize(2)

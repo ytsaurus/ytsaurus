@@ -1055,6 +1055,12 @@ private:
                 return;
             }
 
+            const auto& rsp = rspOrError.Value();
+            if (rsp->close_demanded()) {
+                OnReplicaCloseDemanded(node, session);
+                return;
+            }
+
             YT_LOG_DEBUG("Ping succeeded (Address: %v, SessionId: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 session->Id);
@@ -1145,14 +1151,15 @@ private:
                 node->InFlightBatches.push_back(batch);
             }
 
-            YT_LOG_DEBUG("Flushing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, DataSize: %v)",
+            YT_LOG_DEBUG("Flushing journal replica (Address: %v, BlockIds: %v:%v-%v, Rows: %v-%v, DataSize: %v, LagTime: %v)",
                 node->Descriptor.GetDefaultAddress(),
                 CurrentSession_->Id,
                 node->FirstPendingBlockIndex,
                 node->FirstPendingBlockIndex + flushRowCount - 1,
                 node->FirstPendingRowIndex,
                 node->FirstPendingRowIndex + flushRowCount - 1,
-                flushDataSize);
+                flushDataSize,
+                lagTime);
 
             req->Invoke().Subscribe(
                 BIND(&TImpl::OnBlocksFlushed, MakeWeak(this), CurrentSession_, node, flushRowCount)
@@ -1208,7 +1215,7 @@ private:
 
             MaybeFlushBlocks(node);
 
-            for (auto& promise : fulfilledPromises) {
+            for (const auto& promise : fulfilledPromises) {
                 promise.Set();
             }
 
@@ -1234,6 +1241,18 @@ private:
         {
             const auto& address = node->Descriptor.GetDefaultAddress();
             YT_LOG_WARNING(error, "Journal replica failed; requesting chunk switch (Address: %v, SessionId: %v)",
+                address,
+                session->Id);
+            ScheduleSwitch(session);
+            BanNode(address);
+        }
+
+        void OnReplicaCloseDemanded(
+            const TNodePtr& node,
+            const TChunkSessionPtr& session)
+        {
+            const auto& address = node->Descriptor.GetDefaultAddress();
+            YT_LOG_DEBUG("Journal replica has demanded to close the session; requesting chunk switch (Address: %v, SessionId: %v)",
                 address,
                 session->Id);
             ScheduleSwitch(session);

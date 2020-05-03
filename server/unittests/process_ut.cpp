@@ -28,7 +28,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if !defined(AUTOCHECK)
+#if !defined(AUTOCHECK) && !defined(DISTBUILD)
 
 static TString GetUniqueName()
 {

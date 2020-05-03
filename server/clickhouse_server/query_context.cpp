@@ -29,7 +29,7 @@ using namespace NTracing;
 
 TLogger QueryLogger("Query");
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 TQueryContext::TQueryContext(
     TBootstrap* bootstrap,
@@ -87,14 +87,6 @@ TQueryContext::TQueryContext(
         Interface,
         ClientHostName,
         HttpUserAgent);
-
-    WaitFor(BIND(
-        &TQueryRegistry::Register,
-        Bootstrap->GetQueryRegistry(),
-        MakeStrong(this))
-        .AsyncVia(Bootstrap->GetControlInvoker())
-        .Run())
-        .ThrowOnError();
 }
 
 TQueryContext::~TQueryContext()
@@ -106,8 +98,6 @@ TQueryContext::~TQueryContext()
     if (TraceContext) {
         TraceContext->Finish();
     }
-
-    Bootstrap->GetQueryRegistry()->Unregister(this);
 
     auto finishTime = TInstant::Now();
     auto duration = finishTime - StartTime_;
@@ -225,7 +215,8 @@ struct THostContext
     virtual ~THostContext() override
     {
         Bootstrap->GetControlInvoker()->Invoke(
-            BIND([queryContext = std::move(QueryContext)] () mutable {
+            BIND([bootstrap = Bootstrap, queryContext = std::move(QueryContext)] () mutable {
+                bootstrap->GetQueryRegistry()->Unregister(queryContext);
                 queryContext.Reset();
             }));
     }
@@ -246,8 +237,15 @@ void SetupHostContext(TBootstrap* bootstrap,
         std::move(traceContext),
         std::move(dataLensRequestId));
 
-    context.getHostContext() = std::make_shared<THostContext>(bootstrap, std::move(queryContext));
+    WaitFor(BIND(
+        &TQueryRegistry::Register,
+        bootstrap->GetQueryRegistry(),
+        queryContext)
+        .AsyncVia(bootstrap->GetControlInvoker())
+        .Run())
+        .ThrowOnError();
 
+    context.getHostContext() = std::make_shared<THostContext>(bootstrap, std::move(queryContext));
 }
 
 TQueryContext* GetQueryContext(const DB::Context& context)
@@ -259,6 +257,6 @@ TQueryContext* GetQueryContext(const DB::Context& context)
     return queryContext;
 }
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

@@ -1070,20 +1070,23 @@ private:
             auto tableKeyColumnCount = Options_->TableKeyColumnCount.value_or(Schema_.GetKeyColumnCount());
             auto tableUniqueKeys = Options_->TableUniqueKeys.value_or(Schema_.IsUniqueKeys());
             ValidateSortOrder(LastKey_.Get(), rows.front(), tableKeyColumnCount, tableUniqueKeys);
-        }
 
-        if (Schema_.IsSorted()) {
-            auto chunkKeyColumnCount = Schema_.GetKeyColumnCount();
-            auto chunkUniqueKeys = Schema_.IsUniqueKeys();
-            for (int rowIndex = 1; rowIndex < rows.size(); ++rowIndex) {
-                ValidateSortOrder(rows[rowIndex - 1], rows[rowIndex], chunkKeyColumnCount, chunkUniqueKeys);
-            }
+            if (Schema_.IsSorted()) {
+                auto chunkKeyColumnCount = Schema_.GetKeyColumnCount();
+                auto chunkUniqueKeys = Schema_.IsUniqueKeys();
 
-            const auto& lastKey = rows.back();
-            for (int keyColumnIndex = 0; keyColumnIndex < Schema_.GetKeyColumnCount(); ++keyColumnIndex) {
-                KeyBuilder_.AddValue(lastKey[keyColumnIndex]);
+                ValidateKeyColumnCount(tableKeyColumnCount, chunkKeyColumnCount, tableUniqueKeys);
+
+                for (int rowIndex = 1; rowIndex < rows.size(); ++rowIndex) {
+                    ValidateSortOrder(rows[rowIndex - 1], rows[rowIndex], chunkKeyColumnCount, chunkUniqueKeys);
+                }
+
+                const auto& lastKey = rows.back();
+                for (int keyColumnIndex = 0; keyColumnIndex < Schema_.GetKeyColumnCount(); ++keyColumnIndex) {
+                    KeyBuilder_.AddValue(lastKey[keyColumnIndex]);
+                }
+                LastKey_ = KeyBuilder_.FinishRow();
             }
-            LastKey_ = KeyBuilder_.FinishRow();
         }
     }
 

@@ -237,6 +237,8 @@ class TestChunkServer(YTEnvSetup):
             MAX_RF = 5
             set("//sys/media/default/@config/max_replication_factor", MAX_RF)
 
+            multicell_sleep()
+
             create("table", "//tmp/t", attributes={"replication_factor": 10})
             assert get("//tmp/t/@replication_factor") == 10
 
@@ -246,7 +248,7 @@ class TestChunkServer(YTEnvSetup):
             wait(lambda: len(get("#{0}/@stored_replicas".format(chunk_id))) >= MAX_RF)
 
             # Make sure RF doesn't go higher.
-            sleep(0.3)
+            sleep(1.0)
             assert len(get("#{0}/@stored_replicas".format(chunk_id))) == MAX_RF
         finally:
             set("//sys/media/default/@config/max_replication_factor", old_max_rf)

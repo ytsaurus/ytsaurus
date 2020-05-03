@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/lib/hive/transaction_manager.h>
 
@@ -45,7 +45,7 @@ public:
     TTransactionManager(
         TTransactionManagerConfigPtr config,
         TTabletSlotPtr slot,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
     ~TTransactionManager();
 
     using TCtxRegisterTransactionActions = NRpc::TTypedServiceContext<

@@ -179,7 +179,7 @@ DB::Block FilterRowsByPrewhereInfo(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}  //  namespace NDetail
+}  // namespace NDetail
 
 TBlockInputStream::TBlockInputStream(
     ISchemalessMultiChunkReaderPtr reader,

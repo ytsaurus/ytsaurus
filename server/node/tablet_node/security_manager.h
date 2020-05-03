@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/lib/security_server/security_manager.h>
 
@@ -37,7 +37,7 @@ class TSecurityManager
 public:
     TSecurityManager(
         TSecurityManagerConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
     ~TSecurityManager();
 
     virtual void SetAuthenticatedUserByNameOrThrow(const TString& user) override;

@@ -1,7 +1,7 @@
 #include "bootstrap.h"
 #include "config.h"
 
-#include <yt/ytlib/program/configure_singletons.h>
+#include <yt/ytlib/program/helpers.h>
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
 
@@ -40,6 +40,7 @@ protected:
         }
 
         ConfigureSingletons(config);
+        StartDiagnosticDump(config);
 
         TBootstrap bootstrap{std::move(config), MonitoringPort_};
         bootstrap.Run();

@@ -28,13 +28,13 @@ namespace NYT {
 
 class TServerConfig
     : public TSingletonsConfig
+    , public TDiagnosticDumpConfig
 {
 public:
     NBus::TTcpBusServerConfigPtr BusServer;
     NRpc::TServerConfigPtr RpcServer;
     NCoreDump::TCoreDumperConfigPtr CoreDumper;
 
-    //! RPC interface port number.
     int RpcPort;
 
     // COMPAT(babenko): get rid of this after switching to new HTTP implementation
@@ -61,7 +61,6 @@ public:
             .LessThan(65536);
         RegisterParameter("monitoring_server", MonitoringServer)
             .DefaultNew();
-
 
         RegisterPostprocessor([&] {
             if (RpcPort > 0) {

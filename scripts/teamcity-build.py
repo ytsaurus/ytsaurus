@@ -1023,7 +1023,7 @@ def run_ya_tests(options, suite_name, test_paths, dist=True):
     if not options.arc:
         args += ["--test-param", "inside_arcadia=0"]
     if dist:
-        args += ["--dist", "-E"]
+        args += ["--dist", "-E", "-DDISTBUILD"]
     else:
         build_type = options.ya_build_type + ("-asan" if options.use_asan else "")
         args += [

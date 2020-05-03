@@ -204,10 +204,6 @@ TListOperationsResult ListOperations(
             if (IsOperationInProgress(state)) {
                 result.OperationsToRevive.push_back({id, state});
             } else {
-                auto it = rootOperationIdToState.find(id);
-                if (it != rootOperationIdToState.end() && it->second != state) {
-                    result.OperationsToSync.push_back(id);
-                }
                 result.OperationsToArchive.push_back(id);
             }
         }

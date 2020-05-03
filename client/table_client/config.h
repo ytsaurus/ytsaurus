@@ -155,7 +155,7 @@ public:
     EUnavailableChunkStrategy UnavailableChunkStrategy;
     std::optional<TDuration> MaxReadDuration;
 
-    NTabletClient::TRemoteDynamicStoreReaderConfigPtr DynamicStoreReader;
+    NTabletClient::TRetryingRemoteDynamicStoreReaderConfigPtr DynamicStoreReader;
 
     TTableReaderConfig()
     {

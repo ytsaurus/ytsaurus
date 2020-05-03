@@ -23,7 +23,7 @@ def main():
         lfalloc_mmapped_memory = x(orchid + "/profiling/resource_tracker/lf_alloc/current/mmapped")
         lfalloc_large_blocks = x(orchid + "/profiling/resource_tracker/lf_alloc/current/large_blocks")
         lfalloc_small_blocks = x(orchid + "/profiling/resource_tracker/lf_alloc/current/small_blocks")
-        expected_memory = x(orchid + "/profiling/cell_node/memory_usage/total_used")
+        expected_memory = x(orchid + "/profiling/cluster_node/memory_usage/total_used")
         print "%-32s | %6.2fGB rusage (%+6.2fGB) | %6.2fGB LF/used (%+6.2fGB) | %6.2fGB LF/mmapped (%+6.2fGB): %6.2fGB Large & %6.2fGB Small | %6.2fGB CellNode" % (
             node,
             actual_memory, actual_memory - expected_memory,

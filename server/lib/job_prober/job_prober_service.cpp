@@ -1,7 +1,5 @@
 #include "job_prober_service.h"
 
-#include <yt/server/lib/shell/shell_manager.h>
-
 #include <yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
@@ -24,7 +22,6 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NTools;
-using namespace NShell;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -144,7 +144,7 @@ private:
 
     const TGuid Id_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkReaderMemoryManager)

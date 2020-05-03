@@ -46,7 +46,7 @@ public:
 
 protected:
     TBlobChunkBase(
-        NCellNode::TBootstrap* bootstrap,
+        NClusterNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta);
@@ -68,6 +68,7 @@ private:
         IInvokerPtr Invoker;
         std::optional<NProfiling::TWallTimer> ReadTimer;
         std::unique_ptr<TBlockEntry[]> Entries;
+        int CurrentEntryIndex = 0;
         int EntryCount = 0;
         std::vector<TFuture<void>> AsyncResults;
         TPromise<std::vector<NChunkClient::TBlock>> SessionPromise = NewPromise<std::vector<NChunkClient::TBlock>>();
@@ -104,7 +105,6 @@ private:
         i64 pendingDataSize);
     void DoReadBlockSet(
         const TReadBlockSetSessionPtr& session,
-        int currentEntryIndex,
         TPendingIOGuard&& pendingIOGuard);
     void OnBlocksRead(
         const TReadBlockSetSessionPtr& session,
@@ -129,7 +129,7 @@ class TStoredBlobChunk
 {
 public:
     TStoredBlobChunk(
-        NCellNode::TBootstrap* bootstrap,
+        NClusterNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta = nullptr);
@@ -147,7 +147,7 @@ class TCachedBlobChunk
 {
 public:
     TCachedBlobChunk(
-        NCellNode::TBootstrap* bootstrap,
+        NClusterNode::TBootstrap* bootstrap,
         TLocationPtr location,
         const TChunkDescriptor& descriptor,
         NChunkClient::TRefCountedChunkMetaPtr meta,

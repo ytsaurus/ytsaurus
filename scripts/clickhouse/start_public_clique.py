@@ -40,7 +40,7 @@ def main():
         }
     ]
 
-    if args.type == "prestable":
+    if args.type in ("prestable", "public"):
         # idm-group:29731 is a group corresponding to all staff robots taken from
         # //sys/clickhouse/acl_nodes/robots/@acl.
         acl.append({

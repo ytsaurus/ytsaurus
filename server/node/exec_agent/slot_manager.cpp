@@ -6,12 +6,15 @@
 
 #include <yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/node_resource_manager.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/node/data_node/chunk_cache.h>
 #include <yt/server/node/data_node/master_connector.h>
 #include <yt/server/node/data_node/volume_manager.h>
+
+#include <yt/server/node/job_agent/job_controller.h>
 
 #include <yt/ytlib/chunk_client/medium_directory.h>
 
@@ -21,8 +24,9 @@
 
 namespace NYT::NExecAgent {
 
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NDataNode;
+using namespace NJobAgent;
 using namespace NConcurrency;
 using namespace NYTree;
 
@@ -39,15 +43,16 @@ TSlotManager::TSlotManager(
     , Bootstrap_(bootstrap)
     , SlotCount_(Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->UserSlots)
     , NodeTag_(Format("yt-node-%v", Bootstrap_->GetConfig()->RpcPort))
-{ }
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+}
 
 void TSlotManager::Initialize()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    Bootstrap_->GetMasterConnector()->SubscribePopulateAlerts(BIND(
-        &TSlotManager::PopulateAlerts,
-        MakeStrong(this)));
+    Bootstrap_->GetMasterConnector()->SubscribePopulateAlerts(
+        BIND(&TSlotManager::PopulateAlerts, MakeStrong(this)));
+    Bootstrap_->GetJobController()->SubscribeJobFinished(
+        BIND(&TSlotManager::OnJobFinished, MakeStrong(this)));
 
     YT_LOG_INFO("Initializing exec slots (Count: %v)", SlotCount_);
 
@@ -69,7 +74,7 @@ void TSlotManager::Initialize()
     }
 
     int locationIndex = 0;
-    for (auto locationConfig : Config_->Locations) {
+    for (const auto& locationConfig : Config_->Locations) {
         try {
             Locations_.push_back(New<TSlotLocation>(
                 std::move(locationConfig),
@@ -114,6 +119,10 @@ void TSlotManager::Initialize()
 
     UpdateAliveLocations();
 
+    Bootstrap_->GetNodeResourceManager()->SubscribeJobsCpuLimitUpdated(
+        BIND(&TSlotManager::OnJobsCpuLimitUpdated, MakeWeak(this))
+            .Via(Bootstrap_->GetJobInvoker()));
+
     YT_LOG_INFO("Exec slots initialized");
 }
 
@@ -129,7 +138,7 @@ void TSlotManager::UpdateAliveLocations()
 
 ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY(JobThread);
 
     UpdateAliveLocations();
 
@@ -170,41 +179,55 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest)
 
 void TSlotManager::ReleaseSlot(int slotIndex)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY(JobThread);
+    
     YT_VERIFY(FreeSlots_.insert(slotIndex).second);
 }
 
 int TSlotManager::GetSlotCount() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY(JobThread);
+    
     return IsEnabled() ? SlotCount_ : 0;
 }
 
 int TSlotManager::GetUsedSlotCount() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY(JobThread);
+    
     return IsEnabled() ? SlotCount_ - FreeSlots_.size() : 0;
 }
 
 bool TSlotManager::IsEnabled() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-    bool isEnabled = SlotCount_ > 0 &&
+    VERIFY_THREAD_AFFINITY(JobThread);
+    
+    bool enabled =
+        SlotCount_ > 0 &&
         !AliveLocations_.empty() &&
         JobEnvironment_->IsEnabled();
 
     TGuard<TSpinLock> guard(SpinLock_);
-    return isEnabled && !PersistentAlert_ && !TransientAlert_;
+    return enabled && !PersistentAlert_ && !TransientAlert_;
 }
 
-void TSlotManager::UpdateCpuLimit(double cpuLimit)
+void TSlotManager::OnJobsCpuLimitUpdated()
 {
-    JobEnvironment_->UpdateCpuLimit(cpuLimit);
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    try {
+        const auto& resourceManager = Bootstrap_->GetNodeResourceManager();
+        auto cpuLimit = resourceManager->GetJobsCpuLimit();
+        JobEnvironment_->UpdateCpuLimit(cpuLimit);
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Error updating job environment CPU limit");
+    }
 }
 
 void TSlotManager::Disable(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY_ANY();
+    
     TGuard<TSpinLock> guard(SpinLock_);
 
     if (PersistentAlert_) {
@@ -218,19 +241,23 @@ void TSlotManager::Disable(const TError& error)
     PersistentAlert_ = errorWrapper;
 }
 
-void TSlotManager::OnJobFinished(EJobState jobState)
+void TSlotManager::OnJobFinished(const IJobPtr& job)
 {
-    if (jobState == EJobState::Aborted) {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    TGuard guard(SpinLock_);
+
+    if (job->GetState() == EJobState::Aborted) {
         ++ConsecutiveAbortedJobCount_;
     } else {
         ConsecutiveAbortedJobCount_ = 0;
     }
 
     if (ConsecutiveAbortedJobCount_ > Config_->MaxConsecutiveAborts) {
-        TGuard guard(SpinLock_);
         if (!TransientAlert_) {
             auto delay = Config_->DisableJobsTimeout + RandomDuration(Config_->DisableJobsTimeout);
-            TransientAlert_ = TError("Too many consecutive job abortions; scheduler jobs disabled until %v", TInstant::Now() + delay)
+            TransientAlert_ = TError("Too many consecutive job abortions; scheduler jobs disabled until %v",
+                TInstant::Now() + delay)
                 << TErrorAttribute("max_consecutive_aborts", Config_->MaxConsecutiveAborts);
             TDelayedExecutor::Submit(BIND(&TSlotManager::ResetTransientAlert, MakeStrong(this)), delay);
         }
@@ -239,6 +266,8 @@ void TSlotManager::OnJobFinished(EJobState jobState)
 
 void TSlotManager::ResetTransientAlert()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TGuard<TSpinLock> guard(SpinLock_);
     TransientAlert_ = std::nullopt;
     ConsecutiveAbortedJobCount_ = 0;
@@ -246,11 +275,12 @@ void TSlotManager::ResetTransientAlert()
 
 void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     TGuard guard(SpinLock_);
     if (TransientAlert_) {
         alerts->push_back(*TransientAlert_);
     }
-
     if (PersistentAlert_) {
         alerts->push_back(*PersistentAlert_);
     }
@@ -258,17 +288,24 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
 
 void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+    
+    {
+        TGuard guard(SpinLock_);
+        fluent
+            .Item("slot_count").Value(SlotCount_)
+            .Item("free_slot_count").Value(FreeSlots_.size())
+            .DoIf(static_cast<bool>(TransientAlert_), [&] (auto fluent) {
+                fluent.Item("transient_alert").Value(*TransientAlert_);
+            })
+            .DoIf(static_cast<bool>(PersistentAlert_), [&] (auto fluent) {
+                fluent.Item("persistent_alert").Value(*PersistentAlert_);
+            });
+    }
+
     fluent
-       .Item("slot_count").Value(SlotCount_)
-       .Item("free_slot_count").Value(FreeSlots_.size())
-       .DoIf(static_cast<bool>(TransientAlert_), [&] (auto fluentMap) {
-           fluentMap.Item("transient_alert").Value(*TransientAlert_);
-       })
-       .DoIf(static_cast<bool>(PersistentAlert_), [&] (auto fluentMap) {
-           fluentMap.Item("persistent_alert").Value(*PersistentAlert_);
-       })
-       .DoIf(static_cast<bool>(RootVolumeManager_), [&] (auto fluentMap) {
-           fluentMap.Item("root_volume_manager").DoMap(BIND(
+       .DoIf(static_cast<bool>(RootVolumeManager_), [&] (auto fluent) {
+           fluent.Item("root_volume_manager").DoMap(BIND(
                &IVolumeManager::BuildOrchidYson,
                RootVolumeManager_));
        });
@@ -276,6 +313,8 @@ void TSlotManager::BuildOrchidYson(TFluentMap fluent) const
 
 void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     for (const auto& location : Locations_) {
         auto oldDescriptor = location->GetMediumDescriptor();
         auto newDescriptor = mediumDirectory->FindByName(location->GetMediumName());
@@ -299,14 +338,14 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
 
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    VERIFY_THREAD_AFFINITY(JobThread);
 
     UpdateAliveLocations();
     NNodeTrackerClient::NProto::TDiskResources result;
     // Make a copy, since GetDiskResources is async and iterator over AliveLocations_
     // may have been invalidated between iterations.
     auto locations = AliveLocations_;
-    for (auto& location : locations) {
+    for (const auto& location : locations) {
         try {
             auto info = location->GetDiskResources();
             auto* locationResources = result.add_disk_location_resources();

@@ -9,8 +9,8 @@
 #include "transaction.h"
 #include "transaction_manager.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/hydra/hydra_manager.h>
 #include <yt/server/lib/hydra/hydra_service.h>
@@ -38,7 +38,7 @@ using namespace NTabletClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NHydra;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,7 +49,7 @@ class TTabletService
 public:
     TTabletService(
         TTabletSlotPtr slot,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : THydraServiceBase(
             slot->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::Write),
             TTabletServiceProxy::GetDescriptor(),
@@ -68,7 +68,7 @@ public:
 
 private:
     const TTabletSlotPtr Slot_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Write)
@@ -271,7 +271,7 @@ private:
     }
 };
 
-IServicePtr CreateTabletService(TTabletSlotPtr slot, NCellNode::TBootstrap* bootstrap)
+IServicePtr CreateTabletService(TTabletSlotPtr slot, NClusterNode::TBootstrap* bootstrap)
 {
     return New<TTabletService>(slot, bootstrap);
 }

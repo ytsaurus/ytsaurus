@@ -12,7 +12,6 @@
 
 #include <yt/library/process/process.h>
 
-
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,12 +49,15 @@ struct IUserJobEnvironment
     {
         std::optional<TString> CoreWatcherDirectory;
         NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
+        bool EnableCudaGpuCoreDump = false;
     };
 
     virtual TProcessBasePtr CreateUserJobProcess(
         const TString& path,
         int uid,
         const TUserJobProcessOptions& options) = 0;
+
+    virtual NContainers::IInstancePtr GetUserJobInstance() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobEnvironment)

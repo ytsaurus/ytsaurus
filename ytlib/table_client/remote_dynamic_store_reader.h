@@ -19,7 +19,7 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateRemoteDynamicStoreReader(
-    const NChunkClient::NProto::TChunkSpec& chunkSpec,
+    NChunkClient::NProto::TChunkSpec chunkSpec,
     TTableSchema schema,
     NTabletClient::TRemoteDynamicStoreReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
@@ -30,6 +30,22 @@ IVersionedReaderPtr CreateRemoteDynamicStoreReader(
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IVersionedReaderPtr CreateRetryingRemoteDynamicStoreReader(
+    NChunkClient::NProto::TChunkSpec chunkSpec,
+    TTableSchema schema,
+    NTabletClient::TRetryingRemoteDynamicStoreReaderConfigPtr config,
+    NApi::NNative::IClientPtr client,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NChunkClient::TTrafficMeterPtr trafficMeter,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler,
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    const TColumnFilter& columnFilter,
+    TTimestamp timestamp,
+    TCallback<IVersionedReaderPtr(NChunkClient::NProto::TChunkSpec)> chunkReaderFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

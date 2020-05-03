@@ -14,7 +14,16 @@ TFluentLogEvent TEventLogHostBase::LogEventFluently(ELogEventType eventType)
 
 TFluentLogEvent TEventLogHostBase::LogEventFluently(ELogEventType eventType, TInstant now)
 {
-    auto consumer = std::make_unique<TFluentLogEventConsumer>(GetEventLogConsumer(), GetEventLogger());
+    return LogEventFluently(eventType, GetEventLogConsumer(), GetEventLogger(), now);
+}
+
+TFluentLogEvent TEventLogHostBase::LogEventFluently(
+    ELogEventType eventType,
+    NYson::IYsonConsumer* eventLogConsumer,
+    const NLogging::TLogger* eventLogger,
+    TInstant now)
+{
+    auto consumer = std::make_unique<TFluentLogEventConsumer>(eventLogConsumer, eventLogger);
     return TFluentLogEvent(std::move(consumer))
         .Item("timestamp").Value(now)
         .Item("event_type").Value(eventType);

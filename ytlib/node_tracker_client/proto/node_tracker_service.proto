@@ -40,6 +40,7 @@ message TReqFullHeartbeat
     // Chunk Manager stuff.
     repeated NChunkClient.NProto.TChunkAddInfo chunks = 3;
     repeated TMediumChunkStatistics chunk_statistics = 4;
+    optional bool write_sessions_disabled = 5;
 }
 
 message TRspFullHeartbeat
@@ -58,6 +59,7 @@ message TReqIncrementalHeartbeat
     // Chunk Manager stuff.
     repeated NChunkClient.NProto.TChunkAddInfo added_chunks = 4;
     repeated NChunkClient.NProto.TChunkRemoveInfo removed_chunks = 5;
+    optional bool write_sessions_disabled = 9;
 
     // Tablet Manager stuff.
     repeated NTabletClient.NProto.TTabletSlotInfo tablet_slots = 6;

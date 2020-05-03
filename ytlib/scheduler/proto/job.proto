@@ -170,6 +170,8 @@ message TUserJobSpec
     optional int32 enable_porto = 49; // NScheduler::EEnablePorto
 
     optional bool fail_job_on_core_dump = 50 [default = true];
+
+    optional bool enable_cuda_gpu_core_dump = 52 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

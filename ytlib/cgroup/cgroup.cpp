@@ -486,6 +486,7 @@ TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const 
     XX(SystemTime)
     XX(WaitTime)
     XX(ThrottledTime)
+    XX(ContextSwitches)
     #undef XX
     return lhs;
 }
@@ -550,6 +551,7 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
             .Item("system").Value(statistics.SystemTime)
             .Item("wait").Value(statistics.WaitTime)
             .Item("throttled").Value(statistics.ThrottledTime)
+            .Item("context_switches").Value(statistics.ContextSwitches)
         .EndMap();
 }
 

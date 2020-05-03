@@ -68,8 +68,8 @@ struct IJob
     virtual double GetProgress() const = 0;
     virtual void SetProgress(double value) = 0;
 
-    virtual ui64 GetStderrSize() const = 0;
-    virtual void SetStderrSize(ui64 value) = 0;
+    virtual i64 GetStderrSize() const = 0;
+    virtual void SetStderrSize(i64 value) = 0;
 
     virtual void SetStderr(const TString& value) = 0;
     virtual void SetFailContext(const TString& value) = 0;

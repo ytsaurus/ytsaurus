@@ -179,7 +179,7 @@ void TResourceTracker::EnqueueAggregatedTimings(
 
     for (const auto& [threadName, aggregatedTimings] : threadNameToAggregatedTimings) {
         // Multiplier 1e6 / timeDelta is for taking average over time (all values should be "per second").
-        // Multiplier 100 for cpu time is for measuring cpu load in percents. It is due to historical reasons.
+        // Multiplier 100 for CPU time is for measuring CPU load in percents. It is due to historical reasons.
         double userCpuTime = std::max<double>(0.0, 100. * aggregatedTimings.UserJiffies / TicksPerSecond_ * (1e6 / timeDeltaUsec));
         double systemCpuTime = std::max<double>(0.0, 100. * aggregatedTimings.SystemJiffies / TicksPerSecond_ * (1e6 / timeDeltaUsec));
         double waitTime = std::max<double>(0.0, 100 * aggregatedTimings.CpuWaitNsec / 1e9 * (1e6 / timeDeltaUsec));
@@ -195,7 +195,7 @@ void TResourceTracker::EnqueueAggregatedTimings(
         Profiler.Enqueue("/system_cpu", systemCpuTime, EMetricType::Gauge, tagIds);
         Profiler.Enqueue("/cpu_wait", waitTime, EMetricType::Gauge, tagIds);
 
-        YT_LOG_TRACE("Thread cpu timings in percent/sec (ThreadName: %v, UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
+        YT_LOG_TRACE("Thread CPU timings in percent/sec (ThreadName: %v, UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
             threadName,
             userCpuTime,
             systemCpuTime,

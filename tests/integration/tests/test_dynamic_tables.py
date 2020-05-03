@@ -131,6 +131,33 @@ class DynamicTablesBase(YTEnvSetup):
 
         return Profiling()
 
+    def _disable_tablet_cells_on_peer(self, cell):
+        peer = get("#{0}/@peers/0/address".format(cell))
+        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(peer), True)
+        def check():
+            peers = get("#{0}/@peers".format(cell))
+            if len(peers) == 0:
+                return False
+            if "address" not in peers[0]:
+                return False
+            if peers[0]["address"] == peer:
+                return False
+            return True
+        wait(check)
+
+    def _check_health_after_decommission(self, cell_id, old_peer_addr):
+        def _check():
+            peers = get("#{0}/@peers".format(cell_id))
+            if len(peers) == 0 or peers[0].get("address", old_peer_addr) == old_peer_addr:
+                return False
+
+            if get("#{0}/@health".format(cell_id)) != "good":
+                return False
+
+            return True
+        wait(_check)
+
+
 ##################################################################
 
 class DynamicTablesSingleCellBase(DynamicTablesBase):
@@ -1170,20 +1197,6 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
             alter_table("//tmp/t1", schema=sorted_schema)
         with pytest.raises(YtError):
             alter_table("//tmp/t2", schema=ordered_schema)
-
-    def _disable_tablet_cells_on_peer(self, cell):
-        peer = get("#{0}/@peers/0/address".format(cell))
-        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(peer), True)
-        def check():
-            peers = get("#{0}/@peers".format(cell))
-            if len(peers) == 0:
-                return False
-            if "address" not in peers[0]:
-                return False
-            if peers[0]["address"] == peer:
-                return False
-            return True
-        wait(check)
 
     @authors("savrus")
     def test_disable_tablet_cells(self):

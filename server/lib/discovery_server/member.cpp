@@ -19,6 +19,7 @@ TMember::TMember(
     TClosure onLeaseExpired)
     : Id_(std::move(memberId))
     , GroupId_(std::move(groupId))
+    , Priority_(TInstant::Now().Seconds())
     , Attributes_(CreateEphemeralAttributes())
     , Lease_(TLeaseManager::CreateLease(
         leaseTimeout,

@@ -121,7 +121,7 @@ void Serialize(const TUserProfilingEntry& userInfo, IYsonConsumer* consumer, con
         .EndMap();
 }
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 //! It is pretty tricky to dump structure like TQueryRegistry in signal handler,
 //! so we periodically dump its state to a circular buffer, which is stored in this class.
@@ -248,7 +248,7 @@ public:
         }
     }
 
-    void Unregister(TQueryContext* queryContext)
+    void Unregister(TQueryContextPtr queryContext)
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
@@ -415,7 +415,7 @@ public:
 
 private:
     TBootstrap* Bootstrap_;
-    THashSet<TQueryContext*> QueryContexts_;
+    THashSet<TQueryContextPtr> QueryContexts_;
 
     TTagCache<TString> UserTagCache_;
     THashMap<TString, TUserProfilingEntry> UserToUserProfilingEntry_;
@@ -438,7 +438,7 @@ private:
 
         BuildYsonFluently(consumer)
             .BeginMap()
-            .Item("running_queries").DoMapFor(QueryContexts_, [&] (TFluentMap fluent, const TQueryContext* queryContext) {
+            .Item("running_queries").DoMapFor(QueryContexts_, [&] (TFluentMap fluent, const TQueryContextPtr queryContext) {
                 const auto& queryId = queryContext->QueryId;
                 fluent
                     .Item(ToString(queryId)).Value(*queryContext, ProcessListSnapshot_.FindQueryStatusInfoByQueryId(queryId));
@@ -479,9 +479,9 @@ void TQueryRegistry::Register(TQueryContextPtr queryContext)
     Impl_->Register(std::move(queryContext));
 }
 
-void TQueryRegistry::Unregister(TQueryContext* queryContext)
+void TQueryRegistry::Unregister(TQueryContextPtr queryContext)
 {
-    Impl_->Unregister(queryContext);
+    Impl_->Unregister(std::move(queryContext));
 }
 
 void TQueryRegistry::AccountPhaseCounter(TQueryContextPtr queryContext, EQueryPhase fromPhase, EQueryPhase toPhase)
@@ -534,6 +534,6 @@ void TQueryRegistry::Stop()
     Impl_->Stop();
 }
 
-/////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

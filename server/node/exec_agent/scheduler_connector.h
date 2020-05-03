@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
-#include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/profiling/profiler.h>
 
@@ -20,14 +20,16 @@ class TSchedulerConnector
 public:
     TSchedulerConnector(
         TSchedulerConnectorConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     void Start();
 
 private:
     const TSchedulerConnectorConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
-    const IInvokerPtr ControlInvoker_;
+    NClusterNode::TBootstrap* const Bootstrap_;
+    
+    const NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
+
     TInstant LastSentHeartbeatTime_;
     TInstant LastFullyProcessedHeartbeatTime_;
     TInstant LastThrottledHeartbeatTime_;
@@ -38,7 +40,8 @@ private:
     NProfiling::TAggregateGauge TimeBetweenAcknowledgedHeartbeatsCounter_;
     NProfiling::TAggregateGauge TimeBetweenFullyProcessedHeartbeatsCounter_;
 
-    NConcurrency::TPeriodicExecutorPtr HeartbeatExecutor_;
+
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
     void SendHeartbeat();
 };

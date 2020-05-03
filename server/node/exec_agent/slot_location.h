@@ -3,7 +3,7 @@
 #include "public.h"
 #include "private.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/node/data_node/disk_location.h>
 
@@ -29,7 +29,7 @@ class TSlotLocation
 public:
     TSlotLocation(
         const TSlotLocationConfigPtr& config,
-        const NCellNode::TBootstrap* bootstrap,
+        const NClusterNode::TBootstrap* bootstrap,
         const TString& id,
         const IJobDirectoryManagerPtr& jobDirectoryManager,
         bool enableTmpfs,
@@ -92,7 +92,7 @@ public:
 
 private:
     const TSlotLocationConfigPtr Config_;
-    const NCellNode::TBootstrap* Bootstrap_;
+    const NClusterNode::TBootstrap* Bootstrap_;
 
     const IJobDirectoryManagerPtr JobDirectoryManager_;
 

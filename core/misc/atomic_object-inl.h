@@ -36,6 +36,23 @@ T TAtomicObject<T>::Exchange(U&& u)
 }
 
 template <class T>
+bool TAtomicObject<T>::CompareExchange(T& expected, const T& desired)
+{
+    NConcurrency::TWriterGuard guard(Spinlock_);
+    if (Object_ == expected) {
+        auto oldObject = std::move(Object_);
+        Object_ = desired;
+        guard.Release();
+        return true;
+    } else {
+        auto oldExpected = std::move(expected);
+        expected = Object_;
+        guard.Release();
+        return false;
+    }
+}
+
+template <class T>
 T TAtomicObject<T>::Load() const
 {
     NConcurrency::TReaderGuard guard(Spinlock_);

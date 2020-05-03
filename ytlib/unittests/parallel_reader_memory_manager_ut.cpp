@@ -40,7 +40,10 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerAllocatesDesiredMemorySiz
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100'000, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 100'000,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -63,7 +66,10 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerGetsMemory)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100'000, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 100'000,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -88,7 +94,10 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerRevokesMemory)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 100,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -119,7 +128,10 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerUnregister)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 100,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -147,7 +159,10 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerAllocatesAsMuchAsPossible
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(120, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 120,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -170,7 +185,10 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerFreesMemoryAfterUnregiste
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 100,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -193,7 +211,10 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerBalancing1)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 100,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -216,7 +237,10 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerBalancing2)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 100,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -254,7 +278,10 @@ TEST(TestParallelReaderMemoryManager, TestInitialMemorySize)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 60, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 100,
+            .MaxInitialReaderReservedMemory = 60
+        },
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager(1);
@@ -274,7 +301,10 @@ TEST(TestParallelReaderMemoryManager, TestTotalSize)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 100,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -294,7 +324,10 @@ TEST(TestParallelReaderMemoryManager, TestFreeMemorySize)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 100,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     EXPECT_EQ(memoryManager->GetFreeMemorySize(), 100);
@@ -315,7 +348,10 @@ TEST(TestParallelReaderMemoryManager, TestRequiredMemorySizeNeverDecreases)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(100, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 100,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -339,7 +375,10 @@ TEST(TestParallelReaderMemoryManager, PerformanceAndStressTest)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(10'000'000, 10'000'000, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 10'000'000,
+            .MaxInitialReaderReservedMemory = 10'000'000
+        },
         actionQueue->GetInvoker());
 
     std::vector<TChunkReaderMemoryManagerPtr> readers;
@@ -371,7 +410,10 @@ TEST(TestParallelReaderMemoryManager, TestManyHeavyRebalancings)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(200'000, 200'000, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 200'000,
+            .MaxInitialReaderReservedMemory = 200'000
+        },
         actionQueue->GetInvoker());
 
     std::vector<TChunkReaderMemoryManagerPtr> readers;
@@ -406,7 +448,10 @@ TEST(TestParallelReaderMemoryManager, TestDynamicReservedMemory)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto memoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(200, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 200,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     auto reader1 = memoryManager->CreateChunkReaderMemoryManager();
@@ -445,7 +490,10 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagersTree)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto mm11 = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions(6, 0, 0),
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 6,
+            .MaxInitialReaderReservedMemory = 0
+        },
         actionQueue->GetInvoker());
 
     auto mm21 = mm11->CreateMultiReaderMemoryManager();
@@ -512,8 +560,11 @@ TEST(TestParallelReaderMemoryManager, TestParallelReaderMemoryManagerFinalize)
     auto actionQueue = New<NConcurrency::TActionQueue>();
 
     auto mm11 = CreateParallelReaderMemoryManager(
-       TParallelReaderMemoryManagerOptions(10, 0, 0),
-       actionQueue->GetInvoker());
+        TParallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = 10,
+            .MaxInitialReaderReservedMemory = 0
+        },
+        actionQueue->GetInvoker());
 
     auto mm21 = mm11->CreateMultiReaderMemoryManager(5);
     auto mm22 = mm11->CreateMultiReaderMemoryManager();

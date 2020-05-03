@@ -12,18 +12,15 @@ message TMemberInfo
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 4;
 }
 
+message TGroupMeta
+{
+    required int32 member_count = 1;
+}
+
 message TListMembersOptions
 {
     required int32 limit = 1;
     repeated string attribute_keys = 2;
-}
-
-message TReqListGroups
-{ }
-
-message TRspListGroups
-{
-    repeated string groups = 1;
 }
 
 message TReqListMembers
@@ -37,14 +34,14 @@ message TRspListMembers
     repeated TMemberInfo members = 1;
 }
 
-message TReqGetGroupSize
+message TReqGetGroupMeta
 {
     required string group_id = 1;
 }
 
-message TRspGetGroupSize
+message TRspGetGroupMeta
 {
-    required int32 group_size = 1;
+    required TGroupMeta meta = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

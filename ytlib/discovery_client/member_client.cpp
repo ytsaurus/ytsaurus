@@ -1,4 +1,5 @@
 #include "member_client.h"
+#include "helpers.h"
 #include "private.h"
 #include "request_session.h"
 
@@ -17,6 +18,53 @@ namespace NYT::NDiscoveryClient {
 using namespace NConcurrency;
 using namespace NRpc;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMemberAttributeDictionary
+    : public NYTree::IAttributeDictionary
+{
+public:
+    explicit TMemberAttributeDictionary(std::unique_ptr<IAttributeDictionary> underlying)
+        : Underlying_(std::move(underlying))
+    { }
+
+    virtual std::vector<TString> ListKeys() const override
+    {
+        return Underlying_->ListKeys();
+    }
+
+    virtual std::vector<TKeyValuePair> ListPairs() const override
+    {
+        return Underlying_->ListPairs();
+    }
+
+    virtual NYson::TYsonString FindYson(TStringBuf key) const override
+    {
+        return Underlying_->FindYson(key);
+    }
+
+    virtual void SetYson(const TString& key, const NYson::TYsonString& value) override
+    {
+        if (IsMemberSystemAttribute(key)) {
+            THROW_ERROR_EXCEPTION("Cannot set system attribute %Qv", key);
+        }
+        Underlying_->SetYson(key, value);
+    }
+
+    virtual bool Remove(const TString& key) override
+    {
+        return Underlying_->Remove(key);
+    }
+
+private:
+    const std::unique_ptr<IAttributeDictionary> Underlying_;
+};
+
+std::unique_ptr<IAttributeDictionary> CreateMemberAttributes(std::unique_ptr<IAttributeDictionary> underlying)
+{
+    return std::unique_ptr<IAttributeDictionary>(new TMemberAttributeDictionary(std::move(underlying)));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,12 +87,14 @@ public:
             Config_->HeartbeatPeriod))
         , ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
         , Logger(NLogging::TLogger(DiscoveryClientLogger)
-            .AddTag("MemberId: %v", Id_))
+            .AddTag("GroupId: %v, MemberId: %v",
+                GroupId_,
+                Id_))
         , AddressPool_(New<TServerAddressPool>(
             Config_->ServerBanTimeout,
             Logger,
             Config_->ServerAddresses))
-        , Attributes_(CreateEphemeralAttributes())
+        , Attributes_(CreateMemberAttributes(CreateEphemeralAttributes()))
         , ThreadSafeAttributes_(CreateThreadSafeAttributes(Attributes_.get()))
     { }
 
@@ -65,13 +115,13 @@ public:
 
     void Start()
     {
-        YT_LOG_INFO("Starting member client (MemberId: %v)", Id_);
+        YT_LOG_INFO("Starting member client");
         PeriodicExecutor_->Start();
     }
 
     void Stop()
     {
-        YT_LOG_INFO("Stopping member client (MemberId: %v)", Id_);
+        YT_LOG_INFO("Stopping member client");
         PeriodicExecutor_->Stop();
     }
 

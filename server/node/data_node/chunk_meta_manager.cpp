@@ -2,7 +2,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
@@ -12,7 +12,7 @@ namespace NYT::NDataNode {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

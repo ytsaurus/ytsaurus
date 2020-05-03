@@ -56,6 +56,7 @@ DEFINE_ENUM(EErrorCode,
     ((IncorrectChunkFileHeaderSignature)     (729))
     ((IncorrectLayerFileSize)                (730))
     ((NoSpaceLeftOnDevice)                   (731))
+    ((ConcurrentChunkUpdate)                 (732))
 );
 
 using TChunkId = NObjectClient::TObjectId;

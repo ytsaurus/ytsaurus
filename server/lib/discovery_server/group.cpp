@@ -117,13 +117,44 @@ TMemberPtr TGroup::UpdateMember(const TMemberInfo& memberInfo, TDuration leaseTi
     return member;
 }
 
-std::vector<TMemberPtr> TGroup::ListMembers(int limit)
+std::vector<TMemberPtr> TGroup::ListMembers(std::optional<int> limit)
 {
     TReaderGuard guard(MembersLock_);
 
+    if (!limit) {
+        return {Members_.begin(), Members_.end()};
+    }
+
     auto it = Members_.begin();
-    std::advance(it, std::min<int>(limit, Members_.size()));
+    std::advance(it, std::min<int>(std::max(0, *limit), Members_.size()));
     return {Members_.begin(), it};
+}
+
+bool TGroup::HasMember(const TMemberId& memberId)
+{
+    TReaderGuard guard(MembersLock_);
+
+    return IdToMember_.contains(memberId);
+}
+
+TMemberPtr TGroup::FindMember(const TMemberId& memberId)
+{
+    TReaderGuard guard(MembersLock_);
+
+    auto it = IdToMember_.find(memberId);
+    return it == IdToMember_.end() ? nullptr : it->second;
+}
+
+TMemberPtr TGroup::GetMemberOrThrow(const TMemberId& memberId)
+{
+    auto member = FindMember(memberId);
+    if (!member) {
+        THROW_ERROR_EXCEPTION(NDiscoveryServer::EErrorCode::NoSuchMember,
+            "No member %Qv in group %v",
+            memberId,
+            Id_);
+    }
+    return member;
 }
 
 const TGroupId& TGroup::GetId()
@@ -131,7 +162,7 @@ const TGroupId& TGroup::GetId()
     return Id_;
 }
 
-int TGroup::GetSize()
+int TGroup::GetMemberCount()
 {
     TReaderGuard guard(MembersLock_);
     return static_cast<int>(Members_.size());

@@ -4,8 +4,8 @@
 
 #include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/node/job_agent/job_controller.h>
 #include <yt/server/node/job_agent/public.h>
@@ -25,7 +25,7 @@ namespace NYT::NExecAgent {
 
 using namespace NJobAgent;
 using namespace NNodeTrackerClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NJobProxy;
@@ -37,9 +37,9 @@ class TSupervisorService
     : public NRpc::TServiceBase
 {
 public:
-    explicit TSupervisorService(NCellNode::TBootstrap* bootstrap)
+    explicit TSupervisorService(NClusterNode::TBootstrap* bootstrap)
         : NRpc::TServiceBase(
-            bootstrap->GetControlInvoker(),
+            bootstrap->GetJobInvoker(),
             TSupervisorServiceProxy::GetDescriptor(),
             ExecAgentLogger)
         , Bootstrap_(bootstrap)
@@ -54,19 +54,18 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateResourceUsage));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ThrottleJob)
             .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000)
-            .SetInvoker(Bootstrap_->GetJobThrottlerInvoker()));
+            .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollThrottlingRequest)
             .SetQueueSizeLimit(5000)
-            .SetConcurrencyLimit(5000)
-            .SetInvoker(Bootstrap_->GetJobThrottlerInvoker()));
+            .SetConcurrencyLimit(5000));
     }
 
 private:
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     THashMap<TGuid, TFuture<void>> OutstandingThrottlingRequests_;
 
+    // XXX job thread?
     DECLARE_THREAD_AFFINITY_SLOT(JobThrottlerThread);
 
 
@@ -78,7 +77,7 @@ private:
         // Remove future from outstanding requests after it was set + timeout.
         future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& /* error */) {
             TDelayedExecutor::Submit(
-                BIND(&TSupervisorService::EvictThrottlingRequest, this_, id).Via(Bootstrap_->GetJobThrottlerInvoker()),
+                BIND(&TSupervisorService::EvictThrottlingRequest, this_, id).Via(Bootstrap_->GetJobInvoker()),
                 Bootstrap_->GetConfig()->JobThrottler->MaxBackoffTime * 2);
         }));
         return id;
@@ -115,7 +114,7 @@ private:
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
 
-        auto jobController = Bootstrap_->GetJobController();
+        const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
 
         auto jobPhase = job->GetPhase();
@@ -147,7 +146,7 @@ private:
             jobId,
             error);
 
-        auto jobController = Bootstrap_->GetJobController();
+        const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
 
         job->SetResult(result);
@@ -189,7 +188,7 @@ private:
 
         context->SetRequestInfo("JobId: %v", jobId);
 
-        auto jobController = Bootstrap_->GetJobController();
+        const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
 
         job->OnJobPrepared();
@@ -210,7 +209,7 @@ private:
             NYTree::ConvertToYsonString(statistics, EYsonFormat::Text).GetData(),
             stderrSize);
 
-        auto jobController = Bootstrap_->GetJobController();
+        const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
 
         job->SetProgress(progress);
@@ -231,7 +230,7 @@ private:
             jobProxyResourceUsage.memory(),
             jobProxyResourceUsage.network());
 
-        auto jobController = Bootstrap_->GetJobController();
+        const auto& jobController = Bootstrap_->GetJobController();
         auto job = jobController->GetJobOrThrow(jobId);
 
         auto resourceUsage = job->GetResourceUsage();
@@ -277,15 +276,13 @@ private:
         }
 
         auto future = throttler->Throttle(count);
-        if (!future.IsSet()) {
+        if (auto optionalResult = future.TryGet()) {
+            optionalResult->ThrowOnError();
+        } else {
             auto throttlingRequestId = RegisterThrottlingRequest(future);
 
             ToProto(response->mutable_throttling_request_id(), throttlingRequestId);
             context->SetResponseInfo("ThrottlingRequestId: %v", throttlingRequestId);
-        } else {
-            future
-                .Get()
-                .ThrowOnError();
         }
 
         context->Reply();
@@ -298,18 +295,17 @@ private:
         context->SetRequestInfo("ThrottlingRequestId: %v", throttlingRequestId);
 
         auto future = GetThrottlingRequestOrThrow(throttlingRequestId);
-        response->set_completed(future.IsSet());
-        context->SetResponseInfo("Completed: %v", response->completed());
-        if (response->completed()) {
-            future
-                .Get()
-                .ThrowOnError();
+        auto optionalResult = future.TryGet();
+        if (optionalResult) {
+            optionalResult->ThrowOnError();
         }
+        response->set_completed(optionalResult.has_value());
+        context->SetResponseInfo("Completed: %v", response->completed());
         context->Reply();
     }
 };
 
-NRpc::IServicePtr CreateSupervisorService(NCellNode::TBootstrap* bootstrap)
+NRpc::IServicePtr CreateSupervisorService(NClusterNode::TBootstrap* bootstrap)
 {
     return New<TSupervisorService>(bootstrap);
 }

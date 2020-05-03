@@ -410,9 +410,16 @@ void TBootstrap::Run()
     Sleep(TDuration::Max());
 }
 
-void TBootstrap::TryLoadSnapshot(const TString& fileName, bool dump)
+void TBootstrap::TryLoadSnapshot(
+    const TString& fileName,
+    bool dump,
+    bool enableTotalWriteCountReport,
+    const TString& dumpConfigString)
 {
-    BIND(&TBootstrap::DoLoadSnapshot, this, fileName, dump)
+    TSerializationDumperConfigPtr dumpConfig;
+    ValidateLoadSnapshotParameters(dump, enableTotalWriteCountReport, dumpConfigString, &dumpConfig);
+
+    BIND(&TBootstrap::DoLoadSnapshot, this, fileName, dump, enableTotalWriteCountReport, dumpConfig)
         .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()
         .Get()
@@ -817,10 +824,32 @@ void TBootstrap::DoRun()
     AnnotationSetter_->Start();
 }
 
-void TBootstrap::DoLoadSnapshot(const TString& fileName, bool dump)
+void TBootstrap::DoLoadSnapshot(
+    const TString& fileName,
+    bool dump,
+    bool enableTotalWriteCountReport,
+    const TSerializationDumperConfigPtr& dumpConfig)
 {
     auto reader = CreateFileSnapshotReader(fileName, InvalidSegmentId, false);
-    HydraFacade_->LoadSnapshot(reader, dump);
+    HydraFacade_->LoadSnapshot(reader, dump, enableTotalWriteCountReport, dumpConfig);
+}
+
+void TBootstrap::ValidateLoadSnapshotParameters(
+    bool dump,
+    bool enableTotalWriteCountReport,
+    const TString& dumpConfigString,
+    TSerializationDumperConfigPtr* dumpConfig)
+{
+    if (dump && enableTotalWriteCountReport) {
+        THROW_ERROR_EXCEPTION("'EnableTotalWriteCountReport' can be specified only for snapshot validation");
+    }
+
+    if (dumpConfigString) {
+        if (!dump) {
+            THROW_ERROR_EXCEPTION("'DumpConfig' can be specified only for snapshot dumping");
+        }
+        *dumpConfig = ConvertTo<TSerializationDumperConfigPtr>(NYson::TYsonString(dumpConfigString));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

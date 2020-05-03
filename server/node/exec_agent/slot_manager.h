@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/node/data_node/public.h>
 
@@ -23,13 +23,17 @@ namespace NYT::NExecAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Controls acquisition and release of slots.
+/*!
+ *  \note
+ *  Thread affinity: Job (unless noted otherwise)
+ */
 class TSlotManager
     : public TRefCounted
 {
 public:
     TSlotManager(
         TSlotManagerConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     //! Initializes slots etc.
     void Initialize();
@@ -44,21 +48,29 @@ public:
 
     bool IsEnabled() const;
 
-    void UpdateCpuLimit(double cpuLimit);
-
     NNodeTrackerClient::NProto::TDiskResources GetDiskResources();
 
-    void OnJobFinished(EJobState jobState);
-
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     void Disable(const TError& error);
 
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     void BuildOrchidYson(NYTree::TFluentMap fluent) const;
 
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
     void InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
 private:
     const TSlotManagerConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
     const int SlotCount_;
     const TString NodeTag_;
 
@@ -74,14 +86,15 @@ private:
     TSpinLock SpinLock_;
     std::optional<TError> PersistentAlert_;
     std::optional<TError> TransientAlert_;
-
-    //! If we observe too much consecutive aborts, we disable user slots on
+    //! If we observe too many consecutive aborts, we disable user slots on
     //! the node until restart and fire alert.
-    std::atomic<int> ConsecutiveAbortedJobCount_ = {0};
+    int ConsecutiveAbortedJobCount_ = 0;
 
 
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
+    void OnJobFinished(const NJobAgent::IJobPtr& job);
+    void OnJobsCpuLimitUpdated();
     void UpdateAliveLocations();
     void ResetTransientAlert();
     void PopulateAlerts(std::vector<TError>* alerts);

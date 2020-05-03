@@ -3,7 +3,7 @@
 #include "public.h"
 #include "job.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job_spec_service.pb.h>
 #include <yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
@@ -33,17 +33,15 @@ DEFINE_ENUM(EJobOrigin,
  *   Maintains a map of jobs, allows new jobs to be started and existing jobs to be stopped.
  *   New jobs are constructed by means of per-type factories registered via #RegisterFactory.
  *
- *   \note Thread affinity: Control (unless noted otherwise)
+ *   \note Thread affinity: any (unless noted otherwise)
  */
 class TJobController
     : public TRefCounted
 {
 public:
-    DECLARE_SIGNAL(void(), ResourcesUpdated)
-
     TJobController(
         TJobControllerConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     ~TJobController();
 
@@ -61,15 +59,9 @@ public:
     IJobPtr FindJob(TJobId jobId) const;
 
     //! Finds the job by its id, throws if no job is found.
-    /*
-     * \note Thread affinity: any
-     */
     IJobPtr GetJobOrThrow(TJobId jobId) const;
 
     //! Returns the list of all currently known jobs.
-    /*
-     * \note Thread affinity: any
-     */
     std::vector<IJobPtr> GetJobs() const;
 
     //! Finds the job that is held after it has been removed.
@@ -77,9 +69,6 @@ public:
 
     //! Returns the maximum allowed resource usage.
     NNodeTrackerClient::NProto::TNodeResources GetResourceLimits() const;
-
-    //! Return the current resource usage.
-    NNodeTrackerClient::NProto::TNodeResources GetResourceUsage(bool includeWaiting = false) const;
 
     //! Set resource limits overrides.
     void SetResourceLimitsOverrides(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimits);
@@ -96,18 +85,20 @@ public:
     using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;
 
     //! Prepares a heartbeat request.
-    void PrepareHeartbeatRequest(
+    TFuture<void> PrepareHeartbeatRequest(
         NObjectClient::TCellTag cellTag,
         NObjectClient::EObjectType jobObjectType,
         const TReqHeartbeatPtr& request);
 
     //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
-    void ProcessHeartbeatResponse(
+    TFuture<void> ProcessHeartbeatResponse(
         const TRspHeartbeatPtr& response,
         NObjectClient::EObjectType jobObjectType);
 
-    //! Orchid server.
     NYTree::IYPathServicePtr GetOrchidService();
+
+    DECLARE_SIGNAL(void(), ResourcesUpdated)
+    DECLARE_SIGNAL(void(const IJobPtr&), JobFinished);
 
 private:
     class TImpl;

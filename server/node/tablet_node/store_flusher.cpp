@@ -12,8 +12,8 @@
 #include "public.h"
 #include "tablet_profiling.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/hive/hive_manager.h>
 
@@ -68,7 +68,7 @@ class TStoreFlusher
 public:
     TStoreFlusher(
         TTabletNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
         , Profiler("/tablet_node/store_flusher")
@@ -90,7 +90,7 @@ public:
 private:
     const TTabletNodeConfigPtr Config_;
 
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     const NProfiling::TProfiler Profiler;
     TThreadPoolPtr ThreadPool_;
@@ -433,7 +433,7 @@ private:
 
 void StartStoreFlusher(
     TTabletNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
 {
     if (config->EnableStoreFlusher) {
         New<TStoreFlusher>(config, bootstrap);

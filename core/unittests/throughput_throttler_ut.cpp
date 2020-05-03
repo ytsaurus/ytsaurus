@@ -111,7 +111,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureSchedulesUpdatesProp
         future.Get().ThrowOnError();
     }
 
-    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 4000);
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 5000);
 }
 
 TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureMustRescheduleUpdate)

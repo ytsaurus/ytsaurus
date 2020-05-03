@@ -6,8 +6,8 @@
 #include "tablet_slot.h"
 #include "security_manager.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/node/data_node/config.h>
 #include <yt/server/node/data_node/master_connector.h>
@@ -55,7 +55,7 @@ class TSlotManager::TImpl
 public:
     TImpl(
         TTabletNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
         , SlotScanExecutor_(New<TPeriodicExecutor>(
@@ -448,7 +448,7 @@ private:
     };
 
     const TTabletNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     int UsedSlotCount_ = 0;
     std::vector<TTabletSlotPtr> Slots_;
@@ -512,7 +512,7 @@ private:
 
 TSlotManager::TSlotManager(
     TTabletNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         config,
         bootstrap))

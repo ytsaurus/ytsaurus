@@ -17,12 +17,16 @@
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/static_channel_factory.h>
 
+#include <yt/core/yson/string.h>
+
 namespace NYT::NDiscoveryServer {
 namespace {
 
 using namespace NRpc;
 using namespace NDiscoveryClient;
 using namespace NConcurrency;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,6 +131,11 @@ public:
         return Addresses_;
     }
 
+    TDiscoveryServerPtr GetDiscoveryServer()
+    {
+        return DiscoveryServers_[0];
+    }
+
 private:
     std::vector<TString> Addresses_ = {"peer1", "peer2", "peer3", "peer4", "peer5"};
     std::vector<TDiscoveryServerPtr> DiscoveryServers_;
@@ -140,7 +149,7 @@ private:
 
 TEST_F(TDiscoveryServiceTestSuite, TestSimple)
 {
-    TString groupId = "sample_group";
+    TString groupId = "/sample_group";
     TString memberId1 = "sample_member1";
     TString memberId2 = "sample_member2";
     auto memberClient1 = CreateMemberClient(groupId, memberId1);
@@ -153,12 +162,9 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
 
     auto discoveryClient = CreateDiscoveryClient();
 
-    {
-        auto groupsFuture = discoveryClient->ListGroups();
-        const auto& groups = groupsFuture.Get().ValueOrThrow();
-        EXPECT_EQ(1, groups.size());
-        EXPECT_EQ(groupId, groups[0]);
-    }
+    auto metaFuture = discoveryClient->GetGroupMeta(groupId);
+    const auto& meta = metaFuture.Get().ValueOrThrow();
+    EXPECT_EQ(2, meta.MemberCount);
 
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
@@ -177,20 +183,11 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
         EXPECT_EQ(1, members.size());
         EXPECT_EQ(memberId2, members[0].Id);
     }
-
-    memberClient2->Stop();
-    Sleep(TDuration::Seconds(5));
-
-    {
-        auto groupsFuture = discoveryClient->ListGroups();
-        const auto& groups = groupsFuture.Get().ValueOrThrow();
-        EXPECT_EQ(0, groups.size());
-    }
 }
 
 TEST_F(TDiscoveryServiceTestSuite, TestGossip)
 {
-    TString groupId = "sample_group";
+    TString groupId = "/sample_group";
     TString memberId = "sample_member";
     const auto& addresses = GetDiscoveryServersAddresses();
 
@@ -206,13 +203,6 @@ TEST_F(TDiscoveryServiceTestSuite, TestGossip)
     auto discoveryClient = CreateDiscoveryClient(discoveryClientConfig);
 
     {
-        auto groupsFuture = discoveryClient->ListGroups();
-        const auto& groups = groupsFuture.Get().ValueOrThrow();
-        EXPECT_EQ(1, groups.size());
-        EXPECT_EQ(groupId, groups[0]);
-    }
-
-    {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
         const auto& members = membersFuture.Get().ValueOrThrow();
         EXPECT_EQ(1, members.size());
@@ -222,7 +212,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestGossip)
 
 TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
 {
-    TString groupId = "sample_group";
+    TString groupId = "/sample_group";
     TString memberId = "sample_member";
 
     TString key = "key";
@@ -267,7 +257,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
 
 TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 {
-    TString groupId = "sample_group";
+    TString groupId = "/sample_group";
     TString memberId = "sample_member";
 
     std::vector<TMemberClientPtr> memberClients;
@@ -307,7 +297,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 
 TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
 {
-    TString groupId = "sample_group";
+    TString groupId = "/sample_group";
     TString memberId = "sample_member";
     const auto& addresses = GetDiscoveryServersAddresses();
 
@@ -329,12 +319,6 @@ TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
     RecreateDiscoveryServer(0);
 
     Sleep(TDuration::Seconds(5));
-    {
-        auto groupsFuture = discoveryClient->ListGroups();
-        const auto& groups = groupsFuture.Get().ValueOrThrow();
-        EXPECT_EQ(1, groups.size());
-        EXPECT_EQ(groupId, groups[0]);
-    }
 
     {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
@@ -342,6 +326,91 @@ TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
         EXPECT_EQ(1, members.size());
         EXPECT_EQ(memberId, members[0].Id);
     }
+}
+
+TEST_F(TDiscoveryServiceTestSuite, TestYPath)
+{
+    TString groupId1 = "/sample_group1";
+    TString groupId2 = "/test/sample_group2";
+
+    TString memberId1 = "sample_member1";
+    TString memberId2 = "sample_member2";
+
+    auto memberClient1 = CreateMemberClient(groupId1, memberId1);
+    memberClient1->Start();
+
+    auto memberClient2 = CreateMemberClient(groupId2, memberId2);
+    memberClient2->Start();
+
+    Sleep(TDuration::Seconds(5));
+
+    auto ypathService = GetDiscoveryServer()->GetYPathService();
+
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/test/sample_group2"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/test/sample_group2/sample_member2"));
+
+    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group2"));
+    EXPECT_EQ(false, SyncYPathExists(ypathService, "/test/sample_group1"));
+
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@priority"));
+    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@priority/aa"));
+
+    {
+        auto result = SyncYPathList(ypathService, "/");
+        std::sort(result.begin(), result.end());
+        EXPECT_EQ((std::vector<TString>{"sample_group1", "test"}), result);
+    }
+
+    EXPECT_EQ((std::vector<TString>{"sample_member1"}), SyncYPathList(ypathService, "/sample_group1"));
+
+    {
+        auto result = SyncYPathList(ypathService, "/sample_group1/sample_member1");
+        std::vector<TString> expected{"priority", "revision", "last_heartbeat_time", "last_attributes_update_time"};
+        EXPECT_EQ(expected, result);
+    }
+
+    EXPECT_THROW(SyncYPathList(ypathService, "/sample_group1/ttt"), std::exception);
+    EXPECT_THROW(SyncYPathList(ypathService, "/sample_group1/sample_member1/@priority"), std::exception);
+
+    EXPECT_THROW(SyncYPathGet(ypathService, "/sample_group1/sample_member1/@priority/qq"), std::exception);
+
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@priority"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@revision"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@last_heartbeat_time"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@last_attributes_update_time"));
+
+    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@test"));
+
+    auto* attributes = memberClient1->GetAttributes();
+    attributes->Set("test", 123);
+
+    Sleep(TDuration::Seconds(5));
+
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@test"));
+    EXPECT_EQ(ConvertToYsonString(123, EYsonFormat::Binary), SyncYPathGet(ypathService, "/sample_group1/sample_member1/@test"));
+
+    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@test/abc"));
+    EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@qq/abc"));
+    EXPECT_THROW(SyncYPathGet(ypathService, "/sample_group1/sample_member1/@test/abc"), std::exception);
+    EXPECT_THROW(SyncYPathGet(ypathService, "/sample_group1/sample_member1/@qq/abc"), std::exception);
+
+    attributes->Set("q1", TYsonString("{q=w}"));
+    attributes->Set("q2", TYsonString("{q={w=e}}"));
+
+    Sleep(TDuration::Seconds(5));
+
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@q1/q"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@q2/q"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@q2/q/w"));
+
+    EXPECT_EQ(ConvertToYsonString("e", EYsonFormat::Binary), SyncYPathGet(ypathService, "/sample_group1/sample_member1/@q2/q/w"));
+
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@id"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@child_count"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@type"));
+    EXPECT_EQ(ConvertToYsonString("group", EYsonFormat::Binary), SyncYPathGet(ypathService, "/sample_group1/@type"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

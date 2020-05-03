@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/server/lib/hydra/entity_map.h>
 
@@ -33,7 +33,7 @@ public:
     TTabletManager(
         TTabletManagerConfigPtr config,
         TTabletSlotPtr slot,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
     ~TTabletManager();
 
     void Initialize();

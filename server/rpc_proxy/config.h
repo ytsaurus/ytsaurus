@@ -121,7 +121,7 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellProxyConfig
+class TRpcProxyConfig
     : public TServerConfig
     , public NAuth::TAuthenticationManagerConfig
 {
@@ -141,7 +141,7 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
-    TCellProxyConfig()
+    TRpcProxyConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
 
@@ -176,7 +176,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellProxyConfig)
+DEFINE_REFCOUNTED_TYPE(TRpcProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

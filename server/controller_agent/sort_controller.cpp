@@ -3018,6 +3018,11 @@ private:
         return Spec->CoreTableWriter;
     }
 
+    virtual bool GetEnableCudaGpuCoreDump() const override
+    {
+        return Spec->EnableCudaGpuCoreDump;
+    }
+
     virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const override
     {
         std::vector<TUserJobSpecPtr> result = {Spec->Reducer};

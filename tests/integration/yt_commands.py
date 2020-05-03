@@ -42,6 +42,7 @@ default_api_version = 4
 SortOrderViolation = 301
 UniqueKeyViolation = 306
 SchemaViolation = 307
+IncompatibleKeyColumns = 311
 InvalidSchemaValue = 314
 ResolveErrorCode = 500
 AuthorizationErrorCode = 901
@@ -1293,7 +1294,7 @@ def remove_pool_tree(name, wait_for_orchid=True, **kwargs):
     if wait_for_orchid:
         wait(lambda: not exists(scheduler_orchid_pool_tree_path(name)))
 
-def create_pool(name, pool_tree="default", parent_name=None, **kwargs):
+def create_pool(name, pool_tree="default", parent_name=None, wait_for_orchid=True, **kwargs):
     kwargs["type"] = "scheduler_pool"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
@@ -1302,6 +1303,8 @@ def create_pool(name, pool_tree="default", parent_name=None, **kwargs):
     if parent_name:
         kwargs["attributes"]["parent_name"] = parent_name
     execute_command("create", kwargs, parse_yson=True)
+    if wait_for_orchid:
+        wait(lambda: exists(scheduler_orchid_pool_path(name, pool_tree)))
 
 def create_user(name, **kwargs):
     kwargs["type"] = "user"
@@ -1983,6 +1986,9 @@ def scheduler_orchid_pool_tree_path(tree):
 
 def scheduler_orchid_default_pool_tree_path():
     return scheduler_orchid_pool_tree_path("default")
+
+def scheduler_orchid_pool_path(pool, tree="default"):
+    return scheduler_orchid_pool_tree_path(tree) + "/pools/{}".format(pool)
 
 def get_applied_node_dynamic_config(node):
     return get("//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/config".format(node))

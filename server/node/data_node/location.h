@@ -2,7 +2,7 @@
 
 #include "disk_location.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/chunk_client/proto/chunk_info.pb.h>
 #include <yt/ytlib/chunk_client/medium_directory.h>
@@ -39,6 +39,8 @@ DEFINE_ENUM(EIOCategory,
     (Interactive)
     (Realtime)
 );
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TLocationPerformanceCounters
 {
@@ -77,6 +79,8 @@ struct TLocationPerformanceCounters
     NProfiling::TSimpleGauge Full;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TLocation
     : public TDiskLocation
 {
@@ -85,7 +89,7 @@ public:
         ELocationType type,
         const TString& id,
         TStoreLocationConfigBasePtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     //! Returns the type.
     ELocationType GetType() const;
@@ -119,11 +123,11 @@ public:
     i64 GetQuota() const;
 
     //! Returns an invoker for writing chunks.
-    IInvokerPtr GetWritePoolInvoker();
+    const IInvokerPtr& GetWritePoolInvoker();
 
     //! Scan the location directory removing orphaned files and returning the list of found chunks.
     /*!
-     *  If the scan fails, the location becomes disabled, |Disabled| signal is raised, and an empty list is returned.
+     *  If the scan fails, the location becomes disabled and an empty list is returned.
      */
     std::vector<TChunkDescriptor> Scan();
 
@@ -135,7 +139,7 @@ public:
     void Start();
 
     //! Marks the location as disabled by attempting to create a lock file and terminates the process.
-    void Disable(const TError& reason);
+    [[noreturn]] void Disable(const TError& reason);
 
     //! Wraps a given #callback with try/catch block that intercepts all exceptions
     //! and calls #Disable when one happens.
@@ -209,7 +213,7 @@ public:
     bool IsSick() const;
 
 protected:
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
     NProfiling::TProfiler Profiler_;
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
@@ -228,12 +232,14 @@ private:
 
     TLocationUuid Uuid_;
 
-    NChunkClient::TMediumDescriptor MediumDescriptor_;
+    TSpinLock MediumDescriptorLock_;
+    std::atomic<NChunkClient::TMediumDescriptor*> CurrentMediumDescriptor_ = nullptr;
+    std::vector<std::unique_ptr<NChunkClient::TMediumDescriptor>> MediumDescriptors_;
 
-    mutable i64 AvailableSpace_ = 0;
-    i64 UsedSpace_ = 0;
-    TEnumIndexedVector<ESessionType, int> PerTypeSessionCount_;
-    int ChunkCount_ = 0;
+    mutable std::atomic<i64> AvailableSpace_ = 0;
+    std::atomic<i64> UsedSpace_ = 0;
+    TEnumIndexedVector<ESessionType, std::atomic<int>> PerTypeSessionCount_;
+    std::atomic<int> ChunkCount_ = 0;
 
     const NConcurrency::TActionQueuePtr MetaReadQueue_;
     const IPrioritizedInvokerPtr MetaReadInvoker_;
@@ -290,10 +296,13 @@ public:
     TStoreLocation(
         const TString& id,
         TStoreLocationConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
+
+    //! Returns the location's config.
+    const TStoreLocationConfigPtr& GetConfig() const;
 
     //! Returns Journal Manager associated with this location.
-    TJournalManagerPtr GetJournalManager();
+    const TJournalManagerPtr& GetJournalManager();
 
     //! Returns the space reserved for low watermark.
     //! Never throws.
@@ -305,12 +314,10 @@ public:
     //! Checks whether to location has enough space to contain file of size #size.
     bool HasEnoughSpace(i64 size) const;
 
-    NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TWorkloadDescriptor& descriptor) const;
+    const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(const TWorkloadDescriptor& descriptor) const;
 
     //! Removes a chunk permanently or moves it to the trash.
     virtual void RemoveChunkFiles(TChunkId chunkId, bool force) override;
-
-    const TStoreLocationConfigPtr& GetConfig() const;
 
 private:
     const TStoreLocationConfigPtr Config_;
@@ -318,7 +325,7 @@ private:
     const TJournalManagerPtr JournalManager_;
     const NConcurrency::TActionQueuePtr TrashCheckQueue_;
 
-    mutable std::atomic<bool> Full_ = {false};
+    mutable std::atomic<bool> Full_ = false;
 
     struct TTrashChunkEntry
     {
@@ -328,7 +335,7 @@ private:
 
     TSpinLock TrashMapSpinLock_;
     std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
-    i64 TrashDiskSpace_ = 0;
+    std::atomic<i64> TrashDiskSpace_ = 0;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
 
     NConcurrency::IThroughputThrottlerPtr RepairInThrottler_;
@@ -373,9 +380,9 @@ public:
     TCacheLocation(
         const TString& id,
         TCacheLocationConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
-    NConcurrency::IThroughputThrottlerPtr GetInThrottler() const;
+    const NConcurrency::IThroughputThrottlerPtr& GetInThrottler() const;
 
 private:
     const TCacheLocationConfigPtr Config_;
@@ -401,12 +408,10 @@ public:
 
     void Release();
 
-    TPendingIOGuard& operator = (TPendingIOGuard&& other);
+    TPendingIOGuard& operator = (TPendingIOGuard&& other) = default;
 
     explicit operator bool() const;
     i64 GetSize() const;
-
-    friend void swap(TPendingIOGuard& lhs, TPendingIOGuard& rhs);
 
 private:
     friend class TLocation;

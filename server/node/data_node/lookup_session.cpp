@@ -6,7 +6,7 @@
 #include "private.h"
 #include "table_schema_cache.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
 

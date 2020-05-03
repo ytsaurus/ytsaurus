@@ -68,7 +68,7 @@ void SnappyCompress(StreamSource* source, TBlob* output)
     // Snappy implementation relies on entire input length to fit into an integer.
     YT_VERIFY(source->Available() <= std::numeric_limits<int>::max());
 
-    output->Resize(snappy::MaxCompressedLength(source->Available()), false);
+    output->Resize(snappy::MaxCompressedLength(source->Available()), /* initializeStorage */ false);
     snappy::UncheckedByteArraySink writer(output->Begin());
     size_t compressedSize = snappy::Compress(source, &writer);
     output->Resize(compressedSize);
@@ -88,7 +88,7 @@ void SnappyDecompress(StreamSource* source, TBlob* output)
         preloadingSource.begin(),
         preloadingSource.end(),
         &uncompressedSize);
-    output->Resize(uncompressedSize, false);
+    output->Resize(uncompressedSize, /* initializeStorage */ false);
     YT_VERIFY(snappy::RawUncompress(&preloadingSource, output->Begin()));
 }
 

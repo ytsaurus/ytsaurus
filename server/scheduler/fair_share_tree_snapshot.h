@@ -27,6 +27,8 @@ struct IFairShareTreeSnapshot
     virtual bool IsOperationDisabled(TOperationId operationId) const = 0;
     virtual void ApplyJobMetricsDelta(TOperationId operationId, const TJobMetrics& jobMetricsDelta) = 0;
     virtual void ProfileFairShare() const = 0;
+    virtual void LogFairShare(NEventLog::TFluentLogEvent fluent) const = 0;
+    virtual void EssentialLogFairShare(NEventLog::TFluentLogEvent fluent) const = 0;
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
     virtual TJobResources GetTotalResourceLimits() const = 0;
     virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;

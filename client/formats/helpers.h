@@ -32,6 +32,8 @@ void WriteUnversionedValue(const NTableClient::TUnversionedValue& value, IOutput
 
 bool IsAnyOrComposite(const NTableClient::TUnversionedValue& value);
 
+bool IsTrivialIntermediateSchema(const NTableClient::TTableSchema& schema);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFormats

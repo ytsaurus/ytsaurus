@@ -3,7 +3,7 @@
 #include "chunk.h"
 #include "private.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/node/tablet_node/sorted_dynamic_comparer.h>
 
@@ -16,7 +16,7 @@
 
 namespace NYT::NDataNode {
 
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NChunkClient;
 using namespace NTabletNode;
 using namespace NQueryClient;

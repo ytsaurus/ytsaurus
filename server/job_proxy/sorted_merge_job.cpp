@@ -10,7 +10,7 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/table_client/name_table.h>
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/schemaless_sorted_merging_reader.h>
 

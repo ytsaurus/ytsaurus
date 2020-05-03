@@ -687,7 +687,7 @@ print row + table_index
             in_="//tmp/input",
             out="<row_count_limit=3>//tmp/output",
             command=with_breakpoint("cat ; BREAKPOINT"),
-            oredered=ordered,
+            ordered=ordered,
             spec={
                 "data_size_per_job": 1,
                 "max_failed_job_count": 1
@@ -1108,21 +1108,32 @@ print row + table_index
     def test_map_soft_interrupt_job(self):
         create_test_tables(row_count=1)
 
-        command = """BREAKPOINT ; python -c "
+        tmpdir = create_tmpdir("test_map_soft_interrupt_job")
+        tmpfile = os.path.join(tmpdir, "mapper_file")
+
+        command = "BREAKPOINT ; python mapper.py"
+        mapper = \
+"""
 import time
-print('{interrupt=41};')
+print('{{interrupt=41}};')
 try:
+    with open('{tmpfile}', "w"):
+        pass
     time.sleep(10)
 except KeyboardInterrupt:
-    print('{interrupt=42};')
-print('{interrupt=43};')"
-"""
+    print('{{interrupt=42}};')
+print('{{interrupt=43}};')
+""".format(tmpfile=tmpfile)
+
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
 
         op = map(
             track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
             command=with_breakpoint(command),
+            file="//tmp/mapper.py",
             spec={
                 "max_failed_job_count": 0,
                 "mapper": {
@@ -1130,9 +1141,14 @@ print('{interrupt=43};')"
                 },
             })
 
+        def job_is_sleeping():
+            if op.get_state() != "running":
+                op.track()
+            return os.path.exists(tmpfile)
+
         jobs = wait_breakpoint()
         release_breakpoint()
-        time.sleep(1)
+        wait(job_is_sleeping)
         interrupt_job(jobs[0])
         op.track()
 
@@ -1536,14 +1552,14 @@ assert input == ['tskv', 'foo=bar']
 print '{hello=world}'
 
 """
-        create("file", "//tmp/mapper.sh")
-        write_file("//tmp/mapper.sh", mapper)
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
 
         create("table", "//tmp/t_out")
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.sh",
-            file="//tmp/mapper.sh",
+            command="python mapper.py",
+            file="//tmp/mapper.py",
             spec={"mapper": {"input_format": yson.loads("<line_prefix=tskv>dsv")}})
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
@@ -1563,14 +1579,14 @@ input = sys.stdin.readline().strip('\\n')
 assert input == '{"foo"="bar";};'
 print "tskv" + "\\t" + "hello=world"
 """
-        create("file", "//tmp/mapper.sh")
-        write_file("//tmp/mapper.sh", mapper)
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
 
         create("table", "//tmp/t_out")
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.sh",
-            file="//tmp/mapper.sh",
+            command="python mapper.py",
+            file="//tmp/mapper.py",
             spec={"mapper": {
                 "enable_input_table_index": True,
                 "input_format": yson.loads("<format=text>yson"),
@@ -1622,14 +1638,14 @@ assert input == ['key', 'subkey', 'value']
 print '{hello=world}'
 
 """
-        create("file", "//tmp/mapper.sh")
-        write_file("//tmp/mapper.sh", mapper)
+        create("file", "//tmp/mapper.py")
+        write_file("//tmp/mapper.py", mapper)
 
         create("table", "//tmp/t_out")
         map(in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python mapper.sh",
-            file="//tmp/mapper.sh",
+            command="python mapper.py",
+            file="//tmp/mapper.py",
             spec={"mapper": {"input_format": yson.loads("<has_subkey=true>yamr")}})
 
         assert read_table("//tmp/t_out") == [{"hello": "world"}]

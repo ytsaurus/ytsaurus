@@ -1467,7 +1467,8 @@ private:
 
     void BeginUpload()
     {
-        auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>(CellTagFromId(DstObject_.ObjectId));
+        auto dstObjectCellTag = CellTagFromId(DstObject_.ObjectId);
+        auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>(dstObjectCellTag);
 
         auto req = TChunkOwnerYPathProxy::BeginUpload(DstObject_.GetObjectIdPath());
         req->set_update_mode(static_cast<int>(Append_ ? EUpdateMode::Append : EUpdateMode::Overwrite));
@@ -1481,9 +1482,14 @@ private:
         req->set_upload_transaction_title(Format("Concatenating %v to %v",
             srcObjectPaths,
             DstObject_.GetPath()));
-        // NB: Replicate upload transaction to each secondary cell since we have
+        // NB: Replicate upload transaction to all cells since we have
         // no idea as of where the chunks we're about to attach may come from.
-        ToProto(req->mutable_upload_transaction_secondary_cell_tags(), Client_->Connection_->GetSecondaryMasterCellTags());
+        auto cellTags = Client_->Connection_->GetSecondaryMasterCellTags();
+        cellTags.push_back(Client_->Connection_->GetPrimaryMasterCellTag());
+        cellTags.erase(
+            std::remove(cellTags.begin(), cellTags.end(), dstObjectCellTag),
+            cellTags.end());
+        ToProto(req->mutable_upload_transaction_secondary_cell_tags(), cellTags);
         req->set_upload_transaction_timeout(ToProto<i64>(Client_->Connection_->GetConfig()->UploadTransactionTimeout));
         NRpc::GenerateMutationId(req);
         Client_->SetTransactionId(req, Options_, true);

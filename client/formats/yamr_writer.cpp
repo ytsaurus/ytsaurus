@@ -107,7 +107,8 @@ private:
             }
 
             if (!key) {
-                THROW_ERROR_EXCEPTION("Missing key column %Qv in YAMR record", config->Key);
+                THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Missing key column %Qv in YAMR record",
+                    config->Key);
             }
 
             if (!subkey) {
@@ -115,7 +116,8 @@ private:
             }
 
             if (!value) {
-                THROW_ERROR_EXCEPTION("Missing value column %Qv in YAMR record", config->Value);
+                THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Missing value column %Qv in YAMR record",
+                    config->Value);
             }
 
             if (!config->Lenval) {
@@ -144,7 +146,7 @@ private:
     void ValidateColumnType(const TUnversionedValue* value, TStringBuf columnName)
     {
         if (value->Type != EValueType::String) {
-            THROW_ERROR_EXCEPTION("Wrong type %Qlv of column %Qv in YAMR record",
+            THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Wrong type %Qlv of column %Qv in YAMR record",
                 value->Type,
                 columnName);
         }

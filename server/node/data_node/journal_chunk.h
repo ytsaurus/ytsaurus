@@ -1,6 +1,5 @@
 #pragma once
 
-#include "public.h"
 #include "chunk_detail.h"
 
 #include <yt/server/lib/hydra/public.h>
@@ -14,11 +13,11 @@ class TJournalChunk
 {
 public:
     TJournalChunk(
-        NCellNode::TBootstrap* bootstrap,
+        NClusterNode::TBootstrap* bootstrap,
         TStoreLocationPtr location,
         const TChunkDescriptor& descriptor);
 
-    TStoreLocationPtr GetStoreLocation() const;
+    const TStoreLocationPtr& GetStoreLocation() const;
 
     virtual void SyncRemove(bool force) override;
 
@@ -40,13 +39,9 @@ public:
         int blockCount,
         const TBlockReadOptions& options) override;
 
-    void AttachChangelog(NHydra::IChangelogPtr changelog);
-    void DetachChangelog();
-    bool HasAttachedChangelog() const;
-    NHydra::IChangelogPtr GetAttachedChangelog() const;
-
-    i64 GetRowCount() const;
-    i64 GetDataSize() const;
+    void UpdateCachedParams(const NHydra::IChangelogPtr& changelog);
+    i64 GetCachedRowCount() const;
+    i64 GetCachedDataSize() const;
 
     TFuture<void> Seal();
     bool IsSealed() const;
@@ -54,15 +49,12 @@ public:
 private:
     const TStoreLocationPtr StoreLocation_;
 
-    const NChunkClient::TRefCountedChunkMetaPtr Meta_;
+    std::atomic<bool> Active_ = false;
 
-    bool Active_ = false;
-    NHydra::IChangelogPtr Changelog_;
-
-    mutable i64 CachedRowCount_ = 0;
-    mutable i64 CachedDataSize_ = 0;
-
-    mutable bool Sealed_ = false;
+    std::atomic<i64> CachedRowCount_ = 0;
+    std::atomic<i64> CachedDataSize_ = 0;
+    
+    std::atomic<bool> Sealed_ = false;
 
     struct TReadBlockRangeSession
         : public TReadSessionBase
@@ -74,38 +66,12 @@ private:
 
     using TReadBlockRangeSessionPtr = TIntrusivePtr<TReadBlockRangeSession>;
 
-
-    NChunkClient::TRefCountedChunkMetaPtr DoReadMeta(
-        const TReadMetaSessionPtr& session,
-        const std::optional<std::vector<int>>& extensionTags);
-
-    void UpdateCachedParams() const;
-
     virtual TFuture<void> AsyncRemove() override;
 
     void DoReadBlockRange(const TReadBlockRangeSessionPtr& session);
 };
 
 DEFINE_REFCOUNTED_TYPE(TJournalChunk)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TJournalChunkChangelogGuard
-{
-public:
-    TJournalChunkChangelogGuard() = default;
-    TJournalChunkChangelogGuard(TJournalChunkPtr chunk, NHydra::IChangelogPtr changelog);
-    TJournalChunkChangelogGuard(TJournalChunkChangelogGuard&& other) = default;
-    ~TJournalChunkChangelogGuard();
-
-    TJournalChunkChangelogGuard& operator = (TJournalChunkChangelogGuard&& other);
-
-    friend void swap(TJournalChunkChangelogGuard& lhs, TJournalChunkChangelogGuard& rhs);
-
-private:
-    TJournalChunkPtr Chunk_;
-
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

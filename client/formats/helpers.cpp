@@ -3,6 +3,8 @@
 #include "escape.h"
 #include "format.h"
 
+#include <yt/client/table_client/schema.h>
+
 #include <yt/core/misc/format.h>
 
 namespace NYT::NFormats {
@@ -78,13 +80,30 @@ void WriteUnversionedValue(const TUnversionedValue& value, IOutputStream* output
         case EValueType::TheBottom:
             break;
     }
-    THROW_ERROR_EXCEPTION("Values of type %Qlv are not supported by the chosen format", value.Type)
+    THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Values of type %Qlv are not supported by the chosen format", value.Type)
         << TErrorAttribute("value", ToString(value));
 }
 
 bool IsAnyOrComposite(const TUnversionedValue& value)
 {
     return value.Type == EValueType::Any || value.Type == EValueType::Composite;
+}
+
+bool IsTrivialIntermediateSchema(const NTableClient::TTableSchema& schema)
+{
+    // Here we make expected objects.
+    // It might be not that efficient, but we don't want this code to be fast, we want it to be reliable.
+    // Creating expected objects checks that all attributes have their default values
+    // (including future attributes that might be introduced)
+
+    TKeyColumns columnNames;
+    for (const auto& column : schema.Columns()) {
+        columnNames.push_back(column.Name());
+    }
+
+    // Columns are ok, we check other schema attributes.
+    auto expectedSchema = TTableSchema::FromKeyColumns(columnNames);
+    return schema == expectedSchema;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

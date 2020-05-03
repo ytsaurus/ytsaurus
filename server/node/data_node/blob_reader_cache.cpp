@@ -5,7 +5,7 @@
 #include "location.h"
 #include "chunk_meta_manager.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/ytlib/chunk_client/file_reader.h>
 
@@ -16,6 +16,7 @@
 namespace NYT::NDataNode {
 
 using namespace NChunkClient;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +88,7 @@ class TBlobReaderCache::TImpl
 public:
     TImpl(
         const TDataNodeConfigPtr& config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : TAsyncSlruCacheBase(
             config->BlobReaderCache,
             DataNodeProfiler.AppendPath("/block_reader_cache"))
@@ -97,8 +98,8 @@ public:
 
     TFileReaderPtr GetReader(const TBlobChunkBasePtr& chunk)
     {
-        auto guard = TChunkReadGuard::AcquireOrThrow(chunk);
-        auto location = chunk->GetLocation();
+        auto readGuard = TChunkReadGuard::Acquire(chunk);
+        const auto& location = chunk->GetLocation();
         auto chunkId = chunk->GetId();
         auto cookie = BeginInsert(MakeReaderCacheKey(chunk.Get()));
         if (cookie.IsActive()) {
@@ -107,25 +108,25 @@ public:
                 location->GetId(),
                 chunkId);
 
-            {
-                NProfiling::TAggregatedTimingGuard(&location->GetProfiler(), &location->GetPerformanceCounters().BlobChunkReaderOpenTime);
-                try {
-                    auto reader = New<TCachedReader>(
-                        Bootstrap_->GetChunkMetaManager(),
-                        chunk,
-                        fileName,
-                        Config_->ValidateBlockChecksums);
-                    cookie.EndInsert(reader);
-                } catch (const std::exception& ex) {
-                    auto error = TError(
-                        NChunkClient::EErrorCode::IOError,
-                        "Error opening blob chunk %v",
-                        chunkId)
-                        << ex;
-                    cookie.Cancel(error);
-                    chunk->GetLocation()->Disable(error);
-                    YT_ABORT(); // Disable() exits the process.
-                }
+            try {
+                NProfiling::TAggregatedTimingGuard timingGuard(
+                    &location->GetProfiler(),
+                    &location->GetPerformanceCounters().BlobChunkReaderOpenTime);
+
+                auto reader = New<TCachedReader>(
+                    Bootstrap_->GetChunkMetaManager(),
+                    chunk,
+                    fileName,
+                    Config_->ValidateBlockChecksums);
+                cookie.EndInsert(reader);
+            } catch (const std::exception& ex) {
+                auto error = TError(
+                    NChunkClient::EErrorCode::IOError,
+                    "Error opening blob chunk %v",
+                    chunkId)
+                    << ex;
+                cookie.Cancel(error);
+                chunk->GetLocation()->Disable(error);
             }
 
             YT_LOG_TRACE("Finished opening blob chunk reader (LocationId: %v, ChunkId: %v)",
@@ -133,7 +134,8 @@ public:
                 chunkId);
         }
 
-        return cookie.GetValue().Get().ValueOrThrow();
+        return WaitFor(cookie.GetValue())
+            .ValueOrThrow();
     }
 
     void EvictReader(TBlobChunkBase* chunk)
@@ -143,7 +145,7 @@ public:
 
 private:
     const TDataNodeConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
 };
 
@@ -151,7 +153,7 @@ private:
 
 TBlobReaderCache::TBlobReaderCache(
     TDataNodeConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         std::move(config),
         bootstrap))

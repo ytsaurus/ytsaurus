@@ -65,8 +65,8 @@ public:
     {
         RpcServer_->RegisterService(this);
 
-        UpdatePeriodicExecutor_->Start();
         UpdateUniformLimitDistribution();
+        UpdatePeriodicExecutor_->Start();
     }
 
     void Finalize()
@@ -135,19 +135,19 @@ private:
 
     void UpdateUniformLimitDistribution()
     {
-        auto countRspOrError = WaitFor(DiscoveryClient_->GetGroupSize(GroupId_));
+        auto countRspOrError = WaitFor(DiscoveryClient_->GetGroupMeta(GroupId_));
         if (!countRspOrError.IsOK()) {
             YT_LOG_WARNING(countRspOrError, "Error updating throttler limits");
             return;
         }
 
-        auto totalCount = countRspOrError.Value();
+        auto totalCount = countRspOrError.Value().MemberCount;
         if (totalCount == 0) {
             YT_LOG_WARNING("No members in current group");
             return;
         }
 
-        UniformLimit_ = TotalLimit_.load() / totalCount;
+        UniformLimit_ = std::max<i64>(1, TotalLimit_.load() / totalCount);
         YT_LOG_DEBUG("Uniform distribution limit updated (Value: %v)", UniformLimit_);
     }
 

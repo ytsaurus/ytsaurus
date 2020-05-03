@@ -36,6 +36,8 @@ public:
     TDuration ClientWriteTimeout;
     TDuration ServerWriteTimeout;
 
+    ssize_t WindowSize;
+
     TRemoteDynamicStoreReaderConfig()
     {
         RegisterParameter("client_read_timeout", ClientReadTimeout)
@@ -46,10 +48,38 @@ public:
             .Default(TDuration::Seconds(20));
         RegisterParameter("server_write_timeout", ServerWriteTimeout)
             .Default(TDuration::Seconds(20));
+
+        RegisterParameter("window_size", WindowSize)
+            .Default(16_MB)
+            .GreaterThan(0);
     }
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteDynamicStoreReaderConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRetryingRemoteDynamicStoreReaderConfig
+    : public TRemoteDynamicStoreReaderConfig
+{
+public:
+    //! Maximum number of locate requests.
+    int RetryCount;
+
+    //! Time to wait between making another locate request.
+    TDuration LocateRequestBackoffTime;
+
+    TRetryingRemoteDynamicStoreReaderConfig()
+    {
+        RegisterParameter("retry_count", RetryCount)
+            .Default(10)
+            .GreaterThan(0);
+        RegisterParameter("locate_request_backoff_time", LocateRequestBackoffTime)
+            .Default(TDuration::Seconds(10));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TRetryingRemoteDynamicStoreReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
